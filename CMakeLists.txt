@@ -29,13 +29,13 @@ if(PLATFORM_WINDOWS)
     link_directories(${CMAKE_SOURCE_DIR}/external/glfw/lib-vc2022)
     
     # Bullet libraries path (adjust based on your build configuration)
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        link_directories(${BULLET_ROOT}/build/lib/Debug)
-        set(BULLET_LIBS BulletDynamics_Debug BulletCollision_Debug LinearMath_Debug)
-    else()
-        link_directories(${BULLET_ROOT}/build/lib/Release)
-        set(BULLET_LIBS BulletDynamics BulletCollision LinearMath)
-    endif()
+    # Use generator expressions for multi-config generators like Visual Studio
+    link_directories(${BULLET_ROOT}/build/lib/$<CONFIG>)
+    set(BULLET_LIBS 
+        $<$<CONFIG:Debug>:BulletDynamics_Debug>$<$<NOT:$<CONFIG:Debug>>:BulletDynamics>
+        $<$<CONFIG:Debug>:BulletCollision_Debug>$<$<NOT:$<CONFIG:Debug>>:BulletCollision>
+        $<$<CONFIG:Debug>:LinearMath_Debug>$<$<NOT:$<CONFIG:Debug>>:LinearMath>
+    )
     
     include_directories(${BULLET_INCLUDE_DIR})
     
