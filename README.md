@@ -48,9 +48,11 @@ src/
 
 #### All Platforms
 - **C++17** compiler
-- **Vulkan SDK** (1.3+)
+- **Vulkan SDK** (1.3+) - Download from [LunarG](https://vulkan.lunarg.com/)
 - **CMake** (3.10+)
 - **Git** (for submodules)
+
+**Important**: After installing Vulkan SDK, restart your command prompt/IDE to ensure environment variables are loaded.
 
 #### Linux (Ubuntu/Debian)
 - **GCC 9+** or **Clang 10+**
@@ -66,9 +68,12 @@ sudo apt install libglfw3-dev libglm-dev
 
 #### Windows
 - **Visual Studio 2019+** or **MinGW-w64**
-- **Vulkan SDK** from LunarG
-- **GLFW** precompiled binaries (place in `external/glfw/`)
-- **GLM** headers (place in `external/glm/`)
+- **Vulkan SDK** from [LunarG](https://vulkan.lunarg.com/) - **Required!**
+- **GLFW** precompiled binaries (download from [GLFW website](https://www.glfw.org/download.html))
+- **GLM** headers (automatically included as submodule)
+- **Bullet3** physics engine (automatically included as submodule)
+
+**Note**: GLFW uses prebuilt binaries for faster build times and stability. Download the Windows pre-compiled binaries and extract to `external/glfw/`.
 
 ### Build Steps
 
@@ -76,15 +81,15 @@ sudo apt install libglfw3-dev libglm-dev
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd vulkan_game
+cd phyxel
 
-# Initialize submodules
+# Initialize submodules (this downloads Bullet3 and GLM automatically)
 git submodule update --init --recursive
 
 # Create build directory
 mkdir build && cd build
 
-# Configure and build
+# Configure and build (Bullet3 and GLM will be built automatically)
 cmake ..
 make -j$(nproc)
 
@@ -96,32 +101,23 @@ make -j$(nproc)
 ```cmd
 # Clone the repository
 git clone <repository-url>
-cd vulkan_game
+cd phyxel
 
-# Initialize submodules
+# Initialize submodules (this downloads Bullet3 and GLM automatically)
 git submodule update --init --recursive
 
-# Ensure dependencies are in place:
-# - external/glfw/include/ (GLFW headers)
-# - external/glfw/lib-vc2022/ (GLFW libraries)
-# - external/glm/ (GLM headers)
-# - external/bullet3/ (Bullet Physics source - already included as submodule)
+# Download and setup GLFW manually:
+# 1. Download GLFW pre-compiled binaries from https://www.glfw.org/download.html
+# 2. Extract to external/glfw/ (should contain include/ and lib-vc2022/ folders)
+# 3. Verify external/glfw/lib-vc2022/glfw3.lib exists
 
-# Build Bullet Physics first
-cd external/bullet3
+# Ensure Vulkan SDK is installed and restart terminal if just installed
+
+# Create build directory and configure
 mkdir build && cd build
-# cmake .. -DCMAKE_BUILD_TYPE=Debug
-cmake -G "Visual Studio 17 2022" -A x64 -DUSE_MSVC_RUNTIME_LIBRARY_DLL=ON -DCMAKE_BUILD_TYPE=Debug ..
-cmake --build . --config Debug
-cd ../../..
+cmake .. -G "Visual Studio 17 2022" -A x64
 
-# Create build directory
-mkdir build && cd build
-
-# Configure with Visual Studio
-cmake .. -G "Visual Studio 16 2019" -A x64
-
-# Build
+# Build (Bullet3 will be built automatically with proper runtime compatibility)
 cmake --build . --config Debug
 
 # Run the application (will be copied to project root)
@@ -129,26 +125,46 @@ cd ..
 VulkanCube.exe
 ```
 
+## Troubleshooting
+
+### "Could NOT find Vulkan" Error
+```bash
+# Install Vulkan SDK from https://vulkan.lunarg.com/
+# Restart your command prompt/IDE after installation
+# Verify installation:
+echo %VULKAN_SDK%  # Should show path like C:\VulkanSDK\1.x.x.x
+```
+
+### "glfw3.lib not found" Error
+```bash
+# Download GLFW from https://www.glfw.org/download.html
+# Extract to external/glfw/
+# Verify: external/glfw/lib-vc2022/glfw3.lib exists
+```
+
+### Linux Build Issues
+```bash
+# If missing dependencies:
+sudo apt update
+sudo apt install libvulkan-dev vulkan-utils libglfw3-dev
+
+# If Vulkan validation layers missing:
+sudo apt install vulkan-validationlayers-dev
+```
+
 #### Windows (MinGW)
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd vulkan_game
+cd phyxel
 
-# Initialize submodules
+# Initialize submodules (this downloads Bullet3 and GLM automatically)
 git submodule update --init --recursive
-
-# Build Bullet Physics
-cd external/bullet3
-mkdir build && cd build
-cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug
-cmake --build .
-cd ../../..
 
 # Create build directory
 mkdir build && cd build
 
-# Configure and build
+# Configure and build (Bullet3 and GLM will be built automatically)
 cmake .. -G "MinGW Makefiles"
 cmake --build .
 
@@ -217,17 +233,23 @@ VulkanCube is designed to work on both **Linux** and **Windows** platforms:
 ### Dependencies Structure
 ```
 external/
-├── bullet3/           # Cross-platform (submodule, built from source)
-├── glfw/             # Windows only (precompiled binaries)
-│   ├── include/
-│   └── lib-vc2022/
-└── glm/              # Windows only (header-only library)
+├── bullet3/           # Cross-platform (submodule, built automatically)
+├── glfw/             # Windows only (prebuilt binaries for fast builds)
+│   ├── include/      # Download from glfw.org
+│   └── lib-vc2022/   # Multiple compiler versions supported
+└── glm/              # Cross-platform (submodule, header-only)
 ```
+
+### Build Strategy Rationale
+- **GLFW**: Prebuilt binaries for faster builds and stability
+- **Bullet3**: Submodule for latest physics features and customization
+- **GLM**: Submodule header-only library (no build time impact)
 
 ### Build Configuration
 The CMakeLists.txt automatically detects the platform and configures dependencies accordingly:
-- **Linux**: Uses `find_package()` for system libraries
-- **Windows**: Uses local copies and manual path configuration
+- **Linux**: Uses `find_package()` for system libraries, builds Bullet3 from submodule
+- **Windows**: Uses local copies for GLFW/GLM, builds Bullet3 from submodule
+- **Cross-platform**: Bullet3 is automatically built from the submodule on all platforms
 
 ## Development
 
