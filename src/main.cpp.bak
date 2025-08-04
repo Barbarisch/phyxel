@@ -1,0 +1,2818 @@
+#define GLFW_INCLUDE_VULKAN
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/string_cast.hpp>  // for glm::to_string
+
+#include <btBulletDynamicsCommon.h>
+
+#include <iostream>
+#include <stdexcept>
+#include <cstdlib>
+#include <vector>
+#include <cstring>
+#include <optional>
+#include <set>
+#include <fstream>
+#include <array>
+#include <algorithm>
+#include <unordered_map>
+#include <random>
+#include <bitset>
+#include <chrono>
+#include <thread>
+
+#include "cube.h"
+
+const uint32_t WIDTH = 1200;
+const uint32_t HEIGHT = 720;
+const std::vector<const char*> validationLayers = {
+    "VK_LAYER_KHRONOS_validation"
+};
+
+#ifdef NDEBUG
+const bool enableValidationLayers = false;
+#else
+const bool enableValidationLayers = true;
+#endif
+
+float randomFloat(float strength = 2.0f) {
+    static std::mt19937 rng(std::random_device{}());
+    std::uniform_real_distribution<float> dist(-strength, strength);
+    return dist(rng);
+}
+
+struct QueueFamilyIndices {
+    std::optional<uint32_t> graphicsFamily;
+    std::optional<uint32_t> presentFamily;
+
+    bool isComplete() {
+        return graphicsFamily.has_value() && presentFamily.has_value();
+    }
+};
+
+QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface) {
+    QueueFamilyIndices indices;
+
+    uint32_t queueFamilyCount = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+    std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
+    int i = 0;
+    for (const auto& queueFamily : queueFamilies) {
+        if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+            indices.graphicsFamily = i;
+        }
+
+        VkBool32 presentSupport = false;
+        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+        if (presentSupport) {
+            indices.presentFamily = i;
+        }
+
+        if (indices.isComplete()) break;
+        i++;
+    }
+
+    return indices;
+}
+
+struct InstanceData {
+    glm::vec3 offset;
+    glm::vec3 color;
+    uint32_t faceMask;  // 6 bits for face visibility: bit0=front, bit1=back, bit2=right, bit3=left, bit4=top, bit5=bottom
+};
+
+inline VkVertexInputBindingDescription getInstanceBindingDescription() {
+    VkVertexInputBindingDescription desc{};
+    desc.binding = 1;  // Unified binding for offset and color
+    desc.stride = sizeof(InstanceData);  // Whole struct
+    desc.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+    return desc;
+}
+
+inline VkVertexInputAttributeDescription getInstanceAttributeDescription() {
+    VkVertexInputAttributeDescription desc{};
+    desc.binding = 1;       // Match buffer binding
+    desc.location = 1;      // Shader layout(location = 1)
+    desc.format = VK_FORMAT_R32G32B32_SFLOAT;
+    desc.offset = offsetof(InstanceData, offset);  // Correct offset into struct
+    return desc;
+}
+
+inline VkVertexInputAttributeDescription getInstanceColorAttributeDescription() {
+    VkVertexInputAttributeDescription desc{};
+    desc.binding = 1;       // Same buffer
+    desc.location = 2;      // Shader layout(location = 2)
+    desc.format = VK_FORMAT_R32G32B32_SFLOAT;
+    desc.offset = offsetof(InstanceData, color);  // Correct offset into struct
+    return desc;
+}
+
+inline VkVertexInputAttributeDescription getInstanceFaceMaskAttributeDescription() {
+    VkVertexInputAttributeDescription desc{};
+    desc.binding = 1;       // Same buffer as other instance data
+    desc.location = 3;      // Shader layout(location = 3) 
+    desc.format = VK_FORMAT_R32_UINT;  // 32-bit unsigned integer for face mask
+    desc.offset = offsetof(InstanceData, faceMask);  // Correct offset into struct
+    return desc;
+}
+
+static std::vector<char> readFile(const std::string& filename) {
+    std::ifstream file(filename, std::ios::ate | std::ios::binary);
+    if (!file.is_open()) throw std::runtime_error("Failed to open file!");
+
+    size_t fileSize = (size_t) file.tellg();
+    std::vector<char> buffer(fileSize);
+
+    file.seekg(0);
+    file.read(buffer.data(), fileSize);
+    file.close();
+
+    return buffer;
+}
+
+// frustum culling
+struct AABB {
+    glm::vec3 min;
+    glm::vec3 max;
+};
+//////
+
+// physics
+
+////////////
+
+struct ivec3_hash {
+    std::size_t operator()(const glm::ivec3& v) const noexcept {
+        return std::hash<int>()(v.x) ^ (std::hash<int>()(v.y) << 1) ^ (std::hash<int>()(v.z) << 2);
+    }
+};
+
+struct Chunk {
+    glm::ivec3 chunkPosition;
+    std::vector<InstanceData> cubes;
+    VkDeviceSize instanceBufferOffset;  // Offset into global instanceBuffer
+    bool dirty = true;
+};
+
+class VulkanApp {
+public:
+    void run() {
+        initWindow();
+        initVulkan();
+        mainLoop();
+        cleanup();
+    }
+
+private:
+    const std::vector<const char*> deviceExtensions = {
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME
+    };
+
+    GLFWwindow* window;
+    VkInstance instance;
+    VkSurfaceKHR surface;
+    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+    VkDevice device;
+
+    VkQueue graphicsQueue;
+    VkQueue presentQueue;
+
+    VkSwapchainKHR swapChain;
+    std::vector<VkImage> swapChainImages;
+    std::vector<VkImageView> swapChainImageViews;
+    VkFormat swapChainImageFormat;
+    VkExtent2D swapChainExtent;
+
+    VkRenderPass renderPass;
+    VkPipelineLayout pipelineLayout;
+    VkPipeline graphicsPipeline;
+    std::vector<VkFramebuffer> swapChainFramebuffers;
+
+    VkCommandPool commandPool;
+    std::vector<VkCommandBuffer> commandBuffers;
+
+    VkBuffer vertexBuffer;
+    VkDeviceMemory vertexBufferMemory;
+
+    VkBuffer indexBuffer;
+    VkDeviceMemory indexBufferMemory;
+
+    const int MAX_FRAMES_IN_FLIGHT = 2;
+    size_t currentFrame = 0;
+
+    std::vector<VkSemaphore> imageAvailableSemaphores;
+    std::vector<VkSemaphore> renderFinishedSemaphores;
+    std::vector<VkFence> inFlightFences;
+
+    VkDebugUtilsMessengerEXT debugMessenger;
+
+    struct UniformBufferObject {
+        glm::mat4 view;
+        glm::mat4 proj;
+        alignas(4) uint32_t numInstances;
+    };
+
+    std::vector<VkDeviceMemory> uniformBuffersMemory;
+    std::vector<VkBuffer> uniformBuffers;
+
+    VkDescriptorSetLayout descriptorSetLayout;
+    VkDescriptorPool descriptorPool;
+    std::vector<VkDescriptorSet> descriptorSets;
+
+    VkImage depthImage;
+    VkDeviceMemory depthImageMemory;
+    VkImageView depthImageView;
+
+    //instancing
+    VkBuffer instanceBuffer;
+    VkDeviceMemory instanceBufferMemory;
+
+    //std::unordered_map<glm::ivec3, Cube*, ivec3_hash> cubeMap;
+    std::vector<Cube*> cubes;  // Size will be 32*32*32
+    std::vector<InstanceData> renderInstances;
+    std::vector<Subcube> subcubes;
+
+    glm::vec3 cameraPos = glm::vec3(10.0f, 10.0f, 10.0f);
+    glm::vec3 cameraFront = glm::normalize(glm::vec3(0.0f) - cameraPos);
+    glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+
+    float yaw = -135.0f;  // initialized to face the origin
+    float pitch = -30.0f;
+
+    float lastX = WIDTH / 2.0f;
+    float lastY = HEIGHT / 2.0f;
+    bool firstMouse = true;
+
+    float deltaTime = 0.0f;
+    float lastFrame = 0.0f;
+
+    int selectedInstance = -1;
+    Cube* hoveredCube = nullptr;
+
+    // frustum
+    VkBuffer aabbBuffer;
+    VkDeviceMemory aabbBufferMemory;
+    VkBuffer visibleBuffer;
+    VkDeviceMemory visibleBufferMemory;
+    VkPipeline computePipeline;
+    VkPipelineLayout computePipelineLayout;
+    VkDescriptorSetLayout computeDescriptorSetLayout;
+    VkDescriptorPool computeDescriptorPool;
+    VkDescriptorSet computeDescriptorSet;
+    ///////
+
+    // indirect rendering
+    VkBuffer indirectDrawBuffer;
+    VkDeviceMemory indirectDrawBufferMemory;
+    VkBuffer drawCommandBuffer;
+    VkDeviceMemory drawCommandBufferMemory;
+    ////////
+
+    // Bullet stuff
+    btBroadphaseInterface* broadphase = nullptr;
+    btDefaultCollisionConfiguration* collisionConfig = nullptr;
+    btCollisionDispatcher* dispatcher = nullptr;
+    btSequentialImpulseConstraintSolver* solver = nullptr;
+    btDiscreteDynamicsWorld* dynamicsWorld = nullptr;
+
+    //int breakableCubeIndex = 1; // Index in instanceData
+    //std::vector<btRigidBody*> fallingBodies;
+    std::vector<btRigidBody*> fallingCubeBodies;
+    std::vector<glm::vec3> fallingCubeColors;
+    ////////////
+
+    std::unordered_map<glm::ivec3, Chunk, ivec3_hash> chunks;
+
+    std::vector<CubeFaces> cubeFaces;  // Face visibility for each cube
+
+    struct FrameTiming {
+        double cpuFrameTime = 0.0;
+        double gpuFrameTime = 0.0;
+        int vertexCount = 0;
+        int drawCalls = 0;
+        int culledInstances = 0;
+        int visibleInstances = 0;
+    };
+
+    std::vector<FrameTiming> frameTimings;
+    std::chrono::high_resolution_clock::time_point frameStartTime;
+    VkQueryPool timestampQueryPool;
+    std::vector<uint64_t> timestampResults;
+    double timestampPeriod;
+
+    struct DetailedFrameTiming {
+        double totalFrameTime = 0.0;
+        double mousePickTime = 0.0;
+        double uboFillTime = 0.0;
+        double instanceUpdateTime = 0.0;
+        double drawCmdUpdateTime = 0.0;
+        double uniformUploadTime = 0.0;
+        double commandRecordTime = 0.0;
+        double gpuSubmitTime = 0.0;
+        double presentTime = 0.0;
+    };
+
+    std::vector<DetailedFrameTiming> detailedTimings;
+
+    void initWindow() {
+        glfwInit();
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan Cube", nullptr, nullptr);
+
+        glfwMakeContextCurrent(window);
+        glfwFocusWindow(window);
+
+        glfwSetWindowUserPointer(window, this);
+        glfwSetCursorPos(window, WIDTH / 2.0, HEIGHT / 2.0);
+
+        if (glfwRawMouseMotionSupported()) {
+            glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+        }
+
+        glfwSetCursorPosCallback(window, mouseCallback);
+        glfwSetMouseButtonCallback(window, mouseButtonCallback);
+    }
+
+    void initVulkan() {
+        createInstance();
+        setupDebugMessenger();
+        createSurface();
+        pickPhysicalDevice();
+        createLogicalDevice();
+        createSwapChain();
+        createImageViews();
+        createDepthResources();
+        createRenderPass();
+
+        createDescriptorSetLayout(); // graphics descriptor set layout
+        createComputeDescriptorSetLayout(); // compute descriptor set layout
+
+        createGraphicsPipeline();
+        createComputePipeline();
+
+        createCommandPool();
+
+        createVertexBuffer();
+        createIndexBuffer();
+
+        // ---- Bullet Physics Init ----
+        broadphase = new btDbvtBroadphase();
+        collisionConfig = new btDefaultCollisionConfiguration();
+        dispatcher = new btCollisionDispatcher(collisionConfig);
+        solver = new btSequentialImpulseConstraintSolver();
+
+        dynamicsWorld = new btDiscreteDynamicsWorld(dispatcher, broadphase, solver, collisionConfig);
+        dynamicsWorld->setGravity(btVector3(0, -9.81f, 0));
+
+        std::cout << "✅ Bullet Physics initialized\n";
+        ////////////////////////////////
+
+        initInstancePositions(32);
+
+        createInstanceBuffer(); // create instanceBuffer and aabbBuffer
+        createVisibilityBuffer(renderInstances.size());
+        clearVisibilityBuffer(renderInstances.size());
+        createUniformBuffers();
+        createIndirectDrawBuffer();
+        createDrawCommandBuffer();
+
+        createDescriptorPool();
+        createDescriptorSets(); // graphics
+        createComputeDescriptorSet(); // compute
+
+        createFramebuffers();
+        createCommandBuffers();
+        
+        createSyncObjects();
+
+        createTimestampQueryPool();
+        printMemoryUsage();
+    }
+
+    void mainLoop() {
+        double lastTime = glfwGetTime();
+        double fpsTimer = lastTime;
+        int frameCount = 0;
+        
+        while (!glfwWindowShouldClose(window)) {
+            frameStartTime = std::chrono::high_resolution_clock::now();
+            
+            double currentTime = glfwGetTime();
+            deltaTime = currentTime - lastFrame;
+            lastFrame = currentTime;
+
+            glfwPollEvents();
+            processInput(window);
+            
+            drawFrame();
+            
+            // Profile the frame AFTER drawFrame so we get current frustum culling results
+            FrameTiming timing = profileFrame();
+            frameTimings.push_back(timing);
+            
+            // Keep only last 60 frames for analysis
+            if (frameTimings.size() > 60) {
+                frameTimings.erase(frameTimings.begin());
+            }
+
+            frameCount++;
+            if (currentTime - fpsTimer >= 1.0) {
+                printProfilingInfo(frameCount);
+                printDetailedTimings();
+                frameCount = 0;
+                fpsTimer = currentTime;
+            }
+        }
+
+        vkDeviceWaitIdle(device);
+    }
+
+    void cleanup() {
+        // Clean up per-image semaphores
+        for (size_t i = 0; i < imageAvailableSemaphores.size(); i++) {
+            vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
+            vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
+        }
+        
+        // Clean up per-frame fences
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            vkDestroyFence(device, inFlightFences[i], nullptr);
+        }
+
+        vkDestroyBuffer(device, vertexBuffer, nullptr);
+        vkFreeMemory(device, vertexBufferMemory, nullptr);
+
+        vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+        vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            vkDestroyBuffer(device, uniformBuffers[i], nullptr);
+            vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
+        }
+
+        vkDestroyBuffer(device, indexBuffer, nullptr);
+        vkFreeMemory(device, indexBufferMemory, nullptr);
+
+        for (auto framebuffer : swapChainFramebuffers) {
+            vkDestroyFramebuffer(device, framebuffer, nullptr);
+        }
+        vkDestroyCommandPool(device, commandPool, nullptr);
+
+        // if (enableValidationLayers) {
+        //     destroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
+        // }
+
+        vkDestroySurfaceKHR(instance, surface, nullptr);
+        vkDestroyInstance(instance, nullptr);
+
+        glfwDestroyWindow(window);
+        glfwTerminate();
+
+        // for (auto& [pos, cube] : cubeMap) {
+        //     delete cube;
+        // }
+        // cubeMap.clear();
+
+        // physics
+        delete dynamicsWorld;
+        delete solver;
+        delete dispatcher;
+        delete collisionConfig;
+        delete broadphase;
+
+        std::cout << "🧹 Bullet Physics shut down\n";
+    }
+
+    // Convert 3D position to 1D index
+    int positionToIndex(int x, int y, int z) {
+        return x + y * 32 + z * 32 * 32;
+    }
+
+    // Convert 1D index back to 3D position
+    glm::ivec3 indexToPosition(int index) {
+        int z = index / (32 * 32);
+        int y = (index % (32 * 32)) / 32;
+        int x = index % 32;
+        return glm::ivec3(x, y, z);
+    }
+
+    // Convert CubeFaces struct to 6-bit bitmask for GPU
+    uint32_t facesToBitmask(const CubeFaces& faces) {
+        //return 0b111111;
+        uint32_t mask = 0;
+        if (faces.front)  mask |= (1 << 0);  // bit 0
+        if (faces.back)   mask |= (1 << 1);  // bit 1  
+        if (faces.right)  mask |= (1 << 2);  // bit 2
+        if (faces.left)   mask |= (1 << 3);  // bit 3
+        if (faces.top)    mask |= (1 << 4);  // bit 4
+        if (faces.bottom) mask |= (1 << 5);  // bit 5
+        return mask;
+    }
+
+    void initInstancePositions(int size) {
+        std::vector<glm::vec3> palette = {
+                        //{1.0f, 0.0f, 0.0f}, // red
+                        {0.0f, 1.0f, 0.0f}, // green
+                        {0.0f, 0.0f, 1.0f}, // blue
+                        {1.0f, 1.0f, 0.0f}, // yellow
+                        {1.0f, 0.0f, 1.0f}, // magenta
+                        {0.0f, 1.0f, 1.0f} // cyan
+                    };
+
+        int gridSizeX = size;
+        int gridSizeZ = size;
+        int gridSizeY = 32;  // height layers
+        //float spacing = 1.0f;  // Exactly 1.0 to make cubes touch
+
+        cubes.resize(gridSizeX * gridSizeY * gridSizeZ, nullptr);
+
+        // Store cubes directly by index
+        for (int y = 0; y < gridSizeY; ++y) {
+            for (int z = 0; z < gridSizeZ; ++z) {
+                for (int x = 0; x < gridSizeX; ++x) {
+
+                    glm::ivec3 offset(x, y, z);
+                    glm::ivec3 position = offset; //glm::vec3(offset) * spacing;
+
+                    glm::vec3 color = palette[rand() % palette.size()];
+                    Cube* cube = new Cube(position, color);
+
+                    //btVector3 pos3d(position.x, position.y, position.z);
+                    //cube->rigidBody = createStaticCube(dynamicsWorld, pos3d);
+                    int index = positionToIndex(x, y, z);
+                    cubes[index] = cube;
+                }
+            }
+        }
+
+        // Initialize cubeFaces vector with the same size as cubes
+        cubeFaces.resize(gridSizeX * gridSizeY * gridSizeZ);
+
+        // Calculate face visibility for each cube
+        int totalFaces = 0;
+        int culledFaces = 0;
+        
+        for (int y = 0; y < gridSizeY; ++y) {
+            for (int z = 0; z < gridSizeZ; ++z) {
+                for (int x = 0; x < gridSizeX; ++x) {
+                    int index = positionToIndex(x, y, z);
+                    if (!cubes[index] || cubes[index]->broken) continue;
+
+                    CubeFaces& faces = cubeFaces[index];
+                    
+                    // Check each direction for adjacent cubes
+                    // Right face (+X): check if there's a cube at (x+1, y, z)
+                    if (x + 1 < gridSizeX) {
+                        int rightIndex = positionToIndex(x + 1, y, z);
+                        if (cubes[rightIndex] && !cubes[rightIndex]->broken) {
+                            faces.right = false;  // Hidden by adjacent cube
+                            culledFaces++;
+                        }
+                    }
+                    
+                    // Left face (-X): check if there's a cube at (x-1, y, z)
+                    if (x - 1 >= 0) {
+                        int leftIndex = positionToIndex(x - 1, y, z);
+                        if (cubes[leftIndex] && !cubes[leftIndex]->broken) {
+                            faces.left = false;  // Hidden by adjacent cube
+                            culledFaces++;
+                        }
+                    }
+                    
+                    // Top face (+Y): check if there's a cube at (x, y+1, z)
+                    if (y + 1 < gridSizeY) {
+                        int topIndex = positionToIndex(x, y + 1, z);
+                        if (cubes[topIndex] && !cubes[topIndex]->broken) {
+                            faces.top = false;  // Hidden by adjacent cube
+                            culledFaces++;
+                        }
+                    }
+                    
+                    // Bottom face (-Y): check if there's a cube at (x, y-1, z)
+                    if (y - 1 >= 0) {
+                        int bottomIndex = positionToIndex(x, y - 1, z);
+                        if (cubes[bottomIndex] && !cubes[bottomIndex]->broken) {
+                            faces.bottom = false;  // Hidden by adjacent cube
+                            culledFaces++;
+                        }
+                    }
+                    
+                    // Front face (+Z): check if there's a cube at (x, y, z+1)
+                    if (z + 1 < gridSizeZ) {
+                        int frontIndex = positionToIndex(x, y, z + 1);
+                        if (cubes[frontIndex] && !cubes[frontIndex]->broken) {
+                            faces.front = false;  // Hidden by adjacent cube
+                            culledFaces++;
+                        }
+                    }
+                    
+                    // Back face (-Z): check if there's a cube at (x, y, z-1)
+                    if (z - 1 >= 0) {
+                        int backIndex = positionToIndex(x, y, z - 1);
+                        if (cubes[backIndex] && !cubes[backIndex]->broken) {
+                            faces.back = false;  // Hidden by adjacent cube
+                            culledFaces++;
+                        }
+                    }
+                    
+                    totalFaces += 6;  // Each cube has 6 faces
+                }
+            }
+        }
+
+        // std::cout << "Face culling analysis:\n";
+        // std::cout << "  Total potential faces: " << totalFaces << "\n";
+        // std::cout << "  Culled (hidden) faces: " << culledFaces << "\n";
+        // std::cout << "  Visible faces: " << (totalFaces - culledFaces) << "\n";
+        // std::cout << "  Culling efficiency: " << (100.0f * culledFaces / totalFaces) << "%\n";
+
+        renderInstances.clear();
+        renderInstances.reserve(gridSizeX * gridSizeY * gridSizeZ); // Pre-allocate for performance
+
+        // Populate renderInstances in order
+        renderInstances.clear();
+        for (int i = 0; i < cubes.size(); ++i) {
+            if (cubes[i] && !cubes[i]->broken) {
+                uint32_t mask = facesToBitmask(cubeFaces[i]);
+                renderInstances.push_back({ cubes[i]->position, cubes[i]->color, mask });
+            }
+        }
+
+        std::cout << "Grid size: " << gridSizeX << "x" << gridSizeY << "x" << gridSizeZ 
+          << " = " << (gridSizeX * gridSizeY * gridSizeZ) << " total cubes\n";
+        std::cout << "RenderInstances size: " << renderInstances.size() << "\n";
+    }
+
+    void createInstanceBuffer() {
+        // instance data buffer creation
+        VkDeviceSize bufferSize = sizeof(InstanceData) * renderInstances.size();
+        if (bufferSize == 0) return;  // prevent crash
+
+        VkBuffer stagingBuffer;
+        VkDeviceMemory stagingBufferMemory;
+        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                    stagingBuffer, stagingBufferMemory);
+
+        void* data;
+        vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+        memcpy(data, renderInstances.data(), (size_t)bufferSize);
+        vkUnmapMemory(device, stagingBufferMemory);
+
+        createBuffer(bufferSize,
+                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    instanceBuffer, instanceBufferMemory);
+
+        copyBuffer(stagingBuffer, instanceBuffer, bufferSize);
+
+        vkDestroyBuffer(device, stagingBuffer, nullptr);
+        vkFreeMemory(device, stagingBufferMemory, nullptr);
+
+        // AABB buffer creation
+        // AABB buffer: 2 vec3s per instance (min and max corners)
+        VkDeviceSize aabbBufferSize = sizeof(glm::vec3) * 2 * renderInstances.size();
+
+        VkBufferCreateInfo bufferInfo{};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.size = aabbBufferSize;
+        bufferInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;  // SSBO
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vkCreateBuffer(device, &bufferInfo, nullptr, &aabbBuffer) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create AABB buffer!");
+        }
+
+        VkMemoryRequirements memRequirements;
+        vkGetBufferMemoryRequirements(device, aabbBuffer, &memRequirements);
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+                                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+        if (vkAllocateMemory(device, &allocInfo, nullptr, &aabbBufferMemory) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to allocate AABB buffer memory!");
+        }
+
+        vkBindBufferMemory(device, aabbBuffer, aabbBufferMemory, 0);
+        std::cout << "✅ AABB buffer created with size: " << aabbBufferSize << " bytes\n";
+    }
+
+    // camera stuff
+    static void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
+        VulkanApp* app = reinterpret_cast<VulkanApp*>(glfwGetWindowUserPointer(window));
+        if (app->firstMouse) {
+            app->lastX = xpos;
+            app->lastY = ypos;
+            app->firstMouse = false;
+        }
+
+        float xoffset = xpos - app->lastX;
+        float yoffset = app->lastY - ypos;
+
+        app->lastX = xpos;
+        app->lastY = ypos;
+
+        float sensitivity = 0.1f;
+        xoffset *= sensitivity;
+        yoffset *= sensitivity;
+
+        app->yaw += xoffset;
+        app->pitch += yoffset;
+
+        if (app->pitch > 89.0f) app->pitch = 89.0f;
+        if (app->pitch < -89.0f) app->pitch = -89.0f;
+
+        glm::vec3 front;
+        front.x = cos(glm::radians(app->yaw)) * cos(glm::radians(app->pitch));
+        front.y = sin(glm::radians(app->pitch));
+        front.z = sin(glm::radians(app->yaw)) * cos(glm::radians(app->pitch));
+        app->cameraFront = glm::normalize(front);
+    }
+
+    static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
+        if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+            VulkanApp* app = reinterpret_cast<VulkanApp*>(glfwGetWindowUserPointer(window));
+            app->onCubeClick();
+        }
+    }
+
+    void onCubeClick() {
+        if(hoveredCube) {
+            if(!hoveredCube->broken) {
+                breakCube(hoveredCube);
+                std::cout << "💥 Cube at " << hoveredCube->position.x << ", " << hoveredCube->position.y << ", " << hoveredCube->position.z << " broken\n";
+            }
+        }
+    }
+
+    void processInput(GLFWwindow* window) {
+        float cameraSpeed = 5.0f * deltaTime;
+
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+            cameraPos += cameraSpeed * cameraFront;
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+            cameraPos -= cameraSpeed * cameraFront;
+
+        glm::vec3 right = glm::normalize(glm::cross(cameraFront, cameraUp));
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+            cameraPos -= right * cameraSpeed;
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+            cameraPos += right * cameraSpeed;
+        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
+            cameraPos -= cameraUp * cameraSpeed; 
+        if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+            cameraPos += cameraUp * cameraSpeed;
+    }
+
+    glm::vec3 screenToWorldRay(double mouseX, double mouseY, int screenWidth, int screenHeight,
+                           const glm::mat4& view, const glm::mat4& proj) {
+        // Convert screen space to NDC without flipping Y
+        float x = (2.0f * mouseX) / screenWidth - 1.0f;
+        //float y = (2.0f * mouseY) / screenHeight - 1.0f;
+        float y = 1.0f - (2.0f * mouseY) / screenHeight;
+        glm::vec4 rayClip = glm::vec4(x, -y, -1.0f, 1.0f);  // <- flip Y here only if needed
+
+        // Convert to eye space
+        glm::vec4 rayEye = glm::inverse(proj) * rayClip;
+        rayEye = glm::vec4(rayEye.x, rayEye.y, -1.0f, 0.0f);
+
+        // Convert to world space
+        glm::vec3 rayWorld = glm::normalize(glm::vec3(glm::inverse(view) * rayEye));
+        return rayWorld;
+    }
+
+    // --- Vulkan Setup Helpers ---
+
+    void createInstance() {
+        if (enableValidationLayers && !checkValidationLayerSupport()) {
+            throw std::runtime_error("Validation layers requested, but not available!");
+        }
+
+        VkApplicationInfo appInfo{};
+        appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+        appInfo.pApplicationName = "Vulkan Cube";
+        appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+        appInfo.pEngineName = "No Engine";
+        appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+        appInfo.apiVersion = VK_API_VERSION_1_0;
+
+        VkInstanceCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+        createInfo.pApplicationInfo = &appInfo;
+
+        auto extensions = getRequiredExtensions();
+        createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+        createInfo.ppEnabledExtensionNames = extensions.data();
+
+        VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
+        if (enableValidationLayers) {
+            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+            createInfo.ppEnabledLayerNames = validationLayers.data();
+
+            populateDebugMessengerCreateInfo(debugCreateInfo);
+            createInfo.pNext = &debugCreateInfo;
+        } else {
+            createInfo.enabledLayerCount = 0;
+            createInfo.pNext = nullptr;
+        }
+
+        if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create Vulkan instance!");
+        }
+    }
+
+    void createSurface() {
+        if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create window surface!");
+        }
+    }
+
+    void pickPhysicalDevice() {
+        uint32_t deviceCount = 0;
+        vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+        if (deviceCount == 0) {
+            throw std::runtime_error("Failed to find GPUs with Vulkan support!");
+        }
+
+        std::vector<VkPhysicalDevice> devices(deviceCount);
+        vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+
+        for (const auto& dev : devices) {
+            if (isDeviceSuitable(dev)) {
+                physicalDevice = dev;
+                break;
+            }
+        }
+
+        if (physicalDevice == VK_NULL_HANDLE) {
+            throw std::runtime_error("Failed to find a suitable GPU!");
+        }
+    }
+
+    void createLogicalDevice() {
+        QueueFamilyIndices indices = findQueueFamilies(physicalDevice, surface);
+
+        std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+        std::set<uint32_t> uniqueQueueFamilies = {
+            indices.graphicsFamily.value(),
+            indices.presentFamily.value()
+        };
+
+        float queuePriority = 1.0f;
+        for (uint32_t queueFamily : uniqueQueueFamilies) {
+            VkDeviceQueueCreateInfo queueCreateInfo{};
+            queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+            queueCreateInfo.queueFamilyIndex = queueFamily;
+            queueCreateInfo.queueCount = 1;
+            queueCreateInfo.pQueuePriorities = &queuePriority;
+            queueCreateInfos.push_back(queueCreateInfo);
+        }
+
+        VkPhysicalDeviceFeatures deviceFeatures{};
+        deviceFeatures.fillModeNonSolid = VK_TRUE;
+        deviceFeatures.samplerAnisotropy = VK_TRUE; // optional, if you're using it
+
+        VkDeviceCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+        createInfo.pQueueCreateInfos = queueCreateInfos.data();
+        createInfo.pEnabledFeatures = &deviceFeatures;
+
+        createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+        createInfo.ppEnabledExtensionNames = deviceExtensions.data();
+
+        if (enableValidationLayers) {
+            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+            createInfo.ppEnabledLayerNames = validationLayers.data();
+        }
+
+        if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create logical device!");
+        } else {
+            createInfo.enabledLayerCount = 0;
+        }
+
+        vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
+        vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
+    }
+
+    void createSwapChain() {
+        // We'll use hardcoded surface format and extent for now.
+        VkSurfaceCapabilitiesKHR capabilities;
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &capabilities);
+
+        VkSurfaceFormatKHR surfaceFormat = { VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
+
+        VkExtent2D extent = { WIDTH, HEIGHT };
+        uint32_t imageCount = capabilities.minImageCount + 1;
+        if (capabilities.maxImageCount > 0 && imageCount > capabilities.maxImageCount) {
+            imageCount = capabilities.maxImageCount;
+        }
+
+        QueueFamilyIndices indices = findQueueFamilies(physicalDevice, surface);
+        uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
+
+        VkSwapchainCreateInfoKHR createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+        createInfo.surface = surface;
+        createInfo.minImageCount = imageCount;
+        createInfo.imageFormat = surfaceFormat.format;
+        createInfo.imageColorSpace = surfaceFormat.colorSpace;
+        createInfo.imageExtent = extent;
+        createInfo.imageArrayLayers = 1;
+        createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+        if (indices.graphicsFamily != indices.presentFamily) {
+            createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+            createInfo.queueFamilyIndexCount = 2;
+            createInfo.pQueueFamilyIndices = queueFamilyIndices;
+        } else {
+            createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        }
+
+        createInfo.preTransform = capabilities.currentTransform;
+        createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+        //createInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR; // V-Sync
+        createInfo.presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;  // No V-Sync
+        createInfo.clipped = VK_TRUE;
+
+        if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create swapchain!");
+        }
+
+        vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
+        swapChainImages.resize(imageCount);
+        vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
+
+        swapChainImageFormat = surfaceFormat.format;
+        swapChainExtent = extent;
+    }
+
+    void createImageViews() {
+        swapChainImageViews.resize(swapChainImages.size());
+
+        for (size_t i = 0; i < swapChainImages.size(); i++) {
+            VkImageViewCreateInfo createInfo{};
+            createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            createInfo.image = swapChainImages[i];
+            createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            createInfo.format = swapChainImageFormat;
+            createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            createInfo.subresourceRange.baseMipLevel = 0;
+            createInfo.subresourceRange.levelCount = 1;
+            createInfo.subresourceRange.baseArrayLayer = 0;
+            createInfo.subresourceRange.layerCount = 1;
+
+            if (vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) {
+                throw std::runtime_error("Failed to create image views!");
+            }
+        }
+    }
+
+    bool isDeviceSuitable(VkPhysicalDevice device) {
+        QueueFamilyIndices indices = findQueueFamilies(device, surface);
+        bool extensionsSupported = checkDeviceExtensionSupport(device);
+        return indices.isComplete();
+    }
+
+    std::vector<const char*> getRequiredExtensions() {
+        uint32_t glfwExtensionCount = 0;
+        const char** glfwExtensions;
+        glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+        std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+
+        if (enableValidationLayers) {
+            extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        }
+
+        return extensions;
+    }
+
+    bool checkValidationLayerSupport() {
+        uint32_t layerCount;
+        vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+
+        std::vector<VkLayerProperties> availableLayers(layerCount);
+        vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+
+        for (const char* layerName : validationLayers) {
+            bool layerFound = false;
+
+            for (const auto& layerProperties : availableLayers) {
+                if (strcmp(layerName, layerProperties.layerName) == 0) {
+                    layerFound = true;
+                    break;
+                }
+            }
+
+            if (!layerFound) return false;
+        }
+
+        return true;
+    }
+
+    // --- Debug Messenger Setup ---
+
+    void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
+        createInfo = {};
+        createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+        createInfo.messageSeverity = 
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+        createInfo.messageType =
+            VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+        createInfo.pfnUserCallback = debugCallback;
+    }
+
+    void setupDebugMessenger() {
+        if (!enableValidationLayers) return;
+
+        VkDebugUtilsMessengerCreateInfoEXT createInfo;
+        populateDebugMessengerCreateInfo(createInfo);
+
+        if (createDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to set up debug messenger!");
+        }
+    }
+
+    static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+        VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+        VkDebugUtilsMessageTypeFlagsEXT messageType,
+        const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+        void* pUserData) {
+
+        std::cerr << "Validation layer: " << pCallbackData->pMessage << std::endl;
+        return VK_FALSE;
+    }
+
+    // --- Extension Loader ---
+
+    VkResult createDebugUtilsMessengerEXT(
+        VkInstance instance,
+        const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkDebugUtilsMessengerEXT* pDebugMessenger) {
+
+        auto func = (PFN_vkCreateDebugUtilsMessengerEXT)
+            vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+
+        if (func != nullptr) {
+            return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
+        } else {
+            return VK_ERROR_EXTENSION_NOT_PRESENT;
+        }
+    }
+
+    // void destroyDebugUtilsMessengerEXT(
+    //     VkInstance instance,
+    //     VkDebugUtilsMessengerEXT debugMessenger,
+    //     const VkAllocationCallbacks* pAllocator) {
+
+    //     auto func = (PFN_vkDestroyDebugUtilsMessenger_EXT)
+    //         vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+
+    //     if (func != nullptr) {
+    //         func(instance, debugMessenger, pAllocator);
+    //     }
+    // }
+
+    // --- Render Pipeline?? ---
+    void createRenderPass() {
+        VkAttachmentDescription colorAttachment{};
+        colorAttachment.format = swapChainImageFormat;
+        colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+        VkAttachmentReference colorAttachmentRef{};
+        colorAttachmentRef.attachment = 0;
+        colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentDescription depthAttachment{};
+        depthAttachment.format = findDepthFormat();
+        depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentReference depthAttachmentRef{};
+        depthAttachmentRef.attachment = 1;
+        depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        VkSubpassDescription subpass{};
+        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.colorAttachmentCount = 1;
+        subpass.pColorAttachments = &colorAttachmentRef;
+        subpass.pDepthStencilAttachment = &depthAttachmentRef;
+
+        VkRenderPassCreateInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        // renderPassInfo.attachmentCount = 1;
+        // renderPassInfo.pAttachments = &colorAttachment;
+        renderPassInfo.subpassCount = 1;
+        renderPassInfo.pSubpasses = &subpass;
+
+        std::array<VkAttachmentDescription, 2> attachments = { colorAttachment, depthAttachment };
+        renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+        renderPassInfo.pAttachments = attachments.data();
+
+        if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create render pass!");
+        }
+    }
+
+    VkShaderModule createShaderModule(const std::vector<char>& code) {
+        VkShaderModuleCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        createInfo.codeSize = code.size();
+        createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+
+        VkShaderModule shaderModule;
+        if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create shader module!");
+        }
+
+        return shaderModule;
+    }
+
+    void createGraphicsPipeline() {
+        auto vertShaderCode = readFile("shaders/cube.vert.spv");
+        auto fragShaderCode = readFile("shaders/cube.frag.spv");
+
+        VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
+        VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+
+        VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+        vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+        vertShaderStageInfo.module = vertShaderModule;
+        vertShaderStageInfo.pName = "main";
+
+        VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+        fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        fragShaderStageInfo.module = fragShaderModule;
+        fragShaderStageInfo.pName = "main";
+
+        VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
+
+        // | updates for instancing
+        auto bindingDescriptions = std::array<VkVertexInputBindingDescription, 2>{
+            Vertex::getBindingDescription(),         // binding 0: per-vertex
+            getInstanceBindingDescription()          // binding 1: per-instance offset + color
+        };
+
+        auto attributeDescriptions = std::array<VkVertexInputAttributeDescription, 4>{
+            Vertex::getAttributeDescriptions()[0],   // location 0: vertex position
+            getInstanceAttributeDescription(),       // location 1: instance offset
+            getInstanceColorAttributeDescription(),  // location 2: instance color
+            getInstanceFaceMaskAttributeDescription() // location 3: face mask
+        };
+        // ^ updates for instancing
+
+        VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+        vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
+        vertexInputInfo.pVertexBindingDescriptions = bindingDescriptions.data();
+        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+        vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+
+        VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+        inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+        VkViewport viewport{};
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = (float) swapChainExtent.width;
+        viewport.height = (float) swapChainExtent.height;
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+
+        VkRect2D scissor{};
+        scissor.offset = { 0, 0 };
+        scissor.extent = swapChainExtent;
+
+        VkPipelineViewportStateCreateInfo viewportState{};
+        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewportState.viewportCount = 1;
+        viewportState.pViewports = &viewport;
+        viewportState.scissorCount = 1;
+        viewportState.pScissors = &scissor;
+
+        VkPipelineRasterizationStateCreateInfo rasterizer{};
+        rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterizer.depthClampEnable = VK_FALSE;
+        rasterizer.rasterizerDiscardEnable = VK_FALSE;
+        rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+        //rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
+        rasterizer.lineWidth = 1.0f;
+        rasterizer.cullMode = VK_CULL_MODE_BACK_BIT; //VK_CULL_MODE_NONE;//VK_CULL_MODE_BACK_BIT;
+        rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;//VK_FRONT_FACE_COUNTER_CLOCKWISE; //VK_FRONT_FACE_CLOCKWISE;
+
+        VkPipelineMultisampleStateCreateInfo multisampling{};
+        multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+        VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+        colorBlendAttachment.colorWriteMask =
+            VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+            VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        colorBlendAttachment.blendEnable = VK_FALSE;
+
+        VkPipelineColorBlendStateCreateInfo colorBlending{};
+        colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        colorBlending.attachmentCount = 1;
+        colorBlending.pAttachments = &colorBlendAttachment;
+
+        VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelineLayoutInfo.setLayoutCount = 1;
+        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+
+        if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create pipeline layout!");
+        }
+
+        VkPipelineDepthStencilStateCreateInfo depthStencil{};
+        depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        depthStencil.depthTestEnable = VK_TRUE; //VK_FALSE;
+        depthStencil.depthWriteEnable = VK_TRUE;
+        depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+        depthStencil.depthBoundsTestEnable = VK_FALSE;
+        depthStencil.stencilTestEnable = VK_FALSE;
+
+
+        VkGraphicsPipelineCreateInfo pipelineInfo{};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipelineInfo.stageCount = 2;
+        pipelineInfo.pStages = shaderStages;
+        pipelineInfo.pVertexInputState = &vertexInputInfo;
+        pipelineInfo.pInputAssemblyState = &inputAssembly;
+        pipelineInfo.pViewportState = &viewportState;
+        pipelineInfo.pRasterizationState = &rasterizer;
+        pipelineInfo.pMultisampleState = &multisampling;
+        pipelineInfo.pColorBlendState = &colorBlending;
+        pipelineInfo.layout = pipelineLayout;
+        pipelineInfo.renderPass = renderPass;
+        pipelineInfo.subpass = 0;
+        pipelineInfo.pDepthStencilState = &depthStencil;
+
+        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create graphics pipeline!");
+        }
+
+        vkDestroyShaderModule(device, fragShaderModule, nullptr);
+        vkDestroyShaderModule(device, vertShaderModule, nullptr);
+    }
+
+    void createComputePipeline() {
+        auto compShaderCode = readFile("shaders/frustum_cull.comp.spv");
+        VkShaderModule compShaderModule = createShaderModule(compShaderCode);
+
+        VkPipelineShaderStageCreateInfo shaderStageInfo{};
+        shaderStageInfo.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        shaderStageInfo.stage  = VK_SHADER_STAGE_COMPUTE_BIT;
+        shaderStageInfo.module = compShaderModule;
+        shaderStageInfo.pName  = "main";
+
+        VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelineLayoutInfo.setLayoutCount = 1;
+        pipelineLayoutInfo.pSetLayouts = &computeDescriptorSetLayout;
+
+        if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &computePipelineLayout) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create compute pipeline layout!");
+        }
+
+        VkComputePipelineCreateInfo pipelineInfo{};
+        pipelineInfo.sType  = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        pipelineInfo.stage  = shaderStageInfo;
+        pipelineInfo.layout = computePipelineLayout;
+
+        if (vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create compute pipeline!");
+        }
+
+        vkDestroyShaderModule(device, compShaderModule, nullptr);
+    }
+
+    // --- Framebuffer and commandbuffer stuff ---
+    void createFramebuffers() {
+        swapChainFramebuffers.resize(swapChainImageViews.size());
+
+        for (size_t i = 0; i < swapChainImageViews.size(); i++) {
+            std::array<VkImageView, 2> attachments = {
+                swapChainImageViews[i],
+                depthImageView
+            };
+
+            VkFramebufferCreateInfo framebufferInfo{};
+            framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            framebufferInfo.renderPass = renderPass;
+            framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+            framebufferInfo.pAttachments = attachments.data();
+            framebufferInfo.width = swapChainExtent.width;
+            framebufferInfo.height = swapChainExtent.height;
+            framebufferInfo.layers = 1;
+
+            if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
+                throw std::runtime_error("Failed to create framebuffer!");
+            }
+        }
+    }
+
+    void createCommandPool() {
+        QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice, surface);
+
+        VkCommandPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
+
+        if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create command pool!");
+        }
+    }
+
+    void createCommandBuffers() {
+        commandBuffers.resize(swapChainFramebuffers.size());
+
+        VkCommandBufferAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.commandPool = commandPool;
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
+
+        if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to allocate command buffers!");
+        }
+    }
+
+    // ------- part 6
+    struct Vertex {
+        uint32_t vertexID;  // Simple vertex ID (0-7)
+
+        static VkVertexInputBindingDescription getBindingDescription() {
+            VkVertexInputBindingDescription desc{};
+            desc.binding = 0;
+            desc.stride = sizeof(Vertex);  
+            desc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+            return desc;
+        }
+
+        static std::array<VkVertexInputAttributeDescription, 1> getAttributeDescriptions() {
+            std::array<VkVertexInputAttributeDescription, 1> desc{};
+            desc[0].binding = 0;
+            desc[0].location = 0;
+            desc[0].format = VK_FORMAT_R32_UINT;  // 32-bit unsigned int for vertex ID
+            desc[0].offset = offsetof(Vertex, vertexID);
+            return desc;
+        }
+    };
+
+    // Face-specific index arrays for cube faces  
+    const std::vector<uint16_t> frontFaceIndices  = {4, 6, 5,  6, 7, 5};  // +Z
+    const std::vector<uint16_t> backFaceIndices   = {0, 1, 2,  1, 3, 2};  // -Z  
+    const std::vector<uint16_t> rightFaceIndices  = {1, 5, 3,  3, 5, 7};  // +X
+    const std::vector<uint16_t> leftFaceIndices   = {0, 2, 4,  2, 6, 4};  // -X
+    const std::vector<uint16_t> topFaceIndices    = {2, 3, 6,  3, 7, 6};  // +Y
+    const std::vector<uint16_t> bottomFaceIndices = {0, 4, 1,  1, 4, 5};  // -Y
+
+    // Generate indices for visible faces only
+    std::vector<uint16_t> generateCulledIndices() {
+        std::vector<uint16_t> culledIndices;
+        culledIndices.reserve(6144 * 3);  // Based on our culling analysis: 6144 visible faces * 3 vertices per triangle
+        
+        uint16_t baseVertex = 0;  // Track current vertex offset for each cube
+        
+        for (int i = 0; i < cubes.size(); ++i) {
+            if (!cubes[i] || cubes[i]->broken) continue;
+            
+            const CubeFaces& faces = cubeFaces[i];
+            
+            // Add indices for each visible face, adjusting by baseVertex offset
+            if (faces.front) {
+                for (uint16_t idx : frontFaceIndices) {
+                    culledIndices.push_back(baseVertex + idx);
+                }
+            }
+            if (faces.back) {
+                for (uint16_t idx : backFaceIndices) {
+                    culledIndices.push_back(baseVertex + idx);
+                }
+            }
+            if (faces.right) {
+                for (uint16_t idx : rightFaceIndices) {
+                    culledIndices.push_back(baseVertex + idx);
+                }
+            }
+            if (faces.left) {
+                for (uint16_t idx : leftFaceIndices) {
+                    culledIndices.push_back(baseVertex + idx);
+                }
+            }
+            if (faces.top) {
+                for (uint16_t idx : topFaceIndices) {
+                    culledIndices.push_back(baseVertex + idx);
+                }
+            }
+            if (faces.bottom) {
+                for (uint16_t idx : bottomFaceIndices) {
+                    culledIndices.push_back(baseVertex + idx);
+                }
+            }
+            
+            baseVertex += 8;  // Each cube uses 8 vertices
+        }
+        
+        std::cout << "Generated culled indices: " << culledIndices.size() << " total indices\n";
+        std::cout << "Expected triangles: " << (culledIndices.size() / 3) << "\n";
+        
+        return culledIndices;
+    }
+
+    const std::vector<Vertex> vertices = {
+        {0}, // Vertex 0: (0,0,0)
+        {1}, // Vertex 1: (1,0,0)
+        {2}, // Vertex 2: (0,1,0)
+        {3}, // Vertex 3: (1,1,0)
+        {4}, // Vertex 4: (0,0,1)
+        {5}, // Vertex 5: (1,0,1)
+        {6}, // Vertex 6: (0,1,1)
+        {7}  // Vertex 7: (1,1,1)
+    };
+
+    const std::vector<uint16_t> indices = {
+        // Front face (+Z) - looking at face from outside
+        4, 6, 5,  6, 7, 5,
+        
+        // Back face (-Z) - looking at face from outside
+        0, 1, 2,  1, 3, 2,
+        
+        // Right face (+X) - looking at face from outside
+        1, 5, 3,  3, 5, 7,
+        
+        // Left face (-X) - looking at face from outside  
+        0, 2, 4,  2, 6, 4,
+        
+        // Top face (+Y) - looking at face from outside
+        2, 3, 6,  3, 7, 6,
+        
+        // Bottom face (-Y) - looking at face from outside
+        0, 4, 1,  1, 4, 5
+    };
+
+    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
+                  VkBuffer& buffer, VkDeviceMemory& bufferMemory) {
+        VkBufferCreateInfo bufferInfo{};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.size = size;
+        bufferInfo.usage = usage;
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vkCreateBuffer(device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create buffer!");
+        }
+
+        VkMemoryRequirements memRequirements;
+        vkGetBufferMemoryRequirements(device, buffer, &memRequirements);
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
+
+        if (vkAllocateMemory(device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to allocate buffer memory!");
+        }
+
+        vkBindBufferMemory(device, buffer, bufferMemory, 0);
+    }
+
+    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+        VkPhysicalDeviceMemoryProperties memProperties;
+        vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+
+        for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+            if ((typeFilter & (1 << i)) && 
+                (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+                return i;
+            }
+        }
+
+        throw std::runtime_error("Failed to find suitable memory type!");
+    }
+
+    void createVertexBuffer() {
+        VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+        createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                    vertexBuffer, vertexBufferMemory);
+
+        void* data;
+        vkMapMemory(device, vertexBufferMemory, 0, bufferSize, 0, &data);
+        memcpy(data, vertices.data(), (size_t)bufferSize);
+        vkUnmapMemory(device, vertexBufferMemory);
+    }
+
+    void createIndexBuffer() {
+        VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+        createBuffer(bufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                    indexBuffer, indexBufferMemory);
+
+        void* data;
+        vkMapMemory(device, indexBufferMemory, 0, bufferSize, 0, &data);
+        memcpy(data, indices.data(), (size_t)bufferSize);
+        vkUnmapMemory(device, indexBufferMemory);
+    }
+
+    ///////////
+    void updateInstanceBuffers(const std::vector<InstanceData>& instances) {
+        if (instances.empty()) return;
+
+        std::vector<InstanceData> updated = instances;
+
+        //std::cout << "Selected index: " << selectedInstance << "\n";
+        if (selectedInstance >= 0 && selectedInstance < static_cast<int>(updated.size())) {
+            //std::cout << "Highlighting selected cube\n";
+            updated[selectedInstance].color = glm::min(updated[selectedInstance].color + glm::vec3(0.3f), glm::vec3(1.0f));
+        }
+
+        //std::cout << "Adding falling cubes...\n";
+        // for (size_t i = 0; i < fallingCubeBodies.size(); ++i) {
+        //     btRigidBody* body = fallingCubeBodies[i];
+        //     //std::cout << "  Cube " << i << ": body=" << body << "\n";
+
+        //     if (!body || !body->getMotionState()) {
+        //         std::cerr << "❌ Invalid body or motion state\n";
+        //         continue;
+        //     }
+
+        //     btTransform trans;
+        //     body->getMotionState()->getWorldTransform(trans);
+        //     btVector3 pos = trans.getOrigin();
+
+        //     //std::cout << "   Position: " << pos.getX() << ", " << pos.getY() << ", " << pos.getZ() << "\n";
+
+        //     updated.push_back({
+        //         glm::vec3(pos.getX(), pos.getY(), pos.getZ()),
+        //         fallingCubeColors[i]  // <- may still be suspect
+        //     });
+        // }
+
+        //std::cout << "Updating instance buffer: " << updated.size() << " instances\n";
+        
+        // Use staging buffer since instanceBuffer is device-local only
+        VkDeviceSize bufferSize = updated.size() * sizeof(InstanceData);
+        
+        VkBuffer stagingBuffer;
+        VkDeviceMemory stagingBufferMemory;
+        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                    stagingBuffer, stagingBufferMemory);
+
+        void* data = nullptr;
+        vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+        memcpy(data, updated.data(), bufferSize);
+        vkUnmapMemory(device, stagingBufferMemory);
+
+        copyBuffer(stagingBuffer, instanceBuffer, bufferSize);
+
+        vkDestroyBuffer(device, stagingBuffer, nullptr);
+        vkFreeMemory(device, stagingBufferMemory, nullptr);
+    }
+    ///////////
+
+    // Stage 1: Add AABB buffer population function
+    void updateAABBBuffer(const std::vector<InstanceData>& instances) {
+        if (instances.empty()) return;
+        // In updateAABBBuffer, before the AABB loop:
+        // if (!instances.empty()) {
+        //     std::cout << "First renderInstance offset: (" << instances[0].offset.x 
+        //             << "," << instances[0].offset.y << "," << instances[0].offset.z << ")\n";
+        // }
+        
+        // Create AABB data in GPU-expected format: vec4 pairs
+        std::vector<glm::vec4> aabbData;
+        aabbData.reserve(instances.size() * 2);
+        
+        for (size_t i = 0; i < instances.size(); ++i) {
+            const auto& instance = instances[i];
+            // Each cube spans from instance.offset to instance.offset + (1,1,1)
+            glm::vec3 minCorner = instance.offset;
+            glm::vec3 maxCorner = instance.offset + glm::vec3(1.0f, 1.0f, 1.0f);
+            
+            // Debug: Print first cube's intermediate values
+            // if (i == 0) {
+            //     std::cout << "First cube minCorner: (" << minCorner.x << "," << minCorner.y << "," << minCorner.z << ")\n";
+            //     std::cout << "First cube maxCorner: (" << maxCorner.x << "," << maxCorner.y << "," << maxCorner.z << ")\n";
+            // }
+            
+            // Pack as: vec4(min.x, min.y, min.z, max.x), vec4(max.y, max.z, unused, unused)
+            aabbData.push_back(glm::vec4(minCorner.x, minCorner.y, minCorner.z, maxCorner.x));
+            aabbData.push_back(glm::vec4(maxCorner.y, maxCorner.z, 0.0f, 0.0f));
+            
+            // Debug: Print what we just added to aabbData
+            // if (i == 0) {
+            //     std::cout << "First cube aabbData[0]: (" << aabbData[0].x << "," << aabbData[0].y << "," << aabbData[0].z << "," << aabbData[0].w << ")\n";
+            //     std::cout << "First cube aabbData[1]: (" << aabbData[1].x << "," << aabbData[1].y << "," << aabbData[1].z << "," << aabbData[1].w << ")\n";
+            // }
+        }
+        
+        // Write data to AABB buffer
+        void* data = nullptr;
+        VkDeviceSize bufferSize = aabbData.size() * sizeof(glm::vec4);  // Now vec4 instead of vec3
+        vkMapMemory(device, aabbBufferMemory, 0, bufferSize, 0, &data);
+        memcpy(data, aabbData.data(), bufferSize);
+        vkUnmapMemory(device, aabbBufferMemory);
+        
+        //std::cout << "✅ AABB buffer updated with " << instances.size() << " cubes\n";
+        // In updateAABBBuffer, add after the loop:
+        // if (instances.size() > 0) {
+        //     std::cout << "First cube AABB: min(" << instances[0].offset.x << "," 
+        //             << instances[0].offset.y << "," << instances[0].offset.z 
+        //             << ") max(" << (instances[0].offset.x + 1) << "," 
+        //             << (instances[0].offset.y + 1) << "," << (instances[0].offset.z + 1) << ")\n";
+        // }
+    }
+
+    // ------ part 7 ------
+    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex,
+                    const glm::mat4& view, const glm::mat4& proj) {
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+        if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to begin recording command buffer!");
+        }
+
+        dispatchFrustumCullShader(commandBuffer);
+
+        VkClearValue clearValues[2];
+        clearValues[0].color = { {0.1f, 0.1f, 0.1f, 1.0f} };
+        clearValues[1].depthStencil = {1.0f, 0};
+
+        VkRenderPassBeginInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassInfo.renderPass = renderPass;
+        renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
+        renderPassInfo.renderArea.offset = { 0, 0 };
+        renderPassInfo.renderArea.extent = swapChainExtent;
+        renderPassInfo.clearValueCount = 2;
+        renderPassInfo.pClearValues = clearValues;
+
+        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+
+        VkBuffer vertexBuffers[] = { vertexBuffer, instanceBuffer };
+        VkDeviceSize offsets[] = { 0, 0 };
+        vkCmdBindVertexBuffers(commandBuffer, 0, 2, vertexBuffers, offsets);
+
+        vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+
+        // 🟢 Bind the descriptor set for this frame
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+            pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
+        vkCmdDrawIndexedIndirect(commandBuffer, drawCommandBuffer, 0, 1, sizeof(VkDrawIndexedIndirectCommand));
+
+
+        vkCmdEndRenderPass(commandBuffer);
+
+        if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to record command buffer!");
+        }
+    }
+
+    // ------ part 8 ------
+    void createSyncObjects() {
+        // Get the actual number of swapchain images
+        uint32_t imageCount = static_cast<uint32_t>(swapChainImages.size());
+        
+        // Create semaphores for each swapchain image to avoid reuse conflicts
+        imageAvailableSemaphores.resize(imageCount);
+        renderFinishedSemaphores.resize(imageCount);
+        inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+
+        VkSemaphoreCreateInfo semaphoreInfo{};
+        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+        VkFenceCreateInfo fenceInfo{};
+        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+        // Create semaphores for each swapchain image
+        for (size_t i = 0; i < imageCount; i++) {
+            if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
+                vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS) {
+                throw std::runtime_error("Failed to create semaphores for image!");
+            }
+        }
+
+        // Create fences for frames in flight
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            if (vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
+                throw std::runtime_error("Failed to create sync objects for frame!");
+            }
+        }
+        
+        std::cout << "✅ Created semaphores for " << imageCount << " swapchain images\n";
+    }
+
+    int pickInstance(const glm::vec3& rayOrigin, const glm::vec3& rayDir) {
+        float closestT = std::numeric_limits<float>::max();
+        int selected = -1;
+
+        //for (int i = 0; i < instanceData.size(); ++i) {
+        for (int i = 0; i < renderInstances.size(); ++i) {
+            glm::vec3 minBound = renderInstances[i].offset - glm::vec3(0.5f);
+            glm::vec3 maxBound = renderInstances[i].offset + glm::vec3(0.5f);
+
+            float tmin = 0.0f;
+            float tmax = 1000.0f;
+            bool hit = true;
+
+            for (int j = 0; j < 3; ++j) {
+                if (std::abs(rayDir[j]) < 1e-6f) {
+                    // Ray is parallel to slab — miss if origin not within slab
+                    if (rayOrigin[j] < minBound[j] || rayOrigin[j] > maxBound[j]) {
+                        hit = false;
+                        break;
+                    }
+                } else {
+                    float t1 = (minBound[j] - rayOrigin[j]) / rayDir[j];
+                    float t2 = (maxBound[j] - rayOrigin[j]) / rayDir[j];
+                    if (t1 > t2) std::swap(t1, t2);
+
+                    tmin = std::max(tmin, t1);
+                    tmax = std::min(tmax, t2);
+                    if (tmin > tmax) {
+                        hit = false;
+                        break;
+                    }
+                }
+            }
+
+            if (hit && tmin < closestT) {
+                closestT = tmin;
+                selected = i;
+            }
+        }
+
+        hoveredCube = nullptr;
+        if(selected > -1) {
+            //hoveredCube = cubeMap[renderInstances[selected].offset];
+            //TODO fix this later
+        }
+
+        return selected;
+    }
+
+    void drawFrame() {
+         auto frameStart = std::chrono::high_resolution_clock::now();
+        // std::cout << "\n=== drawFrame START ===\n";
+        // std::cout << "[A] renderInstances: " << renderInstances.size() << "\n";
+        // std::cout << "[A] fallingBodies:   " << fallingCubeBodies.size() << "\n";
+        // std::cout << "[A] fallingColors:   " << fallingCubeColors.size() << "\n";
+        // std::cout << "[A] selectedInstance: " << selectedInstance << "\n";
+
+        //std::cout << "[B] Waiting for fence...\n";
+        vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+        vkResetFences(device, 1, &inFlightFences[currentFrame]);
+
+        uint32_t imageIndex;
+        //std::cout << "[C] Acquiring swapchain image...\n";
+        VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX,
+            imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+        if (result != VK_SUCCESS) {
+            throw std::runtime_error("Failed to acquire swapchain image!");
+        }
+
+        if (result != VK_SUCCESS) {
+            throw std::runtime_error("Failed to acquire swapchain image!");
+        }
+
+        //std::cout << "[D] Computing view/proj matrices...\n";
+        glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+        glm::mat4 proj = glm::perspective(glm::radians(45.0f),
+            swapChainExtent.width / (float)swapChainExtent.height,
+            0.1f, 100.0f);
+        proj[1][1] *= -1.0;
+        auto timingStart = std::chrono::high_resolution_clock::now();
+
+        ///////////////
+        double mouseX, mouseY;
+        glfwGetCursorPos(window, &mouseX, &mouseY);
+        glm::vec3 rayDir = screenToWorldRay(mouseX, mouseY, WIDTH, HEIGHT, view, proj);
+        glm::vec3 rayOrigin = cameraPos;
+
+        //std::cout << "[F] Picking instance...\n";
+        auto mousePickStart = std::chrono::high_resolution_clock::now();
+        selectedInstance = pickInstance(rayOrigin, rayDir);
+        auto mousePickEnd = std::chrono::high_resolution_clock::now();
+
+        //std::cout << "[G] Rebuilding renderInstances...\n";
+        // renderInstances.clear();
+        // for (int i = 0; i < cubes.size(); ++i) {
+        //     //if (!cube) {
+        //         //std::cerr << "❌ Attempted to insert null Cube* at " 
+        //                 //<< pos.x << ", " << pos.y << ", " << pos.z << "\n";
+        //     //}
+        //     if (cubes[i] && !cubes[i]->broken) {
+        //         uint32_t mask = facesToBitmask(cubeFaces[i]);
+        //         renderInstances.push_back({ cubes[i]->position, cubes[i]->color, mask });
+        //     }
+        // }
+
+        //std::cout << "[H] Appending falling cube instances...\n";
+        // for (size_t i = 0; i < fallingCubeBodies.size(); ++i) {
+        //     //std::cout << " - Updating falling cube " << i << "\n";
+        //     btRigidBody* body = fallingCubeBodies[i];
+
+        //     if (!body || !body->getMotionState()) {
+        //         //std::cerr << " ❌ Null body or motion state for cube " << i << "\n";
+        //         continue;
+        //     }
+
+        //     btTransform trans;
+        //     fallingCubeBodies[i]->getMotionState()->getWorldTransform(trans);  // <-- if crash here, note it
+
+        //     btVector3 pos = trans.getOrigin();
+        //     //std::cout << "   Position: " << pos.getX() << ", " << pos.getY() << ", " << pos.getZ() << "\n";
+
+        //     glm::vec3 color = (i < fallingCubeColors.size()) ? fallingCubeColors[i] : glm::vec3(1, 0, 0);
+
+        //     renderInstances.push_back({ glm::vec3(pos.getX(), pos.getY(), pos.getZ()), color });
+        // }
+
+        // add subcubes torenderInstances
+        // for (const Subcube& s : subcubes) {
+        //     btTransform t;
+        //     s.body->getMotionState()->getWorldTransform(t);
+        //     btVector3 p = t.getOrigin();
+        //     renderInstances.push_back({ glm::vec3(p.getX(), p.getY(), p.getZ()), s.color });
+        // }
+
+        //std::cout << "[I] Filling UBO...\n";
+        auto uboStart = std::chrono::high_resolution_clock::now();
+        UniformBufferObject ubo{};
+        ubo.view = view;
+        ubo.proj = proj;
+        ubo.numInstances = static_cast<uint32_t>(renderInstances.size());
+        auto uboEnd = std::chrono::high_resolution_clock::now();
+
+        //std::cout << "[J] Dispatching frustum cull...\n";
+        //dispatchFrustumCull();
+
+        //std::cout << "[K] Reading visibility flags...\n";
+        // std::vector<uint32_t> visibleFlags(renderInstances.size());
+        // void* mapped;
+        // vkMapMemory(device, visibleBufferMemory, 0, visibleFlags.size() * sizeof(uint32_t), 0, &mapped);
+        // memcpy(visibleFlags.data(), mapped, visibleFlags.size() * sizeof(uint32_t));
+        // vkUnmapMemory(device, visibleBufferMemory);
+
+        //////physics
+        //std::cout << "[L] Stepping physics...\n";
+        //float timeStep = 1.0f / 60.0f;
+        //dynamicsWorld->stepSimulation(timeStep);
+
+        //std::cout << "[M] Updating instance buffers...\n";
+        auto instanceUpdateStart = std::chrono::high_resolution_clock::now();
+        updateInstanceBuffers(renderInstances);
+        auto instanceUpdateEnd = std::chrono::high_resolution_clock::now();
+
+        // Add before updateAABBBuffer call:
+        // static glm::vec3 lastFirstCube = glm::vec3(-999,-999,-999);
+        // if (lastFirstCube != renderInstances[0].offset) {
+        //     std::cout << "First cube moved from " << lastFirstCube.x << "," << lastFirstCube.y << "," << lastFirstCube.z 
+        //             << " to " << renderInstances[0].offset.x << "," << renderInstances[0].offset.y << "," << renderInstances[0].offset.z << "\n";
+        //     lastFirstCube = renderInstances[0].offset;
+        // }
+        // updateAABBBuffer(renderInstances);  // Stage 2: Update AABB data when instances change
+
+        //std::cout << "[N] Updating draw commands...\n";
+        //int visibleCount = std::count(visibleFlags.begin(), visibleFlags.end(), 1u);
+        //updateDrawCommandBuffer(static_cast<uint32_t>(visibleCount));
+
+        auto drawCmdStart = std::chrono::high_resolution_clock::now();
+        updateDrawCommandBuffer(static_cast<uint32_t>(renderInstances.size()));
+        auto drawCmdEnd = std::chrono::high_resolution_clock::now();
+
+        //std::cout << "[O] Updating uniform buffer...\n";
+        auto uniformUploadStart = std::chrono::high_resolution_clock::now();
+        void* data;
+        vkMapMemory(device, uniformBuffersMemory[currentFrame], 0, sizeof(ubo), 0, &data);
+        memcpy(data, &ubo, sizeof(ubo));
+        vkUnmapMemory(device, uniformBuffersMemory[currentFrame]);
+        auto uniformUploadEnd = std::chrono::high_resolution_clock::now();
+        
+        //std::cout << "[P] Recording command buffer...\n";
+        auto recordStart = std::chrono::high_resolution_clock::now();
+        recordCommandBuffer(commandBuffers[imageIndex], imageIndex, view, proj);
+        auto recordEnd = std::chrono::high_resolution_clock::now();
+
+        //std::cout << "[Q] Submitting frame to GPU...\n";
+        auto submitStart = std::chrono::high_resolution_clock::now();
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame] };
+        VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.pWaitSemaphores = waitSemaphores;
+        submitInfo.pWaitDstStageMask = waitStages;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
+        VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[imageIndex] };
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = signalSemaphores;
+
+        if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to submit draw command buffer!");
+        }
+        auto submitEnd = std::chrono::high_resolution_clock::now();
+
+        //std::cout << "[R] Presenting frame...\n";
+        auto presentStart = std::chrono::high_resolution_clock::now();
+        VkPresentInfoKHR presentInfo{};
+        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+        presentInfo.waitSemaphoreCount = 1;
+        presentInfo.pWaitSemaphores = signalSemaphores;
+        VkSwapchainKHR swapChains[] = { swapChain };
+        presentInfo.swapchainCount = 1;
+        presentInfo.pSwapchains = swapChains;
+        presentInfo.pImageIndices = &imageIndex;
+
+        result = vkQueuePresentKHR(presentQueue, &presentInfo);
+        if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+            throw std::runtime_error("Failed to present swapchain image!");
+        }
+        if (result == VK_SUBOPTIMAL_KHR) {
+            // Could recreate swapchain here if needed, but for now just continue
+            static bool warned = false;
+            if (!warned) {
+                std::cout << "⚠️ Suboptimal swapchain detected - may impact performance\n";
+                warned = true;
+            }
+        }
+        auto presentEnd = std::chrono::high_resolution_clock::now();
+        
+        // Add diagnostic info for present time
+        static int frameCounter = 0;
+        static double maxPresentTime = 0.0;
+        double currentPresentTime = std::chrono::duration<double, std::milli>(presentEnd - presentStart).count();
+        if (currentPresentTime > maxPresentTime) {
+            maxPresentTime = currentPresentTime;
+        }
+        
+        if (++frameCounter % 120 == 0) {  // Every 2 seconds at 60fps
+            std::cout << "📊 Present diagnostics - Current: " << currentPresentTime 
+                      << "ms, Max: " << maxPresentTime << "ms, Images: " 
+                      << swapChainImages.size() << "\n";
+            maxPresentTime = 0.0;  // Reset for next period
+        }
+
+        currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+
+        auto frameEnd = std::chrono::high_resolution_clock::now();
+
+        DetailedFrameTiming timing;
+        timing.totalFrameTime = std::chrono::duration<double, std::milli>(frameEnd - frameStart).count();
+        timing.mousePickTime = std::chrono::duration<double, std::milli>(mousePickEnd - mousePickStart).count();
+        timing.uboFillTime = std::chrono::duration<double, std::milli>(uboEnd - uboStart).count();
+        timing.instanceUpdateTime = std::chrono::duration<double, std::milli>(instanceUpdateEnd - instanceUpdateStart).count();
+        timing.drawCmdUpdateTime = std::chrono::duration<double, std::milli>(drawCmdEnd - drawCmdStart).count();
+        timing.uniformUploadTime = std::chrono::duration<double, std::milli>(uniformUploadEnd - uniformUploadStart).count();
+        timing.commandRecordTime = std::chrono::duration<double, std::milli>(recordEnd - recordStart).count();
+        timing.gpuSubmitTime = std::chrono::duration<double, std::milli>(submitEnd - submitStart).count();
+        timing.presentTime = std::chrono::duration<double, std::milli>(presentEnd - presentStart).count();
+
+        detailedTimings.push_back(timing);
+        if (detailedTimings.size() > 60) {
+            detailedTimings.erase(detailedTimings.begin());
+        }
+        //std::cout << "=== drawFrame END ===\n";
+    }
+
+    // ------ part 9 ------ camera stuff
+    void createDescriptorSetLayout() {
+        VkDescriptorSetLayoutBinding uboLayoutBinding{};
+        uboLayoutBinding.binding = 0;
+        uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboLayoutBinding.descriptorCount = 1;
+        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        uboLayoutBinding.pImmutableSamplers = nullptr;
+
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = 1;
+        layoutInfo.pBindings = &uboLayoutBinding;
+
+        if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create descriptor set layout!");
+        }
+    }
+
+    void createUniformBuffers() {
+        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+
+        uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+        uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
+
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            createBuffer(
+                bufferSize,
+                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                uniformBuffers[i],
+                uniformBuffersMemory[i]);
+        }
+    }
+
+    void createDescriptorPool() {
+        VkDescriptorPoolSize poolSize{};
+        poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSize.descriptorCount = MAX_FRAMES_IN_FLIGHT;
+
+        VkDescriptorPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.poolSizeCount = 1;
+        poolInfo.pPoolSizes = &poolSize;
+        poolInfo.maxSets = MAX_FRAMES_IN_FLIGHT;
+
+        if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create descriptor pool!");
+        }
+    }
+
+    void createDescriptorSets() {
+        std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
+
+        VkDescriptorSetAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = descriptorPool;
+        allocInfo.descriptorSetCount = MAX_FRAMES_IN_FLIGHT;
+        allocInfo.pSetLayouts = layouts.data();
+
+        descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+        if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to allocate descriptor sets!");
+        }
+
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            VkDescriptorBufferInfo bufferInfo{};
+            bufferInfo.buffer = uniformBuffers[i];
+            bufferInfo.offset = 0;
+            bufferInfo.range = sizeof(UniformBufferObject);
+
+            VkWriteDescriptorSet descriptorWrite{};
+            descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrite.dstSet = descriptorSets[i];
+            descriptorWrite.dstBinding = 0;
+            descriptorWrite.dstArrayElement = 0;
+            descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrite.descriptorCount = 1;
+            descriptorWrite.pBufferInfo = &bufferInfo;
+
+            vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+        }
+    }
+
+    // ---- other -----
+    bool checkDeviceExtensionSupport(VkPhysicalDevice device) {
+        uint32_t extensionCount;
+        vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+
+        std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+        vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
+
+        std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
+
+        for (const auto& ext : availableExtensions) {
+            requiredExtensions.erase(ext.extensionName);
+        }
+
+        return requiredExtensions.empty();
+    }
+
+    void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
+        VkCommandBufferAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocInfo.commandPool = commandPool;
+        allocInfo.commandBufferCount = 1;
+
+        VkCommandBuffer commandBuffer;
+        vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+        VkBufferCopy copyRegion{};
+        copyRegion.srcOffset = 0;
+        copyRegion.dstOffset = 0;
+        copyRegion.size = size;
+        vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+        vkEndCommandBuffer(commandBuffer);
+
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &commandBuffer;
+
+        vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(graphicsQueue);
+
+        vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+    }
+
+    // ---- depth stuff ----
+    VkFormat findDepthFormat() {
+        return VK_FORMAT_D32_SFLOAT;
+    }
+
+    void createDepthResources() {
+        VkFormat depthFormat = findDepthFormat();
+        createImage(swapChainExtent.width, swapChainExtent.height, depthFormat,
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            depthImage, depthImageMemory);
+        depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+    }
+
+    void createImage(uint32_t width, uint32_t height, VkFormat format,
+                    VkImageTiling tiling, VkImageUsageFlags usage,
+                    VkMemoryPropertyFlags properties,
+                    VkImage& image, VkDeviceMemory& imageMemory) {
+        // 1. Create VkImage
+        VkImageCreateInfo imageInfo{};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent.width = width;
+        imageInfo.extent.height = height;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.format = format;
+        imageInfo.tiling = tiling;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = usage;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vkCreateImage(device, &imageInfo, nullptr, &image) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create image!");
+        }
+
+        // 2. Get memory requirements
+        VkMemoryRequirements memRequirements;
+        vkGetImageMemoryRequirements(device, image, &memRequirements);
+
+        // 3. Allocate memory
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(
+            memRequirements.memoryTypeBits, properties);
+
+        if (vkAllocateMemory(device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to allocate image memory!");
+        }
+
+        // 4. Bind memory
+        vkBindImageMemory(device, image, imageMemory, 0);
+    }
+
+    VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = image;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = format;
+
+        viewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        viewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        viewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        viewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+        viewInfo.subresourceRange.aspectMask = aspectFlags;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = 1;
+
+        VkImageView imageView;
+        if (vkCreateImageView(device, &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create image view!");
+        }
+
+        return imageView;
+    }
+
+    void createVisibilityBuffer(size_t maxInstances) {
+        VkDeviceSize bufferSize = maxInstances * sizeof(uint32_t);  // one flag per instance
+
+        createBuffer(bufferSize,
+                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    visibleBuffer,
+                    visibleBufferMemory);
+
+        std::cout << "✅ Created visibility buffer for " << maxInstances << " instances\n";
+    }
+
+    void clearVisibilityBuffer(uint32_t count) {
+        std::vector<uint32_t> zeroes(count, 0);
+        VkDeviceSize size = count * sizeof(uint32_t);
+        VkBuffer stagingBuffer;
+        VkDeviceMemory stagingMemory;
+        createBuffer(size,
+                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                    stagingBuffer,
+                    stagingMemory);
+
+        void* data;
+        vkMapMemory(device, stagingMemory, 0, size, 0, &data);
+        memcpy(data, zeroes.data(), size);
+        vkUnmapMemory(device, stagingMemory);
+
+        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+        VkBufferCopy copyRegion = {};
+        copyRegion.size = size;
+        vkCmdCopyBuffer(commandBuffer, stagingBuffer, visibleBuffer, 1, &copyRegion);
+        endSingleTimeCommands(commandBuffer);
+
+        vkDestroyBuffer(device, stagingBuffer, nullptr);
+        vkFreeMemory(device, stagingMemory, nullptr);
+
+        std::cout << "✅ Cleared visibility buffer\n";
+    }
+
+    VkCommandBuffer beginSingleTimeCommands() {
+        VkCommandBufferAllocateInfo allocInfo{};
+        allocInfo.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocInfo.commandPool        = commandPool;  // ← uses your global commandPool
+        allocInfo.commandBufferCount = 1;
+
+        VkCommandBuffer commandBuffer;
+        vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+        return commandBuffer;
+    }
+
+    void endSingleTimeCommands(VkCommandBuffer commandBuffer) {
+        vkEndCommandBuffer(commandBuffer);
+
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers    = &commandBuffer;
+
+        vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(graphicsQueue);
+
+        vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+    }
+
+    void createComputeDescriptorSetLayout() {
+        std::array<VkDescriptorSetLayoutBinding, 3> bindings{};
+
+        // Binding 0: AABB buffer (read-only)
+        bindings[0].binding = 0;
+        bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        bindings[0].descriptorCount = 1;
+        bindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        bindings[0].pImmutableSamplers = nullptr;
+
+        // Binding 1: Visibility flags buffer (write-only)
+        bindings[1].binding = 1;
+        bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        bindings[1].descriptorCount = 1;
+        bindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        bindings[1].pImmutableSamplers = nullptr;
+
+        // Binding 2: UBO with view * proj matrix
+        bindings[2].binding = 2;
+        bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        bindings[2].descriptorCount = 1;
+        bindings[2].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        bindings[2].pImmutableSamplers = nullptr;
+
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+        layoutInfo.pBindings = bindings.data();
+
+        if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &computeDescriptorSetLayout) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create compute descriptor set layout!");
+        }
+        assert(computeDescriptorSetLayout != VK_NULL_HANDLE);
+    }
+
+    void createComputeDescriptorSet() {
+        // std::cout << "instanceBuffer: " << instanceBuffer << "\n";
+        // std::cout << "aabbBuffer: " << aabbBuffer << "\n";
+        // std::cout << "visibleBuffer: " << visibleBuffer << "\n";
+
+        // Descriptor Pool
+        std::array<VkDescriptorPoolSize, 2> poolSizes{};
+        poolSizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        poolSizes[0].descriptorCount = 2;
+        poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSizes[1].descriptorCount = 1;
+
+        VkDescriptorPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+        poolInfo.pPoolSizes = poolSizes.data();
+        poolInfo.maxSets = 1;
+
+        if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &computeDescriptorPool) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create compute descriptor pool!");
+        }
+
+        // Allocate descriptor set
+        VkDescriptorSetAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = computeDescriptorPool;
+        allocInfo.descriptorSetCount = 1;
+        allocInfo.pSetLayouts = &computeDescriptorSetLayout;
+
+        if (vkAllocateDescriptorSets(device, &allocInfo, &computeDescriptorSet) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to allocate compute descriptor set!");
+        }
+
+        // Write bindings
+        VkDescriptorBufferInfo aabbInfo{};
+        aabbInfo.buffer = aabbBuffer;
+        aabbInfo.offset = 0;
+        aabbInfo.range = VK_WHOLE_SIZE;
+
+        VkDescriptorBufferInfo visibilityInfo{};
+        visibilityInfo.buffer = visibleBuffer;
+        visibilityInfo.offset = 0;
+        visibilityInfo.range = VK_WHOLE_SIZE;
+
+        VkDescriptorBufferInfo uboInfo{};
+        uboInfo.buffer = uniformBuffers[currentFrame];  // 🔁 reuse existing UBO
+        uboInfo.offset = 0;
+        uboInfo.range = sizeof(UniformBufferObject);
+
+        std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
+
+        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[0].dstSet = computeDescriptorSet;
+        descriptorWrites[0].dstBinding = 0;
+        descriptorWrites[0].dstArrayElement = 0;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].pBufferInfo = &aabbInfo;
+
+        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[1].dstSet = computeDescriptorSet;
+        descriptorWrites[1].dstBinding = 1;
+        descriptorWrites[1].dstArrayElement = 0;
+        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].pBufferInfo = &visibilityInfo;
+
+        descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[2].dstSet = computeDescriptorSet;
+        descriptorWrites[2].dstBinding = 2;
+        descriptorWrites[2].dstArrayElement = 0;
+        descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[2].descriptorCount = 1;
+        descriptorWrites[2].pBufferInfo = &uboInfo;
+
+        vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+    }
+
+    void dispatchFrustumCull() {
+        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                computePipelineLayout, 0, 1, &computeDescriptorSet, 0, nullptr);
+
+        //uint32_t numInstances = static_cast<uint32_t>(instanceData.size());
+        uint32_t numInstances = static_cast<uint32_t>(renderInstances.size());
+        //std::cout << "Dispatching frustum cull for " << instanceData.size() << " instances\n";
+        uint32_t groupCount = (numInstances + 63) / 64;
+
+        vkCmdDispatch(commandBuffer, groupCount, 1, 1);
+
+        endSingleTimeCommands(commandBuffer);
+    }
+
+    void dispatchFrustumCullShader(VkCommandBuffer commandBuffer) {
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout,
+                                0, 1, &computeDescriptorSet, 0, nullptr);
+
+        //uint32_t numGroups = static_cast<uint32_t>((instanceData.size() + 63) / 64);
+        uint32_t numGroups = static_cast<uint32_t>((renderInstances.size() + 63) / 64);
+        //std::cout << "Dispatching frustum cull for " << instanceData.size() << " instances\n";
+        vkCmdDispatch(commandBuffer, numGroups, 1, 1);
+
+        // 🛑 Barrier to ensure compute shader writes are visible to graphics
+        VkMemoryBarrier memoryBarrier{};
+        memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        memoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        memoryBarrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT | VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+
+        vkCmdPipelineBarrier(
+            commandBuffer,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,    // Wait for compute shader
+            VK_PIPELINE_STAGE_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,  // Before graphics reads
+            0,
+            1, &memoryBarrier,   // Memory barrier
+            0, nullptr,          // No buffer memory barriers
+            0, nullptr           // No image memory barriers
+        );
+    }
+
+    void debugNDC(const glm::mat4& view, const glm::mat4& proj, const glm::vec3& minCorner, const glm::vec3& maxCorner) {
+        glm::mat4 vp = proj * view;
+
+        std::cout << "Debug NDC corners:\n";
+        for (int x = 0; x <= 1; ++x)
+        for (int y = 0; y <= 1; ++y)
+        for (int z = 0; z <= 1; ++z) {
+            glm::vec3 corner = glm::vec3(
+                x ? maxCorner.x : minCorner.x,
+                y ? maxCorner.y : minCorner.y,
+                z ? maxCorner.z : minCorner.z
+            );
+
+            glm::vec4 worldPos(corner, 1.0f);
+            glm::vec4 clip = vp * worldPos;
+            glm::vec3 ndc = glm::vec3(clip) / clip.w;
+
+            std::cout << "Corner: " << glm::to_string(corner) 
+                    << ", NDC: " << glm::to_string(ndc) << "\n";
+        }
+    }
+
+    // void debugPrintCubeVisibility(const std::vector<InstanceData>& instances,
+    //                           const std::vector<AABB>& aabbs,
+    //                           const std::vector<uint32_t>& visibility) {
+    //     for (size_t i = 0; i < instances.size(); ++i) {
+    //         const auto& instance = instances[i];
+    //         const auto& aabb = aabbs[i];
+    //         const auto isVisible = visibility[i] ? "Visible" : "Culled";
+
+    //         std::cout << "Cube " << i << " [" << isVisible << "]\n";
+    //         std::cout << "  Pos: " << glm::to_string(instance.offset) << "\n";
+    //         std::cout << "  AABB Min: " << glm::to_string(aabb.min) << "\n";
+    //         std::cout << "  AABB Max: " << glm::to_string(aabb.max) << "\n";
+    //     }
+    // }
+
+    // indirect rendering
+    void createIndirectDrawBuffer() {
+        VkDeviceSize bufferSize = sizeof(VkDrawIndirectCommand);
+
+        createBuffer(bufferSize,
+                    VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    indirectDrawBuffer,
+                    indirectDrawBufferMemory);
+
+        std::cout << "✅ Created indirect draw buffer\n";
+    }
+
+    void createDrawCommandBuffer() {
+        VkDeviceSize bufferSize = sizeof(VkDrawIndexedIndirectCommand);  // Fix: Use correct struct size
+
+        createBuffer(bufferSize,
+                    VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                    drawCommandBuffer,
+                    drawCommandBufferMemory);
+
+        std::cout << "✅ Created drawCommandBuffer" << std::endl;
+    }
+
+    void updateDrawCommandBuffer(uint32_t visibleCount) {
+        VkDrawIndexedIndirectCommand drawCmd{};  // Fix: Use correct struct type
+        drawCmd.indexCount    = static_cast<uint32_t>(indices.size());  // Number of indices (36)
+        drawCmd.instanceCount = visibleCount;
+        drawCmd.firstIndex    = 0;
+        drawCmd.vertexOffset  = 0;
+        drawCmd.firstInstance = 0;
+
+        void* data;
+        vkMapMemory(device, drawCommandBufferMemory, 0, sizeof(drawCmd), 0, &data);
+        memcpy(data, &drawCmd, sizeof(drawCmd));
+        vkUnmapMemory(device, drawCommandBufferMemory);
+    }
+    ///////
+
+    // physics
+    btRigidBody* createFallingCube(btDiscreteDynamicsWorld* world, const btVector3& position) {
+        // Box shape with 1x1x1 size
+        btCollisionShape* boxShape = new btBoxShape(btVector3(0.5f, 0.5f, 0.5f));
+
+        // Set up mass and inertia
+        btScalar mass = 1.0f;
+        btVector3 inertia(0, 0, 0);
+        boxShape->calculateLocalInertia(mass, inertia);
+
+        // Motion state
+        btDefaultMotionState* motionState = new btDefaultMotionState(btTransform(
+            btQuaternion(0, 0, 0, 1),
+            position
+        ));
+
+        // Construction info
+        btRigidBody::btRigidBodyConstructionInfo info(mass, motionState, boxShape, inertia);
+        btRigidBody* body = new btRigidBody(info);
+
+        // Add to world
+        world->addRigidBody(body);
+
+        std::cout << "🧱 Created dynamic cube at " 
+                << position.getX() << ", " << position.getY() << ", " << position.getZ() << "\n";
+
+        return body;
+    }
+
+    btRigidBody* createStaticCube(btDiscreteDynamicsWorld* world, const btVector3& position) {
+        btCollisionShape* shape = new btBoxShape(btVector3(0.5f, 0.5f, 0.5f));
+        btTransform transform(btQuaternion(0, 0, 0, 1), position);
+        btDefaultMotionState* motion = new btDefaultMotionState(transform);
+        btRigidBody::btRigidBodyConstructionInfo info(0.0f, motion, shape, btVector3(0, 0, 0)); // ← mass = 0
+        btRigidBody* body = new btRigidBody(info);
+        world->addRigidBody(body);
+        return body;
+    }
+    
+    void breakCube(Cube* cube) {
+        // Create physics cube at same location
+        if (cube && !cube->broken) {
+            cube->broken = true;
+
+            // Remove static body from physics world
+            if (cube->rigidBody) {
+                dynamicsWorld->removeRigidBody(cube->rigidBody);
+                delete cube->rigidBody->getMotionState();
+                delete cube->rigidBody->getCollisionShape();
+                delete cube->rigidBody;
+                cube->rigidBody = nullptr;
+            }
+            // Create dynamic body
+            // btRigidBody* dynamic = createFallingCube(dynamicsWorld, btVector3(cube->position.x, cube->position.y, cube->position.z));
+
+            // // Apply linear impulse
+            // btVector3 impulse(randomFloat(), randomFloat(), randomFloat());
+            // dynamic->applyCentralImpulse(impulse);
+
+            // // Apply angular impulse (spin)
+            // btVector3 angularImpulse(randomFloat(), randomFloat(), randomFloat());
+            // dynamic->applyTorqueImpulse(angularImpulse);
+
+            // cube->rigidBody = dynamic;
+
+            // fallingCubeBodies.push_back(dynamic);
+            // fallingCubeColors.push_back(cube->color);
+            spawnSubcubes(cube->position);
+        }
+    }
+    ////////
+
+    void spawnSubcubes(const glm::vec3& center) {
+        float spacing = 1.0f / 3.0f;  // Small spacing for 3x3x3 grid
+        float start = -spacing;      // Centered around 0
+
+        for (int x = 0; x < 3; ++x) {
+            for (int y = 0; y < 3; ++y) {
+                for (int z = 0; z < 3; ++z) {
+                    glm::vec3 offset = glm::vec3(
+                        start + x * spacing,
+                        start + y * spacing,
+                        start + z * spacing
+                    );
+
+                    glm::vec3 position = center + offset;
+                    btVector3 btPos(position.x, position.y, position.z);
+
+                    btCollisionShape* shape = new btBoxShape(btVector3(0.15f, 0.15f, 0.15f));
+                    btScalar mass = 0.1f;
+                    btVector3 inertia(0, 0, 0);
+                    shape->calculateLocalInertia(mass, inertia);
+
+                    btDefaultMotionState* motion = new btDefaultMotionState(btTransform(
+                        btQuaternion(0, 0, 0, 1), btPos));
+
+                    btRigidBody::btRigidBodyConstructionInfo info(mass, motion, shape, inertia);
+                    btRigidBody* body = new btRigidBody(info);
+
+                    // Give it a small random nudge
+                    float fx = ((rand() % 100) / 50.0f - 1.0f) * 5.0f;
+                    float fy = ((rand() % 100) / 50.0f) * 8.0f;
+                    float fz = ((rand() % 100) / 50.0f - 1.0f) * 5.0f;
+                    body->applyCentralImpulse(btVector3(fx, fy, fz));
+
+                    dynamicsWorld->addRigidBody(body);
+
+                    glm::vec3 color = glm::vec3(1.0f, 0.7f, 0.2f); // could inherit from parent
+
+                    subcubes.push_back({ body, color, glfwGetTime() });
+                }
+            }
+        }
+    }
+
+    // timing profile stuff
+    void createTimestampQueryPool() {
+        VkQueryPoolCreateInfo queryPoolInfo{};
+        queryPoolInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+        queryPoolInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+        queryPoolInfo.queryCount = 4; // Start/end for CPU work and GPU work
+        
+        if (vkCreateQueryPool(device, &queryPoolInfo, nullptr, &timestampQueryPool) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create query pool!");
+        }
+        
+        timestampResults.resize(4);
+        
+        // Get timestamp period for converting to milliseconds
+        VkPhysicalDeviceProperties properties;
+        vkGetPhysicalDeviceProperties(physicalDevice, &properties);
+        timestampPeriod = properties.limits.timestampPeriod;
+    }
+
+    FrameTiming profileFrame() {
+        FrameTiming timing;
+        
+        // CPU timing
+        auto cpuStart = std::chrono::high_resolution_clock::now();
+        
+        // Read actual visibility results from GPU after frustum culling using staging buffer
+        std::vector<uint32_t> visibleFlags(renderInstances.size());
+        VkDeviceSize bufferSize = visibleFlags.size() * sizeof(uint32_t);
+        
+        VkBuffer stagingBuffer;
+        VkDeviceMemory stagingBufferMemory;
+        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                    stagingBuffer, stagingBufferMemory);
+
+        copyBuffer(visibleBuffer, stagingBuffer, bufferSize);
+
+        void* mapped;
+        vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &mapped);
+        memcpy(visibleFlags.data(), mapped, bufferSize);
+        vkUnmapMemory(device, stagingBufferMemory);
+
+        vkDestroyBuffer(device, stagingBuffer, nullptr);
+        vkFreeMemory(device, stagingBufferMemory, nullptr);
+        
+        // Count actual visible instances after frustum culling
+        timing.visibleInstances = std::count(visibleFlags.begin(), visibleFlags.end(), 1u);
+        timing.culledInstances = renderInstances.size() - timing.visibleInstances;
+        
+        // Estimate vertex count (36 indices per cube * actually visible cubes)
+        timing.vertexCount = timing.visibleInstances * 36;
+        
+        // Draw calls (you're using indirect, so probably 1)
+        timing.drawCalls = 1;
+        
+        auto cpuEnd = std::chrono::high_resolution_clock::now();
+        timing.cpuFrameTime = std::chrono::duration<double, std::milli>(cpuEnd - cpuStart).count();
+        
+        return timing;
+    }
+
+    void printProfilingInfo(int fps) {
+        if (frameTimings.empty()) return;
+        
+        // Calculate averages
+        double avgCpuTime = 0.0;
+        int avgVertices = 0;
+        int avgVisible = 0;
+        int avgCulled = 0;
+        
+        for (const auto& timing : frameTimings) {
+            avgCpuTime += timing.cpuFrameTime;
+            avgVertices += timing.vertexCount;
+            avgVisible += timing.visibleInstances;
+            avgCulled += timing.culledInstances;
+        }
+        
+        int samples = frameTimings.size();
+        avgCpuTime /= samples;
+        avgVertices /= samples;
+        avgVisible /= samples;
+        avgCulled /= samples;
+        
+        std::cout << "\n=== FRAME PROFILING ===\n";
+        std::cout << "FPS: " << fps << "\n";
+        std::cout << "Avg CPU Frame Time: " << avgCpuTime << "ms\n";
+        std::cout << "Avg Vertices/Frame: " << avgVertices << "\n";
+        std::cout << "Avg Visible Cubes: " << avgVisible << "\n";
+        std::cout << "Avg Culled Cubes: " << avgCulled << "\n";
+        std::cout << "Culling Efficiency: " << (100.0 * avgCulled / (avgVisible + avgCulled)) << "%\n";
+        std::cout << "Memory Usage: Instance Buffer = " << (avgVisible * sizeof(InstanceData)) << " bytes\n";
+        std::cout << "======================\n";
+    }
+
+    void printMemoryUsage() {
+        VkPhysicalDeviceMemoryProperties memProps;
+        vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProps);
+        
+        std::cout << "GPU Memory Heaps:\n";
+        for (uint32_t i = 0; i < memProps.memoryHeapCount; i++) {
+            std::cout << "  Heap " << i << ": " << (memProps.memoryHeaps[i].size / 1024 / 1024) << " MB\n";
+        }
+    }
+
+    void printDetailedTimings() {
+        if (detailedTimings.empty()) return;
+        
+        // Calculate averages
+        DetailedFrameTiming avg = {};
+        for (const auto& t : detailedTimings) {
+            avg.totalFrameTime += t.totalFrameTime;
+            avg.mousePickTime += t.mousePickTime;
+            avg.uboFillTime += t.uboFillTime;
+            avg.instanceUpdateTime += t.instanceUpdateTime;
+            avg.drawCmdUpdateTime += t.drawCmdUpdateTime;
+            avg.uniformUploadTime += t.uniformUploadTime;
+            avg.commandRecordTime += t.commandRecordTime;
+            avg.gpuSubmitTime += t.gpuSubmitTime;
+            avg.presentTime += t.presentTime;
+        }
+        
+        int samples = detailedTimings.size();
+        avg.totalFrameTime /= samples;
+        avg.mousePickTime /= samples;
+        avg.uboFillTime /= samples;
+        avg.instanceUpdateTime /= samples;
+        avg.drawCmdUpdateTime /= samples;
+        avg.uniformUploadTime /= samples;
+        avg.commandRecordTime /= samples;
+        avg.gpuSubmitTime /= samples;
+        avg.presentTime /= samples;
+        
+        std::cout << "\n=== DETAILED FRAME TIMING ===\n";
+        std::cout << "Total Frame Time: " << avg.totalFrameTime << "ms\n";
+        std::cout << "  Mouse Picking: " << avg.mousePickTime << "ms\n";
+        std::cout << "  UBO Fill: " << avg.uboFillTime << "ms\n";
+        std::cout << "  Instance Update: " << avg.instanceUpdateTime << "ms\n";
+        std::cout << "  Draw Cmd Update: " << avg.drawCmdUpdateTime << "ms\n";
+        std::cout << "  Uniform Upload: " << avg.uniformUploadTime << "ms\n";
+        std::cout << "  Command Record: " << avg.commandRecordTime << "ms\n";
+        std::cout << "  GPU Submit: " << avg.gpuSubmitTime << "ms\n";
+        std::cout << "  Present: " << avg.presentTime << "ms\n";
+        std::cout << "=============================\n";
+    }
+};
+
+int main() {
+    VulkanApp app;
+    try {
+        app.run();
+    } catch (const std::exception& e) {
+        std::cerr << e.what() << std::endl;
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}

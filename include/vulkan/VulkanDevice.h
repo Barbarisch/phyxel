@@ -1,0 +1,243 @@
+#pragma once
+
+#include "core/Types.h"
+#include <vulkan/vulkan.h>
+#include <vector>
+#include <optional>
+#include <limits>
+#include <algorithm>
+#include <glm/glm.hpp>
+
+namespace VulkanCube {
+namespace Vulkan {
+
+// Vertex structure for cube rendering
+struct Vertex {
+    uint32_t vertexID;
+    
+    static VkVertexInputBindingDescription getBindingDescription() {
+        VkVertexInputBindingDescription bindingDescription{};
+        bindingDescription.binding = 0;
+        bindingDescription.stride = sizeof(Vertex);
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+        return bindingDescription;
+    }
+    
+    static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(1);
+        
+        attributeDescriptions[0].binding = 0;
+        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].format = VK_FORMAT_R32_UINT;
+        attributeDescriptions[0].offset = offsetof(Vertex, vertexID);
+        
+        return attributeDescriptions;
+    }
+};
+
+// Instance data structure
+struct InstanceData {
+    glm::vec3 offset;
+    glm::vec3 color;
+    uint32_t faceMask;
+    
+    static VkVertexInputBindingDescription getBindingDescription() {
+        VkVertexInputBindingDescription bindingDescription{};
+        bindingDescription.binding = 1;
+        bindingDescription.stride = sizeof(InstanceData);
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+        return bindingDescription;
+    }
+    
+    static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(3);
+        
+        attributeDescriptions[0].binding = 1;
+        attributeDescriptions[0].location = 1;
+        attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[0].offset = offsetof(InstanceData, offset);
+        
+        attributeDescriptions[1].binding = 1;
+        attributeDescriptions[1].location = 2;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[1].offset = offsetof(InstanceData, color);
+        
+        attributeDescriptions[2].binding = 1;
+        attributeDescriptions[2].location = 3;
+        attributeDescriptions[2].format = VK_FORMAT_R32_UINT;
+        attributeDescriptions[2].offset = offsetof(InstanceData, faceMask);
+        
+        return attributeDescriptions;
+    }
+};
+
+// Uniform buffer object
+struct UniformBufferObject {
+    glm::mat4 view;
+    glm::mat4 proj;
+    alignas(4) uint32_t numInstances;
+};
+
+class VulkanDevice {
+public:
+    VulkanDevice();
+    ~VulkanDevice();
+
+    // Initialization
+    bool initialize();
+    void cleanup();
+
+    // Instance management
+    bool createInstance();
+    bool setupDebugMessenger();
+    bool createSurface(void* window);
+
+    // Physical device selection
+    bool pickPhysicalDevice();
+    bool isDeviceSuitable(VkPhysicalDevice device);
+    QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
+    bool checkDeviceExtensionSupport(VkPhysicalDevice device);
+    SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
+
+    // Logical device creation
+    bool createLogicalDevice();
+
+    // Swapchain management
+    bool createSwapChain(int windowWidth, int windowHeight);
+    bool createFramebuffers(VkRenderPass renderPass);
+    bool createCommandBuffers();
+    bool createSyncObjects();
+    
+    // Rendering resources
+    bool createVertexBuffer();
+    bool createIndexBuffer();
+    bool createInstanceBuffer();
+    bool createUniformBuffers();
+    bool createDescriptorSetLayout();
+    bool createDescriptorPool();
+    bool createDescriptorSets();
+    void updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, uint32_t numInstances);
+    void updateInstanceBuffer(const std::vector<InstanceData>& instances);
+    
+    // Buffer creation helpers
+    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+    void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+    
+    // Depth buffer management
+        bool createDepthResources();
+        VkFormat findDepthFormat();
+        VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
+        void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, 
+                        VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
+        VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+        uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);    
+        
+        // Command buffer operations
+        void waitForFence(uint32_t frameIndex);
+        void resetFence(uint32_t frameIndex);
+        VkResult acquireNextImage(uint32_t frameIndex, uint32_t* imageIndex);
+        void resetCommandBuffer(uint32_t frameIndex);
+        void beginCommandBuffer(uint32_t frameIndex);
+        void beginRenderPass(uint32_t frameIndex, uint32_t imageIndex, VkRenderPass renderPass);
+        void endRenderPass(uint32_t frameIndex);
+        void endCommandBuffer(uint32_t frameIndex);
+        bool submitCommandBuffer(uint32_t frameIndex);
+        bool presentFrame(uint32_t imageIndex, uint32_t frameIndex);
+        VkCommandBuffer getCommandBuffer(uint32_t frameIndex);
+        
+        // Rendering command recording
+        void bindVertexBuffers(uint32_t frameIndex);
+        void bindIndexBuffer(uint32_t frameIndex);
+        void bindDescriptorSets(uint32_t frameIndex, VkPipelineLayout pipelineLayout);
+        void drawIndexed(uint32_t frameIndex, uint32_t indexCount, uint32_t instanceCount);
+
+        // Getters
+        VkDevice getDevice() const { return device; }
+        VkPhysicalDevice getPhysicalDevice() const { return physicalDevice; }
+        VkSurfaceKHR getSurface() const { return surface; }
+        VkQueue getGraphicsQueue() const { return graphicsQueue; }
+        VkQueue getPresentQueue() const { return presentQueue; }
+        VkExtent2D getSwapChainExtent() const { return swapChainExtent; }
+        VkFormat getSwapChainImageFormat() const { return swapChainImageFormat; }
+        VkDescriptorSetLayout getDescriptorSetLayout() const { return descriptorSetLayout; }
+
+private:
+    VkInstance instance = VK_NULL_HANDLE;
+    VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
+    VkSurfaceKHR surface = VK_NULL_HANDLE;
+    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+    VkDevice device = VK_NULL_HANDLE;
+    VkQueue graphicsQueue = VK_NULL_HANDLE;
+    VkQueue presentQueue = VK_NULL_HANDLE;
+
+    // Swapchain
+    VkSwapchainKHR swapChain = VK_NULL_HANDLE;
+    std::vector<VkImage> swapChainImages;
+    VkFormat swapChainImageFormat;
+    VkExtent2D swapChainExtent;
+    std::vector<VkImageView> swapChainImageViews;
+    std::vector<VkFramebuffer> swapChainFramebuffers;
+
+    // Depth buffer
+    VkImage depthImage = VK_NULL_HANDLE;
+    VkDeviceMemory depthImageMemory = VK_NULL_HANDLE;
+    VkImageView depthImageView = VK_NULL_HANDLE;
+
+    // Rendering resources
+    VkBuffer vertexBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory vertexBufferMemory = VK_NULL_HANDLE;
+    VkBuffer indexBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory indexBufferMemory = VK_NULL_HANDLE;
+    VkBuffer instanceBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory instanceBufferMemory = VK_NULL_HANDLE;
+    std::vector<VkBuffer> uniformBuffers;
+    std::vector<VkDeviceMemory> uniformBuffersMemory;
+    VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
+    VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+    std::vector<VkDescriptorSet> descriptorSets;
+
+    // Command buffers
+    VkCommandPool commandPool = VK_NULL_HANDLE;
+    std::vector<VkCommandBuffer> commandBuffers;
+
+    // Helper methods for swapchain
+    VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
+    VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
+    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, int windowWidth, int windowHeight);
+
+    // Synchronization
+    static const int MAX_FRAMES_IN_FLIGHT = 2;
+    std::vector<VkSemaphore> imageAvailableSemaphores;
+    std::vector<VkSemaphore> renderFinishedSemaphores;
+    std::vector<VkFence> inFlightFences;
+
+    // Helper functions
+    std::vector<const char*> getRequiredExtensions();
+    bool checkValidationLayerSupport();
+    void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
+
+    // Debug callback
+    static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+        VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+        VkDebugUtilsMessageTypeFlagsEXT messageType,
+        const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+        void* pUserData);
+
+    // Validation layers and extensions
+    const std::vector<const char*> validationLayers = {
+        "VK_LAYER_KHRONOS_validation"
+    };
+
+    const std::vector<const char*> deviceExtensions = {
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME
+    };
+
+#ifdef NDEBUG
+    const bool enableValidationLayers = false;
+#else
+    const bool enableValidationLayers = true;
+#endif
+};
+
+} // namespace Vulkan
+} // namespace VulkanCube
