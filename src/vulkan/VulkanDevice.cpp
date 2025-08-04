@@ -279,7 +279,7 @@ bool VulkanDevice::isDeviceSuitable(VkPhysicalDevice device) {
     return indices.isComplete() && extensionsSupported && swapChainAdequate;
 }
 
-QueueFamilyIndices VulkanDevice::findQueueFamilies(VkPhysicalDevice device) {
+QueueFamilyIndices VulkanDevice::findQueueFamilies(VkPhysicalDevice device) const {
     QueueFamilyIndices indices;
 
     uint32_t queueFamilyCount = 0;
@@ -1133,6 +1133,48 @@ void VulkanDevice::bindDescriptorSets(uint32_t frameIndex, VkPipelineLayout pipe
 
 void VulkanDevice::drawIndexed(uint32_t frameIndex, uint32_t indexCount, uint32_t instanceCount) {
     vkCmdDrawIndexed(commandBuffers[frameIndex], indexCount, instanceCount, 0, 0, 0);
+}
+
+uint32_t VulkanDevice::getGraphicsQueueFamily() const {
+    QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+    return indices.graphicsFamily.value();
+}
+
+VkCommandBuffer VulkanDevice::getCommandBuffer(uint32_t frameIndex) const {
+    return commandBuffers[frameIndex];
+}
+
+VkCommandBuffer VulkanDevice::beginSingleTimeCommands() {
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = commandPool;
+    allocInfo.commandBufferCount = 1;
+
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+    return commandBuffer;
+}
+
+void VulkanDevice::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
+    vkEndCommandBuffer(commandBuffer);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(graphicsQueue);
+
+    vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDevice::debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) {

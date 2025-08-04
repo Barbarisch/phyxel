@@ -8,6 +8,8 @@
 #include "scene/SceneManager.h"
 #include "physics/PhysicsWorld.h"
 #include "utils/Timer.h"
+#include "utils/PerformanceProfiler.h"
+#include "ui/ImGuiRenderer.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -41,6 +43,8 @@ private:
     std::unique_ptr<Scene::SceneManager> sceneManager;
     std::unique_ptr<Physics::PhysicsWorld> physicsWorld;
     std::unique_ptr<Timer> timer;
+    std::unique_ptr<PerformanceProfiler> performanceProfiler;
+    std::unique_ptr<UI::ImGuiRenderer> imguiRenderer;
 
     // Application state
     bool isRunning;
@@ -77,6 +81,9 @@ private:
     double currentMouseX;
     double currentMouseY;
     int lastHoveredCube;
+    
+    // Performance overlay
+    bool showPerformanceOverlay = false;
 
     // Initialization methods
     bool initializeWindow();
@@ -110,6 +117,10 @@ private:
     FrameTiming profileFrame();
     void printProfilingInfo(int fps);
     void printDetailedTimings();
+    
+    // Performance overlay methods
+    void togglePerformanceOverlay();
+    void renderPerformanceOverlay();
 };
 
 } // namespace VulkanCube

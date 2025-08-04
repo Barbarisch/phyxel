@@ -7,6 +7,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <chrono>
 
 // Forward declarations
 class btRigidBody;
@@ -78,6 +79,18 @@ struct FrameTiming {
     int drawCalls = 0;
     int culledInstances = 0;
     int visibleInstances = 0;
+    
+    // Enhanced culling metrics
+    int frustumCulledInstances = 0;
+    int occlusionCulledInstances = 0;
+    int faceCulledFaces = 0;
+    
+    // Memory bandwidth metrics
+    double memoryBandwidthMBps = 0.0;
+    size_t vertexBufferBytes = 0;
+    size_t indexBufferBytes = 0;
+    size_t instanceBufferBytes = 0;
+    size_t uniformBufferBytes = 0;
 };
 
 struct DetailedFrameTiming {
@@ -91,6 +104,52 @@ struct DetailedFrameTiming {
     double commandRecordTime = 0.0;
     double gpuSubmitTime = 0.0;
     double presentTime = 0.0;
+    
+    // Enhanced timing metrics
+    double frustumCullingTime = 0.0;
+    double occlusionCullingTime = 0.0;
+    double faceCullingTime = 0.0;
+    double memoryTransferTime = 0.0;
+    double bufferUpdateTime = 0.0;
+};
+
+// Memory bandwidth tracker
+struct MemoryBandwidthTracker {
+    std::chrono::high_resolution_clock::time_point frameStartTime;
+    size_t totalBytesTransferred = 0;
+    double averageBandwidthMBps = 0.0;
+    std::vector<double> recentBandwidthSamples;
+    static constexpr size_t MAX_SAMPLES = 60; // 1 second at 60fps
+    
+    void startFrame() {
+        frameStartTime = std::chrono::high_resolution_clock::now();
+        totalBytesTransferred = 0;
+    }
+    
+    void recordTransfer(size_t bytes) {
+        totalBytesTransferred += bytes;
+    }
+    
+    void endFrame() {
+        auto frameEndTime = std::chrono::high_resolution_clock::now();
+        auto frameTime = std::chrono::duration<double>(frameEndTime - frameStartTime).count();
+        
+        if (frameTime > 0.0) {
+            double bandwidthMBps = (totalBytesTransferred / (1024.0 * 1024.0)) / frameTime;
+            recentBandwidthSamples.push_back(bandwidthMBps);
+            
+            if (recentBandwidthSamples.size() > MAX_SAMPLES) {
+                recentBandwidthSamples.erase(recentBandwidthSamples.begin());
+            }
+            
+            // Calculate rolling average
+            double sum = 0.0;
+            for (double sample : recentBandwidthSamples) {
+                sum += sample;
+            }
+            averageBandwidthMBps = sum / recentBandwidthSamples.size();
+        }
+    }
 };
 
 // Queue family indices

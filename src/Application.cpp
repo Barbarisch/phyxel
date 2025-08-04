@@ -1,6 +1,7 @@
 #include "Application.h"
 #include "utils/FileUtils.h"
 #include "utils/Math.h"
+#include "utils/PerformanceProfiler.h"
 #include <iostream>
 #include <iomanip>
 #include <chrono>
@@ -28,7 +29,9 @@ Application::Application()
     , mouseCaptured(false)
     , currentMouseX(0.0)
     , currentMouseY(0.0)
-    , lastHoveredCube(-1) {
+    , lastHoveredCube(-1)
+    , performanceProfiler(std::make_unique<PerformanceProfiler>())
+    , imguiRenderer(std::make_unique<UI::ImGuiRenderer>()) {
     
     // Initialize frame timing
     frameTiming.cpuFrameTime = 0.0;
@@ -87,6 +90,12 @@ bool Application::initialize() {
         return false;
     }
 
+    // Initialize ImGui after Vulkan is fully set up
+    if (!imguiRenderer->initialize(window, vulkanDevice.get(), renderPipeline.get())) {
+        std::cerr << "Failed to initialize ImGui!" << std::endl;
+        return false;
+    }
+
     timer->start();
     std::cout << "Application initialized successfully!" << std::endl;
     return true;
@@ -103,6 +112,9 @@ void Application::run() {
     while (isRunning && !glfwWindowShouldClose(window)) {
         frameStartTime = std::chrono::high_resolution_clock::now();
         
+        // Start new frame profiling
+        performanceProfiler->startFrame();
+        
         double currentTime = glfwGetTime();
         deltaTime = currentTime - lastFrameTime;
         lastFrameTime = currentTime;
@@ -112,11 +124,44 @@ void Application::run() {
         
         timer->update();
         
-        handleInput();
-        update(deltaTime);
-        render();
+        {
+            ScopedTimer inputTimer(*performanceProfiler, "input");
+            handleInput();
+        }
         
-        // Profile the frame
+        {
+            ScopedTimer updateTimer(*performanceProfiler, "update");
+            update(deltaTime);
+        }
+        
+        {
+            ScopedTimer renderTimer(*performanceProfiler, "render");
+            render();
+        }
+        
+        // Start ImGui frame
+        imguiRenderer->newFrame();
+        
+        // Render ImGui performance overlay instead of console output
+        imguiRenderer->renderPerformanceOverlay(
+            showPerformanceOverlay,
+            timer.get(),
+            performanceProfiler.get(),
+            frameTiming,
+            detailedTimings,
+            sceneManager.get(),
+            physicsWorld.get(),
+            cameraPos,
+            frameCount
+        );
+        
+        // End ImGui frame
+        imguiRenderer->endFrame();
+        
+        // End frame profiling
+        performanceProfiler->endFrame();
+        
+        // Profile the frame (legacy system)
         FrameTiming timing = profileFrame();
         frameTimings.push_back(timing);
         
@@ -129,16 +174,24 @@ void Application::run() {
         frameCount++;
         fpsFrameCount++;
         
-        // Print detailed performance stats every second
+        // Print detailed performance stats every second (only when overlay is disabled)
         if (currentTime - fpsTimer >= 1.0) {
-            printProfilingInfo(fpsFrameCount);
-            printDetailedTimings();
+            if (!showPerformanceOverlay) {
+                printProfilingInfo(fpsFrameCount);
+                printDetailedTimings();
+                
+                // Print new performance profiler reports
+                performanceProfiler->printFrameReport();
+                performanceProfiler->printMemoryReport();
+                performanceProfiler->printCullingReport();
+            }
+            
             fpsFrameCount = 0;
             fpsTimer = currentTime;
         }
         
-        // Print basic stats every 60 frames
-        if (frameCount % 60 == 0) {
+        // Print basic stats every 60 frames (only when overlay is disabled)
+        if (frameCount % 60 == 0 && !showPerformanceOverlay) {
             printPerformanceStats();
         }
     }
@@ -147,6 +200,11 @@ void Application::run() {
 }
 
 void Application::cleanup() {
+    // Cleanup ImGui first (requires Vulkan device to still be active)
+    if (imguiRenderer) {
+        imguiRenderer->cleanup();
+    }
+    
     if (renderPipeline) {
         renderPipeline->cleanup();
     }
@@ -176,6 +234,7 @@ void Application::cleanup() {
     sceneManager.reset();
     physicsWorld.reset();
     timer.reset();
+    imguiRenderer.reset();
 }
 
 void Application::setWindowSize(int width, int height) {
@@ -371,6 +430,18 @@ void Application::update(float deltaTime) {
     // Update scene
     sceneManager->updateInstanceData();
     sceneManager->performFrustumCulling();
+    
+    // Track culling statistics for performance profiler
+    const auto& visibilityBuffer = sceneManager->getVisibilityBuffer();
+    uint32_t totalObjects = static_cast<uint32_t>(visibilityBuffer.size());
+    uint32_t visibleObjects = 0;
+    for (uint32_t visible : visibilityBuffer) {
+        if (visible) visibleObjects++;
+    }
+    uint32_t culledObjects = totalObjects - visibleObjects;
+    
+    // Record frustum culling statistics (placeholder timing for now)
+    performanceProfiler->recordFrustumCulling(totalObjects, culledObjects, 0.0);
 
     // Set camera in scene manager
     sceneManager->setCamera(cameraPos, cameraFront, cameraUp);
@@ -430,6 +501,10 @@ void Application::drawFrame() {
             vulkanInstances.push_back(vulkanInstance);
         }
         
+        // Track memory bandwidth for instance buffer update
+        size_t instanceDataSize = vulkanInstances.size() * sizeof(Vulkan::InstanceData);
+        performanceProfiler->recordMemoryTransfer(instanceDataSize);
+        
         vulkanDevice->updateInstanceBuffer(vulkanInstances);
     }
     auto instanceUpdateEnd = std::chrono::high_resolution_clock::now();
@@ -452,6 +527,11 @@ void Application::drawFrame() {
     
     // Update uniform buffer with camera matrices
     auto uniformUploadStart = std::chrono::high_resolution_clock::now();
+    
+    // Track memory bandwidth for uniform buffer update
+    size_t uniformBufferSize = sizeof(glm::mat4) * 2 + sizeof(uint32_t); // view + proj + cubeCount
+    performanceProfiler->recordMemoryTransfer(uniformBufferSize);
+    
     vulkanDevice->updateUniformBuffer(currentFrame, view, proj, static_cast<uint32_t>(cubeCount));
     auto uniformUploadEnd = std::chrono::high_resolution_clock::now();
 
@@ -493,6 +573,9 @@ void Application::drawFrame() {
     if (cubeCount > 0) {
         vulkanDevice->drawIndexed(currentFrame, 36, static_cast<uint32_t>(cubeCount));
     }
+    
+    // Render ImGui on top
+    imguiRenderer->render(currentFrame, imageIndex);
     
     // End render pass
     vulkanDevice->endRenderPass(currentFrame);
@@ -712,6 +795,15 @@ void Application::processInput() {
         glfwSetWindowShouldClose(window, true);
     }
     
+    // Toggle performance overlay with F1
+    static bool f1Pressed = false;
+    if (glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS && !f1Pressed) {
+        togglePerformanceOverlay();
+        f1Pressed = true;
+    } else if (glfwGetKey(window, GLFW_KEY_F1) == GLFW_RELEASE) {
+        f1Pressed = false;
+    }
+    
     // Camera movement with WASD (always available)
     float cameraSpeed = 5.0f * deltaTime;
 
@@ -900,6 +992,17 @@ glm::vec3 Application::screenToWorldRay(double mouseX, double mouseY) const {
     glm::vec3 rayWorld = glm::vec3(glm::inverse(view) * rayEye);
     
     return glm::normalize(rayWorld);
+}
+
+void Application::togglePerformanceOverlay() {
+    showPerformanceOverlay = !showPerformanceOverlay;
+    std::cout << "Performance Overlay: " << (showPerformanceOverlay ? "ENABLED" : "DISABLED") << std::endl;
+}
+
+void Application::renderPerformanceOverlay() {
+    // This function is now replaced by ImGui overlay
+    // Console output is only used when ImGui is not available
+    return;
 }
 
 } // namespace VulkanCube

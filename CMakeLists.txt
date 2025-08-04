@@ -61,6 +61,18 @@ endif()
 # Include directories
 include_directories(include)
 
+# ImGui setup
+set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/external/imgui)
+set(IMGUI_SOURCES
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_demo.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
+)
+
 # Collect all source files
 file(GLOB_RECURSE SOURCES 
     "src/*.cpp"
@@ -68,7 +80,7 @@ file(GLOB_RECURSE SOURCES
 )
 
 # Create executable
-add_executable(VulkanCube ${SOURCES})
+add_executable(VulkanCube ${SOURCES} ${IMGUI_SOURCES})
 
 # Platform-specific compiler settings
 if(PLATFORM_WINDOWS)
@@ -91,6 +103,8 @@ endif()
 target_include_directories(VulkanCube PRIVATE 
     ${Vulkan_INCLUDE_DIRS}
     include
+    ${IMGUI_DIR}
+    ${IMGUI_DIR}/backends
 )
 
 # Platform-specific linking

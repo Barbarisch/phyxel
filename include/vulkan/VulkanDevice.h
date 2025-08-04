@@ -95,7 +95,7 @@ public:
     // Physical device selection
     bool pickPhysicalDevice();
     bool isDeviceSuitable(VkPhysicalDevice device);
-    QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
+    QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) const;
     bool checkDeviceExtensionSupport(VkPhysicalDevice device);
     SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
 
@@ -154,12 +154,20 @@ public:
         // Getters
         VkDevice getDevice() const { return device; }
         VkPhysicalDevice getPhysicalDevice() const { return physicalDevice; }
+        VkInstance getInstance() const { return instance; }
         VkSurfaceKHR getSurface() const { return surface; }
         VkQueue getGraphicsQueue() const { return graphicsQueue; }
         VkQueue getPresentQueue() const { return presentQueue; }
         VkExtent2D getSwapChainExtent() const { return swapChainExtent; }
         VkFormat getSwapChainImageFormat() const { return swapChainImageFormat; }
         VkDescriptorSetLayout getDescriptorSetLayout() const { return descriptorSetLayout; }
+        uint32_t getSwapChainImageCount() const { return static_cast<uint32_t>(swapChainImages.size()); }
+        uint32_t getGraphicsQueueFamily() const;
+        VkCommandBuffer getCommandBuffer(uint32_t frameIndex) const;
+        
+        // Command buffer utilities
+        VkCommandBuffer beginSingleTimeCommands();
+        void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 
 private:
     VkInstance instance = VK_NULL_HANDLE;
