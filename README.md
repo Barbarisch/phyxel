@@ -110,7 +110,8 @@ git submodule update --init --recursive
 # Build Bullet Physics first
 cd external/bullet3
 mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Debug
+# cmake .. -DCMAKE_BUILD_TYPE=Debug
+cmake -G "Visual Studio 17 2022" -A x64 -DUSE_MSVC_RUNTIME_LIBRARY_DLL=ON -DCMAKE_BUILD_TYPE=Debug ..
 cmake --build . --config Debug
 cd ../../..
 
