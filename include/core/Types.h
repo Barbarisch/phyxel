@@ -22,11 +22,11 @@ struct Vertex {
     static std::array<VkVertexInputAttributeDescription, 1> getAttributeDescriptions();
 };
 
-// Instance data for rendering
+// Instance data for rendering - compressed format with future expansion capability
 struct InstanceData {
-    glm::vec3 offset;
-    glm::vec3 color;
-    uint32_t faceMask;  // 6 bits for face visibility: bit0=front, bit1=back, bit2=right, bit3=left, bit4=top, bit5=bottom
+    uint32_t packedData;   // 15 bits position (5+5+5), 6 bits face mask, 11 bits available for future features
+    glm::vec3 color;       // RGB color (12 bytes)
+    // Total: 16 bytes (was 28 bytes - 43% reduction!)
 };
 
 // Face visibility structure
@@ -38,6 +38,80 @@ struct CubeFaces {
     bool top = true;
     bool bottom = true;
 };
+
+// Utility functions for packing/unpacking instance data
+namespace InstanceDataUtils {
+    // Bit layout in packedData:
+    // Bits 0-4:   X position (5 bits)
+    // Bits 5-9:   Y position (5 bits) 
+    // Bits 10-14: Z position (5 bits)
+    // Bits 15-20: Face mask (6 bits)
+    // Bits 21-31: Available for future features (11 bits) - subcube scaling, material ID, etc.
+    
+    // Pack all data into uint32_t
+    inline uint32_t packInstanceData(uint32_t x, uint32_t y, uint32_t z, uint32_t faceMask, uint32_t futureData = 0) {
+        return (x & 0x1F) |
+               ((y & 0x1F) << 5) |
+               ((z & 0x1F) << 10) |
+               ((faceMask & 0x3F) << 15) |
+               ((futureData & 0x7FF) << 21);
+    }
+    
+    // Pack face mask into 6-bit value
+    inline uint32_t packFaceMask(const CubeFaces& faces) {
+        uint32_t faceMask = 0;
+        if (faces.front)  faceMask |= (1 << 0);
+        if (faces.back)   faceMask |= (1 << 1);
+        if (faces.right)  faceMask |= (1 << 2);
+        if (faces.left)   faceMask |= (1 << 3);
+        if (faces.top)    faceMask |= (1 << 4);
+        if (faces.bottom) faceMask |= (1 << 5);
+        return faceMask;
+    }
+    
+    // Create instance data from relative position and faces
+    inline InstanceData createInstanceData(const glm::ivec3& relativePos, const CubeFaces& faces, 
+                                         const glm::vec3& color, uint32_t futureData = 0) {
+        InstanceData instance;
+        uint32_t faceMask = packFaceMask(faces);
+        instance.packedData = packInstanceData(relativePos.x, relativePos.y, relativePos.z, faceMask, futureData);
+        instance.color = color;
+        return instance;
+    }
+    
+    // Unpack relative position
+    inline void unpackRelativePos(uint32_t packed, uint32_t& x, uint32_t& y, uint32_t& z) {
+        x = packed & 0x1F;
+        y = (packed >> 5) & 0x1F;
+        z = (packed >> 10) & 0x1F;
+    }
+    
+    // Unpack face mask
+    inline uint32_t getFaceMask(uint32_t packed) {
+        return (packed >> 15) & 0x3F;
+    }
+    
+    // Get future data bits (for subcube scaling, etc.)
+    inline uint32_t getFutureData(uint32_t packed) {
+        return (packed >> 21) & 0x7FF;
+    }
+    
+    // Legacy functions for backward compatibility
+    inline uint16_t packRelativePos(uint32_t x, uint32_t y, uint32_t z) {
+        return (x & 0x1F) | 
+               ((y & 0x1F) << 5) | 
+               ((z & 0x1F) << 10);
+    }
+    
+    inline uint32_t packRelativePosAndFaces(uint32_t x, uint32_t y, uint32_t z, uint32_t faceMask) {
+        return packInstanceData(x, y, z, faceMask, 0);
+    }
+    
+    inline uint32_t packRelativePosAndFaces(const glm::ivec3& relativePos, const CubeFaces& faces) {
+        uint32_t faceMask = packFaceMask(faces);
+        return packInstanceData(relativePos.x, relativePos.y, relativePos.z, faceMask, 0);
+    }
+}
 
 // Cube entity
 struct Cube {

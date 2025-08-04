@@ -63,11 +63,10 @@ void SceneManager::addCube(int x, int y, int z) {
     // Update position mapping
     positionToIndex[position] = index;
     
-    // Create instance data
-    InstanceData instanceData;
-    instanceData.offset = glm::vec3(position);
-    instanceData.color = newCube.color;
-    instanceData.faceMask = 0x3F; // All faces visible initially
+    // Create instance data using new packed format
+    CubeFaces faces;
+    faces.front = faces.back = faces.left = faces.right = faces.top = faces.bottom = true; // All faces visible initially
+    InstanceData instanceData = InstanceDataUtils::createInstanceData(position, faces, newCube.color);
     this->instanceData.push_back(instanceData);
     
     // Add to visibility buffer
@@ -152,22 +151,39 @@ void SceneManager::updateInstanceData() {
     // Update instance data based on current cube state
     // Note: Face masks are calculated once when cubes are added, not every frame!
     for (size_t i = 0; i < cubes.size(); ++i) {
-        instanceData[i].offset = glm::vec3(cubes[i].position);
+        // For now, we need to unpack the old data, update position, and repack
+        // Extract current face mask from packed data
+        uint32_t currentFaceMask = InstanceDataUtils::getFaceMask(instanceData[i].packedData);
+        uint32_t currentFutureData = InstanceDataUtils::getFutureData(instanceData[i].packedData);
+        
+        // Create new packed data with updated position
+        glm::ivec3 relativePos = cubes[i].position; // For now, treat world pos as relative pos
+        instanceData[i].packedData = InstanceDataUtils::packInstanceData(
+            relativePos.x & 0x1F, relativePos.y & 0x1F, relativePos.z & 0x1F, 
+            currentFaceMask, currentFutureData
+        );
         
         // Only update color if this cube is not currently hovered
         // (to preserve hover highlighting)
         if (hoveredCubeIndex != i) {
             instanceData[i].color = cubes[i].color;
         }
-        // faceMask is already set when cube was added - no need to recalculate every frame!
-        // instanceData[i].faceMask = calculateFaceMask(cubes[i].position); // REMOVED - huge performance killer!
+        // faceMask is preserved in the packed data - no need to recalculate every frame!
     }
 }
 
 void SceneManager::recalculateFaceMasks() {
     // Calculate face masks for all cubes - do this once after scene generation, not every frame!
     for (size_t i = 0; i < cubes.size(); ++i) {
-        instanceData[i].faceMask = calculateFaceMask(cubes[i].position);
+        uint32_t newFaceMask = calculateFaceMask(cubes[i].position);
+        
+        // Extract current position and future data, update face mask
+        uint32_t x, y, z;
+        InstanceDataUtils::unpackRelativePos(instanceData[i].packedData, x, y, z);
+        uint32_t currentFutureData = InstanceDataUtils::getFutureData(instanceData[i].packedData);
+        
+        // Repack with new face mask
+        instanceData[i].packedData = InstanceDataUtils::packInstanceData(x, y, z, newFaceMask, currentFutureData);
     }
     std::cout << "Recalculated face masks for " << cubes.size() << " cubes" << std::endl;
 }
@@ -268,7 +284,17 @@ void SceneManager::syncWithPhysics(const std::vector<glm::mat4>& transforms) {
     for (size_t i = 0; i < count; ++i) {
         // Extract position from transform matrix
         glm::vec3 position = glm::vec3(transforms[i][3]);
-        instanceData[i].offset = position;
+        
+        // Extract current face mask and future data
+        uint32_t currentFaceMask = InstanceDataUtils::getFaceMask(instanceData[i].packedData);
+        uint32_t currentFutureData = InstanceDataUtils::getFutureData(instanceData[i].packedData);
+        
+        // Update packed data with new position (treating world pos as relative for now)
+        glm::ivec3 relativePos = glm::ivec3(position);
+        instanceData[i].packedData = InstanceDataUtils::packInstanceData(
+            relativePos.x & 0x1F, relativePos.y & 0x1F, relativePos.z & 0x1F,
+            currentFaceMask, currentFutureData
+        );
     }
 }
 

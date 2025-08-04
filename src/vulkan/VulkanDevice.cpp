@@ -460,11 +460,21 @@ VkSurfaceFormatKHR VulkanDevice::chooseSwapSurfaceFormat(const std::vector<VkSur
 }
 
 VkPresentModeKHR VulkanDevice::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) {
+    // First preference: IMMEDIATE for uncapped FPS (no V-Sync) to measure true performance
+    for (const auto& availablePresentMode : availablePresentModes) {
+        if (availablePresentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
+            return availablePresentMode;
+        }
+    }
+    
+    // Second preference: MAILBOX for smooth experience with triple buffering
     for (const auto& availablePresentMode : availablePresentModes) {
         if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
             return availablePresentMode;
         }
     }
+    
+    // Fallback: FIFO (V-Sync) - guaranteed to be available
     return VK_PRESENT_MODE_FIFO_KHR;
 }
 
@@ -925,9 +935,10 @@ bool VulkanDevice::createIndexBuffer() {
 
 bool VulkanDevice::createInstanceBuffer() {
     // Create a temporary single instance buffer for now - will be updated later with actual scene data
-    std::vector<InstanceData> instances = {
-        {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, 0x3F} // Red cube at origin with all faces visible
-    };
+    InstanceData redCube;
+    redCube.packedData = 0x3F << 15; // All faces visible (0x3F face mask), position (0,0,0)
+    redCube.color = {1.0f, 0.0f, 0.0f}; // Red cube
+    std::vector<InstanceData> instances = { redCube };
 
     // We'll create buffer large enough for full 32x32x32 = 32,768 instances
     VkDeviceSize bufferSize = sizeof(InstanceData) * 35000; // Buffer for up to 35,000 instances (with some margin)
@@ -1133,6 +1144,42 @@ void VulkanDevice::bindDescriptorSets(uint32_t frameIndex, VkPipelineLayout pipe
 
 void VulkanDevice::drawIndexed(uint32_t frameIndex, uint32_t indexCount, uint32_t instanceCount) {
     vkCmdDrawIndexed(commandBuffers[frameIndex], indexCount, instanceCount, 0, 0, 0);
+}
+
+void VulkanDevice::pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineLayout, const glm::vec3& chunkBaseOffset) {
+    struct PushConstants {
+        glm::vec3 chunkBaseOffset;
+    } pushData;
+    pushData.chunkBaseOffset = chunkBaseOffset;
+    
+    vkCmdPushConstants(commandBuffers[frameIndex], pipelineLayout,
+                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushData);
+}
+
+void VulkanDevice::bindInstanceBufferWithOffset(uint32_t frameIndex, VkDeviceSize offset) {
+    VkBuffer vertexBuffers[] = {vertexBuffer, instanceBuffer};
+    VkDeviceSize offsets[] = {0, offset};
+    vkCmdBindVertexBuffers(commandBuffers[frameIndex], 0, 2, vertexBuffers, offsets);
+}
+
+void VulkanDevice::drawChunk(uint32_t frameIndex, VkPipelineLayout pipelineLayout,
+                            const glm::vec3& chunkBaseOffset, VkDeviceSize instanceOffset, uint32_t instanceCount) {
+    // Push chunk base offset
+    pushConstants(frameIndex, pipelineLayout, chunkBaseOffset);
+    
+    // Bind instance buffer at the correct offset for this chunk
+    bindInstanceBufferWithOffset(frameIndex, instanceOffset);
+    
+    // Draw all cubes in this chunk (36 indices per cube)
+    vkCmdDrawIndexed(commandBuffers[frameIndex], 36, instanceCount, 0, 0, 0);
+}
+
+void VulkanDevice::drawChunks(uint32_t frameIndex, VkPipelineLayout pipelineLayout, 
+                             const std::vector<ChunkRenderData>& chunks) {
+    for (const auto& chunk : chunks) {
+        drawChunk(frameIndex, pipelineLayout, chunk.worldPosition, 
+                 chunk.instanceOffset, chunk.instanceCount);
+    }
 }
 
 uint32_t VulkanDevice::getGraphicsQueueFamily() const {

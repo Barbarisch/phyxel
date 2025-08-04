@@ -495,9 +495,8 @@ void Application::drawFrame() {
         
         for (const auto& sceneInstance : sceneInstanceData) {
             Vulkan::InstanceData vulkanInstance;
-            vulkanInstance.offset = sceneInstance.offset;
+            vulkanInstance.packedData = sceneInstance.packedData;  // Direct copy of packed data
             vulkanInstance.color = sceneInstance.color;
-            vulkanInstance.faceMask = sceneInstance.faceMask;
             vulkanInstances.push_back(vulkanInstance);
         }
         
@@ -571,6 +570,9 @@ void Application::drawFrame() {
     
     // Draw indexed cubes
     if (cubeCount > 0) {
+        // For now, render as a single chunk at origin (0,0,0) with push constants
+        glm::vec3 chunkBaseOffset(0.0f, 0.0f, 0.0f);
+        vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
         vulkanDevice->drawIndexed(currentFrame, 36, static_cast<uint32_t>(cubeCount));
     }
     

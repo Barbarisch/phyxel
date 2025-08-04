@@ -35,11 +35,10 @@ struct Vertex {
     }
 };
 
-// Instance data structure
+// Instance data structure - compressed format with future expansion capability
 struct InstanceData {
-    glm::vec3 offset;
-    glm::vec3 color;
-    uint32_t faceMask;
+    uint32_t packedData;   // 15 bits position (5+5+5), 6 bits face mask, 11 bits available for future features
+    glm::vec3 color;       // RGB color (12 bytes)
     
     static VkVertexInputBindingDescription getBindingDescription() {
         VkVertexInputBindingDescription bindingDescription{};
@@ -50,22 +49,17 @@ struct InstanceData {
     }
     
     static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
-        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(3);
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(2);
         
         attributeDescriptions[0].binding = 1;
         attributeDescriptions[0].location = 1;
-        attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[0].offset = offsetof(InstanceData, offset);
+        attributeDescriptions[0].format = VK_FORMAT_R32_UINT;  // uint32 packed data
+        attributeDescriptions[0].offset = offsetof(InstanceData, packedData);
         
         attributeDescriptions[1].binding = 1;
         attributeDescriptions[1].location = 2;
-        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;  // Color
         attributeDescriptions[1].offset = offsetof(InstanceData, color);
-        
-        attributeDescriptions[2].binding = 1;
-        attributeDescriptions[2].location = 3;
-        attributeDescriptions[2].format = VK_FORMAT_R32_UINT;
-        attributeDescriptions[2].offset = offsetof(InstanceData, faceMask);
         
         return attributeDescriptions;
     }
@@ -150,6 +144,30 @@ public:
         void bindIndexBuffer(uint32_t frameIndex);
         void bindDescriptorSets(uint32_t frameIndex, VkPipelineLayout pipelineLayout);
         void drawIndexed(uint32_t frameIndex, uint32_t indexCount, uint32_t instanceCount);
+        
+        // Push constants and chunk rendering
+        void pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineLayout, const glm::vec3& chunkBaseOffset);
+        void bindInstanceBufferWithOffset(uint32_t frameIndex, VkDeviceSize offset);
+        void drawChunk(uint32_t frameIndex, VkPipelineLayout pipelineLayout, 
+                      const glm::vec3& chunkBaseOffset, VkDeviceSize instanceOffset, uint32_t instanceCount);
+        
+        // Convenience function for multi-chunk rendering
+        struct ChunkRenderData {
+            glm::vec3 worldPosition;     // World position of chunk (e.g., chunkX*32, chunkY*32, chunkZ*32)
+            VkDeviceSize instanceOffset; // Offset in instance buffer for this chunk's data
+            uint32_t instanceCount;      // Number of visible cubes in this chunk
+        };
+        void drawChunks(uint32_t frameIndex, VkPipelineLayout pipelineLayout, 
+                       const std::vector<ChunkRenderData>& chunks);
+        
+        // Static helper for creating push constant range (use in pipeline layout creation)
+        static VkPushConstantRange getPushConstantRange() {
+            VkPushConstantRange range{};
+            range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+            range.offset = 0;
+            range.size = sizeof(glm::vec3);  // 12 bytes for chunk base offset
+            return range;
+        }
 
         // Getters
         VkDevice getDevice() const { return device; }
