@@ -422,29 +422,29 @@ bool RenderPipeline::createDescriptorSetLayout() {
 bool RenderPipeline::createComputeDescriptorSetLayout() {
     std::vector<VkDescriptorSetLayoutBinding> bindings;
 
-    // Instance data buffer
-    VkDescriptorSetLayoutBinding instanceBinding{};
-    instanceBinding.binding = 0;
-    instanceBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    instanceBinding.descriptorCount = 1;
-    instanceBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-    bindings.push_back(instanceBinding);
+    // AABB data buffer (binding 0)
+    VkDescriptorSetLayoutBinding aabbBinding{};
+    aabbBinding.binding = 0;
+    aabbBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    aabbBinding.descriptorCount = 1;
+    aabbBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    bindings.push_back(aabbBinding);
 
-    // Uniform buffer
-    VkDescriptorSetLayoutBinding uniformBinding{};
-    uniformBinding.binding = 1;
-    uniformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    uniformBinding.descriptorCount = 1;
-    uniformBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-    bindings.push_back(uniformBinding);
-
-    // Visibility buffer
+    // Visibility buffer (binding 1) 
     VkDescriptorSetLayoutBinding visibilityBinding{};
-    visibilityBinding.binding = 2;
+    visibilityBinding.binding = 1;
     visibilityBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     visibilityBinding.descriptorCount = 1;
     visibilityBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
     bindings.push_back(visibilityBinding);
+
+    // Uniform buffer (binding 2)
+    VkDescriptorSetLayoutBinding uniformBinding{};
+    uniformBinding.binding = 2;
+    uniformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uniformBinding.descriptorCount = 1;
+    uniformBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    bindings.push_back(uniformBinding);
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;

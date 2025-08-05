@@ -466,7 +466,7 @@ void Application::update(float deltaTime) {
         glm::radians(45.0f), 
         static_cast<float>(windowWidth) / static_cast<float>(windowHeight), 
         0.1f, 
-        100.0f
+        200.0f  // Use same far plane as cached version
     );
     proj[1][1] *= -1; // Flip Y for Vulkan
     

@@ -241,6 +241,17 @@ void ImGuiRenderer::renderPerformanceOverlay(
         ImGui::Text("CAMERA POSITION");
         ImGui::Separator();
         ImGui::Text("X: %.1f  Y: %.1f  Z: %.1f", cameraPos.x, cameraPos.y, cameraPos.z);
+        ImGui::Text("Distance to grid center: %.1f", glm::length(cameraPos - glm::vec3(16.0f, 16.0f, 16.0f)));
+        
+        ImGui::Spacing();
+        
+        // Frustum Culling Debug
+        ImGui::Text("FRUSTUM CULLING DEBUG");
+        ImGui::Separator();
+        ImGui::Text("Grid bounds: [0,0,0] to [31,31,31]");
+        ImGui::Text("Cube world positions: integer coordinates");
+        ImGui::Text("AABB size: 1.0 x 1.0 x 1.0 (pos ± 0.5)");
+        ImGui::Text("Far plane: 200.0");
         
         ImGui::Spacing();
         

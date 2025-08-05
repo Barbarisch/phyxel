@@ -1119,6 +1119,16 @@ void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& vie
     ubo.proj = proj;
     ubo.numInstances = numInstances;
 
+    // Debug: Log matrix data for the first few frames
+    static int debugFrameCount = 0;
+    if (debugFrameCount < 3) {
+        std::cout << "[DEBUG] Frame " << debugFrameCount << " - Matrix upload:" << std::endl;
+        std::cout << "  View[0]: " << view[0][0] << ", " << view[0][1] << ", " << view[0][2] << ", " << view[0][3] << std::endl;
+        std::cout << "  Proj[0]: " << proj[0][0] << ", " << proj[0][1] << ", " << proj[0][2] << ", " << proj[0][3] << std::endl;
+        std::cout << "  NumInstances: " << numInstances << std::endl;
+        debugFrameCount++;
+    }
+
     void* data;
     vkMapMemory(device, uniformBuffersMemory[frameIndex], 0, sizeof(ubo), 0, &data);
     memcpy(data, &ubo, sizeof(ubo));
@@ -1265,6 +1275,16 @@ void VulkanDevice::updateAABBBuffer(const std::vector<glm::vec3>& positions) {
     }
     
     std::cout << "[DEBUG] updateAABBBuffer: Updating " << positions.size() << " positions" << std::endl;
+    
+    // Debug: Log first few cube positions and their AABBs
+    for (size_t i = 0; i < std::min(positions.size(), size_t(5)); ++i) {
+        const auto& pos = positions[i];
+        glm::vec3 minCorner = pos - 0.5f;
+        glm::vec3 maxCorner = pos + 0.5f;
+        std::cout << "[DEBUG] Cube " << i << ": pos(" << pos.x << "," << pos.y << "," << pos.z 
+                  << ") -> AABB min(" << minCorner.x << "," << minCorner.y << "," << minCorner.z
+                  << ") max(" << maxCorner.x << "," << maxCorner.y << "," << maxCorner.z << ")" << std::endl;
+    }
     
     // Generate AABBs for unit cubes at each position
     std::vector<glm::vec4> aabbData;
