@@ -181,8 +181,19 @@ void ImGuiRenderer::renderPerformanceOverlay(
         ImGui::SameLine();
         ImGui::Text("Visible: %d", frameTiming.visibleInstances);
         
-        ImGui::Text("Culled: %d", frameTiming.culledInstances);
+        ImGui::Text("Frustum Culled: %d", frameTiming.frustumCulledInstances);
         ImGui::SameLine();
+        ImGui::Text("Total Culled: %d", frameTiming.culledInstances);
+        
+        // Show culling efficiency
+        int totalObjects = frameTiming.visibleInstances + frameTiming.culledInstances;
+        if (totalObjects > 0) {
+            float cullingEfficiency = (float)frameTiming.culledInstances / totalObjects * 100.0f;
+            ImGui::Text("Culling Efficiency: %.1f%%", cullingEfficiency);
+        } else {
+            ImGui::Text("Culling Efficiency: 0.0%%");
+        }
+        
         ImGui::Text("Physics Bodies: %d", physicsWorld->getRigidBodyCount());
         
         ImGui::Spacing();
@@ -206,6 +217,10 @@ void ImGuiRenderer::renderPerformanceOverlay(
             ImGui::Text("Instance Update: %.2f ms (%.1f%%)", 
                        latest.instanceUpdateTime, 
                        (latest.instanceUpdateTime / latest.totalFrameTime) * 100.0);
+            
+            ImGui::Text("Frustum Culling: %.2f ms (%.1f%%)", 
+                       latest.frustumCullingTime, 
+                       (latest.frustumCullingTime / latest.totalFrameTime) * 100.0);
             
             ImGui::Text("Command Record: %.2f ms (%.1f%%)", 
                        latest.commandRecordTime, 
@@ -234,6 +249,7 @@ void ImGuiRenderer::renderPerformanceOverlay(
         ImGui::Separator();
         ImGui::Text("WASD: Move  Space/Shift: Up/Down");
         ImGui::Text("Right-Click: Look  ESC: Exit  F1: Toggle overlay");
+        ImGui::Text("T: Test frustum culling positions");
     }
     ImGui::End();
 }

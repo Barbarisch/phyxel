@@ -32,6 +32,8 @@ Application::Application()
     , currentMouseX(0.0)
     , currentMouseY(0.0)
     , lastHoveredCube(-1)
+    , lastVisibleInstances(0)
+    , lastCulledInstances(0)
     , performanceProfiler(std::make_unique<PerformanceProfiler>())
     , imguiRenderer(std::make_unique<UI::ImGuiRenderer>()) {
     
@@ -328,6 +330,9 @@ bool Application::initializeVulkan() {
         return false;
     }
 
+    // Note: Compute descriptor sets will be created after scene initialization
+    // when we have actual AABB data to bind
+
     // Create command buffers
     if (!vulkanDevice->createCommandBuffers()) {
         std::cerr << "Failed to create command buffers!" << std::endl;
@@ -350,6 +355,12 @@ bool Application::initializeVulkan() {
         return false;
     }
 
+    // Create frustum culling buffers (support up to 35,000 instances)
+    if (!vulkanDevice->createFrustumCullingBuffers(35000)) {
+        std::cerr << "Failed to create frustum culling buffers!" << std::endl;
+        return false;
+    }
+
     if (!vulkanDevice->createUniformBuffers()) {
         std::cerr << "Failed to create uniform buffers!" << std::endl;
         return false;
@@ -357,6 +368,11 @@ bool Application::initializeVulkan() {
 
     if (!vulkanDevice->createDescriptorPool()) {
         std::cerr << "Failed to create descriptor pool!" << std::endl;
+        return false;
+    }
+
+    if (!vulkanDevice->createComputeDescriptorPool()) {
+        std::cerr << "Failed to create compute descriptor pool!" << std::endl;
         return false;
     }
 
@@ -382,6 +398,12 @@ bool Application::initializeScene() {
 
     // Create test scene based on original code
     createTestScene();
+
+    // Now that we have scene data, create compute descriptor sets for frustum culling
+    if (!vulkanDevice->createComputeDescriptorSets(renderPipeline.get())) {
+        std::cerr << "Failed to create compute descriptor sets!" << std::endl;
+        return false;
+    }
 
     std::cout << "Scene subsystem initialized successfully" << std::endl;
     return true;
@@ -433,25 +455,7 @@ void Application::update(float deltaTime) {
     // DON'T update scene instance data here - it will be done in drawFrame()
     // sceneManager->updateInstanceData();
     
-    // OPTIMIZATION: Only perform expensive culling calculations every 10 frames for performance stats
-    static int cullStatsCounter = 0;
-    if (++cullStatsCounter >= 10) {
-        cullStatsCounter = 0;
-        
-        sceneManager->performFrustumCulling();
-        
-        // Track culling statistics for performance profiler
-        const auto& visibilityBuffer = sceneManager->getVisibilityBuffer();
-        uint32_t totalObjects = static_cast<uint32_t>(visibilityBuffer.size());
-        uint32_t visibleObjects = 0;
-        for (uint32_t visible : visibilityBuffer) {
-            if (visible) visibleObjects++;
-        }
-        uint32_t culledObjects = totalObjects - visibleObjects;
-        
-        // Record frustum culling statistics (placeholder timing for now)
-        performanceProfiler->recordFrustumCulling(totalObjects, culledObjects, 0.0);
-    }
+    // NOTE: Frustum culling statistics are now collected in drawFrame() after GPU compute
 
     // Set camera in scene manager
     sceneManager->setCamera(cameraPos, cameraFront, cameraUp);
@@ -523,6 +527,10 @@ void Application::drawFrame() {
             performanceProfiler->recordMemoryTransfer(instanceDataSize);
             
             vulkanDevice->updateInstanceBuffer(vulkanInstances);
+            
+            // Update AABB buffer for frustum culling
+            auto cubePositions = sceneManager->getCubePositions();
+            vulkanDevice->updateAABBBuffer(cubePositions);
         }
     }
     auto instanceUpdateEnd = std::chrono::high_resolution_clock::now();
@@ -564,6 +572,46 @@ void Application::drawFrame() {
     auto recordStart = std::chrono::high_resolution_clock::now();
     vulkanDevice->resetCommandBuffer(currentFrame);
     vulkanDevice->beginCommandBuffer(currentFrame);
+    
+    // Perform GPU frustum culling BEFORE rendering
+    auto frustumCullingStart = std::chrono::high_resolution_clock::now();
+    vulkanDevice->dispatchFrustumCulling(currentFrame, renderPipeline.get(), static_cast<uint32_t>(cubeCount));
+    auto frustumCullingEnd = std::chrono::high_resolution_clock::now();
+    
+    // Download GPU visibility results for performance stats (every 10 frames)
+    static int cullStatsCounter = 0;
+    if (++cullStatsCounter >= 10) {
+        cullStatsCounter = 0;
+        
+        std::vector<uint32_t> visibilityResults = vulkanDevice->downloadVisibilityResults(static_cast<uint32_t>(cubeCount));
+        
+        // Calculate statistics
+        uint32_t totalObjects = static_cast<uint32_t>(visibilityResults.size());
+        uint32_t visibleObjects = 0;
+        for (uint32_t visible : visibilityResults) {
+            if (visible) visibleObjects++;
+        }
+        uint32_t culledObjects = totalObjects - visibleObjects;
+        
+        // Calculate GPU compute time in milliseconds
+        double frustumCullingTimeMs = std::chrono::duration<double, std::milli>(
+            frustumCullingEnd - frustumCullingStart
+        ).count();
+        
+        // Record actual GPU frustum culling statistics
+        std::cout << "[DEBUG] Performance stats: Total=" << totalObjects 
+                  << ", Visible=" << visibleObjects 
+                  << ", Culled=" << culledObjects 
+                  << " (" << (100.0f * culledObjects / totalObjects) << "% culled)"
+                  << ", Time=" << frustumCullingTimeMs << "ms" << std::endl;
+        std::cout << "[DEBUG] Camera pos: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")" << std::endl;
+        
+        // Store results for UI display
+        lastVisibleInstances = visibleObjects;
+        lastCulledInstances = culledObjects;
+        
+        performanceProfiler->recordFrustumCulling(totalObjects, culledObjects, frustumCullingTimeMs);
+    }
     
     // Begin render pass
     vulkanDevice->beginRenderPass(currentFrame, imageIndex, renderPipeline->getRenderPass());
@@ -631,8 +679,16 @@ void Application::drawFrame() {
     // Update frame timing stats
     frameTiming.drawCalls = 1;
     frameTiming.vertexCount = static_cast<int>(cubeCount * 36); // 36 vertices per cube
-    frameTiming.visibleInstances = static_cast<int>(cubeCount);
-    frameTiming.culledInstances = 0;
+    
+    // Use GPU culling results if available, otherwise default values
+    if (lastVisibleInstances + lastCulledInstances > 0) {
+        frameTiming.visibleInstances = static_cast<int>(lastVisibleInstances);
+        frameTiming.culledInstances = static_cast<int>(lastCulledInstances);
+    } else {
+        // Default before first GPU results are available
+        frameTiming.visibleInstances = static_cast<int>(cubeCount);
+        frameTiming.culledInstances = 0;
+    }
     
     // Record detailed timing
     auto frameEnd = std::chrono::high_resolution_clock::now();
@@ -830,6 +886,39 @@ void Application::processInput() {
         f1Pressed = true;
     } else if (glfwGetKey(window, GLFW_KEY_F1) == GLFW_RELEASE) {
         f1Pressed = false;
+    }
+    
+    // Test frustum culling positions with T key
+    static bool tPressed = false;
+    if (glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS && !tPressed) {
+        static int testPosition = 0;
+        testPosition = (testPosition + 1) % 4;
+        
+        switch (testPosition) {
+            case 0: // Outside view (default)
+                cameraPos = glm::vec3(50.0f, 50.0f, 50.0f);
+                cameraFront = glm::normalize(glm::vec3(16.0f, 16.0f, 16.0f) - cameraPos);
+                std::cout << "[DEBUG] Test position 1: Outside view (should see most cubes)" << std::endl;
+                break;
+            case 1: // Inside grid, looking at corner
+                cameraPos = glm::vec3(16.0f, 16.0f, 16.0f);
+                cameraFront = glm::normalize(glm::vec3(31.0f, 31.0f, 31.0f) - cameraPos);
+                std::cout << "[DEBUG] Test position 2: Inside grid, corner view (should cull ~50%)" << std::endl;
+                break;
+            case 2: // Ground level, looking up
+                cameraPos = glm::vec3(16.0f, -5.0f, 16.0f);
+                cameraFront = glm::normalize(glm::vec3(16.0f, 16.0f, 16.0f) - cameraPos);
+                std::cout << "[DEBUG] Test position 3: Ground level (should cull most cubes)" << std::endl;
+                break;
+            case 3: // Edge view
+                cameraPos = glm::vec3(-10.0f, 16.0f, 16.0f);
+                cameraFront = glm::normalize(glm::vec3(31.0f, 16.0f, 16.0f) - cameraPos);
+                std::cout << "[DEBUG] Test position 4: Edge view (should cull ~50%)" << std::endl;
+                break;
+        }
+        tPressed = true;
+    } else if (glfwGetKey(window, GLFW_KEY_T) == GLFW_RELEASE) {
+        tPressed = false;
     }
     
     // Camera movement with WASD (always available)

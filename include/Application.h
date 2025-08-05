@@ -88,6 +88,10 @@ private:
     
     // Performance overlay
     bool showPerformanceOverlay = false;
+    
+    // GPU frustum culling results for UI display
+    uint32_t lastVisibleInstances = 0;
+    uint32_t lastCulledInstances = 0;
 
     // Initialization methods
     bool initializeWindow();

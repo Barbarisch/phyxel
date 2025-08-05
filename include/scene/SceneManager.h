@@ -50,6 +50,7 @@ public:
     // Frustum culling support
     void performFrustumCulling();
     const std::vector<uint32_t>& getVisibilityBuffer() const { return visibilityBuffer; }
+    std::vector<glm::vec3> getCubePositions() const;
 
     // Mouse picking / hovering support
     int pickCube(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;

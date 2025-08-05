@@ -67,5 +67,6 @@ void main() {
     vec3 maxCorner = vec3(aabbs[id * 2].w, aabbs[id * 2 + 1].xy);
 
     // Enable frustum culling for performance optimization
-    visibleFlags[id] = aabbInFrustum(minCorner, maxCorner) ? 1u : 0u;
+    //visibleFlags[id] = aabbInFrustum(minCorner, maxCorner) ? 1u : 0u;
+    visibleFlags[id] = 1u;
 }

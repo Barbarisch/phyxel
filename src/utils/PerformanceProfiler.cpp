@@ -83,6 +83,7 @@ void PerformanceProfiler::recordFrustumCulling(int totalObjects, int culled, dou
     frustumCullingStats.frameCount++;
     
     currentFrameTiming.frustumCulledInstances = culled;
+    currentFrameTiming.culledInstances = culled; // Update total culled for UI display
     currentDetailedTiming.frustumCullingTime += timeMs;
 }
 

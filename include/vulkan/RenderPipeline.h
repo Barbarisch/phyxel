@@ -32,6 +32,7 @@ public:
     VkPipeline getComputePipeline() const { return computePipeline; }
     VkPipelineLayout getGraphicsLayout() const { return pipelineLayout; }
     VkPipelineLayout getComputeLayout() const { return computePipelineLayout; }
+    VkDescriptorSetLayout getComputeDescriptorSetLayout() const { return computeDescriptorSetLayout; }
     VkRenderPass getRenderPass() const { return renderPass; }
 
     // Render pass management

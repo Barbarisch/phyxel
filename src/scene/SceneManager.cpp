@@ -323,6 +323,17 @@ void SceneManager::performFrustumCulling() {
     }
 }
 
+std::vector<glm::vec3> SceneManager::getCubePositions() const {
+    std::vector<glm::vec3> positions;
+    positions.reserve(cubes.size());
+    
+    for (const auto& cube : cubes) {
+        positions.emplace_back(cube.position);
+    }
+    
+    return positions;
+}
+
 glm::vec3 SceneManager::getRandomColor() {
     // Use the same color palette as the original code
     static std::vector<glm::vec3> palette = {
