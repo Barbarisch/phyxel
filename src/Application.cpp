@@ -4,7 +4,9 @@
 #include "utils/PerformanceProfiler.h"
 #include <iostream>
 #include <iomanip>
+#include <fstream>
 #include <chrono>
+#include <cstring>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -18,8 +20,8 @@ Application::Application()
     , windowTitle("VulkanCube - Refactored")
     , deltaTime(0.0f)
     , frameCount(0)
-    , cameraPos(10.0f, 10.0f, 10.0f)
-    , cameraFront(glm::normalize(glm::vec3(0.0f) - glm::vec3(10.0f, 10.0f, 10.0f)))
+    , cameraPos(50.0f, 50.0f, 50.0f)  // Position camera outside the 32x32x32 grid
+    , cameraFront(glm::normalize(glm::vec3(16.0f, 16.0f, 16.0f) - glm::vec3(50.0f, 50.0f, 50.0f)))  // Look at center of cube grid
     , cameraUp(0.0f, 1.0f, 0.0f)
     , yaw(-135.0f)
     , pitch(-30.0f)
@@ -240,6 +242,7 @@ void Application::cleanup() {
 void Application::setWindowSize(int width, int height) {
     windowWidth = width;
     windowHeight = height;
+    projectionMatrixNeedsUpdate = true; // Invalidate cached projection matrix
 }
 
 void Application::setTitle(const std::string& title) {
@@ -427,21 +430,28 @@ void Application::update(float deltaTime) {
     physicsWorld->getTransforms(transforms);
     sceneManager->syncWithPhysics(transforms);
 
-    // Update scene
-    sceneManager->updateInstanceData();
-    sceneManager->performFrustumCulling();
+    // DON'T update scene instance data here - it will be done in drawFrame()
+    // sceneManager->updateInstanceData();
     
-    // Track culling statistics for performance profiler
-    const auto& visibilityBuffer = sceneManager->getVisibilityBuffer();
-    uint32_t totalObjects = static_cast<uint32_t>(visibilityBuffer.size());
-    uint32_t visibleObjects = 0;
-    for (uint32_t visible : visibilityBuffer) {
-        if (visible) visibleObjects++;
+    // OPTIMIZATION: Only perform expensive culling calculations every 10 frames for performance stats
+    static int cullStatsCounter = 0;
+    if (++cullStatsCounter >= 10) {
+        cullStatsCounter = 0;
+        
+        sceneManager->performFrustumCulling();
+        
+        // Track culling statistics for performance profiler
+        const auto& visibilityBuffer = sceneManager->getVisibilityBuffer();
+        uint32_t totalObjects = static_cast<uint32_t>(visibilityBuffer.size());
+        uint32_t visibleObjects = 0;
+        for (uint32_t visible : visibilityBuffer) {
+            if (visible) visibleObjects++;
+        }
+        uint32_t culledObjects = totalObjects - visibleObjects;
+        
+        // Record frustum culling statistics (placeholder timing for now)
+        performanceProfiler->recordFrustumCulling(totalObjects, culledObjects, 0.0);
     }
-    uint32_t culledObjects = totalObjects - visibleObjects;
-    
-    // Record frustum culling statistics (placeholder timing for now)
-    performanceProfiler->recordFrustumCulling(totalObjects, culledObjects, 0.0);
 
     // Set camera in scene manager
     sceneManager->setCamera(cameraPos, cameraFront, cameraUp);
@@ -482,43 +492,59 @@ void Application::drawFrame() {
     // physicsWorld->stepSimulation(deltaTime); // DISABLED - 32K static cubes don't need physics!
     auto physicsEnd = std::chrono::high_resolution_clock::now();
     
-    // Update scene data for rendering
+    // Update scene data for rendering (optimized for static cubes)
     auto instanceUpdateStart = std::chrono::high_resolution_clock::now();
-    sceneManager->updateInstanceData();
+    bool instanceDataChanged = sceneManager->updateInstanceData();
     
-    // Update the GPU instance buffer with current scene data
-    const auto& sceneInstanceData = sceneManager->getInstanceData();
-    if (!sceneInstanceData.empty()) {
-        // Convert from Scene::InstanceData to Vulkan::InstanceData (they're identical structs)
-        std::vector<Vulkan::InstanceData> vulkanInstances;
-        vulkanInstances.reserve(sceneInstanceData.size());
-        
-        for (const auto& sceneInstance : sceneInstanceData) {
-            Vulkan::InstanceData vulkanInstance;
-            vulkanInstance.packedData = sceneInstance.packedData;  // Direct copy of packed data
-            vulkanInstance.color = sceneInstance.color;
-            vulkanInstances.push_back(vulkanInstance);
+    // Ensure instance buffer is uploaded at least once
+    static bool instanceBufferUploaded = false;
+    if (!instanceBufferUploaded) {
+        instanceDataChanged = true;  // Force upload on first frame
+        instanceBufferUploaded = true;
+    }
+    
+    // Only update GPU buffer when data actually changes (not every frame)
+    if (instanceDataChanged) {
+        const auto& sceneInstanceData = sceneManager->getInstanceData();
+        if (!sceneInstanceData.empty()) {
+            // Optimize: Use static_cast to avoid copying - both structs are binary compatible
+            static_assert(sizeof(VulkanCube::InstanceData) == sizeof(Vulkan::InstanceData), 
+                         "Scene and Vulkan InstanceData must be the same size");
+            
+            std::vector<Vulkan::InstanceData> vulkanInstances;
+            vulkanInstances.resize(sceneInstanceData.size());
+            
+            // Use memcpy for bulk copy instead of element-by-element copy
+            std::memcpy(vulkanInstances.data(), sceneInstanceData.data(), 
+                       sceneInstanceData.size() * sizeof(Vulkan::InstanceData));
+            
+            // Track memory bandwidth for instance buffer update
+            size_t instanceDataSize = vulkanInstances.size() * sizeof(Vulkan::InstanceData);
+            performanceProfiler->recordMemoryTransfer(instanceDataSize);
+            
+            vulkanDevice->updateInstanceBuffer(vulkanInstances);
         }
-        
-        // Track memory bandwidth for instance buffer update
-        size_t instanceDataSize = vulkanInstances.size() * sizeof(Vulkan::InstanceData);
-        performanceProfiler->recordMemoryTransfer(instanceDataSize);
-        
-        vulkanDevice->updateInstanceBuffer(vulkanInstances);
     }
     auto instanceUpdateEnd = std::chrono::high_resolution_clock::now();
 
-    // Prepare uniform buffer data
+    // Prepare uniform buffer data (optimized)
     auto uboStart = std::chrono::high_resolution_clock::now();
     // Use the user-controlled camera matrices
     glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-    glm::mat4 proj = glm::perspective(
-        glm::radians(45.0f), 
-        (float)windowWidth / (float)windowHeight, 
-        0.1f, 
-        200.0f  // Increased far plane for large scene
-    );
-    proj[1][1] *= -1; // Flip Y for Vulkan
+    
+    // Cache projection matrix - only recalculate on window resize
+    if (projectionMatrixNeedsUpdate) {
+        cachedProjectionMatrix = glm::perspective(
+            glm::radians(45.0f), 
+            (float)windowWidth / (float)windowHeight, 
+            0.1f, 
+            200.0f  // Increased far plane for large scene
+        );
+        cachedProjectionMatrix[1][1] *= -1; // Flip Y for Vulkan
+        projectionMatrixNeedsUpdate = false;
+    }
+    
+    glm::mat4 proj = cachedProjectionMatrix;
 
     // Get actual cube count for rendering
     size_t cubeCount = sceneManager->getCubeCount();

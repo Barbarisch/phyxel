@@ -57,6 +57,10 @@ private:
     float deltaTime;
     int frameCount;
     uint32_t currentFrame = 0;
+    
+    // Cached matrices for performance
+    glm::mat4 cachedProjectionMatrix;
+    bool projectionMatrixNeedsUpdate = true;
 
     // Frame profiling
     std::vector<FrameTiming> frameTimings;

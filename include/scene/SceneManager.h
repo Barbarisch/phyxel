@@ -33,7 +33,7 @@ public:
     size_t getCubeCount() const { return cubes.size(); }
 
     // Scene updates
-    void updateInstanceData();
+    bool updateInstanceData(); // Returns true if data changed
     void recalculateFaceMasks(); // Calculate face masks once after scene generation
     void setVisibility(int index, bool visible);
     void updateCubeColor(int index, const glm::vec3& color);
@@ -70,6 +70,7 @@ private:
     // Mouse hover state
     int hoveredCubeIndex;
     glm::vec3 originalHoveredColor;
+    bool instanceDataNeedsUpdate;  // Flag to force GPU buffer update
 
     // Helper functions
     glm::vec3 getRandomColor();

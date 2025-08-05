@@ -66,20 +66,6 @@ void main() {
     vec3 minCorner = aabbs[id * 2].xyz;
     vec3 maxCorner = vec3(aabbs[id * 2].w, aabbs[id * 2 + 1].xy);
 
-    // Temporarily disable frustum culling - show all cubes for performance baseline
-    visibleFlags[id] = 1u;
-    
-    // We'll fix the matrix/coordinate issues as a separate step
-    // visibleFlags[id] = aabbInFrustum(minCorner, maxCorner) ? 1u : 0u;
-
-    // Frustum culling (disabled until matrix issues are fixed):
-    // visibleFlags[id] = aabbInFrustum(minCorner, maxCorner) ? 1u : 0u;
-    
-    // Debug options (disabled):
-    // visibleFlags[id] = 1u;  // Show all cubes
-    // vec3 cubeCenter = (minCorner + maxCorner) * 0.5;
-    // visibleFlags[id] = (cubeCenter.x < 16.0) ? 1u : 0u;  // Half-chunk test
-    
-    // Real frustum culling (disabled for debug):
-    // visibleFlags[id] = aabbInFrustum(minCorner, maxCorner) ? 1u : 0u;
+    // Enable frustum culling for performance optimization
+    visibleFlags[id] = aabbInFrustum(minCorner, maxCorner) ? 1u : 0u;
 }

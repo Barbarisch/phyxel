@@ -8,7 +8,7 @@
 namespace VulkanCube {
 namespace Scene {
 
-SceneManager::SceneManager() : gridSize(32), hoveredCubeIndex(-1) {
+SceneManager::SceneManager() : gridSize(32), hoveredCubeIndex(-1), instanceDataNeedsUpdate(false) {
     // Constructor
 }
 
@@ -39,6 +39,9 @@ void SceneManager::cleanup() {
     instanceData.clear();
     visibilityBuffer.clear();
     positionToIndex.clear();
+    
+    // Reset UBO
+    ubo.numInstances = 0;
 }
 
 void SceneManager::addCube(int x, int y, int z) {
@@ -71,6 +74,9 @@ void SceneManager::addCube(int x, int y, int z) {
     
     // Add to visibility buffer
     visibilityBuffer.push_back(1); // Initially visible
+    
+    // Update UBO with current cube count
+    ubo.numInstances = static_cast<uint32_t>(cubes.size());
 }
 
 void SceneManager::removeCube(int x, int y, int z) {
@@ -99,6 +105,9 @@ void SceneManager::removeCube(int x, int y, int z) {
     
     // Remove from position mapping
     positionToIndex.erase(it);
+    
+    // Update UBO with current cube count
+    ubo.numInstances = static_cast<uint32_t>(cubes.size());
 }
 
 bool SceneManager::hasCube(int x, int y, int z) const {
@@ -111,6 +120,9 @@ void SceneManager::clearCubes() {
     instanceData.clear();
     visibilityBuffer.clear();
     positionToIndex.clear();
+    
+    // Update UBO with current cube count (0)
+    ubo.numInstances = 0;
 }
 
 void SceneManager::generateRandomCubes(int count, float strength) {
@@ -147,29 +159,20 @@ void SceneManager::generateTestScene() {
     std::cout << "Generated test scene with " << cubes.size() << " cubes" << std::endl;
 }
 
-void SceneManager::updateInstanceData() {
-    // Update instance data based on current cube state
-    // Note: Face masks are calculated once when cubes are added, not every frame!
-    for (size_t i = 0; i < cubes.size(); ++i) {
-        // For now, we need to unpack the old data, update position, and repack
-        // Extract current face mask from packed data
-        uint32_t currentFaceMask = InstanceDataUtils::getFaceMask(instanceData[i].packedData);
-        uint32_t currentFutureData = InstanceDataUtils::getFutureData(instanceData[i].packedData);
-        
-        // Create new packed data with updated position
-        glm::ivec3 relativePos = cubes[i].position; // For now, treat world pos as relative pos
-        instanceData[i].packedData = InstanceDataUtils::packInstanceData(
-            relativePos.x & 0x1F, relativePos.y & 0x1F, relativePos.z & 0x1F, 
-            currentFaceMask, currentFutureData
-        );
-        
-        // Only update color if this cube is not currently hovered
-        // (to preserve hover highlighting)
-        if (hoveredCubeIndex != i) {
-            instanceData[i].color = cubes[i].color;
-        }
-        // faceMask is preserved in the packed data - no need to recalculate every frame!
-    }
+bool SceneManager::updateInstanceData() {
+    // OPTIMIZATION: For static cubes, only update colors when needed
+    // The position and face masks are static and don't need repacking every frame
+    
+    bool dataChanged = instanceDataNeedsUpdate;  // Check if forced update is needed
+    
+    // Clear the update flag after processing
+    instanceDataNeedsUpdate = false;
+    
+    // REMOVED: Expensive per-frame unpacking/repacking for 32K static cubes
+    // The position and face data are set once when cubes are added and never change
+    // Hover color changes are now handled directly in setHoveredCube()/clearHoveredCube()
+    
+    return dataChanged;
 }
 
 void SceneManager::recalculateFaceMasks() {
@@ -404,6 +407,9 @@ void SceneManager::setHoveredCube(int cubeIndex) {
         
         // Lighten the color like in the original (add 0.3f and clamp to 1.0f)
         instanceData[cubeIndex].color = glm::min(originalHoveredColor + glm::vec3(0.3f), glm::vec3(1.0f));
+        
+        // Force instance data update on next frame
+        instanceDataNeedsUpdate = true;
     }
 }
 
@@ -412,6 +418,9 @@ void SceneManager::clearHoveredCube() {
         // Restore original color
         instanceData[hoveredCubeIndex].color = originalHoveredColor;
         hoveredCubeIndex = -1;
+        
+        // Force instance data update on next frame
+        instanceDataNeedsUpdate = true;
     }
 }
 
