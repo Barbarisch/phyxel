@@ -37,6 +37,17 @@ struct CubeFaces {
     bool right = true;
     bool top = true;
     bool bottom = true;
+    
+    // Occlusion culling helper
+    bool isFullyOccluded() const {
+        return !front && !back && !left && !right && !top && !bottom;
+    }
+    
+    // Count visible faces
+    int getVisibleFaceCount() const {
+        return (front ? 1 : 0) + (back ? 1 : 0) + (left ? 1 : 0) + 
+               (right ? 1 : 0) + (top ? 1 : 0) + (bottom ? 1 : 0);
+    }
 };
 
 // Utility functions for packing/unpacking instance data
@@ -158,6 +169,11 @@ struct FrameTiming {
     int frustumCulledInstances = 0;
     int occlusionCulledInstances = 0;
     int faceCulledFaces = 0;
+    
+    // Occlusion culling details
+    int fullyOccludedCubes = 0;          // Cubes with all faces hidden
+    int partiallyOccludedCubes = 0;      // Cubes with some faces hidden
+    int totalHiddenFaces = 0;            // Total number of hidden faces
     
     // Memory bandwidth metrics
     double memoryBandwidthMBps = 0.0;

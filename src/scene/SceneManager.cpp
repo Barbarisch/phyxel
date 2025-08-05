@@ -23,6 +23,8 @@ bool SceneManager::initialize(int gridSize) {
     cubes.reserve(32768); // 32K cubes max
     instanceData.reserve(32768);
     visibilityBuffer.reserve(32768);
+    occlusionCulled.reserve(32768);     // Occlusion culling state
+    cubeFaceStates.reserve(32768);      // Face visibility state
     
     // Initialize UBO with default values
     ubo.view = glm::mat4(1.0f);
@@ -75,8 +77,15 @@ void SceneManager::addCube(int x, int y, int z) {
     // Add to visibility buffer
     visibilityBuffer.push_back(1); // Initially visible
     
+    // Initialize occlusion state
+    occlusionCulled.push_back(false);       // Initially not occluded
+    cubeFaceStates.push_back(CubeFaces());  // All faces initially visible
+    
     // Update UBO with current cube count
     ubo.numInstances = static_cast<uint32_t>(cubes.size());
+    
+    // Update occlusion for this cube and its neighbors
+    updateOcclusionForCube(position);
 }
 
 void SceneManager::removeCube(int x, int y, int z) {
@@ -94,6 +103,8 @@ void SceneManager::removeCube(int x, int y, int z) {
         std::swap(cubes[index], cubes.back());
         std::swap(instanceData[index], instanceData.back());
         std::swap(visibilityBuffer[index], visibilityBuffer.back());
+        std::swap(occlusionCulled[index], occlusionCulled.back());
+        std::swap(cubeFaceStates[index], cubeFaceStates.back());
         
         // Update position mapping for the swapped element
         positionToIndex[cubes[index].position] = index;
@@ -102,12 +113,17 @@ void SceneManager::removeCube(int x, int y, int z) {
     cubes.pop_back();
     instanceData.pop_back();
     visibilityBuffer.pop_back();
+    occlusionCulled.pop_back();
+    cubeFaceStates.pop_back();
     
     // Remove from position mapping
     positionToIndex.erase(it);
     
     // Update UBO with current cube count
     ubo.numInstances = static_cast<uint32_t>(cubes.size());
+    
+    // Update occlusion for neighbors of removed cube
+    updateOcclusionForCube(position);
 }
 
 bool SceneManager::hasCube(int x, int y, int z) const {
@@ -433,6 +449,189 @@ void SceneManager::clearHoveredCube() {
         // Force instance data update on next frame
         instanceDataNeedsUpdate = true;
     }
+}
+
+// =============================================================================
+// OCCLUSION CULLING IMPLEMENTATION
+// =============================================================================
+
+void SceneManager::performOcclusionCulling() {
+    if (cubes.empty()) return;
+    
+    // Ensure occlusion arrays are properly sized
+    occlusionCulled.resize(cubes.size(), false);
+    cubeFaceStates.resize(cubes.size());
+    
+    int fullyOccludedCount = 0;
+    int partiallyOccludedCount = 0;
+    int totalHiddenFaces = 0;
+    
+    // Check each cube for occlusion
+    for (size_t i = 0; i < cubes.size(); ++i) {
+        const glm::ivec3& position = cubes[i].position;
+        
+        // Calculate face visibility based on neighbors
+        CubeFaces faceState = calculateFaceVisibility(position);
+        cubeFaceStates[i] = faceState;
+        
+        // Determine occlusion state
+        bool fullyOccluded = faceState.isFullyOccluded();
+        occlusionCulled[i] = fullyOccluded;
+        
+        // Update statistics
+        if (fullyOccluded) {
+            fullyOccludedCount++;
+        } else {
+            int visibleFaces = faceState.getVisibleFaceCount();
+            if (visibleFaces < 6) {
+                partiallyOccludedCount++;
+            }
+            totalHiddenFaces += (6 - visibleFaces);
+        }
+        
+        // Update instance data with new face mask
+        uint32_t currentFutureData = InstanceDataUtils::getFutureData(instanceData[i].packedData);
+        uint32_t newFaceMask = InstanceDataUtils::packFaceMask(faceState);
+        
+        instanceData[i].packedData = InstanceDataUtils::packInstanceData(
+            position.x, position.y, position.z, newFaceMask, currentFutureData
+        );
+    }
+    
+    // Force instance data update since face masks may have changed
+    instanceDataNeedsUpdate = true;
+    
+    std::cout << "[DEBUG] Occlusion culling: " << fullyOccludedCount << " fully occluded, "
+              << partiallyOccludedCount << " partially occluded, " 
+              << totalHiddenFaces << " total hidden faces" << std::endl;
+}
+
+void SceneManager::updateOcclusionForCube(const glm::ivec3& position) {
+    // Get all neighbors that might be affected by this cube's change
+    std::vector<glm::ivec3> affectedPositions = getNeighborPositions(position);
+    affectedPositions.push_back(position); // Include the cube itself
+    
+    // Update occlusion for all affected cubes
+    for (const glm::ivec3& pos : affectedPositions) {
+        auto it = positionToIndex.find(pos);
+        if (it != positionToIndex.end()) {
+            size_t index = it->second;
+            
+            // Recalculate face visibility
+            CubeFaces faceState = calculateFaceVisibility(pos);
+            cubeFaceStates[index] = faceState;
+            occlusionCulled[index] = faceState.isFullyOccluded();
+            
+            // Update instance data with new face mask
+            uint32_t currentFutureData = InstanceDataUtils::getFutureData(instanceData[index].packedData);
+            uint32_t newFaceMask = InstanceDataUtils::packFaceMask(faceState);
+            
+            instanceData[index].packedData = InstanceDataUtils::packInstanceData(
+                pos.x, pos.y, pos.z, newFaceMask, currentFutureData
+            );
+        }
+    }
+    
+    instanceDataNeedsUpdate = true;
+}
+
+void SceneManager::updateOcclusionForRegion(const glm::ivec3& min, const glm::ivec3& max) {
+    // Update occlusion for all cubes in the specified region and their neighbors
+    for (int x = min.x - 1; x <= max.x + 1; ++x) {
+        for (int y = min.y - 1; y <= max.y + 1; ++y) {
+            for (int z = min.z - 1; z <= max.z + 1; ++z) {
+                glm::ivec3 pos(x, y, z);
+                if (isPositionValid(x, y, z)) {
+                    updateOcclusionForCube(pos);
+                }
+            }
+        }
+    }
+}
+
+int SceneManager::getOcclusionCullStats(int& fullyOccluded, int& partiallyOccluded, int& totalHiddenFaces) const {
+    fullyOccluded = 0;
+    partiallyOccluded = 0;
+    totalHiddenFaces = 0;
+    
+    for (size_t i = 0; i < cubes.size() && i < cubeFaceStates.size(); ++i) {
+        const CubeFaces& faceState = cubeFaceStates[i];
+        
+        if (faceState.isFullyOccluded()) {
+            fullyOccluded++;
+            totalHiddenFaces += 6; // All faces hidden
+        } else {
+            int visibleFaces = faceState.getVisibleFaceCount();
+            if (visibleFaces < 6) {
+                partiallyOccluded++;
+            }
+            totalHiddenFaces += (6 - visibleFaces);
+        }
+    }
+    
+    return fullyOccluded + partiallyOccluded;
+}
+
+bool SceneManager::isCubeAt(const glm::ivec3& position) const {
+    return positionToIndex.find(position) != positionToIndex.end();
+}
+
+CubeFaces SceneManager::calculateFaceVisibility(const glm::ivec3& position) const {
+    CubeFaces faces; // All faces start as visible (true)
+    
+    int x = position.x;
+    int y = position.y; 
+    int z = position.z;
+    
+    // Check each direction for adjacent cubes to hide faces
+    // NOTE: This handles cross-chunk boundaries by using global world coordinates
+    
+    // Right face (+X): check if there's a cube at (x+1, y, z)
+    if (isCubeAt(glm::ivec3(x + 1, y, z))) {
+        faces.right = false;  // Hidden by adjacent cube
+    }
+    
+    // Left face (-X): check if there's a cube at (x-1, y, z)  
+    if (isCubeAt(glm::ivec3(x - 1, y, z))) {
+        faces.left = false;  // Hidden by adjacent cube
+    }
+    
+    // Top face (+Y): check if there's a cube at (x, y+1, z)
+    if (isCubeAt(glm::ivec3(x, y + 1, z))) {
+        faces.top = false;  // Hidden by adjacent cube
+    }
+    
+    // Bottom face (-Y): check if there's a cube at (x, y-1, z)
+    if (isCubeAt(glm::ivec3(x, y - 1, z))) {
+        faces.bottom = false;  // Hidden by adjacent cube
+    }
+    
+    // Front face (+Z): check if there's a cube at (x, y, z+1)
+    if (isCubeAt(glm::ivec3(x, y, z + 1))) {
+        faces.front = false;  // Hidden by adjacent cube
+    }
+    
+    // Back face (-Z): check if there's a cube at (x, y, z-1)
+    if (isCubeAt(glm::ivec3(x, y, z - 1))) {
+        faces.back = false;  // Hidden by adjacent cube
+    }
+    
+    return faces;
+}
+
+std::vector<glm::ivec3> SceneManager::getNeighborPositions(const glm::ivec3& position) const {
+    std::vector<glm::ivec3> neighbors;
+    neighbors.reserve(6);
+    
+    // Add all 6 adjacent positions (face neighbors)
+    neighbors.emplace_back(position.x + 1, position.y, position.z); // Right
+    neighbors.emplace_back(position.x - 1, position.y, position.z); // Left
+    neighbors.emplace_back(position.x, position.y + 1, position.z); // Top
+    neighbors.emplace_back(position.x, position.y - 1, position.z); // Bottom
+    neighbors.emplace_back(position.x, position.y, position.z + 1); // Front
+    neighbors.emplace_back(position.x, position.y, position.z - 1); // Back
+    
+    return neighbors;
 }
 
 } // namespace Scene

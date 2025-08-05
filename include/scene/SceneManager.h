@@ -52,6 +52,12 @@ public:
     const std::vector<uint32_t>& getVisibilityBuffer() const { return visibilityBuffer; }
     std::vector<glm::vec3> getCubePositions() const;
 
+    // Occlusion culling support
+    void performOcclusionCulling();
+    void updateOcclusionForCube(const glm::ivec3& position);
+    void updateOcclusionForRegion(const glm::ivec3& min, const glm::ivec3& max);
+    int getOcclusionCullStats(int& fullyOccluded, int& partiallyOccluded, int& totalHiddenFaces) const;
+
     // Mouse picking / hovering support
     int pickCube(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;
     void setHoveredCube(int cubeIndex);
@@ -63,6 +69,10 @@ private:
     std::vector<InstanceData> instanceData;
     std::vector<uint32_t> visibilityBuffer;
     std::unordered_map<glm::ivec3, size_t> positionToIndex;
+    
+    // Occlusion culling data
+    std::vector<bool> occlusionCulled;      // Per-cube occlusion state
+    std::vector<CubeFaces> cubeFaceStates;  // Per-cube face visibility
     
     UniformBufferObject ubo;
     glm::mat4 viewMatrix;
@@ -78,6 +88,11 @@ private:
     bool isPositionValid(int x, int y, int z) const;
     void updatePositionMapping();
     uint32_t calculateFaceMask(const glm::ivec3& position);
+    
+    // Occlusion culling helpers
+    bool isCubeAt(const glm::ivec3& position) const;
+    CubeFaces calculateFaceVisibility(const glm::ivec3& position) const;
+    std::vector<glm::ivec3> getNeighborPositions(const glm::ivec3& position) const;
 };
 
 } // namespace Scene

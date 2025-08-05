@@ -613,6 +613,17 @@ void Application::drawFrame() {
         performanceProfiler->recordFrustumCulling(totalObjects, culledObjects, frustumCullingTimeMs);
     }
     
+    // Record occlusion culling statistics (every frame, not just every 10 frames)
+    int fullyOccluded, partiallyOccluded, totalHiddenFaces;
+    sceneManager->getOcclusionCullStats(fullyOccluded, partiallyOccluded, totalHiddenFaces);
+    
+    // Update frameTiming with occlusion culling statistics
+    frameTiming.fullyOccludedCubes = fullyOccluded;
+    frameTiming.partiallyOccludedCubes = partiallyOccluded;
+    frameTiming.totalHiddenFaces = totalHiddenFaces;
+    frameTiming.occlusionCulledInstances = fullyOccluded; // Fully occluded cubes are considered occlusion-culled
+    frameTiming.faceCulledFaces = totalHiddenFaces; // Hidden faces are face-culled
+    
     // Begin render pass
     vulkanDevice->beginRenderPass(currentFrame, imageIndex, renderPipeline->getRenderPass());
     
@@ -700,6 +711,7 @@ void Application::drawFrame() {
     detailedTiming.instanceUpdateTime = std::chrono::duration<double, std::milli>(instanceUpdateEnd - instanceUpdateStart).count();
     detailedTiming.drawCmdUpdateTime = 0.0; // Not separate in our implementation
     detailedTiming.uniformUploadTime = std::chrono::duration<double, std::milli>(uniformUploadEnd - uniformUploadStart).count();
+    detailedTiming.occlusionCullingTime = 0.0; // Occlusion culling is done once at scene creation, not per-frame
     detailedTiming.commandRecordTime = std::chrono::duration<double, std::milli>(recordEnd - recordStart).count();
     detailedTiming.gpuSubmitTime = std::chrono::duration<double, std::milli>(submitEnd - submitStart).count();
     detailedTiming.presentTime = std::chrono::duration<double, std::milli>(presentEnd - presentStart).count();
@@ -762,8 +774,9 @@ void Application::createTestScene() {
         }
     }
     
-    // Calculate face masks ONCE after all cubes are added - this was the key optimization in original!
+    // Calculate face masks and perform occlusion culling ONCE after all cubes are added
     sceneManager->recalculateFaceMasks();
+    sceneManager->performOcclusionCulling();
     
     std::cout << "Created test scene with " << sceneManager->getCubeCount() << " cubes (full 32x32x32 grid)" << std::endl;
 }

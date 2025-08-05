@@ -185,13 +185,27 @@ void ImGuiRenderer::renderPerformanceOverlay(
         ImGui::SameLine();
         ImGui::Text("Total Culled: %d", frameTiming.culledInstances);
         
+        // Occlusion culling stats
+        ImGui::Text("Fully Occluded: %d", frameTiming.fullyOccludedCubes);
+        ImGui::SameLine();
+        ImGui::Text("Partially Occluded: %d", frameTiming.partiallyOccludedCubes);
+        
+        ImGui::Text("Hidden Faces: %d", frameTiming.totalHiddenFaces);
+        ImGui::SameLine();
+        ImGui::Text("Face Culled: %d", frameTiming.faceCulledFaces);
+        
         // Show culling efficiency
         int totalObjects = frameTiming.visibleInstances + frameTiming.culledInstances;
         if (totalObjects > 0) {
             float cullingEfficiency = (float)frameTiming.culledInstances / totalObjects * 100.0f;
             ImGui::Text("Culling Efficiency: %.1f%%", cullingEfficiency);
+            
+            // Occlusion culling efficiency
+            float occlusionEfficiency = (float)frameTiming.fullyOccludedCubes / totalObjects * 100.0f;
+            ImGui::Text("Occlusion Efficiency: %.1f%%", occlusionEfficiency);
         } else {
             ImGui::Text("Culling Efficiency: 0.0%%");
+            ImGui::Text("Occlusion Efficiency: 0.0%%");
         }
         
         ImGui::Text("Physics Bodies: %d", physicsWorld->getRigidBodyCount());
@@ -221,6 +235,14 @@ void ImGuiRenderer::renderPerformanceOverlay(
             ImGui::Text("Frustum Culling: %.2f ms (%.1f%%)", 
                        latest.frustumCullingTime, 
                        (latest.frustumCullingTime / latest.totalFrameTime) * 100.0);
+            
+            ImGui::Text("Occlusion Culling: %.2f ms (%.1f%%)", 
+                       latest.occlusionCullingTime, 
+                       (latest.occlusionCullingTime / latest.totalFrameTime) * 100.0);
+            
+            ImGui::Text("Face Culling: %.2f ms (%.1f%%)", 
+                       latest.faceCullingTime, 
+                       (latest.faceCullingTime / latest.totalFrameTime) * 100.0);
             
             ImGui::Text("Command Record: %.2f ms (%.1f%%)", 
                        latest.commandRecordTime, 
