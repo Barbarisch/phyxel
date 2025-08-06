@@ -179,33 +179,41 @@ void ImGuiRenderer::renderPerformanceOverlay(
         
         ImGui::Text("Draw Calls: %d", frameTiming.drawCalls);
         ImGui::SameLine();
-        ImGui::Text("Visible: %d", frameTiming.visibleInstances);
+        ImGui::Text("Visible Instances: %d", frameTiming.visibleInstances);
         
+        // Frustum culling stats (GPU compute shader)
         ImGui::Text("Frustum Culled: %d", frameTiming.frustumCulledInstances);
         ImGui::SameLine();
-        ImGui::Text("Total Culled: %d", frameTiming.culledInstances);
+        float frustumCullRate = frameTiming.visibleInstances > 0 ? 
+                               (float)frameTiming.frustumCulledInstances / (frameTiming.visibleInstances + frameTiming.frustumCulledInstances) * 100.0f : 0.0f;
+        ImGui::Text("Rate: %.1f%%", frustumCullRate);
         
-        // Occlusion culling stats
-        ImGui::Text("Fully Occluded: %d", frameTiming.fullyOccludedCubes);
+        // Modern chunk-based occlusion culling stats (CPU neighbor detection)
+        ImGui::Text("Fully Hidden Cubes: %d", frameTiming.fullyOccludedCubes);
         ImGui::SameLine();
-        ImGui::Text("Partially Occluded: %d", frameTiming.partiallyOccludedCubes);
+        ImGui::Text("Partially Hidden: %d", frameTiming.partiallyOccludedCubes);
         
         ImGui::Text("Hidden Faces: %d", frameTiming.totalHiddenFaces);
         ImGui::SameLine();
-        ImGui::Text("Face Culled: %d", frameTiming.faceCulledFaces);
+        ImGui::Text("Face Reduction: %d%%", frameTiming.totalHiddenFaces > 0 ? 
+                   (frameTiming.totalHiddenFaces * 100) / (frameTiming.visibleInstances * 6) : 0);
         
-        // Show culling efficiency
-        int totalObjects = frameTiming.visibleInstances + frameTiming.culledInstances;
-        if (totalObjects > 0) {
-            float cullingEfficiency = (float)frameTiming.culledInstances / totalObjects * 100.0f;
-            ImGui::Text("Culling Efficiency: %.1f%%", cullingEfficiency);
+        // Note about culling methods
+        ImGui::TextColored(ImVec4(0.8f, 0.5f, 0.8f, 1.0f), "Frustum: GPU compute shader (instance-level)");
+        ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1.0f), "Occlusion: CPU neighbor detection (face-level)");
+        ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.5f, 1.0f), "Final: GPU vertex shader applies both");
+        
+        // Show efficiency
+        int totalCubes = frameTiming.visibleInstances;
+        if (totalCubes > 0) {
+            float occlusionEfficiency = (float)frameTiming.fullyOccludedCubes / totalCubes * 100.0f;
+            ImGui::Text("Full Occlusion Rate: %.1f%%", occlusionEfficiency);
             
-            // Occlusion culling efficiency
-            float occlusionEfficiency = (float)frameTiming.fullyOccludedCubes / totalObjects * 100.0f;
-            ImGui::Text("Occlusion Efficiency: %.1f%%", occlusionEfficiency);
+            float partialEfficiency = (float)frameTiming.partiallyOccludedCubes / totalCubes * 100.0f;
+            ImGui::Text("Partial Occlusion Rate: %.1f%%", partialEfficiency);
         } else {
-            ImGui::Text("Culling Efficiency: 0.0%%");
-            ImGui::Text("Occlusion Efficiency: 0.0%%");
+            ImGui::Text("Full Occlusion Rate: 0.0%%");
+            ImGui::Text("Partial Occlusion Rate: 0.0%%");
         }
         
         ImGui::Text("Physics Bodies: %d", physicsWorld->getRigidBodyCount());
@@ -240,10 +248,6 @@ void ImGuiRenderer::renderPerformanceOverlay(
                        latest.occlusionCullingTime, 
                        (latest.occlusionCullingTime / latest.totalFrameTime) * 100.0);
             
-            ImGui::Text("Face Culling: %.2f ms (%.1f%%)", 
-                       latest.faceCullingTime, 
-                       (latest.faceCullingTime / latest.totalFrameTime) * 100.0);
-            
             ImGui::Text("Command Record: %.2f ms (%.1f%%)", 
                        latest.commandRecordTime, 
                        (latest.commandRecordTime / latest.totalFrameTime) * 100.0);
@@ -263,17 +267,19 @@ void ImGuiRenderer::renderPerformanceOverlay(
         ImGui::Text("CAMERA POSITION");
         ImGui::Separator();
         ImGui::Text("X: %.1f  Y: %.1f  Z: %.1f", cameraPos.x, cameraPos.y, cameraPos.z);
-        ImGui::Text("Distance to grid center: %.1f", glm::length(cameraPos - glm::vec3(16.0f, 16.0f, 16.0f)));
         
         ImGui::Spacing();
         
-        // Frustum Culling Debug
-        ImGui::Text("FRUSTUM CULLING DEBUG");
+        // Culling Systems Debug
+        ImGui::Text("CULLING SYSTEMS DEBUG");
         ImGui::Separator();
-        ImGui::Text("Grid bounds: [0,0,0] to [31,31,31]");
-        ImGui::Text("Cube world positions: integer coordinates");
-        ImGui::Text("AABB size: 1.0 x 1.0 x 1.0 (pos ± 0.5)");
-        ImGui::Text("Far plane: 200.0");
+        ImGui::Text("Frustum: GPU compute shader, instance-level");
+        ImGui::Text("Occlusion: CPU neighbor detection, face-level");
+        ImGui::Text("Chunks: Multi-chunk system (32³ cubes each)");
+        ImGui::Text("Method: Cross-chunk neighbor detection");
+        ImGui::Text("Final: GPU vertex shader applies both");
+        ImGui::Text("Face bits: 6-bit mask in packed instance data");
+        ImGui::Text("Efficiency: ~85-95%% face reduction expected");
         
         ImGui::Spacing();
         
@@ -282,7 +288,6 @@ void ImGuiRenderer::renderPerformanceOverlay(
         ImGui::Separator();
         ImGui::Text("WASD: Move  Space/Shift: Up/Down");
         ImGui::Text("Right-Click: Look  ESC: Exit  F1: Toggle overlay");
-        ImGui::Text("T: Test frustum culling positions");
     }
     ImGui::End();
 }

@@ -25,6 +25,9 @@ if(PLATFORM_WINDOWS)
     set(USE_MSVC_RUNTIME_LIBRARY_DLL ON CACHE BOOL "Use MSVC DLL runtime" FORCE)
 endif()
 
+# Always disable Bullet demos and unit tests to avoid build errors
+set(BUILD_BULLET2_DEMOS OFF CACHE BOOL "Disable Bullet2 demos" FORCE)
+set(BUILD_UNIT_TESTS OFF CACHE BOOL "Disable Bullet unit tests" FORCE)
 add_subdirectory(external/bullet3)
 
 # Set Bullet library names with proper debug suffixes

@@ -2,6 +2,7 @@
 #include "utils/FileUtils.h"
 #include "utils/Math.h"
 #include "utils/PerformanceProfiler.h"
+#include "examples/MultiChunkDemo.h"
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -69,12 +70,28 @@ bool Application::initialize() {
     sceneManager = std::make_unique<Scene::SceneManager>();
     physicsWorld = std::make_unique<Physics::PhysicsWorld>();
     timer = std::make_unique<Timer>();
+    chunkManager = std::make_unique<ChunkManager>();
 
     // Initialize subsystems
     if (!initializeVulkan()) {
         std::cerr << "Failed to initialize Vulkan!" << std::endl;
         return false;
     }
+
+    // Initialize chunk manager after Vulkan is ready
+    chunkManager->initialize(vulkanDevice->getDevice(), vulkanDevice->getPhysicalDevice());
+    
+    // Create 10 chunks in a linear arrangement for testing
+    auto origins = MultiChunkDemo::createLinearChunks(10);
+    chunkManager->createChunks(origins);
+    
+    // Calculate face culling optimization after chunk creation (DISABLED for now)
+    // chunkManager->calculateChunkFaceCulling();
+    
+    // Perform cross-chunk occlusion culling
+    chunkManager->performOcclusionCulling();
+    
+    std::cout << "Created " << chunkManager->chunks.size() << " chunks for testing" << std::endl;
 
     if (!initializeScene()) {
         std::cerr << "Failed to initialize scene!" << std::endl;
@@ -211,6 +228,11 @@ void Application::cleanup() {
     
     if (renderPipeline) {
         renderPipeline->cleanup();
+    }
+    
+    // Cleanup chunk manager before Vulkan device
+    if (chunkManager) {
+        chunkManager->cleanup();
     }
     
     if (vulkanDevice) {
@@ -528,6 +550,7 @@ void Application::drawFrame() {
             
             vulkanDevice->updateInstanceBuffer(vulkanInstances);
             
+            // Update AABB buffer for frustum culling with all chunks
             // Update AABB buffer for frustum culling
             auto cubePositions = sceneManager->getCubePositions();
             vulkanDevice->updateAABBBuffer(cubePositions);
@@ -554,6 +577,7 @@ void Application::drawFrame() {
     
     glm::mat4 proj = cachedProjectionMatrix;
 
+    // Get actual cube count for rendering from chunk manager (multi-chunk system)
     // Get actual cube count for rendering
     size_t cubeCount = sceneManager->getCubeCount();
     auto uboEnd = std::chrono::high_resolution_clock::now();
@@ -613,16 +637,25 @@ void Application::drawFrame() {
         performanceProfiler->recordFrustumCulling(totalObjects, culledObjects, frustumCullingTimeMs);
     }
     
-    // Record occlusion culling statistics (every frame, not just every 10 frames)
-    int fullyOccluded, partiallyOccluded, totalHiddenFaces;
-    sceneManager->getOcclusionCullStats(fullyOccluded, partiallyOccluded, totalHiddenFaces);
-    
-    // Update frameTiming with occlusion culling statistics
-    frameTiming.fullyOccludedCubes = fullyOccluded;
-    frameTiming.partiallyOccludedCubes = partiallyOccluded;
-    frameTiming.totalHiddenFaces = totalHiddenFaces;
-    frameTiming.occlusionCulledInstances = fullyOccluded; // Fully occluded cubes are considered occlusion-culled
-    frameTiming.faceCulledFaces = totalHiddenFaces; // Hidden faces are face-culled
+    // Record occlusion culling statistics from chunk manager (if using chunks)
+    if (chunkManager && !chunkManager->chunks.empty()) {
+        // Get occlusion stats from chunk manager
+        auto chunkStats = chunkManager->getPerformanceStats();
+        frameTiming.fullyOccludedCubes = static_cast<int>(chunkStats.fullyOccludedCubes);
+        frameTiming.partiallyOccludedCubes = static_cast<int>(chunkStats.partiallyOccludedCubes);
+        frameTiming.totalHiddenFaces = static_cast<int>(chunkStats.totalHiddenFaces);
+        frameTiming.occlusionCulledInstances = static_cast<int>(chunkStats.fullyOccludedCubes);
+        frameTiming.faceCulledFaces = static_cast<int>(chunkStats.totalHiddenFaces);
+    } else {
+        // Fallback to old SceneManager occlusion culling
+        int fullyOccluded, partiallyOccluded, totalHiddenFaces;
+        sceneManager->getOcclusionCullStats(fullyOccluded, partiallyOccluded, totalHiddenFaces);
+        frameTiming.fullyOccludedCubes = fullyOccluded;
+        frameTiming.partiallyOccludedCubes = partiallyOccluded;
+        frameTiming.totalHiddenFaces = totalHiddenFaces;
+        frameTiming.occlusionCulledInstances = fullyOccluded;
+        frameTiming.faceCulledFaces = totalHiddenFaces;
+    }
     
     // Begin render pass
     vulkanDevice->beginRenderPass(currentFrame, imageIndex, renderPipeline->getRenderPass());
@@ -653,12 +686,44 @@ void Application::drawFrame() {
     // Bind descriptor sets (uniform buffers)
     vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getGraphicsLayout());
     
-    // Draw indexed cubes
-    if (cubeCount > 0) {
-        // For now, render as a single chunk at origin (0,0,0) with push constants
+    // Draw indexed cubes using chunk manager
+    if (chunkManager && !chunkManager->chunks.empty()) {
+        // Render each chunk separately
+        for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
+            const Chunk& chunk = chunkManager->chunks[i];
+            
+            // Bind this chunk's instance buffer
+            VkBuffer instanceBuffers[] = {chunk.instanceBuffer};
+            VkDeviceSize instanceOffsets[] = {0};
+            vkCmdBindVertexBuffers(vulkanDevice->getCommandBuffer(currentFrame), 1, 1, instanceBuffers, instanceOffsets);
+            
+            // Set chunk origin as push constants for world positioning
+            glm::vec3 chunkBaseOffset(chunk.worldOrigin.x, chunk.worldOrigin.y, chunk.worldOrigin.z);
+            vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
+            
+            // Draw this chunk (32,768 instances)
+            vulkanDevice->drawIndexed(currentFrame, 36, chunk.numInstances);
+        }
+        
+        // Get accurate performance statistics from chunk manager
+        auto chunkStats = chunkManager->getPerformanceStats();
+        
+        // Update frame timing with chunk-based statistics
+        frameTiming.drawCalls = static_cast<int>(chunkManager->chunks.size());
+        frameTiming.vertexCount = static_cast<int>(chunkStats.totalVertices);
+        frameTiming.visibleInstances = static_cast<int>(chunkStats.totalCubes);
+        frameTiming.fullyOccludedCubes = static_cast<int>(chunkStats.fullyOccludedCubes);
+        frameTiming.partiallyOccludedCubes = static_cast<int>(chunkStats.partiallyOccludedCubes);
+        frameTiming.totalHiddenFaces = static_cast<int>(chunkStats.totalHiddenFaces);
+        frameTiming.faceCulledFaces = static_cast<int>(chunkStats.totalHiddenFaces);
+        frameTiming.occlusionCulledInstances = static_cast<int>(chunkStats.fullyOccludedCubes);
+    } else if (cubeCount > 0) {
+        // Fallback to old single-chunk rendering if chunk manager isn't available
         glm::vec3 chunkBaseOffset(0.0f, 0.0f, 0.0f);
         vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
         vulkanDevice->drawIndexed(currentFrame, 36, static_cast<uint32_t>(cubeCount));
+        frameTiming.drawCalls = 1;
+        frameTiming.vertexCount = static_cast<int>(cubeCount * 36);
     }
     
     // Render ImGui on top
@@ -687,18 +752,14 @@ void Application::drawFrame() {
 
     currentFrame = (currentFrame + 1) % 2; // MAX_FRAMES_IN_FLIGHT = 2
     
-    // Update frame timing stats
-    frameTiming.drawCalls = 1;
-    frameTiming.vertexCount = static_cast<int>(cubeCount * 36); // 36 vertices per cube
+    // Note: frameTiming statistics are now set in the chunk rendering section above
+    // This includes: drawCalls, vertexCount, visibleInstances, culledInstances, etc.
     
-    // Use GPU culling results if available, otherwise default values
+    // Use GPU culling results if available for frustum culling statistics
     if (lastVisibleInstances + lastCulledInstances > 0) {
-        frameTiming.visibleInstances = static_cast<int>(lastVisibleInstances);
-        frameTiming.culledInstances = static_cast<int>(lastCulledInstances);
+        frameTiming.frustumCulledInstances = static_cast<int>(lastCulledInstances);
     } else {
-        // Default before first GPU results are available
-        frameTiming.visibleInstances = static_cast<int>(cubeCount);
-        frameTiming.culledInstances = 0;
+        frameTiming.frustumCulledInstances = 0;
     }
     
     // Record detailed timing
@@ -968,6 +1029,8 @@ FrameTiming Application::profileFrame() {
     FrameTiming timing;
     timing.cpuFrameTime = std::chrono::duration<double, std::milli>(frameEnd - frameStartTime).count();
     timing.gpuFrameTime = timing.cpuFrameTime; // Placeholder - actual GPU timing would need GPU queries
+    
+    // Use chunk manager statistics if available (multi-chunk system)
     timing.vertexCount = static_cast<int>(sceneManager->getCubeCount() * 36); // 36 vertices per cube
     timing.drawCalls = 1;
     timing.visibleInstances = static_cast<int>(sceneManager->getCubeCount());

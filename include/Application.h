@@ -10,6 +10,7 @@
 #include "utils/Timer.h"
 #include "utils/PerformanceProfiler.h"
 #include "ui/ImGuiRenderer.h"
+#include "core/ChunkManager.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -45,6 +46,7 @@ private:
     std::unique_ptr<Timer> timer;
     std::unique_ptr<PerformanceProfiler> performanceProfiler;
     std::unique_ptr<UI::ImGuiRenderer> imguiRenderer;
+    std::unique_ptr<ChunkManager> chunkManager;
 
     // Application state
     bool isRunning;

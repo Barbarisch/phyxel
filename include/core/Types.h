@@ -266,9 +266,20 @@ struct ivec3_hash {
     }
 };
 
-// Chunk structure for potential chunked rendering
+// Chunk structure for multi-chunk rendering
 struct Chunk {
-    // Implementation depends on requirements
+    std::vector<InstanceData> cubes;               // 32x32x32 cubes with relative positions
+    VkBuffer instanceBuffer = VK_NULL_HANDLE;     // Vulkan buffer for this chunk's instance data
+    VkDeviceMemory instanceMemory = VK_NULL_HANDLE;
+    void* mappedMemory = nullptr;                  // Persistent mapping for updates
+    uint32_t numInstances = 32 * 32 * 32;        // Always 32768 for a full chunk
+    glm::ivec3 worldOrigin = glm::ivec3(0);       // World-space origin of this chunk
+    bool needsUpdate = false;                     // Flag for buffer updates
+    
+    // Constructor to initialize a chunk at given world origin
+    Chunk(const glm::ivec3& origin = glm::ivec3(0)) : worldOrigin(origin) {
+        cubes.reserve(numInstances);
+    }
 };
 
 // Constants
