@@ -268,8 +268,9 @@ struct ivec3_hash {
 
 // Chunk structure for multi-chunk rendering with CPU face culling
 struct Chunk {
-    std::vector<InstanceData> faces;               // Visible faces only (CPU pre-filtered)
-    VkBuffer instanceBuffer = VK_NULL_HANDLE;     // Vulkan buffer for this chunk's instance data
+    std::vector<Cube> cubes;                       // Logical cubes for game logic (32x32x32)
+    std::vector<InstanceData> faces;               // Visible faces only (CPU pre-filtered for rendering)
+    VkBuffer instanceBuffer = VK_NULL_HANDLE;     // Vulkan buffer for this chunk's face instance data
     VkDeviceMemory instanceMemory = VK_NULL_HANDLE;
     void* mappedMemory = nullptr;                  // Persistent mapping for updates
     uint32_t numInstances = 0;                    // Variable count based on visible faces
@@ -278,7 +279,8 @@ struct Chunk {
     
     // Constructor to initialize a chunk at given world origin
     Chunk(const glm::ivec3& origin = glm::ivec3(0)) : worldOrigin(origin) {
-        faces.reserve(32 * 32 * 32 * 6); // Reserve space for maximum faces (6 per cube)
+        cubes.reserve(32 * 32 * 32);              // Reserve space for all possible cubes
+        faces.reserve(32 * 32 * 32 * 6);          // Reserve space for maximum faces (6 per cube)
     }
 };
 

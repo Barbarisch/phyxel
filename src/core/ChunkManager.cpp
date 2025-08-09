@@ -36,6 +36,7 @@ void ChunkManager::createChunk(const glm::ivec3& origin) {
 }
 
 void ChunkManager::populateChunk(Chunk& chunk) {
+    chunk.cubes.clear();
     chunk.faces.clear();
     
     // Random number generator for colors
@@ -43,41 +44,49 @@ void ChunkManager::populateChunk(Chunk& chunk) {
     std::mt19937 gen(rd());
     std::uniform_real_distribution<float> colorDist(0.0f, 1.0f);
     
-    // Create 32x32x32 grid of cubes and generate faces only for visible sides
+    // Step 1: Create logical cubes (32x32x32 grid)
     for (int x = 0; x < 32; ++x) {
         for (int y = 0; y < 32; ++y) {
             for (int z = 0; z < 32; ++z) {
-                // Calculate which faces are visible using cross-chunk occlusion
-                uint32_t faceMask = calculateOcclusionFaceMask(chunk.worldOrigin, x, y, z);
-                
-                // Random color for this cube (all faces of same cube have same color)
-                glm::vec3 cubeColor = glm::vec3(
+                Cube cube;
+                cube.position = glm::ivec3(x, y, z);  // Relative position within chunk
+                cube.color = glm::vec3(
                     colorDist(gen),
                     colorDist(gen),
                     colorDist(gen)
                 );
+                chunk.cubes.push_back(cube);
+            }
+        }
+    }
+    
+    // Step 2: Generate faces from cubes (only for visible faces)
+    for (size_t cubeIndex = 0; cubeIndex < chunk.cubes.size(); ++cubeIndex) {
+        const Cube& cube = chunk.cubes[cubeIndex];
+        
+        // Calculate which faces are visible using cross-chunk occlusion
+        uint32_t faceMask = calculateOcclusionFaceMask(chunk.worldOrigin, cube.position.x, cube.position.y, cube.position.z);
+        
+        // Generate instance data for each visible face
+        // Face IDs: 0=front(+Z), 1=back(-Z), 2=right(+X), 3=left(-X), 4=top(+Y), 5=bottom(-Y)
+        for (int faceID = 0; faceID < 6; ++faceID) {
+            if (faceMask & (1u << faceID)) {
+                InstanceData faceInstance;
                 
-                // Generate instance data for each visible face
-                // Face IDs: 0=front(+Z), 1=back(-Z), 2=right(+X), 3=left(-X), 4=top(+Y), 5=bottom(-Y)
-                for (int faceID = 0; faceID < 6; ++faceID) {
-                    if (faceMask & (1u << faceID)) {
-                        InstanceData faceInstance;
-                        
-                        // Pack cube position (5 bits each) and face ID (3 bits)
-                        // Bit layout: [0-4]=x, [5-9]=y, [10-14]=z, [15-17]=faceID, [18-31]=future
-                        faceInstance.packedData = (x & 0x1F) | ((y & 0x1F) << 5) | ((z & 0x1F) << 10) | ((faceID & 0x7) << 15);
-                        
-                        faceInstance.color = cubeColor;
-                        chunk.faces.push_back(faceInstance);
-                    }
-                }
+                // Pack cube position (5 bits each) and face ID (3 bits)
+                // Bit layout: [0-4]=x, [5-9]=y, [10-14]=z, [15-17]=faceID, [18-31]=future
+                faceInstance.packedData = (cube.position.x & 0x1F) | ((cube.position.y & 0x1F) << 5) | 
+                                         ((cube.position.z & 0x1F) << 10) | ((faceID & 0x7) << 15);
+                
+                faceInstance.color = cube.color;
+                chunk.faces.push_back(faceInstance);
             }
         }
     }
     
     chunk.numInstances = static_cast<uint32_t>(chunk.faces.size());
     std::cout << "[DEBUG] Chunk at (" << chunk.worldOrigin.x << "," << chunk.worldOrigin.y << "," << chunk.worldOrigin.z 
-              << ") generated " << chunk.numInstances << " visible faces" << std::endl;
+              << ") created " << chunk.cubes.size() << " cubes, " << chunk.numInstances << " visible faces" << std::endl;
 }
 
 void ChunkManager::createChunkBuffer(Chunk& chunk) {
@@ -132,22 +141,112 @@ void ChunkManager::updateChunk(size_t chunkIndex) {
     }
 }
 
+void ChunkManager::rebuildChunkFaces(Chunk& chunk) {
+    chunk.faces.clear();
+    
+    // Generate faces from existing cubes (only for visible faces)
+    for (size_t cubeIndex = 0; cubeIndex < chunk.cubes.size(); ++cubeIndex) {
+        const Cube& cube = chunk.cubes[cubeIndex];
+        
+        // Calculate which faces are visible using cross-chunk occlusion
+        uint32_t faceMask = calculateOcclusionFaceMask(chunk.worldOrigin, cube.position.x, cube.position.y, cube.position.z);
+        
+        // Generate instance data for each visible face
+        for (int faceID = 0; faceID < 6; ++faceID) {
+            if (faceMask & (1u << faceID)) {
+                InstanceData faceInstance;
+                
+                // Pack cube position (5 bits each) and face ID (3 bits)
+                faceInstance.packedData = (cube.position.x & 0x1F) | ((cube.position.y & 0x1F) << 5) | 
+                                         ((cube.position.z & 0x1F) << 10) | ((faceID & 0x7) << 15);
+                
+                faceInstance.color = cube.color;
+                chunk.faces.push_back(faceInstance);
+            }
+        }
+    }
+    
+    chunk.numInstances = static_cast<uint32_t>(chunk.faces.size());
+    chunk.needsUpdate = true;  // Mark for GPU buffer update
+}
+
 Chunk* ChunkManager::getChunkAt(const glm::ivec3& worldPos) {
     // Convert world position to chunk coordinates
-    glm::ivec3 chunkCoord = glm::ivec3(
-        worldPos.x / 32,
-        worldPos.y / 32,
-        worldPos.z / 32
-    );
+    glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
+    glm::ivec3 chunkOrigin = chunkCoord * 32;
     
     // Find chunk with matching origin
     for (auto& chunk : chunks) {
-        if (chunk.worldOrigin == chunkCoord * 32) {
+        if (chunk.worldOrigin == chunkOrigin) {
             return &chunk;
         }
     }
     
     return nullptr;
+}
+
+Cube* ChunkManager::getCubeAt(const glm::ivec3& worldPos) {
+    Chunk* chunk = getChunkAt(worldPos);
+    if (!chunk) return nullptr;
+    
+    glm::ivec3 localPos = worldToLocalCoord(worldPos);
+    size_t index = localToIndex(localPos);
+    
+    if (index < chunk->cubes.size()) {
+        return &chunk->cubes[index];
+    }
+    
+    return nullptr;
+}
+
+void ChunkManager::setCubeColor(const glm::ivec3& worldPos, const glm::vec3& color) {
+    Cube* cube = getCubeAt(worldPos);
+    if (cube) {
+        cube->color = color;
+        
+        // Rebuild faces for this chunk since color changed
+        Chunk* chunk = getChunkAt(worldPos);
+        if (chunk) {
+            rebuildChunkFaces(*chunk);
+        }
+    }
+}
+
+bool ChunkManager::removeCube(const glm::ivec3& worldPos) {
+    Chunk* chunk = getChunkAt(worldPos);
+    if (!chunk) return false;
+    
+    glm::ivec3 localPos = worldToLocalCoord(worldPos);
+    size_t index = localToIndex(localPos);
+    
+    if (index < chunk->cubes.size()) {
+        // For now, we'll mark cube as "empty" by setting alpha to 0
+        // In a more advanced system, you might use a sparse representation
+        chunk->cubes[index].color.r = -1.0f; // Use negative red as "empty" marker
+        
+        rebuildChunkFaces(*chunk);
+        return true;
+    }
+    
+    return false;
+}
+
+bool ChunkManager::addCube(const glm::ivec3& worldPos, const glm::vec3& color) {
+    Cube* cube = getCubeAt(worldPos);
+    if (cube) {
+        // Cube already exists, just change color
+        cube->color = color;
+        
+        Chunk* chunk = getChunkAt(worldPos);
+        if (chunk) {
+            rebuildChunkFaces(*chunk);
+        }
+        return true;
+    }
+    
+    // For full chunks, all positions already have cubes
+    // This would be more complex with sparse chunks
+    return false;
 }
 
 uint32_t ChunkManager::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {

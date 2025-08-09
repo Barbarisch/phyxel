@@ -83,8 +83,8 @@ bool Application::initialize() {
     
     // Create 10 chunks in a linear arrangement for testing
     //auto origins = MultiChunkDemo::createLinearChunks(10);
-    auto origins = MultiChunkDemo::createGridChunks(5, 5);
-    //auto origins = MultiChunkDemo::create3DGridChunks(3, 3, 3);
+    //auto origins = MultiChunkDemo::createGridChunks(5, 5);
+    auto origins = MultiChunkDemo::create3DGridChunks(2, 2, 2);
     chunkManager->createChunks(origins);
     
     // Calculate face culling optimization after chunk creation (DISABLED for now)

@@ -30,8 +30,22 @@ public:
     // Update chunk data (for dynamic content)
     void updateChunk(size_t chunkIndex);
     
+    // Rebuild faces from cubes (call after modifying cubes)
+    void rebuildChunkFaces(Chunk& chunk);
+    
     // Get chunk at world position (for adding/removing cubes)
     Chunk* getChunkAt(const glm::ivec3& worldPos);
+    
+    // Cube manipulation helpers
+    Cube* getCubeAt(const glm::ivec3& worldPos);          // Get cube at world position
+    void setCubeColor(const glm::ivec3& worldPos, const glm::vec3& color);
+    bool removeCube(const glm::ivec3& worldPos);          // Returns true if cube was removed
+    bool addCube(const glm::ivec3& worldPos, const glm::vec3& color = glm::vec3(1.0f));
+    
+    // Convert between coordinate systems
+    static glm::ivec3 worldToChunkCoord(const glm::ivec3& worldPos) { return worldPos / 32; }
+    static glm::ivec3 worldToLocalCoord(const glm::ivec3& worldPos) { return worldPos % 32; }
+    static size_t localToIndex(const glm::ivec3& localPos) { return localPos.x + localPos.y * 32 + localPos.z * 32 * 32; }
     
     // Calculate face visibility for all chunks (face culling optimization)
     void calculateChunkFaceCulling();
