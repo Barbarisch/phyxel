@@ -36,41 +36,48 @@ void ChunkManager::createChunk(const glm::ivec3& origin) {
 }
 
 void ChunkManager::populateChunk(Chunk& chunk) {
-    chunk.cubes.clear();
-    chunk.cubes.reserve(chunk.numInstances);
+    chunk.faces.clear();
     
     // Random number generator for colors
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<float> colorDist(0.0f, 1.0f);
     
-    // Create 32x32x32 grid of cubes with relative positions (0-31)
+    // Create 32x32x32 grid of cubes and generate faces only for visible sides
     for (int x = 0; x < 32; ++x) {
         for (int y = 0; y < 32; ++y) {
             for (int z = 0; z < 32; ++z) {
-                InstanceData instance;
+                // Calculate which faces are visible using cross-chunk occlusion
+                uint32_t faceMask = calculateOcclusionFaceMask(chunk.worldOrigin, x, y, z);
                 
-                // Pack relative position using existing packing logic (5 bits each)
-                // This maintains compatibility with your vertex shader
-                instance.packedData = (x & 0x1F) | ((y & 0x1F) << 5) | ((z & 0x1F) << 10);
-                
-                // Face mask will be set by performOcclusionCulling() - start with all faces visible
-                // This ensures cubes are visible until occlusion culling runs
-                instance.packedData |= (0x3F << 15); // All faces visible initially
-                
-                // Random color for each cube
-                instance.color = glm::vec3(
+                // Random color for this cube (all faces of same cube have same color)
+                glm::vec3 cubeColor = glm::vec3(
                     colorDist(gen),
                     colorDist(gen),
                     colorDist(gen)
                 );
                 
-                chunk.cubes.push_back(instance);
+                // Generate instance data for each visible face
+                // Face IDs: 0=front(+Z), 1=back(-Z), 2=right(+X), 3=left(-X), 4=top(+Y), 5=bottom(-Y)
+                for (int faceID = 0; faceID < 6; ++faceID) {
+                    if (faceMask & (1u << faceID)) {
+                        InstanceData faceInstance;
+                        
+                        // Pack cube position (5 bits each) and face ID (3 bits)
+                        // Bit layout: [0-4]=x, [5-9]=y, [10-14]=z, [15-17]=faceID, [18-31]=future
+                        faceInstance.packedData = (x & 0x1F) | ((y & 0x1F) << 5) | ((z & 0x1F) << 10) | ((faceID & 0x7) << 15);
+                        
+                        faceInstance.color = cubeColor;
+                        chunk.faces.push_back(faceInstance);
+                    }
+                }
             }
         }
     }
     
-    chunk.numInstances = static_cast<uint32_t>(chunk.cubes.size());
+    chunk.numInstances = static_cast<uint32_t>(chunk.faces.size());
+    std::cout << "[DEBUG] Chunk at (" << chunk.worldOrigin.x << "," << chunk.worldOrigin.y << "," << chunk.worldOrigin.z 
+              << ") generated " << chunk.numInstances << " visible faces" << std::endl;
 }
 
 void ChunkManager::createChunkBuffer(Chunk& chunk) {
@@ -78,7 +85,7 @@ void ChunkManager::createChunkBuffer(Chunk& chunk) {
         throw std::runtime_error("ChunkManager not initialized with Vulkan device!");
     }
     
-    VkDeviceSize bufferSize = sizeof(InstanceData) * chunk.cubes.size();
+    VkDeviceSize bufferSize = sizeof(InstanceData) * chunk.faces.size();
     
     // Create buffer
     VkBufferCreateInfo bufferInfo{};
@@ -111,7 +118,7 @@ void ChunkManager::createChunkBuffer(Chunk& chunk) {
     vkMapMemory(device, chunk.instanceMemory, 0, bufferSize, 0, &chunk.mappedMemory);
     
     // Copy initial data
-    memcpy(chunk.mappedMemory, chunk.cubes.data(), bufferSize);
+    memcpy(chunk.mappedMemory, chunk.faces.data(), bufferSize);
 }
 
 void ChunkManager::updateChunk(size_t chunkIndex) {
@@ -119,8 +126,8 @@ void ChunkManager::updateChunk(size_t chunkIndex) {
     
     Chunk& chunk = chunks[chunkIndex];
     if (chunk.needsUpdate && chunk.mappedMemory) {
-        VkDeviceSize bufferSize = sizeof(InstanceData) * chunk.cubes.size();
-        memcpy(chunk.mappedMemory, chunk.cubes.data(), bufferSize);
+        VkDeviceSize bufferSize = sizeof(InstanceData) * chunk.faces.size();
+        memcpy(chunk.mappedMemory, chunk.faces.data(), bufferSize);
         chunk.needsUpdate = false;
     }
 }
@@ -222,57 +229,42 @@ uint32_t ChunkManager::calculateCubeFaceMask(int x, int y, int z) const {
 }
 
 void ChunkManager::calculateChunkFaceCulling() {
-    // Recalculate face masks for all chunks
-    for (auto& chunk : chunks) {
-        for (size_t i = 0; i < chunk.cubes.size(); ++i) {
-            // Extract position from packed data
-            uint32_t x = (chunk.cubes[i].packedData >> 0) & 0x1F;
-            uint32_t y = (chunk.cubes[i].packedData >> 5) & 0x1F;
-            uint32_t z = (chunk.cubes[i].packedData >> 10) & 0x1F;
-            
-            // Calculate new face mask
-            uint32_t newFaceMask = calculateCubeFaceMask(x, y, z);
-            
-            // Update packed data with new face mask
-            chunk.cubes[i].packedData = (x & 0x1F) | ((y & 0x1F) << 5) | ((z & 0x1F) << 10) | (newFaceMask << 15);
-        }
-        
-        // Update GPU buffer with new data
-        if (chunk.mappedMemory) {
-            VkDeviceSize bufferSize = sizeof(InstanceData) * chunk.cubes.size();
-            memcpy(chunk.mappedMemory, chunk.cubes.data(), bufferSize);
-        }
-    }
+    // NOTE: This function is no longer needed with CPU pre-filtering
+    // Face culling is now performed during chunk population in populateChunk()
+    // which calls calculateOcclusionFaceMask() for each cube
+    
+    std::cout << "[DEBUG] calculateChunkFaceCulling: No longer needed with CPU pre-filtering" << std::endl;
 }
 
 ChunkManager::ChunkStats ChunkManager::getPerformanceStats() const {
     ChunkStats stats;
     
     for (const auto& chunk : chunks) {
-        stats.totalCubes += chunk.numInstances;
+        // Each face instance represents one visible face
+        stats.totalVisibleFaces += chunk.numInstances;
         
-        for (const auto& cube : chunk.cubes) {
-            // Extract face mask
-            uint32_t faceMask = (cube.packedData >> 15) & 0x3F;
+        // Calculate vertices (4 vertices per face for quad rendering)
+        stats.totalVertices += chunk.numInstances * 4;
+        
+        // Count cubes and estimate hidden faces
+        uint32_t totalPossibleCubes = 32 * 32 * 32;
+        stats.totalCubes += totalPossibleCubes;
+        
+        // Estimate hidden faces (total possible faces - visible faces)
+        uint32_t totalPossibleFaces = totalPossibleCubes * 6;
+        if (chunk.numInstances < totalPossibleFaces) {
+            stats.totalHiddenFaces += (totalPossibleFaces - chunk.numInstances);
+        }
+        
+        // Count occlusion types based on visible faces per cube
+        // This is an approximation since we don't track individual cubes anymore
+        for (uint32_t cubeIdx = 0; cubeIdx < totalPossibleCubes; ++cubeIdx) {
+            // Rough estimate: assume evenly distributed face visibility
+            float avgVisibleFacesPerCube = float(chunk.numInstances) / float(totalPossibleCubes);
             
-            // Count visible faces
-            int visibleFaces = 0;
-            for (int i = 0; i < 6; ++i) {
-                if (faceMask & (1 << i)) {
-                    visibleFaces++;
-                }
-            }
-            
-            stats.totalVisibleFaces += visibleFaces;
-            stats.totalHiddenFaces += (6 - visibleFaces);
-            
-            // Calculate vertices (6 vertices per visible face, for triangle rendering)
-            stats.totalVertices += visibleFaces * 6;
-            
-            // Count occlusion types
-            if (visibleFaces == 0) {
+            if (avgVisibleFacesPerCube == 0.0f) {
                 stats.fullyOccludedCubes++;
-            } else if (visibleFaces < 6) {
+            } else if (avgVisibleFacesPerCube < 6.0f) {
                 stats.partiallyOccludedCubes++;
             }
         }
@@ -353,59 +345,26 @@ uint32_t ChunkManager::calculateOcclusionFaceMask(const glm::ivec3& chunkOrigin,
 }
 
 void ChunkManager::performOcclusionCulling() {
-    std::cout << "[DEBUG] Performing cross-chunk occlusion culling..." << std::endl;
+    std::cout << "[DEBUG] Regenerating chunks with updated cross-chunk occlusion culling..." << std::endl;
     
-    int totalCubes = 0;
-    int fullyOccludedCubes = 0;
-    int partiallyOccludedCubes = 0;
-    int totalHiddenFaces = 0;
-    
-    // Process each chunk
+    // With CPU pre-filtering, we need to regenerate all chunk geometry
+    // when occlusion relationships change between chunks
     for (auto& chunk : chunks) {
-        totalCubes += chunk.numInstances;
+        // Regenerate face instances with updated occlusion data
+        populateChunk(chunk);
         
-        // Update face masks for all cubes in this chunk based on cross-chunk neighbors
-        for (size_t i = 0; i < chunk.cubes.size(); ++i) {
-            // Extract relative position from packed data
-            uint32_t x = (chunk.cubes[i].packedData >> 0) & 0x1F;
-            uint32_t y = (chunk.cubes[i].packedData >> 5) & 0x1F;
-            uint32_t z = (chunk.cubes[i].packedData >> 10) & 0x1F;
-            
-            // Calculate new face mask with cross-chunk occlusion culling
-            uint32_t newFaceMask = calculateOcclusionFaceMask(chunk.worldOrigin, x, y, z);
-            
-            // Count visible faces for statistics
-            int visibleFaces = 0;
-            for (int face = 0; face < 6; ++face) {
-                if (newFaceMask & (1 << face)) {
-                    visibleFaces++;
-                }
-            }
-            
-            // Update statistics
-            if (visibleFaces == 0) {
-                fullyOccludedCubes++;
-                totalHiddenFaces += 6;
-            } else if (visibleFaces < 6) {
-                partiallyOccludedCubes++;
-                totalHiddenFaces += (6 - visibleFaces);
-            }
-            
-            // Update packed data with new face mask
-            chunk.cubes[i].packedData = (x & 0x1F) | ((y & 0x1F) << 5) | ((z & 0x1F) << 10) | (newFaceMask << 15);
-        }
-        
-        // Update GPU buffer with new face mask data
+        // Update GPU buffer with new face data
         if (chunk.mappedMemory) {
-            VkDeviceSize bufferSize = sizeof(InstanceData) * chunk.cubes.size();
-            memcpy(chunk.mappedMemory, chunk.cubes.data(), bufferSize);
+            VkDeviceSize bufferSize = sizeof(InstanceData) * chunk.faces.size();
+            memcpy(chunk.mappedMemory, chunk.faces.data(), bufferSize);
         }
     }
     
-    std::cout << "[DEBUG] Occlusion culling complete: " << totalCubes << " total cubes, " 
-              << fullyOccludedCubes << " fully occluded, " 
-              << partiallyOccludedCubes << " partially occluded, "
-              << totalHiddenFaces << " hidden faces" << std::endl;
+    // Calculate statistics
+    ChunkStats stats = getPerformanceStats();
+    std::cout << "[DEBUG] Occlusion culling complete: " << stats.totalCubes << " total cubes, " 
+              << stats.totalVisibleFaces << " visible faces, "
+              << stats.totalHiddenFaces << " hidden faces" << std::endl;
 }
 
 } // namespace VulkanCube
