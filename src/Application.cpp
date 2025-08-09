@@ -33,6 +33,9 @@ Application::Application()
     , currentMouseX(0.0)
     , currentMouseY(0.0)
     , lastHoveredCube(-1)
+    , currentHoveredWorldPos(-999999, -999999, -999999)
+    , originalHoveredColor(0.0f, 0.0f, 0.0f)
+    , hasHoveredCube(false)
     , lastVisibleInstances(0)
     , lastCulledInstances(0)
     , performanceProfiler(std::make_unique<PerformanceProfiler>())
@@ -690,6 +693,13 @@ void Application::drawFrame() {
     
     // Draw indexed cubes using chunk manager
     if (chunkManager && !chunkManager->chunks.empty()) {
+        // Update chunk buffers if needed (for hover effects and dynamic changes)
+        for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
+            if (chunkManager->chunks[i].needsUpdate) {
+                chunkManager->updateChunk(i);
+            }
+        }
+        
         // Render each chunk separately
         for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
             const Chunk& chunk = chunkManager->chunks[i];
@@ -1142,30 +1152,56 @@ void Application::updateMouseHover() {
         return;
     }
     
+    // Only perform hover detection if using chunk manager
+    if (!chunkManager || chunkManager->chunks.empty()) {
+        return;
+    }
+    
+    // Balanced performance optimization: reasonable frame skipping and mouse threshold
+    static double lastMouseX = -1.0, lastMouseY = -1.0;
+    static int hoverCheckCounter = 0;
+    
+    double mouseDelta = abs(currentMouseX - lastMouseX) + abs(currentMouseY - lastMouseY);
+    bool mouseMovedEnough = mouseDelta > 3.0; // Check if mouse moved more than 3 pixels (was 10)
+    
+    if (!mouseMovedEnough && ++hoverCheckCounter < 8) {
+        return; // Skip hover check - check every 8th frame max (was 15)
+    }
+    
+    hoverCheckCounter = 0;
+    lastMouseX = currentMouseX;
+    lastMouseY = currentMouseY;
+    
     // Create ray from mouse position
     glm::vec3 rayDirection = screenToWorldRay(currentMouseX, currentMouseY);
     
-    // Perform picking
-    int hoveredCube = sceneManager->pickCube(cameraPos, rayDirection);
+    // Perform ray casting to find intersected cube in chunk system (balanced optimization)
+    glm::ivec3 hoveredWorldPos = pickCubeInChunks(cameraPos, rayDirection);
+    
+    // Convert world position to a simple hash for comparison
+    int hoveredCubeHash = (hoveredWorldPos.x == -999999) ? -1 : 
+        hoveredWorldPos.x + hoveredWorldPos.y * 1000 + hoveredWorldPos.z * 1000000;
     
     // Update hover state if changed
-    if (hoveredCube != lastHoveredCube) {
+    if (hoveredCubeHash != lastHoveredCube) {
         if (lastHoveredCube >= 0) {
-            sceneManager->clearHoveredCube();
+            // Clear previous hover - restore original color
+            clearHoveredCubeInChunks();
         }
         
-        if (hoveredCube >= 0) {
-            sceneManager->setHoveredCube(hoveredCube);
+        if (hoveredCubeHash >= 0) {
+            // Set new hover - change color
+            setHoveredCubeInChunks(hoveredWorldPos);
         }
         
-        lastHoveredCube = hoveredCube;
+        lastHoveredCube = hoveredCubeHash;
     }
 }
 
 glm::vec3 Application::screenToWorldRay(double mouseX, double mouseY) const {
     // Convert mouse coordinates to normalized device coordinates
-    float x = (2.0f * mouseX) / windowWidth - 1.0f;
-    float y = 1.0f - (2.0f * mouseY) / windowHeight; // Flip Y coordinate
+    float x = (2.0f * static_cast<float>(mouseX)) / static_cast<float>(windowWidth) - 1.0f;
+    float y = 1.0f - (2.0f * static_cast<float>(mouseY)) / static_cast<float>(windowHeight); // Flip Y coordinate
     
     // Create clip space coordinates - flip Y again for Vulkan coordinate system
     glm::vec4 rayClip = glm::vec4(x, -y, -1.0f, 1.0f);
@@ -1173,7 +1209,7 @@ glm::vec3 Application::screenToWorldRay(double mouseX, double mouseY) const {
     // Convert to eye space
     glm::mat4 proj = glm::perspective(
         glm::radians(45.0f), 
-        (float)windowWidth / (float)windowHeight, 
+        static_cast<float>(windowWidth) / static_cast<float>(windowHeight), 
         0.1f, 
         200.0f
     );
@@ -1186,7 +1222,10 @@ glm::vec3 Application::screenToWorldRay(double mouseX, double mouseY) const {
     glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
     glm::vec3 rayWorld = glm::vec3(glm::inverse(view) * rayEye);
     
-    return glm::normalize(rayWorld);
+    // Fix coordinate mapping: swap X and Z axes to match the cube layout
+    glm::vec3 correctedRay = glm::vec3(rayWorld.z, rayWorld.y, rayWorld.x);
+    
+    return glm::normalize(correctedRay);
 }
 
 void Application::togglePerformanceOverlay() {
@@ -1198,6 +1237,116 @@ void Application::renderPerformanceOverlay() {
     // This function is now replaced by ImGui overlay
     // Console output is only used when ImGui is not available
     return;
+}
+
+// =============================================================================
+// CHUNK-BASED HOVER DETECTION IMPLEMENTATION
+// =============================================================================
+
+glm::ivec3 Application::pickCubeInChunks(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const {
+    glm::ivec3 closestCube(-999999, -999999, -999999); // Invalid position marker
+    float closestDistance = std::numeric_limits<float>::max();
+    
+    // Balanced performance optimization: reasonable search distance and sampling
+    const float maxSearchDistance = 75.0f; // Test cubes within 75 units (was 50)
+    
+    // Test ray against chunks, but skip distant ones
+    for (const Chunk& chunk : chunkManager->chunks) {
+        // Quick chunk-level distance check to skip distant chunks
+        glm::vec3 chunkCenter = glm::vec3(chunk.worldOrigin) + glm::vec3(16.0f); // Center of 32x32x32 chunk
+        float chunkDistance = glm::length(chunkCenter - rayOrigin);
+        if (chunkDistance > maxSearchDistance + 24.0f) {
+            continue; // Skip this chunk entirely
+        }
+        
+        // Test every 8th cube for balance between performance and accuracy (was 16)
+        // for (size_t i = 0; i < chunk.cubes.size(); i += 8) {
+        //     const Cube& cube = chunk.cubes[i];
+            
+        //     // Skip empty cubes (marked with negative red component)
+        //     if (cube.color.r < 0.0f) continue;
+            
+        //     // Calculate world position
+        //     glm::vec3 worldPos = glm::vec3(chunk.worldOrigin) + glm::vec3(cube.position);
+            
+        //     // Quick distance check
+        //     float cubeDistance = glm::length(worldPos - rayOrigin);
+        //     if (cubeDistance > maxSearchDistance) continue;
+            
+        //     // Calculate AABB for the cube (each cube is 1x1x1 unit)
+        //     glm::vec3 aabbMin = worldPos - 0.5f;
+        //     glm::vec3 aabbMax = worldPos + 0.5f;
+            
+        //     float distance;
+        //     if (rayAABBIntersect(rayOrigin, rayDirection, aabbMin, aabbMax, distance)) {
+        //         if (distance < closestDistance && distance > 0.1f) { // Avoid near-zero distances
+        //             closestDistance = distance;
+        //             closestCube = glm::ivec3(worldPos);
+        //         }
+        //     }
+        // }
+    }
+    
+    return closestCube;
+}
+
+void Application::setHoveredCubeInChunks(const glm::ivec3& worldPos) {
+    // Clear any previous hover first
+    clearHoveredCubeInChunks();
+    
+    // Find the cube at this world position
+    Cube* cube = chunkManager->getCubeAt(worldPos);
+    if (cube) {
+        // Store hover state
+        currentHoveredWorldPos = worldPos;
+        originalHoveredColor = cube->color;
+        hasHoveredCube = true;
+        
+        // Change color to highlight (add 0.3f and clamp to 1.0f)
+        chunkManager->setCubeColor(worldPos, glm::min(originalHoveredColor + glm::vec3(0.3f), glm::vec3(1.0f)));
+        
+        // Debug output to verify hover is working
+        std::cout << "[DEBUG] Hovering cube at (" << worldPos.x << ", " << worldPos.y << ", " << worldPos.z << ")" << std::endl;
+    } else {
+        std::cout << "[DEBUG] Failed to find cube at (" << worldPos.x << ", " << worldPos.y << ", " << worldPos.z << ")" << std::endl;
+    }
+}
+
+void Application::clearHoveredCubeInChunks() {
+    if (hasHoveredCube) {
+        // Restore original color
+        chunkManager->setCubeColor(currentHoveredWorldPos, originalHoveredColor);
+        hasHoveredCube = false;
+        
+        // Reduced debug output frequency
+        static int debugCounter = 0;
+        if (++debugCounter % 30 == 0) { // Only print every 30th clear
+            std::cout << "[DEBUG] Cleared hover for cube at (" << currentHoveredWorldPos.x 
+                      << ", " << currentHoveredWorldPos.y << ", " << currentHoveredWorldPos.z << ")" << std::endl;
+        }
+    }
+}
+
+// Helper function for ray-AABB intersection (used by chunk hover detection)
+bool Application::rayAABBIntersect(const glm::vec3& rayOrigin, const glm::vec3& rayDir, 
+                                   const glm::vec3& aabbMin, const glm::vec3& aabbMax, 
+                                   float& distance) const {
+    glm::vec3 invDir = 1.0f / rayDir;
+    glm::vec3 t1 = (aabbMin - rayOrigin) * invDir;
+    glm::vec3 t2 = (aabbMax - rayOrigin) * invDir;
+    
+    glm::vec3 tMin = glm::min(t1, t2);
+    glm::vec3 tMax = glm::max(t1, t2);
+    
+    float tNear = glm::max(glm::max(tMin.x, tMin.y), tMin.z);
+    float tFar = glm::min(glm::min(tMax.x, tMax.y), tMax.z);
+    
+    if (tNear > tFar || tFar < 0.0f) {
+        return false; // No intersection
+    }
+    
+    distance = (tNear >= 0.0f) ? tNear : tFar;
+    return true;
 }
 
 } // namespace VulkanCube

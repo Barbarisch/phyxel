@@ -88,6 +88,11 @@ private:
     double currentMouseY;
     int lastHoveredCube;
     
+    // Chunk-based hover state
+    glm::ivec3 currentHoveredWorldPos;
+    glm::vec3 originalHoveredColor;
+    bool hasHoveredCube = false;
+    
     // Performance overlay
     bool showPerformanceOverlay = false;
     
@@ -117,6 +122,14 @@ private:
     // Mouse picking / hover functionality
     void updateMouseHover();
     glm::vec3 screenToWorldRay(double mouseX, double mouseY) const;
+    
+    // Chunk-based hover detection helpers
+    glm::ivec3 pickCubeInChunks(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;
+    void setHoveredCubeInChunks(const glm::ivec3& worldPos);
+    void clearHoveredCubeInChunks();
+    bool rayAABBIntersect(const glm::vec3& rayOrigin, const glm::vec3& rayDir, 
+                         const glm::vec3& aabbMin, const glm::vec3& aabbMax, 
+                         float& distance) const;
 
     // Utility methods
     void updateFrameTiming();
