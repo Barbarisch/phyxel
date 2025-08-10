@@ -699,19 +699,20 @@ void Application::drawFrame() {
     if (chunkManager && !chunkManager->chunks.empty()) {
         // Render each chunk separately
         for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
-            const Chunk& chunk = chunkManager->chunks[i];
+            const Chunk* chunk = chunkManager->chunks[i].get();
             
             // Bind this chunk's instance buffer
-            VkBuffer instanceBuffers[] = {chunk.instanceBuffer};
+            VkBuffer instanceBuffers[] = {chunk->getInstanceBuffer()};
             VkDeviceSize instanceOffsets[] = {0};
             vkCmdBindVertexBuffers(vulkanDevice->getCommandBuffer(currentFrame), 1, 1, instanceBuffers, instanceOffsets);
             
             // Set chunk origin as push constants for world positioning
-            glm::vec3 chunkBaseOffset(chunk.worldOrigin.x, chunk.worldOrigin.y, chunk.worldOrigin.z);
+            glm::ivec3 worldOrigin = chunk->getWorldOrigin();
+            glm::vec3 chunkBaseOffset(worldOrigin.x, worldOrigin.y, worldOrigin.z);
             vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
             
             // Draw this chunk (32,768 instances)
-            vulkanDevice->drawIndexed(currentFrame, 36, chunk.numInstances);
+            vulkanDevice->drawIndexed(currentFrame, 36, chunk->getNumInstances());
         }
         
         // Get accurate performance statistics from chunk manager
@@ -1267,9 +1268,8 @@ Application::CubeLocation Application::pickCubeInChunksOptimized(const glm::vec3
             // Get chunk using O(1) hash map lookup
             Chunk* chunk = chunkManager->getChunkAtCoord(chunkCoord);
             if (chunk) {
-                // Direct array access using 3D to 1D index conversion
-                size_t index = ChunkManager::localToIndex(localPos);
-                if (index < chunk->cubes.size()) {
+                // Use the Chunk class's public interface
+                if (chunk->getCubeAt(localPos)) {
                     // Found a valid cube! Return all coordinate info to avoid re-conversion
                     return CubeLocation(chunk, localPos, voxel);
                 }
@@ -1307,14 +1307,12 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
     // Clear previous hover
     clearHoveredCubeInChunksOptimized();
     
-    // Direct cube access without coordinate conversion
-    size_t index = ChunkManager::localToIndex(location.localPos);
-    if (index >= location.chunk->cubes.size()) return;
-    
-    Cube& cube = location.chunk->cubes[index];
+    // Use the Chunk class's public interface
+    Cube* cube = location.chunk->getCubeAt(location.localPos);
+    if (!cube) return;
     
     // Store original color and location for later restoration
-    originalHoveredColor = cube.color;
+    originalHoveredColor = cube->color;
     currentHoveredLocation = location;
     hasHoveredCube = true;
     
@@ -1330,7 +1328,7 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
     
     // Set hover color (darken the cube by setting it to black)
     glm::vec3 hoverColor = glm::vec3(0.0f, 0.0f, 0.0f); // Black for hover effect
-    cube.color = hoverColor;
+    cube->color = hoverColor;
     
     // Mark chunk for update using optimized dirty tracking
     if (chunkManager) {
@@ -1340,16 +1338,16 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
 
 void Application::clearHoveredCubeInChunksOptimized() {
     if (hasHoveredCube && currentHoveredLocation.isValid()) {
-        // Direct cube access without coordinate conversion
-        size_t index = ChunkManager::localToIndex(currentHoveredLocation.localPos);
-        if (index < currentHoveredLocation.chunk->cubes.size()) {
-            Cube& cube = currentHoveredLocation.chunk->cubes[index];
-            
+        // Use the Chunk class's public interface
+        Cube* cube = currentHoveredLocation.chunk->getCubeAt(currentHoveredLocation.localPos);
+        if (cube) {
             // Restore original color
-            cube.color = originalHoveredColor;
+            cube->color = originalHoveredColor;
             
-            // Mark chunk for update
-            currentHoveredLocation.chunk->needsUpdate = true;
+            // Use the proper dirty tracking system for immediate updates
+            if (chunkManager) {
+                chunkManager->markChunkDirty(currentHoveredLocation.chunk);
+            }
         }
         
         hasHoveredCube = false;

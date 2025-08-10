@@ -1,8 +1,10 @@
 #pragma once
 
 #include "Types.h"
+#include "Chunk.h"
 #include <vector>
 #include <unordered_map>
+#include <memory>
 
 namespace VulkanCube {
 
@@ -20,7 +22,7 @@ struct ChunkCoordHash {
 // Manages all chunks in the world for scalable multi-chunk rendering
 class ChunkManager {
 public:
-    std::vector<Chunk> chunks;
+    std::vector<std::unique_ptr<Chunk>> chunks;
     
     // Spatial hash map for O(1) chunk lookup by chunk coordinates
     std::unordered_map<glm::ivec3, Chunk*, ChunkCoordHash> chunkMap;
@@ -59,6 +61,9 @@ public:
     // Rebuild faces from cubes (call after modifying cubes)
     void rebuildChunkFaces(Chunk& chunk);
     
+    // Rebuild faces with cross-chunk occlusion culling
+    void rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk);
+    
     // Get chunk at world position (for adding/removing cubes)
     Chunk* getChunkAt(const glm::ivec3& worldPos);
     
@@ -69,8 +74,22 @@ public:
     bool addCube(const glm::ivec3& worldPos, const glm::vec3& color = glm::vec3(1.0f));
     
     // Convert between coordinate systems
-    static glm::ivec3 worldToChunkCoord(const glm::ivec3& worldPos) { return worldPos / 32; }
-    static glm::ivec3 worldToLocalCoord(const glm::ivec3& worldPos) { return worldPos % 32; }
+    static glm::ivec3 worldToChunkCoord(const glm::ivec3& worldPos) { 
+        // Proper division that handles negative numbers correctly
+        glm::ivec3 chunk;
+        chunk.x = worldPos.x >= 0 ? worldPos.x / 32 : (worldPos.x - 31) / 32;
+        chunk.y = worldPos.y >= 0 ? worldPos.y / 32 : (worldPos.y - 31) / 32;
+        chunk.z = worldPos.z >= 0 ? worldPos.z / 32 : (worldPos.z - 31) / 32;
+        return chunk;
+    }
+    static glm::ivec3 worldToLocalCoord(const glm::ivec3& worldPos) { 
+        // Proper modulo that handles negative numbers correctly
+        glm::ivec3 local;
+        local.x = ((worldPos.x % 32) + 32) % 32;
+        local.y = ((worldPos.y % 32) + 32) % 32;
+        local.z = ((worldPos.z % 32) + 32) % 32;
+        return local;
+    }
     static glm::ivec3 chunkCoordToOrigin(const glm::ivec3& chunkCoord) { return chunkCoord * 32; }
     
     // CRITICAL: Index formula MUST match loop order in populateChunk()
@@ -116,15 +135,6 @@ public:
     void cleanup();
     
 private:
-    // Create Vulkan buffer for a chunk
-    void createChunkBuffer(Chunk& chunk);
-    
-    // Fill chunk with initial cube data (32x32x32 grid)
-    void populateChunk(Chunk& chunk);
-    
-    // Calculate face mask for a cube at relative position within chunk
-    uint32_t calculateCubeFaceMask(int x, int y, int z) const;
-    
     // Cross-chunk occlusion culling helpers
     bool isCubeAt(const glm::ivec3& worldPosition) const;
     uint32_t calculateOcclusionFaceMask(const glm::ivec3& chunkOrigin, int relativeX, int relativeY, int relativeZ) const;
