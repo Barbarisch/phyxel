@@ -25,6 +25,10 @@ public:
     // Spatial hash map for O(1) chunk lookup by chunk coordinates
     std::unordered_map<glm::ivec3, Chunk*, ChunkCoordHash> chunkMap;
     
+    // Performance optimization: Track chunks that need updating
+    std::vector<size_t> dirtyChunkIndices;  // Indices of chunks marked needsUpdate=true
+    bool hasDirtyChunks = false;            // Quick check to avoid vector operations
+    
     // Vulkan device and memory management
     VkDevice device = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
@@ -44,7 +48,12 @@ public:
     // Update chunk data (for dynamic content)
     void updateChunk(size_t chunkIndex);
     
-    // Update all chunks that need updating (call this every frame for dynamic content)
+    // OPTIMIZED: Update only chunks that have been modified (O(dirty) instead of O(all))
+    // Call this every frame - it's efficient and only processes changed chunks
+    void updateDirtyChunks();
+    
+    // DEPRECATED: Update all chunks (inefficient for large worlds)
+    // Use updateDirtyChunks() instead for better performance
     void updateAllChunks();
     
     // Rebuild faces from cubes (call after modifying cubes)
@@ -96,6 +105,12 @@ public:
         uint32_t partiallyOccludedCubes = 0;
     };
     ChunkStats getPerformanceStats() const;
+    
+    // Dirty chunk tracking for performance optimization
+    void markChunkDirty(size_t chunkIndex);
+    void markChunkDirty(Chunk* chunk);               // Overload for chunk pointer
+    void clearDirtyChunkList();
+    size_t getChunkIndex(const Chunk* chunk) const;  // Helper to find chunk index from pointer
     
     // Cleanup all resources
     void cleanup();

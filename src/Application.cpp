@@ -470,8 +470,9 @@ void Application::update(float deltaTime) {
     updateMouseHover();
     
     // Update chunks that have been modified (for hover color changes, etc.)
+    // OPTIMIZED: Only update chunks that have actually changed
     if (chunkManager) {
-        chunkManager->updateAllChunks();
+        chunkManager->updateDirtyChunks();
     }
     
     // Update physics
@@ -1331,8 +1332,10 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
     glm::vec3 hoverColor = glm::vec3(0.0f, 0.0f, 0.0f); // Black for hover effect
     cube.color = hoverColor;
     
-    // Mark chunk for update
-    location.chunk->needsUpdate = true;
+    // Mark chunk for update using optimized dirty tracking
+    if (chunkManager) {
+        chunkManager->markChunkDirty(location.chunk);
+    }
 }
 
 void Application::clearHoveredCubeInChunksOptimized() {

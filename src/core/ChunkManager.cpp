@@ -3,6 +3,7 @@
 #include <cstring>
 #include <random>
 #include <iostream>
+#include <algorithm>  // for std::find
 
 namespace VulkanCube {
 
@@ -156,9 +157,38 @@ void ChunkManager::updateChunk(size_t chunkIndex) {
     }
 }
 
+void ChunkManager::updateDirtyChunks() {
+    // Early exit if no chunks need updating
+    if (!hasDirtyChunks || dirtyChunkIndices.empty()) {
+        return;
+    }
+    
+    // Update only the chunks that have been marked as dirty
+    for (size_t chunkIndex : dirtyChunkIndices) {
+        if (chunkIndex < chunks.size()) {
+            updateChunk(chunkIndex);
+        }
+    }
+    
+    // Clear the dirty list after updating
+    clearDirtyChunkList();
+}
+
 void ChunkManager::updateAllChunks() {
+    // DEPRECATED: This method is inefficient for large worlds
+    // It's kept for backward compatibility but updateDirtyChunks() should be used instead
+    
+    // Collect all chunks that actually need updating to avoid unnecessary work
+    dirtyChunkIndices.clear();
     for (size_t i = 0; i < chunks.size(); ++i) {
-        updateChunk(i);
+        if (chunks[i].needsUpdate) {
+            dirtyChunkIndices.push_back(i);
+        }
+    }
+    
+    if (!dirtyChunkIndices.empty()) {
+        hasDirtyChunks = true;
+        updateDirtyChunks();
     }
 }
 
@@ -233,10 +263,10 @@ bool ChunkManager::setCubeColorFast(const glm::ivec3& worldPos, const glm::vec3&
     
     cube->color = color;
     
-    // Mark chunk for update
+    // Mark chunk for update using optimized tracking
     Chunk* chunk = getChunkAtFast(worldPos);
     if (chunk) {
-        chunk->needsUpdate = true;
+        markChunkDirty(chunk);
     }
     
     return true;
@@ -249,10 +279,10 @@ bool ChunkManager::removeCubeFast(const glm::ivec3& worldPos) {
     // Mark cube as removed (negative red value indicates removal)
     cube->color.r = -1.0f;
     
-    // Mark chunk for update and face regeneration
+    // Mark chunk for update and face regeneration using optimized tracking
     Chunk* chunk = getChunkAtFast(worldPos);
     if (chunk) {
-        chunk->needsUpdate = true;
+        markChunkDirty(chunk);
         // Note: Face regeneration would happen in updateChunk()
     }
     
@@ -266,10 +296,10 @@ bool ChunkManager::addCubeFast(const glm::ivec3& worldPos, const glm::vec3& colo
     // Restore cube (in case it was previously removed)
     cube->color = color;
     
-    // Mark chunk for update and face regeneration
+    // Mark chunk for update and face regeneration using optimized tracking
     Chunk* chunk = getChunkAtFast(worldPos);
     if (chunk) {
-        chunk->needsUpdate = true;
+        markChunkDirty(chunk);
         // Note: Face regeneration would happen in updateChunk()
     }
     
@@ -548,6 +578,47 @@ void ChunkManager::performOcclusionCulling() {
     std::cout << "[DEBUG] Occlusion culling complete: " << stats.totalCubes << " total cubes, " 
               << stats.totalVisibleFaces << " visible faces, "
               << stats.totalHiddenFaces << " hidden faces" << std::endl;
+}
+
+// ===============================================================
+// DIRTY CHUNK TRACKING OPTIMIZATION
+// ===============================================================
+
+void ChunkManager::markChunkDirty(size_t chunkIndex) {
+    if (chunkIndex >= chunks.size()) return;
+    
+    // Mark the chunk as needing update
+    chunks[chunkIndex].needsUpdate = true;
+    
+    // Add to dirty list if not already present
+    if (std::find(dirtyChunkIndices.begin(), dirtyChunkIndices.end(), chunkIndex) == dirtyChunkIndices.end()) {
+        dirtyChunkIndices.push_back(chunkIndex);
+        hasDirtyChunks = true;
+    }
+}
+
+void ChunkManager::markChunkDirty(Chunk* chunk) {
+    if (!chunk) return;
+    
+    size_t chunkIndex = getChunkIndex(chunk);
+    if (chunkIndex != SIZE_MAX) {
+        markChunkDirty(chunkIndex);
+    }
+}
+
+void ChunkManager::clearDirtyChunkList() {
+    dirtyChunkIndices.clear();
+    hasDirtyChunks = false;
+}
+
+size_t ChunkManager::getChunkIndex(const Chunk* chunk) const {
+    // Find the index of a chunk in the chunks vector
+    for (size_t i = 0; i < chunks.size(); ++i) {
+        if (&chunks[i] == chunk) {
+            return i;
+        }
+    }
+    return SIZE_MAX; // Invalid index if not found
 }
 
 } // namespace VulkanCube
