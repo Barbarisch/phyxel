@@ -35,6 +35,19 @@ public:
     void setTitle(const std::string& title);
 
 private:
+    // Optimized cube location struct to avoid repeated coordinate conversions
+    struct CubeLocation {
+        Chunk* chunk;
+        glm::ivec3 localPos;
+        glm::ivec3 worldPos;
+        
+        CubeLocation() : chunk(nullptr), localPos(-1), worldPos(-1) {}
+        CubeLocation(Chunk* c, const glm::ivec3& local, const glm::ivec3& world) 
+            : chunk(c), localPos(local), worldPos(world) {}
+        
+        bool isValid() const { return chunk != nullptr; }
+    };
+
     // Window management
     GLFWwindow* window;
     
@@ -93,8 +106,20 @@ private:
     glm::vec3 originalHoveredColor;
     bool hasHoveredCube = false;
     
+    // Optimized hover state (avoids repeated coordinate conversions)
+    CubeLocation currentHoveredLocation;
+    
     // Performance overlay
     bool showPerformanceOverlay = false;
+    
+    // Debug system
+    struct DebugFlags {
+        bool hoverDetection = false;
+        bool cameraMovement = false;
+        bool performanceStats = false;
+        bool chunkOperations = false;
+        bool cubeOperations = false;
+    } debugFlags;
     
     // GPU frustum culling results for UI display
     uint32_t lastVisibleInstances = 0;
@@ -123,13 +148,21 @@ private:
     void updateMouseHover();
     glm::vec3 screenToWorldRay(double mouseX, double mouseY) const;
     
-    // Chunk-based hover detection helpers
+    // Chunk-based hover detection helpers (optimized)
+    CubeLocation pickCubeInChunksOptimized(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;
+    void setHoveredCubeInChunksOptimized(const CubeLocation& location);
+    void clearHoveredCubeInChunksOptimized();
+    
+    // Legacy chunk-based hover detection helpers (for compatibility)
     glm::ivec3 pickCubeInChunks(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;
     void setHoveredCubeInChunks(const glm::ivec3& worldPos);
     void clearHoveredCubeInChunks();
     bool rayAABBIntersect(const glm::vec3& rayOrigin, const glm::vec3& rayDir, 
                          const glm::vec3& aabbMin, const glm::vec3& aabbMax, 
                          float& distance) const;
+    
+    // Efficient voxel raycasting helpers
+    glm::ivec3 raycastVoxelGrid(const glm::vec3& rayOrigin, const glm::vec3& rayDirection, const glm::ivec3& chunkOrigin) const;
 
     // Utility methods
     void updateFrameTiming();

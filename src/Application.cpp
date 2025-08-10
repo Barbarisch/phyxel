@@ -33,9 +33,6 @@ Application::Application()
     , currentMouseX(0.0)
     , currentMouseY(0.0)
     , lastHoveredCube(-1)
-    , currentHoveredWorldPos(-999999, -999999, -999999)
-    , originalHoveredColor(0.0f, 0.0f, 0.0f)
-    , hasHoveredCube(false)
     , lastVisibleInstances(0)
     , lastCulledInstances(0)
     , performanceProfiler(std::make_unique<PerformanceProfiler>())
@@ -203,13 +200,14 @@ void Application::run() {
         // Print detailed performance stats every second (only when overlay is disabled)
         if (currentTime - fpsTimer >= 1.0) {
             if (!showPerformanceOverlay) {
-                printProfilingInfo(fpsFrameCount);
-                printDetailedTimings();
+                // Temporarily disabled performance reports
+                // printProfilingInfo(fpsFrameCount);
+                // printDetailedTimings();
                 
                 // Print new performance profiler reports
-                performanceProfiler->printFrameReport();
-                performanceProfiler->printMemoryReport();
-                performanceProfiler->printCullingReport();
+                // performanceProfiler->printFrameReport();
+                // performanceProfiler->printMemoryReport();
+                // performanceProfiler->printCullingReport();
             }
             
             fpsFrameCount = 0;
@@ -218,7 +216,7 @@ void Application::run() {
         
         // Print basic stats every 60 frames (only when overlay is disabled)
         if (frameCount % 60 == 0 && !showPerformanceOverlay) {
-            printPerformanceStats();
+            //printPerformanceStats();
         }
     }
     
@@ -471,6 +469,11 @@ void Application::update(float deltaTime) {
     // Update mouse hover detection
     updateMouseHover();
     
+    // Update chunks that have been modified (for hover color changes, etc.)
+    if (chunkManager) {
+        chunkManager->updateAllChunks();
+    }
+    
     // Update physics
     physicsWorld->stepSimulation(deltaTime);
 
@@ -628,12 +631,12 @@ void Application::drawFrame() {
         ).count();
         
         // Record actual GPU frustum culling statistics
-        std::cout << "[DEBUG] Performance stats: Total=" << totalObjects 
-                  << ", Visible=" << visibleObjects 
-                  << ", Culled=" << culledObjects 
-                  << " (" << (100.0f * culledObjects / totalObjects) << "% culled)"
-                  << ", Time=" << frustumCullingTimeMs << "ms" << std::endl;
-        std::cout << "[DEBUG] Camera pos: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")" << std::endl;
+        // std::cout << "[DEBUG] Performance stats: Total=" << totalObjects 
+        //           << ", Visible=" << visibleObjects 
+        //           << ", Culled=" << culledObjects 
+        //           << " (" << (100.0f * culledObjects / totalObjects) << "% culled)"
+        //           << ", Time=" << frustumCullingTimeMs << "ms" << std::endl;
+        // std::cout << "[DEBUG] Camera pos: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")" << std::endl;
         
         // Store results for UI display
         lastVisibleInstances = visibleObjects;
@@ -693,13 +696,6 @@ void Application::drawFrame() {
     
     // Draw indexed cubes using chunk manager
     if (chunkManager && !chunkManager->chunks.empty()) {
-        // Update chunk buffers if needed (for hover effects and dynamic changes)
-        for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
-            if (chunkManager->chunks[i].needsUpdate) {
-                chunkManager->updateChunk(i);
-            }
-        }
-        
         // Render each chunk separately
         for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
             const Chunk& chunk = chunkManager->chunks[i];
@@ -1152,56 +1148,37 @@ void Application::updateMouseHover() {
         return;
     }
     
-    // Only perform hover detection if using chunk manager
-    if (!chunkManager || chunkManager->chunks.empty()) {
-        return;
-    }
-    
-    // Balanced performance optimization: reasonable frame skipping and mouse threshold
-    static double lastMouseX = -1.0, lastMouseY = -1.0;
-    static int hoverCheckCounter = 0;
-    
-    double mouseDelta = abs(currentMouseX - lastMouseX) + abs(currentMouseY - lastMouseY);
-    bool mouseMovedEnough = mouseDelta > 3.0; // Check if mouse moved more than 3 pixels (was 10)
-    
-    if (!mouseMovedEnough && ++hoverCheckCounter < 8) {
-        return; // Skip hover check - check every 8th frame max (was 15)
-    }
-    
-    hoverCheckCounter = 0;
-    lastMouseX = currentMouseX;
-    lastMouseY = currentMouseY;
-    
     // Create ray from mouse position
     glm::vec3 rayDirection = screenToWorldRay(currentMouseX, currentMouseY);
     
-    // Perform ray casting to find intersected cube in chunk system (balanced optimization)
-    glm::ivec3 hoveredWorldPos = pickCubeInChunks(cameraPos, rayDirection);
+    // Use optimized ChunkManager for O(1) cube picking with DDA algorithm (avoids repeated coordinate conversions)
+    CubeLocation hoveredLocation = pickCubeInChunksOptimized(cameraPos, rayDirection);
     
-    // Convert world position to a simple hash for comparison
-    int hoveredCubeHash = (hoveredWorldPos.x == -999999) ? -1 : 
-        hoveredWorldPos.x + hoveredWorldPos.y * 1000 + hoveredWorldPos.z * 1000000;
+    // Convert location to a simple index for tracking (use a hash or simple approach)
+    int hoveredCube = -1;
+    if (hoveredLocation.isValid()) {
+        // Simple hash for tracking: combine coordinates to create unique ID
+        hoveredCube = hoveredLocation.worldPos.x + hoveredLocation.worldPos.y * 1000 + hoveredLocation.worldPos.z * 1000000;
+    }
     
     // Update hover state if changed
-    if (hoveredCubeHash != lastHoveredCube) {
+    if (hoveredCube != lastHoveredCube) {
         if (lastHoveredCube >= 0) {
-            // Clear previous hover - restore original color
-            clearHoveredCubeInChunks();
+            clearHoveredCubeInChunksOptimized();
         }
         
-        if (hoveredCubeHash >= 0) {
-            // Set new hover - change color
-            setHoveredCubeInChunks(hoveredWorldPos);
+        if (hoveredCube >= 0) {
+            setHoveredCubeInChunksOptimized(hoveredLocation);
         }
         
-        lastHoveredCube = hoveredCubeHash;
+        lastHoveredCube = hoveredCube;
     }
 }
 
 glm::vec3 Application::screenToWorldRay(double mouseX, double mouseY) const {
     // Convert mouse coordinates to normalized device coordinates
-    float x = (2.0f * static_cast<float>(mouseX)) / static_cast<float>(windowWidth) - 1.0f;
-    float y = 1.0f - (2.0f * static_cast<float>(mouseY)) / static_cast<float>(windowHeight); // Flip Y coordinate
+    float x = (2.0f * mouseX) / windowWidth - 1.0f;
+    float y = 1.0f - (2.0f * mouseY) / windowHeight; // Flip Y coordinate
     
     // Create clip space coordinates - flip Y again for Vulkan coordinate system
     glm::vec4 rayClip = glm::vec4(x, -y, -1.0f, 1.0f);
@@ -1209,7 +1186,7 @@ glm::vec3 Application::screenToWorldRay(double mouseX, double mouseY) const {
     // Convert to eye space
     glm::mat4 proj = glm::perspective(
         glm::radians(45.0f), 
-        static_cast<float>(windowWidth) / static_cast<float>(windowHeight), 
+        (float)windowWidth / (float)windowHeight, 
         0.1f, 
         200.0f
     );
@@ -1222,115 +1199,315 @@ glm::vec3 Application::screenToWorldRay(double mouseX, double mouseY) const {
     glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
     glm::vec3 rayWorld = glm::vec3(glm::inverse(view) * rayEye);
     
-    // Fix coordinate mapping: swap X and Z axes to match the cube layout
-    glm::vec3 correctedRay = glm::vec3(rayWorld.z, rayWorld.y, rayWorld.x);
-    
-    return glm::normalize(correctedRay);
-}
-
-void Application::togglePerformanceOverlay() {
-    showPerformanceOverlay = !showPerformanceOverlay;
-    std::cout << "Performance Overlay: " << (showPerformanceOverlay ? "ENABLED" : "DISABLED") << std::endl;
-}
-
-void Application::renderPerformanceOverlay() {
-    // This function is now replaced by ImGui overlay
-    // Console output is only used when ImGui is not available
-    return;
+    return glm::normalize(rayWorld);
 }
 
 // =============================================================================
-// CHUNK-BASED HOVER DETECTION IMPLEMENTATION
+// OPTIMIZED CHUNK-BASED HOVER DETECTION WITH DDA ALGORITHM
+// =============================================================================
+
+Application::CubeLocation Application::pickCubeInChunksOptimized(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const {
+    if (!chunkManager) {
+        return CubeLocation(); // Invalid location
+    }
+    
+    // DDA algorithm for efficient voxel traversal
+    // Based on "A Fast Voxel Traversal Algorithm for Ray Tracing" by John Amanatides and Andrew Woo
+    
+    float maxDistance = 200.0f; // Maximum ray distance
+    
+    // Current voxel position (integer coordinates)
+    glm::ivec3 voxel = glm::ivec3(glm::floor(rayOrigin));
+    
+    // Direction to step in each dimension (-1, 0, or 1)
+    glm::ivec3 step = glm::ivec3(
+        rayDirection.x > 0 ? 1 : (rayDirection.x < 0 ? -1 : 0),
+        rayDirection.y > 0 ? 1 : (rayDirection.y < 0 ? -1 : 0),
+        rayDirection.z > 0 ? 1 : (rayDirection.z < 0 ? -1 : 0)
+    );
+    
+    // Calculate delta distances (how far along the ray we must travel for each component to cross one grid line)
+    glm::vec3 deltaDist = glm::vec3(
+        rayDirection.x != 0 ? glm::abs(1.0f / rayDirection.x) : std::numeric_limits<float>::max(),
+        rayDirection.y != 0 ? glm::abs(1.0f / rayDirection.y) : std::numeric_limits<float>::max(),
+        rayDirection.z != 0 ? glm::abs(1.0f / rayDirection.z) : std::numeric_limits<float>::max()
+    );
+    
+    // Calculate step and initial sideDist
+    glm::vec3 sideDist;
+    if (rayDirection.x < 0) {
+        sideDist.x = (rayOrigin.x - voxel.x) * deltaDist.x;
+    } else {
+        sideDist.x = (voxel.x + 1.0f - rayOrigin.x) * deltaDist.x;
+    }
+    if (rayDirection.y < 0) {
+        sideDist.y = (rayOrigin.y - voxel.y) * deltaDist.y;
+    } else {
+        sideDist.y = (voxel.y + 1.0f - rayOrigin.y) * deltaDist.y;
+    }
+    if (rayDirection.z < 0) {
+        sideDist.z = (rayOrigin.z - voxel.z) * deltaDist.z;
+    } else {
+        sideDist.z = (voxel.z + 1.0f - rayOrigin.z) * deltaDist.z;
+    }
+    
+    // Perform DDA traversal
+    int maxSteps = 500; // Prevent infinite loops
+    for (int step_count = 0; step_count < maxSteps; ++step_count) {
+        // Calculate chunk and local coordinates ONCE per voxel
+        glm::ivec3 chunkCoord = ChunkManager::worldToChunkCoord(voxel);
+        glm::ivec3 localPos = ChunkManager::worldToLocalCoord(voxel);
+        
+        // Bounds check local position
+        if (localPos.x >= 0 && localPos.x < 32 &&
+            localPos.y >= 0 && localPos.y < 32 &&
+            localPos.z >= 0 && localPos.z < 32) {
+            
+            // Get chunk using O(1) hash map lookup
+            Chunk* chunk = chunkManager->getChunkAtCoord(chunkCoord);
+            if (chunk) {
+                // Direct array access using 3D to 1D index conversion
+                size_t index = ChunkManager::localToIndex(localPos);
+                if (index < chunk->cubes.size()) {
+                    // Found a valid cube! Return all coordinate info to avoid re-conversion
+                    return CubeLocation(chunk, localPos, voxel);
+                }
+            }
+        }
+        
+        // Move to next voxel
+        if (sideDist.x < sideDist.y && sideDist.x < sideDist.z) {
+            // X-face hit
+            sideDist.x += deltaDist.x;
+            voxel.x += step.x;
+        } else if (sideDist.y < sideDist.z) {
+            // Y-face hit
+            sideDist.y += deltaDist.y;
+            voxel.y += step.y;
+        } else {
+            // Z-face hit
+            sideDist.z += deltaDist.z;
+            voxel.z += step.z;
+        }
+        
+        // Check if we've gone too far
+        glm::vec3 currentPos = glm::vec3(voxel);
+        if (glm::length(currentPos - rayOrigin) > maxDistance) {
+            break;
+        }
+    }
+    
+    return CubeLocation(); // No cube found
+}
+
+void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) {
+    if (!location.isValid()) return;
+    
+    // Clear previous hover
+    clearHoveredCubeInChunksOptimized();
+    
+    // Direct cube access without coordinate conversion
+    size_t index = ChunkManager::localToIndex(location.localPos);
+    if (index >= location.chunk->cubes.size()) return;
+    
+    Cube& cube = location.chunk->cubes[index];
+    
+    // Store original color and location for later restoration
+    originalHoveredColor = cube.color;
+    currentHoveredLocation = location;
+    hasHoveredCube = true;
+    
+    std::cout << "[HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
+              << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
+    
+    // Debug output: chunk coordinate information
+    glm::ivec3 chunkCoord = ChunkManager::worldToChunkCoord(location.worldPos);
+    glm::ivec3 chunkWorldPos = chunkCoord * 32; // Each chunk is 32x32x32
+    std::cout << "[HOVER] World pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
+              << ") | Local pos in chunk: (" << location.localPos.x << "," << location.localPos.y << "," << location.localPos.z 
+              << ") | Chunk world pos: (" << chunkWorldPos.x << "," << chunkWorldPos.y << "," << chunkWorldPos.z << ")" << std::endl;
+    
+    // Set hover color (darken the cube by setting it to black)
+    glm::vec3 hoverColor = glm::vec3(0.0f, 0.0f, 0.0f); // Black for hover effect
+    cube.color = hoverColor;
+    
+    // Mark chunk for update
+    location.chunk->needsUpdate = true;
+}
+
+void Application::clearHoveredCubeInChunksOptimized() {
+    if (hasHoveredCube && currentHoveredLocation.isValid()) {
+        // Direct cube access without coordinate conversion
+        size_t index = ChunkManager::localToIndex(currentHoveredLocation.localPos);
+        if (index < currentHoveredLocation.chunk->cubes.size()) {
+            Cube& cube = currentHoveredLocation.chunk->cubes[index];
+            
+            // Restore original color
+            cube.color = originalHoveredColor;
+            
+            // Mark chunk for update
+            currentHoveredLocation.chunk->needsUpdate = true;
+        }
+        
+        hasHoveredCube = false;
+        currentHoveredLocation = CubeLocation(); // Reset to invalid state
+    }
+}
+
+// =============================================================================
+// LEGACY CHUNK-BASED HOVER DETECTION WITH DDA ALGORITHM (for compatibility)
 // =============================================================================
 
 glm::ivec3 Application::pickCubeInChunks(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const {
-    glm::ivec3 closestCube(-999999, -999999, -999999); // Invalid position marker
-    float closestDistance = std::numeric_limits<float>::max();
-    
-    // Balanced performance optimization: reasonable search distance and sampling
-    const float maxSearchDistance = 75.0f; // Test cubes within 75 units (was 50)
-    
-    // Test ray against chunks, but skip distant ones
-    for (const Chunk& chunk : chunkManager->chunks) {
-        // Quick chunk-level distance check to skip distant chunks
-        glm::vec3 chunkCenter = glm::vec3(chunk.worldOrigin) + glm::vec3(16.0f); // Center of 32x32x32 chunk
-        float chunkDistance = glm::length(chunkCenter - rayOrigin);
-        if (chunkDistance > maxSearchDistance + 24.0f) {
-            continue; // Skip this chunk entirely
-        }
-        
-        // Test every 8th cube for balance between performance and accuracy (was 16)
-        // for (size_t i = 0; i < chunk.cubes.size(); i += 8) {
-        //     const Cube& cube = chunk.cubes[i];
-            
-        //     // Skip empty cubes (marked with negative red component)
-        //     if (cube.color.r < 0.0f) continue;
-            
-        //     // Calculate world position
-        //     glm::vec3 worldPos = glm::vec3(chunk.worldOrigin) + glm::vec3(cube.position);
-            
-        //     // Quick distance check
-        //     float cubeDistance = glm::length(worldPos - rayOrigin);
-        //     if (cubeDistance > maxSearchDistance) continue;
-            
-        //     // Calculate AABB for the cube (each cube is 1x1x1 unit)
-        //     glm::vec3 aabbMin = worldPos - 0.5f;
-        //     glm::vec3 aabbMax = worldPos + 0.5f;
-            
-        //     float distance;
-        //     if (rayAABBIntersect(rayOrigin, rayDirection, aabbMin, aabbMax, distance)) {
-        //         if (distance < closestDistance && distance > 0.1f) { // Avoid near-zero distances
-        //             closestDistance = distance;
-        //             closestCube = glm::ivec3(worldPos);
-        //         }
-        //     }
-        // }
+    if (!chunkManager) {
+        return glm::ivec3(-1); // Invalid position to indicate no hit
     }
     
-    return closestCube;
+    // DDA algorithm for efficient voxel traversal
+    // Based on "A Fast Voxel Traversal Algorithm for Ray Tracing" by John Amanatides and Andrew Woo
+    
+    float maxDistance = 200.0f; // Maximum ray distance
+    glm::vec3 rayEnd = rayOrigin + rayDirection * maxDistance;
+    
+    // Current voxel position (integer coordinates)
+    glm::ivec3 voxel = glm::ivec3(glm::floor(rayOrigin));
+    
+    // Direction to step in each dimension (-1, 0, or 1)
+    glm::ivec3 step = glm::ivec3(
+        rayDirection.x > 0 ? 1 : (rayDirection.x < 0 ? -1 : 0),
+        rayDirection.y > 0 ? 1 : (rayDirection.y < 0 ? -1 : 0),
+        rayDirection.z > 0 ? 1 : (rayDirection.z < 0 ? -1 : 0)
+    );
+    
+    // Calculate delta distances (how far along the ray we must travel for each component to cross one grid line)
+    glm::vec3 deltaDist = glm::vec3(
+        rayDirection.x != 0 ? glm::abs(1.0f / rayDirection.x) : std::numeric_limits<float>::max(),
+        rayDirection.y != 0 ? glm::abs(1.0f / rayDirection.y) : std::numeric_limits<float>::max(),
+        rayDirection.z != 0 ? glm::abs(1.0f / rayDirection.z) : std::numeric_limits<float>::max()
+    );
+    
+    // Calculate step and initial sideDist
+    glm::vec3 sideDist;
+    if (rayDirection.x < 0) {
+        sideDist.x = (rayOrigin.x - voxel.x) * deltaDist.x;
+    } else {
+        sideDist.x = (voxel.x + 1.0f - rayOrigin.x) * deltaDist.x;
+    }
+    if (rayDirection.y < 0) {
+        sideDist.y = (rayOrigin.y - voxel.y) * deltaDist.y;
+    } else {
+        sideDist.y = (voxel.y + 1.0f - rayOrigin.y) * deltaDist.y;
+    }
+    if (rayDirection.z < 0) {
+        sideDist.z = (rayOrigin.z - voxel.z) * deltaDist.z;
+    } else {
+        sideDist.z = (voxel.z + 1.0f - rayOrigin.z) * deltaDist.z;
+    }
+    
+    // Debug output (only print occasionally to avoid spam)
+    static int debugCounter = 0;
+    bool shouldDebug = (++debugCounter % 30 == 0); // Every 30th call
+    
+    // if (shouldDebug) {
+    //     std::cout << "[HOVER] Ray: origin(" << rayOrigin.x << "," << rayOrigin.y << "," << rayOrigin.z 
+    //               << ") dir(" << rayDirection.x << "," << rayDirection.y << "," << rayDirection.z << ")" << std::endl;
+    //     std::cout << "[HOVER] Starting voxel: (" << voxel.x << "," << voxel.y << "," << voxel.z << ")" << std::endl;
+    // }
+    
+    // Perform DDA traversal
+    int maxSteps = 500; // Prevent infinite loops
+    for (int step_count = 0; step_count < maxSteps; ++step_count) {
+        // Check if current voxel contains a cube using O(1) chunk manager lookup
+        if (chunkManager->getCubeAtFast(voxel)) {
+            // if (shouldDebug) {
+            //     std::cout << "[HOVER] Found cube at voxel: (" << voxel.x << "," << voxel.y << "," << voxel.z 
+            //               << ") after " << step_count << " steps" << std::endl;
+            // }
+            return voxel; // Found a cube!
+        }
+        
+        // Move to next voxel
+        if (sideDist.x < sideDist.y && sideDist.x < sideDist.z) {
+            // X-face hit
+            sideDist.x += deltaDist.x;
+            voxel.x += step.x;
+        } else if (sideDist.y < sideDist.z) {
+            // Y-face hit
+            sideDist.y += deltaDist.y;
+            voxel.y += step.y;
+        } else {
+            // Z-face hit
+            sideDist.z += deltaDist.z;
+            voxel.z += step.z;
+        }
+        
+        // Check if we've gone too far
+        glm::vec3 currentPos = glm::vec3(voxel);
+        if (glm::length(currentPos - rayOrigin) > maxDistance) {
+            break;
+        }
+    }
+    
+    // if (shouldDebug) {
+    //     std::cout << "[HOVER] No cube found after " << maxSteps << " steps" << std::endl;
+    // }
+    
+    return glm::ivec3(-1); // No cube found
 }
 
 void Application::setHoveredCubeInChunks(const glm::ivec3& worldPos) {
-    // Clear any previous hover first
+    if (!chunkManager) return;
+    
+    // Clear previous hover
     clearHoveredCubeInChunks();
     
-    // Find the cube at this world position
-    Cube* cube = chunkManager->getCubeAt(worldPos);
-    if (cube) {
-        // Store hover state
-        currentHoveredWorldPos = worldPos;
-        originalHoveredColor = cube->color;
-        hasHoveredCube = true;
-        
-        // Change color to highlight (add 0.3f and clamp to 1.0f)
-        chunkManager->setCubeColor(worldPos, glm::min(originalHoveredColor + glm::vec3(0.3f), glm::vec3(1.0f)));
-        
-        // Debug output to verify hover is working
-        std::cout << "[DEBUG] Hovering cube at (" << worldPos.x << ", " << worldPos.y << ", " << worldPos.z << ")" << std::endl;
-    } else {
-        std::cout << "[DEBUG] Failed to find cube at (" << worldPos.x << ", " << worldPos.y << ", " << worldPos.z << ")" << std::endl;
-    }
+    // Get the cube at this world position using O(1) lookup
+    Cube* cube = chunkManager->getCubeAtFast(worldPos);
+    if (!cube) return;
+    
+    // Store original color and world position for later restoration
+    originalHoveredColor = cube->color;
+    currentHoveredWorldPos = worldPos;
+    hasHoveredCube = true;
+    
+    std::cout << "[HOVER] Setting hover at world pos: (" << worldPos.x << "," << worldPos.y << "," << worldPos.z 
+              << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
+    
+    // Get chunk coordinate information for debugging
+    glm::ivec3 chunkCoord = chunkManager->worldToChunkCoord(worldPos);
+    glm::ivec3 localPos = chunkManager->worldToLocalCoord(worldPos);
+    glm::ivec3 chunkWorldPos = chunkCoord * 32; // Each chunk is 32x32x32
+    std::cout << "[HOVER] World pos: (" << worldPos.x << "," << worldPos.y << "," << worldPos.z 
+              << ") | Local pos in chunk: (" << localPos.x << "," << localPos.y << "," << localPos.z 
+              << ") | Chunk world pos: (" << chunkWorldPos.x << "," << chunkWorldPos.y << "," << chunkWorldPos.z << ")" << std::endl;
+    
+    // Set hover color (darken the cube by setting it to black)
+    glm::vec3 hoverColor = glm::vec3(0.0f, 0.0f, 0.0f); // Black for hover effect
+    chunkManager->setCubeColorFast(worldPos, hoverColor);
 }
 
 void Application::clearHoveredCubeInChunks() {
-    if (hasHoveredCube) {
-        // Restore original color
-        chunkManager->setCubeColor(currentHoveredWorldPos, originalHoveredColor);
-        hasHoveredCube = false;
+    if (hasHoveredCube && chunkManager) {
+        //std::cout << "[HOVER] Clearing hover at world pos: (" << currentHoveredWorldPos.x << "," << currentHoveredWorldPos.y << "," << currentHoveredWorldPos.z << ")" << std::endl;
         
-        // Reduced debug output frequency
-        static int debugCounter = 0;
-        if (++debugCounter % 30 == 0) { // Only print every 30th clear
-            std::cout << "[DEBUG] Cleared hover for cube at (" << currentHoveredWorldPos.x 
-                      << ", " << currentHoveredWorldPos.y << ", " << currentHoveredWorldPos.z << ")" << std::endl;
-        }
+        // Restore original color
+        chunkManager->setCubeColorFast(currentHoveredWorldPos, originalHoveredColor);
+        hasHoveredCube = false;
+        currentHoveredWorldPos = glm::ivec3(-1);
     }
 }
 
-// Helper function for ray-AABB intersection (used by chunk hover detection)
+glm::ivec3 Application::raycastVoxelGrid(const glm::vec3& rayOrigin, const glm::vec3& rayDirection, const glm::ivec3& chunkOrigin) const {
+    // This is a helper method for more advanced chunk-specific raycasting
+    // For now, it delegates to the main pickCubeInChunks method
+    // In a more advanced implementation, this could optimize by only checking within a specific chunk
+    return pickCubeInChunks(rayOrigin, rayDirection);
+}
+
 bool Application::rayAABBIntersect(const glm::vec3& rayOrigin, const glm::vec3& rayDir, 
-                                   const glm::vec3& aabbMin, const glm::vec3& aabbMax, 
-                                   float& distance) const {
+                                  const glm::vec3& aabbMin, const glm::vec3& aabbMax, 
+                                  float& distance) const {
+    // Standard ray-AABB intersection test
     glm::vec3 invDir = 1.0f / rayDir;
     glm::vec3 t1 = (aabbMin - rayOrigin) * invDir;
     glm::vec3 t2 = (aabbMax - rayOrigin) * invDir;
@@ -1345,8 +1522,19 @@ bool Application::rayAABBIntersect(const glm::vec3& rayOrigin, const glm::vec3& 
         return false; // No intersection
     }
     
-    distance = (tNear >= 0.0f) ? tNear : tFar;
+    distance = tNear > 0.0f ? tNear : tFar;
     return true;
+}
+
+void Application::togglePerformanceOverlay() {
+    showPerformanceOverlay = !showPerformanceOverlay;
+    std::cout << "Performance Overlay: " << (showPerformanceOverlay ? "ENABLED" : "DISABLED") << std::endl;
+}
+
+void Application::renderPerformanceOverlay() {
+    // This function is now replaced by ImGui overlay
+    // Console output is only used when ImGui is not available
+    return;
 }
 
 } // namespace VulkanCube

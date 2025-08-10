@@ -13,11 +13,16 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
 
 void ChunkManager::createChunks(const std::vector<glm::ivec3>& origins) {
     chunks.clear();
+    chunkMap.clear();  // Clear the spatial hash map
     chunks.reserve(origins.size());
     
     for (const auto& origin : origins) {
         chunks.emplace_back(origin);
         Chunk& chunk = chunks.back();
+        
+        // Add to spatial hash map for O(1) lookup
+        glm::ivec3 chunkCoord = worldToChunkCoord(origin);
+        chunkMap[chunkCoord] = &chunk;
         
         // Fill chunk with 32x32x32 cubes at relative positions
         populateChunk(chunk);
@@ -30,6 +35,10 @@ void ChunkManager::createChunks(const std::vector<glm::ivec3>& origins) {
 void ChunkManager::createChunk(const glm::ivec3& origin) {
     chunks.emplace_back(origin);
     Chunk& chunk = chunks.back();
+    
+    // Add to spatial hash map for O(1) lookup
+    glm::ivec3 chunkCoord = worldToChunkCoord(origin);
+    chunkMap[chunkCoord] = &chunk;
     
     populateChunk(chunk);
     createChunkBuffer(chunk);
@@ -135,9 +144,19 @@ void ChunkManager::updateChunk(size_t chunkIndex) {
     
     Chunk& chunk = chunks[chunkIndex];
     if (chunk.needsUpdate && chunk.mappedMemory) {
+        // Rebuild faces to reflect any cube color changes
+        rebuildChunkFaces(chunk);
+        
+        // Copy updated face data to GPU memory
         VkDeviceSize bufferSize = sizeof(InstanceData) * chunk.faces.size();
         memcpy(chunk.mappedMemory, chunk.faces.data(), bufferSize);
         chunk.needsUpdate = false;
+    }
+}
+
+void ChunkManager::updateAllChunks() {
+    for (size_t i = 0; i < chunks.size(); ++i) {
+        updateChunk(i);
     }
 }
 
@@ -170,54 +189,116 @@ void ChunkManager::rebuildChunkFaces(Chunk& chunk) {
     chunk.needsUpdate = true;  // Mark for GPU buffer update
 }
 
-Chunk* ChunkManager::getChunkAt(const glm::ivec3& worldPos) {
-    // Convert world position to chunk coordinates
-    glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
-    glm::ivec3 chunkOrigin = chunkCoord * 32;
+// ===============================================================
+// OPTIMIZED O(1) CHUNK AND CUBE LOOKUP FUNCTIONS
+// ===============================================================
+
+Chunk* ChunkManager::getChunkAtCoord(const glm::ivec3& chunkCoord) {
+    auto it = chunkMap.find(chunkCoord);
+    return (it != chunkMap.end()) ? it->second : nullptr;
+}
+
+Chunk* ChunkManager::getChunkAtFast(const glm::ivec3& worldPos) {
+    glm::ivec3 chunkCoord = ChunkManager::worldToChunkCoord(worldPos);
+    return getChunkAtCoord(chunkCoord);
+}
+
+Cube* ChunkManager::getCubeAtFast(const glm::ivec3& worldPos) {
+    // Step 1: Get chunk using O(1) hash map lookup
+    Chunk* chunk = getChunkAtFast(worldPos);
+    if (!chunk) return nullptr;
     
-    // Find chunk with matching origin
-    for (auto& chunk : chunks) {
-        if (chunk.worldOrigin == chunkOrigin) {
-            return &chunk;
-        }
+    // Step 2: Calculate local position and index
+    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+    
+    // Bounds check
+    if (localPos.x < 0 || localPos.x >= 32 ||
+        localPos.y < 0 || localPos.y >= 32 ||
+        localPos.z < 0 || localPos.z >= 32) {
+        return nullptr;
     }
     
-    return nullptr;
+    // Step 3: O(1) array access using 3D to 1D index conversion
+    size_t index = ChunkManager::localToIndex(localPos);
+    if (index >= chunk->cubes.size()) return nullptr;
+    
+    return &chunk->cubes[index];
+}
+
+bool ChunkManager::setCubeColorFast(const glm::ivec3& worldPos, const glm::vec3& color) {
+    Cube* cube = getCubeAtFast(worldPos);
+    if (!cube) return false;
+    
+    cube->color = color;
+    
+    // Mark chunk for update
+    Chunk* chunk = getChunkAtFast(worldPos);
+    if (chunk) {
+        chunk->needsUpdate = true;
+    }
+    
+    return true;
+}
+
+bool ChunkManager::removeCubeFast(const glm::ivec3& worldPos) {
+    Cube* cube = getCubeAtFast(worldPos);
+    if (!cube) return false;
+    
+    // Mark cube as removed (negative red value indicates removal)
+    cube->color.r = -1.0f;
+    
+    // Mark chunk for update and face regeneration
+    Chunk* chunk = getChunkAtFast(worldPos);
+    if (chunk) {
+        chunk->needsUpdate = true;
+        // Note: Face regeneration would happen in updateChunk()
+    }
+    
+    return true;
+}
+
+bool ChunkManager::addCubeFast(const glm::ivec3& worldPos, const glm::vec3& color) {
+    Cube* cube = getCubeAtFast(worldPos);
+    if (!cube) return false;  // No chunk exists at this position
+    
+    // Restore cube (in case it was previously removed)
+    cube->color = color;
+    
+    // Mark chunk for update and face regeneration
+    Chunk* chunk = getChunkAtFast(worldPos);
+    if (chunk) {
+        chunk->needsUpdate = true;
+        // Note: Face regeneration would happen in updateChunk()
+    }
+    
+    return true;
+}
+
+// ===============================================================
+// LEGACY FUNCTIONS (kept for backward compatibility)
+// ===============================================================
+
+Chunk* ChunkManager::getChunkAt(const glm::ivec3& worldPos) {
+    // Redirect to optimized version
+    return getChunkAtFast(worldPos);
 }
 
 Cube* ChunkManager::getCubeAt(const glm::ivec3& worldPos) {
-    Chunk* chunk = getChunkAt(worldPos);
-    if (!chunk) return nullptr;
-    
-    glm::ivec3 localPos = worldToLocalCoord(worldPos);
-    size_t index = localToIndex(localPos);
-    
-    if (index < chunk->cubes.size()) {
-        return &chunk->cubes[index];
-    }
-    
-    return nullptr;
+    // Redirect to optimized version
+    return getCubeAtFast(worldPos);
 }
 
 void ChunkManager::setCubeColor(const glm::ivec3& worldPos, const glm::vec3& color) {
-    Cube* cube = getCubeAt(worldPos);
-    if (cube) {
-        cube->color = color;
-        
-        // Rebuild faces for this chunk since color changed
-        Chunk* chunk = getChunkAt(worldPos);
-        if (chunk) {
-            rebuildChunkFaces(*chunk);
-        }
-    }
+    // Redirect to optimized version
+    setCubeColorFast(worldPos, color);
 }
 
 bool ChunkManager::removeCube(const glm::ivec3& worldPos) {
     Chunk* chunk = getChunkAt(worldPos);
     if (!chunk) return false;
     
-    glm::ivec3 localPos = worldToLocalCoord(worldPos);
-    size_t index = localToIndex(localPos);
+    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+    size_t index = ChunkManager::localToIndex(localPos);
     
     if (index < chunk->cubes.size()) {
         // For now, we'll mark cube as "empty" by setting alpha to 0
@@ -279,6 +360,7 @@ void ChunkManager::cleanup() {
         }
     }
     chunks.clear();
+    chunkMap.clear();  // Clear the spatial hash map
 }
 
 uint32_t ChunkManager::calculateCubeFaceMask(int x, int y, int z) const {

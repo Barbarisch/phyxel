@@ -6,10 +6,24 @@
 
 namespace VulkanCube {
 
+// Custom hash function for glm::ivec3 to use as key in unordered_map
+struct ChunkCoordHash {
+    std::size_t operator()(const glm::ivec3& coord) const {
+        // Combine X, Y, Z coordinates into a single hash
+        // Using prime numbers to reduce hash collisions
+        return std::hash<int>()(coord.x) ^ 
+               (std::hash<int>()(coord.y) << 1) ^ 
+               (std::hash<int>()(coord.z) << 2);
+    }
+};
+
 // Manages all chunks in the world for scalable multi-chunk rendering
 class ChunkManager {
 public:
     std::vector<Chunk> chunks;
+    
+    // Spatial hash map for O(1) chunk lookup by chunk coordinates
+    std::unordered_map<glm::ivec3, Chunk*, ChunkCoordHash> chunkMap;
     
     // Vulkan device and memory management
     VkDevice device = VK_NULL_HANDLE;
@@ -30,6 +44,9 @@ public:
     // Update chunk data (for dynamic content)
     void updateChunk(size_t chunkIndex);
     
+    // Update all chunks that need updating (call this every frame for dynamic content)
+    void updateAllChunks();
+    
     // Rebuild faces from cubes (call after modifying cubes)
     void rebuildChunkFaces(Chunk& chunk);
     
@@ -45,7 +62,18 @@ public:
     // Convert between coordinate systems
     static glm::ivec3 worldToChunkCoord(const glm::ivec3& worldPos) { return worldPos / 32; }
     static glm::ivec3 worldToLocalCoord(const glm::ivec3& worldPos) { return worldPos % 32; }
-    static size_t localToIndex(const glm::ivec3& localPos) { return localPos.x + localPos.y * 32 + localPos.z * 32 * 32; }
+    static glm::ivec3 chunkCoordToOrigin(const glm::ivec3& chunkCoord) { return chunkCoord * 32; }
+    static size_t localToIndex(const glm::ivec3& localPos) { return localPos.z + localPos.y * 32 + localPos.x * 32 * 32; }
+    
+    // Fast O(1) chunk lookup functions
+    Chunk* getChunkAtCoord(const glm::ivec3& chunkCoord);      // Get chunk by chunk coordinates
+    Chunk* getChunkAtFast(const glm::ivec3& worldPos);        // Fast O(1) world position lookup
+    
+    // Fast O(1) cube lookup functions
+    Cube* getCubeAtFast(const glm::ivec3& worldPos);          // Fast O(1) cube lookup
+    bool setCubeColorFast(const glm::ivec3& worldPos, const glm::vec3& color);  // Fast color update
+    bool removeCubeFast(const glm::ivec3& worldPos);          // Fast cube removal
+    bool addCubeFast(const glm::ivec3& worldPos, const glm::vec3& color = glm::vec3(1.0f));  // Fast cube addition
     
     // Calculate face visibility for all chunks (face culling optimization)
     void calculateChunkFaceCulling();
