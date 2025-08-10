@@ -54,6 +54,8 @@ void ChunkManager::populateChunk(Chunk& chunk) {
     std::uniform_real_distribution<float> colorDist(0.0f, 1.0f);
     
     // Step 1: Create logical cubes (32x32x32 grid)
+    // CRITICAL: Loop order determines index formula in localToIndex()
+    // X-major order (X outermost, Z innermost) requires Z-minor indexing: z + y*32 + x*1024
     for (int x = 0; x < 32; ++x) {
         for (int y = 0; y < 32; ++y) {
             for (int z = 0; z < 32; ++z) {

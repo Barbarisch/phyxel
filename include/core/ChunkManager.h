@@ -63,6 +63,11 @@ public:
     static glm::ivec3 worldToChunkCoord(const glm::ivec3& worldPos) { return worldPos / 32; }
     static glm::ivec3 worldToLocalCoord(const glm::ivec3& worldPos) { return worldPos % 32; }
     static glm::ivec3 chunkCoordToOrigin(const glm::ivec3& chunkCoord) { return chunkCoord * 32; }
+    
+    // CRITICAL: Index formula MUST match loop order in populateChunk()
+    // Loop order: for(x) for(y) for(z) → Z-minor indexing (Z coefficient = 1)
+    // Formula: z + y*32 + x*1024 (Z changes fastest, matches innermost loop)
+    // DO NOT change to X-minor without changing populateChunk() loop order!
     static size_t localToIndex(const glm::ivec3& localPos) { return localPos.z + localPos.y * 32 + localPos.x * 32 * 32; }
     
     // Fast O(1) chunk lookup functions
