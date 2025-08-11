@@ -13,6 +13,12 @@ Chunk::Chunk(const glm::ivec3& origin)
 }
 
 Chunk::~Chunk() {
+    // Delete all cube pointers to free memory
+    for (Cube* cube : cubes) {
+        delete cube;
+    }
+    cubes.clear();
+    
     cleanupVulkanResources();
 }
 
@@ -74,7 +80,8 @@ Cube* Chunk::getCubeAt(const glm::ivec3& localPos) {
     size_t index = localToIndex(localPos);
     if (index >= cubes.size()) return nullptr;
     
-    return &cubes[index];
+    // Return the pointer (which could be nullptr for deleted cubes)
+    return cubes[index];
 }
 
 const Cube* Chunk::getCubeAt(const glm::ivec3& localPos) const {
@@ -83,17 +90,18 @@ const Cube* Chunk::getCubeAt(const glm::ivec3& localPos) const {
     size_t index = localToIndex(localPos);
     if (index >= cubes.size()) return nullptr;
     
-    return &cubes[index];
+    // Return the pointer (which could be nullptr for deleted cubes)
+    return cubes[index];
 }
 
 Cube* Chunk::getCubeAtIndex(size_t index) {
     if (index >= cubes.size()) return nullptr;
-    return &cubes[index];
+    return cubes[index];
 }
 
 const Cube* Chunk::getCubeAtIndex(size_t index) const {
     if (index >= cubes.size()) return nullptr;
-    return &cubes[index];
+    return cubes[index];
 }
 
 bool Chunk::setCubeColor(const glm::ivec3& localPos, const glm::vec3& color) {
@@ -111,26 +119,37 @@ bool Chunk::setCubeColor(const glm::ivec3& localPos, const glm::vec3& color) {
 }
 
 bool Chunk::removeCube(const glm::ivec3& localPos) {
-    Cube* cube = getCubeAt(localPos);
-    if (!cube) return false;
+    if (!isValidLocalPosition(localPos)) return false;
     
-    // Mark cube as removed (using the existing convention)
-    cube->color.r = -1.0f;
+    size_t index = localToIndex(localPos);
+    if (index >= cubes.size() || !cubes[index]) return false; // No cube exists at this position
+    
+    // Actually delete the cube from memory
+    delete cubes[index];
+    cubes[index] = nullptr; // Mark as deleted
     needsUpdate = true;
     
-    std::cout << "[CHUNK] Removed cube at local pos: (" 
+    std::cout << "[CHUNK] Completely removed cube at local pos: (" 
               << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
     
     return true;
 }
 
 bool Chunk::addCube(const glm::ivec3& localPos, const glm::vec3& color) {
-    Cube* cube = getCubeAt(localPos);
-    if (!cube) return false;
+    if (!isValidLocalPosition(localPos)) return false;
     
-    // Restore cube
-    cube->color = color;
-    cube->broken = false;
+    size_t index = localToIndex(localPos);
+    if (index >= cubes.size()) return false;
+    
+    // If cube already exists, just update its color
+    if (cubes[index]) {
+        cubes[index]->color = color;
+        cubes[index]->broken = false;
+    } else {
+        // Create new cube
+        cubes[index] = new Cube(localPos, color);
+    }
+    
     needsUpdate = true;
     
     std::cout << "[CHUNK] Added/restored cube at local pos: (" 
@@ -155,9 +174,9 @@ void Chunk::populateWithCubes() {
     for (int x = 0; x < 32; ++x) {
         for (int y = 0; y < 32; ++y) {
             for (int z = 0; z < 32; ++z) {
-                Cube cube;
-                cube.position = glm::ivec3(x, y, z);  // Relative position within chunk
-                cube.color = glm::vec3(
+                Cube* cube = new Cube();
+                cube->position = glm::ivec3(x, y, z);  // Relative position within chunk
+                cube->color = glm::vec3(
                     colorDist(gen),
                     colorDist(gen),
                     colorDist(gen)
@@ -177,22 +196,22 @@ void Chunk::rebuildFaces() {
     
     // Face culling with adjacency checks
     for (size_t cubeIndex = 0; cubeIndex < cubes.size(); ++cubeIndex) {
-        const Cube& cube = cubes[cubeIndex];
+        const Cube* cube = cubes[cubeIndex];
         
-        // Skip removed cubes
-        if (cube.color.r < 0.0f) continue;
+        // Skip deleted cubes (nullptr)
+        if (!cube) continue;
         
         // Calculate which faces are visible by checking adjacent positions
         bool faceVisible[6] = {true, true, true, true, true, true};
         
         // Face directions: 0=front(+Z), 1=back(-Z), 2=right(+X), 3=left(-X), 4=top(+Y), 5=bottom(-Y)
         glm::ivec3 neighbors[6] = {
-            cube.position + glm::ivec3(0, 0, 1),   // front (+Z)
-            cube.position + glm::ivec3(0, 0, -1),  // back (-Z)
-            cube.position + glm::ivec3(1, 0, 0),   // right (+X)
-            cube.position + glm::ivec3(-1, 0, 0),  // left (-X)
-            cube.position + glm::ivec3(0, 1, 0),   // top (+Y)
-            cube.position + glm::ivec3(0, -1, 0)   // bottom (-Y)
+            cube->position + glm::ivec3(0, 0, 1),   // front (+Z)
+            cube->position + glm::ivec3(0, 0, -1),  // back (-Z)
+            cube->position + glm::ivec3(1, 0, 0),   // right (+X)
+            cube->position + glm::ivec3(-1, 0, 0),  // left (-X)
+            cube->position + glm::ivec3(0, 1, 0),   // top (+Y)
+            cube->position + glm::ivec3(0, -1, 0)   // bottom (-Y)
         };
         
         // Check each face for occlusion by adjacent cubes
@@ -204,10 +223,10 @@ void Chunk::rebuildFaces() {
                 neighborPos.y >= 0 && neighborPos.y < 32 &&
                 neighborPos.z >= 0 && neighborPos.z < 32) {
                 
-                // Check if there's a cube at the neighbor position
+                // Check if there's a visible cube at the neighbor position
                 const Cube* neighborCube = getCubeAt(neighborPos);
-                if (neighborCube && neighborCube->color.r >= 0.0f) {
-                    // Neighbor cube exists and is not removed, so this face is occluded
+                if (neighborCube) {
+                    // Neighbor cube exists, so this face is occluded
                     faceVisible[faceID] = false;
                 }
             }
@@ -221,10 +240,10 @@ void Chunk::rebuildFaces() {
                 
                 // Pack cube position (5 bits each) and face ID (3 bits)
                 // Bit layout: [0-4]=x, [5-9]=y, [10-14]=z, [15-17]=faceID, [18-31]=future
-                faceInstance.packedData = (cube.position.x & 0x1F) | ((cube.position.y & 0x1F) << 5) | 
-                                         ((cube.position.z & 0x1F) << 10) | ((faceID & 0x7) << 15);
+                faceInstance.packedData = (cube->position.x & 0x1F) | ((cube->position.y & 0x1F) << 5) | 
+                                         ((cube->position.z & 0x1F) << 10) | ((faceID & 0x7) << 15);
                 
-                faceInstance.color = cube.color;
+                faceInstance.color = cube->color;
                 faces.push_back(faceInstance);
             }
         }

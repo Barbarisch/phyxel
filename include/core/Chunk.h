@@ -14,7 +14,7 @@ class Chunk {
     friend class ChunkManager;  // Allow ChunkManager to access private members for cross-chunk culling
     
 private:
-    std::vector<Cube> cubes;                       // Logical cubes for game logic (32x32x32)
+    std::vector<Cube*> cubes;                      // Pointers to cubes for efficient deletion (32x32x32)
     std::vector<InstanceData> faces;               // Visible faces only (CPU pre-filtered for rendering)
     VkBuffer instanceBuffer = VK_NULL_HANDLE;     // Vulkan buffer for this chunk's face instance data
     VkDeviceMemory instanceMemory = VK_NULL_HANDLE;
