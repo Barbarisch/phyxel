@@ -147,6 +147,7 @@ private:
     // Mouse picking / hover functionality
     void updateMouseHover();
     glm::vec3 screenToWorldRay(double mouseX, double mouseY) const;
+    void removeHoveredCube();  // Remove the currently hovered cube
     
     // Chunk-based hover detection helpers (optimized)
     CubeLocation pickCubeInChunksOptimized(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;

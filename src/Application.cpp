@@ -955,6 +955,11 @@ void Application::mouseButtonCallback(GLFWwindow* window, int button, int action
             std::cout << "*** RIGHT MOUSE RELEASED - CAMERA LOOK MODE DISABLED ***" << std::endl;
         }
     }
+    
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+        // Remove cube at hover location if available
+        app->removeHoveredCube();
+    }
 }
 
 void Application::processInput() {
@@ -1352,6 +1357,45 @@ void Application::clearHoveredCubeInChunksOptimized() {
         
         hasHoveredCube = false;
         currentHoveredLocation = CubeLocation(); // Reset to invalid state
+    }
+}
+
+void Application::removeHoveredCube() {
+    // Check if we have a valid hovered cube
+    if (!hasHoveredCube || !currentHoveredLocation.isValid()) {
+        std::cout << "[CUBE REMOVAL] No cube is currently being hovered - cannot remove" << std::endl;
+        return;
+    }
+    
+    // Get the chunk and remove the cube using the stored location
+    Chunk* chunk = currentHoveredLocation.chunk;
+    if (!chunk) {
+        std::cout << "[CUBE REMOVAL] ERROR: Invalid chunk pointer" << std::endl;
+        hasHoveredCube = false;
+        currentHoveredLocation = CubeLocation();
+        return;
+    }
+    
+    // Remove the cube from the chunk
+    bool removed = chunk->removeCube(currentHoveredLocation.localPos);
+    if (removed) {
+        std::cout << "[CUBE REMOVAL] Successfully removed cube at world pos: (" 
+                  << currentHoveredLocation.worldPos.x << "," 
+                  << currentHoveredLocation.worldPos.y << "," 
+                  << currentHoveredLocation.worldPos.z << ")" << std::endl;
+                  
+        // Mark the chunk as dirty for GPU buffer update
+        if (chunkManager) {
+            chunkManager->markChunkDirty(chunk);
+        }
+        
+        // Clear hover state since the cube no longer exists
+        hasHoveredCube = false;
+        currentHoveredLocation = CubeLocation();
+        lastHoveredCube = -1; // Reset the hover tracking
+        
+    } else {
+        std::cout << "[CUBE REMOVAL] WARNING: Failed to remove cube - cube may not exist" << std::endl;
     }
 }
 
