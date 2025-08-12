@@ -352,6 +352,16 @@ void ChunkManager::setCubeColor(const glm::ivec3& worldPos, const glm::vec3& col
     setCubeColorFast(worldPos, color);
 }
 
+void ChunkManager::setCubeColorEfficient(const glm::ivec3& worldPos, const glm::vec3& color) {
+    Chunk* chunk = getChunkAtFast(worldPos);
+    if (!chunk) return;
+    
+    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+    
+    // Use the new efficient partial update method (no markChunkDirty needed)
+    chunk->updateSingleCubeColor(localPos, color);
+}
+
 bool ChunkManager::removeCube(const glm::ivec3& worldPos) {
     Chunk* chunk = getChunkAt(worldPos);
     if (!chunk) return false;

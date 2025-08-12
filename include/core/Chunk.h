@@ -94,6 +94,9 @@ public:
     void rebuildFaces();                           // Regenerate face data from cubes
     void updateVulkanBuffer();                     // Update GPU buffer with face data
     
+    // Efficient partial updates for hover effects (avoids full rebuild)
+    void updateSingleCubeColor(const glm::ivec3& localPos, const glm::vec3& newColor);
+    
     // Vulkan buffer management
     void createVulkanBuffer();
     void cleanupVulkanResources();

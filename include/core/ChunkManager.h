@@ -70,6 +70,7 @@ public:
     // Cube manipulation helpers
     Cube* getCubeAt(const glm::ivec3& worldPos);          // Get cube at world position
     void setCubeColor(const glm::ivec3& worldPos, const glm::vec3& color);
+    void setCubeColorEfficient(const glm::ivec3& worldPos, const glm::vec3& color); // Efficient version for hover
     bool removeCube(const glm::ivec3& worldPos);          // Returns true if cube was removed
     bool addCube(const glm::ivec3& worldPos, const glm::vec3& color = glm::vec3(1.0f));
     

@@ -301,6 +301,57 @@ void Chunk::updateVulkanBuffer() {
               << "), uploaded " << faces.size() << " face instances" << std::endl;
 }
 
+void Chunk::updateSingleCubeColor(const glm::ivec3& localPos, const glm::vec3& newColor) {
+    if (!isValidLocalPosition(localPos)) return;
+    
+    // Find the cube and update its color
+    Cube* cube = getCubeAt(localPos);
+    if (!cube) return;
+    
+    cube->setColor(newColor);
+    
+    // Efficiently update only the affected faces in the buffer
+    // Instead of rebuilding all faces, find and update just this cube's faces
+    if (!mappedMemory) return;
+    
+    bool updatedAnyFaces = false;
+    
+    // Find all face instances for this cube and update their colors
+    for (size_t i = 0; i < faces.size(); ++i) {
+        InstanceData& face = faces[i];
+        
+        // Extract position from packed data
+        int faceX = face.packedData & 0x1F;
+        int faceY = (face.packedData >> 5) & 0x1F;
+        int faceZ = (face.packedData >> 10) & 0x1F;
+        
+        // Check if this face belongs to our cube
+        if (faceX == localPos.x && faceY == localPos.y && faceZ == localPos.z) {
+            // Update the color in the faces vector
+            faces[i].color = newColor;
+            
+            // Update the GPU buffer directly (partial update)
+            VkDeviceSize offset = i * sizeof(InstanceData) + offsetof(InstanceData, color);
+            memcpy(static_cast<char*>(mappedMemory) + offset, &newColor, sizeof(glm::vec3));
+            
+            updatedAnyFaces = true;
+        }
+    }
+    
+    if (updatedAnyFaces) {
+        // Optional: Flush memory if not coherent (most host-visible memory is coherent)
+        // VkMappedMemoryRange range{};
+        // range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+        // range.memory = instanceMemory;
+        // range.offset = 0;
+        // range.size = VK_WHOLE_SIZE;
+        // vkFlushMappedMemoryRanges(device, 1, &range);
+        
+        // std::cout << "[CHUNK] Updated " << localPos.x << "," << localPos.y << "," << localPos.z 
+        //           << " color efficiently (partial buffer update)" << std::endl;
+    }
+}
+
 void Chunk::createVulkanBuffer() {
     if (device == VK_NULL_HANDLE) {
         throw std::runtime_error("Chunk not initialized with Vulkan device!");
