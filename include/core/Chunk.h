@@ -25,6 +25,11 @@ private:
     glm::ivec3 worldOrigin = glm::ivec3(0);       // World-space origin of this chunk
     bool needsUpdate = false;                     // Flag for buffer updates
     
+    // Buffer capacity management
+    static constexpr size_t DEFAULT_BUFFER_CAPACITY = 25000;   // Realistic capacity based on testing (8x current usage)
+    size_t bufferCapacity = 0;                     // Current allocated buffer capacity
+    size_t maxInstancesUsed = 0;                   // Peak usage tracking for analysis
+    
     // Vulkan device handles (set by ChunkManager)
     VkDevice device = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
@@ -54,6 +59,13 @@ public:
     uint32_t getNumInstances() const { return numInstances; }
     bool getNeedsUpdate() const { return needsUpdate; }
     void setNeedsUpdate(bool needsUpdate) { this->needsUpdate = needsUpdate; }
+    
+    // Buffer capacity analysis
+    size_t getBufferCapacity() const { return bufferCapacity; }
+    size_t getMaxInstancesUsed() const { return maxInstancesUsed; }
+    float getBufferUtilization() const { 
+        return bufferCapacity > 0 ? float(faces.size()) / float(bufferCapacity) * 100.0f : 0.0f; 
+    }
     
     // Cube access
     Cube* getCubeAt(const glm::ivec3& localPos);
@@ -85,6 +97,10 @@ public:
     // Vulkan buffer management
     void createVulkanBuffer();
     void cleanupVulkanResources();
+    void ensureBufferCapacity(size_t requiredInstances);  // Handle buffer reallocation if needed
+    
+    // Buffer utilization analysis
+    void logBufferUtilization() const;
     
     // Utility functions
     static size_t localToIndex(const glm::ivec3& localPos);

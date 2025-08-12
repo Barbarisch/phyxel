@@ -1321,15 +1321,15 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
     currentHoveredLocation = location;
     hasHoveredCube = true;
     
-    std::cout << "[HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
-              << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
+    // std::cout << "[HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
+    //           << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
     
     // Debug output: chunk coordinate information
-    glm::ivec3 chunkCoord = ChunkManager::worldToChunkCoord(location.worldPos);
-    glm::ivec3 chunkWorldPos = chunkCoord * 32; // Each chunk is 32x32x32
-    std::cout << "[HOVER] World pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
-              << ") | Local pos in chunk: (" << location.localPos.x << "," << location.localPos.y << "," << location.localPos.z 
-              << ") | Chunk world pos: (" << chunkWorldPos.x << "," << chunkWorldPos.y << "," << chunkWorldPos.z << ")" << std::endl;
+    // glm::ivec3 chunkCoord = ChunkManager::worldToChunkCoord(location.worldPos);
+    // glm::ivec3 chunkWorldPos = chunkCoord * 32; // Each chunk is 32x32x32
+    // std::cout << "[HOVER] World pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
+    //           << ") | Local pos in chunk: (" << location.localPos.x << "," << location.localPos.y << "," << location.localPos.z 
+    //           << ") | Chunk world pos: (" << chunkWorldPos.x << "," << chunkWorldPos.y << "," << chunkWorldPos.z << ")" << std::endl;
     
     // Set hover color (darken the cube by setting it to black)
     glm::vec3 hoverColor = glm::vec3(0.0f, 0.0f, 0.0f); // Black for hover effect
@@ -1515,16 +1515,16 @@ void Application::setHoveredCubeInChunks(const glm::ivec3& worldPos) {
     currentHoveredWorldPos = worldPos;
     hasHoveredCube = true;
     
-    std::cout << "[HOVER] Setting hover at world pos: (" << worldPos.x << "," << worldPos.y << "," << worldPos.z 
-              << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
+    // std::cout << "[HOVER] Setting hover at world pos: (" << worldPos.x << "," << worldPos.y << "," << worldPos.z 
+    //           << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
     
-    // Get chunk coordinate information for debugging
-    glm::ivec3 chunkCoord = chunkManager->worldToChunkCoord(worldPos);
-    glm::ivec3 localPos = chunkManager->worldToLocalCoord(worldPos);
-    glm::ivec3 chunkWorldPos = chunkCoord * 32; // Each chunk is 32x32x32
-    std::cout << "[HOVER] World pos: (" << worldPos.x << "," << worldPos.y << "," << worldPos.z 
-              << ") | Local pos in chunk: (" << localPos.x << "," << localPos.y << "," << localPos.z 
-              << ") | Chunk world pos: (" << chunkWorldPos.x << "," << chunkWorldPos.y << "," << chunkWorldPos.z << ")" << std::endl;
+    // // Get chunk coordinate information for debugging
+    // glm::ivec3 chunkCoord = chunkManager->worldToChunkCoord(worldPos);
+    // glm::ivec3 localPos = chunkManager->worldToLocalCoord(worldPos);
+    // glm::ivec3 chunkWorldPos = chunkCoord * 32; // Each chunk is 32x32x32
+    // std::cout << "[HOVER] World pos: (" << worldPos.x << "," << worldPos.y << "," << worldPos.z 
+    //           << ") | Local pos in chunk: (" << localPos.x << "," << localPos.y << "," << localPos.z 
+    //           << ") | Chunk world pos: (" << chunkWorldPos.x << "," << chunkWorldPos.y << "," << chunkWorldPos.z << ")" << std::endl;
     
     // Set hover color (darken the cube by setting it to black)
     glm::vec3 hoverColor = glm::vec3(0.0f, 0.0f, 0.0f); // Black for hover effect

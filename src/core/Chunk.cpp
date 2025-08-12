@@ -39,13 +39,17 @@ Chunk::Chunk(Chunk&& other) noexcept
     , numInstances(other.numInstances)
     , worldOrigin(other.worldOrigin)
     , needsUpdate(other.needsUpdate)
+    , bufferCapacity(other.bufferCapacity)
+    , maxInstancesUsed(other.maxInstancesUsed)
     , device(other.device)
     , physicalDevice(other.physicalDevice) {
     
-    // Reset other object's Vulkan handles
+    // Reset other object's Vulkan handles and capacity tracking
     other.instanceBuffer = VK_NULL_HANDLE;
     other.instanceMemory = VK_NULL_HANDLE;
     other.mappedMemory = nullptr;
+    other.bufferCapacity = 0;
+    other.maxInstancesUsed = 0;
     other.device = VK_NULL_HANDLE;
     other.physicalDevice = VK_NULL_HANDLE;
 }
@@ -65,13 +69,17 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept {
         numInstances = other.numInstances;
         worldOrigin = other.worldOrigin;
         needsUpdate = other.needsUpdate;
+        bufferCapacity = other.bufferCapacity;
+        maxInstancesUsed = other.maxInstancesUsed;
         device = other.device;
         physicalDevice = other.physicalDevice;
         
-        // Reset other object's Vulkan handles
+        // Reset other object's Vulkan handles and capacity tracking
         other.instanceBuffer = VK_NULL_HANDLE;
         other.instanceMemory = VK_NULL_HANDLE;
         other.mappedMemory = nullptr;
+        other.bufferCapacity = 0;
+        other.maxInstancesUsed = 0;
         other.device = VK_NULL_HANDLE;
         other.physicalDevice = VK_NULL_HANDLE;
     }
@@ -271,9 +279,22 @@ void Chunk::rebuildFaces() {
 void Chunk::updateVulkanBuffer() {
     if (!mappedMemory || faces.empty()) return;
     
-    VkDeviceSize bufferSize = sizeof(InstanceData) * faces.size();
-    memcpy(mappedMemory, faces.data(), bufferSize);
+    // Ensure buffer capacity is sufficient, reallocate if necessary
+    ensureBufferCapacity(faces.size());
+    
+    // Track peak usage for analysis
+    maxInstancesUsed = std::max(maxInstancesUsed, faces.size());
+    
+    // Copy data to GPU buffer (only the used portion)
+    VkDeviceSize copySize = sizeof(InstanceData) * faces.size();
+    memcpy(mappedMemory, faces.data(), copySize);
     needsUpdate = false;
+    
+    // Periodic utilization logging
+    static int updateCount = 0;
+    if (++updateCount % 50 == 0) {
+        logBufferUtilization();
+    }
     
     std::cout << "[CHUNK] Updated Vulkan buffer for chunk at origin (" 
               << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z 
@@ -285,14 +306,12 @@ void Chunk::createVulkanBuffer() {
         throw std::runtime_error("Chunk not initialized with Vulkan device!");
     }
     
-    if (faces.empty()) {
-        std::cout << "[CHUNK] Warning: Creating buffer for chunk with no faces" << std::endl;
-        return;
-    }
+    // Use fixed capacity instead of current face count
+    size_t capacity = std::max(DEFAULT_BUFFER_CAPACITY, faces.size());
+    VkDeviceSize bufferSize = sizeof(InstanceData) * capacity;
+    bufferCapacity = capacity;
     
-    VkDeviceSize bufferSize = sizeof(InstanceData) * faces.size();
-    
-    // Create buffer
+    // Create buffer with fixed capacity
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = bufferSize;
@@ -322,12 +341,15 @@ void Chunk::createVulkanBuffer() {
     // Map memory persistently for easy updates
     vkMapMemory(device, instanceMemory, 0, bufferSize, 0, &mappedMemory);
     
-    // Copy initial data
-    memcpy(mappedMemory, faces.data(), bufferSize);
+    // Copy initial data (only the used portion)
+    if (!faces.empty()) {
+        VkDeviceSize usedSize = sizeof(InstanceData) * faces.size();
+        memcpy(mappedMemory, faces.data(), usedSize);
+    }
     
-    std::cout << "[CHUNK] Created Vulkan buffer for chunk at origin (" 
+    std::cout << "[CHUNK] Created fixed-capacity Vulkan buffer for chunk at origin (" 
               << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z 
-              << "), buffer size: " << bufferSize << " bytes" << std::endl;
+              << "), capacity: " << bufferCapacity << " instances (" << bufferSize << " bytes)" << std::endl;
 }
 
 void Chunk::cleanupVulkanResources() {
@@ -537,6 +559,80 @@ bool Chunk::isValidLocalPosition(const glm::ivec3& localPos) const {
     return localPos.x >= 0 && localPos.x < 32 &&
            localPos.y >= 0 && localPos.y < 32 &&
            localPos.z >= 0 && localPos.z < 32;
+}
+
+void Chunk::ensureBufferCapacity(size_t requiredInstances) {
+    if (requiredInstances <= bufferCapacity) {
+        return; // Buffer is large enough
+    }
+    
+    std::cout << "[CHUNK] WARNING: Buffer reallocation needed! Required: " 
+              << requiredInstances << ", Current capacity: " << bufferCapacity << std::endl;
+    
+    // Calculate new capacity with headroom (50% extra)
+    size_t newCapacity = static_cast<size_t>(requiredInstances * 1.5f);
+    
+    // Clean up existing buffer
+    if (mappedMemory) {
+        vkUnmapMemory(device, instanceMemory);
+        mappedMemory = nullptr;
+    }
+    if (instanceBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, instanceBuffer, nullptr);
+        instanceBuffer = VK_NULL_HANDLE;
+    }
+    if (instanceMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, instanceMemory, nullptr);
+        instanceMemory = VK_NULL_HANDLE;
+    }
+    
+    // Create new larger buffer
+    VkDeviceSize bufferSize = sizeof(InstanceData) * newCapacity;
+    bufferCapacity = newCapacity;
+    
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = bufferSize;
+    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    
+    if (vkCreateBuffer(device, &bufferInfo, nullptr, &instanceBuffer) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to reallocate chunk instance buffer!");
+    }
+    
+    // Allocate memory
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(device, instanceBuffer, &memRequirements);
+    
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, 
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    
+    if (vkAllocateMemory(device, &allocInfo, nullptr, &instanceMemory) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to allocate reallocated chunk instance buffer memory!");
+    }
+    
+    vkBindBufferMemory(device, instanceBuffer, instanceMemory, 0);
+    
+    // Map memory persistently
+    vkMapMemory(device, instanceMemory, 0, bufferSize, 0, &mappedMemory);
+    
+    std::cout << "[CHUNK] Successfully reallocated buffer to capacity: " 
+              << bufferCapacity << " instances (" << bufferSize << " bytes)" << std::endl;
+}
+
+void Chunk::logBufferUtilization() const {
+    if (bufferCapacity > 0) {
+        float utilization = float(maxInstancesUsed) / float(bufferCapacity) * 100.0f;
+        float currentUtilization = float(faces.size()) / float(bufferCapacity) * 100.0f;
+        
+        std::cout << "[CHUNK] Buffer utilization - Current: " << currentUtilization 
+                  << "% (" << faces.size() << "/" << bufferCapacity 
+                  << "), Peak: " << utilization 
+                  << "% (" << maxInstancesUsed << "/" << bufferCapacity << ")" << std::endl;
+    }
 }
 
 } // namespace VulkanCube

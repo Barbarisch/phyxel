@@ -198,13 +198,13 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
                          cubePos.y == 0 || cubePos.y == 31 || 
                          cubePos.z == 0 || cubePos.z == 31) && 
                         cubeIndex < 10) { // Only log first few boundary cubes to avoid spam
-                        std::cout << "[DEBUG] Boundary cube check: chunk origin(" 
-                                  << chunkOrigin.x << "," << chunkOrigin.y << "," << chunkOrigin.z 
-                                  << ") cube local(" << cubePos.x << "," << cubePos.y << "," << cubePos.z 
-                                  << ") face " << faceID << " neighbor world(" << neighborWorldPos.x << "," << neighborWorldPos.y << "," << neighborWorldPos.z
-                                  << ") neighbor chunk coord(" << neighborChunkCoord.x << "," << neighborChunkCoord.y << "," << neighborChunkCoord.z
-                                  << ") neighbor local(" << neighborLocalInAdjacentChunk.x << "," << neighborLocalInAdjacentChunk.y << "," << neighborLocalInAdjacentChunk.z 
-                                  << ") neighbor chunk origin(" << neighborChunk->getWorldOrigin().x << "," << neighborChunk->getWorldOrigin().y << "," << neighborChunk->getWorldOrigin().z << ")" << std::endl;
+                        // std::cout << "[DEBUG] Boundary cube check: chunk origin(" 
+                        //           << chunkOrigin.x << "," << chunkOrigin.y << "," << chunkOrigin.z 
+                        //           << ") cube local(" << cubePos.x << "," << cubePos.y << "," << cubePos.z 
+                        //           << ") face " << faceID << " neighbor world(" << neighborWorldPos.x << "," << neighborWorldPos.y << "," << neighborWorldPos.z
+                        //           << ") neighbor chunk coord(" << neighborChunkCoord.x << "," << neighborChunkCoord.y << "," << neighborChunkCoord.z
+                        //           << ") neighbor local(" << neighborLocalInAdjacentChunk.x << "," << neighborLocalInAdjacentChunk.y << "," << neighborLocalInAdjacentChunk.z 
+                        //           << ") neighbor chunk origin(" << neighborChunk->getWorldOrigin().x << "," << neighborChunk->getWorldOrigin().y << "," << neighborChunk->getWorldOrigin().z << ")" << std::endl;
                     }
                     
                     const Cube* neighborCube = neighborChunk->getCubeAt(neighborLocalInAdjacentChunk);
@@ -212,24 +212,24 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
                         faceVisible[faceID] = false;
                         
                         // Debug successful culling
-                        if ((cubePos.x == 0 || cubePos.x == 31 || 
-                             cubePos.y == 0 || cubePos.y == 31 || 
-                             cubePos.z == 0 || cubePos.z == 31) && 
-                            cubeIndex < 5) {
-                            std::cout << "[DEBUG] Successfully culled face " << faceID << " for boundary cube" << std::endl;
-                        }
+                        // if ((cubePos.x == 0 || cubePos.x == 31 || 
+                        //      cubePos.y == 0 || cubePos.y == 31 || 
+                        //      cubePos.z == 0 || cubePos.z == 31) && 
+                        //     cubeIndex < 5) {
+                        //     std::cout << "[DEBUG] Successfully culled face " << faceID << " for boundary cube" << std::endl;
+                        // }
                     }
                 } else {
                     // Debug when no adjacent chunk is found - this is correct behavior for world edges
-                    if ((cubePos.x == 0 || cubePos.x == 31 || 
-                         cubePos.y == 0 || cubePos.y == 31 || 
-                         cubePos.z == 0 || cubePos.z == 31) && 
-                        cubeIndex < 5) {
-                        std::cout << "[DEBUG] No adjacent chunk found for neighbor world(" 
-                                  << neighborWorldPos.x << "," << neighborWorldPos.y << "," << neighborWorldPos.z 
-                                  << ") chunk coord(" << neighborChunkCoord.x << "," << neighborChunkCoord.y << "," << neighborChunkCoord.z 
-                                  << ") - face remains visible (world edge)" << std::endl;
-                    }
+                    // if ((cubePos.x == 0 || cubePos.x == 31 || 
+                    //      cubePos.y == 0 || cubePos.y == 31 || 
+                    //      cubePos.z == 0 || cubePos.z == 31) && 
+                    //     cubeIndex < 5) {
+                    //     std::cout << "[DEBUG] No adjacent chunk found for neighbor world(" 
+                    //               << neighborWorldPos.x << "," << neighborWorldPos.y << "," << neighborWorldPos.z 
+                    //               << ") chunk coord(" << neighborChunkCoord.x << "," << neighborChunkCoord.y << "," << neighborChunkCoord.z 
+                    //               << ") - face remains visible (world edge)" << std::endl;
+                    // }
                 }
                 // If no adjacent chunk exists, face remains visible (edge of world)
             }
@@ -253,9 +253,9 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
     chunk.numInstances = static_cast<uint32_t>(chunk.faces.size());
     chunk.setNeedsUpdate(true);
     
-    std::cout << "[CHUNKMANAGER] Rebuilt faces with cross-chunk culling for chunk at origin (" 
-              << chunkOrigin.x << "," << chunkOrigin.y << "," << chunkOrigin.z 
-              << "), generated " << chunk.numInstances << " visible faces" << std::endl;
+    // std::cout << "[CHUNKMANAGER] Rebuilt faces with cross-chunk culling for chunk at origin (" 
+    //           << chunkOrigin.x << "," << chunkOrigin.y << "," << chunkOrigin.z 
+    //           << "), generated " << chunk.numInstances << " visible faces" << std::endl;
 }
 
 // ===============================================================
