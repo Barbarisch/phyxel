@@ -9,6 +9,7 @@ namespace VulkanCube {
 Chunk::Chunk(const glm::ivec3& origin) 
     : worldOrigin(origin) {
     cubes.reserve(32 * 32 * 32);              // Reserve space for all possible cubes
+    subcubes.reserve(32 * 32 * 32 * 27);      // Reserve space for maximum subcubes (27 per cube)
     faces.reserve(32 * 32 * 32 * 6);          // Reserve space for maximum faces (6 per cube)
 }
 
@@ -19,11 +20,18 @@ Chunk::~Chunk() {
     }
     cubes.clear();
     
+    // Delete all subcube pointers to free memory
+    for (Subcube* subcube : subcubes) {
+        delete subcube;
+    }
+    subcubes.clear();
+    
     cleanupVulkanResources();
 }
 
 Chunk::Chunk(Chunk&& other) noexcept
     : cubes(std::move(other.cubes))
+    , subcubes(std::move(other.subcubes))
     , faces(std::move(other.faces))
     , instanceBuffer(other.instanceBuffer)
     , instanceMemory(other.instanceMemory)
@@ -49,6 +57,7 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept {
         
         // Move data
         cubes = std::move(other.cubes);
+        subcubes = std::move(other.subcubes);
         faces = std::move(other.faces);
         instanceBuffer = other.instanceBuffer;
         instanceMemory = other.instanceMemory;
@@ -108,7 +117,7 @@ bool Chunk::setCubeColor(const glm::ivec3& localPos, const glm::vec3& color) {
     Cube* cube = getCubeAt(localPos);
     if (!cube) return false;
     
-    cube->color = color;
+    cube->setColor(color);
     needsUpdate = true;
     
     std::cout << "[CHUNK] Set cube color at local pos: (" 
@@ -143,8 +152,8 @@ bool Chunk::addCube(const glm::ivec3& localPos, const glm::vec3& color) {
     
     // If cube already exists, just update its color
     if (cubes[index]) {
-        cubes[index]->color = color;
-        cubes[index]->broken = false;
+        cubes[index]->setColor(color);
+        cubes[index]->setBroken(false);
     } else {
         // Create new cube
         cubes[index] = new Cube(localPos, color);
@@ -175,12 +184,12 @@ void Chunk::populateWithCubes() {
         for (int y = 0; y < 32; ++y) {
             for (int z = 0; z < 32; ++z) {
                 Cube* cube = new Cube();
-                cube->position = glm::ivec3(x, y, z);  // Relative position within chunk
-                cube->color = glm::vec3(
+                cube->setPosition(glm::ivec3(x, y, z));  // Relative position within chunk
+                cube->setColor(glm::vec3(
                     colorDist(gen),
                     colorDist(gen),
                     colorDist(gen)
-                );
+                ));
                 cubes.push_back(cube);
             }
         }
@@ -205,13 +214,14 @@ void Chunk::rebuildFaces() {
         bool faceVisible[6] = {true, true, true, true, true, true};
         
         // Face directions: 0=front(+Z), 1=back(-Z), 2=right(+X), 3=left(-X), 4=top(+Y), 5=bottom(-Y)
+        glm::ivec3 cubePos = cube->getPosition();
         glm::ivec3 neighbors[6] = {
-            cube->position + glm::ivec3(0, 0, 1),   // front (+Z)
-            cube->position + glm::ivec3(0, 0, -1),  // back (-Z)
-            cube->position + glm::ivec3(1, 0, 0),   // right (+X)
-            cube->position + glm::ivec3(-1, 0, 0),  // left (-X)
-            cube->position + glm::ivec3(0, 1, 0),   // top (+Y)
-            cube->position + glm::ivec3(0, -1, 0)   // bottom (-Y)
+            cubePos + glm::ivec3(0, 0, 1),   // front (+Z)
+            cubePos + glm::ivec3(0, 0, -1),  // back (-Z)
+            cubePos + glm::ivec3(1, 0, 0),   // right (+X)
+            cubePos + glm::ivec3(-1, 0, 0),  // left (-X)
+            cubePos + glm::ivec3(0, 1, 0),   // top (+Y)
+            cubePos + glm::ivec3(0, -1, 0)   // bottom (-Y)
         };
         
         // Check each face for occlusion by adjacent cubes
@@ -240,10 +250,11 @@ void Chunk::rebuildFaces() {
                 
                 // Pack cube position (5 bits each) and face ID (3 bits)
                 // Bit layout: [0-4]=x, [5-9]=y, [10-14]=z, [15-17]=faceID, [18-31]=future
-                faceInstance.packedData = (cube->position.x & 0x1F) | ((cube->position.y & 0x1F) << 5) | 
-                                         ((cube->position.z & 0x1F) << 10) | ((faceID & 0x7) << 15);
+                const glm::ivec3& cubePos = cube->getPosition();
+                faceInstance.packedData = (cubePos.x & 0x1F) | ((cubePos.y & 0x1F) << 5) | 
+                                         ((cubePos.z & 0x1F) << 10) | ((faceID & 0x7) << 15);
                 
-                faceInstance.color = cube->color;
+                faceInstance.color = cube->getColor();
                 faces.push_back(faceInstance);
             }
         }
@@ -348,6 +359,164 @@ glm::ivec3 Chunk::indexToLocal(size_t index) {
     int y = (index % (32 * 32)) / 32;
     int z = index % 32;
     return glm::ivec3(x, y, z);
+}
+
+// =============================================================================
+// SUBCUBE MANAGEMENT METHODS
+// =============================================================================
+
+Subcube* Chunk::getSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) {
+    // Find subcube at the specified parent position and subcube local position
+    for (Subcube* subcube : subcubes) {
+        if (subcube && 
+            subcube->getPosition() == worldOrigin + localPos && 
+            subcube->getLocalPosition() == subcubePos) {
+            return subcube;
+        }
+    }
+    return nullptr;
+}
+
+const Subcube* Chunk::getSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const {
+    // Find subcube at the specified parent position and subcube local position
+    for (const Subcube* subcube : subcubes) {
+        if (subcube && 
+            subcube->getPosition() == worldOrigin + localPos && 
+            subcube->getLocalPosition() == subcubePos) {
+            return subcube;
+        }
+    }
+    return nullptr;
+}
+
+std::vector<Subcube*> Chunk::getSubcubesAt(const glm::ivec3& localPos) {
+    std::vector<Subcube*> result;
+    glm::ivec3 parentWorldPos = worldOrigin + localPos;
+    
+    for (Subcube* subcube : subcubes) {
+        if (subcube && subcube->getPosition() == parentWorldPos) {
+            result.push_back(subcube);
+        }
+    }
+    return result;
+}
+
+bool Chunk::subdivideAt(const glm::ivec3& localPos) {
+    // Check if position is valid
+    if (!isValidLocalPosition(localPos)) return false;
+    
+    // Get the cube at this position
+    Cube* cube = getCubeAt(localPos);
+    if (!cube) return false;
+    
+    // Check if already subdivided
+    auto existingSubcubes = getSubcubesAt(localPos);
+    if (!existingSubcubes.empty()) return false; // Already subdivided
+    
+    // Create 27 subcubes (3x3x3)
+    glm::ivec3 parentWorldPos = worldOrigin + localPos;
+    glm::vec3 parentColor = cube->getColor();
+    
+    for (int x = 0; x < 3; ++x) {
+        for (int y = 0; y < 3; ++y) {
+            for (int z = 0; z < 3; ++z) {
+                glm::ivec3 subcubeLocalPos(x, y, z);
+                Subcube* newSubcube = new Subcube(parentWorldPos, parentColor, subcubeLocalPos);
+                subcubes.push_back(newSubcube);
+            }
+        }
+    }
+    
+    // Hide the parent cube (don't delete it, just hide it)
+    cube->hide();
+    
+    // Mark for update
+    needsUpdate = true;
+    
+    std::cout << "[CHUNK] Subdivided cube at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
+              << ") into 27 subcubes" << std::endl;
+    
+    return true;
+}
+
+bool Chunk::addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, const glm::vec3& color) {
+    // Check if position is valid
+    if (!isValidLocalPosition(parentPos)) return false;
+    if (subcubePos.x < 0 || subcubePos.x >= 3 || 
+        subcubePos.y < 0 || subcubePos.y >= 3 || 
+        subcubePos.z < 0 || subcubePos.z >= 3) return false;
+    
+    // Check if subcube already exists
+    if (getSubcubeAt(parentPos, subcubePos)) return false;
+    
+    // Create new subcube
+    glm::ivec3 parentWorldPos = worldOrigin + parentPos;
+    Subcube* newSubcube = new Subcube(parentWorldPos, color, subcubePos);
+    subcubes.push_back(newSubcube);
+    
+    // Mark for update
+    needsUpdate = true;
+    
+    return true;
+}
+
+bool Chunk::removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos) {
+    // Find and remove the subcube
+    for (auto it = subcubes.begin(); it != subcubes.end(); ++it) {
+        Subcube* subcube = *it;
+        if (subcube && 
+            subcube->getPosition() == worldOrigin + parentPos && 
+            subcube->getLocalPosition() == subcubePos) {
+            
+            delete subcube;
+            subcubes.erase(it);
+            needsUpdate = true;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Chunk::clearSubdivisionAt(const glm::ivec3& localPos) {
+    // Check if position is valid
+    if (!isValidLocalPosition(localPos)) return false;
+    
+    // Remove all subcubes at this position
+    glm::ivec3 parentWorldPos = worldOrigin + localPos;
+    auto it = subcubes.begin();
+    bool removedAny = false;
+    
+    while (it != subcubes.end()) {
+        Subcube* subcube = *it;
+        if (subcube && subcube->getPosition() == parentWorldPos) {
+            delete subcube;
+            it = subcubes.erase(it);
+            removedAny = true;
+        } else {
+            ++it;
+        }
+    }
+    
+    // Restore the parent cube
+    Cube* cube = getCubeAt(localPos);
+    if (cube) {
+        cube->show();
+    }
+    
+    if (removedAny) {
+        needsUpdate = true;
+        std::cout << "[CHUNK] Cleared subdivision at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
+                  << ")" << std::endl;
+    }
+    
+    return removedAny;
+}
+
+size_t Chunk::subcubeToIndex(const glm::ivec3& parentPos, const glm::ivec3& subcubePos) {
+    // Calculate a unique index for subcube identification
+    size_t parentIndex = localToIndex(parentPos);
+    size_t subcubeOffset = subcubePos.x + subcubePos.y * 3 + subcubePos.z * 9; // 0-26
+    return parentIndex * 27 + subcubeOffset;
 }
 
 uint32_t Chunk::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {

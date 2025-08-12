@@ -71,7 +71,7 @@ void SceneManager::addCube(int x, int y, int z) {
     // Create instance data using new packed format
     CubeFaces faces;
     faces.front = faces.back = faces.left = faces.right = faces.top = faces.bottom = true; // All faces visible initially
-    InstanceData instanceData = InstanceDataUtils::createInstanceData(position, faces, newCube.color);
+    InstanceData instanceData = InstanceDataUtils::createInstanceData(position, faces, newCube.getColor());
     this->instanceData.push_back(instanceData);
     
     // Add to visibility buffer
@@ -107,7 +107,7 @@ void SceneManager::removeCube(int x, int y, int z) {
         std::swap(cubeFaceStates[index], cubeFaceStates.back());
         
         // Update position mapping for the swapped element
-        positionToIndex[cubes[index].position] = index;
+        positionToIndex[cubes[index].getPosition()] = index;
     }
     
     cubes.pop_back();
@@ -194,7 +194,7 @@ bool SceneManager::updateInstanceData() {
 void SceneManager::recalculateFaceMasks() {
     // Calculate face masks for all cubes - do this once after scene generation, not every frame!
     for (size_t i = 0; i < cubes.size(); ++i) {
-        uint32_t newFaceMask = calculateFaceMask(cubes[i].position);
+        uint32_t newFaceMask = calculateFaceMask(cubes[i].getPosition());
         
         // Extract current position and future data, update face mask
         uint32_t x, y, z;
@@ -273,14 +273,18 @@ uint32_t SceneManager::calculateFaceMask(const glm::ivec3& position) {
 
 void SceneManager::setVisibility(int index, bool visible) {
     if (index >= 0 && index < static_cast<int>(cubes.size())) {
-        cubes[index].visible = visible;
+        if (visible) {
+            cubes[index].show();
+        } else {
+            cubes[index].hide();
+        }
         visibilityBuffer[index] = visible ? 1 : 0;
     }
 }
 
 void SceneManager::updateCubeColor(int index, const glm::vec3& color) {
     if (index >= 0 && index < static_cast<int>(cubes.size())) {
-        cubes[index].color = color;
+        cubes[index].setColor(color);
         instanceData[index].color = color;
     }
 }
@@ -325,7 +329,7 @@ void SceneManager::getPhysicsData(std::vector<glm::vec3>& positions, std::vector
     sizes.reserve(cubes.size());
     
     for (const auto& cube : cubes) {
-        positions.push_back(glm::vec3(cube.position));
+        positions.push_back(glm::vec3(cube.getPosition()));
         sizes.push_back(glm::vec3(1.0f)); // Standard cube size
     }
 }
@@ -335,7 +339,7 @@ void SceneManager::performFrustumCulling() {
     // For now, just mark all as visible
     // In a full implementation, this would test each cube against the view frustum
     for (size_t i = 0; i < cubes.size(); ++i) {
-        visibilityBuffer[i] = cubes[i].visible ? 1 : 0;
+        visibilityBuffer[i] = cubes[i].isVisible() ? 1 : 0;
     }
 }
 
@@ -344,7 +348,7 @@ std::vector<glm::vec3> SceneManager::getCubePositions() const {
     positions.reserve(cubes.size());
     
     for (const auto& cube : cubes) {
-        positions.emplace_back(cube.position);
+        positions.emplace_back(cube.getPosition());
     }
     
     return positions;
@@ -372,7 +376,7 @@ bool SceneManager::isPositionValid(int x, int y, int z) const {
 void SceneManager::updatePositionMapping() {
     positionToIndex.clear();
     for (size_t i = 0; i < cubes.size(); ++i) {
-        positionToIndex[cubes[i].position] = i;
+        positionToIndex[cubes[i].getPosition()] = i;
     }
 }
 
@@ -406,7 +410,7 @@ int SceneManager::pickCube(const glm::vec3& rayOrigin, const glm::vec3& rayDirec
         const Cube& cube = cubes[i];
         
         // Calculate AABB for the cube (each cube is 1x1x1 unit)
-        glm::vec3 cubePos = glm::vec3(cube.position);
+        glm::vec3 cubePos = glm::vec3(cube.getPosition());
         glm::vec3 aabbMin = cubePos - 0.5f; // Cube extends 0.5 units in each direction
         glm::vec3 aabbMax = cubePos + 0.5f;
         
@@ -468,7 +472,7 @@ void SceneManager::performOcclusionCulling() {
     
     // Check each cube for occlusion
     for (size_t i = 0; i < cubes.size(); ++i) {
-        const glm::ivec3& position = cubes[i].position;
+        const glm::ivec3& position = cubes[i].getPosition();
         
         // Calculate face visibility based on neighbors
         CubeFaces faceState = calculateFaceVisibility(position);

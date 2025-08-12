@@ -1317,7 +1317,7 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
     if (!cube) return;
     
     // Store original color and location for later restoration
-    originalHoveredColor = cube->color;
+    originalHoveredColor = cube->getColor();
     currentHoveredLocation = location;
     hasHoveredCube = true;
     
@@ -1333,7 +1333,7 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
     
     // Set hover color (darken the cube by setting it to black)
     glm::vec3 hoverColor = glm::vec3(0.0f, 0.0f, 0.0f); // Black for hover effect
-    cube->color = hoverColor;
+    cube->setColor(hoverColor);
     
     // Mark chunk for update using optimized dirty tracking
     if (chunkManager) {
@@ -1347,7 +1347,7 @@ void Application::clearHoveredCubeInChunksOptimized() {
         Cube* cube = currentHoveredLocation.chunk->getCubeAt(currentHoveredLocation.localPos);
         if (cube) {
             // Restore original color
-            cube->color = originalHoveredColor;
+            cube->setColor(originalHoveredColor);
             
             // Use the proper dirty tracking system for immediate updates
             if (chunkManager) {
@@ -1511,7 +1511,7 @@ void Application::setHoveredCubeInChunks(const glm::ivec3& worldPos) {
     if (!cube) return;
     
     // Store original color and world position for later restoration
-    originalHoveredColor = cube->color;
+    originalHoveredColor = cube->getColor();
     currentHoveredWorldPos = worldPos;
     hasHoveredCube = true;
     

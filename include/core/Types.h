@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <optional>
 #include <chrono>
+#include "core/Cube.h"
 
 // Forward declarations
 class btRigidBody;
@@ -124,25 +125,6 @@ namespace InstanceDataUtils {
         return packInstanceData(relativePos.x, relativePos.y, relativePos.z, faceMask, 0);
     }
 }
-
-// Cube entity
-struct Cube {
-    glm::ivec3 position;
-    glm::vec3 color;
-    bool broken = false;
-    bool visible = true;
-    btRigidBody* rigidBody = nullptr;
-    
-    Cube() : position(0), color(1.0f) {}
-    Cube(glm::ivec3 pos, glm::vec3 col) : position(pos), color(col) {}
-};
-
-// Subcube for destruction
-struct Subcube {
-    btRigidBody* body;
-    glm::vec3 color;
-    double spawnTime;
-};
 
 // Uniform buffer object
 struct UniformBufferObject {
