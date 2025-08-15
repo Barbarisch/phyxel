@@ -23,11 +23,18 @@ void main() {
     
     // Extract face ID from packed data (3 bits)
     uint faceID = (inPackedData >> 15) & 0x7u;  // bits 15-17
-    // Future data available in bits 18-31 for subcube scaling, materials, etc.
     
-    // Calculate cube base position
+    // Extract subcube data from bits 18-31
+    uint subcubeData = (inPackedData >> 18) & 0x3FFFu;  // bits 18-31 (14 bits total)
+    bool isSubcube = (subcubeData & 0x1u) != 0u;        // bit 18: subcube flag
+    uint subcubeLocalX = (subcubeData >> 1) & 0x3u;     // bits 19-20: local X (0-2)
+    uint subcubeLocalY = (subcubeData >> 3) & 0x3u;     // bits 21-22: local Y (0-2)
+    uint subcubeLocalZ = (subcubeData >> 5) & 0x3u;     // bits 23-24: local Z (0-2)
+    // bits 25-31 reserved for future use
+    
+    // Calculate base position (parent cube position for subcubes, cube position for regular cubes)
     vec3 chunkRelativePos = vec3(float(chunkX), float(chunkY), float(chunkZ));
-    vec3 cubeBasePos = pushConstants.chunkBaseOffset + chunkRelativePos;
+    vec3 basePos = pushConstants.chunkBaseOffset + chunkRelativePos;
     
     // Generate face vertices based on faceID and vertexID
     // Face IDs: 0=front(+Z), 1=back(-Z), 2=right(+X), 3=left(-X), 4=top(+Y), 5=bottom(-Y)
@@ -73,7 +80,25 @@ void main() {
         );
     }
     
-    vec3 worldPos = cubeBasePos + faceOffset;
+    vec3 worldPos;
+    
+    if (isSubcube) {
+        // For subcubes: apply 1/3 scaling and local positioning within parent cube
+        const float SUBCUBE_SCALE = 1.0 / 3.0;
+        
+        // Calculate subcube offset within parent cube (each subcube is 1/3 size)
+        vec3 subcubeOffset = vec3(
+            float(subcubeLocalX) * SUBCUBE_SCALE,
+            float(subcubeLocalY) * SUBCUBE_SCALE,
+            float(subcubeLocalZ) * SUBCUBE_SCALE
+        );
+        
+        // Scale the face offset to subcube size and add to base position + subcube offset
+        worldPos = basePos + subcubeOffset + (faceOffset * SUBCUBE_SCALE);
+    } else {
+        // For regular cubes: use standard 1.0 scale
+        worldPos = basePos + faceOffset;
+    }
     
     // CPU pre-filtering: Only vertices for visible faces are sent to GPU
     // No need for face visibility checking - all vertices here should be rendered

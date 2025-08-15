@@ -74,6 +74,11 @@ public:
     bool removeCube(const glm::ivec3& worldPos);          // Returns true if cube was removed
     bool addCube(const glm::ivec3& worldPos, const glm::vec3& color = glm::vec3(1.0f));
     
+    // Subcube manipulation helpers
+    Subcube* getSubcubeAt(const glm::ivec3& worldPos, const glm::ivec3& subcubePos); // Get subcube at position
+    void setSubcubeColorEfficient(const glm::ivec3& worldPos, const glm::ivec3& subcubePos, const glm::vec3& color);
+    glm::vec3 getSubcubeColor(const glm::ivec3& worldPos, const glm::ivec3& subcubePos);
+    
     // Convert between coordinate systems
     static glm::ivec3 worldToChunkCoord(const glm::ivec3& worldPos) { 
         // Proper division that handles negative numbers correctly

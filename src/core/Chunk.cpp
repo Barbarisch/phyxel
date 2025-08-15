@@ -128,9 +128,9 @@ bool Chunk::setCubeColor(const glm::ivec3& localPos, const glm::vec3& color) {
     cube->setColor(color);
     needsUpdate = true;
     
-    std::cout << "[CHUNK] Set cube color at local pos: (" 
-              << localPos.x << "," << localPos.y << "," << localPos.z 
-              << ") to: (" << color.x << "," << color.y << "," << color.z << ")" << std::endl;
+    // std::cout << "[CHUNK] Set cube color at local pos: (" 
+    //           << localPos.x << "," << localPos.y << "," << localPos.z 
+    //           << ") to: (" << color.x << "," << color.y << "," << color.z << ")" << std::endl;
     
     return true;
 }
@@ -144,10 +144,13 @@ bool Chunk::removeCube(const glm::ivec3& localPos) {
     // Actually delete the cube from memory
     delete cubes[index];
     cubes[index] = nullptr; // Mark as deleted
-    needsUpdate = true;
     
-    std::cout << "[CHUNK] Completely removed cube at local pos: (" 
-              << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
+    // Immediately rebuild faces to remove the cube from GPU buffer
+    rebuildFaces();
+    updateVulkanBuffer();
+    
+    // std::cout << "[CHUNK] Completely removed cube at local pos: (" 
+    //           << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
     
     return true;
 }
@@ -161,17 +164,19 @@ bool Chunk::addCube(const glm::ivec3& localPos, const glm::vec3& color) {
     // If cube already exists, just update its color
     if (cubes[index]) {
         cubes[index]->setColor(color);
+        cubes[index]->setOriginalColor(color); // Update original color too
         cubes[index]->setBroken(false);
     } else {
         // Create new cube
         cubes[index] = new Cube(localPos, color);
+        cubes[index]->setOriginalColor(color); // Ensure original color is set
     }
     
     needsUpdate = true;
     
-    std::cout << "[CHUNK] Added/restored cube at local pos: (" 
-              << localPos.x << "," << localPos.y << "," << localPos.z 
-              << ") with color: (" << color.x << "," << color.y << "," << color.z << ")" << std::endl;
+    // std::cout << "[CHUNK] Added/restored cube at local pos: (" 
+    //           << localPos.x << "," << localPos.y << "," << localPos.z 
+    //           << ") with color: (" << color.x << "," << color.y << "," << color.z << ")" << std::endl;
     
     return true;
 }
@@ -193,30 +198,35 @@ void Chunk::populateWithCubes() {
             for (int z = 0; z < 32; ++z) {
                 Cube* cube = new Cube();
                 cube->setPosition(glm::ivec3(x, y, z));  // Relative position within chunk
-                cube->setColor(glm::vec3(
+                glm::vec3 cubeColor = glm::vec3(
                     colorDist(gen),
                     colorDist(gen),
                     colorDist(gen)
-                ));
+                );
+                cube->setColor(cubeColor);
+                cube->setOriginalColor(cubeColor); // Store original color
                 cubes.push_back(cube);
             }
         }
     }
     
-    std::cout << "[CHUNK] Populated chunk at origin (" 
-              << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z 
-              << ") with " << cubes.size() << " cubes" << std::endl;
+    // std::cout << "[CHUNK] Populated chunk at origin (" 
+    //           << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z 
+    //           << ") with " << cubes.size() << " cubes" << std::endl;
 }
 
 void Chunk::rebuildFaces() {
+    // std::cout << "[CHUNK] *** STARTING rebuildFaces() *** Current subcubes: " << subcubes.size() << std::endl;
     faces.clear();
     
-    // Face culling with adjacency checks
+    // ========================================================================
+    // PHASE 1: Process regular cubes (only those that aren't subdivided)
+    // ========================================================================
     for (size_t cubeIndex = 0; cubeIndex < cubes.size(); ++cubeIndex) {
         const Cube* cube = cubes[cubeIndex];
         
-        // Skip deleted cubes (nullptr)
-        if (!cube) continue;
+        // Skip deleted cubes (nullptr) or hidden cubes (subdivided)
+        if (!cube || !cube->isVisible()) continue;
         
         // Calculate which faces are visible by checking adjacent positions
         bool faceVisible[6] = {true, true, true, true, true, true};
@@ -243,26 +253,95 @@ void Chunk::rebuildFaces() {
                 
                 // Check if there's a visible cube at the neighbor position
                 const Cube* neighborCube = getCubeAt(neighborPos);
-                if (neighborCube) {
-                    // Neighbor cube exists, so this face is occluded
+                if (neighborCube && neighborCube->isVisible()) {
+                    // Neighbor cube exists and is visible, so this face is occluded
                     faceVisible[faceID] = false;
                 }
             }
             // If neighbor is outside chunk bounds, face remains visible (edge of chunk)
         }
         
-        // Generate instance data for each visible face
+        // Generate instance data for each visible face of the cube
         for (int faceID = 0; faceID < 6; ++faceID) {
             if (faceVisible[faceID]) {
                 InstanceData faceInstance;
                 
                 // Pack cube position (5 bits each) and face ID (3 bits)
-                // Bit layout: [0-4]=x, [5-9]=y, [10-14]=z, [15-17]=faceID, [18-31]=future
+                // Bit layout: [0-4]=x, [5-9]=y, [10-14]=z, [15-17]=faceID, [18]=subcube_flag(0), [19-31]=reserved
                 const glm::ivec3& cubePos = cube->getPosition();
+                uint32_t subcubeData = 0; // Regular cube: subcube_flag=0, rest=0
                 faceInstance.packedData = (cubePos.x & 0x1F) | ((cubePos.y & 0x1F) << 5) | 
-                                         ((cubePos.z & 0x1F) << 10) | ((faceID & 0x7) << 15);
+                                         ((cubePos.z & 0x1F) << 10) | ((faceID & 0x7) << 15) |
+                                         (subcubeData << 18);
                 
                 faceInstance.color = cube->getColor();
+                faces.push_back(faceInstance);
+            }
+        }
+    }
+    
+    // ========================================================================
+    // PHASE 2: Process subcubes (from subdivided cubes)
+    // ========================================================================
+    // std::cout << "[CHUNK] Processing " << subcubes.size() << " subcubes in PHASE 2..." << std::endl;
+    int subcubeProcessed = 0;
+    for (const Subcube* subcube : subcubes) {
+        // Skip broken or hidden subcubes
+        if (!subcube || subcube->isBroken() || !subcube->isVisible()) {
+            // if (!subcube) {
+            //     std::cout << "[CHUNK] Skipping null subcube" << std::endl;
+            // } else {
+            //     std::cout << "[CHUNK] Skipping subcube - broken: " << subcube->isBroken() << ", visible: " << subcube->isVisible() << std::endl;
+            // }
+            continue;
+        }
+        
+        // Get subcube properties
+        glm::ivec3 parentPos = subcube->getPosition();     // Parent cube's world position
+        glm::ivec3 localPos = subcube->getLocalPosition(); // 0-2 for each axis within parent
+        
+        // std::cout << "[CHUNK] Processing subcube " << subcubeProcessed << " at parent world pos (" 
+        //           << parentPos.x << "," << parentPos.y << "," << parentPos.z 
+        //           << ") local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
+        //           << ") color (" << subcube->getColor().x << "," << subcube->getColor().y << "," << subcube->getColor().z << ")" << std::endl;
+        subcubeProcessed++;
+        
+        // Convert parent world position to chunk-relative position
+        glm::ivec3 parentChunkPos = parentPos - worldOrigin;
+        
+        // Validate parent position is within chunk bounds
+        if (parentChunkPos.x < 0 || parentChunkPos.x >= 32 ||
+            parentChunkPos.y < 0 || parentChunkPos.y >= 32 ||
+            parentChunkPos.z < 0 || parentChunkPos.z >= 32) {
+            continue; // Skip subcubes with invalid parent positions
+        }
+        
+        // Calculate which faces are visible by checking adjacent subcubes/cubes
+        bool faceVisible[6] = {true, true, true, true, true, true};
+        
+        // For subcubes, we need more sophisticated occlusion culling:
+        // - Check against other subcubes in the same parent cube
+        // - Check against neighboring cubes/subcubes
+        // For now, simplified: assume all subcube faces are visible (we can optimize later)
+        
+        // Generate instance data for each visible face of the subcube
+        for (int faceID = 0; faceID < 6; ++faceID) {
+            if (faceVisible[faceID]) {
+                InstanceData faceInstance;
+                
+                // Pack parent cube position (5 bits each), face ID (3 bits), and subcube data
+                // Bit layout: [0-4]=parent_x, [5-9]=parent_y, [10-14]=parent_z, [15-17]=faceID, 
+                //             [18]=subcube_flag(1), [19-20]=local_x, [21-22]=local_y, [23-24]=local_z, [25-31]=reserved
+                uint32_t subcubeData = (1 << 0) |                           // subcube_flag = 1
+                                      ((localPos.x & 0x3) << 1) |          // local_x (2 bits)
+                                      ((localPos.y & 0x3) << 3) |          // local_y (2 bits)
+                                      ((localPos.z & 0x3) << 5);           // local_z (2 bits)
+                
+                faceInstance.packedData = (parentChunkPos.x & 0x1F) | ((parentChunkPos.y & 0x1F) << 5) | 
+                                         ((parentChunkPos.z & 0x1F) << 10) | ((faceID & 0x7) << 15) |
+                                         (subcubeData << 18);
+                
+                faceInstance.color = subcube->getColor();
                 faces.push_back(faceInstance);
             }
         }
@@ -271,9 +350,11 @@ void Chunk::rebuildFaces() {
     numInstances = static_cast<uint32_t>(faces.size());
     needsUpdate = true;
     
-    std::cout << "[CHUNK] Rebuilt faces for chunk at origin (" 
-              << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z 
-              << "), generated " << numInstances << " visible faces" << std::endl;
+    // std::cout << "[CHUNK] Rebuilt faces for chunk at origin (" 
+    //           << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z 
+    //           << "), generated " << numInstances << " visible faces (" 
+    //           << (faces.size() - subcubes.size() * 6) << " cube faces + " 
+    //           << (subcubes.size() * 6) << " subcube faces)" << std::endl;
 }
 
 void Chunk::updateVulkanBuffer() {
@@ -296,9 +377,9 @@ void Chunk::updateVulkanBuffer() {
         logBufferUtilization();
     }
     
-    std::cout << "[CHUNK] Updated Vulkan buffer for chunk at origin (" 
-              << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z 
-              << "), uploaded " << faces.size() << " face instances" << std::endl;
+    // std::cout << "[CHUNK] Updated Vulkan buffer for chunk at origin (" 
+    //           << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z 
+    //           << "), uploaded " << faces.size() << " face instances" << std::endl;
 }
 
 void Chunk::updateSingleCubeColor(const glm::ivec3& localPos, const glm::vec3& newColor) {
@@ -352,6 +433,66 @@ void Chunk::updateSingleCubeColor(const glm::ivec3& localPos, const glm::vec3& n
     }
 }
 
+void Chunk::updateSingleSubcubeColor(const glm::ivec3& parentLocalPos, const glm::ivec3& subcubePos, const glm::vec3& newColor) {
+    if (!isValidLocalPosition(parentLocalPos)) return;
+    if (subcubePos.x < 0 || subcubePos.x >= 3 || 
+        subcubePos.y < 0 || subcubePos.y >= 3 || 
+        subcubePos.z < 0 || subcubePos.z >= 3) return;
+    
+    // Find the subcube and update its color
+    Subcube* subcube = getSubcubeAt(parentLocalPos, subcubePos);
+    if (!subcube) return;
+    
+    subcube->setColor(newColor);
+    
+    // Efficiently update only the affected faces in the buffer
+    if (!mappedMemory) return;
+    
+    bool updatedAnyFaces = false;
+    
+    // Find all face instances for this subcube and update their colors
+    for (size_t i = 0; i < faces.size(); ++i) {
+        InstanceData& face = faces[i];
+        
+        // Extract data from packed format for subcubes
+        // Bit layout: [0-4]=parent_x, [5-9]=parent_y, [10-14]=parent_z, [15-17]=faceID, 
+        //             [18]=subcube_flag(1), [19-20]=local_x, [21-22]=local_y, [23-24]=local_z
+        int parentX = face.packedData & 0x1F;
+        int parentY = (face.packedData >> 5) & 0x1F;
+        int parentZ = (face.packedData >> 10) & 0x1F;
+        uint32_t subcubeData = (face.packedData >> 18);
+        bool isSubcubeFace = (subcubeData & 0x1) != 0;
+        
+        // Check if this is a subcube face belonging to our specific subcube
+        if (isSubcubeFace && 
+            parentX == parentLocalPos.x && parentY == parentLocalPos.y && parentZ == parentLocalPos.z) {
+            
+            // Extract subcube local position from packed data
+            int localX = (subcubeData >> 1) & 0x3;
+            int localY = (subcubeData >> 3) & 0x3;
+            int localZ = (subcubeData >> 5) & 0x3;
+            
+            // Check if this face belongs to our specific subcube
+            if (localX == subcubePos.x && localY == subcubePos.y && localZ == subcubePos.z) {
+                // Update the color in the faces vector
+                faces[i].color = newColor;
+                
+                // Update the GPU buffer directly (partial update)
+                VkDeviceSize offset = i * sizeof(InstanceData) + offsetof(InstanceData, color);
+                memcpy(static_cast<char*>(mappedMemory) + offset, &newColor, sizeof(glm::vec3));
+                
+                updatedAnyFaces = true;
+            }
+        }
+    }
+    
+    if (updatedAnyFaces) {
+        // Successfully updated subcube color
+    } else {
+        // Failed to update subcube color - no faces found for this subcube
+    }
+}
+
 void Chunk::createVulkanBuffer() {
     if (device == VK_NULL_HANDLE) {
         throw std::runtime_error("Chunk not initialized with Vulkan device!");
@@ -398,9 +539,9 @@ void Chunk::createVulkanBuffer() {
         memcpy(mappedMemory, faces.data(), usedSize);
     }
     
-    std::cout << "[CHUNK] Created fixed-capacity Vulkan buffer for chunk at origin (" 
-              << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z 
-              << "), capacity: " << bufferCapacity << " instances (" << bufferSize << " bytes)" << std::endl;
+    // std::cout << "[CHUNK] Created fixed-capacity Vulkan buffer for chunk at origin (" 
+    //           << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z 
+    //           << "), capacity: " << bufferCapacity << " instances (" << bufferSize << " bytes)" << std::endl;
 }
 
 void Chunk::cleanupVulkanResources() {
@@ -486,16 +627,36 @@ bool Chunk::subdivideAt(const glm::ivec3& localPos) {
     auto existingSubcubes = getSubcubesAt(localPos);
     if (!existingSubcubes.empty()) return false; // Already subdivided
     
-    // Create 27 subcubes (3x3x3)
+    // Create 27 subcubes (3x3x3) with random colors for clear visual distinction
     glm::ivec3 parentWorldPos = worldOrigin + localPos;
-    glm::vec3 parentColor = cube->getColor();
     
+    // Use random colors for subcubes instead of parent-based colors
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> colorDist(0.2f, 1.0f); // Avoid very dark colors
+    
+    // std::cout << "[CHUNK] Creating 27 subcubes with random colors..." << std::endl;
+    
+    int colorIndex = 0;
     for (int x = 0; x < 3; ++x) {
         for (int y = 0; y < 3; ++y) {
             for (int z = 0; z < 3; ++z) {
                 glm::ivec3 subcubeLocalPos(x, y, z);
-                Subcube* newSubcube = new Subcube(parentWorldPos, parentColor, subcubeLocalPos);
+                
+                // Generate completely random color for each subcube
+                glm::vec3 subcubeColor = glm::vec3(
+                    colorDist(gen),
+                    colorDist(gen),
+                    colorDist(gen)
+                );
+                
+                // std::cout << "[CHUNK]   Subcube " << colorIndex << " at (" << x << "," << y << "," << z 
+                //           << ") color: (" << subcubeColor.x << "," << subcubeColor.y << "," << subcubeColor.z << ")" << std::endl;
+                
+                Subcube* newSubcube = new Subcube(parentWorldPos, subcubeColor, subcubeLocalPos);
                 subcubes.push_back(newSubcube);
+                cube->addSubcube(newSubcube); // Also add to the parent cube
+                colorIndex++;
             }
         }
     }
@@ -503,11 +664,15 @@ bool Chunk::subdivideAt(const glm::ivec3& localPos) {
     // Hide the parent cube (don't delete it, just hide it)
     cube->hide();
     
+    // Debug: Verify the cube is actually hidden and subdivided
+    // std::cout << "[CHUNK] Parent cube hidden. isVisible() = " << cube->isVisible() 
+    //           << ", isSubdivided() = " << cube->isSubdivided() << std::endl;
+    
     // Mark for update
     needsUpdate = true;
     
-    std::cout << "[CHUNK] Subdivided cube at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
-              << ") into 27 subcubes" << std::endl;
+    // std::cout << "[CHUNK] Subdivided cube at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
+    //           << ") into 27 subcubes with " << subcubes.size() << " total subcubes in chunk" << std::endl;
     
     return true;
 }
@@ -541,12 +706,23 @@ bool Chunk::removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcube
             subcube->getPosition() == worldOrigin + parentPos && 
             subcube->getLocalPosition() == subcubePos) {
             
+            // Also remove from parent cube's subcube list
+            Cube* parentCube = getCubeAt(parentPos);
+            if (parentCube) {
+                parentCube->removeSubcube(subcube);
+            }
+            
             delete subcube;
             subcubes.erase(it);
-            needsUpdate = true;
+            
+            // Immediately rebuild faces to remove the subcube from GPU buffer
+            rebuildFaces();
+            updateVulkanBuffer();
+            
             return true;
         }
     }
+    
     return false;
 }
 
@@ -573,13 +749,16 @@ bool Chunk::clearSubdivisionAt(const glm::ivec3& localPos) {
     // Restore the parent cube
     Cube* cube = getCubeAt(localPos);
     if (cube) {
+        cube->clearSubcubes(); // Clear subcubes from the parent cube
         cube->show();
     }
     
     if (removedAny) {
-        needsUpdate = true;
-        std::cout << "[CHUNK] Cleared subdivision at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
-                  << ")" << std::endl;
+        // Immediately rebuild faces to remove all subcubes and restore parent from GPU buffer
+        rebuildFaces();
+        updateVulkanBuffer();
+        // std::cout << "[CHUNK] Cleared subdivision at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
+        //           << ")" << std::endl;
     }
     
     return removedAny;
@@ -617,8 +796,8 @@ void Chunk::ensureBufferCapacity(size_t requiredInstances) {
         return; // Buffer is large enough
     }
     
-    std::cout << "[CHUNK] WARNING: Buffer reallocation needed! Required: " 
-              << requiredInstances << ", Current capacity: " << bufferCapacity << std::endl;
+    // std::cout << "[CHUNK] WARNING: Buffer reallocation needed! Required: " 
+    //           << requiredInstances << ", Current capacity: " << bufferCapacity << std::endl;
     
     // Calculate new capacity with headroom (50% extra)
     size_t newCapacity = static_cast<size_t>(requiredInstances * 1.5f);
@@ -670,8 +849,8 @@ void Chunk::ensureBufferCapacity(size_t requiredInstances) {
     // Map memory persistently
     vkMapMemory(device, instanceMemory, 0, bufferSize, 0, &mappedMemory);
     
-    std::cout << "[CHUNK] Successfully reallocated buffer to capacity: " 
-              << bufferCapacity << " instances (" << bufferSize << " bytes)" << std::endl;
+    // std::cout << "[CHUNK] Successfully reallocated buffer to capacity: " 
+    //           << bufferCapacity << " instances (" << bufferSize << " bytes)" << std::endl;
 }
 
 void Chunk::logBufferUtilization() const {
@@ -679,10 +858,10 @@ void Chunk::logBufferUtilization() const {
         float utilization = float(maxInstancesUsed) / float(bufferCapacity) * 100.0f;
         float currentUtilization = float(faces.size()) / float(bufferCapacity) * 100.0f;
         
-        std::cout << "[CHUNK] Buffer utilization - Current: " << currentUtilization 
-                  << "% (" << faces.size() << "/" << bufferCapacity 
-                  << "), Peak: " << utilization 
-                  << "% (" << maxInstancesUsed << "/" << bufferCapacity << ")" << std::endl;
+        // std::cout << "[CHUNK] Buffer utilization - Current: " << currentUtilization 
+        //           << "% (" << faces.size() << "/" << bufferCapacity 
+        //           << "), Peak: " << utilization 
+        //           << "% (" << maxInstancesUsed << "/" << bufferCapacity << ")" << std::endl;
     }
 }
 

@@ -93,8 +93,10 @@ void ChunkManager::updateChunk(size_t chunkIndex) {
     
     Chunk* chunk = chunks[chunkIndex].get();
     if (chunk->getNeedsUpdate()) {
-        // Rebuild faces with cross-chunk culling to reflect any cube color changes
-        rebuildChunkFacesWithCrosschunkCulling(*chunk);
+        std::cout << "[CHUNK_MANAGER] Updating chunk " << chunkIndex << " with " << chunk->getSubcubeCount() << " subcubes" << std::endl;
+        
+        // Use the chunk's own rebuildFaces() method which handles both cubes AND subcubes
+        chunk->rebuildFaces();
         
         // Update GPU buffer with new face data
         chunk->updateVulkanBuffer();
@@ -393,6 +395,44 @@ bool ChunkManager::addCube(const glm::ivec3& worldPos, const glm::vec3& color) {
         rebuildChunkFaces(*chunk);
     }
     return result;
+}
+
+Subcube* ChunkManager::getSubcubeAt(const glm::ivec3& worldPos, const glm::ivec3& subcubePos) {
+    Chunk* chunk = getChunkAt(worldPos);
+    if (!chunk) return nullptr;
+    
+    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+    Cube* cube = chunk->getCubeAt(localPos);
+    if (!cube || !cube->isSubdivided()) return nullptr;
+    
+    return cube->getSubcubeAt(subcubePos);
+}
+
+void ChunkManager::setSubcubeColorEfficient(const glm::ivec3& worldPos, const glm::ivec3& subcubePos, const glm::vec3& color) {
+    Chunk* chunk = getChunkAt(worldPos);
+    if (!chunk) return;
+    
+    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+    Cube* cube = chunk->getCubeAt(localPos);
+    if (!cube || !cube->isSubdivided()) return;
+    
+    // Use the new efficient partial update method (similar to regular cubes)
+    chunk->updateSingleSubcubeColor(localPos, subcubePos, color);
+}
+
+glm::vec3 ChunkManager::getSubcubeColor(const glm::ivec3& worldPos, const glm::ivec3& subcubePos) {
+    Chunk* chunk = getChunkAt(worldPos);
+    if (!chunk) return glm::vec3(1.0f); // Default white
+    
+    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+    Cube* cube = chunk->getCubeAt(localPos);
+    if (!cube || !cube->isSubdivided()) return glm::vec3(1.0f);
+    
+    Subcube* subcube = cube->getSubcubeAt(subcubePos);
+    if (subcube) {
+        return subcube->getColor();
+    }
+    return glm::vec3(1.0f); // Default white
 }
 
 uint32_t ChunkManager::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {

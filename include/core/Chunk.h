@@ -18,12 +18,12 @@ private:
     std::vector<Cube*> cubes;                      // Pointers to cubes for efficient deletion (32x32x32)
     std::vector<Subcube*> subcubes;                // Pointers to subcubes for voxel subdivision
     std::vector<InstanceData> faces;               // Visible faces only (CPU pre-filtered for rendering)
-    VkBuffer instanceBuffer = VK_NULL_HANDLE;     // Vulkan buffer for this chunk's face instance data
+    VkBuffer instanceBuffer = VK_NULL_HANDLE;      // Vulkan buffer for this chunk's face instance data
     VkDeviceMemory instanceMemory = VK_NULL_HANDLE;
     void* mappedMemory = nullptr;                  // Persistent mapping for updates
-    uint32_t numInstances = 0;                    // Variable count based on visible faces
-    glm::ivec3 worldOrigin = glm::ivec3(0);       // World-space origin of this chunk
-    bool needsUpdate = false;                     // Flag for buffer updates
+    uint32_t numInstances = 0;                     // Variable count based on visible faces
+    glm::ivec3 worldOrigin = glm::ivec3(0);        // World-space origin of this chunk
+    bool needsUpdate = false;                      // Flag for buffer updates
     
     // Buffer capacity management
     static constexpr size_t DEFAULT_BUFFER_CAPACITY = 25000;   // Realistic capacity based on testing (8x current usage)
@@ -96,6 +96,7 @@ public:
     
     // Efficient partial updates for hover effects (avoids full rebuild)
     void updateSingleCubeColor(const glm::ivec3& localPos, const glm::vec3& newColor);
+    void updateSingleSubcubeColor(const glm::ivec3& parentLocalPos, const glm::ivec3& subcubePos, const glm::vec3& newColor);
     
     // Vulkan buffer management
     void createVulkanBuffer();

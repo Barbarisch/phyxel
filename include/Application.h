@@ -38,12 +38,16 @@ private:
     // Optimized cube location struct to avoid repeated coordinate conversions
     struct CubeLocation {
         Chunk* chunk;
-        glm::ivec3 localPos;
-        glm::ivec3 worldPos;
+        glm::ivec3 localPos;        // Local position within chunk
+        glm::ivec3 worldPos;        // World position
+        bool isSubcube;             // True if this location refers to a subcube
+        glm::ivec3 subcubePos;      // Local position within parent cube (0-2 for each axis)
         
-        CubeLocation() : chunk(nullptr), localPos(-1), worldPos(-1) {}
+        CubeLocation() : chunk(nullptr), localPos(-1), worldPos(-1), isSubcube(false), subcubePos(-1) {}
         CubeLocation(Chunk* c, const glm::ivec3& local, const glm::ivec3& world) 
-            : chunk(c), localPos(local), worldPos(world) {}
+            : chunk(c), localPos(local), worldPos(world), isSubcube(false), subcubePos(-1) {}
+        CubeLocation(Chunk* c, const glm::ivec3& local, const glm::ivec3& world, const glm::ivec3& sub) 
+            : chunk(c), localPos(local), worldPos(world), isSubcube(true), subcubePos(sub) {}
         
         bool isValid() const { return chunk != nullptr; }
     };
@@ -147,10 +151,13 @@ private:
     // Mouse picking / hover functionality
     void updateMouseHover();
     glm::vec3 screenToWorldRay(double mouseX, double mouseY) const;
-    void removeHoveredCube();  // Remove the currently hovered cube
+    void removeHoveredCube();    // Remove the currently hovered cube
+    void subdivideHoveredCube(); // Subdivide the currently hovered cube into 27 subcubes
     
     // Chunk-based hover detection helpers (optimized)
     CubeLocation pickCubeInChunksOptimized(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;
+    glm::ivec3 findSubcubeHit(const glm::vec3& rayOrigin, const glm::vec3& rayDirection, const glm::ivec3& cubeWorldPos) const;
+    CubeLocation findExistingSubcubeHit(Chunk* chunk, const glm::ivec3& localPos, const glm::ivec3& cubeWorldPos, const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;
     void setHoveredCubeInChunksOptimized(const CubeLocation& location);
     void clearHoveredCubeInChunksOptimized();
     

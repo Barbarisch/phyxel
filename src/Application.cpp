@@ -8,6 +8,7 @@
 #include <fstream>
 #include <chrono>
 #include <cstring>
+#include <limits>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -957,8 +958,19 @@ void Application::mouseButtonCallback(GLFWwindow* window, int button, int action
     }
     
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
-        // Remove cube at hover location if available
-        app->removeHoveredCube();
+        // Check for Ctrl modifier for subdivision
+        if (mods & GLFW_MOD_CONTROL) {
+            // Ctrl+Left Click: Subdivide cube into 27 subcubes
+            app->subdivideHoveredCube();
+        } else {
+            // Left Click: Remove cube at hover location if available
+            app->removeHoveredCube();
+        }
+    }
+    
+    if (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_PRESS) {
+        // Middle Click: Subdivide cube into 27 subcubes
+        app->subdivideHoveredCube();
     }
 }
 
@@ -1164,8 +1176,17 @@ void Application::updateMouseHover() {
     // Convert location to a simple index for tracking (use a hash or simple approach)
     int hoveredCube = -1;
     if (hoveredLocation.isValid()) {
-        // Simple hash for tracking: combine coordinates to create unique ID
+        // Enhanced hash for tracking: include subcube position for proper subcube hover detection
+        // Use smaller multipliers to avoid integer overflow for subcube coordinates
         hoveredCube = hoveredLocation.worldPos.x + hoveredLocation.worldPos.y * 1000 + hoveredLocation.worldPos.z * 1000000;
+        
+        // If it's a subcube, include subcube position in hash to distinguish between subcubes of same parent
+        // Use much smaller multipliers to prevent integer overflow (subcube coords are 0-2)
+        if (hoveredLocation.isSubcube) {
+            hoveredCube += hoveredLocation.subcubePos.x * 27 + 
+                          hoveredLocation.subcubePos.y * 9 + 
+                          hoveredLocation.subcubePos.z * 3;
+        }
     }
     
     // Update hover state if changed
@@ -1274,9 +1295,20 @@ Application::CubeLocation Application::pickCubeInChunksOptimized(const glm::vec3
             Chunk* chunk = chunkManager->getChunkAtCoord(chunkCoord);
             if (chunk) {
                 // Use the Chunk class's public interface
-                if (chunk->getCubeAt(localPos)) {
-                    // Found a valid cube! Return all coordinate info to avoid re-conversion
-                    return CubeLocation(chunk, localPos, voxel);
+                Cube* cube = chunk->getCubeAt(localPos);
+                if (cube) {
+                    // Check if cube is subdivided - if so, find specific subcube
+                    if (cube->isSubdivided()) {
+                        // Instead of geometric calculation, test actual existing subcubes
+                        CubeLocation subcubeHit = findExistingSubcubeHit(chunk, localPos, voxel, rayOrigin, rayDirection);
+                        if (subcubeHit.isValid()) {
+                            return subcubeHit;
+                        }
+                    } else if (cube->isVisible()) {
+                        // Regular visible cube - return normal cube location
+                        return CubeLocation(chunk, localPos, voxel);
+                    }
+                    // If cube exists but is not visible and not subdivided, skip it
                 }
             }
         }
@@ -1306,45 +1338,198 @@ Application::CubeLocation Application::pickCubeInChunksOptimized(const glm::vec3
     return CubeLocation(); // No cube found
 }
 
+glm::ivec3 Application::findSubcubeHit(const glm::vec3& rayOrigin, const glm::vec3& rayDirection, const glm::ivec3& cubeWorldPos) const {
+    // Convert cube world position to cube-local ray
+    glm::vec3 cubeLocalOrigin = rayOrigin - glm::vec3(cubeWorldPos);
+    
+    // Subcubes are 1/3 scale, so we have a 3x3x3 grid within each cube
+    float subcubeSize = 1.0f / 3.0f;
+    
+    // Use DDA algorithm within the cube for precise subcube detection
+    glm::vec3 currentPos = cubeLocalOrigin;
+    
+    // If ray origin is outside the cube, find entry point
+    if (currentPos.x < 0.0f || currentPos.x >= 1.0f ||
+        currentPos.y < 0.0f || currentPos.y >= 1.0f ||
+        currentPos.z < 0.0f || currentPos.z >= 1.0f) {
+        
+        // Ray-AABB intersection to find entry point into the cube
+        glm::vec3 cubeMin = glm::vec3(0.0f);
+        glm::vec3 cubeMax = glm::vec3(1.0f);
+        
+        glm::vec3 invDir = 1.0f / rayDirection;
+        glm::vec3 t1 = (cubeMin - cubeLocalOrigin) * invDir;
+        glm::vec3 t2 = (cubeMax - cubeLocalOrigin) * invDir;
+        
+        glm::vec3 tMin = glm::min(t1, t2);
+        glm::vec3 tMax = glm::max(t1, t2);
+        
+        float tNear = glm::max(glm::max(tMin.x, tMin.y), tMin.z);
+        float tFar = glm::min(glm::min(tMax.x, tMax.y), tMax.z);
+        
+        if (tNear <= tFar && tFar >= 0.0f) {
+            // Ray enters the cube at tNear
+            float entryT = tNear >= 0.0f ? tNear : 0.0f;
+            currentPos = cubeLocalOrigin + rayDirection * (entryT + 0.001f); // Small offset to avoid edge issues
+        } else {
+            return glm::ivec3(-1); // No intersection with cube
+        }
+    }
+    
+    // Now we're inside the cube, determine which subcube we hit first
+    // Use small step size for precision
+    float stepSize = 0.01f;
+    int maxSteps = 200; // Maximum steps to traverse the cube
+    
+    for (int i = 0; i < maxSteps; ++i) {
+        // Check if we're still within cube bounds [0, 1]
+        if (currentPos.x < 0.0f || currentPos.x >= 1.0f ||
+            currentPos.y < 0.0f || currentPos.y >= 1.0f ||
+            currentPos.z < 0.0f || currentPos.z >= 1.0f) {
+            break; // Ray exited the cube
+        }
+        
+        // Calculate which subcube we're in (0-2 in each dimension)
+        glm::ivec3 subcubePos = glm::ivec3(
+            glm::clamp(int(currentPos.x / subcubeSize), 0, 2),
+            glm::clamp(int(currentPos.y / subcubeSize), 0, 2),
+            glm::clamp(int(currentPos.z / subcubeSize), 0, 2)
+        );
+        
+        return subcubePos; // Return first subcube hit
+        
+        // Move along ray
+        currentPos += rayDirection * stepSize;
+    }
+    
+    return glm::ivec3(-1); // No subcube hit
+}
+
+Application::CubeLocation Application::findExistingSubcubeHit(Chunk* chunk, const glm::ivec3& localPos, const glm::ivec3& cubeWorldPos, const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const {
+    // Get all existing subcubes at this cube position
+    std::vector<Subcube*> existingSubcubes = chunk->getSubcubesAt(localPos);
+    if (existingSubcubes.empty()) {
+        return CubeLocation(); // No subcubes exist
+    }
+    
+    // Test ray intersection against each existing subcube's bounding box
+    float closestDistance = std::numeric_limits<float>::max();
+    Subcube* closestSubcube = nullptr;
+    
+    for (Subcube* subcube : existingSubcubes) {
+        if (!subcube || !subcube->isVisible()) continue;
+        
+        glm::ivec3 subcubeLocalPos = subcube->getLocalPosition();
+        
+        // Calculate subcube's world bounding box (each subcube is 1/3 scale within the parent cube)
+        float subcubeSize = 1.0f / 3.0f;
+        glm::vec3 subcubeMin = glm::vec3(cubeWorldPos) + glm::vec3(subcubeLocalPos) * subcubeSize;
+        glm::vec3 subcubeMax = subcubeMin + glm::vec3(subcubeSize);
+        
+        // Ray-AABB intersection test
+        glm::vec3 invDir = 1.0f / rayDirection;
+        glm::vec3 t1 = (subcubeMin - rayOrigin) * invDir;
+        glm::vec3 t2 = (subcubeMax - rayOrigin) * invDir;
+        
+        glm::vec3 tMin = glm::min(t1, t2);
+        glm::vec3 tMax = glm::max(t1, t2);
+        
+        float tNear = glm::max(glm::max(tMin.x, tMin.y), tMin.z);
+        float tFar = glm::min(glm::min(tMax.x, tMax.y), tMax.z);
+        
+        // Check if ray intersects this subcube and if it's the closest so far
+        if (tNear <= tFar && tFar >= 0.0f && tNear < closestDistance) {
+            closestDistance = tNear;
+            closestSubcube = subcube;
+        }
+    }
+    
+    // Return the closest subcube hit, if any
+    if (closestSubcube) {
+        return CubeLocation(chunk, localPos, cubeWorldPos, closestSubcube->getLocalPosition());
+    }
+    
+    return CubeLocation(); // No subcube intersected
+    
+    return CubeLocation(); // No intersection found
+}
+
 void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) {
     if (!location.isValid()) return;
+    
+    // Debug: Show what type of location we're hovering
+    std::cout << "[HOVER DEBUG] Hovering - isSubcube: " << location.isSubcube 
+              << ", world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z << ")";
+    if (location.isSubcube) {
+        std::cout << ", subcube pos: (" << location.subcubePos.x << "," << location.subcubePos.y << "," << location.subcubePos.z << ")";
+    }
+    std::cout << std::endl;
     
     // Clear previous hover
     clearHoveredCubeInChunksOptimized();
     
-    // Use the Chunk class's public interface
-    Cube* cube = location.chunk->getCubeAt(location.localPos);
-    if (!cube) return;
-    
-    // Store original color and location for later restoration
-    originalHoveredColor = cube->getColor();
-    currentHoveredLocation = location;
-    hasHoveredCube = true;
-    
-    // std::cout << "[HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
-    //           << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
-    
-    // Debug output: chunk coordinate information
-    // glm::ivec3 chunkCoord = ChunkManager::worldToChunkCoord(location.worldPos);
-    // glm::ivec3 chunkWorldPos = chunkCoord * 32; // Each chunk is 32x32x32
-    // std::cout << "[HOVER] World pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
-    //           << ") | Local pos in chunk: (" << location.localPos.x << "," << location.localPos.y << "," << location.localPos.z 
-    //           << ") | Chunk world pos: (" << chunkWorldPos.x << "," << chunkWorldPos.y << "," << chunkWorldPos.z << ")" << std::endl;
-    
-    // Set hover color (darken the cube by setting it to black)
-    glm::vec3 hoverColor = glm::vec3(0.0f, 0.0f, 0.0f); // Black for hover effect
-    
-    // Use efficient partial update instead of marking chunk dirty
-    if (chunkManager) {
-        chunkManager->setCubeColorEfficient(location.worldPos, hoverColor);
+    // Handle subcube vs regular cube hover differently
+    if (location.isSubcube) {
+        // Hovering over a specific subcube
+        Cube* cube = location.chunk->getCubeAt(location.localPos);
+        if (!cube || !cube->isSubdivided()) return;
+        
+        Subcube* subcube = cube->getSubcubeAt(location.subcubePos);
+        if (!subcube) return;
+        
+        // Store original subcube color and location for later restoration
+        originalHoveredColor = subcube->getColor();
+        currentHoveredLocation = location;
+        hasHoveredCube = true;
+        
+        std::cout << "[SUBCUBE HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
+                  << ") subcube: (" << location.subcubePos.x << "," << location.subcubePos.y << "," << location.subcubePos.z 
+                  << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
+        
+        // Set hover color (make it bright white for clear visibility)
+        glm::vec3 hoverColor = glm::vec3(1.0f, 1.0f, 1.0f); // Bright white for subcube hover
+        
+        // Use efficient subcube color update
+        if (chunkManager) {
+            chunkManager->setSubcubeColorEfficient(location.worldPos, location.subcubePos, hoverColor);
+        }
+    } else {
+        // Hovering over a regular cube (not subdivided)
+        Cube* cube = location.chunk->getCubeAt(location.localPos);
+        if (!cube) return;
+        
+        // Store original color and location for later restoration
+        originalHoveredColor = cube->getColor();
+        currentHoveredLocation = location;
+        hasHoveredCube = true;
+        
+        std::cout << "[CUBE HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
+                  << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
+        
+        // Set hover color (darken the cube by setting it to black)
+        glm::vec3 hoverColor = glm::vec3(0.0f, 0.0f, 0.0f); // Black for regular cube hover
+        
+        // Use efficient partial update instead of marking chunk dirty
+        if (chunkManager) {
+            chunkManager->setCubeColorEfficient(location.worldPos, hoverColor);
+        }
     }
 }
 
 void Application::clearHoveredCubeInChunksOptimized() {
     if (hasHoveredCube && currentHoveredLocation.isValid()) {
-        // Restore original color using efficient partial update
+        // Restore original color based on whether it's a subcube or regular cube
         if (chunkManager) {
-            chunkManager->setCubeColorEfficient(currentHoveredLocation.worldPos, originalHoveredColor);
+            if (currentHoveredLocation.isSubcube) {
+                // Restore subcube color
+                chunkManager->setSubcubeColorEfficient(currentHoveredLocation.worldPos, currentHoveredLocation.subcubePos, originalHoveredColor);
+                std::cout << "[SUBCUBE HOVER] Cleared hover for subcube at world pos: (" << currentHoveredLocation.worldPos.x << "," << currentHoveredLocation.worldPos.y << "," << currentHoveredLocation.worldPos.z 
+                          << ") subcube: (" << currentHoveredLocation.subcubePos.x << "," << currentHoveredLocation.subcubePos.y << "," << currentHoveredLocation.subcubePos.z << ")" << std::endl;
+            } else {
+                // Restore regular cube color
+                chunkManager->setCubeColorEfficient(currentHoveredLocation.worldPos, originalHoveredColor);
+                std::cout << "[CUBE HOVER] Cleared hover for cube at world pos: (" << currentHoveredLocation.worldPos.x << "," << currentHoveredLocation.worldPos.y << "," << currentHoveredLocation.worldPos.z << ")" << std::endl;
+            }
         }
         
         hasHoveredCube = false;
@@ -1368,26 +1553,108 @@ void Application::removeHoveredCube() {
         return;
     }
     
-    // Remove the cube from the chunk
-    bool removed = chunk->removeCube(currentHoveredLocation.localPos);
-    if (removed) {
-        std::cout << "[CUBE REMOVAL] Successfully removed cube at world pos: (" 
-                  << currentHoveredLocation.worldPos.x << "," 
-                  << currentHoveredLocation.worldPos.y << "," 
-                  << currentHoveredLocation.worldPos.z << ")" << std::endl;
-                  
-        // Mark the chunk as dirty for GPU buffer update
-        if (chunkManager) {
-            chunkManager->markChunkDirty(chunk);
+    bool removed = false;
+    
+    if (currentHoveredLocation.isSubcube) {
+        // Remove a specific subcube
+        removed = chunk->removeSubcube(currentHoveredLocation.localPos, currentHoveredLocation.subcubePos);
+        if (removed) {
+            std::cout << "[SUBCUBE REMOVAL] Successfully removed subcube at world pos: (" 
+                      << currentHoveredLocation.worldPos.x << "," 
+                      << currentHoveredLocation.worldPos.y << "," 
+                      << currentHoveredLocation.worldPos.z << ") subcube: ("
+                      << currentHoveredLocation.subcubePos.x << ","
+                      << currentHoveredLocation.subcubePos.y << ","
+                      << currentHoveredLocation.subcubePos.z << ")" << std::endl;
+                      
+            // Check if this was the last subcube - if so, restore the parent cube
+            auto remainingSubcubes = chunk->getSubcubesAt(currentHoveredLocation.localPos);
+            if (remainingSubcubes.empty()) {
+                // No more subcubes left, restore the parent cube
+                Cube* parentCube = chunk->getCubeAt(currentHoveredLocation.localPos);
+                if (parentCube) {
+                    parentCube->show(); // Make parent cube visible again
+                    std::cout << "[CUBE RESTORATION] Restored parent cube as no subcubes remain" << std::endl;
+                }
+            }
+        }
+    } else {
+        // Remove a regular cube (this will also remove all its subcubes if subdivided)
+        Cube* cube = chunk->getCubeAt(currentHoveredLocation.localPos);
+        if (cube && cube->isSubdivided()) {
+            // First clear all subcubes
+            chunk->clearSubdivisionAt(currentHoveredLocation.localPos);
+            std::cout << "[SUBDIVISION REMOVAL] Cleared all subcubes for cube removal" << std::endl;
         }
         
-        // Clear hover state since the cube no longer exists
+        // Remove the cube itself
+        removed = chunk->removeCube(currentHoveredLocation.localPos);
+        if (removed) {
+            std::cout << "[CUBE REMOVAL] Successfully removed cube at world pos: (" 
+                      << currentHoveredLocation.worldPos.x << "," 
+                      << currentHoveredLocation.worldPos.y << "," 
+                      << currentHoveredLocation.worldPos.z << ")" << std::endl;
+        }
+    }
+    
+    if (removed) {
+        // No need to mark chunk dirty - removal methods now immediately update GPU buffer
+        
+        // Clear hover state since the object no longer exists
         hasHoveredCube = false;
         currentHoveredLocation = CubeLocation();
         lastHoveredCube = -1; // Reset the hover tracking
         
     } else {
-        std::cout << "[CUBE REMOVAL] WARNING: Failed to remove cube - cube may not exist" << std::endl;
+        std::cout << "[REMOVAL] WARNING: Failed to remove object - it may not exist" << std::endl;
+    }
+}
+
+void Application::subdivideHoveredCube() {
+    // Check if we have a valid hovered cube
+    if (!hasHoveredCube || !currentHoveredLocation.isValid()) {
+        std::cout << "[CUBE SUBDIVISION] No cube is currently being hovered - cannot subdivide" << std::endl;
+        return;
+    }
+    
+    // Get the chunk and subdivide the cube using the stored location
+    Chunk* chunk = currentHoveredLocation.chunk;
+    if (!chunk) {
+        std::cout << "[CUBE SUBDIVISION] ERROR: Invalid chunk pointer" << std::endl;
+        hasHoveredCube = false;
+        currentHoveredLocation = CubeLocation();
+        return;
+    }
+    
+    // Check if cube is already subdivided
+    if (chunk->getSubcubesAt(currentHoveredLocation.localPos).size() > 0) {
+        std::cout << "[CUBE SUBDIVISION] Cube at world pos (" 
+                  << currentHoveredLocation.worldPos.x << "," 
+                  << currentHoveredLocation.worldPos.y << "," 
+                  << currentHoveredLocation.worldPos.z << ") is already subdivided" << std::endl;
+        return;
+    }
+    
+    // Subdivide the cube into 27 subcubes
+    bool subdivided = chunk->subdivideAt(currentHoveredLocation.localPos);
+    if (subdivided) {
+        std::cout << "[CUBE SUBDIVISION] Successfully subdivided cube at world pos: (" 
+                  << currentHoveredLocation.worldPos.x << "," 
+                  << currentHoveredLocation.worldPos.y << "," 
+                  << currentHoveredLocation.worldPos.z << ") into 27 subcubes" << std::endl;
+                  
+        // Mark the chunk as dirty for GPU buffer update (will rebuild faces including new subcubes)
+        if (chunkManager) {
+            chunkManager->markChunkDirty(chunk);
+        }
+        
+        // Clear hover state since the cube is now hidden/subdivided
+        hasHoveredCube = false;
+        currentHoveredLocation = CubeLocation();
+        lastHoveredCube = -1; // Reset the hover tracking
+        
+    } else {
+        std::cout << "[CUBE SUBDIVISION] WARNING: Failed to subdivide cube - cube may not exist or already subdivided" << std::endl;
     }
 }
 
