@@ -1221,10 +1221,19 @@ void Application::spawnTestDynamicSubcube() {
     if (rigidBody) {
         dynamicSubcube->setRigidBody(rigidBody);
         
+        // Add random angular velocity for tumbling effect
+        btVector3 randomAngularVelocity(
+            (rand() / float(RAND_MAX) - 0.5f) * 10.0f,  // Random angular velocity -5 to +5 rad/s
+            (rand() / float(RAND_MAX) - 0.5f) * 10.0f,
+            (rand() / float(RAND_MAX) - 0.5f) * 10.0f
+        );
+        rigidBody->setAngularVelocity(randomAngularVelocity);
+        
         // IMPORTANT: Set initial physics position to match the physics body
         dynamicSubcube->setPhysicsPosition(spawnPosition);
         
-        std::cout << "Created physics body for dynamic subcube" << std::endl;
+        std::cout << "Created physics body for dynamic subcube with angular velocity: (" 
+                  << randomAngularVelocity.x() << ", " << randomAngularVelocity.y() << ", " << randomAngularVelocity.z() << ")" << std::endl;
     } else {
         std::cout << "ERROR: Failed to create physics body for dynamic subcube" << std::endl;
     }

@@ -653,8 +653,10 @@ void ChunkManager::rebuildGlobalDynamicSubcubeFaces() {
             // Use smooth physics position for dynamic subcubes, fallback to grid position for static
             if (subcube->isDynamic()) {
                 faceInstance.worldPosition = subcube->getPhysicsPosition();
+                faceInstance.rotation = subcube->getPhysicsRotation(); // Get rotation from physics
             } else {
                 faceInstance.worldPosition = glm::vec3(subcube->getPosition()) + glm::vec3(subcube->getLocalPosition()) * SUBCUBE_SCALE;
+                faceInstance.rotation = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f); // Identity quaternion for static subcubes
             }
             
             faceInstance.color = subcube->getColor();
@@ -693,8 +695,8 @@ void ChunkManager::updateGlobalDynamicSubcubes(float deltaTime) {
 }
 
 void ChunkManager::updateGlobalDynamicSubcubePositions() {
-    // Update positions of global dynamic subcubes from their physics bodies
-    bool positionsChanged = false;
+    // Update positions and rotations of global dynamic subcubes from their physics bodies
+    bool transformsChanged = false;
     static int debugCounter = 0;
     
     for (auto& subcube : globalDynamicSubcubes) {
@@ -706,13 +708,19 @@ void ChunkManager::updateGlobalDynamicSubcubePositions() {
             btVector3 btPos = transform.getOrigin();
             glm::vec3 newWorldPos(btPos.x(), btPos.y(), btPos.z());
             
-            // Store the smooth floating-point physics position directly
+            // Get the physics rotation (quaternion)
+            btQuaternion btRot = transform.getRotation();
+            glm::vec4 newRotation(btRot.x(), btRot.y(), btRot.z(), btRot.w());
+            
+            // Store the smooth floating-point physics position and rotation
             subcube->setPhysicsPosition(newWorldPos);
-            positionsChanged = true;
+            subcube->setPhysicsRotation(newRotation);
+            transformsChanged = true;
             
             // Debug output for first subcube every 60 frames
             if (debugCounter % 60 == 0) {
-                std::cout << "[SMOOTH PHYSICS] Subcube position: (" << newWorldPos.x << ", " << newWorldPos.y << ", " << newWorldPos.z << ")" << std::endl;
+                std::cout << "[SMOOTH PHYSICS] Subcube pos: (" << newWorldPos.x << ", " << newWorldPos.y << ", " << newWorldPos.z 
+                          << ") rot: (" << newRotation.x << ", " << newRotation.y << ", " << newRotation.z << ", " << newRotation.w << ")" << std::endl;
                 break; // Only log first subcube
             }
         }
@@ -720,8 +728,8 @@ void ChunkManager::updateGlobalDynamicSubcubePositions() {
     
     debugCounter++;
     
-    // Rebuild face data if any positions changed
-    if (positionsChanged) {
+    // Rebuild face data if any transforms changed
+    if (transformsChanged) {
         rebuildGlobalDynamicSubcubeFaces();
     }
 }

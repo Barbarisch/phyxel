@@ -5,6 +5,7 @@ layout(location = 1) in vec3 inWorldPosition;   // per-instance: world position 
 layout(location = 2) in vec3 inInstanceColor;   // per-instance color
 layout(location = 3) in uint inFaceID;          // per-instance: face ID (0-5)
 layout(location = 4) in float inScale;          // per-instance: scale factor (1/3 for subcubes, 1.0 for cubes)
+layout(location = 5) in vec4 inRotation;        // per-instance: rotation quaternion (x, y, z, w)
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -12,6 +13,18 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 } ubo;
 
 layout(location = 0) out vec3 fragColor;
+
+// Rotate a vector by a quaternion
+vec3 rotateByQuaternion(vec3 v, vec4 q) {
+    // q = (x, y, z, w) where w is the scalar part
+    vec3 qvec = q.xyz;
+    float qw = q.w;
+    
+    // v' = v + 2 * cross(qvec, cross(qvec, v) + qw * v)
+    vec3 cross1 = cross(qvec, v) + qw * v;
+    vec3 cross2 = cross(qvec, cross1);
+    return v + 2.0 * cross2;
+}
 
 void main() {
     // Use per-instance scale to maintain correct subcube size
@@ -58,13 +71,16 @@ void main() {
         );
     }
     
-    // Apply scale to face offset and center it around the world position
+    // Apply scale to face offset and center it around the origin
     // faceOffset ranges from 0-1, so we need to center it: (faceOffset - 0.5) * scale
     vec3 scaledOffset = (faceOffset - 0.5) * SUBCUBE_SCALE;
     
+    // Apply rotation to the scaled offset using quaternion rotation
+    vec3 rotatedOffset = rotateByQuaternion(scaledOffset, inRotation);
+    
     // Use the actual physics position from inWorldPosition as center
-    vec3 worldPos = inWorldPosition + scaledOffset;
+    vec3 worldPos = inWorldPosition + rotatedOffset;
     
     gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
-    fragColor = vec3(0.0, 1.0, 0.0); // BRIGHT GREEN for testing - physics position
+    fragColor = inInstanceColor; // Use actual instance color instead of green
 }

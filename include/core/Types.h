@@ -40,11 +40,12 @@ struct DynamicSubcubeInstanceData {
     glm::vec3 color;          // RGB color
     uint32_t faceID;          // Face ID (0-5)
     float scale;              // Scale factor (1/3 for subcubes, 1.0 for full cubes)
-    // Total: 32 bytes - larger but allows arbitrary positioning with correct scale
+    glm::vec4 rotation;       // Quaternion rotation (x, y, z, w) for tumbling effect
+    // Total: 48 bytes - larger but allows arbitrary positioning with rotation
     
     // Vulkan vertex input description for dynamic subcubes
     static VkVertexInputBindingDescription getBindingDescription();
-    static std::array<VkVertexInputAttributeDescription, 4> getAttributeDescriptions();  // Now 4 attributes
+    static std::array<VkVertexInputAttributeDescription, 5> getAttributeDescriptions();  // Now 5 attributes
 };
 
 // Face visibility structure

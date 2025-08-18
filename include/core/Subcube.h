@@ -51,11 +51,13 @@ public:
     void setVisible(bool vis) { visible = vis; }
     void setRigidBody(btRigidBody* body) { rigidBody = body; }
     void setPhysicsPosition(const glm::vec3& pos) { physicsPosition = pos; }
+    void setPhysicsRotation(const glm::vec4& rot) { physicsRotation = rot; }
     void setLifetime(float time) { lifetime = time; }
     void updateLifetime(float deltaTime) { lifetime -= deltaTime; }
     
     // Utility methods
     glm::vec3 getWorldPosition() const; // Calculate actual world position including local offset
+    glm::vec4 getPhysicsRotation() const { return physicsRotation; }
     void hide() { visible = false; }
     void show() { visible = true; }
     void breakApart() { broken = true; }
@@ -73,8 +75,9 @@ private:
     // Physics body for dynamic subcubes
     btRigidBody* rigidBody = nullptr;
     
-    // Smooth floating-point position for dynamic subcubes (bypasses integer grid)
+    // Smooth floating-point position and rotation for dynamic subcubes (bypasses integer grid)
     glm::vec3 physicsPosition = glm::vec3(0.0f);
+    glm::vec4 physicsRotation = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f); // Identity quaternion
     
     static constexpr float SUBCUBE_SCALE = 1.0f / 3.0f; // 1/3 the size of a regular cube
 };

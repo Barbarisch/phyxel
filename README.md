@@ -212,6 +212,25 @@ The application displays real-time performance metrics including:
 5. Color modification with preservation during instance updates
 ```
 
+## Documentation
+
+Detailed technical documentation is available in the `docs/` directory:
+
+### Core Systems
+- **[DynamicSubcubeRenderPipeline.md](docs/DynamicSubcubeRenderPipeline.md)** - Dual-pipeline architecture for static and physics-enabled subcubes
+- **[MultiChunkSystem.md](docs/MultiChunkSystem.md)** - Scalable chunk-based world management
+- **[CoordinateSystem.md](docs/CoordinateSystem.md)** - World, chunk, and local coordinate systems
+- **[ChunkUpdateOptimization.md](docs/ChunkUpdateOptimization.md)** - Performance optimization strategies
+
+### Quick References
+- **[CoordinateQuickRef.md](docs/CoordinateQuickRef.md)** - Coordinate conversion formulas
+- **[IndexingReference.md](docs/IndexingReference.md)** - Array indexing patterns and algorithms
+
+### Key Features Documentation
+- **Dynamic Subcube Rendering**: Dual-pipeline system supporting both grid-aligned static subcubes (16-byte instances) and physics-enabled dynamic subcubes (32-byte instances) with seamless Bullet Physics integration
+- **Multi-Chunk Architecture**: Scalable O(1) chunk lookup system supporting unlimited world size with efficient cross-chunk culling
+- **Performance Optimizations**: Face culling, instance batching, and efficient GPU buffer management for 40+ FPS with 32K+ cubes
+
 ## Project History
 
 This project began as a monolithic 2,800+ line `main.cpp` file and was successfully refactored into a clean, modular architecture. Key milestones:
