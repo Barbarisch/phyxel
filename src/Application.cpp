@@ -3,6 +3,7 @@
 #include "utils/Math.h"
 #include "utils/PerformanceProfiler.h"
 #include "examples/MultiChunkDemo.h"
+#include "core/DynamicCube.h"
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -532,6 +533,7 @@ void Application::update(float deltaTime) {
     if (chunkManager) {
         chunkManager->updateDirtyChunks();
         chunkManager->updateGlobalDynamicSubcubes(deltaTime);  // Update global dynamic subcube lifetimes
+        chunkManager->updateGlobalDynamicCubes(deltaTime);     // Update global dynamic cube lifetimes
     }
     
     // Update physics with FIXED timestep for smooth, jitter-free simulation
@@ -558,6 +560,8 @@ void Application::update(float deltaTime) {
     if (chunkManager) {
         // Update global dynamic subcubes (all dynamic subcubes are now global)
         chunkManager->updateGlobalDynamicSubcubePositions();
+        // Update global dynamic cubes
+        chunkManager->updateGlobalDynamicCubePositions();
     }
     
     static int frameCount = 0;
@@ -631,10 +635,18 @@ void Application::renderDynamicSubcubes() {
     // All dynamic subcubes (both G key spawned and broken from chunks) are now global
     const auto& allDynamicSubcubeFaces = chunkManager->getGlobalDynamicSubcubeFaces();
     
+    // Debug output for dynamic object count
+    static int debugFrameCount = 0;
+    if (debugFrameCount % 60 == 0) { // Every 60 frames
+        size_t subcubeCount = chunkManager->getGlobalDynamicSubcubeCount();
+        size_t cubeCount = chunkManager->getGlobalDynamicCubeCount();
+        std::cout << "[DEBUG] Dynamic objects: " << subcubeCount << " subcubes, " << cubeCount 
+                  << " cubes, " << allDynamicSubcubeFaces.size() << " total faces" << std::endl;
+    }
+    debugFrameCount++;
+    
     // Only render if we have dynamic subcube faces
     if (!allDynamicSubcubeFaces.empty()) {
-        std::cout << "[RENDER] Rendering " << allDynamicSubcubeFaces.size() << " dynamic subcube faces" << std::endl;
-        
         // Update dynamic subcube buffer
         vulkanDevice->updateDynamicSubcubeBuffer(allDynamicSubcubeFaces);
         
@@ -1093,13 +1105,13 @@ void Application::mouseButtonCallback(GLFWwindow* window, int button, int action
             // Ctrl+Left Click: Subdivide cube into 27 subcubes
             app->subdivideHoveredCube();
         } else {
-            // Left Click: If hovering a subcube, break it with physics; otherwise remove cube
+            // Left Click: Break objects with physics (both cubes and subcubes)
             if (app->hasHoveredCube && app->currentHoveredLocation.isSubcube) {
-                // Break subcube with physics
+                // Break subcube with physics (existing behavior)
                 app->subdivideHoveredCube();
             } else {
-                // Remove regular cube at hover location if available
-                app->removeHoveredCube();
+                // Break regular cube into dynamic cube with physics
+                app->breakHoveredCube();
             }
         }
     }
@@ -1676,7 +1688,7 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
         if (!subcube) return;
         
         // Store original subcube color and location for later restoration
-        originalHoveredColor = subcube->getColor();
+        originalHoveredColor = subcube->getOriginalColor(); // Use original color, not current color
         currentHoveredLocation = location;
         hasHoveredCube = true;
         
@@ -1852,6 +1864,13 @@ void Application::subdivideHoveredCube() {
                     // Create a unique_ptr copy for the global system
                     auto globalSubcube = std::make_unique<Subcube>(*brokenSubcube);
                     
+                    // Restore the original color (in case it was affected by hover)
+                    globalSubcube->setColor(globalSubcube->getOriginalColor());
+                    
+                    // Keep the subcube's original color (don't override with parent cube color)
+                    std::cout << "[COLOR] Preserving subcube's original color: (" 
+                              << globalSubcube->getOriginalColor().x << "," << globalSubcube->getOriginalColor().y << "," << globalSubcube->getOriginalColor().z << ")" << std::endl;
+                    
                     // Transfer the physics body ownership
                     globalSubcube->setRigidBody(brokenSubcube->getRigidBody());
                     brokenSubcube->setRigidBody(nullptr);  // Prevent double deletion
@@ -1906,6 +1925,116 @@ void Application::subdivideHoveredCube() {
     if (chunkManager) {
         chunkManager->markChunkDirty(chunk);
     }
+    
+    // Clear hover state
+    hasHoveredCube = false;
+    currentHoveredLocation = CubeLocation();
+    lastHoveredCube = -1;
+}
+
+void Application::breakHoveredCube() {
+    // Check if we have a valid hovered cube
+    if (!hasHoveredCube || !currentHoveredLocation.isValid()) {
+        std::cout << "[CUBE BREAKING] No cube is currently being hovered - cannot break" << std::endl;
+        return;
+    }
+    
+    // Only break regular cubes (not subcubes)
+    if (currentHoveredLocation.isSubcube) {
+        std::cout << "[CUBE BREAKING] Cannot break individual subcubes - use left click to break subcubes" << std::endl;
+        return;
+    }
+    
+    // Get the chunk using the stored location
+    Chunk* chunk = currentHoveredLocation.chunk;
+    if (!chunk) {
+        std::cout << "[CUBE BREAKING] ERROR: Invalid chunk pointer" << std::endl;
+        hasHoveredCube = false;
+        currentHoveredLocation = CubeLocation();
+        return;
+    }
+    
+    // Check if cube exists and is not already subdivided
+    if (!chunk->getCubeAt(currentHoveredLocation.localPos)) {
+        std::cout << "[CUBE BREAKING] No cube exists at this location" << std::endl;
+        return;
+    }
+    
+    if (chunk->getSubcubesAt(currentHoveredLocation.localPos).size() > 0) {
+        std::cout << "[CUBE BREAKING] Cube is already subdivided - cannot break subdivided cubes" << std::endl;
+        return;
+    }
+    
+    // Calculate impulse force away from the camera direction
+    glm::vec3 impulseForce(0.0f, 2.0f, 0.0f); // Default upward force
+    
+    // Try to get a more interesting force direction based on camera position
+    glm::vec3 cubeWorldPos = glm::vec3(currentHoveredLocation.worldPos);
+    glm::vec3 forceDirection = normalize(cubeWorldPos - cameraPos);
+    
+    // Mix upward force with outward force for interesting breakage
+    impulseForce = forceDirection * 4.0f + glm::vec3(0.0f, 6.0f, 0.0f);
+    
+    std::cout << "[PHYSICS] Applying breakage force to cube: (" 
+              << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")" << std::endl;
+    
+    // Get the cube's original color before removing it
+    const Cube* originalCube = chunk->getCubeAt(currentHoveredLocation.localPos);
+    glm::vec3 originalColor = glm::vec3(0.8f, 0.6f, 0.4f); // Default color fallback
+    if (originalCube) {
+        originalColor = originalCube->getOriginalColor(); // Use original color, not hover-affected color
+        std::cout << "[COLOR] Preserving original cube color: (" 
+                  << originalColor.x << "," << originalColor.y << "," << originalColor.z << ")" << std::endl;
+    }
+    
+    // Remove the cube from the chunk
+    bool removed = chunk->removeCube(currentHoveredLocation.localPos);
+    if (!removed) {
+        std::cout << "[CUBE BREAKING] WARNING: Failed to remove cube from chunk" << std::endl;
+        return;
+    }
+    
+    // Create a dynamic cube at the same position with the original color
+    auto dynamicCube = std::make_unique<DynamicCube>(cubeWorldPos, originalColor);
+    
+    // Create physics body for the dynamic cube
+    glm::vec3 cubeSize(1.0f); // Full cube size
+    btRigidBody* rigidBody = physicsWorld->createCube(cubeWorldPos, cubeSize, 2.0f); // 2.0kg mass (heavier than subcubes)
+    dynamicCube->setRigidBody(rigidBody);
+    
+    // Set initial physics position
+    dynamicCube->setPhysicsPosition(cubeWorldPos);
+    
+    // Apply initial impulse force to make it "break" away
+    if (rigidBody && glm::length(impulseForce) > 0.0f) {
+        btVector3 btImpulse(impulseForce.x, impulseForce.y, impulseForce.z);
+        rigidBody->applyCentralImpulse(btImpulse);
+        
+        // Add random angular velocity for tumbling effect
+        btVector3 angularVelocity(
+            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 10.0f,
+            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 10.0f,
+            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 10.0f
+        );
+        rigidBody->setAngularVelocity(angularVelocity);
+        
+        std::cout << "[PHYSICS] Applied impulse (" << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z 
+                  << ") and angular velocity (" << angularVelocity.x() << "," << angularVelocity.y() << "," << angularVelocity.z() << ")" << std::endl;
+    }
+    
+    // Mark as broken
+    dynamicCube->breakApart();
+    
+    // Add to global dynamic cubes system
+    chunkManager->addGlobalDynamicCube(std::move(dynamicCube));
+    
+    // Mark the chunk as dirty for GPU buffer update
+    chunkManager->markChunkDirty(chunk);
+    
+    std::cout << "[CUBE BREAKING] Successfully broke cube at world pos: (" 
+              << currentHoveredLocation.worldPos.x << "," 
+              << currentHoveredLocation.worldPos.y << "," 
+              << currentHoveredLocation.worldPos.z << ") into dynamic cube" << std::endl;
     
     // Clear hover state
     hasHoveredCube = false;

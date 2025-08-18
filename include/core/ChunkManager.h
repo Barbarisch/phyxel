@@ -2,6 +2,7 @@
 
 #include "Types.h"
 #include "Chunk.h"
+#include "DynamicCube.h"
 #include <vector>
 #include <unordered_map>
 #include <memory>
@@ -30,6 +31,9 @@ public:
     
     // Global dynamic subcube management (not tied to specific chunks)
     std::vector<std::unique_ptr<Subcube>> globalDynamicSubcubes;
+    
+    // Global dynamic cube management (not tied to specific chunks)
+    std::vector<std::unique_ptr<DynamicCube>> globalDynamicCubes;
     
     // Spatial hash map for O(1) chunk lookup by chunk coordinates
     std::unordered_map<glm::ivec3, Chunk*, ChunkCoordHash> chunkMap;
@@ -93,9 +97,21 @@ public:
     void clearAllGlobalDynamicSubcubes();
     void rebuildGlobalDynamicSubcubeFaces();  // Generate face data for all global dynamic subcubes
     const std::vector<std::unique_ptr<Subcube>>& getGlobalDynamicSubcubes() const { return globalDynamicSubcubes; }
+    size_t getGlobalDynamicSubcubeCount() const { return globalDynamicSubcubes.size(); }
+    
+    // Global dynamic cube management
+    void addGlobalDynamicCube(std::unique_ptr<DynamicCube> cube);
+    void updateGlobalDynamicCubes(float deltaTime);  // Update timers and cleanup expired ones
+    void updateGlobalDynamicCubePositions();  // Update positions from physics bodies
+    void clearAllGlobalDynamicCubes();
+    const std::vector<std::unique_ptr<DynamicCube>>& getGlobalDynamicCubes() const { return globalDynamicCubes; }
+    size_t getGlobalDynamicCubeCount() const { return globalDynamicCubes.size(); }
+    
+    // Combined dynamic object management (both subcubes and cubes use same face data structure)
+    void rebuildGlobalDynamicFaces();  // Generate face data for all dynamic objects (subcubes + cubes)
     const std::vector<DynamicSubcubeInstanceData>& getGlobalDynamicSubcubeFaces() const { return globalDynamicSubcubeFaces; }
     
-    // Dynamic subcube face data for rendering
+    // Dynamic object face data for rendering (both subcubes and full cubes)
     std::vector<DynamicSubcubeInstanceData> globalDynamicSubcubeFaces;
     
     // Convert between coordinate systems
