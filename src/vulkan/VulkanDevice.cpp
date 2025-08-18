@@ -1,5 +1,6 @@
 #include "vulkan/VulkanDevice.h"
 #include "vulkan/RenderPipeline.h"
+#include "core/Types.h"
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -74,6 +75,9 @@ void VulkanDevice::cleanup() {
         vkFreeMemory(device, instanceBufferMemory, nullptr);
         instanceBufferMemory = VK_NULL_HANDLE;
     }
+    
+    // Cleanup dynamic subcube buffer
+    cleanupDynamicSubcubeBuffer();
     
     // Cleanup frustum culling buffers
     cleanupFrustumCullingBuffers();
@@ -1142,6 +1146,54 @@ void VulkanDevice::updateInstanceBuffer(const std::vector<InstanceData>& instanc
     vkMapMemory(device, instanceBufferMemory, 0, bufferSize, 0, &data);
     memcpy(data, instances.data(), (size_t) bufferSize);
     vkUnmapMemory(device, instanceBufferMemory);
+}
+
+bool VulkanDevice::createDynamicSubcubeBuffer(uint32_t maxSubcubes) {
+    maxDynamicSubcubes = maxSubcubes;
+    VkDeviceSize bufferSize = sizeof(DynamicSubcubeInstanceData) * maxDynamicSubcubes;
+
+    createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                dynamicSubcubeBuffer, dynamicSubcubeBufferMemory);
+    
+    return true;
+}
+
+void VulkanDevice::updateDynamicSubcubeBuffer(const std::vector<DynamicSubcubeInstanceData>& dynamicSubcubes) {
+    std::cout << "[BUFFER DEBUG] updateDynamicSubcubeBuffer called with " << dynamicSubcubes.size() << " subcubes" << std::endl;
+    std::cout << "[BUFFER DEBUG] dynamicSubcubeBuffer handle: " << dynamicSubcubeBuffer << std::endl;
+    
+    if (dynamicSubcubes.empty() || dynamicSubcubeBuffer == VK_NULL_HANDLE) {
+        std::cout << "[BUFFER DEBUG] Early return - empty subcubes or null buffer handle" << std::endl;
+        return;
+    }
+    
+    VkDeviceSize bufferSize = sizeof(DynamicSubcubeInstanceData) * std::min(static_cast<uint32_t>(dynamicSubcubes.size()), maxDynamicSubcubes);
+    std::cout << "[BUFFER DEBUG] Updating buffer with " << bufferSize << " bytes" << std::endl;
+    
+    void* data;
+    vkMapMemory(device, dynamicSubcubeBufferMemory, 0, bufferSize, 0, &data);
+    memcpy(data, dynamicSubcubes.data(), (size_t) bufferSize);
+    vkUnmapMemory(device, dynamicSubcubeBufferMemory);
+    
+    std::cout << "[BUFFER DEBUG] Buffer update complete" << std::endl;
+}
+
+void VulkanDevice::bindDynamicSubcubeBuffer(uint32_t frameIndex) {
+    VkBuffer vertexBuffers[] = {vertexBuffer, dynamicSubcubeBuffer};
+    VkDeviceSize offsets[] = {0, 0};
+    vkCmdBindVertexBuffers(commandBuffers[frameIndex], 0, 2, vertexBuffers, offsets);
+}
+
+void VulkanDevice::cleanupDynamicSubcubeBuffer() {
+    if (dynamicSubcubeBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, dynamicSubcubeBuffer, nullptr);
+        dynamicSubcubeBuffer = VK_NULL_HANDLE;
+    }
+    if (dynamicSubcubeBufferMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, dynamicSubcubeBufferMemory, nullptr);
+        dynamicSubcubeBufferMemory = VK_NULL_HANDLE;
+    }
 }
 
 void VulkanDevice::bindVertexBuffers(uint32_t frameIndex) {

@@ -20,7 +20,7 @@ public:
     void cleanup();
 
     // World management
-    void stepSimulation(float deltaTime, int maxSubSteps = 1);
+    void stepSimulation(float deltaTime, int maxSubSteps = 1, float fixedTimeStep = 1.0f/60.0f);
     void reset();
 
     // Rigid body management
@@ -66,6 +66,7 @@ private:
     // Keep track of created bodies for cleanup
     std::vector<btRigidBody*> rigidBodies;
     std::vector<btDefaultMotionState*> motionStates;
+    std::vector<btCollisionShape*> collisionShapes; // Dynamically created shapes
 
     // Helper functions
     btRigidBody* createRigidBody(float mass, const btTransform& startTransform, btCollisionShape* shape);

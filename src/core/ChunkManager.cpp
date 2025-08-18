@@ -5,6 +5,9 @@
 #include <iostream>
 #include <algorithm>  // for std::find
 
+// Bullet Physics includes
+#include <btBulletDynamicsCommon.h>
+
 namespace VulkanCube {
 
 void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
@@ -93,7 +96,7 @@ void ChunkManager::updateChunk(size_t chunkIndex) {
     
     Chunk* chunk = chunks[chunkIndex].get();
     if (chunk->getNeedsUpdate()) {
-        std::cout << "[CHUNK_MANAGER] Updating chunk " << chunkIndex << " with " << chunk->getSubcubeCount() << " subcubes" << std::endl;
+        std::cout << "[CHUNK_MANAGER] Updating chunk " << chunkIndex << " with " << chunk->getTotalSubcubeCount() << " subcubes" << std::endl;
         
         // Use the chunk's own rebuildFaces() method which handles both cubes AND subcubes
         chunk->rebuildFaces();
@@ -623,6 +626,109 @@ void ChunkManager::markChunkDirty(Chunk* chunk) {
 void ChunkManager::clearDirtyChunkList() {
     dirtyChunkIndices.clear();
     hasDirtyChunks = false;
+}
+
+void ChunkManager::addGlobalDynamicSubcube(std::unique_ptr<Subcube> subcube) {
+    if (subcube) {
+        std::cout << "[CHUNK MANAGER] Adding global dynamic subcube at world position: ("
+                  << subcube->getPosition().x << "," << subcube->getPosition().y << "," << subcube->getPosition().z << ")" << std::endl;
+        globalDynamicSubcubes.push_back(std::move(subcube));
+        rebuildGlobalDynamicSubcubeFaces();  // Rebuild faces after adding new subcube
+    }
+}
+
+void ChunkManager::rebuildGlobalDynamicSubcubeFaces() {
+    globalDynamicSubcubeFaces.clear();
+    
+    static constexpr float SUBCUBE_SCALE = 1.0f / 3.0f; // Same as in Subcube class
+    
+    // Generate faces for all global dynamic subcubes
+    for (const auto& subcube : globalDynamicSubcubes) {
+        if (!subcube->isVisible()) continue;
+        
+        // For dynamic subcubes, we render all faces (they can be in arbitrary positions)
+        for (int faceID = 0; faceID < 6; ++faceID) {
+            DynamicSubcubeInstanceData faceInstance;
+            
+            // Use smooth physics position for dynamic subcubes, fallback to grid position for static
+            if (subcube->isDynamic()) {
+                faceInstance.worldPosition = subcube->getPhysicsPosition();
+            } else {
+                faceInstance.worldPosition = glm::vec3(subcube->getPosition()) + glm::vec3(subcube->getLocalPosition()) * SUBCUBE_SCALE;
+            }
+            
+            faceInstance.color = subcube->getColor();
+            faceInstance.faceID = faceID;
+            faceInstance.scale = subcube->getScale();
+            
+            globalDynamicSubcubeFaces.push_back(faceInstance);
+        }
+    }
+    
+    if (!globalDynamicSubcubeFaces.empty()) {
+        std::cout << "[CHUNK MANAGER] Generated " << globalDynamicSubcubeFaces.size() << " global dynamic subcube faces" << std::endl;
+    }
+}
+
+void ChunkManager::updateGlobalDynamicSubcubes(float deltaTime) {
+    // Update lifetimes and remove expired subcubes
+    auto it = globalDynamicSubcubes.begin();
+    while (it != globalDynamicSubcubes.end()) {
+        (*it)->updateLifetime(deltaTime);
+        
+        if ((*it)->hasExpired()) {
+            std::cout << "[CHUNK MANAGER] Removing expired dynamic subcube (lifetime ended)" << std::endl;
+            // Note: The unique_ptr destructor will automatically clean up the subcube
+            // TODO: Should also remove physics body from physics world here
+            it = globalDynamicSubcubes.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    
+    // Rebuild faces if any subcubes were removed
+    if (it != globalDynamicSubcubes.end()) {
+        rebuildGlobalDynamicSubcubeFaces();
+    }
+}
+
+void ChunkManager::updateGlobalDynamicSubcubePositions() {
+    // Update positions of global dynamic subcubes from their physics bodies
+    bool positionsChanged = false;
+    static int debugCounter = 0;
+    
+    for (auto& subcube : globalDynamicSubcubes) {
+        if (subcube && subcube->getRigidBody()) {
+            btRigidBody* body = subcube->getRigidBody();
+            btTransform transform = body->getWorldTransform();
+            
+            // Get the physics world position
+            btVector3 btPos = transform.getOrigin();
+            glm::vec3 newWorldPos(btPos.x(), btPos.y(), btPos.z());
+            
+            // Store the smooth floating-point physics position directly
+            subcube->setPhysicsPosition(newWorldPos);
+            positionsChanged = true;
+            
+            // Debug output for first subcube every 60 frames
+            if (debugCounter % 60 == 0) {
+                std::cout << "[SMOOTH PHYSICS] Subcube position: (" << newWorldPos.x << ", " << newWorldPos.y << ", " << newWorldPos.z << ")" << std::endl;
+                break; // Only log first subcube
+            }
+        }
+    }
+    
+    debugCounter++;
+    
+    // Rebuild face data if any positions changed
+    if (positionsChanged) {
+        rebuildGlobalDynamicSubcubeFaces();
+    }
+}
+
+void ChunkManager::clearAllGlobalDynamicSubcubes() {
+    std::cout << "[CHUNK MANAGER] Clearing all " << globalDynamicSubcubes.size() << " global dynamic subcubes" << std::endl;
+    globalDynamicSubcubes.clear();
 }
 
 size_t ChunkManager::getChunkIndex(const Chunk* chunk) const {

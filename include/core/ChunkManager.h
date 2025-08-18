@@ -6,6 +6,10 @@
 #include <unordered_map>
 #include <memory>
 
+namespace Physics {
+    class PhysicsWorld;
+}
+
 namespace VulkanCube {
 
 // Custom hash function for glm::ivec3 to use as key in unordered_map
@@ -23,6 +27,9 @@ struct ChunkCoordHash {
 class ChunkManager {
 public:
     std::vector<std::unique_ptr<Chunk>> chunks;
+    
+    // Global dynamic subcube management (not tied to specific chunks)
+    std::vector<std::unique_ptr<Subcube>> globalDynamicSubcubes;
     
     // Spatial hash map for O(1) chunk lookup by chunk coordinates
     std::unordered_map<glm::ivec3, Chunk*, ChunkCoordHash> chunkMap;
@@ -78,6 +85,18 @@ public:
     Subcube* getSubcubeAt(const glm::ivec3& worldPos, const glm::ivec3& subcubePos); // Get subcube at position
     void setSubcubeColorEfficient(const glm::ivec3& worldPos, const glm::ivec3& subcubePos, const glm::vec3& color);
     glm::vec3 getSubcubeColor(const glm::ivec3& worldPos, const glm::ivec3& subcubePos);
+    
+    // Global dynamic subcube management
+    void addGlobalDynamicSubcube(std::unique_ptr<Subcube> subcube);
+    void updateGlobalDynamicSubcubes(float deltaTime);  // Update timers and cleanup expired ones
+    void updateGlobalDynamicSubcubePositions();  // Update positions from physics bodies
+    void clearAllGlobalDynamicSubcubes();
+    void rebuildGlobalDynamicSubcubeFaces();  // Generate face data for all global dynamic subcubes
+    const std::vector<std::unique_ptr<Subcube>>& getGlobalDynamicSubcubes() const { return globalDynamicSubcubes; }
+    const std::vector<DynamicSubcubeInstanceData>& getGlobalDynamicSubcubeFaces() const { return globalDynamicSubcubeFaces; }
+    
+    // Dynamic subcube face data for rendering
+    std::vector<DynamicSubcubeInstanceData> globalDynamicSubcubeFaces;
     
     // Convert between coordinate systems
     static glm::ivec3 worldToChunkCoord(const glm::ivec3& worldPos) { 

@@ -29,6 +29,22 @@ struct InstanceData {
     uint32_t packedData;   // 15 bits position (5+5+5), 6 bits face mask, 11 bits available for future features
     glm::vec3 color;       // RGB color (12 bytes)
     // Total: 16 bytes (was 28 bytes - 43% reduction!)
+    
+    static VkVertexInputBindingDescription getBindingDescription();
+    static std::array<VkVertexInputAttributeDescription, 1> getAttributeDescriptions();
+};
+
+// Instance data for dynamic subcubes with physics
+struct DynamicSubcubeInstanceData {
+    glm::vec3 worldPosition;  // Full precision world position for physics objects
+    glm::vec3 color;          // RGB color
+    uint32_t faceID;          // Face ID (0-5)
+    float scale;              // Scale factor (1/3 for subcubes, 1.0 for full cubes)
+    // Total: 32 bytes - larger but allows arbitrary positioning with correct scale
+    
+    // Vulkan vertex input description for dynamic subcubes
+    static VkVertexInputBindingDescription getBindingDescription();
+    static std::array<VkVertexInputAttributeDescription, 4> getAttributeDescriptions();  // Now 4 attributes
 };
 
 // Face visibility structure

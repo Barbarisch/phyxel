@@ -64,6 +64,12 @@ void PhysicsWorld::cleanup() {
     }
     motionStates.clear();
     
+    // Clean up dynamically created collision shapes
+    for (auto* shape : collisionShapes) {
+        delete shape;
+    }
+    collisionShapes.clear();
+    
     // Bullet objects will be cleaned up by unique_ptr destructors
     dynamicsWorld.reset();
     solver.reset();
@@ -77,9 +83,9 @@ void PhysicsWorld::cleanup() {
     rigidBodies.clear();
 }
 
-void PhysicsWorld::stepSimulation(float deltaTime, int maxSubSteps) {
+void PhysicsWorld::stepSimulation(float deltaTime, int maxSubSteps, float fixedTimeStep) {
     if (dynamicsWorld) {
-        dynamicsWorld->stepSimulation(deltaTime, maxSubSteps);
+        dynamicsWorld->stepSimulation(deltaTime, maxSubSteps, fixedTimeStep);
     }
 }
 
@@ -93,9 +99,18 @@ void PhysicsWorld::reset() {
 }
 
 btRigidBody* PhysicsWorld::createCube(const glm::vec3& position, const glm::vec3& size, float mass) {
-    if (!dynamicsWorld || !cubeShape) {
+    if (!dynamicsWorld) {
         return nullptr;
     }
+    
+    // Create a collision shape based on the size parameter
+    // size is the full size, btBoxShape expects half-extents
+    btVector3 halfExtents(size.x / 2.0f, size.y / 2.0f, size.z / 2.0f);
+    btBoxShape* collisionShape = new btBoxShape(halfExtents);
+    collisionShapes.push_back(collisionShape); // Store for cleanup
+    
+    std::cout << "[PHYSICS] Creating cube with full size (" << size.x << ", " << size.y << ", " << size.z 
+              << ") -> half-extents (" << halfExtents.x() << ", " << halfExtents.y() << ", " << halfExtents.z() << ")" << std::endl;
     
     // Create transform
     btTransform startTransform = glmToBulletTransform(position);
@@ -107,12 +122,26 @@ btRigidBody* PhysicsWorld::createCube(const glm::vec3& position, const glm::vec3
     // Calculate local inertia
     btVector3 localInertia(0, 0, 0);
     if (mass != 0.0f) {
-        cubeShape->calculateLocalInertia(mass, localInertia);
+        collisionShape->calculateLocalInertia(mass, localInertia);
     }
     
-    // Create rigid body
-    btRigidBody::btRigidBodyConstructionInfo rbInfo(mass, motionState, cubeShape.get(), localInertia);
+    // Create rigid body with the correctly sized collision shape
+    btRigidBody::btRigidBodyConstructionInfo rbInfo(mass, motionState, collisionShape, localInertia);
+    
+    // Set more realistic physics properties for dynamic objects
+    if (mass > 0.0f) {
+        rbInfo.m_restitution = 0.2f;  // Low bounce for rock-like behavior
+        rbInfo.m_friction = 0.8f;     // High friction so they don't slide around too much
+        rbInfo.m_rollingFriction = 0.3f; // Rolling resistance
+    }
+    
     btRigidBody* body = new btRigidBody(rbInfo);
+    
+    // Reduce collision margin for smaller objects to minimize gaps
+    if (collisionShape && (size.x < 1.0f || size.y < 1.0f || size.z < 1.0f)) {
+        collisionShape->setMargin(0.01f); // Very small margin for subcubes
+        std::cout << "[PHYSICS] Set small collision margin (0.01) for small object" << std::endl;
+    }
     
     // Add to world
     dynamicsWorld->addRigidBody(body);

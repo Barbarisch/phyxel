@@ -5,7 +5,17 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
+// Bullet Physics forward declarations (global namespace)
+class btRigidBody;
+class btCollisionShape;
+class btCompoundShape;
+
 namespace VulkanCube {
+
+// Forward declarations
+namespace Physics {
+    class PhysicsWorld;
+}
 
 /**
  * Chunk class that manages a 32x32x32 section of cubes
@@ -16,8 +26,10 @@ class Chunk {
     
 private:
     std::vector<Cube*> cubes;                      // Pointers to cubes for efficient deletion (32x32x32)
-    std::vector<Subcube*> subcubes;                // Pointers to subcubes for voxel subdivision
+    std::vector<Subcube*> staticSubcubes;          // Static subcubes (part of chunk physics body)
+    std::vector<Subcube*> dynamicSubcubes;         // Dynamic subcubes (individual physics bodies)
     std::vector<InstanceData> faces;               // Visible faces only (CPU pre-filtered for rendering)
+    std::vector<DynamicSubcubeInstanceData> dynamicSubcubeFaces; // Face data for dynamic subcubes
     VkBuffer instanceBuffer = VK_NULL_HANDLE;      // Vulkan buffer for this chunk's face instance data
     VkDeviceMemory instanceMemory = VK_NULL_HANDLE;
     void* mappedMemory = nullptr;                  // Persistent mapping for updates
@@ -33,6 +45,10 @@ private:
     // Vulkan device handles (set by ChunkManager)
     VkDevice device = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+    
+    // Physics body for static geometry (compound shape made from individual cube collision boxes)
+    mutable btRigidBody* chunkPhysicsBody = nullptr;
+    mutable btCollisionShape* chunkCollisionShape = nullptr;
 
 public:
     // Constructor
@@ -55,7 +71,9 @@ public:
     // Basic properties
     glm::ivec3 getWorldOrigin() const { return worldOrigin; }
     size_t getCubeCount() const { return cubes.size(); }
-    size_t getSubcubeCount() const { return subcubes.size(); }
+    size_t getStaticSubcubeCount() const { return staticSubcubes.size(); }
+    size_t getDynamicSubcubeCount() const { return dynamicSubcubes.size(); }  // Legacy - should always be 0 now
+    size_t getTotalSubcubeCount() const { return staticSubcubes.size(); }     // Only static subcubes remain in chunks
     uint32_t getNumInstances() const { return numInstances; }
     bool getNeedsUpdate() const { return needsUpdate; }
     void setNeedsUpdate(bool needsUpdate) { this->needsUpdate = needsUpdate; }
@@ -77,6 +95,11 @@ public:
     Subcube* getSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos);
     const Subcube* getSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const;
     std::vector<Subcube*> getSubcubesAt(const glm::ivec3& localPos);
+    std::vector<Subcube*> getStaticSubcubesAt(const glm::ivec3& localPos);
+    
+    // Physics-related subcube access (legacy for transfer process)
+    const std::vector<Subcube*>& getStaticSubcubes() const { return staticSubcubes; }
+    const std::vector<Subcube*>& getDynamicSubcubes() const { return dynamicSubcubes; }  // Temporary for transfer
     
     // Cube manipulation
     bool setCubeColor(const glm::ivec3& localPos, const glm::vec3& color);
@@ -84,14 +107,21 @@ public:
     bool addCube(const glm::ivec3& localPos, const glm::vec3& color);
     
     // Subcube manipulation
-    bool subdivideAt(const glm::ivec3& localPos);              // Convert cube to 27 subcubes
+    bool subdivideAt(const glm::ivec3& localPos);              // Convert cube to 27 static subcubes
     bool addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, const glm::vec3& color);
     bool removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos);
     bool clearSubdivisionAt(const glm::ivec3& localPos);       // Remove all subcubes and restore cube
     
+    // Physics-related subcube manipulation
+    bool breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos,  // Move subcube from static to dynamic (for transfer to global)
+                     class Physics::PhysicsWorld* physicsWorld = nullptr, 
+                     const glm::vec3& impulseForce = glm::vec3(0.0f));
+    bool makeSubcubeStatic(Subcube* subcube);                  // Transition subcube back to static (if needed)
+    
     // Chunk operations
     void populateWithCubes();                      // Fill chunk with 32x32x32 cubes
     void rebuildFaces();                           // Regenerate face data from cubes
+    void rebuildDynamicSubcubeFaces();             // Generate face data for dynamic subcubes (legacy cleanup)
     void updateVulkanBuffer();                     // Update GPU buffer with face data
     
     // Efficient partial updates for hover effects (avoids full rebuild)
@@ -106,6 +136,13 @@ public:
     // Buffer utilization analysis
     void logBufferUtilization() const;
     
+    // Physics management
+    void setPhysicsWorld(class Physics::PhysicsWorld* world) { physicsWorld = world; }
+    void createChunkPhysicsBody();                    // Create simple box physics body for static geometry
+    void updateChunkPhysicsBody();                    // Rebuild physics body when static geometry changes
+    void cleanupPhysicsResources();                   // Clean up physics bodies
+    class btRigidBody* getChunkPhysicsBody() const { return chunkPhysicsBody; }
+    
     // Utility functions
     static size_t localToIndex(const glm::ivec3& localPos);
     static glm::ivec3 indexToLocal(size_t index);
@@ -114,9 +151,13 @@ public:
     // Access for ChunkManager (friend access or public as needed)
     VkBuffer getInstanceBuffer() const { return instanceBuffer; }
     const std::vector<InstanceData>& getFaces() const { return faces; }
+    const std::vector<DynamicSubcubeInstanceData>& getDynamicSubcubeFaces() const { return dynamicSubcubeFaces; }
     void* getMappedMemory() const { return mappedMemory; }
     
 private:
+    // Physics world reference for physics body creation
+    class Physics::PhysicsWorld* physicsWorld = nullptr;
+    
     // Helper functions
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
     bool isValidLocalPosition(const glm::ivec3& localPos) const;

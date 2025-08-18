@@ -68,6 +68,7 @@ bool Application::initialize() {
     // Create core components
     vulkanDevice = std::make_unique<Vulkan::VulkanDevice>();
     renderPipeline = std::make_unique<Vulkan::RenderPipeline>(*vulkanDevice);
+    dynamicRenderPipeline = std::make_unique<Vulkan::RenderPipeline>(*vulkanDevice);
     sceneManager = std::make_unique<Scene::SceneManager>();
     physicsWorld = std::make_unique<Physics::PhysicsWorld>();
     timer = std::make_unique<Timer>();
@@ -79,6 +80,17 @@ bool Application::initialize() {
         return false;
     }
 
+    // Load shaders for pipelines (after Vulkan is initialized)
+    if (!renderPipeline->loadShaders("shaders/cube.vert.spv", "shaders/cube.frag.spv")) {
+        std::cerr << "Failed to load static pipeline shaders!" << std::endl;
+        return false;
+    }
+    
+    if (!dynamicRenderPipeline->loadShaders("shaders/dynamic_subcube.vert.spv", "shaders/cube.frag.spv")) {
+        std::cerr << "Failed to load dynamic pipeline shaders!" << std::endl;
+        return false;
+    }
+
     // Initialize chunk manager after Vulkan is ready
     chunkManager->initialize(vulkanDevice->getDevice(), vulkanDevice->getPhysicalDevice());
     
@@ -86,6 +98,14 @@ bool Application::initialize() {
     //auto origins = MultiChunkDemo::createLinearChunks(10);
     //auto origins = MultiChunkDemo::createGridChunks(5, 5);
     auto origins = MultiChunkDemo::create3DGridChunks(2, 2, 2);
+    
+    // Debug: Print chunk origins
+    std::cout << "=== CHUNK ORIGINS ===" << std::endl;
+    for (size_t i = 0; i < origins.size(); ++i) {
+        std::cout << "Chunk " << i << " origin: (" << origins[i].x << "," << origins[i].y << "," << origins[i].z << ")" << std::endl;
+    }
+    std::cout << "=====================" << std::endl;
+    
     chunkManager->createChunks(origins);
     
     // Calculate face culling optimization after chunk creation (DISABLED for now)
@@ -107,6 +127,14 @@ bool Application::initialize() {
     if (!initializePhysics()) {
         std::cerr << "Failed to initialize physics!" << std::endl;
         return false;
+    }
+
+    // Create physics bodies for all chunks AFTER physics world is initialized
+    // Each chunk will be a compound shape made from individual cube collision boxes
+    std::cout << "Creating chunk physics bodies..." << std::endl;
+    for (auto& chunk : chunkManager->chunks) {
+        chunk->setPhysicsWorld(physicsWorld.get());
+        chunk->createChunkPhysicsBody();
     }
 
     if (!loadAssets()) {
@@ -234,6 +262,10 @@ void Application::cleanup() {
         renderPipeline->cleanup();
     }
     
+    if (dynamicRenderPipeline) {
+        dynamicRenderPipeline->cleanup();
+    }
+    
     // Cleanup chunk manager before Vulkan device
     if (chunkManager) {
         chunkManager->cleanup();
@@ -260,6 +292,7 @@ void Application::cleanup() {
     
     // Reset unique_ptrs
     renderPipeline.reset();
+    dynamicRenderPipeline.reset();
     vulkanDevice.reset();
     sceneManager.reset();
     physicsWorld.reset();
@@ -331,9 +364,15 @@ bool Application::initializeVulkan() {
         return false;
     }
 
-    // Load shaders
+    // Load shaders for static pipeline
     if (!renderPipeline->loadShaders("shaders/cube.vert.spv", "shaders/cube.frag.spv")) {
-        std::cerr << "Failed to load graphics shaders!" << std::endl;
+        std::cerr << "Failed to load static graphics shaders!" << std::endl;
+        return false;
+    }
+
+    // Load shaders for dynamic subcube pipeline
+    if (!dynamicRenderPipeline->loadShaders("shaders/dynamic_subcube.vert.spv", "shaders/cube.frag.spv")) {
+        std::cerr << "Failed to load dynamic subcube graphics shaders!" << std::endl;
         return false;
     }
 
@@ -349,6 +388,12 @@ bool Application::initializeVulkan() {
     }
 
     if (!renderPipeline->createGraphicsPipeline()) {
+        std::cerr << "Failed to create static graphics pipeline!" << std::endl;
+        return false;
+    }
+
+    if (!dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes()) {
+        std::cerr << "Failed to create dynamic graphics pipeline!" << std::endl;
         return false;
     }
 
@@ -381,9 +426,21 @@ bool Application::initializeVulkan() {
         return false;
     }
 
+    // Create dynamic subcube buffer (support up to 1000 dynamic subcubes)
+    if (!vulkanDevice->createDynamicSubcubeBuffer(1000)) {
+        std::cerr << "Failed to create dynamic subcube buffer!" << std::endl;
+        return false;
+    }
+
     // Create frustum culling buffers (support up to 35,000 instances)
     if (!vulkanDevice->createFrustumCullingBuffers(35000)) {
         std::cerr << "Failed to create frustum culling buffers!" << std::endl;
+        return false;
+    }
+
+    // Create dynamic subcube buffer (support up to 1000 dynamic subcubes)
+    if (!vulkanDevice->createDynamicSubcubeBuffer(1000)) {
+        std::cerr << "Failed to create dynamic subcube buffer!" << std::endl;
         return false;
     }
 
@@ -474,10 +531,40 @@ void Application::update(float deltaTime) {
     // OPTIMIZED: Only update chunks that have actually changed
     if (chunkManager) {
         chunkManager->updateDirtyChunks();
+        chunkManager->updateGlobalDynamicSubcubes(deltaTime);  // Update global dynamic subcube lifetimes
     }
     
-    // Update physics
-    physicsWorld->stepSimulation(deltaTime);
+    // Update physics with FIXED timestep for smooth, jitter-free simulation
+    auto physicsStart = std::chrono::high_resolution_clock::now();
+    
+    // Accumulate time for fixed timestep physics
+    static float physicsDeltaAccumulator = 0.0f;
+    static const float FIXED_TIMESTEP = 1.0f / 60.0f; // 60 FPS physics
+    static const float MAX_DELTA = 0.25f; // Prevent spiral of death
+    
+    // Add frame time to accumulator, but clamp to prevent spiral of death
+    float frameTime = std::min(deltaTime, MAX_DELTA);
+    physicsDeltaAccumulator += frameTime;
+    
+    // Run physics in fixed timesteps
+    while (physicsDeltaAccumulator >= FIXED_TIMESTEP) {
+        physicsWorld->stepSimulation(FIXED_TIMESTEP, 1, FIXED_TIMESTEP); // Pure fixed timestep
+        physicsDeltaAccumulator -= FIXED_TIMESTEP;
+    }
+    
+    auto physicsEnd = std::chrono::high_resolution_clock::now();
+    
+    // Update dynamic subcube positions from physics bodies
+    if (chunkManager) {
+        // Update global dynamic subcubes (all dynamic subcubes are now global)
+        chunkManager->updateGlobalDynamicSubcubePositions();
+    }
+    
+    static int frameCount = 0;
+    if (frameCount % 60 == 0) { // Log every 60 frames
+        std::cout << "[PHYSICS STEP] Using FIXED timestep: " << (1.0f/60.0f) << "s (60Hz), frame deltaTime: " << deltaTime << std::endl;
+    }
+    frameCount++;
 
     // Get physics transforms and sync with scene
     std::vector<glm::mat4> transforms;
@@ -509,6 +596,66 @@ void Application::render() {
     drawFrame();
 }
 
+void Application::renderStaticGeometry() {
+    // Render static cubes and static subcubes using the standard pipeline
+    // Bind graphics pipeline
+    renderPipeline->bindGraphicsPipeline(vulkanDevice->getCommandBuffer(currentFrame));
+    
+    // Draw indexed cubes using chunk manager
+    if (chunkManager && !chunkManager->chunks.empty()) {
+        // Render each chunk separately
+        for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
+            const Chunk* chunk = chunkManager->chunks[i].get();
+            
+            // Skip chunks with no static faces
+            if (chunk->getNumInstances() == 0) continue;
+            
+            // Bind this chunk's instance buffer
+            VkBuffer instanceBuffers[] = {chunk->getInstanceBuffer()};
+            VkDeviceSize instanceOffsets[] = {0};
+            vkCmdBindVertexBuffers(vulkanDevice->getCommandBuffer(currentFrame), 1, 1, instanceBuffers, instanceOffsets);
+            
+            // Set chunk origin as push constants for world positioning
+            glm::ivec3 worldOrigin = chunk->getWorldOrigin();
+            glm::vec3 chunkBaseOffset(worldOrigin.x, worldOrigin.y, worldOrigin.z);
+            vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
+            
+            // Draw this chunk's static geometry
+            vulkanDevice->drawIndexed(currentFrame, 36, chunk->getNumInstances());
+        }
+    }
+}
+
+void Application::renderDynamicSubcubes() {
+    // Get all global dynamic subcube faces from ChunkManager
+    // All dynamic subcubes (both G key spawned and broken from chunks) are now global
+    const auto& allDynamicSubcubeFaces = chunkManager->getGlobalDynamicSubcubeFaces();
+    
+    // Only render if we have dynamic subcube faces
+    if (!allDynamicSubcubeFaces.empty()) {
+        std::cout << "[RENDER] Rendering " << allDynamicSubcubeFaces.size() << " dynamic subcube faces" << std::endl;
+        
+        // Update dynamic subcube buffer
+        vulkanDevice->updateDynamicSubcubeBuffer(allDynamicSubcubeFaces);
+        
+        // Bind dynamic render pipeline
+        vkCmdBindPipeline(vulkanDevice->getCommandBuffer(currentFrame), 
+                         VK_PIPELINE_BIND_POINT_GRAPHICS, 
+                         dynamicRenderPipeline->getGraphicsPipeline());
+        
+        // Bind vertex and dynamic instance buffers
+        vulkanDevice->bindDynamicSubcubeBuffer(currentFrame);
+        vulkanDevice->bindIndexBuffer(currentFrame);
+        
+        // Bind descriptor sets for dynamic pipeline
+        vulkanDevice->bindDescriptorSets(currentFrame, dynamicRenderPipeline->getGraphicsLayout());
+        
+        // No push constants needed for dynamic subcubes (world position is in instance data)
+        // Draw all dynamic subcubes (6 indices per quad face)
+        vulkanDevice->drawIndexed(currentFrame, 6, static_cast<uint32_t>(allDynamicSubcubeFaces.size()));
+    }
+}
+
 void Application::drawFrame() {
     // Wait for previous frame
     vulkanDevice->waitForFence(currentFrame);
@@ -523,11 +670,6 @@ void Application::drawFrame() {
         return;
     }
 
-    // Update physics simulation (disabled for static cube grid like original code)
-    auto physicsStart = std::chrono::high_resolution_clock::now();
-    // physicsWorld->stepSimulation(deltaTime); // DISABLED - 32K static cubes don't need physics!
-    auto physicsEnd = std::chrono::high_resolution_clock::now();
-    
     // Update scene data for rendering (optimized for static cubes)
     auto instanceUpdateStart = std::chrono::high_resolution_clock::now();
     bool instanceDataChanged = sceneManager->updateInstanceData();
@@ -696,25 +838,13 @@ void Application::drawFrame() {
     // Bind descriptor sets (uniform buffers)
     vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getGraphicsLayout());
     
-    // Draw indexed cubes using chunk manager
+    // Draw using dual rendering system
     if (chunkManager && !chunkManager->chunks.empty()) {
-        // Render each chunk separately
-        for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
-            const Chunk* chunk = chunkManager->chunks[i].get();
-            
-            // Bind this chunk's instance buffer
-            VkBuffer instanceBuffers[] = {chunk->getInstanceBuffer()};
-            VkDeviceSize instanceOffsets[] = {0};
-            vkCmdBindVertexBuffers(vulkanDevice->getCommandBuffer(currentFrame), 1, 1, instanceBuffers, instanceOffsets);
-            
-            // Set chunk origin as push constants for world positioning
-            glm::ivec3 worldOrigin = chunk->getWorldOrigin();
-            glm::vec3 chunkBaseOffset(worldOrigin.x, worldOrigin.y, worldOrigin.z);
-            vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
-            
-            // Draw this chunk (32,768 instances)
-            vulkanDevice->drawIndexed(currentFrame, 36, chunk->getNumInstances());
-        }
+        // Render static geometry first
+        renderStaticGeometry();
+        
+        // Render dynamic subcubes with separate pipeline
+        renderDynamicSubcubes();
         
         // Get accurate performance statistics from chunk manager
         auto chunkStats = chunkManager->getPerformanceStats();
@@ -777,7 +907,7 @@ void Application::drawFrame() {
     auto frameEnd = std::chrono::high_resolution_clock::now();
     DetailedFrameTiming detailedTiming;
     detailedTiming.totalFrameTime = std::chrono::duration<double, std::milli>(frameEnd - frameStartTime).count();
-    detailedTiming.physicsTime = std::chrono::duration<double, std::milli>(physicsEnd - physicsStart).count();
+    detailedTiming.physicsTime = 0.0; // Physics timing integrated into main loop
     detailedTiming.mousePickTime = 0.0; // Not implemented yet
     detailedTiming.uboFillTime = std::chrono::duration<double, std::milli>(uboEnd - uboStart).count();
     detailedTiming.instanceUpdateTime = std::chrono::duration<double, std::milli>(instanceUpdateEnd - instanceUpdateStart).count();
@@ -963,8 +1093,14 @@ void Application::mouseButtonCallback(GLFWwindow* window, int button, int action
             // Ctrl+Left Click: Subdivide cube into 27 subcubes
             app->subdivideHoveredCube();
         } else {
-            // Left Click: Remove cube at hover location if available
-            app->removeHoveredCube();
+            // Left Click: If hovering a subcube, break it with physics; otherwise remove cube
+            if (app->hasHoveredCube && app->currentHoveredLocation.isSubcube) {
+                // Break subcube with physics
+                app->subdivideHoveredCube();
+            } else {
+                // Remove regular cube at hover location if available
+                app->removeHoveredCube();
+            }
         }
     }
     
@@ -1022,6 +1158,15 @@ void Application::processInput() {
         tPressed = false;
     }
     
+    // Spawn dynamic subcube above chunks with G key
+    static bool gPressed = false;
+    if (glfwGetKey(window, GLFW_KEY_G) == GLFW_PRESS && !gPressed) {
+        spawnTestDynamicSubcube();
+        gPressed = true;
+    } else if (glfwGetKey(window, GLFW_KEY_G) == GLFW_RELEASE) {
+        gPressed = false;
+    }
+    
     // Camera movement with WASD (always available)
     float cameraSpeed = 5.0f * deltaTime;
 
@@ -1047,6 +1192,50 @@ void Application::processInput() {
     }
     if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
         cameraPos -= cameraUp * cameraSpeed;
+    }
+}
+
+void Application::spawnTestDynamicSubcube() {
+    std::cout << "=== SPAWNING TEST DYNAMIC SUBCUBE ===" << std::endl;
+    
+    // Spawn above the center of the 2x2x2 chunk grid
+    // Chunk grid spans from (0,0,0) to (64,64,64) with Y being UP
+    // Center is (32,32,32), top surface is at Y=64
+    // Spawn clearly above at center: (32,80,32) - well above all chunks in Y
+    glm::vec3 spawnPosition = glm::vec3(32.0f, 80.0f, 32.0f);
+    
+    std::cout << "Spawn position: (" << spawnPosition.x << ", " << spawnPosition.y << ", " << spawnPosition.z << ")" << std::endl;
+    std::cout << "Camera position: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")" << std::endl;
+    
+    // Create a new dynamic subcube with raw pointer (matching existing pattern)
+    Subcube* dynamicSubcube = new Subcube(spawnPosition, glm::vec3(1.0f, 0.0f, 0.0f)); // Red color
+    
+    // Create physics body for the dynamic subcube (match visual size)
+    glm::vec3 subcubeSize = glm::vec3(1.0f / 3.0f); // Match visual subcube size
+    
+    std::cout << "[PHYSICS DEBUG] G-spawning subcube at world pos (" 
+              << spawnPosition.x << "," << spawnPosition.y << "," << spawnPosition.z 
+              << ") with physics size " << subcubeSize.x << std::endl;
+    
+    btRigidBody* rigidBody = physicsWorld->createCube(spawnPosition, subcubeSize, 0.5f); // 0.5kg mass
+    if (rigidBody) {
+        dynamicSubcube->setRigidBody(rigidBody);
+        
+        // IMPORTANT: Set initial physics position to match the physics body
+        dynamicSubcube->setPhysicsPosition(spawnPosition);
+        
+        std::cout << "Created physics body for dynamic subcube" << std::endl;
+    } else {
+        std::cout << "ERROR: Failed to create physics body for dynamic subcube" << std::endl;
+    }
+    
+    // Add to global dynamic subcube management (not tied to any specific chunk)
+    if (chunkManager) {
+        chunkManager->addGlobalDynamicSubcube(std::unique_ptr<Subcube>(dynamicSubcube));
+        std::cout << "Added dynamic subcube to global management" << std::endl;
+        std::cout << "Press G again to spawn another subcube!" << std::endl;
+    } else {
+        std::cout << "ERROR: No chunk manager available for global dynamic subcube management" << std::endl;
     }
 }
 
@@ -1617,7 +1806,7 @@ void Application::subdivideHoveredCube() {
         return;
     }
     
-    // Get the chunk and subdivide the cube using the stored location
+    // Get the chunk using the stored location
     Chunk* chunk = currentHoveredLocation.chunk;
     if (!chunk) {
         std::cout << "[CUBE SUBDIVISION] ERROR: Invalid chunk pointer" << std::endl;
@@ -1626,36 +1815,93 @@ void Application::subdivideHoveredCube() {
         return;
     }
     
-    // Check if cube is already subdivided
-    if (chunk->getSubcubesAt(currentHoveredLocation.localPos).size() > 0) {
-        std::cout << "[CUBE SUBDIVISION] Cube at world pos (" 
-                  << currentHoveredLocation.worldPos.x << "," 
-                  << currentHoveredLocation.worldPos.y << "," 
-                  << currentHoveredLocation.worldPos.z << ") is already subdivided" << std::endl;
-        return;
-    }
-    
-    // Subdivide the cube into 27 subcubes
-    bool subdivided = chunk->subdivideAt(currentHoveredLocation.localPos);
-    if (subdivided) {
-        std::cout << "[CUBE SUBDIVISION] Successfully subdivided cube at world pos: (" 
-                  << currentHoveredLocation.worldPos.x << "," 
-                  << currentHoveredLocation.worldPos.y << "," 
-                  << currentHoveredLocation.worldPos.z << ") into 27 subcubes" << std::endl;
-                  
-        // Mark the chunk as dirty for GPU buffer update (will rebuild faces including new subcubes)
-        if (chunkManager) {
-            chunkManager->markChunkDirty(chunk);
+    // Handle different cases based on what's being hovered
+    if (currentHoveredLocation.isSubcube) {
+        // Break a specific subcube (move from static to dynamic) with physics
+        // Calculate impulse force away from the camera direction
+        glm::vec3 impulseForce(0.0f, 2.0f, 0.0f); // Default upward force
+        
+        // Try to get a more interesting force direction based on camera position
+        glm::vec3 cubeWorldPos = glm::vec3(currentHoveredLocation.worldPos);
+        glm::vec3 forceDirection = normalize(cubeWorldPos - cameraPos);
+        
+        // Mix upward force with outward force for interesting breakage
+        impulseForce = forceDirection * 3.0f + glm::vec3(0.0f, 5.0f, 0.0f);
+        
+        std::cout << "[PHYSICS] Applying breakage force: (" 
+                  << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")" << std::endl;
+        
+        bool broken = chunk->breakSubcube(currentHoveredLocation.localPos, currentHoveredLocation.subcubePos, 
+                                         physicsWorld.get(), impulseForce);
+        if (broken) {
+            // Transfer the newly broken subcube from chunk-based to global system
+            auto& chunkDynamicSubcubes = const_cast<std::vector<Subcube*>&>(chunk->getDynamicSubcubes());
+            if (!chunkDynamicSubcubes.empty()) {
+                // The newly broken subcube should be the last one added
+                Subcube* brokenSubcube = chunkDynamicSubcubes.back();
+                if (brokenSubcube) {
+                    // Create a unique_ptr copy for the global system
+                    auto globalSubcube = std::make_unique<Subcube>(*brokenSubcube);
+                    
+                    // Transfer the physics body ownership
+                    globalSubcube->setRigidBody(brokenSubcube->getRigidBody());
+                    brokenSubcube->setRigidBody(nullptr);  // Prevent double deletion
+                    
+                    // Add to global system
+                    chunkManager->addGlobalDynamicSubcube(std::move(globalSubcube));
+                    
+                    // Remove from chunk's dynamic list
+                    delete brokenSubcube;
+                    chunkDynamicSubcubes.pop_back();
+                    
+                    // Update chunk faces since we removed a dynamic subcube
+                    chunk->rebuildDynamicSubcubeFaces();
+                    
+                    std::cout << "[TRANSFER] Moved broken subcube from chunk to global dynamic system" << std::endl;
+                }
+            }
+            
+            std::cout << "[SUBCUBE BREAKING] Successfully broke subcube at world pos: (" 
+                      << currentHoveredLocation.worldPos.x << "," 
+                      << currentHoveredLocation.worldPos.y << "," 
+                      << currentHoveredLocation.worldPos.z << ") subcube: ("
+                      << currentHoveredLocation.subcubePos.x << ","
+                      << currentHoveredLocation.subcubePos.y << ","
+                      << currentHoveredLocation.subcubePos.z << ")" << std::endl;
+        } else {
+            std::cout << "[SUBCUBE BREAKING] WARNING: Failed to break subcube" << std::endl;
+        }
+    } else {
+        // Check if cube is already subdivided
+        if (chunk->getSubcubesAt(currentHoveredLocation.localPos).size() > 0) {
+            std::cout << "[CUBE SUBDIVISION] Cube at world pos (" 
+                      << currentHoveredLocation.worldPos.x << "," 
+                      << currentHoveredLocation.worldPos.y << "," 
+                      << currentHoveredLocation.worldPos.z << ") is already subdivided" << std::endl;
+            return;
         }
         
-        // Clear hover state since the cube is now hidden/subdivided
-        hasHoveredCube = false;
-        currentHoveredLocation = CubeLocation();
-        lastHoveredCube = -1; // Reset the hover tracking
-        
-    } else {
-        std::cout << "[CUBE SUBDIVISION] WARNING: Failed to subdivide cube - cube may not exist or already subdivided" << std::endl;
+        // Subdivide the cube into 27 static subcubes
+        bool subdivided = chunk->subdivideAt(currentHoveredLocation.localPos);
+        if (subdivided) {
+            std::cout << "[CUBE SUBDIVISION] Successfully subdivided cube at world pos: (" 
+                      << currentHoveredLocation.worldPos.x << "," 
+                      << currentHoveredLocation.worldPos.y << "," 
+                      << currentHoveredLocation.worldPos.z << ") into 27 static subcubes" << std::endl;
+        } else {
+            std::cout << "[CUBE SUBDIVISION] WARNING: Failed to subdivide cube - cube may not exist" << std::endl;
+        }
     }
+    
+    // Mark the chunk as dirty for GPU buffer update
+    if (chunkManager) {
+        chunkManager->markChunkDirty(chunk);
+    }
+    
+    // Clear hover state
+    hasHoveredCube = false;
+    currentHoveredLocation = CubeLocation();
+    lastHoveredCube = -1;
 }
 
 // =============================================================================

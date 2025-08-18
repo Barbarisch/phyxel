@@ -43,6 +43,14 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
+    echo Compiling dynamic subcube vertex shader...
+    %GLSLANG% -fshader-stage=vert shaders\dynamic_subcube.vert -o shaders\dynamic_subcube.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile dynamic subcube vertex shader
+        pause
+        exit /b 1
+    )
+
     echo Compiling fragment shader...
     %GLSLANG% -fshader-stage=frag shaders\cube.frag -o shaders\cube.frag.spv
     if %errorlevel% neq 0 (
@@ -64,6 +72,14 @@ if defined USE_GLSLC (
     %GLSLANG% -V shaders\cube.vert -o shaders\cube.vert.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile vertex shader
+        pause
+        exit /b 1
+    )
+
+    echo Compiling dynamic subcube vertex shader...
+    %GLSLANG% -V shaders\dynamic_subcube.vert -o shaders\dynamic_subcube.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile dynamic subcube vertex shader
         pause
         exit /b 1
     )

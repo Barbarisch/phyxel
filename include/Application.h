@@ -57,7 +57,8 @@ private:
     
     // Core components
     std::unique_ptr<Vulkan::VulkanDevice> vulkanDevice;
-    std::unique_ptr<Vulkan::RenderPipeline> renderPipeline;
+    std::unique_ptr<Vulkan::RenderPipeline> renderPipeline;         // Static cubes and static subcubes
+    std::unique_ptr<Vulkan::RenderPipeline> dynamicRenderPipeline;  // Dynamic subcubes with physics
     std::unique_ptr<Scene::SceneManager> sceneManager;
     std::unique_ptr<Physics::PhysicsWorld> physicsWorld;
     std::unique_ptr<Timer> timer;
@@ -140,8 +141,11 @@ private:
     void update(float deltaTime);
     void render();
     void drawFrame();
+    void renderStaticGeometry();      // Render static cubes and subcubes
+    void renderDynamicSubcubes();     // Render dynamic subcubes with physics
     void handleInput();
     void processInput();
+    void spawnTestDynamicSubcube();  // Spawn a test dynamic subcube above the chunks
 
     // Camera controls
     void initializeCamera();

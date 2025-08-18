@@ -113,6 +113,12 @@ public:
     void updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, uint32_t numInstances);
     void updateInstanceBuffer(const std::vector<InstanceData>& instances);
     
+    // Dynamic subcube buffer management
+    bool createDynamicSubcubeBuffer(uint32_t maxDynamicSubcubes);
+    void updateDynamicSubcubeBuffer(const std::vector<DynamicSubcubeInstanceData>& dynamicSubcubes);
+    void bindDynamicSubcubeBuffer(uint32_t frameIndex);
+    void cleanupDynamicSubcubeBuffer();
+    
     // Frustum culling buffer management
     bool createFrustumCullingBuffers(uint32_t maxInstances);
     void updateAABBBuffer(const std::vector<glm::vec3>& positions);
@@ -230,6 +236,11 @@ private:
     VkDeviceMemory indexBufferMemory = VK_NULL_HANDLE;
     VkBuffer instanceBuffer = VK_NULL_HANDLE;
     VkDeviceMemory instanceBufferMemory = VK_NULL_HANDLE;
+    
+    // Dynamic subcube buffer
+    VkBuffer dynamicSubcubeBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory dynamicSubcubeBufferMemory = VK_NULL_HANDLE;
+    uint32_t maxDynamicSubcubes = 0;
     
     // Frustum culling storage buffers
     VkBuffer aabbBuffer = VK_NULL_HANDLE;

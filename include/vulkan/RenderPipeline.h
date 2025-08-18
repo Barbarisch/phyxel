@@ -16,6 +16,7 @@ public:
 
     // Pipeline creation
     bool createGraphicsPipeline();
+    bool createGraphicsPipelineForDynamicSubcubes(); // For dynamic subcube rendering
     bool createComputePipeline();
     void cleanup();
 
@@ -60,6 +61,7 @@ private:
     // Helper functions
     VkShaderModule createShaderModule(const std::vector<char>& code);
     bool createDescriptorSetLayout();
+    bool createDynamicDescriptorSetLayout();  // UBO-only layout for dynamic subcubes
     bool createComputeDescriptorSetLayout();
     VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
     VkFormat findDepthFormat();

@@ -38,6 +38,10 @@ public:
     bool isBroken() const { return broken; }
     bool isVisible() const { return visible; }
     btRigidBody* getRigidBody() const { return rigidBody; }
+    float getLifetime() const { return lifetime; }
+    bool hasExpired() const { return lifetime <= 0.0f; }
+    const glm::vec3& getPhysicsPosition() const { return physicsPosition; }
+    bool isDynamic() const { return rigidBody != nullptr; }
     
     // Mutators
     void setPosition(const glm::ivec3& pos) { position = pos; }
@@ -46,6 +50,9 @@ public:
     void setBroken(bool isBroken) { broken = isBroken; }
     void setVisible(bool vis) { visible = vis; }
     void setRigidBody(btRigidBody* body) { rigidBody = body; }
+    void setPhysicsPosition(const glm::vec3& pos) { physicsPosition = pos; }
+    void setLifetime(float time) { lifetime = time; }
+    void updateLifetime(float deltaTime) { lifetime -= deltaTime; }
     
     // Utility methods
     glm::vec3 getWorldPosition() const; // Calculate actual world position including local offset
@@ -55,15 +62,19 @@ public:
     void repair() { broken = false; }
     
 private:
-    glm::ivec3 position;        // World position of the parent cube
+    glm::ivec3 position;        // World position of the parent cube (for static subcubes)
     glm::vec3 color;            // Color of the subcube
     glm::ivec3 localPosition;   // Local position within parent cube (0-2 for each axis)
     float scale;                // Scale factor (1/3 of regular cube)
+    float lifetime = 30.0f;     // Lifetime in seconds (auto-cleanup after 30 seconds)
     bool broken = false;
     bool visible = true;
     
     // Physics body for dynamic subcubes
     btRigidBody* rigidBody = nullptr;
+    
+    // Smooth floating-point position for dynamic subcubes (bypasses integer grid)
+    glm::vec3 physicsPosition = glm::vec3(0.0f);
     
     static constexpr float SUBCUBE_SCALE = 1.0f / 3.0f; // 1/3 the size of a regular cube
 };

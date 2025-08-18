@@ -1,15 +1,23 @@
 #include "core/Chunk.h"
+#include "physics/PhysicsWorld.h"
 #include <stdexcept>
 #include <cstring>
 #include <random>
 #include <iostream>
+#include <unordered_set>
+
+// Bullet Physics includes
+#include <btBulletDynamicsCommon.h>
+#include <BulletCollision/CollisionShapes/btTriangleMesh.h>
+#include <BulletCollision/CollisionShapes/btBvhTriangleMeshShape.h>
 
 namespace VulkanCube {
 
 Chunk::Chunk(const glm::ivec3& origin) 
     : worldOrigin(origin) {
     cubes.reserve(32 * 32 * 32);              // Reserve space for all possible cubes
-    subcubes.reserve(32 * 32 * 32 * 27);      // Reserve space for maximum subcubes (27 per cube)
+    staticSubcubes.reserve(1000);             // Reserve reasonable space for static subcubes
+    dynamicSubcubes.reserve(100);             // Reserve space for dynamic subcubes
     faces.reserve(32 * 32 * 32 * 6);          // Reserve space for maximum faces (6 per cube)
 }
 
@@ -20,18 +28,26 @@ Chunk::~Chunk() {
     }
     cubes.clear();
     
-    // Delete all subcube pointers to free memory
-    for (Subcube* subcube : subcubes) {
+    // Delete all static subcube pointers to free memory
+    for (Subcube* subcube : staticSubcubes) {
         delete subcube;
     }
-    subcubes.clear();
+    staticSubcubes.clear();
+    
+    // Delete all dynamic subcube pointers to free memory
+    for (Subcube* subcube : dynamicSubcubes) {
+        delete subcube;
+    }
+    dynamicSubcubes.clear();
     
     cleanupVulkanResources();
+    cleanupPhysicsResources();
 }
 
 Chunk::Chunk(Chunk&& other) noexcept
     : cubes(std::move(other.cubes))
-    , subcubes(std::move(other.subcubes))
+    , staticSubcubes(std::move(other.staticSubcubes))
+    , dynamicSubcubes(std::move(other.dynamicSubcubes))
     , faces(std::move(other.faces))
     , instanceBuffer(other.instanceBuffer)
     , instanceMemory(other.instanceMemory)
@@ -61,7 +77,8 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept {
         
         // Move data
         cubes = std::move(other.cubes);
-        subcubes = std::move(other.subcubes);
+        staticSubcubes = std::move(other.staticSubcubes);
+        dynamicSubcubes = std::move(other.dynamicSubcubes);
         faces = std::move(other.faces);
         instanceBuffer = other.instanceBuffer;
         instanceMemory = other.instanceMemory;
@@ -197,7 +214,7 @@ void Chunk::populateWithCubes() {
         for (int y = 0; y < 32; ++y) {
             for (int z = 0; z < 32; ++z) {
                 Cube* cube = new Cube();
-                cube->setPosition(glm::ivec3(x, y, z));  // Relative position within chunk
+                cube->setPosition(glm::ivec3(x, y, z));  // Local position within chunk (for 5-bit packing efficiency)
                 glm::vec3 cubeColor = glm::vec3(
                     colorDist(gen),
                     colorDist(gen),
@@ -283,10 +300,12 @@ void Chunk::rebuildFaces() {
     // ========================================================================
     // PHASE 2: Process subcubes (from subdivided cubes)
     // ========================================================================
-    // std::cout << "[CHUNK] Processing " << subcubes.size() << " subcubes in PHASE 2..." << std::endl;
+    // PHASE 2: Process static subcubes only (dynamic subcubes use different rendering pipeline)
+    // ========================================================================
+    // std::cout << "[CHUNK] Processing " << staticSubcubes.size() << " static subcubes in PHASE 2..." << std::endl;
     int subcubeProcessed = 0;
-    for (const Subcube* subcube : subcubes) {
-        // Skip broken or hidden subcubes
+    for (const Subcube* subcube : staticSubcubes) {
+        // Skip broken or hidden subcubes (broken subcubes should be in dynamic list)
         if (!subcube || subcube->isBroken() || !subcube->isVisible()) {
             // if (!subcube) {
             //     std::cout << "[CHUNK] Skipping null subcube" << std::endl;
@@ -355,6 +374,38 @@ void Chunk::rebuildFaces() {
     //           << "), generated " << numInstances << " visible faces (" 
     //           << (faces.size() - subcubes.size() * 6) << " cube faces + " 
     //           << (subcubes.size() * 6) << " subcube faces)" << std::endl;
+}
+
+void Chunk::rebuildDynamicSubcubeFaces() {
+    dynamicSubcubeFaces.clear();
+    
+    // Generate face data for dynamic subcubes only
+    for (const Subcube* subcube : dynamicSubcubes) {
+        if (!subcube || !subcube->isVisible()) {
+            continue;
+        }
+        
+        // Get subcube's actual world position (including physics transformation if any)
+        glm::vec3 subcubeWorldPos = subcube->getWorldPosition();
+        
+        // For dynamic subcubes, we render all faces (they can be in arbitrary positions)
+        // In the future, we could add collision detection between dynamic subcubes
+        for (int faceID = 0; faceID < 6; ++faceID) {
+            DynamicSubcubeInstanceData faceInstance;
+            faceInstance.worldPosition = subcubeWorldPos;
+            faceInstance.color = subcube->getColor();
+            faceInstance.faceID = static_cast<uint32_t>(faceID);
+            faceInstance.scale = 1.0f / 3.0f;  // Subcubes are 1/3 the size of full cubes
+            
+            dynamicSubcubeFaces.push_back(faceInstance);
+        }
+    }
+    
+    needsUpdate = true;
+    
+    if (!dynamicSubcubeFaces.empty()) {
+        std::cout << "[CHUNK] Generated " << dynamicSubcubeFaces.size() << " dynamic subcube faces" << std::endl;
+    }
 }
 
 void Chunk::updateVulkanBuffer() {
@@ -580,8 +631,17 @@ glm::ivec3 Chunk::indexToLocal(size_t index) {
 // =============================================================================
 
 Subcube* Chunk::getSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) {
-    // Find subcube at the specified parent position and subcube local position
-    for (Subcube* subcube : subcubes) {
+    // Search in static subcubes first
+    for (Subcube* subcube : staticSubcubes) {
+        if (subcube && 
+            subcube->getPosition() == worldOrigin + localPos && 
+            subcube->getLocalPosition() == subcubePos) {
+            return subcube;
+        }
+    }
+    
+    // Search in dynamic subcubes
+    for (Subcube* subcube : dynamicSubcubes) {
         if (subcube && 
             subcube->getPosition() == worldOrigin + localPos && 
             subcube->getLocalPosition() == subcubePos) {
@@ -592,8 +652,17 @@ Subcube* Chunk::getSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcu
 }
 
 const Subcube* Chunk::getSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const {
-    // Find subcube at the specified parent position and subcube local position
-    for (const Subcube* subcube : subcubes) {
+    // Search in static subcubes first
+    for (const Subcube* subcube : staticSubcubes) {
+        if (subcube && 
+            subcube->getPosition() == worldOrigin + localPos && 
+            subcube->getLocalPosition() == subcubePos) {
+            return subcube;
+        }
+    }
+    
+    // Search in dynamic subcubes
+    for (const Subcube* subcube : dynamicSubcubes) {
         if (subcube && 
             subcube->getPosition() == worldOrigin + localPos && 
             subcube->getLocalPosition() == subcubePos) {
@@ -607,7 +676,26 @@ std::vector<Subcube*> Chunk::getSubcubesAt(const glm::ivec3& localPos) {
     std::vector<Subcube*> result;
     glm::ivec3 parentWorldPos = worldOrigin + localPos;
     
-    for (Subcube* subcube : subcubes) {
+    // Collect from both static and dynamic subcubes
+    for (Subcube* subcube : staticSubcubes) {
+        if (subcube && subcube->getPosition() == parentWorldPos) {
+            result.push_back(subcube);
+        }
+    }
+    
+    for (Subcube* subcube : dynamicSubcubes) {
+        if (subcube && subcube->getPosition() == parentWorldPos) {
+            result.push_back(subcube);
+        }
+    }
+    return result;
+}
+
+std::vector<Subcube*> Chunk::getStaticSubcubesAt(const glm::ivec3& localPos) {
+    std::vector<Subcube*> result;
+    glm::ivec3 parentWorldPos = worldOrigin + localPos;
+    
+    for (Subcube* subcube : staticSubcubes) {
         if (subcube && subcube->getPosition() == parentWorldPos) {
             result.push_back(subcube);
         }
@@ -654,7 +742,7 @@ bool Chunk::subdivideAt(const glm::ivec3& localPos) {
                 //           << ") color: (" << subcubeColor.x << "," << subcubeColor.y << "," << subcubeColor.z << ")" << std::endl;
                 
                 Subcube* newSubcube = new Subcube(parentWorldPos, subcubeColor, subcubeLocalPos);
-                subcubes.push_back(newSubcube);
+                staticSubcubes.push_back(newSubcube); // Add to static subcubes list
                 cube->addSubcube(newSubcube); // Also add to the parent cube
                 colorIndex++;
             }
@@ -672,7 +760,7 @@ bool Chunk::subdivideAt(const glm::ivec3& localPos) {
     needsUpdate = true;
     
     // std::cout << "[CHUNK] Subdivided cube at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
-    //           << ") into 27 subcubes with " << subcubes.size() << " total subcubes in chunk" << std::endl;
+    //           << ") into 27 subcubes with " << staticSubcubes.size() << " static subcubes in chunk" << std::endl;
     
     return true;
 }
@@ -687,10 +775,10 @@ bool Chunk::addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos
     // Check if subcube already exists
     if (getSubcubeAt(parentPos, subcubePos)) return false;
     
-    // Create new subcube
+    // Create new subcube (add to static list by default)
     glm::ivec3 parentWorldPos = worldOrigin + parentPos;
     Subcube* newSubcube = new Subcube(parentWorldPos, color, subcubePos);
-    subcubes.push_back(newSubcube);
+    staticSubcubes.push_back(newSubcube);
     
     // Mark for update
     needsUpdate = true;
@@ -699,8 +787,8 @@ bool Chunk::addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos
 }
 
 bool Chunk::removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos) {
-    // Find and remove the subcube
-    for (auto it = subcubes.begin(); it != subcubes.end(); ++it) {
+    // Try to find and remove from static subcubes first
+    for (auto it = staticSubcubes.begin(); it != staticSubcubes.end(); ++it) {
         Subcube* subcube = *it;
         if (subcube && 
             subcube->getPosition() == worldOrigin + parentPos && 
@@ -713,36 +801,65 @@ bool Chunk::removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcube
             }
             
             delete subcube;
-            subcubes.erase(it);
-            
-            // Immediately rebuild faces to remove the subcube from GPU buffer
-            rebuildFaces();
-            updateVulkanBuffer();
-            
+            staticSubcubes.erase(it);
+            needsUpdate = true;
             return true;
         }
     }
     
-    return false;
+    // Try to find and remove from dynamic subcubes
+    for (auto it = dynamicSubcubes.begin(); it != dynamicSubcubes.end(); ++it) {
+        Subcube* subcube = *it;
+        if (subcube && 
+            subcube->getPosition() == worldOrigin + parentPos && 
+            subcube->getLocalPosition() == subcubePos) {
+            
+            // Also remove from parent cube's subcube list
+            Cube* parentCube = getCubeAt(parentPos);
+            if (parentCube) {
+                parentCube->removeSubcube(subcube);
+            }
+            
+            delete subcube;
+            dynamicSubcubes.erase(it);
+            needsUpdate = true;
+            return true;
+        }
+    }
+    
+    return false; // Subcube not found
 }
 
 bool Chunk::clearSubdivisionAt(const glm::ivec3& localPos) {
     // Check if position is valid
     if (!isValidLocalPosition(localPos)) return false;
     
-    // Remove all subcubes at this position
+    // Remove all static subcubes at this position
     glm::ivec3 parentWorldPos = worldOrigin + localPos;
-    auto it = subcubes.begin();
+    auto it = staticSubcubes.begin();
     bool removedAny = false;
     
-    while (it != subcubes.end()) {
+    while (it != staticSubcubes.end()) {
         Subcube* subcube = *it;
         if (subcube && subcube->getPosition() == parentWorldPos) {
             delete subcube;
-            it = subcubes.erase(it);
+            it = staticSubcubes.erase(it);
             removedAny = true;
         } else {
             ++it;
+        }
+    }
+    
+    // Also remove all dynamic subcubes at this position
+    auto it2 = dynamicSubcubes.begin();
+    while (it2 != dynamicSubcubes.end()) {
+        Subcube* subcube = *it2;
+        if (subcube && subcube->getPosition() == parentWorldPos) {
+            delete subcube;
+            it2 = dynamicSubcubes.erase(it2);
+            removedAny = true;
+        } else {
+            ++it2;
         }
     }
     
@@ -754,9 +871,7 @@ bool Chunk::clearSubdivisionAt(const glm::ivec3& localPos) {
     }
     
     if (removedAny) {
-        // Immediately rebuild faces to remove all subcubes and restore parent from GPU buffer
-        rebuildFaces();
-        updateVulkanBuffer();
+        needsUpdate = true;
         // std::cout << "[CHUNK] Cleared subdivision at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
         //           << ")" << std::endl;
     }
@@ -862,6 +977,139 @@ void Chunk::logBufferUtilization() const {
         //           << "% (" << faces.size() << "/" << bufferCapacity 
         //           << "), Peak: " << utilization 
         //           << "% (" << maxInstancesUsed << "/" << bufferCapacity << ")" << std::endl;
+    }
+}
+
+// =============================================================================
+// PHYSICS-RELATED METHODS
+// =============================================================================
+
+bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, 
+                        Physics::PhysicsWorld* physicsWorld, const glm::vec3& impulseForce) {
+    // Find the subcube in static list
+    auto it = staticSubcubes.begin();
+    while (it != staticSubcubes.end()) {
+        Subcube* subcube = *it;
+        if (subcube && 
+            subcube->getPosition() == worldOrigin + parentPos && 
+            subcube->getLocalPosition() == subcubePos) {
+            
+            // Mark as broken and move to dynamic list
+            subcube->breakApart();
+            
+            // Create physics body for dynamic subcube if physics world is available
+            if (physicsWorld) {
+                glm::vec3 worldPos = subcube->getWorldPosition();
+                glm::vec3 subcubeSize(1.0f / 3.0f); // Match visual subcube size
+                
+                std::cout << "[PHYSICS DEBUG] Breaking subcube at world pos (" 
+                          << worldPos.x << "," << worldPos.y << "," << worldPos.z 
+                          << ") with physics size " << subcubeSize.x << std::endl;
+                
+                // Create dynamic physics body
+                btRigidBody* rigidBody = physicsWorld->createCube(worldPos, subcubeSize, 0.5f); // 0.5kg mass
+                subcube->setRigidBody(rigidBody);
+                
+                // IMPORTANT: Set initial physics position to match the physics body
+                subcube->setPhysicsPosition(worldPos);
+                
+                // Apply initial impulse force to make it "break" away
+                if (rigidBody && glm::length(impulseForce) > 0.0f) {
+                    btVector3 btImpulse(impulseForce.x, impulseForce.y, impulseForce.z);
+                    rigidBody->applyCentralImpulse(btImpulse);
+                    
+                    std::cout << "[PHYSICS] Applied impulse force (" 
+                              << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z 
+                              << ") to broken subcube" << std::endl;
+                }
+            }
+            
+            // Move to global dynamic subcube system instead of chunk-based
+            // Note: We need to get the ChunkManager reference to do this properly
+            // For now, still add to local dynamic list (this needs to be refactored)
+            dynamicSubcubes.push_back(subcube);
+            staticSubcubes.erase(it);
+            
+            // Rebuild both static and dynamic faces
+            rebuildFaces();  // Updates static faces
+            rebuildDynamicSubcubeFaces();  // Updates dynamic faces
+            
+            needsUpdate = true;
+            std::cout << "[CHUNK] Broke subcube at parent pos (" 
+                      << parentPos.x << "," << parentPos.y << "," << parentPos.z 
+                      << ") subcube pos (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z 
+                      << ") - moved to dynamic list with physics" << std::endl;
+            return true;
+        }
+        ++it;
+    }
+    
+    return false; // Subcube not found in static list
+}
+
+bool Chunk::makeSubcubeStatic(Subcube* subcube) {
+    if (!subcube) return false;
+    
+    // Find and remove from dynamic list
+    auto it = std::find(dynamicSubcubes.begin(), dynamicSubcubes.end(), subcube);
+    if (it != dynamicSubcubes.end()) {
+        dynamicSubcubes.erase(it);
+        subcube->repair();
+        staticSubcubes.push_back(subcube);
+        needsUpdate = true;
+        return true;
+    }
+    
+    return false; // Not found in dynamic list
+}
+
+void Chunk::createChunkPhysicsBody() {
+    if (!physicsWorld) {
+        std::cout << "[CHUNK] No physics world available for chunk physics body creation" << std::endl;
+        return;
+    }
+
+    if (chunkPhysicsBody) {
+        std::cout << "[CHUNK] Chunk physics body already exists, skipping creation" << std::endl;
+        return;
+    }
+
+    std::cout << "[CHUNK] Creating simple box physics body for chunk at (" 
+              << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z << ") - TESTING" << std::endl;
+
+    // TEMPORARY: Use simple box collision for testing instead of triangle mesh
+    glm::vec3 chunkSize(32.0f, 32.0f, 32.0f); // Full chunk size
+    glm::vec3 chunkCenter = glm::vec3(worldOrigin) + chunkSize * 0.5f; // Center of chunk
+    
+    btRigidBody* boxBody = physicsWorld->createStaticCube(chunkCenter, chunkSize);
+    if (boxBody) {
+        chunkPhysicsBody = boxBody;
+        std::cout << "[CHUNK] Created simple box collision body at center (" 
+                  << chunkCenter.x << "," << chunkCenter.y << "," << chunkCenter.z 
+                  << ") with size (" << chunkSize.x << "," << chunkSize.y << "," << chunkSize.z << ")" << std::endl;
+    } else {
+        std::cout << "[CHUNK] ERROR: Failed to create box collision body" << std::endl;
+    }
+    
+    return; // Skip triangle mesh creation for now
+}
+
+void Chunk::updateChunkPhysicsBody() {
+    // TODO: Implement physics body update when static geometry changes
+    std::cout << "[CHUNK] Physics body update not yet implemented" << std::endl;
+}
+
+void Chunk::cleanupPhysicsResources() {
+    // TODO: Implement physics cleanup
+    if (chunkPhysicsBody) {
+        std::cout << "[CHUNK] Cleaning up chunk physics body" << std::endl;
+        // Delete physics body and collision shape
+        chunkPhysicsBody = nullptr;
+    }
+    
+    if (chunkCollisionShape) {
+        std::cout << "[CHUNK] Cleaning up chunk collision shape" << std::endl;
+        chunkCollisionShape = nullptr;
     }
 }
 
