@@ -1,4 +1,5 @@
 #include "physics/PhysicsWorld.h"
+#include "physics/Material.h"
 #include <iostream>
 #include <algorithm>
 #include <glm/gtc/matrix_transform.hpp>
@@ -40,6 +41,9 @@ bool PhysicsWorld::initialize() {
         
         // Set gravity
         dynamicsWorld->setGravity(btVector3(0, -9.81f, 0));
+        
+        // Optimize collision settings for better interactions
+        optimizeCollisionSettings();
         
         // Create reusable collision shapes
         cubeShape = std::make_unique<btBoxShape>(btVector3(0.5f, 0.5f, 0.5f)); // 1x1x1 cube
@@ -137,15 +141,101 @@ btRigidBody* PhysicsWorld::createCube(const glm::vec3& position, const glm::vec3
     
     btRigidBody* body = new btRigidBody(rbInfo);
     
-    // Reduce collision margin for smaller objects to minimize gaps
-    if (collisionShape && (size.x < 1.0f || size.y < 1.0f || size.z < 1.0f)) {
-        collisionShape->setMargin(0.01f); // Very small margin for subcubes
-        std::cout << "[PHYSICS] Set small collision margin (0.01) for small object" << std::endl;
+    // Set appropriate collision margin based on object size and type
+    float objectSize = std::min({size.x, size.y, size.z});
+    float appropriateMargin;
+    
+    if (objectSize <= 0.25f) {
+        // Very small objects (subcubes) - ultra-fine margin
+        appropriateMargin = 0.002f;
+    } else if (objectSize < 1.0f) {
+        // Small objects - fine margin
+        appropriateMargin = 0.005f;
+    } else {
+        // Regular objects - standard margin  
+        appropriateMargin = 0.01f;
     }
+    
+    collisionShape->setMargin(appropriateMargin);
+    std::cout << "[COLLISION] Set collision margin " << appropriateMargin 
+              << " for object size " << objectSize << std::endl;
     
     // Add to world
     dynamicsWorld->addRigidBody(body);
     rigidBodies.push_back(body);
+    
+    return body;
+}
+
+btRigidBody* PhysicsWorld::createCube(const glm::vec3& position, const glm::vec3& size, const std::string& materialName) {
+    if (!dynamicsWorld) {
+        return nullptr;
+    }
+    
+    // Get material properties
+    static Physics::MaterialManager materialManager;
+    const auto& material = materialManager.getMaterial(materialName);
+    
+    // Create a collision shape based on the size parameter
+    // size is the full size, btBoxShape expects half-extents
+    btVector3 halfExtents(size.x / 2.0f, size.y / 2.0f, size.z / 2.0f);
+    btBoxShape* collisionShape = new btBoxShape(halfExtents);
+    collisionShapes.push_back(collisionShape); // Store for cleanup
+    
+    std::cout << "[PHYSICS] Creating cube with material '" << materialName << "' at (" 
+              << position.x << ", " << position.y << ", " << position.z << ")" << std::endl;
+    
+    // Create transform
+    btTransform startTransform = glmToBulletTransform(position);
+    
+    // Create motion state
+    btDefaultMotionState* motionState = new btDefaultMotionState(startTransform);
+    motionStates.push_back(motionState);
+    
+    // Calculate local inertia
+    btVector3 localInertia(0, 0, 0);
+    if (material.mass != 0.0f) {
+        collisionShape->calculateLocalInertia(material.mass, localInertia);
+    }
+    
+    // Create rigid body with material properties
+    btRigidBody::btRigidBodyConstructionInfo rbInfo(material.mass, motionState, collisionShape, localInertia);
+    
+    // Apply material physics properties
+    rbInfo.m_restitution = material.restitution;
+    rbInfo.m_friction = material.friction;
+    rbInfo.m_rollingFriction = material.friction * 0.5f; // Rolling friction as fraction of surface friction
+    
+    btRigidBody* body = new btRigidBody(rbInfo);
+    
+    // Apply damping
+    body->setDamping(material.linearDamping, material.angularDamping);
+    
+    // Set appropriate collision margin based on object size and type
+    float objectSize = std::min({size.x, size.y, size.z});
+    float appropriateMargin;
+    
+    if (objectSize <= 0.25f) {
+        // Very small objects (subcubes) - ultra-fine margin
+        appropriateMargin = 0.002f;
+    } else if (objectSize < 1.0f) {
+        // Small objects - fine margin
+        appropriateMargin = 0.005f;
+    } else {
+        // Regular objects - standard margin  
+        appropriateMargin = 0.01f;
+    }
+    
+    collisionShape->setMargin(appropriateMargin);
+    std::cout << "[COLLISION] Set collision margin " << appropriateMargin 
+              << " for material object size " << objectSize << std::endl;
+    
+    // Add to world
+    dynamicsWorld->addRigidBody(body);
+    rigidBodies.push_back(body);
+    
+    std::cout << "[MATERIAL] Applied '" << materialName << "' properties: mass=" << material.mass 
+              << ", friction=" << material.friction << ", restitution=" << material.restitution << std::endl;
     
     return body;
 }
@@ -348,6 +438,86 @@ glm::vec3 PhysicsWorld::bulletToGlmVector(const btVector3& vec) const {
 
 btVector3 PhysicsWorld::glmToBulletVector(const glm::vec3& vec) const {
     return btVector3(vec.x, vec.y, vec.z);
+}
+
+// =============================================================================
+// COLLISION TUNING FUNCTIONS
+// =============================================================================
+
+void PhysicsWorld::optimizeCollisionSettings() {
+    if (!dynamicsWorld) {
+        return;
+    }
+    
+    std::cout << "[COLLISION] Optimizing collision settings for better object interactions..." << std::endl;
+    
+    // Configure penetration recovery (Error Reduction Parameter and Constraint Force Mixing)
+    configurePenetrationRecovery(0.8f, 0.0001f);
+    
+    // Set proper collision margins
+    setCollisionMargins(0.005f, 0.02f);
+    
+    // Tune contact processing
+    tuneContactProcessing(4, 0.01f);
+    
+    // Configure dynamics world solver settings for better stability
+    auto& solverInfo = dynamicsWorld->getSolverInfo();
+    solverInfo.m_numIterations = 10; // More iterations for stability
+    solverInfo.m_solverMode |= SOLVER_USE_2_FRICTION_DIRECTIONS; // Better friction
+    solverInfo.m_solverMode |= SOLVER_USE_WARMSTARTING; // Faster convergence
+    
+    std::cout << "[COLLISION] Collision optimization complete" << std::endl;
+}
+
+void PhysicsWorld::setCollisionMargins(float dynamicMargin, float staticMargin) {
+    std::cout << "[COLLISION] Setting collision margins - Dynamic: " << dynamicMargin 
+              << ", Static: " << staticMargin << std::endl;
+    
+    // Apply margins to existing shapes
+    if (cubeShape) {
+        cubeShape->setMargin(dynamicMargin);
+    }
+    if (groundShape) {
+        groundShape->setMargin(staticMargin);
+    }
+    
+    // Note: For new shapes, margins will be set in createCube functions
+}
+
+void PhysicsWorld::configurePenetrationRecovery(float erp, float cfm) {
+    if (!dynamicsWorld) {
+        return;
+    }
+    
+    std::cout << "[COLLISION] Configuring penetration recovery - ERP: " << erp 
+              << ", CFM: " << cfm << std::endl;
+    
+    // Error Reduction Parameter - how quickly penetrations are resolved (0.0 to 1.0)
+    dynamicsWorld->getSolverInfo().m_erp = erp;
+    
+    // Constraint Force Mixing - softness of contacts (usually very small or 0)
+    dynamicsWorld->getSolverInfo().m_globalCfm = cfm;
+    
+    // Contact ERP - specific to contact constraints
+    dynamicsWorld->getSolverInfo().m_erp2 = erp * 0.8f; // Slightly softer for contacts
+}
+
+void PhysicsWorld::tuneContactProcessing(int maxContacts, float contactThreshold) {
+    if (!dynamicsWorld) {
+        return;
+    }
+    
+    std::cout << "[COLLISION] Tuning contact processing - Max contacts: " << maxContacts 
+              << ", Threshold: " << contactThreshold << std::endl;
+    
+    // Configure contact processing parameters (safer approach)
+    dynamicsWorld->getDispatchInfo().m_enableSatConvex = true; // Better convex collision detection
+    dynamicsWorld->getDispatchInfo().m_enableSPU = false; // Disable SPU processing for consistency
+    
+    // Set contact cache settings
+    dynamicsWorld->getSolverInfo().m_splitImpulse = true; // Split position and velocity solving
+    dynamicsWorld->getSolverInfo().m_splitImpulsePenetrationThreshold = -0.02f; // Threshold for split impulse
+    dynamicsWorld->getSolverInfo().m_splitImpulseTurnErp = 0.1f; // Turn ERP for split impulse
 }
 
 } // namespace Physics

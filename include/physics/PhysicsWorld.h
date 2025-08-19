@@ -4,6 +4,7 @@
 #include <btBulletDynamicsCommon.h>
 #include <vector>
 #include <memory>
+#include <string>
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
@@ -25,6 +26,7 @@ public:
 
     // Rigid body management
     btRigidBody* createCube(const glm::vec3& position, const glm::vec3& size = glm::vec3(1.0f), float mass = 1.0f);
+    btRigidBody* createCube(const glm::vec3& position, const glm::vec3& size, const std::string& materialName);
     btRigidBody* createStaticCube(const glm::vec3& position, const glm::vec3& size = glm::vec3(1.0f));
     btRigidBody* createGround(const glm::vec3& position = glm::vec3(0, -1, 0), const glm::vec3& size = glm::vec3(50, 1, 50));
     
@@ -46,6 +48,12 @@ public:
     // Debug and information
     int getRigidBodyCount() const;
     void printDebugInfo() const;
+    
+    // Collision tuning functions
+    void optimizeCollisionSettings();
+    void setCollisionMargins(float dynamicMargin = 0.005f, float staticMargin = 0.02f);
+    void configurePenetrationRecovery(float erp = 0.8f, float cfm = 0.0f);
+    void tuneContactProcessing(int maxContacts = 4, float contactThreshold = 0.02f);
 
     // Getters
     btDiscreteDynamicsWorld* getWorld() const { return dynamicsWorld.get(); }

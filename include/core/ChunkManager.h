@@ -141,6 +141,7 @@ public:
     
     // Fast O(1) chunk lookup functions
     Chunk* getChunkAtCoord(const glm::ivec3& chunkCoord);      // Get chunk by chunk coordinates
+    const Chunk* getChunkAtCoord(const glm::ivec3& chunkCoord) const; // Const version
     Chunk* getChunkAtFast(const glm::ivec3& worldPos);        // Fast O(1) world position lookup
     
     // Fast O(1) cube lookup functions

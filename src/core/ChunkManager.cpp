@@ -98,8 +98,8 @@ void ChunkManager::updateChunk(size_t chunkIndex) {
     if (chunk->getNeedsUpdate()) {
         std::cout << "[CHUNK_MANAGER] Updating chunk " << chunkIndex << " with " << chunk->getTotalSubcubeCount() << " subcubes" << std::endl;
         
-        // Use the chunk's own rebuildFaces() method which handles both cubes AND subcubes
-        chunk->rebuildFaces();
+        // Use cross-chunk culling method to maintain proper face occlusion across chunk boundaries
+        rebuildChunkFacesWithCrosschunkCulling(*chunk);
         
         // Update GPU buffer with new face data
         chunk->updateVulkanBuffer();
@@ -143,8 +143,8 @@ void ChunkManager::updateAllChunks() {
 }
 
 void ChunkManager::rebuildChunkFaces(Chunk& chunk) {
-    // The Chunk class now handles face rebuilding internally
-    chunk.rebuildFaces();
+    // Use cross-chunk culling method to maintain proper face occlusion across chunk boundaries
+    rebuildChunkFacesWithCrosschunkCulling(chunk);
     chunk.setNeedsUpdate(true);  // Mark for GPU buffer update
 }
 
@@ -158,8 +158,8 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
     for (size_t cubeIndex = 0; cubeIndex < chunk.cubes.size(); ++cubeIndex) {
         const Cube* cube = chunk.cubes[cubeIndex];
         
-        // Skip deleted cubes (nullptr)
-        if (!cube) continue;
+        // Skip deleted cubes (nullptr) or hidden cubes (subdivided)
+        if (!cube || !cube->isVisible()) continue;
         
         // Calculate which faces are visible by checking adjacent positions
         bool faceVisible[6] = {true, true, true, true, true, true};
@@ -187,7 +187,7 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
                 
                 // Neighbor is within same chunk - check directly
                 const Cube* neighborCube = chunk.getCubeAt(neighborLocalPos);
-                if (neighborCube && neighborCube->getColor().r >= 0.0f) {
+                if (neighborCube && neighborCube->isVisible()) {
                     faceVisible[faceID] = false;
                 }
             } else {
@@ -213,7 +213,7 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
                     }
                     
                     const Cube* neighborCube = neighborChunk->getCubeAt(neighborLocalInAdjacentChunk);
-                    if (neighborCube) {
+                    if (neighborCube && neighborCube->isVisible()) {
                         faceVisible[faceID] = false;
                         
                         // Debug successful culling
@@ -246,10 +246,70 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
                 InstanceData faceInstance;
                 
                 // Pack cube position (5 bits each) and face ID (3 bits)
-                faceInstance.packedData = (cubePos.x & 0x1F) | ((cubePos.y & 0x1F) << 5) | 
-                                         ((cubePos.z & 0x1F) << 10) | ((faceID & 0x7) << 15);
+                // Convert world position to chunk-relative position
+                glm::ivec3 cubeChunkPos = cubePos - chunkOrigin;
+                uint32_t subcubeData = 0; // Regular cube: subcube_flag=0, rest=0
+                
+                faceInstance.packedData = (cubeChunkPos.x & 0x1F) | ((cubeChunkPos.y & 0x1F) << 5) | 
+                                         ((cubeChunkPos.z & 0x1F) << 10) | ((faceID & 0x7) << 15) |
+                                         (subcubeData << 18);
                 
                 faceInstance.color = cube->getColor();
+                chunk.faces.push_back(faceInstance);
+            }
+        }
+    }
+    
+    // ========================================================================
+    // PHASE 2: Process static subcubes (from subdivided cubes)
+    // ========================================================================
+    const auto& staticSubcubes = chunk.getStaticSubcubes();
+    for (const Subcube* subcube : staticSubcubes) {
+        // Skip broken or hidden subcubes (broken subcubes should be in dynamic list)
+        if (!subcube || subcube->isBroken() || !subcube->isVisible()) {
+            continue;
+        }
+        
+        // Get subcube properties
+        glm::ivec3 parentPos = subcube->getPosition();     // Parent cube's world position
+        glm::ivec3 localPos = subcube->getLocalPosition(); // 0-2 for each axis within parent
+        
+        // Convert parent world position to chunk-relative position
+        glm::ivec3 parentChunkPos = parentPos - chunkOrigin;
+        
+        // Validate parent position is within chunk bounds
+        if (parentChunkPos.x < 0 || parentChunkPos.x >= 32 ||
+            parentChunkPos.y < 0 || parentChunkPos.y >= 32 ||
+            parentChunkPos.z < 0 || parentChunkPos.z >= 32) {
+            continue; // Skip subcubes with invalid parent positions
+        }
+        
+        // Calculate which faces are visible by checking adjacent subcubes/cubes
+        bool faceVisible[6] = {true, true, true, true, true, true};
+        
+        // For subcubes, we need more sophisticated occlusion culling:
+        // - Check against other subcubes in the same parent cube
+        // - Check against neighboring cubes/subcubes
+        // For now, simplified: assume all subcube faces are visible (we can optimize later)
+        
+        // Generate instance data for each visible face of the subcube
+        for (int faceID = 0; faceID < 6; ++faceID) {
+            if (faceVisible[faceID]) {
+                InstanceData faceInstance;
+                
+                // Pack parent cube position (5 bits each), face ID (3 bits), and subcube data
+                // Bit layout: [0-4]=parent_x, [5-9]=parent_y, [10-14]=parent_z, [15-17]=faceID, 
+                //             [18]=subcube_flag(1), [19-20]=local_x, [21-22]=local_y, [23-24]=local_z, [25-31]=reserved
+                uint32_t subcubeData = (1 << 0) |                           // subcube_flag = 1
+                                      ((localPos.x & 0x3) << 1) |          // local_x (2 bits)
+                                      ((localPos.y & 0x3) << 3) |          // local_y (2 bits)
+                                      ((localPos.z & 0x3) << 5);           // local_z (2 bits)
+                
+                faceInstance.packedData = (parentChunkPos.x & 0x1F) | ((parentChunkPos.y & 0x1F) << 5) | 
+                                         ((parentChunkPos.z & 0x1F) << 10) | ((faceID & 0x7) << 15) |
+                                         (subcubeData << 18);
+                
+                faceInstance.color = subcube->getColor();
                 chunk.faces.push_back(faceInstance);
             }
         }
@@ -268,6 +328,11 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
 // ===============================================================
 
 Chunk* ChunkManager::getChunkAtCoord(const glm::ivec3& chunkCoord) {
+    auto it = chunkMap.find(chunkCoord);
+    return (it != chunkMap.end()) ? it->second : nullptr;
+}
+
+const Chunk* ChunkManager::getChunkAtCoord(const glm::ivec3& chunkCoord) const {
     auto it = chunkMap.find(chunkCoord);
     return (it != chunkMap.end()) ? it->second : nullptr;
 }

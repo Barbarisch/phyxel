@@ -2,23 +2,31 @@
 
 #include <glm/glm.hpp>
 #include <memory>
+#include <string>
 
 // Forward declarations
 class btRigidBody;
 
 namespace VulkanCube {
 
+// Forward declaration
+namespace Physics {
+    struct MaterialProperties;
+}
+
 /**
  * @brief DynamicCube class for physics-enabled full-size cubes
  * 
  * Represents a full-size cube that has been broken from the static grid and is now
  * physics-enabled. These cubes are rendered using the dynamic pipeline with scale = 1.0
- * and managed globally by ChunkManager.
+ * and managed globally by ChunkManager. Supports different material properties for 
+ * realistic physics simulation.
  */
 class DynamicCube {
 public:
     DynamicCube();
     DynamicCube(const glm::vec3& pos, const glm::vec3& col);
+    DynamicCube(const glm::vec3& pos, const glm::vec3& col, const std::string& materialName);
     ~DynamicCube() = default;
 
     // Copy constructor and assignment for transferring between systems
@@ -37,6 +45,7 @@ public:
     const glm::vec3& getPhysicsPosition() const { return physicsPosition; }
     const glm::vec4& getPhysicsRotation() const { return physicsRotation; }
     bool isDynamic() const { return rigidBody != nullptr; }
+    const std::string& getMaterialName() const { return materialName; }
 
     // Mutators
     void setPosition(const glm::vec3& pos) { position = pos; }
@@ -48,6 +57,12 @@ public:
     void setPhysicsRotation(const glm::vec4& rot) { physicsRotation = rot; }
     void setLifetime(float time) { lifetime = time; }
     void updateLifetime(float deltaTime) { lifetime -= deltaTime; }
+    void setMaterial(const std::string& materialName);
+
+    // Material and physics methods
+    void applyMaterialProperties();                    // Apply current material to physics body
+    void applyMaterialProperties(const std::string& newMaterialName); // Change material and apply
+    glm::vec3 getEffectiveColor() const;              // Get color with material tint applied
 
     // Utility methods
     glm::vec3 getWorldPosition() const; // Calculate actual world position (same as physics position for dynamic cubes)
@@ -59,6 +74,7 @@ public:
 private:
     glm::vec3 position;         // World position of the cube (for reference)
     glm::vec3 color;            // Color of the cube
+    std::string materialName;   // Name of the material for physics properties
     float lifetime = 30.0f;     // Lifetime in seconds (auto-cleanup after 30 seconds)
     bool broken = false;
     bool visible = true;

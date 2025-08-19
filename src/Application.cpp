@@ -4,6 +4,7 @@
 #include "utils/PerformanceProfiler.h"
 #include "examples/MultiChunkDemo.h"
 #include "core/DynamicCube.h"
+#include "physics/Material.h"
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -1994,13 +1995,29 @@ void Application::breakHoveredCube() {
         return;
     }
     
-    // Create a dynamic cube at the same position with the original color
-    auto dynamicCube = std::make_unique<DynamicCube>(cubeWorldPos, originalColor);
+    // Create a dynamic cube at the same position with the original color and material
+    // TODO: Add UI to select material - for now cycle through materials based on position
+    std::vector<std::string> materials = {"Wood", "Metal", "Glass", "Rubber", "Stone", "Ice", "Cork"};
+    int materialIndex = (abs(static_cast<int>(cubeWorldPos.x) + static_cast<int>(cubeWorldPos.z))) % materials.size();
+    std::string selectedMaterial = materials[materialIndex];
     
-    // Create physics body for the dynamic cube
+    auto dynamicCube = std::make_unique<DynamicCube>(cubeWorldPos, originalColor, selectedMaterial);
+    
+    // Create physics body for the dynamic cube using material properties
     glm::vec3 cubeSize(1.0f); // Full cube size
-    btRigidBody* rigidBody = physicsWorld->createCube(cubeWorldPos, cubeSize, 2.0f); // 2.0kg mass (heavier than subcubes)
+    btRigidBody* rigidBody = physicsWorld->createCube(cubeWorldPos, cubeSize, selectedMaterial);
     dynamicCube->setRigidBody(rigidBody);
+    
+    // Get material properties for impulse scaling
+    static Physics::MaterialManager materialManager;
+    const auto& material = materialManager.getMaterial(selectedMaterial);
+    
+    // Apply material-specific impulse scaling 
+    float impulseScale = material.breakForceMultiplier;
+    impulseForce *= impulseScale;
+    
+    std::cout << "[MATERIAL] Breaking cube with '" << selectedMaterial << "' material (impulse scale: " 
+              << impulseScale << ")" << std::endl;
     
     // Set initial physics position
     dynamicCube->setPhysicsPosition(cubeWorldPos);
@@ -2028,7 +2045,7 @@ void Application::breakHoveredCube() {
     // Add to global dynamic cubes system
     chunkManager->addGlobalDynamicCube(std::move(dynamicCube));
     
-    // Mark the chunk as dirty for GPU buffer update
+    // Mark the chunk as dirty for GPU buffer update (using cross-chunk culling)
     chunkManager->markChunkDirty(chunk);
     
     std::cout << "[CUBE BREAKING] Successfully broke cube at world pos: (" 
