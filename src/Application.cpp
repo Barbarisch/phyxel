@@ -1897,6 +1897,11 @@ void Application::subdivideHoveredCube() {
                       << currentHoveredLocation.subcubePos.x << ","
                       << currentHoveredLocation.subcubePos.y << ","
                       << currentHoveredLocation.subcubePos.z << ")" << std::endl;
+                      
+            // Use efficient selective update for subcube breaking
+            if (chunkManager) {
+                chunkManager->updateAfterSubcubeBreak(currentHoveredLocation.worldPos, currentHoveredLocation.subcubePos);
+            }
         } else {
             std::cout << "[SUBCUBE BREAKING] WARNING: Failed to break subcube" << std::endl;
         }
@@ -1922,9 +1927,9 @@ void Application::subdivideHoveredCube() {
         }
     }
     
-    // Mark the chunk as dirty for GPU buffer update
+    // Use efficient selective update instead of marking entire chunk dirty
     if (chunkManager) {
-        chunkManager->markChunkDirty(chunk);
+        chunkManager->updateAfterCubeSubdivision(currentHoveredLocation.worldPos);
     }
     
     // Clear hover state
@@ -2045,8 +2050,8 @@ void Application::breakHoveredCube() {
     // Add to global dynamic cubes system
     chunkManager->addGlobalDynamicCube(std::move(dynamicCube));
     
-    // Mark the chunk as dirty for GPU buffer update (using cross-chunk culling)
-    chunkManager->markChunkDirty(chunk);
+    // Use efficient selective update instead of marking entire chunk dirty
+    chunkManager->updateAfterCubeBreak(currentHoveredLocation.worldPos);
     
     std::cout << "[CUBE BREAKING] Successfully broke cube at world pos: (" 
               << currentHoveredLocation.worldPos.x << "," 

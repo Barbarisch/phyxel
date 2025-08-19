@@ -173,6 +173,25 @@ public:
     void clearDirtyChunkList();
     size_t getChunkIndex(const Chunk* chunk) const;  // Helper to find chunk index from pointer
     
+    // ========================================================================
+    // EFFICIENT SELECTIVE UPDATE SYSTEM
+    // ========================================================================
+    
+    // Event-specific efficient update methods
+    void updateAfterCubeBreak(const glm::ivec3& worldPos);        // Updates only affected faces when cube is broken
+    void updateAfterCubePlace(const glm::ivec3& worldPos);        // Updates only affected faces when cube is placed  
+    void updateAfterCubeSubdivision(const glm::ivec3& worldPos);  // Updates when cube is subdivided into subcubes
+    void updateAfterSubcubeBreak(const glm::ivec3& parentWorldPos, const glm::ivec3& subcubeLocalPos); // Updates when subcube breaks
+    
+    // Core selective update methods
+    void updateFacesForPositionChange(const glm::ivec3& worldPos, bool cubeAdded); // Central method for position-based updates
+    void updateNeighborFaces(const glm::ivec3& worldPos);          // Updates faces of up to 6 neighboring cubes
+    void updateSingleCubeFaces(const glm::ivec3& worldPos);        // Updates faces of single cube only
+    
+    // Cross-chunk boundary helpers
+    std::vector<glm::ivec3> getAffectedNeighborPositions(const glm::ivec3& worldPos); // Get all 6 neighbor positions (may span chunks)
+    void updateFacesAtPosition(const glm::ivec3& worldPos);        // Update faces for cube at specific position
+    
     // Cleanup all resources
     void cleanup();
     
