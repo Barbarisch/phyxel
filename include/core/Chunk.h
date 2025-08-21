@@ -9,6 +9,7 @@
 class btRigidBody;
 class btCollisionShape;
 class btCompoundShape;
+class btTriangleMesh; // Bullet forward declaration
 
 namespace VulkanCube {
 
@@ -49,6 +50,7 @@ private:
     // Physics body for static geometry (compound shape made from individual cube collision boxes)
     mutable btRigidBody* chunkPhysicsBody = nullptr;
     mutable btCollisionShape* chunkCollisionShape = nullptr;
+    mutable btTriangleMesh* chunkTriangleMesh = nullptr; // For BVH triangle mesh shape (option B)
 
 public:
     // Constructor
@@ -138,8 +140,9 @@ public:
     
     // Physics management
     void setPhysicsWorld(class Physics::PhysicsWorld* world) { physicsWorld = world; }
-    void createChunkPhysicsBody();                    // Create simple box physics body for static geometry
+    void createChunkPhysicsBody();                    // Create compound shape physics body for static geometry
     void updateChunkPhysicsBody();                    // Rebuild physics body when static geometry changes
+    void forcePhysicsRebuild();                       // Force immediate compound shape rebuild (bypasses performance optimization)
     void cleanupPhysicsResources();                   // Clean up physics bodies
     class btRigidBody* getChunkPhysicsBody() const { return chunkPhysicsBody; }
     
@@ -153,6 +156,18 @@ public:
     const std::vector<InstanceData>& getFaces() const { return faces; }
     const std::vector<DynamicSubcubeInstanceData>& getDynamicSubcubeFaces() const { return dynamicSubcubeFaces; }
     void* getMappedMemory() const { return mappedMemory; }
+
+private:
+    // Collision box structure for physics optimization
+    struct CollisionBox {
+        glm::vec3 center;
+        glm::vec3 halfExtents;
+        
+        CollisionBox(const glm::vec3& center, const glm::vec3& halfExtents) 
+            : center(center), halfExtents(halfExtents) {}
+    };
+    
+    std::vector<CollisionBox> generateMergedCollisionBoxes();  // Generate optimized collision boxes for compound shape
     
 private:
     // Physics world reference for physics body creation

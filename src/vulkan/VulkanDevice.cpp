@@ -1160,23 +1160,23 @@ bool VulkanDevice::createDynamicSubcubeBuffer(uint32_t maxSubcubes) {
 }
 
 void VulkanDevice::updateDynamicSubcubeBuffer(const std::vector<DynamicSubcubeInstanceData>& dynamicSubcubes) {
-    std::cout << "[BUFFER DEBUG] updateDynamicSubcubeBuffer called with " << dynamicSubcubes.size() << " subcubes" << std::endl;
-    std::cout << "[BUFFER DEBUG] dynamicSubcubeBuffer handle: " << dynamicSubcubeBuffer << std::endl;
+    // std::cout << "[BUFFER DEBUG] updateDynamicSubcubeBuffer called with " << dynamicSubcubes.size() << " subcubes" << std::endl;
+    // std::cout << "[BUFFER DEBUG] dynamicSubcubeBuffer handle: " << dynamicSubcubeBuffer << std::endl;
     
     if (dynamicSubcubes.empty() || dynamicSubcubeBuffer == VK_NULL_HANDLE) {
-        std::cout << "[BUFFER DEBUG] Early return - empty subcubes or null buffer handle" << std::endl;
+        //std::cout << "[BUFFER DEBUG] Early return - empty subcubes or null buffer handle" << std::endl;
         return;
     }
     
     VkDeviceSize bufferSize = sizeof(DynamicSubcubeInstanceData) * std::min(static_cast<uint32_t>(dynamicSubcubes.size()), maxDynamicSubcubes);
-    std::cout << "[BUFFER DEBUG] Updating buffer with " << bufferSize << " bytes" << std::endl;
+    //std::cout << "[BUFFER DEBUG] Updating buffer with " << bufferSize << " bytes" << std::endl;
     
     void* data;
     vkMapMemory(device, dynamicSubcubeBufferMemory, 0, bufferSize, 0, &data);
     memcpy(data, dynamicSubcubes.data(), (size_t) bufferSize);
     vkUnmapMemory(device, dynamicSubcubeBufferMemory);
     
-    std::cout << "[BUFFER DEBUG] Buffer update complete" << std::endl;
+    //std::cout << "[BUFFER DEBUG] Buffer update complete" << std::endl;
 }
 
 void VulkanDevice::bindDynamicSubcubeBuffer(uint32_t frameIndex) {

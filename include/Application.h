@@ -124,6 +124,7 @@ private:
         bool performanceStats = false;
         bool chunkOperations = false;
         bool cubeOperations = false;
+        bool disableBreakingForces = false; // For testing exact positioning without physics forces
     } debugFlags;
     
     // GPU frustum culling results for UI display
@@ -181,6 +182,7 @@ private:
     void updateFrameTiming();
     void printPerformanceStats();
     void createTestScene();
+    void debugCoordinateSystem(); // Debug coordinate conversion and physics positioning
     
     // Frame profiling methods
     FrameTiming profileFrame();

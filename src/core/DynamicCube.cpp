@@ -6,15 +6,18 @@
 namespace VulkanCube {
 
 DynamicCube::DynamicCube() 
-    : position(0.0f), color(1.0f), materialName("Default"), broken(false), visible(true), rigidBody(nullptr) {
+    : position(0.0f), color(1.0f), materialName("Default"), broken(false), visible(true), rigidBody(nullptr)
+    , physicsPosition(0.0f), physicsRotation(0.0f, 0.0f, 0.0f, 1.0f) {  // Identity quaternion
 }
 
 DynamicCube::DynamicCube(const glm::vec3& pos, const glm::vec3& col) 
-    : position(pos), color(col), materialName("Default"), broken(false), visible(true), rigidBody(nullptr) {
+    : position(pos), color(col), materialName("Default"), broken(false), visible(true), rigidBody(nullptr)
+    , physicsPosition(pos), physicsRotation(0.0f, 0.0f, 0.0f, 1.0f) {  // Identity quaternion
 }
 
 DynamicCube::DynamicCube(const glm::vec3& pos, const glm::vec3& col, const std::string& materialName) 
-    : position(pos), color(col), materialName(materialName), broken(false), visible(true), rigidBody(nullptr) {
+    : position(pos), color(col), materialName(materialName), broken(false), visible(true), rigidBody(nullptr)
+    , physicsPosition(pos), physicsRotation(0.0f, 0.0f, 0.0f, 1.0f) {  // Identity quaternion
 }
 
 DynamicCube::DynamicCube(const DynamicCube& other)

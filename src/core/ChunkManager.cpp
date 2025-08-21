@@ -717,7 +717,7 @@ void ChunkManager::updateGlobalDynamicSubcubes(float deltaTime) {
         (*it)->updateLifetime(deltaTime);
         
         if ((*it)->hasExpired()) {
-            std::cout << "[CHUNK MANAGER] Removing expired dynamic subcube (lifetime ended)" << std::endl;
+            //std::cout << "[CHUNK MANAGER] Removing expired dynamic subcube (lifetime ended)" << std::endl;
             // Note: The unique_ptr destructor will automatically clean up the subcube
             // TODO: Should also remove physics body from physics world here
             it = globalDynamicSubcubes.erase(it);
@@ -736,11 +736,21 @@ void ChunkManager::updateGlobalDynamicSubcubePositions() {
     // Update positions and rotations of global dynamic subcubes from their physics bodies
     bool transformsChanged = false;
     static int debugCounter = 0;
+    static bool firstUpdate = true;
+    
+    if (firstUpdate && !globalDynamicSubcubes.empty()) {
+        std::cout << "[SUBCUBE POSITION] ===== FIRST SUBCUBE PHYSICS UPDATE =====" << std::endl;
+        std::cout << "[SUBCUBE POSITION] Found " << globalDynamicSubcubes.size() << " dynamic subcubes to track" << std::endl;
+        firstUpdate = false;
+    }
     
     for (auto& subcube : globalDynamicSubcubes) {
         if (subcube && subcube->getRigidBody()) {
             btRigidBody* body = subcube->getRigidBody();
             btTransform transform = body->getWorldTransform();
+            
+            // Get current stored position before update
+            glm::vec3 oldStoredPos = subcube->getPhysicsPosition();
             
             // Get the physics world position
             btVector3 btPos = transform.getOrigin();
@@ -755,10 +765,19 @@ void ChunkManager::updateGlobalDynamicSubcubePositions() {
             subcube->setPhysicsRotation(newRotation);
             transformsChanged = true;
             
-            // Debug output for first subcube every 60 frames
+            // Enhanced position tracking - show movement from initial spawn position every 60 frames
             if (debugCounter % 60 == 0) {
-                std::cout << "[SMOOTH PHYSICS] Subcube pos: (" << newWorldPos.x << ", " << newWorldPos.y << ", " << newWorldPos.z 
-                          << ") rot: (" << newRotation.x << ", " << newRotation.y << ", " << newRotation.z << ", " << newRotation.w << ")" << std::endl;
+                glm::vec3 movement = newWorldPos - oldStoredPos;
+                float movementMag = glm::length(movement);
+                
+                std::cout << "[SUBCUBE POSITION] ===== AFTER PHYSICS SIMULATION =====" << std::endl;
+                std::cout << "[SUBCUBE POSITION] 8. Physics body final position: (" 
+                          << newWorldPos.x << ", " << newWorldPos.y << ", " << newWorldPos.z << ")" << std::endl;
+                std::cout << "[SUBCUBE POSITION] 9. Movement from last update: (" 
+                          << movement.x << ", " << movement.y << ", " << movement.z << ") magnitude: " << movementMag << std::endl;
+                std::cout << "[SUBCUBE POSITION] 10. Rotation: (" 
+                          << newRotation.x << ", " << newRotation.y << ", " << newRotation.z << ", " << newRotation.w << ")" << std::endl;
+                std::cout << "[SUBCUBE POSITION] ===== END SUBCUBE POSITION TRACKING =====" << std::endl;
                 break; // Only log first subcube
             }
         }
@@ -773,7 +792,7 @@ void ChunkManager::updateGlobalDynamicSubcubePositions() {
 }
 
 void ChunkManager::clearAllGlobalDynamicSubcubes() {
-    std::cout << "[CHUNK MANAGER] Clearing all " << globalDynamicSubcubes.size() << " global dynamic subcubes" << std::endl;
+    //std::cout << "[CHUNK MANAGER] Clearing all " << globalDynamicSubcubes.size() << " global dynamic subcubes" << std::endl;
     globalDynamicSubcubes.clear();
 }
 
@@ -816,11 +835,21 @@ void ChunkManager::updateGlobalDynamicCubePositions() {
     // Update positions and rotations of global dynamic cubes from their physics bodies
     bool transformsChanged = false;
     static int debugCounter = 0;
+    static bool firstUpdate = true;
+    
+    if (firstUpdate && !globalDynamicCubes.empty()) {
+        std::cout << "[POSITION TRACK] ===== FIRST PHYSICS UPDATE =====" << std::endl;
+        std::cout << "[POSITION TRACK] Found " << globalDynamicCubes.size() << " dynamic cubes to track" << std::endl;
+        firstUpdate = false;
+    }
     
     for (auto& cube : globalDynamicCubes) {
         if (cube && cube->getRigidBody()) {
             btRigidBody* body = cube->getRigidBody();
             btTransform transform = body->getWorldTransform();
+            
+            // Get current stored position before update
+            glm::vec3 oldStoredPos = cube->getPhysicsPosition();
             
             // Get the physics world position
             btVector3 btPos = transform.getOrigin();
@@ -835,10 +864,19 @@ void ChunkManager::updateGlobalDynamicCubePositions() {
             cube->setPhysicsRotation(newRotation);
             transformsChanged = true;
             
-            // Debug output for first cube every 60 frames
+            // Enhanced position tracking - show movement from initial spawn position
             if (debugCounter % 60 == 0) {
-                std::cout << "[SMOOTH PHYSICS] Dynamic cube pos: (" << newWorldPos.x << ", " << newWorldPos.y << ", " << newWorldPos.z 
-                          << ") rot: (" << newRotation.x << ", " << newRotation.y << ", " << newRotation.z << ", " << newRotation.w << ")" << std::endl;
+                glm::vec3 movement = newWorldPos - oldStoredPos;
+                float movementMag = glm::length(movement);
+                
+                std::cout << "[POSITION TRACK] ===== AFTER PHYSICS SIMULATION =====" << std::endl;
+                std::cout << "[POSITION TRACK] 6. Physics body final position: (" 
+                          << newWorldPos.x << ", " << newWorldPos.y << ", " << newWorldPos.z << ")" << std::endl;
+                std::cout << "[POSITION TRACK] 7. Movement from last update: (" 
+                          << movement.x << ", " << movement.y << ", " << movement.z << ") magnitude: " << movementMag << std::endl;
+                std::cout << "[POSITION TRACK] 8. Rotation: (" 
+                          << newRotation.x << ", " << newRotation.y << ", " << newRotation.z << ", " << newRotation.w << ")" << std::endl;
+                std::cout << "[POSITION TRACK] ===== END POSITION TRACKING =====" << std::endl;
                 break; // Only log first cube
             }
         }
@@ -912,7 +950,7 @@ void ChunkManager::rebuildGlobalDynamicFaces() {
     }
     
     if (!globalDynamicSubcubeFaces.empty()) {
-        std::cout << "[CHUNK MANAGER] Generated " << globalDynamicSubcubeFaces.size() << " global dynamic faces (subcubes + cubes)" << std::endl;
+        //std::cout << "[CHUNK MANAGER] Generated " << globalDynamicSubcubeFaces.size() << " global dynamic faces (subcubes + cubes)" << std::endl;
     }
 }
 

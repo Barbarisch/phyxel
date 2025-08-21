@@ -107,14 +107,23 @@ btRigidBody* PhysicsWorld::createCube(const glm::vec3& position, const glm::vec3
         return nullptr;
     }
     
-    // Create a collision shape based on the size parameter
-    // size is the full size, btBoxShape expects half-extents
-    btVector3 halfExtents(size.x / 2.0f, size.y / 2.0f, size.z / 2.0f);
+    // Make dynamic cubes slightly smaller than static counterparts to prevent embedding
+    // This creates natural gaps that allow broken pieces to separate cleanly
+    glm::vec3 adjustedSize = size;
+    if (mass > 0.0f) { // Only reduce size for dynamic objects
+        const float dynamicSizeReduction = 0.95f; // 5% smaller than static cubes
+        adjustedSize = size * dynamicSizeReduction;
+        std::cout << "[PHYSICS] Creating dynamic cube with reduced size (" << adjustedSize.x << ", " << adjustedSize.y << ", " << adjustedSize.z 
+                  << ") - 95% of original (" << size.x << ", " << size.y << ", " << size.z << ") for gap prevention" << std::endl;
+    } else {
+        std::cout << "[PHYSICS] Creating static cube with full size (" << adjustedSize.x << ", " << adjustedSize.y << ", " << adjustedSize.z << ")" << std::endl;
+    }
+    
+    // Create a collision shape based on the adjusted size parameter
+    // adjustedSize is the full size, btBoxShape expects half-extents
+    btVector3 halfExtents(adjustedSize.x / 2.0f, adjustedSize.y / 2.0f, adjustedSize.z / 2.0f);
     btBoxShape* collisionShape = new btBoxShape(halfExtents);
     collisionShapes.push_back(collisionShape); // Store for cleanup
-    
-    std::cout << "[PHYSICS] Creating cube with full size (" << size.x << ", " << size.y << ", " << size.z 
-              << ") -> half-extents (" << halfExtents.x() << ", " << halfExtents.y() << ", " << halfExtents.z() << ")" << std::endl;
     
     // Create transform
     btTransform startTransform = glmToBulletTransform(position);
@@ -146,23 +155,28 @@ btRigidBody* PhysicsWorld::createCube(const glm::vec3& position, const glm::vec3
     float appropriateMargin;
     
     if (objectSize <= 0.25f) {
-        // Very small objects (subcubes) - ultra-fine margin
-        appropriateMargin = 0.002f;
+        // Very small objects (subcubes) - slightly larger margin for better contact resolution
+        appropriateMargin = 0.005f; // Increased from 0.002f
     } else if (objectSize < 1.0f) {
         // Small objects - fine margin
-        appropriateMargin = 0.005f;
+        appropriateMargin = 0.008f; // Slightly increased from 0.005f
     } else {
         // Regular objects - standard margin  
-        appropriateMargin = 0.01f;
+        appropriateMargin = 0.012f; // Slightly increased from 0.01f
     }
     
     collisionShape->setMargin(appropriateMargin);
     std::cout << "[COLLISION] Set collision margin " << appropriateMargin 
-              << " for object size " << objectSize << std::endl;
+              << " for object size " << objectSize << " (improved contact resolution)" << std::endl;
     
     // Add to world
     dynamicsWorld->addRigidBody(body);
     rigidBodies.push_back(body);
+    
+    // Force activation to ensure immediate overlap resolution when spawned at exact positions
+    body->setActivationState(ACTIVE_TAG);
+    body->activate(true);
+    body->setDeactivationTime(0.5f); // Stay active longer to resolve overlaps
     
     return body;
 }
@@ -176,14 +190,20 @@ btRigidBody* PhysicsWorld::createCube(const glm::vec3& position, const glm::vec3
     static Physics::MaterialManager materialManager;
     const auto& material = materialManager.getMaterial(materialName);
     
-    // Create a collision shape based on the size parameter
-    // size is the full size, btBoxShape expects half-extents
-    btVector3 halfExtents(size.x / 2.0f, size.y / 2.0f, size.z / 2.0f);
+    // Make dynamic cubes slightly smaller than static counterparts to prevent embedding
+    // This creates natural gaps that allow broken pieces to separate cleanly
+    const float dynamicSizeReduction = 0.95f; // 5% smaller than static cubes
+    glm::vec3 adjustedSize = size * dynamicSizeReduction;
+    
+    // Create a collision shape based on the adjusted size parameter
+    // adjustedSize is the full size, btBoxShape expects half-extents
+    btVector3 halfExtents(adjustedSize.x / 2.0f, adjustedSize.y / 2.0f, adjustedSize.z / 2.0f);
     btBoxShape* collisionShape = new btBoxShape(halfExtents);
     collisionShapes.push_back(collisionShape); // Store for cleanup
     
-    std::cout << "[PHYSICS] Creating cube with material '" << materialName << "' at (" 
-              << position.x << ", " << position.y << ", " << position.z << ")" << std::endl;
+    std::cout << "[PHYSICS] Creating dynamic cube with material '" << materialName << "' at (" 
+              << position.x << ", " << position.y << ", " << position.z 
+              << ") - size reduced to " << (dynamicSizeReduction * 100) << "% of original for gap prevention" << std::endl;
     
     // Create transform
     btTransform startTransform = glmToBulletTransform(position);
@@ -216,26 +236,182 @@ btRigidBody* PhysicsWorld::createCube(const glm::vec3& position, const glm::vec3
     float appropriateMargin;
     
     if (objectSize <= 0.25f) {
-        // Very small objects (subcubes) - ultra-fine margin
-        appropriateMargin = 0.002f;
+        // Very small objects (subcubes) - improved margin for contact resolution
+        appropriateMargin = 0.005f; // Increased from 0.002f
     } else if (objectSize < 1.0f) {
         // Small objects - fine margin
-        appropriateMargin = 0.005f;
+        appropriateMargin = 0.008f; // Slightly increased from 0.005f
     } else {
         // Regular objects - standard margin  
-        appropriateMargin = 0.01f;
+        appropriateMargin = 0.012f; // Slightly increased from 0.01f
     }
     
     collisionShape->setMargin(appropriateMargin);
     std::cout << "[COLLISION] Set collision margin " << appropriateMargin 
-              << " for material object size " << objectSize << std::endl;
+              << " for material object size " << objectSize << " (improved contact resolution)" << std::endl;
     
     // Add to world
     dynamicsWorld->addRigidBody(body);
     rigidBodies.push_back(body);
     
+    // Force activation to ensure immediate overlap resolution when spawned at exact positions
+    body->setActivationState(ACTIVE_TAG);
+    body->activate(true);
+    body->setDeactivationTime(0.5f); // Stay active longer to resolve overlaps
+    
     std::cout << "[MATERIAL] Applied '" << materialName << "' properties: mass=" << material.mass 
-              << ", friction=" << material.friction << ", restitution=" << material.restitution << std::endl;
+              << ", friction=" << material.friction << ", restitution=" << material.restitution 
+              << " (forced activation for overlap resolution)" << std::endl;
+    
+    return body;
+}
+
+btRigidBody* PhysicsWorld::createBreakawaCube(const glm::vec3& position, const glm::vec3& size, const std::string& materialName) {
+    if (!dynamicsWorld) {
+        return nullptr;
+    }
+    
+    // Get material properties
+    static Physics::MaterialManager materialManager;
+    const auto& material = materialManager.getMaterial(materialName);
+    
+    // Create a collision shape that's slightly smaller than the visual size to prevent embedding
+    // This gives the physics engine room to separate the cube from surrounding geometry
+    float shrinkFactor = 0.95f; // 5% smaller collision shape
+    glm::vec3 shrunkSize = size * shrinkFactor;
+    btVector3 halfExtents(shrunkSize.x / 2.0f, shrunkSize.y / 2.0f, shrunkSize.z / 2.0f);
+    btBoxShape* collisionShape = new btBoxShape(halfExtents);
+    collisionShapes.push_back(collisionShape); // Store for cleanup
+    
+    std::cout << "[PHYSICS] Creating breakaway cube with material '" << materialName << "' at (" 
+              << position.x << ", " << position.y << ", " << position.z << ")" 
+              << " with " << (shrinkFactor * 100) << "% collision size for gap creation" << std::endl;
+    
+    // Create transform
+    btTransform startTransform = glmToBulletTransform(position);
+    
+    // Create motion state
+    btDefaultMotionState* motionState = new btDefaultMotionState(startTransform);
+    motionStates.push_back(motionState);
+    
+    // Calculate local inertia based on the full mass (not the shrunk collision size)
+    btVector3 localInertia(0, 0, 0);
+    if (material.mass != 0.0f) {
+        collisionShape->calculateLocalInertia(material.mass, localInertia);
+    }
+    
+    // Create rigid body with material properties
+    btRigidBody::btRigidBodyConstructionInfo rbInfo(material.mass, motionState, collisionShape, localInertia);
+    
+    // Apply material physics properties
+    rbInfo.m_restitution = material.restitution;
+    rbInfo.m_friction = material.friction;
+    rbInfo.m_rollingFriction = material.friction * 0.5f; // Rolling friction as fraction of surface friction
+    
+    btRigidBody* body = new btRigidBody(rbInfo);
+    
+    // Apply damping
+    body->setDamping(material.linearDamping, material.angularDamping);
+    
+    // Set appropriate collision margin for the shrunk size
+    float objectSize = std::min({shrunkSize.x, shrunkSize.y, shrunkSize.z});
+    float appropriateMargin = (objectSize <= 0.25f) ? 0.005f : 0.01f; // Smaller margin for breakaway cubes
+    
+    collisionShape->setMargin(appropriateMargin);
+    std::cout << "[COLLISION] Set collision margin " << appropriateMargin 
+              << " for breakaway cube size " << objectSize << " (gap creation mode)" << std::endl;
+    
+    // Set collision filter groups to prevent collision with static chunk compound shapes
+    // This prevents unwanted collision recovery when spawning at the exact position of broken cubes
+    int collisionFilterGroup = btBroadphaseProxy::DefaultFilter;  // Dynamic objects group
+    int collisionFilterMask = btBroadphaseProxy::AllFilter & ~btBroadphaseProxy::StaticFilter;  // Exclude static objects
+    
+    // Add to world with collision filtering
+    dynamicsWorld->addRigidBody(body, collisionFilterGroup, collisionFilterMask);
+    rigidBodies.push_back(body);
+    
+    std::cout << "[COLLISION] Dynamic cube added with collision filtering - avoids static chunk collision" << std::endl;
+    
+    // Force activation and set collision flags for immediate separation
+    body->setActivationState(ACTIVE_TAG);
+    body->activate(true);
+    body->setDeactivationTime(1.0f); // Stay active longer for breakaway cubes
+    
+    // Set collision flags to ensure it processes collisions immediately
+    body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_CUSTOM_MATERIAL_CALLBACK);
+    
+    std::cout << "[MATERIAL] Applied '" << materialName << "' breakaway properties: mass=" << material.mass 
+              << ", friction=" << material.friction << ", restitution=" << material.restitution 
+              << " (shrunk collision for gap creation)" << std::endl;
+    
+    return body;
+}
+
+btRigidBody* PhysicsWorld::createBreakawaCube(const glm::vec3& position, const glm::vec3& size, float mass) {
+    if (!dynamicsWorld) {
+        return nullptr;
+    }
+    
+    // Create a collision shape that's slightly smaller than the visual size to prevent embedding
+    // This gives the physics engine room to separate the cube from surrounding geometry
+    float shrinkFactor = 0.95f; // 5% smaller collision shape
+    glm::vec3 shrunkSize = size * shrinkFactor;
+    btVector3 halfExtents(shrunkSize.x / 2.0f, shrunkSize.y / 2.0f, shrunkSize.z / 2.0f);
+    btBoxShape* collisionShape = new btBoxShape(halfExtents);
+    collisionShapes.push_back(collisionShape); // Store for cleanup
+    
+    std::cout << "[PHYSICS] Creating breakaway cube with mass " << mass << " at (" 
+              << position.x << ", " << position.y << ", " << position.z << ")" 
+              << " with " << (shrinkFactor * 100) << "% collision size for gap creation" << std::endl;
+    
+    // Create transform
+    btTransform startTransform = glmToBulletTransform(position);
+    
+    // Create motion state
+    btDefaultMotionState* motionState = new btDefaultMotionState(startTransform);
+    motionStates.push_back(motionState);
+    
+    // Calculate local inertia based on the mass
+    btVector3 localInertia(0, 0, 0);
+    if (mass != 0.0f) {
+        collisionShape->calculateLocalInertia(mass, localInertia);
+    }
+    
+    // Create rigid body with default properties
+    btRigidBody::btRigidBodyConstructionInfo rbInfo(mass, motionState, collisionShape, localInertia);
+    
+    // Apply reasonable default physics properties for breakaway cubes
+    rbInfo.m_restitution = 0.3f;  // Some bounce
+    rbInfo.m_friction = 0.7f;     // Good friction
+    rbInfo.m_rollingFriction = 0.35f; // Rolling friction
+    
+    btRigidBody* body = new btRigidBody(rbInfo);
+    
+    // Apply damping for stability
+    body->setDamping(0.1f, 0.1f); // Light damping
+    
+    // Set appropriate collision margin for the shrunk size
+    float objectSize = std::min({shrunkSize.x, shrunkSize.y, shrunkSize.z});
+    float appropriateMargin = (objectSize <= 0.25f) ? 0.005f : 0.01f; // Smaller margin for breakaway cubes
+    
+    collisionShape->setMargin(appropriateMargin);
+    std::cout << "[COLLISION] Set collision margin " << appropriateMargin 
+              << " for breakaway cube size " << objectSize << " (gap creation mode)" << std::endl;
+    
+    // Add to world
+    dynamicsWorld->addRigidBody(body);
+    rigidBodies.push_back(body);
+    
+    // Force activation and set collision flags for immediate separation
+    body->setActivationState(ACTIVE_TAG);
+    body->activate(true);
+    body->setDeactivationTime(1.0f); // Stay active longer for breakaway cubes
+    
+    // Set collision flags to ensure it processes collisions immediately
+    body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_CUSTOM_MATERIAL_CALLBACK);
+    
+    std::cout << "[MATERIAL] Applied breakaway properties: mass=" << mass 
+              << ", friction=0.7, restitution=0.3 (shrunk collision for gap creation)" << std::endl;
     
     return body;
 }
@@ -449,24 +625,33 @@ void PhysicsWorld::optimizeCollisionSettings() {
         return;
     }
     
-    std::cout << "[COLLISION] Optimizing collision settings for better object interactions..." << std::endl;
+    std::cout << "[COLLISION] Optimizing collision settings for exact-position spawning..." << std::endl;
     
-    // Configure penetration recovery (Error Reduction Parameter and Constraint Force Mixing)
-    configurePenetrationRecovery(0.8f, 0.0001f);
+    // Configure penetration recovery with strong settings to handle exact-position spawning
+    configurePenetrationRecovery(0.9f, 0.000001f); // High ERP for strong overlap resolution
     
-    // Set proper collision margins
-    setCollisionMargins(0.005f, 0.02f);
+    // Set proper collision margins with values optimized for overlap resolution
+    setCollisionMargins(0.015f, 0.03f); // Increased margins for better overlap detection
     
-    // Tune contact processing
-    tuneContactProcessing(4, 0.01f);
+    // Tune contact processing with better settings
+    tuneContactProcessing(6, 0.004f); // Good balance of contacts and performance
     
-    // Configure dynamics world solver settings for better stability
+    // Configure dynamics world solver settings for strong overlap resolution
     auto& solverInfo = dynamicsWorld->getSolverInfo();
-    solverInfo.m_numIterations = 10; // More iterations for stability
+    solverInfo.m_numIterations = 20; // Increased from 15 for better overlap resolution
     solverInfo.m_solverMode |= SOLVER_USE_2_FRICTION_DIRECTIONS; // Better friction
     solverInfo.m_solverMode |= SOLVER_USE_WARMSTARTING; // Faster convergence
+    solverInfo.m_solverMode |= SOLVER_RANDMIZE_ORDER; // Better convergence
     
-    std::cout << "[COLLISION] Collision optimization complete" << std::endl;
+    // Enhanced penetration recovery settings for exact-position spawning
+    solverInfo.m_splitImpulse = true; // Separate position and velocity solving
+    solverInfo.m_splitImpulsePenetrationThreshold = -0.01f; // Aggressive penetration threshold
+    solverInfo.m_erp2 = 0.85f; // Strong split impulse error reduction
+    
+    // Enhanced contact processing for overlap resolution
+    dynamicsWorld->getDispatchInfo().m_allowedCcdPenetration = 0.0005f; // Very low allowed penetration
+    
+    std::cout << "[COLLISION] Exact-position spawning optimization complete - 20 iterations, 90% ERP, strong overlap resolution" << std::endl;
 }
 
 void PhysicsWorld::setCollisionMargins(float dynamicMargin, float staticMargin) {

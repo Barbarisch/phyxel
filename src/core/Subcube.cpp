@@ -20,11 +20,10 @@ glm::vec3 Subcube::getWorldPosition() const {
     glm::vec3 parentWorldPos = glm::vec3(position);
     glm::vec3 localOffset = glm::vec3(localPosition) * scale;
     
-    // Adjust the offset to center the 3x3x3 grid within the parent cube
-    // The center of the 3x3x3 grid should align with the center of the parent cube
-    glm::vec3 centeringOffset = glm::vec3(-scale, -scale, -scale); // Move back by 1 subcube unit
+    // No centering offset needed - subcubes should align with parent cube corner
+    // For a 3x3x3 grid: (0,0,0) at corner, (1,1,1) at (0.333,0.333,0.333), (2,2,2) at (0.667,0.667,0.667)
     
-    return parentWorldPos + localOffset + centeringOffset;
+    return parentWorldPos + localOffset;
 }
 
 } // namespace VulkanCube

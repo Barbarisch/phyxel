@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <fstream>
 #include <chrono>
+#include <thread>
 #include <cstring>
 #include <limits>
 #include <glm/glm.hpp>
@@ -152,6 +153,7 @@ bool Application::initialize() {
 
     timer->start();
     std::cout << "Application initialized successfully!" << std::endl;
+    std::cout.flush(); // Force output to appear immediately
     return true;
 }
 
@@ -567,7 +569,7 @@ void Application::update(float deltaTime) {
     
     static int frameCount = 0;
     if (frameCount % 60 == 0) { // Log every 60 frames
-        std::cout << "[PHYSICS STEP] Using FIXED timestep: " << (1.0f/60.0f) << "s (60Hz), frame deltaTime: " << deltaTime << std::endl;
+        //std::cout << "[PHYSICS STEP] Using FIXED timestep: " << (1.0f/60.0f) << "s (60Hz), frame deltaTime: " << deltaTime << std::endl;
     }
     frameCount++;
 
@@ -641,8 +643,8 @@ void Application::renderDynamicSubcubes() {
     if (debugFrameCount % 60 == 0) { // Every 60 frames
         size_t subcubeCount = chunkManager->getGlobalDynamicSubcubeCount();
         size_t cubeCount = chunkManager->getGlobalDynamicCubeCount();
-        std::cout << "[DEBUG] Dynamic objects: " << subcubeCount << " subcubes, " << cubeCount 
-                  << " cubes, " << allDynamicSubcubeFaces.size() << " total faces" << std::endl;
+        // std::cout << "[DEBUG] Dynamic objects: " << subcubeCount << " subcubes, " << cubeCount 
+        //           << " cubes, " << allDynamicSubcubeFaces.size() << " total faces" << std::endl;
     }
     debugFrameCount++;
     
@@ -1178,6 +1180,34 @@ void Application::processInput() {
         gPressed = true;
     } else if (glfwGetKey(window, GLFW_KEY_G) == GLFW_RELEASE) {
         gPressed = false;
+    }
+    
+    // Debug coordinate system with P key (simplified)
+    static bool pPressed = false;
+    if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS && !pPressed) {
+        std::cout << "[COORD DEBUG] Simple coordinate test:" << std::endl;
+        std::cout << "[COORD DEBUG] Camera position: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")" << std::endl;
+        std::cout << "[COORD DEBUG] Current hovered cube: " << (currentHoveredLocation.chunk ? "Found" : "None") << std::endl;
+        if (currentHoveredLocation.chunk) {
+            std::cout << "[COORD DEBUG] Hovered world pos: (" 
+                      << currentHoveredLocation.worldPos.x << ", " 
+                      << currentHoveredLocation.worldPos.y << ", " 
+                      << currentHoveredLocation.worldPos.z << ")" << std::endl;
+        }
+        pPressed = true;
+    } else if (glfwGetKey(window, GLFW_KEY_P) == GLFW_RELEASE) {
+        pPressed = false;
+    }
+    
+    // Toggle debug no-forces mode with O key
+    static bool oPressed = false;
+    if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS && !oPressed) {
+        debugFlags.disableBreakingForces = !debugFlags.disableBreakingForces;
+        std::cout << "[DEBUG] Breaking forces " << (debugFlags.disableBreakingForces ? "DISABLED" : "ENABLED") 
+                  << " - cubes will spawn " << (debugFlags.disableBreakingForces ? "without impulse" : "with normal impulse") << std::endl;
+        oPressed = true;
+    } else if (glfwGetKey(window, GLFW_KEY_O) == GLFW_RELEASE) {
+        oPressed = false;
     }
     
     // Camera movement with WASD (always available)
@@ -1847,10 +1877,10 @@ void Application::subdivideHoveredCube() {
         glm::vec3 cubeWorldPos = glm::vec3(currentHoveredLocation.worldPos);
         glm::vec3 forceDirection = normalize(cubeWorldPos - cameraPos);
         
-        // Mix upward force with outward force for interesting breakage
-        impulseForce = forceDirection * 3.0f + glm::vec3(0.0f, 5.0f, 0.0f);
+        // Mix upward force with outward force for interesting breakage (gentler forces)
+        impulseForce = forceDirection * 1.0f + glm::vec3(0.0f, 2.0f, 0.0f); // Reduced from 3.0f and 5.0f
         
-        std::cout << "[PHYSICS] Applying breakage force: (" 
+        std::cout << "[PHYSICS] Applying gentler breakage force to subcube: (" 
                   << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")" << std::endl;
         
         bool broken = chunk->breakSubcube(currentHoveredLocation.localPos, currentHoveredLocation.subcubePos, 
@@ -1978,10 +2008,10 @@ void Application::breakHoveredCube() {
     glm::vec3 cubeWorldPos = glm::vec3(currentHoveredLocation.worldPos);
     glm::vec3 forceDirection = normalize(cubeWorldPos - cameraPos);
     
-    // Mix upward force with outward force for interesting breakage
-    impulseForce = forceDirection * 4.0f + glm::vec3(0.0f, 6.0f, 0.0f);
+    // Mix upward force with outward force for interesting breakage (gentler forces)
+    impulseForce = forceDirection * 1.5f + glm::vec3(0.0f, 2.5f, 0.0f); // Reduced from 4.0f and 6.0f
     
-    std::cout << "[PHYSICS] Applying breakage force to cube: (" 
+    std::cout << "[PHYSICS] Applying gentler breakage force to cube: (" 
               << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")" << std::endl;
     
     // Get the cube's original color before removing it
@@ -2000,48 +2030,120 @@ void Application::breakHoveredCube() {
         return;
     }
     
-    // Create a dynamic cube at the same position with the original color and material
+    // CRITICAL: Force immediate compound shape rebuild to remove static collision before spawning dynamic cube
+    // This prevents the +1.0 X-axis offset caused by collision recovery against the static compound shape
+    chunk->forcePhysicsRebuild();
+    
+    // Create a dynamic cube at the EXACT original position
+    // TEST COORDINATE SYSTEM OFFSET - Based on user observation of consistent X/Z axis offset
+    // Try different offset patterns to isolate the issue
+    glm::vec3 cubeCornerPos = cubeWorldPos; // Corner position from raycast
+    
+    // COORDINATE SYSTEM FIX - Convert from corner-based to center-based coordinates
+    // Static cubes: render from corner (0,0,0 to 1,1,1 face offset)
+    // Dynamic cubes: render from center (-0.5,-0.5,-0.5 to 0.5,0.5,0.5 rotated offset)
+    // To visually align: dynamic center = static corner + 0.5
+    glm::vec3 physicsCenterPos = cubeCornerPos + glm::vec3(0.5f, 0.5f, 0.5f);
+    
+    std::cout << "[POSITION DEBUG] ===== COORDINATE SYSTEM CONVERSION =====" << std::endl;
+    std::cout << "[POSITION DEBUG] Static cube corner: (" 
+              << cubeWorldPos.x << ", " << cubeWorldPos.y << ", " << cubeWorldPos.z << ")" << std::endl;
+    std::cout << "[POSITION DEBUG] Dynamic cube center (corner + 0.5): (" 
+              << physicsCenterPos.x << ", " << physicsCenterPos.y << ", " << physicsCenterPos.z << ")" << std::endl;
+    std::cout << "[POSITION DEBUG] COORDINATE FIX: Converting from corner-based to center-based rendering" << std::endl;
+    
     // TODO: Add UI to select material - for now cycle through materials based on position
     std::vector<std::string> materials = {"Wood", "Metal", "Glass", "Rubber", "Stone", "Ice", "Cork"};
     int materialIndex = (abs(static_cast<int>(cubeWorldPos.x) + static_cast<int>(cubeWorldPos.z))) % materials.size();
     std::string selectedMaterial = materials[materialIndex];
     
-    auto dynamicCube = std::make_unique<DynamicCube>(cubeWorldPos, originalColor, selectedMaterial);
+    auto dynamicCube = std::make_unique<DynamicCube>(cubeCornerPos, originalColor, selectedMaterial);
     
-    // Create physics body for the dynamic cube using material properties
+    // Create physics body for the dynamic cube using breakaway function (with shrunk collision)
     glm::vec3 cubeSize(1.0f); // Full cube size
-    btRigidBody* rigidBody = physicsWorld->createCube(cubeWorldPos, cubeSize, selectedMaterial);
+    btRigidBody* rigidBody = physicsWorld->createBreakawaCube(physicsCenterPos, cubeSize, selectedMaterial);
     dynamicCube->setRigidBody(rigidBody);
+    
+    // Check where the physics body actually ended up
+    if (rigidBody) {
+        btTransform transform = rigidBody->getWorldTransform();
+        btVector3 physicsPos = transform.getOrigin();
+        std::cout << "[POSITION DEBUG] Physics body created at: (" 
+                  << physicsPos.x() << ", " << physicsPos.y() << ", " << physicsPos.z() << ")" << std::endl;
+        std::cout << "[POSITION DEBUG] Position difference from intended: (" 
+                  << (physicsPos.x() - physicsCenterPos.x) << ", " 
+                  << (physicsPos.y() - physicsCenterPos.y) << ", " 
+                  << (physicsPos.z() - physicsCenterPos.z) << ")" << std::endl;
+    }
     
     // Get material properties for impulse scaling
     static Physics::MaterialManager materialManager;
     const auto& material = materialManager.getMaterial(selectedMaterial);
     
-    // Apply material-specific impulse scaling 
-    float impulseScale = material.breakForceMultiplier;
+    // Apply material-specific impulse scaling (reduced for gentler breaking)
+    float impulseScale = material.breakForceMultiplier * 0.4f; // Reduce to 40% of original force
     impulseForce *= impulseScale;
     
-    std::cout << "[MATERIAL] Breaking cube with '" << selectedMaterial << "' material (impulse scale: " 
+    std::cout << "[MATERIAL] Breaking cube with '" << selectedMaterial << "' material (reduced impulse scale: " 
               << impulseScale << ")" << std::endl;
     
-    // Set initial physics position
-    dynamicCube->setPhysicsPosition(cubeWorldPos);
+    // Set initial physics position to the exact center position
+    dynamicCube->setPhysicsPosition(physicsCenterPos);
     
-    // Apply initial impulse force to make it "break" away
-    if (rigidBody && glm::length(impulseForce) > 0.0f) {
+    // COMPREHENSIVE POSITION TRACKING - Track exact coordinates through entire pipeline
+    glm::vec3 renderingPosition = dynamicCube->getPhysicsPosition();
+    std::cout << "[POSITION TRACK] ===== DYNAMIC CUBE POSITION TRACKING =====" << std::endl;
+    std::cout << "[POSITION TRACK] 1. Initial spawn position set: (" 
+              << physicsCenterPos.x << ", " << physicsCenterPos.y << ", " << physicsCenterPos.z << ")" << std::endl;
+    std::cout << "[POSITION TRACK] 2. Rendering position stored: (" 
+              << renderingPosition.x << ", " << renderingPosition.y << ", " << renderingPosition.z << ")" << std::endl;
+    std::cout << "[POSITION TRACK] 3. Position match: " << (renderingPosition == physicsCenterPos ? "YES" : "NO") << std::endl;
+    
+    // Track actual physics body position
+    if (rigidBody) {
+        btTransform transform = rigidBody->getWorldTransform();
+        btVector3 physicsBodyPos = transform.getOrigin();
+        std::cout << "[POSITION TRACK] 4. Physics body actual position: (" 
+                  << physicsBodyPos.x() << ", " << physicsBodyPos.y() << ", " << physicsBodyPos.z() << ")" << std::endl;
+        std::cout << "[POSITION TRACK] 5. Physics vs rendering diff: (" 
+                  << (physicsBodyPos.x() - renderingPosition.x) << ", " 
+                  << (physicsBodyPos.y() - renderingPosition.y) << ", " 
+                  << (physicsBodyPos.z() - renderingPosition.z) << ")" << std::endl;
+    }
+    
+    // Apply initial impulse force to make it "break" away (DISABLED FOR TESTING)
+    // Temporarily disable all forces to verify positioning
+    if (false && rigidBody && glm::length(impulseForce) > 0.0f && !debugFlags.disableBreakingForces) {
         btVector3 btImpulse(impulseForce.x, impulseForce.y, impulseForce.z);
         rigidBody->applyCentralImpulse(btImpulse);
         
-        // Add random angular velocity for tumbling effect
+        // Add random angular velocity for tumbling effect (reduced intensity)
         btVector3 angularVelocity(
-            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 10.0f,
-            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 10.0f,
-            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 10.0f
+            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 6.0f, // Reduced from 10.0f
+            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 6.0f,
+            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 6.0f
         );
         rigidBody->setAngularVelocity(angularVelocity);
         
         std::cout << "[PHYSICS] Applied impulse (" << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z 
                   << ") and angular velocity (" << angularVelocity.x() << "," << angularVelocity.y() << "," << angularVelocity.z() << ")" << std::endl;
+    } else {
+        // For clean positioning test - ensure no movement at all
+        if (rigidBody) {
+            rigidBody->setLinearVelocity(btVector3(0, 0, 0));
+            rigidBody->setAngularVelocity(btVector3(0, 0, 0));
+            rigidBody->setGravity(btVector3(0, 0, 0));  // Disable gravity for this specific object
+        }
+        std::cout << "[POSITION DEBUG] Forces DISABLED - cube will remain at exact spawn position for positioning test (gravity disabled)" << std::endl;
+    }
+    
+    // Final position check after everything is set up
+    if (rigidBody) {
+        btTransform finalTransform = rigidBody->getWorldTransform();
+        btVector3 finalPos = finalTransform.getOrigin();
+        std::cout << "[POSITION DEBUG] Final physics position: (" 
+                  << finalPos.x() << ", " << finalPos.y() << ", " << finalPos.z() << ")" << std::endl;
+        std::cout << "[POSITION DEBUG] ===== END POSITION ANALYSIS =====" << std::endl;
     }
     
     // Mark as broken
@@ -2245,6 +2347,116 @@ void Application::renderPerformanceOverlay() {
     // This function is now replaced by ImGui overlay
     // Console output is only used when ImGui is not available
     return;
+}
+
+void Application::debugCoordinateSystem() {
+    std::cout << "\n========== COORDINATE SYSTEM DEBUG TEST ==========\n";
+    
+    // Test a few known world positions
+    std::vector<glm::ivec3> testWorldPositions = {
+        glm::ivec3(0, 0, 0),     // Origin
+        glm::ivec3(10, 5, 3),    // Inside first chunk 
+        glm::ivec3(31, 31, 31),  // Corner of first chunk
+        glm::ivec3(32, 32, 32),  // Start of next chunk
+        glm::ivec3(50, 45, 67),  // Random position
+        glm::ivec3(-5, -10, -15) // Negative coordinates
+    };
+    
+    for (const auto& worldPos : testWorldPositions) {
+        std::cout << "\n--- Testing World Position (" << worldPos.x << ", " << worldPos.y << ", " << worldPos.z << ") ---\n";
+        
+        // Convert using ChunkManager functions
+        glm::ivec3 chunkCoord = ChunkManager::worldToChunkCoord(worldPos);
+        glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+        glm::ivec3 chunkOrigin = ChunkManager::chunkCoordToOrigin(chunkCoord);
+        
+        std::cout << "Chunk Coord: (" << chunkCoord.x << ", " << chunkCoord.y << ", " << chunkCoord.z << ")\n";
+        std::cout << "Chunk Origin: (" << chunkOrigin.x << ", " << chunkOrigin.y << ", " << chunkOrigin.z << ")\n";
+        std::cout << "Local Pos: (" << localPos.x << ", " << localPos.y << ", " << localPos.z << ")\n";
+        
+        // Verify the conversion
+        glm::ivec3 reconstructedWorldPos = chunkOrigin + localPos;
+        std::cout << "Reconstructed World Pos: (" << reconstructedWorldPos.x << ", " << reconstructedWorldPos.y << ", " << reconstructedWorldPos.z << ")\n";
+        
+        bool isCorrect = (reconstructedWorldPos == worldPos);
+        std::cout << "Conversion Correct: " << (isCorrect ? "YES" : "NO") << "\n";
+        
+        if (!isCorrect) {
+            std::cout << "ERROR: Coordinate conversion failed!\n";
+            std::cout << "Expected: (" << worldPos.x << ", " << worldPos.y << ", " << worldPos.z << ")\n";
+            std::cout << "Got: (" << reconstructedWorldPos.x << ", " << reconstructedWorldPos.y << ", " << reconstructedWorldPos.z << ")\n";
+        }
+        
+        // Test if we can find a chunk at this position
+        Chunk* chunk = chunkManager->getChunkAtFast(worldPos);
+        std::cout << "Chunk Found: " << (chunk ? "YES" : "NO") << "\n";
+        if (chunk) {
+            glm::ivec3 chunkWorldOrigin = chunk->getWorldOrigin();
+            std::cout << "Chunk WorldOrigin: (" << chunkWorldOrigin.x << ", " << chunkWorldOrigin.y << ", " << chunkWorldOrigin.z << ")\n";
+            
+            // Test if we can find a cube at this position
+            Cube* cube = chunkManager->getCubeAtFast(worldPos);
+            std::cout << "Cube Found: " << (cube ? "YES" : "NO") << "\n";
+            if (cube) {
+                glm::ivec3 cubeLocalPos = cube->getPosition();
+                std::cout << "Cube Local Pos: (" << cubeLocalPos.x << ", " << cubeLocalPos.y << ", " << cubeLocalPos.z << ")\n";
+                glm::ivec3 cubeWorldPos = chunkWorldOrigin + cubeLocalPos;
+                std::cout << "Cube World Pos: (" << cubeWorldPos.x << ", " << cubeWorldPos.y << ", " << cubeWorldPos.z << ")\n";
+                
+                // Test if breaking this cube would use the correct position
+                std::cout << "exactSpawnPos would be: (" << cubeWorldPos.x << ", " << cubeWorldPos.y << ", " << cubeWorldPos.z << ")\n";
+                
+                // Check if this matches the physics center position  
+                // CRITICAL: Are we using corner or center positioning?
+                glm::vec3 cornerPos = glm::vec3(cubeWorldPos);
+                glm::vec3 centerPos = glm::vec3(cubeWorldPos) + glm::vec3(0.5f);
+                std::cout << "Corner Position: (" << cornerPos.x << ", " << cornerPos.y << ", " << cornerPos.z << ")\n";
+                std::cout << "Center Position: (" << centerPos.x << ", " << centerPos.y << ", " << centerPos.z << ")\n";
+            }
+        }
+    }
+    
+    std::cout << "\n========== PHYSICS POSITION TEST ==========\n";
+    // Test creating a cube at various positions to see where it actually ends up
+    std::vector<glm::vec3> testPhysicsPositions = {
+        glm::vec3(10.0f, 5.0f, 3.0f),    // Integer position (corner)
+        glm::vec3(10.5f, 5.5f, 3.5f),   // Half-unit offset (center)
+        glm::vec3(10.25f, 5.25f, 3.25f), // Quarter-unit offset
+    };
+    
+    for (const auto& physPos : testPhysicsPositions) {
+        std::cout << "\n--- Testing Physics Position (" << physPos.x << ", " << physPos.y << ", " << physPos.z << ") ---\n";
+        
+        // Create a temporary physics body to see where it ends up
+        // Don't apply forces - just let it settle with gravity disabled temporarily
+        btVector3 savedGravity = physicsWorld->getWorld()->getGravity();
+        physicsWorld->getWorld()->setGravity(btVector3(0, 0, 0));
+        
+        glm::vec3 cubeSize(1.0f);
+        btRigidBody* testBody = physicsWorld->createCube(physPos, cubeSize, 1.0f);
+        
+        if (testBody) {
+            // Step the physics world once to let it settle
+            physicsWorld->stepSimulation(0.016f);
+            
+            btTransform transform = testBody->getWorldTransform();
+            btVector3 pos = transform.getOrigin();
+            
+            std::cout << "Physics Body Position After Step: (" << pos.x() << ", " << pos.y() << ", " << pos.z() << ")\n";
+            std::cout << "Position Change: (" << (pos.x() - physPos.x) << ", " << (pos.y() - physPos.y) << ", " << (pos.z() - physPos.z) << ")\n";
+            
+            // Clean up
+            physicsWorld->getWorld()->removeRigidBody(testBody);
+            delete testBody->getMotionState();
+            delete testBody->getCollisionShape();
+            delete testBody;
+        }
+        
+        // Restore gravity
+        physicsWorld->getWorld()->setGravity(savedGravity);
+    }
+    
+    std::cout << "\n========== END COORDINATE DEBUG ==========\n\n";
 }
 
 } // namespace VulkanCube
