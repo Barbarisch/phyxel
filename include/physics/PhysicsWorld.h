@@ -27,6 +27,8 @@ public:
     // Rigid body management
     btRigidBody* createCube(const glm::vec3& position, const glm::vec3& size = glm::vec3(1.0f), float mass = 1.0f);
     btRigidBody* createCube(const glm::vec3& position, const glm::vec3& size, const std::string& materialName);
+    btRigidBody* createBreakawaCube(const glm::vec3& position, const glm::vec3& size, const std::string& materialName); // Special cube with shrunk collision
+    btRigidBody* createBreakawaCube(const glm::vec3& position, const glm::vec3& size, float mass); // Special cube with shrunk collision and custom mass
     btRigidBody* createStaticCube(const glm::vec3& position, const glm::vec3& size = glm::vec3(1.0f));
     btRigidBody* createGround(const glm::vec3& position = glm::vec3(0, -1, 0), const glm::vec3& size = glm::vec3(50, 1, 50));
     
