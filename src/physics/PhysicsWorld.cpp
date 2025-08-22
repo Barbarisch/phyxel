@@ -321,16 +321,12 @@ btRigidBody* PhysicsWorld::createBreakawaCube(const glm::vec3& position, const g
     std::cout << "[COLLISION] Set collision margin " << appropriateMargin 
               << " for breakaway cube size " << objectSize << " (gap creation mode)" << std::endl;
     
-    // Set collision filter groups to prevent collision with static chunk compound shapes
-    // This prevents unwanted collision recovery when spawning at the exact position of broken cubes
-    int collisionFilterGroup = btBroadphaseProxy::DefaultFilter;  // Dynamic objects group
-    int collisionFilterMask = btBroadphaseProxy::AllFilter & ~btBroadphaseProxy::StaticFilter;  // Exclude static objects
-    
-    // Add to world with collision filtering
-    dynamicsWorld->addRigidBody(body, collisionFilterGroup, collisionFilterMask);
+    // Add to world with normal collision (no special filtering)
+    // Dynamic cubes should collide with everything including static chunks and other dynamic cubes
+    dynamicsWorld->addRigidBody(body);
     rigidBodies.push_back(body);
     
-    std::cout << "[COLLISION] Dynamic cube added with collision filtering - avoids static chunk collision" << std::endl;
+    std::cout << "[COLLISION] Dynamic cube added with normal collision - can collide with static chunks and other cubes" << std::endl;
     
     // Force activation and set collision flags for immediate separation
     body->setActivationState(ACTIVE_TAG);

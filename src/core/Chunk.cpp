@@ -1020,23 +1020,6 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
                 
                 // Create dynamic physics body at center position with shrunk collision for gap creation
                 btRigidBody* rigidBody = physicsWorld->createBreakawaCube(physicsCenterPos, subcubeSize, 0.5f); // 0.5kg mass
-                
-                // CRITICAL: Set unique collision group for each dynamic subcube to prevent inter-subcube collision
-                // This prevents all broken subcubes from being pushed to the same position by collision resolution
-                if (rigidBody) {
-                    // Use unique collision group based on subcube position to prevent collisions between dynamic subcubes
-                    int uniqueGroup = 1 << (16 + (subcubePos.x * 9 + subcubePos.y * 3 + subcubePos.z)); // Unique bit for each subcube
-                    int collisionMask = btBroadphaseProxy::AllFilter & ~btBroadphaseProxy::StaticFilter; // Still avoid static objects
-                    
-                    // Remove from default group and add with unique group
-                    physicsWorld->getWorld()->removeRigidBody(rigidBody);
-                    physicsWorld->getWorld()->addRigidBody(rigidBody, uniqueGroup, collisionMask);
-                    
-                    std::cout << "[COLLISION] Set unique collision group " << uniqueGroup 
-                              << " for subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z 
-                              << ") to prevent inter-subcube collision" << std::endl;
-                }
-                
                 subcube->setRigidBody(rigidBody);
                 
                 // IMPORTANT: Set initial physics position to match the center position
@@ -1071,34 +1054,30 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
                     subcube->setPhysicsPosition(glm::vec3(physicsPos.x(), physicsPos.y(), physicsPos.z()));
                 }
                 
-                // Apply initial impulse force to make it "break" away (DISABLED FOR TESTING)
-                // Temporarily disable all forces to verify positioning
-                if (false && rigidBody && glm::length(impulseForce) > 0.0f) {
-                    // Scale down the impulse force for subcubes
-                    glm::vec3 scaledImpulse = impulseForce * 0.5f; // Reduce impulse for smaller subcubes
+                // Apply initial impulse force to make it "break" away (RE-ENABLED)
+                // Apply forces now that collision groups prevent inter-subcube collision
+                if (rigidBody && glm::length(impulseForce) > 0.0f) {
+                    // Scale down the impulse force for subcubes since they're smaller
+                    glm::vec3 scaledImpulse = impulseForce * 0.3f; // Reduced from 0.5f for smaller subcubes
                     btVector3 btImpulse(scaledImpulse.x, scaledImpulse.y, scaledImpulse.z);
                     rigidBody->applyCentralImpulse(btImpulse);
                     
-                    std::cout << "[SUBCUBE DEBUG] Applied scaled impulse force (" 
+                    std::cout << "[SUBCUBE PHYSICS] Applied scaled impulse force (" 
                               << scaledImpulse.x << "," << scaledImpulse.y << "," << scaledImpulse.z 
                               << ") to broken subcube" << std::endl;
                     
-                    // Final position check after impulse
-                    btTransform finalTransform = rigidBody->getWorldTransform();
-                    btVector3 finalPos = finalTransform.getOrigin();
-                    std::cout << "[SUBCUBE DEBUG] Final physics position: (" 
-                              << finalPos.x() << ", " << finalPos.y() << ", " << finalPos.z() << ")" << std::endl;
-                    std::cout << "[SUBCUBE DEBUG] ===== END SUBCUBE ANALYSIS =====" << std::endl;
+                    // Enable gravity for natural falling behavior
+                    rigidBody->setGravity(btVector3(0, -9.81f, 0)); // Standard gravity
+                    
+                    std::cout << "[SUBCUBE PHYSICS] Enabled gravity and impulse forces for realistic breakage behavior" << std::endl;
                 } else {
-                    // For clean positioning test - ensure no movement at all
+                    // If no impulse force provided, still enable gravity for natural falling
                     if (rigidBody) {
-                        rigidBody->setLinearVelocity(btVector3(0, 0, 0));
-                        rigidBody->setAngularVelocity(btVector3(0, 0, 0));
-                        rigidBody->setGravity(btVector3(0, 0, 0));  // Disable gravity for this specific object
+                        rigidBody->setGravity(btVector3(0, -9.81f, 0)); // Standard gravity
+                        std::cout << "[SUBCUBE PHYSICS] No impulse force - enabled gravity only" << std::endl;
                     }
-                    std::cout << "[SUBCUBE POSITION] 7. Forces DISABLED - subcube will remain at exact spawn position for positioning test" << std::endl;
-                    std::cout << "[SUBCUBE POSITION] ===== END SUBCUBE POSITION TRACKING =====" << std::endl;
                 }
+                std::cout << "[SUBCUBE POSITION] ===== END SUBCUBE POSITION TRACKING =====" << std::endl;
             }
             
             // CRITICAL: Force immediate compound shape rebuild to remove static collision BEFORE spawning dynamic cube

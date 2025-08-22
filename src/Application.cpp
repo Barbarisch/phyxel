@@ -2111,30 +2111,29 @@ void Application::breakHoveredCube() {
                   << (physicsBodyPos.z() - renderingPosition.z) << ")" << std::endl;
     }
     
-    // Apply initial impulse force to make it "break" away (DISABLED FOR TESTING)
-    // Temporarily disable all forces to verify positioning
-    if (false && rigidBody && glm::length(impulseForce) > 0.0f && !debugFlags.disableBreakingForces) {
+    // Apply initial impulse force to make it "break" away (RE-ENABLED)
+    // Apply forces now that collision issues are resolved
+    if (rigidBody && glm::length(impulseForce) > 0.0f && !debugFlags.disableBreakingForces) {
         btVector3 btImpulse(impulseForce.x, impulseForce.y, impulseForce.z);
         rigidBody->applyCentralImpulse(btImpulse);
         
-        // Add random angular velocity for tumbling effect (reduced intensity)
+        // Add random angular velocity for tumbling effect (reduced intensity for realism)
         btVector3 angularVelocity(
-            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 6.0f, // Reduced from 10.0f
-            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 6.0f,
-            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 6.0f
+            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 4.0f, // Reduced from 6.0f for more realistic tumbling
+            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 4.0f,
+            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 4.0f
         );
         rigidBody->setAngularVelocity(angularVelocity);
         
+        // Enable gravity for natural falling behavior
+        rigidBody->setGravity(btVector3(0, -9.81f, 0)); // Standard gravity
+        
         std::cout << "[PHYSICS] Applied impulse (" << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z 
-                  << ") and angular velocity (" << angularVelocity.x() << "," << angularVelocity.y() << "," << angularVelocity.z() << ")" << std::endl;
-    } else {
-        // For clean positioning test - ensure no movement at all
-        if (rigidBody) {
-            rigidBody->setLinearVelocity(btVector3(0, 0, 0));
-            rigidBody->setAngularVelocity(btVector3(0, 0, 0));
-            rigidBody->setGravity(btVector3(0, 0, 0));  // Disable gravity for this specific object
-        }
-        std::cout << "[POSITION DEBUG] Forces DISABLED - cube will remain at exact spawn position for positioning test (gravity disabled)" << std::endl;
+                  << ") and angular velocity (" << angularVelocity.x() << "," << angularVelocity.y() << "," << angularVelocity.z() << ") with gravity enabled" << std::endl;
+    } else if (rigidBody) {
+        // If forces are disabled or no impulse, still enable gravity for natural falling
+        rigidBody->setGravity(btVector3(0, -9.81f, 0)); // Standard gravity
+        std::cout << "[PHYSICS] No impulse applied - enabled gravity only for natural falling" << std::endl;
     }
     
     // Final position check after everything is set up
@@ -2428,9 +2427,9 @@ void Application::debugCoordinateSystem() {
         std::cout << "\n--- Testing Physics Position (" << physPos.x << ", " << physPos.y << ", " << physPos.z << ") ---\n";
         
         // Create a temporary physics body to see where it ends up
-        // Don't apply forces - just let it settle with gravity disabled temporarily
+        // Apply normal physics with gravity enabled
         btVector3 savedGravity = physicsWorld->getWorld()->getGravity();
-        physicsWorld->getWorld()->setGravity(btVector3(0, 0, 0));
+        physicsWorld->getWorld()->setGravity(btVector3(0, -9.81f, 0)); // Re-enable standard gravity
         
         glm::vec3 cubeSize(1.0f);
         btRigidBody* testBody = physicsWorld->createCube(physPos, cubeSize, 1.0f);
