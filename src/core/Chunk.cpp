@@ -1257,54 +1257,68 @@ void Chunk::cleanupPhysicsResources() {
 std::vector<Chunk::CollisionBox> Chunk::generateMergedCollisionBoxes() {
     std::vector<CollisionBox> boxes;
     
-    // Simple approach: create a collision box for each visible cube
-    // TODO: Implement greedy merging for better performance
-    for (const auto& face : faces) {
-        // Extract cube position from packed data
-        int x = face.packedData & 0x1F;
-        int y = (face.packedData >> 5) & 0x1F;
-        int z = (face.packedData >> 10) & 0x1F;
-        bool isSubcube = ((face.packedData >> 18) & 0x1) != 0;
+    // NEW APPROACH: Build collision boxes directly from cubes, not faces
+    // This eliminates the 6× duplication problem and sorting overhead
+    std::cout << "[COLLISION] Building collision shapes from cubes directly (not faces)" << std::endl;
+    
+    // =========================================================================
+    // PHASE 1: Process regular cubes (those that aren't subdivided)
+    // =========================================================================
+    for (size_t i = 0; i < cubes.size(); ++i) {
+        const Cube* cube = cubes[i];
         
-        if (isSubcube) {
-            // Handle subcubes with smaller boxes
-            int localX = (face.packedData >> 19) & 0x3;
-            int localY = (face.packedData >> 21) & 0x3;
-            int localZ = (face.packedData >> 23) & 0x3;
-            
-            glm::vec3 parentCenter = glm::vec3(worldOrigin) + glm::vec3(x, y, z) + glm::vec3(0.5f);
-            glm::vec3 subcubeOffset = (glm::vec3(localX, localY, localZ) - glm::vec3(1.0f)) * (1.0f/3.0f);
-            glm::vec3 subcubeCenter = parentCenter + subcubeOffset;
-            glm::vec3 subcubeHalfExtents(1.0f/6.0f); // 1/3 cube size -> 1/6 half-extents
-            
-            boxes.emplace_back(subcubeCenter, subcubeHalfExtents);
-        } else {
-            // Regular cube
-            glm::vec3 cubeCenter = glm::vec3(worldOrigin) + glm::vec3(x, y, z) + glm::vec3(0.5f);
-            glm::vec3 cubeHalfExtents(0.5f);
-            
-            boxes.emplace_back(cubeCenter, cubeHalfExtents);
+        // Skip deleted cubes (nullptr) or hidden cubes (subdivided)
+        if (!cube || !cube->isVisible()) {
+            continue;
         }
+        
+        // Get cube's local position within chunk
+        glm::ivec3 localPos = indexToLocal(i);
+        
+        // Calculate world center position for collision box
+        glm::vec3 cubeCenter = glm::vec3(worldOrigin) + glm::vec3(localPos) + glm::vec3(0.5f);
+        glm::vec3 cubeHalfExtents(0.5f);
+        
+        boxes.emplace_back(cubeCenter, cubeHalfExtents);
     }
     
-    // Remove duplicates (same cube referenced by multiple faces)
-    std::sort(boxes.begin(), boxes.end(), [](const CollisionBox& a, const CollisionBox& b) {
-        if (a.center.x != b.center.x) return a.center.x < b.center.x;
-        if (a.center.y != b.center.y) return a.center.y < b.center.y;
-        if (a.center.z != b.center.z) return a.center.z < b.center.z;
-        return false;
-    });
+    // =========================================================================
+    // PHASE 2: Process static subcubes (from subdivided cubes)
+    // =========================================================================
+    for (const Subcube* subcube : staticSubcubes) {
+        // Skip broken or hidden subcubes
+        if (!subcube || subcube->isBroken() || !subcube->isVisible()) {
+            continue;
+        }
+        
+        // Get subcube properties
+        glm::ivec3 parentPos = subcube->getPosition();     // Parent cube's world position
+        glm::ivec3 localPos = subcube->getLocalPosition(); // 0-2 for each axis within parent
+        
+        // Convert parent world position to chunk-relative position
+        glm::ivec3 parentLocalPos = parentPos - worldOrigin;
+        
+        // Validate parent position is within chunk bounds
+        if (parentLocalPos.x < 0 || parentLocalPos.x >= 32 ||
+            parentLocalPos.y < 0 || parentLocalPos.y >= 32 ||
+            parentLocalPos.z < 0 || parentLocalPos.z >= 32) {
+            continue; // Skip subcubes with invalid parent positions
+        }
+        
+        // Calculate subcube world center position
+        glm::vec3 parentCenter = glm::vec3(worldOrigin) + glm::vec3(parentLocalPos) + glm::vec3(0.5f);
+        glm::vec3 subcubeOffset = (glm::vec3(localPos) - glm::vec3(1.0f)) * (1.0f/3.0f);
+        glm::vec3 subcubeCenter = parentCenter + subcubeOffset;
+        glm::vec3 subcubeHalfExtents(1.0f/6.0f); // 1/3 cube size -> 1/6 half-extents
+        
+        boxes.emplace_back(subcubeCenter, subcubeHalfExtents);
+    }
     
-    auto newEnd = std::unique(boxes.begin(), boxes.end(), [](const CollisionBox& a, const CollisionBox& b) {
-        const float epsilon = 0.001f;
-        return std::abs(a.center.x - b.center.x) < epsilon &&
-               std::abs(a.center.y - b.center.y) < epsilon &&
-               std::abs(a.center.z - b.center.z) < epsilon &&
-               std::abs(a.halfExtents.x - b.halfExtents.x) < epsilon;
-    });
+    std::cout << "[COLLISION] Generated " << boxes.size() << " collision boxes: " 
+              << (cubes.size() - boxes.size() + staticSubcubes.size()) << " regular cubes + " 
+              << staticSubcubes.size() << " subcubes" << std::endl;
     
-    boxes.erase(newEnd, boxes.end());
-    
+    // No sorting or deduplication needed - each cube/subcube generates exactly one collision box!
     return boxes;
 }
 

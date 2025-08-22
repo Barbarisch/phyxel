@@ -46,11 +46,17 @@ public:
     VkDevice device = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     
+    // Physics world for proper cleanup of dynamic objects
+    Physics::PhysicsWorld* physicsWorld = nullptr;
+    
     ChunkManager() = default;
     ~ChunkManager() { cleanup(); }
     
     // Initialize with Vulkan device handles
     void initialize(VkDevice device, VkPhysicalDevice physicalDevice);
+    
+    // Set physics world for proper cleanup of dynamic objects
+    void setPhysicsWorld(Physics::PhysicsWorld* physics);
     
     // Create multiple chunks at specified world origins
     void createChunks(const std::vector<glm::ivec3>& origins);

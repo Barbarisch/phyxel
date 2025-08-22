@@ -97,6 +97,9 @@ bool Application::initialize() {
     // Initialize chunk manager after Vulkan is ready
     chunkManager->initialize(vulkanDevice->getDevice(), vulkanDevice->getPhysicalDevice());
     
+    // Set physics world for proper cleanup of dynamic objects
+    chunkManager->setPhysicsWorld(physicsWorld.get());
+    
     // Create 10 chunks in a linear arrangement for testing
     //auto origins = MultiChunkDemo::createLinearChunks(10);
     //auto origins = MultiChunkDemo::createGridChunks(5, 5);
@@ -500,15 +503,6 @@ bool Application::initializePhysics() {
     if (!physicsWorld->initialize()) {
         return false;
     }
-
-    // Create ground plane
-    physicsWorld->createGround();
-
-    // DON'T add static cubes to physics - they don't need simulation!
-    // In the original code, physics was commented out for the 32K static cube grid
-    // std::vector<glm::vec3> positions, sizes;
-    // sceneManager->getPhysicsData(positions, sizes);
-    // physicsWorld->addCubesFromScene(positions, sizes);
 
     std::cout << "Physics subsystem initialized successfully (static cubes excluded)" << std::endl;
     return true;
@@ -2348,114 +2342,5 @@ void Application::renderPerformanceOverlay() {
     return;
 }
 
-void Application::debugCoordinateSystem() {
-    std::cout << "\n========== COORDINATE SYSTEM DEBUG TEST ==========\n";
-    
-    // Test a few known world positions
-    std::vector<glm::ivec3> testWorldPositions = {
-        glm::ivec3(0, 0, 0),     // Origin
-        glm::ivec3(10, 5, 3),    // Inside first chunk 
-        glm::ivec3(31, 31, 31),  // Corner of first chunk
-        glm::ivec3(32, 32, 32),  // Start of next chunk
-        glm::ivec3(50, 45, 67),  // Random position
-        glm::ivec3(-5, -10, -15) // Negative coordinates
-    };
-    
-    for (const auto& worldPos : testWorldPositions) {
-        std::cout << "\n--- Testing World Position (" << worldPos.x << ", " << worldPos.y << ", " << worldPos.z << ") ---\n";
-        
-        // Convert using ChunkManager functions
-        glm::ivec3 chunkCoord = ChunkManager::worldToChunkCoord(worldPos);
-        glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
-        glm::ivec3 chunkOrigin = ChunkManager::chunkCoordToOrigin(chunkCoord);
-        
-        std::cout << "Chunk Coord: (" << chunkCoord.x << ", " << chunkCoord.y << ", " << chunkCoord.z << ")\n";
-        std::cout << "Chunk Origin: (" << chunkOrigin.x << ", " << chunkOrigin.y << ", " << chunkOrigin.z << ")\n";
-        std::cout << "Local Pos: (" << localPos.x << ", " << localPos.y << ", " << localPos.z << ")\n";
-        
-        // Verify the conversion
-        glm::ivec3 reconstructedWorldPos = chunkOrigin + localPos;
-        std::cout << "Reconstructed World Pos: (" << reconstructedWorldPos.x << ", " << reconstructedWorldPos.y << ", " << reconstructedWorldPos.z << ")\n";
-        
-        bool isCorrect = (reconstructedWorldPos == worldPos);
-        std::cout << "Conversion Correct: " << (isCorrect ? "YES" : "NO") << "\n";
-        
-        if (!isCorrect) {
-            std::cout << "ERROR: Coordinate conversion failed!\n";
-            std::cout << "Expected: (" << worldPos.x << ", " << worldPos.y << ", " << worldPos.z << ")\n";
-            std::cout << "Got: (" << reconstructedWorldPos.x << ", " << reconstructedWorldPos.y << ", " << reconstructedWorldPos.z << ")\n";
-        }
-        
-        // Test if we can find a chunk at this position
-        Chunk* chunk = chunkManager->getChunkAtFast(worldPos);
-        std::cout << "Chunk Found: " << (chunk ? "YES" : "NO") << "\n";
-        if (chunk) {
-            glm::ivec3 chunkWorldOrigin = chunk->getWorldOrigin();
-            std::cout << "Chunk WorldOrigin: (" << chunkWorldOrigin.x << ", " << chunkWorldOrigin.y << ", " << chunkWorldOrigin.z << ")\n";
-            
-            // Test if we can find a cube at this position
-            Cube* cube = chunkManager->getCubeAtFast(worldPos);
-            std::cout << "Cube Found: " << (cube ? "YES" : "NO") << "\n";
-            if (cube) {
-                glm::ivec3 cubeLocalPos = cube->getPosition();
-                std::cout << "Cube Local Pos: (" << cubeLocalPos.x << ", " << cubeLocalPos.y << ", " << cubeLocalPos.z << ")\n";
-                glm::ivec3 cubeWorldPos = chunkWorldOrigin + cubeLocalPos;
-                std::cout << "Cube World Pos: (" << cubeWorldPos.x << ", " << cubeWorldPos.y << ", " << cubeWorldPos.z << ")\n";
-                
-                // Test if breaking this cube would use the correct position
-                std::cout << "exactSpawnPos would be: (" << cubeWorldPos.x << ", " << cubeWorldPos.y << ", " << cubeWorldPos.z << ")\n";
-                
-                // Check if this matches the physics center position  
-                // CRITICAL: Are we using corner or center positioning?
-                glm::vec3 cornerPos = glm::vec3(cubeWorldPos);
-                glm::vec3 centerPos = glm::vec3(cubeWorldPos) + glm::vec3(0.5f);
-                std::cout << "Corner Position: (" << cornerPos.x << ", " << cornerPos.y << ", " << cornerPos.z << ")\n";
-                std::cout << "Center Position: (" << centerPos.x << ", " << centerPos.y << ", " << centerPos.z << ")\n";
-            }
-        }
-    }
-    
-    std::cout << "\n========== PHYSICS POSITION TEST ==========\n";
-    // Test creating a cube at various positions to see where it actually ends up
-    std::vector<glm::vec3> testPhysicsPositions = {
-        glm::vec3(10.0f, 5.0f, 3.0f),    // Integer position (corner)
-        glm::vec3(10.5f, 5.5f, 3.5f),   // Half-unit offset (center)
-        glm::vec3(10.25f, 5.25f, 3.25f), // Quarter-unit offset
-    };
-    
-    for (const auto& physPos : testPhysicsPositions) {
-        std::cout << "\n--- Testing Physics Position (" << physPos.x << ", " << physPos.y << ", " << physPos.z << ") ---\n";
-        
-        // Create a temporary physics body to see where it ends up
-        // Apply normal physics with gravity enabled
-        btVector3 savedGravity = physicsWorld->getWorld()->getGravity();
-        physicsWorld->getWorld()->setGravity(btVector3(0, -9.81f, 0)); // Re-enable standard gravity
-        
-        glm::vec3 cubeSize(1.0f);
-        btRigidBody* testBody = physicsWorld->createCube(physPos, cubeSize, 1.0f);
-        
-        if (testBody) {
-            // Step the physics world once to let it settle
-            physicsWorld->stepSimulation(0.016f);
-            
-            btTransform transform = testBody->getWorldTransform();
-            btVector3 pos = transform.getOrigin();
-            
-            std::cout << "Physics Body Position After Step: (" << pos.x() << ", " << pos.y() << ", " << pos.z() << ")\n";
-            std::cout << "Position Change: (" << (pos.x() - physPos.x) << ", " << (pos.y() - physPos.y) << ", " << (pos.z() - physPos.z) << ")\n";
-            
-            // Clean up
-            physicsWorld->getWorld()->removeRigidBody(testBody);
-            delete testBody->getMotionState();
-            delete testBody->getCollisionShape();
-            delete testBody;
-        }
-        
-        // Restore gravity
-        physicsWorld->getWorld()->setGravity(savedGravity);
-    }
-    
-    std::cout << "\n========== END COORDINATE DEBUG ==========\n\n";
-}
 
 } // namespace VulkanCube

@@ -30,7 +30,9 @@ public:
     btRigidBody* createBreakawaCube(const glm::vec3& position, const glm::vec3& size, const std::string& materialName); // Special cube with shrunk collision
     btRigidBody* createBreakawaCube(const glm::vec3& position, const glm::vec3& size, float mass); // Special cube with shrunk collision and custom mass
     btRigidBody* createStaticCube(const glm::vec3& position, const glm::vec3& size = glm::vec3(1.0f));
-    btRigidBody* createGround(const glm::vec3& position = glm::vec3(0, -1, 0), const glm::vec3& size = glm::vec3(50, 1, 50));
+    
+    // Deprecated: Ground plane no longer needed - fallen cubes are automatically cleaned up
+    // btRigidBody* createGround(const glm::vec3& position = glm::vec3(0, -1, 0), const glm::vec3& size = glm::vec3(50, 1, 50));
     
     void removeCube(btRigidBody* body);
     void removeAllCubes();
@@ -53,9 +55,10 @@ public:
     
     // Collision tuning functions
     void optimizeCollisionSettings();
-    void setCollisionMargins(float dynamicMargin = 0.005f, float staticMargin = 0.02f);
     void configurePenetrationRecovery(float erp = 0.8f, float cfm = 0.0f);
     void tuneContactProcessing(int maxContacts = 4, float contactThreshold = 0.02f);
+    void setFallThreshold(float threshold) { fallThreshold = threshold; }
+    float getFallThreshold() const { return fallThreshold; }
 
     // Getters
     btDiscreteDynamicsWorld* getWorld() const { return dynamicsWorld.get(); }
@@ -69,17 +72,17 @@ private:
     std::unique_ptr<btSequentialImpulseConstraintSolver> solver;
     std::unique_ptr<btDiscreteDynamicsWorld> dynamicsWorld;
 
-    // Collision shapes (reusable)
-    std::unique_ptr<btBoxShape> cubeShape;
-    std::unique_ptr<btBoxShape> groundShape;
-
     // Keep track of created bodies for cleanup
     std::vector<btRigidBody*> rigidBodies;
     std::vector<btDefaultMotionState*> motionStates;
     std::vector<btCollisionShape*> collisionShapes; // Dynamically created shapes
+    
+    // Cleanup settings
+    float fallThreshold = -20.0f; // Y position below which cubes are deleted
 
     // Helper functions
     btRigidBody* createRigidBody(float mass, const btTransform& startTransform, btCollisionShape* shape);
+    void cleanupFallenCubes(); // Remove cubes that have fallen below the world
     btTransform glmToBulletTransform(const glm::vec3& position, const glm::quat& rotation = glm::quat(1,0,0,0)) const;
     glm::mat4 bulletToGlmMatrix(const btTransform& transform) const;
     glm::vec3 bulletToGlmVector(const btVector3& vec) const;

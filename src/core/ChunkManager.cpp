@@ -1,4 +1,5 @@
 #include "core/ChunkManager.h"
+#include "physics/PhysicsWorld.h"
 #include <stdexcept>
 #include <cstring>
 #include <random>
@@ -14,6 +15,11 @@ namespace VulkanCube {
 void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
     device = dev;
     physicalDevice = physDev;
+}
+
+void ChunkManager::setPhysicsWorld(Physics::PhysicsWorld* physics) {
+    physicsWorld = physics;
+    std::cout << "[CHUNK MANAGER] Physics world set for proper dynamic object cleanup" << std::endl;
 }
 
 void ChunkManager::createChunks(const std::vector<glm::ivec3>& origins) {
@@ -713,13 +719,20 @@ void ChunkManager::rebuildGlobalDynamicSubcubeFaces() {
 void ChunkManager::updateGlobalDynamicSubcubes(float deltaTime) {
     // Update lifetimes and remove expired subcubes
     auto it = globalDynamicSubcubes.begin();
+    size_t removedCount = 0;
+    
     while (it != globalDynamicSubcubes.end()) {
         (*it)->updateLifetime(deltaTime);
         
         if ((*it)->hasExpired()) {
-            //std::cout << "[CHUNK MANAGER] Removing expired dynamic subcube (lifetime ended)" << std::endl;
+            // Properly remove physics body from physics world
+            if (physicsWorld && (*it)->getRigidBody()) {
+                std::cout << "[CHUNK MANAGER] Removing expired dynamic subcube physics body" << std::endl;
+                physicsWorld->removeCube((*it)->getRigidBody());
+            }
+            
+            removedCount++;
             // Note: The unique_ptr destructor will automatically clean up the subcube
-            // TODO: Should also remove physics body from physics world here
             it = globalDynamicSubcubes.erase(it);
         } else {
             ++it;
@@ -727,7 +740,8 @@ void ChunkManager::updateGlobalDynamicSubcubes(float deltaTime) {
     }
     
     // Rebuild faces if any subcubes were removed
-    if (it != globalDynamicSubcubes.end()) {
+    if (removedCount > 0) {
+        std::cout << "[CHUNK MANAGER] Removed " << removedCount << " expired dynamic subcubes (lifetime ended)" << std::endl;
         rebuildGlobalDynamicFaces();
     }
 }
@@ -812,13 +826,20 @@ void ChunkManager::addGlobalDynamicCube(std::unique_ptr<DynamicCube> cube) {
 void ChunkManager::updateGlobalDynamicCubes(float deltaTime) {
     // Update lifetimes and remove expired cubes
     auto it = globalDynamicCubes.begin();
+    size_t removedCount = 0;
+    
     while (it != globalDynamicCubes.end()) {
         (*it)->updateLifetime(deltaTime);
         
         if ((*it)->hasExpired()) {
-            std::cout << "[CHUNK MANAGER] Removing expired dynamic cube (lifetime ended)" << std::endl;
+            // Properly remove physics body from physics world
+            if (physicsWorld && (*it)->getRigidBody()) {
+                std::cout << "[CHUNK MANAGER] Removing expired dynamic cube physics body" << std::endl;
+                physicsWorld->removeCube((*it)->getRigidBody());
+            }
+            
+            removedCount++;
             // Note: The unique_ptr destructor will automatically clean up the cube
-            // TODO: Should also remove physics body from physics world here
             it = globalDynamicCubes.erase(it);
         } else {
             ++it;
@@ -826,7 +847,8 @@ void ChunkManager::updateGlobalDynamicCubes(float deltaTime) {
     }
     
     // Rebuild faces if any cubes were removed
-    if (it != globalDynamicCubes.end()) {
+    if (removedCount > 0) {
+        std::cout << "[CHUNK MANAGER] Removed " << removedCount << " expired dynamic cubes (lifetime ended)" << std::endl;
         rebuildGlobalDynamicFaces();
     }
 }

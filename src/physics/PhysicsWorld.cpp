@@ -45,11 +45,8 @@ bool PhysicsWorld::initialize() {
         // Optimize collision settings for better interactions
         optimizeCollisionSettings();
         
-        // Create reusable collision shapes
-        cubeShape = std::make_unique<btBoxShape>(btVector3(0.5f, 0.5f, 0.5f)); // 1x1x1 cube
-        groundShape = std::make_unique<btBoxShape>(btVector3(50.0f, 0.5f, 50.0f)); // Large ground plane
-        
-        std::cout << "Physics world initialized successfully" << std::endl;
+        std::cout << "Physics world initialized successfully (with automatic fallen cube cleanup at Y < " 
+                  << fallThreshold << ")" << std::endl;
         return true;
         
     } catch (const std::exception& e) {
@@ -81,8 +78,7 @@ void PhysicsWorld::cleanup() {
     dispatcher.reset();
     collisionConfiguration.reset();
     
-    cubeShape.reset();
-    groundShape.reset();
+    // Note: All collision shapes are created per-cube and cleaned up via collisionShapes vector
     
     rigidBodies.clear();
 }
@@ -90,6 +86,9 @@ void PhysicsWorld::cleanup() {
 void PhysicsWorld::stepSimulation(float deltaTime, int maxSubSteps, float fixedTimeStep) {
     if (dynamicsWorld) {
         dynamicsWorld->stepSimulation(deltaTime, maxSubSteps, fixedTimeStep);
+        
+        // Clean up cubes that have fallen below the world
+        cleanupFallenCubes();
     }
 }
 
@@ -150,24 +149,22 @@ btRigidBody* PhysicsWorld::createCube(const glm::vec3& position, const glm::vec3
     
     btRigidBody* body = new btRigidBody(rbInfo);
     
-    // Set appropriate collision margin based on object size and type
+    // Set appropriate collision margin based on cube type
     float objectSize = std::min({size.x, size.y, size.z});
     float appropriateMargin;
     
-    if (objectSize <= 0.25f) {
-        // Very small objects (subcubes) - slightly larger margin for better contact resolution
-        appropriateMargin = 0.005f; // Increased from 0.002f
-    } else if (objectSize < 1.0f) {
-        // Small objects - fine margin
-        appropriateMargin = 0.008f; // Slightly increased from 0.005f
+    if (objectSize <= 0.34f) {  // Subcubes are 1/3 scale ≈ 0.333
+        // Subcubes - smaller margin for precision
+        appropriateMargin = 0.005f;
     } else {
-        // Regular objects - standard margin  
-        appropriateMargin = 0.012f; // Slightly increased from 0.01f
+        // Regular cubes - standard margin
+        appropriateMargin = 0.01f;
     }
     
     collisionShape->setMargin(appropriateMargin);
     std::cout << "[COLLISION] Set collision margin " << appropriateMargin 
-              << " for object size " << objectSize << " (improved contact resolution)" << std::endl;
+              << " for " << (objectSize <= 0.34f ? "subcube" : "regular cube") 
+              << " size " << objectSize << std::endl;
     
     // Add to world
     dynamicsWorld->addRigidBody(body);
@@ -231,24 +228,22 @@ btRigidBody* PhysicsWorld::createCube(const glm::vec3& position, const glm::vec3
     // Apply damping
     body->setDamping(material.linearDamping, material.angularDamping);
     
-    // Set appropriate collision margin based on object size and type
+    // Set appropriate collision margin based on cube type
     float objectSize = std::min({size.x, size.y, size.z});
     float appropriateMargin;
     
-    if (objectSize <= 0.25f) {
-        // Very small objects (subcubes) - improved margin for contact resolution
-        appropriateMargin = 0.005f; // Increased from 0.002f
-    } else if (objectSize < 1.0f) {
-        // Small objects - fine margin
-        appropriateMargin = 0.008f; // Slightly increased from 0.005f
+    if (objectSize <= 0.34f) {  // Subcubes are 1/3 scale ≈ 0.333
+        // Subcubes - smaller margin for precision
+        appropriateMargin = 0.005f;
     } else {
-        // Regular objects - standard margin  
-        appropriateMargin = 0.012f; // Slightly increased from 0.01f
+        // Regular cubes - standard margin
+        appropriateMargin = 0.01f;
     }
     
     collisionShape->setMargin(appropriateMargin);
     std::cout << "[COLLISION] Set collision margin " << appropriateMargin 
-              << " for material object size " << objectSize << " (improved contact resolution)" << std::endl;
+              << " for " << (objectSize <= 0.34f ? "subcube" : "regular cube") 
+              << " size " << objectSize << std::endl;
     
     // Add to world
     dynamicsWorld->addRigidBody(body);
@@ -313,13 +308,14 @@ btRigidBody* PhysicsWorld::createBreakawaCube(const glm::vec3& position, const g
     // Apply damping
     body->setDamping(material.linearDamping, material.angularDamping);
     
-    // Set appropriate collision margin for the shrunk size
+    // Set appropriate collision margin based on cube type
     float objectSize = std::min({shrunkSize.x, shrunkSize.y, shrunkSize.z});
-    float appropriateMargin = (objectSize <= 0.25f) ? 0.005f : 0.01f; // Smaller margin for breakaway cubes
+    float appropriateMargin = (objectSize <= 0.32f) ? 0.005f : 0.01f; // Subcube vs regular cube (accounting for 95% shrink)
     
     collisionShape->setMargin(appropriateMargin);
     std::cout << "[COLLISION] Set collision margin " << appropriateMargin 
-              << " for breakaway cube size " << objectSize << " (gap creation mode)" << std::endl;
+              << " for " << (objectSize <= 0.32f ? "subcube" : "regular cube") 
+              << " breakaway size " << objectSize << std::endl;
     
     // Add to world with normal collision (no special filtering)
     // Dynamic cubes should collide with everything including static chunks and other dynamic cubes
@@ -386,13 +382,14 @@ btRigidBody* PhysicsWorld::createBreakawaCube(const glm::vec3& position, const g
     // Apply damping for stability
     body->setDamping(0.1f, 0.1f); // Light damping
     
-    // Set appropriate collision margin for the shrunk size
+    // Set appropriate collision margin based on cube type
     float objectSize = std::min({shrunkSize.x, shrunkSize.y, shrunkSize.z});
-    float appropriateMargin = (objectSize <= 0.25f) ? 0.005f : 0.01f; // Smaller margin for breakaway cubes
+    float appropriateMargin = (objectSize <= 0.32f) ? 0.005f : 0.01f; // Subcube vs regular cube (accounting for 95% shrink)
     
     collisionShape->setMargin(appropriateMargin);
     std::cout << "[COLLISION] Set collision margin " << appropriateMargin 
-              << " for breakaway cube size " << objectSize << " (gap creation mode)" << std::endl;
+              << " for " << (objectSize <= 0.32f ? "subcube" : "regular cube") 
+              << " breakaway size " << objectSize << std::endl;
     
     // Add to world
     dynamicsWorld->addRigidBody(body);
@@ -414,25 +411,6 @@ btRigidBody* PhysicsWorld::createBreakawaCube(const glm::vec3& position, const g
 
 btRigidBody* PhysicsWorld::createStaticCube(const glm::vec3& position, const glm::vec3& size) {
     return createCube(position, size, 0.0f); // Mass 0 = static
-}
-
-btRigidBody* PhysicsWorld::createGround(const glm::vec3& position, const glm::vec3& size) {
-    if (!dynamicsWorld || !groundShape) {
-        return nullptr;
-    }
-    
-    btTransform groundTransform = glmToBulletTransform(position);
-    
-    btDefaultMotionState* motionState = new btDefaultMotionState(groundTransform);
-    motionStates.push_back(motionState);
-    
-    btRigidBody::btRigidBodyConstructionInfo rbInfo(0.0f, motionState, groundShape.get(), btVector3(0, 0, 0));
-    btRigidBody* groundBody = new btRigidBody(rbInfo);
-    
-    dynamicsWorld->addRigidBody(groundBody);
-    rigidBodies.push_back(groundBody);
-    
-    return groundBody;
 }
 
 void PhysicsWorld::removeCube(btRigidBody* body) {
@@ -626,9 +604,6 @@ void PhysicsWorld::optimizeCollisionSettings() {
     // Configure penetration recovery with strong settings to handle exact-position spawning
     configurePenetrationRecovery(0.9f, 0.000001f); // High ERP for strong overlap resolution
     
-    // Set proper collision margins with values optimized for overlap resolution
-    setCollisionMargins(0.015f, 0.03f); // Increased margins for better overlap detection
-    
     // Tune contact processing with better settings
     tuneContactProcessing(6, 0.004f); // Good balance of contacts and performance
     
@@ -648,21 +623,6 @@ void PhysicsWorld::optimizeCollisionSettings() {
     dynamicsWorld->getDispatchInfo().m_allowedCcdPenetration = 0.0005f; // Very low allowed penetration
     
     std::cout << "[COLLISION] Exact-position spawning optimization complete - 20 iterations, 90% ERP, strong overlap resolution" << std::endl;
-}
-
-void PhysicsWorld::setCollisionMargins(float dynamicMargin, float staticMargin) {
-    std::cout << "[COLLISION] Setting collision margins - Dynamic: " << dynamicMargin 
-              << ", Static: " << staticMargin << std::endl;
-    
-    // Apply margins to existing shapes
-    if (cubeShape) {
-        cubeShape->setMargin(dynamicMargin);
-    }
-    if (groundShape) {
-        groundShape->setMargin(staticMargin);
-    }
-    
-    // Note: For new shapes, margins will be set in createCube functions
 }
 
 void PhysicsWorld::configurePenetrationRecovery(float erp, float cfm) {
@@ -699,6 +659,40 @@ void PhysicsWorld::tuneContactProcessing(int maxContacts, float contactThreshold
     dynamicsWorld->getSolverInfo().m_splitImpulse = true; // Split position and velocity solving
     dynamicsWorld->getSolverInfo().m_splitImpulsePenetrationThreshold = -0.02f; // Threshold for split impulse
     dynamicsWorld->getSolverInfo().m_splitImpulseTurnErp = 0.1f; // Turn ERP for split impulse
+}
+
+void PhysicsWorld::cleanupFallenCubes() {
+    if (!dynamicsWorld) {
+        return;
+    }
+    
+    std::vector<btRigidBody*> bodiesToRemove;
+    
+    // Check all rigid bodies for ones that have fallen too far
+    for (btRigidBody* body : rigidBodies) {
+        if (!body) continue;
+        
+        // Only check dynamic bodies (mass > 0) - leave static chunks alone
+        if (body->getMass() > 0.0f) {
+            btTransform transform;
+            body->getMotionState()->getWorldTransform(transform);
+            float yPosition = transform.getOrigin().getY();
+            
+            if (yPosition < fallThreshold) {
+                bodiesToRemove.push_back(body);
+            }
+        }
+    }
+    
+    // Remove fallen cubes
+    if (!bodiesToRemove.empty()) {
+        std::cout << "[CLEANUP] Removing " << bodiesToRemove.size() 
+                  << " fallen cubes below Y = " << fallThreshold << std::endl;
+        
+        for (btRigidBody* body : bodiesToRemove) {
+            removeCube(body);
+        }
+    }
 }
 
 } // namespace Physics
