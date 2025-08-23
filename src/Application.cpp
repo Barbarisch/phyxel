@@ -597,16 +597,28 @@ void Application::render() {
     drawFrame();
 }
 
-void Application::renderStaticGeometry() {
+void Application::renderStaticGeometry(const std::vector<uint32_t>& visibleChunks) {
     // Render static cubes and static subcubes using the standard pipeline
     // Bind graphics pipeline
     renderPipeline->bindGraphicsPipeline(vulkanDevice->getCommandBuffer(currentFrame));
     
-    // Draw indexed cubes using chunk manager
-    if (chunkManager && !chunkManager->chunks.empty()) {
-        // Render each chunk separately
-        for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
-            const Chunk* chunk = chunkManager->chunks[i].get();
+    // Debug: Show rendering statistics
+    static int renderDebugCounter = 0;
+    if (++renderDebugCounter >= 60) {
+        renderDebugCounter = 0;
+        uint32_t totalChunks = chunkManager ? static_cast<uint32_t>(chunkManager->chunks.size()) : 0;
+        std::cout << "[RENDER DEBUG] Total chunks: " << totalChunks 
+                  << ", Rendering: " << visibleChunks.size() 
+                  << ", Skipped: " << (totalChunks - visibleChunks.size()) << std::endl;
+    }
+    
+    // Draw indexed cubes using chunk manager - ONLY VISIBLE CHUNKS
+    if (chunkManager && !chunkManager->chunks.empty() && !visibleChunks.empty()) {
+        // Render only visible chunks
+        for (uint32_t chunkIndex : visibleChunks) {
+            if (chunkIndex >= chunkManager->chunks.size()) continue; // Safety check
+            
+            const Chunk* chunk = chunkManager->chunks[chunkIndex].get();
             
             // Skip chunks with no static faces
             if (chunk->getNumInstances() == 0) continue;
@@ -764,8 +776,8 @@ void Application::drawFrame() {
     // Update camera frustum from current view and projection matrices
     updateCameraFrustum(view, proj);
     
-    // Get list of visible chunks (CPU-based AABB vs frustum test)
-    std::vector<uint32_t> visibleChunks = getVisibleChunks();
+    // Get list of visible chunks using optimized spatial query (scales for infinite worlds)
+    std::vector<uint32_t> visibleChunks = getVisibleChunksOptimized();
     auto frustumCullingEnd = std::chrono::high_resolution_clock::now();
     
     // Calculate chunk-level culling statistics
@@ -853,8 +865,8 @@ void Application::drawFrame() {
     
     // Draw using dual rendering system
     if (chunkManager && !chunkManager->chunks.empty()) {
-        // Render static geometry first
-        renderStaticGeometry();
+        // Render static geometry first - ONLY VISIBLE CHUNKS
+        renderStaticGeometry(visibleChunks);
         
         // Render dynamic subcubes with separate pipeline
         renderDynamicSubcubes();
@@ -863,7 +875,7 @@ void Application::drawFrame() {
         auto chunkStats = chunkManager->getPerformanceStats();
         
         // Update frame timing with chunk-based statistics
-        frameTiming.drawCalls = static_cast<int>(chunkManager->chunks.size());
+        frameTiming.drawCalls = static_cast<int>(visibleChunks.size()); // Use visible chunks count
         frameTiming.vertexCount = static_cast<int>(chunkStats.totalVertices);
         frameTiming.visibleInstances = static_cast<int>(chunkStats.totalCubes);
         frameTiming.fullyOccludedCubes = static_cast<int>(chunkStats.fullyOccludedCubes);
@@ -1206,6 +1218,29 @@ void Application::processInput() {
         oPressed = true;
     } else if (glfwGetKey(window, GLFW_KEY_O) == GLFW_RELEASE) {
         oPressed = false;
+    }
+    
+    // Adjust render distance with R/F keys
+    static bool rPressed = false;
+    static bool fPressed = false;
+    if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS && !rPressed) {
+        maxChunkRenderDistance += 32.0f; // Increase by one chunk size
+        if (maxChunkRenderDistance > 320.0f) maxChunkRenderDistance = 320.0f; // Cap at 10 chunks
+        std::cout << "[RENDER DISTANCE] Increased to " << maxChunkRenderDistance 
+                  << " units (" << (maxChunkRenderDistance / 32.0f) << " chunks)" << std::endl;
+        rPressed = true;
+    } else if (glfwGetKey(window, GLFW_KEY_R) == GLFW_RELEASE) {
+        rPressed = false;
+    }
+    
+    if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS && !fPressed) {
+        maxChunkRenderDistance -= 32.0f; // Decrease by one chunk size
+        if (maxChunkRenderDistance < 32.0f) maxChunkRenderDistance = 32.0f; // Minimum 1 chunk
+        std::cout << "[RENDER DISTANCE] Decreased to " << maxChunkRenderDistance 
+                  << " units (" << (maxChunkRenderDistance / 32.0f) << " chunks)" << std::endl;
+        fPressed = true;
+    } else if (glfwGetKey(window, GLFW_KEY_F) == GLFW_RELEASE) {
+        fPressed = false;
     }
     
     // Camera movement with WASD (always available)
@@ -2335,22 +2370,144 @@ std::vector<uint32_t> Application::getVisibleChunks() {
         return visibleChunks;
     }
     
-    // Get all chunks and test their AABBs against the camera frustum
+    // Use configurable maximum render distance
+    float maxRenderDistanceSquared = maxChunkRenderDistance * maxChunkRenderDistance;
+    
+    // Performance counters for detailed statistics
+    uint32_t totalChunks = 0;
+    uint32_t distanceCulledChunks = 0;
+    uint32_t frustumCulledChunks = 0;
+    
+    // Get all chunks and test distance + frustum culling
     for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
         Chunk* chunk = chunkManager->chunks[i].get();
         if (!chunk) continue;
         
+        totalChunks++;
+        
         // Calculate chunk AABB
         glm::vec3 minBounds = chunk->getMinBounds();
         glm::vec3 maxBounds = chunk->getMaxBounds();
+        glm::vec3 chunkCenter = (minBounds + maxBounds) * 0.5f;
+        
+        // Distance culling: Skip chunks too far from camera
+        glm::vec3 cameraToChunk = chunkCenter - cameraPos;
+        float distanceSquared = glm::dot(cameraToChunk, cameraToChunk);
+        
+        if (distanceSquared > maxRenderDistanceSquared) {
+            distanceCulledChunks++;
+            continue; // Skip this chunk - too far away
+        }
         
         // Create AABB object for frustum testing
         Utils::AABB chunkAABB(minBounds, maxBounds);
         
-        // Test AABB against frustum
+        // Frustum culling: Test AABB against frustum
         if (cameraFrustum.intersects(chunkAABB)) {
             visibleChunks.push_back(static_cast<uint32_t>(i));
+        } else {
+            frustumCulledChunks++;
         }
+    }
+    
+    // Store detailed statistics for debug output
+    static uint32_t s_lastTotalChunks = 0;
+    static uint32_t s_lastDistanceCulled = 0;
+    static uint32_t s_lastFrustumCulled = 0;
+    s_lastTotalChunks = totalChunks;
+    s_lastDistanceCulled = distanceCulledChunks;
+    s_lastFrustumCulled = frustumCulledChunks;
+    
+    return visibleChunks;
+}
+
+std::vector<uint32_t> Application::getVisibleChunksOptimized() {
+    std::vector<uint32_t> visibleChunks;
+    
+    if (!chunkManager) {
+        return visibleChunks;
+    }
+    
+    // Calculate camera's chunk coordinate and render radius in chunks
+    const int CHUNK_SIZE = 32; // Each chunk is 32x32x32 cubes
+    glm::ivec3 cameraChunkCoord = glm::ivec3(
+        static_cast<int>(std::floor(cameraPos.x / CHUNK_SIZE)),
+        static_cast<int>(std::floor(cameraPos.y / CHUNK_SIZE)),
+        static_cast<int>(std::floor(cameraPos.z / CHUNK_SIZE))
+    );
+    
+    // Calculate render radius in chunks
+    int renderRadiusChunks = static_cast<int>(std::ceil(maxChunkRenderDistance / CHUNK_SIZE));
+    
+    // Performance counters
+    uint32_t queriedChunks = 0;
+    uint32_t distanceCulledChunks = 0;
+    uint32_t frustumCulledChunks = 0;
+    uint32_t foundChunks = 0;
+    
+    // Spatial query: Only check chunks within render radius
+    for (int dx = -renderRadiusChunks; dx <= renderRadiusChunks; ++dx) {
+        for (int dy = -renderRadiusChunks; dy <= renderRadiusChunks; ++dy) {
+            for (int dz = -renderRadiusChunks; dz <= renderRadiusChunks; ++dz) {
+                glm::ivec3 chunkCoord = cameraChunkCoord + glm::ivec3(dx, dy, dz);
+                queriedChunks++;
+                
+                // O(1) hash map lookup instead of linear search
+                auto it = chunkManager->chunkMap.find(chunkCoord);
+                if (it == chunkManager->chunkMap.end()) {
+                    continue; // Chunk doesn't exist at this coordinate
+                }
+                
+                Chunk* chunk = it->second;
+                if (!chunk) continue;
+                
+                foundChunks++;
+                
+                // Calculate chunk AABB
+                glm::vec3 minBounds = chunk->getMinBounds();
+                glm::vec3 maxBounds = chunk->getMaxBounds();
+                glm::vec3 chunkCenter = (minBounds + maxBounds) * 0.5f;
+                
+                // Distance culling: Skip chunks too far from camera
+                glm::vec3 cameraToChunk = chunkCenter - cameraPos;
+                float distanceSquared = glm::dot(cameraToChunk, cameraToChunk);
+                float maxDistanceSquared = maxChunkRenderDistance * maxChunkRenderDistance;
+                
+                if (distanceSquared > maxDistanceSquared) {
+                    distanceCulledChunks++;
+                    continue;
+                }
+                
+                // Create AABB object for frustum testing
+                Utils::AABB chunkAABB(minBounds, maxBounds);
+                
+                // Frustum culling: Test AABB against frustum
+                if (cameraFrustum.intersects(chunkAABB)) {
+                    // Find the chunk index in the chunks vector for rendering
+                    for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
+                        if (chunkManager->chunks[i].get() == chunk) {
+                            visibleChunks.push_back(static_cast<uint32_t>(i));
+                            break;
+                        }
+                    }
+                } else {
+                    frustumCulledChunks++;
+                }
+            }
+        }
+    }
+    
+    // Debug output every 60 frames
+    static int debugCounter = 0;
+    if (++debugCounter >= 60) {
+        debugCounter = 0;
+        std::cout << "[OPTIMIZED CHUNK CULLING] Queried: " << queriedChunks 
+                  << ", Found: " << foundChunks 
+                  << ", Visible: " << visibleChunks.size()
+                  << ", Distance culled: " << distanceCulledChunks
+                  << ", Frustum culled: " << frustumCulledChunks
+                  << ", Camera chunk: (" << cameraChunkCoord.x << "," << cameraChunkCoord.y << "," << cameraChunkCoord.z << ")"
+                  << ", Render radius: " << renderRadiusChunks << " chunks" << std::endl;
     }
     
     return visibleChunks;

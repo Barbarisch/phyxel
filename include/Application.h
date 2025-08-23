@@ -134,8 +134,10 @@ private:
     
     // New chunk-level frustum culling
     Utils::Frustum cameraFrustum;
+    float maxChunkRenderDistance = 96.0f; // Maximum distance for chunk rendering (configurable)
     void updateCameraFrustum(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix);
     std::vector<uint32_t> getVisibleChunks();
+    std::vector<uint32_t> getVisibleChunksOptimized(); // Spatial query version for large worlds
 
     // Initialization methods
     bool initializeWindow();
@@ -148,7 +150,7 @@ private:
     void update(float deltaTime);
     void render();
     void drawFrame();
-    void renderStaticGeometry();      // Render static cubes and subcubes
+    void renderStaticGeometry(const std::vector<uint32_t>& visibleChunks);      // Render static cubes and subcubes - only visible chunks
     void renderDynamicSubcubes();     // Render dynamic subcubes with physics
     void handleInput();
     void processInput();
