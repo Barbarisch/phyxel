@@ -953,13 +953,50 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
                 std::cout << "[SUBCUBE POSITION] ===== END SUBCUBE POSITION TRACKING =====" << std::endl;
             }
             
-            // CRITICAL: Force immediate compound shape rebuild to remove static collision BEFORE spawning dynamic cube
-            // This must happen BEFORE the physics body interacts with the physics world
-            // This prevents the +1.0 X-axis offset caused by collision recovery against the static compound shape
-            std::cout << "[COMPOUND SHAPE] BEFORE: Force rebuilding compound shape to remove static collision BEFORE physics body creation" << std::endl;
-            staticSubcubes.erase(it);
-            forcePhysicsRebuild();
-            std::cout << "[COMPOUND SHAPE] AFTER: Compound shape rebuilt - static collision removed before dynamic subcube spawns" << std::endl;
+            // OPTIMIZATION: Use efficient targeted collision shape removal instead of full rebuild
+            std::cout << "[COLLISION OPT] BEFORE: Using targeted collision shape removal (no full rebuild)" << std::endl;
+            
+            // Calculate subcube key for collision index lookup
+            glm::ivec3 parentLocalPos = parentPos - worldOrigin;
+            glm::ivec3 subcubeKey = parentLocalPos * 3 + subcubePos;
+            
+            std::cout << "[COLLISION DEBUG] Subcube key calculation:" << std::endl;
+            std::cout << "[COLLISION DEBUG]   parentPos: (" << parentPos.x << "," << parentPos.y << "," << parentPos.z << ")" << std::endl;
+            std::cout << "[COLLISION DEBUG]   worldOrigin: (" << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z << ")" << std::endl;
+            std::cout << "[COLLISION DEBUG]   parentLocalPos: (" << parentLocalPos.x << "," << parentLocalPos.y << "," << parentLocalPos.z << ")" << std::endl;
+            std::cout << "[COLLISION DEBUG]   subcubePos: (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z << ")" << std::endl;
+            std::cout << "[COLLISION DEBUG]   subcubeKey: (" << subcubeKey.x << "," << subcubeKey.y << "," << subcubeKey.z << ")" << std::endl;
+            std::cout << "[COLLISION DEBUG]   Available mappings: " << subcubeToCollisionIndex.size() << std::endl;
+            
+            // Find and remove collision shape for this specific subcube
+            auto collisionIt = subcubeToCollisionIndex.find(subcubeKey);
+            if (collisionIt != subcubeToCollisionIndex.end()) {
+                int collisionIndex = collisionIt->second;
+                
+                std::cout << "[COLLISION OPT] Found collision shape at index " << collisionIndex 
+                          << " for subcube at key (" << subcubeKey.x << "," << subcubeKey.y << "," << subcubeKey.z << ")" << std::endl;
+                
+                // EFFICIENT: Remove only this collision shape using Bullet's optimized removal
+                removeCollisionShapeByIndex(collisionIndex);
+                
+                // Update collision index mappings due to Bullet's swap-with-last removal strategy
+                updateCollisionIndexMapping(collisionIndex);
+                
+                // Remove this subcube from collision mapping
+                subcubeToCollisionIndex.erase(collisionIt);
+                
+                // Remove subcube from static list
+                staticSubcubes.erase(it);
+                
+                std::cout << "[COLLISION OPT] AFTER: Targeted collision shape removal complete - no full rebuild needed!" << std::endl;
+            } else {
+                std::cout << "[COLLISION OPT] WARNING: No collision shape found for subcube - using fallback full rebuild" << std::endl;
+                // Remove subcube from static list BEFORE rebuild to avoid including it in the new collision shape
+                staticSubcubes.erase(it);
+                // Fallback to full rebuild if mapping is corrupted or missing
+                forcePhysicsRebuild();
+                std::cout << "[COLLISION OPT] Fallback full rebuild complete" << std::endl;
+            }
             
             // REFACTOR: Direct transfer to global system (no local staging)
             if (transferCallback) {
@@ -1018,10 +1055,89 @@ void Chunk::createChunkPhysicsBody() {
     btCompoundShape* chunkCompound = new btCompoundShape(true);
     chunkCollisionShape = chunkCompound;
     
-    // Generate merged collision boxes from visible cube faces
-    auto mergedBoxes = generateMergedCollisionBoxes();
+    // Clear previous collision index mapping
+    subcubeToCollisionIndex.clear();
     
-    if (mergedBoxes.empty()) {
+    // Generate collision boxes from cubes and subcubes, building mapping as we go
+    std::cout << "[COLLISION] Building collision shapes with index mapping" << std::endl;
+    int collisionIndex = 0;
+    
+    // =========================================================================
+    // PHASE 1: Process regular cubes (those that aren't subdivided)
+    // =========================================================================
+    for (size_t i = 0; i < cubes.size(); ++i) {
+        const Cube* cube = cubes[i];
+        
+        // Skip deleted cubes (nullptr) or hidden cubes (subdivided)
+        if (!cube || !cube->isVisible()) {
+            continue;
+        }
+        
+        // Get cube's local position within chunk
+        glm::ivec3 localPos = indexToLocal(i);
+        
+        // Calculate world center position for collision box
+        glm::vec3 cubeCenter = glm::vec3(worldOrigin) + glm::vec3(localPos) + glm::vec3(0.5f);
+        glm::vec3 cubeHalfExtents(0.5f);
+        
+        // Create collision shape
+        btBoxShape* boxShape = new btBoxShape(btVector3(cubeHalfExtents.x, cubeHalfExtents.y, cubeHalfExtents.z));
+        btTransform transform;
+        transform.setIdentity();
+        transform.setOrigin(btVector3(cubeCenter.x, cubeCenter.y, cubeCenter.z));
+        chunkCompound->addChildShape(transform, boxShape);
+        
+        // Note: For regular cubes, we don't need to track collision indices since they don't break individually
+        collisionIndex++;
+    }
+    
+    // =========================================================================
+    // PHASE 2: Process static subcubes (from subdivided cubes) WITH INDEX MAPPING
+    // =========================================================================
+    for (const Subcube* subcube : staticSubcubes) {
+        // Skip broken or hidden subcubes
+        if (!subcube || subcube->isBroken() || !subcube->isVisible()) {
+            continue;
+        }
+        
+        // Get subcube properties
+        glm::ivec3 parentPos = subcube->getPosition();     // Parent cube's world position
+        glm::ivec3 localPos = subcube->getLocalPosition(); // 0-2 for each axis within parent
+        
+        // Convert parent world position to chunk-relative position
+        glm::ivec3 parentLocalPos = parentPos - worldOrigin;
+        
+        // Validate parent position is within chunk bounds
+        if (parentLocalPos.x < 0 || parentLocalPos.x >= 32 ||
+            parentLocalPos.y < 0 || parentLocalPos.y >= 32 ||
+            parentLocalPos.z < 0 || parentLocalPos.z >= 32) {
+            continue; // Skip subcubes with invalid parent positions
+        }
+        
+        // Calculate subcube world center position
+        glm::vec3 parentCenter = glm::vec3(worldOrigin) + glm::vec3(parentLocalPos) + glm::vec3(0.5f);
+        glm::vec3 subcubeOffset = (glm::vec3(localPos) - glm::vec3(1.0f)) * (1.0f/3.0f);
+        glm::vec3 subcubeCenter = parentCenter + subcubeOffset;
+        glm::vec3 subcubeHalfExtents(1.0f/6.0f); // 1/3 cube size -> 1/6 half-extents
+        
+        // Create collision shape
+        btBoxShape* boxShape = new btBoxShape(btVector3(subcubeHalfExtents.x, subcubeHalfExtents.y, subcubeHalfExtents.z));
+        btTransform transform;
+        transform.setIdentity();
+        transform.setOrigin(btVector3(subcubeCenter.x, subcubeCenter.y, subcubeCenter.z));
+        chunkCompound->addChildShape(transform, boxShape);
+        
+        // OPTIMIZATION: Build mapping from subcube position to collision index
+        glm::ivec3 subcubeKey = parentLocalPos * 3 + localPos;  // Unique key for subcube within chunk
+        subcubeToCollisionIndex[subcubeKey] = collisionIndex;
+        
+        std::cout << "[COLLISION MAPPING] Added subcube at key (" << subcubeKey.x << "," << subcubeKey.y << "," << subcubeKey.z 
+                  << ") -> collision index " << collisionIndex << std::endl;
+        
+        collisionIndex++;
+    }
+    
+    if (collisionIndex == 0) {
         std::cout << "[CHUNK] No visible geometry - creating minimal collision box" << std::endl;
         // Fallback: small box at chunk origin to prevent total absence
         btBoxShape* fallbackShape = new btBoxShape(btVector3(0.5f, 0.5f, 0.5f));
@@ -1030,15 +1146,8 @@ void Chunk::createChunkPhysicsBody() {
         transform.setOrigin(btVector3(worldOrigin.x, worldOrigin.y, worldOrigin.z));
         chunkCompound->addChildShape(transform, fallbackShape);
     } else {
-        for (const auto& box : mergedBoxes) {
-            btBoxShape* boxShape = new btBoxShape(btVector3(box.halfExtents.x, box.halfExtents.y, box.halfExtents.z));
-            btTransform transform;
-            transform.setIdentity();
-            transform.setOrigin(btVector3(box.center.x, box.center.y, box.center.z));
-            chunkCompound->addChildShape(transform, boxShape);
-        }
-        std::cout << "[CHUNK] Created " << mergedBoxes.size() << " collision boxes from " 
-                  << faces.size() << " visible faces" << std::endl;
+        std::cout << "[CHUNK] Created " << collisionIndex << " collision shapes with " 
+                  << subcubeToCollisionIndex.size() << " subcube mappings tracked" << std::endl;
     }
     
     // Create static rigid body
@@ -1107,6 +1216,9 @@ void Chunk::forcePhysicsRebuild() {
         chunkCollisionShape = nullptr;
     }
     chunkPhysicsBody = nullptr;
+    
+    // Clear collision index mapping since we're rebuilding everything
+    subcubeToCollisionIndex.clear();
     
     // Recreate with updated geometry (this will exclude the broken subcube)
     createChunkPhysicsBody();
@@ -1194,6 +1306,60 @@ std::vector<Chunk::CollisionBox> Chunk::generateMergedCollisionBoxes() {
     
     // No sorting or deduplication needed - each cube/subcube generates exactly one collision box!
     return boxes;
+}
+
+// =========================================================================
+// OPTIMIZED COLLISION SHAPE MANAGEMENT
+// =========================================================================
+
+void Chunk::removeCollisionShapeByIndex(int collisionIndex) {
+    if (!chunkCollisionShape || collisionIndex < 0 || collisionIndex >= chunkCollisionShape->getNumChildShapes()) {
+        std::cout << "[COLLISION OPT] Invalid collision index " << collisionIndex << " for removal" << std::endl;
+        return;
+    }
+    
+    std::cout << "[COLLISION OPT] Removing collision shape at index " << collisionIndex 
+              << " (total shapes: " << chunkCollisionShape->getNumChildShapes() << ")" << std::endl;
+    
+    // Use Bullet's efficient targeted removal
+    chunkCollisionShape->removeChildShapeByIndex(collisionIndex);
+    
+    std::cout << "[COLLISION OPT] Shape removed successfully (remaining shapes: " 
+              << chunkCollisionShape->getNumChildShapes() << ")" << std::endl;
+}
+
+void Chunk::updateCollisionIndexMapping(int removedIndex) {
+    if (subcubeToCollisionIndex.empty()) {
+        return;  // No mappings to update
+    }
+    
+    int lastIndex = chunkCollisionShape->getNumChildShapes();  // After removal, this was the last index before removal
+    
+    // Find which subcube was at the last index and update its mapping to the removed index
+    // Bullet swaps the last element with the removed element for O(1) removal
+    for (auto& pair : subcubeToCollisionIndex) {
+        if (pair.second == lastIndex) {
+            std::cout << "[COLLISION OPT] Updating collision index mapping: subcube at index " 
+                      << lastIndex << " moved to index " << removedIndex << std::endl;
+            pair.second = removedIndex;
+            break;
+        }
+    }
+}
+
+void Chunk::rebuildCollisionIndexMapping() {
+    std::cout << "[COLLISION OPT] Rebuilding entire collision index mapping" << std::endl;
+    subcubeToCollisionIndex.clear();
+    
+    if (!chunkCollisionShape) {
+        return;
+    }
+    
+    // Since we can't efficiently determine which collision shape corresponds to which subcube
+    // after indices have been shuffled, we need to rebuild the physics body to get clean mappings
+    // This method should only be used for batch operations or when mappings become corrupted
+    std::cout << "[COLLISION OPT] Warning: rebuildCollisionIndexMapping() requires full physics rebuild" << std::endl;
+    forcePhysicsRebuild();
 }
 
 } // namespace VulkanCube

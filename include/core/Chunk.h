@@ -5,6 +5,7 @@
 #include <vector>
 #include <functional>
 #include <memory>
+#include <unordered_map>
 #include <vulkan/vulkan.h>
 
 // Bullet Physics forward declarations (global namespace)
@@ -47,7 +48,10 @@ private:
     
     // Physics body for static geometry (compound shape made from individual cube collision boxes)
     mutable btRigidBody* chunkPhysicsBody = nullptr;
-    mutable btCollisionShape* chunkCollisionShape = nullptr;
+    mutable btCompoundShape* chunkCollisionShape = nullptr;  // Changed from btCollisionShape* to btCompoundShape* for direct access
+    
+    // Collision shape optimization: Track mapping from subcube positions to collision shape indices
+    std::unordered_map<glm::ivec3, int, ivec3_hash> subcubeToCollisionIndex;
 
 public:
     // Constructor
@@ -132,6 +136,11 @@ public:
     void forcePhysicsRebuild();                       // Force immediate compound shape rebuild (bypasses performance optimization)
     void cleanupPhysicsResources();                   // Clean up physics bodies
     class btRigidBody* getChunkPhysicsBody() const { return chunkPhysicsBody; }
+    
+    // Optimized collision shape management
+    void removeCollisionShapeByIndex(int collisionIndex);    // Efficiently remove single collision shape
+    void updateCollisionIndexMapping(int removedIndex);      // Update mappings after removal
+    void rebuildCollisionIndexMapping();                     // Rebuild entire mapping (for batch operations)
     
     // Utility functions
     static size_t localToIndex(const glm::ivec3& localPos);
