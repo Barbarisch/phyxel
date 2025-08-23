@@ -131,24 +131,6 @@ void ChunkManager::updateDirtyChunks() {
     clearDirtyChunkList();
 }
 
-void ChunkManager::updateAllChunks() {
-    // DEPRECATED: This method is inefficient for large worlds
-    // It's kept for backward compatibility but updateDirtyChunks() should be used instead
-    
-    // Collect all chunks that actually need updating to avoid unnecessary work
-    dirtyChunkIndices.clear();
-    for (size_t i = 0; i < chunks.size(); ++i) {
-        if (chunks[i]->getNeedsUpdate()) {
-            dirtyChunkIndices.push_back(i);
-        }
-    }
-    
-    if (!dirtyChunkIndices.empty()) {
-        hasDirtyChunks = true;
-        updateDirtyChunks();
-    }
-}
-
 void ChunkManager::rebuildChunkFaces(Chunk& chunk) {
     // Use cross-chunk culling method to maintain proper face occlusion across chunk boundaries
     rebuildChunkFacesWithCrosschunkCulling(chunk);
@@ -512,20 +494,6 @@ glm::vec3 ChunkManager::getSubcubeColor(const glm::ivec3& worldPos, const glm::i
     return glm::vec3(1.0f); // Default white
 }
 
-uint32_t ChunkManager::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
-    VkPhysicalDeviceMemoryProperties memProperties;
-    vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
-    
-    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-        if ((typeFilter & (1 << i)) && 
-            (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-            return i;
-        }
-    }
-    
-    throw std::runtime_error("Failed to find suitable memory type!");
-}
-
 void ChunkManager::cleanup() {
     for (auto& chunk : chunks) {
         // The Chunk class now handles its own cleanup
@@ -533,14 +501,6 @@ void ChunkManager::cleanup() {
     }
     chunks.clear();
     chunkMap.clear();  // Clear the spatial hash map
-}
-
-void ChunkManager::calculateChunkFaceCulling() {
-    // NOTE: This function is no longer needed with CPU pre-filtering
-    // Face culling is now performed during chunk population in populateChunk()
-    // which calls calculateOcclusionFaceMask() for each cube
-    
-    std::cout << "[DEBUG] calculateChunkFaceCulling: No longer needed with CPU pre-filtering" << std::endl;
 }
 
 ChunkManager::ChunkStats ChunkManager::getPerformanceStats() const {
@@ -709,11 +669,6 @@ void ChunkManager::addGlobalDynamicSubcube(std::unique_ptr<Subcube> subcube) {
         globalDynamicSubcubes.push_back(std::move(subcube));
         rebuildGlobalDynamicFaces();  // Rebuild faces after adding new subcube
     }
-}
-
-void ChunkManager::rebuildGlobalDynamicSubcubeFaces() {
-    // Legacy function - now calls the combined function that handles both subcubes and cubes
-    rebuildGlobalDynamicFaces();
 }
 
 void ChunkManager::updateGlobalDynamicSubcubes(float deltaTime) {

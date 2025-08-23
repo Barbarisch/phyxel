@@ -71,10 +71,6 @@ public:
     // Call this every frame - it's efficient and only processes changed chunks
     void updateDirtyChunks();
     
-    // DEPRECATED: Update all chunks (inefficient for large worlds)
-    // Use updateDirtyChunks() instead for better performance
-    void updateAllChunks();
-    
     // Rebuild faces from cubes (call after modifying cubes)
     void rebuildChunkFaces(Chunk& chunk);
     
@@ -101,7 +97,6 @@ public:
     void updateGlobalDynamicSubcubes(float deltaTime);  // Update timers and cleanup expired ones
     void updateGlobalDynamicSubcubePositions();  // Update positions from physics bodies
     void clearAllGlobalDynamicSubcubes();
-    void rebuildGlobalDynamicSubcubeFaces();  // Generate face data for all global dynamic subcubes
     const std::vector<std::unique_ptr<Subcube>>& getGlobalDynamicSubcubes() const { return globalDynamicSubcubes; }
     size_t getGlobalDynamicSubcubeCount() const { return globalDynamicSubcubes.size(); }
     
@@ -139,12 +134,6 @@ public:
     }
     static glm::ivec3 chunkCoordToOrigin(const glm::ivec3& chunkCoord) { return chunkCoord * 32; }
     
-    // CRITICAL: Index formula MUST match loop order in populateChunk()
-    // Loop order: for(x) for(y) for(z) → Z-minor indexing (Z coefficient = 1)
-    // Formula: z + y*32 + x*1024 (Z changes fastest, matches innermost loop)
-    // DO NOT change to X-minor without changing populateChunk() loop order!
-    static size_t localToIndex(const glm::ivec3& localPos) { return localPos.z + localPos.y * 32 + localPos.x * 32 * 32; }
-    
     // Fast O(1) chunk lookup functions
     Chunk* getChunkAtCoord(const glm::ivec3& chunkCoord);      // Get chunk by chunk coordinates
     const Chunk* getChunkAtCoord(const glm::ivec3& chunkCoord) const; // Const version
@@ -155,9 +144,6 @@ public:
     bool setCubeColorFast(const glm::ivec3& worldPos, const glm::vec3& color);  // Fast color update
     bool removeCubeFast(const glm::ivec3& worldPos);          // Fast cube removal
     bool addCubeFast(const glm::ivec3& worldPos, const glm::vec3& color = glm::vec3(1.0f));  // Fast cube addition
-    
-    // Calculate face visibility for all chunks (face culling optimization)
-    void calculateChunkFaceCulling();
     
     // Perform occlusion culling across chunks (check cube neighbors across chunk boundaries)
     void performOcclusionCulling();
@@ -205,9 +191,6 @@ private:
     // Cross-chunk occlusion culling helpers
     bool isCubeAt(const glm::ivec3& worldPosition) const;
     uint32_t calculateOcclusionFaceMask(const glm::ivec3& chunkOrigin, int relativeX, int relativeY, int relativeZ) const;
-    
-    // Helper to find memory type
-    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 };
 
 } // namespace VulkanCube
