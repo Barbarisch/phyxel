@@ -1,0 +1,317 @@
+Initializing VulkanCube Application...
+Window initialized successfully
+Validation layer: Layer name GalaxyOverlayVkLayer does not conform to naming standard (Policy #LLP_LAYER_3)
+Validation layer: Layer name GalaxyOverlayVkLayer_VERBOSE does not conform to naming standard (Policy #LLP_LAYER_3)
+Validation layer: Layer name GalaxyOverlayVkLayer_DEBUG does not conform to naming standard (Policy #LLP_LAYER_3)
+Validation layer: loader_get_json: Failed to open JSON file C:\Program Files (x86)\Epic Games\Launcher\Portal\Extras\Overlay\EOSOverlayVkLayer-Win32.json
+Validation layer: loader_get_json: Failed to open JSON file C:\Program Files (x86)\Epic Games\Launcher\Portal\Extras\Overlay\EOSOverlayVkLayer-Win64.json
+Validation layer: windows_get_device_registry_files: GUID for 2 is not SoftwareComponent skipping
+Validation layer: windows_get_device_registry_files: GUID for 3 is not SoftwareComponent skipping
+Validation layer: windows_get_device_registry_files: GUID for 4 is not SoftwareComponent skipping
+Validation layer: Searching for ICD drivers named .\nvoglv64.dll
+Validation layer: Loading layer library C:\VulkanSDK\1.4.321.1\Bin\.\VkLayer_khronos_validation.dll
+Validation layer: Loading layer library C:\ProgramData\obs-studio-hook\.\graphics-hook64.dll
+Validation layer: Loading layer library C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispig.inf_amd64_0afec3f2050014a0\.\nvoglv64.dll
+Vulkan surface created successfully
+Swapchain created successfully
+Framebuffers created successfully
+[DEBUG] Creating descriptor set layout...
+[DEBUG] Descriptor set layout created successfully: 00001B000000001B
+Command buffers created successfully
+[DEBUG] Creating frustum culling buffers for 35000 instances
+[DEBUG] Created AABB buffer: 1120000 bytes
+[DEBUG] Created visibility buffer: 140000 bytes
+Frustum culling buffers created successfully
+Compute descriptor pool created successfully
+Sync objects created successfully
+Vulkan subsystem initialized successfully
+[CHUNK MANAGER] Physics world set for proper dynamic object cleanup
+=== CHUNK ORIGINS ===
+Chunk 0 origin: (0,0,0)
+Chunk 1 origin: (0,0,32)
+Chunk 2 origin: (0,32,0)
+Chunk 3 origin: (0,32,32)
+Chunk 4 origin: (32,0,0)
+Chunk 5 origin: (32,0,32)
+Chunk 6 origin: (32,32,0)
+Chunk 7 origin: (32,32,32)
+=====================
+[DEBUG] Regenerating chunks with updated cross-chunk occlusion culling...
+[DEBUG] Occlusion culling complete: 262144 total cubes, 24576 visible faces, 1548288 hidden faces
+Created 8 chunks for testing
+Scene manager initialized with grid size: 32x32x32
+Corner cube at (0,0,0) faceMask: 0x2a
+Corner cube at (31,0,0) faceMask: 0x26
+Corner cube at (0,0,31) faceMask: 0x29
+Corner cube at (31,0,31) faceMask: 0x25
+Corner cube at (0,31,0) faceMask: 0x1a
+Corner cube at (31,31,0) faceMask: 0x16
+Corner cube at (0,31,31) faceMask: 0x19
+Corner cube at (31,31,31) faceMask: 0x15
+Recalculated face masks for 32768 cubes
+[DEBUG] Occlusion culling: 27000 fully occluded, 5768 partially occluded, 28464 total hidden faces
+Created test scene with 32768 cubes (full 32x32x32 grid)
+Compute descriptor sets created and updated successfully
+Scene subsystem initialized successfully
+Camera controls initialized - hold right mouse button and drag to look around
+[COLLISION] Optimizing collision settings for exact-position spawning...
+[COLLISION] Configuring penetration recovery - ERP: 0.9, CFM: 1e-06
+[COLLISION] Tuning contact processing - Max contacts: 6, Threshold: 0.004
+[COLLISION] Exact-position spawning optimization complete - 20 iterations, 90% ERP, strong overlap resolution
+Physics world initialized successfully (with automatic fallen cube cleanup at Y < -20)
+Physics subsystem initialized successfully (static cubes excluded)
+Creating chunk physics bodies...
+[CHUNK] Creating optimized compound collision shape for chunk at (0,0,0)
+[COLLISION] Building collision shapes with index mapping
+[CHUNK] Created 32768 collision shapes with 0 subcube mappings tracked
+[CHUNK] Compound collision shape created successfully
+[CHUNK] Creating optimized compound collision shape for chunk at (0,0,32)
+[COLLISION] Building collision shapes with index mapping
+[CHUNK] Created 32768 collision shapes with 0 subcube mappings tracked
+[CHUNK] Compound collision shape created successfully
+[CHUNK] Creating optimized compound collision shape for chunk at (0,32,0)
+[COLLISION] Building collision shapes with index mapping
+[CHUNK] Created 32768 collision shapes with 0 subcube mappings tracked
+[CHUNK] Compound collision shape created successfully
+[CHUNK] Creating optimized compound collision shape for chunk at (0,32,32)
+[COLLISION] Building collision shapes with index mapping
+[CHUNK] Created 32768 collision shapes with 0 subcube mappings tracked
+[CHUNK] Compound collision shape created successfully
+[CHUNK] Creating optimized compound collision shape for chunk at (32,0,0)
+[COLLISION] Building collision shapes with index mapping
+[CHUNK] Created 32768 collision shapes with 0 subcube mappings tracked
+[CHUNK] Compound collision shape created successfully
+[CHUNK] Creating optimized compound collision shape for chunk at (32,0,32)
+[COLLISION] Building collision shapes with index mapping
+[CHUNK] Created 32768 collision shapes with 0 subcube mappings tracked
+[CHUNK] Compound collision shape created successfully
+[CHUNK] Creating optimized compound collision shape for chunk at (32,32,0)
+[COLLISION] Building collision shapes with index mapping
+[CHUNK] Created 32768 collision shapes with 0 subcube mappings tracked
+[CHUNK] Compound collision shape created successfully
+[CHUNK] Creating optimized compound collision shape for chunk at (32,32,32)
+[COLLISION] Building collision shapes with index mapping
+[CHUNK] Created 32768 collision shapes with 0 subcube mappings tracked
+[CHUNK] Compound collision shape created successfully
+Assets loaded successfully
+Application initialized successfully!
+Starting VulkanCube application...
+[DEBUG] updateAABBBuffer: Updating 32768 positions
+[DEBUG] Cube 0: pos(0,0,0) -> AABB min(-0.5,-0.5,-0.5) max(0.5,0.5,0.5)
+[DEBUG] Cube 1: pos(1,0,0) -> AABB min(0.5,-0.5,-0.5) max(1.5,0.5,0.5)
+[DEBUG] Cube 2: pos(2,0,0) -> AABB min(1.5,-0.5,-0.5) max(2.5,0.5,0.5)
+[DEBUG] Cube 3: pos(3,0,0) -> AABB min(2.5,-0.5,-0.5) max(3.5,0.5,0.5)
+[DEBUG] Cube 4: pos(4,0,0) -> AABB min(3.5,-0.5,-0.5) max(4.5,0.5,0.5)
+[DEBUG] Uploading 1048576 bytes of AABB data
+[DEBUG] AABB buffer update complete
+[DEBUG] Frame 0 - Matrix upload:
+  View[0]: 0.707107, -0.408248, 0.57735, 0
+  Proj[0]: 1.44853, 0, 0, 0
+  NumInstances: 32768
+[DEBUG] Frame 1 - Matrix upload:
+  View[0]: 0.707107, -0.408248, 0.57735, 0
+  Proj[0]: 1.44853, 0, 0, 0
+  NumInstances: 32768
+[DEBUG] Frame 2 - Matrix upload:
+  View[0]: 0.707107, -0.408248, 0.57735, 0
+  Proj[0]: 1.44853, 0, 0, 0
+  NumInstances: 32768
+Validation layer: vkQueueSubmit(): pSubmits[0].pSignalSemaphores[0] (VkSemaphore 0x400000000040) is being signaled by VkQueue 0x126cdc62b50, but it may still be in use by VkSwapchainKHR 0x30000000003.
+Here are the most recently acquired image indices: 0, [1], 2, 0.
+(brackets mark the last use of VkSemaphore 0x400000000040 in a presentation operation)
+Swapchain image 1 was presented but was not re-acquired, so VkSemaphore 0x400000000040 may still be in use and cannot be safely reused with image index 0.
+Vulkan insight: One solution is to assign each image its own semaphore. Here are some common methods to ensure that a semaphore passed to vkQueuePresentKHR is not in use and can be safely reused:
+	a) Use a separate semaphore per swapchain image. Index these semaphores using the index of the acquired image.
+	b) Consider the VK_KHR_swapchain_maintenance1 extension. It allows using a VkFence with the presentation operation.
+The Vulkan spec states: Each binary semaphore element of the pSignalSemaphores member of any element of pSubmits must be unsignaled when the semaphore signal operation it defines is executed on the device (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/cmdbuffers.html#VUID-vkQueueSubmit-pSignalSemaphores-00067)
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0% culled), Time: 0.0136ms
+[CHUNK FRUSTUM CULLING] Camera pos: (50, 50, 50)
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0% culled), Time: 0.0144ms
+[CHUNK FRUSTUM CULLING] Camera pos: (50, 50, 50)
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0% culled), Time: 0.0173ms
+[CHUNK FRUSTUM CULLING] Camera pos: (50, 50, 50)
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0% culled), Time: 0.0144ms
+[CHUNK FRUSTUM CULLING] Camera pos: (50, 50, 50)
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0% culled), Time: 0.0139ms
+[CHUNK FRUSTUM CULLING] Camera pos: (50, 50, 50)
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0% culled), Time: 0.0137ms
+[CHUNK FRUSTUM CULLING] Camera pos: (50, 50, 50)
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0% culled), Time: 0.0141ms
+[CHUNK FRUSTUM CULLING] Camera pos: (50, 50, 50)
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0% culled), Time: 0.0162ms
+[CHUNK FRUSTUM CULLING] Camera pos: (50, 50, 50)
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0% culled), Time: 0.0138ms
+[CHUNK FRUSTUM CULLING] Camera pos: (50, 50, 50)
+*** RIGHT MOUSE PRESSED - CAMERA LOOK MODE ENABLED ***
+Camera look: yaw=-128.4° pitch=-23.7°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (50.3, 50.2, 50.4)
+Camera look: yaw=-119.7° pitch=-18.6°
+Camera look: yaw=-109.5° pitch=-14.4°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 7, Culled: 1 (12.5% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (51.0, 50.7, 51.6)
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 7, Culled: 1 (12.5% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (51.4, 51.0, 53.0)
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (51.8, 51.4, 54.3)
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (52.2, 51.7, 55.6)
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (52.6, 52.0, 56.9)
+Camera look: yaw=-106.8° pitch=-13.5°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (53.0, 52.4, 58.3)
+Camera look: yaw=-98.7° pitch=-12.9°
+Camera look: yaw=-95.1° pitch=-12.0°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 7, Culled: 1 (12.5% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (53.2, 52.7, 59.8)
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 6, Culled: 2 (25.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (53.4, 53.0, 61.2)
+Camera look: yaw=-92.1° pitch=-10.8°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 6, Culled: 2 (25.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (54.9, 53.3, 62.6)
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 6, Culled: 2 (25.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (56.3, 53.5, 64.0)
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 6, Culled: 2 (25.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (57.8, 54.8, 65.4)
+Camera look: yaw=-92.1° pitch=-9.6°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 6, Culled: 2 (25.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (59.4, 56.3, 66.8)
+Camera look: yaw=-95.7° pitch=-8.1°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 7, Culled: 1 (12.5% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (61.0, 56.5, 68.1)
+Camera look: yaw=-99.9° pitch=-7.5°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (62.7, 56.7, 69.3)
+Camera look: yaw=-103.2° pitch=-7.5°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (64.6, 56.9, 70.4)
+Camera look: yaw=-107.4° pitch=-7.2°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (66.3, 57.1, 71.4)
+Camera look: yaw=-111.6° pitch=-6.6°
+Camera look: yaw=-115.2° pitch=-7.2°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (66.9, 57.3, 72.8)
+Camera look: yaw=-127.5° pitch=-18.6°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (67.7, 57.7, 74.0)
+Camera look: yaw=-131.7° pitch=-26.4°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (68.7, 58.3, 74.9)
+Camera look: yaw=-132.0° pitch=-29.7°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (69.8, 59.1, 75.7)
+Camera look: yaw=-131.1° pitch=-49.5°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 6, Culled: 2 (25.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (70.3, 60.3, 76.3)
+Camera look: yaw=-130.2° pitch=-60.6°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 6, Culled: 2 (25.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (70.8, 61.6, 76.8)
+Camera look: yaw=-125.4° pitch=-49.8°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (71.0, 62.1, 77.1)
+Camera look: yaw=-121.2° pitch=-30.0°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (71.0, 62.1, 77.1)
+Camera look: yaw=-119.7° pitch=-16.2°
+Camera look: yaw=-118.2° pitch=-9.3°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 8, Culled: 0 (0.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (71.0, 62.1, 77.1)
+Camera look: yaw=-111.0° pitch=-4.5°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 5, Culled: 3 (37.5% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (71.0, 62.1, 77.1)
+Camera look: yaw=-81.3° pitch=-0.9°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 3, Culled: 5 (62.5% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (71.0, 62.1, 77.1)
+Camera look: yaw=-68.1° pitch=-4.2°
+Camera look: yaw=-51.9° pitch=-7.5°
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 0, Culled: 8 (100.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (71.0, 62.1, 77.1)
+[CHUNK FRUSTUM CULLING] Total chunks: 8, Visible: 0, Culled: 8 (100.0% culled), Time: 0.0ms
+[CHUNK FRUSTUM CULLING] Camera pos: (71.0, 62.1, 77.1)
+*** RIGHT MOUSE RELEASED - CAMERA LOOK MODE DISABLED ***
+Application shutting down...
+Validation layer: vkDestroyPipeline(): can't be called on VkPipeline 0x5e000000005e that is currently in use by VkCommandBuffer 0x126cfdff5d0.
+The Vulkan spec states: All submitted commands that refer to pipeline must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/pipelines.html#VUID-vkDestroyPipeline-pipeline-00765)
+Validation layer: vkDestroyPipeline(): can't be called on VkPipeline 0x190000000019 that is currently in use by VkCommandBuffer 0x126cfe0b1c0.
+The Vulkan spec states: All submitted commands that refer to pipeline must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/pipelines.html#VUID-vkDestroyPipeline-pipeline-00765)
+Validation layer: vkDestroyRenderPass(): can't be called on VkRenderPass 0x170000000017 that is currently in use by VkCommandBuffer 0x126cfe0b1c0.
+The Vulkan spec states: All submitted commands that refer to renderPass must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/renderpass.html#VUID-vkDestroyRenderPass-renderPass-00873)
+Validation layer: vkDestroyBuffer(): can't be called on VkBuffer 0x460000000046 that is currently in use by VkCommandBuffer 0x126cfe0b1c0.
+The Vulkan spec states: All submitted commands that refer to buffer, either directly or via a VkBufferView, must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/resources.html#VUID-vkDestroyBuffer-buffer-00922)
+[CHUNK] Cleaning up chunk physics body
+[CHUNK] Cleaning up chunk collision shape
+Validation layer: vkDestroyBuffer(): can't be called on VkBuffer 0x480000000048 that is currently in use by VkCommandBuffer 0x126cfe0b1c0.
+The Vulkan spec states: All submitted commands that refer to buffer, either directly or via a VkBufferView, must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/resources.html#VUID-vkDestroyBuffer-buffer-00922)
+[CHUNK] Cleaning up chunk physics body
+[CHUNK] Cleaning up chunk collision shape
+Validation layer: vkDestroyBuffer(): can't be called on VkBuffer 0x4a000000004a that is currently in use by VkCommandBuffer 0x126cfe0b1c0.
+The Vulkan spec states: All submitted commands that refer to buffer, either directly or via a VkBufferView, must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/resources.html#VUID-vkDestroyBuffer-buffer-00922)
+[CHUNK] Cleaning up chunk physics body
+[CHUNK] Cleaning up chunk collision shape
+Validation layer: vkDestroyBuffer(): can't be called on VkBuffer 0x4c000000004c that is currently in use by VkCommandBuffer 0x126cfe0b1c0.
+The Vulkan spec states: All submitted commands that refer to buffer, either directly or via a VkBufferView, must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/resources.html#VUID-vkDestroyBuffer-buffer-00922)
+[CHUNK] Cleaning up chunk physics body
+[CHUNK] Cleaning up chunk collision shape
+Validation layer: vkDestroyBuffer(): can't be called on VkBuffer 0x4e000000004e that is currently in use by VkCommandBuffer 0x126cfe0b1c0.
+The Vulkan spec states: All submitted commands that refer to buffer, either directly or via a VkBufferView, must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/resources.html#VUID-vkDestroyBuffer-buffer-00922)
+[CHUNK] Cleaning up chunk physics body
+[CHUNK] Cleaning up chunk collision shape
+Validation layer: vkDestroyBuffer(): can't be called on VkBuffer 0x500000000050 that is currently in use by VkCommandBuffer 0x126cfe0b1c0.
+The Vulkan spec states: All submitted commands that refer to buffer, either directly or via a VkBufferView, must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/resources.html#VUID-vkDestroyBuffer-buffer-00922)
+[CHUNK] Cleaning up chunk physics body
+[CHUNK] Cleaning up chunk collision shape
+Validation layer: vkDestroyBuffer(): can't be called on VkBuffer 0x520000000052 that is currently in use by VkCommandBuffer 0x126cfe0b1c0.
+The Vulkan spec states: All submitted commands that refer to buffer, either directly or via a VkBufferView, must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/resources.html#VUID-vkDestroyBuffer-buffer-00922)
+[CHUNK] Cleaning up chunk physics body
+[CHUNK] Cleaning up chunk collision shape
+Validation layer: vkDestroyBuffer(): can't be called on VkBuffer 0x540000000054 that is currently in use by VkCommandBuffer 0x126cfe0b1c0.
+The Vulkan spec states: All submitted commands that refer to buffer, either directly or via a VkBufferView, must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/resources.html#VUID-vkDestroyBuffer-buffer-00922)
+[CHUNK] Cleaning up chunk physics body
+[CHUNK] Cleaning up chunk collision shape
+Validation layer: vkDestroyDescriptorPool(): can't be called on VkDescriptorPool 0x380000000038 that is currently in use by VkCommandBuffer 0x126cfdff5d0.
+The Vulkan spec states: All submitted commands that refer to descriptorPool (via any allocated descriptor sets) must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/descriptorsets.html#VUID-vkDestroyDescriptorPool-descriptorPool-00303)
+Validation layer: vkDestroyBuffer(): can't be called on VkBuffer 0x2a000000002a that is currently in use by VkCommandBuffer 0x126cfe0b1c0.
+The Vulkan spec states: All submitted commands that refer to buffer, either directly or via a VkBufferView, must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/resources.html#VUID-vkDestroyBuffer-buffer-00922)
+Validation layer: (Warning - This VUID has now been reported 10 times, which is the duplicated_message_limit value, this will be the last time reporting it).
+vkDestroyBuffer(): can't be called on VkBuffer 0x280000000028 that is currently in use by VkCommandBuffer 0x126cfe0b1c0.
+The Vulkan spec states: All submitted commands that refer to buffer, either directly or via a VkBufferView, must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/resources.html#VUID-vkDestroyBuffer-buffer-00922)
+Validation layer: vkDestroySemaphore(): can't be called on VkSemaphore 0x3c000000003c that is currently in use by VkQueue 0x126cdc62b50.
+The Vulkan spec states: All submitted batches that refer to semaphore must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/synchronization.html#VUID-vkDestroySemaphore-semaphore-05149)
+Validation layer: vkDestroySemaphore(): can't be called on VkSemaphore 0x3d000000003d that is currently in use by VkQueue 0x126cdc62b50.
+The Vulkan spec states: All submitted batches that refer to semaphore must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/synchronization.html#VUID-vkDestroySemaphore-semaphore-05149)
+Validation layer: vkDestroyFence(): can't be called on VkFence 0x3e000000003e that is currently in use by VkQueue 0x126cdc62b50.
+The Vulkan spec states: All queue submission commands that refer to fence must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/synchronization.html#VUID-vkDestroyFence-fence-01120)
+Validation layer: vkDestroySemaphore(): can't be called on VkSemaphore 0x3f000000003f that is currently in use by VkQueue 0x126cdc62b50.
+The Vulkan spec states: All submitted batches that refer to semaphore must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/synchronization.html#VUID-vkDestroySemaphore-semaphore-05149)
+Validation layer: vkDestroySemaphore(): can't be called on VkSemaphore 0x400000000040 that is currently in use by VkQueue 0x126cdc62b50.
+The Vulkan spec states: All submitted batches that refer to semaphore must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/synchronization.html#VUID-vkDestroySemaphore-semaphore-05149)
+Validation layer: vkDestroyFence(): can't be called on VkFence 0x410000000041 that is currently in use by VkQueue 0x126cdc62b50.
+The Vulkan spec states: All queue submission commands that refer to fence must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/synchronization.html#VUID-vkDestroyFence-fence-01120)
+Validation layer: vkDestroyCommandPool(): (VkCommandBuffer 0x126cfe0b1c0) is in use.
+The Vulkan spec states: All VkCommandBuffer objects allocated from commandPool must not be in the pending state (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/cmdbuffers.html#VUID-vkDestroyCommandPool-commandPool-00041)
+Validation layer: vkDestroyCommandPool(): (VkCommandBuffer 0x126cfdff5d0) is in use.
+The Vulkan spec states: All VkCommandBuffer objects allocated from commandPool must not be in the pending state (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/cmdbuffers.html#VUID-vkDestroyCommandPool-commandPool-00041)
+Validation layer: vkDestroyDevice(): Object Tracking - For VkDevice 0x126cdac03c0, VkBuffer 0x2c000000002c has not been destroyed.
+The Vulkan spec states: All child objects created on device that can be destroyed or freed must have been destroyed or freed prior to destroying device (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/devsandqueues.html#VUID-vkDestroyDevice-device-05137)
+Validation layer: vkDestroyDevice(): Object Tracking - For VkDevice 0x126cdac03c0, VkDeviceMemory 0x2d000000002d has not been destroyed.
+The Vulkan spec states: All child objects created on device that can be destroyed or freed must have been destroyed or freed prior to destroying device (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/devsandqueues.html#VUID-vkDestroyDevice-device-05137)
+Validation layer: vkDestroyDevice(): Object Tracking - For VkDevice 0x126cdac03c0, VkShaderModule 0x140000000014 has not been destroyed.
+The Vulkan spec states: All child objects created on device that can be destroyed or freed must have been destroyed or freed prior to destroying device (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/devsandqueues.html#VUID-vkDestroyDevice-device-05137)
+Validation layer: vkDestroyDevice(): Object Tracking - For VkDevice 0x126cdac03c0, VkShaderModule 0x110000000011 has not been destroyed.
+The Vulkan spec states: All child objects created on device that can be destroyed or freed must have been destroyed or freed prior to destroying device (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/devsandqueues.html#VUID-vkDestroyDevice-device-05137)
+Validation layer: vkDestroyDevice(): Object Tracking - For VkDevice 0x126cdac03c0, VkShaderModule 0x120000000012 has not been destroyed.
+The Vulkan spec states: All child objects created on device that can be destroyed or freed must have been destroyed or freed prior to destroying device (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/devsandqueues.html#VUID-vkDestroyDevice-device-05137)
+Validation layer: vkDestroyDevice(): Object Tracking - For VkDevice 0x126cdac03c0, VkShaderModule 0x130000000013 has not been destroyed.
+The Vulkan spec states: All child objects created on device that can be destroyed or freed must have been destroyed or freed prior to destroying device (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/devsandqueues.html#VUID-vkDestroyDevice-device-05137)
+Validation layer: vkDestroyDevice(): Object Tracking - For VkDevice 0x126cdac03c0, VkRenderPass 0xa000000000a has not been destroyed.
+The Vulkan spec states: All child objects created on device that can be destroyed or freed must have been destroyed or freed prior to destroying device (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/devsandqueues.html#VUID-vkDestroyDevice-device-05137)
+Validation layer: vkDestroyDevice(): Object Tracking - For VkDevice 0x126cdac03c0, VkDescriptorSetLayout 0x1b000000001b has not been destroyed.
+The Vulkan spec states: All child objects created on device that can be destroyed or freed must have been destroyed or freed prior to destroying device (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/devsandqueues.html#VUID-vkDestroyDevice-device-05137)
+Validation layer: vkDestroyDevice(): Object Tracking - For VkDevice 0x126cdac03c0, VkDescriptorPool 0x580000000058 has not been destroyed.
+The Vulkan spec states: All child objects created on device that can be destroyed or freed must have been destroyed or freed prior to destroying device (https://vulkan.lunarg.com/doc/view/1.4.321.1/windows/antora/spec/latest/chapters/devsandqueues.html#VUID-vkDestroyDevice-device-05137)
+Validation layer: Unloading layer library C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispig.inf_amd64_0afec3f2050014a0\.\nvoglv64.dll
+Validation layer: Unloading layer library C:\ProgramData\obs-studio-hook\.\graphics-hook64.dll
+Validation layer: Unloading layer library C:\VulkanSDK\1.4.321.1\Bin\.\VkLayer_khronos_validation.dll
+[Vulkan Loader] ERROR:          vkDestroySemaphore: Invalid device [VUID-vkDestroySemaphore-device-parameter]

@@ -9,6 +9,7 @@
 #include "physics/PhysicsWorld.h"
 #include "utils/Timer.h"
 #include "utils/PerformanceProfiler.h"
+#include "utils/Frustum.h"
 #include "ui/ImGuiRenderer.h"
 #include "core/ChunkManager.h"
 #include <memory>
@@ -130,6 +131,11 @@ private:
     // GPU frustum culling results for UI display
     uint32_t lastVisibleInstances = 0;
     uint32_t lastCulledInstances = 0;
+    
+    // New chunk-level frustum culling
+    Utils::Frustum cameraFrustum;
+    void updateCameraFrustum(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix);
+    std::vector<uint32_t> getVisibleChunks();
 
     // Initialization methods
     bool initializeWindow();

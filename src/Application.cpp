@@ -758,45 +758,49 @@ void Application::drawFrame() {
     vulkanDevice->resetCommandBuffer(currentFrame);
     vulkanDevice->beginCommandBuffer(currentFrame);
     
-    // Perform GPU frustum culling BEFORE rendering
+    // NEW: Perform CPU chunk-level frustum culling BEFORE rendering
     auto frustumCullingStart = std::chrono::high_resolution_clock::now();
-    vulkanDevice->dispatchFrustumCulling(currentFrame, renderPipeline.get(), static_cast<uint32_t>(cubeCount));
+    
+    // Update camera frustum from current view and projection matrices
+    updateCameraFrustum(view, proj);
+    
+    // Get list of visible chunks (CPU-based AABB vs frustum test)
+    std::vector<uint32_t> visibleChunks = getVisibleChunks();
     auto frustumCullingEnd = std::chrono::high_resolution_clock::now();
     
-    // Download GPU visibility results for performance stats (every 10 frames)
+    // Calculate chunk-level culling statistics
+    uint32_t totalChunks = chunkManager ? static_cast<uint32_t>(chunkManager->chunks.size()) : 0;
+    uint32_t visibleChunkCount = static_cast<uint32_t>(visibleChunks.size());
+    uint32_t culledChunkCount = totalChunks - visibleChunkCount;
+    
+    // Calculate CPU frustum culling time in milliseconds
+    double frustumCullingTimeMs = std::chrono::duration<double, std::milli>(
+        frustumCullingEnd - frustumCullingStart
+    ).count();
+    
+    // Debug output every 60 frames
     static int cullStatsCounter = 0;
-    if (++cullStatsCounter >= 10) {
+    if (++cullStatsCounter >= 60) {
         cullStatsCounter = 0;
         
-        std::vector<uint32_t> visibilityResults = vulkanDevice->downloadVisibilityResults(static_cast<uint32_t>(cubeCount));
-        
-        // Calculate statistics
-        uint32_t totalObjects = static_cast<uint32_t>(visibilityResults.size());
-        uint32_t visibleObjects = 0;
-        for (uint32_t visible : visibilityResults) {
-            if (visible) visibleObjects++;
+        std::cout << "[CHUNK FRUSTUM CULLING] Total chunks: " << totalChunks 
+                  << ", Visible: " << visibleChunkCount 
+                  << ", Culled: " << culledChunkCount;
+        if (totalChunks > 0) {
+            std::cout << " (" << (100.0f * culledChunkCount / totalChunks) << "% culled)";
         }
-        uint32_t culledObjects = totalObjects - visibleObjects;
-        
-        // Calculate GPU compute time in milliseconds
-        double frustumCullingTimeMs = std::chrono::duration<double, std::milli>(
-            frustumCullingEnd - frustumCullingStart
-        ).count();
-        
-        // Record actual GPU frustum culling statistics
-        // std::cout << "[DEBUG] Performance stats: Total=" << totalObjects 
-        //           << ", Visible=" << visibleObjects 
-        //           << ", Culled=" << culledObjects 
-        //           << " (" << (100.0f * culledObjects / totalObjects) << "% culled)"
-        //           << ", Time=" << frustumCullingTimeMs << "ms" << std::endl;
-        // std::cout << "[DEBUG] Camera pos: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")" << std::endl;
-        
-        // Store results for UI display
-        lastVisibleInstances = visibleObjects;
-        lastCulledInstances = culledObjects;
-        
-        performanceProfiler->recordFrustumCulling(totalObjects, culledObjects, frustumCullingTimeMs);
+        std::cout << ", Time: " << frustumCullingTimeMs << "ms" << std::endl;
+        std::cout << "[CHUNK FRUSTUM CULLING] Camera pos: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")" << std::endl;
     }
+    
+    // Store results for UI display (convert chunk stats to instance stats for UI compatibility)
+    // Each chunk has roughly 32^3 = 32,768 cubes, so estimate instance counts
+    uint32_t estimatedVisibleInstances = visibleChunkCount * 16384; // Assume ~50% cubes visible per chunk
+    uint32_t estimatedCulledInstances = culledChunkCount * 32768;   // All cubes in culled chunks
+    lastVisibleInstances = estimatedVisibleInstances;
+    lastCulledInstances = estimatedCulledInstances;
+    
+    performanceProfiler->recordFrustumCulling(totalChunks, culledChunkCount, frustumCullingTimeMs);
     
     // Record occlusion culling statistics from chunk manager (if using chunks)
     if (chunkManager && !chunkManager->chunks.empty()) {
@@ -1693,12 +1697,12 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
     if (!location.isValid()) return;
     
     // Debug: Show what type of location we're hovering
-    std::cout << "[HOVER DEBUG] Hovering - isSubcube: " << location.isSubcube 
-              << ", world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z << ")";
-    if (location.isSubcube) {
-        std::cout << ", subcube pos: (" << location.subcubePos.x << "," << location.subcubePos.y << "," << location.subcubePos.z << ")";
-    }
-    std::cout << std::endl;
+    // std::cout << "[HOVER DEBUG] Hovering - isSubcube: " << location.isSubcube 
+    //           << ", world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z << ")";
+    // if (location.isSubcube) {
+    //     std::cout << ", subcube pos: (" << location.subcubePos.x << "," << location.subcubePos.y << "," << location.subcubePos.z << ")";
+    // }
+    // std::cout << std::endl;
     
     // Clear previous hover
     clearHoveredCubeInChunksOptimized();
@@ -1738,8 +1742,8 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
         currentHoveredLocation = location;
         hasHoveredCube = true;
         
-        std::cout << "[CUBE HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
-                  << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
+        // std::cout << "[CUBE HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
+        //           << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
         
         // Set hover color (darken the cube by setting it to black)
         glm::vec3 hoverColor = glm::vec3(0.0f, 0.0f, 0.0f); // Black for regular cube hover
@@ -1763,7 +1767,7 @@ void Application::clearHoveredCubeInChunksOptimized() {
             } else {
                 // Restore regular cube color
                 chunkManager->setCubeColorEfficient(currentHoveredLocation.worldPos, originalHoveredColor);
-                std::cout << "[CUBE HOVER] Cleared hover for cube at world pos: (" << currentHoveredLocation.worldPos.x << "," << currentHoveredLocation.worldPos.y << "," << currentHoveredLocation.worldPos.z << ")" << std::endl;
+                //std::cout << "[CUBE HOVER] Cleared hover for cube at world pos: (" << currentHoveredLocation.worldPos.x << "," << currentHoveredLocation.worldPos.y << "," << currentHoveredLocation.worldPos.z << ")" << std::endl;
             }
         }
         
@@ -1997,16 +2001,12 @@ void Application::breakHoveredCube() {
                   << originalColor.x << "," << originalColor.y << "," << originalColor.z << ")" << std::endl;
     }
     
-    // Remove the cube from the chunk
+    // Remove the cube from the chunk (this now handles collision removal efficiently)
     bool removed = chunk->removeCube(currentHoveredLocation.localPos);
     if (!removed) {
         std::cout << "[CUBE BREAKING] WARNING: Failed to remove cube from chunk" << std::endl;
         return;
     }
-    
-    // CRITICAL: Force immediate compound shape rebuild to remove static collision before spawning dynamic cube
-    // This prevents the +1.0 X-axis offset caused by collision recovery against the static compound shape
-    chunk->forcePhysicsRebuild();
     
     // Create a dynamic cube at the EXACT original position
     // TEST COORDINATE SYSTEM OFFSET - Based on user observation of consistent X/Z axis offset
@@ -2320,6 +2320,40 @@ void Application::renderPerformanceOverlay() {
     // This function is now replaced by ImGui overlay
     // Console output is only used when ImGui is not available
     return;
+}
+
+void Application::updateCameraFrustum(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix) {
+    // Extract frustum planes from view-projection matrix
+    glm::mat4 viewProjection = projectionMatrix * viewMatrix;
+    cameraFrustum.extractFromMatrix(viewProjection);
+}
+
+std::vector<uint32_t> Application::getVisibleChunks() {
+    std::vector<uint32_t> visibleChunks;
+    
+    if (!chunkManager) {
+        return visibleChunks;
+    }
+    
+    // Get all chunks and test their AABBs against the camera frustum
+    for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
+        Chunk* chunk = chunkManager->chunks[i].get();
+        if (!chunk) continue;
+        
+        // Calculate chunk AABB
+        glm::vec3 minBounds = chunk->getMinBounds();
+        glm::vec3 maxBounds = chunk->getMaxBounds();
+        
+        // Create AABB object for frustum testing
+        Utils::AABB chunkAABB(minBounds, maxBounds);
+        
+        // Test AABB against frustum
+        if (cameraFrustum.intersects(chunkAABB)) {
+            visibleChunks.push_back(static_cast<uint32_t>(i));
+        }
+    }
+    
+    return visibleChunks;
 }
 
 

@@ -144,6 +144,24 @@ bool Chunk::removeCube(const glm::ivec3& localPos) {
     size_t index = localToIndex(localPos);
     if (index >= cubes.size() || !cubes[index]) return false; // No cube exists at this position
     
+    // EFFICIENT COLLISION REMOVAL: Remove collision shape before deleting cube
+    auto collisionIt = cubeToCollisionIndex.find(localPos);
+    if (collisionIt != cubeToCollisionIndex.end()) {
+        int collisionIndex = collisionIt->second;
+        
+        std::cout << "[COLLISION OPT] Removing cube collision shape at index " << collisionIndex 
+                  << " for cube at (" << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
+        
+        // Use efficient collision shape removal
+        removeCollisionShapeByIndex(collisionIndex);
+        
+        // Update collision index mappings due to Bullet's swap-with-last removal strategy
+        updateCollisionIndexMapping(collisionIndex);
+        
+        // Remove this cube from collision mapping
+        cubeToCollisionIndex.erase(collisionIt);
+    }
+    
     // Actually delete the cube from memory
     delete cubes[index];
     cubes[index] = nullptr; // Mark as deleted
@@ -151,9 +169,6 @@ bool Chunk::removeCube(const glm::ivec3& localPos) {
     // Immediately rebuild faces to remove the cube from GPU buffer
     rebuildFaces();
     updateVulkanBuffer();
-    
-    // std::cout << "[CHUNK] Completely removed cube at local pos: (" 
-    //           << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
     
     return true;
 }
@@ -1055,8 +1070,9 @@ void Chunk::createChunkPhysicsBody() {
     btCompoundShape* chunkCompound = new btCompoundShape(true);
     chunkCollisionShape = chunkCompound;
     
-    // Clear previous collision index mapping
+    // Clear previous collision index mappings
     subcubeToCollisionIndex.clear();
+    cubeToCollisionIndex.clear();
     
     // Generate collision boxes from cubes and subcubes, building mapping as we go
     std::cout << "[COLLISION] Building collision shapes with index mapping" << std::endl;
@@ -1087,7 +1103,8 @@ void Chunk::createChunkPhysicsBody() {
         transform.setOrigin(btVector3(cubeCenter.x, cubeCenter.y, cubeCenter.z));
         chunkCompound->addChildShape(transform, boxShape);
         
-        // Note: For regular cubes, we don't need to track collision indices since they don't break individually
+        // Track collision index for efficient cube removal
+        cubeToCollisionIndex[localPos] = collisionIndex;
         collisionIndex++;
     }
     
@@ -1219,6 +1236,7 @@ void Chunk::forcePhysicsRebuild() {
     
     // Clear collision index mapping since we're rebuilding everything
     subcubeToCollisionIndex.clear();
+    cubeToCollisionIndex.clear();
     
     // Recreate with updated geometry (this will exclude the broken subcube)
     createChunkPhysicsBody();
@@ -1329,20 +1347,32 @@ void Chunk::removeCollisionShapeByIndex(int collisionIndex) {
 }
 
 void Chunk::updateCollisionIndexMapping(int removedIndex) {
-    if (subcubeToCollisionIndex.empty()) {
+    if (subcubeToCollisionIndex.empty() && cubeToCollisionIndex.empty()) {
         return;  // No mappings to update
     }
     
     int lastIndex = chunkCollisionShape->getNumChildShapes();  // After removal, this was the last index before removal
     
-    // Find which subcube was at the last index and update its mapping to the removed index
+    // Find which object (cube or subcube) was at the last index and update its mapping to the removed index
     // Bullet swaps the last element with the removed element for O(1) removal
+    
+    // Check subcubes first
     for (auto& pair : subcubeToCollisionIndex) {
         if (pair.second == lastIndex) {
             std::cout << "[COLLISION OPT] Updating collision index mapping: subcube at index " 
                       << lastIndex << " moved to index " << removedIndex << std::endl;
             pair.second = removedIndex;
-            break;
+            return;
+        }
+    }
+    
+    // Check cubes
+    for (auto& pair : cubeToCollisionIndex) {
+        if (pair.second == lastIndex) {
+            std::cout << "[COLLISION OPT] Updating collision index mapping: cube at index " 
+                      << lastIndex << " moved to index " << removedIndex << std::endl;
+            pair.second = removedIndex;
+            return;
         }
     }
 }
@@ -1350,6 +1380,7 @@ void Chunk::updateCollisionIndexMapping(int removedIndex) {
 void Chunk::rebuildCollisionIndexMapping() {
     std::cout << "[COLLISION OPT] Rebuilding entire collision index mapping" << std::endl;
     subcubeToCollisionIndex.clear();
+    cubeToCollisionIndex.clear();
     
     if (!chunkCollisionShape) {
         return;

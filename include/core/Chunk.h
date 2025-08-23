@@ -50,8 +50,9 @@ private:
     mutable btRigidBody* chunkPhysicsBody = nullptr;
     mutable btCompoundShape* chunkCollisionShape = nullptr;  // Changed from btCollisionShape* to btCompoundShape* for direct access
     
-    // Collision shape optimization: Track mapping from subcube positions to collision shape indices
+    // Collision shape optimization: Track mapping from positions to collision shape indices
     std::unordered_map<glm::ivec3, int, ivec3_hash> subcubeToCollisionIndex;
+    std::unordered_map<glm::ivec3, int, ivec3_hash> cubeToCollisionIndex;  // Track cube collision indices for efficient removal
 
 public:
     // Constructor
@@ -79,6 +80,10 @@ public:
     uint32_t getNumInstances() const { return numInstances; }
     bool getNeedsUpdate() const { return needsUpdate; }
     void setNeedsUpdate(bool needsUpdate) { this->needsUpdate = needsUpdate; }
+    
+    // Frustum culling support
+    glm::vec3 getMinBounds() const { return glm::vec3(worldOrigin); }
+    glm::vec3 getMaxBounds() const { return glm::vec3(worldOrigin) + glm::vec3(32.0f); }
     
     // Buffer capacity analysis
     size_t getBufferCapacity() const { return bufferCapacity; }
