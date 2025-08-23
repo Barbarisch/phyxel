@@ -418,14 +418,23 @@ void PhysicsWorld::removeCube(btRigidBody* body) {
         return;
     }
     
-    // Remove from world
-    dynamicsWorld->removeRigidBody(body);
+    // Additional safety check: verify the body is actually in our tracking list
+    auto bodyIt = std::find(rigidBodies.begin(), rigidBodies.end(), body);
+    if (bodyIt == rigidBodies.end()) {
+        std::cout << "[PHYSICS] Warning: Attempted to remove rigid body not in tracking list" << std::endl;
+        return; // Body not tracked by us, don't try to remove it
+    }
+    
+    // Remove from world first (this can throw if body is invalid)
+    try {
+        dynamicsWorld->removeRigidBody(body);
+    } catch (...) {
+        std::cout << "[PHYSICS] Error: Failed to remove rigid body from dynamics world" << std::endl;
+        // Continue with cleanup anyway
+    }
     
     // Remove from our tracking
-    auto it = std::find(rigidBodies.begin(), rigidBodies.end(), body);
-    if (it != rigidBodies.end()) {
-        rigidBodies.erase(it);
-    }
+    rigidBodies.erase(bodyIt);
     
     // Clean up motion state
     btMotionState* motionState = body->getMotionState();

@@ -725,10 +725,19 @@ void ChunkManager::updateGlobalDynamicSubcubes(float deltaTime) {
         (*it)->updateLifetime(deltaTime);
         
         if ((*it)->hasExpired()) {
-            // Properly remove physics body from physics world
+            // Safely remove physics body from physics world
             if (physicsWorld && (*it)->getRigidBody()) {
                 std::cout << "[CHUNK MANAGER] Removing expired dynamic subcube physics body" << std::endl;
-                physicsWorld->removeCube((*it)->getRigidBody());
+                
+                // Get the rigid body pointer before nullifying it
+                btRigidBody* rigidBody = (*it)->getRigidBody();
+                
+                // Nullify the reference in the subcube BEFORE removing from physics world
+                // This prevents double-deletion if the destructor tries to clean up
+                (*it)->setRigidBody(nullptr);
+                
+                // Now safely remove from physics world
+                physicsWorld->removeCube(rigidBody);
             }
             
             removedCount++;
@@ -832,10 +841,19 @@ void ChunkManager::updateGlobalDynamicCubes(float deltaTime) {
         (*it)->updateLifetime(deltaTime);
         
         if ((*it)->hasExpired()) {
-            // Properly remove physics body from physics world
+            // Safely remove physics body from physics world
             if (physicsWorld && (*it)->getRigidBody()) {
                 std::cout << "[CHUNK MANAGER] Removing expired dynamic cube physics body" << std::endl;
-                physicsWorld->removeCube((*it)->getRigidBody());
+                
+                // Get the rigid body pointer before nullifying it
+                btRigidBody* rigidBody = (*it)->getRigidBody();
+                
+                // Nullify the reference in the cube BEFORE removing from physics world
+                // This prevents double-deletion if the destructor tries to clean up
+                (*it)->setRigidBody(nullptr);
+                
+                // Now safely remove from physics world
+                physicsWorld->removeCube(rigidBody);
             }
             
             removedCount++;
