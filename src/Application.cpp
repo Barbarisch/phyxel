@@ -1877,43 +1877,23 @@ void Application::subdivideHoveredCube() {
         std::cout << "[PHYSICS] Applying gentler breakage force to subcube: (" 
                   << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")" << std::endl;
         
-        bool broken = chunk->breakSubcube(currentHoveredLocation.localPos, currentHoveredLocation.subcubePos, 
-                                         physicsWorld.get(), impulseForce);
-        if (broken) {
-            // Transfer the newly broken subcube from chunk-based to global system
-            auto& chunkDynamicSubcubes = const_cast<std::vector<Subcube*>&>(chunk->getDynamicSubcubes());
-            if (!chunkDynamicSubcubes.empty()) {
-                // The newly broken subcube should be the last one added
-                Subcube* brokenSubcube = chunkDynamicSubcubes.back();
-                if (brokenSubcube) {
-                    // Create a unique_ptr copy for the global system
-                    auto globalSubcube = std::make_unique<Subcube>(*brokenSubcube);
-                    
-                    // Restore the original color (in case it was affected by hover)
-                    globalSubcube->setColor(globalSubcube->getOriginalColor());
-                    
-                    // Keep the subcube's original color (don't override with parent cube color)
-                    std::cout << "[COLOR] Preserving subcube's original color: (" 
-                              << globalSubcube->getOriginalColor().x << "," << globalSubcube->getOriginalColor().y << "," << globalSubcube->getOriginalColor().z << ")" << std::endl;
-                    
-                    // Transfer the physics body ownership
-                    globalSubcube->setRigidBody(brokenSubcube->getRigidBody());
-                    brokenSubcube->setRigidBody(nullptr);  // Prevent double deletion
-                    
-                    // Add to global system
-                    chunkManager->addGlobalDynamicSubcube(std::move(globalSubcube));
-                    
-                    // Remove from chunk's dynamic list
-                    delete brokenSubcube;
-                    chunkDynamicSubcubes.pop_back();
-                    
-                    // Update chunk faces since we removed a dynamic subcube
-                    chunk->rebuildDynamicSubcubeFaces();
-                    
-                    std::cout << "[TRANSFER] Moved broken subcube from chunk to global dynamic system" << std::endl;
-                }
-            }
+        // REFACTOR: Create direct transfer callback for immediate global transfer
+        auto transferCallback = [this](std::unique_ptr<Subcube> subcube) {
+            // Restore the original color (in case it was affected by hover)
+            subcube->setColor(subcube->getOriginalColor());
             
+            std::cout << "[COLOR] Preserving subcube's original color: (" 
+                      << subcube->getOriginalColor().x << "," << subcube->getOriginalColor().y << "," << subcube->getOriginalColor().z << ")" << std::endl;
+            
+            // Direct transfer to global system
+            chunkManager->addGlobalDynamicSubcube(std::move(subcube));
+            std::cout << "[REFACTOR] DIRECT TRANSFER: Subcube immediately transferred to global system" << std::endl;
+        };
+        
+        bool broken = chunk->breakSubcube(currentHoveredLocation.localPos, currentHoveredLocation.subcubePos, 
+                                         physicsWorld.get(), impulseForce, nullptr, transferCallback);
+        if (broken) {
+            // No additional processing needed - transfer was handled directly by callback
             std::cout << "[SUBCUBE BREAKING] Successfully broke subcube at world pos: (" 
                       << currentHoveredLocation.worldPos.x << "," 
                       << currentHoveredLocation.worldPos.y << "," 

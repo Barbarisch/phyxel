@@ -18,7 +18,6 @@ Chunk::Chunk(const glm::ivec3& origin)
     : worldOrigin(origin) {
     cubes.reserve(32 * 32 * 32);              // Reserve space for all possible cubes
     staticSubcubes.reserve(1000);             // Reserve reasonable space for static subcubes
-    dynamicSubcubes.reserve(100);             // Reserve space for dynamic subcubes
     faces.reserve(32 * 32 * 32 * 6);          // Reserve space for maximum faces (6 per cube)
 }
 
@@ -35,12 +34,6 @@ Chunk::~Chunk() {
     }
     staticSubcubes.clear();
     
-    // Delete all dynamic subcube pointers to free memory
-    for (Subcube* subcube : dynamicSubcubes) {
-        delete subcube;
-    }
-    dynamicSubcubes.clear();
-    
     cleanupVulkanResources();
     cleanupPhysicsResources();
 }
@@ -48,7 +41,6 @@ Chunk::~Chunk() {
 Chunk::Chunk(Chunk&& other) noexcept
     : cubes(std::move(other.cubes))
     , staticSubcubes(std::move(other.staticSubcubes))
-    , dynamicSubcubes(std::move(other.dynamicSubcubes))
     , faces(std::move(other.faces))
     , instanceBuffer(other.instanceBuffer)
     , instanceMemory(other.instanceMemory)
@@ -79,7 +71,6 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept {
         // Move data
         cubes = std::move(other.cubes);
         staticSubcubes = std::move(other.staticSubcubes);
-        dynamicSubcubes = std::move(other.dynamicSubcubes);
         faces = std::move(other.faces);
         instanceBuffer = other.instanceBuffer;
         instanceMemory = other.instanceMemory;
@@ -377,36 +368,10 @@ void Chunk::rebuildFaces() {
     //           << (subcubes.size() * 6) << " subcube faces)" << std::endl;
 }
 
+// DEPRECATED: Dynamic subcube faces are now handled by global system
 void Chunk::rebuildDynamicSubcubeFaces() {
-    dynamicSubcubeFaces.clear();
-    
-    // Generate face data for dynamic subcubes only
-    for (const Subcube* subcube : dynamicSubcubes) {
-        if (!subcube || !subcube->isVisible()) {
-            continue;
-        }
-        
-        // Get subcube's actual world position (including physics transformation if any)
-        glm::vec3 subcubeWorldPos = subcube->getWorldPosition();
-        
-        // For dynamic subcubes, we render all faces (they can be in arbitrary positions)
-        // In the future, we could add collision detection between dynamic subcubes
-        for (int faceID = 0; faceID < 6; ++faceID) {
-            DynamicSubcubeInstanceData faceInstance;
-            faceInstance.worldPosition = subcubeWorldPos;
-            faceInstance.color = subcube->getColor();
-            faceInstance.faceID = static_cast<uint32_t>(faceID);
-            faceInstance.scale = 1.0f / 3.0f;  // Subcubes are 1/3 the size of full cubes
-            
-            dynamicSubcubeFaces.push_back(faceInstance);
-        }
-    }
-    
-    needsUpdate = true;
-    
-    if (!dynamicSubcubeFaces.empty()) {
-        std::cout << "[CHUNK] Generated " << dynamicSubcubeFaces.size() << " dynamic subcube faces" << std::endl;
-    }
+    // NO-OP: This function is obsolete - dynamic subcubes are managed globally
+    // All dynamic subcube face rendering is handled by ChunkManager's global system
 }
 
 void Chunk::updateVulkanBuffer() {
@@ -641,14 +606,7 @@ Subcube* Chunk::getSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcu
         }
     }
     
-    // Search in dynamic subcubes
-    for (Subcube* subcube : dynamicSubcubes) {
-        if (subcube && 
-            subcube->getPosition() == worldOrigin + localPos && 
-            subcube->getLocalPosition() == subcubePos) {
-            return subcube;
-        }
-    }
+    // Dynamic subcubes are now managed globally - not searched locally
     return nullptr;
 }
 
@@ -662,14 +620,7 @@ const Subcube* Chunk::getSubcubeAt(const glm::ivec3& localPos, const glm::ivec3&
         }
     }
     
-    // Search in dynamic subcubes
-    for (const Subcube* subcube : dynamicSubcubes) {
-        if (subcube && 
-            subcube->getPosition() == worldOrigin + localPos && 
-            subcube->getLocalPosition() == subcubePos) {
-            return subcube;
-        }
-    }
+    // Dynamic subcubes are now managed globally - not searched locally
     return nullptr;
 }
 
@@ -684,11 +635,7 @@ std::vector<Subcube*> Chunk::getSubcubesAt(const glm::ivec3& localPos) {
         }
     }
     
-    for (Subcube* subcube : dynamicSubcubes) {
-        if (subcube && subcube->getPosition() == parentWorldPos) {
-            result.push_back(subcube);
-        }
-    }
+    // Dynamic subcubes are now managed globally - not included in local results
     return result;
 }
 
@@ -808,26 +755,7 @@ bool Chunk::removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcube
         }
     }
     
-    // Try to find and remove from dynamic subcubes
-    for (auto it = dynamicSubcubes.begin(); it != dynamicSubcubes.end(); ++it) {
-        Subcube* subcube = *it;
-        if (subcube && 
-            subcube->getPosition() == worldOrigin + parentPos && 
-            subcube->getLocalPosition() == subcubePos) {
-            
-            // Also remove from parent cube's subcube list
-            Cube* parentCube = getCubeAt(parentPos);
-            if (parentCube) {
-                parentCube->removeSubcube(subcube);
-            }
-            
-            delete subcube;
-            dynamicSubcubes.erase(it);
-            needsUpdate = true;
-            return true;
-        }
-    }
-    
+    // Dynamic subcubes are now managed globally - not removed locally
     return false; // Subcube not found
 }
 
@@ -851,18 +779,7 @@ bool Chunk::clearSubdivisionAt(const glm::ivec3& localPos) {
         }
     }
     
-    // Also remove all dynamic subcubes at this position
-    auto it2 = dynamicSubcubes.begin();
-    while (it2 != dynamicSubcubes.end()) {
-        Subcube* subcube = *it2;
-        if (subcube && subcube->getPosition() == parentWorldPos) {
-            delete subcube;
-            it2 = dynamicSubcubes.erase(it2);
-            removedAny = true;
-        } else {
-            ++it2;
-        }
-    }
+    // Dynamic subcubes are now managed globally - not cleared locally
     
     // Restore the parent cube
     Cube* cube = getCubeAt(localPos);
@@ -986,7 +903,8 @@ void Chunk::logBufferUtilization() const {
 // =============================================================================
 
 bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, 
-                        Physics::PhysicsWorld* physicsWorld, const glm::vec3& impulseForce) {
+                        Physics::PhysicsWorld* physicsWorld, const glm::vec3& impulseForce,
+                        ChunkManager* chunkManager, std::function<void(std::unique_ptr<Subcube>)> transferCallback) {
     // Find the subcube in static list
     auto it = staticSubcubes.begin();
     while (it != staticSubcubes.end()) {
@@ -1088,42 +1006,43 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
             forcePhysicsRebuild();
             std::cout << "[COMPOUND SHAPE] AFTER: Compound shape rebuilt - static collision removed before dynamic subcube spawns" << std::endl;
             
-            // Now move to global dynamic subcube system after compound shape is rebuilt
-            // Note: We need to get the ChunkManager reference to do this properly
-            // For now, still add to local dynamic list (this needs to be refactored)
-            dynamicSubcubes.push_back(subcube);
+            // REFACTOR: Direct transfer to global system (no local staging)
+            if (transferCallback) {
+                // Create unique_ptr for global system transfer
+                auto globalSubcube = std::make_unique<Subcube>(*subcube);
+                
+                // Transfer the physics body ownership
+                globalSubcube->setRigidBody(subcube->getRigidBody());
+                subcube->setRigidBody(nullptr);  // Prevent double deletion
+                
+                // Direct transfer to global system via callback
+                transferCallback(std::move(globalSubcube));
+                
+                // Clean up the original subcube (no longer needed)
+                delete subcube;
+                
+                std::cout << "[REFACTOR] DIRECT TRANSFER: Subcube transferred immediately to global system" << std::endl;
+            } else {
+                // ERROR: No transfer callback provided - subcube cannot be processed
+                std::cout << "[ERROR] No transfer callback provided - subcube will be lost!" << std::endl;
+                delete subcube;  // Prevent memory leak
+                return false;
+            }
             
-            // Rebuild both static and dynamic faces
-            rebuildFaces();  // Updates static faces
-            rebuildDynamicSubcubeFaces();  // Updates dynamic faces
+            // Rebuild static faces only (dynamic faces handled globally)
+            rebuildFaces();  // Updates static faces only
             
             needsUpdate = true;
             std::cout << "[CHUNK] Broke subcube at parent pos (" 
                       << parentPos.x << "," << parentPos.y << "," << parentPos.z 
                       << ") subcube pos (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z 
-                      << ") - moved to dynamic list with physics" << std::endl;
-            return true;
+                      << ") - " << (transferCallback ? "direct transfer complete" : "ERROR: no callback") << std::endl;
+            return transferCallback != nullptr;
         }
         ++it;
     }
     
     return false; // Subcube not found in static list
-}
-
-bool Chunk::makeSubcubeStatic(Subcube* subcube) {
-    if (!subcube) return false;
-    
-    // Find and remove from dynamic list
-    auto it = std::find(dynamicSubcubes.begin(), dynamicSubcubes.end(), subcube);
-    if (it != dynamicSubcubes.end()) {
-        dynamicSubcubes.erase(it);
-        subcube->repair();
-        staticSubcubes.push_back(subcube);
-        needsUpdate = true;
-        return true;
-    }
-    
-    return false; // Not found in dynamic list
 }
 
 void Chunk::createChunkPhysicsBody() {
