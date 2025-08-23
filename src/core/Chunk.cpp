@@ -9,8 +9,6 @@
 
 // Bullet Physics includes
 #include <btBulletDynamicsCommon.h>
-#include <BulletCollision/CollisionShapes/btTriangleMesh.h>
-#include <BulletCollision/CollisionShapes/btBvhTriangleMeshShape.h>
 
 namespace VulkanCube {
 
@@ -49,7 +47,6 @@ Chunk::Chunk(Chunk&& other) noexcept
     , worldOrigin(other.worldOrigin)
     , needsUpdate(other.needsUpdate)
     , bufferCapacity(other.bufferCapacity)
-    , maxInstancesUsed(other.maxInstancesUsed)
     , device(other.device)
     , physicalDevice(other.physicalDevice) {
     
@@ -58,7 +55,6 @@ Chunk::Chunk(Chunk&& other) noexcept
     other.instanceMemory = VK_NULL_HANDLE;
     other.mappedMemory = nullptr;
     other.bufferCapacity = 0;
-    other.maxInstancesUsed = 0;
     other.device = VK_NULL_HANDLE;
     other.physicalDevice = VK_NULL_HANDLE;
 }
@@ -79,7 +75,6 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept {
         worldOrigin = other.worldOrigin;
         needsUpdate = other.needsUpdate;
         bufferCapacity = other.bufferCapacity;
-        maxInstancesUsed = other.maxInstancesUsed;
         device = other.device;
         physicalDevice = other.physicalDevice;
         
@@ -88,7 +83,6 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept {
         other.instanceMemory = VK_NULL_HANDLE;
         other.mappedMemory = nullptr;
         other.bufferCapacity = 0;
-        other.maxInstancesUsed = 0;
         other.device = VK_NULL_HANDLE;
         other.physicalDevice = VK_NULL_HANDLE;
     }
@@ -368,31 +362,16 @@ void Chunk::rebuildFaces() {
     //           << (subcubes.size() * 6) << " subcube faces)" << std::endl;
 }
 
-// DEPRECATED: Dynamic subcube faces are now handled by global system
-void Chunk::rebuildDynamicSubcubeFaces() {
-    // NO-OP: This function is obsolete - dynamic subcubes are managed globally
-    // All dynamic subcube face rendering is handled by ChunkManager's global system
-}
-
 void Chunk::updateVulkanBuffer() {
     if (!mappedMemory || faces.empty()) return;
     
     // Ensure buffer capacity is sufficient, reallocate if necessary
     ensureBufferCapacity(faces.size());
     
-    // Track peak usage for analysis
-    maxInstancesUsed = std::max(maxInstancesUsed, faces.size());
-    
     // Copy data to GPU buffer (only the used portion)
     VkDeviceSize copySize = sizeof(InstanceData) * faces.size();
     memcpy(mappedMemory, faces.data(), copySize);
     needsUpdate = false;
-    
-    // Periodic utilization logging
-    static int updateCount = 0;
-    if (++updateCount % 50 == 0) {
-        logBufferUtilization();
-    }
     
     // std::cout << "[CHUNK] Updated Vulkan buffer for chunk at origin (" 
     //           << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z 
@@ -639,18 +618,6 @@ std::vector<Subcube*> Chunk::getSubcubesAt(const glm::ivec3& localPos) {
     return result;
 }
 
-std::vector<Subcube*> Chunk::getStaticSubcubesAt(const glm::ivec3& localPos) {
-    std::vector<Subcube*> result;
-    glm::ivec3 parentWorldPos = worldOrigin + localPos;
-    
-    for (Subcube* subcube : staticSubcubes) {
-        if (subcube && subcube->getPosition() == parentWorldPos) {
-            result.push_back(subcube);
-        }
-    }
-    return result;
-}
-
 bool Chunk::subdivideAt(const glm::ivec3& localPos) {
     // Check if position is valid
     if (!isValidLocalPosition(localPos)) return false;
@@ -884,18 +851,6 @@ void Chunk::ensureBufferCapacity(size_t requiredInstances) {
     
     // std::cout << "[CHUNK] Successfully reallocated buffer to capacity: " 
     //           << bufferCapacity << " instances (" << bufferSize << " bytes)" << std::endl;
-}
-
-void Chunk::logBufferUtilization() const {
-    if (bufferCapacity > 0) {
-        float utilization = float(maxInstancesUsed) / float(bufferCapacity) * 100.0f;
-        float currentUtilization = float(faces.size()) / float(bufferCapacity) * 100.0f;
-        
-        // std::cout << "[CHUNK] Buffer utilization - Current: " << currentUtilization 
-        //           << "% (" << faces.size() << "/" << bufferCapacity 
-        //           << "), Peak: " << utilization 
-        //           << "% (" << maxInstancesUsed << "/" << bufferCapacity << ")" << std::endl;
-    }
 }
 
 // =============================================================================

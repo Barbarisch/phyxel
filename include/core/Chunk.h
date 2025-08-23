@@ -11,7 +11,6 @@
 class btRigidBody;
 class btCollisionShape;
 class btCompoundShape;
-class btTriangleMesh; // Bullet forward declaration
 
 namespace VulkanCube {
 
@@ -41,7 +40,6 @@ private:
     // Buffer capacity management
     static constexpr size_t DEFAULT_BUFFER_CAPACITY = 25000;   // Realistic capacity based on testing (8x current usage)
     size_t bufferCapacity = 0;                     // Current allocated buffer capacity
-    size_t maxInstancesUsed = 0;                   // Peak usage tracking for analysis
     
     // Vulkan device handles (set by ChunkManager)
     VkDevice device = VK_NULL_HANDLE;
@@ -50,7 +48,6 @@ private:
     // Physics body for static geometry (compound shape made from individual cube collision boxes)
     mutable btRigidBody* chunkPhysicsBody = nullptr;
     mutable btCollisionShape* chunkCollisionShape = nullptr;
-    mutable btTriangleMesh* chunkTriangleMesh = nullptr; // For BVH triangle mesh shape (option B)
 
 public:
     // Constructor
@@ -81,10 +78,6 @@ public:
     
     // Buffer capacity analysis
     size_t getBufferCapacity() const { return bufferCapacity; }
-    size_t getMaxInstancesUsed() const { return maxInstancesUsed; }
-    float getBufferUtilization() const { 
-        return bufferCapacity > 0 ? float(faces.size()) / float(bufferCapacity) * 100.0f : 0.0f; 
-    }
     
     // Cube access
     Cube* getCubeAt(const glm::ivec3& localPos);
@@ -96,7 +89,6 @@ public:
     Subcube* getSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos);
     const Subcube* getSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const;
     std::vector<Subcube*> getSubcubesAt(const glm::ivec3& localPos);
-    std::vector<Subcube*> getStaticSubcubesAt(const glm::ivec3& localPos);
     
     // Physics-related subcube access (for global transfer system)
     const std::vector<Subcube*>& getStaticSubcubes() const { return staticSubcubes; }
@@ -122,7 +114,6 @@ public:
     // Chunk operations
     void populateWithCubes();                      // Fill chunk with 32x32x32 cubes
     void rebuildFaces();                           // Regenerate face data from cubes
-    void rebuildDynamicSubcubeFaces();             // DEPRECATED: No-op stub for compatibility
     void updateVulkanBuffer();                     // Update GPU buffer with face data
     
     // Efficient partial updates for hover effects (avoids full rebuild)
@@ -133,9 +124,6 @@ public:
     void createVulkanBuffer();
     void cleanupVulkanResources();
     void ensureBufferCapacity(size_t requiredInstances);  // Handle buffer reallocation if needed
-    
-    // Buffer utilization analysis
-    void logBufferUtilization() const;
     
     // Physics management
     void setPhysicsWorld(class Physics::PhysicsWorld* world) { physicsWorld = world; }
