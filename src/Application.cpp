@@ -552,9 +552,9 @@ void Application::renderStaticGeometry(const std::vector<uint32_t>& visibleChunk
     if (++renderDebugCounter >= 60) {
         renderDebugCounter = 0;
         uint32_t totalChunks = chunkManager ? static_cast<uint32_t>(chunkManager->chunks.size()) : 0;
-        std::cout << "[RENDER DEBUG] Total chunks: " << totalChunks 
-                  << ", Rendering: " << visibleChunks.size() 
-                  << ", Skipped: " << (totalChunks - visibleChunks.size()) << std::endl;
+        // std::cout << "[RENDER DEBUG] Total chunks: " << totalChunks 
+        //           << ", Rendering: " << visibleChunks.size() 
+        //           << ", Skipped: " << (totalChunks - visibleChunks.size()) << std::endl;
     }
     
     // Draw indexed cubes using chunk manager - ONLY VISIBLE CHUNKS
@@ -707,14 +707,14 @@ void Application::drawFrame() {
     if (++cullStatsCounter >= 60) {
         cullStatsCounter = 0;
         
-        std::cout << "[CHUNK FRUSTUM CULLING] Total chunks: " << totalChunks 
-                  << ", Visible: " << visibleChunkCount 
-                  << ", Culled: " << culledChunkCount;
-        if (totalChunks > 0) {
-            std::cout << " (" << (100.0f * culledChunkCount / totalChunks) << "% culled)";
-        }
-        std::cout << ", Time: " << frustumCullingTimeMs << "ms" << std::endl;
-        std::cout << "[CHUNK FRUSTUM CULLING] Camera pos: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")" << std::endl;
+        // std::cout << "[CHUNK FRUSTUM CULLING] Total chunks: " << totalChunks 
+        //           << ", Visible: " << visibleChunkCount 
+        //           << ", Culled: " << culledChunkCount;
+        // if (totalChunks > 0) {
+        //     std::cout << " (" << (100.0f * culledChunkCount / totalChunks) << "% culled)";
+        // }
+        // std::cout << ", Time: " << frustumCullingTimeMs << "ms" << std::endl;
+        // std::cout << "[CHUNK FRUSTUM CULLING] Camera pos: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")" << std::endl;
     }
     
     // Calculate accurate frustum culling statistics
@@ -1672,9 +1672,9 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
         currentHoveredLocation = location;
         hasHoveredCube = true;
         
-        std::cout << "[SUBCUBE HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
-                  << ") subcube: (" << location.subcubePos.x << "," << location.subcubePos.y << "," << location.subcubePos.z 
-                  << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
+        // std::cout << "[SUBCUBE HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
+        //           << ") subcube: (" << location.subcubePos.x << "," << location.subcubePos.y << "," << location.subcubePos.z 
+        //           << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
         
         // Set hover color (make it bright white for clear visibility)
         glm::vec3 hoverColor = glm::vec3(1.0f, 1.0f, 1.0f); // Bright white for subcube hover
@@ -1712,9 +1712,9 @@ void Application::clearHoveredCubeInChunksOptimized() {
         if (chunkManager) {
             if (currentHoveredLocation.isSubcube) {
                 // Restore subcube color
-                chunkManager->setSubcubeColorEfficient(currentHoveredLocation.worldPos, currentHoveredLocation.subcubePos, originalHoveredColor);
-                std::cout << "[SUBCUBE HOVER] Cleared hover for subcube at world pos: (" << currentHoveredLocation.worldPos.x << "," << currentHoveredLocation.worldPos.y << "," << currentHoveredLocation.worldPos.z 
-                          << ") subcube: (" << currentHoveredLocation.subcubePos.x << "," << currentHoveredLocation.subcubePos.y << "," << currentHoveredLocation.subcubePos.z << ")" << std::endl;
+                // chunkManager->setSubcubeColorEfficient(currentHoveredLocation.worldPos, currentHoveredLocation.subcubePos, originalHoveredColor);
+                // std::cout << "[SUBCUBE HOVER] Cleared hover for subcube at world pos: (" << currentHoveredLocation.worldPos.x << "," << currentHoveredLocation.worldPos.y << "," << currentHoveredLocation.worldPos.z 
+                //           << ") subcube: (" << currentHoveredLocation.subcubePos.x << "," << currentHoveredLocation.subcubePos.y << "," << currentHoveredLocation.subcubePos.z << ")" << std::endl;
             } else {
                 // Restore regular cube color
                 chunkManager->setCubeColorEfficient(currentHoveredLocation.worldPos, originalHoveredColor);
@@ -1829,48 +1829,48 @@ void Application::subdivideHoveredCube() {
         // Mix upward force with outward force for interesting breakage (gentler forces)
         impulseForce = forceDirection * 1.0f + glm::vec3(0.0f, 2.0f, 0.0f); // Reduced from 3.0f and 5.0f
         
-        std::cout << "[PHYSICS] Applying gentler breakage force to subcube: (" 
-                  << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")" << std::endl;
+        // std::cout << "[PHYSICS] Applying gentler breakage force to subcube: (" 
+        //           << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")" << std::endl;
         
         // REFACTOR: Create direct transfer callback for immediate global transfer
         auto transferCallback = [this](std::unique_ptr<Subcube> subcube) {
             // Restore the original color (in case it was affected by hover)
             subcube->setColor(subcube->getOriginalColor());
             
-            std::cout << "[COLOR] Preserving subcube's original color: (" 
-                      << subcube->getOriginalColor().x << "," << subcube->getOriginalColor().y << "," << subcube->getOriginalColor().z << ")" << std::endl;
+            // std::cout << "[COLOR] Preserving subcube's original color: (" 
+            //           << subcube->getOriginalColor().x << "," << subcube->getOriginalColor().y << "," << subcube->getOriginalColor().z << ")" << std::endl;
             
             // Direct transfer to global system
             chunkManager->addGlobalDynamicSubcube(std::move(subcube));
-            std::cout << "[REFACTOR] DIRECT TRANSFER: Subcube immediately transferred to global system" << std::endl;
+            //std::cout << "[REFACTOR] DIRECT TRANSFER: Subcube immediately transferred to global system" << std::endl;
         };
         
         bool broken = chunk->breakSubcube(currentHoveredLocation.localPos, currentHoveredLocation.subcubePos, 
                                          physicsWorld.get(), impulseForce, nullptr, transferCallback);
         if (broken) {
             // No additional processing needed - transfer was handled directly by callback
-            std::cout << "[SUBCUBE BREAKING] Successfully broke subcube at world pos: (" 
-                      << currentHoveredLocation.worldPos.x << "," 
-                      << currentHoveredLocation.worldPos.y << "," 
-                      << currentHoveredLocation.worldPos.z << ") subcube: ("
-                      << currentHoveredLocation.subcubePos.x << ","
-                      << currentHoveredLocation.subcubePos.y << ","
-                      << currentHoveredLocation.subcubePos.z << ")" << std::endl;
+            // std::cout << "[SUBCUBE BREAKING] Successfully broke subcube at world pos: (" 
+            //           << currentHoveredLocation.worldPos.x << "," 
+            //           << currentHoveredLocation.worldPos.y << "," 
+            //           << currentHoveredLocation.worldPos.z << ") subcube: ("
+            //           << currentHoveredLocation.subcubePos.x << ","
+            //           << currentHoveredLocation.subcubePos.y << ","
+            //           << currentHoveredLocation.subcubePos.z << ")" << std::endl;
                       
             // Use efficient selective update for subcube breaking
             if (chunkManager) {
                 chunkManager->updateAfterSubcubeBreak(currentHoveredLocation.worldPos, currentHoveredLocation.subcubePos);
             }
         } else {
-            std::cout << "[SUBCUBE BREAKING] WARNING: Failed to break subcube" << std::endl;
+            //std::cout << "[SUBCUBE BREAKING] WARNING: Failed to break subcube" << std::endl;
         }
     } else {
         // Check if cube is already subdivided
         if (chunk->getSubcubesAt(currentHoveredLocation.localPos).size() > 0) {
-            std::cout << "[CUBE SUBDIVISION] Cube at world pos (" 
-                      << currentHoveredLocation.worldPos.x << "," 
-                      << currentHoveredLocation.worldPos.y << "," 
-                      << currentHoveredLocation.worldPos.z << ") is already subdivided" << std::endl;
+            // std::cout << "[CUBE SUBDIVISION] Cube at world pos (" 
+            //           << currentHoveredLocation.worldPos.x << "," 
+            //           << currentHoveredLocation.worldPos.y << "," 
+            //           << currentHoveredLocation.worldPos.z << ") is already subdivided" << std::endl;
             return;
         }
         
@@ -1940,16 +1940,16 @@ void Application::breakHoveredCube() {
     // Mix upward force with outward force for interesting breakage (gentler forces)
     impulseForce = forceDirection * 1.5f + glm::vec3(0.0f, 2.5f, 0.0f); // Reduced from 4.0f and 6.0f
     
-    std::cout << "[PHYSICS] Applying gentler breakage force to cube: (" 
-              << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")" << std::endl;
+    // std::cout << "[PHYSICS] Applying gentler breakage force to cube: (" 
+    //           << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")" << std::endl;
     
     // Get the cube's original color before removing it
     const Cube* originalCube = chunk->getCubeAt(currentHoveredLocation.localPos);
     glm::vec3 originalColor = glm::vec3(0.8f, 0.6f, 0.4f); // Default color fallback
     if (originalCube) {
         originalColor = originalCube->getOriginalColor(); // Use original color, not hover-affected color
-        std::cout << "[COLOR] Preserving original cube color: (" 
-                  << originalColor.x << "," << originalColor.y << "," << originalColor.z << ")" << std::endl;
+        // std::cout << "[COLOR] Preserving original cube color: (" 
+        //           << originalColor.x << "," << originalColor.y << "," << originalColor.z << ")" << std::endl;
     }
     
     // Remove the cube from the chunk (this now handles collision removal efficiently)
@@ -1970,12 +1970,12 @@ void Application::breakHoveredCube() {
     // To visually align: dynamic center = static corner + 0.5
     glm::vec3 physicsCenterPos = cubeCornerPos + glm::vec3(0.5f, 0.5f, 0.5f);
     
-    std::cout << "[POSITION DEBUG] ===== COORDINATE SYSTEM CONVERSION =====" << std::endl;
-    std::cout << "[POSITION DEBUG] Static cube corner: (" 
-              << cubeWorldPos.x << ", " << cubeWorldPos.y << ", " << cubeWorldPos.z << ")" << std::endl;
-    std::cout << "[POSITION DEBUG] Dynamic cube center (corner + 0.5): (" 
-              << physicsCenterPos.x << ", " << physicsCenterPos.y << ", " << physicsCenterPos.z << ")" << std::endl;
-    std::cout << "[POSITION DEBUG] COORDINATE FIX: Converting from corner-based to center-based rendering" << std::endl;
+    // std::cout << "[POSITION DEBUG] ===== COORDINATE SYSTEM CONVERSION =====" << std::endl;
+    // std::cout << "[POSITION DEBUG] Static cube corner: (" 
+    //           << cubeWorldPos.x << ", " << cubeWorldPos.y << ", " << cubeWorldPos.z << ")" << std::endl;
+    // std::cout << "[POSITION DEBUG] Dynamic cube center (corner + 0.5): (" 
+    //           << physicsCenterPos.x << ", " << physicsCenterPos.y << ", " << physicsCenterPos.z << ")" << std::endl;
+    // std::cout << "[POSITION DEBUG] COORDINATE FIX: Converting from corner-based to center-based rendering" << std::endl;
     
     // TODO: Add UI to select material - for now cycle through materials based on position
     std::vector<std::string> materials = {"Wood", "Metal", "Glass", "Rubber", "Stone", "Ice", "Cork"};
@@ -1993,12 +1993,12 @@ void Application::breakHoveredCube() {
     if (rigidBody) {
         btTransform transform = rigidBody->getWorldTransform();
         btVector3 physicsPos = transform.getOrigin();
-        std::cout << "[POSITION DEBUG] Physics body created at: (" 
-                  << physicsPos.x() << ", " << physicsPos.y() << ", " << physicsPos.z() << ")" << std::endl;
-        std::cout << "[POSITION DEBUG] Position difference from intended: (" 
-                  << (physicsPos.x() - physicsCenterPos.x) << ", " 
-                  << (physicsPos.y() - physicsCenterPos.y) << ", " 
-                  << (physicsPos.z() - physicsCenterPos.z) << ")" << std::endl;
+        // std::cout << "[POSITION DEBUG] Physics body created at: (" 
+        //           << physicsPos.x() << ", " << physicsPos.y() << ", " << physicsPos.z() << ")" << std::endl;
+        // std::cout << "[POSITION DEBUG] Position difference from intended: (" 
+        //           << (physicsPos.x() - physicsCenterPos.x) << ", " 
+        //           << (physicsPos.y() - physicsCenterPos.y) << ", " 
+        //           << (physicsPos.z() - physicsCenterPos.z) << ")" << std::endl;
     }
     
     // Get material properties for impulse scaling
@@ -2009,31 +2009,31 @@ void Application::breakHoveredCube() {
     float impulseScale = material.breakForceMultiplier * 0.4f; // Reduce to 40% of original force
     impulseForce *= impulseScale;
     
-    std::cout << "[MATERIAL] Breaking cube with '" << selectedMaterial << "' material (reduced impulse scale: " 
-              << impulseScale << ")" << std::endl;
+    // std::cout << "[MATERIAL] Breaking cube with '" << selectedMaterial << "' material (reduced impulse scale: " 
+    //           << impulseScale << ")" << std::endl;
     
     // Set initial physics position to the exact center position
     dynamicCube->setPhysicsPosition(physicsCenterPos);
     
     // COMPREHENSIVE POSITION TRACKING - Track exact coordinates through entire pipeline
     glm::vec3 renderingPosition = dynamicCube->getPhysicsPosition();
-    std::cout << "[POSITION TRACK] ===== DYNAMIC CUBE POSITION TRACKING =====" << std::endl;
-    std::cout << "[POSITION TRACK] 1. Initial spawn position set: (" 
-              << physicsCenterPos.x << ", " << physicsCenterPos.y << ", " << physicsCenterPos.z << ")" << std::endl;
-    std::cout << "[POSITION TRACK] 2. Rendering position stored: (" 
-              << renderingPosition.x << ", " << renderingPosition.y << ", " << renderingPosition.z << ")" << std::endl;
-    std::cout << "[POSITION TRACK] 3. Position match: " << (renderingPosition == physicsCenterPos ? "YES" : "NO") << std::endl;
+    // std::cout << "[POSITION TRACK] ===== DYNAMIC CUBE POSITION TRACKING =====" << std::endl;
+    // std::cout << "[POSITION TRACK] 1. Initial spawn position set: (" 
+    //           << physicsCenterPos.x << ", " << physicsCenterPos.y << ", " << physicsCenterPos.z << ")" << std::endl;
+    // std::cout << "[POSITION TRACK] 2. Rendering position stored: (" 
+    //           << renderingPosition.x << ", " << renderingPosition.y << ", " << renderingPosition.z << ")" << std::endl;
+    // std::cout << "[POSITION TRACK] 3. Position match: " << (renderingPosition == physicsCenterPos ? "YES" : "NO") << std::endl;
     
     // Track actual physics body position
     if (rigidBody) {
         btTransform transform = rigidBody->getWorldTransform();
         btVector3 physicsBodyPos = transform.getOrigin();
-        std::cout << "[POSITION TRACK] 4. Physics body actual position: (" 
-                  << physicsBodyPos.x() << ", " << physicsBodyPos.y() << ", " << physicsBodyPos.z() << ")" << std::endl;
-        std::cout << "[POSITION TRACK] 5. Physics vs rendering diff: (" 
-                  << (physicsBodyPos.x() - renderingPosition.x) << ", " 
-                  << (physicsBodyPos.y() - renderingPosition.y) << ", " 
-                  << (physicsBodyPos.z() - renderingPosition.z) << ")" << std::endl;
+        // std::cout << "[POSITION TRACK] 4. Physics body actual position: (" 
+        //           << physicsBodyPos.x() << ", " << physicsBodyPos.y() << ", " << physicsBodyPos.z() << ")" << std::endl;
+        // std::cout << "[POSITION TRACK] 5. Physics vs rendering diff: (" 
+        //           << (physicsBodyPos.x() - renderingPosition.x) << ", " 
+        //           << (physicsBodyPos.y() - renderingPosition.y) << ", " 
+        //           << (physicsBodyPos.z() - renderingPosition.z) << ")" << std::endl;
     }
     
     // Apply initial impulse force to make it "break" away (RE-ENABLED)
@@ -2053,21 +2053,21 @@ void Application::breakHoveredCube() {
         // Enable gravity for natural falling behavior
         rigidBody->setGravity(btVector3(0, -9.81f, 0)); // Standard gravity
         
-        std::cout << "[PHYSICS] Applied impulse (" << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z 
-                  << ") and angular velocity (" << angularVelocity.x() << "," << angularVelocity.y() << "," << angularVelocity.z() << ") with gravity enabled" << std::endl;
+        // std::cout << "[PHYSICS] Applied impulse (" << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z 
+        //           << ") and angular velocity (" << angularVelocity.x() << "," << angularVelocity.y() << "," << angularVelocity.z() << ") with gravity enabled" << std::endl;
     } else if (rigidBody) {
         // If forces are disabled or no impulse, still enable gravity for natural falling
         rigidBody->setGravity(btVector3(0, -9.81f, 0)); // Standard gravity
-        std::cout << "[PHYSICS] No impulse applied - enabled gravity only for natural falling" << std::endl;
+        //std::cout << "[PHYSICS] No impulse applied - enabled gravity only for natural falling" << std::endl;
     }
     
     // Final position check after everything is set up
     if (rigidBody) {
         btTransform finalTransform = rigidBody->getWorldTransform();
         btVector3 finalPos = finalTransform.getOrigin();
-        std::cout << "[POSITION DEBUG] Final physics position: (" 
-                  << finalPos.x() << ", " << finalPos.y() << ", " << finalPos.z() << ")" << std::endl;
-        std::cout << "[POSITION DEBUG] ===== END POSITION ANALYSIS =====" << std::endl;
+        // std::cout << "[POSITION DEBUG] Final physics position: (" 
+        //           << finalPos.x() << ", " << finalPos.y() << ", " << finalPos.z() << ")" << std::endl;
+        // std::cout << "[POSITION DEBUG] ===== END POSITION ANALYSIS =====" << std::endl;
     }
     
     // Mark as broken
@@ -2079,10 +2079,10 @@ void Application::breakHoveredCube() {
     // Use efficient selective update instead of marking entire chunk dirty
     chunkManager->updateAfterCubeBreak(currentHoveredLocation.worldPos);
     
-    std::cout << "[CUBE BREAKING] Successfully broke cube at world pos: (" 
-              << currentHoveredLocation.worldPos.x << "," 
-              << currentHoveredLocation.worldPos.y << "," 
-              << currentHoveredLocation.worldPos.z << ") into dynamic cube" << std::endl;
+    // std::cout << "[CUBE BREAKING] Successfully broke cube at world pos: (" 
+    //           << currentHoveredLocation.worldPos.x << "," 
+    //           << currentHoveredLocation.worldPos.y << "," 
+    //           << currentHoveredLocation.worldPos.z << ") into dynamic cube" << std::endl;
     
     // Clear hover state
     hasHoveredCube = false;
@@ -2417,13 +2417,13 @@ std::vector<uint32_t> Application::getVisibleChunksOptimized() {
     static int debugCounter = 0;
     if (++debugCounter >= 60) {
         debugCounter = 0;
-        std::cout << "[OPTIMIZED CHUNK CULLING] Queried: " << queriedChunks 
-                  << ", Found: " << foundChunks 
-                  << ", Visible: " << visibleChunks.size()
-                  << ", Distance culled: " << distanceCulledChunks
-                  << ", Frustum culled: " << frustumCulledChunks
-                  << ", Camera chunk: (" << cameraChunkCoord.x << "," << cameraChunkCoord.y << "," << cameraChunkCoord.z << ")"
-                  << ", Render radius: " << renderRadiusChunks << " chunks" << std::endl;
+        // std::cout << "[OPTIMIZED CHUNK CULLING] Queried: " << queriedChunks 
+        //           << ", Found: " << foundChunks 
+        //           << ", Visible: " << visibleChunks.size()
+        //           << ", Distance culled: " << distanceCulledChunks
+        //           << ", Frustum culled: " << frustumCulledChunks
+        //           << ", Camera chunk: (" << cameraChunkCoord.x << "," << cameraChunkCoord.y << "," << cameraChunkCoord.z << ")"
+        //           << ", Render radius: " << renderRadiusChunks << " chunks" << std::endl;
     }
     
     return visibleChunks;

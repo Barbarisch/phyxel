@@ -149,8 +149,8 @@ bool Chunk::removeCube(const glm::ivec3& localPos) {
     if (collisionIt != cubeToCollisionIndex.end()) {
         int collisionIndex = collisionIt->second;
         
-        std::cout << "[COLLISION OPT] Removing cube collision shape at index " << collisionIndex 
-                  << " for cube at (" << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
+        // std::cout << "[COLLISION OPT] Removing cube collision shape at index " << collisionIndex 
+        //           << " for cube at (" << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
         
         // Use efficient collision shape removal
         removeCollisionShapeByIndex(collisionIndex);
@@ -896,15 +896,15 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
                 glm::vec3 subcubeSize(1.0f / 3.0f); // Match visual subcube size
                 glm::vec3 physicsCenterPos = subcubeCornerPos + (subcubeSize * 0.5f); // Physics center is at corner + half size per axis
                 
-                std::cout << "[SUBCUBE POSITION] ===== COMPREHENSIVE SUBCUBE POSITION TRACKING =====" << std::endl;
-                std::cout << "[SUBCUBE POSITION] 1. Static subcube world position (corner): (" 
-                          << subcubeCornerPos.x << ", " << subcubeCornerPos.y << ", " << subcubeCornerPos.z << ")" << std::endl;
-                std::cout << "[SUBCUBE POSITION] 2. Target physics center position (corner + 0.5 * size): (" 
-                          << physicsCenterPos.x << ", " << physicsCenterPos.y << ", " << physicsCenterPos.z << ")" << std::endl;
-                std::cout << "[SUBCUBE POSITION] 3. Subcube size: " << subcubeSize.x << " (1/3 scale)" << std::endl;
-                std::cout << "[SUBCUBE POSITION] 4. Half size offset: " << (subcubeSize.x * 0.5f) << " per axis" << std::endl;
-                std::cout << "[SUBCUBE POSITION] 4a. Size calculation debug: 1.0f/3.0f = " << std::setprecision(6) << (1.0f/3.0f) << std::endl;
-                std::cout << "[SUBCUBE POSITION] 4b. Half calculation debug: " << std::setprecision(6) << (1.0f/3.0f) << " * 0.5f = " << std::setprecision(6) << ((1.0f/3.0f) * 0.5f) << std::endl;
+                // std::cout << "[SUBCUBE POSITION] ===== COMPREHENSIVE SUBCUBE POSITION TRACKING =====" << std::endl;
+                // std::cout << "[SUBCUBE POSITION] 1. Static subcube world position (corner): (" 
+                //           << subcubeCornerPos.x << ", " << subcubeCornerPos.y << ", " << subcubeCornerPos.z << ")" << std::endl;
+                // std::cout << "[SUBCUBE POSITION] 2. Target physics center position (corner + 0.5 * size): (" 
+                //           << physicsCenterPos.x << ", " << physicsCenterPos.y << ", " << physicsCenterPos.z << ")" << std::endl;
+                // std::cout << "[SUBCUBE POSITION] 3. Subcube size: " << subcubeSize.x << " (1/3 scale)" << std::endl;
+                // std::cout << "[SUBCUBE POSITION] 4. Half size offset: " << (subcubeSize.x * 0.5f) << " per axis" << std::endl;
+                // std::cout << "[SUBCUBE POSITION] 4a. Size calculation debug: 1.0f/3.0f = " << std::setprecision(6) << (1.0f/3.0f) << std::endl;
+                // std::cout << "[SUBCUBE POSITION] 4b. Half calculation debug: " << std::setprecision(6) << (1.0f/3.0f) << " * 0.5f = " << std::setprecision(6) << ((1.0f/3.0f) * 0.5f) << std::endl;
                 
                 // Create dynamic physics body at center position with shrunk collision for gap creation
                 btRigidBody* rigidBody = physicsWorld->createBreakawaCube(physicsCenterPos, subcubeSize, 0.5f); // 0.5kg mass
@@ -917,26 +917,26 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
                 if (rigidBody) {
                     btTransform transform = rigidBody->getWorldTransform();
                     btVector3 physicsPos = transform.getOrigin();
-                    std::cout << "[SUBCUBE POSITION] 5. Physics body actual position: (" 
-                              << physicsPos.x() << ", " << physicsPos.y() << ", " << physicsPos.z() << ")" << std::endl;
-                    std::cout << "[SUBCUBE POSITION] 6. Position difference from intended: (" 
-                              << (physicsPos.x() - physicsCenterPos.x) << ", " 
-                              << (physicsPos.y() - physicsCenterPos.y) << ", " 
-                              << (physicsPos.z() - physicsCenterPos.z) << ")" << std::endl;
+                    // std::cout << "[SUBCUBE POSITION] 5. Physics body actual position: (" 
+                    //           << physicsPos.x() << ", " << physicsPos.y() << ", " << physicsPos.z() << ")" << std::endl;
+                    // std::cout << "[SUBCUBE POSITION] 6. Position difference from intended: (" 
+                    //           << (physicsPos.x() - physicsCenterPos.x) << ", " 
+                    //           << (physicsPos.y() - physicsCenterPos.y) << ", " 
+                    //           << (physicsPos.z() - physicsCenterPos.z) << ")" << std::endl;
                     
                     // Check for any axis-specific offsets
                     float xOffset = physicsPos.x() - physicsCenterPos.x;
                     float yOffset = physicsPos.y() - physicsCenterPos.y;
                     float zOffset = physicsPos.z() - physicsCenterPos.z;
                     
-                    if (abs(xOffset) > 0.001f || abs(yOffset) > 0.001f || abs(zOffset) > 0.001f) {
-                        std::cout << "[SUBCUBE POSITION] WARNING: Position offset detected!" << std::endl;
-                        std::cout << "[SUBCUBE POSITION] X-axis offset: " << xOffset << std::endl;
-                        std::cout << "[SUBCUBE POSITION] Y-axis offset: " << yOffset << std::endl;
-                        std::cout << "[SUBCUBE POSITION] Z-axis offset: " << zOffset << std::endl;
-                    } else {
-                        std::cout << "[SUBCUBE POSITION] SUCCESS: Physics body spawned at exact intended position" << std::endl;
-                    }
+                    // if (abs(xOffset) > 0.001f || abs(yOffset) > 0.001f || abs(zOffset) > 0.001f) {
+                    //     std::cout << "[SUBCUBE POSITION] WARNING: Position offset detected!" << std::endl;
+                    //     std::cout << "[SUBCUBE POSITION] X-axis offset: " << xOffset << std::endl;
+                    //     std::cout << "[SUBCUBE POSITION] Y-axis offset: " << yOffset << std::endl;
+                    //     std::cout << "[SUBCUBE POSITION] Z-axis offset: " << zOffset << std::endl;
+                    // } else {
+                    //     std::cout << "[SUBCUBE POSITION] SUCCESS: Physics body spawned at exact intended position" << std::endl;
+                    // }
                     
                     // Store physics position for comparison in updates
                     subcube->setPhysicsPosition(glm::vec3(physicsPos.x(), physicsPos.y(), physicsPos.z()));
@@ -950,46 +950,46 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
                     btVector3 btImpulse(scaledImpulse.x, scaledImpulse.y, scaledImpulse.z);
                     rigidBody->applyCentralImpulse(btImpulse);
                     
-                    std::cout << "[SUBCUBE PHYSICS] Applied scaled impulse force (" 
-                              << scaledImpulse.x << "," << scaledImpulse.y << "," << scaledImpulse.z 
-                              << ") to broken subcube" << std::endl;
+                    // std::cout << "[SUBCUBE PHYSICS] Applied scaled impulse force (" 
+                    //           << scaledImpulse.x << "," << scaledImpulse.y << "," << scaledImpulse.z 
+                    //           << ") to broken subcube" << std::endl;
                     
                     // Enable gravity for natural falling behavior
                     rigidBody->setGravity(btVector3(0, -9.81f, 0)); // Standard gravity
                     
-                    std::cout << "[SUBCUBE PHYSICS] Enabled gravity and impulse forces for realistic breakage behavior" << std::endl;
+                    //std::cout << "[SUBCUBE PHYSICS] Enabled gravity and impulse forces for realistic breakage behavior" << std::endl;
                 } else {
                     // If no impulse force provided, still enable gravity for natural falling
                     if (rigidBody) {
                         rigidBody->setGravity(btVector3(0, -9.81f, 0)); // Standard gravity
-                        std::cout << "[SUBCUBE PHYSICS] No impulse force - enabled gravity only" << std::endl;
+                        //std::cout << "[SUBCUBE PHYSICS] No impulse force - enabled gravity only" << std::endl;
                     }
                 }
-                std::cout << "[SUBCUBE POSITION] ===== END SUBCUBE POSITION TRACKING =====" << std::endl;
+                //std::cout << "[SUBCUBE POSITION] ===== END SUBCUBE POSITION TRACKING =====" << std::endl;
             }
             
             // OPTIMIZATION: Use efficient targeted collision shape removal instead of full rebuild
-            std::cout << "[COLLISION OPT] BEFORE: Using targeted collision shape removal (no full rebuild)" << std::endl;
+            //std::cout << "[COLLISION OPT] BEFORE: Using targeted collision shape removal (no full rebuild)" << std::endl;
             
             // Calculate subcube key for collision index lookup
             glm::ivec3 parentLocalPos = parentPos - worldOrigin;
             glm::ivec3 subcubeKey = parentLocalPos * 3 + subcubePos;
             
-            std::cout << "[COLLISION DEBUG] Subcube key calculation:" << std::endl;
-            std::cout << "[COLLISION DEBUG]   parentPos: (" << parentPos.x << "," << parentPos.y << "," << parentPos.z << ")" << std::endl;
-            std::cout << "[COLLISION DEBUG]   worldOrigin: (" << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z << ")" << std::endl;
-            std::cout << "[COLLISION DEBUG]   parentLocalPos: (" << parentLocalPos.x << "," << parentLocalPos.y << "," << parentLocalPos.z << ")" << std::endl;
-            std::cout << "[COLLISION DEBUG]   subcubePos: (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z << ")" << std::endl;
-            std::cout << "[COLLISION DEBUG]   subcubeKey: (" << subcubeKey.x << "," << subcubeKey.y << "," << subcubeKey.z << ")" << std::endl;
-            std::cout << "[COLLISION DEBUG]   Available mappings: " << subcubeToCollisionIndex.size() << std::endl;
+            // std::cout << "[COLLISION DEBUG] Subcube key calculation:" << std::endl;
+            // std::cout << "[COLLISION DEBUG]   parentPos: (" << parentPos.x << "," << parentPos.y << "," << parentPos.z << ")" << std::endl;
+            // std::cout << "[COLLISION DEBUG]   worldOrigin: (" << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z << ")" << std::endl;
+            // std::cout << "[COLLISION DEBUG]   parentLocalPos: (" << parentLocalPos.x << "," << parentLocalPos.y << "," << parentLocalPos.z << ")" << std::endl;
+            // std::cout << "[COLLISION DEBUG]   subcubePos: (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z << ")" << std::endl;
+            // std::cout << "[COLLISION DEBUG]   subcubeKey: (" << subcubeKey.x << "," << subcubeKey.y << "," << subcubeKey.z << ")" << std::endl;
+            // std::cout << "[COLLISION DEBUG]   Available mappings: " << subcubeToCollisionIndex.size() << std::endl;
             
             // Find and remove collision shape for this specific subcube
             auto collisionIt = subcubeToCollisionIndex.find(subcubeKey);
             if (collisionIt != subcubeToCollisionIndex.end()) {
                 int collisionIndex = collisionIt->second;
                 
-                std::cout << "[COLLISION OPT] Found collision shape at index " << collisionIndex 
-                          << " for subcube at key (" << subcubeKey.x << "," << subcubeKey.y << "," << subcubeKey.z << ")" << std::endl;
+                // std::cout << "[COLLISION OPT] Found collision shape at index " << collisionIndex 
+                //           << " for subcube at key (" << subcubeKey.x << "," << subcubeKey.y << "," << subcubeKey.z << ")" << std::endl;
                 
                 // EFFICIENT: Remove only this collision shape using Bullet's optimized removal
                 removeCollisionShapeByIndex(collisionIndex);
@@ -1003,14 +1003,14 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
                 // Remove subcube from static list
                 staticSubcubes.erase(it);
                 
-                std::cout << "[COLLISION OPT] AFTER: Targeted collision shape removal complete - no full rebuild needed!" << std::endl;
+                //std::cout << "[COLLISION OPT] AFTER: Targeted collision shape removal complete - no full rebuild needed!" << std::endl;
             } else {
-                std::cout << "[COLLISION OPT] WARNING: No collision shape found for subcube - using fallback full rebuild" << std::endl;
+                //std::cout << "[COLLISION OPT] WARNING: No collision shape found for subcube - using fallback full rebuild" << std::endl;
                 // Remove subcube from static list BEFORE rebuild to avoid including it in the new collision shape
                 staticSubcubes.erase(it);
                 // Fallback to full rebuild if mapping is corrupted or missing
                 forcePhysicsRebuild();
-                std::cout << "[COLLISION OPT] Fallback full rebuild complete" << std::endl;
+                //std::cout << "[COLLISION OPT] Fallback full rebuild complete" << std::endl;
             }
             
             // REFACTOR: Direct transfer to global system (no local staging)
@@ -1028,7 +1028,7 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
                 // Clean up the original subcube (no longer needed)
                 delete subcube;
                 
-                std::cout << "[REFACTOR] DIRECT TRANSFER: Subcube transferred immediately to global system" << std::endl;
+                //std::cout << "[REFACTOR] DIRECT TRANSFER: Subcube transferred immediately to global system" << std::endl;
             } else {
                 // ERROR: No transfer callback provided - subcube cannot be processed
                 std::cout << "[ERROR] No transfer callback provided - subcube will be lost!" << std::endl;
@@ -1075,7 +1075,7 @@ void Chunk::createChunkPhysicsBody() {
     cubeToCollisionIndex.clear();
     
     // Generate collision boxes from cubes and subcubes, building mapping as we go
-    std::cout << "[COLLISION] Building collision shapes with index mapping" << std::endl;
+    //std::cout << "[COLLISION] Building collision shapes with index mapping" << std::endl;
     int collisionIndex = 0;
     
     // =========================================================================
@@ -1148,8 +1148,8 @@ void Chunk::createChunkPhysicsBody() {
         glm::ivec3 subcubeKey = parentLocalPos * 3 + localPos;  // Unique key for subcube within chunk
         subcubeToCollisionIndex[subcubeKey] = collisionIndex;
         
-        std::cout << "[COLLISION MAPPING] Added subcube at key (" << subcubeKey.x << "," << subcubeKey.y << "," << subcubeKey.z 
-                  << ") -> collision index " << collisionIndex << std::endl;
+        // std::cout << "[COLLISION MAPPING] Added subcube at key (" << subcubeKey.x << "," << subcubeKey.y << "," << subcubeKey.z 
+        //           << ") -> collision index " << collisionIndex << std::endl;
         
         collisionIndex++;
     }
@@ -1263,7 +1263,7 @@ std::vector<Chunk::CollisionBox> Chunk::generateMergedCollisionBoxes() {
     
     // NEW APPROACH: Build collision boxes directly from cubes, not faces
     // This eliminates the 6× duplication problem and sorting overhead
-    std::cout << "[COLLISION] Building collision shapes from cubes directly (not faces)" << std::endl;
+    //std::cout << "[COLLISION] Building collision shapes from cubes directly (not faces)" << std::endl;
     
     // =========================================================================
     // PHASE 1: Process regular cubes (those that aren't subdivided)
@@ -1318,9 +1318,9 @@ std::vector<Chunk::CollisionBox> Chunk::generateMergedCollisionBoxes() {
         boxes.emplace_back(subcubeCenter, subcubeHalfExtents);
     }
     
-    std::cout << "[COLLISION] Generated " << boxes.size() << " collision boxes: " 
-              << (cubes.size() - boxes.size() + staticSubcubes.size()) << " regular cubes + " 
-              << staticSubcubes.size() << " subcubes" << std::endl;
+    // std::cout << "[COLLISION] Generated " << boxes.size() << " collision boxes: " 
+    //           << (cubes.size() - boxes.size() + staticSubcubes.size()) << " regular cubes + " 
+    //           << staticSubcubes.size() << " subcubes" << std::endl;
     
     // No sorting or deduplication needed - each cube/subcube generates exactly one collision box!
     return boxes;
@@ -1332,18 +1332,18 @@ std::vector<Chunk::CollisionBox> Chunk::generateMergedCollisionBoxes() {
 
 void Chunk::removeCollisionShapeByIndex(int collisionIndex) {
     if (!chunkCollisionShape || collisionIndex < 0 || collisionIndex >= chunkCollisionShape->getNumChildShapes()) {
-        std::cout << "[COLLISION OPT] Invalid collision index " << collisionIndex << " for removal" << std::endl;
+        //std::cout << "[COLLISION OPT] Invalid collision index " << collisionIndex << " for removal" << std::endl;
         return;
     }
     
-    std::cout << "[COLLISION OPT] Removing collision shape at index " << collisionIndex 
-              << " (total shapes: " << chunkCollisionShape->getNumChildShapes() << ")" << std::endl;
+    // std::cout << "[COLLISION OPT] Removing collision shape at index " << collisionIndex 
+    //           << " (total shapes: " << chunkCollisionShape->getNumChildShapes() << ")" << std::endl;
     
     // Use Bullet's efficient targeted removal
     chunkCollisionShape->removeChildShapeByIndex(collisionIndex);
     
-    std::cout << "[COLLISION OPT] Shape removed successfully (remaining shapes: " 
-              << chunkCollisionShape->getNumChildShapes() << ")" << std::endl;
+    // std::cout << "[COLLISION OPT] Shape removed successfully (remaining shapes: " 
+    //           << chunkCollisionShape->getNumChildShapes() << ")" << std::endl;
 }
 
 void Chunk::updateCollisionIndexMapping(int removedIndex) {
@@ -1359,8 +1359,8 @@ void Chunk::updateCollisionIndexMapping(int removedIndex) {
     // Check subcubes first
     for (auto& pair : subcubeToCollisionIndex) {
         if (pair.second == lastIndex) {
-            std::cout << "[COLLISION OPT] Updating collision index mapping: subcube at index " 
-                      << lastIndex << " moved to index " << removedIndex << std::endl;
+            // std::cout << "[COLLISION OPT] Updating collision index mapping: subcube at index " 
+            //           << lastIndex << " moved to index " << removedIndex << std::endl;
             pair.second = removedIndex;
             return;
         }
@@ -1369,8 +1369,8 @@ void Chunk::updateCollisionIndexMapping(int removedIndex) {
     // Check cubes
     for (auto& pair : cubeToCollisionIndex) {
         if (pair.second == lastIndex) {
-            std::cout << "[COLLISION OPT] Updating collision index mapping: cube at index " 
-                      << lastIndex << " moved to index " << removedIndex << std::endl;
+            // std::cout << "[COLLISION OPT] Updating collision index mapping: cube at index " 
+            //           << lastIndex << " moved to index " << removedIndex << std::endl;
             pair.second = removedIndex;
             return;
         }
@@ -1378,7 +1378,7 @@ void Chunk::updateCollisionIndexMapping(int removedIndex) {
 }
 
 void Chunk::rebuildCollisionIndexMapping() {
-    std::cout << "[COLLISION OPT] Rebuilding entire collision index mapping" << std::endl;
+    //std::cout << "[COLLISION OPT] Rebuilding entire collision index mapping" << std::endl;
     subcubeToCollisionIndex.clear();
     cubeToCollisionIndex.clear();
     
@@ -1389,7 +1389,7 @@ void Chunk::rebuildCollisionIndexMapping() {
     // Since we can't efficiently determine which collision shape corresponds to which subcube
     // after indices have been shuffled, we need to rebuild the physics body to get clean mappings
     // This method should only be used for batch operations or when mappings become corrupted
-    std::cout << "[COLLISION OPT] Warning: rebuildCollisionIndexMapping() requires full physics rebuild" << std::endl;
+    //std::cout << "[COLLISION OPT] Warning: rebuildCollisionIndexMapping() requires full physics rebuild" << std::endl;
     forcePhysicsRebuild();
 }
 
