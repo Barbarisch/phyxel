@@ -320,46 +320,6 @@ bool RenderPipeline::createGraphicsPipelineForDynamicSubcubes() {
     return true;
 }
 
-bool RenderPipeline::createComputePipeline() {
-    if (!createComputeDescriptorSetLayout()) {
-        std::cerr << "Failed to create compute descriptor set layout!" << std::endl;
-        return false;
-    }
-
-    // Pipeline layout
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &computeDescriptorSetLayout;
-
-    VkResult result = vkCreatePipelineLayout(vulkanDevice.getDevice(), &pipelineLayoutInfo, nullptr, &computePipelineLayout);
-    if (result != VK_SUCCESS) {
-        std::cerr << "Failed to create compute pipeline layout! Error: " << result << std::endl;
-        return false;
-    }
-
-    // Shader stage
-    VkPipelineShaderStageCreateInfo computeShaderStageInfo{};
-    computeShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    computeShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-    computeShaderStageInfo.module = computeShaderModule;
-    computeShaderStageInfo.pName = "main";
-
-    // Compute pipeline
-    VkComputePipelineCreateInfo pipelineInfo{};
-    pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-    pipelineInfo.stage = computeShaderStageInfo;
-    pipelineInfo.layout = computePipelineLayout;
-
-    result = vkCreateComputePipelines(vulkanDevice.getDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline);
-    if (result != VK_SUCCESS) {
-        std::cerr << "Failed to create compute pipeline! Error: " << result << std::endl;
-        return false;
-    }
-
-    return true;
-}
-
 void RenderPipeline::cleanup() {
     VkDevice device = vulkanDevice.getDevice();
 
@@ -368,19 +328,9 @@ void RenderPipeline::cleanup() {
         graphicsPipeline = VK_NULL_HANDLE;
     }
 
-    if (computePipeline != VK_NULL_HANDLE) {
-        vkDestroyPipeline(device, computePipeline, nullptr);
-        computePipeline = VK_NULL_HANDLE;
-    }
-
     if (pipelineLayout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
         pipelineLayout = VK_NULL_HANDLE;
-    }
-
-    if (computePipelineLayout != VK_NULL_HANDLE) {
-        vkDestroyPipelineLayout(device, computePipelineLayout, nullptr);
-        computePipelineLayout = VK_NULL_HANDLE;
     }
 
     if (renderPass != VK_NULL_HANDLE) {
@@ -390,11 +340,6 @@ void RenderPipeline::cleanup() {
 
     // Note: descriptorSetLayout is now managed by VulkanDevice, don't destroy it here
 
-    if (computeDescriptorSetLayout != VK_NULL_HANDLE) {
-        vkDestroyDescriptorSetLayout(device, computeDescriptorSetLayout, nullptr);
-        computeDescriptorSetLayout = VK_NULL_HANDLE;
-    }
-
     if (vertShaderModule != VK_NULL_HANDLE) {
         vkDestroyShaderModule(device, vertShaderModule, nullptr);
         vertShaderModule = VK_NULL_HANDLE;
@@ -403,11 +348,6 @@ void RenderPipeline::cleanup() {
     if (fragShaderModule != VK_NULL_HANDLE) {
         vkDestroyShaderModule(device, fragShaderModule, nullptr);
         fragShaderModule = VK_NULL_HANDLE;
-    }
-
-    if (computeShaderModule != VK_NULL_HANDLE) {
-        vkDestroyShaderModule(device, computeShaderModule, nullptr);
-        computeShaderModule = VK_NULL_HANDLE;
     }
 }
 
@@ -436,30 +376,8 @@ bool RenderPipeline::loadShaders(const std::string& vertPath, const std::string&
     return true;
 }
 
-bool RenderPipeline::loadComputeShader(const std::string& compPath) {
-    auto computeShaderCode = Utils::readFile(compPath);
-
-    if (computeShaderCode.empty()) {
-        std::cerr << "Failed to load compute shader: " << compPath << std::endl;
-        return false;
-    }
-
-    computeShaderModule = createShaderModule(computeShaderCode);
-
-    if (computeShaderModule == VK_NULL_HANDLE) {
-        std::cerr << "Failed to create compute shader module!" << std::endl;
-        return false;
-    }
-
-    return true;
-}
-
 void RenderPipeline::bindGraphicsPipeline(VkCommandBuffer commandBuffer) {
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-}
-
-void RenderPipeline::bindComputePipeline(VkCommandBuffer commandBuffer) {
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
 }
 
 bool RenderPipeline::createRenderPass() {
@@ -600,47 +518,6 @@ bool RenderPipeline::createDynamicDescriptorSetLayout() {
     }
     
     std::cout << "[DEBUG] Dynamic descriptor set layout created successfully: " << descriptorSetLayout << std::endl;
-
-    return true;
-}
-
-bool RenderPipeline::createComputeDescriptorSetLayout() {
-    std::vector<VkDescriptorSetLayoutBinding> bindings;
-
-    // AABB data buffer (binding 0)
-    VkDescriptorSetLayoutBinding aabbBinding{};
-    aabbBinding.binding = 0;
-    aabbBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    aabbBinding.descriptorCount = 1;
-    aabbBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-    bindings.push_back(aabbBinding);
-
-    // Visibility buffer (binding 1) 
-    VkDescriptorSetLayoutBinding visibilityBinding{};
-    visibilityBinding.binding = 1;
-    visibilityBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    visibilityBinding.descriptorCount = 1;
-    visibilityBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-    bindings.push_back(visibilityBinding);
-
-    // Uniform buffer (binding 2)
-    VkDescriptorSetLayoutBinding uniformBinding{};
-    uniformBinding.binding = 2;
-    uniformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    uniformBinding.descriptorCount = 1;
-    uniformBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-    bindings.push_back(uniformBinding);
-
-    VkDescriptorSetLayoutCreateInfo layoutInfo{};
-    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-    layoutInfo.pBindings = bindings.data();
-
-    VkResult result = vkCreateDescriptorSetLayout(vulkanDevice.getDevice(), &layoutInfo, nullptr, &computeDescriptorSetLayout);
-    if (result != VK_SUCCESS) {
-        std::cerr << "Failed to create compute descriptor set layout! Error: " << result << std::endl;
-        return false;
-    }
 
     return true;
 }

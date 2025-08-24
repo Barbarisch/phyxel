@@ -383,11 +383,6 @@ bool Application::initializeVulkan() {
         return false;
     }
 
-    if (!renderPipeline->loadComputeShader("shaders/frustum_cull.comp.spv")) {
-        std::cerr << "Failed to load compute shader!" << std::endl;
-        return false;
-    }
-
     // Create descriptor set layout before graphics pipeline
     if (!vulkanDevice->createDescriptorSetLayout()) {
         std::cerr << "Failed to create descriptor set layout!" << std::endl;
@@ -403,13 +398,6 @@ bool Application::initializeVulkan() {
         std::cerr << "Failed to create dynamic graphics pipeline!" << std::endl;
         return false;
     }
-
-    if (!renderPipeline->createComputePipeline()) {
-        return false;
-    }
-
-    // Note: Compute descriptor sets will be created after scene initialization
-    // when we have actual AABB data to bind
 
     // Create command buffers
     if (!vulkanDevice->createCommandBuffers()) {
@@ -439,12 +427,6 @@ bool Application::initializeVulkan() {
         return false;
     }
 
-    // Create frustum culling buffers (support up to 35,000 instances)
-    if (!vulkanDevice->createFrustumCullingBuffers(35000)) {
-        std::cerr << "Failed to create frustum culling buffers!" << std::endl;
-        return false;
-    }
-
     // Create dynamic subcube buffer (support up to 1000 dynamic subcubes)
     if (!vulkanDevice->createDynamicSubcubeBuffer(1000)) {
         std::cerr << "Failed to create dynamic subcube buffer!" << std::endl;
@@ -458,11 +440,6 @@ bool Application::initializeVulkan() {
 
     if (!vulkanDevice->createDescriptorPool()) {
         std::cerr << "Failed to create descriptor pool!" << std::endl;
-        return false;
-    }
-
-    if (!vulkanDevice->createComputeDescriptorPool()) {
-        std::cerr << "Failed to create compute descriptor pool!" << std::endl;
         return false;
     }
 
@@ -488,12 +465,6 @@ bool Application::initializeScene() {
 
     // Create test scene based on original code
     createTestScene();
-
-    // Now that we have scene data, create compute descriptor sets for frustum culling
-    if (!vulkanDevice->createComputeDescriptorSets(renderPipeline.get())) {
-        std::cerr << "Failed to create compute descriptor sets!" << std::endl;
-        return false;
-    }
 
     std::cout << "Scene subsystem initialized successfully" << std::endl;
     return true;
@@ -722,11 +693,6 @@ void Application::drawFrame() {
             performanceProfiler->recordMemoryTransfer(instanceDataSize);
             
             vulkanDevice->updateInstanceBuffer(vulkanInstances);
-            
-            // Update AABB buffer for frustum culling with all chunks
-            // Update AABB buffer for frustum culling
-            auto cubePositions = sceneManager->getCubePositions();
-            vulkanDevice->updateAABBBuffer(cubePositions);
         }
     }
     auto instanceUpdateEnd = std::chrono::high_resolution_clock::now();

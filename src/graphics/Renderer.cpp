@@ -94,36 +94,6 @@ bool Renderer::initialize(GLFWwindow* window, int windowWidth, int windowHeight)
         return false;
     }
 
-    // Create frustum culling buffers (AABB + visibility buffers)
-    // Assuming max 262144 instances (32x32x32 chunks * 32x32x32 cubes/chunk)
-    if (!vulkanDevice->createFrustumCullingBuffers(262144)) {
-        std::cerr << "Failed to create frustum culling buffers!" << std::endl;
-        return false;
-    }
-
-    // Load and create compute pipeline for frustum culling (after buffers are created)
-    if (!renderPipeline->loadComputeShader("shaders/frustum_cull.comp.spv")) {
-        std::cerr << "Failed to load compute shader!" << std::endl;
-        return false;
-    }
-
-    if (!renderPipeline->createComputePipeline()) {
-        std::cerr << "Failed to create compute pipeline!" << std::endl;
-        return false;
-    }
-
-    // Create compute descriptor pool (required before allocating compute descriptor sets)
-    if (!vulkanDevice->createComputeDescriptorPool()) {
-        std::cerr << "Failed to create compute descriptor pool!" << std::endl;
-        return false;
-    }
-
-    // Create compute descriptor sets for frustum culling (must be after buffers and compute pipeline creation)
-    if (!vulkanDevice->createComputeDescriptorSets(renderPipeline.get())) {
-        std::cerr << "Failed to create compute descriptor sets!" << std::endl;
-        return false;
-    }
-
     std::cout << "Renderer initialized successfully" << std::endl;
     return true;
 }
@@ -268,10 +238,6 @@ void Renderer::renderFrame(
             performanceProfiler->recordMemoryTransfer(instanceDataSize);
             
             vulkanDevice->updateInstanceBuffer(vulkanInstances);
-            
-            // Update AABB buffer for frustum culling
-            auto cubePositions = sceneManager->getCubePositions();
-            vulkanDevice->updateAABBBuffer(cubePositions);
         }
     }
     auto instanceUpdateEnd = std::chrono::high_resolution_clock::now();

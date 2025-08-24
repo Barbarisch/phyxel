@@ -4,7 +4,6 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <optional>
-#include <limits>
 #include <algorithm>
 #include <glm/glm.hpp>
 
@@ -119,20 +118,6 @@ public:
     void bindDynamicSubcubeBuffer(uint32_t frameIndex);
     void cleanupDynamicSubcubeBuffer();
     
-    // Frustum culling buffer management
-    bool createFrustumCullingBuffers(uint32_t maxInstances);
-    void updateAABBBuffer(const std::vector<glm::vec3>& positions);
-    void cleanupFrustumCullingBuffers();
-    
-    // Compute descriptor management (for frustum culling)
-    bool createComputeDescriptorPool();
-    bool createComputeDescriptorSets(class RenderPipeline* renderPipeline);
-    void cleanupComputeDescriptors();
-    
-    // Compute dispatch for frustum culling
-    void dispatchFrustumCulling(uint32_t frameIndex, class RenderPipeline* renderPipeline, uint32_t numInstances);
-    std::vector<uint32_t> downloadVisibilityResults(uint32_t numInstances);
-    
     // Buffer creation helpers
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
@@ -242,21 +227,11 @@ private:
     VkDeviceMemory dynamicSubcubeBufferMemory = VK_NULL_HANDLE;
     uint32_t maxDynamicSubcubes = 0;
     
-    // Frustum culling storage buffers
-    VkBuffer aabbBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory aabbBufferMemory = VK_NULL_HANDLE;
-    VkBuffer visibilityBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory visibilityBufferMemory = VK_NULL_HANDLE;
-    
     std::vector<VkBuffer> uniformBuffers;
     std::vector<VkDeviceMemory> uniformBuffersMemory;
     VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
     VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
     std::vector<VkDescriptorSet> descriptorSets;
-    
-    // Compute descriptor resources (for frustum culling)
-    VkDescriptorPool computeDescriptorPool = VK_NULL_HANDLE;
-    std::vector<VkDescriptorSet> computeDescriptorSets;
 
     // Command buffers
     VkCommandPool commandPool = VK_NULL_HANDLE;

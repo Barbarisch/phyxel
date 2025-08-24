@@ -181,7 +181,7 @@ void ImGuiRenderer::renderPerformanceOverlay(
         ImGui::SameLine();
         ImGui::Text("Visible Instances: %d", frameTiming.visibleInstances);
         
-        // Frustum culling stats (GPU compute shader)
+        // Frustum culling stats (CPU chunk-level culling)
         ImGui::Text("Frustum Culled: %d", frameTiming.frustumCulledInstances);
         ImGui::SameLine();
         float frustumCullRate = frameTiming.visibleInstances > 0 ? 
