@@ -637,15 +637,7 @@ void Application::drawFrame() {
         std::cerr << "Failed to acquire swapchain image!" << std::endl;
         return;
     }
-
-    // Update scene data for rendering (optimized for static cubes)
-    auto instanceUpdateStart = std::chrono::high_resolution_clock::now();
     
-    // Ensure instance buffer is uploaded at least once
-    static bool instanceBufferUploaded = false;
-    
-    auto instanceUpdateEnd = std::chrono::high_resolution_clock::now();
-
     // Prepare uniform buffer data (optimized)
     auto uboStart = std::chrono::high_resolution_clock::now();
     // Use the user-controlled camera matrices
@@ -666,7 +658,9 @@ void Application::drawFrame() {
     glm::mat4 proj = cachedProjectionMatrix;
 
     // Get actual cube count for rendering from chunk manager (multi-chunk system)
-    size_t cubeCount = chunkManager ? chunkManager->getPerformanceStats().totalCubes : 0;
+    // OPTIMIZATION: Cache performance stats - call expensive getPerformanceStats() only once per frame
+    auto chunkStats = chunkManager ? chunkManager->getPerformanceStats() : ChunkManager::ChunkStats{};
+    size_t cubeCount = chunkStats.totalCubes;
     auto uboEnd = std::chrono::high_resolution_clock::now();
     
     // Update uniform buffer with camera matrices
@@ -704,24 +698,8 @@ void Application::drawFrame() {
         frustumCullingEnd - frustumCullingStart
     ).count();
     
-    // Debug output every 60 frames
-    static int cullStatsCounter = 0;
-    if (++cullStatsCounter >= 60) {
-        cullStatsCounter = 0;
-        
-        // std::cout << "[CHUNK FRUSTUM CULLING] Total chunks: " << totalChunks 
-        //           << ", Visible: " << visibleChunkCount 
-        //           << ", Culled: " << culledChunkCount;
-        // if (totalChunks > 0) {
-        //     std::cout << " (" << (100.0f * culledChunkCount / totalChunks) << "% culled)";
-        // }
-        // std::cout << ", Time: " << frustumCullingTimeMs << "ms" << std::endl;
-        // std::cout << "[CHUNK FRUSTUM CULLING] Camera pos: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")" << std::endl;
-    }
-    
     // Calculate accurate frustum culling statistics
-    // Get total cubes in world from chunk manager
-    auto chunkStats = chunkManager->getPerformanceStats();
+    // Get total cubes in world from chunk manager (use cached stats)
     uint32_t totalWorldCubes = chunkStats.totalCubes;
     
     // Calculate actual visible cubes (will be calculated later in renderStaticGeometry section)
@@ -744,9 +722,8 @@ void Application::drawFrame() {
     
     performanceProfiler->recordFrustumCulling(totalChunks, culledChunkCount, frustumCullingTimeMs);
     
-    // Record occlusion culling statistics from chunk manager
+    // Record occlusion culling statistics from chunk manager (use cached stats)
     if (chunkManager && !chunkManager->chunks.empty()) {
-        auto chunkStats = chunkManager->getPerformanceStats();
         frameTiming.fullyOccludedCubes = static_cast<int>(chunkStats.fullyOccludedCubes);
         frameTiming.partiallyOccludedCubes = static_cast<int>(chunkStats.partiallyOccludedCubes);
         frameTiming.totalHiddenFaces = static_cast<int>(chunkStats.totalHiddenFaces);
@@ -798,20 +775,16 @@ void Application::drawFrame() {
         // Render dynamic subcubes with separate pipeline
         renderDynamicSubcubes();
         
-        // Get accurate performance statistics from chunk manager
-        auto chunkStats = chunkManager->getPerformanceStats();
-        
-        // Calculate actual visible cubes after frustum culling
-        // Only visible chunks contribute to visible cubes
+        // OPTIMIZATION: Use cached chunk stats instead of calling getPerformanceStats() again
+        // Calculate actual visible cubes after frustum culling more efficiently
         uint32_t visibleCubesAfterFrustum = 0;
         for (uint32_t chunkIndex : visibleChunks) {
             if (chunkIndex < chunkManager->chunks.size()) {
-                const Chunk* chunk = chunkManager->chunks[chunkIndex].get();
-                visibleCubesAfterFrustum += chunk->getNumInstances(); // Actual cube count per chunk
+                visibleCubesAfterFrustum += chunkManager->chunks[chunkIndex]->getNumInstances();
             }
         }
         
-        // Update frame timing with chunk-based statistics
+        // Update frame timing with chunk-based statistics (using cached data)
         frameTiming.drawCalls = static_cast<int>(visibleChunks.size()); // Use visible chunks count
         frameTiming.vertexCount = static_cast<int>(visibleCubesAfterFrustum * 36); // 36 vertices per visible cube
         frameTiming.visibleInstances = static_cast<int>(visibleCubesAfterFrustum); // Only visible cubes after frustum culling
@@ -858,9 +831,6 @@ void Application::drawFrame() {
 
     currentFrame = (currentFrame + 1) % 2; // MAX_FRAMES_IN_FLIGHT = 2
     
-    // Note: frameTiming statistics are now set in the chunk rendering section above
-    // This includes: drawCalls, vertexCount, visibleInstances, culledInstances, etc.
-    
     // Use GPU culling results if available for frustum culling statistics
     if (lastVisibleInstances + lastCulledInstances > 0) {
         frameTiming.frustumCulledInstances = static_cast<int>(lastCulledInstances);
@@ -875,7 +845,7 @@ void Application::drawFrame() {
     detailedTiming.physicsTime = 0.0; // Physics timing integrated into main loop
     detailedTiming.mousePickTime = 0.0; // Not implemented yet
     detailedTiming.uboFillTime = std::chrono::duration<double, std::milli>(uboEnd - uboStart).count();
-    detailedTiming.instanceUpdateTime = std::chrono::duration<double, std::milli>(instanceUpdateEnd - instanceUpdateStart).count();
+    detailedTiming.instanceUpdateTime = 0.0; // OPTIMIZATION: Removed empty instance update timing
     detailedTiming.drawCmdUpdateTime = 0.0; // Not separate in our implementation
     detailedTiming.uniformUploadTime = std::chrono::duration<double, std::milli>(uniformUploadEnd - uniformUploadStart).count();
     detailedTiming.occlusionCullingTime = 0.0; // Occlusion culling is done once at scene creation, not per-frame
@@ -883,9 +853,17 @@ void Application::drawFrame() {
     detailedTiming.gpuSubmitTime = std::chrono::duration<double, std::milli>(submitEnd - submitStart).count();
     detailedTiming.presentTime = std::chrono::duration<double, std::milli>(presentEnd - presentStart).count();
     
-    detailedTimings.push_back(detailedTiming);
-    if (detailedTimings.size() > 60) {
-        detailedTimings.erase(detailedTimings.begin());
+    // OPTIMIZATION: Use circular buffer for detailed timings instead of expensive vector erase
+    static const size_t MAX_DETAILED_TIMINGS = 60;
+    static size_t detailedTimingIndex = 0;
+    static bool detailedTimingsFilled = false;
+    
+    if (detailedTimings.size() < MAX_DETAILED_TIMINGS) {
+        detailedTimings.push_back(detailedTiming);
+    } else {
+        detailedTimings[detailedTimingIndex] = detailedTiming; // O(1) circular overwrite
+        detailedTimingIndex = (detailedTimingIndex + 1) % MAX_DETAILED_TIMINGS;
+        detailedTimingsFilled = true;
     }
 }
 
