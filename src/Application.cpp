@@ -12,6 +12,8 @@
 #include <thread>
 #include <cstring>
 #include <limits>
+#include <unordered_set>
+#include <unordered_map>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -724,9 +726,12 @@ void Application::drawFrame() {
     
     // Calculate actual visible cubes (will be calculated later in renderStaticGeometry section)
     // For now, estimate culled cubes based on culled chunks
+    // OPTIMIZATION: Use unordered_set for O(1) visibility lookups instead of O(n) std::find
+    std::unordered_set<uint32_t> visibleChunkSet(visibleChunks.begin(), visibleChunks.end());
+    
     uint32_t estimatedCulledInstances = 0;
     for (uint32_t i = 0; i < chunkManager->chunks.size(); ++i) {
-        bool isVisible = std::find(visibleChunks.begin(), visibleChunks.end(), i) != visibleChunks.end();
+        bool isVisible = visibleChunkSet.find(i) != visibleChunkSet.end(); // O(1) lookup
         if (!isVisible) {
             // This chunk was culled, add its cube count to culled instances
             const Chunk* chunk = chunkManager->chunks[i].get();
@@ -1712,9 +1717,7 @@ void Application::clearHoveredCubeInChunksOptimized() {
         if (chunkManager) {
             if (currentHoveredLocation.isSubcube) {
                 // Restore subcube color
-                // chunkManager->setSubcubeColorEfficient(currentHoveredLocation.worldPos, currentHoveredLocation.subcubePos, originalHoveredColor);
-                // std::cout << "[SUBCUBE HOVER] Cleared hover for subcube at world pos: (" << currentHoveredLocation.worldPos.x << "," << currentHoveredLocation.worldPos.y << "," << currentHoveredLocation.worldPos.z 
-                //           << ") subcube: (" << currentHoveredLocation.subcubePos.x << "," << currentHoveredLocation.subcubePos.y << "," << currentHoveredLocation.subcubePos.z << ")" << std::endl;
+                chunkManager->setSubcubeColorEfficient(currentHoveredLocation.worldPos, currentHoveredLocation.subcubePos, originalHoveredColor);
             } else {
                 // Restore regular cube color
                 chunkManager->setCubeColorEfficient(currentHoveredLocation.worldPos, originalHoveredColor);
@@ -1930,159 +1933,63 @@ void Application::breakHoveredCube() {
         return;
     }
     
-    // Calculate impulse force away from the camera direction
-    glm::vec3 impulseForce(0.0f, 2.0f, 0.0f); // Default upward force
-    
-    // Try to get a more interesting force direction based on camera position
-    glm::vec3 cubeWorldPos = glm::vec3(currentHoveredLocation.worldPos);
-    glm::vec3 forceDirection = normalize(cubeWorldPos - cameraPos);
-    
-    // Mix upward force with outward force for interesting breakage (gentler forces)
-    impulseForce = forceDirection * 1.5f + glm::vec3(0.0f, 2.5f, 0.0f); // Reduced from 4.0f and 6.0f
-    
-    // std::cout << "[PHYSICS] Applying gentler breakage force to cube: (" 
-    //           << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")" << std::endl;
-    
     // Get the cube's original color before removing it
     const Cube* originalCube = chunk->getCubeAt(currentHoveredLocation.localPos);
-    glm::vec3 originalColor = glm::vec3(0.8f, 0.6f, 0.4f); // Default color fallback
-    if (originalCube) {
-        originalColor = originalCube->getOriginalColor(); // Use original color, not hover-affected color
-        // std::cout << "[COLOR] Preserving original cube color: (" 
-        //           << originalColor.x << "," << originalColor.y << "," << originalColor.z << ")" << std::endl;
-    }
+    glm::vec3 originalColor = originalCube ? originalCube->getOriginalColor() : glm::vec3(0.8f, 0.6f, 0.4f);
     
-    // Remove the cube from the chunk (this now handles collision removal efficiently)
+    // Remove the cube from the chunk
     bool removed = chunk->removeCube(currentHoveredLocation.localPos);
     if (!removed) {
         std::cout << "[CUBE BREAKING] WARNING: Failed to remove cube from chunk" << std::endl;
         return;
     }
     
-    // Create a dynamic cube at the EXACT original position
-    // TEST COORDINATE SYSTEM OFFSET - Based on user observation of consistent X/Z axis offset
-    // Try different offset patterns to isolate the issue
-    glm::vec3 cubeCornerPos = cubeWorldPos; // Corner position from raycast
+    // Calculate positions for dynamic cube
+    glm::vec3 cubeWorldPos = glm::vec3(currentHoveredLocation.worldPos);
+    glm::vec3 physicsCenterPos = cubeWorldPos + glm::vec3(0.5f); // Convert corner to center position
     
-    // COORDINATE SYSTEM FIX - Convert from corner-based to center-based coordinates
-    // Static cubes: render from corner (0,0,0 to 1,1,1 face offset)
-    // Dynamic cubes: render from center (-0.5,-0.5,-0.5 to 0.5,0.5,0.5 rotated offset)
-    // To visually align: dynamic center = static corner + 0.5
-    glm::vec3 physicsCenterPos = cubeCornerPos + glm::vec3(0.5f, 0.5f, 0.5f);
-    
-    // std::cout << "[POSITION DEBUG] ===== COORDINATE SYSTEM CONVERSION =====" << std::endl;
-    // std::cout << "[POSITION DEBUG] Static cube corner: (" 
-    //           << cubeWorldPos.x << ", " << cubeWorldPos.y << ", " << cubeWorldPos.z << ")" << std::endl;
-    // std::cout << "[POSITION DEBUG] Dynamic cube center (corner + 0.5): (" 
-    //           << physicsCenterPos.x << ", " << physicsCenterPos.y << ", " << physicsCenterPos.z << ")" << std::endl;
-    // std::cout << "[POSITION DEBUG] COORDINATE FIX: Converting from corner-based to center-based rendering" << std::endl;
-    
-    // TODO: Add UI to select material - for now cycle through materials based on position
+    // Select material based on position
     std::vector<std::string> materials = {"Wood", "Metal", "Glass", "Rubber", "Stone", "Ice", "Cork"};
     int materialIndex = (abs(static_cast<int>(cubeWorldPos.x) + static_cast<int>(cubeWorldPos.z))) % materials.size();
     std::string selectedMaterial = materials[materialIndex];
     
-    auto dynamicCube = std::make_unique<DynamicCube>(cubeCornerPos, originalColor, selectedMaterial);
-    
-    // Create physics body for the dynamic cube using breakaway function (with shrunk collision)
-    glm::vec3 cubeSize(1.0f); // Full cube size
-    btRigidBody* rigidBody = physicsWorld->createBreakawaCube(physicsCenterPos, cubeSize, selectedMaterial);
+    // Create dynamic cube and physics body
+    auto dynamicCube = std::make_unique<DynamicCube>(cubeWorldPos, originalColor, selectedMaterial);
+    btRigidBody* rigidBody = physicsWorld->createBreakawaCube(physicsCenterPos, glm::vec3(1.0f), selectedMaterial);
     dynamicCube->setRigidBody(rigidBody);
-    
-    // Check where the physics body actually ended up
-    if (rigidBody) {
-        btTransform transform = rigidBody->getWorldTransform();
-        btVector3 physicsPos = transform.getOrigin();
-        // std::cout << "[POSITION DEBUG] Physics body created at: (" 
-        //           << physicsPos.x() << ", " << physicsPos.y() << ", " << physicsPos.z() << ")" << std::endl;
-        // std::cout << "[POSITION DEBUG] Position difference from intended: (" 
-        //           << (physicsPos.x() - physicsCenterPos.x) << ", " 
-        //           << (physicsPos.y() - physicsCenterPos.y) << ", " 
-        //           << (physicsPos.z() - physicsCenterPos.z) << ")" << std::endl;
-    }
-    
-    // Get material properties for impulse scaling
-    static Physics::MaterialManager materialManager;
-    const auto& material = materialManager.getMaterial(selectedMaterial);
-    
-    // Apply material-specific impulse scaling (reduced for gentler breaking)
-    float impulseScale = material.breakForceMultiplier * 0.4f; // Reduce to 40% of original force
-    impulseForce *= impulseScale;
-    
-    // std::cout << "[MATERIAL] Breaking cube with '" << selectedMaterial << "' material (reduced impulse scale: " 
-    //           << impulseScale << ")" << std::endl;
-    
-    // Set initial physics position to the exact center position
     dynamicCube->setPhysicsPosition(physicsCenterPos);
     
-    // COMPREHENSIVE POSITION TRACKING - Track exact coordinates through entire pipeline
-    glm::vec3 renderingPosition = dynamicCube->getPhysicsPosition();
-    // std::cout << "[POSITION TRACK] ===== DYNAMIC CUBE POSITION TRACKING =====" << std::endl;
-    // std::cout << "[POSITION TRACK] 1. Initial spawn position set: (" 
-    //           << physicsCenterPos.x << ", " << physicsCenterPos.y << ", " << physicsCenterPos.z << ")" << std::endl;
-    // std::cout << "[POSITION TRACK] 2. Rendering position stored: (" 
-    //           << renderingPosition.x << ", " << renderingPosition.y << ", " << renderingPosition.z << ")" << std::endl;
-    // std::cout << "[POSITION TRACK] 3. Position match: " << (renderingPosition == physicsCenterPos ? "YES" : "NO") << std::endl;
-    
-    // Track actual physics body position
-    if (rigidBody) {
-        btTransform transform = rigidBody->getWorldTransform();
-        btVector3 physicsBodyPos = transform.getOrigin();
-        // std::cout << "[POSITION TRACK] 4. Physics body actual position: (" 
-        //           << physicsBodyPos.x() << ", " << physicsBodyPos.y() << ", " << physicsBodyPos.z() << ")" << std::endl;
-        // std::cout << "[POSITION TRACK] 5. Physics vs rendering diff: (" 
-        //           << (physicsBodyPos.x() - renderingPosition.x) << ", " 
-        //           << (physicsBodyPos.y() - renderingPosition.y) << ", " 
-        //           << (physicsBodyPos.z() - renderingPosition.z) << ")" << std::endl;
-    }
-    
-    // Apply initial impulse force to make it "break" away (RE-ENABLED)
-    // Apply forces now that collision issues are resolved
-    if (rigidBody && glm::length(impulseForce) > 0.0f && !debugFlags.disableBreakingForces) {
-        btVector3 btImpulse(impulseForce.x, impulseForce.y, impulseForce.z);
-        rigidBody->applyCentralImpulse(btImpulse);
+    // Apply physics forces
+    if (rigidBody && !debugFlags.disableBreakingForces) {
+        // Calculate impulse force away from camera
+        glm::vec3 forceDirection = normalize(cubeWorldPos - cameraPos);
+        glm::vec3 impulseForce = forceDirection * 1.5f + glm::vec3(0.0f, 2.5f, 0.0f);
         
-        // Add random angular velocity for tumbling effect (reduced intensity for realism)
-        btVector3 angularVelocity(
-            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 4.0f, // Reduced from 6.0f for more realistic tumbling
+        // Apply material-specific impulse scaling
+        static Physics::MaterialManager materialManager;
+        const auto& material = materialManager.getMaterial(selectedMaterial);
+        impulseForce *= material.breakForceMultiplier * 0.4f; // Reduced force for gentler breaking
+        
+        // Apply impulse and angular velocity
+        rigidBody->applyCentralImpulse(btVector3(impulseForce.x, impulseForce.y, impulseForce.z));
+        rigidBody->setAngularVelocity(btVector3(
+            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 4.0f,
             (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 4.0f,
             (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 4.0f
-        );
-        rigidBody->setAngularVelocity(angularVelocity);
-        
-        // Enable gravity for natural falling behavior
-        rigidBody->setGravity(btVector3(0, -9.81f, 0)); // Standard gravity
-        
-        // std::cout << "[PHYSICS] Applied impulse (" << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z 
-        //           << ") and angular velocity (" << angularVelocity.x() << "," << angularVelocity.y() << "," << angularVelocity.z() << ") with gravity enabled" << std::endl;
-    } else if (rigidBody) {
-        // If forces are disabled or no impulse, still enable gravity for natural falling
-        rigidBody->setGravity(btVector3(0, -9.81f, 0)); // Standard gravity
-        //std::cout << "[PHYSICS] No impulse applied - enabled gravity only for natural falling" << std::endl;
+        ));
     }
     
-    // Final position check after everything is set up
+    // Enable gravity for natural falling behavior
     if (rigidBody) {
-        btTransform finalTransform = rigidBody->getWorldTransform();
-        btVector3 finalPos = finalTransform.getOrigin();
-        // std::cout << "[POSITION DEBUG] Final physics position: (" 
-        //           << finalPos.x() << ", " << finalPos.y() << ", " << finalPos.z() << ")" << std::endl;
-        // std::cout << "[POSITION DEBUG] ===== END POSITION ANALYSIS =====" << std::endl;
+        rigidBody->setGravity(btVector3(0, -9.81f, 0));
     }
     
-    // Mark as broken
+    // Finalize dynamic cube
     dynamicCube->breakApart();
-    
-    // Add to global dynamic cubes system
     chunkManager->addGlobalDynamicCube(std::move(dynamicCube));
     
-    // Use efficient selective update instead of marking entire chunk dirty
+    // Use efficient selective update
     chunkManager->updateAfterCubeBreak(currentHoveredLocation.worldPos);
-    
-    // std::cout << "[CUBE BREAKING] Successfully broke cube at world pos: (" 
-    //           << currentHoveredLocation.worldPos.x << "," 
-    //           << currentHoveredLocation.worldPos.y << "," 
-    //           << currentHoveredLocation.worldPos.z << ") into dynamic cube" << std::endl;
     
     // Clear hover state
     hasHoveredCube = false;
@@ -2344,6 +2251,20 @@ std::vector<uint32_t> Application::getVisibleChunksOptimized() {
         return visibleChunks;
     }
     
+    // OPTIMIZATION: Build chunk-to-index map for O(1) lookups
+    // This replaces the O(n) linear search for each visible chunk
+    static std::unordered_map<const Chunk*, uint32_t> chunkToIndexMap;
+    static bool indexMapBuilt = false;
+    
+    if (!indexMapBuilt || chunkToIndexMap.size() != chunkManager->chunks.size()) {
+        // Rebuild map when chunks change
+        chunkToIndexMap.clear();
+        for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
+            chunkToIndexMap[chunkManager->chunks[i].get()] = static_cast<uint32_t>(i);
+        }
+        indexMapBuilt = true;
+    }
+    
     // Calculate camera's chunk coordinate and render radius in chunks
     const int CHUNK_SIZE = 32; // Each chunk is 32x32x32 cubes
     glm::ivec3 cameraChunkCoord = glm::ivec3(
@@ -2399,12 +2320,10 @@ std::vector<uint32_t> Application::getVisibleChunksOptimized() {
                 
                 // Frustum culling: Test AABB against frustum
                 if (cameraFrustum.intersects(chunkAABB)) {
-                    // Find the chunk index in the chunks vector for rendering
-                    for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
-                        if (chunkManager->chunks[i].get() == chunk) {
-                            visibleChunks.push_back(static_cast<uint32_t>(i));
-                            break;
-                        }
+                    // OPTIMIZATION: O(1) chunk index lookup using pre-built map
+                    auto indexIt = chunkToIndexMap.find(chunk);
+                    if (indexIt != chunkToIndexMap.end()) {
+                        visibleChunks.push_back(indexIt->second);
                     }
                 } else {
                     frustumCulledChunks++;
