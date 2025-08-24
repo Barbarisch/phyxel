@@ -2,7 +2,6 @@
 #include "core/Types.h"
 #include "utils/Timer.h"
 #include "utils/PerformanceProfiler.h"
-#include "scene/SceneManager.h"
 #include "physics/PhysicsWorld.h"
 #include "vulkan/VulkanDevice.h"
 #include "vulkan/RenderPipeline.h"
@@ -147,7 +146,6 @@ void ImGuiRenderer::renderPerformanceOverlay(
     PerformanceProfiler* performanceProfiler,
     const FrameTiming& frameTiming,
     const std::vector<DetailedFrameTiming>& detailedTimings,
-    Scene::SceneManager* sceneManager,
     Physics::PhysicsWorld* physicsWorld,
     const glm::vec3& cameraPos,
     uint64_t frameCount) {

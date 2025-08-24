@@ -115,7 +115,7 @@ git submodule update --init --recursive
 
 # Create build directory and configure
 mkdir build && cd build
-cmake .. -G "Visual Studio 17 2022" -A x64
+cmake -B build -G "Visual Studio 17 2022" -A x64
 
 # Build (Bullet3 will be built automatically with proper runtime compatibility)
 cmake --build . --config Debug

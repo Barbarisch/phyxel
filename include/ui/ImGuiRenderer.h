@@ -12,7 +12,6 @@ namespace VulkanCube {
     class PerformanceProfiler;
     struct FrameTiming;
     struct DetailedFrameTiming;
-    namespace Scene { class SceneManager; }
     namespace Physics { class PhysicsWorld; }
     namespace Vulkan { class VulkanDevice; class RenderPipeline; }
 }
@@ -40,7 +39,6 @@ public:
         PerformanceProfiler* performanceProfiler,
         const FrameTiming& frameTiming,
         const std::vector<DetailedFrameTiming>& detailedTimings,
-        Scene::SceneManager* sceneManager,
         Physics::PhysicsWorld* physicsWorld,
         const glm::vec3& cameraPos,
         uint64_t frameCount

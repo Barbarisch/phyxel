@@ -5,7 +5,6 @@
 #include "core/Types.h"
 #include "vulkan/VulkanDevice.h"
 #include "vulkan/RenderPipeline.h"
-#include "scene/SceneManager.h"
 #include "physics/PhysicsWorld.h"
 #include "utils/Timer.h"
 #include "utils/PerformanceProfiler.h"
@@ -60,7 +59,7 @@ private:
     std::unique_ptr<Vulkan::VulkanDevice> vulkanDevice;
     std::unique_ptr<Vulkan::RenderPipeline> renderPipeline;         // Static cubes and static subcubes
     std::unique_ptr<Vulkan::RenderPipeline> dynamicRenderPipeline;  // Dynamic subcubes with physics
-    std::unique_ptr<Scene::SceneManager> sceneManager;
+    // DEPRECATED: SceneManager removed - ChunkManager handles all scene management
     std::unique_ptr<Physics::PhysicsWorld> physicsWorld;
     std::unique_ptr<Timer> timer;
     std::unique_ptr<PerformanceProfiler> performanceProfiler;
