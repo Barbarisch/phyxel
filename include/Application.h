@@ -141,7 +141,6 @@ private:
     // Initialization methods
     bool initializeWindow();
     bool initializeVulkan();
-    bool initializeScene();
     bool initializePhysics();
     bool loadAssets();
 
@@ -188,7 +187,6 @@ private:
     // Utility methods
     void updateFrameTiming();
     void printPerformanceStats();
-    void createTestScene();
     void debugCoordinateSystem(); // Debug coordinate conversion and physics positioning
     
     // Frame profiling methods

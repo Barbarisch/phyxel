@@ -123,11 +123,6 @@ bool Application::initialize() {
     
     std::cout << "Created " << chunkManager->chunks.size() << " chunks for testing" << std::endl;
 
-    if (!initializeScene()) {
-        std::cerr << "Failed to initialize scene!" << std::endl;
-        return false;
-    }
-
     // Initialize camera after window is created
     initializeCamera();
 
@@ -450,14 +445,6 @@ bool Application::initializeVulkan() {
     }
 
     std::cout << "Vulkan subsystem initialized successfully" << std::endl;
-    return true;
-}
-
-bool Application::initializeScene() {
-    // Create test scene based on original code
-    createTestScene();
-
-    std::cout << "Scene subsystem initialized successfully" << std::endl;
     return true;
 }
 
@@ -891,19 +878,6 @@ void Application::printPerformanceStats() {
     std::cout << "  Cubes in Scene: " << (chunkManager ? chunkManager->getPerformanceStats().totalCubes : 0) << std::endl;
     std::cout << "  Physics Bodies: " << physicsWorld->getRigidBodyCount() << std::endl;
     std::cout << "---" << std::endl;
-}
-
-void Application::createTestScene() {
-    // Generate the full 32x32x32 chunk like the original code
-    std::vector<glm::vec3> palette = {
-        {0.0f, 1.0f, 0.0f}, // green
-        {0.0f, 0.0f, 1.0f}, // blue
-        {1.0f, 1.0f, 0.0f}, // yellow
-        {1.0f, 0.0f, 1.0f}, // magenta
-        {0.0f, 1.0f, 1.0f}  // cyan
-    };
-
-    std::cout << "Test scene created via ChunkManager (full multi-chunk world)" << std::endl;
 }
 
 bool Application::initializeWindow() {
