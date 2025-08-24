@@ -771,11 +771,24 @@ void Application::drawFrame() {
         std::cout << "[CHUNK FRUSTUM CULLING] Camera pos: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")" << std::endl;
     }
     
-    // Store results for UI display (convert chunk stats to instance stats for UI compatibility)
-    // Each chunk has roughly 32^3 = 32,768 cubes, so estimate instance counts
-    uint32_t estimatedVisibleInstances = visibleChunkCount * 16384; // Assume ~50% cubes visible per chunk
-    uint32_t estimatedCulledInstances = culledChunkCount * 32768;   // All cubes in culled chunks
-    lastVisibleInstances = estimatedVisibleInstances;
+    // Calculate accurate frustum culling statistics
+    // Get total cubes in world from chunk manager
+    auto chunkStats = chunkManager->getPerformanceStats();
+    uint32_t totalWorldCubes = chunkStats.totalCubes;
+    
+    // Calculate actual visible cubes (will be calculated later in renderStaticGeometry section)
+    // For now, estimate culled cubes based on culled chunks
+    uint32_t estimatedCulledInstances = 0;
+    for (uint32_t i = 0; i < chunkManager->chunks.size(); ++i) {
+        bool isVisible = std::find(visibleChunks.begin(), visibleChunks.end(), i) != visibleChunks.end();
+        if (!isVisible) {
+            // This chunk was culled, add its cube count to culled instances
+            const Chunk* chunk = chunkManager->chunks[i].get();
+            estimatedCulledInstances += chunk->getNumInstances();
+        }
+    }
+    
+    lastVisibleInstances = totalWorldCubes - estimatedCulledInstances; // Will be corrected later
     lastCulledInstances = estimatedCulledInstances;
     
     performanceProfiler->recordFrustumCulling(totalChunks, culledChunkCount, frustumCullingTimeMs);
@@ -840,10 +853,20 @@ void Application::drawFrame() {
         // Get accurate performance statistics from chunk manager
         auto chunkStats = chunkManager->getPerformanceStats();
         
+        // Calculate actual visible cubes after frustum culling
+        // Only visible chunks contribute to visible cubes
+        uint32_t visibleCubesAfterFrustum = 0;
+        for (uint32_t chunkIndex : visibleChunks) {
+            if (chunkIndex < chunkManager->chunks.size()) {
+                const Chunk* chunk = chunkManager->chunks[chunkIndex].get();
+                visibleCubesAfterFrustum += chunk->getNumInstances(); // Actual cube count per chunk
+            }
+        }
+        
         // Update frame timing with chunk-based statistics
         frameTiming.drawCalls = static_cast<int>(visibleChunks.size()); // Use visible chunks count
-        frameTiming.vertexCount = static_cast<int>(chunkStats.totalVertices);
-        frameTiming.visibleInstances = static_cast<int>(chunkStats.totalCubes);
+        frameTiming.vertexCount = static_cast<int>(visibleCubesAfterFrustum * 36); // 36 vertices per visible cube
+        frameTiming.visibleInstances = static_cast<int>(visibleCubesAfterFrustum); // Only visible cubes after frustum culling
         frameTiming.fullyOccludedCubes = static_cast<int>(chunkStats.fullyOccludedCubes);
         frameTiming.partiallyOccludedCubes = static_cast<int>(chunkStats.partiallyOccludedCubes);
         frameTiming.totalHiddenFaces = static_cast<int>(chunkStats.totalHiddenFaces);
