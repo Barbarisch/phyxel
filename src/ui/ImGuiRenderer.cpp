@@ -149,7 +149,8 @@ void ImGuiRenderer::renderPerformanceOverlay(
     Physics::PhysicsWorld* physicsWorld,
     const glm::vec3& cameraPos,
     uint64_t frameCount,
-    float& renderDistance) {
+    float& renderDistance,
+    float& chunkInclusionDistance) {
     
     if (!showOverlay || !m_initialized) return;
 
@@ -265,9 +266,22 @@ void ImGuiRenderer::renderPerformanceOverlay(
         // Render Settings
         ImGui::Text("RENDER SETTINGS");
         ImGui::Separator();
-        ImGui::SliderFloat("Render Distance", &renderDistance, 32.0f, 500.0f, "%.0f units");
+        
+        // Two-tier distance system
+        ImGui::SliderFloat("Frustum Culling Distance", &renderDistance, 32.0f, 300.0f, "%.0f units");
         if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("Maximum distance for chunk rendering.\nAlso controls camera far plane.");
+            ImGui::SetTooltip("Actual render distance used for frustum culling.\nControls camera far plane and what you see.");
+        }
+        
+        ImGui::SliderFloat("Chunk Loading Distance", &chunkInclusionDistance, 
+                          renderDistance, 500.0f, "%.0f units");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Distance for chunk inclusion (must be >= frustum distance).\nChunks beyond frustum but within this range stay loaded.");
+        }
+        
+        // Auto-adjust if user tries to set chunk distance below render distance
+        if (chunkInclusionDistance < renderDistance) {
+            chunkInclusionDistance = renderDistance;
         }
         
         ImGui::Spacing();

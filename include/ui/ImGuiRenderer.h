@@ -42,7 +42,8 @@ public:
         Physics::PhysicsWorld* physicsWorld,
         const glm::vec3& cameraPos,
         uint64_t frameCount,
-        float& renderDistance  // Reference to allow modification
+        float& renderDistance,          // Reference to allow modification
+        float& chunkInclusionDistance   // Reference to allow modification
     );
 
 private:

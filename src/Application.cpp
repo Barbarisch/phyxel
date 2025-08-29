@@ -202,8 +202,9 @@ void Application::run() {
         // Start ImGui frame
         imguiRenderer->newFrame();
         
-        // Store current render distance before UI update
+        // Store current distances before UI update
         float currentRenderDistance = maxChunkRenderDistance;
+        float currentChunkInclusionDistance = chunkInclusionDistance;
         
         // Render ImGui performance overlay instead of console output
         imguiRenderer->renderPerformanceOverlay(
@@ -215,12 +216,16 @@ void Application::run() {
             physicsWorld.get(),
             cameraPos,
             frameCount,
-            currentRenderDistance  // Pass by reference to allow UI modification
+            currentRenderDistance,         // Pass by reference to allow UI modification
+            currentChunkInclusionDistance  // Pass by reference to allow UI modification
         );
         
-        // Check if render distance was changed by UI
+        // Check if distances were changed by UI
         if (currentRenderDistance != maxChunkRenderDistance) {
             setRenderDistance(currentRenderDistance);
+        }
+        if (currentChunkInclusionDistance != chunkInclusionDistance) {
+            setChunkInclusionDistance(currentChunkInclusionDistance);
         }
         
         // End ImGui frame
@@ -627,17 +632,17 @@ size_t Application::renderStaticGeometry() {
             glm::vec3 maxBounds = chunk->getMaxBounds();
             glm::vec3 chunkCenter = (minBounds + maxBounds) * 0.5f;
             
-            // LEVEL 1: Distance-based culling
+            // LEVEL 1: Chunk inclusion distance culling (broader range for chunk loading)
             float distanceToCamera = glm::length(chunkCenter - cameraPos);
-            if (distanceToCamera > maxChunkRenderDistance) {
-                continue; // Skip chunk - too far away
+            if (distanceToCamera > chunkInclusionDistance) {
+                continue; // Skip chunk - too far away even for loading
             }
             
-            // LEVEL 2: Frustum culling
+            // LEVEL 2: Frustum culling (uses actual render distance)
             // Create AABB for frustum testing
             Utils::AABB chunkAABB(minBounds, maxBounds);
             
-            // Extract frustum from current view/projection matrices
+            // Extract frustum from current view/projection matrices (uses maxChunkRenderDistance)
             glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
             glm::mat4 proj = cachedProjectionMatrix;
             glm::mat4 viewProjection = proj * view;
@@ -645,7 +650,7 @@ size_t Application::renderStaticGeometry() {
             Utils::Frustum cameraFrustum;
             cameraFrustum.extractFromMatrix(viewProjection);
             
-            // Test chunk against frustum
+            // Test chunk against frustum (this uses the shorter render distance in projection matrix)
             if (!cameraFrustum.intersects(chunkAABB)) {
                 continue; // Skip chunk - not visible in camera view
             }
@@ -2304,8 +2309,28 @@ void Application::renderPerformanceOverlay() {
 void Application::setRenderDistance(float distance) {
     if (distance != maxChunkRenderDistance) {
         maxChunkRenderDistance = distance;
+        
+        // Ensure chunk inclusion distance is always >= render distance
+        if (chunkInclusionDistance < maxChunkRenderDistance) {
+            chunkInclusionDistance = maxChunkRenderDistance * 1.5f; // 50% buffer
+        }
+        
         projectionMatrixNeedsUpdate = true; // Force projection matrix recalculation
-        std::cout << "Render distance updated to: " << distance << std::endl;
+        std::cout << "Render distance updated to: " << distance 
+                  << " (chunk inclusion: " << chunkInclusionDistance << ")" << std::endl;
+    }
+}
+
+void Application::setChunkInclusionDistance(float distance) {
+    if (distance != chunkInclusionDistance) {
+        // Ensure chunk inclusion distance is always >= render distance
+        if (distance < maxChunkRenderDistance) {
+            distance = maxChunkRenderDistance;
+            std::cout << "Chunk inclusion distance clamped to render distance: " << distance << std::endl;
+        }
+        
+        chunkInclusionDistance = distance;
+        std::cout << "Chunk inclusion distance updated to: " << distance << std::endl;
     }
 }
 
