@@ -71,6 +71,13 @@ public:
     // Call this every frame - it's efficient and only processes changed chunks
     void updateDirtyChunks();
     
+    // DEPRECATED: Update all chunks (inefficient for large worlds)
+    void updateAllChunks();
+    
+    // Face culling and rebuilding
+    void calculateChunkFaceCulling();
+    void rebuildGlobalDynamicSubcubeFaces();
+    
     // Rebuild faces from cubes (call after modifying cubes)
     void rebuildChunkFaces(Chunk& chunk);
     
@@ -97,6 +104,7 @@ public:
     void updateGlobalDynamicSubcubes(float deltaTime);  // Update timers and cleanup expired ones
     void updateGlobalDynamicSubcubePositions();  // Update positions from physics bodies
     void clearAllGlobalDynamicSubcubes();
+    void rebuildGlobalDynamicFaces();  // Rebuild global dynamic faces
     const std::vector<std::unique_ptr<Subcube>>& getGlobalDynamicSubcubes() const { return globalDynamicSubcubes; }
     size_t getGlobalDynamicSubcubeCount() const { return globalDynamicSubcubes.size(); }
     
@@ -108,8 +116,7 @@ public:
     const std::vector<std::unique_ptr<DynamicCube>>& getGlobalDynamicCubes() const { return globalDynamicCubes; }
     size_t getGlobalDynamicCubeCount() const { return globalDynamicCubes.size(); }
     
-    // Combined dynamic object management (both subcubes and cubes use same face data structure)
-    void rebuildGlobalDynamicFaces();  // Generate face data for all dynamic objects (subcubes + cubes)
+    // Combined dynamic object management - face data access
     const std::vector<DynamicSubcubeInstanceData>& getGlobalDynamicSubcubeFaces() const { return globalDynamicSubcubeFaces; }
     
     // Dynamic object face data for rendering (both subcubes and full cubes)
@@ -188,6 +195,9 @@ public:
     void cleanup();
     
 private:
+    // Memory management helper
+    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+    
     // Cross-chunk occlusion culling helpers
     bool isCubeAt(const glm::ivec3& worldPosition) const;
     uint32_t calculateOcclusionFaceMask(const glm::ivec3& chunkOrigin, int relativeX, int relativeY, int relativeZ) const;

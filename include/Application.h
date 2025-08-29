@@ -5,6 +5,7 @@
 #include "core/Types.h"
 #include "vulkan/VulkanDevice.h"
 #include "vulkan/RenderPipeline.h"
+#include "scene/SceneManager.h"
 #include "physics/PhysicsWorld.h"
 #include "utils/Timer.h"
 #include "utils/PerformanceProfiler.h"
@@ -59,7 +60,7 @@ private:
     std::unique_ptr<Vulkan::VulkanDevice> vulkanDevice;
     std::unique_ptr<Vulkan::RenderPipeline> renderPipeline;         // Static cubes and static subcubes
     std::unique_ptr<Vulkan::RenderPipeline> dynamicRenderPipeline;  // Dynamic subcubes with physics
-    // DEPRECATED: SceneManager removed - ChunkManager handles all scene management
+    std::unique_ptr<Scene::SceneManager> sceneManager;             // Still in use for legacy cube rendering
     std::unique_ptr<Physics::PhysicsWorld> physicsWorld;
     std::unique_ptr<Timer> timer;
     std::unique_ptr<PerformanceProfiler> performanceProfiler;
@@ -79,6 +80,7 @@ private:
     uint32_t currentFrame = 0;
     
     // Cached matrices for performance
+    glm::mat4 cachedViewMatrix;
     glm::mat4 cachedProjectionMatrix;
     bool projectionMatrixNeedsUpdate = true;
 
@@ -137,18 +139,25 @@ private:
     void updateCameraFrustum(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix);
     std::vector<uint32_t> getVisibleChunks();
     std::vector<uint32_t> getVisibleChunksOptimized(); // Spatial query version for large worlds
+    
+    // Render distance management
+    void setRenderDistance(float distance);
+    float getRenderDistance() const { return maxChunkRenderDistance; }
 
     // Initialization methods
     bool initializeWindow();
     bool initializeVulkan();
     bool initializePhysics();
+    bool initializeScene();
     bool loadAssets();
 
     // Main loop
     void update(float deltaTime);
     void render();
     void drawFrame();
-    void renderStaticGeometry(const std::vector<uint32_t>& visibleChunks);      // Render static cubes and subcubes - only visible chunks
+    void renderImGui();
+    size_t renderStaticGeometry();                                              // Render static cubes and subcubes - returns number of rendered chunks
+    void renderDynamicGeometry();                                               // Render dynamic cubes and subcubes
     void renderDynamicSubcubes();     // Render dynamic subcubes with physics
     void handleInput();
     void processInput();

@@ -148,7 +148,8 @@ void ImGuiRenderer::renderPerformanceOverlay(
     const std::vector<DetailedFrameTiming>& detailedTimings,
     Physics::PhysicsWorld* physicsWorld,
     const glm::vec3& cameraPos,
-    uint64_t frameCount) {
+    uint64_t frameCount,
+    float& renderDistance) {
     
     if (!showOverlay || !m_initialized) return;
 
@@ -257,6 +258,16 @@ void ImGuiRenderer::renderPerformanceOverlay(
             ImGui::Text("Present: %.2f ms (%.1f%%)", 
                        latest.presentTime, 
                        (latest.presentTime / latest.totalFrameTime) * 100.0);
+        }
+        
+        ImGui::Spacing();
+        
+        // Render Settings
+        ImGui::Text("RENDER SETTINGS");
+        ImGui::Separator();
+        ImGui::SliderFloat("Render Distance", &renderDistance, 32.0f, 500.0f, "%.0f units");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Maximum distance for chunk rendering.\nAlso controls camera far plane.");
         }
         
         ImGui::Spacing();

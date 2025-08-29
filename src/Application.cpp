@@ -2,6 +2,7 @@
 #include "utils/FileUtils.h"
 #include "utils/Math.h"
 #include "utils/PerformanceProfiler.h"
+#include "utils/Frustum.h"
 #include "examples/MultiChunkDemo.h"
 #include "core/DynamicCube.h"
 #include "physics/Material.h"
@@ -12,8 +13,6 @@
 #include <thread>
 #include <cstring>
 #include <limits>
-#include <unordered_set>
-#include <unordered_map>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -74,6 +73,7 @@ bool Application::initialize() {
     vulkanDevice = std::make_unique<Vulkan::VulkanDevice>();
     renderPipeline = std::make_unique<Vulkan::RenderPipeline>(*vulkanDevice);
     dynamicRenderPipeline = std::make_unique<Vulkan::RenderPipeline>(*vulkanDevice);
+    sceneManager = std::make_unique<Scene::SceneManager>();
     physicsWorld = std::make_unique<Physics::PhysicsWorld>();
     timer = std::make_unique<Timer>();
     chunkManager = std::make_unique<ChunkManager>();
@@ -101,7 +101,7 @@ bool Application::initialize() {
     // Set physics world for proper cleanup of dynamic objects
     chunkManager->setPhysicsWorld(physicsWorld.get());
     
-    // Create 10 chunks in a linear arrangement for testing
+    // Create chunks
     //auto origins = MultiChunkDemo::createLinearChunks(10);
     //auto origins = MultiChunkDemo::createGridChunks(5, 5);
     auto origins = MultiChunkDemo::create3DGridChunks(2, 2, 2);
@@ -122,6 +122,11 @@ bool Application::initialize() {
     chunkManager->performOcclusionCulling();
     
     std::cout << "Created " << chunkManager->chunks.size() << " chunks for testing" << std::endl;
+
+    // if (!initializeScene()) {
+    //     std::cerr << "Failed to initialize scene!" << std::endl;
+    //     return false;
+    // }
 
     // Initialize camera after window is created
     initializeCamera();
@@ -197,6 +202,9 @@ void Application::run() {
         // Start ImGui frame
         imguiRenderer->newFrame();
         
+        // Store current render distance before UI update
+        float currentRenderDistance = maxChunkRenderDistance;
+        
         // Render ImGui performance overlay instead of console output
         imguiRenderer->renderPerformanceOverlay(
             showPerformanceOverlay,
@@ -206,8 +214,14 @@ void Application::run() {
             detailedTimings,
             physicsWorld.get(),
             cameraPos,
-            frameCount
+            frameCount,
+            currentRenderDistance  // Pass by reference to allow UI modification
         );
+        
+        // Check if render distance was changed by UI
+        if (currentRenderDistance != maxChunkRenderDistance) {
+            setRenderDistance(currentRenderDistance);
+        }
         
         // End ImGui frame
         imguiRenderer->endFrame();
@@ -276,7 +290,11 @@ void Application::cleanup() {
     if (vulkanDevice) {
         vulkanDevice->cleanup();
     }
-       
+    
+    if (sceneManager) {
+        sceneManager->cleanup();
+    }
+    
     if (physicsWorld) {
         physicsWorld->cleanup();
     }
@@ -292,6 +310,7 @@ void Application::cleanup() {
     renderPipeline.reset();
     dynamicRenderPipeline.reset();
     vulkanDevice.reset();
+    sceneManager.reset();
     physicsWorld.reset();
     timer.reset();
     imguiRenderer.reset();
@@ -373,6 +392,14 @@ bool Application::initializeVulkan() {
         return false;
     }
 
+    // TODO: Compute shader functionality for frustum culling (experimental/incomplete)
+    /*
+    if (!renderPipeline->loadComputeShader("shaders/frustum_cull.comp.spv")) {
+        std::cerr << "Failed to load compute shader!" << std::endl;
+        return false;
+    }
+    */
+
     // Create descriptor set layout before graphics pipeline
     if (!vulkanDevice->createDescriptorSetLayout()) {
         std::cerr << "Failed to create descriptor set layout!" << std::endl;
@@ -388,6 +415,16 @@ bool Application::initializeVulkan() {
         std::cerr << "Failed to create dynamic graphics pipeline!" << std::endl;
         return false;
     }
+
+    // TODO: Compute pipeline functionality (experimental/incomplete)
+    /*
+    if (!renderPipeline->createComputePipeline()) {
+        return false;
+    }
+    */
+
+    // Note: Compute descriptor sets will be created after scene initialization
+    // when we have actual AABB data to bind
 
     // Create command buffers
     if (!vulkanDevice->createCommandBuffers()) {
@@ -417,6 +454,15 @@ bool Application::initializeVulkan() {
         return false;
     }
 
+    // TODO: Frustum culling buffers functionality (experimental/incomplete)
+    /*
+    // Create frustum culling buffers (support up to 35,000 instances)
+    if (!vulkanDevice->createFrustumCullingBuffers(35000)) {
+        std::cerr << "Failed to create frustum culling buffers!" << std::endl;
+        return false;
+    }
+    */
+
     // Create dynamic subcube buffer (support up to 1000 dynamic subcubes)
     if (!vulkanDevice->createDynamicSubcubeBuffer(1000)) {
         std::cerr << "Failed to create dynamic subcube buffer!" << std::endl;
@@ -433,6 +479,14 @@ bool Application::initializeVulkan() {
         return false;
     }
 
+    // TODO: Compute descriptor pool functionality (experimental/incomplete)
+    /*
+    if (!vulkanDevice->createComputeDescriptorPool()) {
+        std::cerr << "Failed to create compute descriptor pool!" << std::endl;
+        return false;
+    }
+    */
+
     if (!vulkanDevice->createDescriptorSets()) {
         std::cerr << "Failed to create descriptor sets!" << std::endl;
         return false;
@@ -445,6 +499,14 @@ bool Application::initializeVulkan() {
     }
 
     std::cout << "Vulkan subsystem initialized successfully" << std::endl;
+    return true;
+}
+
+bool Application::initializeScene() {
+    // Scene initialization now handled by ChunkManager
+    // No need for separate scene manager initialization
+
+    std::cout << "Scene subsystem initialized successfully" << std::endl;
     return true;
 }
 
@@ -516,46 +578,85 @@ void Application::update(float deltaTime) {
     }
     frameCount++;
 
-    // Update view and projection matrices
+    // Physics is handled by ChunkManager for dynamic objects
+    // No need for separate scene manager physics sync
+    
+    // NOTE: Frustum culling is now handled in renderStaticGeometry()
+
+    // Update view and projection matrices for Vulkan rendering
     glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
     glm::mat4 proj = glm::perspective(
         glm::radians(45.0f), 
         static_cast<float>(windowWidth) / static_cast<float>(windowHeight), 
         0.1f, 
-        200.0f  // Use same far plane as cached version
+        maxChunkRenderDistance  // Use configurable render distance
     );
     proj[1][1] *= -1; // Flip Y for Vulkan
+    
+    // Store matrices for use in render functions
+    cachedViewMatrix = view;
+    cachedProjectionMatrix = proj;
 }
 
 void Application::render() {
     drawFrame();
 }
 
-void Application::renderStaticGeometry(const std::vector<uint32_t>& visibleChunks) {
+size_t Application::renderStaticGeometry() {
     // Render static cubes and static subcubes using the standard pipeline
     // Bind graphics pipeline
     renderPipeline->bindGraphicsPipeline(vulkanDevice->getCommandBuffer(currentFrame));
     
-    // Debug: Show rendering statistics
-    static int renderDebugCounter = 0;
-    if (++renderDebugCounter >= 60) {
-        renderDebugCounter = 0;
-        uint32_t totalChunks = chunkManager ? static_cast<uint32_t>(chunkManager->chunks.size()) : 0;
-        // std::cout << "[RENDER DEBUG] Total chunks: " << totalChunks 
-        //           << ", Rendering: " << visibleChunks.size() 
-        //           << ", Skipped: " << (totalChunks - visibleChunks.size()) << std::endl;
-    }
+    size_t renderedChunks = 0;
     
-    // Draw indexed cubes using chunk manager - ONLY VISIBLE CHUNKS
-    if (chunkManager && !chunkManager->chunks.empty() && !visibleChunks.empty()) {
-        // Render only visible chunks
-        for (uint32_t chunkIndex : visibleChunks) {
-            if (chunkIndex >= chunkManager->chunks.size()) continue; // Safety check
+    // Draw indexed cubes using chunk manager with proper culling
+    if (chunkManager && !chunkManager->chunks.empty()) {
+        
+        // LEVEL 1: Distance-based culling (sphere of influence)
+        // LEVEL 2: Frustum culling (camera view)
+        std::vector<size_t> visibleChunkIndices;
+        
+        for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
+            const Chunk* chunk = chunkManager->chunks[i].get();
             
-            const Chunk* chunk = chunkManager->chunks[chunkIndex].get();
-            
-            // Skip chunks with no static faces
+            // Skip chunks with no static faces (already optimized)
             if (chunk->getNumInstances() == 0) continue;
+            
+            // Get chunk bounding box
+            glm::vec3 minBounds = chunk->getMinBounds();
+            glm::vec3 maxBounds = chunk->getMaxBounds();
+            glm::vec3 chunkCenter = (minBounds + maxBounds) * 0.5f;
+            
+            // LEVEL 1: Distance-based culling
+            float distanceToCamera = glm::length(chunkCenter - cameraPos);
+            if (distanceToCamera > maxChunkRenderDistance) {
+                continue; // Skip chunk - too far away
+            }
+            
+            // LEVEL 2: Frustum culling
+            // Create AABB for frustum testing
+            Utils::AABB chunkAABB(minBounds, maxBounds);
+            
+            // Extract frustum from current view/projection matrices
+            glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+            glm::mat4 proj = cachedProjectionMatrix;
+            glm::mat4 viewProjection = proj * view;
+            
+            Utils::Frustum cameraFrustum;
+            cameraFrustum.extractFromMatrix(viewProjection);
+            
+            // Test chunk against frustum
+            if (!cameraFrustum.intersects(chunkAABB)) {
+                continue; // Skip chunk - not visible in camera view
+            }
+            
+            // Chunk passed both distance and frustum culling
+            visibleChunkIndices.push_back(i);
+        }
+        
+        // Render only the visible chunks
+        for (size_t chunkIndex : visibleChunkIndices) {
+            const Chunk* chunk = chunkManager->chunks[chunkIndex].get();
             
             // Bind this chunk's instance buffer
             VkBuffer instanceBuffers[] = {chunk->getInstanceBuffer()};
@@ -568,9 +669,13 @@ void Application::renderStaticGeometry(const std::vector<uint32_t>& visibleChunk
             vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
             
             // Draw this chunk's static geometry
+            // LEVEL 3: Face culling already applied (only visible faces in buffer)
             vulkanDevice->drawIndexed(currentFrame, 36, chunk->getNumInstances());
+            renderedChunks++;
         }
     }
+    
+    return renderedChunks;
 }
 
 void Application::renderDynamicSubcubes() {
@@ -624,11 +729,15 @@ void Application::drawFrame() {
         std::cerr << "Failed to acquire swapchain image!" << std::endl;
         return;
     }
+
+    // ChunkManager handles its own data management - no instance buffer needed
+    // Static chunk geometry is pre-built and doesn't change unless modified
+    
+    // Get chunk statistics for rendering
+    auto chunkStats = chunkManager->getPerformanceStats();
     
     // Prepare uniform buffer data (optimized)
     auto uboStart = std::chrono::high_resolution_clock::now();
-    // Use the user-controlled camera matrices
-    glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
     
     // Cache projection matrix - only recalculate on window resize
     if (projectionMatrixNeedsUpdate) {
@@ -636,18 +745,15 @@ void Application::drawFrame() {
             glm::radians(45.0f), 
             (float)windowWidth / (float)windowHeight, 
             0.1f, 
-            200.0f  // Increased far plane for large scene
+            maxChunkRenderDistance  // Use configurable render distance
         );
         cachedProjectionMatrix[1][1] *= -1; // Flip Y for Vulkan
         projectionMatrixNeedsUpdate = false;
     }
-    
-    glm::mat4 proj = cachedProjectionMatrix;
 
-    // Get actual cube count for rendering from chunk manager (multi-chunk system)
-    // OPTIMIZATION: Cache performance stats - call expensive getPerformanceStats() only once per frame
-    auto chunkStats = chunkManager ? chunkManager->getPerformanceStats() : ChunkManager::ChunkStats{};
-    size_t cubeCount = chunkStats.totalCubes;
+    // Use cached matrices from update()
+    glm::mat4 view = cachedViewMatrix;
+    glm::mat4 proj = cachedProjectionMatrix;
     auto uboEnd = std::chrono::high_resolution_clock::now();
     
     // Update uniform buffer with camera matrices
@@ -657,7 +763,7 @@ void Application::drawFrame() {
     size_t uniformBufferSize = sizeof(glm::mat4) * 2 + sizeof(uint32_t); // view + proj + cubeCount
     performanceProfiler->recordMemoryTransfer(uniformBufferSize);
     
-    vulkanDevice->updateUniformBuffer(currentFrame, view, proj, static_cast<uint32_t>(cubeCount));
+    vulkanDevice->updateUniformBuffer(currentFrame, view, proj, static_cast<uint32_t>(chunkStats.totalCubes));
     auto uniformUploadEnd = std::chrono::high_resolution_clock::now();
 
     // Record command buffer
@@ -665,59 +771,60 @@ void Application::drawFrame() {
     vulkanDevice->resetCommandBuffer(currentFrame);
     vulkanDevice->beginCommandBuffer(currentFrame);
     
-    // NEW: Perform CPU chunk-level frustum culling BEFORE rendering
+    // TODO: GPU frustum culling functionality (experimental/incomplete)
+    /*
+    // Perform GPU frustum culling BEFORE rendering
     auto frustumCullingStart = std::chrono::high_resolution_clock::now();
-    
-    // Update camera frustum from current view and projection matrices
-    updateCameraFrustum(view, proj);
-    
-    // Get list of visible chunks using optimized spatial query (scales for infinite worlds)
-    std::vector<uint32_t> visibleChunks = getVisibleChunksOptimized();
+    vulkanDevice->dispatchFrustumCulling(currentFrame, renderPipeline.get(), static_cast<uint32_t>(cubeCount));
     auto frustumCullingEnd = std::chrono::high_resolution_clock::now();
     
-    // Calculate chunk-level culling statistics
-    uint32_t totalChunks = chunkManager ? static_cast<uint32_t>(chunkManager->chunks.size()) : 0;
-    uint32_t visibleChunkCount = static_cast<uint32_t>(visibleChunks.size());
-    uint32_t culledChunkCount = totalChunks - visibleChunkCount;
-    
-    // Calculate CPU frustum culling time in milliseconds
-    double frustumCullingTimeMs = std::chrono::duration<double, std::milli>(
-        frustumCullingEnd - frustumCullingStart
-    ).count();
-    
-    // Calculate accurate frustum culling statistics
-    // Get total cubes in world from chunk manager (use cached stats)
-    uint32_t totalWorldCubes = chunkStats.totalCubes;
-    
-    // Calculate actual visible cubes (will be calculated later in renderStaticGeometry section)
-    // For now, estimate culled cubes based on culled chunks
-    // OPTIMIZATION: Use unordered_set for O(1) visibility lookups instead of O(n) std::find
-    std::unordered_set<uint32_t> visibleChunkSet(visibleChunks.begin(), visibleChunks.end());
-    
-    uint32_t estimatedCulledInstances = 0;
-    for (uint32_t i = 0; i < chunkManager->chunks.size(); ++i) {
-        bool isVisible = visibleChunkSet.find(i) != visibleChunkSet.end(); // O(1) lookup
-        if (!isVisible) {
-            // This chunk was culled, add its cube count to culled instances
-            const Chunk* chunk = chunkManager->chunks[i].get();
-            estimatedCulledInstances += chunk->getNumInstances();
+    // Download GPU visibility results for performance stats (every 10 frames)
+    static int cullStatsCounter = 0;
+    if (++cullStatsCounter >= 10) {
+        cullStatsCounter = 0;
+        
+        std::vector<uint32_t> visibilityResults = vulkanDevice->downloadVisibilityResults(static_cast<uint32_t>(cubeCount));
+        
+        // Calculate statistics
+        uint32_t totalObjects = static_cast<uint32_t>(visibilityResults.size());
+        uint32_t visibleObjects = 0;
+        for (uint32_t visible : visibilityResults) {
+            if (visible) visibleObjects++;
         }
+        uint32_t culledObjects = totalObjects - visibleObjects;
+        
+        // Calculate GPU compute time in milliseconds
+        double frustumCullingTimeMs = std::chrono::duration<double, std::milli>(
+            frustumCullingEnd - frustumCullingStart
+        ).count();
+        
+        // Record actual GPU frustum culling statistics
+        // std::cout << "[DEBUG] Performance stats: Total=" << totalObjects 
+        //           << ", Visible=" << visibleObjects 
+        //           << ", Culled=" << culledObjects 
+        //           << " (" << (100.0f * culledObjects / totalObjects) << "% culled)"
+        //           << ", Time=" << frustumCullingTimeMs << "ms" << std::endl;
+        // std::cout << "[DEBUG] Camera pos: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")" << std::endl;
+        
+        // Store results for UI display
+        lastVisibleInstances = visibleObjects;
+        lastCulledInstances = culledObjects;
+        
+        performanceProfiler->recordFrustumCulling(totalObjects, culledObjects, frustumCullingTimeMs);
     }
+    */
     
-    lastVisibleInstances = totalWorldCubes - estimatedCulledInstances; // Will be corrected later
-    lastCulledInstances = estimatedCulledInstances;
-    
-    performanceProfiler->recordFrustumCulling(totalChunks, culledChunkCount, frustumCullingTimeMs);
-    
-    // Record occlusion culling statistics from chunk manager (use cached stats)
+    // Record occlusion culling statistics from chunk manager
     if (chunkManager && !chunkManager->chunks.empty()) {
+        // Get occlusion stats from chunk manager
+        auto chunkStats = chunkManager->getPerformanceStats();
         frameTiming.fullyOccludedCubes = static_cast<int>(chunkStats.fullyOccludedCubes);
         frameTiming.partiallyOccludedCubes = static_cast<int>(chunkStats.partiallyOccludedCubes);
         frameTiming.totalHiddenFaces = static_cast<int>(chunkStats.totalHiddenFaces);
         frameTiming.occlusionCulledInstances = static_cast<int>(chunkStats.fullyOccludedCubes);
         frameTiming.faceCulledFaces = static_cast<int>(chunkStats.totalHiddenFaces);
     } else {
-        // No chunks available - zero out statistics
+        // No chunks available
         frameTiming.fullyOccludedCubes = 0;
         frameTiming.partiallyOccludedCubes = 0;
         frameTiming.totalHiddenFaces = 0;
@@ -756,40 +863,38 @@ void Application::drawFrame() {
     
     // Draw using dual rendering system
     if (chunkManager && !chunkManager->chunks.empty()) {
-        // Render static geometry first - ONLY VISIBLE CHUNKS
-        renderStaticGeometry(visibleChunks);
+        // Render static geometry first and capture how many chunks were actually rendered
+        size_t actuallyRenderedChunks = renderStaticGeometry();
         
         // Render dynamic subcubes with separate pipeline
         renderDynamicSubcubes();
         
-        // OPTIMIZATION: Use cached chunk stats instead of calling getPerformanceStats() again
-        // Calculate actual visible cubes after frustum culling more efficiently
-        uint32_t visibleCubesAfterFrustum = 0;
-        for (uint32_t chunkIndex : visibleChunks) {
-            if (chunkIndex < chunkManager->chunks.size()) {
-                visibleCubesAfterFrustum += chunkManager->chunks[chunkIndex]->getNumInstances();
-            }
-        }
+        // Get accurate performance statistics from chunk manager
+        auto chunkStats = chunkManager->getPerformanceStats();
         
-        // Update frame timing with chunk-based statistics (using cached data)
-        frameTiming.drawCalls = static_cast<int>(visibleChunks.size()); // Use visible chunks count
-        frameTiming.vertexCount = static_cast<int>(visibleCubesAfterFrustum * 36); // 36 vertices per visible cube
-        frameTiming.visibleInstances = static_cast<int>(visibleCubesAfterFrustum); // Only visible cubes after frustum culling
+        // Update frame timing with chunk-based statistics using ACTUAL rendered chunks
+        frameTiming.drawCalls = static_cast<int>(actuallyRenderedChunks);  // Only chunks that passed culling
+        frameTiming.vertexCount = static_cast<int>(chunkStats.totalVertices);
+        frameTiming.visibleInstances = static_cast<int>(chunkStats.totalCubes);
         frameTiming.fullyOccludedCubes = static_cast<int>(chunkStats.fullyOccludedCubes);
         frameTiming.partiallyOccludedCubes = static_cast<int>(chunkStats.partiallyOccludedCubes);
         frameTiming.totalHiddenFaces = static_cast<int>(chunkStats.totalHiddenFaces);
         frameTiming.faceCulledFaces = static_cast<int>(chunkStats.totalHiddenFaces);
         frameTiming.occlusionCulledInstances = static_cast<int>(chunkStats.fullyOccludedCubes);
+        
+        // Optional: Add culling statistics debug output
+        static size_t lastRenderedChunks = 0;
+        if (actuallyRenderedChunks != lastRenderedChunks) {
+            std::cout << "[CULLING] Total chunks: " << chunkManager->chunks.size() 
+                      << ", Rendered chunks: " << actuallyRenderedChunks 
+                      << " (Culled: " << (chunkManager->chunks.size() - actuallyRenderedChunks) << ")"
+                      << std::endl;
+            lastRenderedChunks = actuallyRenderedChunks;
+        }
     } else {
-        // No chunks available - set zero statistics
+        // No chunks available - render nothing
         frameTiming.drawCalls = 0;
         frameTiming.vertexCount = 0;
-        frameTiming.visibleInstances = 0;
-        frameTiming.fullyOccludedCubes = 0;
-        frameTiming.partiallyOccludedCubes = 0;
-        frameTiming.totalHiddenFaces = 0;
-        frameTiming.faceCulledFaces = 0;
-        frameTiming.occlusionCulledInstances = 0;
     }
     
     // Render ImGui on top
@@ -818,6 +923,9 @@ void Application::drawFrame() {
 
     currentFrame = (currentFrame + 1) % 2; // MAX_FRAMES_IN_FLIGHT = 2
     
+    // Note: frameTiming statistics are now set in the chunk rendering section above
+    // This includes: drawCalls, vertexCount, visibleInstances, culledInstances, etc.
+    
     // Use GPU culling results if available for frustum culling statistics
     if (lastVisibleInstances + lastCulledInstances > 0) {
         frameTiming.frustumCulledInstances = static_cast<int>(lastCulledInstances);
@@ -832,7 +940,7 @@ void Application::drawFrame() {
     detailedTiming.physicsTime = 0.0; // Physics timing integrated into main loop
     detailedTiming.mousePickTime = 0.0; // Not implemented yet
     detailedTiming.uboFillTime = std::chrono::duration<double, std::milli>(uboEnd - uboStart).count();
-    detailedTiming.instanceUpdateTime = 0.0; // OPTIMIZATION: Removed empty instance update timing
+    detailedTiming.instanceUpdateTime = 0.0; // ChunkManager handles its own data
     detailedTiming.drawCmdUpdateTime = 0.0; // Not separate in our implementation
     detailedTiming.uniformUploadTime = std::chrono::duration<double, std::milli>(uniformUploadEnd - uniformUploadStart).count();
     detailedTiming.occlusionCullingTime = 0.0; // Occlusion culling is done once at scene creation, not per-frame
@@ -840,17 +948,9 @@ void Application::drawFrame() {
     detailedTiming.gpuSubmitTime = std::chrono::duration<double, std::milli>(submitEnd - submitStart).count();
     detailedTiming.presentTime = std::chrono::duration<double, std::milli>(presentEnd - presentStart).count();
     
-    // OPTIMIZATION: Use circular buffer for detailed timings instead of expensive vector erase
-    static const size_t MAX_DETAILED_TIMINGS = 60;
-    static size_t detailedTimingIndex = 0;
-    static bool detailedTimingsFilled = false;
-    
-    if (detailedTimings.size() < MAX_DETAILED_TIMINGS) {
-        detailedTimings.push_back(detailedTiming);
-    } else {
-        detailedTimings[detailedTimingIndex] = detailedTiming; // O(1) circular overwrite
-        detailedTimingIndex = (detailedTimingIndex + 1) % MAX_DETAILED_TIMINGS;
-        detailedTimingsFilled = true;
+    detailedTimings.push_back(detailedTiming);
+    if (detailedTimings.size() > 60) {
+        detailedTimings.erase(detailedTimings.begin());
     }
 }
 
@@ -866,6 +966,7 @@ void Application::updateFrameTiming() {
 
 void Application::printPerformanceStats() {
     float fps = timer->getFPS();
+    auto chunkStats = chunkManager->getPerformanceStats();
     
     std::cout << "Performance Stats:" << std::endl;
     std::cout << "  FPS: " << fps << std::endl;
@@ -875,10 +976,13 @@ void Application::printPerformanceStats() {
     std::cout << "  Draw Calls: " << frameTiming.drawCalls << std::endl;
     std::cout << "  Visible Instances: " << frameTiming.visibleInstances << std::endl;
     std::cout << "  Culled Instances: " << frameTiming.culledInstances << std::endl;
-    std::cout << "  Cubes in Scene: " << (chunkManager ? chunkManager->getPerformanceStats().totalCubes : 0) << std::endl;
+    std::cout << "  Total Chunks: " << chunkManager->chunks.size() << std::endl;
+    std::cout << "  Total Cubes: " << chunkStats.totalCubes << std::endl;
     std::cout << "  Physics Bodies: " << physicsWorld->getRigidBodyCount() << std::endl;
     std::cout << "---" << std::endl;
 }
+
+
 
 bool Application::initializeWindow() {
     // Initialize GLFW
@@ -1092,29 +1196,6 @@ void Application::processInput() {
         oPressed = false;
     }
     
-    // Adjust render distance with R/F keys
-    static bool rPressed = false;
-    static bool fPressed = false;
-    if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS && !rPressed) {
-        maxChunkRenderDistance += 32.0f; // Increase by one chunk size
-        if (maxChunkRenderDistance > 320.0f) maxChunkRenderDistance = 320.0f; // Cap at 10 chunks
-        std::cout << "[RENDER DISTANCE] Increased to " << maxChunkRenderDistance 
-                  << " units (" << (maxChunkRenderDistance / 32.0f) << " chunks)" << std::endl;
-        rPressed = true;
-    } else if (glfwGetKey(window, GLFW_KEY_R) == GLFW_RELEASE) {
-        rPressed = false;
-    }
-    
-    if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS && !fPressed) {
-        maxChunkRenderDistance -= 32.0f; // Decrease by one chunk size
-        if (maxChunkRenderDistance < 32.0f) maxChunkRenderDistance = 32.0f; // Minimum 1 chunk
-        std::cout << "[RENDER DISTANCE] Decreased to " << maxChunkRenderDistance 
-                  << " units (" << (maxChunkRenderDistance / 32.0f) << " chunks)" << std::endl;
-        fPressed = true;
-    } else if (glfwGetKey(window, GLFW_KEY_F) == GLFW_RELEASE) {
-        fPressed = false;
-    }
-    
     // Camera movement with WASD (always available)
     float cameraSpeed = 5.0f * deltaTime;
 
@@ -1204,11 +1285,11 @@ FrameTiming Application::profileFrame() {
     timing.gpuFrameTime = timing.cpuFrameTime; // Placeholder - actual GPU timing would need GPU queries
     
     // Use chunk manager statistics if available (multi-chunk system)
-    auto chunkStats = chunkManager ? chunkManager->getPerformanceStats() : ChunkManager::ChunkStats{};
-    timing.vertexCount = static_cast<int>(chunkStats.totalCubes * 36); // 36 vertices per cube
-    timing.drawCalls = 1;
+    auto chunkStats = chunkManager->getPerformanceStats();
+    timing.vertexCount = static_cast<int>(chunkStats.totalVertices);
+    timing.drawCalls = static_cast<int>(chunkManager->chunks.size()); // One call per chunk
     timing.visibleInstances = static_cast<int>(chunkStats.totalCubes);
-    timing.culledInstances = 0; // Would need actual frustum culling data
+    timing.culledInstances = 0; // Will be updated during rendering with actual culling data
     
     return timing;
 }
@@ -1605,12 +1686,12 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
     if (!location.isValid()) return;
     
     // Debug: Show what type of location we're hovering
-    // std::cout << "[HOVER DEBUG] Hovering - isSubcube: " << location.isSubcube 
-    //           << ", world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z << ")";
-    // if (location.isSubcube) {
-    //     std::cout << ", subcube pos: (" << location.subcubePos.x << "," << location.subcubePos.y << "," << location.subcubePos.z << ")";
-    // }
-    // std::cout << std::endl;
+    std::cout << "[HOVER DEBUG] Hovering - isSubcube: " << location.isSubcube 
+              << ", world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z << ")";
+    if (location.isSubcube) {
+        std::cout << ", subcube pos: (" << location.subcubePos.x << "," << location.subcubePos.y << "," << location.subcubePos.z << ")";
+    }
+    std::cout << std::endl;
     
     // Clear previous hover
     clearHoveredCubeInChunksOptimized();
@@ -1629,9 +1710,9 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
         currentHoveredLocation = location;
         hasHoveredCube = true;
         
-        // std::cout << "[SUBCUBE HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
-        //           << ") subcube: (" << location.subcubePos.x << "," << location.subcubePos.y << "," << location.subcubePos.z 
-        //           << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
+        std::cout << "[SUBCUBE HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
+                  << ") subcube: (" << location.subcubePos.x << "," << location.subcubePos.y << "," << location.subcubePos.z 
+                  << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
         
         // Set hover color (make it bright white for clear visibility)
         glm::vec3 hoverColor = glm::vec3(1.0f, 1.0f, 1.0f); // Bright white for subcube hover
@@ -1650,8 +1731,8 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
         currentHoveredLocation = location;
         hasHoveredCube = true;
         
-        // std::cout << "[CUBE HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
-        //           << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
+        std::cout << "[CUBE HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
+                  << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
         
         // Set hover color (darken the cube by setting it to black)
         glm::vec3 hoverColor = glm::vec3(0.0f, 0.0f, 0.0f); // Black for regular cube hover
@@ -1670,10 +1751,12 @@ void Application::clearHoveredCubeInChunksOptimized() {
             if (currentHoveredLocation.isSubcube) {
                 // Restore subcube color
                 chunkManager->setSubcubeColorEfficient(currentHoveredLocation.worldPos, currentHoveredLocation.subcubePos, originalHoveredColor);
+                std::cout << "[SUBCUBE HOVER] Cleared hover for subcube at world pos: (" << currentHoveredLocation.worldPos.x << "," << currentHoveredLocation.worldPos.y << "," << currentHoveredLocation.worldPos.z 
+                          << ") subcube: (" << currentHoveredLocation.subcubePos.x << "," << currentHoveredLocation.subcubePos.y << "," << currentHoveredLocation.subcubePos.z << ")" << std::endl;
             } else {
                 // Restore regular cube color
                 chunkManager->setCubeColorEfficient(currentHoveredLocation.worldPos, originalHoveredColor);
-                //std::cout << "[CUBE HOVER] Cleared hover for cube at world pos: (" << currentHoveredLocation.worldPos.x << "," << currentHoveredLocation.worldPos.y << "," << currentHoveredLocation.worldPos.z << ")" << std::endl;
+                std::cout << "[CUBE HOVER] Cleared hover for cube at world pos: (" << currentHoveredLocation.worldPos.x << "," << currentHoveredLocation.worldPos.y << "," << currentHoveredLocation.worldPos.z << ")" << std::endl;
             }
         }
         
@@ -1784,48 +1867,34 @@ void Application::subdivideHoveredCube() {
         // Mix upward force with outward force for interesting breakage (gentler forces)
         impulseForce = forceDirection * 1.0f + glm::vec3(0.0f, 2.0f, 0.0f); // Reduced from 3.0f and 5.0f
         
-        // std::cout << "[PHYSICS] Applying gentler breakage force to subcube: (" 
-        //           << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")" << std::endl;
-        
-        // REFACTOR: Create direct transfer callback for immediate global transfer
-        auto transferCallback = [this](std::unique_ptr<Subcube> subcube) {
-            // Restore the original color (in case it was affected by hover)
-            subcube->setColor(subcube->getOriginalColor());
-            
-            // std::cout << "[COLOR] Preserving subcube's original color: (" 
-            //           << subcube->getOriginalColor().x << "," << subcube->getOriginalColor().y << "," << subcube->getOriginalColor().z << ")" << std::endl;
-            
-            // Direct transfer to global system
-            chunkManager->addGlobalDynamicSubcube(std::move(subcube));
-            //std::cout << "[REFACTOR] DIRECT TRANSFER: Subcube immediately transferred to global system" << std::endl;
-        };
+        std::cout << "[PHYSICS] Applying gentler breakage force to subcube: (" 
+                  << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")" << std::endl;
         
         bool broken = chunk->breakSubcube(currentHoveredLocation.localPos, currentHoveredLocation.subcubePos, 
-                                         physicsWorld.get(), impulseForce, nullptr, transferCallback);
+                                         physicsWorld.get(), chunkManager.get(), impulseForce);
         if (broken) {
-            // No additional processing needed - transfer was handled directly by callback
-            // std::cout << "[SUBCUBE BREAKING] Successfully broke subcube at world pos: (" 
-            //           << currentHoveredLocation.worldPos.x << "," 
-            //           << currentHoveredLocation.worldPos.y << "," 
-            //           << currentHoveredLocation.worldPos.z << ") subcube: ("
-            //           << currentHoveredLocation.subcubePos.x << ","
-            //           << currentHoveredLocation.subcubePos.y << ","
-            //           << currentHoveredLocation.subcubePos.z << ")" << std::endl;
+            std::cout << "[SUBCUBE BREAKING] Successfully broke subcube and transferred to global system at world pos: (" 
+                      << currentHoveredLocation.worldPos.x << "," 
+                      << currentHoveredLocation.worldPos.y << "," 
+                      << currentHoveredLocation.worldPos.z << ") subcube: ("
+                      << currentHoveredLocation.subcubePos.x << ","
+                      << currentHoveredLocation.subcubePos.y << ","
+                      << currentHoveredLocation.subcubePos.z << ")" << std::endl;
                       
             // Use efficient selective update for subcube breaking
             if (chunkManager) {
                 chunkManager->updateAfterSubcubeBreak(currentHoveredLocation.worldPos, currentHoveredLocation.subcubePos);
             }
         } else {
-            //std::cout << "[SUBCUBE BREAKING] WARNING: Failed to break subcube" << std::endl;
+            std::cout << "[SUBCUBE BREAKING] WARNING: Failed to break subcube" << std::endl;
         }
     } else {
         // Check if cube is already subdivided
         if (chunk->getSubcubesAt(currentHoveredLocation.localPos).size() > 0) {
-            // std::cout << "[CUBE SUBDIVISION] Cube at world pos (" 
-            //           << currentHoveredLocation.worldPos.x << "," 
-            //           << currentHoveredLocation.worldPos.y << "," 
-            //           << currentHoveredLocation.worldPos.z << ") is already subdivided" << std::endl;
+            std::cout << "[CUBE SUBDIVISION] Cube at world pos (" 
+                      << currentHoveredLocation.worldPos.x << "," 
+                      << currentHoveredLocation.worldPos.y << "," 
+                      << currentHoveredLocation.worldPos.z << ") is already subdivided" << std::endl;
             return;
         }
         
@@ -1885,9 +1954,27 @@ void Application::breakHoveredCube() {
         return;
     }
     
+    // Calculate impulse force away from the camera direction
+    glm::vec3 impulseForce(0.0f, 2.0f, 0.0f); // Default upward force
+    
+    // Try to get a more interesting force direction based on camera position
+    glm::vec3 cubeWorldPos = glm::vec3(currentHoveredLocation.worldPos);
+    glm::vec3 forceDirection = normalize(cubeWorldPos - cameraPos);
+    
+    // Mix upward force with outward force for interesting breakage (gentler forces)
+    impulseForce = forceDirection * 1.5f + glm::vec3(0.0f, 2.5f, 0.0f); // Reduced from 4.0f and 6.0f
+    
+    std::cout << "[PHYSICS] Applying gentler breakage force to cube: (" 
+              << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")" << std::endl;
+    
     // Get the cube's original color before removing it
     const Cube* originalCube = chunk->getCubeAt(currentHoveredLocation.localPos);
-    glm::vec3 originalColor = originalCube ? originalCube->getOriginalColor() : glm::vec3(0.8f, 0.6f, 0.4f);
+    glm::vec3 originalColor = glm::vec3(0.8f, 0.6f, 0.4f); // Default color fallback
+    if (originalCube) {
+        originalColor = originalCube->getOriginalColor(); // Use original color, not hover-affected color
+        std::cout << "[COLOR] Preserving original cube color: (" 
+                  << originalColor.x << "," << originalColor.y << "," << originalColor.z << ")" << std::endl;
+    }
     
     // Remove the cube from the chunk
     bool removed = chunk->removeCube(currentHoveredLocation.localPos);
@@ -1896,52 +1983,134 @@ void Application::breakHoveredCube() {
         return;
     }
     
-    // Calculate positions for dynamic cube
-    glm::vec3 cubeWorldPos = glm::vec3(currentHoveredLocation.worldPos);
-    glm::vec3 physicsCenterPos = cubeWorldPos + glm::vec3(0.5f); // Convert corner to center position
+    // CRITICAL: Force immediate compound shape rebuild to remove static collision before spawning dynamic cube
+    // This prevents the +1.0 X-axis offset caused by collision recovery against the static compound shape
+    chunk->forcePhysicsRebuild();
     
-    // Select material based on position
+    // Create a dynamic cube at the EXACT original position
+    // TEST COORDINATE SYSTEM OFFSET - Based on user observation of consistent X/Z axis offset
+    // Try different offset patterns to isolate the issue
+    glm::vec3 cubeCornerPos = cubeWorldPos; // Corner position from raycast
+    
+    // COORDINATE SYSTEM FIX - Convert from corner-based to center-based coordinates
+    // Static cubes: render from corner (0,0,0 to 1,1,1 face offset)
+    // Dynamic cubes: render from center (-0.5,-0.5,-0.5 to 0.5,0.5,0.5 rotated offset)
+    // To visually align: dynamic center = static corner + 0.5
+    glm::vec3 physicsCenterPos = cubeCornerPos + glm::vec3(0.5f, 0.5f, 0.5f);
+    
+    std::cout << "[POSITION DEBUG] ===== COORDINATE SYSTEM CONVERSION =====" << std::endl;
+    std::cout << "[POSITION DEBUG] Static cube corner: (" 
+              << cubeWorldPos.x << ", " << cubeWorldPos.y << ", " << cubeWorldPos.z << ")" << std::endl;
+    std::cout << "[POSITION DEBUG] Dynamic cube center (corner + 0.5): (" 
+              << physicsCenterPos.x << ", " << physicsCenterPos.y << ", " << physicsCenterPos.z << ")" << std::endl;
+    std::cout << "[POSITION DEBUG] COORDINATE FIX: Converting from corner-based to center-based rendering" << std::endl;
+    
+    // TODO: Add UI to select material - for now cycle through materials based on position
     std::vector<std::string> materials = {"Wood", "Metal", "Glass", "Rubber", "Stone", "Ice", "Cork"};
     int materialIndex = (abs(static_cast<int>(cubeWorldPos.x) + static_cast<int>(cubeWorldPos.z))) % materials.size();
     std::string selectedMaterial = materials[materialIndex];
     
-    // Create dynamic cube and physics body
-    auto dynamicCube = std::make_unique<DynamicCube>(cubeWorldPos, originalColor, selectedMaterial);
-    btRigidBody* rigidBody = physicsWorld->createBreakawaCube(physicsCenterPos, glm::vec3(1.0f), selectedMaterial);
+    auto dynamicCube = std::make_unique<DynamicCube>(cubeCornerPos, originalColor, selectedMaterial);
+    
+    // Create physics body for the dynamic cube using breakaway function (with shrunk collision)
+    glm::vec3 cubeSize(1.0f); // Full cube size
+    btRigidBody* rigidBody = physicsWorld->createBreakawaCube(physicsCenterPos, cubeSize, selectedMaterial);
     dynamicCube->setRigidBody(rigidBody);
+    
+    // Check where the physics body actually ended up
+    if (rigidBody) {
+        btTransform transform = rigidBody->getWorldTransform();
+        btVector3 physicsPos = transform.getOrigin();
+        std::cout << "[POSITION DEBUG] Physics body created at: (" 
+                  << physicsPos.x() << ", " << physicsPos.y() << ", " << physicsPos.z() << ")" << std::endl;
+        std::cout << "[POSITION DEBUG] Position difference from intended: (" 
+                  << (physicsPos.x() - physicsCenterPos.x) << ", " 
+                  << (physicsPos.y() - physicsCenterPos.y) << ", " 
+                  << (physicsPos.z() - physicsCenterPos.z) << ")" << std::endl;
+    }
+    
+    // Get material properties for impulse scaling
+    static Physics::MaterialManager materialManager;
+    const auto& material = materialManager.getMaterial(selectedMaterial);
+    
+    // Apply material-specific impulse scaling (reduced for gentler breaking)
+    float impulseScale = material.breakForceMultiplier * 0.4f; // Reduce to 40% of original force
+    impulseForce *= impulseScale;
+    
+    std::cout << "[MATERIAL] Breaking cube with '" << selectedMaterial << "' material (reduced impulse scale: " 
+              << impulseScale << ")" << std::endl;
+    
+    // Set initial physics position to the exact center position
     dynamicCube->setPhysicsPosition(physicsCenterPos);
     
-    // Apply physics forces
-    if (rigidBody && !debugFlags.disableBreakingForces) {
-        // Calculate impulse force away from camera
-        glm::vec3 forceDirection = normalize(cubeWorldPos - cameraPos);
-        glm::vec3 impulseForce = forceDirection * 1.5f + glm::vec3(0.0f, 2.5f, 0.0f);
+    // COMPREHENSIVE POSITION TRACKING - Track exact coordinates through entire pipeline
+    glm::vec3 renderingPosition = dynamicCube->getPhysicsPosition();
+    std::cout << "[POSITION TRACK] ===== DYNAMIC CUBE POSITION TRACKING =====" << std::endl;
+    std::cout << "[POSITION TRACK] 1. Initial spawn position set: (" 
+              << physicsCenterPos.x << ", " << physicsCenterPos.y << ", " << physicsCenterPos.z << ")" << std::endl;
+    std::cout << "[POSITION TRACK] 2. Rendering position stored: (" 
+              << renderingPosition.x << ", " << renderingPosition.y << ", " << renderingPosition.z << ")" << std::endl;
+    std::cout << "[POSITION TRACK] 3. Position match: " << (renderingPosition == physicsCenterPos ? "YES" : "NO") << std::endl;
+    
+    // Track actual physics body position
+    if (rigidBody) {
+        btTransform transform = rigidBody->getWorldTransform();
+        btVector3 physicsBodyPos = transform.getOrigin();
+        std::cout << "[POSITION TRACK] 4. Physics body actual position: (" 
+                  << physicsBodyPos.x() << ", " << physicsBodyPos.y() << ", " << physicsBodyPos.z() << ")" << std::endl;
+        std::cout << "[POSITION TRACK] 5. Physics vs rendering diff: (" 
+                  << (physicsBodyPos.x() - renderingPosition.x) << ", " 
+                  << (physicsBodyPos.y() - renderingPosition.y) << ", " 
+                  << (physicsBodyPos.z() - renderingPosition.z) << ")" << std::endl;
+    }
+    
+    // Apply initial impulse force to make it "break" away (RE-ENABLED)
+    // Apply forces now that collision issues are resolved
+    if (rigidBody && glm::length(impulseForce) > 0.0f && !debugFlags.disableBreakingForces) {
+        btVector3 btImpulse(impulseForce.x, impulseForce.y, impulseForce.z);
+        rigidBody->applyCentralImpulse(btImpulse);
         
-        // Apply material-specific impulse scaling
-        static Physics::MaterialManager materialManager;
-        const auto& material = materialManager.getMaterial(selectedMaterial);
-        impulseForce *= material.breakForceMultiplier * 0.4f; // Reduced force for gentler breaking
-        
-        // Apply impulse and angular velocity
-        rigidBody->applyCentralImpulse(btVector3(impulseForce.x, impulseForce.y, impulseForce.z));
-        rigidBody->setAngularVelocity(btVector3(
-            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 4.0f,
+        // Add random angular velocity for tumbling effect (reduced intensity for realism)
+        btVector3 angularVelocity(
+            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 4.0f, // Reduced from 6.0f for more realistic tumbling
             (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 4.0f,
             (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 4.0f
-        ));
+        );
+        rigidBody->setAngularVelocity(angularVelocity);
+        
+        // Enable gravity for natural falling behavior
+        rigidBody->setGravity(btVector3(0, -9.81f, 0)); // Standard gravity
+        
+        std::cout << "[PHYSICS] Applied impulse (" << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z 
+                  << ") and angular velocity (" << angularVelocity.x() << "," << angularVelocity.y() << "," << angularVelocity.z() << ") with gravity enabled" << std::endl;
+    } else if (rigidBody) {
+        // If forces are disabled or no impulse, still enable gravity for natural falling
+        rigidBody->setGravity(btVector3(0, -9.81f, 0)); // Standard gravity
+        std::cout << "[PHYSICS] No impulse applied - enabled gravity only for natural falling" << std::endl;
     }
     
-    // Enable gravity for natural falling behavior
+    // Final position check after everything is set up
     if (rigidBody) {
-        rigidBody->setGravity(btVector3(0, -9.81f, 0));
+        btTransform finalTransform = rigidBody->getWorldTransform();
+        btVector3 finalPos = finalTransform.getOrigin();
+        std::cout << "[POSITION DEBUG] Final physics position: (" 
+                  << finalPos.x() << ", " << finalPos.y() << ", " << finalPos.z() << ")" << std::endl;
+        std::cout << "[POSITION DEBUG] ===== END POSITION ANALYSIS =====" << std::endl;
     }
     
-    // Finalize dynamic cube
+    // Mark as broken
     dynamicCube->breakApart();
+    
+    // Add to global dynamic cubes system
     chunkManager->addGlobalDynamicCube(std::move(dynamicCube));
     
-    // Use efficient selective update
+    // Use efficient selective update instead of marking entire chunk dirty
     chunkManager->updateAfterCubeBreak(currentHoveredLocation.worldPos);
+    
+    std::cout << "[CUBE BREAKING] Successfully broke cube at world pos: (" 
+              << currentHoveredLocation.worldPos.x << "," 
+              << currentHoveredLocation.worldPos.y << "," 
+              << currentHoveredLocation.worldPos.z << ") into dynamic cube" << std::endl;
     
     // Clear hover state
     hasHoveredCube = false;
@@ -2132,172 +2301,12 @@ void Application::renderPerformanceOverlay() {
     return;
 }
 
-void Application::updateCameraFrustum(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix) {
-    // Extract frustum planes from view-projection matrix
-    glm::mat4 viewProjection = projectionMatrix * viewMatrix;
-    cameraFrustum.extractFromMatrix(viewProjection);
-}
-
-std::vector<uint32_t> Application::getVisibleChunks() {
-    std::vector<uint32_t> visibleChunks;
-    
-    if (!chunkManager) {
-        return visibleChunks;
+void Application::setRenderDistance(float distance) {
+    if (distance != maxChunkRenderDistance) {
+        maxChunkRenderDistance = distance;
+        projectionMatrixNeedsUpdate = true; // Force projection matrix recalculation
+        std::cout << "Render distance updated to: " << distance << std::endl;
     }
-    
-    // Use configurable maximum render distance
-    float maxRenderDistanceSquared = maxChunkRenderDistance * maxChunkRenderDistance;
-    
-    // Performance counters for detailed statistics
-    uint32_t totalChunks = 0;
-    uint32_t distanceCulledChunks = 0;
-    uint32_t frustumCulledChunks = 0;
-    
-    // Get all chunks and test distance + frustum culling
-    for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
-        Chunk* chunk = chunkManager->chunks[i].get();
-        if (!chunk) continue;
-        
-        totalChunks++;
-        
-        // Calculate chunk AABB
-        glm::vec3 minBounds = chunk->getMinBounds();
-        glm::vec3 maxBounds = chunk->getMaxBounds();
-        glm::vec3 chunkCenter = (minBounds + maxBounds) * 0.5f;
-        
-        // Distance culling: Skip chunks too far from camera
-        glm::vec3 cameraToChunk = chunkCenter - cameraPos;
-        float distanceSquared = glm::dot(cameraToChunk, cameraToChunk);
-        
-        if (distanceSquared > maxRenderDistanceSquared) {
-            distanceCulledChunks++;
-            continue; // Skip this chunk - too far away
-        }
-        
-        // Create AABB object for frustum testing
-        Utils::AABB chunkAABB(minBounds, maxBounds);
-        
-        // Frustum culling: Test AABB against frustum
-        if (cameraFrustum.intersects(chunkAABB)) {
-            visibleChunks.push_back(static_cast<uint32_t>(i));
-        } else {
-            frustumCulledChunks++;
-        }
-    }
-    
-    // Store detailed statistics for debug output
-    static uint32_t s_lastTotalChunks = 0;
-    static uint32_t s_lastDistanceCulled = 0;
-    static uint32_t s_lastFrustumCulled = 0;
-    s_lastTotalChunks = totalChunks;
-    s_lastDistanceCulled = distanceCulledChunks;
-    s_lastFrustumCulled = frustumCulledChunks;
-    
-    return visibleChunks;
-}
-
-std::vector<uint32_t> Application::getVisibleChunksOptimized() {
-    std::vector<uint32_t> visibleChunks;
-    
-    if (!chunkManager) {
-        return visibleChunks;
-    }
-    
-    // OPTIMIZATION: Build chunk-to-index map for O(1) lookups
-    // This replaces the O(n) linear search for each visible chunk
-    static std::unordered_map<const Chunk*, uint32_t> chunkToIndexMap;
-    static bool indexMapBuilt = false;
-    
-    if (!indexMapBuilt || chunkToIndexMap.size() != chunkManager->chunks.size()) {
-        // Rebuild map when chunks change
-        chunkToIndexMap.clear();
-        for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
-            chunkToIndexMap[chunkManager->chunks[i].get()] = static_cast<uint32_t>(i);
-        }
-        indexMapBuilt = true;
-    }
-    
-    // Calculate camera's chunk coordinate and render radius in chunks
-    const int CHUNK_SIZE = 32; // Each chunk is 32x32x32 cubes
-    glm::ivec3 cameraChunkCoord = glm::ivec3(
-        static_cast<int>(std::floor(cameraPos.x / CHUNK_SIZE)),
-        static_cast<int>(std::floor(cameraPos.y / CHUNK_SIZE)),
-        static_cast<int>(std::floor(cameraPos.z / CHUNK_SIZE))
-    );
-    
-    // Calculate render radius in chunks
-    int renderRadiusChunks = static_cast<int>(std::ceil(maxChunkRenderDistance / CHUNK_SIZE));
-    
-    // Performance counters
-    uint32_t queriedChunks = 0;
-    uint32_t distanceCulledChunks = 0;
-    uint32_t frustumCulledChunks = 0;
-    uint32_t foundChunks = 0;
-    
-    // Spatial query: Only check chunks within render radius
-    for (int dx = -renderRadiusChunks; dx <= renderRadiusChunks; ++dx) {
-        for (int dy = -renderRadiusChunks; dy <= renderRadiusChunks; ++dy) {
-            for (int dz = -renderRadiusChunks; dz <= renderRadiusChunks; ++dz) {
-                glm::ivec3 chunkCoord = cameraChunkCoord + glm::ivec3(dx, dy, dz);
-                queriedChunks++;
-                
-                // O(1) hash map lookup instead of linear search
-                auto it = chunkManager->chunkMap.find(chunkCoord);
-                if (it == chunkManager->chunkMap.end()) {
-                    continue; // Chunk doesn't exist at this coordinate
-                }
-                
-                Chunk* chunk = it->second;
-                if (!chunk) continue;
-                
-                foundChunks++;
-                
-                // Calculate chunk AABB
-                glm::vec3 minBounds = chunk->getMinBounds();
-                glm::vec3 maxBounds = chunk->getMaxBounds();
-                glm::vec3 chunkCenter = (minBounds + maxBounds) * 0.5f;
-                
-                // Distance culling: Skip chunks too far from camera
-                glm::vec3 cameraToChunk = chunkCenter - cameraPos;
-                float distanceSquared = glm::dot(cameraToChunk, cameraToChunk);
-                float maxDistanceSquared = maxChunkRenderDistance * maxChunkRenderDistance;
-                
-                if (distanceSquared > maxDistanceSquared) {
-                    distanceCulledChunks++;
-                    continue;
-                }
-                
-                // Create AABB object for frustum testing
-                Utils::AABB chunkAABB(minBounds, maxBounds);
-                
-                // Frustum culling: Test AABB against frustum
-                if (cameraFrustum.intersects(chunkAABB)) {
-                    // OPTIMIZATION: O(1) chunk index lookup using pre-built map
-                    auto indexIt = chunkToIndexMap.find(chunk);
-                    if (indexIt != chunkToIndexMap.end()) {
-                        visibleChunks.push_back(indexIt->second);
-                    }
-                } else {
-                    frustumCulledChunks++;
-                }
-            }
-        }
-    }
-    
-    // Debug output every 60 frames
-    static int debugCounter = 0;
-    if (++debugCounter >= 60) {
-        debugCounter = 0;
-        // std::cout << "[OPTIMIZED CHUNK CULLING] Queried: " << queriedChunks 
-        //           << ", Found: " << foundChunks 
-        //           << ", Visible: " << visibleChunks.size()
-        //           << ", Distance culled: " << distanceCulledChunks
-        //           << ", Frustum culled: " << frustumCulledChunks
-        //           << ", Camera chunk: (" << cameraChunkCoord.x << "," << cameraChunkCoord.y << "," << cameraChunkCoord.z << ")"
-        //           << ", Render radius: " << renderRadiusChunks << " chunks" << std::endl;
-    }
-    
-    return visibleChunks;
 }
 
 

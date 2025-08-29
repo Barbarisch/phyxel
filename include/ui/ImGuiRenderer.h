@@ -41,7 +41,8 @@ public:
         const std::vector<DetailedFrameTiming>& detailedTimings,
         Physics::PhysicsWorld* physicsWorld,
         const glm::vec3& cameraPos,
-        uint64_t frameCount
+        uint64_t frameCount,
+        float& renderDistance  // Reference to allow modification
     );
 
 private:

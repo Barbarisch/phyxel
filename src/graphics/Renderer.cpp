@@ -251,7 +251,7 @@ void Renderer::renderFrame(
             glm::radians(45.0f), 
             (float)windowWidth / (float)windowHeight, 
             0.1f, 
-            200.0f  // Increased far plane for large scene
+            renderDistance  // Use configurable render distance
         );
         cachedProjectionMatrix[1][1] *= -1; // Flip Y for Vulkan
         projectionMatrixNeedsUpdate = false;
@@ -517,6 +517,11 @@ void Renderer::updateCameraFrustum(const glm::mat4& viewMatrix, const glm::mat4&
     // Extract frustum planes from view-projection matrix
     glm::mat4 viewProjection = projectionMatrix * viewMatrix;
     cameraFrustum.extractFromMatrix(viewProjection);
+    
+    // Extract camera position from view matrix for distance culling
+    // Camera position is the inverse translation of the view matrix
+    glm::mat4 invView = glm::inverse(viewMatrix);
+    cameraPosition = glm::vec3(invView[3]);
 }
 
 std::vector<uint32_t> Renderer::getVisibleChunks(ChunkManager* chunkManager) {
@@ -526,21 +531,59 @@ std::vector<uint32_t> Renderer::getVisibleChunks(ChunkManager* chunkManager) {
         return visibleChunks;
     }
     
-    // Get all chunks and test their AABBs against the camera frustum
-    for (uint32_t i = 0; i < chunkManager->chunks.size(); ++i) {
-        Chunk* chunk = chunkManager->chunks[i].get();
-        if (!chunk) continue;
-        
-        // Calculate chunk AABB
-        glm::vec3 minBounds = chunk->getMinBounds();
-        glm::vec3 maxBounds = chunk->getMaxBounds();
-        
-        // Create AABB object for frustum testing
-        Utils::AABB chunkAABB(minBounds, maxBounds);
-        
-        // Test AABB against frustum
-        if (cameraFrustum.intersects(chunkAABB)) {
-            visibleChunks.push_back(i);
+    // Calculate camera chunk coordinate
+    glm::ivec3 cameraChunkCoord = ChunkManager::worldToChunkCoord(glm::ivec3(cameraPosition));
+    
+    // Calculate how many chunks to check in each direction based on render distance
+    // Each chunk is 32x32x32, so we need to check a radius of chunks
+    int chunkRadius = static_cast<int>(std::ceil(renderDistance / 32.0f)) + 1; // +1 for safety margin
+    
+    // Only iterate through chunks near the camera (scalable for infinite worlds)
+    for (int dx = -chunkRadius; dx <= chunkRadius; dx++) {
+        for (int dy = -chunkRadius; dy <= chunkRadius; dy++) {
+            for (int dz = -chunkRadius; dz <= chunkRadius; dz++) {
+                glm::ivec3 chunkCoord = cameraChunkCoord + glm::ivec3(dx, dy, dz);
+                
+                // Use spatial hash map for O(1) chunk lookup
+                auto it = chunkManager->chunkMap.find(chunkCoord);
+                if (it == chunkManager->chunkMap.end()) {
+                    continue; // Chunk doesn't exist at this coordinate
+                }
+                
+                Chunk* chunk = it->second;
+                if (!chunk) continue;
+                
+                // Find chunk index in the chunks vector for the return value
+                uint32_t chunkIndex = 0;
+                bool found = false;
+                for (uint32_t i = 0; i < chunkManager->chunks.size(); ++i) {
+                    if (chunkManager->chunks[i].get() == chunk) {
+                        chunkIndex = i;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) continue;
+                
+                // Calculate chunk AABB
+                glm::vec3 minBounds = chunk->getMinBounds();
+                glm::vec3 maxBounds = chunk->getMaxBounds();
+                glm::vec3 chunkCenter = (minBounds + maxBounds) * 0.5f;
+                
+                // Distance-based culling (early rejection for performance)
+                float distanceToCamera = glm::length(chunkCenter - cameraPosition);
+                if (distanceToCamera > renderDistance) {
+                    continue; // Skip this chunk - too far away
+                }
+                
+                // Create AABB object for frustum testing
+                Utils::AABB chunkAABB(minBounds, maxBounds);
+                
+                // Test AABB against frustum
+                if (cameraFrustum.intersects(chunkAABB)) {
+                    visibleChunks.push_back(chunkIndex);
+                }
+            }
         }
     }
     

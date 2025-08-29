@@ -3,15 +3,13 @@
 #include "Types.h"
 #include "core/Subcube.h"
 #include <vector>
-#include <functional>
-#include <memory>
-#include <unordered_map>
 #include <vulkan/vulkan.h>
 
 // Bullet Physics forward declarations (global namespace)
 class btRigidBody;
 class btCollisionShape;
 class btCompoundShape;
+class btTriangleMesh; // Bullet forward declaration
 
 namespace VulkanCube {
 
@@ -41,6 +39,7 @@ private:
     // Buffer capacity management
     static constexpr size_t DEFAULT_BUFFER_CAPACITY = 25000;   // Realistic capacity based on testing (8x current usage)
     size_t bufferCapacity = 0;                     // Current allocated buffer capacity
+    size_t maxInstancesUsed = 0;                   // Peak usage tracking for analysis
     
     // Vulkan device handles (set by ChunkManager)
     VkDevice device = VK_NULL_HANDLE;
@@ -48,11 +47,8 @@ private:
     
     // Physics body for static geometry (compound shape made from individual cube collision boxes)
     mutable btRigidBody* chunkPhysicsBody = nullptr;
-    mutable btCompoundShape* chunkCollisionShape = nullptr;  // Changed from btCollisionShape* to btCompoundShape* for direct access
-    
-    // Collision shape optimization: Track mapping from positions to collision shape indices
-    std::unordered_map<glm::ivec3, int, ivec3_hash> subcubeToCollisionIndex;
-    std::unordered_map<glm::ivec3, int, ivec3_hash> cubeToCollisionIndex;  // Track cube collision indices for efficient removal
+    mutable btCollisionShape* chunkCollisionShape = nullptr;
+    mutable btTriangleMesh* chunkTriangleMesh = nullptr; // For BVH triangle mesh shape (option B)
 
 public:
     // Constructor
@@ -76,17 +72,17 @@ public:
     glm::ivec3 getWorldOrigin() const { return worldOrigin; }
     size_t getCubeCount() const { return cubes.size(); }
     size_t getStaticSubcubeCount() const { return staticSubcubes.size(); }
-    size_t getTotalSubcubeCount() const { return staticSubcubes.size(); }     // Only static subcubes in chunks
+    size_t getTotalSubcubeCount() const { return staticSubcubes.size(); }     // Only static subcubes remain in chunks
     uint32_t getNumInstances() const { return numInstances; }
     bool getNeedsUpdate() const { return needsUpdate; }
     void setNeedsUpdate(bool needsUpdate) { this->needsUpdate = needsUpdate; }
     
-    // Frustum culling support
-    glm::vec3 getMinBounds() const { return glm::vec3(worldOrigin); }
-    glm::vec3 getMaxBounds() const { return glm::vec3(worldOrigin) + glm::vec3(32.0f); }
-    
     // Buffer capacity analysis
     size_t getBufferCapacity() const { return bufferCapacity; }
+    size_t getMaxInstancesUsed() const { return maxInstancesUsed; }
+    float getBufferUtilization() const { 
+        return bufferCapacity > 0 ? float(faces.size()) / float(bufferCapacity) * 100.0f : 0.0f; 
+    }
     
     // Cube access
     Cube* getCubeAt(const glm::ivec3& localPos);
@@ -98,8 +94,9 @@ public:
     Subcube* getSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos);
     const Subcube* getSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const;
     std::vector<Subcube*> getSubcubesAt(const glm::ivec3& localPos);
+    std::vector<Subcube*> getStaticSubcubesAt(const glm::ivec3& localPos);
     
-    // Physics-related subcube access (for global transfer system)
+    // Physics-related subcube access (legacy for transfer process)
     const std::vector<Subcube*>& getStaticSubcubes() const { return staticSubcubes; }
     
     // Cube manipulation
@@ -114,11 +111,10 @@ public:
     bool clearSubdivisionAt(const glm::ivec3& localPos);       // Remove all subcubes and restore cube
     
     // Physics-related subcube manipulation
-    bool breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos,  // Move subcube from static to dynamic (direct to global)
+    bool breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos,  // Move subcube from static to global dynamic system
                      class Physics::PhysicsWorld* physicsWorld = nullptr, 
-                     const glm::vec3& impulseForce = glm::vec3(0.0f),
-                     class ChunkManager* chunkManager = nullptr,               // For direct global transfer (avoids staging)
-                     std::function<void(std::unique_ptr<Subcube>)> transferCallback = nullptr); // REFACTOR: Direct transfer callback
+                     class ChunkManager* chunkManager = nullptr,
+                     const glm::vec3& impulseForce = glm::vec3(0.0f));
     
     // Chunk operations
     void populateWithCubes();                      // Fill chunk with 32x32x32 cubes
@@ -134,6 +130,9 @@ public:
     void cleanupVulkanResources();
     void ensureBufferCapacity(size_t requiredInstances);  // Handle buffer reallocation if needed
     
+    // Buffer utilization analysis
+    void logBufferUtilization() const;
+    
     // Physics management
     void setPhysicsWorld(class Physics::PhysicsWorld* world) { physicsWorld = world; }
     void createChunkPhysicsBody();                    // Create compound shape physics body for static geometry
@@ -142,10 +141,9 @@ public:
     void cleanupPhysicsResources();                   // Clean up physics bodies
     class btRigidBody* getChunkPhysicsBody() const { return chunkPhysicsBody; }
     
-    // Optimized collision shape management
-    void removeCollisionShapeByIndex(int collisionIndex);    // Efficiently remove single collision shape
-    void updateCollisionIndexMapping(int removedIndex);      // Update mappings after removal
-    void rebuildCollisionIndexMapping();                     // Rebuild entire mapping (for batch operations)
+    // Bounding box access for culling
+    glm::vec3 getMinBounds() const;
+    glm::vec3 getMaxBounds() const;
     
     // Utility functions
     static size_t localToIndex(const glm::ivec3& localPos);

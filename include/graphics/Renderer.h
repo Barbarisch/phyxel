@@ -63,6 +63,11 @@ public:
 
     // Rendering configuration
     void setProjectionMatrixNeedsUpdate() { projectionMatrixNeedsUpdate = true; }
+    void setRenderDistance(float distance) { 
+        renderDistance = distance; 
+        projectionMatrixNeedsUpdate = true; 
+    }
+    float getRenderDistance() const { return renderDistance; }
 
 private:
     // Core Vulkan systems
@@ -82,6 +87,7 @@ private:
     // Cached matrices
     glm::mat4 cachedProjectionMatrix;
     bool projectionMatrixNeedsUpdate = true;
+    float renderDistance = 96.0f;  // Default render distance
 
     // Performance tracking
     FrameTiming frameTiming;
@@ -91,6 +97,7 @@ private:
 
     // Frustum culling
     Utils::Frustum cameraFrustum;
+    glm::vec3 cameraPosition;  // Store camera position for distance culling
     void updateCameraFrustum(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix);
     std::vector<uint32_t> getVisibleChunks(ChunkManager* chunkManager);
 
