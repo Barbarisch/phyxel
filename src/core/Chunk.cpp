@@ -225,6 +225,24 @@ void Chunk::populateWithCubes() {
     //           << ") with " << cubes.size() << " cubes" << std::endl;
 }
 
+void Chunk::initializeForLoading() {
+    cubes.clear();
+    faces.clear();
+    
+    // Initialize sparse cube storage (32x32x32 array with nullptr entries)
+    cubes.resize(32 * 32 * 32, nullptr);
+    
+    // Clear any existing subcubes
+    for (Subcube* subcube : staticSubcubes) {
+        delete subcube;
+    }
+    staticSubcubes.clear();
+    
+    std::cout << "[CHUNK] Initialized chunk at origin (" 
+              << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z 
+              << ") for database loading" << std::endl;
+}
+
 void Chunk::rebuildFaces() {
     // std::cout << "[CHUNK] *** STARTING rebuildFaces() *** Current subcubes: " << subcubes.size() << std::endl;
     faces.clear();

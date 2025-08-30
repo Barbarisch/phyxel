@@ -12,6 +12,10 @@ namespace Physics {
 }
 
 namespace VulkanCube {
+    class WorldStorage; // Forward declaration
+}
+
+namespace VulkanCube {
 
 // Custom hash function for glm::ivec3 to use as key in unordered_map
 struct ChunkCoordHash {
@@ -49,14 +53,40 @@ public:
     // Physics world for proper cleanup of dynamic objects
     Physics::PhysicsWorld* physicsWorld = nullptr;
     
+    // World storage for persistent chunk data
+    WorldStorage* worldStorage = nullptr;
+    
+    // Chunk streaming settings
+    float loadDistance = 160.0f;   // Distance to load chunks (5 chunks * 32 units)
+    float unloadDistance = 224.0f; // Distance to unload chunks (7 chunks * 32 units)
+    glm::vec3 playerPosition = glm::vec3(0.0f); // Player position for streaming
+    
     ChunkManager() = default;
-    ~ChunkManager() { cleanup(); }
+    ~ChunkManager(); // Destructor needs to be defined in .cpp file due to unique_ptr with forward declaration
     
     // Initialize with Vulkan device handles
     void initialize(VkDevice device, VkPhysicalDevice physicalDevice);
     
     // Set physics world for proper cleanup of dynamic objects
     void setPhysicsWorld(Physics::PhysicsWorld* physics);
+    
+    // World storage management
+    bool initializeWorldStorage(const std::string& worldPath);
+    void setPlayerPosition(const glm::vec3& position) { playerPosition = position; }
+    
+    // Chunk streaming for infinite worlds
+    void updateChunkStreaming(); // Call every frame to load/unload chunks based on player position
+    void loadChunksAroundPosition(const glm::vec3& position, float radius);
+    void unloadDistantChunks(const glm::vec3& position, float radius);
+    
+    // World persistence
+    bool saveChunk(Chunk* chunk);
+    bool saveAllChunks();
+    bool loadChunk(const glm::ivec3& chunkCoord);
+    bool generateOrLoadChunk(const glm::ivec3& chunkCoord); // Generate if doesn't exist, load if it does
+    
+    // Post-loading face rebuilding (call after all chunks are loaded)
+    void rebuildAllChunkFaces(); // Rebuild faces for all chunks with proper cross-chunk culling
     
     // Create multiple chunks at specified world origins
     void createChunks(const std::vector<glm::ivec3>& origins);

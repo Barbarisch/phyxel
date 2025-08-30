@@ -1,0 +1,314 @@
+#include "core/WorldGenerator.h"
+#include "core/Chunk.h"
+#include "core/Cube.h"
+#include <random>
+#include <cmath>
+#include <iostream>
+
+namespace VulkanCube {
+
+WorldGenerator::WorldGenerator(GenerationType type, uint32_t seed) 
+    : generationType(type), seed(seed) {
+}
+
+void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
+    // Clear existing content
+    // Note: You'll need to add a clearCubes method to Chunk class
+    
+    GenerationFunction generator;
+    
+    switch (generationType) {
+        case GenerationType::Random:
+            generator = [this](const glm::ivec3& coord, const glm::ivec3& local, glm::vec3& color) {
+                return generateRandom(coord, local, color);
+            };
+            break;
+        case GenerationType::Perlin:
+            generator = [this](const glm::ivec3& coord, const glm::ivec3& local, glm::vec3& color) {
+                return generatePerlin(coord, local, color);
+            };
+            break;
+        case GenerationType::Flat:
+            generator = [this](const glm::ivec3& coord, const glm::ivec3& local, glm::vec3& color) {
+                return generateFlat(coord, local, color);
+            };
+            break;
+        case GenerationType::Mountains:
+            generator = [this](const glm::ivec3& coord, const glm::ivec3& local, glm::vec3& color) {
+                return generateMountains(coord, local, color);
+            };
+            break;
+        case GenerationType::Caves:
+            generator = [this](const glm::ivec3& coord, const glm::ivec3& local, glm::vec3& color) {
+                return generateCaves(coord, local, color);
+            };
+            break;
+        case GenerationType::City:
+            generator = [this](const glm::ivec3& coord, const glm::ivec3& local, glm::vec3& color) {
+                return generateCity(coord, local, color);
+            };
+            break;
+        case GenerationType::Custom:
+            generator = customGenerator;
+            break;
+    }
+    
+    if (!generator) {
+        std::cerr << "[WORLD_GENERATOR] No valid generator function!" << std::endl;
+        return;
+    }
+    
+    // Generate cubes using the selected algorithm
+    for (int x = 0; x < 32; ++x) {
+        for (int y = 0; y < 32; ++y) {
+            for (int z = 0; z < 32; ++z) {
+                glm::ivec3 localPos(x, y, z);
+                glm::vec3 color;
+                
+                if (generator(chunkCoord, localPos, color)) {
+                    chunk.addCube(localPos, color);
+                }
+            }
+        }
+    }
+    
+    std::cout << "[WORLD_GENERATOR] Generated chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z 
+              << ") with type " << static_cast<int>(generationType) << std::endl;
+}
+
+bool WorldGenerator::generateRandom(const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor) {
+    // Use chunk coordinate and local position to create deterministic randomness
+    std::mt19937 gen(seed + hash(chunkCoord.x, chunkCoord.y, chunkCoord.z) + hash(localPos.x, localPos.y, localPos.z));
+    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+    
+    // 70% chance of having a cube
+    if (dist(gen) > 0.3f) {
+        outColor = glm::vec3(dist(gen), dist(gen), dist(gen));
+        return true;
+    }
+    return false;
+}
+
+bool WorldGenerator::generatePerlin(const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor) {
+    // Convert to world coordinates
+    glm::vec3 worldPos = glm::vec3(chunkCoord * 32 + localPos);
+    
+    // Generate height map using Perlin noise
+    float height = perlinNoise3D(worldPos.x * terrainParams.frequency, 
+                                 0.0f, 
+                                 worldPos.z * terrainParams.frequency,
+                                 terrainParams.octaves,
+                                 terrainParams.persistence,
+                                 terrainParams.lacunarity) * terrainParams.heightScale;
+    
+    // Add some base level
+    height += 16.0f;
+    
+    // Create cube if current position is below height
+    if (worldPos.y <= height) {
+        outColor = getTerrainColor(height, worldPos.y);
+        return true;
+    }
+    
+    return false;
+}
+
+bool WorldGenerator::generateFlat(const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor) {
+    glm::vec3 worldPos = glm::vec3(chunkCoord * 32 + localPos);
+    
+    // Flat world at Y=16
+    if (worldPos.y <= 16.0f) {
+        if (worldPos.y == 16.0f) {
+            outColor = glm::vec3(0.2f, 0.8f, 0.2f); // Grass green
+        } else if (worldPos.y >= 13.0f) {
+            outColor = glm::vec3(0.4f, 0.3f, 0.1f); // Dirt brown
+        } else {
+            outColor = glm::vec3(0.5f, 0.5f, 0.5f); // Stone gray
+        }
+        return true;
+    }
+    
+    return false;
+}
+
+bool WorldGenerator::generateMountains(const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor) {
+    glm::vec3 worldPos = glm::vec3(chunkCoord * 32 + localPos);
+    
+    // Use multiple noise octaves for mountainous terrain
+    float height = perlinNoise3D(worldPos.x * 0.01f, 0.0f, worldPos.z * 0.01f, 6, 0.7f, 2.0f) * 40.0f;
+    height += perlinNoise3D(worldPos.x * 0.03f, 0.0f, worldPos.z * 0.03f, 4, 0.5f, 2.0f) * 20.0f;
+    height += 20.0f; // Base level
+    
+    if (worldPos.y <= height) {
+        outColor = getTerrainColor(height, worldPos.y);
+        return true;
+    }
+    
+    return false;
+}
+
+bool WorldGenerator::generateCaves(const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor) {
+    glm::vec3 worldPos = glm::vec3(chunkCoord * 32 + localPos);
+    
+    // Base terrain
+    float height = perlinNoise3D(worldPos.x * terrainParams.frequency, 
+                                 0.0f, 
+                                 worldPos.z * terrainParams.frequency,
+                                 terrainParams.octaves,
+                                 terrainParams.persistence,
+                                 terrainParams.lacunarity) * terrainParams.heightScale + 16.0f;
+    
+    bool isGround = worldPos.y <= height;
+    
+    if (isGround && worldPos.y < height - 2.0f) { // Only create caves underground
+        // 3D cave noise
+        float caveNoise = perlinNoise3D(worldPos.x * 0.05f, worldPos.y * 0.05f, worldPos.z * 0.05f, 3, 0.5f, 2.0f);
+        
+        // Create cave if noise is above threshold
+        if (caveNoise > terrainParams.caveThreshold) {
+            return false; // Empty space (cave)
+        }
+    }
+    
+    if (isGround) {
+        outColor = getTerrainColor(height, worldPos.y, worldPos.y < height - 2.0f);
+        return true;
+    }
+    
+    return false;
+}
+
+bool WorldGenerator::generateCity(const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor) {
+    glm::vec3 worldPos = glm::vec3(chunkCoord * 32 + localPos);
+    
+    // Flat ground first
+    if (worldPos.y <= 15.0f) {
+        outColor = glm::vec3(0.3f, 0.3f, 0.3f); // Concrete gray
+        return true;
+    }
+    
+    // Building generation using grid pattern
+    int buildingX = static_cast<int>(worldPos.x / 16) * 16; // 16x16 building plots
+    int buildingZ = static_cast<int>(worldPos.z / 16) * 16;
+    
+    // Use building position as seed for height
+    std::mt19937 gen(seed + hash(buildingX, 0, buildingZ));
+    std::uniform_int_distribution<int> heightDist(20, 60);
+    int buildingHeight = heightDist(gen);
+    
+    // Check if we're in the building area (leave some space for roads)
+    bool inBuildingX = (static_cast<int>(worldPos.x) % 16) >= 2 && (static_cast<int>(worldPos.x) % 16) <= 13;
+    bool inBuildingZ = (static_cast<int>(worldPos.z) % 16) >= 2 && (static_cast<int>(worldPos.z) % 16) <= 13;
+    
+    if (inBuildingX && inBuildingZ && worldPos.y <= buildingHeight && worldPos.y > 15) {
+        // Building color based on height
+        float colorVariation = static_cast<float>(gen()) / static_cast<float>(gen.max());
+        outColor = glm::vec3(0.6f + colorVariation * 0.3f, 0.6f + colorVariation * 0.2f, 0.6f + colorVariation * 0.3f);
+        return true;
+    }
+    
+    return false;
+}
+
+glm::vec3 WorldGenerator::getTerrainColor(float height, float worldY, bool isCave) {
+    if (isCave) {
+        return glm::vec3(0.3f, 0.2f, 0.1f); // Cave brown
+    }
+    
+    if (worldY >= height - 1.0f) {
+        // Surface - grass
+        return glm::vec3(0.2f, 0.8f, 0.2f);
+    } else if (worldY >= height - 4.0f) {
+        // Dirt layer
+        return glm::vec3(0.4f, 0.3f, 0.1f);
+    } else if (worldY >= terrainParams.stoneLevel) {
+        // Stone
+        return glm::vec3(0.5f, 0.5f, 0.5f);
+    } else {
+        // Deep stone (darker)
+        return glm::vec3(0.3f, 0.3f, 0.3f);
+    }
+}
+
+float WorldGenerator::perlinNoise3D(float x, float y, float z, int octaves, float persistence, float lacunarity) {
+    float total = 0.0f;
+    float frequency = 1.0f;
+    float amplitude = 1.0f;
+    float maxValue = 0.0f;
+    
+    for (int i = 0; i < octaves; ++i) {
+        total += noise3D(x * frequency, y * frequency, z * frequency) * amplitude;
+        maxValue += amplitude;
+        amplitude *= persistence;
+        frequency *= lacunarity;
+    }
+    
+    return total / maxValue;
+}
+
+float WorldGenerator::noise3D(float x, float y, float z) {
+    // Simple 3D noise implementation (can be replaced with better implementation)
+    int xi = static_cast<int>(std::floor(x)) & 255;
+    int yi = static_cast<int>(std::floor(y)) & 255;
+    int zi = static_cast<int>(std::floor(z)) & 255;
+    
+    float xf = x - std::floor(x);
+    float yf = y - std::floor(y);
+    float zf = z - std::floor(z);
+    
+    float u = fade(xf);
+    float v = fade(yf);
+    float w = fade(zf);
+    
+    int aaa = hash(xi, yi, zi);
+    int aba = hash(xi, yi + 1, zi);
+    int aab = hash(xi, yi, zi + 1);
+    int abb = hash(xi, yi + 1, zi + 1);
+    int baa = hash(xi + 1, yi, zi);
+    int bba = hash(xi + 1, yi + 1, zi);
+    int bab = hash(xi + 1, yi, zi + 1);
+    int bbb = hash(xi + 1, yi + 1, zi + 1);
+    
+    float x1 = lerp(grad(aaa, xf, yf, zf), grad(baa, xf - 1, yf, zf), u);
+    float x2 = lerp(grad(aba, xf, yf - 1, zf), grad(bba, xf - 1, yf - 1, zf), u);
+    float y1 = lerp(x1, x2, v);
+    
+    x1 = lerp(grad(aab, xf, yf, zf - 1), grad(bab, xf - 1, yf, zf - 1), u);
+    x2 = lerp(grad(abb, xf, yf - 1, zf - 1), grad(bbb, xf - 1, yf - 1, zf - 1), u);
+    float y2 = lerp(x1, x2, v);
+    
+    return lerp(y1, y2, w);
+}
+
+float WorldGenerator::fade(float t) {
+    return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
+float WorldGenerator::lerp(float a, float b, float t) {
+    return a + t * (b - a);
+}
+
+float WorldGenerator::grad(int hash, float x, float y, float z) {
+    int h = hash & 15;
+    float u = h < 8 ? x : y;
+    float v = h < 4 ? y : h == 12 || h == 14 ? x : z;
+    return ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v);
+}
+
+int WorldGenerator::hash(int x, int y, int z) {
+    x = ((x >> 16) ^ x) * 0x45d9f3b;
+    x = ((x >> 16) ^ x) * 0x45d9f3b;
+    x = (x >> 16) ^ x;
+    
+    y = ((y >> 16) ^ y) * 0x45d9f3b;
+    y = ((y >> 16) ^ y) * 0x45d9f3b;
+    y = (y >> 16) ^ y;
+    
+    z = ((z >> 16) ^ z) * 0x45d9f3b;
+    z = ((z >> 16) ^ z) * 0x45d9f3b;
+    z = (z >> 16) ^ z;
+    
+    return (x ^ y ^ z) + seed;
+}
+
+} // namespace VulkanCube

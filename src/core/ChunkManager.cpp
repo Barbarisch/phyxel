@@ -1,4 +1,5 @@
 #include "core/ChunkManager.h"
+#include "core/WorldStorage.h"
 #include "physics/PhysicsWorld.h"
 #include <stdexcept>
 #include <cstring>
@@ -12,6 +13,13 @@
 
 namespace VulkanCube {
 
+ChunkManager::~ChunkManager() {
+    cleanup();
+    // Clean up world storage
+    delete worldStorage;
+    worldStorage = nullptr;
+}
+
 void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
     device = dev;
     physicalDevice = physDev;
@@ -20,6 +28,181 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
 void ChunkManager::setPhysicsWorld(Physics::PhysicsWorld* physics) {
     physicsWorld = physics;
     std::cout << "[CHUNK MANAGER] Physics world set for proper dynamic object cleanup" << std::endl;
+}
+
+bool ChunkManager::initializeWorldStorage(const std::string& worldPath) {
+    worldStorage = new WorldStorage(worldPath);
+    if (!worldStorage->initialize()) {
+        std::cerr << "[CHUNK MANAGER] Failed to initialize world storage at: " << worldPath << std::endl;
+        delete worldStorage;
+        worldStorage = nullptr;
+        return false;
+    }
+    
+    std::cout << "[CHUNK MANAGER] World storage initialized: " << worldPath << std::endl;
+    return true;
+}
+
+void ChunkManager::updateChunkStreaming() {
+    if (!worldStorage) return;
+    
+    // Load chunks around player
+    loadChunksAroundPosition(playerPosition, loadDistance);
+    
+    // Unload distant chunks
+    unloadDistantChunks(playerPosition, unloadDistance);
+}
+
+void ChunkManager::loadChunksAroundPosition(const glm::vec3& position, float radius) {
+    glm::ivec3 centerChunk = worldToChunkCoord(glm::ivec3(position));
+    int chunkRadius = static_cast<int>(std::ceil(radius / 32.0f));
+    
+    for (int dx = -chunkRadius; dx <= chunkRadius; ++dx) {
+        for (int dy = -chunkRadius; dy <= chunkRadius; ++dy) {
+            for (int dz = -chunkRadius; dz <= chunkRadius; ++dz) {
+                glm::ivec3 chunkCoord = centerChunk + glm::ivec3(dx, dy, dz);
+                
+                // Check if chunk is within radius
+                glm::vec3 chunkCenter = glm::vec3(chunkCoordToOrigin(chunkCoord)) + glm::vec3(16.0f);
+                float distance = glm::length(chunkCenter - position);
+                
+                if (distance <= radius && !getChunkAtCoord(chunkCoord)) {
+                    // Try to load chunk from storage, or generate if it doesn't exist
+                    generateOrLoadChunk(chunkCoord);
+                }
+            }
+        }
+    }
+}
+
+void ChunkManager::unloadDistantChunks(const glm::vec3& position, float radius) {
+    auto it = chunks.begin();
+    while (it != chunks.end()) {
+        glm::vec3 chunkCenter = glm::vec3((*it)->getWorldOrigin()) + glm::vec3(16.0f);
+        float distance = glm::length(chunkCenter - position);
+        
+        if (distance > radius) {
+            // Save chunk before unloading
+            if (worldStorage) {
+                saveChunk(it->get());
+            }
+            
+            // Remove from chunk map
+            glm::ivec3 chunkCoord = worldToChunkCoord((*it)->getWorldOrigin());
+            chunkMap.erase(chunkCoord);
+            
+            // Erase chunk from vector
+            it = chunks.erase(it);
+            std::cout << "[CHUNK MANAGER] Unloaded distant chunk at: " << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << std::endl;
+        } else {
+            ++it;
+        }
+    }
+}
+
+bool ChunkManager::saveChunk(Chunk* chunk) {
+    if (!worldStorage || !chunk) return false;
+    return worldStorage->saveChunk(*chunk);
+}
+
+bool ChunkManager::saveAllChunks() {
+    if (!worldStorage) return false;
+    
+    bool allSuccess = true;
+    for (const auto& chunk : chunks) {
+        if (!worldStorage->saveChunk(*chunk)) {
+            allSuccess = false;
+        }
+    }
+    
+    std::cout << "[CHUNK MANAGER] Saved " << chunks.size() << " chunks to storage" << std::endl;
+    return allSuccess;
+}
+
+bool ChunkManager::loadChunk(const glm::ivec3& chunkCoord) {
+    if (!worldStorage) return false;
+    
+    // Don't load if chunk already exists
+    if (getChunkAtCoord(chunkCoord)) {
+        return true;
+    }
+    
+    glm::ivec3 origin = chunkCoordToOrigin(chunkCoord);
+    auto chunk = std::make_unique<Chunk>(origin);
+    chunk->initialize(device, physicalDevice);
+    
+    // Initialize chunk for sparse loading from database
+    chunk->initializeForLoading();
+    
+    if (worldStorage->loadChunk(chunkCoord, *chunk)) {
+        // Successfully loaded from storage
+        // DON'T rebuild faces yet - wait until all chunks are loaded
+        // chunk->rebuildFaces();  // MOVED to after all chunks loaded
+        chunk->createVulkanBuffer();
+        
+        // Add to map and vector
+        chunkMap[chunkCoord] = chunk.get();
+        chunks.push_back(std::move(chunk));
+        
+        std::cout << "[CHUNK MANAGER] Loaded chunk from storage: " << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << std::endl;
+        return true;
+    }
+    
+    return false;
+}
+
+bool ChunkManager::generateOrLoadChunk(const glm::ivec3& chunkCoord) {
+    if (!worldStorage) {
+        // Fallback: create empty chunk
+        createChunk(chunkCoordToOrigin(chunkCoord));
+        return true;
+    }
+    
+    // Try to load from storage first
+    if (loadChunk(chunkCoord)) {
+        return true;
+    }
+    
+    // If not in storage, generate new chunk
+    glm::ivec3 origin = chunkCoordToOrigin(chunkCoord);
+    auto chunk = std::make_unique<Chunk>(origin);
+    chunk->initialize(device, physicalDevice);
+    
+    // Fallback to old random generation
+    chunk->populateWithCubes();
+    
+    // DON'T rebuild faces yet - wait until all chunks are loaded  
+    // chunk->rebuildFaces();  // MOVED to after all chunks loaded
+    chunk->createVulkanBuffer();
+    
+    // Add to map and vector
+    chunkMap[chunkCoord] = chunk.get();
+    chunks.push_back(std::move(chunk));
+    
+    // Save to storage immediately
+    saveChunk(chunks.back().get());
+    
+    std::cout << "[CHUNK MANAGER] Generated and saved new chunk: " << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << std::endl;
+    return true;
+}
+
+void ChunkManager::rebuildAllChunkFaces() {
+    std::cout << "[CHUNK MANAGER] Rebuilding faces for all loaded chunks with cross-chunk culling..." << std::endl;
+    
+    // First pass: rebuild basic faces for each chunk
+    for (auto& chunk : chunks) {
+        chunk->rebuildFaces();
+    }
+    
+    // Second pass: perform cross-chunk occlusion culling
+    performOcclusionCulling();
+    
+    // Third pass: update Vulkan buffers with new face data
+    for (auto& chunk : chunks) {
+        chunk->updateVulkanBuffer();
+    }
+    
+    std::cout << "[CHUNK MANAGER] Face rebuilding complete for " << chunks.size() << " chunks" << std::endl;
 }
 
 void ChunkManager::createChunks(const std::vector<glm::ivec3>& origins) {
@@ -600,9 +783,9 @@ bool ChunkManager::isCubeAt(const glm::ivec3& worldPosition) const {
                 relativePos.y >= 0 && relativePos.y < 32 &&
                 relativePos.z >= 0 && relativePos.z < 32) {
                 
-                // For full chunks, assume all positions have cubes
-                // (This could be optimized with a 3D bitmap if chunks become sparse)
-                return true;
+                // Check if there's actually a cube at this position
+                const Cube* cube = chunk->getCubeAt(relativePos);
+                return cube != nullptr && cube->isVisible();
             }
             break;
         }

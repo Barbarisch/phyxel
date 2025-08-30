@@ -118,6 +118,7 @@ public:
     
     // Chunk operations
     void populateWithCubes();                      // Fill chunk with 32x32x32 cubes
+    void initializeForLoading();                   // Initialize empty chunk for database loading
     void rebuildFaces();                           // Regenerate face data from cubes
     void updateVulkanBuffer();                     // Update GPU buffer with face data
     

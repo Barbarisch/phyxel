@@ -101,6 +101,11 @@ bool Application::initialize() {
     // Set physics world for proper cleanup of dynamic objects
     chunkManager->setPhysicsWorld(physicsWorld.get());
     
+    // Initialize world storage for persistent chunks
+    if (!chunkManager->initializeWorldStorage("worlds/default.db")) {
+        std::cerr << "Warning: Failed to initialize world storage. Using temporary chunks." << std::endl;
+    }
+    
     // Create chunks
     //auto origins = MultiChunkDemo::createLinearChunks(10);
     //auto origins = MultiChunkDemo::createGridChunks(5, 5);
@@ -113,13 +118,20 @@ bool Application::initialize() {
     }
     std::cout << "=====================" << std::endl;
     
-    chunkManager->createChunks(origins);
+    // Load chunks from database or generate if they don't exist
+    for (const auto& origin : origins) {
+        glm::ivec3 chunkCoord = chunkManager->worldToChunkCoord(origin);
+        chunkManager->generateOrLoadChunk(chunkCoord);
+    }
+    
+    // Rebuild faces for all chunks AFTER all are loaded (critical for cross-chunk culling)
+    chunkManager->rebuildAllChunkFaces();
     
     // Calculate face culling optimization after chunk creation (DISABLED for now)
     // chunkManager->calculateChunkFaceCulling();
     
-    // Perform cross-chunk occlusion culling
-    chunkManager->performOcclusionCulling();
+    // Cross-chunk occlusion culling is now handled in rebuildAllChunkFaces()
+    // chunkManager->performOcclusionCulling();
     
     std::cout << "Created " << chunkManager->chunks.size() << " chunks for testing" << std::endl;
 
@@ -289,6 +301,9 @@ void Application::cleanup() {
     
     // Cleanup chunk manager before Vulkan device
     if (chunkManager) {
+        // Save all chunks to database before cleanup
+        std::cout << "Saving world to database..." << std::endl;
+        chunkManager->saveAllChunks();
         chunkManager->cleanup();
     }
     
@@ -1129,6 +1144,19 @@ void Application::processInput() {
         f1Pressed = true;
     } else if (glfwGetKey(window, GLFW_KEY_F1) == GLFW_RELEASE) {
         f1Pressed = false;
+    }
+    
+    // Save world to database with F2
+    static bool f2Pressed = false;
+    if (glfwGetKey(window, GLFW_KEY_F2) == GLFW_PRESS && !f2Pressed) {
+        if (chunkManager) {
+            std::cout << "Manual save triggered - saving world to database..." << std::endl;
+            chunkManager->saveAllChunks();
+            std::cout << "World saved successfully!" << std::endl;
+        }
+        f2Pressed = true;
+    } else if (glfwGetKey(window, GLFW_KEY_F2) == GLFW_RELEASE) {
+        f2Pressed = false;
     }
     
     // Test frustum culling positions with T key
