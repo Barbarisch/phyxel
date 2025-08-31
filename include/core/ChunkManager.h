@@ -82,6 +82,7 @@ public:
     // World persistence
     bool saveChunk(Chunk* chunk);
     bool saveAllChunks();
+    bool saveDirtyChunks();  // Save only chunks that have been modified
     bool loadChunk(const glm::ivec3& chunkCoord);
     bool generateOrLoadChunk(const glm::ivec3& chunkCoord); // Generate if doesn't exist, load if it does
     

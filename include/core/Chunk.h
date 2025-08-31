@@ -48,6 +48,9 @@ private:
     // Physics body for static geometry (compound shape made from individual cube collision boxes)
     mutable btRigidBody* chunkPhysicsBody = nullptr;
     mutable btCollisionShape* chunkCollisionShape = nullptr;
+    
+    // Dirty tracking for smart saves
+    bool isDirty = false;                          // Track if chunk has been modified since last save
     mutable btTriangleMesh* chunkTriangleMesh = nullptr; // For BVH triangle mesh shape (option B)
 
 public:
@@ -125,6 +128,11 @@ public:
     // Efficient partial updates for hover effects (avoids full rebuild)
     void updateSingleCubeColor(const glm::ivec3& localPos, const glm::vec3& newColor);
     void updateSingleSubcubeColor(const glm::ivec3& parentLocalPos, const glm::ivec3& subcubePos, const glm::vec3& newColor);
+    
+    // Dirty tracking for smart saves
+    bool getIsDirty() const { return isDirty; }
+    void setDirty(bool dirty = true) { isDirty = dirty; }
+    void markClean() { isDirty = false; }
     
     // Vulkan buffer management
     void createVulkanBuffer();

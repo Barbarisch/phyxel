@@ -41,12 +41,17 @@ public:
     
     // Chunk operations
     bool saveChunk(const Chunk& chunk);
+    bool saveChunk(const Chunk& chunk, bool useTransaction);
     bool loadChunk(const glm::ivec3& chunkCoord, Chunk& chunk);
     bool chunkExists(const glm::ivec3& chunkCoord);
     bool deleteChunk(const glm::ivec3& chunkCoord);
     
+    // Individual cube operations
+    bool deleteCube(const glm::ivec3& chunkCoord, const glm::ivec3& localPos);
+    
     // Batch operations for performance
     bool saveChunks(const std::vector<std::reference_wrapper<const Chunk>>& chunks);
+    bool saveDirtyChunks(const std::vector<std::reference_wrapper<Chunk>>& chunks);
     std::vector<glm::ivec3> getChunksInRegion(const glm::ivec3& minChunk, const glm::ivec3& maxChunk);
     
     // World management
@@ -70,6 +75,7 @@ private:
     sqlite3_stmt* selectCubesStmt = nullptr;
     sqlite3_stmt* selectSubcubesStmt = nullptr;
     sqlite3_stmt* deleteChunkStmt = nullptr;
+    sqlite3_stmt* deleteCubeStmt = nullptr;
     
     // Helper methods
     bool createTables();

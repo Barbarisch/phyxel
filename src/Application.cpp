@@ -301,9 +301,9 @@ void Application::cleanup() {
     
     // Cleanup chunk manager before Vulkan device
     if (chunkManager) {
-        // Save all chunks to database before cleanup
-        std::cout << "Saving world to database..." << std::endl;
-        chunkManager->saveAllChunks();
+        // Save only dirty chunks to database before cleanup for efficiency
+        std::cout << "Saving modified chunks to database..." << std::endl;
+        chunkManager->saveDirtyChunks();
         chunkManager->cleanup();
     }
     

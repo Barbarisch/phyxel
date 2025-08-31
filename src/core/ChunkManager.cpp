@@ -119,6 +119,20 @@ bool ChunkManager::saveAllChunks() {
     return allSuccess;
 }
 
+bool ChunkManager::saveDirtyChunks() {
+    if (!worldStorage) return false;
+    
+    // Build vector of chunk references for dirty saving
+    std::vector<std::reference_wrapper<Chunk>> chunkRefs;
+    chunkRefs.reserve(chunks.size());
+    
+    for (const auto& chunk : chunks) {
+        chunkRefs.emplace_back(*chunk);
+    }
+    
+    return worldStorage->saveDirtyChunks(chunkRefs);
+}
+
 bool ChunkManager::loadChunk(const glm::ivec3& chunkCoord) {
     if (!worldStorage) return false;
     
@@ -135,7 +149,9 @@ bool ChunkManager::loadChunk(const glm::ivec3& chunkCoord) {
     chunk->initializeForLoading();
     
     if (worldStorage->loadChunk(chunkCoord, *chunk)) {
-        // Successfully loaded from storage
+        // Successfully loaded from storage - mark as clean since it's from database
+        chunk->markClean();
+        
         // DON'T rebuild faces yet - wait until all chunks are loaded
         // chunk->rebuildFaces();  // MOVED to after all chunks loaded
         chunk->createVulkanBuffer();
@@ -631,6 +647,9 @@ bool ChunkManager::removeCube(const glm::ivec3& worldPos) {
     // Use the Chunk class's removeCube method
     bool result = chunk->removeCube(localPos);
     if (result) {
+        // Chunk is now marked dirty and will be saved properly on next save
+        // No need for immediate database deletion - saveChunk handles all deletions
+        
         // Use efficient selective update instead of full chunk rebuild
         updateAfterCubeBreak(worldPos);
     }

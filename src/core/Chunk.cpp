@@ -155,12 +155,14 @@ bool Chunk::removeCube(const glm::ivec3& localPos) {
     delete cubes[index];
     cubes[index] = nullptr; // Mark as deleted
     
+    // Mark chunk as dirty for smart saving
+    setDirty(true);
+    std::cout << "[CHUNK] Removed cube at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
+              << ") - Chunk now DIRTY for save" << std::endl;
+    
     // Immediately rebuild faces to remove the cube from GPU buffer
     rebuildFaces();
     updateVulkanBuffer();
-    
-    // std::cout << "[CHUNK] Completely removed cube at local pos: (" 
-    //           << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
     
     return true;
 }
@@ -181,6 +183,9 @@ bool Chunk::addCube(const glm::ivec3& localPos, const glm::vec3& color) {
         cubes[index] = new Cube(localPos, color);
         cubes[index]->setOriginalColor(color); // Ensure original color is set
     }
+    
+    // Mark chunk as dirty for smart saving
+    setDirty(true);
     
     needsUpdate = true;
     
@@ -219,6 +224,9 @@ void Chunk::populateWithCubes() {
             }
         }
     }
+    
+    // Mark chunk as dirty since it has new content
+    setDirty(true);
     
     // std::cout << "[CHUNK] Populated chunk at origin (" 
     //           << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z 
