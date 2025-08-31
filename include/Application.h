@@ -44,13 +44,36 @@ private:
         bool isSubcube;             // True if this location refers to a subcube
         glm::ivec3 subcubePos;      // Local position within parent cube (0-2 for each axis)
         
-        CubeLocation() : chunk(nullptr), localPos(-1), worldPos(-1), isSubcube(false), subcubePos(-1) {}
+        // Face information for cube placement
+        int hitFace;                // Which face was hit: 0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z
+        glm::vec3 hitNormal;        // Surface normal of hit face
+        glm::vec3 hitPoint;         // Exact hit point on the cube surface
+        
+        CubeLocation() : chunk(nullptr), localPos(-1), worldPos(-1), isSubcube(false), subcubePos(-1), hitFace(-1), hitNormal(0), hitPoint(0) {}
         CubeLocation(Chunk* c, const glm::ivec3& local, const glm::ivec3& world) 
-            : chunk(c), localPos(local), worldPos(world), isSubcube(false), subcubePos(-1) {}
+            : chunk(c), localPos(local), worldPos(world), isSubcube(false), subcubePos(-1), hitFace(-1), hitNormal(0), hitPoint(0) {}
         CubeLocation(Chunk* c, const glm::ivec3& local, const glm::ivec3& world, const glm::ivec3& sub) 
-            : chunk(c), localPos(local), worldPos(world), isSubcube(true), subcubePos(sub) {}
+            : chunk(c), localPos(local), worldPos(world), isSubcube(true), subcubePos(sub), hitFace(-1), hitNormal(0), hitPoint(0) {}
         
         bool isValid() const { return chunk != nullptr; }
+        
+        // Get the world position where a new cube should be placed adjacent to this face
+        glm::ivec3 getAdjacentPlacementPosition() const {
+            if (hitFace < 0) return worldPos; // No face data available
+            
+            // Face normals: 0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z
+            glm::ivec3 faceOffset;
+            switch (hitFace) {
+                case 0: faceOffset = glm::ivec3(1, 0, 0); break;   // +X face
+                case 1: faceOffset = glm::ivec3(-1, 0, 0); break;  // -X face
+                case 2: faceOffset = glm::ivec3(0, 1, 0); break;   // +Y face
+                case 3: faceOffset = glm::ivec3(0, -1, 0); break;  // -Y face
+                case 4: faceOffset = glm::ivec3(0, 0, 1); break;   // +Z face
+                case 5: faceOffset = glm::ivec3(0, 0, -1); break;  // -Z face
+                default: return worldPos;
+            }
+            return worldPos + faceOffset;
+        }
     };
 
     // Window management
@@ -166,6 +189,7 @@ private:
     void handleInput();
     void processInput();
     void spawnTestDynamicSubcube();  // Spawn a test dynamic subcube above the chunks
+    void placeNewCube();            // Place a new cube adjacent to the hovered cube face
 
     // Camera controls
     void initializeCamera();

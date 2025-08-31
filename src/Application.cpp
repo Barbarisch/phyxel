@@ -13,6 +13,7 @@
 #include <thread>
 #include <cstring>
 #include <limits>
+#include <random>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -1201,6 +1202,15 @@ void Application::processInput() {
         gPressed = false;
     }
     
+    // Place cube with C key (test cube placement system)
+    static bool cPressed = false;
+    if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS && !cPressed) {
+        placeNewCube();
+        cPressed = true;
+    } else if (glfwGetKey(window, GLFW_KEY_C) == GLFW_RELEASE) {
+        cPressed = false;
+    }
+    
     // Debug coordinate system with P key (simplified)
     static bool pPressed = false;
     if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS && !pPressed) {
@@ -1307,6 +1317,80 @@ void Application::spawnTestDynamicSubcube() {
         std::cout << "Press G again to spawn another subcube!" << std::endl;
     } else {
         std::cout << "ERROR: No chunk manager available for global dynamic subcube management" << std::endl;
+    }
+}
+
+void Application::placeNewCube() {
+    std::cout << "=== ATTEMPTING TO PLACE NEW CUBE ===" << std::endl;
+    
+    // Check if we have a valid hovered cube with face information
+    if (!hasHoveredCube || !currentHoveredLocation.isValid()) {
+        std::cout << "[CUBE PLACE] No hovered cube - aim at a cube face first" << std::endl;
+        return;
+    }
+    
+    // Check if face information is available
+    if (currentHoveredLocation.hitFace < 0) {
+        std::cout << "[CUBE PLACE] No face information available - face detection may have failed" << std::endl;
+        return;
+    }
+    
+    // Calculate where to place the new cube (adjacent to the hit face)
+    glm::ivec3 placementPos = currentHoveredLocation.getAdjacentPlacementPosition();
+    
+    std::cout << "[CUBE PLACE] Hovering cube at world pos (" << currentHoveredLocation.worldPos.x 
+              << "," << currentHoveredLocation.worldPos.y << "," << currentHoveredLocation.worldPos.z << ")" << std::endl;
+    std::cout << "[CUBE PLACE] Hit face: " << currentHoveredLocation.hitFace << " (0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z)" << std::endl;
+    std::cout << "[CUBE PLACE] Attempting to place cube at world pos (" << placementPos.x 
+              << "," << placementPos.y << "," << placementPos.z << ")" << std::endl;
+    
+    // Check if placement position is within the loaded world bounds
+    // For a 2x2x2 chunk grid, world spans from (0,0,0) to (63,63,63)
+    if (placementPos.x < 0 || placementPos.x >= 64 ||
+        placementPos.y < 0 || placementPos.y >= 64 ||
+        placementPos.z < 0 || placementPos.z >= 64) {
+        std::cout << "[CUBE PLACE] ERROR: Placement position (" << placementPos.x << "," << placementPos.y << "," << placementPos.z 
+                  << ") is outside loaded world bounds (0,0,0) to (63,63,63)" << std::endl;
+        return;
+    }
+    
+    // Check if placement position is valid (not colliding with existing cube)
+    glm::ivec3 placementChunkCoord = ChunkManager::worldToChunkCoord(placementPos);
+    glm::ivec3 placementLocalPos = ChunkManager::worldToLocalCoord(placementPos);
+    
+    Chunk* placementChunk = chunkManager->getChunkAtCoord(placementChunkCoord);
+    if (!placementChunk) {
+        std::cout << "[CUBE PLACE] ERROR: No chunk found at placement position - may be outside loaded area" << std::endl;
+        return;
+    }
+    
+    // Check if position is already occupied
+    Cube* existingCube = placementChunk->getCubeAt(placementLocalPos);
+    if (existingCube && existingCube->isVisible()) {
+        std::cout << "[CUBE PLACE] Position already occupied by existing cube" << std::endl;
+        return;
+    }
+    
+    // Place the new cube with a random color
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> colorDist(0.0f, 1.0f);
+    glm::vec3 newCubeColor = glm::vec3(
+        colorDist(gen),
+        colorDist(gen),
+        colorDist(gen)
+    );
+    
+    if (placementChunk->addCube(placementLocalPos, newCubeColor)) {
+        // Mark the chunk as dirty in ChunkManager to trigger visual updates
+        chunkManager->markChunkDirty(placementChunk);
+        
+        std::cout << "[CUBE PLACE] Successfully placed cube at world pos (" << placementPos.x 
+                  << "," << placementPos.y << "," << placementPos.z << ")" << std::endl;
+        std::cout << "[CUBE PLACE] Chunk (" << placementChunkCoord.x << "," << placementChunkCoord.y 
+                  << "," << placementChunkCoord.z << ") marked dirty for visual update" << std::endl;
+    } else {
+        std::cout << "[CUBE PLACE] ERROR: Failed to place cube" << std::endl;
     }
 }
 
@@ -1542,6 +1626,8 @@ Application::CubeLocation Application::pickCubeInChunksOptimized(const glm::vec3
     
     // Perform DDA traversal
     int maxSteps = 500; // Prevent infinite loops
+    int lastStepAxis = -1; // Track which axis we stepped along to reach current voxel
+    
     for (int step_count = 0; step_count < maxSteps; ++step_count) {
         // Calculate chunk and local coordinates ONCE per voxel
         glm::ivec3 chunkCoord = ChunkManager::worldToChunkCoord(voxel);
@@ -1558,33 +1644,60 @@ Application::CubeLocation Application::pickCubeInChunksOptimized(const glm::vec3
                 // Use the Chunk class's public interface
                 Cube* cube = chunk->getCubeAt(localPos);
                 if (cube) {
+                    // Calculate face information from DDA step
+                    int hitFace = -1;
+                    glm::vec3 hitNormal(0);
+                    
+                    if (lastStepAxis >= 0) {
+                        // Determine which face based on step direction
+                        if (lastStepAxis == 0) { // X-axis step
+                            hitFace = (step.x > 0) ? 1 : 0; // Stepped +X hits -X face, stepped -X hits +X face  
+                            hitNormal = (step.x > 0) ? glm::vec3(-1,0,0) : glm::vec3(1,0,0);
+                        } else if (lastStepAxis == 1) { // Y-axis step
+                            hitFace = (step.y > 0) ? 3 : 2; // Stepped +Y hits -Y face, stepped -Y hits +Y face
+                            hitNormal = (step.y > 0) ? glm::vec3(0,-1,0) : glm::vec3(0,1,0);
+                        } else if (lastStepAxis == 2) { // Z-axis step
+                            hitFace = (step.z > 0) ? 5 : 4; // Stepped +Z hits -Z face, stepped -Z hits +Z face
+                            hitNormal = (step.z > 0) ? glm::vec3(0,0,-1) : glm::vec3(0,0,1);
+                        }
+                    }
+                    
                     // Check if cube is subdivided - if so, find specific subcube
                     if (cube->isSubdivided()) {
                         // Instead of geometric calculation, test actual existing subcubes
                         CubeLocation subcubeHit = findExistingSubcubeHit(chunk, localPos, voxel, rayOrigin, rayDirection);
                         if (subcubeHit.isValid()) {
+                            // Add face information to subcube hit
+                            subcubeHit.hitFace = hitFace;
+                            subcubeHit.hitNormal = hitNormal;
                             return subcubeHit;
                         }
                     } else if (cube->isVisible()) {
-                        // Regular visible cube - return normal cube location
-                        return CubeLocation(chunk, localPos, voxel);
+                        // Regular visible cube - return cube location with face info
+                        CubeLocation location(chunk, localPos, voxel);
+                        location.hitFace = hitFace;
+                        location.hitNormal = hitNormal;
+                        return location;
                     }
                     // If cube exists but is not visible and not subdivided, skip it
                 }
             }
         }
         
-        // Move to next voxel
+        // Move to next voxel and track which axis we stepped along
         if (sideDist.x < sideDist.y && sideDist.x < sideDist.z) {
             // X-face hit
+            lastStepAxis = 0;
             sideDist.x += deltaDist.x;
             voxel.x += step.x;
         } else if (sideDist.y < sideDist.z) {
             // Y-face hit
+            lastStepAxis = 1;
             sideDist.y += deltaDist.y;
             voxel.y += step.y;
         } else {
             // Z-face hit
+            lastStepAxis = 2;
             sideDist.z += deltaDist.z;
             voxel.z += step.z;
         }
