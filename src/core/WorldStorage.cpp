@@ -336,16 +336,91 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
                         
                         // Save subcubes if subdivided
                         if (cube->isSubdivided()) {
-                            // Save subcube data (implementation depends on subcube storage in Chunk)
-                            // This would iterate through subcubes and save them
+                            // Save individual subcubes from the cube's subcube list
+                            const auto& subcubes = cube->getSubcubes();
+                            for (const Subcube* subcube : subcubes) {
+                                if (subcube && subcube->isVisible()) {
+                                    // Bind subcube data to prepared statement
+                                    sqlite3_bind_int(insertSubcubeStmt, 1, chunkCoord.x);
+                                    sqlite3_bind_int(insertSubcubeStmt, 2, chunkCoord.y);
+                                    sqlite3_bind_int(insertSubcubeStmt, 3, chunkCoord.z);
+                                    sqlite3_bind_int(insertSubcubeStmt, 4, x);  // parent cube local pos
+                                    sqlite3_bind_int(insertSubcubeStmt, 5, y);
+                                    sqlite3_bind_int(insertSubcubeStmt, 6, z);
+                                    sqlite3_bind_int(insertSubcubeStmt, 7, subcube->getLocalPosition().x);
+                                    sqlite3_bind_int(insertSubcubeStmt, 8, subcube->getLocalPosition().y);
+                                    sqlite3_bind_int(insertSubcubeStmt, 9, subcube->getLocalPosition().z);
+                                    sqlite3_bind_double(insertSubcubeStmt, 10, subcube->getColor().r);
+                                    sqlite3_bind_double(insertSubcubeStmt, 11, subcube->getColor().g);
+                                    sqlite3_bind_double(insertSubcubeStmt, 12, subcube->getColor().b);
+                                    sqlite3_bind_int(insertSubcubeStmt, 13, subcube->isDynamic() ? 1 : 0);
+                                    
+                                    if (sqlite3_step(insertSubcubeStmt) != SQLITE_DONE) {
+                                        std::cout << "[WORLD_STORAGE] ERROR: Failed to insert subcube at (" 
+                                                  << x << "," << y << "," << z << ") sub(" 
+                                                  << subcube->getLocalPosition().x << "," 
+                                                  << subcube->getLocalPosition().y << "," 
+                                                  << subcube->getLocalPosition().z << "): " 
+                                                  << sqlite3_errmsg(db) << std::endl;
+                                        if (ownTransaction) rollbackTransaction();
+                                        return false;
+                                    }
+                                    sqlite3_reset(insertSubcubeStmt);
+                                }
+                            }
                         }
                     }
                 }
             }
         }
         
+        // Save static subcubes that are stored directly in the chunk
+        const auto& staticSubcubes = chunk.getStaticSubcubes();
+        int savedSubcubes = 0;
+        for (const Subcube* subcube : staticSubcubes) {
+            if (subcube && subcube->isVisible()) {
+                // Calculate parent cube local position from subcube's world position
+                glm::ivec3 parentWorldPos = subcube->getPosition();
+                glm::ivec3 parentLocalPos = parentWorldPos - chunkCoord * 32;
+                
+                // Validate parent position is within chunk bounds
+                if (parentLocalPos.x >= 0 && parentLocalPos.x < 32 &&
+                    parentLocalPos.y >= 0 && parentLocalPos.y < 32 &&
+                    parentLocalPos.z >= 0 && parentLocalPos.z < 32) {
+                    
+                    // Bind static subcube data to prepared statement
+                    sqlite3_bind_int(insertSubcubeStmt, 1, chunkCoord.x);
+                    sqlite3_bind_int(insertSubcubeStmt, 2, chunkCoord.y);
+                    sqlite3_bind_int(insertSubcubeStmt, 3, chunkCoord.z);
+                    sqlite3_bind_int(insertSubcubeStmt, 4, parentLocalPos.x);
+                    sqlite3_bind_int(insertSubcubeStmt, 5, parentLocalPos.y);
+                    sqlite3_bind_int(insertSubcubeStmt, 6, parentLocalPos.z);
+                    sqlite3_bind_int(insertSubcubeStmt, 7, subcube->getLocalPosition().x);
+                    sqlite3_bind_int(insertSubcubeStmt, 8, subcube->getLocalPosition().y);
+                    sqlite3_bind_int(insertSubcubeStmt, 9, subcube->getLocalPosition().z);
+                    sqlite3_bind_double(insertSubcubeStmt, 10, subcube->getColor().r);
+                    sqlite3_bind_double(insertSubcubeStmt, 11, subcube->getColor().g);
+                    sqlite3_bind_double(insertSubcubeStmt, 12, subcube->getColor().b);
+                    sqlite3_bind_int(insertSubcubeStmt, 13, subcube->isDynamic() ? 1 : 0);
+                    
+                    if (sqlite3_step(insertSubcubeStmt) != SQLITE_DONE) {
+                        std::cout << "[WORLD_STORAGE] ERROR: Failed to insert static subcube at (" 
+                                  << parentLocalPos.x << "," << parentLocalPos.y << "," << parentLocalPos.z << ") sub(" 
+                                  << subcube->getLocalPosition().x << "," 
+                                  << subcube->getLocalPosition().y << "," 
+                                  << subcube->getLocalPosition().z << "): " 
+                                  << sqlite3_errmsg(db) << std::endl;
+                        if (ownTransaction) rollbackTransaction();
+                        return false;
+                    }
+                    sqlite3_reset(insertSubcubeStmt);
+                    savedSubcubes++;
+                }
+            }
+        }
+        
         std::cout << "[WORLD_STORAGE] Chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z 
-                  << ") - Saved " << savedCubes << " cubes" << std::endl;
+                  << ") - Saved " << savedCubes << " cubes, " << savedSubcubes << " static subcubes" << std::endl;
         
     } catch (...) {
         std::cout << "[WORLD_STORAGE] ERROR: Exception caught in saveChunk()" << std::endl;
@@ -396,6 +471,9 @@ bool WorldStorage::loadChunk(const glm::ivec3& chunkCoord, Chunk& chunk) {
     }
     
     sqlite3_reset(selectCubesStmt);
+    
+    // Load subcubes for this chunk
+    loadSubcubesForChunk(chunkCoord, chunk);
     
     std::cout << "[WORLD_STORAGE] Loaded " << loadedCubes << " cubes for chunk (" 
               << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")" << std::endl;
@@ -646,6 +724,8 @@ bool WorldStorage::loadSubcubesForChunk(const glm::ivec3& chunkCoord, Chunk& chu
     sqlite3_bind_int(selectSubcubesStmt, 2, chunkCoord.y);
     sqlite3_bind_int(selectSubcubesStmt, 3, chunkCoord.z);
     
+    int loadedSubcubes = 0;
+    
     // Load subcubes
     while (sqlite3_step(selectSubcubesStmt) == SQLITE_ROW) {
         int x = sqlite3_column_int(selectSubcubesStmt, 0);
@@ -661,11 +741,19 @@ bool WorldStorage::loadSubcubesForChunk(const glm::ivec3& chunkCoord, Chunk& chu
         
         bool isDynamic = sqlite3_column_int(selectSubcubesStmt, 9) != 0;
         
-        // Add subcube to chunk (implementation depends on chunk subcube system)
-        chunk.addSubcube(glm::ivec3(x, y, z), glm::ivec3(subX, subY, subZ), glm::vec3(r, g, b));
+        // Add subcube to chunk
+        if (chunk.addSubcube(glm::ivec3(x, y, z), glm::ivec3(subX, subY, subZ), glm::vec3(r, g, b))) {
+            loadedSubcubes++;
+        }
     }
     
     sqlite3_reset(selectSubcubesStmt);
+    
+    if (loadedSubcubes > 0) {
+        std::cout << "[WORLD_STORAGE] Loaded " << loadedSubcubes << " subcubes for chunk (" 
+                  << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")" << std::endl;
+    }
+    
     return true;
 }
 

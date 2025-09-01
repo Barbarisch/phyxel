@@ -730,8 +730,9 @@ bool Chunk::subdivideAt(const glm::ivec3& localPos) {
     // std::cout << "[CHUNK] Parent cube hidden. isVisible() = " << cube->isVisible() 
     //           << ", isSubdivided() = " << cube->isSubdivided() << std::endl;
     
-    // Mark for update
+    // Mark for update and as dirty for database persistence
     needsUpdate = true;
+    setDirty(true);
     
     // std::cout << "[CHUNK] Subdivided cube at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
     //           << ") into 27 subcubes with " << staticSubcubes.size() << " static subcubes in chunk" << std::endl;
@@ -754,8 +755,9 @@ bool Chunk::addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos
     Subcube* newSubcube = new Subcube(parentWorldPos, color, subcubePos);
     staticSubcubes.push_back(newSubcube);
     
-    // Mark for update
+    // Mark for update and as dirty for database persistence
     needsUpdate = true;
+    setDirty(true);
     
     return true;
 }
@@ -777,6 +779,7 @@ bool Chunk::removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcube
             delete subcube;
             staticSubcubes.erase(it);
             needsUpdate = true;
+            setDirty(true);
             return true;
         }
     }
