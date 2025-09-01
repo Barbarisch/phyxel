@@ -323,7 +323,7 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
                         sqlite3_bind_double(insertCubeStmt, 7, cube->getColor().r);
                         sqlite3_bind_double(insertCubeStmt, 8, cube->getColor().g);
                         sqlite3_bind_double(insertCubeStmt, 9, cube->getColor().b);
-                        sqlite3_bind_int(insertCubeStmt, 10, cube->isSubdivided() ? 1 : 0);
+                        sqlite3_bind_int(insertCubeStmt, 10, 0); // isSubdivided - always false now (subcubes stored at chunk level)
                         sqlite3_bind_int(insertCubeStmt, 11, cube->isVisible() ? 1 : 0);
                         
                         if (sqlite3_step(insertCubeStmt) != SQLITE_DONE) {
@@ -333,42 +333,6 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
                         }
                         sqlite3_reset(insertCubeStmt);
                         savedCubes++;
-                        
-                        // Save subcubes if subdivided
-                        if (cube->isSubdivided()) {
-                            // Save individual subcubes from the cube's subcube list
-                            const auto& subcubes = cube->getSubcubes();
-                            for (const Subcube* subcube : subcubes) {
-                                if (subcube && subcube->isVisible()) {
-                                    // Bind subcube data to prepared statement
-                                    sqlite3_bind_int(insertSubcubeStmt, 1, chunkCoord.x);
-                                    sqlite3_bind_int(insertSubcubeStmt, 2, chunkCoord.y);
-                                    sqlite3_bind_int(insertSubcubeStmt, 3, chunkCoord.z);
-                                    sqlite3_bind_int(insertSubcubeStmt, 4, x);  // parent cube local pos
-                                    sqlite3_bind_int(insertSubcubeStmt, 5, y);
-                                    sqlite3_bind_int(insertSubcubeStmt, 6, z);
-                                    sqlite3_bind_int(insertSubcubeStmt, 7, subcube->getLocalPosition().x);
-                                    sqlite3_bind_int(insertSubcubeStmt, 8, subcube->getLocalPosition().y);
-                                    sqlite3_bind_int(insertSubcubeStmt, 9, subcube->getLocalPosition().z);
-                                    sqlite3_bind_double(insertSubcubeStmt, 10, subcube->getColor().r);
-                                    sqlite3_bind_double(insertSubcubeStmt, 11, subcube->getColor().g);
-                                    sqlite3_bind_double(insertSubcubeStmt, 12, subcube->getColor().b);
-                                    sqlite3_bind_int(insertSubcubeStmt, 13, subcube->isDynamic() ? 1 : 0);
-                                    
-                                    if (sqlite3_step(insertSubcubeStmt) != SQLITE_DONE) {
-                                        std::cout << "[WORLD_STORAGE] ERROR: Failed to insert subcube at (" 
-                                                  << x << "," << y << "," << z << ") sub(" 
-                                                  << subcube->getLocalPosition().x << "," 
-                                                  << subcube->getLocalPosition().y << "," 
-                                                  << subcube->getLocalPosition().z << "): " 
-                                                  << sqlite3_errmsg(db) << std::endl;
-                                        if (ownTransaction) rollbackTransaction();
-                                        return false;
-                                    }
-                                    sqlite3_reset(insertSubcubeStmt);
-                                }
-                            }
-                        }
                     }
                 }
             }

@@ -1662,8 +1662,9 @@ Application::CubeLocation Application::pickCubeInChunksOptimized(const glm::vec3
                         }
                     }
                     
-                    // Check if cube is subdivided - if so, find specific subcube
-                    if (cube->isSubdivided()) {
+                    // Check if chunk has subcubes at this position - if so, find specific subcube
+                    std::vector<Subcube*> subcubes = chunk->getSubcubesAt(localPos);
+                    if (!subcubes.empty()) {
                         // Instead of geometric calculation, test actual existing subcubes
                         CubeLocation subcubeHit = findExistingSubcubeHit(chunk, localPos, voxel, rayOrigin, rayDirection);
                         if (subcubeHit.isValid()) {
@@ -1845,10 +1846,11 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
     // Handle subcube vs regular cube hover differently
     if (location.isSubcube) {
         // Hovering over a specific subcube
-        Cube* cube = location.chunk->getCubeAt(location.localPos);
-        if (!cube || !cube->isSubdivided()) return;
+        Chunk* chunk = location.chunk;
+        std::vector<Subcube*> subcubes = chunk->getSubcubesAt(location.localPos);
+        if (subcubes.empty()) return;
         
-        Subcube* subcube = cube->getSubcubeAt(location.subcubePos);
+        Subcube* subcube = chunk->getSubcubeAt(location.localPos, location.subcubePos);
         if (!subcube) return;
         
         // Store original subcube color and location for later restoration
@@ -1954,8 +1956,9 @@ void Application::removeHoveredCube() {
         }
     } else {
         // Remove a regular cube (this will also remove all its subcubes if subdivided)
-        Cube* cube = chunk->getCubeAt(currentHoveredLocation.localPos);
-        if (cube && cube->isSubdivided()) {
+        Chunk* chunk = currentHoveredLocation.chunk;
+        std::vector<Subcube*> subcubes = chunk->getSubcubesAt(currentHoveredLocation.localPos);
+        if (!subcubes.empty()) {
             // First clear all subcubes
             chunk->clearSubdivisionAt(currentHoveredLocation.localPos);
             std::cout << "[SUBDIVISION REMOVAL] Cleared all subcubes for cube removal" << std::endl;

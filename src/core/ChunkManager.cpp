@@ -681,10 +681,7 @@ Subcube* ChunkManager::getSubcubeAt(const glm::ivec3& worldPos, const glm::ivec3
     if (!chunk) return nullptr;
     
     glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
-    Cube* cube = chunk->getCubeAt(localPos);
-    if (!cube || !cube->isSubdivided()) return nullptr;
-    
-    return cube->getSubcubeAt(subcubePos);
+    return chunk->getSubcubeAt(localPos, subcubePos);
 }
 
 void ChunkManager::setSubcubeColorEfficient(const glm::ivec3& worldPos, const glm::ivec3& subcubePos, const glm::vec3& color) {
@@ -692,8 +689,8 @@ void ChunkManager::setSubcubeColorEfficient(const glm::ivec3& worldPos, const gl
     if (!chunk) return;
     
     glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
-    Cube* cube = chunk->getCubeAt(localPos);
-    if (!cube || !cube->isSubdivided()) return;
+    std::vector<Subcube*> subcubes = chunk->getSubcubesAt(localPos);
+    if (subcubes.empty()) return;
     
     // Use the new efficient partial update method (similar to regular cubes)
     chunk->updateSingleSubcubeColor(localPos, subcubePos, color);
@@ -704,10 +701,7 @@ glm::vec3 ChunkManager::getSubcubeColor(const glm::ivec3& worldPos, const glm::i
     if (!chunk) return glm::vec3(1.0f); // Default white
     
     glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
-    Cube* cube = chunk->getCubeAt(localPos);
-    if (!cube || !cube->isSubdivided()) return glm::vec3(1.0f);
-    
-    Subcube* subcube = cube->getSubcubeAt(subcubePos);
+    Subcube* subcube = chunk->getSubcubeAt(localPos, subcubePos);
     if (subcube) {
         return subcube->getColor();
     }

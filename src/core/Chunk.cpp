@@ -717,7 +717,6 @@ bool Chunk::subdivideAt(const glm::ivec3& localPos) {
                 
                 Subcube* newSubcube = new Subcube(parentWorldPos, subcubeColor, subcubeLocalPos);
                 staticSubcubes.push_back(newSubcube); // Add to static subcubes list
-                cube->addSubcube(newSubcube); // Also add to the parent cube
                 colorIndex++;
             }
         }
@@ -770,12 +769,6 @@ bool Chunk::removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcube
             subcube->getPosition() == worldOrigin + parentPos && 
             subcube->getLocalPosition() == subcubePos) {
             
-            // Also remove from parent cube's subcube list
-            Cube* parentCube = getCubeAt(parentPos);
-            if (parentCube) {
-                parentCube->removeSubcube(subcube);
-            }
-            
             delete subcube;
             staticSubcubes.erase(it);
             needsUpdate = true;
@@ -810,7 +803,6 @@ bool Chunk::clearSubdivisionAt(const glm::ivec3& localPos) {
     // Restore the parent cube
     Cube* cube = getCubeAt(localPos);
     if (cube) {
-        cube->clearSubcubes(); // Clear subcubes from the parent cube
         cube->show();
     }
     

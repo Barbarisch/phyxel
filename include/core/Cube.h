@@ -55,15 +55,6 @@ public:
     void breakApart() { broken = true; }
     void repair() { broken = false; }
     
-    // Subdivision methods
-    bool isSubdivided() const { return !subcubes.empty(); }
-    void addSubcube(Subcube* subcube) { subcubes.push_back(subcube); }
-    void removeSubcube(Subcube* subcube);
-    void clearSubcubes();
-    Subcube* getSubcubeAt(const glm::ivec3& localPos);
-    const Subcube* getSubcubeAt(const glm::ivec3& localPos) const;
-    const std::vector<Subcube*>& getSubcubes() const { return subcubes; }
-    
     // Static utility methods
     static float getSize() { return CUBE_SIZE; }
     
@@ -73,9 +64,6 @@ private:
     glm::vec3 originalColor;    // RGB color (0.0 - 1.0) - original color before any modifications
     bool broken = false;        // Whether the cube is broken/damaged
     bool visible = true;        // Whether the cube should be rendered
-    
-    // Subdivision support
-    std::vector<Subcube*> subcubes; // Subcubes if this cube is subdivided
     
     // Physics body for dynamic cubes
     btRigidBody* rigidBody = nullptr;
