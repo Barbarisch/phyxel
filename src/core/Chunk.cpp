@@ -155,6 +155,9 @@ bool Chunk::removeCube(const glm::ivec3& localPos) {
     delete cubes[index];
     cubes[index] = nullptr; // Mark as deleted
     
+    // Update hash maps to reflect removal
+    removeFromVoxelMaps(localPos);
+    
     // Mark chunk as dirty for smart saving
     setDirty(true);
     std::cout << "[CHUNK] Removed cube at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
@@ -178,10 +181,14 @@ bool Chunk::addCube(const glm::ivec3& localPos, const glm::vec3& color) {
         cubes[index]->setColor(color);
         cubes[index]->setOriginalColor(color); // Update original color too
         cubes[index]->setBroken(false);
+        // Update hash maps for existing cube
+        addToVoxelMaps(localPos, cubes[index]);
     } else {
         // Create new cube
         cubes[index] = new Cube(localPos, color);
         cubes[index]->setOriginalColor(color); // Ensure original color is set
+        // Update hash maps for new cube
+        addToVoxelMaps(localPos, cubes[index]);
     }
     
     // Mark chunk as dirty for smart saving
@@ -227,6 +234,9 @@ void Chunk::populateWithCubes() {
     
     // Mark chunk as dirty since it has new content
     setDirty(true);
+    
+    // Initialize hash maps for O(1) lookups
+    initializeVoxelMaps();
     
     // std::cout << "[CHUNK] Populated chunk at origin (" 
     //           << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z 
@@ -677,6 +687,231 @@ std::vector<Subcube*> Chunk::getStaticSubcubesAt(const glm::ivec3& localPos) {
     return result;
 }
 
+// =============================================================================
+// NEW: O(1) VoxelLocation resolution system for optimized hover detection
+// =============================================================================
+
+VoxelLocation Chunk::resolveLocalPosition(const glm::ivec3& localPos) const {
+    // Quick bounds check
+    if (!isValidLocalPosition(localPos)) {
+        return VoxelLocation();
+    }
+    
+    // O(1) voxel type lookup
+    auto typeIt = voxelTypeMap.find(localPos);
+    if (typeIt == voxelTypeMap.end()) {
+        return VoxelLocation(); // No voxel at this position
+    }
+    
+    glm::ivec3 worldPos = worldOrigin + localPos;
+    VoxelLocation::Type type = typeIt->second;
+    
+    if (type == VoxelLocation::SUBDIVIDED) {
+        VoxelLocation location;
+        location.type = VoxelLocation::SUBDIVIDED;
+        location.chunk = const_cast<Chunk*>(this);
+        location.localPos = localPos;
+        location.worldPos = worldPos;
+        location.subcubePos = glm::ivec3(-1);
+        return location;
+    } else if (type == VoxelLocation::CUBE) {
+        VoxelLocation location;
+        location.type = VoxelLocation::CUBE;
+        location.chunk = const_cast<Chunk*>(this);
+        location.localPos = localPos;
+        location.worldPos = worldPos;
+        location.subcubePos = glm::ivec3(-1);
+        return location;
+    }
+    
+    return VoxelLocation();
+}
+
+bool Chunk::hasVoxelAt(const glm::ivec3& localPos) const {
+    if (!isValidLocalPosition(localPos)) return false;
+    return voxelTypeMap.find(localPos) != voxelTypeMap.end();
+}
+
+bool Chunk::hasSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const {
+    auto parentIt = subcubeMap.find(localPos);
+    if (parentIt == subcubeMap.end()) return false;
+    
+    return parentIt->second.find(subcubePos) != parentIt->second.end();
+}
+
+VoxelLocation::Type Chunk::getVoxelType(const glm::ivec3& localPos) const {
+    auto it = voxelTypeMap.find(localPos);
+    return (it != voxelTypeMap.end()) ? it->second : VoxelLocation::EMPTY;
+}
+
+// O(1) optimized lookups (replace linear searches)
+Cube* Chunk::getCubeAtFast(const glm::ivec3& localPos) {
+    auto it = cubeMap.find(localPos);
+    return (it != cubeMap.end()) ? it->second : nullptr;
+}
+
+const Cube* Chunk::getCubeAtFast(const glm::ivec3& localPos) const {
+    auto it = cubeMap.find(localPos);
+    return (it != cubeMap.end()) ? it->second : nullptr;
+}
+
+Subcube* Chunk::getSubcubeAtFast(const glm::ivec3& localPos, const glm::ivec3& subcubePos) {
+    auto parentIt = subcubeMap.find(localPos);
+    if (parentIt == subcubeMap.end()) return nullptr;
+    
+    auto subcubeIt = parentIt->second.find(subcubePos);
+    return (subcubeIt != parentIt->second.end()) ? subcubeIt->second : nullptr;
+}
+
+const Subcube* Chunk::getSubcubeAtFast(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const {
+    auto parentIt = subcubeMap.find(localPos);
+    if (parentIt == subcubeMap.end()) return nullptr;
+    
+    auto subcubeIt = parentIt->second.find(subcubePos);
+    return (subcubeIt != parentIt->second.end()) ? subcubeIt->second : nullptr;
+}
+
+std::vector<Subcube*> Chunk::getSubcubesAtFast(const glm::ivec3& localPos) {
+    std::vector<Subcube*> result;
+    auto parentIt = subcubeMap.find(localPos);
+    if (parentIt != subcubeMap.end()) {
+        result.reserve(parentIt->second.size());
+        for (auto& pair : parentIt->second) {
+            result.push_back(pair.second);
+        }
+    }
+    return result;
+}
+
+// Internal: Maintain hash map consistency
+void Chunk::updateVoxelMaps(const glm::ivec3& localPos) {
+    // Check what exists at this position using legacy arrays
+    Cube* cube = getCubeAt(localPos); // Use legacy method
+    auto subcubes = getSubcubesAt(localPos); // Use legacy method
+    
+    if (!subcubes.empty()) {
+        // Position has subcubes - mark as subdivided
+        voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
+        
+        // Update subcube map
+        subcubeMap[localPos].clear();
+        for (Subcube* subcube : subcubes) {
+            if (subcube) {
+                subcubeMap[localPos][subcube->getLocalPosition()] = subcube;
+            }
+        }
+        
+        // Update cube map
+        if (cube) {
+            cubeMap[localPos] = cube;
+        } else {
+            cubeMap.erase(localPos);
+        }
+    } else if (cube) {
+        // Position has cube but no subcubes
+        voxelTypeMap[localPos] = VoxelLocation::CUBE;
+        cubeMap[localPos] = cube;
+        subcubeMap.erase(localPos); // Remove any leftover subcube data
+    } else {
+        // Position is empty
+        voxelTypeMap.erase(localPos);
+        cubeMap.erase(localPos);
+        subcubeMap.erase(localPos);
+    }
+}
+
+void Chunk::addToVoxelMaps(const glm::ivec3& localPos, Cube* cube) {
+    if (cube) {
+        cubeMap[localPos] = cube;
+        
+        // Check if we have subcubes at this position
+        auto subcubes = getSubcubesAt(localPos);
+        if (!subcubes.empty()) {
+            voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
+        } else {
+            voxelTypeMap[localPos] = VoxelLocation::CUBE;
+        }
+    }
+}
+
+void Chunk::removeFromVoxelMaps(const glm::ivec3& localPos) {
+    cubeMap.erase(localPos);
+    
+    // Check if we still have subcubes at this position
+    auto subcubes = getSubcubesAt(localPos);
+    if (!subcubes.empty()) {
+        voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
+    } else {
+        voxelTypeMap.erase(localPos);
+        subcubeMap.erase(localPos);
+    }
+}
+
+void Chunk::addSubcubeToMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos, Subcube* subcube) {
+    if (subcube) {
+        subcubeMap[localPos][subcubePos] = subcube;
+        voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
+    }
+}
+
+void Chunk::removeSubcubeFromMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos) {
+    auto parentIt = subcubeMap.find(localPos);
+    if (parentIt != subcubeMap.end()) {
+        parentIt->second.erase(subcubePos);
+        
+        // If no subcubes left, check what type this position should be
+        if (parentIt->second.empty()) {
+            subcubeMap.erase(localPos);
+            
+            // Check if we have a cube at this position
+            if (cubeMap.find(localPos) != cubeMap.end()) {
+                voxelTypeMap[localPos] = VoxelLocation::CUBE;
+            } else {
+                voxelTypeMap.erase(localPos);
+            }
+        }
+    }
+}
+
+void Chunk::initializeVoxelMaps() {
+    // Clear existing maps
+    cubeMap.clear();
+    subcubeMap.clear();
+    voxelTypeMap.clear();
+    
+    std::cout << "[CHUNK] Initializing voxel maps for chunk at origin (" 
+              << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z << ")" << std::endl;
+    
+    // Build cube map from existing vector data
+    for (size_t i = 0; i < cubes.size(); ++i) {
+        if (cubes[i]) {
+            glm::ivec3 localPos = indexToLocal(i);
+            cubeMap[localPos] = cubes[i];
+            voxelTypeMap[localPos] = VoxelLocation::CUBE;
+        }
+    }
+    
+    // Build subcube map from existing vector data
+    for (Subcube* subcube : staticSubcubes) {
+        if (subcube) {
+            glm::ivec3 parentWorldPos = subcube->getPosition();
+            glm::ivec3 localPos = parentWorldPos - worldOrigin;
+            glm::ivec3 subcubePos = subcube->getLocalPosition();
+            
+            // Validate that this subcube belongs to this chunk
+            if (isValidLocalPosition(localPos)) {
+                subcubeMap[localPos][subcubePos] = subcube;
+                voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
+            }
+        }
+    }
+    
+    std::cout << "[CHUNK] Voxel maps initialized: " 
+              << cubeMap.size() << " cubes, "
+              << subcubeMap.size() << " subdivided positions, "
+              << voxelTypeMap.size() << " total voxels" << std::endl;
+}
+
 bool Chunk::subdivideAt(const glm::ivec3& localPos) {
     // Check if position is valid
     if (!isValidLocalPosition(localPos)) return false;
@@ -754,6 +989,9 @@ bool Chunk::addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos
     Subcube* newSubcube = new Subcube(parentWorldPos, color, subcubePos);
     staticSubcubes.push_back(newSubcube);
     
+    // Update hash maps
+    addSubcubeToMaps(parentPos, subcubePos, newSubcube);
+    
     // Mark for update and as dirty for database persistence
     needsUpdate = true;
     setDirty(true);
@@ -771,6 +1009,10 @@ bool Chunk::removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcube
             
             delete subcube;
             staticSubcubes.erase(it);
+            
+            // Update hash maps
+            removeSubcubeFromMaps(parentPos, subcubePos);
+            
             needsUpdate = true;
             setDirty(true);
             return true;

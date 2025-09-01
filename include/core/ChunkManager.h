@@ -89,6 +89,9 @@ public:
     // Post-loading face rebuilding (call after all chunks are loaded)
     void rebuildAllChunkFaces(); // Rebuild faces for all chunks with proper cross-chunk culling
     
+    // Initialize hash maps for all existing chunks (call after loading chunks)
+    void initializeAllChunkVoxelMaps();
+    
     // Create multiple chunks at specified world origins
     void createChunks(const std::vector<glm::ivec3>& origins);
     
@@ -182,6 +185,12 @@ public:
     bool setCubeColorFast(const glm::ivec3& worldPos, const glm::vec3& color);  // Fast color update
     bool removeCubeFast(const glm::ivec3& worldPos);          // Fast cube removal
     bool addCubeFast(const glm::ivec3& worldPos, const glm::vec3& color = glm::vec3(1.0f));  // Fast cube addition
+    
+    // NEW: O(1) VoxelLocation resolution system for optimized hover detection
+    VoxelLocation resolveGlobalPosition(const glm::ivec3& worldPos) const;
+    VoxelLocation resolveGlobalPositionWithSubcube(const glm::ivec3& worldPos, const glm::ivec3& subcubePos) const;
+    bool hasVoxelAt(const glm::ivec3& worldPos) const;
+    VoxelLocation::Type getVoxelTypeAt(const glm::ivec3& worldPos) const;
     
     // Perform occlusion culling across chunks (check cube neighbors across chunk boundaries)
     void performOcclusionCulling();

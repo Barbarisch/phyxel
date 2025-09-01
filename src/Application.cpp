@@ -5,6 +5,7 @@
 #include "utils/Frustum.h"
 #include "examples/MultiChunkDemo.h"
 #include "core/DynamicCube.h"
+#include "core/Chunk.h"
 #include "physics/Material.h"
 #include <iostream>
 #include <iomanip>
@@ -127,6 +128,9 @@ bool Application::initialize() {
     
     // Rebuild faces for all chunks AFTER all are loaded (critical for cross-chunk culling)
     chunkManager->rebuildAllChunkFaces();
+    
+    // Initialize hash maps for optimized O(1) hover detection
+    chunkManager->initializeAllChunkVoxelMaps();
     
     // Calculate face culling optimization after chunk creation (DISABLED for now)
     // chunkManager->calculateChunkFaceCulling();
@@ -2265,6 +2269,128 @@ void Application::breakHoveredCube() {
     hasHoveredCube = false;
     currentHoveredLocation = CubeLocation();
     lastHoveredCube = -1;
+}
+
+// =============================================================================
+// NEW: VoxelLocation-based O(1) hover detection system
+// =============================================================================
+
+VoxelLocation Application::pickVoxelOptimized(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const {
+    if (!chunkManager) {
+        return VoxelLocation(); // Invalid location
+    }
+    
+    // DDA algorithm for efficient voxel traversal (same as before)
+    float maxDistance = 200.0f;
+    glm::ivec3 voxel = glm::ivec3(glm::floor(rayOrigin));
+    
+    glm::ivec3 step = glm::ivec3(
+        rayDirection.x > 0 ? 1 : (rayDirection.x < 0 ? -1 : 0),
+        rayDirection.y > 0 ? 1 : (rayDirection.y < 0 ? -1 : 0),
+        rayDirection.z > 0 ? 1 : (rayDirection.z < 0 ? -1 : 0)
+    );
+    
+    glm::vec3 deltaDist = glm::vec3(
+        rayDirection.x != 0 ? glm::abs(1.0f / rayDirection.x) : std::numeric_limits<float>::max(),
+        rayDirection.y != 0 ? glm::abs(1.0f / rayDirection.y) : std::numeric_limits<float>::max(),
+        rayDirection.z != 0 ? glm::abs(1.0f / rayDirection.z) : std::numeric_limits<float>::max()
+    );
+    
+    glm::vec3 sideDist;
+    if (rayDirection.x < 0) {
+        sideDist.x = (rayOrigin.x - voxel.x) * deltaDist.x;
+    } else {
+        sideDist.x = (voxel.x + 1.0f - rayOrigin.x) * deltaDist.x;
+    }
+    if (rayDirection.y < 0) {
+        sideDist.y = (rayOrigin.y - voxel.y) * deltaDist.y;
+    } else {
+        sideDist.y = (voxel.y + 1.0f - rayOrigin.y) * deltaDist.y;
+    }
+    if (rayDirection.z < 0) {
+        sideDist.z = (rayOrigin.z - voxel.z) * deltaDist.z;
+    } else {
+        sideDist.z = (voxel.z + 1.0f - rayOrigin.z) * deltaDist.z;
+    }
+    
+    int maxSteps = 500;
+    int lastStepAxis = -1;
+    
+    for (int step_count = 0; step_count < maxSteps; ++step_count) {
+        // NEW: O(1) voxel resolution using the VoxelLocation system
+        VoxelLocation location = chunkManager->resolveGlobalPosition(voxel);
+        
+        if (location.isValid()) {
+            // Calculate face information from DDA step
+            int hitFace = -1;
+            glm::vec3 hitNormal(0);
+            
+            if (lastStepAxis >= 0) {
+                if (lastStepAxis == 0) { // X-axis step
+                    hitFace = (step.x > 0) ? 1 : 0;
+                    hitNormal = (step.x > 0) ? glm::vec3(-1,0,0) : glm::vec3(1,0,0);
+                } else if (lastStepAxis == 1) { // Y-axis step
+                    hitFace = (step.y > 0) ? 3 : 2;
+                    hitNormal = (step.y > 0) ? glm::vec3(0,-1,0) : glm::vec3(0,1,0);
+                } else if (lastStepAxis == 2) { // Z-axis step
+                    hitFace = (step.z > 0) ? 5 : 4;
+                    hitNormal = (step.z > 0) ? glm::vec3(0,0,-1) : glm::vec3(0,0,1);
+                }
+            }
+            
+            location.hitFace = hitFace;
+            location.hitNormal = hitNormal;
+            
+            // If subdivided, resolve specific subcube
+            if (location.type == VoxelLocation::SUBDIVIDED) {
+                return resolveSubcubeInVoxel(rayOrigin, rayDirection, location);
+            } else {
+                return location; // Regular cube
+            }
+        }
+        
+        // DDA step (same as before)
+        if (sideDist.x < sideDist.y && sideDist.x < sideDist.z) {
+            lastStepAxis = 0;
+            sideDist.x += deltaDist.x;
+            voxel.x += step.x;
+        } else if (sideDist.y < sideDist.z) {
+            lastStepAxis = 1;
+            sideDist.y += deltaDist.y;
+            voxel.y += step.y;
+        } else {
+            lastStepAxis = 2;
+            sideDist.z += deltaDist.z;
+            voxel.z += step.z;
+        }
+        
+        // Distance check
+        glm::vec3 currentPos = glm::vec3(voxel);
+        if (glm::length(currentPos - rayOrigin) > maxDistance) {
+            break;
+        }
+    }
+    
+    return VoxelLocation(); // No voxel found
+}
+
+VoxelLocation Application::resolveSubcubeInVoxel(const glm::vec3& rayOrigin, const glm::vec3& rayDirection, const VoxelLocation& voxelHit) const {
+    // Convert to cube-local coordinates
+    glm::vec3 cubeLocalOrigin = rayOrigin - glm::vec3(voxelHit.worldPos);
+    
+    // Simple mathematical subcube resolution (no iteration)
+    // Clamp to ensure we stay within valid subcube bounds [0, 2]
+    glm::vec3 normalizedPos = glm::clamp(cubeLocalOrigin * 3.0f, glm::vec3(0.0f), glm::vec3(2.99f));
+    glm::ivec3 subcubePos = glm::ivec3(normalizedPos);
+    
+    // O(1) verification that subcube exists
+    if (voxelHit.chunk->hasSubcubeAt(voxelHit.localPos, subcubePos)) {
+        VoxelLocation subcubeLocation = voxelHit; // Copy base location
+        subcubeLocation.subcubePos = subcubePos;
+        return subcubeLocation;
+    }
+    
+    return VoxelLocation(); // Subcube doesn't exist
 }
 
 // =============================================================================

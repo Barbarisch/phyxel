@@ -36,6 +36,13 @@ private:
     glm::ivec3 worldOrigin = glm::ivec3(0);        // World-space origin of this chunk
     bool needsUpdate = false;                      // Flag for buffer updates
     
+    // NEW: O(1) lookup data structures for optimized hover system
+    std::unordered_map<glm::ivec3, Cube*, IVec3Hash> cubeMap;              // O(1) cube lookup by local position
+    std::unordered_map<glm::ivec3, 
+                      std::unordered_map<glm::ivec3, Subcube*, IVec3Hash>, 
+                      IVec3Hash> subcubeMap;                                // O(1) subcube lookup: localPos -> (subcubePos -> subcube)
+    std::unordered_map<glm::ivec3, VoxelLocation::Type, IVec3Hash> voxelTypeMap; // O(1) voxel type lookup
+    
     // Buffer capacity management
     static constexpr size_t DEFAULT_BUFFER_CAPACITY = 25000;   // Realistic capacity based on testing (8x current usage)
     size_t bufferCapacity = 0;                     // Current allocated buffer capacity
@@ -101,6 +108,27 @@ public:
     
     // Physics-related subcube access (legacy for transfer process)
     const std::vector<Subcube*>& getStaticSubcubes() const { return staticSubcubes; }
+    
+    // NEW: O(1) VoxelLocation resolution system for optimized hover detection
+    VoxelLocation resolveLocalPosition(const glm::ivec3& localPos) const;
+    bool hasVoxelAt(const glm::ivec3& localPos) const;
+    bool hasSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const;
+    VoxelLocation::Type getVoxelType(const glm::ivec3& localPos) const;
+    
+    // NEW: O(1) optimized lookups (replace linear searches)
+    Cube* getCubeAtFast(const glm::ivec3& localPos);
+    const Cube* getCubeAtFast(const glm::ivec3& localPos) const;
+    Subcube* getSubcubeAtFast(const glm::ivec3& localPos, const glm::ivec3& subcubePos);
+    const Subcube* getSubcubeAtFast(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const;
+    std::vector<Subcube*> getSubcubesAtFast(const glm::ivec3& localPos);
+    
+    // Internal: Maintain hash map consistency
+    void updateVoxelMaps(const glm::ivec3& localPos);
+    void addToVoxelMaps(const glm::ivec3& localPos, Cube* cube);
+    void removeFromVoxelMaps(const glm::ivec3& localPos);
+    void addSubcubeToMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos, Subcube* subcube);
+    void removeSubcubeFromMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos);
+    void initializeVoxelMaps();  // Initialize hash maps from existing data
     
     // Cube manipulation
     bool setCubeColor(const glm::ivec3& localPos, const glm::vec3& color);

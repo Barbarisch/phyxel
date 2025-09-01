@@ -1,4 +1,5 @@
 #include "core/ChunkManager.h"
+#include "core/Chunk.h"
 #include "core/WorldStorage.h"
 #include "physics/PhysicsWorld.h"
 #include <stdexcept>
@@ -219,6 +220,16 @@ void ChunkManager::rebuildAllChunkFaces() {
     }
     
     std::cout << "[CHUNK MANAGER] Face rebuilding complete for " << chunks.size() << " chunks" << std::endl;
+}
+
+void ChunkManager::initializeAllChunkVoxelMaps() {
+    std::cout << "[CHUNK MANAGER] Initializing voxel hash maps for all " << chunks.size() << " chunks..." << std::endl;
+    
+    for (auto& chunk : chunks) {
+        chunk->initializeVoxelMaps();
+    }
+    
+    std::cout << "[CHUNK MANAGER] Completed voxel map initialization for optimized O(1) hover detection" << std::endl;
 }
 
 void ChunkManager::createChunks(const std::vector<glm::ivec3>& origins) {
@@ -636,6 +647,55 @@ void ChunkManager::setCubeColorEfficient(const glm::ivec3& worldPos, const glm::
     
     // Use the new efficient partial update method (no markChunkDirty needed)
     chunk->updateSingleCubeColor(localPos, color);
+}
+
+// =============================================================================
+// NEW: O(1) VoxelLocation resolution system for optimized hover detection
+// =============================================================================
+
+VoxelLocation ChunkManager::resolveGlobalPosition(const glm::ivec3& worldPos) const {
+    // O(1) chunk lookup
+    glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
+    const Chunk* chunk = getChunkAtCoord(chunkCoord);
+    if (!chunk) {
+        return VoxelLocation(); // No chunk exists
+    }
+    
+    // O(1) voxel resolution within chunk
+    glm::ivec3 localPos = worldToLocalCoord(worldPos);
+    return chunk->resolveLocalPosition(localPos);
+}
+
+VoxelLocation ChunkManager::resolveGlobalPositionWithSubcube(const glm::ivec3& worldPos, const glm::ivec3& subcubePos) const {
+    VoxelLocation location = resolveGlobalPosition(worldPos);
+    
+    if (location.isValid() && location.type == VoxelLocation::SUBDIVIDED) {
+        // Verify the specific subcube exists
+        if (location.chunk->hasSubcubeAt(location.localPos, subcubePos)) {
+            location.subcubePos = subcubePos;
+            return location;
+        }
+    }
+    
+    return VoxelLocation(); // Subcube doesn't exist
+}
+
+bool ChunkManager::hasVoxelAt(const glm::ivec3& worldPos) const {
+    glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
+    const Chunk* chunk = getChunkAtCoord(chunkCoord);
+    if (!chunk) return false;
+    
+    glm::ivec3 localPos = worldToLocalCoord(worldPos);
+    return chunk->hasVoxelAt(localPos);
+}
+
+VoxelLocation::Type ChunkManager::getVoxelTypeAt(const glm::ivec3& worldPos) const {
+    glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
+    const Chunk* chunk = getChunkAtCoord(chunkCoord);
+    if (!chunk) return VoxelLocation::EMPTY;
+    
+    glm::ivec3 localPos = worldToLocalCoord(worldPos);
+    return chunk->getVoxelType(localPos);
 }
 
 bool ChunkManager::removeCube(const glm::ivec3& worldPos) {

@@ -12,9 +12,70 @@
 
 // Forward declarations
 class btRigidBody;
-class Chunk;
 
 namespace VulkanCube {
+
+// Forward declarations within namespace
+class Chunk;
+
+// Hash function for glm::ivec3 to use in unordered_map
+struct IVec3Hash {
+    std::size_t operator()(const glm::ivec3& v) const {
+        return std::hash<int>()(v.x) ^ (std::hash<int>()(v.y) << 1) ^ (std::hash<int>()(v.z) << 2);
+    }
+};
+
+// Unified voxel location system for O(1) hover detection
+struct VoxelLocation {
+    enum Type { EMPTY, CUBE, SUBDIVIDED };
+    
+    Type type = EMPTY;
+    Chunk* chunk = nullptr;                 // VulkanCube::Chunk forward declaration
+    glm::ivec3 localPos{-1};        // Local position within chunk
+    glm::ivec3 worldPos{-1};        // World position for convenience
+    glm::ivec3 subcubePos{-1};      // Only valid if type == SUBDIVIDED
+    
+    // Face information for cube placement (carried over from raycast)
+    int hitFace = -1;               // Which face was hit: 0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z
+    glm::vec3 hitNormal{0};         // Surface normal of hit face
+    
+    VoxelLocation() = default;
+    
+    bool isValid() const { return chunk != nullptr && type != EMPTY; }
+    bool isSubcube() const { return type == SUBDIVIDED && subcubePos != glm::ivec3(-1); }
+    bool isCube() const { return type == CUBE; }
+    
+    // Equality comparison for hover change detection
+    bool operator==(const VoxelLocation& other) const {
+        return chunk == other.chunk && 
+               localPos == other.localPos && 
+               worldPos == other.worldPos &&
+               subcubePos == other.subcubePos &&
+               type == other.type;
+    }
+    
+    bool operator!=(const VoxelLocation& other) const {
+        return !(*this == other);
+    }
+    
+    // Get the world position where a new cube should be placed adjacent to this face
+    glm::ivec3 getAdjacentPlacementPosition() const {
+        if (hitFace < 0) return worldPos; // No face data available
+        
+        // Face normals: 0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z
+        glm::ivec3 faceOffset;
+        switch (hitFace) {
+            case 0: faceOffset = glm::ivec3(1, 0, 0); break;   // +X face
+            case 1: faceOffset = glm::ivec3(-1, 0, 0); break;  // -X face
+            case 2: faceOffset = glm::ivec3(0, 1, 0); break;   // +Y face
+            case 3: faceOffset = glm::ivec3(0, -1, 0); break;  // -Y face
+            case 4: faceOffset = glm::ivec3(0, 0, 1); break;   // +Z face
+            case 5: faceOffset = glm::ivec3(0, 0, -1); break;  // -Z face
+            default: return worldPos;
+        }
+        return worldPos + faceOffset;
+    }
+};
 
 // Core vertex structure
 struct Vertex {

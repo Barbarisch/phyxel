@@ -210,6 +210,10 @@ private:
     void setHoveredCubeInChunksOptimized(const CubeLocation& location);
     void clearHoveredCubeInChunksOptimized();
     
+    // NEW: VoxelLocation-based O(1) hover detection system
+    VoxelLocation pickVoxelOptimized(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;
+    VoxelLocation resolveSubcubeInVoxel(const glm::vec3& rayOrigin, const glm::vec3& rayDirection, const VoxelLocation& voxelHit) const;
+    
     // Legacy chunk-based hover detection helpers (for compatibility)
     glm::ivec3 pickCubeInChunks(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;
     void setHoveredCubeInChunks(const glm::ivec3& worldPos);
