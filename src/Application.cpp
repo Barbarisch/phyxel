@@ -1516,11 +1516,33 @@ void Application::updateMouseHover() {
         return;
     }
     
+    // Performance timing
+    auto startTime = std::chrono::high_resolution_clock::now();
+    
     // Create ray from mouse position
     glm::vec3 rayDirection = screenToWorldRay(currentMouseX, currentMouseY);
     
-    // Use optimized ChunkManager for O(1) cube picking with DDA algorithm (avoids repeated coordinate conversions)
-    CubeLocation hoveredLocation = pickCubeInChunksOptimized(cameraPos, rayDirection);
+    // NEW: Use optimized O(1) VoxelLocation-based hover detection
+    VoxelLocation voxelLocation = pickVoxelOptimized(cameraPos, rayDirection);
+    
+    // Convert to CubeLocation for backward compatibility with existing hover system
+    CubeLocation hoveredLocation = voxelLocationToCubeLocation(voxelLocation);
+    
+    // Performance timing
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+    hoverDetectionTimeMs = duration.count() / 1000.0;
+    
+    // Update rolling average
+    hoverDetectionSamples++;
+    avgHoverDetectionTimeMs = (avgHoverDetectionTimeMs * (hoverDetectionSamples - 1) + hoverDetectionTimeMs) / hoverDetectionSamples;
+    
+    // Log performance periodically (every 300 frames to avoid spam)
+    if (hoverDetectionSamples % 300 == 0) {
+        std::cout << "[HOVER PERF] Current: " << std::fixed << std::setprecision(3) 
+                  << hoverDetectionTimeMs << "ms, Average: " << avgHoverDetectionTimeMs 
+                  << "ms (over " << hoverDetectionSamples << " samples)" << std::endl;
+    }
     
     // Convert location to a simple index for tracking (use a hash or simple approach)
     int hoveredCube = -1;
@@ -2375,13 +2397,35 @@ VoxelLocation Application::pickVoxelOptimized(const glm::vec3& rayOrigin, const 
 }
 
 VoxelLocation Application::resolveSubcubeInVoxel(const glm::vec3& rayOrigin, const glm::vec3& rayDirection, const VoxelLocation& voxelHit) const {
-    // Convert to cube-local coordinates
-    glm::vec3 cubeLocalOrigin = rayOrigin - glm::vec3(voxelHit.worldPos);
+    // Calculate the actual intersection point of the ray with the cube
+    glm::vec3 cubeMin = glm::vec3(voxelHit.worldPos);
+    glm::vec3 cubeMax = cubeMin + glm::vec3(1.0f);
     
-    // Simple mathematical subcube resolution (no iteration)
+    // Ray-AABB intersection to find the exact hit point
+    float intersectionDistance;
+    if (!rayAABBIntersect(rayOrigin, rayDirection, cubeMin, cubeMax, intersectionDistance)) {
+        return VoxelLocation(); // No intersection (shouldn't happen)
+    }
+    
+    // Calculate the intersection point within the cube
+    glm::vec3 intersectionPoint = rayOrigin + rayDirection * intersectionDistance;
+    
+    // Convert intersection point to cube-local coordinates [0, 1]
+    glm::vec3 cubeLocalPos = intersectionPoint - cubeMin;
+    
+    // Convert to subcube coordinates [0, 2] for 3x3x3 grid
+    glm::vec3 subcubeFloat = cubeLocalPos * 3.0f;
+    
     // Clamp to ensure we stay within valid subcube bounds [0, 2]
-    glm::vec3 normalizedPos = glm::clamp(cubeLocalOrigin * 3.0f, glm::vec3(0.0f), glm::vec3(2.99f));
-    glm::ivec3 subcubePos = glm::ivec3(normalizedPos);
+    subcubeFloat = glm::clamp(subcubeFloat, glm::vec3(0.0f), glm::vec3(2.99f));
+    glm::ivec3 subcubePos = glm::ivec3(subcubeFloat);
+    
+    // Debug output to help troubleshoot
+    if (debugFlags.hoverDetection) {
+        std::cout << "[SUBCUBE RESOLVE] World: (" << voxelHit.worldPos.x << "," << voxelHit.worldPos.y << "," << voxelHit.worldPos.z 
+                  << ") Local: (" << cubeLocalPos.x << "," << cubeLocalPos.y << "," << cubeLocalPos.z 
+                  << ") Subcube: (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z << ")" << std::endl;
+    }
     
     // O(1) verification that subcube exists
     if (voxelHit.chunk->hasSubcubeAt(voxelHit.localPos, subcubePos)) {
@@ -2391,6 +2435,30 @@ VoxelLocation Application::resolveSubcubeInVoxel(const glm::vec3& rayOrigin, con
     }
     
     return VoxelLocation(); // Subcube doesn't exist
+}
+
+// Adapter: Convert VoxelLocation to CubeLocation for backward compatibility
+Application::CubeLocation Application::voxelLocationToCubeLocation(const VoxelLocation& voxelLoc) const {
+    if (!voxelLoc.isValid()) {
+        return CubeLocation(); // Invalid location
+    }
+    
+    CubeLocation cubeLocation;
+    cubeLocation.chunk = voxelLoc.chunk;
+    cubeLocation.localPos = voxelLoc.localPos;
+    cubeLocation.worldPos = voxelLoc.worldPos;
+    cubeLocation.hitFace = voxelLoc.hitFace;
+    cubeLocation.hitNormal = voxelLoc.hitNormal;
+    
+    if (voxelLoc.isSubcube()) {
+        cubeLocation.isSubcube = true;
+        cubeLocation.subcubePos = voxelLoc.subcubePos;
+    } else {
+        cubeLocation.isSubcube = false;
+        cubeLocation.subcubePos = glm::ivec3(-1);
+    }
+    
+    return cubeLocation;
 }
 
 // =============================================================================

@@ -142,6 +142,11 @@ private:
     // Performance overlay
     bool showPerformanceOverlay = false;
     
+    // Hover performance tracking
+    mutable double hoverDetectionTimeMs = 0.0;
+    mutable int hoverDetectionSamples = 0;
+    mutable double avgHoverDetectionTimeMs = 0.0;
+    
     // Debug system
     struct DebugFlags {
         bool hoverDetection = false;
@@ -213,6 +218,9 @@ private:
     // NEW: VoxelLocation-based O(1) hover detection system
     VoxelLocation pickVoxelOptimized(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;
     VoxelLocation resolveSubcubeInVoxel(const glm::vec3& rayOrigin, const glm::vec3& rayDirection, const VoxelLocation& voxelHit) const;
+    
+    // Adapter: Convert VoxelLocation to CubeLocation for backward compatibility
+    CubeLocation voxelLocationToCubeLocation(const VoxelLocation& voxelLoc) const;
     
     // Legacy chunk-based hover detection helpers (for compatibility)
     glm::ivec3 pickCubeInChunks(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;
