@@ -2207,44 +2207,53 @@ VoxelLocation Application::pickVoxelOptimized(const glm::vec3& rayOrigin, const 
 }
 
 VoxelLocation Application::resolveSubcubeInVoxel(const glm::vec3& rayOrigin, const glm::vec3& rayDirection, const VoxelLocation& voxelHit) const {
-    // Calculate the actual intersection point of the ray with the cube
-    glm::vec3 cubeMin = glm::vec3(voxelHit.worldPos);
-    glm::vec3 cubeMax = cubeMin + glm::vec3(1.0f);
-    
-    // Ray-AABB intersection to find the exact hit point
-    float intersectionDistance;
-    if (!rayAABBIntersect(rayOrigin, rayDirection, cubeMin, cubeMax, intersectionDistance)) {
-        return VoxelLocation(); // No intersection (shouldn't happen)
+    // Get all existing subcubes at this voxel position
+    std::vector<Subcube*> existingSubcubes = voxelHit.chunk->getSubcubesAt(voxelHit.localPos);
+    if (existingSubcubes.empty()) {
+        return VoxelLocation(); // No subcubes exist at all
     }
     
-    // Calculate the intersection point within the cube
-    glm::vec3 intersectionPoint = rayOrigin + rayDirection * intersectionDistance;
+    // Test ray intersection against each existing subcube's bounding box
+    float closestDistance = std::numeric_limits<float>::max();
+    Subcube* closestSubcube = nullptr;
     
-    // Convert intersection point to cube-local coordinates [0, 1]
-    glm::vec3 cubeLocalPos = intersectionPoint - cubeMin;
-    
-    // Convert to subcube coordinates [0, 2] for 3x3x3 grid
-    glm::vec3 subcubeFloat = cubeLocalPos * 3.0f;
-    
-    // Clamp to ensure we stay within valid subcube bounds [0, 2]
-    subcubeFloat = glm::clamp(subcubeFloat, glm::vec3(0.0f), glm::vec3(2.99f));
-    glm::ivec3 subcubePos = glm::ivec3(subcubeFloat);
-    
-    // Debug output to help troubleshoot
-    if (debugFlags.hoverDetection) {
-        std::cout << "[SUBCUBE RESOLVE] World: (" << voxelHit.worldPos.x << "," << voxelHit.worldPos.y << "," << voxelHit.worldPos.z 
-                  << ") Local: (" << cubeLocalPos.x << "," << cubeLocalPos.y << "," << cubeLocalPos.z 
-                  << ") Subcube: (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z << ")" << std::endl;
+    for (Subcube* subcube : existingSubcubes) {
+        if (!subcube || !subcube->isVisible()) continue;
+        
+        glm::ivec3 subcubeLocalPos = subcube->getLocalPosition();
+        
+        // Calculate subcube's world bounding box (each subcube is 1/3 scale within the parent cube)
+        float subcubeSize = 1.0f / 3.0f;
+        glm::vec3 subcubeMin = glm::vec3(voxelHit.worldPos) + glm::vec3(subcubeLocalPos) * subcubeSize;
+        glm::vec3 subcubeMax = subcubeMin + glm::vec3(subcubeSize);
+        
+        // Ray-AABB intersection test
+        float intersectionDistance;
+        if (rayAABBIntersect(rayOrigin, rayDirection, subcubeMin, subcubeMax, intersectionDistance)) {
+            // Check if this is the closest intersection so far
+            if (intersectionDistance >= 0.0f && intersectionDistance < closestDistance) {
+                closestDistance = intersectionDistance;
+                closestSubcube = subcube;
+            }
+        }
     }
     
-    // O(1) verification that subcube exists
-    if (voxelHit.chunk->hasSubcubeAt(voxelHit.localPos, subcubePos)) {
+    // Return the closest subcube hit, if any
+    if (closestSubcube) {
         VoxelLocation subcubeLocation = voxelHit; // Copy base location
-        subcubeLocation.subcubePos = subcubePos;
+        subcubeLocation.subcubePos = closestSubcube->getLocalPosition();
+        
+        // Debug output to help troubleshoot
+        if (debugFlags.hoverDetection) {
+            std::cout << "[SUBCUBE RESOLVE] Found closest subcube at world pos: (" << voxelHit.worldPos.x << "," << voxelHit.worldPos.y << "," << voxelHit.worldPos.z 
+                      << ") subcube: (" << subcubeLocation.subcubePos.x << "," << subcubeLocation.subcubePos.y << "," << subcubeLocation.subcubePos.z 
+                      << ") distance: " << closestDistance << std::endl;
+        }
+        
         return subcubeLocation;
     }
     
-    return VoxelLocation(); // Subcube doesn't exist
+    return VoxelLocation(); // No subcube intersected (ray passed through empty spaces)
 }
 
 // Adapter: Convert VoxelLocation to CubeLocation for backward compatibility
