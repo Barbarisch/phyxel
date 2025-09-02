@@ -209,8 +209,6 @@ private:
     void breakHoveredCube();     // Break the currently hovered cube into a dynamic cube with physics
     
     // Chunk-based hover detection helpers (optimized)
-    CubeLocation pickCubeInChunksOptimized(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;
-    glm::ivec3 findSubcubeHit(const glm::vec3& rayOrigin, const glm::vec3& rayDirection, const glm::ivec3& cubeWorldPos) const;
     CubeLocation findExistingSubcubeHit(Chunk* chunk, const glm::ivec3& localPos, const glm::ivec3& cubeWorldPos, const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;
     void setHoveredCubeInChunksOptimized(const CubeLocation& location);
     void clearHoveredCubeInChunksOptimized();
@@ -222,16 +220,10 @@ private:
     // Adapter: Convert VoxelLocation to CubeLocation for backward compatibility
     CubeLocation voxelLocationToCubeLocation(const VoxelLocation& voxelLoc) const;
     
-    // Legacy chunk-based hover detection helpers (for compatibility)
-    glm::ivec3 pickCubeInChunks(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;
-    void setHoveredCubeInChunks(const glm::ivec3& worldPos);
-    void clearHoveredCubeInChunks();
+    // Ray-AABB intersection utility
     bool rayAABBIntersect(const glm::vec3& rayOrigin, const glm::vec3& rayDir, 
                          const glm::vec3& aabbMin, const glm::vec3& aabbMax, 
                          float& distance) const;
-    
-    // Efficient voxel raycasting helpers
-    glm::ivec3 raycastVoxelGrid(const glm::vec3& rayOrigin, const glm::vec3& rayDirection, const glm::ivec3& chunkOrigin) const;
 
     // Utility methods
     void updateFrameTiming();
