@@ -1691,8 +1691,8 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
                   << ") subcube: (" << location.subcubePos.x << "," << location.subcubePos.y << "," << location.subcubePos.z 
                   << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
         
-        // Set hover color (make it bright white for clear visibility)
-        glm::vec3 hoverColor = glm::vec3(1.0f, 1.0f, 1.0f); // Bright white for subcube hover
+        // Set hover color (lighten the original color for subtle highlighting)
+        glm::vec3 hoverColor = calculateLighterColor(originalHoveredColor);
         
         // Use efficient subcube color update
         if (chunkManager) {
@@ -1718,8 +1718,8 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
         std::cout << "[CUBE HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
                   << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
         
-        // Set hover color (darken the cube by setting it to black)
-        glm::vec3 hoverColor = glm::vec3(0.0f, 0.0f, 0.0f); // Black for regular cube hover
+        // Set hover color (lighten the original color for subtle highlighting)
+        glm::vec3 hoverColor = calculateLighterColor(originalHoveredColor);
         
         // Use efficient partial update instead of marking chunk dirty
         if (chunkManager) {
@@ -2339,6 +2339,24 @@ void Application::setChunkInclusionDistance(float distance) {
         chunkInclusionDistance = distance;
         std::cout << "Chunk inclusion distance updated to: " << distance << std::endl;
     }
+}
+
+// =============================================================================
+// COLOR UTILITY FUNCTIONS
+// =============================================================================
+
+glm::vec3 Application::calculateLighterColor(const glm::vec3& originalColor) const {
+    // Create a lighter version of the color by mixing with white
+    // This approach maintains the color's hue while making it brighter
+    const float lightenAmount = 0.4f; // How much lighter (0.0 = no change, 1.0 = pure white)
+    
+    // Mix the original color with white
+    glm::vec3 lighterColor = glm::mix(originalColor, glm::vec3(1.0f), lightenAmount);
+    
+    // Ensure we don't exceed maximum color values
+    lighterColor = glm::min(lighterColor, glm::vec3(1.0f));
+    
+    return lighterColor;
 }
 
 

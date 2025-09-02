@@ -230,6 +230,9 @@ private:
     void printPerformanceStats();
     void debugCoordinateSystem(); // Debug coordinate conversion and physics positioning
     
+    // Color utility methods
+    glm::vec3 calculateLighterColor(const glm::vec3& originalColor) const;
+    
     // Frame profiling methods
     FrameTiming profileFrame();
     void printProfilingInfo(int fps);
