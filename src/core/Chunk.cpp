@@ -952,6 +952,10 @@ bool Chunk::subdivideAt(const glm::ivec3& localPos) {
                 
                 Subcube* newSubcube = new Subcube(parentWorldPos, subcubeColor, subcubeLocalPos);
                 staticSubcubes.push_back(newSubcube); // Add to static subcubes list
+                
+                // CRITICAL: Update hash maps for each subcube for O(1) hover detection
+                addSubcubeToMaps(localPos, subcubeLocalPos, newSubcube);
+                
                 colorIndex++;
             }
         }
@@ -959,6 +963,9 @@ bool Chunk::subdivideAt(const glm::ivec3& localPos) {
     
     // Hide the parent cube (don't delete it, just hide it)
     cube->hide();
+    
+    // CRITICAL: Update voxelTypeMap to mark position as subdivided for proper hover detection
+    voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
     
     // Debug: Verify the cube is actually hidden and subdivided
     // std::cout << "[CHUNK] Parent cube hidden. isVisible() = " << cube->isVisible() 
@@ -1172,19 +1179,37 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
             subcube->getPosition() == worldOrigin + parentPos && 
             subcube->getLocalPosition() == subcubePos) {
             
-            // CRITICAL: Force immediate compound shape rebuild to remove static collision BEFORE creating physics body
-            std::cout << "[COMPOUND SHAPE] BEFORE: Force rebuilding compound shape to remove static collision" << std::endl;
-            staticSubcubes.erase(it);
-            forcePhysicsRebuild();
-            std::cout << "[COMPOUND SHAPE] AFTER: Compound shape rebuilt - static collision removed" << std::endl;
+            // Store subcube data before removal
+            glm::vec3 worldPos = subcube->getWorldPosition();
+            glm::vec3 originalColor = subcube->getOriginalColor();
+            bool isVisible = subcube->isVisible();
+            float lifetime = subcube->getLifetime();
             
-            // Mark as broken for proper handling
-            subcube->breakApart();
+            // CRITICAL: Use proper removeSubcube to update all data structures (voxelTypeMap, subcubeMap, etc.)
+            std::cout << "[COMPOUND SHAPE] BEFORE: Using proper subcube removal to update all data structures" << std::endl;
+            bool removed = removeSubcube(parentPos, subcubePos);
+            if (!removed) {
+                std::cout << "[ERROR] Failed to remove subcube from data structures" << std::endl;
+                return false;
+            }
+            forcePhysicsRebuild();
+            std::cout << "[COMPOUND SHAPE] AFTER: All data structures updated and compound shape rebuilt" << std::endl;
+            
+            // Create new dynamic subcube for physics (since original was removed)
+            auto dynamicSubcube = std::make_unique<Subcube>(
+                worldOrigin + parentPos, 
+                originalColor, 
+                subcubePos
+            );
+            
+            // Set properties from stored data
+            dynamicSubcube->setOriginalColor(originalColor);
+            dynamicSubcube->setVisible(isVisible);
+            dynamicSubcube->setLifetime(lifetime);
+            dynamicSubcube->breakApart(); // Mark as broken
             
             // Create physics body for dynamic subcube if physics world is available
             if (physicsWorld) {
-                glm::vec3 worldPos = subcube->getWorldPosition();
-                
                 // COORDINATE FIX: Static subcubes use corner-based coordinates, physics uses center-based
                 glm::vec3 subcubeCornerPos = worldPos; // Corner position (matches static subcubes)
                 glm::vec3 subcubeSize(1.0f / 3.0f); // Match visual subcube size
@@ -1192,8 +1217,8 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
                 
                 // Create dynamic physics body at center position
                 btRigidBody* rigidBody = physicsWorld->createBreakawaCube(physicsCenterPos, subcubeSize, 0.5f); // 0.5kg mass
-                subcube->setRigidBody(rigidBody);
-                subcube->setPhysicsPosition(physicsCenterPos);
+                dynamicSubcube->setRigidBody(rigidBody);
+                dynamicSubcube->setPhysicsPosition(physicsCenterPos);
                 
                 // Apply initial impulse force to make it "break" away
                 if (rigidBody && glm::length(impulseForce) > 0.0f) {
@@ -1212,37 +1237,17 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
                 }
             }
             
-            // Transfer directly to global dynamic subcube system
+            // Transfer the dynamic subcube directly to global system
             if (chunkManager) {
-                // Create new subcube for global system (avoid copy constructor which would copy rigidBody pointer)
-                auto globalSubcube = std::make_unique<Subcube>(
-                    subcube->getPosition(), 
-                    subcube->getColor(), 
-                    subcube->getLocalPosition()
-                );
-                
-                // Copy safe properties
-                globalSubcube->setOriginalColor(subcube->getOriginalColor());
-                globalSubcube->setBroken(true); // Mark as broken
-                globalSubcube->setVisible(subcube->isVisible());
-                globalSubcube->setLifetime(subcube->getLifetime());
-                globalSubcube->setPhysicsPosition(subcube->getPhysicsPosition());
-                globalSubcube->setPhysicsRotation(subcube->getPhysicsRotation());
-                
-                // Transfer physics body ownership (critical: only one object should own the physics body)
-                globalSubcube->setRigidBody(subcube->getRigidBody());
-                subcube->setRigidBody(nullptr); // Prevent double deletion
-                
-                // Add to global system
-                chunkManager->addGlobalDynamicSubcube(std::move(globalSubcube));
+                // The dynamicSubcube is already properly configured, just transfer it
+                chunkManager->addGlobalDynamicSubcube(std::move(dynamicSubcube));
                 
                 std::cout << "[GLOBAL TRANSFER] Moved broken subcube directly to global dynamic system (safe transfer)" << std::endl;
             } else {
                 std::cout << "[ERROR] No ChunkManager provided - cannot transfer to global system" << std::endl;
             }
             
-            // Clean up local subcube
-            delete subcube;
+            // Note: No need to delete subcube - it was already properly removed by removeSubcube()
             
             // Rebuild static faces only (no more dynamic faces in chunks)
             rebuildFaces();

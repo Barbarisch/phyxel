@@ -1703,6 +1703,13 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
         Cube* cube = location.chunk->getCubeAt(location.localPos);
         if (!cube) return;
         
+        // CRITICAL: Don't apply hover to subdivided cubes (they should be handled as individual subcubes)
+        if (!cube->isVisible()) {
+            std::cout << "[CUBE HOVER] Skipping hover on hidden/subdivided cube at world pos: (" 
+                      << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z << ")" << std::endl;
+            return;
+        }
+        
         // Store original color and location for later restoration
         originalHoveredColor = cube->getColor();
         currentHoveredLocation = location;
