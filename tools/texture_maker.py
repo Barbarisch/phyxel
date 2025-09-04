@@ -14,7 +14,8 @@ class PixelArtEditor:
         self.canvas.pack()
 
         self.current_color = "#000000"  # default black
-        self.pixels = [[self.current_color for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
+        self.background_color = "#ffffff"  # default white background/eraser
+        self.pixels = [[self.background_color for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
 
         self.rectangles = {}
         for y in range(GRID_SIZE):
@@ -22,16 +23,18 @@ class PixelArtEditor:
                 rect = self.canvas.create_rectangle(
                     x*PIXEL_SIZE, y*PIXEL_SIZE,
                     (x+1)*PIXEL_SIZE, (y+1)*PIXEL_SIZE,
-                    fill="white", outline="gray"
+                    fill=self.background_color, outline="gray"
                 )
                 self.rectangles[rect] = (x, y)
 
         self.canvas.bind("<Button-1>", self.paint_pixel)
+        self.canvas.bind("<Button-3>", self.erase_pixel)  # Right-click to erase
 
         button_frame = tk.Frame(root)
         button_frame.pack(pady=5)
 
         tk.Button(button_frame, text="Pick Color", command=self.choose_color).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Pick Background", command=self.choose_background).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Save PNG", command=self.save_png).pack(side=tk.LEFT, padx=5)
 
     def choose_color(self):
@@ -39,11 +42,22 @@ class PixelArtEditor:
         if color_code[1]:
             self.current_color = color_code[1]
 
+    def choose_background(self):
+        color_code = colorchooser.askcolor(title="Choose background/eraser color")
+        if color_code[1]:
+            self.background_color = color_code[1]
+
     def paint_pixel(self, event):
         rect = self.canvas.find_closest(event.x, event.y)[0]
         x, y = self.rectangles[rect]
         self.canvas.itemconfig(rect, fill=self.current_color)
         self.pixels[y][x] = self.current_color
+
+    def erase_pixel(self, event):
+        rect = self.canvas.find_closest(event.x, event.y)[0]
+        x, y = self.rectangles[rect]
+        self.canvas.itemconfig(rect, fill=self.background_color)
+        self.pixels[y][x] = self.background_color
 
     def save_png(self):
         file_path = filedialog.asksaveasfilename(defaultextension=".png",
