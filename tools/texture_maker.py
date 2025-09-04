@@ -3,8 +3,8 @@ from tkinter import colorchooser, filedialog, messagebox
 from PIL import Image
 import copy
 
-GRID_SIZE = 16
 PIXEL_SIZE = 20  # size of each square in the GUI
+AVAILABLE_SIZES = [16, 32, 64]  # Available grid sizes
 # MS Paint classic color palette (28 colors in 2 rows)
 DEFAULT_PALETTE = [
     # Top row
@@ -18,12 +18,15 @@ DEFAULT_PALETTE = [
 class PixelArtEditor:
     def __init__(self, root):
         self.root = root
-        self.root.title("16x16 Texture Maker")
+        
+        # Size management
+        self.grid_size = 16  # Default size
+        self.update_title()
 
         # State management
         self.current_color = "#000000"  # default black
         self.background_color = "#ffffff"  # default white background/eraser
-        self.pixels = [[self.background_color for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
+        self.pixels = [[self.background_color for _ in range(self.grid_size)] for _ in range(self.grid_size)]
         self.show_grid = True
         
         # Undo/Redo system
@@ -37,7 +40,7 @@ class PixelArtEditor:
         main_frame.pack(padx=10, pady=10)
 
         # Create canvas
-        self.canvas = tk.Canvas(main_frame, width=GRID_SIZE*PIXEL_SIZE, height=GRID_SIZE*PIXEL_SIZE)
+        self.canvas = tk.Canvas(main_frame, width=self.grid_size*PIXEL_SIZE, height=self.grid_size*PIXEL_SIZE)
         self.canvas.pack()
 
         self.rectangles = {}
@@ -50,6 +53,29 @@ class PixelArtEditor:
         self.create_toolbar(main_frame)
         self.create_color_palette(main_frame)
 
+    def update_title(self):
+        """Update window title with current canvas size"""
+        self.root.title(f"{self.grid_size}x{self.grid_size} Texture Maker")
+
+    def resize_canvas(self, new_size):
+        """Resize the canvas to a new size"""
+        if messagebox.askyesno("Resize Canvas", 
+                               f"Change canvas size to {new_size}x{new_size}?\nThis will clear your current work."):
+            self.grid_size = new_size
+            self.pixels = [[self.background_color for _ in range(self.grid_size)] for _ in range(self.grid_size)]
+            
+            # Update canvas size
+            self.canvas.config(width=self.grid_size*PIXEL_SIZE, height=self.grid_size*PIXEL_SIZE)
+            
+            # Clear history and save new state
+            self.history = []
+            self.history_index = -1
+            self.save_state()
+            
+            # Recreate grid and update title
+            self.create_grid()
+            self.update_title()
+
     def create_grid(self):
         """Create the pixel grid on the canvas"""
         self.canvas.delete("all")
@@ -57,8 +83,8 @@ class PixelArtEditor:
         
         outline_color = "gray" if self.show_grid else self.background_color
         
-        for y in range(GRID_SIZE):
-            for x in range(GRID_SIZE):
+        for y in range(self.grid_size):
+            for x in range(self.grid_size):
                 rect = self.canvas.create_rectangle(
                     x*PIXEL_SIZE, y*PIXEL_SIZE,
                     (x+1)*PIXEL_SIZE, (y+1)*PIXEL_SIZE,
@@ -70,6 +96,16 @@ class PixelArtEditor:
         """Create the toolbar with main buttons"""
         toolbar_frame = tk.Frame(parent)
         toolbar_frame.pack(pady=5)
+
+        # Size selection
+        size_frame = tk.Frame(toolbar_frame)
+        size_frame.pack(side=tk.LEFT, padx=5)
+        tk.Label(size_frame, text="Size:").pack(side=tk.LEFT)
+        for size in AVAILABLE_SIZES:
+            btn = tk.Button(size_frame, text=f"{size}x{size}", 
+                          command=lambda s=size: self.resize_canvas(s),
+                          relief="sunken" if size == self.grid_size else "raised")
+            btn.pack(side=tk.LEFT, padx=1)
 
         # File operations
         file_frame = tk.Frame(toolbar_frame)
@@ -173,7 +209,7 @@ class PixelArtEditor:
     def clear_canvas(self):
         """Clear the entire canvas"""
         if messagebox.askyesno("Clear Canvas", "Are you sure you want to clear the entire canvas?"):
-            self.pixels = [[self.background_color for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
+            self.pixels = [[self.background_color for _ in range(self.grid_size)] for _ in range(self.grid_size)]
             self.create_grid()
             self.save_state()
 
@@ -218,17 +254,17 @@ class PixelArtEditor:
         if file_path:
             try:
                 img = Image.open(file_path)
-                # Resize to 16x16 if needed
-                if img.size != (GRID_SIZE, GRID_SIZE):
-                    img = img.resize((GRID_SIZE, GRID_SIZE), Image.NEAREST)
+                # Resize to current grid size if needed
+                if img.size != (self.grid_size, self.grid_size):
+                    img = img.resize((self.grid_size, self.grid_size), Image.NEAREST)
                 
                 # Convert to RGB if needed
                 if img.mode != 'RGB':
                     img = img.convert('RGB')
                 
                 # Load pixels into grid
-                for y in range(GRID_SIZE):
-                    for x in range(GRID_SIZE):
+                for y in range(self.grid_size):
+                    for x in range(self.grid_size):
                         r, g, b = img.getpixel((x, y))
                         hex_color = f"#{r:02x}{g:02x}{b:02x}"
                         self.pixels[y][x] = hex_color
@@ -244,11 +280,11 @@ class PixelArtEditor:
         file_path = filedialog.asksaveasfilename(defaultextension=".png",
                                                  filetypes=[("PNG files", "*.png")])
         if file_path:
-            img = Image.new("RGB", (GRID_SIZE, GRID_SIZE))
-            for y in range(GRID_SIZE):
-                for x in range(GRID_SIZE):
+            img = Image.new("RGB", (self.grid_size, self.grid_size))
+            for y in range(self.grid_size):
+                for x in range(self.grid_size):
                     img.putpixel((x, y), self.hex_to_rgb(self.pixels[y][x]))
-            img = img.resize((GRID_SIZE, GRID_SIZE), Image.NEAREST)
+            img = img.resize((self.grid_size, self.grid_size), Image.NEAREST)
             img.save(file_path)
             print(f"Saved {file_path}")
 
