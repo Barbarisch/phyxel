@@ -5,10 +5,14 @@ import copy
 
 GRID_SIZE = 16
 PIXEL_SIZE = 20  # size of each square in the GUI
+# MS Paint classic color palette (28 colors in 2 rows)
 DEFAULT_PALETTE = [
-    "#000000", "#FFFFFF", "#FF0000", "#00FF00", "#0000FF", "#FFFF00", 
-    "#FF00FF", "#00FFFF", "#800000", "#008000", "#000080", "#808000", 
-    "#800080", "#008080", "#808080", "#C0C0C0"
+    # Top row
+    "#000000", "#808080", "#800000", "#808000", "#008000", "#008080", "#000080", "#800080",
+    "#808040", "#004040", "#0080FF", "#004080", "#8000FF", "#804000", 
+    # Bottom row  
+    "#FFFFFF", "#C0C0C0", "#FF0000", "#FFFF00", "#00FF00", "#00FFFF", "#0000FF", "#FF00FF",
+    "#FFFF80", "#00FF80", "#80FFFF", "#8080FF", "#FF0080", "#FF8040"
 ]
 
 class PixelArtEditor:
@@ -101,14 +105,33 @@ class PixelArtEditor:
         palette_frame = tk.Frame(parent)
         palette_frame.pack(pady=5)
         
-        tk.Label(palette_frame, text="Color Palette:").pack()
+        tk.Label(palette_frame, text="Color Palette (MS Paint style):").pack()
         
         colors_frame = tk.Frame(palette_frame)
         colors_frame.pack()
         
         self.palette_buttons = []
-        for i, color in enumerate(DEFAULT_PALETTE):
-            btn = tk.Button(colors_frame, width=3, height=2, bg=color,
+        
+        # Create two rows of colors like MS Paint
+        colors_per_row = 14  # 14 colors per row
+        
+        # Top row
+        top_row_frame = tk.Frame(colors_frame)
+        top_row_frame.pack()
+        for i in range(colors_per_row):
+            if i < len(DEFAULT_PALETTE):
+                color = DEFAULT_PALETTE[i]
+                btn = tk.Button(top_row_frame, width=3, height=2, bg=color,
+                              command=lambda c=color: self.set_color(c))
+                btn.pack(side=tk.LEFT, padx=1, pady=1)
+                self.palette_buttons.append(btn)
+        
+        # Bottom row
+        bottom_row_frame = tk.Frame(colors_frame)
+        bottom_row_frame.pack()
+        for i in range(colors_per_row, len(DEFAULT_PALETTE)):
+            color = DEFAULT_PALETTE[i]
+            btn = tk.Button(bottom_row_frame, width=3, height=2, bg=color,
                           command=lambda c=color: self.set_color(c))
             btn.pack(side=tk.LEFT, padx=1, pady=1)
             self.palette_buttons.append(btn)
