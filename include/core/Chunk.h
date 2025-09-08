@@ -154,8 +154,12 @@ public:
     void updateVulkanBuffer();                     // Update GPU buffer with face data
     
     // Efficient partial updates for hover effects (avoids full rebuild)
-    void updateSingleCubeColor(const glm::ivec3& localPos, const glm::vec3& newColor);
-    void updateSingleSubcubeColor(const glm::ivec3& parentLocalPos, const glm::ivec3& subcubePos, const glm::vec3& newColor);
+    void updateSingleCubeTexture(const glm::ivec3& localPos, uint16_t textureIndex);
+    void updateSingleSubcubeTexture(const glm::ivec3& parentLocalPos, const glm::ivec3& subcubePos, uint16_t textureIndex);
+    
+    // Legacy color functions - TODO: Remove after full texture transition
+    // void updateSingleCubeColor(const glm::ivec3& localPos, const glm::vec3& newColor);
+    // void updateSingleSubcubeColor(const glm::ivec3& parentLocalPos, const glm::ivec3& subcubePos, const glm::vec3& newColor);
     
     // Dirty tracking for smart saves
     bool getIsDirty() const { return isDirty; }

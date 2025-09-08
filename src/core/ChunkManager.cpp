@@ -471,7 +471,7 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
                                          ((cubeChunkPos.z & 0x1F) << 10) | ((faceID & 0x7) << 15) |
                                          (subcubeData << 18);
                 
-                faceInstance.color = cube->getColor();
+                faceInstance.textureIndex = TextureConstants::PLACEHOLDER_TEXTURE_INDEX;
                 chunk.faces.push_back(faceInstance);
             }
         }
@@ -526,7 +526,7 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
                                          ((parentChunkPos.z & 0x1F) << 10) | ((faceID & 0x7) << 15) |
                                          (subcubeData << 18);
                 
-                faceInstance.color = subcube->getColor();
+                faceInstance.textureIndex = TextureConstants::PLACEHOLDER_TEXTURE_INDEX;
                 chunk.faces.push_back(faceInstance);
             }
         }
@@ -646,7 +646,7 @@ void ChunkManager::setCubeColorEfficient(const glm::ivec3& worldPos, const glm::
     glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
     
     // Use the new efficient partial update method (no markChunkDirty needed)
-    chunk->updateSingleCubeColor(localPos, color);
+    chunk->updateSingleCubeTexture(localPos, TextureConstants::PLACEHOLDER_TEXTURE_INDEX);
 }
 
 // =============================================================================
@@ -753,7 +753,7 @@ void ChunkManager::setSubcubeColorEfficient(const glm::ivec3& worldPos, const gl
     if (subcubes.empty()) return;
     
     // Use the new efficient partial update method (similar to regular cubes)
-    chunk->updateSingleSubcubeColor(localPos, subcubePos, color);
+    chunk->updateSingleSubcubeTexture(localPos, subcubePos, TextureConstants::PLACEHOLDER_TEXTURE_INDEX);
 }
 
 glm::vec3 ChunkManager::getSubcubeColor(const glm::ivec3& worldPos, const glm::ivec3& subcubePos) {
@@ -1211,7 +1211,7 @@ void ChunkManager::rebuildGlobalDynamicFaces() {
                 faceInstance.rotation = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f); // Identity quaternion for static subcubes
             }
             
-            faceInstance.color = subcube->getColor();
+            faceInstance.textureIndex = TextureConstants::PLACEHOLDER_TEXTURE_INDEX;
             faceInstance.faceID = faceID;
             faceInstance.scale = subcube->getScale();
             
@@ -1230,7 +1230,7 @@ void ChunkManager::rebuildGlobalDynamicFaces() {
             // Dynamic cubes always use physics position and rotation
             faceInstance.worldPosition = cube->getPhysicsPosition();
             faceInstance.rotation = cube->getPhysicsRotation();
-            faceInstance.color = cube->getColor();
+            faceInstance.textureIndex = TextureConstants::PLACEHOLDER_TEXTURE_INDEX;
             faceInstance.faceID = faceID;
             faceInstance.scale = cube->getScale(); // 1.0 for full cubes
             

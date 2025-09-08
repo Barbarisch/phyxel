@@ -71,7 +71,7 @@ void SceneManager::addCube(int x, int y, int z) {
     // Create instance data using new packed format
     CubeFaces faces;
     faces.front = faces.back = faces.left = faces.right = faces.top = faces.bottom = true; // All faces visible initially
-    InstanceData instanceData = InstanceDataUtils::createInstanceData(position, faces, newCube.getColor());
+    InstanceData instanceData = InstanceDataUtils::createInstanceData(position, faces, TextureConstants::PLACEHOLDER_TEXTURE_INDEX);
     this->instanceData.push_back(instanceData);
     
     // Add to visibility buffer
@@ -285,7 +285,7 @@ void SceneManager::setVisibility(int index, bool visible) {
 void SceneManager::updateCubeColor(int index, const glm::vec3& color) {
     if (index >= 0 && index < static_cast<int>(cubes.size())) {
         cubes[index].setColor(color);
-        instanceData[index].color = color;
+        instanceData[index].textureIndex = TextureConstants::PLACEHOLDER_TEXTURE_INDEX;
     }
 }
 
@@ -433,11 +433,11 @@ void SceneManager::setHoveredCube(int cubeIndex) {
     if (cubeIndex >= 0 && cubeIndex < static_cast<int>(cubes.size())) {
         hoveredCubeIndex = cubeIndex;
         
-        // Store original color
-        originalHoveredColor = instanceData[cubeIndex].color;
+        // Store original texture index (placeholder for now)
+        originalHoveredTextureIndex = instanceData[cubeIndex].textureIndex;
         
-        // Lighten the color like in the original (add 0.3f and clamp to 1.0f)
-        instanceData[cubeIndex].color = glm::min(originalHoveredColor + glm::vec3(0.3f), glm::vec3(1.0f));
+        // Switch to a different texture index for hover effect (placeholder implementation)
+        instanceData[cubeIndex].textureIndex = TextureConstants::PLACEHOLDER_TEXTURE_INDEX; // For now, keep same texture
         
         // Force instance data update on next frame
         instanceDataNeedsUpdate = true;
@@ -446,8 +446,8 @@ void SceneManager::setHoveredCube(int cubeIndex) {
 
 void SceneManager::clearHoveredCube() {
     if (hoveredCubeIndex >= 0 && hoveredCubeIndex < static_cast<int>(cubes.size())) {
-        // Restore original color
-        instanceData[hoveredCubeIndex].color = originalHoveredColor;
+        // Restore original texture index
+        instanceData[hoveredCubeIndex].textureIndex = originalHoveredTextureIndex;
         hoveredCubeIndex = -1;
         
         // Force instance data update on next frame

@@ -97,6 +97,12 @@ bool Application::initialize() {
         return false;
     }
 
+    // Initialize texture atlas system
+    if (!initializeTextureAtlas()) {
+        std::cerr << "Failed to initialize texture atlas!" << std::endl;
+        return false;
+    }
+
     // Initialize chunk manager after Vulkan is ready
     chunkManager->initialize(vulkanDevice->getDevice(), vulkanDevice->getPhysicalDevice());
     
@@ -524,6 +530,28 @@ bool Application::initializeVulkan() {
     }
 
     std::cout << "Vulkan subsystem initialized successfully" << std::endl;
+    return true;
+}
+
+bool Application::initializeTextureAtlas() {
+    std::cout << "Initializing texture atlas system..." << std::endl;
+    
+    // Load the texture atlas
+    if (!vulkanDevice->loadTextureAtlas("resources/textures/cube_atlas.png")) {
+        std::cerr << "Failed to load texture atlas!" << std::endl;
+        return false;
+    }
+    
+    // Create the texture sampler
+    if (!vulkanDevice->createTextureAtlasSampler()) {
+        std::cerr << "Failed to create texture atlas sampler!" << std::endl;
+        return false;
+    }
+    
+    // Update descriptor sets with texture binding
+    vulkanDevice->updateDescriptorSetsWithTexture();
+    
+    std::cout << "Texture atlas system initialized successfully" << std::endl;
     return true;
 }
 

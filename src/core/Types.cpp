@@ -29,13 +29,21 @@ VkVertexInputBindingDescription InstanceData::getBindingDescription() {
     return desc;
 }
 
-std::array<VkVertexInputAttributeDescription, 1> InstanceData::getAttributeDescriptions() {
-    std::array<VkVertexInputAttributeDescription, 1> desc{};
-    // Instance data (packed format) - Note: color is not used in current shader
+std::array<VkVertexInputAttributeDescription, 2> InstanceData::getAttributeDescriptions() {
+    std::array<VkVertexInputAttributeDescription, 2> desc{};
+    
+    // Packed data (position + face mask + future bits)
     desc[0].binding = 1;
-    desc[0].location = 1;  // layout(location = 1)
+    desc[0].location = 1;  // layout(location = 1) in uint inPackedData
     desc[0].format = VK_FORMAT_R32_UINT;  // uint32_t packedData
     desc[0].offset = offsetof(InstanceData, packedData);
+    
+    // Texture index
+    desc[1].binding = 1;
+    desc[1].location = 2;  // layout(location = 2) in uint inTextureIndex
+    desc[1].format = VK_FORMAT_R16_UINT;  // uint16_t textureIndex
+    desc[1].offset = offsetof(InstanceData, textureIndex);
+    
     return desc;
 }
 
@@ -57,11 +65,11 @@ std::array<VkVertexInputAttributeDescription, 5> DynamicSubcubeInstanceData::get
     desc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
     desc[0].offset = offsetof(DynamicSubcubeInstanceData, worldPosition);
     
-    // Color (vec3)
+    // Texture index (uint16)
     desc[1].binding = 1;
-    desc[1].location = 2;  // layout(location = 2) in vec3 inColor
-    desc[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-    desc[1].offset = offsetof(DynamicSubcubeInstanceData, color);
+    desc[1].location = 2;  // layout(location = 2) in uint inTextureIndex
+    desc[1].format = VK_FORMAT_R16_UINT;
+    desc[1].offset = offsetof(DynamicSubcubeInstanceData, textureIndex);
     
     // Face ID (uint)
     desc[2].binding = 1;

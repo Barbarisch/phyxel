@@ -459,8 +459,9 @@ VkShaderModule RenderPipeline::createShaderModule(const std::vector<char>& code)
 }
 
 bool RenderPipeline::createDescriptorSetLayout() {
-    std::cout << "[DEBUG] Creating descriptor set layout..." << std::endl;
+    std::cout << "[DEBUG] Creating descriptor set layout with texture atlas support..." << std::endl;
     
+    // UBO binding (binding 0)
     VkDescriptorSetLayoutBinding uboLayoutBinding{};
     uboLayoutBinding.binding = 0;
     uboLayoutBinding.descriptorCount = 1;
@@ -468,8 +469,16 @@ bool RenderPipeline::createDescriptorSetLayout() {
     uboLayoutBinding.pImmutableSamplers = nullptr;
     uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-    // Only UBO binding - no texture needed for color-based rendering
-    std::array<VkDescriptorSetLayoutBinding, 1> bindings = {uboLayoutBinding};
+    // Texture atlas sampler binding (binding 1)
+    VkDescriptorSetLayoutBinding samplerLayoutBinding{};
+    samplerLayoutBinding.binding = 1;
+    samplerLayoutBinding.descriptorCount = 1;
+    samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    samplerLayoutBinding.pImmutableSamplers = nullptr;
+    samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    // Both bindings for texture-based rendering
+    std::array<VkDescriptorSetLayoutBinding, 2> bindings = {uboLayoutBinding, samplerLayoutBinding};
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
@@ -481,13 +490,13 @@ bool RenderPipeline::createDescriptorSetLayout() {
         return false;
     }
     
-    std::cout << "[DEBUG] Descriptor set layout created successfully: " << descriptorSetLayout << std::endl;
+    std::cout << "[DEBUG] Descriptor set layout created successfully with texture atlas: " << descriptorSetLayout << std::endl;
 
     return true;
 }
 
 bool RenderPipeline::createDynamicDescriptorSetLayout() {
-    std::cout << "[DEBUG] Creating dynamic descriptor set layout (same as static for compatibility)..." << std::endl;
+    std::cout << "[DEBUG] Creating dynamic descriptor set layout (same as static for texture consistency)..." << std::endl;
     
     // UBO binding (binding 0)
     VkDescriptorSetLayoutBinding uboLayoutBinding{};

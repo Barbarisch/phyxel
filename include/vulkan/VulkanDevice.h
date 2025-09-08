@@ -34,10 +34,11 @@ struct Vertex {
     }
 };
 
-// Instance data structure - compressed format with future expansion capability
+// Instance data structure - compressed format with texture support
 struct InstanceData {
-    uint32_t packedData;   // 15 bits position (5+5+5), 6 bits face mask, 11 bits available for future features
-    glm::vec3 color;       // RGB color (12 bytes)
+    uint32_t packedData;      // 15 bits position (5+5+5), 6 bits face mask, 11 bits available for future features
+    uint16_t textureIndex;    // Texture atlas index (0-65535)
+    uint16_t reserved;        // Reserved for future use (ensures 8-byte alignment)
     
     static VkVertexInputBindingDescription getBindingDescription() {
         VkVertexInputBindingDescription bindingDescription{};
@@ -57,8 +58,8 @@ struct InstanceData {
         
         attributeDescriptions[1].binding = 1;
         attributeDescriptions[1].location = 2;
-        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;  // Color
-        attributeDescriptions[1].offset = offsetof(InstanceData, color);
+        attributeDescriptions[1].format = VK_FORMAT_R16_UINT;  // uint16 texture index
+        attributeDescriptions[1].offset = offsetof(InstanceData, textureIndex);
         
         return attributeDescriptions;
     }
@@ -130,6 +131,12 @@ public:
                         VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
         VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
         uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);    
+        
+    // Texture atlas management
+    bool loadTextureAtlas(const std::string& atlasPath);
+    bool createTextureAtlasSampler();
+    void updateDescriptorSetsWithTexture();
+    void cleanupTextureAtlas();    
         
         // Command buffer operations
         void waitForFence(uint32_t frameIndex);
@@ -232,6 +239,12 @@ private:
     VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
     VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
     std::vector<VkDescriptorSet> descriptorSets;
+
+    // Texture atlas resources
+    VkImage textureAtlasImage = VK_NULL_HANDLE;
+    VkDeviceMemory textureAtlasImageMemory = VK_NULL_HANDLE;
+    VkImageView textureAtlasImageView = VK_NULL_HANDLE;
+    VkSampler textureAtlasSampler = VK_NULL_HANDLE;
 
     // Command buffers
     VkCommandPool commandPool = VK_NULL_HANDLE;

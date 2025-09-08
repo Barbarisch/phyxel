@@ -179,6 +179,7 @@ private:
     // Initialization methods
     bool initializeWindow();
     bool initializeVulkan();
+    bool initializeTextureAtlas();
     bool initializePhysics();
     bool initializeScene();
     bool loadAssets();

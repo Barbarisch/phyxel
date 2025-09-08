@@ -12,8 +12,8 @@ namespace TextureAtlas {
 // Atlas constants
 constexpr int ATLAS_SIZE = 128;
 constexpr int TEXTURE_SIZE = 18;
-constexpr int PADDING = 1;
-constexpr int TEXTURES_PER_ROW = 6;
+constexpr int PADDING = 2;
+constexpr int TEXTURES_PER_ROW = 5;
 
 // Texture UV coordinates
 struct TextureUV {
@@ -39,18 +39,18 @@ enum TextureIndex {
 
 // UV lookup table
 const std::unordered_map<std::string, TextureUV> TEXTURE_UVS = {
-    {"grassdirt_bottom", {0.007812f, 0.007812f, 0.148438f, 0.148438f}},
-    {"grassdirt_side_e", {0.164062f, 0.007812f, 0.304688f, 0.148438f}},
-    {"grassdirt_side_n", {0.320312f, 0.007812f, 0.460938f, 0.148438f}},
-    {"grassdirt_side_s", {0.476562f, 0.007812f, 0.617188f, 0.148438f}},
-    {"grassdirt_side_w", {0.632812f, 0.007812f, 0.773438f, 0.148438f}},
-    {"grassdirt_top", {0.789062f, 0.007812f, 0.929688f, 0.148438f}},
-    {"placeholder_bottom", {0.007812f, 0.164062f, 0.148438f, 0.304688f}},
-    {"placeholder_side_e", {0.164062f, 0.164062f, 0.304688f, 0.304688f}},
-    {"placeholder_side_n", {0.320312f, 0.164062f, 0.460938f, 0.304688f}},
-    {"placeholder_side_s", {0.476562f, 0.164062f, 0.617188f, 0.304688f}},
-    {"placeholder_side_w", {0.632812f, 0.164062f, 0.773438f, 0.304688f}},
-    {"placeholder_top", {0.789062f, 0.164062f, 0.929688f, 0.304688f}},
+    {"grassdirt_bottom", {0.015625f, 0.015625f, 0.156250f, 0.156250f}},
+    {"grassdirt_side_e", {0.187500f, 0.015625f, 0.328125f, 0.156250f}},
+    {"grassdirt_side_n", {0.359375f, 0.015625f, 0.500000f, 0.156250f}},
+    {"grassdirt_side_s", {0.531250f, 0.015625f, 0.671875f, 0.156250f}},
+    {"grassdirt_side_w", {0.703125f, 0.015625f, 0.843750f, 0.156250f}},
+    {"grassdirt_top", {0.015625f, 0.187500f, 0.156250f, 0.328125f}},
+    {"placeholder_bottom", {0.187500f, 0.187500f, 0.328125f, 0.328125f}},
+    {"placeholder_side_e", {0.359375f, 0.187500f, 0.500000f, 0.328125f}},
+    {"placeholder_side_n", {0.531250f, 0.187500f, 0.671875f, 0.328125f}},
+    {"placeholder_side_s", {0.703125f, 0.187500f, 0.843750f, 0.328125f}},
+    {"placeholder_side_w", {0.015625f, 0.359375f, 0.156250f, 0.500000f}},
+    {"placeholder_top", {0.187500f, 0.359375f, 0.328125f, 0.500000f}},
 };
 
 // Get texture index by name

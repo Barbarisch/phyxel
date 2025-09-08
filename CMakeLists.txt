@@ -134,13 +134,19 @@ file(GLOB_RECURSE SOURCES
     "src/*.h"
 )
 
+# Add stb_image for texture loading
+set(STB_IMAGE_DIR ${CMAKE_SOURCE_DIR}/external/bullet3/examples/ThirdPartyLibs/stb_image)
+set(STB_IMAGE_SOURCES
+    ${STB_IMAGE_DIR}/stb_image.cpp
+)
+
 # Add SQLite3 sources if using amalgamation
 if(SQLITE3_FOUND AND DEFINED SQLITE3_SOURCES)
     list(APPEND SOURCES ${SQLITE3_SOURCES})
 endif()
 
 # Create executable
-add_executable(VulkanCube ${SOURCES} ${IMGUI_SOURCES})
+add_executable(VulkanCube ${SOURCES} ${IMGUI_SOURCES} ${STB_IMAGE_SOURCES})
 
 # Platform-specific compiler settings
 if(PLATFORM_WINDOWS)
@@ -165,6 +171,7 @@ target_include_directories(VulkanCube PRIVATE
     include
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
+    ${STB_IMAGE_DIR}
 )
 
 # Platform-specific linking

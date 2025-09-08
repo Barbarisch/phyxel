@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <cstring>
 #include <array>
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 namespace VulkanCube {
 namespace Vulkan {
@@ -78,6 +80,9 @@ void VulkanDevice::cleanup() {
     
     // Cleanup dynamic subcube buffer
     cleanupDynamicSubcubeBuffer();
+    
+    // Cleanup texture atlas
+    cleanupTextureAtlas();
     
     if (indexBuffer != VK_NULL_HANDLE) {
         vkDestroyBuffer(device, indexBuffer, nullptr);
@@ -942,7 +947,7 @@ bool VulkanDevice::createInstanceBuffer() {
     // Create a temporary single instance buffer for now - will be updated later with actual scene data
     InstanceData redCube;
     redCube.packedData = 0x3F << 15; // All faces visible (0x3F face mask), position (0,0,0)
-    redCube.color = {1.0f, 0.0f, 0.0f}; // Red cube
+    redCube.textureIndex = TextureConstants::PLACEHOLDER_TEXTURE_INDEX; // Use placeholder texture
     std::vector<InstanceData> instances = { redCube };
 
     // We'll create buffer large enough for full 32x32x32 = 32,768 instances
@@ -977,6 +982,7 @@ bool VulkanDevice::createUniformBuffers() {
 }
 
 bool VulkanDevice::createDescriptorSetLayout() {
+    // UBO binding (binding 0)
     VkDescriptorSetLayoutBinding uboLayoutBinding{};
     uboLayoutBinding.binding = 0;
     uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -984,10 +990,19 @@ bool VulkanDevice::createDescriptorSetLayout() {
     uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     uboLayoutBinding.pImmutableSamplers = nullptr;
 
+    // Texture atlas sampler binding (binding 1)
+    VkDescriptorSetLayoutBinding samplerLayoutBinding{};
+    samplerLayoutBinding.binding = 1;
+    samplerLayoutBinding.descriptorCount = 1;
+    samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    samplerLayoutBinding.pImmutableSamplers = nullptr;
+    samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    std::array<VkDescriptorSetLayoutBinding, 2> bindings = {uboLayoutBinding, samplerLayoutBinding};
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = 1;
-    layoutInfo.pBindings = &uboLayoutBinding;
+    layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+    layoutInfo.pBindings = bindings.data();
 
     if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
         std::cerr << "Failed to create descriptor set layout!" << std::endl;
@@ -998,14 +1013,16 @@ bool VulkanDevice::createDescriptorSetLayout() {
 }
 
 bool VulkanDevice::createDescriptorPool() {
-    VkDescriptorPoolSize poolSize{};
-    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSize.descriptorCount = MAX_FRAMES_IN_FLIGHT;
+    std::array<VkDescriptorPoolSize, 2> poolSizes{};
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[0].descriptorCount = MAX_FRAMES_IN_FLIGHT;
+    poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[1].descriptorCount = MAX_FRAMES_IN_FLIGHT;
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = 1;
-    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+    poolInfo.pPoolSizes = poolSizes.data();
     poolInfo.maxSets = MAX_FRAMES_IN_FLIGHT;
 
     if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
@@ -1285,6 +1302,241 @@ void VulkanDevice::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
     vkQueueWaitIdle(graphicsQueue);
 
     vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+}
+
+// Texture atlas management methods
+bool VulkanDevice::loadTextureAtlas(const std::string& atlasPath) {
+    std::cout << "[DEBUG] Loading texture atlas: " << atlasPath << std::endl;
+    
+    // Load image using stb_image
+    int texWidth, texHeight, texChannels;
+    stbi_uc* pixels = stbi_load(atlasPath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    
+    std::vector<uint8_t> fallbackPixels; // For fallback texture
+    bool usingFallback = false;
+    
+    if (!pixels) {
+        std::cerr << "Failed to load texture atlas: " << atlasPath << std::endl;
+        std::cerr << "stb_image error: " << stbi_failure_reason() << std::endl;
+        
+        // Create fallback checkerboard texture as backup
+        std::cout << "[WARNING] Creating fallback checkerboard texture..." << std::endl;
+        texWidth = 128;
+        texHeight = 128;
+        texChannels = 4;
+        const VkDeviceSize fallbackSize = texWidth * texHeight * texChannels;
+        
+        fallbackPixels.resize(fallbackSize);
+        for (int y = 0; y < texHeight; y++) {
+            for (int x = 0; x < texWidth; x++) {
+                const int index = (y * texWidth + x) * texChannels;
+                const bool checker = ((x / 8) + (y / 8)) % 2;
+                fallbackPixels[index + 0] = checker ? 255 : 64;  // R
+                fallbackPixels[index + 1] = checker ? 64 : 255;  // G
+                fallbackPixels[index + 2] = 64;                  // B
+                fallbackPixels[index + 3] = 255;                 // A
+            }
+        }
+        pixels = fallbackPixels.data();
+        usingFallback = true;
+    } else {
+        std::cout << "[DEBUG] Successfully loaded texture atlas: " << texWidth << "x" << texHeight << " channels=" << texChannels << std::endl;
+    }
+    
+    const VkDeviceSize imageSize = texWidth * texHeight * 4; // Always use 4 channels
+    
+    // Create staging buffer
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+    createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                stagingBuffer, stagingBufferMemory);
+    
+    // Copy pixel data to staging buffer
+    void* data;
+    vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
+    memcpy(data, pixels, static_cast<size_t>(imageSize));
+    vkUnmapMemory(device, stagingBufferMemory);
+    
+    // Free the loaded image data (only if not using fallback)
+    if (!usingFallback) {
+        stbi_image_free(pixels);
+    }
+    
+    // Create texture image
+    createImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
+                VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureAtlasImage, textureAtlasImageMemory);
+    
+    // Transition image layout and copy buffer to image
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = commandPool;
+    allocInfo.commandBufferCount = 1;
+
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+    // Transition to transfer destination
+    VkImageMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = textureAtlasImage;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+    barrier.srcAccessMask = 0;
+    barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 
+                        0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+    // Copy buffer to image
+    VkBufferImageCopy region{};
+    region.bufferOffset = 0;
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.mipLevel = 0;
+    region.imageSubresource.baseArrayLayer = 0;
+    region.imageSubresource.layerCount = 1;
+    region.imageOffset = {0, 0, 0};
+    region.imageExtent = {static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), 1};
+
+    vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, textureAtlasImage, 
+                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+    // Transition to shader read-only
+    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                        0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+    vkEndCommandBuffer(commandBuffer);
+
+    // Submit command buffer
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(graphicsQueue);
+
+    vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+    
+    // Cleanup staging buffer
+    vkDestroyBuffer(device, stagingBuffer, nullptr);
+    vkFreeMemory(device, stagingBufferMemory, nullptr);
+    
+    // Create image view
+    textureAtlasImageView = createImageView(textureAtlasImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+    
+    std::cout << "[DEBUG] Texture atlas loaded successfully" << std::endl;
+    return true;
+}
+
+bool VulkanDevice::createTextureAtlasSampler() {
+    VkSamplerCreateInfo samplerInfo{};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_NEAREST;  // Pixel art style
+    samplerInfo.minFilter = VK_FILTER_NEAREST;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.anisotropyEnable = VK_FALSE;
+    samplerInfo.maxAnisotropy = 1.0f;
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerInfo.unnormalizedCoordinates = VK_FALSE;
+    samplerInfo.compareEnable = VK_FALSE;
+    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    samplerInfo.mipLodBias = 0.0f;
+    samplerInfo.minLod = 0.0f;
+    samplerInfo.maxLod = 0.0f;
+
+    if (vkCreateSampler(device, &samplerInfo, nullptr, &textureAtlasSampler) != VK_SUCCESS) {
+        std::cerr << "Failed to create texture sampler!" << std::endl;
+        return false;
+    }
+
+    std::cout << "[DEBUG] Texture atlas sampler created successfully" << std::endl;
+    return true;
+}
+
+void VulkanDevice::updateDescriptorSetsWithTexture() {
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        // UBO descriptor (binding 0)
+        VkDescriptorBufferInfo bufferInfo{};
+        bufferInfo.buffer = uniformBuffers[i];
+        bufferInfo.offset = 0;
+        bufferInfo.range = sizeof(UniformBufferObject);
+
+        // Texture descriptor (binding 1)
+        VkDescriptorImageInfo imageInfo{};
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageInfo.imageView = textureAtlasImageView;
+        imageInfo.sampler = textureAtlasSampler;
+
+        std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+
+        // UBO write
+        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[0].dstSet = descriptorSets[i];
+        descriptorWrites[0].dstBinding = 0;
+        descriptorWrites[0].dstArrayElement = 0;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].pBufferInfo = &bufferInfo;
+
+        // Texture write
+        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[1].dstSet = descriptorSets[i];
+        descriptorWrites[1].dstBinding = 1;
+        descriptorWrites[1].dstArrayElement = 0;
+        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].pImageInfo = &imageInfo;
+
+        vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), 
+                              descriptorWrites.data(), 0, nullptr);
+    }
+    
+    std::cout << "[DEBUG] Descriptor sets updated with texture atlas" << std::endl;
+}
+
+void VulkanDevice::cleanupTextureAtlas() {
+    if (textureAtlasSampler != VK_NULL_HANDLE) {
+        vkDestroySampler(device, textureAtlasSampler, nullptr);
+        textureAtlasSampler = VK_NULL_HANDLE;
+    }
+    if (textureAtlasImageView != VK_NULL_HANDLE) {
+        vkDestroyImageView(device, textureAtlasImageView, nullptr);
+        textureAtlasImageView = VK_NULL_HANDLE;
+    }
+    if (textureAtlasImage != VK_NULL_HANDLE) {
+        vkDestroyImage(device, textureAtlasImage, nullptr);
+        textureAtlasImage = VK_NULL_HANDLE;
+    }
+    if (textureAtlasImageMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, textureAtlasImageMemory, nullptr);
+        textureAtlasImageMemory = VK_NULL_HANDLE;
+    }
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDevice::debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) {

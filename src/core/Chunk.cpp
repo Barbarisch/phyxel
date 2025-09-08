@@ -320,7 +320,8 @@ void Chunk::rebuildFaces() {
                                          ((cubePos.z & 0x1F) << 10) | ((faceID & 0x7) << 15) |
                                          (subcubeData << 18);
                 
-                faceInstance.color = cube->getColor();
+                faceInstance.textureIndex = VulkanCube::TextureConstants::PLACEHOLDER_TEXTURE_INDEX;  // Default placeholder texture
+                faceInstance.reserved = 0;
                 faces.push_back(faceInstance);
             }
         }
@@ -389,7 +390,8 @@ void Chunk::rebuildFaces() {
                                          ((parentChunkPos.z & 0x1F) << 10) | ((faceID & 0x7) << 15) |
                                          (subcubeData << 18);
                 
-                faceInstance.color = subcube->getColor();
+                faceInstance.textureIndex = VulkanCube::TextureConstants::PLACEHOLDER_TEXTURE_INDEX;  // Default placeholder texture
+                faceInstance.reserved = 0;
                 faces.push_back(faceInstance);
             }
         }
@@ -430,14 +432,12 @@ void Chunk::updateVulkanBuffer() {
     //           << "), uploaded " << faces.size() << " face instances" << std::endl;
 }
 
-void Chunk::updateSingleCubeColor(const glm::ivec3& localPos, const glm::vec3& newColor) {
+void Chunk::updateSingleCubeTexture(const glm::ivec3& localPos, uint16_t textureIndex) {
     if (!isValidLocalPosition(localPos)) return;
     
-    // Find the cube and update its color
+    // Find the cube - we don't store texture info in cube objects yet, just update the faces
     Cube* cube = getCubeAt(localPos);
     if (!cube) return;
-    
-    cube->setColor(newColor);
     
     // Efficiently update only the affected faces in the buffer
     // Instead of rebuilding all faces, find and update just this cube's faces
@@ -445,7 +445,7 @@ void Chunk::updateSingleCubeColor(const glm::ivec3& localPos, const glm::vec3& n
     
     bool updatedAnyFaces = false;
     
-    // Find all face instances for this cube and update their colors
+    // Find all face instances for this cube and update their texture indices
     for (size_t i = 0; i < faces.size(); ++i) {
         InstanceData& face = faces[i];
         
@@ -456,12 +456,12 @@ void Chunk::updateSingleCubeColor(const glm::ivec3& localPos, const glm::vec3& n
         
         // Check if this face belongs to our cube
         if (faceX == localPos.x && faceY == localPos.y && faceZ == localPos.z) {
-            // Update the color in the faces vector
-            faces[i].color = newColor;
+            // Update the texture index in the faces vector
+            faces[i].textureIndex = textureIndex;
             
             // Update the GPU buffer directly (partial update)
-            VkDeviceSize offset = i * sizeof(InstanceData) + offsetof(InstanceData, color);
-            memcpy(static_cast<char*>(mappedMemory) + offset, &newColor, sizeof(glm::vec3));
+            VkDeviceSize offset = i * sizeof(InstanceData) + offsetof(InstanceData, textureIndex);
+            memcpy(static_cast<char*>(mappedMemory) + offset, &textureIndex, sizeof(uint16_t));
             
             updatedAnyFaces = true;
         }
@@ -481,24 +481,22 @@ void Chunk::updateSingleCubeColor(const glm::ivec3& localPos, const glm::vec3& n
     }
 }
 
-void Chunk::updateSingleSubcubeColor(const glm::ivec3& parentLocalPos, const glm::ivec3& subcubePos, const glm::vec3& newColor) {
+void Chunk::updateSingleSubcubeTexture(const glm::ivec3& parentLocalPos, const glm::ivec3& subcubePos, uint16_t textureIndex) {
     if (!isValidLocalPosition(parentLocalPos)) return;
     if (subcubePos.x < 0 || subcubePos.x >= 3 || 
         subcubePos.y < 0 || subcubePos.y >= 3 || 
         subcubePos.z < 0 || subcubePos.z >= 3) return;
     
-    // Find the subcube and update its color
+    // Find the subcube - we don't store texture info in subcube objects yet, just update the faces
     Subcube* subcube = getSubcubeAt(parentLocalPos, subcubePos);
     if (!subcube) return;
-    
-    subcube->setColor(newColor);
     
     // Efficiently update only the affected faces in the buffer
     if (!mappedMemory) return;
     
     bool updatedAnyFaces = false;
     
-    // Find all face instances for this subcube and update their colors
+    // Find all face instances for this subcube and update their texture indices
     for (size_t i = 0; i < faces.size(); ++i) {
         InstanceData& face = faces[i];
         
@@ -522,12 +520,12 @@ void Chunk::updateSingleSubcubeColor(const glm::ivec3& parentLocalPos, const glm
             
             // Check if this face belongs to our specific subcube
             if (localX == subcubePos.x && localY == subcubePos.y && localZ == subcubePos.z) {
-                // Update the color in the faces vector
-                faces[i].color = newColor;
+                // Update the texture index in the faces vector
+                faces[i].textureIndex = textureIndex;
                 
                 // Update the GPU buffer directly (partial update)
-                VkDeviceSize offset = i * sizeof(InstanceData) + offsetof(InstanceData, color);
-                memcpy(static_cast<char*>(mappedMemory) + offset, &newColor, sizeof(glm::vec3));
+                VkDeviceSize offset = i * sizeof(InstanceData) + offsetof(InstanceData, textureIndex);
+                memcpy(static_cast<char*>(mappedMemory) + offset, &textureIndex, sizeof(uint16_t));
                 
                 updatedAnyFaces = true;
             }

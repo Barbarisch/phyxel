@@ -2,7 +2,7 @@
 
 layout(location = 0) in uint vertexID;          // Face corner ID (0–3 for quad corners)
 layout(location = 1) in vec3 inWorldPosition;   // per-instance: world position of subcube
-layout(location = 2) in vec3 inInstanceColor;   // per-instance color
+layout(location = 2) in uint inTextureIndex;    // per-instance texture atlas index
 layout(location = 3) in uint inFaceID;          // per-instance: face ID (0-5)
 layout(location = 4) in float inScale;          // per-instance: scale factor (1/3 for subcubes, 1.0 for cubes)
 layout(location = 5) in vec4 inRotation;        // per-instance: rotation quaternion (x, y, z, w)
@@ -12,7 +12,8 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 proj;
 } ubo;
 
-layout(location = 0) out vec3 fragColor;
+layout(location = 0) out flat uint textureIndex;  // pass texture index to frag shader
+layout(location = 1) out vec2 texCoord;           // pass texture coordinates to frag shader
 
 // Rotate a vector by a quaternion
 vec3 rotateByQuaternion(vec3 v, vec4 q) {
@@ -81,6 +82,33 @@ void main() {
     // Use the actual physics position from inWorldPosition as center
     vec3 worldPos = inWorldPosition + rotatedOffset;
     
+    // Calculate UV coordinates for texture mapping
+    // UV coordinates must match the vertex generation pattern for each face
+    vec2 uv = vec2(0.0);
+    
+    if (inFaceID == 0u) {        // Front face (+Z)
+        // Vertices: (0,0,1), (1,0,1), (1,1,1), (0,1,1)
+        uv = vec2(float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
+    } else if (inFaceID == 1u) { // Back face (-Z)
+        // Vertices: (1,0,0), (0,0,0), (0,1,0), (1,1,0) - x flipped
+        uv = vec2(1.0 - float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
+    } else if (inFaceID == 2u) { // Right face (+X)
+        // Vertices: (1,0,1), (1,0,0), (1,1,0), (1,1,1) - z flipped
+        uv = vec2(1.0 - float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
+    } else if (inFaceID == 3u) { // Left face (-X)
+        // Vertices: (0,0,0), (0,0,1), (0,1,1), (0,1,0)
+        uv = vec2(float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
+    } else if (inFaceID == 4u) { // Top face (+Y)
+        // Vertices: (0,1,1), (1,1,1), (1,1,0), (0,1,0) - z flipped
+        uv = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
+    } else if (inFaceID == 5u) { // Bottom face (-Y)
+        // Vertices: (0,0,0), (1,0,0), (1,0,1), (0,0,1)
+        uv = vec2(float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
+    }
+    
     gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
-    fragColor = inInstanceColor; // Use actual instance color instead of green
+    
+    // Pass texture data to fragment shader
+    textureIndex = inTextureIndex;
+    texCoord = uv;
 }

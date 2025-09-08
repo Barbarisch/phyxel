@@ -80,7 +80,7 @@ private:
     
     // Mouse hover state
     int hoveredCubeIndex;
-    glm::vec3 originalHoveredColor;
+    uint16_t originalHoveredTextureIndex;
     bool instanceDataNeedsUpdate;  // Flag to force GPU buffer update
 
     // Helper functions

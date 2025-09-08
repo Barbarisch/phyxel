@@ -18,6 +18,13 @@ namespace VulkanCube {
 // Forward declarations within namespace
 class Chunk;
 
+// Texture system constants
+namespace TextureConstants {
+    constexpr uint16_t PLACEHOLDER_TEXTURE_INDEX = 6;     // Default fallback texture (placeholder_bottom)
+    constexpr uint16_t INVALID_TEXTURE_INDEX = 0xFFFF;    // Invalid/unset texture
+    constexpr uint16_t MAX_TEXTURE_INDEX = 0xFFFE;        // Maximum valid texture index
+}
+
 // Hash function for glm::ivec3 to use in unordered_map
 struct IVec3Hash {
     std::size_t operator()(const glm::ivec3& v) const {
@@ -85,24 +92,26 @@ struct Vertex {
     static std::array<VkVertexInputAttributeDescription, 1> getAttributeDescriptions();
 };
 
-// Instance data for rendering - compressed format with future expansion capability
+// Instance data for rendering - compressed format with texture support
 struct InstanceData {
-    uint32_t packedData;   // 15 bits position (5+5+5), 6 bits face mask, 11 bits available for future features
-    glm::vec3 color;       // RGB color (12 bytes)
-    // Total: 16 bytes (was 28 bytes - 43% reduction!)
+    uint32_t packedData;      // 15 bits position (5+5+5), 6 bits face mask, 11 bits available for future features
+    uint16_t textureIndex;    // Texture atlas index (0-65535)
+    uint16_t reserved;        // Reserved for future use (ensures 8-byte alignment)
+    // Total: 8 bytes (50% reduction from previous 16 bytes!)
     
     static VkVertexInputBindingDescription getBindingDescription();
-    static std::array<VkVertexInputAttributeDescription, 1> getAttributeDescriptions();
+    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions();  // packedData + textureIndex
 };
 
 // Instance data for dynamic subcubes with physics
 struct DynamicSubcubeInstanceData {
     glm::vec3 worldPosition;  // Full precision world position for physics objects
-    glm::vec3 color;          // RGB color
+    uint16_t textureIndex;    // Texture atlas index (0-65535)
+    uint16_t reserved1;       // Alignment padding
     uint32_t faceID;          // Face ID (0-5)
     float scale;              // Scale factor (1/3 for subcubes, 1.0 for full cubes)
     glm::vec4 rotation;       // Quaternion rotation (x, y, z, w) for tumbling effect
-    // Total: 48 bytes - larger but allows arbitrary positioning with rotation
+    // Total: 32 bytes - reduced from 48 bytes (33% reduction!)
     
     // Vulkan vertex input description for dynamic subcubes
     static VkVertexInputBindingDescription getBindingDescription();
@@ -160,14 +169,22 @@ namespace InstanceDataUtils {
         return faceMask;
     }
     
-    // Create instance data from relative position and faces
+    // Create instance data from relative position and faces with texture
     inline InstanceData createInstanceData(const glm::ivec3& relativePos, const CubeFaces& faces, 
-                                         const glm::vec3& color, uint32_t futureData = 0) {
+                                         uint16_t textureIndex, uint32_t futureData = 0) {
         InstanceData instance;
         uint32_t faceMask = packFaceMask(faces);
         instance.packedData = packInstanceData(relativePos.x, relativePos.y, relativePos.z, faceMask, futureData);
-        instance.color = color;
+        instance.textureIndex = textureIndex;
+        instance.reserved = 0;
         return instance;
+    }
+    
+    // Legacy function for backward compatibility during transition
+    inline InstanceData createInstanceDataLegacy(const glm::ivec3& relativePos, const CubeFaces& faces, 
+                                                const glm::vec3& color, uint32_t futureData = 0) {
+        // For now, use placeholder texture index 0 when color is provided
+        return createInstanceData(relativePos, faces, 0, futureData);
     }
     
     // Unpack relative position
