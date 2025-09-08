@@ -36,7 +36,7 @@ echo Using shader compiler: %GLSLANG%
 if defined USE_GLSLC (
     echo Using glslc syntax...
     echo Compiling vertex shader...
-    %GLSLANG% -fshader-stage=vert shaders\cube.vert -o shaders\cube.vert.spv
+    %GLSLANG% -fshader-stage=vert -I. shaders\cube.vert -o shaders\cube.vert.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile vertex shader
         pause
@@ -44,7 +44,7 @@ if defined USE_GLSLC (
     )
 
     echo Compiling dynamic subcube vertex shader...
-    %GLSLANG% -fshader-stage=vert shaders\dynamic_subcube.vert -o shaders\dynamic_subcube.vert.spv
+    %GLSLANG% -fshader-stage=vert -I. shaders\dynamic_subcube.vert -o shaders\dynamic_subcube.vert.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile dynamic subcube vertex shader
         pause
@@ -52,7 +52,7 @@ if defined USE_GLSLC (
     )
 
     echo Compiling fragment shader...
-    %GLSLANG% -fshader-stage=frag shaders\cube.frag -o shaders\cube.frag.spv
+    %GLSLANG% -fshader-stage=frag -I. shaders\cube.frag -o shaders\cube.frag.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile fragment shader
         pause
@@ -60,7 +60,7 @@ if defined USE_GLSLC (
     )
 
     echo Compiling compute shader...
-    %GLSLANG% -fshader-stage=comp shaders\frustum_cull.comp -o shaders\frustum_cull.comp.spv
+    %GLSLANG% -fshader-stage=comp -I. shaders\frustum_cull.comp -o shaders\frustum_cull.comp.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile compute shader
         pause
@@ -69,7 +69,7 @@ if defined USE_GLSLC (
 ) else (
     echo Using glslangValidator syntax...
     echo Compiling vertex shader...
-    %GLSLANG% -V shaders\cube.vert -o shaders\cube.vert.spv
+    %GLSLANG% -V -I. shaders\cube.vert -o shaders\cube.vert.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile vertex shader
         pause
@@ -77,7 +77,7 @@ if defined USE_GLSLC (
     )
 
     echo Compiling dynamic subcube vertex shader...
-    %GLSLANG% -V shaders\dynamic_subcube.vert -o shaders\dynamic_subcube.vert.spv
+    %GLSLANG% -V -I. shaders\dynamic_subcube.vert -o shaders\dynamic_subcube.vert.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile dynamic subcube vertex shader
         pause
@@ -85,7 +85,7 @@ if defined USE_GLSLC (
     )
 
     echo Compiling fragment shader...
-    %GLSLANG% -V shaders\cube.frag -o shaders\cube.frag.spv
+    %GLSLANG% -V -I. shaders\cube.frag -o shaders\cube.frag.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile fragment shader
         pause
@@ -93,7 +93,7 @@ if defined USE_GLSLC (
     )
 
     echo Compiling compute shader...
-    %GLSLANG% -V shaders\frustum_cull.comp -o shaders\frustum_cull.comp.spv
+    %GLSLANG% -V -I. shaders\frustum_cull.comp -o shaders\frustum_cull.comp.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile compute shader
         pause

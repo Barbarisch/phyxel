@@ -13,13 +13,32 @@ import argparse
 from pathlib import Path
 
 class TextureAtlasBuilder:
-    def __init__(self, texture_size=18, padding=1):
+    def __init__(self, texture_size=18, padding=1, force_textures_per_row=None):
         self.texture_size = texture_size
         self.padding = padding
         self.effective_size = texture_size + (2 * padding)  # Include padding
+        self.force_textures_per_row = force_textures_per_row
         
     def find_optimal_atlas_size(self, num_textures):
         """Find optimal atlas dimensions that are power-of-2"""
+        if self.force_textures_per_row:
+            # Force specific number of textures per row
+            textures_per_row = self.force_textures_per_row
+            textures_per_col = math.ceil(num_textures / textures_per_row)
+            
+            # Calculate required atlas size
+            required_width = textures_per_row * self.effective_size
+            required_height = textures_per_col * self.effective_size
+            
+            # Round up to next power of 2
+            atlas_size = max(
+                2 ** math.ceil(math.log2(required_width)),
+                2 ** math.ceil(math.log2(required_height))
+            )
+            
+            return atlas_size, textures_per_row, textures_per_col
+        
+        # Original algorithm for optimal size
         # Calculate minimum area needed
         total_area = num_textures * (self.effective_size ** 2)
         min_dimension = math.ceil(math.sqrt(total_area))
@@ -300,6 +319,9 @@ class TextureAtlasBuilder:
             
             # Generate C++ header for easy integration
             self.generate_cpp_header(texture_metadata, output_path.with_suffix('.h'))
+            
+            # Generate GLSL header for shader integration
+            self.generate_glsl_header(texture_metadata, output_path.with_suffix('.glsl'))
         
         return texture_metadata
     
@@ -371,14 +393,63 @@ inline int getTextureIndex(const std::string& name) {
             f.write(header_content)
         print(f"C++ header saved: {header_path}")
 
+    def generate_glsl_header(self, metadata, header_path):
+        """Generate GLSL header with texture atlas constants for shaders"""
+        header_content = f"""// Auto-generated GLSL texture atlas header for Phyxel Engine
+// Atlas size: {metadata['atlas_size']}x{metadata['atlas_size']}
+// Texture count: {len(metadata['textures'])}
+
+// Atlas constants - these match our generated cube_atlas.h
+const uint ATLAS_SIZE = {metadata['atlas_size']}u;           // Atlas dimensions
+const uint TEXTURE_SIZE = {metadata['texture_size']}u;          // Individual texture size
+const uint PADDING = {metadata['padding']}u;                // Padding between textures
+const uint TEXTURES_PER_ROW = {metadata['textures_per_row']}u;       // Calculated from atlas layout
+
+// Pre-calculated UV coordinates for each texture (matches cube_atlas.h exactly)
+const vec4 TEXTURE_UVS[{len(metadata['textures'])}] = vec4[{len(metadata['textures'])}](
+"""
+        
+        # Add UV coordinates for each texture index
+        texture_list = sorted(metadata['textures'].items(), key=lambda x: x[1]['index'])
+        for i, (name, data) in enumerate(texture_list):
+            uv = data['uv_min'] + data['uv_max']
+            comma = "," if i < len(texture_list) - 1 else ""
+            header_content += f"""    vec4({uv[0]:.6f}, {uv[1]:.6f}, {uv[2]:.6f}, {uv[3]:.6f}){comma}  // {data['index']}: {name}\n"""
+        
+        header_content += """);
+
+// Calculate atlas UV coordinates from texture index and local UV
+vec2 getAtlasUV(uint texIndex, vec2 localUV) {
+    // Handle invalid/placeholder texture
+    uint safeTexIndex = texIndex;
+    if (texIndex == 0xFFFFu || texIndex >= """ + str(len(metadata['textures'])) + """u) {  // Invalid texture index
+        safeTexIndex = 6u;      // Use placeholder_bottom texture
+    }
+    
+    // Get pre-calculated UV bounds for this texture
+    vec4 uvBounds = TEXTURE_UVS[safeTexIndex];
+    vec2 uvMin = uvBounds.xy;
+    vec2 uvMax = uvBounds.zw;
+    
+    // Interpolate between min and max based on local UV
+    return mix(uvMin, uvMax, localUV);
+}
+"""
+        
+        with open(header_path, 'w') as f:
+            f.write(header_content)
+        print(f"GLSL header saved: {header_path}")
+
 def main():
     parser = argparse.ArgumentParser(description='Build texture atlas from 18x18 PNG files')
     parser.add_argument('input_dir', help='Directory containing PNG texture files')
-    parser.add_argument('output', help='Output atlas PNG file name (will be placed in resources/)')
+    parser.add_argument('output', help='Output atlas PNG file name (will be placed in resources/textures/)')
     parser.add_argument('--texture-size', type=int, default=18, 
                        help='Individual texture size (default: 18)')
     parser.add_argument('--padding', type=int, default=1,
                        help='Padding between textures (default: 1)')
+    parser.add_argument('--textures-per-row', type=int, default=6,
+                       help='Force specific number of textures per row (default: 6)')
     parser.add_argument('--no-metadata', action='store_true',
                        help='Skip generating metadata files')
     parser.add_argument('--resources-dir', default='resources',
@@ -387,27 +458,23 @@ def main():
     args = parser.parse_args()
     
     try:
-        builder = TextureAtlasBuilder(args.texture_size, args.padding)
+        builder = TextureAtlasBuilder(args.texture_size, args.padding, args.textures_per_row)
         textures = builder.load_textures(args.input_dir)
         
         if not textures:
             print("No PNG files found in input directory!")
             return 1
         
-        # Create resources directory structure
+        # Always create resources/textures directory structure
         resources_path = Path(args.resources_dir)
         textures_path = resources_path / 'textures'
         textures_path.mkdir(parents=True, exist_ok=True)
         
-        # Determine output path - support both full paths and just filenames
+        # Always place output in resources/textures/
         output_file = Path(args.output)
-        if output_file.is_absolute() or len(output_file.parts) > 1:
-            # User provided a path, use it as-is but warn about resources convention
-            output_path = output_file
-            print(f"Warning: Using custom path '{output_path}' instead of resources directory")
-        else:
-            # Just a filename, place in resources/textures/
-            output_path = textures_path / output_file
+        if output_file.suffix == '':
+            output_file = output_file.with_suffix('.png')
+        output_path = textures_path / output_file.name  # Use only filename part
         
         print(f"Creating texture atlas at: {output_path}")
         metadata = builder.build_atlas(textures, output_path, not args.no_metadata)
@@ -415,11 +482,13 @@ def main():
         print(f"\nAtlas build complete!")
         print(f"Textures processed: {len(textures)}")
         print(f"Atlas dimensions: {metadata['atlas_size']}x{metadata['atlas_size']}")
+        print(f"Grid layout: {metadata['textures_per_row']}x{math.ceil(len(textures)/metadata['textures_per_row'])}")
         print(f"Output files:")
         print(f"  🖼️  Atlas: {output_path}")
         if not args.no_metadata:
             print(f"  📄 Metadata: {output_path.with_suffix('.json')}")
             print(f"  🔧 C++ Header: {output_path.with_suffix('.h')}")
+            print(f"  🎨 GLSL Header: {output_path.with_suffix('.glsl')}")
         
         return 0
         
