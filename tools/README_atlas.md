@@ -6,6 +6,7 @@ This tool combines multiple 18x18 PNG textures into a single atlas texture for e
 
 ### Basic Usage
 ```bash
+# Output goes to resources/textures/cube_atlas.png
 python texture_atlas_builder.py textures/ cube_atlas.png
 ```
 
@@ -14,13 +15,34 @@ python texture_atlas_builder.py textures/ cube_atlas.png
 # Custom texture size and padding
 python texture_atlas_builder.py textures/ atlas.png --texture-size 18 --padding 2
 
+# Custom resources directory
+python texture_atlas_builder.py textures/ atlas.png --resources-dir assets
+
 # Skip metadata generation
 python texture_atlas_builder.py textures/ atlas.png --no-metadata
+
+# Use absolute path (bypasses resources directory)
+python texture_atlas_builder.py textures/ /full/path/to/atlas.png
+```
+
+## Output Structure
+
+The tool automatically creates this directory structure:
+
+```
+project_root/
+├── resources/
+│   └── textures/
+│       ├── cube_atlas.png      # Atlas image
+│       ├── cube_atlas.json     # Metadata
+│       └── cube_atlas.h        # C++ header
+└── tools/
+    └── texture_atlas_builder.py
 ```
 
 ## Output Files
 
-1. **Atlas PNG**: The combined texture atlas image
+1. **Atlas PNG**: The combined texture atlas image (in `resources/textures/`)
 2. **Metadata JSON**: Texture positions and UV coordinates
 3. **C++ Header**: Ready-to-use constants for your engine
 

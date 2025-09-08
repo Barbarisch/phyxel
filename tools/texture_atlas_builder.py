@@ -39,6 +39,122 @@ class TextureAtlasBuilder:
             
         return atlas_size, textures_per_row, textures_per_col
     
+    def parse_texture_info(self, texture_name):
+        """Parse texture name to extract material, face, and direction info"""
+        parts = texture_name.split('_')
+        
+        if len(parts) < 2:
+            return {
+                'material': texture_name,
+                'face': 'unknown',
+                'direction': None,
+                'is_directional': False
+            }
+        
+        material = parts[0]
+        face = parts[1]
+        direction = None
+        
+        # Check for directional side textures
+        if len(parts) >= 3 and face == 'side':
+            direction = parts[2].lower()
+            if direction in ['n', 's', 'e', 'w', 'north', 'south', 'east', 'west']:
+                return {
+                    'material': material,
+                    'face': face,
+                    'direction': direction,
+                    'is_directional': True
+                }
+        
+        return {
+            'material': material,
+            'face': face,
+            'direction': direction,
+            'is_directional': False
+        }
+    
+    def organize_textures_by_material(self, textures):
+        """Organize textures by material and validate completeness"""
+        materials = {}
+        
+        for texture_name, texture_img in textures.items():
+            info = self.parse_texture_info(texture_name)
+            material = info['material']
+            
+            if material not in materials:
+                materials[material] = {
+                    'top': None,
+                    'bottom': None,
+                    'side_n': None,
+                    'side_s': None,
+                    'side_e': None,
+                    'side_w': None,
+                    'side_all': None,  # For non-directional sides
+                    'textures': {}
+                }
+            
+            # Store texture info
+            materials[material]['textures'][texture_name] = {
+                'image': texture_img,
+                'info': info
+            }
+            
+            # Categorize by face and direction
+            face = info['face']
+            direction = info['direction']
+            
+            if face == 'top':
+                materials[material]['top'] = texture_name
+            elif face == 'bottom':
+                materials[material]['bottom'] = texture_name
+            elif face == 'side':
+                if info['is_directional'] and direction:
+                    # Map direction variations
+                    dir_key = direction[0].lower()  # n, s, e, w
+                    if dir_key in 'ns':
+                        if 'n' in direction.lower():
+                            materials[material]['side_n'] = texture_name
+                        else:
+                            materials[material]['side_s'] = texture_name
+                    elif dir_key in 'ew':
+                        if 'e' in direction.lower():
+                            materials[material]['side_e'] = texture_name
+                        else:
+                            materials[material]['side_w'] = texture_name
+                else:
+                    materials[material]['side_all'] = texture_name
+        
+        return materials
+    
+    def validate_materials(self, materials):
+        """Validate that materials have required textures"""
+        warnings = []
+        
+        for material, data in materials.items():
+            # Check for essential faces
+            if not data['top']:
+                warnings.append(f"Material '{material}' missing top texture")
+            if not data['bottom']:
+                warnings.append(f"Material '{material}' missing bottom texture")
+            
+            # Check side texture completeness
+            has_directional_sides = any([data['side_n'], data['side_s'], data['side_e'], data['side_w']])
+            has_universal_side = data['side_all']
+            
+            if has_directional_sides:
+                missing_sides = []
+                if not data['side_n']: missing_sides.append('north')
+                if not data['side_s']: missing_sides.append('south')
+                if not data['side_e']: missing_sides.append('east')
+                if not data['side_w']: missing_sides.append('west')
+                
+                if missing_sides:
+                    warnings.append(f"Material '{material}' missing directional sides: {', '.join(missing_sides)}")
+            elif not has_universal_side:
+                warnings.append(f"Material '{material}' missing side texture(s)")
+        
+        return warnings
+
     def load_textures(self, input_dir):
         """Load all PNG textures from input directory"""
         textures = {}
@@ -69,6 +185,22 @@ class TextureAtlasBuilder:
             except Exception as e:
                 print(f"Error loading {png_file}: {e}")
         
+        # Organize and validate textures
+        materials = self.organize_textures_by_material(textures)
+        warnings = self.validate_materials(materials)
+        
+        if warnings:
+            print("\nTexture Validation Warnings:")
+            for warning in warnings:
+                print(f"  ⚠️  {warning}")
+            print()
+        
+        # Print material summary
+        print(f"Loaded materials:")
+        for material, data in materials.items():
+            texture_count = len(data['textures'])
+            print(f"  📦 {material}: {texture_count} textures")
+        
         return textures
     
     def build_atlas(self, textures, output_path, generate_metadata=True):
@@ -98,12 +230,19 @@ class TextureAtlasBuilder:
             "padding": self.padding,
             "effective_size": self.effective_size,
             "textures_per_row": textures_per_row,
-            "textures": {}
+            "textures": {},
+            "materials": {}
         }
+        
+        # Organize textures by material for metadata
+        materials = self.organize_textures_by_material(textures)
         
         # Place textures in atlas
         texture_index = 0
         for texture_name, texture_img in textures.items():
+            # Parse texture info
+            texture_info = self.parse_texture_info(texture_name)
+            
             # Calculate grid position
             grid_x = texture_index % textures_per_row
             grid_y = texture_index // textures_per_row
@@ -128,10 +267,25 @@ class TextureAtlasBuilder:
                 "pixel_pos": [pixel_x, pixel_y],
                 "uv_min": [u_min, v_min],
                 "uv_max": [u_max, v_max],
-                "uv_size": [u_max - u_min, v_max - v_min]
+                "uv_size": [u_max - u_min, v_max - v_min],
+                "material": texture_info['material'],
+                "face": texture_info['face'],
+                "direction": texture_info['direction'],
+                "is_directional": texture_info['is_directional']
             }
             
             texture_index += 1
+        
+        # Add material mapping to metadata
+        for material, data in materials.items():
+            material_textures = {}
+            for face_key, texture_name in data.items():
+                if texture_name and face_key != 'textures':
+                    tex_data = texture_metadata["textures"].get(texture_name)
+                    if tex_data:
+                        material_textures[face_key] = tex_data["index"]
+            
+            texture_metadata["materials"][material] = material_textures
         
         # Save atlas image
         atlas.save(output_path)
@@ -220,13 +374,15 @@ inline int getTextureIndex(const std::string& name) {
 def main():
     parser = argparse.ArgumentParser(description='Build texture atlas from 18x18 PNG files')
     parser.add_argument('input_dir', help='Directory containing PNG texture files')
-    parser.add_argument('output', help='Output atlas PNG file path')
+    parser.add_argument('output', help='Output atlas PNG file name (will be placed in resources/)')
     parser.add_argument('--texture-size', type=int, default=18, 
                        help='Individual texture size (default: 18)')
     parser.add_argument('--padding', type=int, default=1,
                        help='Padding between textures (default: 1)')
     parser.add_argument('--no-metadata', action='store_true',
                        help='Skip generating metadata files')
+    parser.add_argument('--resources-dir', default='resources',
+                       help='Resources directory name (default: resources)')
     
     args = parser.parse_args()
     
@@ -238,12 +394,32 @@ def main():
             print("No PNG files found in input directory!")
             return 1
         
-        output_path = Path(args.output)
+        # Create resources directory structure
+        resources_path = Path(args.resources_dir)
+        textures_path = resources_path / 'textures'
+        textures_path.mkdir(parents=True, exist_ok=True)
+        
+        # Determine output path - support both full paths and just filenames
+        output_file = Path(args.output)
+        if output_file.is_absolute() or len(output_file.parts) > 1:
+            # User provided a path, use it as-is but warn about resources convention
+            output_path = output_file
+            print(f"Warning: Using custom path '{output_path}' instead of resources directory")
+        else:
+            # Just a filename, place in resources/textures/
+            output_path = textures_path / output_file
+        
+        print(f"Creating texture atlas at: {output_path}")
         metadata = builder.build_atlas(textures, output_path, not args.no_metadata)
         
         print(f"\nAtlas build complete!")
         print(f"Textures processed: {len(textures)}")
         print(f"Atlas dimensions: {metadata['atlas_size']}x{metadata['atlas_size']}")
+        print(f"Output files:")
+        print(f"  🖼️  Atlas: {output_path}")
+        if not args.no_metadata:
+            print(f"  📄 Metadata: {output_path.with_suffix('.json')}")
+            print(f"  🔧 C++ Header: {output_path.with_suffix('.h')}")
         
         return 0
         

@@ -1,0 +1,351 @@
+{
+  "atlas_size": 128,
+  "texture_size": 18,
+  "padding": 1,
+  "effective_size": 20,
+  "textures_per_row": 6,
+  "textures": {
+    "grassdirt_bottom": {
+      "index": 0,
+      "grid_pos": [
+        0,
+        0
+      ],
+      "pixel_pos": [
+        1,
+        1
+      ],
+      "uv_min": [
+        0.0078125,
+        0.0078125
+      ],
+      "uv_max": [
+        0.1484375,
+        0.1484375
+      ],
+      "uv_size": [
+        0.140625,
+        0.140625
+      ],
+      "material": "grassdirt",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "grassdirt_side_e": {
+      "index": 1,
+      "grid_pos": [
+        1,
+        0
+      ],
+      "pixel_pos": [
+        21,
+        1
+      ],
+      "uv_min": [
+        0.1640625,
+        0.0078125
+      ],
+      "uv_max": [
+        0.3046875,
+        0.1484375
+      ],
+      "uv_size": [
+        0.140625,
+        0.140625
+      ],
+      "material": "grassdirt",
+      "face": "side",
+      "direction": "e",
+      "is_directional": true
+    },
+    "grassdirt_side_n": {
+      "index": 2,
+      "grid_pos": [
+        2,
+        0
+      ],
+      "pixel_pos": [
+        41,
+        1
+      ],
+      "uv_min": [
+        0.3203125,
+        0.0078125
+      ],
+      "uv_max": [
+        0.4609375,
+        0.1484375
+      ],
+      "uv_size": [
+        0.140625,
+        0.140625
+      ],
+      "material": "grassdirt",
+      "face": "side",
+      "direction": "n",
+      "is_directional": true
+    },
+    "grassdirt_side_s": {
+      "index": 3,
+      "grid_pos": [
+        3,
+        0
+      ],
+      "pixel_pos": [
+        61,
+        1
+      ],
+      "uv_min": [
+        0.4765625,
+        0.0078125
+      ],
+      "uv_max": [
+        0.6171875,
+        0.1484375
+      ],
+      "uv_size": [
+        0.140625,
+        0.140625
+      ],
+      "material": "grassdirt",
+      "face": "side",
+      "direction": "s",
+      "is_directional": true
+    },
+    "grassdirt_side_w": {
+      "index": 4,
+      "grid_pos": [
+        4,
+        0
+      ],
+      "pixel_pos": [
+        81,
+        1
+      ],
+      "uv_min": [
+        0.6328125,
+        0.0078125
+      ],
+      "uv_max": [
+        0.7734375,
+        0.1484375
+      ],
+      "uv_size": [
+        0.140625,
+        0.140625
+      ],
+      "material": "grassdirt",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
+    },
+    "grassdirt_top": {
+      "index": 5,
+      "grid_pos": [
+        5,
+        0
+      ],
+      "pixel_pos": [
+        101,
+        1
+      ],
+      "uv_min": [
+        0.7890625,
+        0.0078125
+      ],
+      "uv_max": [
+        0.9296875,
+        0.1484375
+      ],
+      "uv_size": [
+        0.140625,
+        0.140625
+      ],
+      "material": "grassdirt",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "placeholder_bottom": {
+      "index": 6,
+      "grid_pos": [
+        0,
+        1
+      ],
+      "pixel_pos": [
+        1,
+        21
+      ],
+      "uv_min": [
+        0.0078125,
+        0.1640625
+      ],
+      "uv_max": [
+        0.1484375,
+        0.3046875
+      ],
+      "uv_size": [
+        0.140625,
+        0.140625
+      ],
+      "material": "placeholder",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "placeholder_side_e": {
+      "index": 7,
+      "grid_pos": [
+        1,
+        1
+      ],
+      "pixel_pos": [
+        21,
+        21
+      ],
+      "uv_min": [
+        0.1640625,
+        0.1640625
+      ],
+      "uv_max": [
+        0.3046875,
+        0.3046875
+      ],
+      "uv_size": [
+        0.140625,
+        0.140625
+      ],
+      "material": "placeholder",
+      "face": "side",
+      "direction": "e",
+      "is_directional": true
+    },
+    "placeholder_side_n": {
+      "index": 8,
+      "grid_pos": [
+        2,
+        1
+      ],
+      "pixel_pos": [
+        41,
+        21
+      ],
+      "uv_min": [
+        0.3203125,
+        0.1640625
+      ],
+      "uv_max": [
+        0.4609375,
+        0.3046875
+      ],
+      "uv_size": [
+        0.140625,
+        0.140625
+      ],
+      "material": "placeholder",
+      "face": "side",
+      "direction": "n",
+      "is_directional": true
+    },
+    "placeholder_side_s": {
+      "index": 9,
+      "grid_pos": [
+        3,
+        1
+      ],
+      "pixel_pos": [
+        61,
+        21
+      ],
+      "uv_min": [
+        0.4765625,
+        0.1640625
+      ],
+      "uv_max": [
+        0.6171875,
+        0.3046875
+      ],
+      "uv_size": [
+        0.140625,
+        0.140625
+      ],
+      "material": "placeholder",
+      "face": "side",
+      "direction": "s",
+      "is_directional": true
+    },
+    "placeholder_side_w": {
+      "index": 10,
+      "grid_pos": [
+        4,
+        1
+      ],
+      "pixel_pos": [
+        81,
+        21
+      ],
+      "uv_min": [
+        0.6328125,
+        0.1640625
+      ],
+      "uv_max": [
+        0.7734375,
+        0.3046875
+      ],
+      "uv_size": [
+        0.140625,
+        0.140625
+      ],
+      "material": "placeholder",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
+    },
+    "placeholder_top": {
+      "index": 11,
+      "grid_pos": [
+        5,
+        1
+      ],
+      "pixel_pos": [
+        101,
+        21
+      ],
+      "uv_min": [
+        0.7890625,
+        0.1640625
+      ],
+      "uv_max": [
+        0.9296875,
+        0.3046875
+      ],
+      "uv_size": [
+        0.140625,
+        0.140625
+      ],
+      "material": "placeholder",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    }
+  },
+  "materials": {
+    "grassdirt": {
+      "top": 5,
+      "bottom": 0,
+      "side_n": 2,
+      "side_s": 3,
+      "side_e": 1,
+      "side_w": 4
+    },
+    "placeholder": {
+      "top": 11,
+      "bottom": 6,
+      "side_n": 8,
+      "side_s": 9,
+      "side_e": 7,
+      "side_w": 10
+    }
+  }
+}
