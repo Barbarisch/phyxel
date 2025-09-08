@@ -30,6 +30,11 @@ class PixelArtEditor:
         self.pixels = [[self.background_color for _ in range(self.grid_size)] for _ in range(self.grid_size)]
         self.show_grid = True
         
+        # Mouse drag state
+        self.is_dragging = False
+        self.drag_mode = None  # 'paint' or 'erase'
+        self.drag_changed = False  # Track if any changes occurred during drag
+        
         # Undo/Redo system
         self.history = []
         self.history_index = -1
@@ -47,8 +52,12 @@ class PixelArtEditor:
         self.rectangles = {}
         self.create_grid()
 
-        self.canvas.bind("<Button-1>", self.paint_pixel)
-        self.canvas.bind("<Button-3>", self.erase_pixel)  # Right-click to erase
+        self.canvas.bind("<Button-1>", self.start_paint)
+        self.canvas.bind("<Button-3>", self.start_erase)  # Right-click to erase
+        self.canvas.bind("<B1-Motion>", self.drag_paint)  # Left mouse drag
+        self.canvas.bind("<B3-Motion>", self.drag_erase)  # Right mouse drag
+        self.canvas.bind("<ButtonRelease-1>", self.end_drag)  # Left mouse release
+        self.canvas.bind("<ButtonRelease-3>", self.end_drag)  # Right mouse release
 
         # Create UI panels
         self.create_toolbar(main_frame)
@@ -271,23 +280,57 @@ class PixelArtEditor:
         if color_code[1]:
             self.background_color = color_code[1]
 
-    def paint_pixel(self, event):
-        rect = self.canvas.find_closest(event.x, event.y)[0]
-        if rect in self.rectangles:
-            x, y = self.rectangles[rect]
-            if self.pixels[y][x] != self.current_color:  # Only save state if change occurs
-                self.canvas.itemconfig(rect, fill=self.current_color)
-                self.pixels[y][x] = self.current_color
-                self.save_state()
+    def start_paint(self, event):
+        """Start painting with left mouse button"""
+        self.is_dragging = True
+        self.drag_mode = 'paint'
+        self.drag_changed = False
+        self.paint_at_position(event.x, event.y)
 
-    def erase_pixel(self, event):
-        rect = self.canvas.find_closest(event.x, event.y)[0]
+    def start_erase(self, event):
+        """Start erasing with right mouse button"""
+        self.is_dragging = True
+        self.drag_mode = 'erase'
+        self.drag_changed = False
+        self.erase_at_position(event.x, event.y)
+
+    def drag_paint(self, event):
+        """Continue painting while dragging left mouse"""
+        if self.is_dragging and self.drag_mode == 'paint':
+            self.paint_at_position(event.x, event.y)
+
+    def drag_erase(self, event):
+        """Continue erasing while dragging right mouse"""
+        if self.is_dragging and self.drag_mode == 'erase':
+            self.erase_at_position(event.x, event.y)
+
+    def end_drag(self, event):
+        """End drag operation and save state if changes occurred"""
+        if self.is_dragging and self.drag_changed:
+            self.save_state()
+        self.is_dragging = False
+        self.drag_mode = None
+        self.drag_changed = False
+
+    def paint_at_position(self, x, y):
+        """Paint pixel at given canvas coordinates"""
+        rect = self.canvas.find_closest(x, y)[0]
         if rect in self.rectangles:
-            x, y = self.rectangles[rect]
-            if self.pixels[y][x] != self.background_color:  # Only save state if change occurs
+            grid_x, grid_y = self.rectangles[rect]
+            if self.pixels[grid_y][grid_x] != self.current_color:
+                self.canvas.itemconfig(rect, fill=self.current_color)
+                self.pixels[grid_y][grid_x] = self.current_color
+                self.drag_changed = True
+
+    def erase_at_position(self, x, y):
+        """Erase pixel at given canvas coordinates"""
+        rect = self.canvas.find_closest(x, y)[0]
+        if rect in self.rectangles:
+            grid_x, grid_y = self.rectangles[rect]
+            if self.pixels[grid_y][grid_x] != self.background_color:
                 self.canvas.itemconfig(rect, fill=self.background_color)
-                self.pixels[y][x] = self.background_color
-                self.save_state()
+                self.pixels[grid_y][grid_x] = self.background_color
+                self.drag_changed = True
 
     def load_png(self):
         """Load an existing PNG file"""
