@@ -1,10 +1,11 @@
 import tkinter as tk
-from tkinter import colorchooser, filedialog, messagebox
+from tkinter import colorchooser, filedialog, messagebox, simpledialog
 from PIL import Image
 import copy
+import argparse
+import sys
 
 PIXEL_SIZE = 20  # size of each square in the GUI
-AVAILABLE_SIZES = [16, 32, 64]  # Available grid sizes
 # MS Paint classic color palette (28 colors in 2 rows)
 DEFAULT_PALETTE = [
     # Top row
@@ -16,11 +17,11 @@ DEFAULT_PALETTE = [
 ]
 
 class PixelArtEditor:
-    def __init__(self, root):
+    def __init__(self, root, initial_size=18):
         self.root = root
         
         # Size management
-        self.grid_size = 16  # Default size
+        self.grid_size = initial_size  # Use provided initial size
         self.update_title()
 
         # State management
@@ -57,11 +58,33 @@ class PixelArtEditor:
         """Update window title with current canvas size"""
         self.root.title(f"{self.grid_size}x{self.grid_size} Texture Maker")
 
+    def on_size_change(self, event=None):
+        """Handle size change from text field"""
+        try:
+            new_size = int(self.size_var.get())
+            if new_size < 1:
+                messagebox.showerror("Invalid Size", "Size must be at least 1")
+                self.size_var.set(str(self.grid_size))  # Reset to current size
+                return
+            if new_size > 512:
+                messagebox.showerror("Invalid Size", "Size cannot exceed 512")
+                self.size_var.set(str(self.grid_size))  # Reset to current size
+                return
+            
+            # Only resize if size actually changed
+            if new_size != self.grid_size:
+                self.resize_canvas(new_size)
+            
+        except ValueError:
+            messagebox.showerror("Invalid Size", "Please enter a valid number")
+            self.size_var.set(str(self.grid_size))  # Reset to current size
+
     def resize_canvas(self, new_size):
         """Resize the canvas to a new size"""
         if messagebox.askyesno("Resize Canvas", 
                                f"Change canvas size to {new_size}x{new_size}?\nThis will clear your current work."):
             self.grid_size = new_size
+            self.size_var.set(str(new_size))  # Update text field
             self.pixels = [[self.background_color for _ in range(self.grid_size)] for _ in range(self.grid_size)]
             
             # Update canvas size
@@ -75,6 +98,21 @@ class PixelArtEditor:
             # Recreate grid and update title
             self.create_grid()
             self.update_title()
+        else:
+            # User cancelled, reset text field to current size
+            self.size_var.set(str(self.grid_size))
+
+    def custom_size_dialog(self):
+        """Show dialog to enter custom grid size"""
+        new_size = simpledialog.askinteger(
+            "Custom Size", 
+            "Enter grid size (1-512):",
+            initialvalue=self.grid_size,
+            minvalue=1,
+            maxvalue=512
+        )
+        if new_size:
+            self.resize_canvas(new_size)
 
     def create_grid(self):
         """Create the pixel grid on the canvas"""
@@ -101,11 +139,17 @@ class PixelArtEditor:
         size_frame = tk.Frame(toolbar_frame)
         size_frame.pack(side=tk.LEFT, padx=5)
         tk.Label(size_frame, text="Size:").pack(side=tk.LEFT)
-        for size in AVAILABLE_SIZES:
-            btn = tk.Button(size_frame, text=f"{size}x{size}", 
-                          command=lambda s=size: self.resize_canvas(s),
-                          relief="sunken" if size == self.grid_size else "raised")
-            btn.pack(side=tk.LEFT, padx=1)
+        
+        # Size input field
+        self.size_var = tk.StringVar(value=str(self.grid_size))
+        self.size_entry = tk.Entry(size_frame, textvariable=self.size_var, width=6)
+        self.size_entry.pack(side=tk.LEFT, padx=2)
+        self.size_entry.bind('<Return>', self.on_size_change)
+        self.size_entry.bind('<FocusOut>', self.on_size_change)
+        
+        # Resize button
+        tk.Button(size_frame, text="Resize", 
+                 command=self.on_size_change).pack(side=tk.LEFT, padx=2)
 
         # File operations
         file_frame = tk.Frame(toolbar_frame)
@@ -295,6 +339,28 @@ class PixelArtEditor:
 
 
 if __name__ == "__main__":
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description='Pixel Art Texture Maker')
+    parser.add_argument('--size', '-s', type=int, default=18, 
+                       help='Initial grid size (default: 18)')
+    parser.add_argument('--max-size', type=int, default=512,
+                       help='Maximum allowed grid size (default: 512)')
+    
+    # If no arguments provided, check if there's a single number argument
+    if len(sys.argv) == 2 and sys.argv[1].isdigit():
+        grid_size = int(sys.argv[1])
+    else:
+        args = parser.parse_args()
+        grid_size = args.size
+    
+    # Validate size
+    if grid_size < 1:
+        print("Error: Grid size must be at least 1")
+        sys.exit(1)
+    if grid_size > 512:
+        print("Error: Grid size too large (max 512)")
+        sys.exit(1)
+    
     root = tk.Tk()
-    app = PixelArtEditor(root)
+    app = PixelArtEditor(root, initial_size=grid_size)
     root.mainloop()
