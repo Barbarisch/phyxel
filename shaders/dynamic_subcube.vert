@@ -86,24 +86,24 @@ void main() {
     // UV coordinates must match the vertex generation pattern for each face
     vec2 uv = vec2(0.0);
     
-    if (inFaceID == 0u) {        // Front face (+Z)
+    if (inFaceID == 0u) {        // Front face (+Z) - North - looks good with flip
         // Vertices: (0,0,1), (1,0,1), (1,1,1), (0,1,1)
-        uv = vec2(float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
-    } else if (inFaceID == 1u) { // Back face (-Z)
+        uv = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
+    } else if (inFaceID == 1u) { // Back face (-Z) - South - looks good
         // Vertices: (1,0,0), (0,0,0), (0,1,0), (1,1,0) - x flipped
         uv = vec2(1.0 - float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
-    } else if (inFaceID == 2u) { // Right face (+X)
+    } else if (inFaceID == 2u) { // Right face (+X) - East - 180 degree rotation
         // Vertices: (1,0,1), (1,0,0), (1,1,0), (1,1,1) - z flipped
-        uv = vec2(1.0 - float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
-    } else if (inFaceID == 3u) { // Left face (-X)
-        // Vertices: (0,0,0), (0,0,1), (0,1,1), (0,1,0)
-        uv = vec2(float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
-    } else if (inFaceID == 4u) { // Top face (+Y)
-        // Vertices: (0,1,1), (1,1,1), (1,1,0), (0,1,0) - z flipped
         uv = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
-    } else if (inFaceID == 5u) { // Bottom face (-Y)
+    } else if (inFaceID == 3u) { // Left face (-X) - West - looks good
+        // Vertices: (0,0,0), (0,0,1), (0,1,1), (0,1,0)
+        uv = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
+    } else if (inFaceID == 4u) { // Top face (+Y) - horizontal mirror
+        // Vertices: (0,1,1), (1,1,1), (1,1,0), (0,1,0) - z flipped
+        uv = vec2(1.0 - float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
+    } else if (inFaceID == 5u) { // Bottom face (-Y) - looks good
         // Vertices: (0,0,0), (1,0,0), (1,0,1), (0,0,1)
-        uv = vec2(float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
+        uv = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
     }
     
     gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
