@@ -5,7 +5,7 @@
   "effective_size": 20,
   "textures_per_row": 6,
   "textures": {
-    "grassdirt_bottom": {
+    "placeholder_side_n": {
       "index": 0,
       "grid_pos": [
         0,
@@ -27,12 +27,12 @@
         0.140625,
         0.140625
       ],
-      "material": "grassdirt",
-      "face": "bottom",
-      "direction": null,
-      "is_directional": false
+      "material": "placeholder",
+      "face": "side",
+      "direction": "n",
+      "is_directional": true
     },
-    "grassdirt_side_e": {
+    "placeholder_side_s": {
       "index": 1,
       "grid_pos": [
         1,
@@ -54,12 +54,12 @@
         0.140625,
         0.140625
       ],
-      "material": "grassdirt",
+      "material": "placeholder",
       "face": "side",
-      "direction": "e",
+      "direction": "s",
       "is_directional": true
     },
-    "grassdirt_side_n": {
+    "placeholder_side_e": {
       "index": 2,
       "grid_pos": [
         2,
@@ -81,12 +81,12 @@
         0.140625,
         0.140625
       ],
-      "material": "grassdirt",
+      "material": "placeholder",
       "face": "side",
-      "direction": "n",
+      "direction": "e",
       "is_directional": true
     },
-    "grassdirt_side_s": {
+    "placeholder_side_w": {
       "index": 3,
       "grid_pos": [
         3,
@@ -108,12 +108,12 @@
         0.140625,
         0.140625
       ],
-      "material": "grassdirt",
+      "material": "placeholder",
       "face": "side",
-      "direction": "s",
+      "direction": "w",
       "is_directional": true
     },
-    "grassdirt_side_w": {
+    "placeholder_top": {
       "index": 4,
       "grid_pos": [
         4,
@@ -135,12 +135,12 @@
         0.140625,
         0.140625
       ],
-      "material": "grassdirt",
-      "face": "side",
-      "direction": "w",
-      "is_directional": true
+      "material": "placeholder",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
     },
-    "grassdirt_top": {
+    "placeholder_bottom": {
       "index": 5,
       "grid_pos": [
         5,
@@ -162,12 +162,12 @@
         0.140625,
         0.140625
       ],
-      "material": "grassdirt",
-      "face": "top",
+      "material": "placeholder",
+      "face": "bottom",
       "direction": null,
       "is_directional": false
     },
-    "placeholder_bottom": {
+    "grassdirt_side_n": {
       "index": 6,
       "grid_pos": [
         0,
@@ -189,12 +189,12 @@
         0.140625,
         0.140625
       ],
-      "material": "placeholder",
-      "face": "bottom",
-      "direction": null,
-      "is_directional": false
+      "material": "grassdirt",
+      "face": "side",
+      "direction": "n",
+      "is_directional": true
     },
-    "placeholder_side_e": {
+    "grassdirt_side_s": {
       "index": 7,
       "grid_pos": [
         1,
@@ -216,12 +216,12 @@
         0.140625,
         0.140625
       ],
-      "material": "placeholder",
+      "material": "grassdirt",
       "face": "side",
-      "direction": "e",
+      "direction": "s",
       "is_directional": true
     },
-    "placeholder_side_n": {
+    "grassdirt_side_e": {
       "index": 8,
       "grid_pos": [
         2,
@@ -243,12 +243,12 @@
         0.140625,
         0.140625
       ],
-      "material": "placeholder",
+      "material": "grassdirt",
       "face": "side",
-      "direction": "n",
+      "direction": "e",
       "is_directional": true
     },
-    "placeholder_side_s": {
+    "grassdirt_side_w": {
       "index": 9,
       "grid_pos": [
         3,
@@ -270,12 +270,12 @@
         0.140625,
         0.140625
       ],
-      "material": "placeholder",
+      "material": "grassdirt",
       "face": "side",
-      "direction": "s",
+      "direction": "w",
       "is_directional": true
     },
-    "placeholder_side_w": {
+    "grassdirt_top": {
       "index": 10,
       "grid_pos": [
         4,
@@ -297,12 +297,12 @@
         0.140625,
         0.140625
       ],
-      "material": "placeholder",
-      "face": "side",
-      "direction": "w",
-      "is_directional": true
+      "material": "grassdirt",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
     },
-    "placeholder_top": {
+    "grassdirt_bottom": {
       "index": 11,
       "grid_pos": [
         5,
@@ -324,28 +324,28 @@
         0.140625,
         0.140625
       ],
-      "material": "placeholder",
-      "face": "top",
+      "material": "grassdirt",
+      "face": "bottom",
       "direction": null,
       "is_directional": false
     }
   },
   "materials": {
-    "grassdirt": {
-      "top": 5,
-      "bottom": 0,
-      "side_n": 2,
-      "side_s": 3,
-      "side_e": 1,
-      "side_w": 4
-    },
     "placeholder": {
-      "top": 11,
-      "bottom": 6,
-      "side_n": 8,
-      "side_s": 9,
-      "side_e": 7,
-      "side_w": 10
+      "top": 4,
+      "bottom": 5,
+      "side_n": 0,
+      "side_s": 1,
+      "side_e": 2,
+      "side_w": 3
+    },
+    "grassdirt": {
+      "top": 10,
+      "bottom": 11,
+      "side_n": 6,
+      "side_s": 7,
+      "side_e": 8,
+      "side_w": 9
     }
   }
 }

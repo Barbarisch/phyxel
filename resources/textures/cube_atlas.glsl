@@ -10,18 +10,18 @@ const uint TEXTURES_PER_ROW = 6u;       // Calculated from atlas layout
 
 // Pre-calculated UV coordinates for each texture (matches cube_atlas.h exactly)
 const vec4 TEXTURE_UVS[12] = vec4[12](
-    vec4(0.007812, 0.007812, 0.148438, 0.148438),  // 0: grassdirt_bottom
-    vec4(0.164062, 0.007812, 0.304688, 0.148438),  // 1: grassdirt_side_e
-    vec4(0.320312, 0.007812, 0.460938, 0.148438),  // 2: grassdirt_side_n
-    vec4(0.476562, 0.007812, 0.617188, 0.148438),  // 3: grassdirt_side_s
-    vec4(0.632812, 0.007812, 0.773438, 0.148438),  // 4: grassdirt_side_w
-    vec4(0.789062, 0.007812, 0.929688, 0.148438),  // 5: grassdirt_top
-    vec4(0.007812, 0.164062, 0.148438, 0.304688),  // 6: placeholder_bottom
-    vec4(0.164062, 0.164062, 0.304688, 0.304688),  // 7: placeholder_side_e
-    vec4(0.320312, 0.164062, 0.460938, 0.304688),  // 8: placeholder_side_n
-    vec4(0.476562, 0.164062, 0.617188, 0.304688),  // 9: placeholder_side_s
-    vec4(0.632812, 0.164062, 0.773438, 0.304688),  // 10: placeholder_side_w
-    vec4(0.789062, 0.164062, 0.929688, 0.304688)  // 11: placeholder_top
+    vec4(0.007812, 0.007812, 0.148438, 0.148438),  // 0: placeholder_side_n
+    vec4(0.164062, 0.007812, 0.304688, 0.148438),  // 1: placeholder_side_s
+    vec4(0.320312, 0.007812, 0.460938, 0.148438),  // 2: placeholder_side_e
+    vec4(0.476562, 0.007812, 0.617188, 0.148438),  // 3: placeholder_side_w
+    vec4(0.632812, 0.007812, 0.773438, 0.148438),  // 4: placeholder_top
+    vec4(0.789062, 0.007812, 0.929688, 0.148438),  // 5: placeholder_bottom
+    vec4(0.007812, 0.164062, 0.148438, 0.304688),  // 6: grassdirt_side_n
+    vec4(0.164062, 0.164062, 0.304688, 0.304688),  // 7: grassdirt_side_s
+    vec4(0.320312, 0.164062, 0.460938, 0.304688),  // 8: grassdirt_side_e
+    vec4(0.476562, 0.164062, 0.617188, 0.304688),  // 9: grassdirt_side_w
+    vec4(0.632812, 0.164062, 0.773438, 0.304688),  // 10: grassdirt_top
+    vec4(0.789062, 0.164062, 0.929688, 0.304688)  // 11: grassdirt_bottom
 );
 
 // Calculate atlas UV coordinates from texture index and local UV

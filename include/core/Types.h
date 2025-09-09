@@ -20,9 +20,26 @@ class Chunk;
 
 // Texture system constants
 namespace TextureConstants {
-    constexpr uint16_t PLACEHOLDER_TEXTURE_INDEX = 6;     // Default fallback texture (placeholder_bottom)
+    constexpr uint16_t PLACEHOLDER_TEXTURE_INDEX = 5;     // Default fallback texture (placeholder_bottom)
     constexpr uint16_t INVALID_TEXTURE_INDEX = 0xFFFF;    // Invalid/unset texture
     constexpr uint16_t MAX_TEXTURE_INDEX = 0xFFFE;        // Maximum valid texture index
+    
+    // Helper function to get texture index for a specific face
+    // Face IDs now directly correspond to placeholder texture indices (0-5)
+    inline uint16_t getTextureIndexForFace(int faceID) {
+        if (faceID >= 0 && faceID < 6) {
+            return static_cast<uint16_t>(faceID);  // Direct mapping: faceID == textureIndex
+        }
+        return PLACEHOLDER_TEXTURE_INDEX; // fallback
+    }
+    
+    // Helper function to get grassdirt texture index for a specific face
+    inline uint16_t getGrassdirtTextureIndexForFace(int faceID) {
+        if (faceID >= 0 && faceID < 6) {
+            return static_cast<uint16_t>(faceID + 6);  // Grassdirt textures are indices 6-11
+        }
+        return PLACEHOLDER_TEXTURE_INDEX; // fallback
+    }
 }
 
 // Hash function for glm::ivec3 to use in unordered_map

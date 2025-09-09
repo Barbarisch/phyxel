@@ -320,7 +320,8 @@ void Chunk::rebuildFaces() {
                                          ((cubePos.z & 0x1F) << 10) | ((faceID & 0x7) << 15) |
                                          (subcubeData << 18);
                 
-                faceInstance.textureIndex = VulkanCube::TextureConstants::PLACEHOLDER_TEXTURE_INDEX;  // Default placeholder texture
+                // Assign texture based on face ID
+                faceInstance.textureIndex = VulkanCube::TextureConstants::getTextureIndexForFace(faceID);
                 faceInstance.reserved = 0;
                 faces.push_back(faceInstance);
             }
@@ -390,7 +391,8 @@ void Chunk::rebuildFaces() {
                                          ((parentChunkPos.z & 0x1F) << 10) | ((faceID & 0x7) << 15) |
                                          (subcubeData << 18);
                 
-                faceInstance.textureIndex = VulkanCube::TextureConstants::PLACEHOLDER_TEXTURE_INDEX;  // Default placeholder texture
+                // Assign texture based on face ID
+                faceInstance.textureIndex = VulkanCube::TextureConstants::getTextureIndexForFace(faceID);
                 faceInstance.reserved = 0;
                 faces.push_back(faceInstance);
             }

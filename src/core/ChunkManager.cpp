@@ -471,7 +471,7 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
                                          ((cubeChunkPos.z & 0x1F) << 10) | ((faceID & 0x7) << 15) |
                                          (subcubeData << 18);
                 
-                faceInstance.textureIndex = TextureConstants::PLACEHOLDER_TEXTURE_INDEX;
+                faceInstance.textureIndex = TextureConstants::getTextureIndexForFace(faceID);
                 chunk.faces.push_back(faceInstance);
             }
         }
@@ -526,7 +526,7 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
                                          ((parentChunkPos.z & 0x1F) << 10) | ((faceID & 0x7) << 15) |
                                          (subcubeData << 18);
                 
-                faceInstance.textureIndex = TextureConstants::PLACEHOLDER_TEXTURE_INDEX;
+                faceInstance.textureIndex = TextureConstants::getTextureIndexForFace(faceID);
                 chunk.faces.push_back(faceInstance);
             }
         }
@@ -645,8 +645,12 @@ void ChunkManager::setCubeColorEfficient(const glm::ivec3& worldPos, const glm::
     
     glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
     
-    // Use the new efficient partial update method (no markChunkDirty needed)
-    chunk->updateSingleCubeTexture(localPos, TextureConstants::PLACEHOLDER_TEXTURE_INDEX);
+    // Color changes should not affect textures - textures and colors are separate properties
+    // Note: Currently the system uses textures instead of colors for cube faces
+    // If you want to change cube appearance, modify the texture index per face instead
+    
+    // TODO: If we implement a color tinting system in the future, 
+    // we would update color properties here without touching texture indices
 }
 
 // =============================================================================
@@ -752,8 +756,12 @@ void ChunkManager::setSubcubeColorEfficient(const glm::ivec3& worldPos, const gl
     std::vector<Subcube*> subcubes = chunk->getSubcubesAt(localPos);
     if (subcubes.empty()) return;
     
-    // Use the new efficient partial update method (similar to regular cubes)
-    chunk->updateSingleSubcubeTexture(localPos, subcubePos, TextureConstants::PLACEHOLDER_TEXTURE_INDEX);
+    // Color changes should not affect textures - textures and colors are separate properties
+    // Note: Currently the system uses textures instead of colors for subcube faces
+    // If you want to change subcube appearance, modify the texture index per face instead
+    
+    // TODO: If we implement a color tinting system in the future, 
+    // we would update color properties here without touching texture indices
 }
 
 glm::vec3 ChunkManager::getSubcubeColor(const glm::ivec3& worldPos, const glm::ivec3& subcubePos) {
@@ -1211,7 +1219,7 @@ void ChunkManager::rebuildGlobalDynamicFaces() {
                 faceInstance.rotation = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f); // Identity quaternion for static subcubes
             }
             
-            faceInstance.textureIndex = TextureConstants::PLACEHOLDER_TEXTURE_INDEX;
+            faceInstance.textureIndex = TextureConstants::getTextureIndexForFace(faceID);
             faceInstance.faceID = faceID;
             faceInstance.scale = subcube->getScale();
             
@@ -1230,7 +1238,7 @@ void ChunkManager::rebuildGlobalDynamicFaces() {
             // Dynamic cubes always use physics position and rotation
             faceInstance.worldPosition = cube->getPhysicsPosition();
             faceInstance.rotation = cube->getPhysicsRotation();
-            faceInstance.textureIndex = TextureConstants::PLACEHOLDER_TEXTURE_INDEX;
+            faceInstance.textureIndex = TextureConstants::getTextureIndexForFace(faceID);
             faceInstance.faceID = faceID;
             faceInstance.scale = cube->getScale(); // 1.0 for full cubes
             

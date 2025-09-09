@@ -174,6 +174,40 @@ class TextureAtlasBuilder:
         
         return warnings
 
+    def get_face_order_priority(self, filename):
+        """Get priority for face-oriented texture ordering"""
+        face_priorities = {
+            # Face 0: Front (+Z) - side_n (north/front)
+            'side_n': 0,
+            # Face 1: Back (-Z) - side_s (south/back)  
+            'side_s': 1,
+            # Face 2: Right (+X) - side_e (east/right)
+            'side_e': 2,
+            # Face 3: Left (-X) - side_w (west/left)
+            'side_w': 3,
+            # Face 4: Top (+Y) - top
+            'top': 4,
+            # Face 5: Bottom (-Y) - bottom  
+            'bottom': 5,
+        }
+        
+        # Extract face type from filename
+        for face_type, priority in face_priorities.items():
+            if face_type in filename:
+                return priority
+        
+        # Unknown face types get high priority (sorted last)
+        return 999
+    
+    def get_material_priority(self, filename):
+        """Get material priority for grouping"""
+        if 'placeholder' in filename:
+            return 0  # Placeholder textures first (face indices 0-5)
+        elif 'grassdirt' in filename:
+            return 1  # Grassdirt textures second (face indices 6-11)
+        else:
+            return 2  # Other materials last
+
     def load_textures(self, input_dir):
         """Load all PNG textures from input directory"""
         textures = {}
@@ -182,8 +216,10 @@ class TextureAtlasBuilder:
         if not input_path.exists():
             raise FileNotFoundError(f"Input directory not found: {input_dir}")
         
-        png_files = sorted(input_path.glob("*.png"))
-        
+        # Get PNG files and sort them by material first, then face order
+        png_files = list(input_path.glob("*.png"))
+        png_files.sort(key=lambda f: (self.get_material_priority(f.stem), self.get_face_order_priority(f.stem), f.stem))
+
         for png_file in png_files:
             try:
                 img = Image.open(png_file)

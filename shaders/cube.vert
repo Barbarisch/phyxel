@@ -105,24 +105,25 @@ void main() {
     // UV coordinates must match the vertex generation pattern for each face
     vec2 uv = vec2(0.0);
     
-    if (faceID == 0u) {        // Front face (+Z)
+    if (faceID == 0u) {        // Front face (+Z) - North - looks good with flip
         // Vertices: (0,0,1), (1,0,1), (1,1,1), (0,1,1)
-        uv = vec2(float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
-    } else if (faceID == 1u) { // Back face (-Z)
+        uv = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
+    } else if (faceID == 1u) { // Back face (-Z) - South - looks good
         // Vertices: (1,0,0), (0,0,0), (0,1,0), (1,1,0) - x flipped
         uv = vec2(1.0 - float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
-    } else if (faceID == 2u) { // Right face (+X)
+    } else if (faceID == 2u) { // Right face (+X) - East - 180 degree rotation
         // Vertices: (1,0,1), (1,0,0), (1,1,0), (1,1,1) - z flipped
-        uv = vec2(1.0 - float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
-    } else if (faceID == 3u) { // Left face (-X)
-        // Vertices: (0,0,0), (0,0,1), (0,1,1), (0,1,0)
-        uv = vec2(float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
-    } else if (faceID == 4u) { // Top face (+Y)
-        // Vertices: (0,1,1), (1,1,1), (1,1,0), (0,1,0) - z flipped
+        // 180 degree rotation: flip both U and V
         uv = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
-    } else if (faceID == 5u) { // Bottom face (-Y)
+    } else if (faceID == 3u) { // Left face (-X) - West - looks good
+        // Vertices: (0,0,0), (0,0,1), (0,1,1), (0,1,0)
+        uv = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
+    } else if (faceID == 4u) { // Top face (+Y) - horizontal mirror
+        // Vertices: (0,1,1), (1,1,1), (1,1,0), (0,1,0) - z flipped
+        uv = vec2(1.0 - float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
+    } else if (faceID == 5u) { // Bottom face (-Y) - looks good
         // Vertices: (0,0,0), (1,0,0), (1,0,1), (0,0,1)
-        uv = vec2(float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
+        uv = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
     }
     
     // CPU pre-filtering: Only vertices for visible faces are sent to GPU
