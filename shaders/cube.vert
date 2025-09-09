@@ -105,25 +105,57 @@ void main() {
     // UV coordinates must match the vertex generation pattern for each face
     vec2 uv = vec2(0.0);
     
+    // Calculate base UV coordinates for the face (0.0 to 1.0 range)
+    vec2 baseUV = vec2(0.0);
+    
     if (faceID == 0u) {        // Front face (+Z) - North - looks good with flip
         // Vertices: (0,0,1), (1,0,1), (1,1,1), (0,1,1)
-        uv = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
+        baseUV = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
     } else if (faceID == 1u) { // Back face (-Z) - South - looks good
         // Vertices: (1,0,0), (0,0,0), (0,1,0), (1,1,0) - x flipped
-        uv = vec2(1.0 - float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
+        baseUV = vec2(1.0 - float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
     } else if (faceID == 2u) { // Right face (+X) - East - 180 degree rotation
         // Vertices: (1,0,1), (1,0,0), (1,1,0), (1,1,1) - z flipped
         // 180 degree rotation: flip both U and V
-        uv = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
+        baseUV = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
     } else if (faceID == 3u) { // Left face (-X) - West - looks good
         // Vertices: (0,0,0), (0,0,1), (0,1,1), (0,1,0)
-        uv = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
+        baseUV = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
     } else if (faceID == 4u) { // Top face (+Y) - horizontal mirror
         // Vertices: (0,1,1), (1,1,1), (1,1,0), (0,1,0) - z flipped
-        uv = vec2(1.0 - float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
+        baseUV = vec2(1.0 - float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
     } else if (faceID == 5u) { // Bottom face (-Y) - looks good
         // Vertices: (0,0,0), (1,0,0), (1,0,1), (0,0,1)
-        uv = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
+        baseUV = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
+    }
+    
+    // For subcubes: modify UV to only sample 1/3 of the texture (6x6 out of 18x18)
+    if (isSubcube) {
+        const float SUBCUBE_UV_SCALE = 1.0 / 3.0;  // Each subcube uses 1/3 of texture
+        
+        // Map the 3x3x3 subcube grid to 2D texture coordinates based on face orientation
+        // Each face needs specific coordinate mapping and flipping to match texture orientation
+        vec2 subcubeGridPos = vec2(0.0);
+        
+        if (faceID == 0u) {        // North (Front) - Y flipped
+            subcubeGridPos = vec2(float(subcubeLocalX), float(2u - subcubeLocalY));
+        } else if (faceID == 1u) { // South (Back) - works correctly
+            subcubeGridPos = vec2(float(subcubeLocalX), float(subcubeLocalY));
+        } else if (faceID == 2u) { // East (Right) - both X and Y flipped
+            subcubeGridPos = vec2(float(2u - subcubeLocalZ), float(2u - subcubeLocalY));
+        } else if (faceID == 3u) { // West (Left) - Y flipped
+            subcubeGridPos = vec2(float(subcubeLocalZ), float(2u - subcubeLocalY));
+        } else if (faceID == 4u) { // Top - both X and Y flipped  
+            subcubeGridPos = vec2(float(2u - subcubeLocalX), float(2u - subcubeLocalZ));
+        } else if (faceID == 5u) { // Bottom - Y flipped
+            subcubeGridPos = vec2(float(subcubeLocalX), float(2u - subcubeLocalZ));
+        }
+        
+        // Scale the base UV to subcube size and add offset for this subcube's position
+        uv = (baseUV * SUBCUBE_UV_SCALE) + (subcubeGridPos * SUBCUBE_UV_SCALE);
+    } else {
+        // Regular cube: use full texture
+        uv = baseUV;
     }
     
     // CPU pre-filtering: Only vertices for visible faces are sent to GPU
