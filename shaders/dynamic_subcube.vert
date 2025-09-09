@@ -107,33 +107,37 @@ void main() {
         uv = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
     }
     
-    // For dynamic subcubes: use same 1/3 UV scaling with proper grid positioning
-    const float SUBCUBE_UV_SCALE = 1.0 / 3.0;  // Each subcube uses 1/3 of texture
-    
-    // Map the 3x3x3 subcube grid to 2D texture coordinates based on face orientation
-    // Each face needs specific coordinate mapping and flipping to match texture orientation
-    // Use the original local position to maintain correct texture segments
-    vec2 subcubeGridPos = vec2(0.0);
-    uint subcubeLocalX = uint(inLocalPosition.x);
-    uint subcubeLocalY = uint(inLocalPosition.y);
-    uint subcubeLocalZ = uint(inLocalPosition.z);
-    
-    if (inFaceID == 0u) {        // North (Front) - Y flipped
-        subcubeGridPos = vec2(float(subcubeLocalX), float(2u - subcubeLocalY));
-    } else if (inFaceID == 1u) { // South (Back) - works correctly
-        subcubeGridPos = vec2(float(subcubeLocalX), float(subcubeLocalY));
-    } else if (inFaceID == 2u) { // East (Right) - both X and Y flipped
-        subcubeGridPos = vec2(float(2u - subcubeLocalZ), float(2u - subcubeLocalY));
-    } else if (inFaceID == 3u) { // West (Left) - Y flipped
-        subcubeGridPos = vec2(float(subcubeLocalZ), float(2u - subcubeLocalY));
-    } else if (inFaceID == 4u) { // Top - both X and Y flipped  
-        subcubeGridPos = vec2(float(2u - subcubeLocalX), float(2u - subcubeLocalZ));
-    } else if (inFaceID == 5u) { // Bottom - Y flipped
-        subcubeGridPos = vec2(float(subcubeLocalX), float(2u - subcubeLocalZ));
+    // Apply texture coordinate scaling based on object scale
+    if (SUBCUBE_SCALE < 1.0) {
+        // For subcubes: use 1/3 UV scaling with proper grid positioning
+        const float SUBCUBE_UV_SCALE = 1.0 / 3.0;  // Each subcube uses 1/3 of texture
+        
+        // Map the 3x3x3 subcube grid to 2D texture coordinates based on face orientation
+        // Each face needs specific coordinate mapping and flipping to match texture orientation
+        // Use the original local position to maintain correct texture segments
+        vec2 subcubeGridPos = vec2(0.0);
+        uint subcubeLocalX = uint(inLocalPosition.x);
+        uint subcubeLocalY = uint(inLocalPosition.y);
+        uint subcubeLocalZ = uint(inLocalPosition.z);
+        
+        if (inFaceID == 0u) {        // North (Front) - Y flipped
+            subcubeGridPos = vec2(float(subcubeLocalX), float(2u - subcubeLocalY));
+        } else if (inFaceID == 1u) { // South (Back) - works correctly
+            subcubeGridPos = vec2(float(subcubeLocalX), float(subcubeLocalY));
+        } else if (inFaceID == 2u) { // East (Right) - both X and Y flipped
+            subcubeGridPos = vec2(float(2u - subcubeLocalZ), float(2u - subcubeLocalY));
+        } else if (inFaceID == 3u) { // West (Left) - Y flipped
+            subcubeGridPos = vec2(float(subcubeLocalZ), float(2u - subcubeLocalY));
+        } else if (inFaceID == 4u) { // Top - both X and Y flipped  
+            subcubeGridPos = vec2(float(2u - subcubeLocalX), float(2u - subcubeLocalZ));
+        } else if (inFaceID == 5u) { // Bottom - Y flipped
+            subcubeGridPos = vec2(float(subcubeLocalX), float(2u - subcubeLocalZ));
+        }
+        
+        // Scale the base UV to subcube size and add offset for this subcube's position
+        uv = (uv * SUBCUBE_UV_SCALE) + (subcubeGridPos * SUBCUBE_UV_SCALE);
     }
-    
-    // Scale the base UV to subcube size and add offset for this subcube's position
-    uv = (uv * SUBCUBE_UV_SCALE) + (subcubeGridPos * SUBCUBE_UV_SCALE);
+    // For full-sized cubes (scale = 1.0): use uv as-is (full texture)
     
     gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
     
