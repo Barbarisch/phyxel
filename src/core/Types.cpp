@@ -56,8 +56,8 @@ VkVertexInputBindingDescription DynamicSubcubeInstanceData::getBindingDescriptio
     return desc;
 }
 
-std::array<VkVertexInputAttributeDescription, 5> DynamicSubcubeInstanceData::getAttributeDescriptions() {
-    std::array<VkVertexInputAttributeDescription, 5> desc{};
+std::array<VkVertexInputAttributeDescription, 6> DynamicSubcubeInstanceData::getAttributeDescriptions() {
+    std::array<VkVertexInputAttributeDescription, 6> desc{};
     
     // World position (vec3)
     desc[0].binding = 1;
@@ -88,6 +88,12 @@ std::array<VkVertexInputAttributeDescription, 5> DynamicSubcubeInstanceData::get
     desc[4].location = 5;  // layout(location = 5) in vec4 inRotation
     desc[4].format = VK_FORMAT_R32G32B32A32_SFLOAT;
     desc[4].offset = offsetof(DynamicSubcubeInstanceData, rotation);
+    
+    // Local position (ivec3)
+    desc[5].binding = 1;
+    desc[5].location = 6;  // layout(location = 6) in ivec3 inLocalPosition
+    desc[5].format = VK_FORMAT_R32G32B32_SINT;
+    desc[5].offset = offsetof(DynamicSubcubeInstanceData, localPosition);
     
     return desc;
 }

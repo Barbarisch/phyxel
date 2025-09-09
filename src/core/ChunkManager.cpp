@@ -1222,6 +1222,7 @@ void ChunkManager::rebuildGlobalDynamicFaces() {
             faceInstance.textureIndex = TextureConstants::getTextureIndexForFace(faceID);
             faceInstance.faceID = faceID;
             faceInstance.scale = subcube->getScale();
+            faceInstance.localPosition = subcube->getLocalPosition(); // Preserve original grid position
             
             globalDynamicSubcubeFaces.push_back(faceInstance);
         }
@@ -1241,6 +1242,7 @@ void ChunkManager::rebuildGlobalDynamicFaces() {
             faceInstance.textureIndex = TextureConstants::getTextureIndexForFace(faceID);
             faceInstance.faceID = faceID;
             faceInstance.scale = cube->getScale(); // 1.0 for full cubes
+            faceInstance.localPosition = glm::ivec3(1, 1, 1); // Center position for full cubes
             
             globalDynamicSubcubeFaces.push_back(faceInstance);
         }

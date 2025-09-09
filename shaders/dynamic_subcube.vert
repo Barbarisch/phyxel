@@ -6,6 +6,7 @@ layout(location = 2) in uint inTextureIndex;    // per-instance texture atlas in
 layout(location = 3) in uint inFaceID;          // per-instance: face ID (0-5)
 layout(location = 4) in float inScale;          // per-instance: scale factor (1/3 for subcubes, 1.0 for cubes)
 layout(location = 5) in vec4 inRotation;        // per-instance: rotation quaternion (x, y, z, w)
+layout(location = 6) in ivec3 inLocalPosition;  // per-instance: original local position in 3x3x3 grid
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -105,6 +106,34 @@ void main() {
         // Vertices: (0,0,0), (1,0,0), (1,0,1), (0,0,1)
         uv = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
     }
+    
+    // For dynamic subcubes: use same 1/3 UV scaling with proper grid positioning
+    const float SUBCUBE_UV_SCALE = 1.0 / 3.0;  // Each subcube uses 1/3 of texture
+    
+    // Map the 3x3x3 subcube grid to 2D texture coordinates based on face orientation
+    // Each face needs specific coordinate mapping and flipping to match texture orientation
+    // Use the original local position to maintain correct texture segments
+    vec2 subcubeGridPos = vec2(0.0);
+    uint subcubeLocalX = uint(inLocalPosition.x);
+    uint subcubeLocalY = uint(inLocalPosition.y);
+    uint subcubeLocalZ = uint(inLocalPosition.z);
+    
+    if (inFaceID == 0u) {        // North (Front) - Y flipped
+        subcubeGridPos = vec2(float(subcubeLocalX), float(2u - subcubeLocalY));
+    } else if (inFaceID == 1u) { // South (Back) - works correctly
+        subcubeGridPos = vec2(float(subcubeLocalX), float(subcubeLocalY));
+    } else if (inFaceID == 2u) { // East (Right) - both X and Y flipped
+        subcubeGridPos = vec2(float(2u - subcubeLocalZ), float(2u - subcubeLocalY));
+    } else if (inFaceID == 3u) { // West (Left) - Y flipped
+        subcubeGridPos = vec2(float(subcubeLocalZ), float(2u - subcubeLocalY));
+    } else if (inFaceID == 4u) { // Top - both X and Y flipped  
+        subcubeGridPos = vec2(float(2u - subcubeLocalX), float(2u - subcubeLocalZ));
+    } else if (inFaceID == 5u) { // Bottom - Y flipped
+        subcubeGridPos = vec2(float(subcubeLocalX), float(2u - subcubeLocalZ));
+    }
+    
+    // Scale the base UV to subcube size and add offset for this subcube's position
+    uv = (uv * SUBCUBE_UV_SCALE) + (subcubeGridPos * SUBCUBE_UV_SCALE);
     
     gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
     
