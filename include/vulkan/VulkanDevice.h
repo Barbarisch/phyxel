@@ -148,7 +148,7 @@ public:
         void endRenderPass(uint32_t frameIndex);
         void endCommandBuffer(uint32_t frameIndex);
         bool submitCommandBuffer(uint32_t frameIndex);
-        bool presentFrame(uint32_t imageIndex, uint32_t frameIndex);
+        VkResult presentFrame(uint32_t imageIndex, uint32_t frameIndex);
         VkCommandBuffer getCommandBuffer(uint32_t frameIndex);
         
         // Rendering command recording
@@ -198,6 +198,12 @@ public:
         // Command buffer utilities
         VkCommandBuffer beginSingleTimeCommands();
         void endSingleTimeCommands(VkCommandBuffer commandBuffer);
+        
+        // Window resize handling
+        void setFramebufferResized(bool resized) { framebufferResized = resized; }
+        bool getFramebufferResized() const { return framebufferResized; }
+        bool recreateSwapChain(int windowWidth, int windowHeight, VkRenderPass renderPass);
+        void cleanupSwapChain();
 
 private:
     VkInstance instance = VK_NULL_HANDLE;
@@ -249,6 +255,9 @@ private:
     // Command buffers
     VkCommandPool commandPool = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> commandBuffers;
+    
+    // Window resize handling
+    bool framebufferResized = false;
 
     // Helper methods for swapchain
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);

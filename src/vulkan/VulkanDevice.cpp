@@ -745,7 +745,7 @@ bool VulkanDevice::submitCommandBuffer(uint32_t frameIndex) {
     return true;
 }
 
-bool VulkanDevice::presentFrame(uint32_t imageIndex, uint32_t frameIndex) {
+VkResult VulkanDevice::presentFrame(uint32_t imageIndex, uint32_t frameIndex) {
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
@@ -757,9 +757,7 @@ bool VulkanDevice::presentFrame(uint32_t imageIndex, uint32_t frameIndex) {
     presentInfo.pSwapchains = swapChains;
     presentInfo.pImageIndices = &imageIndex;
 
-    VkResult result = vkQueuePresentKHR(presentQueue, &presentInfo);
-    
-    return result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR;
+    return vkQueuePresentKHR(presentQueue, &presentInfo);
 }
 
 VkCommandBuffer VulkanDevice::getCommandBuffer(uint32_t frameIndex) {
@@ -1536,6 +1534,75 @@ void VulkanDevice::cleanupTextureAtlas() {
     if (textureAtlasImageMemory != VK_NULL_HANDLE) {
         vkFreeMemory(device, textureAtlasImageMemory, nullptr);
         textureAtlasImageMemory = VK_NULL_HANDLE;
+    }
+}
+
+bool VulkanDevice::recreateSwapChain(int windowWidth, int windowHeight, VkRenderPass renderPass) {
+    // Handle minimization - wait until window is visible again
+    if (windowWidth == 0 || windowHeight == 0) {
+        return false; // Signal to try again later
+    }
+
+    // Wait for device to be idle
+    vkDeviceWaitIdle(device);
+
+    // Clean up existing swapchain resources
+    cleanupSwapChain();
+
+    // Recreate swapchain and its dependencies (createSwapChain includes image view creation)
+    if (!createSwapChain(windowWidth, windowHeight)) {
+        std::cerr << "Failed to recreate swapchain!" << std::endl;
+        return false;
+    }
+
+    if (!createDepthResources()) {
+        std::cerr << "Failed to recreate depth resources!" << std::endl;
+        return false;
+    }
+
+    if (!createFramebuffers(renderPass)) {
+        std::cerr << "Failed to recreate framebuffers!" << std::endl;
+        return false;
+    }
+
+    // Reset the resize flag
+    framebufferResized = false;
+
+    std::cout << "Swapchain recreated successfully for size " << windowWidth << "x" << windowHeight << std::endl;
+    return true;
+}
+
+void VulkanDevice::cleanupSwapChain() {
+    // Cleanup depth resources
+    if (depthImageView != VK_NULL_HANDLE) {
+        vkDestroyImageView(device, depthImageView, nullptr);
+        depthImageView = VK_NULL_HANDLE;
+    }
+    if (depthImage != VK_NULL_HANDLE) {
+        vkDestroyImage(device, depthImage, nullptr);
+        depthImage = VK_NULL_HANDLE;
+    }
+    if (depthImageMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, depthImageMemory, nullptr);
+        depthImageMemory = VK_NULL_HANDLE;
+    }
+
+    // Cleanup framebuffers
+    for (auto framebuffer : swapChainFramebuffers) {
+        vkDestroyFramebuffer(device, framebuffer, nullptr);
+    }
+    swapChainFramebuffers.clear();
+
+    // Cleanup image views
+    for (auto imageView : swapChainImageViews) {
+        vkDestroyImageView(device, imageView, nullptr);
+    }
+    swapChainImageViews.clear();
+
+    // Cleanup swapchain
+    if (swapChain != VK_NULL_HANDLE) {
+        vkDestroySwapchainKHR(device, swapChain, nullptr);
+        swapChain = VK_NULL_HANDLE;
     }
 }
 

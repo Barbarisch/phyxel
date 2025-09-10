@@ -770,6 +770,13 @@ void Application::renderDynamicSubcubes() {
 }
 
 void Application::drawFrame() {
+    // Check if we need to recreate swapchain due to window resize
+    if (vulkanDevice->getFramebufferResized()) {
+        if (!vulkanDevice->recreateSwapChain(windowWidth, windowHeight, renderPipeline->getRenderPass())) {
+            return; // Try again next frame
+        }
+    }
+
     // Wait for previous frame
     vulkanDevice->waitForFence(currentFrame);
     vulkanDevice->resetFence(currentFrame);
@@ -778,7 +785,13 @@ void Application::drawFrame() {
     uint32_t imageIndex;
     VkResult result = vulkanDevice->acquireNextImage(currentFrame, &imageIndex);
     
-    if (result != VK_SUCCESS) {
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        // Swapchain is out of date, recreate it
+        if (!vulkanDevice->recreateSwapChain(windowWidth, windowHeight, renderPipeline->getRenderPass())) {
+            return; // Try again next frame
+        }
+        return; // Skip this frame and try again
+    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
         std::cerr << "Failed to acquire swapchain image!" << std::endl;
         return;
     }
@@ -968,7 +981,12 @@ void Application::drawFrame() {
 
     // Present frame
     auto presentStart = std::chrono::high_resolution_clock::now();
-    if (!vulkanDevice->presentFrame(imageIndex, currentFrame)) {
+    VkResult presentResult = vulkanDevice->presentFrame(imageIndex, currentFrame);
+    
+    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR || vulkanDevice->getFramebufferResized()) {
+        // Recreate swapchain on next frame
+        vulkanDevice->setFramebufferResized(true);
+    } else if (presentResult != VK_SUCCESS) {
         std::cerr << "Failed to present frame!" << std::endl;
         return;
     }
@@ -1046,7 +1064,7 @@ bool Application::initializeWindow() {
 
     // Configure GLFW for Vulkan
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);  // Enable window resizing
 
     // Create window
     window = glfwCreateWindow(windowWidth, windowHeight, windowTitle.c_str(), nullptr, nullptr);
@@ -1055,6 +1073,10 @@ bool Application::initializeWindow() {
         glfwTerminate();
         return false;
     }
+
+    // Set up window resize callback
+    glfwSetWindowUserPointer(window, this);
+    glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 
     std::cout << "Window initialized successfully" << std::endl;
     return true;
@@ -1162,6 +1184,24 @@ void Application::mouseButtonCallback(GLFWwindow* window, int button, int action
         // Middle Click: Subdivide cube into 27 subcubes
         app->subdivideHoveredCube();
     }
+}
+
+void Application::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
+    Application* app = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+    
+    // Update window dimensions
+    app->windowWidth = width;
+    app->windowHeight = height;
+    
+    // Mark swapchain as needing recreation
+    if (app->vulkanDevice) {
+        app->vulkanDevice->setFramebufferResized(true);
+    }
+    
+    // Update projection matrix
+    app->projectionMatrixNeedsUpdate = true;
+    
+    std::cout << "Window resized to " << width << "x" << height << std::endl;
 }
 
 void Application::processInput() {

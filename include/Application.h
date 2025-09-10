@@ -201,6 +201,7 @@ private:
     void initializeCamera();
     static void mouseCallback(GLFWwindow* window, double xpos, double ypos);
     static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
+    static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
     
     // Mouse picking / hover functionality
     void updateMouseHover();
