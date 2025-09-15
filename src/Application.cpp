@@ -2036,9 +2036,9 @@ void Application::breakHoveredCube() {
         return;
     }
     
-    // CRITICAL: Force immediate compound shape rebuild to remove static collision before spawning dynamic cube
+    // NEW: Use incremental collision updates instead of expensive full rebuild
     // This prevents the +1.0 X-axis offset caused by collision recovery against the static compound shape
-    chunk->forcePhysicsRebuild();
+    chunk->updateChunkPhysicsBody(); // This will process incremental updates
     
     // Create a dynamic cube at the EXACT original position
     // TEST COORDINATE SYSTEM OFFSET - Based on user observation of consistent X/Z axis offset

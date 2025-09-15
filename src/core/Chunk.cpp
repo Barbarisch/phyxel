@@ -158,6 +158,12 @@ bool Chunk::removeCube(const glm::ivec3& localPos) {
     // Update hash maps to reflect removal
     removeFromVoxelMaps(localPos);
     
+    // ULTRA-FAST: Remove collision shape immediately
+    fastRemoveCollisionAt(localPos);
+    
+    // CRITICAL: Update collision shapes of neighboring cubes that might now be exposed
+    updateNeighborCollisionShapes(localPos);
+    
     // Mark chunk as dirty for smart saving
     setDirty(true);
     std::cout << "[CHUNK] Removed cube at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
@@ -193,6 +199,14 @@ bool Chunk::addCube(const glm::ivec3& localPos, const glm::vec3& color) {
     
     // Mark chunk as dirty for smart saving
     setDirty(true);
+    
+    // ULTRA-FAST: Add collision shape immediately
+    fastAddCollisionAt(localPos);
+    
+    // CRITICAL: Only update neighbors during individual operations, not bulk loading
+    if (!isInBulkOperation) {
+        updateNeighborCollisionShapes(localPos);
+    }
     
     needsUpdate = true;
     
@@ -255,6 +269,9 @@ void Chunk::initializeForLoading() {
         delete subcube;
     }
     staticSubcubes.clear();
+    
+    // Set bulk operation flag to prevent neighbor collision updates during loading
+    isInBulkOperation = true;
     
     std::cout << "[CHUNK] Initialized chunk at origin (" 
               << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z 
@@ -999,6 +1016,9 @@ bool Chunk::addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos
     // Update hash maps
     addSubcubeToMaps(parentPos, subcubePos, newSubcube);
     
+    // ULTRA-FAST: Update collision shape immediately
+    fastAddCollisionAt(parentPos);
+    
     // Mark for update and as dirty for database persistence
     needsUpdate = true;
     setDirty(true);
@@ -1019,6 +1039,9 @@ bool Chunk::removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcube
             
             // Update hash maps
             removeSubcubeFromMaps(parentPos, subcubePos);
+            
+            // ULTRA-FAST: Update collision shape immediately
+            fastAddCollisionAt(parentPos);
             
             needsUpdate = true;
             setDirty(true);
@@ -1186,14 +1209,15 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
             float lifetime = subcube->getLifetime();
             
             // CRITICAL: Use proper removeSubcube to update all data structures (voxelTypeMap, subcubeMap, etc.)
-            std::cout << "[COMPOUND SHAPE] BEFORE: Using proper subcube removal to update all data structures" << std::endl;
+            std::cout << "[INCREMENTAL] BEFORE: Using proper subcube removal to update all data structures" << std::endl;
             bool removed = removeSubcube(parentPos, subcubePos);
             if (!removed) {
                 std::cout << "[ERROR] Failed to remove subcube from data structures" << std::endl;
                 return false;
             }
-            forcePhysicsRebuild();
-            std::cout << "[COMPOUND SHAPE] AFTER: All data structures updated and compound shape rebuilt" << std::endl;
+            // NEW: Fast collision update (already done in removeSubcube)
+            batchUpdateCollisions();
+            std::cout << "[INCREMENTAL] AFTER: All data structures updated and collision shape updated incrementally" << std::endl;
             
             // Create new dynamic subcube for physics (since original was removed)
             auto dynamicSubcube = std::make_unique<Subcube>(
@@ -1283,28 +1307,14 @@ void Chunk::createChunkPhysicsBody() {
     btCompoundShape* chunkCompound = new btCompoundShape(true);
     chunkCollisionShape = chunkCompound;
     
-    // Generate merged collision boxes from visible cube faces
-    auto mergedBoxes = generateMergedCollisionBoxes();
-    
-    if (mergedBoxes.empty()) {
-        std::cout << "[CHUNK] No visible geometry - creating minimal collision box" << std::endl;
-        // Fallback: small box at chunk origin to prevent total absence
-        btBoxShape* fallbackShape = new btBoxShape(btVector3(0.5f, 0.5f, 0.5f));
-        btTransform transform;
-        transform.setIdentity();
-        transform.setOrigin(btVector3(worldOrigin.x, worldOrigin.y, worldOrigin.z));
-        chunkCompound->addChildShape(transform, fallbackShape);
-    } else {
-        for (const auto& box : mergedBoxes) {
-            btBoxShape* boxShape = new btBoxShape(btVector3(box.halfExtents.x, box.halfExtents.y, box.halfExtents.z));
-            btTransform transform;
-            transform.setIdentity();
-            transform.setOrigin(btVector3(box.center.x, box.center.y, box.center.z));
-            chunkCompound->addChildShape(transform, boxShape);
-        }
-        std::cout << "[CHUNK] Created " << mergedBoxes.size() << " collision boxes from " 
-                  << faces.size() << " visible faces" << std::endl;
+    // Clear existing collision tracking (in case of rebuild)
+    for (auto& pair : collisionShapeMap) {
+        delete pair.second;
     }
+    collisionShapeMap.clear();
+    
+    // NEW: Build collision shapes with ultra-fast tracking
+    buildInitialCollisionShapes();
     
     // Create static rigid body
     btTransform bodyTransform;
@@ -1316,45 +1326,39 @@ void Chunk::createChunkPhysicsBody() {
     
     physicsWorld->getWorld()->addRigidBody(chunkPhysicsBody);
     
-    std::cout << "[CHUNK] Compound collision shape created successfully" << std::endl;
+    std::cout << "[CHUNK] Compound collision shape created with " << collisionShapeMap.size() 
+              << " tracked collision shapes" << std::endl;
 }
 
 void Chunk::updateChunkPhysicsBody() {
     if (!physicsWorld || !chunkPhysicsBody) return;
     
-    // For performance optimization, we'll use a more intelligent update strategy
-    // Instead of fully rebuilding every time, check if rebuild is actually necessary
-    static int updateCounter = 0;
-    updateCounter++;
+    // ULTRA-FAST: Just batch any remaining updates
+    batchUpdateCollisions();
     
-    // Only do full rebuild every few updates, or when we have major changes
-    bool needsFullRebuild = (updateCounter % 3 == 0) || (faces.size() < 50); // Full rebuild less frequently
-    
-    if (needsFullRebuild) {
-        std::cout << "[CHUNK PERF] Full physics rebuild (#" << updateCounter << ") - faces: " << faces.size() << std::endl;
+    // CRITICAL: Force physics world to recognize collision shape changes
+    if (chunkPhysicsBody) {
+        // Activate the physics body to ensure collision detection updates
+        chunkPhysicsBody->activate(true);
         
-        // Remove existing body from world
-        physicsWorld->getWorld()->removeRigidBody(chunkPhysicsBody);
-        
-        // Clean up existing resources
-        if (chunkCollisionShape) {
-            delete chunkCollisionShape;
-            chunkCollisionShape = nullptr;
+        // IMPORTANT: Recalculate AABB for the compound shape after collision changes
+        // This ensures the physics world immediately recognizes the new collision geometry
+        btCompoundShape* compound = static_cast<btCompoundShape*>(chunkPhysicsBody->getCollisionShape());
+        if (compound) {
+            compound->recalculateLocalAabb();
         }
-        chunkPhysicsBody = nullptr;
         
-        // Recreate with updated geometry
-        createChunkPhysicsBody();
+        // Force the physics world to update the broadphase AABB for this body
+        // This prevents the brief moment where old collision data might be cached
+        auto* dynamicsWorld = physicsWorld->getWorld();
+        if (dynamicsWorld) {
+            dynamicsWorld->updateSingleAabb(chunkPhysicsBody);
+        }
+        
+        std::cout << "[INCREMENTAL] Collision updates complete with physics sync - maintaining " 
+                  << collisionShapeMap.size() << " collision shapes" << std::endl;
     } else {
-        // Quick update: just adjust the existing collision shape properties
-        std::cout << "[CHUNK PERF] Quick physics update (#" << updateCounter << ") - skipping full rebuild for performance" << std::endl;
-        
-        // Ensure the body is still active and responsive
-        if (chunkPhysicsBody) {
-            chunkPhysicsBody->activate(true);
-            // Update collision flags to ensure proper interaction
-            chunkPhysicsBody->setCollisionFlags(chunkPhysicsBody->getCollisionFlags() | btCollisionObject::CF_STATIC_OBJECT);
-        }
+        std::cout << "[INCREMENTAL] No collision updates needed" << std::endl;
     }
 }
 
@@ -1380,16 +1384,294 @@ void Chunk::forcePhysicsRebuild() {
 }
 
 void Chunk::cleanupPhysicsResources() {
-    // TODO: Implement physics cleanup
+    // Clean up ultra-fast collision tracking
+    for (auto& pair : collisionShapeMap) {
+        delete pair.second;
+    }
+    collisionShapeMap.clear();
+    collisionNeedsUpdate = false;
+    
     if (chunkPhysicsBody) {
         std::cout << "[CHUNK] Cleaning up chunk physics body" << std::endl;
-        // Delete physics body and collision shape
         chunkPhysicsBody = nullptr;
     }
     
     if (chunkCollisionShape) {
         std::cout << "[CHUNK] Cleaning up chunk collision shape" << std::endl;
         chunkCollisionShape = nullptr;
+    }
+}
+
+// ULTRA-FAST collision system - direct shape manipulation, no index tracking
+void Chunk::fastAddCollisionAt(const glm::ivec3& localPos) {
+    if (!chunkCollisionShape) return;
+    
+    btCompoundShape* compound = static_cast<btCompoundShape*>(chunkCollisionShape);
+    
+    // Check if we already have a shape here - if so, remove it first
+    auto existing = collisionShapeMap.find(localPos);
+    if (existing != collisionShapeMap.end()) {
+        // Remove existing shape first
+        for (int i = compound->getNumChildShapes() - 1; i >= 0; i--) {
+            const btCollisionShape* childShape = compound->getChildShape(i);
+            if (childShape == existing->second) {
+                compound->removeChildShapeByIndex(i);
+                delete existing->second;
+                break;
+            }
+        }
+        collisionShapeMap.erase(existing);
+    }
+    
+    // Create new collision shape for this position
+    btBoxShape* boxShape = nullptr;
+    glm::vec3 shapeCenter;
+    
+    // Check for regular cube
+    const Cube* cube = getCubeAt(localPos);
+    if (cube && cube->isVisible() && hasExposedFaces(localPos)) {
+        shapeCenter = glm::vec3(worldOrigin) + glm::vec3(localPos) + glm::vec3(0.5f);
+        boxShape = new btBoxShape(btVector3(0.5f, 0.5f, 0.5f));
+    } else {
+        // Check for subcubes at this position (subcubes are usually at surface level)
+        auto subcubes = getStaticSubcubesAt(localPos);
+        if (!subcubes.empty()) {
+            const Subcube* subcube = subcubes[0]; // Use first subcube for now
+            glm::vec3 subcubeOffset = (glm::vec3(subcube->getLocalPosition()) - glm::vec3(1.0f)) * (1.0f/3.0f);
+            shapeCenter = glm::vec3(worldOrigin) + glm::vec3(localPos) + glm::vec3(0.5f) + subcubeOffset;
+            boxShape = new btBoxShape(btVector3(1.0f/6.0f, 1.0f/6.0f, 1.0f/6.0f));
+        }
+    }
+    
+    if (boxShape) {
+        // Add to compound shape
+        btTransform transform;
+        transform.setIdentity();
+        transform.setOrigin(btVector3(shapeCenter.x, shapeCenter.y, shapeCenter.z));
+        compound->addChildShape(transform, boxShape);
+        
+        // Track the shape for fast removal
+        collisionShapeMap[localPos] = boxShape;
+    }
+}
+
+void Chunk::fastRemoveCollisionAt(const glm::ivec3& localPos) {
+    if (!chunkCollisionShape) return;
+    
+    auto shapeIt = collisionShapeMap.find(localPos);
+    if (shapeIt == collisionShapeMap.end()) return;
+    
+    btCompoundShape* compound = static_cast<btCompoundShape*>(chunkCollisionShape);
+    btCollisionShape* targetShape = shapeIt->second;
+    
+    // Find and remove the shape from compound
+    for (int i = compound->getNumChildShapes() - 1; i >= 0; i--) {
+        if (compound->getChildShape(i) == targetShape) {
+            compound->removeChildShapeByIndex(i);
+            break;
+        }
+    }
+    
+    // Clean up the shape memory
+    delete targetShape;
+    collisionShapeMap.erase(shapeIt);
+    
+    // CRITICAL: Immediately update collision geometry after removal
+    if (chunkPhysicsBody) {
+        // Recalculate the compound shape's AABB after child removal
+        compound->recalculateLocalAabb();
+        
+        // Force immediate physics world synchronization
+        if (physicsWorld && physicsWorld->getWorld()) {
+            chunkPhysicsBody->activate(true);
+            physicsWorld->getWorld()->updateSingleAabb(chunkPhysicsBody);
+        }
+    }
+}
+
+void Chunk::batchUpdateCollisions() {
+    if (!collisionNeedsUpdate) return;
+    
+    // Only rebuild if we don't have any collision shapes yet
+    if (collisionShapeMap.empty() && chunkCollisionShape) {
+        buildInitialCollisionShapes();
+    }
+    
+    collisionNeedsUpdate = false;
+}
+
+// Helper method to check if a cube has exposed faces (for collision optimization)
+bool Chunk::hasExposedFaces(const glm::ivec3& localPos) const {
+    // Same logic as in generateMergedCollisionBoxes()
+    glm::ivec3 neighbors[6] = {
+        localPos + glm::ivec3(0, 0, 1),   // front (+Z)
+        localPos + glm::ivec3(0, 0, -1),  // back (-Z)
+        localPos + glm::ivec3(1, 0, 0),   // right (+X)
+        localPos + glm::ivec3(-1, 0, 0),  // left (-X)
+        localPos + glm::ivec3(0, 1, 0),   // top (+Y)
+        localPos + glm::ivec3(0, -1, 0)   // bottom (-Y)
+    };
+    
+    for (int faceID = 0; faceID < 6; ++faceID) {
+        glm::ivec3 neighborPos = neighbors[faceID];
+        
+        // Face is exposed if neighbor is outside chunk bounds OR if no visible cube at neighbor position
+        if (neighborPos.x < 0 || neighborPos.x >= 32 ||
+            neighborPos.y < 0 || neighborPos.y >= 32 ||
+            neighborPos.z < 0 || neighborPos.z >= 32) {
+            return true; // Edge of chunk - exposed
+        } else {
+            const Cube* neighborCube = getCubeAt(neighborPos);
+            if (!neighborCube || !neighborCube->isVisible()) {
+                return true; // No occluding neighbor - exposed
+            }
+        }
+    }
+    
+    return false; // All faces are occluded
+}
+
+void Chunk::buildInitialCollisionShapes() {
+    btCompoundShape* compound = static_cast<btCompoundShape*>(chunkCollisionShape);
+    if (!compound) return;
+    
+    // Clear existing tracking
+    for (auto& pair : collisionShapeMap) {
+        delete pair.second;
+    }
+    collisionShapeMap.clear();
+    
+    // Remove all existing children
+    while (compound->getNumChildShapes() > 0) {
+        compound->removeChildShapeByIndex(0);
+    }
+    
+    // Build collision shapes for visible cubes that have exposed faces
+    for (size_t i = 0; i < cubes.size(); ++i) {
+        const Cube* cube = cubes[i];
+        
+        // Skip deleted cubes (nullptr) or hidden cubes (subdivided)
+        if (!cube || !cube->isVisible()) {
+            continue;
+        }
+        
+        // Get cube's local position within chunk
+        glm::ivec3 localPos = indexToLocal(i);
+        
+        // Only create collision shape if cube has exposed faces (optimization)
+        if (hasExposedFaces(localPos)) {
+            glm::vec3 cubeCenter = glm::vec3(worldOrigin) + glm::vec3(localPos) + glm::vec3(0.5f);
+            
+            btBoxShape* boxShape = new btBoxShape(btVector3(0.5f, 0.5f, 0.5f));
+            btTransform transform;
+            transform.setIdentity();
+            transform.setOrigin(btVector3(cubeCenter.x, cubeCenter.y, cubeCenter.z));
+            
+            compound->addChildShape(transform, boxShape);
+            
+            // Track the shape (no index tracking needed)
+            collisionShapeMap[localPos] = boxShape;
+        }
+    }
+    
+    // Build collision shapes for static subcubes
+    for (const Subcube* subcube : staticSubcubes) {
+        // Skip broken or hidden subcubes
+        if (!subcube || subcube->isBroken() || !subcube->isVisible()) {
+            continue;
+        }
+        
+        // Get subcube properties
+        glm::ivec3 parentPos = subcube->getPosition();     // Parent cube's world position
+        glm::ivec3 localPos = subcube->getLocalPosition(); // 0-2 for each axis within parent
+        
+        // Convert parent world position to chunk-relative position
+        glm::ivec3 parentLocalPos = parentPos - worldOrigin;
+        
+        // Validate parent position is within chunk bounds
+        if (parentLocalPos.x < 0 || parentLocalPos.x >= 32 ||
+            parentLocalPos.y < 0 || parentLocalPos.y >= 32 ||
+            parentLocalPos.z < 0 || parentLocalPos.z >= 32) {
+            continue; // Skip subcubes with invalid parent positions
+        }
+        
+        // Calculate subcube center
+        glm::vec3 parentCenter = glm::vec3(worldOrigin) + glm::vec3(parentLocalPos) + glm::vec3(0.5f);
+        glm::vec3 subcubeOffset = (glm::vec3(localPos) - glm::vec3(1.0f)) * (1.0f/3.0f);
+        glm::vec3 subcubeCenter = parentCenter + subcubeOffset;
+        
+        btBoxShape* boxShape = new btBoxShape(btVector3(1.0f/6.0f, 1.0f/6.0f, 1.0f/6.0f));
+        btTransform transform;
+        transform.setIdentity();
+        transform.setOrigin(btVector3(subcubeCenter.x, subcubeCenter.y, subcubeCenter.z));
+        
+        compound->addChildShape(transform, boxShape);
+        
+        // Track the subcube collision shape using parent position
+        collisionShapeMap[parentLocalPos] = boxShape;
+    }
+    
+    std::cout << "[ULTRA-FAST] Built " << collisionShapeMap.size() << " initial collision shapes" << std::endl;
+}
+
+void Chunk::updateNeighborCollisionShapes(const glm::ivec3& localPos) {
+    // Check all 6 neighboring positions that might now be exposed
+    glm::ivec3 neighbors[6] = {
+        localPos + glm::ivec3(0, 0, 1),   // front (+Z)
+        localPos + glm::ivec3(0, 0, -1),  // back (-Z)
+        localPos + glm::ivec3(1, 0, 0),   // right (+X)
+        localPos + glm::ivec3(-1, 0, 0),  // left (-X)
+        localPos + glm::ivec3(0, 1, 0),   // top (+Y)
+        localPos + glm::ivec3(0, -1, 0)   // bottom (-Y)
+    };
+    
+    for (int i = 0; i < 6; ++i) {
+        glm::ivec3 neighborPos = neighbors[i];
+        
+        // Skip neighbors outside chunk bounds
+        if (neighborPos.x < 0 || neighborPos.x >= 32 ||
+            neighborPos.y < 0 || neighborPos.y >= 32 ||
+            neighborPos.z < 0 || neighborPos.z >= 32) {
+            continue;
+        }
+        
+        // Check if neighbor cube exists and is visible
+        const Cube* neighborCube = getCubeAt(neighborPos);
+        if (!neighborCube || !neighborCube->isVisible()) {
+            continue; // No cube to update
+        }
+        
+        // Check if this neighbor now has exposed faces (due to the removal)
+        bool hadCollisionShape = (collisionShapeMap.find(neighborPos) != collisionShapeMap.end());
+        bool shouldHaveCollisionShape = hasExposedFaces(neighborPos);
+        
+        if (!hadCollisionShape && shouldHaveCollisionShape) {
+            // Neighbor cube is now exposed - add collision shape
+            fastAddCollisionAt(neighborPos);
+            std::cout << "[NEIGHBOR] Added collision shape for newly exposed cube at (" 
+                      << neighborPos.x << "," << neighborPos.y << "," << neighborPos.z << ")" << std::endl;
+        } else if (hadCollisionShape && !shouldHaveCollisionShape) {
+            // Neighbor cube is no longer exposed (shouldn't happen when removing, but handle it)
+            fastRemoveCollisionAt(neighborPos);
+            std::cout << "[NEIGHBOR] Removed collision shape for no longer exposed cube at (" 
+                      << neighborPos.x << "," << neighborPos.y << "," << neighborPos.z << ")" << std::endl;
+        }
+        // If hadCollisionShape && shouldHaveCollisionShape, no change needed
+        // If !hadCollisionShape && !shouldHaveCollisionShape, no change needed
+    }
+}
+
+void Chunk::endBulkOperation() {
+    if (!isInBulkOperation) return;
+    
+    std::cout << "[CHUNK] Ending bulk operation - building complete collision system" << std::endl;
+    
+    // Turn off bulk operation flag
+    isInBulkOperation = false;
+    
+    // Now rebuild the entire collision system properly
+    if (chunkCollisionShape) {
+        buildInitialCollisionShapes();
     }
 }
 

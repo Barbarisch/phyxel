@@ -206,7 +206,12 @@ bool ChunkManager::generateOrLoadChunk(const glm::ivec3& chunkCoord) {
 void ChunkManager::rebuildAllChunkFaces() {
     std::cout << "[CHUNK MANAGER] Rebuilding faces for all loaded chunks with cross-chunk culling..." << std::endl;
     
-    // First pass: rebuild basic faces for each chunk
+    // First: End bulk operations for all chunks and build proper collision systems
+    for (auto& chunk : chunks) {
+        chunk->endBulkOperation();
+    }
+    
+    // Second pass: rebuild basic faces for each chunk
     for (auto& chunk : chunks) {
         chunk->rebuildFaces();
     }

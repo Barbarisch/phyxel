@@ -3,6 +3,8 @@
 #include "Types.h"
 #include "core/Subcube.h"
 #include <vector>
+#include <unordered_map>
+#include <unordered_set>
 #include <vulkan/vulkan.h>
 
 // Bullet Physics forward declarations (global namespace)
@@ -59,6 +61,11 @@ private:
     // Dirty tracking for smart saves
     bool isDirty = false;                          // Track if chunk has been modified since last save
     mutable btTriangleMesh* chunkTriangleMesh = nullptr; // For BVH triangle mesh shape (option B)
+    
+    // ULTRA-FAST collision system - minimal bookkeeping, no index tracking
+    std::unordered_map<glm::ivec3, btCollisionShape*, IVec3Hash> collisionShapeMap; // Track shapes for direct removal - O(1) lookup
+    mutable bool collisionNeedsUpdate = false;                                      // Simple flag for batch updates
+    bool isInBulkOperation = false;                                                 // Flag to prevent neighbor updates during bulk loading
 
 public:
     // Constructor
@@ -181,6 +188,15 @@ public:
     void forcePhysicsRebuild();                       // Force immediate compound shape rebuild (bypasses performance optimization)
     void cleanupPhysicsResources();                   // Clean up physics bodies
     class btRigidBody* getChunkPhysicsBody() const { return chunkPhysicsBody; }
+    
+    // ULTRA-FAST collision system - minimal operations
+    void fastAddCollisionAt(const glm::ivec3& localPos);       // Ultra-fast add - no index tracking
+    void fastRemoveCollisionAt(const glm::ivec3& localPos);    // Ultra-fast remove - direct shape removal
+    void batchUpdateCollisions();                              // Process collision changes in batch
+    void buildInitialCollisionShapes();                       // Build initial collision shapes efficiently
+    bool hasExposedFaces(const glm::ivec3& localPos) const;   // Check if cube has exposed faces
+    void updateNeighborCollisionShapes(const glm::ivec3& localPos); // Update collision shapes of neighboring cubes
+    void endBulkOperation();                                   // End bulk loading and update all neighbor collision shapes
     
     // Bounding box access for culling
     glm::vec3 getMinBounds() const;
