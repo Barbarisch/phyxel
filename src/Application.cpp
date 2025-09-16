@@ -1169,10 +1169,10 @@ void Application::mouseButtonCallback(GLFWwindow* window, int button, int action
             // Ctrl+Left Click: Subdivide cube into 27 subcubes
             app->subdivideHoveredCube();
         } else {
-            // Left Click: Break objects with physics (both cubes and subcubes)
+            // Left Click: Break objects with physics
             if (app->hasHoveredCube && app->currentHoveredLocation.isSubcube) {
-                // Break subcube with physics (existing behavior)
-                app->subdivideHoveredCube();
+                // Break subcube with physics
+                app->breakHoveredSubcube();  // ✅ NEW: Dedicated subcube breaking function
             } else {
                 // Break regular cube into dynamic cube with physics
                 app->breakHoveredCube();
@@ -1897,7 +1897,13 @@ void Application::subdivideHoveredCube() {
         std::cout << "[CUBE SUBDIVISION] No cube is currently being hovered - cannot subdivide" << std::endl;
         return;
     }
-    
+
+    // Only subdivide regular cubes (not subcubes)
+    if (currentHoveredLocation.isSubcube) {
+        std::cout << "[CUBE SUBDIVISION] Cannot subdivide individual subcubes - use left click to break subcubes" << std::endl;
+        return;
+    }
+
     // Get the chunk using the stored location
     Chunk* chunk = currentHoveredLocation.chunk;
     if (!chunk) {
@@ -1906,68 +1912,84 @@ void Application::subdivideHoveredCube() {
         currentHoveredLocation = CubeLocation();
         return;
     }
-    
-    // Handle different cases based on what's being hovered
-    if (currentHoveredLocation.isSubcube) {
-        // Break a specific subcube (move from static to dynamic) with physics
-        // Calculate impulse force away from the camera direction
-        glm::vec3 impulseForce(0.0f, 2.0f, 0.0f); // Default upward force
-        
-        // Try to get a more interesting force direction based on camera position
-        glm::vec3 cubeWorldPos = glm::vec3(currentHoveredLocation.worldPos);
-        glm::vec3 forceDirection = normalize(cubeWorldPos - cameraPos);
-        
-        // Mix upward force with outward force for interesting breakage (gentler forces)
-        impulseForce = forceDirection * 1.0f + glm::vec3(0.0f, 2.0f, 0.0f); // Reduced from 3.0f and 5.0f
-        
-        std::cout << "[PHYSICS] Applying gentler breakage force to subcube: (" 
-                  << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")" << std::endl;
-        
-        bool broken = chunk->breakSubcube(currentHoveredLocation.localPos, currentHoveredLocation.subcubePos, 
-                                         physicsWorld.get(), chunkManager.get(), impulseForce);
-        if (broken) {
-            std::cout << "[SUBCUBE BREAKING] Successfully broke subcube and transferred to global system at world pos: (" 
-                      << currentHoveredLocation.worldPos.x << "," 
-                      << currentHoveredLocation.worldPos.y << "," 
-                      << currentHoveredLocation.worldPos.z << ") subcube: ("
-                      << currentHoveredLocation.subcubePos.x << ","
-                      << currentHoveredLocation.subcubePos.y << ","
-                      << currentHoveredLocation.subcubePos.z << ")" << std::endl;
-                      
-            // Use efficient selective update for subcube breaking
-            if (chunkManager) {
-                chunkManager->updateAfterSubcubeBreak(currentHoveredLocation.worldPos, currentHoveredLocation.subcubePos);
-            }
-        } else {
-            std::cout << "[SUBCUBE BREAKING] WARNING: Failed to break subcube" << std::endl;
-        }
-    } else {
-        // Check if cube is already subdivided
-        if (chunk->getSubcubesAt(currentHoveredLocation.localPos).size() > 0) {
-            std::cout << "[CUBE SUBDIVISION] Cube at world pos (" 
-                      << currentHoveredLocation.worldPos.x << "," 
-                      << currentHoveredLocation.worldPos.y << "," 
-                      << currentHoveredLocation.worldPos.z << ") is already subdivided" << std::endl;
-            return;
-        }
-        
-        // Subdivide the cube into 27 static subcubes
-        bool subdivided = chunk->subdivideAt(currentHoveredLocation.localPos);
-        if (subdivided) {
-            std::cout << "[CUBE SUBDIVISION] Successfully subdivided cube at world pos: (" 
-                      << currentHoveredLocation.worldPos.x << "," 
-                      << currentHoveredLocation.worldPos.y << "," 
-                      << currentHoveredLocation.worldPos.z << ") into 27 static subcubes" << std::endl;
-        } else {
-            std::cout << "[CUBE SUBDIVISION] WARNING: Failed to subdivide cube - cube may not exist" << std::endl;
-        }
+
+    // Check if cube is already subdivided
+    if (chunk->getSubcubesAt(currentHoveredLocation.localPos).size() > 0) {
+        std::cout << "[CUBE SUBDIVISION] Cube at world pos (" 
+                  << currentHoveredLocation.worldPos.x << "," 
+                  << currentHoveredLocation.worldPos.y << "," 
+                  << currentHoveredLocation.worldPos.z << ") is already subdivided" << std::endl;
+        return;
     }
-    
+
+    // Subdivide the cube into 27 static subcubes
+    bool subdivided = chunk->subdivideAt(currentHoveredLocation.localPos);
+    if (subdivided) {
+        std::cout << "[CUBE SUBDIVISION] Successfully subdivided cube at world pos: (" 
+                  << currentHoveredLocation.worldPos.x << "," 
+                  << currentHoveredLocation.worldPos.y << "," 
+                  << currentHoveredLocation.worldPos.z << ") into 27 static subcubes" << std::endl;
+    } else {
+        std::cout << "[CUBE SUBDIVISION] WARNING: Failed to subdivide cube - cube may not exist" << std::endl;
+    }
+
     // Use efficient selective update instead of marking entire chunk dirty
     if (chunkManager) {
         chunkManager->updateAfterCubeSubdivision(currentHoveredLocation.worldPos);
     }
+
+    // Clear hover state
+    hasHoveredCube = false;
+    currentHoveredLocation = CubeLocation();
+    lastHoveredCube = -1;
+}
+
+void Application::breakHoveredSubcube() {
+    // Check if we have a valid hovered subcube
+    if (!hasHoveredCube || !currentHoveredLocation.isValid()) {
+        std::cout << "[SUBCUBE BREAKING] No subcube is currently being hovered - cannot break" << std::endl;
+        return;
+    }
+
+    // Only break subcubes (not regular cubes)
+    if (!currentHoveredLocation.isSubcube) {
+        std::cout << "[SUBCUBE BREAKING] Hovered object is not a subcube - use left click to break regular cubes" << std::endl;
+        return;
+    }
+
+    // Get the chunk using the stored location
+    Chunk* chunk = currentHoveredLocation.chunk;
+    if (!chunk) {
+        std::cout << "[SUBCUBE BREAKING] ERROR: Invalid chunk pointer" << std::endl;
+        hasHoveredCube = false;
+        currentHoveredLocation = CubeLocation();
+        return;
+    }
+
+    std::cout << "[SUBCUBE BREAKING] Breaking subcube without forces (gentle removal)" << std::endl;
     
+    // Break subcube WITHOUT any impulse forces (as requested)
+    glm::vec3 noForce(0.0f, 0.0f, 0.0f); // No forces applied
+    
+    bool broken = chunk->breakSubcube(currentHoveredLocation.localPos, currentHoveredLocation.subcubePos, 
+                                     physicsWorld.get(), chunkManager.get(), noForce);
+    if (broken) {
+        std::cout << "[SUBCUBE BREAKING] Successfully broke subcube (no forces) and transferred to global system at world pos: (" 
+                  << currentHoveredLocation.worldPos.x << "," 
+                  << currentHoveredLocation.worldPos.y << "," 
+                  << currentHoveredLocation.worldPos.z << ") subcube: ("
+                  << currentHoveredLocation.subcubePos.x << ","
+                  << currentHoveredLocation.subcubePos.y << ","
+                  << currentHoveredLocation.subcubePos.z << ")" << std::endl;
+                  
+        // Use efficient selective update for subcube breaking
+        if (chunkManager) {
+            chunkManager->updateAfterSubcubeBreak(currentHoveredLocation.worldPos, currentHoveredLocation.subcubePos);
+        }
+    } else {
+        std::cout << "[SUBCUBE BREAKING] WARNING: Failed to break subcube" << std::endl;
+    }
+
     // Clear hover state
     hasHoveredCube = false;
     currentHoveredLocation = CubeLocation();

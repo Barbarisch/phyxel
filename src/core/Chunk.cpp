@@ -876,16 +876,11 @@ void Chunk::removeSubcubeFromMaps(const glm::ivec3& localPos, const glm::ivec3& 
     if (parentIt != subcubeMap.end()) {
         parentIt->second.erase(subcubePos);
         
-        // If no subcubes left, check what type this position should be
+        // If no subcubes left at this position, just remove the subcubeMap entry
+        // The caller (removeSubcube) will handle voxelTypeMap updates after cube restoration
         if (parentIt->second.empty()) {
             subcubeMap.erase(localPos);
-            
-            // Check if we have a cube at this position
-            if (cubeMap.find(localPos) != cubeMap.end()) {
-                voxelTypeMap[localPos] = VoxelLocation::CUBE;
-            } else {
-                voxelTypeMap.erase(localPos);
-            }
+            std::cout << "[VOXEL MAP] Removed subcubeMap entry at (" << localPos.x << "," << localPos.y << "," << localPos.z << ") - no subcubes remain" << std::endl;
         }
     }
 }
@@ -978,8 +973,17 @@ bool Chunk::subdivideAt(const glm::ivec3& localPos) {
         }
     }
     
-    // Hide the parent cube (don't delete it, just hide it)
-    cube->hide();
+    // CRITICAL ARCHITECTURAL CHANGE: Delete the parent cube completely (don't just hide it)
+    // Remove from cubeMap and cubes vector
+    cubeMap.erase(localPos);
+    size_t cubeIndex = localToIndex(localPos);
+    if (cubeIndex < cubes.size() && cubes[cubeIndex] == cube) {
+        delete cube;  // Delete the cube object
+        cubes[cubeIndex] = nullptr;  // Clear the vector entry
+        std::cout << "[CUBE DELETION] Completely removed parent cube at (" 
+                  << localPos.x << "," << localPos.y << "," << localPos.z 
+                  << ") - replaced by 27 subcubes" << std::endl;
+    }
     
     // CRITICAL: Update voxelTypeMap to mark position as subdivided for proper hover detection
     voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
@@ -1037,11 +1041,41 @@ bool Chunk::removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcube
             delete subcube;
             staticSubcubes.erase(it);
             
-            // Update hash maps
+            // Update hash maps BEFORE checking remaining subcubes
             removeSubcubeFromMaps(parentPos, subcubePos);
             
-            // ULTRA-FAST: Update collision shape immediately
-            fastAddCollisionAt(parentPos);
+            // CRITICAL FIX: Check if any subcubes remain at this parent position
+            std::vector<Subcube*> remainingSubcubes = getStaticSubcubesAt(parentPos);
+            
+            if (remainingSubcubes.empty()) {
+                // No more subcubes at this position - remove collision shape entirely
+                std::cout << "[COLLISION] No subcubes remain at parent pos (" 
+                          << parentPos.x << "," << parentPos.y << "," << parentPos.z 
+                          << ") - removing collision shape" << std::endl;
+                fastRemoveCollisionAt(parentPos);
+                
+                // ARCHITECTURAL CHANGE: Do NOT restore parent cube - leave position empty
+                // The parent cube was deleted during subdivision, so position should become empty
+                voxelTypeMap.erase(parentPos);
+                std::cout << "[VOXEL MAP] Position now empty at (" 
+                          << parentPos.x << "," << parentPos.y << "," << parentPos.z 
+                          << ") - all subcubes removed, no cube to restore" << std::endl;
+            } else {
+                // Still have subcubes - update collision shape to reflect remaining subcubes
+                std::cout << "[COLLISION] " << remainingSubcubes.size() 
+                          << " subcubes remain at parent pos (" 
+                          << parentPos.x << "," << parentPos.y << "," << parentPos.z 
+                          << ") - updating collision shape" << std::endl;
+                // Remove old shape and add new one to reflect current subcube configuration
+                fastRemoveCollisionAt(parentPos);
+                fastAddCollisionAt(parentPos);
+                
+                // CRITICAL: Ensure voxelTypeMap shows SUBDIVIDED since subcubes remain
+                voxelTypeMap[parentPos] = VoxelLocation::SUBDIVIDED;
+                std::cout << "[VOXEL MAP] Maintained SUBDIVIDED type at (" 
+                          << parentPos.x << "," << parentPos.y << "," << parentPos.z 
+                          << ") - " << remainingSubcubes.size() << " subcubes remain" << std::endl;
+            }
             
             needsUpdate = true;
             setDirty(true);
@@ -1072,16 +1106,15 @@ bool Chunk::clearSubdivisionAt(const glm::ivec3& localPos) {
         }
     }
     
-    // Restore the parent cube
-    Cube* cube = getCubeAt(localPos);
-    if (cube) {
-        cube->show();
-    }
+    // ARCHITECTURAL CHANGE: Don't try to restore parent cube - it was deleted during subdivision
+    // Clear the subdivision state from data structures
+    subcubeMap.erase(localPos);
+    voxelTypeMap.erase(localPos);
     
     if (removedAny) {
+        std::cout << "[CHUNK] Cleared subdivision at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
+                  << ") - position now empty" << std::endl;
         needsUpdate = true;
-        // std::cout << "[CHUNK] Cleared subdivision at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
-        //           << ")" << std::endl;
     }
     
     return removedAny;
@@ -1244,16 +1277,8 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
                 dynamicSubcube->setRigidBody(rigidBody);
                 dynamicSubcube->setPhysicsPosition(physicsCenterPos);
                 
-                // Apply initial impulse force to make it "break" away
-                if (rigidBody && glm::length(impulseForce) > 0.0f) {
-                    glm::vec3 scaledImpulse = impulseForce * 0.3f; // Scale down for smaller subcubes
-                    btVector3 btImpulse(scaledImpulse.x, scaledImpulse.y, scaledImpulse.z);
-                    rigidBody->applyCentralImpulse(btImpulse);
-                    
-                    std::cout << "[SUBCUBE PHYSICS] Applied scaled impulse force (" 
-                              << scaledImpulse.x << "," << scaledImpulse.y << "," << scaledImpulse.z 
-                              << ") to broken subcube" << std::endl;
-                }
+                // NO FORCES APPLIED - subcubes break gently with gravity only
+                std::cout << "[SUBCUBE PHYSICS] Created physics body for subcube (no forces applied - gravity only)" << std::endl;
                 
                 // Enable gravity for natural falling behavior
                 if (rigidBody) {
@@ -1427,53 +1452,131 @@ void Chunk::fastAddCollisionAt(const glm::ivec3& localPos) {
     btBoxShape* boxShape = nullptr;
     glm::vec3 shapeCenter;
     
-    // Check for regular cube
+    // Check for regular cube first
     const Cube* cube = getCubeAt(localPos);
     if (cube && cube->isVisible() && hasExposedFaces(localPos)) {
+        // Full cube collision shape
         shapeCenter = glm::vec3(worldOrigin) + glm::vec3(localPos) + glm::vec3(0.5f);
         boxShape = new btBoxShape(btVector3(0.5f, 0.5f, 0.5f));
+        
+        // Add single collision shape for full cube
+        if (boxShape) {
+            btTransform transform;
+            transform.setIdentity();
+            transform.setOrigin(btVector3(shapeCenter.x, shapeCenter.y, shapeCenter.z));
+            compound->addChildShape(transform, boxShape);
+            collisionShapeMap[localPos] = boxShape;
+            std::cout << "[COLLISION] Added full cube collision at (" 
+                      << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
+        }
     } else {
-        // Check for subcubes at this position (subcubes are usually at surface level)
+        // Check for subcubes at this position - CREATE COLLISION FOR ALL SUBCUBES
         auto subcubes = getStaticSubcubesAt(localPos);
         if (!subcubes.empty()) {
-            const Subcube* subcube = subcubes[0]; // Use first subcube for now
-            glm::vec3 subcubeOffset = (glm::vec3(subcube->getLocalPosition()) - glm::vec3(1.0f)) * (1.0f/3.0f);
-            shapeCenter = glm::vec3(worldOrigin) + glm::vec3(localPos) + glm::vec3(0.5f) + subcubeOffset;
-            boxShape = new btBoxShape(btVector3(1.0f/6.0f, 1.0f/6.0f, 1.0f/6.0f));
+            std::cout << "[COLLISION] Creating collision shapes for " << subcubes.size() 
+                      << " subcubes at parent pos (" << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
+            
+            // CRITICAL FIX: Create collision shape for EACH subcube, not just the first one
+            for (size_t i = 0; i < subcubes.size(); ++i) {
+                const Subcube* subcube = subcubes[i];
+                
+                // Calculate subcube position and size
+                glm::vec3 subcubeLocalPos = glm::vec3(subcube->getLocalPosition()) - glm::vec3(1.0f); // Convert from 0-2 to -1 to +1
+                glm::vec3 subcubeOffset = subcubeLocalPos * (1.0f/3.0f); // Scale to subcube size
+                glm::vec3 subcubeCenter = glm::vec3(worldOrigin) + glm::vec3(localPos) + glm::vec3(0.5f) + subcubeOffset;
+                
+                // Create individual collision shape for this subcube
+                btBoxShape* subcubeShape = new btBoxShape(btVector3(1.0f/6.0f, 1.0f/6.0f, 1.0f/6.0f));
+                
+                if (subcubeShape) {
+                    btTransform transform;
+                    transform.setIdentity();
+                    transform.setOrigin(btVector3(subcubeCenter.x, subcubeCenter.y, subcubeCenter.z));
+                    compound->addChildShape(transform, subcubeShape);
+                    
+                    std::cout << "[COLLISION] Added subcube " << i << " collision at center (" 
+                              << subcubeCenter.x << "," << subcubeCenter.y << "," << subcubeCenter.z 
+                              << ") local pos (" << subcube->getLocalPosition().x << "," 
+                              << subcube->getLocalPosition().y << "," << subcube->getLocalPosition().z << ")" << std::endl;
+                }
+            }
+            
+            // For tracking purposes, store the first subcube shape (or create a compound reference)
+            if (!subcubes.empty()) {
+                // Note: We can't track individual subcube shapes easily in the current system
+                // This is a limitation of the current collision tracking approach
+                // For now, we'll mark this position as having subcube collision
+                collisionShapeMap[localPos] = nullptr; // Placeholder to indicate subcube collision exists
+            }
         }
-    }
-    
-    if (boxShape) {
-        // Add to compound shape
-        btTransform transform;
-        transform.setIdentity();
-        transform.setOrigin(btVector3(shapeCenter.x, shapeCenter.y, shapeCenter.z));
-        compound->addChildShape(transform, boxShape);
-        
-        // Track the shape for fast removal
-        collisionShapeMap[localPos] = boxShape;
     }
 }
 
 void Chunk::fastRemoveCollisionAt(const glm::ivec3& localPos) {
     if (!chunkCollisionShape) return;
     
+    btCompoundShape* compound = static_cast<btCompoundShape*>(chunkCollisionShape);
+    
+    // Check what type of collision shapes we have at this position
     auto shapeIt = collisionShapeMap.find(localPos);
     if (shapeIt == collisionShapeMap.end()) return;
     
-    btCompoundShape* compound = static_cast<btCompoundShape*>(chunkCollisionShape);
-    btCollisionShape* targetShape = shapeIt->second;
+    btCollisionShape* trackedShape = shapeIt->second;
     
-    // Find and remove the shape from compound
-    for (int i = compound->getNumChildShapes() - 1; i >= 0; i--) {
-        if (compound->getChildShape(i) == targetShape) {
-            compound->removeChildShapeByIndex(i);
-            break;
+    if (trackedShape != nullptr) {
+        // Single collision shape (regular cube) - remove it directly
+        for (int i = compound->getNumChildShapes() - 1; i >= 0; i--) {
+            if (compound->getChildShape(i) == trackedShape) {
+                compound->removeChildShapeByIndex(i);
+                delete trackedShape;
+                std::cout << "[COLLISION] Removed single cube collision shape at (" 
+                          << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
+                break;
+            }
         }
+    } else {
+        // Multiple subcube collision shapes - need to remove all shapes at this parent position
+        std::cout << "[COLLISION] Removing all subcube collision shapes at parent pos (" 
+                  << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
+        
+        // Get world position for this parent location
+        glm::vec3 parentWorldPos = glm::vec3(worldOrigin + localPos);
+        
+        // Remove all collision shapes that belong to subcubes at this parent position
+        // We need to check each child shape to see if it's in the subcube area
+        std::vector<int> shapesToRemove;
+        
+        for (int i = compound->getNumChildShapes() - 1; i >= 0; i--) {
+            const btCollisionShape* childShape = compound->getChildShape(i);
+            btTransform childTransform = compound->getChildTransform(i);
+            btVector3 shapePos = childTransform.getOrigin();
+            
+            // Check if this collision shape is within the parent cube bounds
+            glm::vec3 shapeCenter(shapePos.x(), shapePos.y(), shapePos.z());
+            glm::vec3 parentCenter = parentWorldPos + glm::vec3(0.5f);
+            
+            // If the shape is within 0.6 units of the parent center, it's probably a subcube collision
+            float distance = glm::length(shapeCenter - parentCenter);
+            if (distance < 0.6f) { // Slightly larger than half a cube to account for subcube positions
+                shapesToRemove.push_back(i);
+                std::cout << "[COLLISION] Marking subcube collision shape " << i 
+                          << " for removal (distance: " << distance << ")" << std::endl;
+            }
+        }
+        
+        // Remove the identified shapes (in reverse order to maintain valid indices)
+        for (int index : shapesToRemove) {
+            const btCollisionShape* shapeToDelete = compound->getChildShape(index);
+            compound->removeChildShapeByIndex(index);
+            delete shapeToDelete;
+        }
+        
+        std::cout << "[COLLISION] Removed " << shapesToRemove.size() 
+                  << " subcube collision shapes at parent pos (" 
+                  << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
     }
     
-    // Clean up the shape memory
-    delete targetShape;
+    // Remove from tracking map
     collisionShapeMap.erase(shapeIt);
     
     // CRITICAL: Immediately update collision geometry after removal

@@ -209,6 +209,7 @@ private:
     void removeHoveredCube();    // Remove the currently hovered cube
     void subdivideHoveredCube(); // Subdivide the currently hovered cube into 27 subcubes
     void breakHoveredCube();     // Break the currently hovered cube into a dynamic cube with physics
+    void breakHoveredSubcube();  // Break the currently hovered subcube into a dynamic subcube with physics
     
     // Chunk-based hover detection helpers (optimized)
     CubeLocation findExistingSubcubeHit(Chunk* chunk, const glm::ivec3& localPos, const glm::ivec3& cubeWorldPos, const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;
