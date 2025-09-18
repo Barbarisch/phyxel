@@ -12,6 +12,7 @@
 #include "utils/Frustum.h"
 #include "ui/ImGuiRenderer.h"
 #include "core/ChunkManager.h"
+#include "core/ForceSystem.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -90,6 +91,10 @@ private:
     std::unique_ptr<UI::ImGuiRenderer> imguiRenderer;
     std::unique_ptr<ChunkManager> chunkManager;
 
+    // Force-based breaking system
+    std::unique_ptr<ForceSystem> forceSystem;
+    std::unique_ptr<MouseVelocityTracker> mouseVelocityTracker;
+
     // Application state
     bool isRunning;
     int windowWidth;
@@ -155,6 +160,8 @@ private:
         bool chunkOperations = false;
         bool cubeOperations = false;
         bool disableBreakingForces = false; // For testing exact positioning without physics forces
+        bool showForceSystemDebug = false;  // Show force system debug overlay
+        float manualForceValue = 500.0f;    // User-controllable force value via slider
     } debugFlags;
     
     // GPU frustum culling results for UI display
@@ -209,6 +216,8 @@ private:
     void removeHoveredCube();    // Remove the currently hovered cube
     void subdivideHoveredCube(); // Subdivide the currently hovered cube into 27 subcubes
     void breakHoveredCube();     // Break the currently hovered cube into a dynamic cube with physics
+    void breakHoveredCubeWithForce(); // NEW: Break cube(s) using force propagation system
+    void breakCubeAtPosition(const glm::ivec3& worldPos); // Helper: Break a single cube at world position
     void breakHoveredSubcube();  // Break the currently hovered subcube into a dynamic subcube with physics
     
     // Chunk-based hover detection helpers (optimized)

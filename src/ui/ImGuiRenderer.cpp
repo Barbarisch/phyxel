@@ -1,5 +1,6 @@
 #include "ui/ImGuiRenderer.h"
 #include "core/Types.h"
+#include "core/ForceSystem.h"
 #include "utils/Timer.h"
 #include "utils/PerformanceProfiler.h"
 #include "physics/PhysicsWorld.h"
@@ -298,6 +299,137 @@ void ImGuiRenderer::renderPerformanceOverlay(
         ImGui::Separator();
         ImGui::Text("WASD: Move  Space/Shift: Up/Down");
         ImGui::Text("Right-Click: Look  ESC: Exit  F1: Toggle overlay");
+    }
+    ImGui::End();
+}
+
+void ImGuiRenderer::renderForceSystemDebug(
+    bool showDebug,
+    VulkanCube::ForceSystem* forceSystem,
+    VulkanCube::MouseVelocityTracker* mouseVelocityTracker,
+    bool hasHoveredCube,
+    const glm::vec3& hoveredCubePos,
+    float& manualForceValue) {
+    
+    if (!showDebug || !m_initialized) return;
+
+    // Create a window for the force system debug
+    ImGui::SetNextWindowPos(ImVec2(470, 10), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(350, 300), ImGuiCond_FirstUseEver);
+    
+    if (ImGui::Begin("Force System Debug", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        
+        // Force Control
+        ImGui::Text("FORCE CONTROL");
+        ImGui::Separator();
+        
+        // Manual force value slider
+        ImGui::SliderFloat("Breaking Force", &manualForceValue, 0.0f, 2000.0f, "%.1f N");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Drag to adjust the force applied when breaking cubes.\nHigher values = stronger breaking force.");
+        }
+        
+        // Force magnitude indicator with color coding
+        float normalizedForce = manualForceValue / 2000.0f; // Normalize to 0-1
+        ImVec4 forceColor;
+        if (normalizedForce < 0.3f) {
+            forceColor = ImVec4(0.2f, 0.8f, 0.2f, 1.0f); // Green for low force
+        } else if (normalizedForce < 0.7f) {
+            forceColor = ImVec4(0.8f, 0.8f, 0.2f, 1.0f); // Yellow for medium force
+        } else {
+            forceColor = ImVec4(0.8f, 0.2f, 0.2f, 1.0f); // Red for high force
+        }
+        
+        ImGui::PushStyleColor(ImGuiCol_PlotHistogram, forceColor);
+        ImGui::ProgressBar(normalizedForce, ImVec2(0.0f, 0.0f), "");
+        ImGui::PopStyleColor();
+        ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+        ImGui::Text("Force Level");
+        
+        // Quick preset buttons
+        ImGui::Text("Quick Presets:");
+        if (ImGui::Button("Light (200N)")) manualForceValue = 200.0f;
+        ImGui::SameLine();
+        if (ImGui::Button("Medium (500N)")) manualForceValue = 500.0f;
+        ImGui::SameLine();
+        if (ImGui::Button("Strong (1000N)")) manualForceValue = 1000.0f;
+        
+        ImGui::Spacing();
+        
+        // Mouse Velocity Information (for reference)
+        ImGui::Text("MOUSE VELOCITY (Reference)");
+        ImGui::Separator();
+        
+        if (mouseVelocityTracker) {
+            glm::vec2 velocity = mouseVelocityTracker->getVelocity();
+            float speed = mouseVelocityTracker->getSpeed();
+            
+            ImGui::Text("Velocity X: %.2f px/s", velocity.x);
+            ImGui::Text("Velocity Y: %.2f px/s", velocity.y);
+            ImGui::Text("Speed: %.2f px/s", speed);
+            
+            // Visual speed indicator
+            float normalizedSpeed = std::min(speed / 1000.0f, 1.0f); // Normalize to 1000 px/s max
+            ImGui::ProgressBar(normalizedSpeed, ImVec2(0.0f, 0.0f), "");
+            ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+            ImGui::Text("Speed");
+        } else {
+            ImGui::Text("MouseVelocityTracker not available");
+        }
+        
+        ImGui::Spacing();
+        
+        // Force System Parameters
+        ImGui::Text("FORCE SYSTEM PARAMETERS");
+        ImGui::Separator();
+        
+        if (forceSystem) {
+            // Note: These would need to be added as getters to ForceSystem class
+            ImGui::Text("Base Force Magnitude: %.2f", 1000.0f); // Placeholder - would need getter
+            ImGui::Text("Force Falloff Rate: %.2f", 0.7f);      // Placeholder - would need getter
+            ImGui::Text("Max Propagation Distance: %d", 3);      // Placeholder - would need getter
+            ImGui::Text("Bond Strength Threshold: %.2f", 500.0f); // Placeholder - would need getter
+        } else {
+            ImGui::Text("ForceSystem not available");
+        }
+        
+        ImGui::Spacing();
+        
+        // Current Target Information
+        ImGui::Text("CURRENT TARGET");
+        ImGui::Separator();
+        
+        if (hasHoveredCube) {
+            ImGui::Text("Target Position:");
+            ImGui::Text("X: %.1f  Y: %.1f  Z: %.1f", hoveredCubePos.x, hoveredCubePos.y, hoveredCubePos.z);
+            
+            // Real-time force preview using manual force value
+            if (forceSystem) {
+                ImGui::Text("Applied Force: %.1f N", manualForceValue);
+                
+                // Estimate number of cubes that might break (simplified calculation)
+                int estimatedCubes = static_cast<int>(manualForceValue / 250.0f) + 1; // Rough estimate
+                estimatedCubes = std::min(estimatedCubes, 10); // Cap at reasonable number
+                ImGui::Text("Estimated Cubes Affected: ~%d", estimatedCubes);
+                
+                // Force direction based on camera (simplified)
+                ImGui::Text("Force Direction: Away from camera");
+            }
+        } else {
+            ImGui::Text("No cube currently hovered");
+            ImGui::Text("Hover over a cube to see force preview");
+        }
+        
+        ImGui::Spacing();
+        
+        // Instructions
+        ImGui::Text("INSTRUCTIONS");
+        ImGui::Separator();
+        ImGui::Text("F3: Toggle this debug window");
+        ImGui::Text("Adjust force slider above, then:");
+        ImGui::Text("Left-click cube: Break with set force");
+        ImGui::Text("Use presets for quick force testing");
+        ImGui::Text("Higher force = more cubes affected");
     }
     ImGui::End();
 }

@@ -43,7 +43,9 @@ Application::Application()
     , lastVisibleInstances(0)
     , lastCulledInstances(0)
     , performanceProfiler(std::make_unique<PerformanceProfiler>())
-    , imguiRenderer(std::make_unique<UI::ImGuiRenderer>()) {
+    , imguiRenderer(std::make_unique<UI::ImGuiRenderer>())
+    , forceSystem(std::make_unique<ForceSystem>())
+    , mouseVelocityTracker(std::make_unique<MouseVelocityTracker>()) {
     
     // Initialize frame timing
     frameTiming.cpuFrameTime = 0.0;
@@ -241,6 +243,16 @@ void Application::run() {
             frameCount,
             currentRenderDistance,         // Pass by reference to allow UI modification
             currentChunkInclusionDistance  // Pass by reference to allow UI modification
+        );
+        
+        // Render Force System Debug overlay
+        imguiRenderer->renderForceSystemDebug(
+            debugFlags.showForceSystemDebug,
+            forceSystem.get(),
+            mouseVelocityTracker.get(),
+            hasHoveredCube,
+            hasHoveredCube ? glm::vec3(currentHoveredLocation.worldPos) : glm::vec3(0.0f),
+            debugFlags.manualForceValue
         );
         
         // Check if distances were changed by UI
@@ -1101,6 +1113,9 @@ void Application::mouseCallback(GLFWwindow* window, double xpos, double ypos) {
     app->currentMouseX = xpos;
     app->currentMouseY = ypos;
     
+    // Update mouse velocity tracker for force calculations
+    app->mouseVelocityTracker->updatePosition(xpos, ypos);
+    
     // Only process mouse movement for camera if right mouse button is held down
     if (!app->mouseCaptured) {
         app->lastX = xpos;
@@ -1164,17 +1179,20 @@ void Application::mouseButtonCallback(GLFWwindow* window, int button, int action
     }
     
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+        // Reset mouse velocity tracking for force calculation
+        app->mouseVelocityTracker->reset();
+        
         // Check for Ctrl modifier for subdivision
         if (mods & GLFW_MOD_CONTROL) {
             // Ctrl+Left Click: Subdivide cube into 27 subcubes
             app->subdivideHoveredCube();
         } else {
-            // Left Click: Break objects with physics
+            // Left Click: Break objects with physics using force system
             if (app->hasHoveredCube && app->currentHoveredLocation.isSubcube) {
                 // Break subcube with physics
                 app->breakHoveredSubcube();  // ✅ NEW: Dedicated subcube breaking function
             } else {
-                // Break regular cube into dynamic cube with physics
+                // Break regular cube into dynamic cube with physics (REVERTED TO WORKING VERSION)
                 app->breakHoveredCube();
             }
         }
@@ -1230,6 +1248,17 @@ void Application::processInput() {
         f2Pressed = true;
     } else if (glfwGetKey(window, GLFW_KEY_F2) == GLFW_RELEASE) {
         f2Pressed = false;
+    }
+    
+    // Toggle force system debug overlay with F3
+    static bool f3Pressed = false;
+    if (glfwGetKey(window, GLFW_KEY_F3) == GLFW_PRESS && !f3Pressed) {
+        debugFlags.showForceSystemDebug = !debugFlags.showForceSystemDebug;
+        std::cout << "[DEBUG] Force System Debug overlay " 
+                  << (debugFlags.showForceSystemDebug ? "ENABLED" : "DISABLED") << std::endl;
+        f3Pressed = true;
+    } else if (glfwGetKey(window, GLFW_KEY_F3) == GLFW_RELEASE) {
+        f3Pressed = false;
     }
     
     // Test frustum culling positions with T key
@@ -2031,16 +2060,31 @@ void Application::breakHoveredCube() {
     
     // Calculate impulse force away from the camera direction
     glm::vec3 impulseForce(0.0f, 2.0f, 0.0f); // Default upward force
+    glm::vec3 cubeWorldPos = glm::vec3(currentHoveredLocation.worldPos); // Declare outside conditional blocks
     
-    // Try to get a more interesting force direction based on camera position
-    glm::vec3 cubeWorldPos = glm::vec3(currentHoveredLocation.worldPos);
-    glm::vec3 forceDirection = normalize(cubeWorldPos - cameraPos);
-    
-    // Mix upward force with outward force for interesting breakage (gentler forces)
-    impulseForce = forceDirection * 1.5f + glm::vec3(0.0f, 2.5f, 0.0f); // Reduced from 4.0f and 6.0f
-    
-    std::cout << "[PHYSICS] Applying gentler breakage force to cube: (" 
-              << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")" << std::endl;
+    if (debugFlags.showForceSystemDebug && debugFlags.manualForceValue > 0.0f) {
+        // Use manual force value from debug UI
+        glm::vec3 forceDirection = normalize(cubeWorldPos - cameraPos);
+        
+        // Scale the manual force value appropriately (convert from UI units to physics units)
+        float scaledForce = debugFlags.manualForceValue * 0.01f; // Scale down for reasonable physics
+        
+        // Mix directional force with upward force for interesting breakage
+        impulseForce = forceDirection * scaledForce * 0.6f + glm::vec3(0.0f, scaledForce * 0.4f, 0.0f);
+        
+        std::cout << "[PHYSICS] Using manual force from debug UI: " << debugFlags.manualForceValue 
+                  << "N (scaled: " << scaledForce << ") resulting impulse: (" 
+                  << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")" << std::endl;
+    } else {
+        // Use original automatic force calculation
+        glm::vec3 forceDirection = normalize(cubeWorldPos - cameraPos);
+        
+        // Mix upward force with outward force for interesting breakage (gentler forces)
+        impulseForce = forceDirection * 1.5f + glm::vec3(0.0f, 2.5f, 0.0f); // Reduced from 4.0f and 6.0f
+        
+        std::cout << "[PHYSICS] Using automatic breakage force: (" 
+                  << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")" << std::endl;
+    }
     
     // Get the cube's original color before removing it
     const Cube* originalCube = chunk->getCubeAt(currentHoveredLocation.localPos);
@@ -2191,6 +2235,154 @@ void Application::breakHoveredCube() {
     hasHoveredCube = false;
     currentHoveredLocation = CubeLocation();
     lastHoveredCube = -1;
+}
+
+void Application::breakHoveredCubeWithForce() {
+    // Check if we have a valid hovered cube
+    if (!hasHoveredCube || !currentHoveredLocation.isValid()) {
+        std::cout << "[FORCE BREAKING] No cube is currently being hovered - cannot break" << std::endl;
+        return;
+    }
+    
+    // Only break regular cubes (not subcubes) with force system
+    if (currentHoveredLocation.isSubcube) {
+        std::cout << "[FORCE BREAKING] Cannot break individual subcubes with force - use left click to break subcubes" << std::endl;
+        return;
+    }
+    
+    // Get the chunk using the stored location
+    Chunk* chunk = currentHoveredLocation.chunk;
+    if (!chunk) {
+        std::cout << "[FORCE BREAKING] ERROR: Invalid chunk pointer" << std::endl;
+        hasHoveredCube = false;
+        currentHoveredLocation = CubeLocation();
+        return;
+    }
+    
+    // Check if cube exists and is not already subdivided
+    if (!chunk->getCubeAt(currentHoveredLocation.localPos)) {
+        std::cout << "[FORCE BREAKING] No cube exists at this location" << std::endl;
+        return;
+    }
+    
+    if (chunk->getSubcubesAt(currentHoveredLocation.localPos).size() > 0) {
+        std::cout << "[FORCE BREAKING] Cube is already subdivided - cannot break subdivided cubes" << std::endl;
+        return;
+    }
+    
+    // Calculate ray for force direction
+    glm::vec3 rayOrigin = cameraPos;
+    glm::vec3 rayDirection = screenToWorldRay(currentMouseX, currentMouseY);
+    
+    // Use hit point from current hovered location or calculate from cube center
+    glm::vec3 hitPoint = currentHoveredLocation.hitPoint;
+    if (glm::length(hitPoint) < 0.1f) { // No valid hit point stored
+        hitPoint = glm::vec3(currentHoveredLocation.worldPos) + glm::vec3(0.5f); // Use cube center
+    }
+    
+    // Get current mouse velocity
+    glm::vec2 mouseVelocity = mouseVelocityTracker->getVelocity();
+    
+    std::cout << "[FORCE BREAKING] Mouse velocity: (" << mouseVelocity.x << "," << mouseVelocity.y 
+              << ") speed: " << mouseVelocityTracker->getSpeed() << std::endl;
+    
+    // Calculate force using force system
+    ForceSystem::ClickForce clickForce = forceSystem->calculateClickForce(
+        mouseVelocity, rayOrigin, rayDirection, hitPoint);
+    
+    // Propagate force through the chunk system
+    ForceSystem::PropagationResult result = forceSystem->propagateForce(
+        clickForce, currentHoveredLocation.worldPos, chunkManager.get());
+    
+    // Debug print the propagation results
+    forceSystem->debugPrintPropagation(result);
+    
+    // Break all cubes that should break according to the force propagation
+    for (const glm::ivec3& worldPos : result.brokenCubes) {
+        breakCubeAtPosition(worldPos);
+    }
+    
+    std::cout << "[FORCE BREAKING] Successfully broke " << result.brokenCubes.size() 
+              << " cubes using force propagation system" << std::endl;
+    
+    // Clear hover state
+    hasHoveredCube = false;
+    currentHoveredLocation = CubeLocation();
+    lastHoveredCube = -1;
+}
+
+// Helper method to break a single cube at a specific world position
+void Application::breakCubeAtPosition(const glm::ivec3& worldPos) {
+    Chunk* chunk = chunkManager->getChunkAt(worldPos);
+    if (!chunk) {
+        std::cout << "[FORCE BREAKING] No chunk found for position (" 
+                  << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")" << std::endl;
+        return;
+    }
+    
+    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+    const Cube* originalCube = chunk->getCubeAt(localPos);
+    if (!originalCube) {
+        std::cout << "[FORCE BREAKING] No cube found at position (" 
+                  << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")" << std::endl;
+        return;
+    }
+    
+    // Get the cube's original color before removing it
+    glm::vec3 originalColor = originalCube->getOriginalColor();
+    
+    // Remove cube from chunk
+    bool removed = chunk->removeCube(localPos);
+    if (!removed) {
+        std::cout << "[FORCE BREAKING] Failed to remove cube from chunk" << std::endl;
+        return;
+    }
+    
+    // Create dynamic cube for physics
+    glm::vec3 cubeCornerPos = glm::vec3(worldPos); // Corner position for rendering
+    glm::vec3 physicsCenterPos = cubeCornerPos + glm::vec3(0.5f); // Center position for physics
+    
+    // Select material based on position (same logic as original)
+    std::vector<std::string> materials = {"stone", "wood", "metal", "ice"};
+    int materialIndex = (abs(worldPos.x) + abs(worldPos.z)) % materials.size();
+    std::string selectedMaterial = materials[materialIndex];
+    
+    auto dynamicCube = std::make_unique<DynamicCube>(cubeCornerPos, originalColor, selectedMaterial);
+    
+    // Create physics body for the dynamic cube
+    glm::vec3 cubeSize(1.0f); // Full cube size
+    btRigidBody* rigidBody = physicsWorld->createBreakawaCube(physicsCenterPos, cubeSize, selectedMaterial);
+    dynamicCube->setRigidBody(rigidBody);
+    
+    // Apply a small random force for natural breaking effect
+    if (rigidBody && !debugFlags.disableBreakingForces) {
+        glm::vec3 randomForce(
+            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 200.0f,  // Random X force
+            100.0f + (static_cast<float>(rand()) / RAND_MAX) * 100.0f, // Upward + random Y force
+            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 200.0f   // Random Z force
+        );
+        
+        btVector3 btImpulse(randomForce.x, randomForce.y, randomForce.z);
+        rigidBody->applyCentralImpulse(btImpulse);
+        
+        // Add random angular velocity for tumbling effect
+        btVector3 angularVelocity(
+            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 4.0f,
+            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 4.0f,
+            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 4.0f
+        );
+        rigidBody->setAngularVelocity(angularVelocity);
+        
+        // Enable gravity
+        rigidBody->setGravity(btVector3(0, -9.81f, 0));
+    }
+    
+    // Mark as broken and add to global system
+    dynamicCube->breakApart();
+    chunkManager->addGlobalDynamicCube(std::move(dynamicCube));
+    
+    // Update affected chunks
+    chunkManager->updateAfterCubeBreak(worldPos);
 }
 
 // =============================================================================

@@ -12,6 +12,8 @@ namespace VulkanCube {
     class PerformanceProfiler;
     struct FrameTiming;
     struct DetailedFrameTiming;
+    class ForceSystem;
+    class MouseVelocityTracker;
     namespace Physics { class PhysicsWorld; }
     namespace Vulkan { class VulkanDevice; class RenderPipeline; }
 }
@@ -44,6 +46,15 @@ public:
         uint64_t frameCount,
         float& renderDistance,          // Reference to allow modification
         float& chunkInclusionDistance   // Reference to allow modification
+    );
+    
+    void renderForceSystemDebug(
+        bool showDebug,
+        VulkanCube::ForceSystem* forceSystem,
+        VulkanCube::MouseVelocityTracker* mouseVelocityTracker,
+        bool hasHoveredCube,
+        const glm::vec3& hoveredCubePos,
+        float& manualForceValue  // Reference to allow modification by slider
     );
 
 private:
