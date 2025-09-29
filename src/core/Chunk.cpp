@@ -191,7 +191,7 @@ bool Chunk::removeCube(const glm::ivec3& localPos) {
     // Update hash maps to reflect removal
     removeFromVoxelMaps(localPos);
     
-    // ULTRA-FAST: Remove collision shape immediately
+    // IMPROVED: Remove collision shape with proper memory management
     fastRemoveCollisionAt(localPos);
     
     // CRITICAL: Update collision shapes of neighboring cubes that might now be exposed
@@ -233,7 +233,7 @@ bool Chunk::addCube(const glm::ivec3& localPos, const glm::vec3& color) {
     // Mark chunk as dirty for smart saving
     setDirty(true);
     
-    // ULTRA-FAST: Add collision shape immediately
+    // IMPROVED: Add collision shape with reference counting
     fastAddCollisionAt(localPos);
     
     // CRITICAL: Only update neighbors during individual operations, not bulk loading
@@ -1053,7 +1053,7 @@ bool Chunk::addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos
     // Update hash maps
     addSubcubeToMaps(parentPos, subcubePos, newSubcube);
     
-    // ULTRA-FAST: Update collision shape immediately
+    // IMPROVED: Update collision shape with memory safety
     fastAddCollisionAt(parentPos);
     
     // Mark for update and as dirty for database persistence
@@ -1373,7 +1373,7 @@ void Chunk::createChunkPhysicsBody() {
     debugCubeShapeCount = 0;
     debugSubcubeShapeCount = 0;
     
-    // NEW: Build collision shapes with ultra-fast tracking
+    // IMPROVED: Build collision shapes with reference-counted tracking
     buildInitialCollisionShapes();
     
     // Create static rigid body
@@ -1386,7 +1386,7 @@ void Chunk::createChunkPhysicsBody() {
     
     physicsWorld->getWorld()->addRigidBody(chunkPhysicsBody);
     
-    std::cout << "[CHUNK] Compound collision shape created with " << debugCollisionShapeCount 
+    std::cout << "[CHUNK] Improved compound collision shape created with " << debugCollisionShapeCount 
               << " tracked collision shapes (" << debugCubeShapeCount << " cubes, " 
               << debugSubcubeShapeCount << " subcubes)" << std::endl;
 }
@@ -1394,7 +1394,7 @@ void Chunk::createChunkPhysicsBody() {
 void Chunk::updateChunkPhysicsBody() {
     if (!physicsWorld || !chunkPhysicsBody) return;
     
-    // ULTRA-FAST: Just batch any remaining updates
+    // IMPROVED: Batch any remaining collision updates efficiently
     batchUpdateCollisions();
     
     // CRITICAL: Force physics world to recognize collision shape changes
@@ -1416,7 +1416,7 @@ void Chunk::updateChunkPhysicsBody() {
             dynamicsWorld->updateSingleAabb(chunkPhysicsBody);
         }
         
-        std::cout << "[INCREMENTAL] Collision updates complete with physics sync - maintaining " 
+        std::cout << "[INCREMENTAL] Improved collision updates complete with physics sync - maintaining " 
                   << debugCollisionShapeCount << " collision shapes (" << debugCubeShapeCount 
                   << " cubes, " << debugSubcubeShapeCount << " subcubes)" << std::endl;
     } else {
@@ -1446,7 +1446,7 @@ void Chunk::forcePhysicsRebuild() {
 }
 
 void Chunk::cleanupPhysicsResources() {
-    // Clean up reference-counted collision tracking - shapes auto-delete when reference count reaches zero
+    // Clean up improved collision tracking system - shapes auto-delete when reference count reaches zero
     std::cout << "[COLLISION CLEANUP] Before cleanup: " << debugCollisionShapeCount << " total shapes ("
               << debugCubeShapeCount << " cubes, " << debugSubcubeShapeCount << " subcubes)" << std::endl;
     
@@ -1471,7 +1471,9 @@ void Chunk::cleanupPhysicsResources() {
     }
 }
 
-// IMPROVED collision system - reference-counted shapes with proper subcube tracking
+// IMPROVED collision system - memory-safe reference-counted shapes with individual subcube tracking
+// This method replaces the old system that used nullptr placeholders and geometric distance heuristics
+// Now provides proper individual tracking for each collision shape with automatic memory management
 void Chunk::fastAddCollisionAt(const glm::ivec3& localPos) {
     if (!chunkCollisionShape) return;
     
@@ -1794,7 +1796,7 @@ void Chunk::buildInitialCollisionShapes() {
     }
     
     std::cout << "[COLLISION] Built " << debugCollisionShapeCount << " initial collision shapes ("
-              << debugCubeShapeCount << " cubes, " << debugSubcubeShapeCount << " subcubes)" << std::endl;
+              << debugCubeShapeCount << " cubes, " << debugSubcubeShapeCount << " subcubes) with improved memory management" << std::endl;
 }
 
 void Chunk::updateNeighborCollisionShapes(const glm::ivec3& localPos) {
@@ -1965,6 +1967,8 @@ std::vector<Chunk::CollisionBox> Chunk::generateMergedCollisionBoxes() {
 }
 
 // DEBUG: Collision shape validation and debugging methods
+// Validates consistency between Bullet compound shapes and our tracking data structures
+// Helps detect memory management issues and tracking inconsistencies
 void Chunk::validateCollisionShapes() const {
     if (!chunkCollisionShape) {
         std::cout << "[COLLISION VALIDATION] No compound collision shape exists" << std::endl;
