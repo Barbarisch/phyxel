@@ -53,14 +53,9 @@ Chunk::Chunk(Chunk&& other) noexcept
     , maxInstancesUsed(other.maxInstancesUsed)
     , device(other.device)
     , physicalDevice(other.physicalDevice)
-    , cubeCollisionMap(std::move(other.cubeCollisionMap))
-    , subcubeCollisionMap(std::move(other.subcubeCollisionMap))
-    , subcubeGroupPositions(std::move(other.subcubeGroupPositions))
+    , collisionGrid(std::move(other.collisionGrid))
     , collisionNeedsUpdate(other.collisionNeedsUpdate)
-    , isInBulkOperation(other.isInBulkOperation)
-    , debugCollisionShapeCount(other.debugCollisionShapeCount)
-    , debugCubeShapeCount(other.debugCubeShapeCount)
-    , debugSubcubeShapeCount(other.debugSubcubeShapeCount) {
+    , isInBulkOperation(other.isInBulkOperation) {
     
     // Reset other object's Vulkan handles and capacity tracking
     other.instanceBuffer = VK_NULL_HANDLE;
@@ -74,9 +69,6 @@ Chunk::Chunk(Chunk&& other) noexcept
     // Reset other object's collision tracking
     other.collisionNeedsUpdate = false;
     other.isInBulkOperation = false;
-    other.debugCollisionShapeCount = 0;
-    other.debugCubeShapeCount = 0;
-    other.debugSubcubeShapeCount = 0;
 }
 
 Chunk& Chunk::operator=(Chunk&& other) noexcept {
@@ -101,14 +93,9 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept {
         physicalDevice = other.physicalDevice;
         
         // Move collision tracking data
-        cubeCollisionMap = std::move(other.cubeCollisionMap);
-        subcubeCollisionMap = std::move(other.subcubeCollisionMap);
-        subcubeGroupPositions = std::move(other.subcubeGroupPositions);
+        collisionGrid = std::move(other.collisionGrid);
         collisionNeedsUpdate = other.collisionNeedsUpdate;
         isInBulkOperation = other.isInBulkOperation;
-        debugCollisionShapeCount = other.debugCollisionShapeCount;
-        debugCubeShapeCount = other.debugCubeShapeCount;
-        debugSubcubeShapeCount = other.debugSubcubeShapeCount;
         
         // Reset other object's Vulkan handles and capacity tracking
         other.instanceBuffer = VK_NULL_HANDLE;
@@ -122,11 +109,163 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept {
         // Reset other object's collision tracking
         other.collisionNeedsUpdate = false;
         other.isInBulkOperation = false;
-        other.debugCollisionShapeCount = 0;
-        other.debugCubeShapeCount = 0;
-        other.debugSubcubeShapeCount = 0;
     }
     return *this;
+}
+
+// CollisionEntity implementation
+Chunk::CollisionEntity::CollisionEntity(btCollisionShape* s, Type t, const glm::vec3& center, float radius)
+    : shape(s), type(t), isInCompound(false), worldCenter(center), boundingRadius(radius) {
+    // Initialize hierarchy data for subcubes
+    if (type == SUBCUBE) {
+        parentChunkPos = glm::ivec3(0);  // Will be set by caller
+        subcubeLocalPos = glm::ivec3(0); // Will be set by caller
+    }
+}
+
+Chunk::CollisionEntity::~CollisionEntity() {
+    // Only delete if not in compound shape (Bullet manages compound children lifetime)
+    if (!isInCompound && shape) {
+        delete shape;
+        shape = nullptr;
+    }
+}
+
+// CollisionSpatialGrid implementation
+void Chunk::CollisionSpatialGrid::addEntity(const glm::ivec3& gridPos, std::shared_ptr<CollisionEntity> entity) {
+    if (!isValidGridPosition(gridPos)) return;
+    
+    auto& cell = grid[gridPos.x][gridPos.y][gridPos.z];
+    cell.push_back(entity);
+    
+    // Update counters
+    totalEntities++;
+    if (entity->isCube()) {
+        cubeEntities++;
+    } else {
+        subcubeEntities++;
+    }
+}
+
+void Chunk::CollisionSpatialGrid::removeEntity(const glm::ivec3& gridPos, std::shared_ptr<CollisionEntity> entity) {
+    if (!isValidGridPosition(gridPos)) return;
+    
+    auto& cell = grid[gridPos.x][gridPos.y][gridPos.z];
+    auto it = std::find(cell.begin(), cell.end(), entity);
+    if (it != cell.end()) {
+        cell.erase(it);
+        
+        // Update counters
+        totalEntities--;
+        if (entity->isCube()) {
+            cubeEntities--;
+        } else {
+            subcubeEntities--;
+        }
+    }
+}
+
+void Chunk::CollisionSpatialGrid::removeAllAt(const glm::ivec3& gridPos) {
+    if (!isValidGridPosition(gridPos)) return;
+    
+    auto& cell = grid[gridPos.x][gridPos.y][gridPos.z];
+    
+    // Update counters
+    for (const auto& entity : cell) {
+        totalEntities--;
+        if (entity->isCube()) {
+            cubeEntities--;
+        } else {
+            subcubeEntities--;
+        }
+    }
+    
+    cell.clear();
+}
+
+std::vector<std::shared_ptr<Chunk::CollisionEntity>>& Chunk::CollisionSpatialGrid::getEntitiesAt(const glm::ivec3& gridPos) {
+    static std::vector<std::shared_ptr<CollisionEntity>> emptyVector;
+    if (!isValidGridPosition(gridPos)) return emptyVector;
+    return grid[gridPos.x][gridPos.y][gridPos.z];
+}
+
+const std::vector<std::shared_ptr<Chunk::CollisionEntity>>& Chunk::CollisionSpatialGrid::getEntitiesAt(const glm::ivec3& gridPos) const {
+    static const std::vector<std::shared_ptr<CollisionEntity>> emptyVector;
+    if (!isValidGridPosition(gridPos)) return emptyVector;
+    return grid[gridPos.x][gridPos.y][gridPos.z];
+}
+
+void Chunk::CollisionSpatialGrid::clear() {
+    for (int x = 0; x < GRID_SIZE; ++x) {
+        for (int y = 0; y < GRID_SIZE; ++y) {
+            for (int z = 0; z < GRID_SIZE; ++z) {
+                grid[x][y][z].clear();
+            }
+        }
+    }
+    totalEntities = 0;
+    cubeEntities = 0;
+    subcubeEntities = 0;
+}
+
+void Chunk::CollisionSpatialGrid::reserve(size_t expectedEntities) {
+    // Reserve space in cells that are likely to be used
+    size_t entitiesPerCell = std::max(static_cast<size_t>(1), expectedEntities / (GRID_SIZE * GRID_SIZE * GRID_SIZE / 8));
+    for (int x = 0; x < GRID_SIZE; ++x) {
+        for (int y = 0; y < GRID_SIZE; ++y) {
+            for (int z = 0; z < GRID_SIZE; ++z) {
+                grid[x][y][z].reserve(entitiesPerCell);
+            }
+        }
+    }
+}
+
+size_t Chunk::CollisionSpatialGrid::getOccupiedCellCount() const {
+    size_t count = 0;
+    for (int x = 0; x < GRID_SIZE; ++x) {
+        for (int y = 0; y < GRID_SIZE; ++y) {
+            for (int z = 0; z < GRID_SIZE; ++z) {
+                if (!grid[x][y][z].empty()) {
+                    count++;
+                }
+            }
+        }
+    }
+    return count;
+}
+
+bool Chunk::CollisionSpatialGrid::validateGrid() const {
+    size_t actualTotal = 0, actualCubes = 0, actualSubcubes = 0;
+    
+    for (int x = 0; x < GRID_SIZE; ++x) {
+        for (int y = 0; y < GRID_SIZE; ++y) {
+            for (int z = 0; z < GRID_SIZE; ++z) {
+                const auto& cell = grid[x][y][z];
+                actualTotal += cell.size();
+                for (const auto& entity : cell) {
+                    if (entity->isCube()) {
+                        actualCubes++;
+                    } else {
+                        actualSubcubes++;
+                    }
+                }
+            }
+        }
+    }
+    
+    return (actualTotal == totalEntities && 
+            actualCubes == cubeEntities && 
+            actualSubcubes == subcubeEntities);
+}
+
+void Chunk::CollisionSpatialGrid::debugPrintStats() const {
+    std::cout << "[DEBUG] CollisionSpatialGrid Stats:\n";
+    std::cout << "  Total entities: " << totalEntities << "\n";
+    std::cout << "  Cube entities: " << cubeEntities << "\n";
+    std::cout << "  Subcube entities: " << subcubeEntities << "\n";
+    std::cout << "  Occupied cells: " << getOccupiedCellCount() << "/" << (GRID_SIZE * GRID_SIZE * GRID_SIZE) << "\n";
+    std::cout << "  Average entities per occupied cell: " << 
+        (getOccupiedCellCount() > 0 ? (double)totalEntities / getOccupiedCellCount() : 0.0) << "\n";
 }
 
 void Chunk::initialize(VkDevice dev, VkPhysicalDevice physDev) {
@@ -192,7 +331,7 @@ bool Chunk::removeCube(const glm::ivec3& localPos) {
     removeFromVoxelMaps(localPos);
     
     // IMPROVED: Remove collision shape with proper memory management
-    fastRemoveCollisionAt(localPos);
+    removeCollisionEntities(localPos);
     
     // CRITICAL: Update collision shapes of neighboring cubes that might now be exposed
     updateNeighborCollisionShapes(localPos);
@@ -234,7 +373,7 @@ bool Chunk::addCube(const glm::ivec3& localPos, const glm::vec3& color) {
     setDirty(true);
     
     // IMPROVED: Add collision shape with reference counting
-    fastAddCollisionAt(localPos);
+    addCollisionEntity(localPos);
     
     // CRITICAL: Only update neighbors during individual operations, not bulk loading
     if (!isInBulkOperation) {
@@ -1054,7 +1193,7 @@ bool Chunk::addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos
     addSubcubeToMaps(parentPos, subcubePos, newSubcube);
     
     // IMPROVED: Update collision shape with memory safety
-    fastAddCollisionAt(parentPos);
+    addCollisionEntity(parentPos);
     
     // Mark for update and as dirty for database persistence
     needsUpdate = true;
@@ -1085,7 +1224,7 @@ bool Chunk::removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcube
                 std::cout << "[COLLISION] No subcubes remain at parent pos (" 
                           << parentPos.x << "," << parentPos.y << "," << parentPos.z 
                           << ") - removing collision shape" << std::endl;
-                fastRemoveCollisionAt(parentPos);
+                removeCollisionEntities(parentPos);
                 
                 // ARCHITECTURAL CHANGE: Do NOT restore parent cube - leave position empty
                 // The parent cube was deleted during subdivision, so position should become empty
@@ -1100,8 +1239,8 @@ bool Chunk::removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcube
                           << parentPos.x << "," << parentPos.y << "," << parentPos.z 
                           << ") - updating collision shape" << std::endl;
                 // Remove old shape and add new one to reflect current subcube configuration
-                fastRemoveCollisionAt(parentPos);
-                fastAddCollisionAt(parentPos);
+                removeCollisionEntities(parentPos);
+                addCollisionEntity(parentPos);
                 
                 // CRITICAL: Ensure voxelTypeMap shows SUBDIVIDED since subcubes remain
                 voxelTypeMap[parentPos] = VoxelLocation::SUBDIVIDED;
@@ -1366,12 +1505,7 @@ void Chunk::createChunkPhysicsBody() {
     chunkCollisionShape = chunkCompound;
     
     // Clear existing collision tracking (in case of rebuild) - shapes auto-delete with shared_ptr
-    cubeCollisionMap.clear();
-    subcubeCollisionMap.clear();
-    subcubeGroupPositions.clear();
-    debugCollisionShapeCount = 0;
-    debugCubeShapeCount = 0;
-    debugSubcubeShapeCount = 0;
+    collisionGrid.clear();
     
     // IMPROVED: Build collision shapes with reference-counted tracking
     buildInitialCollisionShapes();
@@ -1386,9 +1520,9 @@ void Chunk::createChunkPhysicsBody() {
     
     physicsWorld->getWorld()->addRigidBody(chunkPhysicsBody);
     
-    std::cout << "[CHUNK] Improved compound collision shape created with " << debugCollisionShapeCount 
-              << " tracked collision shapes (" << debugCubeShapeCount << " cubes, " 
-              << debugSubcubeShapeCount << " subcubes)" << std::endl;
+    std::cout << "[CHUNK] Spatial collision system initialized with " << collisionGrid.getTotalEntityCount() 
+              << " tracked entities (" << collisionGrid.getCubeEntityCount() << " cubes, " 
+              << collisionGrid.getSubcubeEntityCount() << " subcubes)" << std::endl;
 }
 
 void Chunk::updateChunkPhysicsBody() {
@@ -1416,9 +1550,9 @@ void Chunk::updateChunkPhysicsBody() {
             dynamicsWorld->updateSingleAabb(chunkPhysicsBody);
         }
         
-        std::cout << "[INCREMENTAL] Improved collision updates complete with physics sync - maintaining " 
-                  << debugCollisionShapeCount << " collision shapes (" << debugCubeShapeCount 
-                  << " cubes, " << debugSubcubeShapeCount << " subcubes)" << std::endl;
+        std::cout << "[INCREMENTAL] Spatial collision updates complete with physics sync - maintaining " 
+                  << collisionGrid.getTotalEntityCount() << " entities (" << collisionGrid.getCubeEntityCount() 
+                  << " cubes, " << collisionGrid.getSubcubeEntityCount() << " subcubes)" << std::endl;
     } else {
         std::cout << "[INCREMENTAL] No collision updates needed" << std::endl;
     }
@@ -1446,19 +1580,16 @@ void Chunk::forcePhysicsRebuild() {
 }
 
 void Chunk::cleanupPhysicsResources() {
-    // Clean up improved collision tracking system - shapes auto-delete when reference count reaches zero
-    std::cout << "[COLLISION CLEANUP] Before cleanup: " << debugCollisionShapeCount << " total shapes ("
-              << debugCubeShapeCount << " cubes, " << debugSubcubeShapeCount << " subcubes)" << std::endl;
+    // Clean up spatial collision grid - entities auto-delete when shared_ptrs are destroyed
+    std::cout << "[COLLISION CLEANUP] Before cleanup: " << collisionGrid.getTotalEntityCount() << " total entities ("
+              << collisionGrid.getCubeEntityCount() << " cubes, " << collisionGrid.getSubcubeEntityCount() << " subcubes)" << std::endl;
     
-    cubeCollisionMap.clear();
-    subcubeCollisionMap.clear();
-    subcubeGroupPositions.clear();
+    // Clear spatial grid - O(1) operation that releases all entity references
+    collisionGrid.clear();
     collisionNeedsUpdate = false;
     
-    // Reset debug counters
-    debugCollisionShapeCount = 0;
-    debugCubeShapeCount = 0;
-    debugSubcubeShapeCount = 0;
+    std::cout << "[COLLISION CLEANUP] After cleanup: " << collisionGrid.getTotalEntityCount() << " total entities ("
+              << collisionGrid.getCubeEntityCount() << " cubes, " << collisionGrid.getSubcubeEntityCount() << " subcubes)" << std::endl;
     
     if (chunkPhysicsBody) {
         std::cout << "[CHUNK] Cleaning up chunk physics body" << std::endl;
@@ -1474,13 +1605,13 @@ void Chunk::cleanupPhysicsResources() {
 // IMPROVED collision system - memory-safe reference-counted shapes with individual subcube tracking
 // This method replaces the old system that used nullptr placeholders and geometric distance heuristics
 // Now provides proper individual tracking for each collision shape with automatic memory management
-void Chunk::fastAddCollisionAt(const glm::ivec3& localPos) {
+void Chunk::addCollisionEntity(const glm::ivec3& localPos) {
     if (!chunkCollisionShape) return;
     
     btCompoundShape* compound = static_cast<btCompoundShape*>(chunkCollisionShape);
     
-    // Remove any existing collision shapes at this position first
-    fastRemoveCollisionAt(localPos);
+    // Remove any existing collision entities at this position first
+    removeCollisionEntities(localPos);
     
     // Check for regular cube first
     const Cube* cube = getCubeAt(localPos);
@@ -1494,27 +1625,25 @@ void Chunk::fastAddCollisionAt(const glm::ivec3& localPos) {
         transform.setOrigin(btVector3(shapeCenter.x, shapeCenter.y, shapeCenter.z));
         compound->addChildShape(transform, boxShape);
         
-        // Track with reference counting - shape is now managed by compound
-        auto shapeInfo = std::make_shared<CollisionShapeInfo>(boxShape, CollisionShapeInfo::CUBE);
-        shapeInfo->isInCompound = true; // Shape is now owned by Bullet compound
-        cubeCollisionMap[localPos] = shapeInfo;
+        // Create collision entity with spatial tracking
+        auto entity = std::make_shared<CollisionEntity>(boxShape, CollisionEntity::CUBE, shapeCenter);
+        entity->isInCompound = true; // Shape is now owned by Bullet compound
         
-        // Update debug counters
-        debugCollisionShapeCount++;
-        debugCubeShapeCount++;
+        // Add to spatial grid - O(1) operation
+        collisionGrid.addEntity(localPos, entity);
         
-        std::cout << "[COLLISION] Added cube collision at (" 
+        std::cout << "[COLLISION] Added cube entity at (" 
                   << localPos.x << "," << localPos.y << "," << localPos.z 
-                  << ") - Total shapes: " << debugCollisionShapeCount << std::endl;
+                  << ") - Total entities: " << collisionGrid.getTotalEntityCount() << std::endl;
         
     } else {
         // Check for subcubes at this position
         auto subcubes = getStaticSubcubesAt(localPos);
         if (!subcubes.empty()) {
             std::cout << "[COLLISION] Creating " << subcubes.size() 
-                      << " subcube collision shapes at (" << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
+                      << " subcube entities at (" << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
             
-            // Create collision shape for EACH subcube with individual tracking
+            // Create collision entity for EACH subcube with individual tracking
             for (const Subcube* subcube : subcubes) {
                 // Calculate subcube center position
                 glm::vec3 subcubeLocalOffset = glm::vec3(subcube->getLocalPosition()) - glm::vec3(1.0f); // Convert from 0-2 to -1 to +1
@@ -1529,115 +1658,68 @@ void Chunk::fastAddCollisionAt(const glm::ivec3& localPos) {
                 transform.setOrigin(btVector3(subcubeCenter.x, subcubeCenter.y, subcubeCenter.z));
                 compound->addChildShape(transform, subcubeShape);
                 
-                // Track individual subcube with reference counting - shape is now managed by compound
-                SubcubeCollisionKey key{localPos, subcube->getLocalPosition()};
-                auto shapeInfo = std::make_shared<CollisionShapeInfo>(subcubeShape, CollisionShapeInfo::SUBCUBE);
-                shapeInfo->isInCompound = true; // Shape is now owned by Bullet compound
-                subcubeCollisionMap[key] = shapeInfo;
+                // Create collision entity with spatial and hierarchy data
+                auto entity = std::make_shared<CollisionEntity>(subcubeShape, CollisionEntity::SUBCUBE, subcubeCenter, 1.0f/6.0f);
+                entity->isInCompound = true; // Shape is now owned by Bullet compound
+                entity->parentChunkPos = localPos;
+                entity->subcubeLocalPos = subcube->getLocalPosition();
                 
-                // Update debug counters
-                debugCollisionShapeCount++;
-                debugSubcubeShapeCount++;
+                // Add to spatial grid - O(1) operation
+                collisionGrid.addEntity(localPos, entity);
                 
-                std::cout << "[COLLISION] Added subcube collision at local (" 
+                std::cout << "[COLLISION] Added subcube entity at local (" 
                           << subcube->getLocalPosition().x << "," << subcube->getLocalPosition().y << "," << subcube->getLocalPosition().z 
                           << ") center (" << subcubeCenter.x << "," << subcubeCenter.y << "," << subcubeCenter.z << ")" << std::endl;
             }
-            
-            // Mark this position as having subcube groups (performance optimization)
-            subcubeGroupPositions.insert(localPos);
         }
     }
 }
 
-void Chunk::fastRemoveCollisionAt(const glm::ivec3& localPos) {
+void Chunk::removeCollisionEntities(const glm::ivec3& localPos) {
     if (!chunkCollisionShape) return;
     
     btCompoundShape* compound = static_cast<btCompoundShape*>(chunkCollisionShape);
     
-    // Check for cube collision shape first
-    auto cubeIt = cubeCollisionMap.find(localPos);
-    if (cubeIt != cubeCollisionMap.end()) {
-        // Remove cube collision shape from compound
-        btCollisionShape* shapeToRemove = cubeIt->second->shape;
+    // Get all entities at this position - O(1) operation
+    auto& entities = collisionGrid.getEntitiesAt(localPos);
+    if (entities.empty()) return;
+    
+    std::cout << "[COLLISION] Removing " << entities.size() 
+              << " collision entities at (" << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
+    
+    // Remove each entity from the compound shape
+    for (auto& entity : entities) {
+        btCollisionShape* shapeToRemove = entity->shape;
         bool shapeRemoved = false;
         
+        // Remove from compound shape
         for (int i = compound->getNumChildShapes() - 1; i >= 0; i--) {
             if (compound->getChildShape(i) == shapeToRemove) {
                 compound->removeChildShapeByIndex(i);
                 shapeRemoved = true;
-                std::cout << "[COLLISION] Removed cube collision shape at (" 
-                          << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
+                
+                if (entity->isCube()) {
+                    std::cout << "[COLLISION] Removed cube entity at (" 
+                              << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
+                } else {
+                    std::cout << "[COLLISION] Removed subcube entity at local (" 
+                              << entity->subcubeLocalPos.x << "," << entity->subcubeLocalPos.y << "," << entity->subcubeLocalPos.z << ")" << std::endl;
+                }
                 break;
             }
         }
         
         if (shapeRemoved) {
             // Mark shape as no longer in compound so it can be safely deleted
-            cubeIt->second->isInCompound = false;
+            entity->isInCompound = false;
             // Manually delete the shape now since we removed it from compound
-            delete cubeIt->second->shape;
-            cubeIt->second->shape = nullptr;
+            delete entity->shape;
+            entity->shape = nullptr;
         }
-        
-        // Remove from tracking
-        cubeCollisionMap.erase(cubeIt);
-        debugCollisionShapeCount--;
-        debugCubeShapeCount--;
     }
     
-    // Check for subcube collision shapes at this position
-    if (subcubeGroupPositions.count(localPos)) {
-        std::vector<SubcubeCollisionKey> subcubesToRemove;
-        
-        // Find all subcubes at this parent position
-        for (auto it = subcubeCollisionMap.begin(); it != subcubeCollisionMap.end(); ++it) {
-            if (it->first.parentPos == localPos) {
-                subcubesToRemove.push_back(it->first);
-            }
-        }
-        
-        std::cout << "[COLLISION] Removing " << subcubesToRemove.size() 
-                  << " subcube collision shapes at (" << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
-        
-        // Remove each subcube collision shape
-        for (const auto& key : subcubesToRemove) {
-            auto subcubeIt = subcubeCollisionMap.find(key);
-            if (subcubeIt != subcubeCollisionMap.end()) {
-                btCollisionShape* shapeToRemove = subcubeIt->second->shape;
-                bool shapeRemoved = false;
-                
-                // Remove from compound shape
-                for (int i = compound->getNumChildShapes() - 1; i >= 0; i--) {
-                    if (compound->getChildShape(i) == shapeToRemove) {
-                        compound->removeChildShapeByIndex(i);
-                        shapeRemoved = true;
-                        std::cout << "[COLLISION] Removed subcube collision shape at local (" 
-                                  << key.subcubePos.x << "," << key.subcubePos.y << "," << key.subcubePos.z << ")" << std::endl;
-                        break;
-                    }
-                }
-                
-                if (shapeRemoved) {
-                    // Mark shape as no longer in compound so it can be safely deleted
-                    subcubeIt->second->isInCompound = false;
-                    // Manually delete the shape now since we removed it from compound
-                    delete subcubeIt->second->shape;
-                    subcubeIt->second->shape = nullptr;
-                }
-                
-                // Remove from tracking
-                subcubeCollisionMap.erase(subcubeIt);
-                debugCollisionShapeCount--;
-                debugSubcubeShapeCount--;
-            }
-        }
-        
-        // Remove from subcube group tracking if no more subcubes at this position
-        if (subcubesToRemove.size() > 0) {
-            subcubeGroupPositions.erase(localPos);
-        }
-    }
+    // Remove all entities from spatial grid - O(1) operation
+    collisionGrid.removeAllAt(localPos);
     
     // CRITICAL: Immediately update collision geometry after removal
     if (chunkPhysicsBody) {
@@ -1651,15 +1733,15 @@ void Chunk::fastRemoveCollisionAt(const glm::ivec3& localPos) {
         }
     }
     
-    std::cout << "[COLLISION] Total collision shapes remaining: " << debugCollisionShapeCount 
-              << " (" << debugCubeShapeCount << " cubes, " << debugSubcubeShapeCount << " subcubes)" << std::endl;
+    std::cout << "[COLLISION] Total collision entities remaining: " << collisionGrid.getTotalEntityCount() 
+              << " (" << collisionGrid.getCubeEntityCount() << " cubes, " << collisionGrid.getSubcubeEntityCount() << " subcubes)" << std::endl;
 }
 
 void Chunk::batchUpdateCollisions() {
     if (!collisionNeedsUpdate) return;
     
     // Only rebuild if we don't have any collision shapes yet
-    if (cubeCollisionMap.empty() && subcubeCollisionMap.empty() && chunkCollisionShape) {
+    if (collisionGrid.getTotalEntityCount() == 0 && chunkCollisionShape) {
         buildInitialCollisionShapes();
     }
     
@@ -1701,20 +1783,17 @@ void Chunk::buildInitialCollisionShapes() {
     btCompoundShape* compound = static_cast<btCompoundShape*>(chunkCollisionShape);
     if (!compound) return;
     
-    // Clear existing tracking - shapes auto-delete when shared_ptrs are destroyed
-    cubeCollisionMap.clear();
-    subcubeCollisionMap.clear();
-    subcubeGroupPositions.clear();
-    
-    // Reset debug counters
-    debugCollisionShapeCount = 0;
-    debugCubeShapeCount = 0;
-    debugSubcubeShapeCount = 0;
+    // Clear existing spatial grid - shapes auto-delete when entities are destroyed
+    collisionGrid.clear();
     
     // Remove all existing children from compound shape
     while (compound->getNumChildShapes() > 0) {
         compound->removeChildShapeByIndex(0);
     }
+    
+    // Reserve space for expected entities
+    size_t expectedEntities = cubes.size() + staticSubcubes.size();
+    collisionGrid.reserve(expectedEntities);
     
     // Build collision shapes for visible cubes that have exposed faces
     for (size_t i = 0; i < cubes.size(); ++i) {
@@ -1739,13 +1818,12 @@ void Chunk::buildInitialCollisionShapes() {
             
             compound->addChildShape(transform, boxShape);
             
-            // Track with reference counting - shape is now managed by compound
-            auto shapeInfo = std::make_shared<CollisionShapeInfo>(boxShape, CollisionShapeInfo::CUBE);
-            shapeInfo->isInCompound = true; // Shape is now owned by Bullet compound
-            cubeCollisionMap[localPos] = shapeInfo;
+            // Create collision entity with spatial tracking
+            auto entity = std::make_shared<CollisionEntity>(boxShape, CollisionEntity::CUBE, cubeCenter);
+            entity->isInCompound = true; // Shape is now owned by Bullet compound
             
-            debugCollisionShapeCount++;
-            debugCubeShapeCount++;
+            // Add to spatial grid - O(1) operation
+            collisionGrid.addEntity(localPos, entity);
         }
     }
     
@@ -1782,21 +1860,18 @@ void Chunk::buildInitialCollisionShapes() {
         
         compound->addChildShape(transform, boxShape);
         
-        // Track individual subcube with reference counting - shape is now managed by compound
-        SubcubeCollisionKey key{parentLocalPos, localPos};
-        auto shapeInfo = std::make_shared<CollisionShapeInfo>(boxShape, CollisionShapeInfo::SUBCUBE);
-        shapeInfo->isInCompound = true; // Shape is now owned by Bullet compound
-        subcubeCollisionMap[key] = shapeInfo;
+        // Create collision entity with spatial and hierarchy data
+        auto entity = std::make_shared<CollisionEntity>(boxShape, CollisionEntity::SUBCUBE, subcubeCenter, 1.0f/6.0f);
+        entity->isInCompound = true; // Shape is now owned by Bullet compound
+        entity->parentChunkPos = parentLocalPos;
+        entity->subcubeLocalPos = localPos;
         
-        // Mark position as having subcube group
-        subcubeGroupPositions.insert(parentLocalPos);
-        
-        debugCollisionShapeCount++;
-        debugSubcubeShapeCount++;
+        // Add to spatial grid - O(1) operation
+        collisionGrid.addEntity(parentLocalPos, entity);
     }
     
-    std::cout << "[COLLISION] Built " << debugCollisionShapeCount << " initial collision shapes ("
-              << debugCubeShapeCount << " cubes, " << debugSubcubeShapeCount << " subcubes) with improved memory management" << std::endl;
+    std::cout << "[COLLISION] Built " << collisionGrid.getTotalEntityCount() << " initial collision entities ("
+              << collisionGrid.getCubeEntityCount() << " cubes, " << collisionGrid.getSubcubeEntityCount() << " subcubes) with spatial grid optimization" << std::endl;
 }
 
 void Chunk::updateNeighborCollisionShapes(const glm::ivec3& localPos) {
@@ -1827,18 +1902,17 @@ void Chunk::updateNeighborCollisionShapes(const glm::ivec3& localPos) {
         }
         
         // Check if this neighbor now has exposed faces (due to the removal)
-        bool hadCollisionShape = (cubeCollisionMap.find(neighborPos) != cubeCollisionMap.end()) || 
-                                 (subcubeGroupPositions.count(neighborPos) > 0);
+        bool hadCollisionShape = !collisionGrid.getEntitiesAt(neighborPos).empty();
         bool shouldHaveCollisionShape = hasExposedFaces(neighborPos);
         
         if (!hadCollisionShape && shouldHaveCollisionShape) {
             // Neighbor cube is now exposed - add collision shape
-            fastAddCollisionAt(neighborPos);
+            addCollisionEntity(neighborPos);
             std::cout << "[NEIGHBOR] Added collision shape for newly exposed cube at (" 
                       << neighborPos.x << "," << neighborPos.y << "," << neighborPos.z << ")" << std::endl;
         } else if (hadCollisionShape && !shouldHaveCollisionShape) {
             // Neighbor cube is no longer exposed (shouldn't happen when removing, but handle it)
-            fastRemoveCollisionAt(neighborPos);
+            removeCollisionEntities(neighborPos);
             std::cout << "[NEIGHBOR] Removed collision shape for no longer exposed cube at (" 
                       << neighborPos.x << "," << neighborPos.y << "," << neighborPos.z << ")" << std::endl;
         }
@@ -1967,9 +2041,9 @@ std::vector<Chunk::CollisionBox> Chunk::generateMergedCollisionBoxes() {
 }
 
 // DEBUG: Collision shape validation and debugging methods
-// Validates consistency between Bullet compound shapes and our tracking data structures
-// Helps detect memory management issues and tracking inconsistencies
-void Chunk::validateCollisionShapes() const {
+// Validates consistency between Bullet compound shapes and spatial grid tracking
+// Helps detect memory management issues and spatial grid inconsistencies
+void Chunk::validateCollisionSystem() const {
     if (!chunkCollisionShape) {
         std::cout << "[COLLISION VALIDATION] No compound collision shape exists" << std::endl;
         return;
@@ -1980,60 +2054,76 @@ void Chunk::validateCollisionShapes() const {
     
     std::cout << "[COLLISION VALIDATION] Chunk at (" << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z << ")" << std::endl;
     std::cout << "  Compound shape has " << actualShapeCount << " child shapes" << std::endl;
-    std::cout << "  Tracking " << cubeCollisionMap.size() << " cube shapes" << std::endl;
-    std::cout << "  Tracking " << subcubeCollisionMap.size() << " subcube shapes" << std::endl;
-    std::cout << "  Debug counters: " << debugCollisionShapeCount << " total ("
-              << debugCubeShapeCount << " cubes, " << debugSubcubeShapeCount << " subcubes)" << std::endl;
+    std::cout << "  Spatial grid tracking " << collisionGrid.getTotalEntityCount() << " entities" << std::endl;
+    std::cout << "  Grid breakdown: " << collisionGrid.getCubeEntityCount() << " cubes, " 
+              << collisionGrid.getSubcubeEntityCount() << " subcubes" << std::endl;
+    std::cout << "  Occupied cells: " << collisionGrid.getOccupiedCellCount() << "/" 
+              << (CollisionSpatialGrid::GRID_SIZE * CollisionSpatialGrid::GRID_SIZE * CollisionSpatialGrid::GRID_SIZE) << std::endl;
     
     // Validate that tracked count matches compound shape count
-    size_t expectedShapeCount = cubeCollisionMap.size() + subcubeCollisionMap.size();
+    size_t expectedShapeCount = collisionGrid.getTotalEntityCount();
     if (expectedShapeCount != static_cast<size_t>(actualShapeCount)) {
         std::cout << "[COLLISION ERROR] Shape count mismatch! Expected: " << expectedShapeCount 
                   << ", Actual: " << actualShapeCount << std::endl;
     }
     
-    if (debugCollisionShapeCount != expectedShapeCount) {
-        std::cout << "[COLLISION ERROR] Debug counter mismatch! Counter: " << debugCollisionShapeCount 
-                  << ", Tracked: " << expectedShapeCount << std::endl;
-    }
-    
-    // Validate subcube group positions
-    std::cout << "  Subcube group positions: " << subcubeGroupPositions.size() << std::endl;
-    for (const auto& pos : subcubeGroupPositions) {
-        int subcubeCount = 0;
-        for (const auto& pair : subcubeCollisionMap) {
-            if (pair.first.parentPos == pos) {
-                subcubeCount++;
-            }
-        }
-        std::cout << "    Position (" << pos.x << "," << pos.y << "," << pos.z << ") has " << subcubeCount << " subcubes" << std::endl;
+    // Validate spatial grid internal consistency
+    if (!collisionGrid.validateGrid()) {
+        std::cout << "[COLLISION ERROR] Spatial grid internal validation failed!" << std::endl;
+    } else {
+        std::cout << "  Spatial grid validation: PASSED" << std::endl;
     }
 }
 
-void Chunk::debugLogCollisionShapes() const {
-    std::cout << "[COLLISION DEBUG] Detailed collision shape information:" << std::endl;
+void Chunk::debugLogSpatialGrid() const {
+    std::cout << "[COLLISION DEBUG] Spatial grid detailed information:" << std::endl;
     std::cout << "  Chunk origin: (" << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z << ")" << std::endl;
     
-    // Log cube collision shapes
-    std::cout << "  Cube collision shapes (" << cubeCollisionMap.size() << "):" << std::endl;
-    for (const auto& pair : cubeCollisionMap) {
-        const glm::ivec3& pos = pair.first;
-        const auto& shapeInfo = pair.second;
-        std::cout << "    Cube at (" << pos.x << "," << pos.y << "," << pos.z 
-                  << ") - Shape: " << shapeInfo->shape 
-                  << ", Refs: " << shapeInfo.use_count() << std::endl;
-    }
+    // Print spatial grid statistics
+    collisionGrid.debugPrintStats();
     
-    // Log subcube collision shapes
-    std::cout << "  Subcube collision shapes (" << subcubeCollisionMap.size() << "):" << std::endl;
-    for (const auto& pair : subcubeCollisionMap) {
-        const SubcubeCollisionKey& key = pair.first;
-        const auto& shapeInfo = pair.second;
-        std::cout << "    Subcube at parent (" << key.parentPos.x << "," << key.parentPos.y << "," << key.parentPos.z 
-                  << ") local (" << key.subcubePos.x << "," << key.subcubePos.y << "," << key.subcubePos.z 
-                  << ") - Shape: " << shapeInfo->shape 
-                  << ", Refs: " << shapeInfo.use_count() << std::endl;
+    // Log entities by occupied positions
+    std::cout << "  Entity details by position:" << std::endl;
+    for (int x = 0; x < CollisionSpatialGrid::GRID_SIZE; ++x) {
+        for (int y = 0; y < CollisionSpatialGrid::GRID_SIZE; ++y) {
+            for (int z = 0; z < CollisionSpatialGrid::GRID_SIZE; ++z) {
+                glm::ivec3 pos(x, y, z);
+                const auto& entities = collisionGrid.getEntitiesAt(pos);
+                if (!entities.empty()) {
+                    std::cout << "    Position (" << x << "," << y << "," << z << ") has " << entities.size() << " entities:" << std::endl;
+                    for (size_t i = 0; i < entities.size(); ++i) {
+                        const auto& entity = entities[i];
+                        if (entity->isCube()) {
+                            std::cout << "      [" << i << "] Cube - Shape: " << entity->shape 
+                                      << ", Center: (" << entity->worldCenter.x << "," << entity->worldCenter.y << "," << entity->worldCenter.z
+                                      << "), Refs: " << entity.use_count() << std::endl;
+                        } else {
+                            std::cout << "      [" << i << "] Subcube - Shape: " << entity->shape 
+                                      << ", Center: (" << entity->worldCenter.x << "," << entity->worldCenter.y << "," << entity->worldCenter.z
+                                      << "), Local: (" << entity->subcubeLocalPos.x << "," << entity->subcubeLocalPos.y << "," << entity->subcubeLocalPos.z
+                                      << "), Refs: " << entity.use_count() << std::endl;
+                        }
+                    }
+                }
+            }
+        }
     }
+}
+
+size_t Chunk::getCollisionEntityCount() const {
+    return collisionGrid.getTotalEntityCount();
+}
+
+size_t Chunk::getCubeEntityCount() const {
+    return collisionGrid.getCubeEntityCount();
+}
+
+size_t Chunk::getSubcubeEntityCount() const {
+    return collisionGrid.getSubcubeEntityCount();
+}
+
+void Chunk::debugPrintSpatialGridStats() const {
+    collisionGrid.debugPrintStats();
 }
 
 } // namespace VulkanCube

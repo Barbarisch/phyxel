@@ -63,54 +63,79 @@ private:
     bool isDirty = false;                          // Track if chunk has been modified since last save
     mutable btTriangleMesh* chunkTriangleMesh = nullptr; // For BVH triangle mesh shape (option B)
     
-    // IMPROVED: Reference-counted collision shape management system
-    // Prevents double-deletion crashes and enables individual subcube tracking
-    struct CollisionShapeInfo {
+    // UNIFIED SPATIAL COLLISION SYSTEM - O(1) operations with spatial optimization
+    // Replaces hash map-based system with spatial grid for better performance and simpler architecture
+    struct CollisionEntity {
         btCollisionShape* shape;
         enum Type { CUBE, SUBCUBE } type;
-        bool isInCompound; // Track if shape is currently managed by Bullet compound shape
+        bool isInCompound;                    // Track if shape is managed by Bullet compound
         
-        CollisionShapeInfo(btCollisionShape* s, Type t) : shape(s), type(t), isInCompound(false) {}
-        ~CollisionShapeInfo() { 
-            // Only delete if not in compound shape (Bullet manages compound children lifetime)
-            if (!isInCompound && shape) {
-                delete shape;
-                shape = nullptr;
-            }
-        }
-    };
-    
-    // Individual subcube collision tracking key - enables precise subcube collision management
-    // Replaces the old geometric distance-based heuristic approach with exact tracking
-    struct SubcubeCollisionKey {
-        glm::ivec3 parentPos;   // Parent cube position within chunk (0-31 range)
-        glm::ivec3 subcubePos;  // Subcube position within parent (0-2 range)
+        // Spatial data for optimization
+        glm::vec3 worldCenter;                // World-space center position
+        float boundingRadius;                 // Bounding radius for spatial queries
         
-        bool operator==(const SubcubeCollisionKey& other) const {
-            return parentPos == other.parentPos && subcubePos == other.subcubePos;
+        // Hierarchy data (for subcubes only)
+        glm::ivec3 parentChunkPos;           // Parent position within chunk (0-31 range)
+        glm::ivec3 subcubeLocalPos;          // Local position within parent (0-2 range)
+        
+        CollisionEntity(btCollisionShape* s, Type t, const glm::vec3& center, float radius = 0.5f);
+        ~CollisionEntity();
+        
+        // Utility methods
+        bool isSubcube() const { return type == SUBCUBE; }
+        bool isCube() const { return type == CUBE; }
+    };
+    
+    // Spatial grid for O(1) collision entity management
+    class CollisionSpatialGrid {
+    public:
+        static constexpr int GRID_SIZE = 32;  // Match chunk dimensions (32x32x32)
+        static constexpr size_t MAX_ENTITIES_PER_CELL = 27;  // Max subcubes per position
+        
+        // Core operations - all O(1) or O(k) where k is entities per cell (≤27)
+        void addEntity(const glm::ivec3& gridPos, std::shared_ptr<CollisionEntity> entity);
+        void removeEntity(const glm::ivec3& gridPos, std::shared_ptr<CollisionEntity> entity);
+        void removeAllAt(const glm::ivec3& gridPos);
+        std::vector<std::shared_ptr<CollisionEntity>>& getEntitiesAt(const glm::ivec3& gridPos);
+        const std::vector<std::shared_ptr<CollisionEntity>>& getEntitiesAt(const glm::ivec3& gridPos) const;
+        
+        // Batch operations
+        void clear();
+        void reserve(size_t expectedEntities);
+        
+        // Performance metrics and debugging
+        size_t getTotalEntityCount() const { return totalEntities; }
+        size_t getCubeEntityCount() const { return cubeEntities; }
+        size_t getSubcubeEntityCount() const { return subcubeEntities; }
+        size_t getOccupiedCellCount() const;
+        
+        // Validation
+        bool validateGrid() const;
+        void debugPrintStats() const;
+        
+    private:
+        // 3D spatial grid - each cell contains entities at that position
+        std::vector<std::shared_ptr<CollisionEntity>> grid[GRID_SIZE][GRID_SIZE][GRID_SIZE];
+        
+        // Performance counters
+        mutable size_t totalEntities = 0;
+        mutable size_t cubeEntities = 0;
+        mutable size_t subcubeEntities = 0;
+        
+        // Bounds checking
+        bool isValidGridPosition(const glm::ivec3& pos) const {
+            return pos.x >= 0 && pos.x < GRID_SIZE &&
+                   pos.y >= 0 && pos.y < GRID_SIZE &&
+                   pos.z >= 0 && pos.z < GRID_SIZE;
         }
     };
     
-    // Hash function for SubcubeCollisionKey
-    struct SubcubeCollisionKeyHash {
-        std::size_t operator()(const SubcubeCollisionKey& key) const {
-            return IVec3Hash{}(key.parentPos) ^ (IVec3Hash{}(key.subcubePos) << 1);
-        }
-    };
-    
-    // IMPROVED collision system - reference-counted shapes with proper subcube tracking
-    // Memory-safe collision management with individual subcube tracking and automatic cleanup
-    std::unordered_map<glm::ivec3, std::shared_ptr<CollisionShapeInfo>, IVec3Hash> cubeCollisionMap; // Track cube collision shapes with reference counting
-    std::unordered_map<SubcubeCollisionKey, std::shared_ptr<CollisionShapeInfo>, SubcubeCollisionKeyHash> subcubeCollisionMap; // Track individual subcube collision shapes
-    std::unordered_set<glm::ivec3, IVec3Hash> subcubeGroupPositions; // Performance optimization: track positions with subcube groups for fast lookup
+    // Replace multiple hash maps with single spatial grid
+    CollisionSpatialGrid collisionGrid;
     mutable bool collisionNeedsUpdate = false;                       // Flag for batch collision updates
     bool isInBulkOperation = false;                                   // Flag to prevent neighbor updates during bulk loading operations
     
-    // DEBUG: Collision shape tracking and validation
-    // These counters provide O(1) shape count tracking without expensive map iterations
-    mutable size_t debugCollisionShapeCount = 0;                     // Track total collision shapes for debugging
-    mutable size_t debugCubeShapeCount = 0;                          // Track cube collision shapes
-    mutable size_t debugSubcubeShapeCount = 0;                       // Track subcube collision shapes
+    // DEBUG: Spatial grid provides O(1) collision tracking and comprehensive metrics
     
     /*
      * COLLISION SYSTEM IMPROVEMENTS SUMMARY:
@@ -248,21 +273,22 @@ public:
     void cleanupPhysicsResources();                   // Clean up physics bodies
     class btRigidBody* getChunkPhysicsBody() const { return chunkPhysicsBody; }
     
-    // IMPROVED collision system - memory-safe reference-counted shapes with individual subcube tracking
-    void fastAddCollisionAt(const glm::ivec3& localPos);       // Add collision shapes with automatic memory management
-    void fastRemoveCollisionAt(const glm::ivec3& localPos);    // Remove collision shapes with proper compound cleanup
-    void batchUpdateCollisions();                              // Process collision changes in batch for performance
-    void buildInitialCollisionShapes();                       // Build initial collision shapes with reference counting
-    bool hasExposedFaces(const glm::ivec3& localPos) const;   // Check if cube has exposed faces (optimization)
+    // UNIFIED SPATIAL COLLISION SYSTEM - O(1) operations with spatial grid optimization
+    void addCollisionEntity(const glm::ivec3& localPos);                       // Add collision entity with spatial tracking
+    void removeCollisionEntities(const glm::ivec3& localPos);          // Remove all collision entities at position (O(1))
+    void batchUpdateCollisions();                                       // Process collision changes in batch for performance
+    void buildInitialCollisionShapes();                               // Build initial collision shapes with spatial grid
+    bool hasExposedFaces(const glm::ivec3& localPos) const;           // Check if cube has exposed faces (optimization)
     
-    // DEBUG: Collision shape validation and debugging infrastructure
-    void validateCollisionShapes() const;                     // Validate collision shape consistency and detect issues
-    void debugLogCollisionShapes() const;                     // Log detailed collision shape information for debugging
-    size_t getDebugCollisionShapeCount() const { return debugCollisionShapeCount; }  // Get total collision shape count
-    size_t getDebugCubeShapeCount() const { return debugCubeShapeCount; }            // Get cube collision shape count
-    size_t getDebugSubcubeShapeCount() const { return debugSubcubeShapeCount; }      // Get subcube collision shape count
-    void updateNeighborCollisionShapes(const glm::ivec3& localPos); // Update collision shapes of neighboring cubes
-    void endBulkOperation();                                   // End bulk loading and update all neighbor collision shapes
+    // ENHANCED DEBUG: Spatial grid debugging and validation infrastructure
+    void validateCollisionSystem() const;                             // Validate spatial grid consistency and detect issues
+    void debugLogSpatialGrid() const;                                 // Log detailed spatial grid information for debugging
+    size_t getCollisionEntityCount() const;                           // Get total collision entity count from spatial grid
+    size_t getCubeEntityCount() const;                                // Get cube collision entity count
+    size_t getSubcubeEntityCount() const;                             // Get subcube collision entity count
+    void debugPrintSpatialGridStats() const;                          // Print comprehensive spatial grid performance statistics
+    void updateNeighborCollisionShapes(const glm::ivec3& localPos);   // Update collision shapes of neighboring cubes
+    void endBulkOperation();                                           // End bulk loading and update all neighbor collision shapes
     
     // Bounding box access for culling
     glm::vec3 getMinBounds() const;
