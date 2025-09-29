@@ -5,6 +5,7 @@
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
+#include <memory>
 #include <vulkan/vulkan.h>
 
 // Bullet Physics forward declarations (global namespace)
@@ -62,10 +63,50 @@ private:
     bool isDirty = false;                          // Track if chunk has been modified since last save
     mutable btTriangleMesh* chunkTriangleMesh = nullptr; // For BVH triangle mesh shape (option B)
     
-    // ULTRA-FAST collision system - minimal bookkeeping, no index tracking
-    std::unordered_map<glm::ivec3, btCollisionShape*, IVec3Hash> collisionShapeMap; // Track shapes for direct removal - O(1) lookup
-    mutable bool collisionNeedsUpdate = false;                                      // Simple flag for batch updates
-    bool isInBulkOperation = false;                                                 // Flag to prevent neighbor updates during bulk loading
+    // NEW: Reference-counted collision shape management system
+    struct CollisionShapeInfo {
+        btCollisionShape* shape;
+        enum Type { CUBE, SUBCUBE } type;
+        bool isInCompound; // Track if shape is currently in compound shape
+        
+        CollisionShapeInfo(btCollisionShape* s, Type t) : shape(s), type(t), isInCompound(false) {}
+        ~CollisionShapeInfo() { 
+            // Only delete if not in compound shape (Bullet manages compound children)
+            if (!isInCompound && shape) {
+                delete shape;
+                shape = nullptr;
+            }
+        }
+    };
+    
+    // Individual subcube collision tracking key
+    struct SubcubeCollisionKey {
+        glm::ivec3 parentPos;
+        glm::ivec3 subcubePos;
+        
+        bool operator==(const SubcubeCollisionKey& other) const {
+            return parentPos == other.parentPos && subcubePos == other.subcubePos;
+        }
+    };
+    
+    // Hash function for SubcubeCollisionKey
+    struct SubcubeCollisionKeyHash {
+        std::size_t operator()(const SubcubeCollisionKey& key) const {
+            return IVec3Hash{}(key.parentPos) ^ (IVec3Hash{}(key.subcubePos) << 1);
+        }
+    };
+    
+    // IMPROVED collision system - reference-counted shapes with proper subcube tracking
+    std::unordered_map<glm::ivec3, std::shared_ptr<CollisionShapeInfo>, IVec3Hash> cubeCollisionMap; // Track cube collision shapes
+    std::unordered_map<SubcubeCollisionKey, std::shared_ptr<CollisionShapeInfo>, SubcubeCollisionKeyHash> subcubeCollisionMap; // Track individual subcube collision shapes
+    std::unordered_set<glm::ivec3, IVec3Hash> subcubeGroupPositions; // Track positions that have subcube groups (performance optimization)
+    mutable bool collisionNeedsUpdate = false;                       // Simple flag for batch updates
+    bool isInBulkOperation = false;                                   // Flag to prevent neighbor updates during bulk loading
+    
+    // DEBUG: Collision shape tracking and validation
+    mutable size_t debugCollisionShapeCount = 0;                     // Track total collision shapes for debugging
+    mutable size_t debugCubeShapeCount = 0;                          // Track cube collision shapes
+    mutable size_t debugSubcubeShapeCount = 0;                       // Track subcube collision shapes
 
 public:
     // Constructor
@@ -189,12 +230,19 @@ public:
     void cleanupPhysicsResources();                   // Clean up physics bodies
     class btRigidBody* getChunkPhysicsBody() const { return chunkPhysicsBody; }
     
-    // ULTRA-FAST collision system - minimal operations
-    void fastAddCollisionAt(const glm::ivec3& localPos);       // Ultra-fast add - no index tracking
-    void fastRemoveCollisionAt(const glm::ivec3& localPos);    // Ultra-fast remove - direct shape removal
+    // IMPROVED collision system - reference-counted shapes with proper subcube tracking
+    void fastAddCollisionAt(const glm::ivec3& localPos);       // Ultra-fast add with reference counting
+    void fastRemoveCollisionAt(const glm::ivec3& localPos);    // Ultra-fast remove with proper cleanup
     void batchUpdateCollisions();                              // Process collision changes in batch
     void buildInitialCollisionShapes();                       // Build initial collision shapes efficiently
     bool hasExposedFaces(const glm::ivec3& localPos) const;   // Check if cube has exposed faces
+    
+    // DEBUG: Collision shape validation and debugging
+    void validateCollisionShapes() const;                     // Validate collision shape consistency
+    void debugLogCollisionShapes() const;                     // Log detailed collision shape information
+    size_t getDebugCollisionShapeCount() const { return debugCollisionShapeCount; }
+    size_t getDebugCubeShapeCount() const { return debugCubeShapeCount; }
+    size_t getDebugSubcubeShapeCount() const { return debugSubcubeShapeCount; }
     void updateNeighborCollisionShapes(const glm::ivec3& localPos); // Update collision shapes of neighboring cubes
     void endBulkOperation();                                   // End bulk loading and update all neighbor collision shapes
     
