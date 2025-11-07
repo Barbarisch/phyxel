@@ -3,6 +3,7 @@
 #include "utils/Math.h"
 #include "utils/PerformanceProfiler.h"
 #include "utils/Frustum.h"
+#include "utils/Logger.h"
 #include "examples/MultiChunkDemo.h"
 #include "core/DynamicCube.h"
 #include "core/Chunk.h"
@@ -65,11 +66,13 @@ Application::~Application() {
 }
 
 bool Application::initialize() {
-    std::cout << "Initializing VulkanCube Application..." << std::endl;
+    // Initialize logging system first
+    Utils::Logger::loadConfig("logging.ini"); // Load config if exists
+    LOG_INFO("Application", "Initializing VulkanCube Application...");
 
     // Initialize window first
     if (!initializeWindow()) {
-        std::cerr << "Failed to initialize window!" << std::endl;
+        LOG_ERROR("Application", "Failed to initialize window!");
         return false;
     }
 
@@ -84,7 +87,7 @@ bool Application::initialize() {
 
     // Initialize subsystems
     if (!initializeVulkan()) {
-        std::cerr << "Failed to initialize Vulkan!" << std::endl;
+        LOG_ERROR("Application", "Failed to initialize Vulkan!");
         return false;
     }
 
@@ -1759,12 +1762,10 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
     if (!location.isValid()) return;
     
     // Debug: Show what type of location we're hovering
-    std::cout << "[HOVER DEBUG] Hovering - isSubcube: " << location.isSubcube 
-              << ", world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z << ")";
-    if (location.isSubcube) {
-        std::cout << ", subcube pos: (" << location.subcubePos.x << "," << location.subcubePos.y << "," << location.subcubePos.z << ")";
-    }
-    std::cout << std::endl;
+    LOG_DEBUG_FMT("HoverDetection", "Hovering - isSubcube: " << location.isSubcube 
+              << ", world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z << ")"
+              << (location.isSubcube ? ", subcube pos: (" + std::to_string(location.subcubePos.x) + "," + 
+                  std::to_string(location.subcubePos.y) + "," + std::to_string(location.subcubePos.z) + ")" : ""));
     
     // Clear previous hover
     clearHoveredCubeInChunksOptimized();
@@ -1784,9 +1785,9 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
         currentHoveredLocation = location;
         hasHoveredCube = true;
         
-        std::cout << "[SUBCUBE HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
+        LOG_DEBUG_FMT("HoverDetection", "Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
                   << ") subcube: (" << location.subcubePos.x << "," << location.subcubePos.y << "," << location.subcubePos.z 
-                  << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
+                  << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")");
         
         // Set hover color (lighten the original color for subtle highlighting)
         glm::vec3 hoverColor = calculateLighterColor(originalHoveredColor);
