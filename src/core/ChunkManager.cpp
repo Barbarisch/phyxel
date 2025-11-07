@@ -2,6 +2,7 @@
 #include "core/Chunk.h"
 #include "core/WorldStorage.h"
 #include "physics/PhysicsWorld.h"
+#include "utils/Logger.h"
 #include <stdexcept>
 #include <cstring>
 #include <random>
@@ -28,19 +29,19 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
 
 void ChunkManager::setPhysicsWorld(Physics::PhysicsWorld* physics) {
     physicsWorld = physics;
-    std::cout << "[CHUNK MANAGER] Physics world set for proper dynamic object cleanup" << std::endl;
+    LOG_INFO("Chunk", "Physics world set for proper dynamic object cleanup");
 }
 
 bool ChunkManager::initializeWorldStorage(const std::string& worldPath) {
     worldStorage = new WorldStorage(worldPath);
     if (!worldStorage->initialize()) {
-        std::cerr << "[CHUNK MANAGER] Failed to initialize world storage at: " << worldPath << std::endl;
+        LOG_ERROR_FMT("Chunk", "Failed to initialize world storage at: " << worldPath);
         delete worldStorage;
         worldStorage = nullptr;
         return false;
     }
     
-    std::cout << "[CHUNK MANAGER] World storage initialized: " << worldPath << std::endl;
+    LOG_INFO_FMT("Chunk", "World storage initialized: " << worldPath);
     return true;
 }
 
@@ -94,7 +95,7 @@ void ChunkManager::unloadDistantChunks(const glm::vec3& position, float radius) 
             
             // Erase chunk from vector
             it = chunks.erase(it);
-            std::cout << "[CHUNK MANAGER] Unloaded distant chunk at: " << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << std::endl;
+            LOG_DEBUG_FMT("Chunk", "Unloaded distant chunk at: " << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z);
         } else {
             ++it;
         }
@@ -116,7 +117,7 @@ bool ChunkManager::saveAllChunks() {
         }
     }
     
-    std::cout << "[CHUNK MANAGER] Saved " << chunks.size() << " chunks to storage" << std::endl;
+    LOG_INFO_FMT("Chunk", "Saved " << chunks.size() << " chunks to storage");
     return allSuccess;
 }
 
@@ -161,7 +162,7 @@ bool ChunkManager::loadChunk(const glm::ivec3& chunkCoord) {
         chunkMap[chunkCoord] = chunk.get();
         chunks.push_back(std::move(chunk));
         
-        std::cout << "[CHUNK MANAGER] Loaded chunk from storage: " << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << std::endl;
+        LOG_DEBUG_FMT("Chunk", "Loaded chunk from storage: " << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z);
         return true;
     }
     
@@ -199,12 +200,12 @@ bool ChunkManager::generateOrLoadChunk(const glm::ivec3& chunkCoord) {
     // Save to storage immediately
     saveChunk(chunks.back().get());
     
-    std::cout << "[CHUNK MANAGER] Generated and saved new chunk: " << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << std::endl;
+    LOG_DEBUG_FMT("Chunk", "Generated and saved new chunk: " << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z);
     return true;
 }
 
 void ChunkManager::rebuildAllChunkFaces() {
-    std::cout << "[CHUNK MANAGER] Rebuilding faces for all loaded chunks with cross-chunk culling..." << std::endl;
+    LOG_INFO("Chunk", "Rebuilding faces for all loaded chunks with cross-chunk culling...");
     
     // First: End bulk operations for all chunks and build proper collision systems
     for (auto& chunk : chunks) {
@@ -224,17 +225,17 @@ void ChunkManager::rebuildAllChunkFaces() {
         chunk->updateVulkanBuffer();
     }
     
-    std::cout << "[CHUNK MANAGER] Face rebuilding complete for " << chunks.size() << " chunks" << std::endl;
+    LOG_INFO_FMT("Chunk", "Face rebuilding complete for " << chunks.size() << " chunks");
 }
 
 void ChunkManager::initializeAllChunkVoxelMaps() {
-    std::cout << "[CHUNK MANAGER] Initializing voxel hash maps for all " << chunks.size() << " chunks..." << std::endl;
+    LOG_INFO_FMT("Chunk", "Initializing voxel hash maps for all " << chunks.size() << " chunks...");
     
     for (auto& chunk : chunks) {
         chunk->initializeVoxelMaps();
     }
     
-    std::cout << "[CHUNK MANAGER] Completed voxel map initialization for optimized O(1) hover detection" << std::endl;
+    LOG_INFO("Chunk", "Completed voxel map initialization for optimized O(1) hover detection");
 }
 
 void ChunkManager::createChunks(const std::vector<glm::ivec3>& origins) {
@@ -318,7 +319,7 @@ void ChunkManager::updateChunk(size_t chunkIndex) {
     
     Chunk* chunk = chunks[chunkIndex].get();
     if (chunk->getNeedsUpdate()) {
-        std::cout << "[CHUNK_MANAGER] Updating chunk " << chunkIndex << " with " << chunk->getTotalSubcubeCount() << " subcubes" << std::endl;
+        LOG_DEBUG_FMT("Chunk", "Updating chunk " << chunkIndex << " with " << chunk->getTotalSubcubeCount() << " subcubes");
         
         // Use cross-chunk culling method to maintain proper face occlusion across chunk boundaries
         rebuildChunkFacesWithCrosschunkCulling(*chunk);
@@ -809,7 +810,7 @@ void ChunkManager::calculateChunkFaceCulling() {
     // Face culling is now performed during chunk population in populateChunk()
     // which calls calculateOcclusionFaceMask() for each cube
     
-    std::cout << "[DEBUG] calculateChunkFaceCulling: No longer needed with CPU pre-filtering" << std::endl;
+    LOG_DEBUG("Chunk", "calculateChunkFaceCulling: No longer needed with CPU pre-filtering");
 }
 
 ChunkManager::ChunkStats ChunkManager::getPerformanceStats() const {
@@ -921,7 +922,7 @@ uint32_t ChunkManager::calculateOcclusionFaceMask(const glm::ivec3& chunkOrigin,
 }
 
 void ChunkManager::performOcclusionCulling() {
-    std::cout << "[DEBUG] Regenerating chunks with updated cross-chunk occlusion culling..." << std::endl;
+    LOG_DEBUG("Chunk", "Regenerating chunks with updated cross-chunk occlusion culling...");
     
     // With CPU pre-filtering, we need to regenerate all chunk geometry
     // when occlusion relationships change between chunks
@@ -935,9 +936,9 @@ void ChunkManager::performOcclusionCulling() {
     
     // Calculate statistics
     ChunkStats stats = getPerformanceStats();
-    std::cout << "[DEBUG] Occlusion culling complete: " << stats.totalCubes << " total cubes, " 
+    LOG_DEBUG_FMT("Chunk", "Occlusion culling complete: " << stats.totalCubes << " total cubes, " 
               << stats.totalVisibleFaces << " visible faces, "
-              << stats.totalHiddenFaces << " hidden faces" << std::endl;
+              << stats.totalHiddenFaces << " hidden faces");
 }
 
 // ===============================================================
@@ -973,8 +974,8 @@ void ChunkManager::clearDirtyChunkList() {
 
 void ChunkManager::addGlobalDynamicSubcube(std::unique_ptr<Subcube> subcube) {
     if (subcube) {
-        std::cout << "[CHUNK MANAGER] Adding global dynamic subcube at world position: ("
-                  << subcube->getPosition().x << "," << subcube->getPosition().y << "," << subcube->getPosition().z << ")" << std::endl;
+        LOG_DEBUG_FMT("Chunk", "Adding global dynamic subcube at world position: ("
+                  << subcube->getPosition().x << "," << subcube->getPosition().y << "," << subcube->getPosition().z << ")");
         globalDynamicSubcubes.push_back(std::move(subcube));
         rebuildGlobalDynamicFaces();  // Rebuild faces after adding new subcube
     }
@@ -996,7 +997,7 @@ void ChunkManager::updateGlobalDynamicSubcubes(float deltaTime) {
         if ((*it)->hasExpired()) {
             // Properly remove physics body from physics world
             if (physicsWorld && (*it)->getRigidBody()) {
-                std::cout << "[CHUNK MANAGER] Removing expired dynamic subcube physics body" << std::endl;
+                LOG_TRACE("Chunk", "Removing expired dynamic subcube physics body");
                 physicsWorld->removeCube((*it)->getRigidBody());
             }
             
@@ -1010,7 +1011,7 @@ void ChunkManager::updateGlobalDynamicSubcubes(float deltaTime) {
     
     // Rebuild faces if any subcubes were removed
     if (removedCount > 0) {
-        std::cout << "[CHUNK MANAGER] Removed " << removedCount << " expired dynamic subcubes (lifetime ended)" << std::endl;
+        LOG_DEBUG_FMT("Chunk", "Removed " << removedCount << " expired dynamic subcubes (lifetime ended)");
         rebuildGlobalDynamicFaces();
     }
 }
@@ -1022,8 +1023,8 @@ void ChunkManager::updateGlobalDynamicSubcubePositions() {
     static bool firstUpdate = true;
     
     if (firstUpdate && !globalDynamicSubcubes.empty()) {
-        std::cout << "[SUBCUBE POSITION] ===== FIRST SUBCUBE PHYSICS UPDATE =====" << std::endl;
-        std::cout << "[SUBCUBE POSITION] Found " << globalDynamicSubcubes.size() << " dynamic subcubes to track" << std::endl;
+        LOG_TRACE("Chunk", "===== FIRST SUBCUBE PHYSICS UPDATE =====");
+        LOG_TRACE_FMT("Chunk", "Found " << globalDynamicSubcubes.size() << " dynamic subcubes to track");
         firstUpdate = false;
     }
     
@@ -1053,14 +1054,14 @@ void ChunkManager::updateGlobalDynamicSubcubePositions() {
                 glm::vec3 movement = newWorldPos - oldStoredPos;
                 float movementMag = glm::length(movement);
                 
-                std::cout << "[SUBCUBE POSITION] ===== AFTER PHYSICS SIMULATION =====" << std::endl;
-                std::cout << "[SUBCUBE POSITION] 8. Physics body final position: (" 
-                          << newWorldPos.x << ", " << newWorldPos.y << ", " << newWorldPos.z << ")" << std::endl;
-                std::cout << "[SUBCUBE POSITION] 9. Movement from last update: (" 
-                          << movement.x << ", " << movement.y << ", " << movement.z << ") magnitude: " << movementMag << std::endl;
-                std::cout << "[SUBCUBE POSITION] 10. Rotation: (" 
-                          << newRotation.x << ", " << newRotation.y << ", " << newRotation.z << ", " << newRotation.w << ")" << std::endl;
-                std::cout << "[SUBCUBE POSITION] ===== END SUBCUBE POSITION TRACKING =====" << std::endl;
+                LOG_TRACE("Chunk", "===== AFTER PHYSICS SIMULATION =====");
+                LOG_TRACE_FMT("Chunk", "Physics body final position: (" 
+                          << newWorldPos.x << ", " << newWorldPos.y << ", " << newWorldPos.z << ")");
+                LOG_TRACE_FMT("Chunk", "Movement from last update: (" 
+                          << movement.x << ", " << movement.y << ", " << movement.z << ") magnitude: " << movementMag);
+                LOG_TRACE_FMT("Chunk", "Rotation: (" 
+                          << newRotation.x << ", " << newRotation.y << ", " << newRotation.z << ", " << newRotation.w << ")");
+                LOG_TRACE("Chunk", "===== END SUBCUBE POSITION TRACKING =====");
                 break; // Only log first subcube
             }
         }
@@ -1079,14 +1080,14 @@ void ChunkManager::clearAllGlobalDynamicSubcubes() {
     if (physicsWorld) {
         for (auto& subcube : globalDynamicSubcubes) {
             if (subcube && subcube->getRigidBody()) {
-                std::cout << "[CHUNK MANAGER] Cleaning up physics body for subcube during clear" << std::endl;
+                LOG_TRACE("Chunk", "Cleaning up physics body for subcube during clear");
                 physicsWorld->removeCube(subcube->getRigidBody());
                 subcube->setRigidBody(nullptr); // Prevent double deletion
             }
         }
     }
     
-    std::cout << "[CHUNK MANAGER] Clearing all " << globalDynamicSubcubes.size() << " global dynamic subcubes" << std::endl;
+    LOG_DEBUG_FMT("Chunk", "Clearing all " << globalDynamicSubcubes.size() << " global dynamic subcubes");
     globalDynamicSubcubes.clear();
 }
 
