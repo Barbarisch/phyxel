@@ -187,12 +187,10 @@ bool Logger::loadConfig(const std::string& configFile) {
                 } else if (key == "console_output") {
                     instance.consoleOutputEnabled_ = (value == "true" || value == "1");
                 } else if (key == "file_output") {
-                    instance.fileOutputEnabled_ = (value == "true" || value == "1");
+                    bool enableFile = (value == "true" || value == "1");
+                    instance.fileOutputEnabled_ = enableFile;
                 } else if (key == "log_file") {
                     instance.logFileName_ = value;
-                    if (instance.fileOutputEnabled_) {
-                        enableFileOutput(true, value);
-                    }
                 } else if (key == "timestamps") {
                     instance.timestampsEnabled_ = (value == "true" || value == "1");
                 } else if (key == "colors") {
@@ -214,6 +212,18 @@ bool Logger::loadConfig(const std::string& configFile) {
                 
                 instance.moduleLevels_[key] = level;
             }
+        }
+    }
+    
+    // Open log file if file output is enabled
+    if (instance.fileOutputEnabled_ && !instance.logFileName_.empty()) {
+        if (instance.logFile_.is_open()) {
+            instance.logFile_.close();
+        }
+        instance.logFile_.open(instance.logFileName_, std::ios::out | std::ios::app);
+        if (!instance.logFile_.is_open()) {
+            std::cerr << "Failed to open log file: " << instance.logFileName_ << std::endl;
+            instance.fileOutputEnabled_ = false;
         }
     }
     

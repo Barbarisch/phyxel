@@ -1,6 +1,7 @@
 #include "vulkan/VulkanDevice.h"
 #include "vulkan/RenderPipeline.h"
 #include "core/Types.h"
+#include "utils/Logger.h"
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -24,22 +25,22 @@ VulkanDevice::~VulkanDevice() {
 
 bool VulkanDevice::initialize() {
     if (!createInstance()) {
-        std::cerr << "Failed to create Vulkan instance!" << std::endl;
+        LOG_ERROR("Vulkan", "Failed to create Vulkan instance!");
         return false;
     }
 
     if (!setupDebugMessenger()) {
-        std::cerr << "Failed to set up debug messenger!" << std::endl;
+        LOG_ERROR("Vulkan", "Failed to set up debug messenger!");
         return false;
     }
 
     if (!pickPhysicalDevice()) {
-        std::cerr << "Failed to find a suitable GPU!" << std::endl;
+        LOG_ERROR("Vulkan", "Failed to find a suitable GPU!");
         return false;
     }
 
     if (!createLogicalDevice()) {
-        std::cerr << "Failed to create logical device!" << std::endl;
+        LOG_ERROR("Vulkan", "Failed to create logical device!");
         return false;
     }
 
@@ -179,7 +180,7 @@ void VulkanDevice::cleanup() {
 
 bool VulkanDevice::createInstance() {
     if (enableValidationLayers && !checkValidationLayerSupport()) {
-        std::cerr << "Validation layers requested, but not available!" << std::endl;
+        LOG_ERROR("Vulkan", "Validation layers requested, but not available!");
         return false;
     }
 
@@ -213,7 +214,7 @@ bool VulkanDevice::createInstance() {
 
     VkResult result = vkCreateInstance(&createInfo, nullptr, &instance);
     if (result != VK_SUCCESS) {
-        std::cerr << "Failed to create instance! Error: " << result << std::endl;
+        LOG_ERROR_FMT("Vulkan", "Failed to create instance! Error: " << result);
         return false;
     }
 
@@ -231,7 +232,7 @@ bool VulkanDevice::setupDebugMessenger() {
         VkResult result = func(instance, &createInfo, nullptr, &debugMessenger);
         return result == VK_SUCCESS;
     } else {
-        std::cerr << "Failed to load debug messenger function!" << std::endl;
+        LOG_ERROR("Vulkan", "Failed to load debug messenger function!");
         return false;
     }
 }
@@ -240,11 +241,11 @@ bool VulkanDevice::createSurface(void* window) {
     GLFWwindow* glfwWindow = static_cast<GLFWwindow*>(window);
     
     if (glfwCreateWindowSurface(instance, glfwWindow, nullptr, &surface) != VK_SUCCESS) {
-        std::cerr << "Failed to create window surface!" << std::endl;
+        LOG_ERROR("Vulkan", "Failed to create window surface!");
         return false;
     }
     
-    std::cout << "Vulkan surface created successfully" << std::endl;
+    LOG_INFO("Vulkan", "Vulkan surface created successfully");
     return true;
 }
 
@@ -253,7 +254,7 @@ bool VulkanDevice::pickPhysicalDevice() {
     vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
 
     if (deviceCount == 0) {
-        std::cerr << "Failed to find GPUs with Vulkan support!" << std::endl;
+        LOG_ERROR("Vulkan", "Failed to find GPUs with Vulkan support!");
         return false;
     }
 
@@ -268,7 +269,7 @@ bool VulkanDevice::pickPhysicalDevice() {
     }
 
     if (physicalDevice == VK_NULL_HANDLE) {
-        std::cerr << "Failed to find a suitable GPU!" << std::endl;
+        LOG_ERROR("Vulkan", "Failed to find a suitable GPU!");
         return false;
     }
 
@@ -399,7 +400,7 @@ bool VulkanDevice::createLogicalDevice() {
 
     VkResult result = vkCreateDevice(physicalDevice, &createInfo, nullptr, &device);
     if (result != VK_SUCCESS) {
-        std::cerr << "Failed to create logical device! Error: " << result << std::endl;
+        LOG_ERROR_FMT("Vulkan", "Failed to create logical device! Error: " << result);
         return false;
     }
 
@@ -544,7 +545,7 @@ bool VulkanDevice::createSwapChain(int windowWidth, int windowHeight) {
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 
     if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
-        std::cerr << "Failed to create swap chain!" << std::endl;
+        LOG_ERROR("Vulkan", "Failed to create swap chain!");
         return false;
     }
 
@@ -574,12 +575,12 @@ bool VulkanDevice::createSwapChain(int windowWidth, int windowHeight) {
         createInfo.subresourceRange.layerCount = 1;
 
         if (vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) {
-            std::cerr << "Failed to create image view!" << std::endl;
+            LOG_ERROR("Vulkan", "Failed to create image view!");
             return false;
         }
     }
 
-    std::cout << "Swapchain created successfully" << std::endl;
+    LOG_INFO("Vulkan", "Swapchain created successfully");
     return true;
 }
 
@@ -602,12 +603,12 @@ bool VulkanDevice::createFramebuffers(VkRenderPass renderPass) {
         framebufferInfo.layers = 1;
 
         if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
-            std::cerr << "Failed to create framebuffer!" << std::endl;
+            LOG_ERROR("Vulkan", "Failed to create framebuffer!");
             return false;
         }
     }
 
-    std::cout << "Framebuffers created successfully" << std::endl;
+    LOG_INFO("Vulkan", "Framebuffers created successfully");
     return true;
 }
 
@@ -618,7 +619,7 @@ bool VulkanDevice::createCommandBuffers() {
     poolInfo.queueFamilyIndex = findQueueFamilies(physicalDevice).graphicsFamily.value();
 
     if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
-        std::cerr << "Failed to create command pool!" << std::endl;
+        LOG_ERROR("Vulkan", "Failed to create command pool!");
         return false;
     }
 
@@ -631,11 +632,11 @@ bool VulkanDevice::createCommandBuffers() {
     allocInfo.commandBufferCount = (uint32_t) commandBuffers.size();
 
     if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
-        std::cerr << "Failed to allocate command buffers!" << std::endl;
+        LOG_ERROR("Vulkan", "Failed to allocate command buffers!");
         return false;
     }
 
-    std::cout << "Command buffers created successfully" << std::endl;
+    LOG_INFO("Vulkan", "Command buffers created successfully");
     return true;
 }
 
@@ -655,12 +656,12 @@ bool VulkanDevice::createSyncObjects() {
         if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
             vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
             vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
-            std::cerr << "Failed to create synchronization objects for a frame!" << std::endl;
+            LOG_ERROR("Vulkan", "Failed to create synchronization objects for a frame!");
             return false;
         }
     }
 
-    std::cout << "Sync objects created successfully" << std::endl;
+    LOG_INFO("Vulkan", "Sync objects created successfully");
     return true;
 }
 
@@ -1003,7 +1004,7 @@ bool VulkanDevice::createDescriptorSetLayout() {
     layoutInfo.pBindings = bindings.data();
 
     if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
-        std::cerr << "Failed to create descriptor set layout!" << std::endl;
+        LOG_ERROR("Vulkan", "Failed to create descriptor set layout!");
         return false;
     }
 
@@ -1024,7 +1025,7 @@ bool VulkanDevice::createDescriptorPool() {
     poolInfo.maxSets = MAX_FRAMES_IN_FLIGHT;
 
     if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
-        std::cerr << "Failed to create descriptor pool!" << std::endl;
+        LOG_ERROR("Vulkan", "Failed to create descriptor pool!");
         return false;
     }
 
@@ -1042,7 +1043,7 @@ bool VulkanDevice::createDescriptorSets() {
 
     descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
     if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
-        std::cerr << "Failed to allocate descriptor sets!" << std::endl;
+        LOG_ERROR("Vulkan", "Failed to allocate descriptor sets!");
         return false;
     }
 
@@ -1135,10 +1136,10 @@ void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& vie
     // Debug: Log matrix data for the first few frames
     static int debugFrameCount = 0;
     if (debugFrameCount < 3) {
-        std::cout << "[DEBUG] Frame " << debugFrameCount << " - Matrix upload:" << std::endl;
-        std::cout << "  View[0]: " << view[0][0] << ", " << view[0][1] << ", " << view[0][2] << ", " << view[0][3] << std::endl;
-        std::cout << "  Proj[0]: " << proj[0][0] << ", " << proj[0][1] << ", " << proj[0][2] << ", " << proj[0][3] << std::endl;
-        std::cout << "  NumInstances: " << numInstances << std::endl;
+        LOG_DEBUG_FMT("Vulkan", "Frame " << debugFrameCount << " - Matrix upload:");
+        LOG_DEBUG_FMT("Vulkan", "  View[0]: " << view[0][0] << ", " << view[0][1] << ", " << view[0][2] << ", " << view[0][3]);
+        LOG_DEBUG_FMT("Vulkan", "  Proj[0]: " << proj[0][0] << ", " << proj[0][1] << ", " << proj[0][2] << ", " << proj[0][3]);
+        LOG_DEBUG_FMT("Vulkan", "  NumInstances: " << numInstances);
         debugFrameCount++;
     }
 

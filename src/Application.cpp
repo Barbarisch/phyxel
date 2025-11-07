@@ -69,6 +69,7 @@ bool Application::initialize() {
     // Initialize logging system first
     Utils::Logger::loadConfig("logging.ini"); // Load config if exists
     LOG_INFO("Application", "Initializing VulkanCube Application...");
+    LOG_INFO("Application", "Logging system initialized (check logging.ini for configuration)");
 
     // Initialize window first
     if (!initializeWindow()) {
