@@ -1,6 +1,7 @@
 #include "core/ForceSystem.h"
 #include "core/ChunkManager.h"
 #include "core/Chunk.h"
+#include "utils/Logger.h"
 #include <algorithm>
 #include <iostream>
 #include <cmath>
@@ -31,9 +32,9 @@ ForceSystem::ClickForce ForceSystem::calculateClickForce(const glm::vec2& mouseV
     // Clamp to maximum force
     force.magnitude = std::min(force.magnitude, config.maxForce);
     
-    std::cout << "[FORCE SYSTEM] Calculated click force: magnitude=" << force.magnitude 
+    LOG_DEBUG_FMT("ForceSystem", "[FORCE SYSTEM] Calculated click force: magnitude=" << force.magnitude 
               << ", mouse_speed=" << mouseSpeed << ", direction=(" 
-              << force.direction.x << "," << force.direction.y << "," << force.direction.z << ")" << std::endl;
+              << force.direction.x << "," << force.direction.y << "," << force.direction.z << ")");
     
     return force;
 }
@@ -44,16 +45,16 @@ ForceSystem::PropagationResult ForceSystem::propagateForce(const ClickForce& for
     PropagationResult result;
     std::vector<glm::ivec3> visited;
     
-    std::cout << "[FORCE PROPAGATION] Starting propagation from (" 
+    LOG_DEBUG_FMT("ForceSystem", "[FORCE PROPAGATION] Starting propagation from (" 
               << startWorldPos.x << "," << startWorldPos.y << "," << startWorldPos.z 
-              << ") with force magnitude " << force.magnitude << std::endl;
+              << ") with force magnitude " << force.magnitude);
     
     // Start recursive propagation
     propagateForceRecursive(startWorldPos, force.direction, force.magnitude, 0, 
                            chunkManager, visited, result);
     
-    std::cout << "[FORCE PROPAGATION] Complete: " << result.brokenCubes.size() << " cubes broken, " 
-              << result.damagedCubes.size() << " cubes damaged" << std::endl;
+    LOG_DEBUG_FMT("ForceSystem", "[FORCE PROPAGATION] Complete: " << result.brokenCubes.size() << " cubes broken, " 
+              << result.damagedCubes.size() << " cubes damaged");
     
     return result;
 }
@@ -108,7 +109,7 @@ void ForceSystem::propagateForceRecursive(const glm::ivec3& currentPos,
             // Check if bond should break
             if (cube->getBond(bondDir).shouldBreak()) {
                 cube->breakBond(bondDir);
-                std::cout << "[BOND BREAK] Bond broken at (" << currentPos.x << "," << currentPos.y << "," << currentPos.z << ") direction " << dir << std::endl;
+                LOG_DEBUG_FMT("ForceSystem", "[BOND BREAK] Bond broken at (" << currentPos.x << "," << currentPos.y << "," << currentPos.z << ") direction " << dir);
             }
         }
     }
@@ -118,7 +119,7 @@ void ForceSystem::propagateForceRecursive(const glm::ivec3& currentPos,
     
     if (cubeBreaks) {
         result.brokenCubes.push_back(currentPos);
-        std::cout << "[CUBE BREAK] Cube breaks at (" << currentPos.x << "," << currentPos.y << "," << currentPos.z << ") from " << totalDamageToThisCube << " damage" << std::endl;
+        LOG_DEBUG_FMT("ForceSystem", "[CUBE BREAK] Cube breaks at (" << currentPos.x << "," << currentPos.y << "," << currentPos.z << ") from " << totalDamageToThisCube << " damage");
     } else if (totalDamageToThisCube > 0.0f) {
         result.damagedCubes.push_back(currentPos);
     }
@@ -218,13 +219,13 @@ float ForceSystem::calculateDistanceFalloff(int distance, float falloffRate) {
 }
 
 void ForceSystem::debugPrintPropagation(const PropagationResult& result) const {
-    std::cout << "[FORCE DEBUG] Propagation Results:" << std::endl;
-    std::cout << "  Broken cubes: " << result.brokenCubes.size() << std::endl;
+    LOG_DEBUG("ForceSystem", "[FORCE DEBUG] Propagation Results:");
+    LOG_DEBUG_FMT("ForceSystem", "  Broken cubes: " << result.brokenCubes.size());
     for (const auto& pos : result.brokenCubes) {
-        std::cout << "    (" << pos.x << "," << pos.y << "," << pos.z << ")" << std::endl;
+        LOG_DEBUG_FMT("ForceSystem", "    (" << pos.x << "," << pos.y << "," << pos.z << ")");
     }
-    std::cout << "  Damaged cubes: " << result.damagedCubes.size() << std::endl;
-    std::cout << "  Total energy dissipated: " << result.totalEnergyDissipated << std::endl;
+    LOG_DEBUG_FMT("ForceSystem", "  Damaged cubes: " << result.damagedCubes.size());
+    LOG_DEBUG_FMT("ForceSystem", "  Total energy dissipated: " << result.totalEnergyDissipated);
 }
 
 // MouseVelocityTracker implementation

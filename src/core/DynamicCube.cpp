@@ -1,5 +1,6 @@
 #include "core/DynamicCube.h"
 #include "physics/Material.h"
+#include "utils/Logger.h"
 #include <btBulletDynamicsCommon.h>
 #include <iostream>
 
@@ -79,7 +80,7 @@ void DynamicCube::applyMaterialProperties() {
     // Apply damping
     rigidBody->setDamping(material.linearDamping, material.angularDamping);
     
-    std::cout << "[MATERIAL] Applied '" << materialName << "' material properties to dynamic cube" << std::endl;
+    LOG_DEBUG_FMT("Physics", "[MATERIAL] Applied '" << materialName << "' material properties to dynamic cube");
 }
 
 void DynamicCube::applyMaterialProperties(const std::string& newMaterialName) {

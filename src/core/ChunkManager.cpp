@@ -1097,8 +1097,8 @@ void ChunkManager::clearAllGlobalDynamicSubcubes() {
 
 void ChunkManager::addGlobalDynamicCube(std::unique_ptr<DynamicCube> cube) {
     if (cube) {
-        std::cout << "[CHUNK MANAGER] Adding global dynamic cube at world position: ("
-                  << cube->getPosition().x << "," << cube->getPosition().y << "," << cube->getPosition().z << ")" << std::endl;
+        LOG_DEBUG_FMT("ChunkManager", "[CHUNK MANAGER] Adding global dynamic cube at world position: ("
+                  << cube->getPosition().x << "," << cube->getPosition().y << "," << cube->getPosition().z << ")");
         globalDynamicCubes.push_back(std::move(cube));
         rebuildGlobalDynamicFaces();  // Rebuild faces after adding new cube
     }
@@ -1115,7 +1115,7 @@ void ChunkManager::updateGlobalDynamicCubes(float deltaTime) {
         if ((*it)->hasExpired()) {
             // Properly remove physics body from physics world
             if (physicsWorld && (*it)->getRigidBody()) {
-                std::cout << "[CHUNK MANAGER] Removing expired dynamic cube physics body" << std::endl;
+                LOG_DEBUG("ChunkManager", "[CHUNK MANAGER] Removing expired dynamic cube physics body");
                 physicsWorld->removeCube((*it)->getRigidBody());
             }
             
@@ -1129,7 +1129,7 @@ void ChunkManager::updateGlobalDynamicCubes(float deltaTime) {
     
     // Rebuild faces if any cubes were removed
     if (removedCount > 0) {
-        std::cout << "[CHUNK MANAGER] Removed " << removedCount << " expired dynamic cubes (lifetime ended)" << std::endl;
+        LOG_DEBUG_FMT("ChunkManager", "[CHUNK MANAGER] Removed " << removedCount << " expired dynamic cubes (lifetime ended)");
         rebuildGlobalDynamicFaces();
     }
 }
@@ -1141,8 +1141,8 @@ void ChunkManager::updateGlobalDynamicCubePositions() {
     static bool firstUpdate = true;
     
     if (firstUpdate && !globalDynamicCubes.empty()) {
-        std::cout << "[POSITION TRACK] ===== FIRST PHYSICS UPDATE =====" << std::endl;
-        std::cout << "[POSITION TRACK] Found " << globalDynamicCubes.size() << " dynamic cubes to track" << std::endl;
+        LOG_DEBUG_FMT("ChunkManager", "[POSITION TRACK] ===== FIRST PHYSICS UPDATE =====");
+        LOG_DEBUG_FMT("ChunkManager", "[POSITION TRACK] Found " << globalDynamicCubes.size() << " dynamic cubes to track");
         firstUpdate = false;
     }
     
@@ -1172,14 +1172,14 @@ void ChunkManager::updateGlobalDynamicCubePositions() {
                 glm::vec3 movement = newWorldPos - oldStoredPos;
                 float movementMag = glm::length(movement);
                 
-                std::cout << "[POSITION TRACK] ===== AFTER PHYSICS SIMULATION =====" << std::endl;
-                std::cout << "[POSITION TRACK] 6. Physics body final position: (" 
-                          << newWorldPos.x << ", " << newWorldPos.y << ", " << newWorldPos.z << ")" << std::endl;
-                std::cout << "[POSITION TRACK] 7. Movement from last update: (" 
-                          << movement.x << ", " << movement.y << ", " << movement.z << ") magnitude: " << movementMag << std::endl;
-                std::cout << "[POSITION TRACK] 8. Rotation: (" 
-                          << newRotation.x << ", " << newRotation.y << ", " << newRotation.z << ", " << newRotation.w << ")" << std::endl;
-                std::cout << "[POSITION TRACK] ===== END POSITION TRACKING =====" << std::endl;
+                LOG_DEBUG("ChunkManager", "[POSITION TRACK] ===== AFTER PHYSICS SIMULATION =====");
+                LOG_DEBUG_FMT("ChunkManager", "[POSITION TRACK] 6. Physics body final position: (" 
+                          << newWorldPos.x << ", " << newWorldPos.y << ", " << newWorldPos.z << ")");
+                LOG_DEBUG_FMT("ChunkManager", "[POSITION TRACK] 7. Movement from last update: (" 
+                          << movement.x << ", " << movement.y << ", " << movement.z << ") magnitude: " << movementMag);
+                LOG_DEBUG_FMT("ChunkManager", "[POSITION TRACK] 8. Rotation: (" 
+                          << newRotation.x << ", " << newRotation.y << ", " << newRotation.z << ", " << newRotation.w << ")");
+                LOG_DEBUG("ChunkManager", "[POSITION TRACK] ===== END POSITION TRACKING =====");
                 break; // Only log first cube
             }
         }
@@ -1194,7 +1194,7 @@ void ChunkManager::updateGlobalDynamicCubePositions() {
 }
 
 void ChunkManager::clearAllGlobalDynamicCubes() {
-    std::cout << "[CHUNK MANAGER] Clearing all " << globalDynamicCubes.size() << " global dynamic cubes" << std::endl;
+    LOG_DEBUG_FMT("ChunkManager", "[CHUNK MANAGER] Clearing all " << globalDynamicCubes.size() << " global dynamic cubes");
     globalDynamicCubes.clear();
 }
 
@@ -1278,7 +1278,7 @@ void ChunkManager::updateAfterCubeBreak(const glm::ivec3& worldPos) {
     // 1. Remove faces of the broken cube (already done by removeCube)
     // 2. Update faces of neighboring cubes that may now be exposed
     
-    std::cout << "[SELECTIVE UPDATE] Cube broken at world pos (" << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")" << std::endl;
+    LOG_DEBUG_FMT("ChunkManager", "[SELECTIVE UPDATE] Cube broken at world pos (" << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")");
     
     // Get the chunk containing the broken cube
     Chunk* primaryChunk = getChunkAt(worldPos);
@@ -1308,7 +1308,7 @@ void ChunkManager::updateAfterCubePlace(const glm::ivec3& worldPos) {
     // 1. Generate faces for the new cube (based on neighbors)
     // 2. Update faces of neighboring cubes that may now be hidden
     
-    std::cout << "[SELECTIVE UPDATE] Cube placed at world pos (" << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")" << std::endl;
+    LOG_DEBUG_FMT("ChunkManager", "[SELECTIVE UPDATE] Cube placed at world pos (" << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")");
     
     // Get the chunk containing the placed cube
     Chunk* primaryChunk = getChunkAt(worldPos);
@@ -1339,7 +1339,7 @@ void ChunkManager::updateAfterCubeSubdivision(const glm::ivec3& worldPos) {
     // 2. Generate subcube faces (8 or 27 subcubes with their own faces)
     // 3. Update faces of neighboring cubes (original cube is now hidden)
     
-    std::cout << "[SELECTIVE UPDATE] Cube subdivided at world pos (" << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")" << std::endl;
+    LOG_DEBUG_FMT("ChunkManager", "[SELECTIVE UPDATE] Cube subdivided at world pos (" << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")");
     
     // Get the chunk containing the subdivided cube
     Chunk* primaryChunk = getChunkAt(worldPos);
@@ -1370,8 +1370,8 @@ void ChunkManager::updateAfterSubcubeBreak(const glm::ivec3& parentWorldPos, con
     // 2. Update faces of neighboring subcubes in the same parent cube
     // 3. Add the subcube to dynamic rendering system
     
-    std::cout << "[SELECTIVE UPDATE] Subcube broken at parent pos (" << parentWorldPos.x << "," << parentWorldPos.y << "," << parentWorldPos.z 
-              << ") local (" << subcubeLocalPos.x << "," << subcubeLocalPos.y << "," << subcubeLocalPos.z << ")" << std::endl;
+    LOG_DEBUG_FMT("ChunkManager", "[SELECTIVE UPDATE] Subcube broken at parent pos (" << parentWorldPos.x << "," << parentWorldPos.y << "," << parentWorldPos.z 
+              << ") local (" << subcubeLocalPos.x << "," << subcubeLocalPos.y << "," << subcubeLocalPos.z << ")");
     
     // For subcube breaking, only update the chunk containing the parent cube
     Chunk* chunk = getChunkAt(parentWorldPos);

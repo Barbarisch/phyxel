@@ -1,5 +1,6 @@
 #include "scene/SceneManager.h"
 #include "utils/Math.h"
+#include "utils/Logger.h"
 #include <iostream>
 #include <random>
 #include <algorithm>
@@ -31,7 +32,7 @@ bool SceneManager::initialize(int gridSize) {
     ubo.proj = glm::mat4(1.0f);
     ubo.numInstances = 0;
     
-    std::cout << "Scene manager initialized with grid size: " << gridSize << "x" << gridSize << "x" << gridSize << std::endl;
+    LOG_INFO_FMT("Scene", "Scene manager initialized with grid size: " << gridSize << "x" << gridSize << "x" << gridSize);
     
     return true;
 }
@@ -157,7 +158,7 @@ void SceneManager::generateRandomCubes(int count, float strength) {
         addCube(x, y, z);
     }
     
-    std::cout << "Generated " << cubes.size() << " random cubes" << std::endl;
+    LOG_INFO_FMT("Scene", "Generated " << cubes.size() << " random cubes");
 }
 
 void SceneManager::generateTestScene() {
@@ -172,7 +173,7 @@ void SceneManager::generateTestScene() {
         }
     }
     
-    std::cout << "Generated test scene with " << cubes.size() << " cubes" << std::endl;
+    LOG_INFO_FMT("Scene", "Generated test scene with " << cubes.size() << " cubes");
 }
 
 bool SceneManager::updateInstanceData() {
@@ -204,7 +205,7 @@ void SceneManager::recalculateFaceMasks() {
         // Repack with new face mask
         instanceData[i].packedData = InstanceDataUtils::packInstanceData(x, y, z, newFaceMask, currentFutureData);
     }
-    std::cout << "Recalculated face masks for " << cubes.size() << " cubes" << std::endl;
+    LOG_INFO_FMT("Scene", "Recalculated face masks for " << cubes.size() << " cubes");
 }
 
 uint32_t SceneManager::calculateFaceMask(const glm::ivec3& position) {
@@ -262,8 +263,8 @@ uint32_t SceneManager::calculateFaceMask(const glm::ivec3& position) {
     if ((x == 0 || x == 31) && (y == 0 || y == 31) && (z == 0 || z == 31)) {
         static int debugCount = 0;
         if (debugCount < 8) { // Only print first 8 corner cubes
-            std::cout << "Corner cube at (" << x << "," << y << "," << z << ") faceMask: 0x" 
-                      << std::hex << mask << std::dec << std::endl;
+            LOG_DEBUG_FMT("Scene", "Corner cube at (" << x << "," << y << "," << z << ") faceMask: 0x" 
+                      << std::hex << mask << std::dec);
             debugCount++;
         }
     }
@@ -505,9 +506,9 @@ void SceneManager::performOcclusionCulling() {
     // Force instance data update since face masks may have changed
     instanceDataNeedsUpdate = true;
     
-    std::cout << "[DEBUG] Occlusion culling: " << fullyOccludedCount << " fully occluded, "
+    LOG_DEBUG_FMT("Scene", "[DEBUG] Occlusion culling: " << fullyOccludedCount << " fully occluded, "
               << partiallyOccludedCount << " partially occluded, " 
-              << totalHiddenFaces << " total hidden faces" << std::endl;
+              << totalHiddenFaces << " total hidden faces");
 }
 
 void SceneManager::updateOcclusionForCube(const glm::ivec3& position) {

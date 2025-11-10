@@ -1,4 +1,5 @@
 #include "Application.h"
+#include "utils/Logger.h"
 #include <iostream>
 #include <stdexcept>
 
@@ -8,7 +9,7 @@ int main() {
     try {
         // Initialize the application
         if (!app.initialize()) {
-            std::cerr << "Failed to initialize application!" << std::endl;
+            LOG_ERROR("Main", "Failed to initialize application!");
             return -1;
         }
 
@@ -16,7 +17,7 @@ int main() {
         app.run();
 
     } catch (const std::exception& e) {
-        std::cerr << "Application error: " << e.what() << std::endl;
+        LOG_ERROR_FMT("Main", "Application error: " << e.what());
         return -1;
     }
 

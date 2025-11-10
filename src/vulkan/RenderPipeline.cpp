@@ -1,5 +1,6 @@
 #include "vulkan/RenderPipeline.h"
 #include "utils/FileUtils.h"
+#include "utils/Logger.h"
 #include <iostream>
 #include <array>
 
@@ -16,7 +17,7 @@ RenderPipeline::~RenderPipeline() {
 
 bool RenderPipeline::createGraphicsPipeline() {
     if (!createRenderPass()) {
-        std::cerr << "Failed to create render pass!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to create render pass!");
         return false;
     }
 
@@ -118,7 +119,7 @@ bool RenderPipeline::createGraphicsPipeline() {
 
     VkResult result = vkCreatePipelineLayout(vulkanDevice.getDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout);
     if (result != VK_SUCCESS) {
-        std::cerr << "Failed to create pipeline layout! Error: " << result << std::endl;
+        LOG_ERROR_FMT("Rendering", "Failed to create pipeline layout! Error: " << result);
         return false;
     }
 
@@ -162,7 +163,7 @@ bool RenderPipeline::createGraphicsPipeline() {
 
     result = vkCreateGraphicsPipelines(vulkanDevice.getDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline);
     if (result != VK_SUCCESS) {
-        std::cerr << "Failed to create graphics pipeline! Error: " << result << std::endl;
+        LOG_ERROR_FMT("Rendering", "Failed to create graphics pipeline! Error: " << result);
         return false;
     }
 
@@ -356,12 +357,12 @@ bool RenderPipeline::loadShaders(const std::string& vertPath, const std::string&
     auto fragShaderCode = Utils::readFile(fragPath);
 
     if (vertShaderCode.empty()) {
-        std::cerr << "Failed to load vertex shader: " << vertPath << std::endl;
+        LOG_ERROR_FMT("Rendering", "Failed to load vertex shader: " << vertPath);
         return false;
     }
 
     if (fragShaderCode.empty()) {
-        std::cerr << "Failed to load fragment shader: " << fragPath << std::endl;
+        LOG_ERROR_FMT("Rendering", "Failed to load fragment shader: " << fragPath);
         return false;
     }
 
@@ -369,7 +370,7 @@ bool RenderPipeline::loadShaders(const std::string& vertPath, const std::string&
     fragShaderModule = createShaderModule(fragShaderCode);
 
     if (vertShaderModule == VK_NULL_HANDLE || fragShaderModule == VK_NULL_HANDLE) {
-        std::cerr << "Failed to create shader modules!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to create shader modules!");
         return false;
     }
 
@@ -435,7 +436,7 @@ bool RenderPipeline::createRenderPass() {
 
     VkResult result = vkCreateRenderPass(vulkanDevice.getDevice(), &renderPassInfo, nullptr, &renderPass);
     if (result != VK_SUCCESS) {
-        std::cerr << "Failed to create render pass! Error: " << result << std::endl;
+        LOG_ERROR_FMT("Rendering", "Failed to create render pass! Error: " << result);
         return false;
     }
 
@@ -451,7 +452,7 @@ VkShaderModule RenderPipeline::createShaderModule(const std::vector<char>& code)
     VkShaderModule shaderModule;
     VkResult result = vkCreateShaderModule(vulkanDevice.getDevice(), &createInfo, nullptr, &shaderModule);
     if (result != VK_SUCCESS) {
-        std::cerr << "Failed to create shader module! Error: " << result << std::endl;
+        LOG_ERROR_FMT("Rendering", "Failed to create shader module! Error: " << result);
         return VK_NULL_HANDLE;
     }
 
@@ -459,7 +460,7 @@ VkShaderModule RenderPipeline::createShaderModule(const std::vector<char>& code)
 }
 
 bool RenderPipeline::createDescriptorSetLayout() {
-    std::cout << "[DEBUG] Creating descriptor set layout with texture atlas support..." << std::endl;
+    LOG_DEBUG("Rendering", "Creating descriptor set layout with texture atlas support...");
     
     // UBO binding (binding 0)
     VkDescriptorSetLayoutBinding uboLayoutBinding{};
@@ -486,17 +487,17 @@ bool RenderPipeline::createDescriptorSetLayout() {
 
     VkResult result = vkCreateDescriptorSetLayout(vulkanDevice.getDevice(), &layoutInfo, nullptr, &descriptorSetLayout);
     if (result != VK_SUCCESS) {
-        std::cerr << "Failed to create descriptor set layout! Error: " << result << std::endl;
+        LOG_ERROR_FMT("Rendering", "Failed to create descriptor set layout! Error: " << result);
         return false;
     }
     
-    std::cout << "[DEBUG] Descriptor set layout created successfully with texture atlas: " << descriptorSetLayout << std::endl;
+    LOG_DEBUG_FMT("Rendering", "Descriptor set layout created successfully with texture atlas: " << descriptorSetLayout);
 
     return true;
 }
 
 bool RenderPipeline::createDynamicDescriptorSetLayout() {
-    std::cout << "[DEBUG] Creating dynamic descriptor set layout (same as static for texture consistency)..." << std::endl;
+    LOG_DEBUG("Rendering", "Creating dynamic descriptor set layout (same as static for texture consistency)...");
     
     // UBO binding (binding 0)
     VkDescriptorSetLayoutBinding uboLayoutBinding{};
@@ -522,11 +523,11 @@ bool RenderPipeline::createDynamicDescriptorSetLayout() {
 
     VkResult result = vkCreateDescriptorSetLayout(vulkanDevice.getDevice(), &layoutInfo, nullptr, &descriptorSetLayout);
     if (result != VK_SUCCESS) {
-        std::cerr << "Failed to create dynamic descriptor set layout! Error: " << result << std::endl;
+        LOG_ERROR_FMT("Rendering", "Failed to create dynamic descriptor set layout! Error: " << result);
         return false;
     }
     
-    std::cout << "[DEBUG] Dynamic descriptor set layout created successfully: " << descriptorSetLayout << std::endl;
+    LOG_DEBUG_FMT("Rendering", "Dynamic descriptor set layout created successfully: " << descriptorSetLayout);
 
     return true;
 }

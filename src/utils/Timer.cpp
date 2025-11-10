@@ -1,4 +1,5 @@
 #include "utils/Timer.h"
+#include "utils/Logger.h"
 #include <iostream>
 #include <GLFW/glfw3.h>
 #include <numeric>
@@ -84,15 +85,15 @@ void Timer::printProfilingInfo() const {
     avgVisible /= samples;
     avgCulled /= samples;
     
-    std::cout << "\n=== FRAME PROFILING ===\n";
-    std::cout << "FPS: " << m_fps << "\n";
-    std::cout << "Avg CPU Frame Time: " << avgCpuTime << "ms\n";
-    std::cout << "Avg Vertices/Frame: " << avgVertices << "\n";
-    std::cout << "Avg Visible Cubes: " << avgVisible << "\n";
-    std::cout << "Avg Culled Cubes: " << avgCulled << "\n";
-    std::cout << "Culling Efficiency: " << (100.0 * avgCulled / (avgVisible + avgCulled)) << "%\n";
-    std::cout << "Memory Usage: Instance Buffer = " << (avgVisible * sizeof(InstanceData)) << " bytes\n";
-    std::cout << "======================\n";
+    LOG_INFO("Performance", "\n=== FRAME PROFILING ===");
+    LOG_INFO_FMT("Performance", "FPS: " << m_fps);
+    LOG_INFO_FMT("Performance", "Avg CPU Frame Time: " << avgCpuTime << "ms");
+    LOG_INFO_FMT("Performance", "Avg Vertices/Frame: " << avgVertices);
+    LOG_INFO_FMT("Performance", "Avg Visible Cubes: " << avgVisible);
+    LOG_INFO_FMT("Performance", "Avg Culled Cubes: " << avgCulled);
+    LOG_INFO_FMT("Performance", "Culling Efficiency: " << (100.0 * avgCulled / (avgVisible + avgCulled)) << "%");
+    LOG_INFO_FMT("Performance", "Memory Usage: Instance Buffer = " << (avgVisible * sizeof(InstanceData)) << " bytes");
+    LOG_INFO("Performance", "======================");
 }
 
 void Timer::printDetailedTimings() const {
@@ -123,17 +124,17 @@ void Timer::printDetailedTimings() const {
     avg.gpuSubmitTime /= samples;
     avg.presentTime /= samples;
     
-    std::cout << "\n=== DETAILED FRAME TIMING ===\n";
-    std::cout << "Total Frame Time: " << avg.totalFrameTime << "ms\n";
-    std::cout << "  Mouse Picking: " << avg.mousePickTime << "ms\n";
-    std::cout << "  UBO Fill: " << avg.uboFillTime << "ms\n";
-    std::cout << "  Instance Update: " << avg.instanceUpdateTime << "ms\n";
-    std::cout << "  Draw Cmd Update: " << avg.drawCmdUpdateTime << "ms\n";
-    std::cout << "  Uniform Upload: " << avg.uniformUploadTime << "ms\n";
-    std::cout << "  Command Record: " << avg.commandRecordTime << "ms\n";
-    std::cout << "  GPU Submit: " << avg.gpuSubmitTime << "ms\n";
-    std::cout << "  Present: " << avg.presentTime << "ms\n";
-    std::cout << "=============================\n";
+    LOG_INFO("Performance", "\n=== DETAILED FRAME TIMING ===");
+    LOG_INFO_FMT("Performance", "Total Frame Time: " << avg.totalFrameTime << "ms");
+    LOG_INFO_FMT("Performance", "  Mouse Picking: " << avg.mousePickTime << "ms");
+    LOG_INFO_FMT("Performance", "  UBO Fill: " << avg.uboFillTime << "ms");
+    LOG_INFO_FMT("Performance", "  Instance Update: " << avg.instanceUpdateTime << "ms");
+    LOG_INFO_FMT("Performance", "  Draw Cmd Update: " << avg.drawCmdUpdateTime << "ms");
+    LOG_INFO_FMT("Performance", "  Uniform Upload: " << avg.uniformUploadTime << "ms");
+    LOG_INFO_FMT("Performance", "  Command Record: " << avg.commandRecordTime << "ms");
+    LOG_INFO_FMT("Performance", "  GPU Submit: " << avg.gpuSubmitTime << "ms");
+    LOG_INFO_FMT("Performance", "  Present: " << avg.presentTime << "ms");
+    LOG_INFO("Performance", "=============================");
 }
 
 } // namespace VulkanCube

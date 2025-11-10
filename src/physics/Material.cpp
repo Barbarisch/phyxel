@@ -1,4 +1,5 @@
 #include "physics/Material.h"
+#include "utils/Logger.h"
 #include <iostream>
 #include <algorithm>
 
@@ -26,14 +27,14 @@ bool MaterialManager::hasMaterial(const std::string& name) const {
 
 void MaterialManager::addMaterial(const std::string& name, const MaterialProperties& properties) {
     materials[name] = properties;
-    std::cout << "[MATERIAL] Added custom material: " << name << std::endl;
+    LOG_INFO_FMT("Physics", "[MATERIAL] Added custom material: " << name);
 }
 
 void MaterialManager::removeMaterial(const std::string& name) {
     auto it = materials.find(name);
     if (it != materials.end()) {
         materials.erase(it);
-        std::cout << "[MATERIAL] Removed material: " << name << std::endl;
+        LOG_INFO_FMT("Physics", "[MATERIAL] Removed material: " << name);
     }
 }
 
@@ -51,31 +52,31 @@ std::vector<std::string> MaterialManager::getAllMaterialNames() const {
 
 void MaterialManager::printMaterialInfo(const std::string& name) const {
     if (!hasMaterial(name)) {
-        std::cout << "[MATERIAL] Material '" << name << "' not found!" << std::endl;
+        LOG_WARN_FMT("Physics", "[MATERIAL] Material '" << name << "' not found!");
         return;
     }
     
     const auto& mat = getMaterial(name);
-    std::cout << "\n=== Material: " << mat.name << " ===" << std::endl;
-    std::cout << "Description: " << mat.description << std::endl;
-    std::cout << "Mass: " << mat.mass << " kg" << std::endl;
-    std::cout << "Friction: " << mat.friction << std::endl;
-    std::cout << "Restitution: " << mat.restitution << std::endl;
-    std::cout << "Linear Damping: " << mat.linearDamping << std::endl;
-    std::cout << "Angular Damping: " << mat.angularDamping << std::endl;
-    std::cout << "Break Force Multiplier: " << mat.breakForceMultiplier << std::endl;
-    std::cout << "Angular Velocity Scale: " << mat.angularVelocityScale << std::endl;
-    std::cout << "Color Tint: (" << mat.colorTint.x << ", " << mat.colorTint.y << ", " << mat.colorTint.z << ")" << std::endl;
+    LOG_INFO_FMT("Physics", "\n=== Material: " << mat.name << " ===");
+    LOG_INFO_FMT("Physics", "Description: " << mat.description);
+    LOG_INFO_FMT("Physics", "Mass: " << mat.mass << " kg");
+    LOG_INFO_FMT("Physics", "Friction: " << mat.friction);
+    LOG_INFO_FMT("Physics", "Restitution: " << mat.restitution);
+    LOG_INFO_FMT("Physics", "Linear Damping: " << mat.linearDamping);
+    LOG_INFO_FMT("Physics", "Angular Damping: " << mat.angularDamping);
+    LOG_INFO_FMT("Physics", "Break Force Multiplier: " << mat.breakForceMultiplier);
+    LOG_INFO_FMT("Physics", "Angular Velocity Scale: " << mat.angularVelocityScale);
+    LOG_INFO_FMT("Physics", "Color Tint: (" << mat.colorTint.x << ", " << mat.colorTint.y << ", " << mat.colorTint.z << ")");
 }
 
 void MaterialManager::printAllMaterials() const {
-    std::cout << "\n=== Available Materials ===" << std::endl;
+    LOG_INFO("Physics", "\n=== Available Materials ===");
     auto names = getAllMaterialNames();
     for (const auto& name : names) {
         const auto& mat = getMaterial(name);
-        std::cout << "- " << name << ": " << mat.description << std::endl;
+        LOG_INFO_FMT("Physics", "- " << name << ": " << mat.description);
     }
-    std::cout << std::endl;
+    LOG_INFO("Physics", "");
 }
 
 void MaterialManager::initializePredefinedMaterials() {

@@ -1,5 +1,6 @@
 #include "physics/PhysicsWorld.h"
 #include "physics/Material.h"
+#include "utils/Logger.h"
 #include <iostream>
 #include <algorithm>
 #include <glm/gtc/matrix_transform.hpp>
@@ -45,12 +46,12 @@ bool PhysicsWorld::initialize() {
         // Optimize collision settings for better interactions
         optimizeCollisionSettings();
         
-        std::cout << "Physics world initialized successfully (with automatic fallen cube cleanup at Y < " 
-                  << fallThreshold << ")" << std::endl;
+        LOG_INFO_FMT("Physics", "Physics world initialized successfully (with automatic fallen cube cleanup at Y < " 
+                  << fallThreshold << ")");
         return true;
         
     } catch (const std::exception& e) {
-        std::cerr << "Failed to initialize physics world: " << e.what() << std::endl;
+        LOG_ERROR_FMT("Physics", "Failed to initialize physics world: " << e.what());
         return false;
     }
 }
@@ -479,7 +480,7 @@ void PhysicsWorld::createCubeGrid(int width, int height, int depth, const glm::v
         }
     }
     
-    std::cout << "Created cube grid: " << width << "x" << height << "x" << depth << " = " << (width * height * depth) << " cubes" << std::endl;
+    LOG_INFO_FMT("Physics", "Created cube grid: " << width << "x" << height << "x" << depth << " = " << (width * height * depth) << " cubes");
 }
 
 void PhysicsWorld::addCubesFromScene(const std::vector<glm::vec3>& positions, const std::vector<glm::vec3>& sizes) {
@@ -489,7 +490,7 @@ void PhysicsWorld::addCubesFromScene(const std::vector<glm::vec3>& positions, co
         createCube(positions[i], sizes[i]);
     }
     
-    std::cout << "Added " << count << " cubes from scene data" << std::endl;
+    LOG_INFO_FMT("Physics", "Added " << count << " cubes from scene data");
 }
 
 void PhysicsWorld::getTransforms(std::vector<glm::mat4>& transforms) const {
@@ -542,14 +543,14 @@ int PhysicsWorld::getRigidBodyCount() const {
 }
 
 void PhysicsWorld::printDebugInfo() const {
-    std::cout << "Physics World Debug Info:" << std::endl;
-    std::cout << "  Rigid bodies: " << rigidBodies.size() << std::endl;
-    std::cout << "  Motion states: " << motionStates.size() << std::endl;
+    LOG_DEBUG("Physics", "Physics World Debug Info:");
+    LOG_DEBUG_FMT("Physics", "  Rigid bodies: " << rigidBodies.size());
+    LOG_DEBUG_FMT("Physics", "  Motion states: " << motionStates.size());
     
     if (dynamicsWorld) {
-        std::cout << "  World objects: " << dynamicsWorld->getNumCollisionObjects() << std::endl;
+        LOG_DEBUG_FMT("Physics", "  World objects: " << dynamicsWorld->getNumCollisionObjects());
         btVector3 gravity = dynamicsWorld->getGravity();
-        std::cout << "  Gravity: (" << gravity.getX() << ", " << gravity.getY() << ", " << gravity.getZ() << ")" << std::endl;
+        LOG_DEBUG_FMT("Physics", "  Gravity: (" << gravity.getX() << ", " << gravity.getY() << ", " << gravity.getZ() << ")");
     }
 }
 
@@ -695,8 +696,8 @@ void PhysicsWorld::cleanupFallenCubes() {
     
     // Remove fallen cubes
     if (!bodiesToRemove.empty()) {
-        std::cout << "[CLEANUP] Removing " << bodiesToRemove.size() 
-                  << " fallen cubes below Y = " << fallThreshold << std::endl;
+        LOG_INFO_FMT("Physics", "[CLEANUP] Removing " << bodiesToRemove.size() 
+                  << " fallen cubes below Y = " << fallThreshold);
         
         for (btRigidBody* body : bodiesToRemove) {
             removeCube(body);

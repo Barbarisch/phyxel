@@ -2,6 +2,7 @@
 #include "core/Chunk.h"
 #include "core/Cube.h"
 #include "core/Subcube.h"
+#include "utils/Logger.h"
 #include <iostream>
 #include <filesystem>
 
@@ -15,7 +16,7 @@
 namespace VulkanCube {
 
 WorldStorage::WorldStorage(const std::string& databasePath) : dbPath(databasePath) {
-    std::cout << "[WORLD_STORAGE] SQLite not available - using stub implementation" << std::endl;
+    LOG_INFO("WorldStorage", "[WORLD_STORAGE] SQLite not available - using stub implementation");
 }
 
 WorldStorage::~WorldStorage() {
@@ -23,7 +24,7 @@ WorldStorage::~WorldStorage() {
 }
 
 bool WorldStorage::initialize() {
-    std::cout << "[WORLD_STORAGE] SQLite not available - world persistence disabled" << std::endl;
+    LOG_INFO("WorldStorage", "[WORLD_STORAGE] SQLite not available - world persistence disabled");
     return false; // Indicates no persistence available
 }
 
@@ -72,25 +73,25 @@ bool WorldStorage::initialize() {
     // Open database
     int result = sqlite3_open(dbPath.c_str(), &db);
     if (result != SQLITE_OK) {
-        std::cerr << "[WORLD_STORAGE] Cannot open database: " << sqlite3_errmsg(db) << std::endl;
+        LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] Cannot open database: " << sqlite3_errmsg(db));
         return false;
     }
     
-    std::cout << "[WORLD_STORAGE] Opened database: " << dbPath << std::endl;
+    LOG_INFO_FMT("WorldStorage", "[WORLD_STORAGE] Opened database: " << dbPath);
     
     // Create tables if they don't exist
     if (!createTables()) {
-        std::cerr << "[WORLD_STORAGE] Failed to create tables" << std::endl;
+        LOG_ERROR("WorldStorage", "[WORLD_STORAGE] Failed to create tables");
         return false;
     }
     
     // Prepare statements
     if (!prepareStatements()) {
-        std::cerr << "[WORLD_STORAGE] Failed to prepare statements" << std::endl;
+        LOG_ERROR("WorldStorage", "[WORLD_STORAGE] Failed to prepare statements");
         return false;
     }
     
-    std::cout << "[WORLD_STORAGE] WorldStorage initialized successfully" << std::endl;
+    LOG_INFO("WorldStorage", "[WORLD_STORAGE] WorldStorage initialized successfully");
     return true;
 }
 
@@ -100,7 +101,7 @@ bool WorldStorage::close() {
     if (db) {
         sqlite3_close(db);
         db = nullptr;
-        std::cout << "[WORLD_STORAGE] Database closed" << std::endl;
+        LOG_INFO("WorldStorage", "[WORLD_STORAGE] Database closed");
     }
     return true;
 }
@@ -166,7 +167,7 @@ bool WorldStorage::createTables() {
     bool success = sqlite3_exec(db, createTablesSQL, nullptr, nullptr, &errorMsg) == SQLITE_OK;
     
     if (errorMsg) {
-        std::cerr << "[WORLD_STORAGE] Error creating tables: " << errorMsg << std::endl;
+        LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] Error creating tables: " << errorMsg);
         sqlite3_free(errorMsg);
     }
     
@@ -243,17 +244,17 @@ bool WorldStorage::saveChunk(const Chunk& chunk) {
 
 bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
     if (!db) {
-        std::cout << "[WORLD_STORAGE] ERROR: No database connection in saveChunk()" << std::endl;
+        LOG_ERROR("WorldStorage", "[WORLD_STORAGE] ERROR: No database connection in saveChunk()");
         return false;
     }
     
     glm::ivec3 chunkCoord = chunk.getWorldOrigin() / 32; // Convert world origin to chunk coordinates
-    std::cout << "[WORLD_STORAGE] Starting saveChunk for chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")" << std::endl;
+    LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Starting saveChunk for chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
     
     bool ownTransaction = false;
     if (useTransaction) {
         if (!beginTransaction()) {
-            std::cout << "[WORLD_STORAGE] ERROR: Failed to begin transaction in saveChunk()" << std::endl;
+            LOG_ERROR("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to begin transaction in saveChunk()");
             return false;
         }
         ownTransaction = true;
@@ -269,7 +270,7 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
         
         if (sqlite3_prepare_v2(db, deleteCubesSQL, -1, &deleteCubesStmt, nullptr) != SQLITE_OK ||
             sqlite3_prepare_v2(db, deleteSubcubesSQL, -1, &deleteSubcubesStmt, nullptr) != SQLITE_OK) {
-            std::cout << "[WORLD_STORAGE] ERROR: Failed to prepare delete statements: " << sqlite3_errmsg(db) << std::endl;
+            LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to prepare delete statements: " << sqlite3_errmsg(db));
             if (ownTransaction) rollbackTransaction();
             return false;
         }
@@ -290,8 +291,8 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
         int deletedSubcubes = sqlite3_changes(db);
         sqlite3_finalize(deleteSubcubesStmt);
         
-        std::cout << "[WORLD_STORAGE] Chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z 
-                  << ") - Deleted " << deletedCubes << " old cubes, " << deletedSubcubes << " old subcubes" << std::endl;
+        LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z 
+                  << ") - Deleted " << deletedCubes << " old cubes, " << deletedSubcubes << " old subcubes");
         
         // Insert/update chunk record
         sqlite3_bind_int(insertChunkStmt, 1, chunkCoord.x);
@@ -299,7 +300,7 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
         sqlite3_bind_int(insertChunkStmt, 3, chunkCoord.z);
         
         if (sqlite3_step(insertChunkStmt) != SQLITE_DONE) {
-            std::cout << "[WORLD_STORAGE] ERROR: Failed to insert chunk record: " << sqlite3_errmsg(db) << std::endl;
+            LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert chunk record: " << sqlite3_errmsg(db));
             if (ownTransaction) rollbackTransaction();
             return false;
         }
@@ -327,7 +328,7 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
                         sqlite3_bind_int(insertCubeStmt, 11, cube->isVisible() ? 1 : 0);
                         
                         if (sqlite3_step(insertCubeStmt) != SQLITE_DONE) {
-                            std::cout << "[WORLD_STORAGE] ERROR: Failed to insert cube at (" << x << "," << y << "," << z << "): " << sqlite3_errmsg(db) << std::endl;
+                            LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert cube at (" << x << "," << y << "," << z << "): " << sqlite3_errmsg(db));
                             if (ownTransaction) rollbackTransaction();
                             return false;
                         }
@@ -368,12 +369,12 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
                     sqlite3_bind_int(insertSubcubeStmt, 13, subcube->isDynamic() ? 1 : 0);
                     
                     if (sqlite3_step(insertSubcubeStmt) != SQLITE_DONE) {
-                        std::cout << "[WORLD_STORAGE] ERROR: Failed to insert static subcube at (" 
+                        LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert static subcube at (" 
                                   << parentLocalPos.x << "," << parentLocalPos.y << "," << parentLocalPos.z << ") sub(" 
                                   << subcube->getLocalPosition().x << "," 
                                   << subcube->getLocalPosition().y << "," 
                                   << subcube->getLocalPosition().z << "): " 
-                                  << sqlite3_errmsg(db) << std::endl;
+                                  << sqlite3_errmsg(db));
                         if (ownTransaction) rollbackTransaction();
                         return false;
                     }
@@ -383,11 +384,11 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
             }
         }
         
-        std::cout << "[WORLD_STORAGE] Chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z 
-                  << ") - Saved " << savedCubes << " cubes, " << savedSubcubes << " static subcubes" << std::endl;
+        LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z 
+                  << ") - Saved " << savedCubes << " cubes, " << savedSubcubes << " static subcubes");
         
     } catch (...) {
-        std::cout << "[WORLD_STORAGE] ERROR: Exception caught in saveChunk()" << std::endl;
+        LOG_ERROR("WorldStorage", "[WORLD_STORAGE] ERROR: Exception caught in saveChunk()");
         if (ownTransaction) rollbackTransaction();
         return false;
     }
@@ -395,13 +396,13 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
     if (ownTransaction) {
         bool commitResult = commitTransaction();
         if (!commitResult) {
-            std::cout << "[WORLD_STORAGE] ERROR: Failed to commit transaction in saveChunk()" << std::endl;
+            LOG_ERROR("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to commit transaction in saveChunk()");
         } else {
-            std::cout << "[WORLD_STORAGE] Successfully saved chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")" << std::endl;
+            LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Successfully saved chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
         }
         return commitResult;
     } else {
-        std::cout << "[WORLD_STORAGE] Successfully saved chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ") (no transaction commit needed)" << std::endl;
+        LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Successfully saved chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ") (no transaction commit needed)");
         return true;
     }
 }
@@ -439,8 +440,8 @@ bool WorldStorage::loadChunk(const glm::ivec3& chunkCoord, Chunk& chunk) {
     // Load subcubes for this chunk
     loadSubcubesForChunk(chunkCoord, chunk);
     
-    std::cout << "[WORLD_STORAGE] Loaded " << loadedCubes << " cubes for chunk (" 
-              << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")" << std::endl;
+    LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Loaded " << loadedCubes << " cubes for chunk (" 
+              << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
     
     return loadedCubes > 0;
 }
@@ -486,10 +487,10 @@ bool WorldStorage::deleteCube(const glm::ivec3& chunkCoord, const glm::ivec3& lo
     sqlite3_reset(deleteCubeStmt);
     
     if (!success) {
-        std::cerr << "[WORLD_STORAGE] Failed to delete cube at (" 
+        LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] Failed to delete cube at (" 
                   << localPos.x << "," << localPos.y << "," << localPos.z 
                   << ") in chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << "): " 
-                  << sqlite3_errmsg(db) << std::endl;
+                  << sqlite3_errmsg(db));
     }
     
     return success;
@@ -516,7 +517,7 @@ bool WorldStorage::saveDirtyChunks(const std::vector<std::reference_wrapper<Chun
     int savedCount = 0;
     int skippedCount = 0;
     
-    std::cout << "[WORLD_STORAGE] Processing " << chunks.size() << " chunks for smart save..." << std::endl;
+    LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Processing " << chunks.size() << " chunks for smart save...");
     
     beginTransaction();
     
@@ -525,7 +526,7 @@ bool WorldStorage::saveDirtyChunks(const std::vector<std::reference_wrapper<Chun
         glm::ivec3 chunkCoord = chunk.getWorldOrigin() / 32;
         
         if (chunk.getIsDirty()) {
-            std::cout << "[WORLD_STORAGE] Saving DIRTY chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")" << std::endl;
+            LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Saving DIRTY chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
             if (saveChunk(chunk, false)) { // Don't use nested transaction
                 chunk.markClean();
                 savedCount++;
@@ -538,10 +539,10 @@ bool WorldStorage::saveDirtyChunks(const std::vector<std::reference_wrapper<Chun
     bool success = commitTransaction();
     
     if (success) {
-        std::cout << "[WORLD_STORAGE] Smart save complete: " << savedCount << " dirty chunks saved, " 
-                  << skippedCount << " clean chunks skipped" << std::endl;
+        LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Smart save complete: " << savedCount << " dirty chunks saved, " 
+                  << skippedCount << " clean chunks skipped");
     } else {
-        std::cout << "[WORLD_STORAGE] Smart save FAILED!" << std::endl;
+        LOG_ERROR("WorldStorage", "[WORLD_STORAGE] Smart save FAILED!");
     }
     
     return success;
@@ -636,7 +637,7 @@ bool WorldStorage::compactDatabase() {
     bool success = sqlite3_exec(db, "VACUUM;", nullptr, nullptr, &errorMsg) == SQLITE_OK;
     
     if (errorMsg) {
-        std::cerr << "[WORLD_STORAGE] Error compacting database: " << errorMsg << std::endl;
+        LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] Error compacting database: " << errorMsg);
         sqlite3_free(errorMsg);
     }
     
@@ -658,7 +659,7 @@ bool WorldStorage::createNewWorld() {
     bool success = sqlite3_exec(db, clearTables, nullptr, nullptr, &errorMsg) == SQLITE_OK;
     
     if (errorMsg) {
-        std::cerr << "[WORLD_STORAGE] Error clearing world: " << errorMsg << std::endl;
+        LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] Error clearing world: " << errorMsg);
         sqlite3_free(errorMsg);
     }
     
@@ -714,8 +715,8 @@ bool WorldStorage::loadSubcubesForChunk(const glm::ivec3& chunkCoord, Chunk& chu
     sqlite3_reset(selectSubcubesStmt);
     
     if (loadedSubcubes > 0) {
-        std::cout << "[WORLD_STORAGE] Loaded " << loadedSubcubes << " subcubes for chunk (" 
-                  << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")" << std::endl;
+        LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Loaded " << loadedSubcubes << " subcubes for chunk (" 
+                  << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
     }
     
     return true;

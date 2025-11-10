@@ -94,18 +94,18 @@ bool Application::initialize() {
 
     // Load shaders for pipelines (after Vulkan is initialized)
     if (!renderPipeline->loadShaders("shaders/cube.vert.spv", "shaders/cube.frag.spv")) {
-        std::cerr << "Failed to load static pipeline shaders!" << std::endl;
+        LOG_ERROR("Application", "Failed to load static pipeline shaders!");
         return false;
     }
     
     if (!dynamicRenderPipeline->loadShaders("shaders/dynamic_subcube.vert.spv", "shaders/cube.frag.spv")) {
-        std::cerr << "Failed to load dynamic pipeline shaders!" << std::endl;
+        LOG_ERROR("Application", "Failed to load dynamic pipeline shaders!");
         return false;
     }
 
     // Initialize texture atlas system
     if (!initializeTextureAtlas()) {
-        std::cerr << "Failed to initialize texture atlas!" << std::endl;
+        LOG_ERROR("Application", "Failed to initialize texture atlas!");
         return false;
     }
 
@@ -117,7 +117,7 @@ bool Application::initialize() {
     
     // Initialize world storage for persistent chunks
     if (!chunkManager->initializeWorldStorage("worlds/default.db")) {
-        std::cerr << "Warning: Failed to initialize world storage. Using temporary chunks." << std::endl;
+        LOG_WARN("Application", "Failed to initialize world storage. Using temporary chunks.");
     }
     
     // Create chunks
@@ -126,11 +126,11 @@ bool Application::initialize() {
     auto origins = MultiChunkDemo::create3DGridChunks(2, 2, 2);
     
     // Debug: Print chunk origins
-    std::cout << "=== CHUNK ORIGINS ===" << std::endl;
+    LOG_DEBUG("Application", "=== CHUNK ORIGINS ===");
     for (size_t i = 0; i < origins.size(); ++i) {
-        std::cout << "Chunk " << i << " origin: (" << origins[i].x << "," << origins[i].y << "," << origins[i].z << ")" << std::endl;
+        LOG_DEBUG_FMT("Application", "Chunk " << i << " origin: (" << origins[i].x << "," << origins[i].y << "," << origins[i].z << ")");
     }
-    std::cout << "=====================" << std::endl;
+    LOG_DEBUG("Application", "=====================");
     
     // Load chunks from database or generate if they don't exist
     for (const auto& origin : origins) {
@@ -150,7 +150,7 @@ bool Application::initialize() {
     // Cross-chunk occlusion culling is now handled in rebuildAllChunkFaces()
     // chunkManager->performOcclusionCulling();
     
-    std::cout << "Created " << chunkManager->chunks.size() << " chunks for testing" << std::endl;
+    LOG_INFO_FMT("Application", "Created " << chunkManager->chunks.size() << " chunks for testing");
 
     // if (!initializeScene()) {
     //     std::cerr << "Failed to initialize scene!" << std::endl;
@@ -161,37 +161,36 @@ bool Application::initialize() {
     initializeCamera();
 
     if (!initializePhysics()) {
-        std::cerr << "Failed to initialize physics!" << std::endl;
+        LOG_ERROR("Application", "Failed to initialize physics!");
         return false;
     }
 
     // Create physics bodies for all chunks AFTER physics world is initialized
     // Each chunk will be a compound shape made from individual cube collision boxes
-    std::cout << "Creating chunk physics bodies..." << std::endl;
+    LOG_INFO("Application", "Creating chunk physics bodies...");
     for (auto& chunk : chunkManager->chunks) {
         chunk->setPhysicsWorld(physicsWorld.get());
         chunk->createChunkPhysicsBody();
     }
 
     if (!loadAssets()) {
-        std::cerr << "Failed to load assets!" << std::endl;
+        LOG_ERROR("Application", "Failed to load assets!");
         return false;
     }
 
     // Initialize ImGui after Vulkan is fully set up
     if (!imguiRenderer->initialize(window, vulkanDevice.get(), renderPipeline.get())) {
-        std::cerr << "Failed to initialize ImGui!" << std::endl;
+        LOG_ERROR("Application", "Failed to initialize ImGui!");
         return false;
     }
 
     timer->start();
-    std::cout << "Application initialized successfully!" << std::endl;
-    std::cout.flush(); // Force output to appear immediately
+    LOG_INFO("Application", "Application initialized successfully!");
     return true;
 }
 
 void Application::run() {
-    std::cout << "Starting VulkanCube application..." << std::endl;
+    LOG_INFO("Application", "Starting VulkanCube application...");
     isRunning = true;
     
     lastFrameTime = glfwGetTime();
@@ -309,7 +308,7 @@ void Application::run() {
         }
     }
     
-    std::cout << "Application shutting down..." << std::endl;
+    LOG_INFO("Application", "Application shutting down...");
 }
 
 void Application::cleanup() {
@@ -329,7 +328,7 @@ void Application::cleanup() {
     // Cleanup chunk manager before Vulkan device
     if (chunkManager) {
         // Save only dirty chunks to database before cleanup for efficiency
-        std::cout << "Saving modified chunks to database..." << std::endl;
+        LOG_INFO("Application", "Saving modified chunks to database...");
         chunkManager->saveDirtyChunks();
         chunkManager->cleanup();
     }
@@ -376,90 +375,90 @@ void Application::setTitle(const std::string& title) {
 bool Application::initializeVulkan() {
     // Create Vulkan instance first
     if (!vulkanDevice->createInstance()) {
-        std::cerr << "Failed to create Vulkan instance!" << std::endl;
+        LOG_ERROR("Application", "Failed to create Vulkan instance!");
         return false;
     }
 
     // Setup debug messenger
     if (!vulkanDevice->setupDebugMessenger()) {
-        std::cerr << "Failed to setup debug messenger!" << std::endl;
+        LOG_ERROR("Application", "Failed to setup debug messenger!");
         return false;
     }
 
     // Create Vulkan surface with the window (must be done before device selection)
     if (!vulkanDevice->createSurface(window)) {
-        std::cerr << "Failed to create Vulkan surface!" << std::endl;
+        LOG_ERROR("Application", "Failed to create Vulkan surface!");
         return false;
     }
 
     // Now pick physical device and create logical device
     if (!vulkanDevice->pickPhysicalDevice()) {
-        std::cerr << "Failed to pick physical device!" << std::endl;
+        LOG_ERROR("Application", "Failed to pick physical device!");
         return false;
     }
 
     if (!vulkanDevice->createLogicalDevice()) {
-        std::cerr << "Failed to create logical device!" << std::endl;
+        LOG_ERROR("Application", "Failed to create logical device!");
         return false;
     }
 
     // Create swapchain
     if (!vulkanDevice->createSwapChain(windowWidth, windowHeight)) {
-        std::cerr << "Failed to create swapchain!" << std::endl;
+        LOG_ERROR("Application", "Failed to create swapchain!");
         return false;
     }
 
     // Create render pass
     if (!renderPipeline->createRenderPass()) {
-        std::cerr << "Failed to create render pass!" << std::endl;
+        LOG_ERROR("Application", "Failed to create render pass!");
         return false;
     }
 
     // Create depth resources
     if (!vulkanDevice->createDepthResources()) {
-        std::cerr << "Failed to create depth resources!" << std::endl;
+        LOG_ERROR("Application", "Failed to create depth resources!");
         return false;
     }
 
     // Create framebuffers
     if (!vulkanDevice->createFramebuffers(renderPipeline->getRenderPass())) {
-        std::cerr << "Failed to create framebuffers!" << std::endl;
+        LOG_ERROR("Application", "Failed to create framebuffers!");
         return false;
     }
 
     // Load shaders for static pipeline
     if (!renderPipeline->loadShaders("shaders/cube.vert.spv", "shaders/cube.frag.spv")) {
-        std::cerr << "Failed to load static graphics shaders!" << std::endl;
+        LOG_ERROR("Application", "Failed to load static graphics shaders!");
         return false;
     }
 
     // Load shaders for dynamic subcube pipeline
     if (!dynamicRenderPipeline->loadShaders("shaders/dynamic_subcube.vert.spv", "shaders/cube.frag.spv")) {
-        std::cerr << "Failed to load dynamic subcube graphics shaders!" << std::endl;
+        LOG_ERROR("Application", "Failed to load dynamic subcube graphics shaders!");
         return false;
     }
 
     // TODO: Compute shader functionality for frustum culling (experimental/incomplete)
     /*
     if (!renderPipeline->loadComputeShader("shaders/frustum_cull.comp.spv")) {
-        std::cerr << "Failed to load compute shader!" << std::endl;
+        LOG_ERROR("Application", "Failed to load compute shader!");
         return false;
     }
     */
 
     // Create descriptor set layout before graphics pipeline
     if (!vulkanDevice->createDescriptorSetLayout()) {
-        std::cerr << "Failed to create descriptor set layout!" << std::endl;
+        LOG_ERROR("Application", "Failed to create descriptor set layout!");
         return false;
     }
 
     if (!renderPipeline->createGraphicsPipeline()) {
-        std::cerr << "Failed to create static graphics pipeline!" << std::endl;
+        LOG_ERROR("Application", "Failed to create static graphics pipeline!");
         return false;
     }
 
     if (!dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes()) {
-        std::cerr << "Failed to create dynamic graphics pipeline!" << std::endl;
+        LOG_ERROR("Application", "Failed to create dynamic graphics pipeline!");
         return false;
     }
 
@@ -475,29 +474,29 @@ bool Application::initializeVulkan() {
 
     // Create command buffers
     if (!vulkanDevice->createCommandBuffers()) {
-        std::cerr << "Failed to create command buffers!" << std::endl;
+        LOG_ERROR("Application", "Failed to create command buffers!");
         return false;
     }
 
     // Create rendering buffers
     if (!vulkanDevice->createVertexBuffer()) {
-        std::cerr << "Failed to create vertex buffer!" << std::endl;
+        LOG_ERROR("Application", "Failed to create vertex buffer!");
         return false;
     }
 
     if (!vulkanDevice->createIndexBuffer()) {
-        std::cerr << "Failed to create index buffer!" << std::endl;
+        LOG_ERROR("Application", "Failed to create index buffer!");
         return false;
     }
 
     if (!vulkanDevice->createInstanceBuffer()) {
-        std::cerr << "Failed to create instance buffer!" << std::endl;
+        LOG_ERROR("Application", "Failed to create instance buffer!");
         return false;
     }
 
     // Create dynamic subcube buffer (support up to 1000 dynamic subcubes)
     if (!vulkanDevice->createDynamicSubcubeBuffer(1000)) {
-        std::cerr << "Failed to create dynamic subcube buffer!" << std::endl;
+        LOG_ERROR("Application", "Failed to create dynamic subcube buffer!");
         return false;
     }
 
@@ -505,69 +504,69 @@ bool Application::initializeVulkan() {
     /*
     // Create frustum culling buffers (support up to 35,000 instances)
     if (!vulkanDevice->createFrustumCullingBuffers(35000)) {
-        std::cerr << "Failed to create frustum culling buffers!" << std::endl;
+        LOG_ERROR("Application", "Failed to create frustum culling buffers!");
         return false;
     }
     */
 
     // Create dynamic subcube buffer (support up to 1000 dynamic subcubes)
     if (!vulkanDevice->createDynamicSubcubeBuffer(1000)) {
-        std::cerr << "Failed to create dynamic subcube buffer!" << std::endl;
+        LOG_ERROR("Application", "Failed to create dynamic subcube buffer!");
         return false;
     }
 
     if (!vulkanDevice->createUniformBuffers()) {
-        std::cerr << "Failed to create uniform buffers!" << std::endl;
+        LOG_ERROR("Application", "Failed to create uniform buffers!");
         return false;
     }
 
     if (!vulkanDevice->createDescriptorPool()) {
-        std::cerr << "Failed to create descriptor pool!" << std::endl;
+        LOG_ERROR("Application", "Failed to create descriptor pool!");
         return false;
     }
 
     // TODO: Compute descriptor pool functionality (experimental/incomplete)
     /*
     if (!vulkanDevice->createComputeDescriptorPool()) {
-        std::cerr << "Failed to create compute descriptor pool!" << std::endl;
+        LOG_ERROR("Application", "Failed to create compute descriptor pool!");
         return false;
     }
     */
 
     if (!vulkanDevice->createDescriptorSets()) {
-        std::cerr << "Failed to create descriptor sets!" << std::endl;
+        LOG_ERROR("Application", "Failed to create descriptor sets!");
         return false;
     }
 
     // Create synchronization objects
     if (!vulkanDevice->createSyncObjects()) {
-        std::cerr << "Failed to create sync objects!" << std::endl;
+        LOG_ERROR("Application", "Failed to create sync objects!");
         return false;
     }
 
-    std::cout << "Vulkan subsystem initialized successfully" << std::endl;
+    LOG_INFO("Application", "Vulkan subsystem initialized successfully");
     return true;
 }
 
 bool Application::initializeTextureAtlas() {
-    std::cout << "Initializing texture atlas system..." << std::endl;
+    LOG_INFO("Application", "Initializing texture atlas system...");
     
     // Load the texture atlas
     if (!vulkanDevice->loadTextureAtlas("resources/textures/cube_atlas.png")) {
-        std::cerr << "Failed to load texture atlas!" << std::endl;
+        LOG_ERROR("Application", "Failed to load texture atlas!");
         return false;
     }
     
     // Create the texture sampler
     if (!vulkanDevice->createTextureAtlasSampler()) {
-        std::cerr << "Failed to create texture atlas sampler!" << std::endl;
+        LOG_ERROR("Application", "Failed to create texture atlas sampler!");
         return false;
     }
     
     // Update descriptor sets with texture binding
     vulkanDevice->updateDescriptorSetsWithTexture();
     
-    std::cout << "Texture atlas system initialized successfully" << std::endl;
+    LOG_INFO("Application", "Texture atlas system initialized successfully");
     return true;
 }
 
@@ -575,7 +574,7 @@ bool Application::initializeScene() {
     // Scene initialization now handled by ChunkManager
     // No need for separate scene manager initialization
 
-    std::cout << "Scene subsystem initialized successfully" << std::endl;
+    LOG_INFO("Application", "Scene subsystem initialized successfully");
     return true;
 }
 
@@ -584,7 +583,7 @@ bool Application::initializePhysics() {
         return false;
     }
 
-    std::cout << "Physics subsystem initialized successfully (static cubes excluded)" << std::endl;
+    LOG_INFO("Application", "Physics subsystem initialized successfully (static cubes excluded)");
     return true;
 }
 
@@ -592,7 +591,7 @@ bool Application::loadAssets() {
     // Load textures, models, etc.
     // For now, just return true as we have basic cube rendering
     
-    std::cout << "Assets loaded successfully" << std::endl;
+    LOG_INFO("Application", "Assets loaded successfully");
     return true;
 }
 
@@ -808,7 +807,7 @@ void Application::drawFrame() {
         }
         return; // Skip this frame and try again
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        std::cerr << "Failed to acquire swapchain image!" << std::endl;
+        LOG_ERROR("Application", "Failed to acquire swapchain image!");
         return;
     }
 
@@ -967,10 +966,9 @@ void Application::drawFrame() {
         // Optional: Add culling statistics debug output
         static size_t lastRenderedChunks = 0;
         if (actuallyRenderedChunks != lastRenderedChunks) {
-            std::cout << "[CULLING] Total chunks: " << chunkManager->chunks.size() 
+            LOG_DEBUG_FMT("Application", "[CULLING] Total chunks: " << chunkManager->chunks.size() 
                       << ", Rendered chunks: " << actuallyRenderedChunks 
-                      << " (Culled: " << (chunkManager->chunks.size() - actuallyRenderedChunks) << ")"
-                      << std::endl;
+                      << " (Culled: " << (chunkManager->chunks.size() - actuallyRenderedChunks) << ")");
             lastRenderedChunks = actuallyRenderedChunks;
         }
     } else {
@@ -990,7 +988,7 @@ void Application::drawFrame() {
     // Submit command buffer
     auto submitStart = std::chrono::high_resolution_clock::now();
     if (!vulkanDevice->submitCommandBuffer(currentFrame)) {
-        std::cerr << "Failed to submit command buffer!" << std::endl;
+        LOG_ERROR("Application", "Failed to submit command buffer!");
         return;
     }
     auto submitEnd = std::chrono::high_resolution_clock::now();
@@ -1003,7 +1001,7 @@ void Application::drawFrame() {
         // Recreate swapchain on next frame
         vulkanDevice->setFramebufferResized(true);
     } else if (presentResult != VK_SUCCESS) {
-        std::cerr << "Failed to present frame!" << std::endl;
+        LOG_ERROR("Application", "Failed to present frame!");
         return;
     }
     auto presentEnd = std::chrono::high_resolution_clock::now();
@@ -1055,18 +1053,18 @@ void Application::printPerformanceStats() {
     float fps = timer->getFPS();
     auto chunkStats = chunkManager->getPerformanceStats();
     
-    std::cout << "Performance Stats:" << std::endl;
-    std::cout << "  FPS: " << fps << std::endl;
-    std::cout << "  CPU Frame Time: " << frameTiming.cpuFrameTime << "ms" << std::endl;
-    std::cout << "  GPU Frame Time: " << frameTiming.gpuFrameTime << "ms" << std::endl;
-    std::cout << "  Vertices: " << frameTiming.vertexCount << std::endl;
-    std::cout << "  Draw Calls: " << frameTiming.drawCalls << std::endl;
-    std::cout << "  Visible Instances: " << frameTiming.visibleInstances << std::endl;
-    std::cout << "  Culled Instances: " << frameTiming.culledInstances << std::endl;
-    std::cout << "  Total Chunks: " << chunkManager->chunks.size() << std::endl;
-    std::cout << "  Total Cubes: " << chunkStats.totalCubes << std::endl;
-    std::cout << "  Physics Bodies: " << physicsWorld->getRigidBodyCount() << std::endl;
-    std::cout << "---" << std::endl;
+    LOG_INFO("Performance", "Performance Stats:");
+    LOG_INFO_FMT("Performance", "  FPS: " << fps);
+    LOG_INFO_FMT("Performance", "  CPU Frame Time: " << frameTiming.cpuFrameTime << "ms");
+    LOG_INFO_FMT("Performance", "  GPU Frame Time: " << frameTiming.gpuFrameTime << "ms");
+    LOG_INFO_FMT("Performance", "  Vertices: " << frameTiming.vertexCount);
+    LOG_INFO_FMT("Performance", "  Draw Calls: " << frameTiming.drawCalls);
+    LOG_INFO_FMT("Performance", "  Visible Instances: " << frameTiming.visibleInstances);
+    LOG_INFO_FMT("Performance", "  Culled Instances: " << frameTiming.culledInstances);
+    LOG_INFO_FMT("Performance", "  Total Chunks: " << chunkManager->chunks.size());
+    LOG_INFO_FMT("Performance", "  Total Cubes: " << chunkStats.totalCubes);
+    LOG_INFO_FMT("Performance", "  Physics Bodies: " << physicsWorld->getRigidBodyCount());
+    LOG_INFO("Performance", "---");
 }
 
 
@@ -1074,7 +1072,7 @@ void Application::printPerformanceStats() {
 bool Application::initializeWindow() {
     // Initialize GLFW
     if (!glfwInit()) {
-        std::cerr << "Failed to initialize GLFW!" << std::endl;
+        LOG_ERROR("Application", "Failed to initialize GLFW!");
         return false;
     }
 
@@ -1085,7 +1083,7 @@ bool Application::initializeWindow() {
     // Create window
     window = glfwCreateWindow(windowWidth, windowHeight, windowTitle.c_str(), nullptr, nullptr);
     if (!window) {
-        std::cerr << "Failed to create GLFW window!" << std::endl;
+        LOG_ERROR("Application", "Failed to create GLFW window!");
         glfwTerminate();
         return false;
     }
@@ -1094,7 +1092,7 @@ bool Application::initializeWindow() {
     glfwSetWindowUserPointer(window, this);
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 
-    std::cout << "Window initialized successfully" << std::endl;
+    LOG_INFO("Application", "Window initialized successfully");
     return true;
 }
 
@@ -1107,7 +1105,7 @@ void Application::initializeCamera() {
     // Keep cursor visible and free - no mouse capture
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     
-    std::cout << "Camera controls initialized - hold right mouse button and drag to look around" << std::endl;
+    LOG_INFO("Application", "Camera controls initialized - hold right mouse button and drag to look around");
 }
 
 void Application::mouseCallback(GLFWwindow* window, double xpos, double ypos) {
@@ -1150,8 +1148,8 @@ void Application::mouseCallback(GLFWwindow* window, double xpos, double ypos) {
     // Debug output to show mouse movement is being processed
     static int debugCounter = 0;
     if (++debugCounter % 10 == 0) { // Print every 10th movement to avoid spam
-        std::cout << "Camera look: yaw=" << std::fixed << std::setprecision(1) 
-                  << app->yaw << "° pitch=" << app->pitch << "°" << std::endl;
+        LOG_TRACE_FMT("Application", "Camera look: yaw=" << std::fixed << std::setprecision(1) 
+                  << app->yaw << "° pitch=" << app->pitch << "°");
     }
 
     // Constrain pitch
@@ -1174,11 +1172,11 @@ void Application::mouseButtonCallback(GLFWwindow* window, int button, int action
             // Start camera rotation mode
             app->mouseCaptured = true;
             app->firstMouse = true; // Reset first mouse to avoid jump
-            std::cout << "*** RIGHT MOUSE PRESSED - CAMERA LOOK MODE ENABLED ***" << std::endl;
+            LOG_DEBUG("Application", "*** RIGHT MOUSE PRESSED - CAMERA LOOK MODE ENABLED ***");
         } else if (action == GLFW_RELEASE) {
             // Stop camera rotation mode
             app->mouseCaptured = false;
-            std::cout << "*** RIGHT MOUSE RELEASED - CAMERA LOOK MODE DISABLED ***" << std::endl;
+            LOG_DEBUG("Application", "*** RIGHT MOUSE RELEASED - CAMERA LOOK MODE DISABLED ***");
         }
     }
     
@@ -1223,7 +1221,7 @@ void Application::framebufferResizeCallback(GLFWwindow* window, int width, int h
     // Update projection matrix
     app->projectionMatrixNeedsUpdate = true;
     
-    std::cout << "Window resized to " << width << "x" << height << std::endl;
+    LOG_INFO_FMT("Application", "Window resized to " << width << "x" << height);
 }
 
 void Application::processInput() {
@@ -1245,9 +1243,9 @@ void Application::processInput() {
     static bool f2Pressed = false;
     if (glfwGetKey(window, GLFW_KEY_F2) == GLFW_PRESS && !f2Pressed) {
         if (chunkManager) {
-            std::cout << "Manual save triggered - saving world to database..." << std::endl;
+            LOG_INFO("Application", "Manual save triggered - saving world to database...");
             chunkManager->saveAllChunks();
-            std::cout << "World saved successfully!" << std::endl;
+            LOG_INFO("Application", "World saved successfully!");
         }
         f2Pressed = true;
     } else if (glfwGetKey(window, GLFW_KEY_F2) == GLFW_RELEASE) {
@@ -1258,8 +1256,8 @@ void Application::processInput() {
     static bool f3Pressed = false;
     if (glfwGetKey(window, GLFW_KEY_F3) == GLFW_PRESS && !f3Pressed) {
         debugFlags.showForceSystemDebug = !debugFlags.showForceSystemDebug;
-        std::cout << "[DEBUG] Force System Debug overlay " 
-                  << (debugFlags.showForceSystemDebug ? "ENABLED" : "DISABLED") << std::endl;
+        LOG_DEBUG_FMT("Application", "[DEBUG] Force System Debug overlay " 
+                  << (debugFlags.showForceSystemDebug ? "ENABLED" : "DISABLED"));
         f3Pressed = true;
     } else if (glfwGetKey(window, GLFW_KEY_F3) == GLFW_RELEASE) {
         f3Pressed = false;
@@ -1275,22 +1273,22 @@ void Application::processInput() {
             case 0: // Outside view (default)
                 cameraPos = glm::vec3(50.0f, 50.0f, 50.0f);
                 cameraFront = glm::normalize(glm::vec3(16.0f, 16.0f, 16.0f) - cameraPos);
-                std::cout << "[DEBUG] Test position 1: Outside view (should see most cubes)" << std::endl;
+                LOG_DEBUG("Application", "[DEBUG] Test position 1: Outside view (should see most cubes)");
                 break;
             case 1: // Inside grid, looking at corner
                 cameraPos = glm::vec3(16.0f, 16.0f, 16.0f);
                 cameraFront = glm::normalize(glm::vec3(31.0f, 31.0f, 31.0f) - cameraPos);
-                std::cout << "[DEBUG] Test position 2: Inside grid, corner view (should cull ~50%)" << std::endl;
+                LOG_DEBUG("Application", "[DEBUG] Test position 2: Inside grid, corner view (should cull ~50%)");
                 break;
             case 2: // Ground level, looking up
                 cameraPos = glm::vec3(16.0f, -5.0f, 16.0f);
                 cameraFront = glm::normalize(glm::vec3(16.0f, 16.0f, 16.0f) - cameraPos);
-                std::cout << "[DEBUG] Test position 3: Ground level (should cull most cubes)" << std::endl;
+                LOG_DEBUG("Application", "[DEBUG] Test position 3: Ground level (should cull most cubes)");
                 break;
             case 3: // Edge view
                 cameraPos = glm::vec3(-10.0f, 16.0f, 16.0f);
                 cameraFront = glm::normalize(glm::vec3(31.0f, 16.0f, 16.0f) - cameraPos);
-                std::cout << "[DEBUG] Test position 4: Edge view (should cull ~50%)" << std::endl;
+                LOG_DEBUG("Application", "[DEBUG] Test position 4: Edge view (should cull ~50%)");
                 break;
         }
         tPressed = true;
@@ -1319,14 +1317,14 @@ void Application::processInput() {
     // Debug coordinate system with P key (simplified)
     static bool pPressed = false;
     if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS && !pPressed) {
-        std::cout << "[COORD DEBUG] Simple coordinate test:" << std::endl;
-        std::cout << "[COORD DEBUG] Camera position: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")" << std::endl;
-        std::cout << "[COORD DEBUG] Current hovered cube: " << (currentHoveredLocation.chunk ? "Found" : "None") << std::endl;
+        LOG_DEBUG("Application", "[COORD DEBUG] Simple coordinate test:");
+        LOG_DEBUG_FMT("Application", "[COORD DEBUG] Camera position: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")");
+        LOG_DEBUG_FMT("Application", "[COORD DEBUG] Current hovered cube: " << (currentHoveredLocation.chunk ? "Found" : "None"));
         if (currentHoveredLocation.chunk) {
-            std::cout << "[COORD DEBUG] Hovered world pos: (" 
+            LOG_DEBUG_FMT("Application", "[COORD DEBUG] Hovered world pos: (" 
                       << currentHoveredLocation.worldPos.x << ", " 
                       << currentHoveredLocation.worldPos.y << ", " 
-                      << currentHoveredLocation.worldPos.z << ")" << std::endl;
+                      << currentHoveredLocation.worldPos.z << ")");
         }
         pPressed = true;
     } else if (glfwGetKey(window, GLFW_KEY_P) == GLFW_RELEASE) {
@@ -1337,8 +1335,8 @@ void Application::processInput() {
     static bool oPressed = false;
     if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS && !oPressed) {
         debugFlags.disableBreakingForces = !debugFlags.disableBreakingForces;
-        std::cout << "[DEBUG] Breaking forces " << (debugFlags.disableBreakingForces ? "DISABLED" : "ENABLED") 
-                  << " - cubes will spawn " << (debugFlags.disableBreakingForces ? "without impulse" : "with normal impulse") << std::endl;
+        LOG_DEBUG_FMT("Application", "[DEBUG] Breaking forces " << (debugFlags.disableBreakingForces ? "DISABLED" : "ENABLED") 
+                  << " - cubes will spawn " << (debugFlags.disableBreakingForces ? "without impulse" : "with normal impulse"));
         oPressed = true;
     } else if (glfwGetKey(window, GLFW_KEY_O) == GLFW_RELEASE) {
         oPressed = false;
@@ -1373,7 +1371,7 @@ void Application::processInput() {
 }
 
 void Application::spawnTestDynamicSubcube() {
-    std::cout << "=== SPAWNING TEST DYNAMIC SUBCUBE ===" << std::endl;
+    LOG_DEBUG("Application", "=== SPAWNING TEST DYNAMIC SUBCUBE ===");
     
     // Spawn above the center of the 2x2x2 chunk grid
     // Chunk grid spans from (0,0,0) to (64,64,64) with Y being UP
@@ -1381,8 +1379,8 @@ void Application::spawnTestDynamicSubcube() {
     // Spawn clearly above at center: (32,80,32) - well above all chunks in Y
     glm::vec3 spawnPosition = glm::vec3(32.0f, 80.0f, 32.0f);
     
-    std::cout << "Spawn position: (" << spawnPosition.x << ", " << spawnPosition.y << ", " << spawnPosition.z << ")" << std::endl;
-    std::cout << "Camera position: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")" << std::endl;
+    LOG_DEBUG_FMT("Application", "Spawn position: (" << spawnPosition.x << ", " << spawnPosition.y << ", " << spawnPosition.z << ")");
+    LOG_DEBUG_FMT("Application", "Camera position: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")");
     
     // Create a new dynamic subcube with raw pointer (matching existing pattern)
     Subcube* dynamicSubcube = new Subcube(spawnPosition, glm::vec3(1.0f, 0.0f, 0.0f)); // Red color
@@ -1390,9 +1388,9 @@ void Application::spawnTestDynamicSubcube() {
     // Create physics body for the dynamic subcube (match visual size)
     glm::vec3 subcubeSize = glm::vec3(1.0f / 3.0f); // Match visual subcube size
     
-    std::cout << "[PHYSICS DEBUG] G-spawning subcube at world pos (" 
+    LOG_DEBUG_FMT("Application", "[PHYSICS DEBUG] G-spawning subcube at world pos (" 
               << spawnPosition.x << "," << spawnPosition.y << "," << spawnPosition.z 
-              << ") with physics size " << subcubeSize.x << std::endl;
+              << ") with physics size " << subcubeSize.x);
     
     btRigidBody* rigidBody = physicsWorld->createCube(spawnPosition, subcubeSize, 0.5f); // 0.5kg mass
     if (rigidBody) {
@@ -1409,53 +1407,53 @@ void Application::spawnTestDynamicSubcube() {
         // IMPORTANT: Set initial physics position to match the physics body
         dynamicSubcube->setPhysicsPosition(spawnPosition);
         
-        std::cout << "Created physics body for dynamic subcube with angular velocity: (" 
-                  << randomAngularVelocity.x() << ", " << randomAngularVelocity.y() << ", " << randomAngularVelocity.z() << ")" << std::endl;
+        LOG_DEBUG_FMT("Application", "Created physics body for dynamic subcube with angular velocity: (" 
+                  << randomAngularVelocity.x() << ", " << randomAngularVelocity.y() << ", " << randomAngularVelocity.z() << ")");
     } else {
-        std::cout << "ERROR: Failed to create physics body for dynamic subcube" << std::endl;
+        LOG_ERROR("Application", "Failed to create physics body for dynamic subcube");
     }
     
     // Add to global dynamic subcube management (not tied to any specific chunk)
     if (chunkManager) {
         chunkManager->addGlobalDynamicSubcube(std::unique_ptr<Subcube>(dynamicSubcube));
-        std::cout << "Added dynamic subcube to global management" << std::endl;
-        std::cout << "Press G again to spawn another subcube!" << std::endl;
+        LOG_DEBUG("Application", "Added dynamic subcube to global management");
+        LOG_DEBUG("Application", "Press G again to spawn another subcube!");
     } else {
-        std::cout << "ERROR: No chunk manager available for global dynamic subcube management" << std::endl;
+        LOG_ERROR("Application", "No chunk manager available for global dynamic subcube management");
     }
 }
 
 void Application::placeNewCube() {
-    std::cout << "=== ATTEMPTING TO PLACE NEW CUBE ===" << std::endl;
+    LOG_DEBUG("Application", "=== ATTEMPTING TO PLACE NEW CUBE ===");
     
     // Check if we have a valid hovered cube with face information
     if (!hasHoveredCube || !currentHoveredLocation.isValid()) {
-        std::cout << "[CUBE PLACE] No hovered cube - aim at a cube face first" << std::endl;
+        LOG_DEBUG("Application", "[CUBE PLACE] No hovered cube - aim at a cube face first");
         return;
     }
     
     // Check if face information is available
     if (currentHoveredLocation.hitFace < 0) {
-        std::cout << "[CUBE PLACE] No face information available - face detection may have failed" << std::endl;
+        LOG_DEBUG("Application", "[CUBE PLACE] No face information available - face detection may have failed");
         return;
     }
     
     // Calculate where to place the new cube (adjacent to the hit face)
     glm::ivec3 placementPos = currentHoveredLocation.getAdjacentPlacementPosition();
     
-    std::cout << "[CUBE PLACE] Hovering cube at world pos (" << currentHoveredLocation.worldPos.x 
-              << "," << currentHoveredLocation.worldPos.y << "," << currentHoveredLocation.worldPos.z << ")" << std::endl;
-    std::cout << "[CUBE PLACE] Hit face: " << currentHoveredLocation.hitFace << " (0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z)" << std::endl;
-    std::cout << "[CUBE PLACE] Attempting to place cube at world pos (" << placementPos.x 
-              << "," << placementPos.y << "," << placementPos.z << ")" << std::endl;
+    LOG_DEBUG_FMT("Application", "[CUBE PLACE] Hovering cube at world pos (" << currentHoveredLocation.worldPos.x 
+              << "," << currentHoveredLocation.worldPos.y << "," << currentHoveredLocation.worldPos.z << ")");
+    LOG_DEBUG_FMT("Application", "[CUBE PLACE] Hit face: " << currentHoveredLocation.hitFace << " (0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z)");
+    LOG_DEBUG_FMT("Application", "[CUBE PLACE] Attempting to place cube at world pos (" << placementPos.x 
+              << "," << placementPos.y << "," << placementPos.z << ")");
     
     // Check if placement position is within the loaded world bounds
     // For a 2x2x2 chunk grid, world spans from (0,0,0) to (63,63,63)
     if (placementPos.x < 0 || placementPos.x >= 64 ||
         placementPos.y < 0 || placementPos.y >= 64 ||
         placementPos.z < 0 || placementPos.z >= 64) {
-        std::cout << "[CUBE PLACE] ERROR: Placement position (" << placementPos.x << "," << placementPos.y << "," << placementPos.z 
-                  << ") is outside loaded world bounds (0,0,0) to (63,63,63)" << std::endl;
+        LOG_WARN_FMT("Application", "[CUBE PLACE] Placement position (" << placementPos.x << "," << placementPos.y << "," << placementPos.z 
+                  << ") is outside loaded world bounds (0,0,0) to (63,63,63)");
         return;
     }
     
@@ -1465,14 +1463,14 @@ void Application::placeNewCube() {
     
     Chunk* placementChunk = chunkManager->getChunkAtCoord(placementChunkCoord);
     if (!placementChunk) {
-        std::cout << "[CUBE PLACE] ERROR: No chunk found at placement position - may be outside loaded area" << std::endl;
+        LOG_WARN("Application", "[CUBE PLACE] No chunk found at placement position - may be outside loaded area");
         return;
     }
     
     // Check if position is already occupied
     Cube* existingCube = placementChunk->getCubeAt(placementLocalPos);
     if (existingCube && existingCube->isVisible()) {
-        std::cout << "[CUBE PLACE] Position already occupied by existing cube" << std::endl;
+        LOG_DEBUG("Application", "[CUBE PLACE] Position already occupied by existing cube");
         return;
     }
     
@@ -1490,12 +1488,12 @@ void Application::placeNewCube() {
         // Mark the chunk as dirty in ChunkManager to trigger visual updates
         chunkManager->markChunkDirty(placementChunk);
         
-        std::cout << "[CUBE PLACE] Successfully placed cube at world pos (" << placementPos.x 
-                  << "," << placementPos.y << "," << placementPos.z << ")" << std::endl;
-        std::cout << "[CUBE PLACE] Chunk (" << placementChunkCoord.x << "," << placementChunkCoord.y 
-                  << "," << placementChunkCoord.z << ") marked dirty for visual update" << std::endl;
+        LOG_INFO_FMT("Application", "[CUBE PLACE] Successfully placed cube at world pos (" << placementPos.x 
+                  << "," << placementPos.y << "," << placementPos.z << ")");
+        LOG_DEBUG_FMT("Application", "[CUBE PLACE] Chunk (" << placementChunkCoord.x << "," << placementChunkCoord.y 
+                  << "," << placementChunkCoord.z << ") marked dirty for visual update");
     } else {
-        std::cout << "[CUBE PLACE] ERROR: Failed to place cube" << std::endl;
+        LOG_ERROR("Application", "[CUBE PLACE] Failed to place cube");
     }
 }
 
@@ -1538,21 +1536,21 @@ void Application::printProfilingInfo(int fps) {
     avgVisible /= samples;
     avgCulled /= samples;
     
-    std::cout << "\n=== FRAME PROFILING ===\n";
-    std::cout << "FPS: " << fps << "\n";
-    std::cout << "Avg CPU Frame Time: " << std::fixed << std::setprecision(2) << avgCpuTime << "ms\n";
-    std::cout << "Avg Vertices/Frame: " << avgVertices << "\n";
-    std::cout << "Avg Visible Cubes: " << avgVisible << "\n";
-    std::cout << "Avg Culled Cubes: " << avgCulled << "\n";
+    LOG_INFO("Performance", "\n=== FRAME PROFILING ===");
+    LOG_INFO_FMT("Performance", "FPS: " << fps);
+    LOG_INFO_FMT("Performance", "Avg CPU Frame Time: " << std::fixed << std::setprecision(2) << avgCpuTime << "ms");
+    LOG_INFO_FMT("Performance", "Avg Vertices/Frame: " << avgVertices);
+    LOG_INFO_FMT("Performance", "Avg Visible Cubes: " << avgVisible);
+    LOG_INFO_FMT("Performance", "Avg Culled Cubes: " << avgCulled);
     
     if (avgVisible + avgCulled > 0) {
-        std::cout << "Culling Efficiency: " << std::fixed << std::setprecision(1) 
-                  << (100.0 * avgCulled / (avgVisible + avgCulled)) << "%\n";
+        LOG_INFO_FMT("Performance", "Culling Efficiency: " << std::fixed << std::setprecision(1) 
+                  << (100.0 * avgCulled / (avgVisible + avgCulled)) << "%");
     }
     
-    std::cout << "Camera Position: (" << std::fixed << std::setprecision(1) 
-              << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")\n";
-    std::cout << "======================\n";
+    LOG_INFO_FMT("Performance", "Camera Position: (" << std::fixed << std::setprecision(1) 
+              << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")");
+    LOG_INFO("Performance", "======================");
 }
 
 void Application::printDetailedTimings() {
@@ -1585,30 +1583,30 @@ void Application::printDetailedTimings() {
     avg.gpuSubmitTime /= samples;
     avg.presentTime /= samples;
     
-    std::cout << "\n=== DETAILED FRAME TIMING ===\n";
-    std::cout << "Total Frame Time:    " << std::fixed << std::setprecision(2) << avg.totalFrameTime << "ms\n";
-    std::cout << "  Physics:           " << std::fixed << std::setprecision(2) << avg.physicsTime << "ms\n";
-    std::cout << "  UBO Fill:          " << std::fixed << std::setprecision(2) << avg.uboFillTime << "ms\n";
-    std::cout << "  Instance Update:   " << std::fixed << std::setprecision(2) << avg.instanceUpdateTime << "ms\n";
-    std::cout << "  Uniform Upload:    " << std::fixed << std::setprecision(2) << avg.uniformUploadTime << "ms\n";
-    std::cout << "  Command Record:    " << std::fixed << std::setprecision(2) << avg.commandRecordTime << "ms\n";
-    std::cout << "  GPU Submit:        " << std::fixed << std::setprecision(2) << avg.gpuSubmitTime << "ms\n";
-    std::cout << "  Present:           " << std::fixed << std::setprecision(2) << avg.presentTime << "ms\n";
-    std::cout << "  Mouse Pick:        " << std::fixed << std::setprecision(2) << avg.mousePickTime << "ms\n";
+    LOG_DEBUG("Performance", "\n=== DETAILED FRAME TIMING ===");
+    LOG_DEBUG_FMT("Performance", "Total Frame Time:    " << std::fixed << std::setprecision(2) << avg.totalFrameTime << "ms");
+    LOG_DEBUG_FMT("Performance", "  Physics:           " << std::fixed << std::setprecision(2) << avg.physicsTime << "ms");
+    LOG_DEBUG_FMT("Performance", "  UBO Fill:          " << std::fixed << std::setprecision(2) << avg.uboFillTime << "ms");
+    LOG_DEBUG_FMT("Performance", "  Instance Update:   " << std::fixed << std::setprecision(2) << avg.instanceUpdateTime << "ms");
+    LOG_DEBUG_FMT("Performance", "  Uniform Upload:    " << std::fixed << std::setprecision(2) << avg.uniformUploadTime << "ms");
+    LOG_DEBUG_FMT("Performance", "  Command Record:    " << std::fixed << std::setprecision(2) << avg.commandRecordTime << "ms");
+    LOG_DEBUG_FMT("Performance", "  GPU Submit:        " << std::fixed << std::setprecision(2) << avg.gpuSubmitTime << "ms");
+    LOG_DEBUG_FMT("Performance", "  Present:           " << std::fixed << std::setprecision(2) << avg.presentTime << "ms");
+    LOG_DEBUG_FMT("Performance", "  Mouse Pick:        " << std::fixed << std::setprecision(2) << avg.mousePickTime << "ms");
     
     // Calculate percentage breakdown
     double total = avg.totalFrameTime;
     if (total > 0) {
-        std::cout << "\nTiming Breakdown:\n";
-        std::cout << "  Physics:         " << std::fixed << std::setprecision(1) << (avg.physicsTime / total * 100.0) << "%\n";
-        std::cout << "  UBO Fill:        " << std::fixed << std::setprecision(1) << (avg.uboFillTime / total * 100.0) << "%\n";
-        std::cout << "  Instance Update: " << std::fixed << std::setprecision(1) << (avg.instanceUpdateTime / total * 100.0) << "%\n";
-        std::cout << "  Uniform Upload:  " << std::fixed << std::setprecision(1) << (avg.uniformUploadTime / total * 100.0) << "%\n";
-        std::cout << "  Command Record:  " << std::fixed << std::setprecision(1) << (avg.commandRecordTime / total * 100.0) << "%\n";
-        std::cout << "  GPU Submit:      " << std::fixed << std::setprecision(1) << (avg.gpuSubmitTime / total * 100.0) << "%\n";
-        std::cout << "  Present:         " << std::fixed << std::setprecision(1) << (avg.presentTime / total * 100.0) << "%\n";
+        LOG_DEBUG("Performance", "\nTiming Breakdown:");
+        LOG_DEBUG_FMT("Performance", "  Physics:         " << std::fixed << std::setprecision(1) << (avg.physicsTime / total * 100.0) << "%");
+        LOG_DEBUG_FMT("Performance", "  UBO Fill:        " << std::fixed << std::setprecision(1) << (avg.uboFillTime / total * 100.0) << "%");
+        LOG_DEBUG_FMT("Performance", "  Instance Update: " << std::fixed << std::setprecision(1) << (avg.instanceUpdateTime / total * 100.0) << "%");
+        LOG_DEBUG_FMT("Performance", "  Uniform Upload:  " << std::fixed << std::setprecision(1) << (avg.uniformUploadTime / total * 100.0) << "%");
+        LOG_DEBUG_FMT("Performance", "  Command Record:  " << std::fixed << std::setprecision(1) << (avg.commandRecordTime / total * 100.0) << "%");
+        LOG_DEBUG_FMT("Performance", "  GPU Submit:      " << std::fixed << std::setprecision(1) << (avg.gpuSubmitTime / total * 100.0) << "%");
+        LOG_DEBUG_FMT("Performance", "  Present:         " << std::fixed << std::setprecision(1) << (avg.presentTime / total * 100.0) << "%");
     }
-    std::cout << "============================\n";
+    LOG_DEBUG("Performance", "============================");
 }
 
 void Application::updateMouseHover() {
@@ -1640,9 +1638,9 @@ void Application::updateMouseHover() {
     
     // Log performance periodically (every 300 frames to avoid spam)
     if (hoverDetectionSamples % 300 == 0) {
-        std::cout << "[HOVER PERF] Current: " << std::fixed << std::setprecision(3) 
+        LOG_TRACE_FMT("Performance", "[HOVER PERF] Current: " << std::fixed << std::setprecision(3) 
                   << hoverDetectionTimeMs << "ms, Average: " << avgHoverDetectionTimeMs 
-                  << "ms (over " << hoverDetectionSamples << " samples)" << std::endl;
+                  << "ms (over " << hoverDetectionSamples << " samples)");
     }
     
     // Convert location to a simple index for tracking (use a hash or simple approach)
@@ -1804,8 +1802,8 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
         
         // CRITICAL: Don't apply hover to subdivided cubes (they should be handled as individual subcubes)
         if (!cube->isVisible()) {
-            std::cout << "[CUBE HOVER] Skipping hover on hidden/subdivided cube at world pos: (" 
-                      << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z << ")" << std::endl;
+            LOG_TRACE_FMT("Application", "[CUBE HOVER] Skipping hover on hidden/subdivided cube at world pos: (" 
+                      << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z << ")");
             return;
         }
         
@@ -1814,8 +1812,8 @@ void Application::setHoveredCubeInChunksOptimized(const CubeLocation& location) 
         currentHoveredLocation = location;
         hasHoveredCube = true;
         
-        std::cout << "[CUBE HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
-                  << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")" << std::endl;
+        LOG_TRACE_FMT("Application", "[CUBE HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
+                  << ") original color: (" << originalHoveredColor.x << "," << originalHoveredColor.y << "," << originalHoveredColor.z << ")");
         
         // Set hover color (lighten the original color for subtle highlighting)
         glm::vec3 hoverColor = calculateLighterColor(originalHoveredColor);
@@ -1834,12 +1832,12 @@ void Application::clearHoveredCubeInChunksOptimized() {
             if (currentHoveredLocation.isSubcube) {
                 // Restore subcube color
                 chunkManager->setSubcubeColorEfficient(currentHoveredLocation.worldPos, currentHoveredLocation.subcubePos, originalHoveredColor);
-                std::cout << "[SUBCUBE HOVER] Cleared hover for subcube at world pos: (" << currentHoveredLocation.worldPos.x << "," << currentHoveredLocation.worldPos.y << "," << currentHoveredLocation.worldPos.z 
-                          << ") subcube: (" << currentHoveredLocation.subcubePos.x << "," << currentHoveredLocation.subcubePos.y << "," << currentHoveredLocation.subcubePos.z << ")" << std::endl;
+                LOG_TRACE_FMT("Application", "[SUBCUBE HOVER] Cleared hover for subcube at world pos: (" << currentHoveredLocation.worldPos.x << "," << currentHoveredLocation.worldPos.y << "," << currentHoveredLocation.worldPos.z 
+                          << ") subcube: (" << currentHoveredLocation.subcubePos.x << "," << currentHoveredLocation.subcubePos.y << "," << currentHoveredLocation.subcubePos.z << ")");
             } else {
                 // Restore regular cube color
                 chunkManager->setCubeColorEfficient(currentHoveredLocation.worldPos, originalHoveredColor);
-                std::cout << "[CUBE HOVER] Cleared hover for cube at world pos: (" << currentHoveredLocation.worldPos.x << "," << currentHoveredLocation.worldPos.y << "," << currentHoveredLocation.worldPos.z << ")" << std::endl;
+                LOG_TRACE_FMT("Application", "[CUBE HOVER] Cleared hover for cube at world pos: (" << currentHoveredLocation.worldPos.x << "," << currentHoveredLocation.worldPos.y << "," << currentHoveredLocation.worldPos.z << ")");
             }
         }
         
@@ -1851,14 +1849,14 @@ void Application::clearHoveredCubeInChunksOptimized() {
 void Application::removeHoveredCube() {
     // Check if we have a valid hovered cube
     if (!hasHoveredCube || !currentHoveredLocation.isValid()) {
-        std::cout << "[CUBE REMOVAL] No cube is currently being hovered - cannot remove" << std::endl;
+        LOG_DEBUG("Application", "[CUBE REMOVAL] No cube is currently being hovered - cannot remove");
         return;
     }
     
     // Get the chunk and remove the cube using the stored location
     Chunk* chunk = currentHoveredLocation.chunk;
     if (!chunk) {
-        std::cout << "[CUBE REMOVAL] ERROR: Invalid chunk pointer" << std::endl;
+        LOG_ERROR("Application", "[CUBE REMOVAL] ERROR: Invalid chunk pointer");
         hasHoveredCube = false;
         currentHoveredLocation = CubeLocation();
         return;
@@ -1870,13 +1868,13 @@ void Application::removeHoveredCube() {
         // Remove a specific subcube
         removed = chunk->removeSubcube(currentHoveredLocation.localPos, currentHoveredLocation.subcubePos);
         if (removed) {
-            std::cout << "[SUBCUBE REMOVAL] Successfully removed subcube at world pos: (" 
+            LOG_DEBUG_FMT("Application", "[SUBCUBE REMOVAL] Successfully removed subcube at world pos: (" 
                       << currentHoveredLocation.worldPos.x << "," 
                       << currentHoveredLocation.worldPos.y << "," 
                       << currentHoveredLocation.worldPos.z << ") subcube: ("
                       << currentHoveredLocation.subcubePos.x << ","
                       << currentHoveredLocation.subcubePos.y << ","
-                      << currentHoveredLocation.subcubePos.z << ")" << std::endl;
+                      << currentHoveredLocation.subcubePos.z << ")");
                       
             // Check if this was the last subcube - if so, restore the parent cube
             auto remainingSubcubes = chunk->getSubcubesAt(currentHoveredLocation.localPos);
@@ -1885,7 +1883,7 @@ void Application::removeHoveredCube() {
                 Cube* parentCube = chunk->getCubeAt(currentHoveredLocation.localPos);
                 if (parentCube) {
                     parentCube->show(); // Make parent cube visible again
-                    std::cout << "[CUBE RESTORATION] Restored parent cube as no subcubes remain" << std::endl;
+                    LOG_DEBUG("Application", "[CUBE RESTORATION] Restored parent cube as no subcubes remain");
                 }
             }
         }
@@ -1896,16 +1894,16 @@ void Application::removeHoveredCube() {
         if (!subcubes.empty()) {
             // First clear all subcubes
             chunk->clearSubdivisionAt(currentHoveredLocation.localPos);
-            std::cout << "[SUBDIVISION REMOVAL] Cleared all subcubes for cube removal" << std::endl;
+            LOG_DEBUG("Application", "[SUBDIVISION REMOVAL] Cleared all subcubes for cube removal");
         }
         
         // Remove the cube itself
         removed = chunk->removeCube(currentHoveredLocation.localPos);
         if (removed) {
-            std::cout << "[CUBE REMOVAL] Successfully removed cube at world pos: (" 
+            LOG_DEBUG_FMT("Application", "[CUBE REMOVAL] Successfully removed cube at world pos: (" 
                       << currentHoveredLocation.worldPos.x << "," 
                       << currentHoveredLocation.worldPos.y << "," 
-                      << currentHoveredLocation.worldPos.z << ")" << std::endl;
+                      << currentHoveredLocation.worldPos.z << ")");
         }
     }
     
@@ -1918,27 +1916,27 @@ void Application::removeHoveredCube() {
         lastHoveredCube = -1; // Reset the hover tracking
         
     } else {
-        std::cout << "[REMOVAL] WARNING: Failed to remove object - it may not exist" << std::endl;
+        LOG_WARN("Application", "[REMOVAL] WARNING: Failed to remove object - it may not exist");
     }
 }
 
 void Application::subdivideHoveredCube() {
     // Check if we have a valid hovered cube
     if (!hasHoveredCube || !currentHoveredLocation.isValid()) {
-        std::cout << "[CUBE SUBDIVISION] No cube is currently being hovered - cannot subdivide" << std::endl;
+        LOG_DEBUG("Application", "[CUBE SUBDIVISION] No cube is currently being hovered - cannot subdivide");
         return;
     }
 
     // Only subdivide regular cubes (not subcubes)
     if (currentHoveredLocation.isSubcube) {
-        std::cout << "[CUBE SUBDIVISION] Cannot subdivide individual subcubes - use left click to break subcubes" << std::endl;
+        LOG_DEBUG("Application", "[CUBE SUBDIVISION] Cannot subdivide individual subcubes - use left click to break subcubes");
         return;
     }
 
     // Get the chunk using the stored location
     Chunk* chunk = currentHoveredLocation.chunk;
     if (!chunk) {
-        std::cout << "[CUBE SUBDIVISION] ERROR: Invalid chunk pointer" << std::endl;
+        LOG_ERROR("Application", "[CUBE SUBDIVISION] ERROR: Invalid chunk pointer");
         hasHoveredCube = false;
         currentHoveredLocation = CubeLocation();
         return;
@@ -1946,22 +1944,22 @@ void Application::subdivideHoveredCube() {
 
     // Check if cube is already subdivided
     if (chunk->getSubcubesAt(currentHoveredLocation.localPos).size() > 0) {
-        std::cout << "[CUBE SUBDIVISION] Cube at world pos (" 
+        LOG_DEBUG_FMT("Application", "[CUBE SUBDIVISION] Cube at world pos (" 
                   << currentHoveredLocation.worldPos.x << "," 
                   << currentHoveredLocation.worldPos.y << "," 
-                  << currentHoveredLocation.worldPos.z << ") is already subdivided" << std::endl;
+                  << currentHoveredLocation.worldPos.z << ") is already subdivided");
         return;
     }
 
     // Subdivide the cube into 27 static subcubes
     bool subdivided = chunk->subdivideAt(currentHoveredLocation.localPos);
     if (subdivided) {
-        std::cout << "[CUBE SUBDIVISION] Successfully subdivided cube at world pos: (" 
+        LOG_INFO_FMT("Application", "[CUBE SUBDIVISION] Successfully subdivided cube at world pos: (" 
                   << currentHoveredLocation.worldPos.x << "," 
                   << currentHoveredLocation.worldPos.y << "," 
-                  << currentHoveredLocation.worldPos.z << ") into 27 static subcubes" << std::endl;
+                  << currentHoveredLocation.worldPos.z << ") into 27 static subcubes");
     } else {
-        std::cout << "[CUBE SUBDIVISION] WARNING: Failed to subdivide cube - cube may not exist" << std::endl;
+        LOG_WARN("Application", "[CUBE SUBDIVISION] WARNING: Failed to subdivide cube - cube may not exist");
     }
 
     // Use efficient selective update instead of marking entire chunk dirty
@@ -1978,26 +1976,26 @@ void Application::subdivideHoveredCube() {
 void Application::breakHoveredSubcube() {
     // Check if we have a valid hovered subcube
     if (!hasHoveredCube || !currentHoveredLocation.isValid()) {
-        std::cout << "[SUBCUBE BREAKING] No subcube is currently being hovered - cannot break" << std::endl;
+        LOG_DEBUG("Application", "[SUBCUBE BREAKING] No subcube is currently being hovered - cannot break");
         return;
     }
 
     // Only break subcubes (not regular cubes)
     if (!currentHoveredLocation.isSubcube) {
-        std::cout << "[SUBCUBE BREAKING] Hovered object is not a subcube - use left click to break regular cubes" << std::endl;
+        LOG_DEBUG("Application", "[SUBCUBE BREAKING] Hovered object is not a subcube - use left click to break regular cubes");
         return;
     }
 
     // Get the chunk using the stored location
     Chunk* chunk = currentHoveredLocation.chunk;
     if (!chunk) {
-        std::cout << "[SUBCUBE BREAKING] ERROR: Invalid chunk pointer" << std::endl;
+        LOG_ERROR("Application", "[SUBCUBE BREAKING] ERROR: Invalid chunk pointer");
         hasHoveredCube = false;
         currentHoveredLocation = CubeLocation();
         return;
     }
 
-    std::cout << "[SUBCUBE BREAKING] Breaking subcube without forces (gentle removal)" << std::endl;
+    LOG_DEBUG("Application", "[SUBCUBE BREAKING] Breaking subcube without forces (gentle removal)");
     
     // Break subcube WITHOUT any impulse forces (as requested)
     glm::vec3 noForce(0.0f, 0.0f, 0.0f); // No forces applied
@@ -2005,20 +2003,20 @@ void Application::breakHoveredSubcube() {
     bool broken = chunk->breakSubcube(currentHoveredLocation.localPos, currentHoveredLocation.subcubePos, 
                                      physicsWorld.get(), chunkManager.get(), noForce);
     if (broken) {
-        std::cout << "[SUBCUBE BREAKING] Successfully broke subcube (no forces) and transferred to global system at world pos: (" 
+        LOG_INFO_FMT("Application", "[SUBCUBE BREAKING] Successfully broke subcube (no forces) and transferred to global system at world pos: (" 
                   << currentHoveredLocation.worldPos.x << "," 
                   << currentHoveredLocation.worldPos.y << "," 
                   << currentHoveredLocation.worldPos.z << ") subcube: ("
                   << currentHoveredLocation.subcubePos.x << ","
                   << currentHoveredLocation.subcubePos.y << ","
-                  << currentHoveredLocation.subcubePos.z << ")" << std::endl;
+                  << currentHoveredLocation.subcubePos.z << ")");
                   
         // Use efficient selective update for subcube breaking
         if (chunkManager) {
             chunkManager->updateAfterSubcubeBreak(currentHoveredLocation.worldPos, currentHoveredLocation.subcubePos);
         }
     } else {
-        std::cout << "[SUBCUBE BREAKING] WARNING: Failed to break subcube" << std::endl;
+        LOG_WARN("Application", "[SUBCUBE BREAKING] WARNING: Failed to break subcube");
     }
 
     // Clear hover state
@@ -2030,20 +2028,20 @@ void Application::breakHoveredSubcube() {
 void Application::breakHoveredCube() {
     // Check if we have a valid hovered cube
     if (!hasHoveredCube || !currentHoveredLocation.isValid()) {
-        std::cout << "[CUBE BREAKING] No cube is currently being hovered - cannot break" << std::endl;
+        LOG_DEBUG("Application", "[CUBE BREAKING] No cube is currently being hovered - cannot break");
         return;
     }
     
     // Only break regular cubes (not subcubes)
     if (currentHoveredLocation.isSubcube) {
-        std::cout << "[CUBE BREAKING] Cannot break individual subcubes - use left click to break subcubes" << std::endl;
+        LOG_DEBUG("Application", "[CUBE BREAKING] Cannot break individual subcubes - use left click to break subcubes");
         return;
     }
     
     // Get the chunk using the stored location
     Chunk* chunk = currentHoveredLocation.chunk;
     if (!chunk) {
-        std::cout << "[CUBE BREAKING] ERROR: Invalid chunk pointer" << std::endl;
+        LOG_ERROR("Application", "[CUBE BREAKING] ERROR: Invalid chunk pointer");
         hasHoveredCube = false;
         currentHoveredLocation = CubeLocation();
         return;
@@ -2051,12 +2049,12 @@ void Application::breakHoveredCube() {
     
     // Check if cube exists and is not already subdivided
     if (!chunk->getCubeAt(currentHoveredLocation.localPos)) {
-        std::cout << "[CUBE BREAKING] No cube exists at this location" << std::endl;
+        LOG_DEBUG("Application", "[CUBE BREAKING] No cube exists at this location");
         return;
     }
     
     if (chunk->getSubcubesAt(currentHoveredLocation.localPos).size() > 0) {
-        std::cout << "[CUBE BREAKING] Cube is already subdivided - cannot break subdivided cubes" << std::endl;
+        LOG_DEBUG("Application", "[CUBE BREAKING] Cube is already subdivided - cannot break subdivided cubes");
         return;
     }
     
@@ -2074,9 +2072,9 @@ void Application::breakHoveredCube() {
         // Mix directional force with upward force for interesting breakage
         impulseForce = forceDirection * scaledForce * 0.6f + glm::vec3(0.0f, scaledForce * 0.4f, 0.0f);
         
-        std::cout << "[PHYSICS] Using manual force from debug UI: " << debugFlags.manualForceValue 
+        LOG_DEBUG_FMT("Application", "[PHYSICS] Using manual force from debug UI: " << debugFlags.manualForceValue 
                   << "N (scaled: " << scaledForce << ") resulting impulse: (" 
-                  << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")" << std::endl;
+                  << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")");
     } else {
         // Use original automatic force calculation
         glm::vec3 forceDirection = normalize(cubeWorldPos - cameraPos);
@@ -2084,8 +2082,8 @@ void Application::breakHoveredCube() {
         // Mix upward force with outward force for interesting breakage (gentler forces)
         impulseForce = forceDirection * 1.5f + glm::vec3(0.0f, 2.5f, 0.0f); // Reduced from 4.0f and 6.0f
         
-        std::cout << "[PHYSICS] Using automatic breakage force: (" 
-                  << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")" << std::endl;
+        LOG_DEBUG_FMT("Application", "[PHYSICS] Using automatic breakage force: (" 
+                  << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")");
     }
     
     // Get the cube's original color before removing it
@@ -2093,14 +2091,14 @@ void Application::breakHoveredCube() {
     glm::vec3 originalColor = glm::vec3(0.8f, 0.6f, 0.4f); // Default color fallback
     if (originalCube) {
         originalColor = originalCube->getOriginalColor(); // Use original color, not hover-affected color
-        std::cout << "[COLOR] Preserving original cube color: (" 
-                  << originalColor.x << "," << originalColor.y << "," << originalColor.z << ")" << std::endl;
+        LOG_DEBUG_FMT("Application", "[COLOR] Preserving original cube color: (" 
+                  << originalColor.x << "," << originalColor.y << "," << originalColor.z << ")");
     }
     
     // Remove the cube from the chunk
     bool removed = chunk->removeCube(currentHoveredLocation.localPos);
     if (!removed) {
-        std::cout << "[CUBE BREAKING] WARNING: Failed to remove cube from chunk" << std::endl;
+        LOG_WARN("Application", "[CUBE BREAKING] WARNING: Failed to remove cube from chunk");
         return;
     }
     
@@ -2119,12 +2117,12 @@ void Application::breakHoveredCube() {
     // To visually align: dynamic center = static corner + 0.5
     glm::vec3 physicsCenterPos = cubeCornerPos + glm::vec3(0.5f, 0.5f, 0.5f);
     
-    std::cout << "[POSITION DEBUG] ===== COORDINATE SYSTEM CONVERSION =====" << std::endl;
-    std::cout << "[POSITION DEBUG] Static cube corner: (" 
-              << cubeWorldPos.x << ", " << cubeWorldPos.y << ", " << cubeWorldPos.z << ")" << std::endl;
-    std::cout << "[POSITION DEBUG] Dynamic cube center (corner + 0.5): (" 
-              << physicsCenterPos.x << ", " << physicsCenterPos.y << ", " << physicsCenterPos.z << ")" << std::endl;
-    std::cout << "[POSITION DEBUG] COORDINATE FIX: Converting from corner-based to center-based rendering" << std::endl;
+    LOG_TRACE("Application", "[POSITION DEBUG] ===== COORDINATE SYSTEM CONVERSION =====");
+    LOG_TRACE_FMT("Application", "[POSITION DEBUG] Static cube corner: (" 
+              << cubeWorldPos.x << ", " << cubeWorldPos.y << ", " << cubeWorldPos.z << ")");
+    LOG_TRACE_FMT("Application", "[POSITION DEBUG] Dynamic cube center (corner + 0.5): (" 
+              << physicsCenterPos.x << ", " << physicsCenterPos.y << ", " << physicsCenterPos.z << ")");
+    LOG_TRACE("Application", "[POSITION DEBUG] COORDINATE FIX: Converting from corner-based to center-based rendering");
     
     // TODO: Add UI to select material - for now cycle through materials based on position
     std::vector<std::string> materials = {"Wood", "Metal", "Glass", "Rubber", "Stone", "Ice", "Cork"};
@@ -2142,12 +2140,12 @@ void Application::breakHoveredCube() {
     if (rigidBody) {
         btTransform transform = rigidBody->getWorldTransform();
         btVector3 physicsPos = transform.getOrigin();
-        std::cout << "[POSITION DEBUG] Physics body created at: (" 
-                  << physicsPos.x() << ", " << physicsPos.y() << ", " << physicsPos.z() << ")" << std::endl;
-        std::cout << "[POSITION DEBUG] Position difference from intended: (" 
+        LOG_TRACE_FMT("Application", "[POSITION DEBUG] Physics body created at: (" 
+                  << physicsPos.x() << ", " << physicsPos.y() << ", " << physicsPos.z() << ")");
+        LOG_TRACE_FMT("Application", "[POSITION DEBUG] Position difference from intended: (" 
                   << (physicsPos.x() - physicsCenterPos.x) << ", " 
                   << (physicsPos.y() - physicsCenterPos.y) << ", " 
-                  << (physicsPos.z() - physicsCenterPos.z) << ")" << std::endl;
+                  << (physicsPos.z() - physicsCenterPos.z) << ")");
     }
     
     // Get material properties for impulse scaling
@@ -2158,31 +2156,31 @@ void Application::breakHoveredCube() {
     float impulseScale = material.breakForceMultiplier * 0.4f; // Reduce to 40% of original force
     impulseForce *= impulseScale;
     
-    std::cout << "[MATERIAL] Breaking cube with '" << selectedMaterial << "' material (reduced impulse scale: " 
-              << impulseScale << ")" << std::endl;
+    LOG_DEBUG_FMT("Application", "[MATERIAL] Breaking cube with '" << selectedMaterial << "' material (reduced impulse scale: " 
+              << impulseScale << ")");
     
     // Set initial physics position to the exact center position
     dynamicCube->setPhysicsPosition(physicsCenterPos);
     
     // COMPREHENSIVE POSITION TRACKING - Track exact coordinates through entire pipeline
     glm::vec3 renderingPosition = dynamicCube->getPhysicsPosition();
-    std::cout << "[POSITION TRACK] ===== DYNAMIC CUBE POSITION TRACKING =====" << std::endl;
-    std::cout << "[POSITION TRACK] 1. Initial spawn position set: (" 
-              << physicsCenterPos.x << ", " << physicsCenterPos.y << ", " << physicsCenterPos.z << ")" << std::endl;
-    std::cout << "[POSITION TRACK] 2. Rendering position stored: (" 
-              << renderingPosition.x << ", " << renderingPosition.y << ", " << renderingPosition.z << ")" << std::endl;
-    std::cout << "[POSITION TRACK] 3. Position match: " << (renderingPosition == physicsCenterPos ? "YES" : "NO") << std::endl;
+    LOG_TRACE("Application", "[POSITION TRACK] ===== DYNAMIC CUBE POSITION TRACKING =====");
+    LOG_TRACE_FMT("Application", "[POSITION TRACK] 1. Initial spawn position set: (" 
+              << physicsCenterPos.x << ", " << physicsCenterPos.y << ", " << physicsCenterPos.z << ")");
+    LOG_TRACE_FMT("Application", "[POSITION TRACK] 2. Rendering position stored: (" 
+              << renderingPosition.x << ", " << renderingPosition.y << ", " << renderingPosition.z << ")");
+    LOG_TRACE_FMT("Application", "[POSITION TRACK] 3. Position match: " << (renderingPosition == physicsCenterPos ? "YES" : "NO"));
     
     // Track actual physics body position
     if (rigidBody) {
         btTransform transform = rigidBody->getWorldTransform();
         btVector3 physicsBodyPos = transform.getOrigin();
-        std::cout << "[POSITION TRACK] 4. Physics body actual position: (" 
-                  << physicsBodyPos.x() << ", " << physicsBodyPos.y() << ", " << physicsBodyPos.z() << ")" << std::endl;
-        std::cout << "[POSITION TRACK] 5. Physics vs rendering diff: (" 
+        LOG_TRACE_FMT("Application", "[POSITION TRACK] 4. Physics body actual position: (" 
+                  << physicsBodyPos.x() << ", " << physicsBodyPos.y() << ", " << physicsBodyPos.z() << ")");
+        LOG_TRACE_FMT("Application", "[POSITION TRACK] 5. Physics vs rendering diff: (" 
                   << (physicsBodyPos.x() - renderingPosition.x) << ", " 
                   << (physicsBodyPos.y() - renderingPosition.y) << ", " 
-                  << (physicsBodyPos.z() - renderingPosition.z) << ")" << std::endl;
+                  << (physicsBodyPos.z() - renderingPosition.z) << ")");
     }
     
     // Apply initial impulse force to make it "break" away (RE-ENABLED)
@@ -2202,21 +2200,21 @@ void Application::breakHoveredCube() {
         // Enable gravity for natural falling behavior
         rigidBody->setGravity(btVector3(0, -9.81f, 0)); // Standard gravity
         
-        std::cout << "[PHYSICS] Applied impulse (" << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z 
-                  << ") and angular velocity (" << angularVelocity.x() << "," << angularVelocity.y() << "," << angularVelocity.z() << ") with gravity enabled" << std::endl;
+        LOG_DEBUG_FMT("Application", "[PHYSICS] Applied impulse (" << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z 
+                  << ") and angular velocity (" << angularVelocity.x() << "," << angularVelocity.y() << "," << angularVelocity.z() << ") with gravity enabled");
     } else if (rigidBody) {
         // If forces are disabled or no impulse, still enable gravity for natural falling
         rigidBody->setGravity(btVector3(0, -9.81f, 0)); // Standard gravity
-        std::cout << "[PHYSICS] No impulse applied - enabled gravity only for natural falling" << std::endl;
+        LOG_DEBUG("Application", "[PHYSICS] No impulse applied - enabled gravity only for natural falling");
     }
     
     // Final position check after everything is set up
     if (rigidBody) {
         btTransform finalTransform = rigidBody->getWorldTransform();
         btVector3 finalPos = finalTransform.getOrigin();
-        std::cout << "[POSITION DEBUG] Final physics position: (" 
-                  << finalPos.x() << ", " << finalPos.y() << ", " << finalPos.z() << ")" << std::endl;
-        std::cout << "[POSITION DEBUG] ===== END POSITION ANALYSIS =====" << std::endl;
+        LOG_TRACE_FMT("Application", "[POSITION DEBUG] Final physics position: (" 
+                  << finalPos.x() << ", " << finalPos.y() << ", " << finalPos.z() << ")");
+        LOG_TRACE("Application", "[POSITION DEBUG] ===== END POSITION ANALYSIS =====");
     }
     
     // Mark as broken
@@ -2228,10 +2226,10 @@ void Application::breakHoveredCube() {
     // Use efficient selective update instead of marking entire chunk dirty
     chunkManager->updateAfterCubeBreak(currentHoveredLocation.worldPos);
     
-    std::cout << "[CUBE BREAKING] Successfully broke cube at world pos: (" 
+    LOG_INFO_FMT("Application", "[CUBE BREAKING] Successfully broke cube at world pos: (" 
               << currentHoveredLocation.worldPos.x << "," 
               << currentHoveredLocation.worldPos.y << "," 
-              << currentHoveredLocation.worldPos.z << ") into dynamic cube" << std::endl;
+              << currentHoveredLocation.worldPos.z << ") into dynamic cube");
     
     // Clear hover state
     hasHoveredCube = false;
@@ -2242,20 +2240,20 @@ void Application::breakHoveredCube() {
 void Application::breakHoveredCubeWithForce() {
     // Check if we have a valid hovered cube
     if (!hasHoveredCube || !currentHoveredLocation.isValid()) {
-        std::cout << "[FORCE BREAKING] No cube is currently being hovered - cannot break" << std::endl;
+        LOG_DEBUG("Application", "[FORCE BREAKING] No cube is currently being hovered - cannot break");
         return;
     }
     
     // Only break regular cubes (not subcubes) with force system
     if (currentHoveredLocation.isSubcube) {
-        std::cout << "[FORCE BREAKING] Cannot break individual subcubes with force - use left click to break subcubes" << std::endl;
+        LOG_DEBUG("Application", "[FORCE BREAKING] Cannot break individual subcubes with force - use left click to break subcubes");
         return;
     }
     
     // Get the chunk using the stored location
     Chunk* chunk = currentHoveredLocation.chunk;
     if (!chunk) {
-        std::cout << "[FORCE BREAKING] ERROR: Invalid chunk pointer" << std::endl;
+        LOG_ERROR("Application", "[FORCE BREAKING] ERROR: Invalid chunk pointer");
         hasHoveredCube = false;
         currentHoveredLocation = CubeLocation();
         return;
@@ -2263,12 +2261,12 @@ void Application::breakHoveredCubeWithForce() {
     
     // Check if cube exists and is not already subdivided
     if (!chunk->getCubeAt(currentHoveredLocation.localPos)) {
-        std::cout << "[FORCE BREAKING] No cube exists at this location" << std::endl;
+        LOG_DEBUG("Application", "[FORCE BREAKING] No cube exists at this location");
         return;
     }
     
     if (chunk->getSubcubesAt(currentHoveredLocation.localPos).size() > 0) {
-        std::cout << "[FORCE BREAKING] Cube is already subdivided - cannot break subdivided cubes" << std::endl;
+        LOG_DEBUG("Application", "[FORCE BREAKING] Cube is already subdivided - cannot break subdivided cubes");
         return;
     }
     
@@ -2285,8 +2283,8 @@ void Application::breakHoveredCubeWithForce() {
     // Get current mouse velocity
     glm::vec2 mouseVelocity = mouseVelocityTracker->getVelocity();
     
-    std::cout << "[FORCE BREAKING] Mouse velocity: (" << mouseVelocity.x << "," << mouseVelocity.y 
-              << ") speed: " << mouseVelocityTracker->getSpeed() << std::endl;
+    LOG_DEBUG_FMT("Application", "[FORCE BREAKING] Mouse velocity: (" << mouseVelocity.x << "," << mouseVelocity.y 
+              << ") speed: " << mouseVelocityTracker->getSpeed());
     
     // Calculate force using force system
     ForceSystem::ClickForce clickForce = forceSystem->calculateClickForce(
@@ -2304,8 +2302,8 @@ void Application::breakHoveredCubeWithForce() {
         breakCubeAtPosition(worldPos);
     }
     
-    std::cout << "[FORCE BREAKING] Successfully broke " << result.brokenCubes.size() 
-              << " cubes using force propagation system" << std::endl;
+    LOG_INFO_FMT("Application", "[FORCE BREAKING] Successfully broke " << result.brokenCubes.size() 
+              << " cubes using force propagation system");
     
     // Clear hover state
     hasHoveredCube = false;
@@ -2317,16 +2315,16 @@ void Application::breakHoveredCubeWithForce() {
 void Application::breakCubeAtPosition(const glm::ivec3& worldPos) {
     Chunk* chunk = chunkManager->getChunkAt(worldPos);
     if (!chunk) {
-        std::cout << "[FORCE BREAKING] No chunk found for position (" 
-                  << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")" << std::endl;
+        LOG_WARN_FMT("Application", "[FORCE BREAKING] No chunk found for position (" 
+                  << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")");
         return;
     }
     
     glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
     const Cube* originalCube = chunk->getCubeAt(localPos);
     if (!originalCube) {
-        std::cout << "[FORCE BREAKING] No cube found at position (" 
-                  << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")" << std::endl;
+        LOG_WARN_FMT("Application", "[FORCE BREAKING] No cube found at position (" 
+                  << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")");
         return;
     }
     
@@ -2336,7 +2334,7 @@ void Application::breakCubeAtPosition(const glm::ivec3& worldPos) {
     // Remove cube from chunk
     bool removed = chunk->removeCube(localPos);
     if (!removed) {
-        std::cout << "[FORCE BREAKING] Failed to remove cube from chunk" << std::endl;
+        LOG_WARN("Application", "[FORCE BREAKING] Failed to remove cube from chunk");
         return;
     }
     
@@ -2529,9 +2527,9 @@ VoxelLocation Application::resolveSubcubeInVoxel(const glm::vec3& rayOrigin, con
         
         // Debug output to help troubleshoot
         if (debugFlags.hoverDetection) {
-            std::cout << "[SUBCUBE RESOLVE] Found closest subcube at world pos: (" << voxelHit.worldPos.x << "," << voxelHit.worldPos.y << "," << voxelHit.worldPos.z 
+            LOG_TRACE_FMT("Application", "[SUBCUBE RESOLVE] Found closest subcube at world pos: (" << voxelHit.worldPos.x << "," << voxelHit.worldPos.y << "," << voxelHit.worldPos.z 
                       << ") subcube: (" << subcubeLocation.subcubePos.x << "," << subcubeLocation.subcubePos.y << "," << subcubeLocation.subcubePos.z 
-                      << ") distance: " << closestDistance << std::endl;
+                      << ") distance: " << closestDistance);
         }
         
         return subcubeLocation;
@@ -2588,7 +2586,7 @@ bool Application::rayAABBIntersect(const glm::vec3& rayOrigin, const glm::vec3& 
 
 void Application::togglePerformanceOverlay() {
     showPerformanceOverlay = !showPerformanceOverlay;
-    std::cout << "Performance Overlay: " << (showPerformanceOverlay ? "ENABLED" : "DISABLED") << std::endl;
+    LOG_INFO_FMT("Application", "Performance Overlay: " << (showPerformanceOverlay ? "ENABLED" : "DISABLED"));
 }
 
 void Application::renderPerformanceOverlay() {
@@ -2607,8 +2605,8 @@ void Application::setRenderDistance(float distance) {
         }
         
         projectionMatrixNeedsUpdate = true; // Force projection matrix recalculation
-        std::cout << "Render distance updated to: " << distance 
-                  << " (chunk inclusion: " << chunkInclusionDistance << ")" << std::endl;
+        LOG_INFO_FMT("Application", "Render distance updated to: " << distance 
+                  << " (chunk inclusion: " << chunkInclusionDistance << ")");
     }
 }
 
@@ -2617,11 +2615,11 @@ void Application::setChunkInclusionDistance(float distance) {
         // Ensure chunk inclusion distance is always >= render distance
         if (distance < maxChunkRenderDistance) {
             distance = maxChunkRenderDistance;
-            std::cout << "Chunk inclusion distance clamped to render distance: " << distance << std::endl;
+            LOG_INFO_FMT("Application", "Chunk inclusion distance clamped to render distance: " << distance);
         }
         
         chunkInclusionDistance = distance;
-        std::cout << "Chunk inclusion distance updated to: " << distance << std::endl;
+        LOG_INFO_FMT("Application", "Chunk inclusion distance updated to: " << distance);
     }
 }
 

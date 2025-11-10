@@ -1,4 +1,5 @@
 #include "utils/PerformanceProfiler.h"
+#include "utils/Logger.h"
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
@@ -148,67 +149,67 @@ void PerformanceProfiler::printFrameReport() const {
     double avgFPS = getAverageFPS();
     double avgFrameTime = getAverageFrameTime();
     
-    std::cout << "\n=== FRAME PERFORMANCE REPORT ===\n";
-    std::cout << "Average FPS: " << std::fixed << std::setprecision(1) << avgFPS << "\n";
-    std::cout << "Average Frame Time: " << std::fixed << std::setprecision(2) << avgFrameTime << "ms\n";
-    std::cout << "Current Frame Time: " << std::fixed << std::setprecision(2) << currentFrameTiming.cpuFrameTime << "ms\n";
-    std::cout << "Memory Bandwidth: " << std::fixed << std::setprecision(2) << currentFrameTiming.memoryBandwidthMBps << " MB/s\n";
-    std::cout << "=================================\n";
+    LOG_INFO("Performance", "\n=== FRAME PERFORMANCE REPORT ===");
+    LOG_INFO_FMT("Performance", "Average FPS: " << std::fixed << std::setprecision(1) << avgFPS);
+    LOG_INFO_FMT("Performance", "Average Frame Time: " << std::fixed << std::setprecision(2) << avgFrameTime << "ms");
+    LOG_INFO_FMT("Performance", "Current Frame Time: " << std::fixed << std::setprecision(2) << currentFrameTiming.cpuFrameTime << "ms");
+    LOG_INFO_FMT("Performance", "Memory Bandwidth: " << std::fixed << std::setprecision(2) << currentFrameTiming.memoryBandwidthMBps << " MB/s");
+    LOG_INFO("Performance", "=================================");
 }
 
 void PerformanceProfiler::printDetailedReport() const {
-    std::cout << "\n=== DETAILED TIMING BREAKDOWN ===\n";
-    std::cout << "Total Frame Time:    " << std::fixed << std::setprecision(2) << currentDetailedTiming.totalFrameTime << "ms\n";
-    std::cout << "  Frustum Culling:   " << std::fixed << std::setprecision(2) << currentDetailedTiming.frustumCullingTime << "ms\n";
-    std::cout << "  Occlusion Culling: " << std::fixed << std::setprecision(2) << currentDetailedTiming.occlusionCullingTime << "ms\n";
-    std::cout << "  Face Culling:      " << std::fixed << std::setprecision(2) << currentDetailedTiming.faceCullingTime << "ms\n";
-    std::cout << "  Memory Transfer:   " << std::fixed << std::setprecision(2) << currentDetailedTiming.memoryTransferTime << "ms\n";
-    std::cout << "  Buffer Updates:    " << std::fixed << std::setprecision(2) << currentDetailedTiming.bufferUpdateTime << "ms\n";
-    std::cout << "  Command Record:    " << std::fixed << std::setprecision(2) << currentDetailedTiming.commandRecordTime << "ms\n";
-    std::cout << "  GPU Submit:        " << std::fixed << std::setprecision(2) << currentDetailedTiming.gpuSubmitTime << "ms\n";
-    std::cout << "==================================\n";
+    LOG_INFO("Performance", "\n=== DETAILED TIMING BREAKDOWN ===");
+    LOG_INFO_FMT("Performance", "Total Frame Time:    " << std::fixed << std::setprecision(2) << currentDetailedTiming.totalFrameTime << "ms");
+    LOG_INFO_FMT("Performance", "  Frustum Culling:   " << std::fixed << std::setprecision(2) << currentDetailedTiming.frustumCullingTime << "ms");
+    LOG_INFO_FMT("Performance", "  Occlusion Culling: " << std::fixed << std::setprecision(2) << currentDetailedTiming.occlusionCullingTime << "ms");
+    LOG_INFO_FMT("Performance", "  Face Culling:      " << std::fixed << std::setprecision(2) << currentDetailedTiming.faceCullingTime << "ms");
+    LOG_INFO_FMT("Performance", "  Memory Transfer:   " << std::fixed << std::setprecision(2) << currentDetailedTiming.memoryTransferTime << "ms");
+    LOG_INFO_FMT("Performance", "  Buffer Updates:    " << std::fixed << std::setprecision(2) << currentDetailedTiming.bufferUpdateTime << "ms");
+    LOG_INFO_FMT("Performance", "  Command Record:    " << std::fixed << std::setprecision(2) << currentDetailedTiming.commandRecordTime << "ms");
+    LOG_INFO_FMT("Performance", "  GPU Submit:        " << std::fixed << std::setprecision(2) << currentDetailedTiming.gpuSubmitTime << "ms");
+    LOG_INFO("Performance", "==================================");
 }
 
 void PerformanceProfiler::printMemoryReport() const {
     double totalMB = memoryStats.totalBytesTransferred / (1024.0 * 1024.0);
     double avgPerFrame = memoryStats.getAverageTransferPerFrame() / (1024.0 * 1024.0);
     
-    std::cout << "\n=== MEMORY BANDWIDTH REPORT ===\n";
-    std::cout << "Total Transferred: " << std::fixed << std::setprecision(2) << totalMB << " MB\n";
-    std::cout << "Avg Per Frame: " << std::fixed << std::setprecision(2) << avgPerFrame << " MB\n";
-    std::cout << "Current Bandwidth: " << std::fixed << std::setprecision(2) << bandwidthTracker.averageBandwidthMBps << " MB/s\n";
+    LOG_INFO("Performance", "\n=== MEMORY BANDWIDTH REPORT ===");
+    LOG_INFO_FMT("Performance", "Total Transferred: " << std::fixed << std::setprecision(2) << totalMB << " MB");
+    LOG_INFO_FMT("Performance", "Avg Per Frame: " << std::fixed << std::setprecision(2) << avgPerFrame << " MB");
+    LOG_INFO_FMT("Performance", "Current Bandwidth: " << std::fixed << std::setprecision(2) << bandwidthTracker.averageBandwidthMBps << " MB/s");
     
-    std::cout << "\nBuffer Breakdown:\n";
+    LOG_INFO("Performance", "\nBuffer Breakdown:");
     for (const auto& [type, bytes] : memoryStats.transfersByType) {
         double mb = bytes / (1024.0 * 1024.0);
-        std::cout << "  " << type << ": " << std::fixed << std::setprecision(2) << mb << " MB\n";
+        LOG_INFO_FMT("Performance", "  " << type << ": " << std::fixed << std::setprecision(2) << mb << " MB");
     }
-    std::cout << "===============================\n";
+    LOG_INFO("Performance", "===============================");
 }
 
 void PerformanceProfiler::printCullingReport() const {
-    std::cout << "\n=== CULLING EFFICIENCY REPORT ===\n";
+    LOG_INFO("Performance", "\n=== CULLING EFFICIENCY REPORT ===");
     
     if (frustumCullingStats.frameCount > 0) {
-        std::cout << "Frustum Culling:\n";
-        std::cout << "  Efficiency: " << std::fixed << std::setprecision(1) << frustumCullingStats.getEfficiency() << "%\n";
-        std::cout << "  Avg Time: " << std::fixed << std::setprecision(3) << frustumCullingStats.getAverageTime() << "ms\n";
+        LOG_INFO("Performance", "Frustum Culling:");
+        LOG_INFO_FMT("Performance", "  Efficiency: " << std::fixed << std::setprecision(1) << frustumCullingStats.getEfficiency() << "%");
+        LOG_INFO_FMT("Performance", "  Avg Time: " << std::fixed << std::setprecision(3) << frustumCullingStats.getAverageTime() << "ms");
     }
     
     if (occlusionCullingStats.frameCount > 0) {
-        std::cout << "Occlusion Culling:\n";
-        std::cout << "  Efficiency: " << std::fixed << std::setprecision(1) << occlusionCullingStats.getEfficiency() << "%\n";
-        std::cout << "  Avg Time: " << std::fixed << std::setprecision(3) << occlusionCullingStats.getAverageTime() << "ms\n";
+        LOG_INFO("Performance", "Occlusion Culling:");
+        LOG_INFO_FMT("Performance", "  Efficiency: " << std::fixed << std::setprecision(1) << occlusionCullingStats.getEfficiency() << "%");
+        LOG_INFO_FMT("Performance", "  Avg Time: " << std::fixed << std::setprecision(3) << occlusionCullingStats.getAverageTime() << "ms");
     }
     
     if (faceCullingStats.frameCount > 0) {
-        std::cout << "Face Culling:\n";
-        std::cout << "  Efficiency: " << std::fixed << std::setprecision(1) << faceCullingStats.getEfficiency() << "%\n";
-        std::cout << "  Avg Time: " << std::fixed << std::setprecision(3) << faceCullingStats.getAverageTime() << "ms\n";
+        LOG_INFO("Performance", "Face Culling:");
+        LOG_INFO_FMT("Performance", "  Efficiency: " << std::fixed << std::setprecision(1) << faceCullingStats.getEfficiency() << "%");
+        LOG_INFO_FMT("Performance", "  Avg Time: " << std::fixed << std::setprecision(3) << faceCullingStats.getAverageTime() << "ms");
     }
     
-    std::cout << "Total Culling Efficiency: " << std::fixed << std::setprecision(1) << getCullingEfficiency() << "%\n";
-    std::cout << "=================================\n";
+    LOG_INFO_FMT("Performance", "Total Culling Efficiency: " << std::fixed << std::setprecision(1) << getCullingEfficiency() << "%");
+    LOG_INFO("Performance", "=================================");
 }
 
 double PerformanceProfiler::getAverageFPS(int frames) const {

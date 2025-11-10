@@ -3,6 +3,7 @@
 #include "core/ForceSystem.h"
 #include "utils/Timer.h"
 #include "utils/PerformanceProfiler.h"
+#include "utils/Logger.h"
 #include "physics/PhysicsWorld.h"
 #include "vulkan/VulkanDevice.h"
 #include "vulkan/RenderPipeline.h"
@@ -46,7 +47,7 @@ bool ImGuiRenderer::initialize(GLFWwindow* window, Vulkan::VulkanDevice* vulkanD
 
     // Setup Platform/Renderer backends
     if (!ImGui_ImplGlfw_InitForVulkan(window, true)) {
-        std::cerr << "Failed to initialize ImGui GLFW backend!" << std::endl;
+        LOG_ERROR("UI", "Failed to initialize ImGui GLFW backend!");
         return false;
     }
 
@@ -74,7 +75,7 @@ bool ImGuiRenderer::initialize(GLFWwindow* window, Vulkan::VulkanDevice* vulkanD
 
     VkDescriptorPool imguiPool;
     if (vkCreateDescriptorPool(vulkanDevice->getDevice(), &pool_info, nullptr, &imguiPool) != VK_SUCCESS) {
-        std::cerr << "Failed to create ImGui descriptor pool!" << std::endl;
+        LOG_ERROR("UI", "Failed to create ImGui descriptor pool!");
         return false;
     }
 
@@ -95,7 +96,7 @@ bool ImGuiRenderer::initialize(GLFWwindow* window, Vulkan::VulkanDevice* vulkanD
     init_info.Subpass = 0;
 
     if (!ImGui_ImplVulkan_Init(&init_info)) {
-        std::cerr << "Failed to initialize ImGui Vulkan backend!" << std::endl;
+        LOG_ERROR("UI", "Failed to initialize ImGui Vulkan backend!");
         return false;
     }
 

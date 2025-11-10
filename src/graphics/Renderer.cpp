@@ -5,6 +5,7 @@
 #include "scene/SceneManager.h"
 #include "core/ChunkManager.h"
 #include "utils/PerformanceProfiler.h"
+#include "utils/Logger.h"
 #include "core/Types.h"
 
 #include <iostream>
@@ -28,73 +29,73 @@ bool Renderer::initialize(GLFWwindow* window, int windowWidth, int windowHeight)
     this->windowWidth = windowWidth;
     this->windowHeight = windowHeight;
 
-    std::cout << "Initializing Renderer..." << std::endl;
+    LOG_INFO("Rendering", "Initializing Renderer...");
 
     // Initialize Vulkan systems
     if (!initializeVulkan()) {
-        std::cerr << "Failed to initialize Vulkan!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to initialize Vulkan!");
         return false;
     }
 
     // Load shaders for pipelines
     if (!loadShaders()) {
-        std::cerr << "Failed to load shaders!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to load shaders!");
         return false;
     }
 
     // Initialize render pipelines after shaders are loaded
     if (!renderPipeline->createGraphicsPipeline()) {
-        std::cerr << "Failed to create static render pipeline!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to create static render pipeline!");
         return false;
     }
 
     if (!dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes()) {
-        std::cerr << "Failed to create dynamic render pipeline!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to create dynamic render pipeline!");
         return false;
     }
 
     // Create framebuffers using the render pass from the static pipeline
     if (!vulkanDevice->createFramebuffers(renderPipeline->getRenderPass())) {
-        std::cerr << "Failed to create framebuffers!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to create framebuffers!");
         return false;
     }
 
     // Create command buffers for rendering
     if (!vulkanDevice->createCommandBuffers()) {
-        std::cerr << "Failed to create command buffers!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to create command buffers!");
         return false;
     }
 
     // Create synchronization objects (semaphores, fences)
     if (!vulkanDevice->createSyncObjects()) {
-        std::cerr << "Failed to create sync objects!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to create sync objects!");
         return false;
     }
 
     // Create vertex and instance buffers
     if (!vulkanDevice->createVertexBuffer()) {
-        std::cerr << "Failed to create vertex buffer!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to create vertex buffer!");
         return false;
     }
 
     if (!vulkanDevice->createInstanceBuffer()) {
-        std::cerr << "Failed to create instance buffer!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to create instance buffer!");
         return false;
     }
 
     // Create index buffer for cube rendering
     if (!vulkanDevice->createIndexBuffer()) {
-        std::cerr << "Failed to create index buffer!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to create index buffer!");
         return false;
     }
 
     // Create uniform buffers for MVP matrices
     if (!vulkanDevice->createUniformBuffers()) {
-        std::cerr << "Failed to create uniform buffers!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to create uniform buffers!");
         return false;
     }
 
-    std::cout << "Renderer initialized successfully" << std::endl;
+    LOG_INFO("Rendering", "Renderer initialized successfully");
     return true;
 }
 
@@ -124,45 +125,45 @@ bool Renderer::initializeVulkan() {
 
     // Initialize Vulkan instance and debug messenger first
     if (!vulkanDevice->createInstance()) {
-        std::cerr << "Failed to create Vulkan instance!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to create Vulkan instance!");
         return false;
     }
 
     if (!vulkanDevice->setupDebugMessenger()) {
-        std::cerr << "Failed to set up debug messenger!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to set up debug messenger!");
         return false;
     }
 
     // Create surface before physical device selection
     if (!vulkanDevice->createSurface(window)) {
-        std::cerr << "Failed to create Vulkan surface!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to create Vulkan surface!");
         return false;
     }
 
     // Continue with device initialization
     if (!vulkanDevice->pickPhysicalDevice()) {
-        std::cerr << "Failed to find a suitable GPU!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to find a suitable GPU!");
         return false;
     }
 
     if (!vulkanDevice->createLogicalDevice()) {
-        std::cerr << "Failed to create logical device!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to create logical device!");
         return false;
     }
 
     if (!vulkanDevice->createDescriptorSetLayout()) {
-        std::cerr << "Failed to create descriptor set layout!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to create descriptor set layout!");
         return false;
     }
 
     if (!vulkanDevice->createSwapChain(windowWidth, windowHeight)) {
-        std::cerr << "Failed to create swap chain!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to create swap chain!");
         return false;
     }
 
     // Create depth buffer resources
     if (!vulkanDevice->createDepthResources()) {
-        std::cerr << "Failed to create depth resources!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to create depth resources!");
         return false;
     }
 
@@ -172,12 +173,12 @@ bool Renderer::initializeVulkan() {
 bool Renderer::loadShaders() {
     // Load shaders for pipelines
     if (!renderPipeline->loadShaders("shaders/cube.vert.spv", "shaders/cube.frag.spv")) {
-        std::cerr << "Failed to load static pipeline shaders!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to load static pipeline shaders!");
         return false;
     }
     
     if (!dynamicRenderPipeline->loadShaders("shaders/dynamic_subcube.vert.spv", "shaders/cube.frag.spv")) {
-        std::cerr << "Failed to load dynamic pipeline shaders!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to load dynamic pipeline shaders!");
         return false;
     }
 
@@ -203,7 +204,7 @@ void Renderer::renderFrame(
     VkResult result = vulkanDevice->acquireNextImage(currentFrame, &imageIndex);
     
     if (result != VK_SUCCESS) {
-        std::cerr << "Failed to acquire swapchain image!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to acquire swapchain image!");
         return;
     }
 
@@ -303,22 +304,22 @@ void Renderer::renderFrame(
     vulkanDevice->beginCommandBuffer(currentFrame);
     
     // Update performance statistics
-    std::cout << "[DEBUG] About to update performance stats..." << std::endl;
+    LOG_TRACE("Rendering", "[DEBUG] About to update performance stats...");
     updatePerformanceStats(chunkManager, sceneManager);
-    std::cout << "[DEBUG] Performance stats updated" << std::endl;
+    LOG_TRACE("Rendering", "[DEBUG] Performance stats updated");
     
     // Begin render pass
-    std::cout << "[DEBUG] About to begin render pass..." << std::endl;
+    LOG_TRACE("Rendering", "[DEBUG] About to begin render pass...");
     vulkanDevice->beginRenderPass(currentFrame, imageIndex, renderPipeline->getRenderPass());
-    std::cout << "[DEBUG] Render pass begun" << std::endl;
+    LOG_TRACE("Rendering", "[DEBUG] Render pass begun");
     
     // Bind graphics pipeline
-    std::cout << "[DEBUG] About to bind graphics pipeline..." << std::endl;
+    LOG_TRACE("Rendering", "[DEBUG] About to bind graphics pipeline...");
     renderPipeline->bindGraphicsPipeline(vulkanDevice->getCommandBuffer(currentFrame));
-    std::cout << "[DEBUG] Graphics pipeline bound" << std::endl;
+    LOG_TRACE("Rendering", "[DEBUG] Graphics pipeline bound");
     
     // Set viewport (required for dynamic viewport)
-    std::cout << "[DEBUG] About to set viewport..." << std::endl;
+    LOG_TRACE("Rendering", "[DEBUG] About to set viewport...");
     VkViewport viewport{};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
@@ -326,17 +327,17 @@ void Renderer::renderFrame(
     viewport.height = static_cast<float>(windowHeight);
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
-    std::cout << "[DEBUG] Viewport configured: " << windowWidth << "x" << windowHeight << std::endl;
+    LOG_TRACE_FMT("Rendering", "[DEBUG] Viewport configured: " << windowWidth << "x" << windowHeight);
     vkCmdSetViewport(vulkanDevice->getCommandBuffer(currentFrame), 0, 1, &viewport);
-    std::cout << "[DEBUG] Viewport set successfully" << std::endl;
+    LOG_TRACE("Rendering", "[DEBUG] Viewport set successfully");
     
     // Set scissor (required for dynamic scissor)
-    std::cout << "[DEBUG] About to set scissor..." << std::endl;
+    LOG_TRACE("Rendering", "[DEBUG] About to set scissor...");
     VkRect2D scissor{};
     scissor.offset = {0, 0};
     scissor.extent = {static_cast<uint32_t>(windowWidth), static_cast<uint32_t>(windowHeight)};
     vkCmdSetScissor(vulkanDevice->getCommandBuffer(currentFrame), 0, 1, &scissor);
-    std::cout << "[DEBUG] Scissor set successfully" << std::endl;
+    LOG_TRACE("Rendering", "[DEBUG] Scissor set successfully");
     
     // Bind vertex and instance buffers
     vulkanDevice->bindVertexBuffers(currentFrame);
@@ -385,7 +386,7 @@ void Renderer::renderFrame(
     // Submit command buffer
     auto submitStart = std::chrono::high_resolution_clock::now();
     if (!vulkanDevice->submitCommandBuffer(currentFrame)) {
-        std::cerr << "Failed to submit command buffer!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to submit command buffer!");
         return;
     }
     auto submitEnd = std::chrono::high_resolution_clock::now();
@@ -393,7 +394,7 @@ void Renderer::renderFrame(
     // Present frame
     auto presentStart = std::chrono::high_resolution_clock::now();
     if (!vulkanDevice->presentFrame(imageIndex, currentFrame)) {
-        std::cerr << "Failed to present frame!" << std::endl;
+        LOG_ERROR("Rendering", "Failed to present frame!");
         return;
     }
     auto presentEnd = std::chrono::high_resolution_clock::now();

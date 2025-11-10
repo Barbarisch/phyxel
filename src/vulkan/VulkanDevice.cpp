@@ -1305,7 +1305,7 @@ void VulkanDevice::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
 
 // Texture atlas management methods
 bool VulkanDevice::loadTextureAtlas(const std::string& atlasPath) {
-    std::cout << "[DEBUG] Loading texture atlas: " << atlasPath << std::endl;
+    LOG_DEBUG_FMT("Vulkan", "Loading texture atlas: " << atlasPath);
     
     // Load image using stb_image
     int texWidth, texHeight, texChannels;
@@ -1315,11 +1315,11 @@ bool VulkanDevice::loadTextureAtlas(const std::string& atlasPath) {
     bool usingFallback = false;
     
     if (!pixels) {
-        std::cerr << "Failed to load texture atlas: " << atlasPath << std::endl;
-        std::cerr << "stb_image error: " << stbi_failure_reason() << std::endl;
+        LOG_ERROR_FMT("Vulkan", "Failed to load texture atlas: " << atlasPath);
+        LOG_ERROR_FMT("Vulkan", "stb_image error: " << stbi_failure_reason());
         
         // Create fallback checkerboard texture as backup
-        std::cout << "[WARNING] Creating fallback checkerboard texture..." << std::endl;
+        LOG_WARN("Vulkan", "Creating fallback checkerboard texture...");
         texWidth = 128;
         texHeight = 128;
         texChannels = 4;
@@ -1339,7 +1339,7 @@ bool VulkanDevice::loadTextureAtlas(const std::string& atlasPath) {
         pixels = fallbackPixels.data();
         usingFallback = true;
     } else {
-        std::cout << "[DEBUG] Successfully loaded texture atlas: " << texWidth << "x" << texHeight << " channels=" << texChannels << std::endl;
+        LOG_DEBUG_FMT("Vulkan", "Successfully loaded texture atlas: " << texWidth << "x" << texHeight << " channels=" << texChannels);
     }
     
     const VkDeviceSize imageSize = texWidth * texHeight * 4; // Always use 4 channels
@@ -1446,7 +1446,7 @@ bool VulkanDevice::loadTextureAtlas(const std::string& atlasPath) {
     // Create image view
     textureAtlasImageView = createImageView(textureAtlasImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
     
-    std::cout << "[DEBUG] Texture atlas loaded successfully" << std::endl;
+    LOG_DEBUG("Vulkan", "Texture atlas loaded successfully");
     return true;
 }
 
@@ -1470,11 +1470,11 @@ bool VulkanDevice::createTextureAtlasSampler() {
     samplerInfo.maxLod = 0.0f;
 
     if (vkCreateSampler(device, &samplerInfo, nullptr, &textureAtlasSampler) != VK_SUCCESS) {
-        std::cerr << "Failed to create texture sampler!" << std::endl;
+        LOG_ERROR("Vulkan", "Failed to create texture sampler!");
         return false;
     }
 
-    std::cout << "[DEBUG] Texture atlas sampler created successfully" << std::endl;
+    LOG_DEBUG("Vulkan", "Texture atlas sampler created successfully");
     return true;
 }
 
@@ -1516,7 +1516,7 @@ void VulkanDevice::updateDescriptorSetsWithTexture() {
                               descriptorWrites.data(), 0, nullptr);
     }
     
-    std::cout << "[DEBUG] Descriptor sets updated with texture atlas" << std::endl;
+    LOG_DEBUG("Vulkan", "Descriptor sets updated with texture atlas");
 }
 
 void VulkanDevice::cleanupTextureAtlas() {
@@ -1552,24 +1552,24 @@ bool VulkanDevice::recreateSwapChain(int windowWidth, int windowHeight, VkRender
 
     // Recreate swapchain and its dependencies (createSwapChain includes image view creation)
     if (!createSwapChain(windowWidth, windowHeight)) {
-        std::cerr << "Failed to recreate swapchain!" << std::endl;
+        LOG_ERROR("Vulkan", "Failed to recreate swapchain!");
         return false;
     }
 
     if (!createDepthResources()) {
-        std::cerr << "Failed to recreate depth resources!" << std::endl;
+        LOG_ERROR("Vulkan", "Failed to recreate depth resources!");
         return false;
     }
 
     if (!createFramebuffers(renderPass)) {
-        std::cerr << "Failed to recreate framebuffers!" << std::endl;
+        LOG_ERROR("Vulkan", "Failed to recreate framebuffers!");
         return false;
     }
 
     // Reset the resize flag
     framebufferResized = false;
 
-    std::cout << "Swapchain recreated successfully for size " << windowWidth << "x" << windowHeight << std::endl;
+    LOG_INFO_FMT("Vulkan", "Swapchain recreated successfully for size " << windowWidth << "x" << windowHeight);
     return true;
 }
 
@@ -1608,7 +1608,7 @@ void VulkanDevice::cleanupSwapChain() {
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDevice::debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) {
-    std::cerr << "Validation layer: " << pCallbackData->pMessage << std::endl;
+    LOG_WARN_FMT("Vulkan", "Validation layer: " << pCallbackData->pMessage);
     return VK_FALSE;
 }
 

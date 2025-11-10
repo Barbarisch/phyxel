@@ -1,6 +1,7 @@
 #include "core/WorldGenerator.h"
 #include "core/Chunk.h"
 #include "core/Cube.h"
+#include "utils/Logger.h"
 #include <random>
 #include <cmath>
 #include <iostream>
@@ -54,7 +55,7 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
     }
     
     if (!generator) {
-        std::cerr << "[WORLD_GENERATOR] No valid generator function!" << std::endl;
+        LOG_ERROR("WorldGenerator", "[WORLD_GENERATOR] No valid generator function!");
         return;
     }
     
@@ -72,8 +73,8 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
         }
     }
     
-    std::cout << "[WORLD_GENERATOR] Generated chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z 
-              << ") with type " << static_cast<int>(generationType) << std::endl;
+    LOG_DEBUG_FMT("WorldGenerator", "[WORLD_GENERATOR] Generated chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z 
+              << ") with type " << static_cast<int>(generationType));
 }
 
 bool WorldGenerator::generateRandom(const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor) {

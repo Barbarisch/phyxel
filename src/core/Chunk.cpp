@@ -1,6 +1,7 @@
 #include "core/Chunk.h"
 #include "core/ChunkManager.h"
 #include "physics/PhysicsWorld.h"
+#include "utils/Logger.h"
 #include <stdexcept>
 #include <cstring>
 #include <random>
@@ -259,13 +260,13 @@ bool Chunk::CollisionSpatialGrid::validateGrid() const {
 }
 
 void Chunk::CollisionSpatialGrid::debugPrintStats() const {
-    std::cout << "[DEBUG] CollisionSpatialGrid Stats:\n";
-    std::cout << "  Total entities: " << totalEntities << "\n";
-    std::cout << "  Cube entities: " << cubeEntities << "\n";
-    std::cout << "  Subcube entities: " << subcubeEntities << "\n";
-    std::cout << "  Occupied cells: " << getOccupiedCellCount() << "/" << (GRID_SIZE * GRID_SIZE * GRID_SIZE) << "\n";
-    std::cout << "  Average entities per occupied cell: " << 
-        (getOccupiedCellCount() > 0 ? (double)totalEntities / getOccupiedCellCount() : 0.0) << "\n";
+    LOG_DEBUG("Chunk", "CollisionSpatialGrid Stats:");
+    LOG_DEBUG_FMT("Chunk", "  Total entities: " << totalEntities);
+    LOG_DEBUG_FMT("Chunk", "  Cube entities: " << cubeEntities);
+    LOG_DEBUG_FMT("Chunk", "  Subcube entities: " << subcubeEntities);
+    LOG_DEBUG_FMT("Chunk", "  Occupied cells: " << getOccupiedCellCount() << "/" << (GRID_SIZE * GRID_SIZE * GRID_SIZE));
+    LOG_DEBUG_FMT("Chunk", "  Average entities per occupied cell: " << 
+        (getOccupiedCellCount() > 0 ? (double)totalEntities / getOccupiedCellCount() : 0.0));
 }
 
 void Chunk::initialize(VkDevice dev, VkPhysicalDevice physDev) {
@@ -338,8 +339,8 @@ bool Chunk::removeCube(const glm::ivec3& localPos) {
     
     // Mark chunk as dirty for smart saving
     setDirty(true);
-    std::cout << "[CHUNK] Removed cube at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
-              << ") - Chunk now DIRTY for save" << std::endl;
+    LOG_DEBUG_FMT("Chunk", "Removed cube at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
+              << ") - Chunk now DIRTY for save");
     
     // Immediately rebuild faces to remove the cube from GPU buffer
     rebuildFaces();
@@ -445,9 +446,9 @@ void Chunk::initializeForLoading() {
     // Set bulk operation flag to prevent neighbor collision updates during loading
     isInBulkOperation = true;
     
-    std::cout << "[CHUNK] Initialized chunk at origin (" 
+    LOG_DEBUG_FMT("Chunk", "Initialized chunk at origin (" 
               << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z 
-              << ") for database loading" << std::endl;
+              << ") for database loading");
 }
 
 void Chunk::rebuildFaces() {
@@ -1052,7 +1053,7 @@ void Chunk::removeSubcubeFromMaps(const glm::ivec3& localPos, const glm::ivec3& 
         // The caller (removeSubcube) will handle voxelTypeMap updates after cube restoration
         if (parentIt->second.empty()) {
             subcubeMap.erase(localPos);
-            std::cout << "[VOXEL MAP] Removed subcubeMap entry at (" << localPos.x << "," << localPos.y << "," << localPos.z << ") - no subcubes remain" << std::endl;
+            LOG_TRACE_FMT("Chunk", "Removed subcubeMap entry at (" << localPos.x << "," << localPos.y << "," << localPos.z << ") - no subcubes remain");
         }
     }
 }
@@ -1063,8 +1064,8 @@ void Chunk::initializeVoxelMaps() {
     subcubeMap.clear();
     voxelTypeMap.clear();
     
-    std::cout << "[CHUNK] Initializing voxel maps for chunk at origin (" 
-              << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z << ")" << std::endl;
+    LOG_DEBUG_FMT("Chunk", "Initializing voxel maps for chunk at origin (" 
+              << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z << ")");
     
     // Build cube map from existing vector data
     for (size_t i = 0; i < cubes.size(); ++i) {
@@ -1090,10 +1091,10 @@ void Chunk::initializeVoxelMaps() {
         }
     }
     
-    std::cout << "[CHUNK] Voxel maps initialized: " 
+    LOG_DEBUG_FMT("Chunk", "Voxel maps initialized: " 
               << cubeMap.size() << " cubes, "
               << subcubeMap.size() << " subdivided positions, "
-              << voxelTypeMap.size() << " total voxels" << std::endl;
+              << voxelTypeMap.size() << " total voxels");
 }
 
 bool Chunk::subdivideAt(const glm::ivec3& localPos) {
@@ -1152,9 +1153,9 @@ bool Chunk::subdivideAt(const glm::ivec3& localPos) {
     if (cubeIndex < cubes.size() && cubes[cubeIndex] == cube) {
         delete cube;  // Delete the cube object
         cubes[cubeIndex] = nullptr;  // Clear the vector entry
-        std::cout << "[CUBE DELETION] Completely removed parent cube at (" 
+        LOG_DEBUG_FMT("Chunk", "Completely removed parent cube at (" 
                   << localPos.x << "," << localPos.y << "," << localPos.z 
-                  << ") - replaced by 27 subcubes" << std::endl;
+                  << ") - replaced by 27 subcubes");
     }
     
     // CRITICAL: Update voxelTypeMap to mark position as subdivided for proper hover detection
@@ -1221,32 +1222,32 @@ bool Chunk::removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcube
             
             if (remainingSubcubes.empty()) {
                 // No more subcubes at this position - remove collision shape entirely
-                std::cout << "[COLLISION] No subcubes remain at parent pos (" 
+                LOG_TRACE_FMT("Chunk", "No subcubes remain at parent pos (" 
                           << parentPos.x << "," << parentPos.y << "," << parentPos.z 
-                          << ") - removing collision shape" << std::endl;
+                          << ") - removing collision shape");
                 removeCollisionEntities(parentPos);
                 
                 // ARCHITECTURAL CHANGE: Do NOT restore parent cube - leave position empty
                 // The parent cube was deleted during subdivision, so position should become empty
                 voxelTypeMap.erase(parentPos);
-                std::cout << "[VOXEL MAP] Position now empty at (" 
+                LOG_DEBUG_FMT("Chunk", "[VOXEL MAP] Position now empty at (" 
                           << parentPos.x << "," << parentPos.y << "," << parentPos.z 
-                          << ") - all subcubes removed, no cube to restore" << std::endl;
+                          << ") - all subcubes removed, no cube to restore");
             } else {
                 // Still have subcubes - update collision shape to reflect remaining subcubes
-                std::cout << "[COLLISION] " << remainingSubcubes.size() 
+                LOG_DEBUG_FMT("Chunk", "[COLLISION] " << remainingSubcubes.size() 
                           << " subcubes remain at parent pos (" 
                           << parentPos.x << "," << parentPos.y << "," << parentPos.z 
-                          << ") - updating collision shape" << std::endl;
+                          << ") - updating collision shape");
                 // Remove old shape and add new one to reflect current subcube configuration
                 removeCollisionEntities(parentPos);
                 addCollisionEntity(parentPos);
                 
                 // CRITICAL: Ensure voxelTypeMap shows SUBDIVIDED since subcubes remain
                 voxelTypeMap[parentPos] = VoxelLocation::SUBDIVIDED;
-                std::cout << "[VOXEL MAP] Maintained SUBDIVIDED type at (" 
+                LOG_DEBUG_FMT("Chunk", "[VOXEL MAP] Maintained SUBDIVIDED type at (" 
                           << parentPos.x << "," << parentPos.y << "," << parentPos.z 
-                          << ") - " << remainingSubcubes.size() << " subcubes remain" << std::endl;
+                          << ") - " << remainingSubcubes.size() << " subcubes remain");
             }
             
             needsUpdate = true;
@@ -1284,8 +1285,8 @@ bool Chunk::clearSubdivisionAt(const glm::ivec3& localPos) {
     voxelTypeMap.erase(localPos);
     
     if (removedAny) {
-        std::cout << "[CHUNK] Cleared subdivision at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
-                  << ") - position now empty" << std::endl;
+        LOG_DEBUG_FMT("Chunk", "[CHUNK] Cleared subdivision at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
+                  << ") - position now empty");
         needsUpdate = true;
     }
     
@@ -1414,15 +1415,15 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
             float lifetime = subcube->getLifetime();
             
             // CRITICAL: Use proper removeSubcube to update all data structures (voxelTypeMap, subcubeMap, etc.)
-            std::cout << "[INCREMENTAL] BEFORE: Using proper subcube removal to update all data structures" << std::endl;
+            LOG_DEBUG("Chunk", "[INCREMENTAL] BEFORE: Using proper subcube removal to update all data structures");
             bool removed = removeSubcube(parentPos, subcubePos);
             if (!removed) {
-                std::cout << "[ERROR] Failed to remove subcube from data structures" << std::endl;
+                LOG_ERROR("Chunk", "[ERROR] Failed to remove subcube from data structures");
                 return false;
             }
             // NEW: Fast collision update (already done in removeSubcube)
             batchUpdateCollisions();
-            std::cout << "[INCREMENTAL] AFTER: All data structures updated and collision shape updated incrementally" << std::endl;
+            LOG_DEBUG("Chunk", "[INCREMENTAL] AFTER: All data structures updated and collision shape updated incrementally");
             
             // Create new dynamic subcube for physics (since original was removed)
             auto dynamicSubcube = std::make_unique<Subcube>(
@@ -1450,7 +1451,7 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
                 dynamicSubcube->setPhysicsPosition(physicsCenterPos);
                 
                 // NO FORCES APPLIED - subcubes break gently with gravity only
-                std::cout << "[SUBCUBE PHYSICS] Created physics body for subcube (no forces applied - gravity only)" << std::endl;
+                LOG_DEBUG("Chunk", "[SUBCUBE PHYSICS] Created physics body for subcube (no forces applied - gravity only)");
                 
                 // Enable gravity for natural falling behavior
                 if (rigidBody) {
@@ -1463,9 +1464,9 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
                 // The dynamicSubcube is already properly configured, just transfer it
                 chunkManager->addGlobalDynamicSubcube(std::move(dynamicSubcube));
                 
-                std::cout << "[GLOBAL TRANSFER] Moved broken subcube directly to global dynamic system (safe transfer)" << std::endl;
+                LOG_DEBUG("Chunk", "[GLOBAL TRANSFER] Moved broken subcube directly to global dynamic system (safe transfer)");
             } else {
-                std::cout << "[ERROR] No ChunkManager provided - cannot transfer to global system" << std::endl;
+                LOG_ERROR("Chunk", "[ERROR] No ChunkManager provided - cannot transfer to global system");
             }
             
             // Note: No need to delete subcube - it was already properly removed by removeSubcube()
@@ -1474,10 +1475,10 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
             rebuildFaces();
             needsUpdate = true;
             
-            std::cout << "[CHUNK] Broke subcube at parent pos (" 
+            LOG_DEBUG_FMT("Chunk", "[CHUNK] Broke subcube at parent pos (" 
                       << parentPos.x << "," << parentPos.y << "," << parentPos.z 
                       << ") subcube pos (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z 
-                      << ") - transferred to global system safely" << std::endl;
+                      << ") - transferred to global system safely");
             return true;
         }
         ++it;
@@ -1488,17 +1489,17 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
 
 void Chunk::createChunkPhysicsBody() {
     if (!physicsWorld) {
-        std::cout << "[CHUNK] No physics world available for chunk physics body creation" << std::endl;
+        LOG_DEBUG("Chunk", "[CHUNK] No physics world available for chunk physics body creation");
         return;
     }
 
     if (chunkPhysicsBody) {
-        std::cout << "[CHUNK] Chunk physics body already exists, skipping creation" << std::endl;
+        LOG_DEBUG("Chunk", "[CHUNK] Chunk physics body already exists, skipping creation");
         return;
     }
 
-    std::cout << "[CHUNK] Creating optimized compound collision shape for chunk at (" 
-              << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z << ")" << std::endl;
+    LOG_DEBUG_FMT("Chunk", "[CHUNK] Creating optimized compound collision shape for chunk at (" 
+              << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z << ")");
 
     // Create compound shape with dynamic AABB tree for efficient culling
     btCompoundShape* chunkCompound = new btCompoundShape(true);
@@ -1520,9 +1521,9 @@ void Chunk::createChunkPhysicsBody() {
     
     physicsWorld->getWorld()->addRigidBody(chunkPhysicsBody);
     
-    std::cout << "[CHUNK] Spatial collision system initialized with " << collisionGrid.getTotalEntityCount() 
+    LOG_DEBUG_FMT("Chunk", "[CHUNK] Spatial collision system initialized with " << collisionGrid.getTotalEntityCount() 
               << " tracked entities (" << collisionGrid.getCubeEntityCount() << " cubes, " 
-              << collisionGrid.getSubcubeEntityCount() << " subcubes)" << std::endl;
+              << collisionGrid.getSubcubeEntityCount() << " subcubes)");
 }
 
 void Chunk::updateChunkPhysicsBody() {
@@ -1550,18 +1551,18 @@ void Chunk::updateChunkPhysicsBody() {
             dynamicsWorld->updateSingleAabb(chunkPhysicsBody);
         }
         
-        std::cout << "[INCREMENTAL] Spatial collision updates complete with physics sync - maintaining " 
+        LOG_DEBUG_FMT("Chunk", "[INCREMENTAL] Spatial collision updates complete with physics sync - maintaining " 
                   << collisionGrid.getTotalEntityCount() << " entities (" << collisionGrid.getCubeEntityCount() 
-                  << " cubes, " << collisionGrid.getSubcubeEntityCount() << " subcubes)" << std::endl;
+                  << " cubes, " << collisionGrid.getSubcubeEntityCount() << " subcubes)");
     } else {
-        std::cout << "[INCREMENTAL] No collision updates needed" << std::endl;
+        LOG_DEBUG("Chunk", "[INCREMENTAL] No collision updates needed");
     }
 }
 
 void Chunk::forcePhysicsRebuild() {
     if (!physicsWorld || !chunkPhysicsBody) return;
     
-    std::cout << "[COMPOUND SHAPE] Force rebuilding compound shape to remove static collision" << std::endl;
+    LOG_DEBUG("Chunk", "[COMPOUND SHAPE] Force rebuilding compound shape to remove static collision");
     
     // Remove existing body from world
     physicsWorld->getWorld()->removeRigidBody(chunkPhysicsBody);
@@ -1576,28 +1577,28 @@ void Chunk::forcePhysicsRebuild() {
     // Recreate with updated geometry (this will exclude the broken subcube)
     createChunkPhysicsBody();
     
-    std::cout << "[COMPOUND SHAPE] Compound shape rebuilt - static collision removed" << std::endl;
+    LOG_DEBUG("Chunk", "[COMPOUND SHAPE] Compound shape rebuilt - static collision removed");
 }
 
 void Chunk::cleanupPhysicsResources() {
     // Clean up spatial collision grid - entities auto-delete when shared_ptrs are destroyed
-    std::cout << "[COLLISION CLEANUP] Before cleanup: " << collisionGrid.getTotalEntityCount() << " total entities ("
-              << collisionGrid.getCubeEntityCount() << " cubes, " << collisionGrid.getSubcubeEntityCount() << " subcubes)" << std::endl;
+    LOG_DEBUG_FMT("Chunk", "[COLLISION CLEANUP] Before cleanup: " << collisionGrid.getTotalEntityCount() << " total entities ("
+              << collisionGrid.getCubeEntityCount() << " cubes, " << collisionGrid.getSubcubeEntityCount() << " subcubes)");
     
     // Clear spatial grid - O(1) operation that releases all entity references
     collisionGrid.clear();
     collisionNeedsUpdate = false;
     
-    std::cout << "[COLLISION CLEANUP] After cleanup: " << collisionGrid.getTotalEntityCount() << " total entities ("
-              << collisionGrid.getCubeEntityCount() << " cubes, " << collisionGrid.getSubcubeEntityCount() << " subcubes)" << std::endl;
+    LOG_DEBUG_FMT("Chunk", "[COLLISION CLEANUP] After cleanup: " << collisionGrid.getTotalEntityCount() << " total entities ("
+              << collisionGrid.getCubeEntityCount() << " cubes, " << collisionGrid.getSubcubeEntityCount() << " subcubes)");
     
     if (chunkPhysicsBody) {
-        std::cout << "[CHUNK] Cleaning up chunk physics body" << std::endl;
+        LOG_DEBUG("Chunk", "[CHUNK] Cleaning up chunk physics body");
         chunkPhysicsBody = nullptr;
     }
     
     if (chunkCollisionShape) {
-        std::cout << "[CHUNK] Cleaning up chunk collision shape" << std::endl;
+        LOG_DEBUG("Chunk", "[CHUNK] Cleaning up chunk collision shape");
         chunkCollisionShape = nullptr;
     }
 }
@@ -1632,16 +1633,16 @@ void Chunk::addCollisionEntity(const glm::ivec3& localPos) {
         // Add to spatial grid - O(1) operation
         collisionGrid.addEntity(localPos, entity);
         
-        std::cout << "[COLLISION] Added cube entity at (" 
+        LOG_TRACE_FMT("Chunk", "[COLLISION] Added cube entity at (" 
                   << localPos.x << "," << localPos.y << "," << localPos.z 
-                  << ") - Total entities: " << collisionGrid.getTotalEntityCount() << std::endl;
+                  << ") - Total entities: " << collisionGrid.getTotalEntityCount());
         
     } else {
         // Check for subcubes at this position
         auto subcubes = getStaticSubcubesAt(localPos);
         if (!subcubes.empty()) {
-            std::cout << "[COLLISION] Creating " << subcubes.size() 
-                      << " subcube entities at (" << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
+            LOG_TRACE_FMT("Chunk", "[COLLISION] Creating " << subcubes.size() 
+                      << " subcube entities at (" << localPos.x << "," << localPos.y << "," << localPos.z << ")");
             
             // Create collision entity for EACH subcube with individual tracking
             for (const Subcube* subcube : subcubes) {
@@ -1667,9 +1668,9 @@ void Chunk::addCollisionEntity(const glm::ivec3& localPos) {
                 // Add to spatial grid - O(1) operation
                 collisionGrid.addEntity(localPos, entity);
                 
-                std::cout << "[COLLISION] Added subcube entity at local (" 
+                LOG_TRACE_FMT("Chunk", "[COLLISION] Added subcube entity at local (" 
                           << subcube->getLocalPosition().x << "," << subcube->getLocalPosition().y << "," << subcube->getLocalPosition().z 
-                          << ") center (" << subcubeCenter.x << "," << subcubeCenter.y << "," << subcubeCenter.z << ")" << std::endl;
+                          << ") center (" << subcubeCenter.x << "," << subcubeCenter.y << "," << subcubeCenter.z << ")");
             }
         }
     }
@@ -1684,8 +1685,8 @@ void Chunk::removeCollisionEntities(const glm::ivec3& localPos) {
     auto& entities = collisionGrid.getEntitiesAt(localPos);
     if (entities.empty()) return;
     
-    std::cout << "[COLLISION] Removing " << entities.size() 
-              << " collision entities at (" << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
+    LOG_TRACE_FMT("Chunk", "[COLLISION] Removing " << entities.size() 
+              << " collision entities at (" << localPos.x << "," << localPos.y << "," << localPos.z << ")");
     
     // Remove each entity from the compound shape
     for (auto& entity : entities) {
@@ -1699,11 +1700,11 @@ void Chunk::removeCollisionEntities(const glm::ivec3& localPos) {
                 shapeRemoved = true;
                 
                 if (entity->isCube()) {
-                    std::cout << "[COLLISION] Removed cube entity at (" 
-                              << localPos.x << "," << localPos.y << "," << localPos.z << ")" << std::endl;
+                    LOG_TRACE_FMT("Chunk", "[COLLISION] Removed cube entity at (" 
+                              << localPos.x << "," << localPos.y << "," << localPos.z << ")");
                 } else {
-                    std::cout << "[COLLISION] Removed subcube entity at local (" 
-                              << entity->subcubeLocalPos.x << "," << entity->subcubeLocalPos.y << "," << entity->subcubeLocalPos.z << ")" << std::endl;
+                    LOG_TRACE_FMT("Chunk", "[COLLISION] Removed subcube entity at local (" 
+                              << entity->subcubeLocalPos.x << "," << entity->subcubeLocalPos.y << "," << entity->subcubeLocalPos.z << ")");
                 }
                 break;
             }
@@ -1733,8 +1734,8 @@ void Chunk::removeCollisionEntities(const glm::ivec3& localPos) {
         }
     }
     
-    std::cout << "[COLLISION] Total collision entities remaining: " << collisionGrid.getTotalEntityCount() 
-              << " (" << collisionGrid.getCubeEntityCount() << " cubes, " << collisionGrid.getSubcubeEntityCount() << " subcubes)" << std::endl;
+    LOG_TRACE_FMT("Chunk", "[COLLISION] Total collision entities remaining: " << collisionGrid.getTotalEntityCount() 
+              << " (" << collisionGrid.getCubeEntityCount() << " cubes, " << collisionGrid.getSubcubeEntityCount() << " subcubes)");
 }
 
 void Chunk::batchUpdateCollisions() {
@@ -1870,8 +1871,8 @@ void Chunk::buildInitialCollisionShapes() {
         collisionGrid.addEntity(parentLocalPos, entity);
     }
     
-    std::cout << "[COLLISION] Built " << collisionGrid.getTotalEntityCount() << " initial collision entities ("
-              << collisionGrid.getCubeEntityCount() << " cubes, " << collisionGrid.getSubcubeEntityCount() << " subcubes) with spatial grid optimization" << std::endl;
+    LOG_DEBUG_FMT("Chunk", "[COLLISION] Built " << collisionGrid.getTotalEntityCount() << " initial collision entities ("
+              << collisionGrid.getCubeEntityCount() << " cubes, " << collisionGrid.getSubcubeEntityCount() << " subcubes) with spatial grid optimization");
 }
 
 void Chunk::updateNeighborCollisionShapes(const glm::ivec3& localPos) {
@@ -1908,13 +1909,13 @@ void Chunk::updateNeighborCollisionShapes(const glm::ivec3& localPos) {
         if (!hadCollisionShape && shouldHaveCollisionShape) {
             // Neighbor cube is now exposed - add collision shape
             addCollisionEntity(neighborPos);
-            std::cout << "[NEIGHBOR] Added collision shape for newly exposed cube at (" 
-                      << neighborPos.x << "," << neighborPos.y << "," << neighborPos.z << ")" << std::endl;
+            LOG_TRACE_FMT("Chunk", "[NEIGHBOR] Added collision shape for newly exposed cube at (" 
+                      << neighborPos.x << "," << neighborPos.y << "," << neighborPos.z << ")");
         } else if (hadCollisionShape && !shouldHaveCollisionShape) {
             // Neighbor cube is no longer exposed (shouldn't happen when removing, but handle it)
             removeCollisionEntities(neighborPos);
-            std::cout << "[NEIGHBOR] Removed collision shape for no longer exposed cube at (" 
-                      << neighborPos.x << "," << neighborPos.y << "," << neighborPos.z << ")" << std::endl;
+            LOG_TRACE_FMT("Chunk", "[NEIGHBOR] Removed collision shape for no longer exposed cube at (" 
+                      << neighborPos.x << "," << neighborPos.y << "," << neighborPos.z << ")");
         }
         // If hadCollisionShape && shouldHaveCollisionShape, no change needed
         // If !hadCollisionShape && !shouldHaveCollisionShape, no change needed
@@ -1924,7 +1925,7 @@ void Chunk::updateNeighborCollisionShapes(const glm::ivec3& localPos) {
 void Chunk::endBulkOperation() {
     if (!isInBulkOperation) return;
     
-    std::cout << "[CHUNK] Ending bulk operation - building complete collision system" << std::endl;
+    LOG_DEBUG("Chunk", "[CHUNK] Ending bulk operation - building complete collision system");
     
     // Turn off bulk operation flag
     isInBulkOperation = false;
@@ -1940,7 +1941,7 @@ std::vector<Chunk::CollisionBox> Chunk::generateMergedCollisionBoxes() {
     
     // OPTIMIZED APPROACH: Only create collision shapes for cubes with exposed faces
     // This dramatically reduces collision complexity from ~32K to typically <1K collision boxes
-    std::cout << "[COLLISION] Building collision shapes only for exposed cubes (huge optimization!)" << std::endl;
+    LOG_DEBUG("Chunk", "[COLLISION] Building collision shapes only for exposed cubes (huge optimization!)");
     
     // =========================================================================
     // PHASE 1: Process regular cubes (only those with exposed faces)
@@ -2031,11 +2032,11 @@ std::vector<Chunk::CollisionBox> Chunk::generateMergedCollisionBoxes() {
         boxes.emplace_back(subcubeCenter, subcubeHalfExtents);
     }
     
-    std::cout << "[COLLISION] MASSIVE OPTIMIZATION: Generated only " << boxes.size() 
-              << " collision boxes (was ~" << cubes.size() << " before)" << std::endl;
-    std::cout << "[COLLISION] Performance improvement: " 
+    LOG_DEBUG_FMT("Chunk", "[COLLISION] MASSIVE OPTIMIZATION: Generated only " << boxes.size() 
+              << " collision boxes (was ~" << cubes.size() << " before)");
+    LOG_DEBUG_FMT("Chunk", "[COLLISION] Performance improvement: " 
               << (cubes.size() > 0 ? (100.0f * (cubes.size() - boxes.size()) / cubes.size()) : 0.0f) 
-              << "% reduction in collision shapes!" << std::endl;
+              << "% reduction in collision shapes!");
     
     return boxes;
 }
@@ -2045,63 +2046,63 @@ std::vector<Chunk::CollisionBox> Chunk::generateMergedCollisionBoxes() {
 // Helps detect memory management issues and spatial grid inconsistencies
 void Chunk::validateCollisionSystem() const {
     if (!chunkCollisionShape) {
-        std::cout << "[COLLISION VALIDATION] No compound collision shape exists" << std::endl;
+        LOG_DEBUG("Chunk", "[COLLISION VALIDATION] No compound collision shape exists");
         return;
     }
     
     btCompoundShape* compound = static_cast<btCompoundShape*>(chunkCollisionShape);
     int actualShapeCount = compound->getNumChildShapes();
     
-    std::cout << "[COLLISION VALIDATION] Chunk at (" << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z << ")" << std::endl;
-    std::cout << "  Compound shape has " << actualShapeCount << " child shapes" << std::endl;
-    std::cout << "  Spatial grid tracking " << collisionGrid.getTotalEntityCount() << " entities" << std::endl;
-    std::cout << "  Grid breakdown: " << collisionGrid.getCubeEntityCount() << " cubes, " 
-              << collisionGrid.getSubcubeEntityCount() << " subcubes" << std::endl;
-    std::cout << "  Occupied cells: " << collisionGrid.getOccupiedCellCount() << "/" 
-              << (CollisionSpatialGrid::GRID_SIZE * CollisionSpatialGrid::GRID_SIZE * CollisionSpatialGrid::GRID_SIZE) << std::endl;
+    LOG_DEBUG_FMT("Chunk", "[COLLISION VALIDATION] Chunk at (" << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z << ")");
+    LOG_DEBUG_FMT("Chunk", "  Compound shape has " << actualShapeCount << " child shapes");
+    LOG_DEBUG_FMT("Chunk", "  Spatial grid tracking " << collisionGrid.getTotalEntityCount() << " entities");
+    LOG_DEBUG_FMT("Chunk", "  Grid breakdown: " << collisionGrid.getCubeEntityCount() << " cubes, " 
+              << collisionGrid.getSubcubeEntityCount() << " subcubes");
+    LOG_DEBUG_FMT("Chunk", "  Occupied cells: " << collisionGrid.getOccupiedCellCount() << "/" 
+              << (CollisionSpatialGrid::GRID_SIZE * CollisionSpatialGrid::GRID_SIZE * CollisionSpatialGrid::GRID_SIZE));
     
     // Validate that tracked count matches compound shape count
     size_t expectedShapeCount = collisionGrid.getTotalEntityCount();
     if (expectedShapeCount != static_cast<size_t>(actualShapeCount)) {
-        std::cout << "[COLLISION ERROR] Shape count mismatch! Expected: " << expectedShapeCount 
-                  << ", Actual: " << actualShapeCount << std::endl;
+        LOG_ERROR_FMT("Chunk", "[COLLISION ERROR] Shape count mismatch! Expected: " << expectedShapeCount 
+                  << ", Actual: " << actualShapeCount);
     }
     
     // Validate spatial grid internal consistency
     if (!collisionGrid.validateGrid()) {
-        std::cout << "[COLLISION ERROR] Spatial grid internal validation failed!" << std::endl;
+        LOG_ERROR("Chunk", "[COLLISION ERROR] Spatial grid internal validation failed!");
     } else {
-        std::cout << "  Spatial grid validation: PASSED" << std::endl;
+        LOG_DEBUG("Chunk", "  Spatial grid validation: PASSED");
     }
 }
 
 void Chunk::debugLogSpatialGrid() const {
-    std::cout << "[COLLISION DEBUG] Spatial grid detailed information:" << std::endl;
-    std::cout << "  Chunk origin: (" << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z << ")" << std::endl;
+    LOG_DEBUG("Chunk", "[COLLISION DEBUG] Spatial grid detailed information:");
+    LOG_DEBUG_FMT("Chunk", "  Chunk origin: (" << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z << ")");
     
     // Print spatial grid statistics
     collisionGrid.debugPrintStats();
     
     // Log entities by occupied positions
-    std::cout << "  Entity details by position:" << std::endl;
+    LOG_DEBUG("Chunk", "  Entity details by position:");
     for (int x = 0; x < CollisionSpatialGrid::GRID_SIZE; ++x) {
         for (int y = 0; y < CollisionSpatialGrid::GRID_SIZE; ++y) {
             for (int z = 0; z < CollisionSpatialGrid::GRID_SIZE; ++z) {
                 glm::ivec3 pos(x, y, z);
                 const auto& entities = collisionGrid.getEntitiesAt(pos);
                 if (!entities.empty()) {
-                    std::cout << "    Position (" << x << "," << y << "," << z << ") has " << entities.size() << " entities:" << std::endl;
+                    LOG_TRACE_FMT("Chunk", "    Position (" << x << "," << y << "," << z << ") has " << entities.size() << " entities:");
                     for (size_t i = 0; i < entities.size(); ++i) {
                         const auto& entity = entities[i];
                         if (entity->isCube()) {
-                            std::cout << "      [" << i << "] Cube - Shape: " << entity->shape 
+                            LOG_TRACE_FMT("Chunk", "      [" << i << "] Cube - Shape: " << entity->shape 
                                       << ", Center: (" << entity->worldCenter.x << "," << entity->worldCenter.y << "," << entity->worldCenter.z
-                                      << "), Refs: " << entity.use_count() << std::endl;
+                                      << "), Refs: " << entity.use_count());
                         } else {
-                            std::cout << "      [" << i << "] Subcube - Shape: " << entity->shape 
+                            LOG_TRACE_FMT("Chunk", "      [" << i << "] Subcube - Shape: " << entity->shape 
                                       << ", Center: (" << entity->worldCenter.x << "," << entity->worldCenter.y << "," << entity->worldCenter.z
                                       << "), Local: (" << entity->subcubeLocalPos.x << "," << entity->subcubeLocalPos.y << "," << entity->subcubeLocalPos.z
-                                      << "), Refs: " << entity.use_count() << std::endl;
+                                      << "), Refs: " << entity.use_count());
                         }
                     }
                 }
