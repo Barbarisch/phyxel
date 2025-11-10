@@ -6,6 +6,7 @@
 #include "core/ChunkManager.h"
 #include "utils/PerformanceProfiler.h"
 #include "utils/Logger.h"
+#include "utils/CoordinateUtils.h"
 #include "core/Types.h"
 
 #include <iostream>
@@ -533,7 +534,7 @@ std::vector<uint32_t> Renderer::getVisibleChunks(ChunkManager* chunkManager) {
     }
     
     // Calculate camera chunk coordinate
-    glm::ivec3 cameraChunkCoord = ChunkManager::worldToChunkCoord(glm::ivec3(cameraPosition));
+    glm::ivec3 cameraChunkCoord = Utils::CoordinateUtils::worldToChunkCoord(glm::ivec3(cameraPosition));
     
     // Calculate how many chunks to check in each direction based on render distance
     // Each chunk is 32x32x32, so we need to check a radius of chunks

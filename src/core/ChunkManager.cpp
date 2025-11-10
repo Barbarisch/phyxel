@@ -3,6 +3,7 @@
 #include "core/WorldStorage.h"
 #include "physics/PhysicsWorld.h"
 #include "utils/Logger.h"
+#include "utils/CoordinateUtils.h"
 #include <stdexcept>
 #include <cstring>
 #include <random>
@@ -561,7 +562,7 @@ const Chunk* ChunkManager::getChunkAtCoord(const glm::ivec3& chunkCoord) const {
 }
 
 Chunk* ChunkManager::getChunkAtFast(const glm::ivec3& worldPos) {
-    glm::ivec3 chunkCoord = ChunkManager::worldToChunkCoord(worldPos);
+    glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(worldPos);
     return getChunkAtCoord(chunkCoord);
 }
 
@@ -571,7 +572,7 @@ Cube* ChunkManager::getCubeAtFast(const glm::ivec3& worldPos) {
     if (!chunk) return nullptr;
     
     // Step 2: Calculate local position
-    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+    glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(worldPos);
     
     // Step 3: Use Chunk class's getCubeAt method
     return chunk->getCubeAt(localPos);
@@ -581,7 +582,7 @@ bool ChunkManager::setCubeColorFast(const glm::ivec3& worldPos, const glm::vec3&
     Chunk* chunk = getChunkAtFast(worldPos);
     if (!chunk) return false;
     
-    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+    glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(worldPos);
     bool result = chunk->setCubeColor(localPos, color);
     
     if (result) {
@@ -595,7 +596,7 @@ bool ChunkManager::removeCubeFast(const glm::ivec3& worldPos) {
     Chunk* chunk = getChunkAtFast(worldPos);
     if (!chunk) return false;
     
-    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+    glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(worldPos);
     bool result = chunk->removeCube(localPos);
     
     if (result) {
@@ -610,7 +611,7 @@ bool ChunkManager::addCubeFast(const glm::ivec3& worldPos, const glm::vec3& colo
     Chunk* chunk = getChunkAtFast(worldPos);
     if (!chunk) return false;  // No chunk exists at this position
     
-    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+    glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(worldPos);
     bool result = chunk->addCube(localPos, color);
     
     if (!result) {
@@ -649,7 +650,7 @@ void ChunkManager::setCubeColorEfficient(const glm::ivec3& worldPos, const glm::
     Chunk* chunk = getChunkAtFast(worldPos);
     if (!chunk) return;
     
-    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+    glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(worldPos);
     
     // Color changes should not affect textures - textures and colors are separate properties
     // Note: Currently the system uses textures instead of colors for cube faces
@@ -712,7 +713,7 @@ bool ChunkManager::removeCube(const glm::ivec3& worldPos) {
     Chunk* chunk = getChunkAt(worldPos);
     if (!chunk) return false;
     
-    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+    glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(worldPos);
     
     // Use the Chunk class's removeCube method
     bool result = chunk->removeCube(localPos);
@@ -730,7 +731,7 @@ bool ChunkManager::addCube(const glm::ivec3& worldPos, const glm::vec3& color) {
     Chunk* chunk = getChunkAt(worldPos);
     if (!chunk) return false;
     
-    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+    glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(worldPos);
     
     // Use the Chunk class's addCube or setCubeColor method
     bool result = chunk->addCube(localPos, color);
@@ -750,7 +751,7 @@ Subcube* ChunkManager::getSubcubeAt(const glm::ivec3& worldPos, const glm::ivec3
     Chunk* chunk = getChunkAt(worldPos);
     if (!chunk) return nullptr;
     
-    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+    glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(worldPos);
     return chunk->getSubcubeAt(localPos, subcubePos);
 }
 
@@ -758,7 +759,7 @@ void ChunkManager::setSubcubeColorEfficient(const glm::ivec3& worldPos, const gl
     Chunk* chunk = getChunkAt(worldPos);
     if (!chunk) return;
     
-    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+    glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(worldPos);
     std::vector<Subcube*> subcubes = chunk->getSubcubesAt(localPos);
     if (subcubes.empty()) return;
     
@@ -774,7 +775,7 @@ glm::vec3 ChunkManager::getSubcubeColor(const glm::ivec3& worldPos, const glm::i
     Chunk* chunk = getChunkAt(worldPos);
     if (!chunk) return glm::vec3(1.0f); // Default white
     
-    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+    glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(worldPos);
     Subcube* subcube = chunk->getSubcubeAt(localPos, subcubePos);
     if (subcube) {
         return subcube->getColor();

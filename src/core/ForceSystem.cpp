@@ -2,6 +2,7 @@
 #include "core/ChunkManager.h"
 #include "core/Chunk.h"
 #include "utils/Logger.h"
+#include "utils/CoordinateUtils.h"
 #include <algorithm>
 #include <iostream>
 #include <cmath>
@@ -199,7 +200,7 @@ Cube* ForceSystem::getCubeAtWorldPosition(const glm::ivec3& worldPos, ChunkManag
     Chunk* chunk = chunkManager->getChunkAt(worldPos);
     if (!chunk) return nullptr;
     
-    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+    glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(worldPos);
     return chunk->getCubeAt(localPos);
 }
 

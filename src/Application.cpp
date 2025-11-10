@@ -4,6 +4,7 @@
 #include "utils/PerformanceProfiler.h"
 #include "utils/Frustum.h"
 #include "utils/Logger.h"
+#include "utils/CoordinateUtils.h"
 #include "examples/MultiChunkDemo.h"
 #include "core/DynamicCube.h"
 #include "core/Chunk.h"
@@ -1430,8 +1431,8 @@ void Application::placeNewCube() {
     }
     
     // Check if placement position is valid (not colliding with existing cube)
-    glm::ivec3 placementChunkCoord = ChunkManager::worldToChunkCoord(placementPos);
-    glm::ivec3 placementLocalPos = ChunkManager::worldToLocalCoord(placementPos);
+    glm::ivec3 placementChunkCoord = Utils::CoordinateUtils::worldToChunkCoord(placementPos);
+    glm::ivec3 placementLocalPos = Utils::CoordinateUtils::worldToLocalCoord(placementPos);
     
     Chunk* placementChunk = chunkManager->getChunkAtCoord(placementChunkCoord);
     if (!placementChunk) {
@@ -2292,7 +2293,7 @@ void Application::breakCubeAtPosition(const glm::ivec3& worldPos) {
         return;
     }
     
-    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+    glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(worldPos);
     const Cube* originalCube = chunk->getCubeAt(localPos);
     if (!originalCube) {
         LOG_WARN_FMT("Application", "[FORCE BREAKING] No cube found at position (" 

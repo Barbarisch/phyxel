@@ -3,6 +3,7 @@
 #include "Types.h"
 #include "Chunk.h"
 #include "DynamicCube.h"
+#include "utils/CoordinateUtils.h"
 #include <vector>
 #include <unordered_map>
 #include <memory>
@@ -156,24 +157,16 @@ public:
     // Dynamic object face data for rendering (both subcubes and full cubes)
     std::vector<DynamicSubcubeInstanceData> globalDynamicSubcubeFaces;
     
-    // Convert between coordinate systems
+    // Convert between coordinate systems (forwarded to Utils::CoordinateUtils)
     static glm::ivec3 worldToChunkCoord(const glm::ivec3& worldPos) { 
-        // Proper division that handles negative numbers correctly
-        glm::ivec3 chunk;
-        chunk.x = worldPos.x >= 0 ? worldPos.x / 32 : (worldPos.x - 31) / 32;
-        chunk.y = worldPos.y >= 0 ? worldPos.y / 32 : (worldPos.y - 31) / 32;
-        chunk.z = worldPos.z >= 0 ? worldPos.z / 32 : (worldPos.z - 31) / 32;
-        return chunk;
+        return Utils::CoordinateUtils::worldToChunkCoord(worldPos);
     }
     static glm::ivec3 worldToLocalCoord(const glm::ivec3& worldPos) { 
-        // Proper modulo that handles negative numbers correctly
-        glm::ivec3 local;
-        local.x = ((worldPos.x % 32) + 32) % 32;
-        local.y = ((worldPos.y % 32) + 32) % 32;
-        local.z = ((worldPos.z % 32) + 32) % 32;
-        return local;
+        return Utils::CoordinateUtils::worldToLocalCoord(worldPos);
     }
-    static glm::ivec3 chunkCoordToOrigin(const glm::ivec3& chunkCoord) { return chunkCoord * 32; }
+    static glm::ivec3 chunkCoordToOrigin(const glm::ivec3& chunkCoord) { 
+        return Utils::CoordinateUtils::chunkCoordToOrigin(chunkCoord);
+    }
     
     // Fast O(1) chunk lookup functions
     Chunk* getChunkAtCoord(const glm::ivec3& chunkCoord);      // Get chunk by chunk coordinates
