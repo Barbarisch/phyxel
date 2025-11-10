@@ -4,6 +4,31 @@
 
 Phyxel is a high-performance 3D voxel rendering engine built with Vulkan API, featuring dual-pipeline rendering, physics integration, and scalable multi-chunk world management.
 
+---
+
+## 🔄 Refactoring Documentation (November 2025)
+
+### Active Refactoring Initiative
+- **[RefactoringProgress.md](RefactoringProgress.md)** - ⭐ **Current Progress Tracker**
+  - Completed refactorings (WindowManager, CoordinateUtils)
+  - In-progress work and next steps
+  - Statistics, timelines, and lessons learned
+  - Best practices and challenges
+
+- **[RefactoringSummary.md](RefactoringSummary.md)** - Executive summary and master plan
+  - Problem statement and goals
+  - Phased approach (6 phases, 24 modules)
+  - Priority refactorings by file
+  - Expected benefits and metrics
+
+### Quick-Start Guides
+- **[QUICKSTART_WindowManager.md](QUICKSTART_WindowManager.md)** - Step-by-step WindowManager extraction
+  - Complete implementation guide
+  - Testing checklist
+  - Common issues and solutions
+
+---
+
 ## Core Documentation
 
 ### Rendering Systems
