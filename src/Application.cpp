@@ -22,11 +22,8 @@
 namespace VulkanCube {
 
 Application::Application() 
-    : window(nullptr)
+    : windowManager(nullptr)
     , isRunning(false)
-    , windowWidth(1200)
-    , windowHeight(720)
-    , windowTitle("VulkanCube - Refactored")
     , deltaTime(0.0f)
     , frameCount(0)
     , cameraPos(50.0f, 50.0f, 50.0f)  // Position camera outside the 32x32x32 grid
@@ -34,8 +31,8 @@ Application::Application()
     , cameraUp(0.0f, 1.0f, 0.0f)
     , yaw(-135.0f)
     , pitch(-30.0f)
-    , lastX(windowWidth / 2.0f)
-    , lastY(windowHeight / 2.0f)
+    , lastX(600.0f)
+    , lastY(360.0f)
     , firstMouse(true)
     , mouseCaptured(false)
     , currentMouseX(0.0)
@@ -179,7 +176,7 @@ bool Application::initialize() {
     }
 
     // Initialize ImGui after Vulkan is fully set up
-    if (!imguiRenderer->initialize(window, vulkanDevice.get(), renderPipeline.get())) {
+    if (!imguiRenderer->initialize(windowManager->getHandle(), vulkanDevice.get(), renderPipeline.get())) {
         LOG_ERROR("Application", "Failed to initialize ImGui!");
         return false;
     }
@@ -197,7 +194,7 @@ void Application::run() {
     fpsTimer = lastFrameTime;
     int fpsFrameCount = 0;
     
-    while (isRunning && !glfwWindowShouldClose(window)) {
+    while (isRunning && !windowManager->shouldClose()) {
         frameStartTime = std::chrono::high_resolution_clock::now();
         
         // Start new frame profiling
@@ -208,7 +205,7 @@ void Application::run() {
         lastFrameTime = currentTime;
         
         // Poll GLFW events
-        glfwPollEvents();
+        windowManager->pollEvents();
         
         timer->update();
         
@@ -346,11 +343,7 @@ void Application::cleanup() {
     }
     
     // Cleanup window
-    if (window) {
-        glfwDestroyWindow(window);
-        window = nullptr;
-    }
-    glfwTerminate();
+    windowManager.reset();  // Calls WindowManager destructor which handles cleanup
     
     // Reset unique_ptrs
     renderPipeline.reset();
@@ -363,13 +356,16 @@ void Application::cleanup() {
 }
 
 void Application::setWindowSize(int width, int height) {
-    windowWidth = width;
-    windowHeight = height;
-    projectionMatrixNeedsUpdate = true; // Invalidate cached projection matrix
+    if (windowManager) {
+        windowManager->setSize(width, height);
+        projectionMatrixNeedsUpdate = true;
+    }
 }
 
 void Application::setTitle(const std::string& title) {
-    windowTitle = title;
+    if (windowManager) {
+        windowManager->setTitle(title);
+    }
 }
 
 bool Application::initializeVulkan() {
@@ -386,7 +382,7 @@ bool Application::initializeVulkan() {
     }
 
     // Create Vulkan surface with the window (must be done before device selection)
-    if (!vulkanDevice->createSurface(window)) {
+    if (!vulkanDevice->createSurface(windowManager->getHandle())) {
         LOG_ERROR("Application", "Failed to create Vulkan surface!");
         return false;
     }
@@ -403,7 +399,7 @@ bool Application::initializeVulkan() {
     }
 
     // Create swapchain
-    if (!vulkanDevice->createSwapChain(windowWidth, windowHeight)) {
+    if (!vulkanDevice->createSwapChain(windowManager->getWidth(), windowManager->getHeight())) {
         LOG_ERROR("Application", "Failed to create swapchain!");
         return false;
     }
@@ -655,7 +651,7 @@ void Application::update(float deltaTime) {
     glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
     glm::mat4 proj = glm::perspective(
         glm::radians(45.0f), 
-        static_cast<float>(windowWidth) / static_cast<float>(windowHeight), 
+        static_cast<float>(windowManager->getWidth()) / static_cast<float>(windowManager->getHeight()), 
         0.1f, 
         maxChunkRenderDistance  // Use configurable render distance
     );
@@ -787,7 +783,7 @@ void Application::renderDynamicSubcubes() {
 void Application::drawFrame() {
     // Check if we need to recreate swapchain due to window resize
     if (vulkanDevice->getFramebufferResized()) {
-        if (!vulkanDevice->recreateSwapChain(windowWidth, windowHeight, renderPipeline->getRenderPass())) {
+        if (!vulkanDevice->recreateSwapChain(windowManager->getWidth(), windowManager->getHeight(), renderPipeline->getRenderPass())) {
             return; // Try again next frame
         }
     }
@@ -802,7 +798,7 @@ void Application::drawFrame() {
     
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         // Swapchain is out of date, recreate it
-        if (!vulkanDevice->recreateSwapChain(windowWidth, windowHeight, renderPipeline->getRenderPass())) {
+        if (!vulkanDevice->recreateSwapChain(windowManager->getWidth(), windowManager->getHeight(), renderPipeline->getRenderPass())) {
             return; // Try again next frame
         }
         return; // Skip this frame and try again
@@ -824,7 +820,7 @@ void Application::drawFrame() {
     if (projectionMatrixNeedsUpdate) {
         cachedProjectionMatrix = glm::perspective(
             glm::radians(45.0f), 
-            (float)windowWidth / (float)windowHeight, 
+            (float)windowManager->getWidth() / (float)windowManager->getHeight(), 
             0.1f, 
             maxChunkRenderDistance  // Use configurable render distance
         );
@@ -923,8 +919,8 @@ void Application::drawFrame() {
     VkViewport viewport{};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = static_cast<float>(windowWidth);
-    viewport.height = static_cast<float>(windowHeight);
+    viewport.width = static_cast<float>(windowManager->getWidth());
+    viewport.height = static_cast<float>(windowManager->getHeight());
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
     vkCmdSetViewport(vulkanDevice->getCommandBuffer(currentFrame), 0, 1, &viewport);
@@ -932,7 +928,7 @@ void Application::drawFrame() {
     // Set scissor (required for dynamic scissor)
     VkRect2D scissor{};
     scissor.offset = {0, 0};
-    scissor.extent = {static_cast<uint32_t>(windowWidth), static_cast<uint32_t>(windowHeight)};
+    scissor.extent = {static_cast<uint32_t>(windowManager->getWidth()), static_cast<uint32_t>(windowManager->getHeight())};
     vkCmdSetScissor(vulkanDevice->getCommandBuffer(currentFrame), 0, 1, &scissor);
     
     // Bind vertex and instance buffers
@@ -1067,43 +1063,37 @@ void Application::printPerformanceStats() {
     LOG_INFO("Performance", "---");
 }
 
-
-
 bool Application::initializeWindow() {
-    // Initialize GLFW
-    if (!glfwInit()) {
-        LOG_ERROR("Application", "Failed to initialize GLFW!");
+    LOG_INFO("Application", "Initializing window");
+    
+    windowManager = std::make_unique<UI::WindowManager>();
+    
+    if (!windowManager->initialize(1200, 720, "Phyxel - Voxel Physics Engine")) {
+        LOG_ERROR("Application", "Failed to initialize window manager");
         return false;
     }
-
-    // Configure GLFW for Vulkan
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);  // Enable window resizing
-
-    // Create window
-    window = glfwCreateWindow(windowWidth, windowHeight, windowTitle.c_str(), nullptr, nullptr);
-    if (!window) {
-        LOG_ERROR("Application", "Failed to create GLFW window!");
-        glfwTerminate();
-        return false;
-    }
-
-    // Set up window resize callback
-    glfwSetWindowUserPointer(window, this);
-    glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
-
-    LOG_INFO("Application", "Window initialized successfully");
+    
+    // Register resize callback
+    windowManager->setResizeCallback([this](int w, int h) {
+        LOG_DEBUG("Application", "Window resized to {}x{}", w, h);
+        projectionMatrixNeedsUpdate = true;
+    });
+    
+    // Set GLFW window user pointer for callbacks (Application*, not WindowManager*)
+    glfwSetWindowUserPointer(windowManager->getHandle(), this);
+    
+    LOG_INFO("Application", "Window initialization complete");
     return true;
 }
 
 void Application::initializeCamera() {
     // Set up mouse callbacks
-    glfwSetWindowUserPointer(window, this);
-    glfwSetCursorPosCallback(window, mouseCallback);
-    glfwSetMouseButtonCallback(window, mouseButtonCallback);
+    glfwSetWindowUserPointer(windowManager->getHandle(), this);
+    glfwSetCursorPosCallback(windowManager->getHandle(), mouseCallback);
+    glfwSetMouseButtonCallback(windowManager->getHandle(), mouseButtonCallback);
     
     // Keep cursor visible and free - no mouse capture
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    glfwSetInputMode(windowManager->getHandle(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     
     LOG_INFO("Application", "Camera controls initialized - hold right mouse button and drag to look around");
 }
@@ -1206,66 +1196,48 @@ void Application::mouseButtonCallback(GLFWwindow* window, int button, int action
     }
 }
 
-void Application::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
-    Application* app = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
-    
-    // Update window dimensions
-    app->windowWidth = width;
-    app->windowHeight = height;
-    
-    // Mark swapchain as needing recreation
-    if (app->vulkanDevice) {
-        app->vulkanDevice->setFramebufferResized(true);
-    }
-    
-    // Update projection matrix
-    app->projectionMatrixNeedsUpdate = true;
-    
-    LOG_INFO_FMT("Application", "Window resized to " << width << "x" << height);
-}
-
 void Application::processInput() {
     // Exit on ESC
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-        glfwSetWindowShouldClose(window, true);
+    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+        glfwSetWindowShouldClose(windowManager->getHandle(), true);
     }
     
     // Toggle performance overlay with F1
     static bool f1Pressed = false;
-    if (glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS && !f1Pressed) {
+    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_F1) == GLFW_PRESS && !f1Pressed) {
         togglePerformanceOverlay();
         f1Pressed = true;
-    } else if (glfwGetKey(window, GLFW_KEY_F1) == GLFW_RELEASE) {
+    } else if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_F1) == GLFW_RELEASE) {
         f1Pressed = false;
     }
     
     // Save world to database with F2
     static bool f2Pressed = false;
-    if (glfwGetKey(window, GLFW_KEY_F2) == GLFW_PRESS && !f2Pressed) {
+    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_F2) == GLFW_PRESS && !f2Pressed) {
         if (chunkManager) {
             LOG_INFO("Application", "Manual save triggered - saving world to database...");
             chunkManager->saveAllChunks();
             LOG_INFO("Application", "World saved successfully!");
         }
         f2Pressed = true;
-    } else if (glfwGetKey(window, GLFW_KEY_F2) == GLFW_RELEASE) {
+    } else if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_F2) == GLFW_RELEASE) {
         f2Pressed = false;
     }
     
     // Toggle force system debug overlay with F3
     static bool f3Pressed = false;
-    if (glfwGetKey(window, GLFW_KEY_F3) == GLFW_PRESS && !f3Pressed) {
+    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_F3) == GLFW_PRESS && !f3Pressed) {
         debugFlags.showForceSystemDebug = !debugFlags.showForceSystemDebug;
         LOG_DEBUG_FMT("Application", "[DEBUG] Force System Debug overlay " 
                   << (debugFlags.showForceSystemDebug ? "ENABLED" : "DISABLED"));
         f3Pressed = true;
-    } else if (glfwGetKey(window, GLFW_KEY_F3) == GLFW_RELEASE) {
+    } else if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_F3) == GLFW_RELEASE) {
         f3Pressed = false;
     }
     
     // Test frustum culling positions with T key
     static bool tPressed = false;
-    if (glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS && !tPressed) {
+    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_T) == GLFW_PRESS && !tPressed) {
         static int testPosition = 0;
         testPosition = (testPosition + 1) % 4;
         
@@ -1292,31 +1264,31 @@ void Application::processInput() {
                 break;
         }
         tPressed = true;
-    } else if (glfwGetKey(window, GLFW_KEY_T) == GLFW_RELEASE) {
+    } else if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_T) == GLFW_RELEASE) {
         tPressed = false;
     }
     
     // Spawn dynamic subcube above chunks with G key
     static bool gPressed = false;
-    if (glfwGetKey(window, GLFW_KEY_G) == GLFW_PRESS && !gPressed) {
+    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_G) == GLFW_PRESS && !gPressed) {
         spawnTestDynamicSubcube();
         gPressed = true;
-    } else if (glfwGetKey(window, GLFW_KEY_G) == GLFW_RELEASE) {
+    } else if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_G) == GLFW_RELEASE) {
         gPressed = false;
     }
     
     // Place cube with C key (test cube placement system)
     static bool cPressed = false;
-    if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS && !cPressed) {
+    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_C) == GLFW_PRESS && !cPressed) {
         placeNewCube();
         cPressed = true;
-    } else if (glfwGetKey(window, GLFW_KEY_C) == GLFW_RELEASE) {
+    } else if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_C) == GLFW_RELEASE) {
         cPressed = false;
     }
     
     // Debug coordinate system with P key (simplified)
     static bool pPressed = false;
-    if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS && !pPressed) {
+    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_P) == GLFW_PRESS && !pPressed) {
         LOG_DEBUG("Application", "[COORD DEBUG] Simple coordinate test:");
         LOG_DEBUG_FMT("Application", "[COORD DEBUG] Camera position: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")");
         LOG_DEBUG_FMT("Application", "[COORD DEBUG] Current hovered cube: " << (currentHoveredLocation.chunk ? "Found" : "None"));
@@ -1327,18 +1299,18 @@ void Application::processInput() {
                       << currentHoveredLocation.worldPos.z << ")");
         }
         pPressed = true;
-    } else if (glfwGetKey(window, GLFW_KEY_P) == GLFW_RELEASE) {
+    } else if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_P) == GLFW_RELEASE) {
         pPressed = false;
     }
     
     // Toggle debug no-forces mode with O key
     static bool oPressed = false;
-    if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS && !oPressed) {
+    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_O) == GLFW_PRESS && !oPressed) {
         debugFlags.disableBreakingForces = !debugFlags.disableBreakingForces;
         LOG_DEBUG_FMT("Application", "[DEBUG] Breaking forces " << (debugFlags.disableBreakingForces ? "DISABLED" : "ENABLED") 
                   << " - cubes will spawn " << (debugFlags.disableBreakingForces ? "without impulse" : "with normal impulse"));
         oPressed = true;
-    } else if (glfwGetKey(window, GLFW_KEY_O) == GLFW_RELEASE) {
+    } else if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_O) == GLFW_RELEASE) {
         oPressed = false;
     }
     
@@ -1346,26 +1318,26 @@ void Application::processInput() {
     float cameraSpeed = 5.0f * deltaTime;
 
     // WASD movement
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_W) == GLFW_PRESS) {
         cameraPos += cameraSpeed * cameraFront;
     }
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_S) == GLFW_PRESS) {
         cameraPos -= cameraSpeed * cameraFront;
     }
 
     glm::vec3 right = glm::normalize(glm::cross(cameraFront, cameraUp));
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_A) == GLFW_PRESS) {
         cameraPos -= right * cameraSpeed;
     }
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_D) == GLFW_PRESS) {
         cameraPos += right * cameraSpeed;
     }
         
     // Vertical movement with Space and Shift
-    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_SPACE) == GLFW_PRESS) {
         cameraPos += cameraUp * cameraSpeed;
     }
-    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
         cameraPos -= cameraUp * cameraSpeed;
     }
 }
@@ -1675,8 +1647,8 @@ void Application::updateMouseHover() {
 
 glm::vec3 Application::screenToWorldRay(double mouseX, double mouseY) const {
     // Convert mouse coordinates to normalized device coordinates
-    float x = (2.0f * mouseX) / windowWidth - 1.0f;
-    float y = 1.0f - (2.0f * mouseY) / windowHeight; // Flip Y coordinate
+    float x = (2.0f * mouseX) / windowManager->getWidth() - 1.0f;
+    float y = 1.0f - (2.0f * mouseY) / windowManager->getHeight(); // Flip Y coordinate
     
     // Create clip space coordinates - flip Y again for Vulkan coordinate system
     glm::vec4 rayClip = glm::vec4(x, -y, -1.0f, 1.0f);
@@ -1684,7 +1656,7 @@ glm::vec3 Application::screenToWorldRay(double mouseX, double mouseY) const {
     // Convert to eye space
     glm::mat4 proj = glm::perspective(
         glm::radians(45.0f), 
-        (float)windowWidth / (float)windowHeight, 
+        (float)windowManager->getWidth() / (float)windowManager->getHeight(), 
         0.1f, 
         200.0f
     );

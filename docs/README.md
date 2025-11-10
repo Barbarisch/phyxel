@@ -50,6 +50,24 @@ Phyxel is a high-performance 3D voxel rendering engine built with Vulkan API, fe
   - All migrated files (19 total, ~250+ statements)
   - Common usage patterns
 
+### Code Organization & Refactoring 🔧 NEW
+- **[ArchitectureOverview.md](ArchitectureOverview.md)** - ⭐ **START HERE** for refactoring
+  - Visual architecture diagrams (before/after)
+  - Quick-start guides for first refactoring
+  - Incremental refactoring workflow
+  
+- **[CodebaseRefactoringAnalysis.md](CodebaseRefactoringAnalysis.md)** - Comprehensive refactoring plan
+  - Analysis of 4 largest files (Application, Chunk, VulkanDevice, ChunkManager)
+  - Specific module extraction recommendations
+  - 6-phase refactoring roadmap
+  - Benefits for AI-assisted development
+  
+- **[RefactoringExamples.md](RefactoringExamples.md)** - Practical code examples
+  - Complete code templates for new modules
+  - Migration checklists
+  - Testing strategies
+  - Common pitfalls and solutions
+
 ## Architecture Overview
 
 ```

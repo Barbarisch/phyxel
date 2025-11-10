@@ -11,6 +11,7 @@
 #include "utils/PerformanceProfiler.h"
 #include "utils/Frustum.h"
 #include "ui/ImGuiRenderer.h"
+#include "ui/WindowManager.h"
 #include "core/ChunkManager.h"
 #include "core/ForceSystem.h"
 #include <memory>
@@ -78,7 +79,7 @@ private:
     };
 
     // Window management
-    GLFWwindow* window;
+    std::unique_ptr<UI::WindowManager> windowManager;
     
     // Core components
     std::unique_ptr<Vulkan::VulkanDevice> vulkanDevice;
@@ -97,9 +98,6 @@ private:
 
     // Application state
     bool isRunning;
-    int windowWidth;
-    int windowHeight;
-    std::string windowTitle;
 
     // Frame timing
     FrameTiming frameTiming;
