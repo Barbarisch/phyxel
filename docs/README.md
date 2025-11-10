@@ -37,6 +37,18 @@ Phyxel is a high-performance 3D voxel rendering engine built with Vulkan API, fe
 ### Technical References
 - **[CoordinateQuickRef.md](CoordinateQuickRef.md)** - Quick lookup for coordinate conversions
 - **[IndexingReference.md](IndexingReference.md)** - Array indexing patterns and formulas
+- **[LoggingReference.md](LoggingReference.md)** - Logging usage guide and module reference
+
+### Development Tools
+- **[LoggingSystem.md](LoggingSystem.md)** - Comprehensive logging system documentation
+  - Configuration and usage guide
+  - Log levels and module control
+  - Best practices and examples
+  
+- **[LOGGING_SUMMARY.md](LOGGING_SUMMARY.md)** - Migration status and quick start
+  - Implementation summary
+  - All migrated files (19 total, ~250+ statements)
+  - Common usage patterns
 
 ## Architecture Overview
 

@@ -64,14 +64,21 @@ Utils::Logger::enableFileOutput(true, "game.log");
 
 ### Predefined Modules
 
-The system comes with predefined modules (can be extended):
+The system uses these module categories throughout the codebase:
 
-- `Application` - Main application logic
-- `Vulkan` - Vulkan initialization and management
-- `Physics` - Bullet Physics operations
-- `Rendering` - Rendering pipeline and draw calls
-- `Chunk` - Chunk management and updates
+- `Application` - Main application logic, user interactions, cube operations
+- `Rendering` - Rendering pipeline, frame rendering, Vulkan initialization  
+- `Vulkan` - Vulkan device, validation, and graphics operations
+- `Physics` - Bullet Physics operations and rigid body management
+- `Chunk` - Chunk operations, collision system, voxel management
+- `ChunkManager` - Global chunk management and dynamic cubes
+- `WorldStorage` - Database persistence and chunk loading/saving
+- `Scene` - Scene management and instance data
+- `UI` - ImGui rendering and interface
 - `Performance` - Performance profiling and metrics
+- `ForceSystem` - Force propagation and material properties
+- `WorldGenerator` - Procedural world generation
+- `Main` - Application startup and initialization
 
 ### Creating Custom Modules
 
@@ -409,10 +416,20 @@ LOG_INFO_FMT("Processing", "Processed " << processedCount << " items");
 
 ## Examples
 
-See the converted examples in:
-- `src/Application.cpp` - Application initialization
-- `src/vulkan/VulkanDevice.cpp` - Vulkan operations (to be converted)
-- `src/physics/PhysicsWorld.cpp` - Physics logging (to be converted)
+See the migrated logging in these files:
+- `src/Application.cpp` - Application initialization, user interactions, cube operations
+- `src/vulkan/VulkanDevice.cpp` - Vulkan operations and validation callbacks
+- `src/vulkan/RenderPipeline.cpp` - Pipeline creation and shader loading
+- `src/graphics/Renderer.cpp` - Rendering initialization and frame rendering
+- `src/physics/PhysicsWorld.cpp` - Physics world management
+- `src/core/Chunk.cpp` - Chunk operations and collision system
+- `src/core/ChunkManager.cpp` - Global chunk and dynamic cube management
+- `src/core/WorldStorage.cpp` - Database persistence operations
+- `src/scene/SceneManager.cpp` - Scene management
+- `src/ui/ImGuiRenderer.cpp` - UI rendering
+- `src/utils/PerformanceProfiler.cpp` - Performance metrics
+
+All console output has been migrated to use the centralized Logger system.
 
 ---
 
