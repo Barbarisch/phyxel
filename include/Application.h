@@ -12,6 +12,7 @@
 #include "utils/Frustum.h"
 #include "ui/ImGuiRenderer.h"
 #include "ui/WindowManager.h"
+#include "input/InputManager.h"
 #include "core/ChunkManager.h"
 #include "core/ForceSystem.h"
 #include <memory>
@@ -90,6 +91,7 @@ private:
     std::unique_ptr<Timer> timer;
     std::unique_ptr<PerformanceProfiler> performanceProfiler;
     std::unique_ptr<UI::ImGuiRenderer> imguiRenderer;
+    std::unique_ptr<Input::InputManager> inputManager;
     std::unique_ptr<ChunkManager> chunkManager;
 
     // Force-based breaking system
@@ -118,20 +120,7 @@ private:
     double lastFrameTime;
     double fpsTimer;
 
-    // Camera controls
-    glm::vec3 cameraPos;
-    glm::vec3 cameraFront;
-    glm::vec3 cameraUp;
-    float yaw;
-    float pitch;
-    float lastX;
-    float lastY;
-    bool firstMouse;
-    bool mouseCaptured;
-    
-    // Mouse hover state
-    double currentMouseX;
-    double currentMouseY;
+    // Hover state (mouse position now managed by InputManager)
     int lastHoveredCube;
     
     // Chunk-based hover state
@@ -198,15 +187,11 @@ private:
     void renderDynamicGeometry();                                               // Render dynamic cubes and subcubes
     void renderDynamicSubcubes();     // Render dynamic subcubes with physics
     void handleInput();
-    void processInput();
     void spawnTestDynamicSubcube();  // Spawn a test dynamic subcube above the chunks
     void placeNewCube();            // Place a new cube adjacent to the hovered cube face
 
-    // Camera controls
-    void initializeCamera();
-    static void mouseCallback(GLFWwindow* window, double xpos, double ypos);
-    static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
-    static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
+    // Input initialization (registers actions with InputManager)
+    void initializeInputActions();
     
     // Mouse picking / hover functionality
     void updateMouseHover();

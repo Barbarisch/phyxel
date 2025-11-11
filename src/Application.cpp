@@ -27,22 +27,12 @@ Application::Application()
     , isRunning(false)
     , deltaTime(0.0f)
     , frameCount(0)
-    , cameraPos(50.0f, 50.0f, 50.0f)  // Position camera outside the 32x32x32 grid
-    , cameraFront(glm::normalize(glm::vec3(16.0f, 16.0f, 16.0f) - glm::vec3(50.0f, 50.0f, 50.0f)))  // Look at center of cube grid
-    , cameraUp(0.0f, 1.0f, 0.0f)
-    , yaw(-135.0f)
-    , pitch(-30.0f)
-    , lastX(600.0f)
-    , lastY(360.0f)
-    , firstMouse(true)
-    , mouseCaptured(false)
-    , currentMouseX(0.0)
-    , currentMouseY(0.0)
     , lastHoveredCube(-1)
     , lastVisibleInstances(0)
     , lastCulledInstances(0)
     , performanceProfiler(std::make_unique<PerformanceProfiler>())
     , imguiRenderer(std::make_unique<UI::ImGuiRenderer>())
+    , inputManager(std::make_unique<Input::InputManager>())
     , forceSystem(std::make_unique<ForceSystem>())
     , mouseVelocityTracker(std::make_unique<MouseVelocityTracker>()) {
     
@@ -155,8 +145,25 @@ bool Application::initialize() {
     //     return false;
     // }
 
-    // Initialize camera after window is created
-    initializeCamera();
+    // Initialize input manager and register actions
+    if (!inputManager->initialize(windowManager->getHandle())) {
+        LOG_ERROR("Application", "Failed to initialize input manager!");
+        return false;
+    }
+    
+    // Set up initial camera position and orientation
+    inputManager->setCameraPosition(glm::vec3(50.0f, 50.0f, 50.0f));
+    glm::vec3 lookAt = glm::normalize(glm::vec3(16.0f, 16.0f, 16.0f) - glm::vec3(50.0f, 50.0f, 50.0f));
+    inputManager->setCameraFront(lookAt);
+    inputManager->setYawPitch(-135.0f, -30.0f);
+    
+    // Register mouse position callback for mouse velocity tracker
+    inputManager->setMousePositionCallback([this](double x, double y) {
+        mouseVelocityTracker->updatePosition(x, y);
+    });
+    
+    // Register all input actions
+    initializeInputActions();
 
     if (!initializePhysics()) {
         LOG_ERROR("Application", "Failed to initialize physics!");
@@ -240,7 +247,7 @@ void Application::run() {
             frameTiming,
             detailedTimings,
             physicsWorld.get(),
-            cameraPos,
+            inputManager->getCameraPosition(),
             frameCount,
             currentRenderDistance,         // Pass by reference to allow UI modification
             currentChunkInclusionDistance  // Pass by reference to allow UI modification
@@ -595,8 +602,7 @@ bool Application::loadAssets() {
 void Application::update(float deltaTime) {
     this->deltaTime = deltaTime;
     
-    // Process input
-    processInput();
+    // Input is processed in handleInput() which is called from run() loop
     
     // Update mouse hover detection
     updateMouseHover();
@@ -649,6 +655,10 @@ void Application::update(float deltaTime) {
     // NOTE: Frustum culling is now handled in renderStaticGeometry()
 
     // Update view and projection matrices for Vulkan rendering
+    glm::vec3 cameraPos = inputManager->getCameraPosition();
+    glm::vec3 cameraFront = inputManager->getCameraFront();
+    glm::vec3 cameraUp = inputManager->getCameraUp();
+    
     glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
     glm::mat4 proj = glm::perspective(
         glm::radians(45.0f), 
@@ -693,7 +703,7 @@ size_t Application::renderStaticGeometry() {
             glm::vec3 chunkCenter = (minBounds + maxBounds) * 0.5f;
             
             // LEVEL 1: Chunk inclusion distance culling (broader range for chunk loading)
-            float distanceToCamera = glm::length(chunkCenter - cameraPos);
+            float distanceToCamera = glm::length(chunkCenter - inputManager->getCameraPosition());
             if (distanceToCamera > chunkInclusionDistance) {
                 continue; // Skip chunk - too far away even for loading
             }
@@ -703,6 +713,10 @@ size_t Application::renderStaticGeometry() {
             Utils::AABB chunkAABB(minBounds, maxBounds);
             
             // Extract frustum from current view/projection matrices (uses maxChunkRenderDistance)
+            glm::vec3 cameraPos = inputManager->getCameraPosition();
+            glm::vec3 cameraFront = inputManager->getCameraFront();
+            glm::vec3 cameraUp = inputManager->getCameraUp();
+            
             glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
             glm::mat4 proj = cachedProjectionMatrix;
             glm::mat4 viewProjection = proj * view;
@@ -1037,8 +1051,8 @@ void Application::drawFrame() {
 }
 
 void Application::handleInput() {
-    // Process keyboard and mouse input
-    processInput();
+    // Process keyboard and mouse input through InputManager
+    inputManager->processInput(deltaTime);
 }
 
 void Application::updateFrameTiming() {
@@ -1087,387 +1101,121 @@ bool Application::initializeWindow() {
     return true;
 }
 
-void Application::initializeCamera() {
-    // Set up mouse callbacks
-    glfwSetWindowUserPointer(windowManager->getHandle(), this);
-    glfwSetCursorPosCallback(windowManager->getHandle(), mouseCallback);
-    glfwSetMouseButtonCallback(windowManager->getHandle(), mouseButtonCallback);
+void Application::initializeInputActions() {
+    // Keyboard actions
     
-    // Keep cursor visible and free - no mouse capture
-    glfwSetInputMode(windowManager->getHandle(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-    
-    LOG_INFO("Application", "Camera controls initialized - hold right mouse button and drag to look around");
-}
-
-void Application::mouseCallback(GLFWwindow* window, double xpos, double ypos) {
-    Application* app = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
-    
-    // Always track mouse position for hover detection
-    app->currentMouseX = xpos;
-    app->currentMouseY = ypos;
-    
-    // Update mouse velocity tracker for force calculations
-    app->mouseVelocityTracker->updatePosition(xpos, ypos);
-    
-    // Only process mouse movement for camera if right mouse button is held down
-    if (!app->mouseCaptured) {
-        app->lastX = xpos;
-        app->lastY = ypos;
-        return;
-    }
-    
-    if (app->firstMouse) {
-        app->lastX = xpos;
-        app->lastY = ypos;
-        app->firstMouse = false;
-        return;
-    }
-
-    float xoffset = xpos - app->lastX;
-    float yoffset = app->lastY - ypos;  // Reversed since y-coordinates go from bottom to top
-
-    app->lastX = xpos;
-    app->lastY = ypos;
-
-    float sensitivity = 0.3f; // Increased sensitivity for more responsive movement
-    xoffset *= sensitivity;
-    yoffset *= sensitivity;
-
-    app->yaw += xoffset;
-    app->pitch += yoffset;
-
-    // Debug output to show mouse movement is being processed
-    static int debugCounter = 0;
-    if (++debugCounter % 10 == 0) { // Print every 10th movement to avoid spam
-        LOG_TRACE_FMT("Application", "Camera look: yaw=" << std::fixed << std::setprecision(1) 
-                  << app->yaw << "° pitch=" << app->pitch << "°");
-    }
-
-    // Constrain pitch
-    if (app->pitch > 89.0f) app->pitch = 89.0f;
-    if (app->pitch < -89.0f) app->pitch = -89.0f;
-
-    // Update camera front vector
-    glm::vec3 front;
-    front.x = cos(glm::radians(app->yaw)) * cos(glm::radians(app->pitch));
-    front.y = sin(glm::radians(app->pitch));
-    front.z = sin(glm::radians(app->yaw)) * cos(glm::radians(app->pitch));
-    app->cameraFront = glm::normalize(front);
-}
-
-void Application::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
-    Application* app = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
-    
-    if (button == GLFW_MOUSE_BUTTON_RIGHT) {
-        if (action == GLFW_PRESS) {
-            // Start camera rotation mode
-            app->mouseCaptured = true;
-            app->firstMouse = true; // Reset first mouse to avoid jump
-            LOG_DEBUG("Application", "*** RIGHT MOUSE PRESSED - CAMERA LOOK MODE ENABLED ***");
-        } else if (action == GLFW_RELEASE) {
-            // Stop camera rotation mode
-            app->mouseCaptured = false;
-            LOG_DEBUG("Application", "*** RIGHT MOUSE RELEASED - CAMERA LOOK MODE DISABLED ***");
-        }
-    }
-    
-    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
-        // Reset mouse velocity tracking for force calculation
-        app->mouseVelocityTracker->reset();
-        
-        // Check for Ctrl modifier for subdivision
-        if (mods & GLFW_MOD_CONTROL) {
-            // Ctrl+Left Click: Subdivide cube into 27 subcubes
-            app->subdivideHoveredCube();
-        } else {
-            // Left Click: Break objects with physics using force system
-            if (app->hasHoveredCube && app->currentHoveredLocation.isSubcube) {
-                // Break subcube with physics
-                app->breakHoveredSubcube();  // ✅ NEW: Dedicated subcube breaking function
-            } else {
-                // Break regular cube into dynamic cube with physics (REVERTED TO WORKING VERSION)
-                app->breakHoveredCube();
-            }
-        }
-    }
-    
-    if (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_PRESS) {
-        // Middle Click: Subdivide cube into 27 subcubes
-        app->subdivideHoveredCube();
-    }
-}
-
-void Application::processInput() {
-    // Exit on ESC
-    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+    // ESC - Exit application
+    inputManager->registerAction(GLFW_KEY_ESCAPE, "Exit", [this]() {
+        LOG_INFO("Application", "ESC pressed - requesting shutdown");
         glfwSetWindowShouldClose(windowManager->getHandle(), true);
-    }
+    });
     
-    // Toggle performance overlay with F1
-    static bool f1Pressed = false;
-    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_F1) == GLFW_PRESS && !f1Pressed) {
+    // F1 - Toggle performance overlay
+    inputManager->registerAction(GLFW_KEY_F1, "Toggle Performance Overlay", [this]() {
         togglePerformanceOverlay();
-        f1Pressed = true;
-    } else if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_F1) == GLFW_RELEASE) {
-        f1Pressed = false;
-    }
+    });
     
-    // Save world to database with F2
-    static bool f2Pressed = false;
-    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_F2) == GLFW_PRESS && !f2Pressed) {
-        if (chunkManager) {
-            LOG_INFO("Application", "Manual save triggered - saving world to database...");
-            chunkManager->saveAllChunks();
-            LOG_INFO("Application", "World saved successfully!");
-        }
-        f2Pressed = true;
-    } else if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_F2) == GLFW_RELEASE) {
-        f2Pressed = false;
-    }
+    // F2 - Save world (placeholder - functionality removed)
+    inputManager->registerAction(GLFW_KEY_F2, "Save World", [this]() {
+        LOG_INFO("Application", "World save functionality not yet implemented in refactored code");
+    });
     
-    // Toggle force system debug overlay with F3
-    static bool f3Pressed = false;
-    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_F3) == GLFW_PRESS && !f3Pressed) {
+    // F3 - Toggle force debug visualization
+    inputManager->registerAction(GLFW_KEY_F3, "Toggle Force Debug", [this]() {
         debugFlags.showForceSystemDebug = !debugFlags.showForceSystemDebug;
-        LOG_DEBUG_FMT("Application", "[DEBUG] Force System Debug overlay " 
-                  << (debugFlags.showForceSystemDebug ? "ENABLED" : "DISABLED"));
-        f3Pressed = true;
-    } else if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_F3) == GLFW_RELEASE) {
-        f3Pressed = false;
-    }
+        LOG_INFO("Application", std::string("Force debug visualization: ") + 
+                 (debugFlags.showForceSystemDebug ? "ENABLED" : "DISABLED"));
+    });
     
-    // Test frustum culling positions with T key
-    static bool tPressed = false;
-    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_T) == GLFW_PRESS && !tPressed) {
-        static int testPosition = 0;
-        testPosition = (testPosition + 1) % 4;
+    // T - Test camera positions
+    inputManager->registerAction(GLFW_KEY_T, "Test Camera Positions", [this]() {
+        static int cameraPosition = 0;
+        cameraPosition = (cameraPosition + 1) % 3;
         
-        switch (testPosition) {
-            case 0: // Outside view (default)
-                cameraPos = glm::vec3(50.0f, 50.0f, 50.0f);
-                cameraFront = glm::normalize(glm::vec3(16.0f, 16.0f, 16.0f) - cameraPos);
-                LOG_DEBUG("Application", "[DEBUG] Test position 1: Outside view (should see most cubes)");
+        switch(cameraPosition) {
+            case 0:
+                inputManager->setCameraPosition(glm::vec3(50.0f, 50.0f, 50.0f));
+                LOG_INFO("Application", "Camera: Far view");
                 break;
-            case 1: // Inside grid, looking at corner
-                cameraPos = glm::vec3(16.0f, 16.0f, 16.0f);
-                cameraFront = glm::normalize(glm::vec3(31.0f, 31.0f, 31.0f) - cameraPos);
-                LOG_DEBUG("Application", "[DEBUG] Test position 2: Inside grid, corner view (should cull ~50%)");
+            case 1:
+                inputManager->setCameraPosition(glm::vec3(20.0f, 20.0f, 20.0f));
+                LOG_INFO("Application", "Camera: Medium view");
                 break;
-            case 2: // Ground level, looking up
-                cameraPos = glm::vec3(16.0f, -5.0f, 16.0f);
-                cameraFront = glm::normalize(glm::vec3(16.0f, 16.0f, 16.0f) - cameraPos);
-                LOG_DEBUG("Application", "[DEBUG] Test position 3: Ground level (should cull most cubes)");
-                break;
-            case 3: // Edge view
-                cameraPos = glm::vec3(-10.0f, 16.0f, 16.0f);
-                cameraFront = glm::normalize(glm::vec3(31.0f, 16.0f, 16.0f) - cameraPos);
-                LOG_DEBUG("Application", "[DEBUG] Test position 4: Edge view (should cull ~50%)");
+            case 2:
+                inputManager->setCameraPosition(glm::vec3(10.0f, 10.0f, 10.0f));
+                LOG_INFO("Application", "Camera: Close view");
                 break;
         }
-        tPressed = true;
-    } else if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_T) == GLFW_RELEASE) {
-        tPressed = false;
-    }
+    });
     
-    // Spawn dynamic subcube above chunks with G key
-    static bool gPressed = false;
-    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_G) == GLFW_PRESS && !gPressed) {
-        spawnTestDynamicSubcube();
-        gPressed = true;
-    } else if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_G) == GLFW_RELEASE) {
-        gPressed = false;
-    }
+    // G - Spawn dynamic subcube (placeholder - functionality removed)
+    inputManager->registerAction(GLFW_KEY_G, "Spawn Dynamic Subcube", [this]() {
+        glm::vec3 spawnPos = inputManager->getCameraPosition() + inputManager->getCameraFront() * 5.0f;
+        LOG_INFO_FMT("Application", "Dynamic spawn at " << spawnPos.x 
+                     << ", " << spawnPos.y << ", " << spawnPos.z << " not yet implemented");
+    });
     
-    // Place cube with C key (test cube placement system)
-    static bool cPressed = false;
-    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_C) == GLFW_PRESS && !cPressed) {
-        placeNewCube();
-        cPressed = true;
-    } else if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_C) == GLFW_RELEASE) {
-        cPressed = false;
-    }
+    // C - Place cube (placeholder - functionality removed)
+    inputManager->registerAction(GLFW_KEY_C, "Place Cube", [this]() {
+        glm::vec3 cubePos = inputManager->getCameraPosition() + inputManager->getCameraFront() * 3.0f;
+        glm::ivec3 worldPos = glm::ivec3(cubePos);
+        glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(worldPos);
+        glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(worldPos);
+        
+        LOG_INFO_FMT("Application", "Cube placement at world " << worldPos.x 
+                     << ", " << worldPos.y << ", " << worldPos.z << " not yet implemented");
+    });
     
-    // Debug coordinate system with P key (simplified)
-    static bool pPressed = false;
-    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_P) == GLFW_PRESS && !pPressed) {
-        LOG_DEBUG("Application", "[COORD DEBUG] Simple coordinate test:");
-        LOG_DEBUG_FMT("Application", "[COORD DEBUG] Camera position: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")");
-        LOG_DEBUG_FMT("Application", "[COORD DEBUG] Current hovered cube: " << (currentHoveredLocation.chunk ? "Found" : "None"));
-        if (currentHoveredLocation.chunk) {
-            LOG_DEBUG_FMT("Application", "[COORD DEBUG] Hovered world pos: (" 
-                      << currentHoveredLocation.worldPos.x << ", " 
-                      << currentHoveredLocation.worldPos.y << ", " 
-                      << currentHoveredLocation.worldPos.z << ")");
-        }
-        pPressed = true;
-    } else if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_P) == GLFW_RELEASE) {
-        pPressed = false;
-    }
+    // P - Debug coordinates at camera position
+    inputManager->registerAction(GLFW_KEY_P, "Debug Coordinates", [this]() {
+        glm::vec3 pos = inputManager->getCameraPosition();
+        glm::ivec3 worldPos = glm::ivec3(pos);
+        glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(worldPos);
+        glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(worldPos);
+        
+        LOG_INFO_FMT("Application", "Camera World Position: " << pos.x << ", " << pos.y << ", " << pos.z);
+        LOG_INFO_FMT("Application", "World Coord (int): " << worldPos.x << ", " << worldPos.y << ", " << worldPos.z);
+        LOG_INFO_FMT("Application", "Chunk Coord: " << chunkCoord.x << ", " << chunkCoord.y << ", " << chunkCoord.z);
+        LOG_INFO_FMT("Application", "Local Coord: " << localPos.x << ", " << localPos.y << ", " << localPos.z);
+    });
     
-    // Toggle debug no-forces mode with O key
-    static bool oPressed = false;
-    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_O) == GLFW_PRESS && !oPressed) {
+    // O - Toggle breaking forces
+    inputManager->registerAction(GLFW_KEY_O, "Toggle Breaking Forces", [this]() {
         debugFlags.disableBreakingForces = !debugFlags.disableBreakingForces;
-        LOG_DEBUG_FMT("Application", "[DEBUG] Breaking forces " << (debugFlags.disableBreakingForces ? "DISABLED" : "ENABLED") 
-                  << " - cubes will spawn " << (debugFlags.disableBreakingForces ? "without impulse" : "with normal impulse"));
-        oPressed = true;
-    } else if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_O) == GLFW_RELEASE) {
-        oPressed = false;
-    }
+        LOG_INFO("Application", std::string("Breaking forces: ") + 
+                 (debugFlags.disableBreakingForces ? "DISABLED" : "ENABLED"));
+    });
     
-    // Camera movement with WASD (always available)
-    float cameraSpeed = 5.0f * deltaTime;
-
-    // WASD movement
-    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_W) == GLFW_PRESS) {
-        cameraPos += cameraSpeed * cameraFront;
-    }
-    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_S) == GLFW_PRESS) {
-        cameraPos -= cameraSpeed * cameraFront;
-    }
-
-    glm::vec3 right = glm::normalize(glm::cross(cameraFront, cameraUp));
-    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_A) == GLFW_PRESS) {
-        cameraPos -= right * cameraSpeed;
-    }
-    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_D) == GLFW_PRESS) {
-        cameraPos += right * cameraSpeed;
-    }
+    // Mouse actions
+    
+    // Left click - Break cube/subcube
+    inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_LEFT, 0, "Break Cube", [this]() {
+        // Reset mouse velocity tracking for force calculation
+        mouseVelocityTracker->reset();
         
-    // Vertical movement with Space and Shift
-    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_SPACE) == GLFW_PRESS) {
-        cameraPos += cameraUp * cameraSpeed;
-    }
-    if (glfwGetKey(windowManager->getHandle(), GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
-        cameraPos -= cameraUp * cameraSpeed;
-    }
-}
-
-void Application::spawnTestDynamicSubcube() {
-    LOG_DEBUG("Application", "=== SPAWNING TEST DYNAMIC SUBCUBE ===");
+        // Check if we're hovering over a subcube or regular cube
+        if (hasHoveredCube && currentHoveredLocation.isSubcube) {
+            // Break subcube with physics
+            breakHoveredSubcube();
+        } else if (hasHoveredCube) {
+            // Break regular cube into dynamic cube with physics
+            breakHoveredCube();
+        }
+    });
     
-    // Spawn above the center of the 2x2x2 chunk grid
-    // Chunk grid spans from (0,0,0) to (64,64,64) with Y being UP
-    // Center is (32,32,32), top surface is at Y=64
-    // Spawn clearly above at center: (32,80,32) - well above all chunks in Y
-    glm::vec3 spawnPosition = glm::vec3(32.0f, 80.0f, 32.0f);
+    // Ctrl + Left click - Subdivide cube
+    inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_LEFT, GLFW_MOD_CONTROL, "Subdivide Cube", [this]() {
+        // Subdivide cube into 27 subcubes
+        subdivideHoveredCube();
+    });
     
-    LOG_DEBUG_FMT("Application", "Spawn position: (" << spawnPosition.x << ", " << spawnPosition.y << ", " << spawnPosition.z << ")");
-    LOG_DEBUG_FMT("Application", "Camera position: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")");
+    // Middle click - Subdivide cube
+    inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_MIDDLE, 0, "Subdivide Cube (Middle)", [this]() {
+        // Subdivide cube into 27 subcubes
+        subdivideHoveredCube();
+    });
     
-    // Create a new dynamic subcube with raw pointer (matching existing pattern)
-    Subcube* dynamicSubcube = new Subcube(spawnPosition, glm::vec3(1.0f, 0.0f, 0.0f)); // Red color
-    
-    // Create physics body for the dynamic subcube (match visual size)
-    glm::vec3 subcubeSize = glm::vec3(1.0f / 3.0f); // Match visual subcube size
-    
-    LOG_DEBUG_FMT("Application", "[PHYSICS DEBUG] G-spawning subcube at world pos (" 
-              << spawnPosition.x << "," << spawnPosition.y << "," << spawnPosition.z 
-              << ") with physics size " << subcubeSize.x);
-    
-    btRigidBody* rigidBody = physicsWorld->createCube(spawnPosition, subcubeSize, 0.5f); // 0.5kg mass
-    if (rigidBody) {
-        dynamicSubcube->setRigidBody(rigidBody);
-        
-        // Add random angular velocity for tumbling effect
-        btVector3 randomAngularVelocity(
-            (rand() / float(RAND_MAX) - 0.5f) * 10.0f,  // Random angular velocity -5 to +5 rad/s
-            (rand() / float(RAND_MAX) - 0.5f) * 10.0f,
-            (rand() / float(RAND_MAX) - 0.5f) * 10.0f
-        );
-        rigidBody->setAngularVelocity(randomAngularVelocity);
-        
-        // IMPORTANT: Set initial physics position to match the physics body
-        dynamicSubcube->setPhysicsPosition(spawnPosition);
-        
-        LOG_DEBUG_FMT("Application", "Created physics body for dynamic subcube with angular velocity: (" 
-                  << randomAngularVelocity.x() << ", " << randomAngularVelocity.y() << ", " << randomAngularVelocity.z() << ")");
-    } else {
-        LOG_ERROR("Application", "Failed to create physics body for dynamic subcube");
-    }
-    
-    // Add to global dynamic subcube management (not tied to any specific chunk)
-    if (chunkManager) {
-        chunkManager->addGlobalDynamicSubcube(std::unique_ptr<Subcube>(dynamicSubcube));
-        LOG_DEBUG("Application", "Added dynamic subcube to global management");
-        LOG_DEBUG("Application", "Press G again to spawn another subcube!");
-    } else {
-        LOG_ERROR("Application", "No chunk manager available for global dynamic subcube management");
-    }
-}
-
-void Application::placeNewCube() {
-    LOG_DEBUG("Application", "=== ATTEMPTING TO PLACE NEW CUBE ===");
-    
-    // Check if we have a valid hovered cube with face information
-    if (!hasHoveredCube || !currentHoveredLocation.isValid()) {
-        LOG_DEBUG("Application", "[CUBE PLACE] No hovered cube - aim at a cube face first");
-        return;
-    }
-    
-    // Check if face information is available
-    if (currentHoveredLocation.hitFace < 0) {
-        LOG_DEBUG("Application", "[CUBE PLACE] No face information available - face detection may have failed");
-        return;
-    }
-    
-    // Calculate where to place the new cube (adjacent to the hit face)
-    glm::ivec3 placementPos = currentHoveredLocation.getAdjacentPlacementPosition();
-    
-    LOG_DEBUG_FMT("Application", "[CUBE PLACE] Hovering cube at world pos (" << currentHoveredLocation.worldPos.x 
-              << "," << currentHoveredLocation.worldPos.y << "," << currentHoveredLocation.worldPos.z << ")");
-    LOG_DEBUG_FMT("Application", "[CUBE PLACE] Hit face: " << currentHoveredLocation.hitFace << " (0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z)");
-    LOG_DEBUG_FMT("Application", "[CUBE PLACE] Attempting to place cube at world pos (" << placementPos.x 
-              << "," << placementPos.y << "," << placementPos.z << ")");
-    
-    // Check if placement position is within the loaded world bounds
-    // For a 2x2x2 chunk grid, world spans from (0,0,0) to (63,63,63)
-    if (placementPos.x < 0 || placementPos.x >= 64 ||
-        placementPos.y < 0 || placementPos.y >= 64 ||
-        placementPos.z < 0 || placementPos.z >= 64) {
-        LOG_WARN_FMT("Application", "[CUBE PLACE] Placement position (" << placementPos.x << "," << placementPos.y << "," << placementPos.z 
-                  << ") is outside loaded world bounds (0,0,0) to (63,63,63)");
-        return;
-    }
-    
-    // Check if placement position is valid (not colliding with existing cube)
-    glm::ivec3 placementChunkCoord = Utils::CoordinateUtils::worldToChunkCoord(placementPos);
-    glm::ivec3 placementLocalPos = Utils::CoordinateUtils::worldToLocalCoord(placementPos);
-    
-    Chunk* placementChunk = chunkManager->getChunkAtCoord(placementChunkCoord);
-    if (!placementChunk) {
-        LOG_WARN("Application", "[CUBE PLACE] No chunk found at placement position - may be outside loaded area");
-        return;
-    }
-    
-    // Check if position is already occupied
-    Cube* existingCube = placementChunk->getCubeAt(placementLocalPos);
-    if (existingCube && existingCube->isVisible()) {
-        LOG_DEBUG("Application", "[CUBE PLACE] Position already occupied by existing cube");
-        return;
-    }
-    
-    // Place the new cube with a random color
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<float> colorDist(0.0f, 1.0f);
-    glm::vec3 newCubeColor = glm::vec3(
-        colorDist(gen),
-        colorDist(gen),
-        colorDist(gen)
-    );
-    
-    if (placementChunk->addCube(placementLocalPos, newCubeColor)) {
-        // Mark the chunk as dirty in ChunkManager to trigger visual updates
-        chunkManager->markChunkDirty(placementChunk);
-        
-        LOG_INFO_FMT("Application", "[CUBE PLACE] Successfully placed cube at world pos (" << placementPos.x 
-                  << "," << placementPos.y << "," << placementPos.z << ")");
-        LOG_DEBUG_FMT("Application", "[CUBE PLACE] Chunk (" << placementChunkCoord.x << "," << placementChunkCoord.y 
-                  << "," << placementChunkCoord.z << ") marked dirty for visual update");
-    } else {
-        LOG_ERROR("Application", "[CUBE PLACE] Failed to place cube");
-    }
+    LOG_INFO("Application", "Input actions registered successfully");
 }
 
 FrameTiming Application::profileFrame() {
@@ -1521,6 +1269,7 @@ void Application::printProfilingInfo(int fps) {
                   << (100.0 * avgCulled / (avgVisible + avgCulled)) << "%");
     }
     
+    glm::vec3 cameraPos = inputManager->getCameraPosition();
     LOG_INFO_FMT("Performance", "Camera Position: (" << std::fixed << std::setprecision(1) 
               << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")");
     LOG_INFO("Performance", "======================");
@@ -1584,18 +1333,22 @@ void Application::printDetailedTimings() {
 
 void Application::updateMouseHover() {
     // Skip hover detection if right mouse button is pressed (camera mode)
-    if (mouseCaptured) {
+    if (inputManager->isMouseCaptured()) {
         return;
     }
     
     // Performance timing
     auto startTime = std::chrono::high_resolution_clock::now();
     
+    // Get current mouse position from input manager
+    double mouseX, mouseY;
+    inputManager->getCurrentMousePosition(mouseX, mouseY);
+    
     // Create ray from mouse position
-    glm::vec3 rayDirection = screenToWorldRay(currentMouseX, currentMouseY);
+    glm::vec3 rayDirection = screenToWorldRay(mouseX, mouseY);
     
     // NEW: Use optimized O(1) VoxelLocation-based hover detection
-    VoxelLocation voxelLocation = pickVoxelOptimized(cameraPos, rayDirection);
+    VoxelLocation voxelLocation = pickVoxelOptimized(inputManager->getCameraPosition(), rayDirection);
     
     // Convert to CubeLocation for backward compatibility with existing hover system
     CubeLocation hoveredLocation = voxelLocationToCubeLocation(voxelLocation);
@@ -1666,7 +1419,11 @@ glm::vec3 Application::screenToWorldRay(double mouseX, double mouseY) const {
     glm::vec4 rayEye = glm::inverse(proj) * rayClip;
     rayEye = glm::vec4(rayEye.x, rayEye.y, -1.0f, 0.0f);
     
-    // Convert to world space
+    // Convert to world space using camera from input manager
+    glm::vec3 cameraPos = inputManager->getCameraPosition();
+    glm::vec3 cameraFront = inputManager->getCameraFront();
+    glm::vec3 cameraUp = inputManager->getCameraUp();
+    
     glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
     glm::vec3 rayWorld = glm::vec3(glm::inverse(view) * rayEye);
     
@@ -2037,7 +1794,7 @@ void Application::breakHoveredCube() {
     
     if (debugFlags.showForceSystemDebug && debugFlags.manualForceValue > 0.0f) {
         // Use manual force value from debug UI
-        glm::vec3 forceDirection = normalize(cubeWorldPos - cameraPos);
+        glm::vec3 forceDirection = normalize(cubeWorldPos - inputManager->getCameraPosition());
         
         // Scale the manual force value appropriately (convert from UI units to physics units)
         float scaledForce = debugFlags.manualForceValue * 0.01f; // Scale down for reasonable physics
@@ -2050,7 +1807,7 @@ void Application::breakHoveredCube() {
                   << impulseForce.x << "," << impulseForce.y << "," << impulseForce.z << ")");
     } else {
         // Use original automatic force calculation
-        glm::vec3 forceDirection = normalize(cubeWorldPos - cameraPos);
+        glm::vec3 forceDirection = normalize(cubeWorldPos - inputManager->getCameraPosition());
         
         // Mix upward force with outward force for interesting breakage (gentler forces)
         impulseForce = forceDirection * 1.5f + glm::vec3(0.0f, 2.5f, 0.0f); // Reduced from 4.0f and 6.0f
@@ -2243,9 +2000,13 @@ void Application::breakHoveredCubeWithForce() {
         return;
     }
     
+    // Get current mouse position from input manager
+    double mouseX, mouseY;
+    inputManager->getCurrentMousePosition(mouseX, mouseY);
+    
     // Calculate ray for force direction
-    glm::vec3 rayOrigin = cameraPos;
-    glm::vec3 rayDirection = screenToWorldRay(currentMouseX, currentMouseY);
+    glm::vec3 rayOrigin = inputManager->getCameraPosition();
+    glm::vec3 rayDirection = screenToWorldRay(mouseX, mouseY);
     
     // Use hit point from current hovered location or calculate from cube center
     glm::vec3 hitPoint = currentHoveredLocation.hitPoint;
