@@ -1,8 +1,9 @@
 # Refactoring Progress Tracker
 
-**Last Updated:** November 9, 2025  
-**Overall Progress:** 2 of 24 modules (8% complete)  
+**Last Updated:** November 10, 2025  
+**Overall Progress:** 3 of 24 modules (12.5% complete)  
 **Phase 1 Status:** ✅ COMPLETE (2/2 quick wins)
+**Phase 2 Status:** 🔄 IN PROGRESS (1/2 input modules complete)
 
 ---
 
@@ -79,6 +80,52 @@
 
 ---
 
+### 3. ✅ InputManager (November 2025)
+**Branch:** `refactor/input-manager`  
+**Status:** Committed  
+**Time Spent:** ~6 hours  
+**Lines Reduced:** ~270 lines from Application.cpp
+
+**Files Created:**
+- `include/input/InputManager.h` (142 lines)
+- `src/input/InputManager.cpp` (289 lines)
+
+**Files Modified:**
+- `include/Application.h` - Removed 11 camera/mouse members, added InputManager
+- `src/Application.cpp` - Removed ~270 lines of input handling code
+
+**Functions Extracted:**
+- `processInput()` - ~150 lines of keyboard handling (WASD, Space, Shift, ESC, F1-F3, T, G, C, P, O)
+- `mouseCallback()` - ~58 lines of mouse movement and camera rotation
+- `mouseButtonCallback()` - ~42 lines of mouse button handling
+- `initializeCamera()` - ~20 lines of camera setup
+
+**Key Features:**
+- Camera state management (position, rotation, yaw/pitch)
+- WASD + Space/Shift camera movement
+- Right-click mouse look with sensitivity control
+- Callback-based action system for keyboard shortcuts
+- Mouse button actions with modifier support (Ctrl+click, etc.)
+- Mouse position tracking for external systems (hover detection, velocity)
+
+**Key Changes:**
+- Centralized all input handling in dedicated manager
+- Proper modifier key handling for mouse actions (fixed button+modifier collision)
+- Static GLFW callbacks redirect to instance methods (same pattern as WindowManager)
+- Action registration system decouples input detection from game logic
+- Camera state now private with const getters for rendering
+
+**Testing:** ✅ Build successful, runtime verified  
+**Documentation:** Inline documentation in header, PLAN_InputManager.md
+
+**Lessons Learned:**
+- Map keys must account for modifier combinations (button+mods as composite key)
+- Callback patterns keep Application clean while InputManager handles details
+- Extra closing braces in namespaces cause mysterious compilation errors
+- Testing modifier keys requires exact matching (no mods vs ctrl vs shift)
+
+---
+
 ## In Progress
 
 None currently.
@@ -87,47 +134,9 @@ None currently.
 
 ## Planned Next Steps
 
-### ⏳ Phase 2: Input & Camera
+### ⏳ Phase 2: Input & Camera (Continued)
 
-#### 3. InputManager (Next Priority)
-**Estimated Time:** 6 hours  
-**Estimated Reduction:** ~300 lines from Application.cpp  
-**Complexity:** Medium  
-**Risk:** Medium (touches core game loop)
-
-**Planned Extraction:**
-- `processInput()` - Keyboard handling
-- `mouseCallback()` - Mouse movement
-- `mouseButtonCallback()` - Mouse buttons
-- Camera movement logic (WASD + Space/Shift)
-- Camera rotation (mouse look)
-
-**Dependencies:**
-- Needs camera state (position, front, up vectors)
-- Needs window handle from WindowManager
-- May need to coordinate with Application for state changes
-
-**Approach:**
-1. Create `input::InputManager` class
-2. Move callback registration from Application
-3. Extract input processing logic
-4. Maintain camera state or create CameraController
-5. Test all input modes (keyboard, mouse, camera)
-
----
-
-#### 4. CameraController (After InputManager)
-**Estimated Time:** 6 hours  
-**Estimated Reduction:** ~350 lines from Application.cpp  
-**Complexity:** Medium  
-**Risk:** Medium
-
-**Planned Extraction:**
-- Camera position, front, up vectors
-- `initializeCamera()` - Camera setup
-- `screenToWorldRay()` - Ray casting for mouse picking
-- Camera movement/rotation helpers
-- View matrix calculation
+**Note:** Camera control was integrated into InputManager, so CameraController is no longer needed as a separate refactoring.
 
 ---
 
@@ -192,12 +201,17 @@ None currently.
 4. **Systematic approach** - Create → Move → Update → Test → Commit
 5. **Clear documentation** - Quick-start guides help future work
 6. **Use existing patterns** - Follow established code style
+7. **Composite map keys** - When handling button+modifier combinations, use struct keys
+8. **Exact modifier matching** - Don't trigger Ctrl+click when user just clicks
 
 ### Challenges Encountered
 1. **Duplicate function declarations** - Syntax errors from copy-paste
 2. **CMake reconfiguration needed** - For new .cpp files
 3. **Missing include files** - Need to add utility includes to call sites
 4. **Batch replacements** - PowerShell helps but verify results
+5. **Mouse action collision** - Multiple actions on same button need composite keys
+6. **Namespace closing braces** - Extra braces cause mysterious compilation errors
+7. **LOG macro formatting** - Some LOG_DEBUG/LOG_TRACE calls incompatible with format strings
 
 ### Tools & Techniques
 - **grep_search** - Find all occurrences before changing
@@ -212,10 +226,10 @@ None currently.
 ## Future Considerations
 
 ### Potential Improvements
-- Consider creating `camera::Camera` class separate from InputManager
+- ~~Consider creating `camera::Camera` class separate from InputManager~~ (Integrated into InputManager)
 - May want `rendering::RenderCoordinator` to manage render loops
 - `world::WorldManager` might coordinate chunk/voxel systems
-- Input/Camera separation might enable future camera modes (free-fly, orbit, etc.)
+- ~~Input/Camera separation~~ Camera controls now in InputManager with good separation
 
 ### Architecture Decisions
 - Keep Application as thin coordinator
@@ -226,10 +240,23 @@ None currently.
 
 ---
 
+## Statistics Summary
+
+**Total Lines Reduced from Application.cpp:** ~600 lines  
+**Total New Files Created:** 6 files (3 .h + 3 .cpp)  
+**Total Refactorings Complete:** 3  
+**Estimated Remaining in Application.cpp:** ~2000 lines  
+**Next Major Target:** RenderCoordinator or VoxelInteractionSystem
+
+---
+
 ## Next Session Goals
 
-**Primary Goal:** Extract InputManager  
-**Time Budget:** 6 hours  
+**Primary Goal:** Determine next refactoring target  
+**Options:**
+1. RenderCoordinator - Extract rendering loop (~400 lines)
+2. VoxelInteractionSystem - Extract voxel manipulation (~600 lines)
+3. Document current state and plan Phase 3  
 **Success Criteria:**
 - Input handling moved to `input::InputManager`
 - All keyboard/mouse input working
