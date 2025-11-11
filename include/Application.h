@@ -6,6 +6,7 @@
 #include "vulkan/VulkanDevice.h"
 #include "vulkan/RenderPipeline.h"
 #include "scene/SceneManager.h"
+#include "scene/VoxelInteractionSystem.h"
 #include "physics/PhysicsWorld.h"
 #include "utils/Timer.h"
 #include "utils/PerformanceProfiler.h"
@@ -39,46 +40,6 @@ public:
     void setTitle(const std::string& title);
 
 private:
-    // Optimized cube location struct to avoid repeated coordinate conversions
-    struct CubeLocation {
-        Chunk* chunk;
-        glm::ivec3 localPos;        // Local position within chunk
-        glm::ivec3 worldPos;        // World position
-        bool isSubcube;             // True if this location refers to a subcube
-        glm::ivec3 subcubePos;      // Local position within parent cube (0-2 for each axis)
-        
-        // Face information for cube placement
-        int hitFace;                // Which face was hit: 0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z
-        glm::vec3 hitNormal;        // Surface normal of hit face
-        glm::vec3 hitPoint;         // Exact hit point on the cube surface
-        
-        CubeLocation() : chunk(nullptr), localPos(-1), worldPos(-1), isSubcube(false), subcubePos(-1), hitFace(-1), hitNormal(0), hitPoint(0) {}
-        CubeLocation(Chunk* c, const glm::ivec3& local, const glm::ivec3& world) 
-            : chunk(c), localPos(local), worldPos(world), isSubcube(false), subcubePos(-1), hitFace(-1), hitNormal(0), hitPoint(0) {}
-        CubeLocation(Chunk* c, const glm::ivec3& local, const glm::ivec3& world, const glm::ivec3& sub) 
-            : chunk(c), localPos(local), worldPos(world), isSubcube(true), subcubePos(sub), hitFace(-1), hitNormal(0), hitPoint(0) {}
-        
-        bool isValid() const { return chunk != nullptr; }
-        
-        // Get the world position where a new cube should be placed adjacent to this face
-        glm::ivec3 getAdjacentPlacementPosition() const {
-            if (hitFace < 0) return worldPos; // No face data available
-            
-            // Face normals: 0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z
-            glm::ivec3 faceOffset;
-            switch (hitFace) {
-                case 0: faceOffset = glm::ivec3(1, 0, 0); break;   // +X face
-                case 1: faceOffset = glm::ivec3(-1, 0, 0); break;  // -X face
-                case 2: faceOffset = glm::ivec3(0, 1, 0); break;   // +Y face
-                case 3: faceOffset = glm::ivec3(0, -1, 0); break;  // -Y face
-                case 4: faceOffset = glm::ivec3(0, 0, 1); break;   // +Z face
-                case 5: faceOffset = glm::ivec3(0, 0, -1); break;  // -Z face
-                default: return worldPos;
-            }
-            return worldPos + faceOffset;
-        }
-    };
-
     // Window management
     std::unique_ptr<UI::WindowManager> windowManager;
     
@@ -93,6 +54,7 @@ private:
     std::unique_ptr<UI::ImGuiRenderer> imguiRenderer;
     std::unique_ptr<Input::InputManager> inputManager;
     std::unique_ptr<ChunkManager> chunkManager;
+    std::unique_ptr<VoxelInteractionSystem> voxelInteractionSystem;
 
     // Force-based breaking system
     std::unique_ptr<ForceSystem> forceSystem;
@@ -120,24 +82,8 @@ private:
     double lastFrameTime;
     double fpsTimer;
 
-    // Hover state (mouse position now managed by InputManager)
-    int lastHoveredCube;
-    
-    // Chunk-based hover state
-    glm::ivec3 currentHoveredWorldPos;
-    glm::vec3 originalHoveredColor;
-    bool hasHoveredCube = false;
-    
-    // Optimized hover state (avoids repeated coordinate conversions)
-    CubeLocation currentHoveredLocation;
-    
     // Performance overlay
     bool showPerformanceOverlay = false;
-    
-    // Hover performance tracking
-    mutable double hoverDetectionTimeMs = 0.0;
-    mutable int hoverDetectionSamples = 0;
-    mutable double avgHoverDetectionTimeMs = 0.0;
     
     // Debug system
     struct DebugFlags {
@@ -192,28 +138,6 @@ private:
 
     // Input initialization (registers actions with InputManager)
     void initializeInputActions();
-    
-    // Mouse picking / hover functionality
-    void updateMouseHover();
-    glm::vec3 screenToWorldRay(double mouseX, double mouseY) const;
-    void removeHoveredCube();    // Remove the currently hovered cube
-    void subdivideHoveredCube(); // Subdivide the currently hovered cube into 27 subcubes
-    void breakHoveredCube();     // Break the currently hovered cube into a dynamic cube with physics
-    void breakHoveredCubeWithForce(); // NEW: Break cube(s) using force propagation system
-    void breakCubeAtPosition(const glm::ivec3& worldPos); // Helper: Break a single cube at world position
-    void breakHoveredSubcube();  // Break the currently hovered subcube into a dynamic subcube with physics
-    
-    // Chunk-based hover detection helpers (optimized)
-    CubeLocation findExistingSubcubeHit(Chunk* chunk, const glm::ivec3& localPos, const glm::ivec3& cubeWorldPos, const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;
-    void setHoveredCubeInChunksOptimized(const CubeLocation& location);
-    void clearHoveredCubeInChunksOptimized();
-    
-    // NEW: VoxelLocation-based O(1) hover detection system
-    VoxelLocation pickVoxelOptimized(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;
-    VoxelLocation resolveSubcubeInVoxel(const glm::vec3& rayOrigin, const glm::vec3& rayDirection, const VoxelLocation& voxelHit) const;
-    
-    // Adapter: Convert VoxelLocation to CubeLocation for backward compatibility
-    CubeLocation voxelLocationToCubeLocation(const VoxelLocation& voxelLoc) const;
     
     // Ray-AABB intersection utility
     bool rayAABBIntersect(const glm::vec3& rayOrigin, const glm::vec3& rayDir, 
