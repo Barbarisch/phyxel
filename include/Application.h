@@ -5,6 +5,7 @@
 #include "core/Types.h"
 #include "vulkan/VulkanDevice.h"
 #include "vulkan/RenderPipeline.h"
+#include "graphics/RenderCoordinator.h"
 #include "scene/SceneManager.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "physics/PhysicsWorld.h"
@@ -57,6 +58,7 @@ private:
     std::unique_ptr<Input::InputManager> inputManager;
     std::unique_ptr<ChunkManager> chunkManager;
     std::unique_ptr<VoxelInteractionSystem> voxelInteractionSystem;
+    std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;
 
     // Force-based breaking system
     std::unique_ptr<ForceSystem> forceSystem;
@@ -65,12 +67,11 @@ private:
     // Application state
     bool isRunning;
 
-    // Frame timing (TODO: Move to PerformanceMonitor)
+    // Frame timing
     float deltaTime;
     int frameCount;
-    uint32_t currentFrame = 0;
     
-    // Cached matrices for performance
+    // Cached matrices for performance (used by RenderCoordinator)
     glm::mat4 cachedViewMatrix;
     glm::mat4 cachedProjectionMatrix;
     bool projectionMatrixNeedsUpdate = true;
@@ -95,10 +96,6 @@ private:
         bool showForceSystemDebug = false;  // Show force system debug overlay
         float manualForceValue = 500.0f;    // User-controllable force value via slider
     } debugFlags;
-    
-    // GPU frustum culling results for UI display
-    uint32_t lastVisibleInstances = 0;
-    uint32_t lastCulledInstances = 0;
     
     // New chunk-level frustum culling
     Utils::Frustum cameraFrustum;
@@ -126,11 +123,7 @@ private:
     // Main loop
     void update(float deltaTime);
     void render();
-    void drawFrame();
     void renderImGui();
-    size_t renderStaticGeometry();                                              // Render static cubes and subcubes - returns number of rendered chunks
-    void renderDynamicGeometry();                                               // Render dynamic cubes and subcubes
-    void renderDynamicSubcubes();     // Render dynamic subcubes with physics
     void handleInput();
     void spawnTestDynamicSubcube();  // Spawn a test dynamic subcube above the chunks
     void placeNewCube();            // Place a new cube adjacent to the hovered cube face

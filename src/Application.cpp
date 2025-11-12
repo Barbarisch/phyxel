@@ -29,8 +29,6 @@ Application::Application()
     , isRunning(false)
     , deltaTime(0.0f)
     , frameCount(0)
-    , lastVisibleInstances(0)
-    , lastCulledInstances(0)
     , performanceProfiler(std::make_unique<PerformanceProfiler>())
     , performanceMonitor(std::make_unique<Utils::PerformanceMonitor>())
     , imguiRenderer(std::make_unique<UI::ImGuiRenderer>())
@@ -193,6 +191,22 @@ bool Application::initialize() {
     );
     LOG_INFO("Application", "VoxelInteractionSystem initialized successfully!");
 
+    // Initialize RenderCoordinator after all rendering dependencies are created
+    renderCoordinator = std::make_unique<Graphics::RenderCoordinator>(
+        vulkanDevice.get(),
+        renderPipeline.get(),
+        dynamicRenderPipeline.get(),
+        imguiRenderer.get(),
+        windowManager.get(),
+        inputManager.get(),
+        chunkManager.get(),
+        performanceMonitor.get(),
+        performanceProfiler.get()
+    );
+    renderCoordinator->setMaxChunkRenderDistance(maxChunkRenderDistance);
+    renderCoordinator->setChunkInclusionDistance(chunkInclusionDistance);
+    LOG_INFO("Application", "RenderCoordinator initialized successfully!");
+
     timer->start();
     LOG_INFO("Application", "Application initialized successfully!");
     return true;
@@ -233,6 +247,8 @@ void Application::run() {
         
         {
             ScopedTimer renderTimer(*performanceProfiler, "render");
+            // Pass frameStartTime to RenderCoordinator
+            renderCoordinator->setFrameStartTime(frameStartTime);
             render();
         }
         
@@ -688,380 +704,14 @@ void Application::update(float deltaTime) {
     // Store matrices for use in render functions
     cachedViewMatrix = view;
     cachedProjectionMatrix = proj;
+    
+    // Pass cached matrices to RenderCoordinator
+    renderCoordinator->setCachedViewMatrix(cachedViewMatrix);
+    renderCoordinator->setProjectionMatrixNeedsUpdate(projectionMatrixNeedsUpdate);
 }
 
 void Application::render() {
-    drawFrame();
-}
-
-size_t Application::renderStaticGeometry() {
-    // Render static cubes and static subcubes using the standard pipeline
-    // Bind graphics pipeline
-    renderPipeline->bindGraphicsPipeline(vulkanDevice->getCommandBuffer(currentFrame));
-    
-    size_t renderedChunks = 0;
-    
-    // Draw indexed cubes using chunk manager with proper culling
-    if (chunkManager && !chunkManager->chunks.empty()) {
-        
-        // LEVEL 1: Distance-based culling (sphere of influence)
-        // LEVEL 2: Frustum culling (camera view)
-        std::vector<size_t> visibleChunkIndices;
-        
-        for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
-            const Chunk* chunk = chunkManager->chunks[i].get();
-            
-            // Skip chunks with no static faces (already optimized)
-            if (chunk->getNumInstances() == 0) continue;
-            
-            // Get chunk bounding box
-            glm::vec3 minBounds = chunk->getMinBounds();
-            glm::vec3 maxBounds = chunk->getMaxBounds();
-            glm::vec3 chunkCenter = (minBounds + maxBounds) * 0.5f;
-            
-            // LEVEL 1: Chunk inclusion distance culling (broader range for chunk loading)
-            float distanceToCamera = glm::length(chunkCenter - inputManager->getCameraPosition());
-            if (distanceToCamera > chunkInclusionDistance) {
-                continue; // Skip chunk - too far away even for loading
-            }
-            
-            // LEVEL 2: Frustum culling (uses actual render distance)
-            // Create AABB for frustum testing
-            Utils::AABB chunkAABB(minBounds, maxBounds);
-            
-            // Extract frustum from current view/projection matrices (uses maxChunkRenderDistance)
-            glm::vec3 cameraPos = inputManager->getCameraPosition();
-            glm::vec3 cameraFront = inputManager->getCameraFront();
-            glm::vec3 cameraUp = inputManager->getCameraUp();
-            
-            glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-            glm::mat4 proj = cachedProjectionMatrix;
-            glm::mat4 viewProjection = proj * view;
-            
-            Utils::Frustum cameraFrustum;
-            cameraFrustum.extractFromMatrix(viewProjection);
-            
-            // Test chunk against frustum (this uses the shorter render distance in projection matrix)
-            if (!cameraFrustum.intersects(chunkAABB)) {
-                continue; // Skip chunk - not visible in camera view
-            }
-            
-            // Chunk passed both distance and frustum culling
-            visibleChunkIndices.push_back(i);
-        }
-        
-        // Render only the visible chunks
-        for (size_t chunkIndex : visibleChunkIndices) {
-            const Chunk* chunk = chunkManager->chunks[chunkIndex].get();
-            
-            // Bind this chunk's instance buffer
-            VkBuffer instanceBuffers[] = {chunk->getInstanceBuffer()};
-            VkDeviceSize instanceOffsets[] = {0};
-            vkCmdBindVertexBuffers(vulkanDevice->getCommandBuffer(currentFrame), 1, 1, instanceBuffers, instanceOffsets);
-            
-            // Set chunk origin as push constants for world positioning
-            glm::ivec3 worldOrigin = chunk->getWorldOrigin();
-            glm::vec3 chunkBaseOffset(worldOrigin.x, worldOrigin.y, worldOrigin.z);
-            vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
-            
-            // Draw this chunk's static geometry
-            // LEVEL 3: Face culling already applied (only visible faces in buffer)
-            vulkanDevice->drawIndexed(currentFrame, 36, chunk->getNumInstances());
-            renderedChunks++;
-        }
-    }
-    
-    return renderedChunks;
-}
-
-void Application::renderDynamicSubcubes() {
-    // Get all global dynamic subcube faces from ChunkManager
-    // All dynamic subcubes (both G key spawned and broken from chunks) are now global
-    const auto& allDynamicSubcubeFaces = chunkManager->getGlobalDynamicSubcubeFaces();
-    
-    // Debug output for dynamic object count
-    static int debugFrameCount = 0;
-    if (debugFrameCount % 60 == 0) { // Every 60 frames
-        size_t subcubeCount = chunkManager->getGlobalDynamicSubcubeCount();
-        size_t cubeCount = chunkManager->getGlobalDynamicCubeCount();
-        // std::cout << "[DEBUG] Dynamic objects: " << subcubeCount << " subcubes, " << cubeCount 
-        //           << " cubes, " << allDynamicSubcubeFaces.size() << " total faces" << std::endl;
-    }
-    debugFrameCount++;
-    
-    // Only render if we have dynamic subcube faces
-    if (!allDynamicSubcubeFaces.empty()) {
-        // Update dynamic subcube buffer
-        vulkanDevice->updateDynamicSubcubeBuffer(allDynamicSubcubeFaces);
-        
-        // Bind dynamic render pipeline
-        vkCmdBindPipeline(vulkanDevice->getCommandBuffer(currentFrame), 
-                         VK_PIPELINE_BIND_POINT_GRAPHICS, 
-                         dynamicRenderPipeline->getGraphicsPipeline());
-        
-        // Bind vertex and dynamic instance buffers
-        vulkanDevice->bindDynamicSubcubeBuffer(currentFrame);
-        vulkanDevice->bindIndexBuffer(currentFrame);
-        
-        // Bind descriptor sets for dynamic pipeline
-        vulkanDevice->bindDescriptorSets(currentFrame, dynamicRenderPipeline->getGraphicsLayout());
-        
-        // No push constants needed for dynamic subcubes (world position is in instance data)
-        // Draw all dynamic subcubes (6 indices per quad face)
-        vulkanDevice->drawIndexed(currentFrame, 6, static_cast<uint32_t>(allDynamicSubcubeFaces.size()));
-    }
-}
-
-void Application::drawFrame() {
-    // Check if we need to recreate swapchain due to window resize
-    if (vulkanDevice->getFramebufferResized()) {
-        if (!vulkanDevice->recreateSwapChain(windowManager->getWidth(), windowManager->getHeight(), renderPipeline->getRenderPass())) {
-            return; // Try again next frame
-        }
-    }
-
-    // Wait for previous frame
-    vulkanDevice->waitForFence(currentFrame);
-    vulkanDevice->resetFence(currentFrame);
-
-    // Acquire next image
-    uint32_t imageIndex;
-    VkResult result = vulkanDevice->acquireNextImage(currentFrame, &imageIndex);
-    
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        // Swapchain is out of date, recreate it
-        if (!vulkanDevice->recreateSwapChain(windowManager->getWidth(), windowManager->getHeight(), renderPipeline->getRenderPass())) {
-            return; // Try again next frame
-        }
-        return; // Skip this frame and try again
-    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        LOG_ERROR("Application", "Failed to acquire swapchain image!");
-        return;
-    }
-
-    // ChunkManager handles its own data management - no instance buffer needed
-    // Static chunk geometry is pre-built and doesn't change unless modified
-    
-    // Get chunk statistics for rendering
-    auto chunkStats = chunkManager->getPerformanceStats();
-    
-    // Prepare uniform buffer data (optimized)
-    auto uboStart = std::chrono::high_resolution_clock::now();
-    
-    // Cache projection matrix - only recalculate on window resize
-    if (projectionMatrixNeedsUpdate) {
-        cachedProjectionMatrix = glm::perspective(
-            glm::radians(45.0f), 
-            (float)windowManager->getWidth() / (float)windowManager->getHeight(), 
-            0.1f, 
-            maxChunkRenderDistance  // Use configurable render distance
-        );
-        cachedProjectionMatrix[1][1] *= -1; // Flip Y for Vulkan
-        projectionMatrixNeedsUpdate = false;
-    }
-
-    // Use cached matrices from update()
-    glm::mat4 view = cachedViewMatrix;
-    glm::mat4 proj = cachedProjectionMatrix;
-    auto uboEnd = std::chrono::high_resolution_clock::now();
-    
-    // Update uniform buffer with camera matrices
-    auto uniformUploadStart = std::chrono::high_resolution_clock::now();
-    
-    // Track memory bandwidth for uniform buffer update
-    size_t uniformBufferSize = sizeof(glm::mat4) * 2 + sizeof(uint32_t); // view + proj + cubeCount
-    performanceProfiler->recordMemoryTransfer(uniformBufferSize);
-    
-    vulkanDevice->updateUniformBuffer(currentFrame, view, proj, static_cast<uint32_t>(chunkStats.totalCubes));
-    auto uniformUploadEnd = std::chrono::high_resolution_clock::now();
-
-    // Record command buffer
-    auto recordStart = std::chrono::high_resolution_clock::now();
-    vulkanDevice->resetCommandBuffer(currentFrame);
-    vulkanDevice->beginCommandBuffer(currentFrame);
-    
-    // TODO: GPU frustum culling functionality (experimental/incomplete)
-    /*
-    // Perform GPU frustum culling BEFORE rendering
-    auto frustumCullingStart = std::chrono::high_resolution_clock::now();
-    vulkanDevice->dispatchFrustumCulling(currentFrame, renderPipeline.get(), static_cast<uint32_t>(cubeCount));
-    auto frustumCullingEnd = std::chrono::high_resolution_clock::now();
-    
-    // Download GPU visibility results for performance stats (every 10 frames)
-    static int cullStatsCounter = 0;
-    if (++cullStatsCounter >= 10) {
-        cullStatsCounter = 0;
-        
-        std::vector<uint32_t> visibilityResults = vulkanDevice->downloadVisibilityResults(static_cast<uint32_t>(cubeCount));
-        
-        // Calculate statistics
-        uint32_t totalObjects = static_cast<uint32_t>(visibilityResults.size());
-        uint32_t visibleObjects = 0;
-        for (uint32_t visible : visibilityResults) {
-            if (visible) visibleObjects++;
-        }
-        uint32_t culledObjects = totalObjects - visibleObjects;
-        
-        // Calculate GPU compute time in milliseconds
-        double frustumCullingTimeMs = std::chrono::duration<double, std::milli>(
-            frustumCullingEnd - frustumCullingStart
-        ).count();
-        
-        // Record actual GPU frustum culling statistics
-        // std::cout << "[DEBUG] Performance stats: Total=" << totalObjects 
-        //           << ", Visible=" << visibleObjects 
-        //           << ", Culled=" << culledObjects 
-        //           << " (" << (100.0f * culledObjects / totalObjects) << "% culled)"
-        //           << ", Time=" << frustumCullingTimeMs << "ms" << std::endl;
-        // std::cout << "[DEBUG] Camera pos: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")" << std::endl;
-        
-        // Store results for UI display
-        lastVisibleInstances = visibleObjects;
-        lastCulledInstances = culledObjects;
-        
-        performanceProfiler->recordFrustumCulling(totalObjects, culledObjects, frustumCullingTimeMs);
-    }
-    */
-    
-    // Record occlusion culling statistics from chunk manager
-    if (chunkManager && !chunkManager->chunks.empty()) {
-        // Get occlusion stats from chunk manager
-        auto chunkStats = chunkManager->getPerformanceStats();
-        performanceMonitor->getCurrentFrameTiming().fullyOccludedCubes = static_cast<int>(chunkStats.fullyOccludedCubes);
-        performanceMonitor->getCurrentFrameTiming().partiallyOccludedCubes = static_cast<int>(chunkStats.partiallyOccludedCubes);
-        performanceMonitor->getCurrentFrameTiming().totalHiddenFaces = static_cast<int>(chunkStats.totalHiddenFaces);
-        performanceMonitor->getCurrentFrameTiming().occlusionCulledInstances = static_cast<int>(chunkStats.fullyOccludedCubes);
-        performanceMonitor->getCurrentFrameTiming().faceCulledFaces = static_cast<int>(chunkStats.totalHiddenFaces);
-    } else {
-        // No chunks available
-        performanceMonitor->getCurrentFrameTiming().fullyOccludedCubes = 0;
-        performanceMonitor->getCurrentFrameTiming().partiallyOccludedCubes = 0;
-        performanceMonitor->getCurrentFrameTiming().totalHiddenFaces = 0;
-        performanceMonitor->getCurrentFrameTiming().occlusionCulledInstances = 0;
-        performanceMonitor->getCurrentFrameTiming().faceCulledFaces = 0;
-    }
-    
-    // Begin render pass
-    vulkanDevice->beginRenderPass(currentFrame, imageIndex, renderPipeline->getRenderPass());
-    
-    // Bind graphics pipeline
-    renderPipeline->bindGraphicsPipeline(vulkanDevice->getCommandBuffer(currentFrame));
-    
-    // Set viewport (required for dynamic viewport)
-    VkViewport viewport{};
-    viewport.x = 0.0f;
-    viewport.y = 0.0f;
-    viewport.width = static_cast<float>(windowManager->getWidth());
-    viewport.height = static_cast<float>(windowManager->getHeight());
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-    vkCmdSetViewport(vulkanDevice->getCommandBuffer(currentFrame), 0, 1, &viewport);
-    
-    // Set scissor (required for dynamic scissor)
-    VkRect2D scissor{};
-    scissor.offset = {0, 0};
-    scissor.extent = {static_cast<uint32_t>(windowManager->getWidth()), static_cast<uint32_t>(windowManager->getHeight())};
-    vkCmdSetScissor(vulkanDevice->getCommandBuffer(currentFrame), 0, 1, &scissor);
-    
-    // Bind vertex and instance buffers
-    vulkanDevice->bindVertexBuffers(currentFrame);
-    vulkanDevice->bindIndexBuffer(currentFrame);
-    
-    // Bind descriptor sets (uniform buffers)
-    vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getGraphicsLayout());
-    
-    // Draw using dual rendering system
-    if (chunkManager && !chunkManager->chunks.empty()) {
-        // Render static geometry first and capture how many chunks were actually rendered
-        size_t actuallyRenderedChunks = renderStaticGeometry();
-        
-        // Render dynamic subcubes with separate pipeline
-        renderDynamicSubcubes();
-        
-        // Get accurate performance statistics from chunk manager
-        auto chunkStats = chunkManager->getPerformanceStats();
-        
-        // Update frame timing with chunk-based statistics using ACTUAL rendered chunks
-        performanceMonitor->getCurrentFrameTiming().drawCalls = static_cast<int>(actuallyRenderedChunks);  // Only chunks that passed culling
-        performanceMonitor->getCurrentFrameTiming().vertexCount = static_cast<int>(chunkStats.totalVertices);
-        performanceMonitor->getCurrentFrameTiming().visibleInstances = static_cast<int>(chunkStats.totalCubes);
-        performanceMonitor->getCurrentFrameTiming().fullyOccludedCubes = static_cast<int>(chunkStats.fullyOccludedCubes);
-        performanceMonitor->getCurrentFrameTiming().partiallyOccludedCubes = static_cast<int>(chunkStats.partiallyOccludedCubes);
-        performanceMonitor->getCurrentFrameTiming().totalHiddenFaces = static_cast<int>(chunkStats.totalHiddenFaces);
-        performanceMonitor->getCurrentFrameTiming().faceCulledFaces = static_cast<int>(chunkStats.totalHiddenFaces);
-        performanceMonitor->getCurrentFrameTiming().occlusionCulledInstances = static_cast<int>(chunkStats.fullyOccludedCubes);
-        
-        // Optional: Add culling statistics debug output
-        static size_t lastRenderedChunks = 0;
-        if (actuallyRenderedChunks != lastRenderedChunks) {
-            LOG_DEBUG_FMT("Application", "[CULLING] Total chunks: " << chunkManager->chunks.size() 
-                      << ", Rendered chunks: " << actuallyRenderedChunks 
-                      << " (Culled: " << (chunkManager->chunks.size() - actuallyRenderedChunks) << ")");
-            lastRenderedChunks = actuallyRenderedChunks;
-        }
-    } else {
-        // No chunks available - render nothing
-        performanceMonitor->getCurrentFrameTiming().drawCalls = 0;
-        performanceMonitor->getCurrentFrameTiming().vertexCount = 0;
-    }
-    
-    // Render ImGui on top
-    imguiRenderer->render(currentFrame, imageIndex);
-    
-    // End render pass
-    vulkanDevice->endRenderPass(currentFrame);
-    vulkanDevice->endCommandBuffer(currentFrame);
-    auto recordEnd = std::chrono::high_resolution_clock::now();
-
-    // Submit command buffer
-    auto submitStart = std::chrono::high_resolution_clock::now();
-    if (!vulkanDevice->submitCommandBuffer(currentFrame)) {
-        LOG_ERROR("Application", "Failed to submit command buffer!");
-        return;
-    }
-    auto submitEnd = std::chrono::high_resolution_clock::now();
-
-    // Present frame
-    auto presentStart = std::chrono::high_resolution_clock::now();
-    VkResult presentResult = vulkanDevice->presentFrame(imageIndex, currentFrame);
-    
-    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR || vulkanDevice->getFramebufferResized()) {
-        // Recreate swapchain on next frame
-        vulkanDevice->setFramebufferResized(true);
-    } else if (presentResult != VK_SUCCESS) {
-        LOG_ERROR("Application", "Failed to present frame!");
-        return;
-    }
-    auto presentEnd = std::chrono::high_resolution_clock::now();
-
-    currentFrame = (currentFrame + 1) % 2; // MAX_FRAMES_IN_FLIGHT = 2
-    
-    // Note: frameTiming statistics are now set in the chunk rendering section above
-    // This includes: drawCalls, vertexCount, visibleInstances, culledInstances, etc.
-    
-    // Use GPU culling results if available for frustum culling statistics
-    if (lastVisibleInstances + lastCulledInstances > 0) {
-        performanceMonitor->getCurrentFrameTiming().frustumCulledInstances = static_cast<int>(lastCulledInstances);
-    } else {
-        performanceMonitor->getCurrentFrameTiming().frustumCulledInstances = 0;
-    }
-    
-    // Record detailed timing
-    auto frameEnd = std::chrono::high_resolution_clock::now();
-    DetailedFrameTiming detailedTiming;
-    detailedTiming.totalFrameTime = std::chrono::duration<double, std::milli>(frameEnd - frameStartTime).count();
-    detailedTiming.physicsTime = 0.0; // Physics timing integrated into main loop
-    detailedTiming.mousePickTime = 0.0; // Not implemented yet
-    detailedTiming.uboFillTime = std::chrono::duration<double, std::milli>(uboEnd - uboStart).count();
-    detailedTiming.instanceUpdateTime = 0.0; // ChunkManager handles its own data
-    detailedTiming.drawCmdUpdateTime = 0.0; // Not separate in our implementation
-    detailedTiming.uniformUploadTime = std::chrono::duration<double, std::milli>(uniformUploadEnd - uniformUploadStart).count();
-    detailedTiming.occlusionCullingTime = 0.0; // Occlusion culling is done once at scene creation, not per-frame
-    detailedTiming.commandRecordTime = std::chrono::duration<double, std::milli>(recordEnd - recordStart).count();
-    detailedTiming.gpuSubmitTime = std::chrono::duration<double, std::milli>(submitEnd - submitStart).count();
-    detailedTiming.presentTime = std::chrono::duration<double, std::milli>(presentEnd - presentStart).count();
-    
-    performanceMonitor->addDetailedTiming(detailedTiming);
+    renderCoordinator->render();
 }
 
 void Application::handleInput() {
@@ -1221,6 +871,14 @@ void Application::setRenderDistance(float distance) {
         }
         
         projectionMatrixNeedsUpdate = true; // Force projection matrix recalculation
+        
+        // Update RenderCoordinator with new distances
+        if (renderCoordinator) {
+            renderCoordinator->setMaxChunkRenderDistance(maxChunkRenderDistance);
+            renderCoordinator->setChunkInclusionDistance(chunkInclusionDistance);
+            renderCoordinator->setProjectionMatrixNeedsUpdate(true);
+        }
+        
         LOG_INFO_FMT("Application", "Render distance updated to: " << distance 
                   << " (chunk inclusion: " << chunkInclusionDistance << ")");
     }
@@ -1235,6 +893,12 @@ void Application::setChunkInclusionDistance(float distance) {
         }
         
         chunkInclusionDistance = distance;
+        
+        // Update RenderCoordinator with new distance
+        if (renderCoordinator) {
+            renderCoordinator->setChunkInclusionDistance(chunkInclusionDistance);
+        }
+        
         LOG_INFO_FMT("Application", "Chunk inclusion distance updated to: " << distance);
     }
 }
