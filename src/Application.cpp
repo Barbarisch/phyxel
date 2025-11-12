@@ -3,6 +3,7 @@
 #include "utils/FileUtils.h"
 #include "utils/Math.h"
 #include "utils/PerformanceProfiler.h"
+#include "utils/PerformanceMonitor.h"
 #include "utils/Frustum.h"
 #include "utils/Logger.h"
 #include "utils/CoordinateUtils.h"
@@ -31,18 +32,11 @@ Application::Application()
     , lastVisibleInstances(0)
     , lastCulledInstances(0)
     , performanceProfiler(std::make_unique<PerformanceProfiler>())
+    , performanceMonitor(std::make_unique<Utils::PerformanceMonitor>())
     , imguiRenderer(std::make_unique<UI::ImGuiRenderer>())
     , inputManager(std::make_unique<Input::InputManager>())
     , forceSystem(std::make_unique<ForceSystem>())
     , mouseVelocityTracker(std::make_unique<MouseVelocityTracker>()) {
-    
-    // Initialize frame timing
-    frameTiming.cpuFrameTime = 0.0;
-    frameTiming.gpuFrameTime = 0.0;
-    frameTiming.vertexCount = 0;
-    frameTiming.drawCalls = 0;
-    frameTiming.culledInstances = 0;
-    frameTiming.visibleInstances = 0;
     
     // Initialize profiling
     lastFrameTime = 0.0;
@@ -254,8 +248,8 @@ void Application::run() {
             showPerformanceOverlay,
             timer.get(),
             performanceProfiler.get(),
-            frameTiming,
-            detailedTimings,
+            performanceMonitor->getCurrentFrameTiming(),
+            performanceMonitor->getDetailedTimings(),
             physicsWorld.get(),
             inputManager->getCameraPosition(),
             frameCount,
@@ -287,16 +281,10 @@ void Application::run() {
         // End frame profiling
         performanceProfiler->endFrame();
         
-        // Profile the frame (legacy system)
-        FrameTiming timing = profileFrame();
-        frameTimings.push_back(timing);
+        // Profile the frame with PerformanceMonitor
+        FrameTiming timing = performanceMonitor->profileFrame();
         
-        // Keep only last 60 frames for analysis
-        if (frameTimings.size() > 60) {
-            frameTimings.erase(frameTimings.begin());
-        }
-        
-        updateFrameTiming();
+        performanceMonitor->updateFrameTiming(deltaTime);
         frameCount++;
         fpsFrameCount++;
         
@@ -304,8 +292,8 @@ void Application::run() {
         if (currentTime - fpsTimer >= 1.0) {
             if (!showPerformanceOverlay) {
                 // Temporarily disabled performance reports
-                // printProfilingInfo(fpsFrameCount);
-                // printDetailedTimings();
+                // performanceMonitor->printProfilingInfo(fpsFrameCount, inputManager.get());
+                // performanceMonitor->printDetailedTimings();
                 
                 // Print new performance profiler reports
                 // performanceProfiler->printFrameReport();
@@ -319,7 +307,7 @@ void Application::run() {
         
         // Print basic stats every 60 frames (only when overlay is disabled)
         if (frameCount % 60 == 0 && !showPerformanceOverlay) {
-            //printPerformanceStats();
+            // performanceMonitor->printPerformanceStats(timer.get(), timing, chunkManager.get(), physicsWorld.get());
         }
     }
     
@@ -939,18 +927,18 @@ void Application::drawFrame() {
     if (chunkManager && !chunkManager->chunks.empty()) {
         // Get occlusion stats from chunk manager
         auto chunkStats = chunkManager->getPerformanceStats();
-        frameTiming.fullyOccludedCubes = static_cast<int>(chunkStats.fullyOccludedCubes);
-        frameTiming.partiallyOccludedCubes = static_cast<int>(chunkStats.partiallyOccludedCubes);
-        frameTiming.totalHiddenFaces = static_cast<int>(chunkStats.totalHiddenFaces);
-        frameTiming.occlusionCulledInstances = static_cast<int>(chunkStats.fullyOccludedCubes);
-        frameTiming.faceCulledFaces = static_cast<int>(chunkStats.totalHiddenFaces);
+        performanceMonitor->getCurrentFrameTiming().fullyOccludedCubes = static_cast<int>(chunkStats.fullyOccludedCubes);
+        performanceMonitor->getCurrentFrameTiming().partiallyOccludedCubes = static_cast<int>(chunkStats.partiallyOccludedCubes);
+        performanceMonitor->getCurrentFrameTiming().totalHiddenFaces = static_cast<int>(chunkStats.totalHiddenFaces);
+        performanceMonitor->getCurrentFrameTiming().occlusionCulledInstances = static_cast<int>(chunkStats.fullyOccludedCubes);
+        performanceMonitor->getCurrentFrameTiming().faceCulledFaces = static_cast<int>(chunkStats.totalHiddenFaces);
     } else {
         // No chunks available
-        frameTiming.fullyOccludedCubes = 0;
-        frameTiming.partiallyOccludedCubes = 0;
-        frameTiming.totalHiddenFaces = 0;
-        frameTiming.occlusionCulledInstances = 0;
-        frameTiming.faceCulledFaces = 0;
+        performanceMonitor->getCurrentFrameTiming().fullyOccludedCubes = 0;
+        performanceMonitor->getCurrentFrameTiming().partiallyOccludedCubes = 0;
+        performanceMonitor->getCurrentFrameTiming().totalHiddenFaces = 0;
+        performanceMonitor->getCurrentFrameTiming().occlusionCulledInstances = 0;
+        performanceMonitor->getCurrentFrameTiming().faceCulledFaces = 0;
     }
     
     // Begin render pass
@@ -994,14 +982,14 @@ void Application::drawFrame() {
         auto chunkStats = chunkManager->getPerformanceStats();
         
         // Update frame timing with chunk-based statistics using ACTUAL rendered chunks
-        frameTiming.drawCalls = static_cast<int>(actuallyRenderedChunks);  // Only chunks that passed culling
-        frameTiming.vertexCount = static_cast<int>(chunkStats.totalVertices);
-        frameTiming.visibleInstances = static_cast<int>(chunkStats.totalCubes);
-        frameTiming.fullyOccludedCubes = static_cast<int>(chunkStats.fullyOccludedCubes);
-        frameTiming.partiallyOccludedCubes = static_cast<int>(chunkStats.partiallyOccludedCubes);
-        frameTiming.totalHiddenFaces = static_cast<int>(chunkStats.totalHiddenFaces);
-        frameTiming.faceCulledFaces = static_cast<int>(chunkStats.totalHiddenFaces);
-        frameTiming.occlusionCulledInstances = static_cast<int>(chunkStats.fullyOccludedCubes);
+        performanceMonitor->getCurrentFrameTiming().drawCalls = static_cast<int>(actuallyRenderedChunks);  // Only chunks that passed culling
+        performanceMonitor->getCurrentFrameTiming().vertexCount = static_cast<int>(chunkStats.totalVertices);
+        performanceMonitor->getCurrentFrameTiming().visibleInstances = static_cast<int>(chunkStats.totalCubes);
+        performanceMonitor->getCurrentFrameTiming().fullyOccludedCubes = static_cast<int>(chunkStats.fullyOccludedCubes);
+        performanceMonitor->getCurrentFrameTiming().partiallyOccludedCubes = static_cast<int>(chunkStats.partiallyOccludedCubes);
+        performanceMonitor->getCurrentFrameTiming().totalHiddenFaces = static_cast<int>(chunkStats.totalHiddenFaces);
+        performanceMonitor->getCurrentFrameTiming().faceCulledFaces = static_cast<int>(chunkStats.totalHiddenFaces);
+        performanceMonitor->getCurrentFrameTiming().occlusionCulledInstances = static_cast<int>(chunkStats.fullyOccludedCubes);
         
         // Optional: Add culling statistics debug output
         static size_t lastRenderedChunks = 0;
@@ -1013,8 +1001,8 @@ void Application::drawFrame() {
         }
     } else {
         // No chunks available - render nothing
-        frameTiming.drawCalls = 0;
-        frameTiming.vertexCount = 0;
+        performanceMonitor->getCurrentFrameTiming().drawCalls = 0;
+        performanceMonitor->getCurrentFrameTiming().vertexCount = 0;
     }
     
     // Render ImGui on top
@@ -1053,9 +1041,9 @@ void Application::drawFrame() {
     
     // Use GPU culling results if available for frustum culling statistics
     if (lastVisibleInstances + lastCulledInstances > 0) {
-        frameTiming.frustumCulledInstances = static_cast<int>(lastCulledInstances);
+        performanceMonitor->getCurrentFrameTiming().frustumCulledInstances = static_cast<int>(lastCulledInstances);
     } else {
-        frameTiming.frustumCulledInstances = 0;
+        performanceMonitor->getCurrentFrameTiming().frustumCulledInstances = 0;
     }
     
     // Record detailed timing
@@ -1073,38 +1061,12 @@ void Application::drawFrame() {
     detailedTiming.gpuSubmitTime = std::chrono::duration<double, std::milli>(submitEnd - submitStart).count();
     detailedTiming.presentTime = std::chrono::duration<double, std::milli>(presentEnd - presentStart).count();
     
-    detailedTimings.push_back(detailedTiming);
-    if (detailedTimings.size() > 60) {
-        detailedTimings.erase(detailedTimings.begin());
-    }
+    performanceMonitor->addDetailedTiming(detailedTiming);
 }
 
 void Application::handleInput() {
     // Process keyboard and mouse input through InputManager
     inputManager->processInput(deltaTime);
-}
-
-void Application::updateFrameTiming() {
-    frameTiming.cpuFrameTime = deltaTime * 1000.0; // Convert to milliseconds
-    frameTiming.gpuFrameTime = deltaTime * 1000.0; // Placeholder
-}
-
-void Application::printPerformanceStats() {
-    float fps = timer->getFPS();
-    auto chunkStats = chunkManager->getPerformanceStats();
-    
-    LOG_INFO("Performance", "Performance Stats:");
-    LOG_INFO_FMT("Performance", "  FPS: " << fps);
-    LOG_INFO_FMT("Performance", "  CPU Frame Time: " << frameTiming.cpuFrameTime << "ms");
-    LOG_INFO_FMT("Performance", "  GPU Frame Time: " << frameTiming.gpuFrameTime << "ms");
-    LOG_INFO_FMT("Performance", "  Vertices: " << frameTiming.vertexCount);
-    LOG_INFO_FMT("Performance", "  Draw Calls: " << frameTiming.drawCalls);
-    LOG_INFO_FMT("Performance", "  Visible Instances: " << frameTiming.visibleInstances);
-    LOG_INFO_FMT("Performance", "  Culled Instances: " << frameTiming.culledInstances);
-    LOG_INFO_FMT("Performance", "  Total Chunks: " << chunkManager->chunks.size());
-    LOG_INFO_FMT("Performance", "  Total Cubes: " << chunkStats.totalCubes);
-    LOG_INFO_FMT("Performance", "  Physics Bodies: " << physicsWorld->getRigidBodyCount());
-    LOG_INFO("Performance", "---");
 }
 
 bool Application::initializeWindow() {
@@ -1242,119 +1204,6 @@ void Application::initializeInputActions() {
     });
     
     LOG_INFO("Application", "Input actions registered successfully");
-}
-
-FrameTiming Application::profileFrame() {
-    auto frameEnd = std::chrono::high_resolution_clock::now();
-    
-    FrameTiming timing;
-    timing.cpuFrameTime = std::chrono::duration<double, std::milli>(frameEnd - frameStartTime).count();
-    timing.gpuFrameTime = timing.cpuFrameTime; // Placeholder - actual GPU timing would need GPU queries
-    
-    // Use chunk manager statistics if available (multi-chunk system)
-    auto chunkStats = chunkManager->getPerformanceStats();
-    timing.vertexCount = static_cast<int>(chunkStats.totalVertices);
-    timing.drawCalls = static_cast<int>(chunkManager->chunks.size()); // One call per chunk
-    timing.visibleInstances = static_cast<int>(chunkStats.totalCubes);
-    timing.culledInstances = 0; // Will be updated during rendering with actual culling data
-    
-    return timing;
-}
-
-void Application::printProfilingInfo(int fps) {
-    if (frameTimings.empty()) return;
-    
-    // Calculate averages
-    double avgCpuTime = 0.0;
-    int avgVertices = 0;
-    int avgVisible = 0;
-    int avgCulled = 0;
-    
-    for (const auto& timing : frameTimings) {
-        avgCpuTime += timing.cpuFrameTime;
-        avgVertices += timing.vertexCount;
-        avgVisible += timing.visibleInstances;
-        avgCulled += timing.culledInstances;
-    }
-    
-    int samples = frameTimings.size();
-    avgCpuTime /= samples;
-    avgVertices /= samples;
-    avgVisible /= samples;
-    avgCulled /= samples;
-    
-    LOG_INFO("Performance", "\n=== FRAME PROFILING ===");
-    LOG_INFO_FMT("Performance", "FPS: " << fps);
-    LOG_INFO_FMT("Performance", "Avg CPU Frame Time: " << std::fixed << std::setprecision(2) << avgCpuTime << "ms");
-    LOG_INFO_FMT("Performance", "Avg Vertices/Frame: " << avgVertices);
-    LOG_INFO_FMT("Performance", "Avg Visible Cubes: " << avgVisible);
-    LOG_INFO_FMT("Performance", "Avg Culled Cubes: " << avgCulled);
-    
-    if (avgVisible + avgCulled > 0) {
-        LOG_INFO_FMT("Performance", "Culling Efficiency: " << std::fixed << std::setprecision(1) 
-                  << (100.0 * avgCulled / (avgVisible + avgCulled)) << "%");
-    }
-    
-    glm::vec3 cameraPos = inputManager->getCameraPosition();
-    LOG_INFO_FMT("Performance", "Camera Position: (" << std::fixed << std::setprecision(1) 
-              << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")");
-    LOG_INFO("Performance", "======================");
-}
-
-void Application::printDetailedTimings() {
-    if (detailedTimings.empty()) return;
-    
-    // Calculate averages
-    DetailedFrameTiming avg = {};
-    for (const auto& t : detailedTimings) {
-        avg.totalFrameTime += t.totalFrameTime;
-        avg.physicsTime += t.physicsTime;
-        avg.mousePickTime += t.mousePickTime;
-        avg.uboFillTime += t.uboFillTime;
-        avg.instanceUpdateTime += t.instanceUpdateTime;
-        avg.drawCmdUpdateTime += t.drawCmdUpdateTime;
-        avg.uniformUploadTime += t.uniformUploadTime;
-        avg.commandRecordTime += t.commandRecordTime;
-        avg.gpuSubmitTime += t.gpuSubmitTime;
-        avg.presentTime += t.presentTime;
-    }
-    
-    int samples = detailedTimings.size();
-    avg.totalFrameTime /= samples;
-    avg.physicsTime /= samples;
-    avg.mousePickTime /= samples;
-    avg.uboFillTime /= samples;
-    avg.instanceUpdateTime /= samples;
-    avg.drawCmdUpdateTime /= samples;
-    avg.uniformUploadTime /= samples;
-    avg.commandRecordTime /= samples;
-    avg.gpuSubmitTime /= samples;
-    avg.presentTime /= samples;
-    
-    LOG_DEBUG("Performance", "\n=== DETAILED FRAME TIMING ===");
-    LOG_DEBUG_FMT("Performance", "Total Frame Time:    " << std::fixed << std::setprecision(2) << avg.totalFrameTime << "ms");
-    LOG_DEBUG_FMT("Performance", "  Physics:           " << std::fixed << std::setprecision(2) << avg.physicsTime << "ms");
-    LOG_DEBUG_FMT("Performance", "  UBO Fill:          " << std::fixed << std::setprecision(2) << avg.uboFillTime << "ms");
-    LOG_DEBUG_FMT("Performance", "  Instance Update:   " << std::fixed << std::setprecision(2) << avg.instanceUpdateTime << "ms");
-    LOG_DEBUG_FMT("Performance", "  Uniform Upload:    " << std::fixed << std::setprecision(2) << avg.uniformUploadTime << "ms");
-    LOG_DEBUG_FMT("Performance", "  Command Record:    " << std::fixed << std::setprecision(2) << avg.commandRecordTime << "ms");
-    LOG_DEBUG_FMT("Performance", "  GPU Submit:        " << std::fixed << std::setprecision(2) << avg.gpuSubmitTime << "ms");
-    LOG_DEBUG_FMT("Performance", "  Present:           " << std::fixed << std::setprecision(2) << avg.presentTime << "ms");
-    LOG_DEBUG_FMT("Performance", "  Mouse Pick:        " << std::fixed << std::setprecision(2) << avg.mousePickTime << "ms");
-    
-    // Calculate percentage breakdown
-    double total = avg.totalFrameTime;
-    if (total > 0) {
-        LOG_DEBUG("Performance", "\nTiming Breakdown:");
-        LOG_DEBUG_FMT("Performance", "  Physics:         " << std::fixed << std::setprecision(1) << (avg.physicsTime / total * 100.0) << "%");
-        LOG_DEBUG_FMT("Performance", "  UBO Fill:        " << std::fixed << std::setprecision(1) << (avg.uboFillTime / total * 100.0) << "%");
-        LOG_DEBUG_FMT("Performance", "  Instance Update: " << std::fixed << std::setprecision(1) << (avg.instanceUpdateTime / total * 100.0) << "%");
-        LOG_DEBUG_FMT("Performance", "  Uniform Upload:  " << std::fixed << std::setprecision(1) << (avg.uniformUploadTime / total * 100.0) << "%");
-        LOG_DEBUG_FMT("Performance", "  Command Record:  " << std::fixed << std::setprecision(1) << (avg.commandRecordTime / total * 100.0) << "%");
-        LOG_DEBUG_FMT("Performance", "  GPU Submit:      " << std::fixed << std::setprecision(1) << (avg.gpuSubmitTime / total * 100.0) << "%");
-        LOG_DEBUG_FMT("Performance", "  Present:         " << std::fixed << std::setprecision(1) << (avg.presentTime / total * 100.0) << "%");
-    }
-    LOG_DEBUG("Performance", "============================");
 }
 
 void Application::togglePerformanceOverlay() {

@@ -10,6 +10,7 @@
 #include "physics/PhysicsWorld.h"
 #include "utils/Timer.h"
 #include "utils/PerformanceProfiler.h"
+#include "utils/PerformanceMonitor.h"
 #include "utils/Frustum.h"
 #include "ui/ImGuiRenderer.h"
 #include "ui/WindowManager.h"
@@ -51,6 +52,7 @@ private:
     std::unique_ptr<Physics::PhysicsWorld> physicsWorld;
     std::unique_ptr<Timer> timer;
     std::unique_ptr<PerformanceProfiler> performanceProfiler;
+    std::unique_ptr<Utils::PerformanceMonitor> performanceMonitor;
     std::unique_ptr<UI::ImGuiRenderer> imguiRenderer;
     std::unique_ptr<Input::InputManager> inputManager;
     std::unique_ptr<ChunkManager> chunkManager;
@@ -63,8 +65,7 @@ private:
     // Application state
     bool isRunning;
 
-    // Frame timing
-    FrameTiming frameTiming;
+    // Frame timing (TODO: Move to PerformanceMonitor)
     float deltaTime;
     int frameCount;
     uint32_t currentFrame = 0;
@@ -74,9 +75,7 @@ private:
     glm::mat4 cachedProjectionMatrix;
     bool projectionMatrixNeedsUpdate = true;
 
-    // Frame profiling
-    std::vector<FrameTiming> frameTimings;
-    std::vector<DetailedFrameTiming> detailedTimings;
+    // Frame profiling timing
     std::chrono::high_resolution_clock::time_point frameStartTime;
     std::chrono::high_resolution_clock::time_point cpuStartTime;
     double lastFrameTime;
@@ -145,17 +144,10 @@ private:
                          float& distance) const;
 
     // Utility methods
-    void updateFrameTiming();
-    void printPerformanceStats();
     void debugCoordinateSystem(); // Debug coordinate conversion and physics positioning
     
     // Color utility methods
     glm::vec3 calculateLighterColor(const glm::vec3& originalColor) const;
-    
-    // Frame profiling methods
-    FrameTiming profileFrame();
-    void printProfilingInfo(int fps);
-    void printDetailedTimings();
     
     // Performance overlay methods
     void togglePerformanceOverlay();
