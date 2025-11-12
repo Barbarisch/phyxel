@@ -1,9 +1,11 @@
 # Refactoring Progress Tracker
 
-**Last Updated:** November 10, 2025  
-**Overall Progress:** 3 of 24 modules (12.5% complete)  
+**Last Updated:** November 11, 2025  
+**Overall Progress:** 5 of 24 modules (21% complete)  
 **Phase 1 Status:** ✅ COMPLETE (2/2 quick wins)
-**Phase 2 Status:** 🔄 IN PROGRESS (1/2 input modules complete)
+**Phase 2 Status:** ✅ COMPLETE (InputManager done)
+**Phase 4 Status:** ✅ COMPLETE (VoxelInteractionSystem done)
+**Phase 5 Status:** ✅ COMPLETE (PerformanceMonitor done)
 
 ---
 
@@ -126,6 +128,94 @@
 
 ---
 
+### 4. ✅ VoxelInteractionSystem (November 2025)
+**Branch:** `refactor/voxel-interaction`  
+**Status:** Committed  
+**Time Spent:** ~8 hours  
+**Lines Reduced:** ~600 lines from Application.cpp
+
+**Files Created:**
+- `include/scene/VoxelInteractionSystem.h` (115 lines)
+- `src/scene/VoxelInteractionSystem.cpp` (658 lines)
+
+**Functions Extracted:**
+- `placeNewCube()` (~75 lines)
+- `removeHoveredCube()` (~75 lines)
+- `subdivideHoveredCube()` (~50 lines)
+- `breakHoveredCube()` (~200 lines)
+- `breakHoveredCubeWithForce()` (~75 lines)
+- `breakHoveredSubcube()` (~50 lines)
+- `breakCubeAtPosition()` (~75 lines)
+- `updateMouseHover()` (~65 lines) - raycasting and hover detection
+- `pickVoxelOptimized()` (~100 lines) - DDA raycasting
+- `resolveSubcubeInVoxel()` (~50 lines)
+- `voxelLocationToCubeLocation()` (~25 lines)
+
+**Key Features:**
+- Complete voxel placement, removal, subdivision, and breaking
+- Mouse hover raycasting with DDA algorithm
+- Physics integration for breaking cubes with force
+- Subcube-level manipulation support
+- Coordinate conversion helpers
+
+**Key Changes:**
+- Centralized all voxel interaction logic in Scene namespace
+- Maintains state for hover detection (m_hoveredCube, m_isHoveringCube)
+- Dependency injection pattern (ChunkManager, PhysicsWorld, InputManager)
+- Clean separation between interaction logic and rendering
+
+**Testing:** ✅ Build successful, runtime verified  
+**Documentation:** Inline documentation in header
+
+**Lessons Learned:**
+- Large extractions benefit from maintaining clear state ownership
+- Raycasting logic is complex enough to warrant its own module
+- Physics integration requires careful coordinate system management
+- Breaking this into smaller methods improved readability
+
+---
+
+### 5. ✅ PerformanceMonitor (November 2025)
+**Branch:** main (direct commit)  
+**Status:** Committed  
+**Time Spent:** ~2 hours  
+**Lines Reduced:** ~152 lines from Application.cpp
+
+**Files Created:**
+- `include/utils/PerformanceMonitor.h` (61 lines)
+- `src/utils/PerformanceMonitor.cpp` (175 lines)
+
+**Functions Extracted:**
+- `updateFrameTiming()` - Update frame CPU/GPU timing
+- `profileFrame()` - Capture and store frame metrics
+- `printPerformanceStats()` - Basic stats output (FPS, vertices, chunks, etc.)
+- `printProfilingInfo()` - Averaged stats over 60 frames with culling efficiency
+- `printDetailedTimings()` - Detailed timing breakdown with percentages
+- `addFrameTiming()` / `addDetailedTiming()` - Maintain rolling 60-frame sample window
+
+**Key Features:**
+- Tracks frame timing (CPU/GPU), rendering stats, and performance metrics
+- Maintains rolling 60-frame window for averaged statistics
+- Provides formatted output for console and ImGui overlay
+- Exposes getters for external systems (ImGui renderer)
+
+**Key Changes:**
+- Moved FrameTiming and DetailedFrameTiming state to PerformanceMonitor
+- Application.cpp reduced from 1,393 to 1,241 lines
+- Total reduction: 53% from original 2,645 lines
+- Clean separation between tracking and rendering logic
+
+**Testing:** ✅ Build successful, runtime verified  
+**Documentation:** Inline documentation in header
+
+**Lessons Learned:**
+- Quick win refactorings maintain momentum
+- Getter methods enable integration with existing UI systems
+- Rolling window pattern works well for performance averaging
+- Batch PowerShell replacements effective but require verification
+
+---
+
 ## In Progress
 
 None currently.
@@ -142,53 +232,53 @@ None currently.
 
 ### Phase 3: Rendering (Future)
 
-#### 5. RenderCoordinator
+#### 6. RenderCoordinator
 **Estimated Time:** 6 hours  
-**Estimated Reduction:** ~400 lines
+**Estimated Reduction:** ~500-600 lines
+
+**Functions to Extract:**
+- Main render loop management
+- `drawFrame()` and render pass coordination
+- Dynamic subcube rendering pipeline
+- Command buffer management
 
 ---
 
-### Phase 4: Voxel Interactions (Future)
+### Phase 6: Initialization (Future)
 
-#### 6. VoxelInteractionSystem
-**Estimated Time:** 6-8 hours  
-**Estimated Reduction:** ~600 lines  
-**Complexity:** High
+#### 7. WorldInitializer
+**Estimated Time:** 4 hours  
+**Estimated Reduction:** ~350-400 lines
 
 **Functions to Extract:**
-- `placeNewCube()` (~75 lines)
-- `removeHoveredCube()` (~75 lines)
-- `subdivideHoveredCube()` (~50 lines)
-- `breakHoveredCube()` (~200 lines)
-- `breakHoveredCubeWithForce()` (~75 lines)
-- `breakHoveredSubcube()` (~50 lines)
-- `breakCubeAtPosition()` (~75 lines)
-- `updateMouseHover()` (~65 lines)
-- `pickVoxelOptimized()` (~100 lines)
-- `resolveSubcubeInVoxel()` (~50 lines)
-- `voxelLocationToCubeLocation()` (~25 lines)
-- Helper functions (~100 lines)
+- World setup and initialization
+- Initial chunk generation
+- Test cube placement
+- Resource loading
 
 ---
 
 ## Statistics
 
 ### Time Investment
-- **Phase 1:** 5 hours (actual) vs 10 hours (estimated) ✅ Under budget
-- **Total Time Spent:** 5 hours
-- **Remaining Estimated:** 55+ hours
-- **Efficiency:** 50% faster than estimated (due to PerformanceProfiler already existing)
+- **Phase 1:** 5 hours (WindowManager, CoordinateUtils)
+- **Phase 2:** 6 hours (InputManager)
+- **Phase 4:** 8 hours (VoxelInteractionSystem)
+- **Phase 5:** 2 hours (PerformanceMonitor)
+- **Total Time Spent:** 21 hours
+- **Remaining Estimated:** ~40+ hours
+- **Efficiency:** Good progress with systematic approach
 
 ### Code Reduction
 - **Application.cpp:** Started at ~2,645 lines
-- **Current:** ~2,500 lines (estimated)
-- **Reduction:** ~145 lines (5.5%)
-- **Target:** ~400 lines (85% reduction needed)
+- **Current:** ~1,241 lines
+- **Reduction:** ~1,404 lines (53%)
+- **Target:** ~400 lines (33% more reduction needed)
 
 ### Module Creation
-- **Completed:** 2 modules (WindowManager, CoordinateUtils)
-- **Remaining:** ~22 modules
-- **Progress:** 8% complete
+- **Completed:** 5 modules (WindowManager, CoordinateUtils, InputManager, VoxelInteractionSystem, PerformanceMonitor)
+- **Remaining:** ~19 modules
+- **Progress:** 21% complete
 
 ---
 
@@ -212,6 +302,8 @@ None currently.
 5. **Mouse action collision** - Multiple actions on same button need composite keys
 6. **Namespace closing braces** - Extra braces cause mysterious compilation errors
 7. **LOG macro formatting** - Some LOG_DEBUG/LOG_TRACE calls incompatible with format strings
+8. **Member variable references** - Batch replacements can miss ImGui/external API calls
+9. **Include path errors** - Timer.h in utils/ not core/, verify correct paths
 
 ### Tools & Techniques
 - **grep_search** - Find all occurrences before changing
@@ -242,26 +334,29 @@ None currently.
 
 ## Statistics Summary
 
-**Total Lines Reduced from Application.cpp:** ~600 lines  
-**Total New Files Created:** 6 files (3 .h + 3 .cpp)  
-**Total Refactorings Complete:** 3  
-**Estimated Remaining in Application.cpp:** ~2000 lines  
-**Next Major Target:** RenderCoordinator or VoxelInteractionSystem
+**Total Lines Reduced from Application.cpp:** ~1,404 lines (53% reduction)  
+**Total New Files Created:** 10 files (5 .h + 5 .cpp)  
+**Total Refactorings Complete:** 5 (WindowManager, CoordinateUtils, InputManager, VoxelInteractionSystem, PerformanceMonitor)  
+**Current Application.cpp Size:** ~1,241 lines (from 2,645 original)  
+**Remaining to Target:** ~841 lines to reach ~400 line goal  
+**Next Major Targets:** RenderCoordinator (~500-600 lines) or WorldInitializer (~350-400 lines)
 
 ---
 
 ## Next Session Goals
 
-**Primary Goal:** Determine next refactoring target  
-**Options:**
-1. RenderCoordinator - Extract rendering loop (~400 lines)
-2. VoxelInteractionSystem - Extract voxel manipulation (~600 lines)
-3. Document current state and plan Phase 3  
-**Success Criteria:**
-- Input handling moved to `input::InputManager`
-- All keyboard/mouse input working
-- Camera controls functional
-- Build successful
-- Application.cpp reduced by ~300 lines
+**Primary Goal:** Continue refactoring toward ~400 line Application.cpp  
+**Best Next Targets:**
+1. **RenderCoordinator** - Extract rendering loop and drawFrame (~500-600 lines) - HIGH IMPACT
+2. **WorldInitializer** - Extract world setup and initialization (~350-400 lines) - MEDIUM IMPACT
 
-**Stretch Goal:** Begin CameraController extraction
+**Success Criteria:**
+- PerformanceMonitor fully functional ✅
+- Build successful ✅
+- Runtime verified ✅
+- Documentation updated ✅
+
+**Next Steps:**
+- Choose between RenderCoordinator (highest impact) or WorldInitializer (easier)
+- Continue systematic extraction process
+- Maintain testing at each step
