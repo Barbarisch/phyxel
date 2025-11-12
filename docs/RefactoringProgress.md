@@ -1,11 +1,12 @@
 # Refactoring Progress Tracker
 
 **Last Updated:** November 11, 2025  
-**Overall Progress:** 5 of 24 modules (21% complete)  
-**Phase 1 Status:** ✅ COMPLETE (2/2 quick wins)
-**Phase 2 Status:** ✅ COMPLETE (InputManager done)
-**Phase 4 Status:** ✅ COMPLETE (VoxelInteractionSystem done)
-**Phase 5 Status:** ✅ COMPLETE (PerformanceMonitor done)
+**Overall Progress:** 6 of 24 modules (25% complete)  
+**Phase 1 Status:** ✅ COMPLETE (WindowManager, CoordinateUtils)
+**Phase 2 Status:** ✅ COMPLETE (InputManager)
+**Phase 3 Status:** ✅ COMPLETE (RenderCoordinator)
+**Phase 4 Status:** ✅ COMPLETE (VoxelInteractionSystem)
+**Phase 5 Status:** ✅ COMPLETE (PerformanceMonitor)
 
 ---
 
@@ -216,6 +217,50 @@
 
 ---
 
+### 6. ✅ RenderCoordinator (November 2025)
+**Branch:** main (direct commit)  
+**Status:** Committed  
+**Time Spent:** ~3 hours  
+**Lines Reduced:** ~334 lines from Application.cpp
+
+**Files Created:**
+- `include/graphics/RenderCoordinator.h` (103 lines)
+- `src/graphics/RenderCoordinator.cpp` (415 lines)
+
+**Functions Extracted:**
+- `render()` - Main render delegation
+- `drawFrame()` - Frame synchronization, swapchain management, command buffer recording (~250 lines)
+- `renderStaticGeometry()` - Static chunk rendering with frustum culling (~80 lines)
+- `renderDynamicSubcubes()` - Dynamic subcube rendering pipeline (~40 lines)
+
+**Key Features:**
+- Complete frame rendering coordination
+- Swapchain recreation and frame synchronization
+- Uniform buffer management and matrix caching
+- Static geometry rendering with multi-level culling (distance, frustum, occlusion)
+- Dynamic subcube rendering with separate pipeline
+- Performance statistics tracking integration
+- Render distance management
+
+**Key Changes:**
+- Centralized all rendering operations in Graphics namespace
+- Maintains state for frame index, cached matrices, render distances
+- Dependency injection pattern (9 dependencies: VulkanDevice, pipelines, managers, etc.)
+- Application.cpp reduced from 1,241 to 907 lines
+- Total reduction: 66% from original 2,645 lines
+
+**Testing:** ✅ Build successful, runtime verified  
+**Documentation:** Inline documentation in header
+
+**Lessons Learned:**
+- Large rendering extractions benefit from careful namespace organization
+- Forward declarations must match actual class namespaces exactly
+- ChunkManager in root namespace, ImGuiRenderer in UI, RenderPipeline in Vulkan
+- Include path errors caught early save debugging time
+- Passing frame state (matrices, timing) requires setter methods on coordinator
+
+---
+
 ## In Progress
 
 None currently.
@@ -263,22 +308,23 @@ None currently.
 ### Time Investment
 - **Phase 1:** 5 hours (WindowManager, CoordinateUtils)
 - **Phase 2:** 6 hours (InputManager)
+- **Phase 3:** 3 hours (RenderCoordinator)
 - **Phase 4:** 8 hours (VoxelInteractionSystem)
 - **Phase 5:** 2 hours (PerformanceMonitor)
-- **Total Time Spent:** 21 hours
-- **Remaining Estimated:** ~40+ hours
-- **Efficiency:** Good progress with systematic approach
+- **Total Time Spent:** 24 hours
+- **Remaining Estimated:** ~35+ hours
+- **Efficiency:** Excellent progress with systematic approach
 
 ### Code Reduction
 - **Application.cpp:** Started at ~2,645 lines
-- **Current:** ~1,241 lines
-- **Reduction:** ~1,404 lines (53%)
-- **Target:** ~400 lines (33% more reduction needed)
+- **Current:** ~907 lines
+- **Reduction:** ~1,738 lines (66%)
+- **Target:** ~400 lines (56% more reduction needed)
 
 ### Module Creation
-- **Completed:** 5 modules (WindowManager, CoordinateUtils, InputManager, VoxelInteractionSystem, PerformanceMonitor)
-- **Remaining:** ~19 modules
-- **Progress:** 21% complete
+- **Completed:** 6 modules (WindowManager, CoordinateUtils, InputManager, VoxelInteractionSystem, PerformanceMonitor, RenderCoordinator)
+- **Remaining:** ~18 modules
+- **Progress:** 25% complete
 
 ---
 
@@ -304,6 +350,8 @@ None currently.
 7. **LOG macro formatting** - Some LOG_DEBUG/LOG_TRACE calls incompatible with format strings
 8. **Member variable references** - Batch replacements can miss ImGui/external API calls
 9. **Include path errors** - Timer.h in utils/ not core/, verify correct paths
+10. **Namespace confusion** - ChunkManager in root, ImGuiRenderer in UI, RenderPipeline in Vulkan
+11. **Forward declarations** - Must match actual class namespaces exactly (not assumed locations)
 
 ### Tools & Techniques
 - **grep_search** - Find all occurrences before changing
@@ -334,29 +382,29 @@ None currently.
 
 ## Statistics Summary
 
-**Total Lines Reduced from Application.cpp:** ~1,404 lines (53% reduction)  
-**Total New Files Created:** 10 files (5 .h + 5 .cpp)  
-**Total Refactorings Complete:** 5 (WindowManager, CoordinateUtils, InputManager, VoxelInteractionSystem, PerformanceMonitor)  
-**Current Application.cpp Size:** ~1,241 lines (from 2,645 original)  
-**Remaining to Target:** ~841 lines to reach ~400 line goal  
-**Next Major Targets:** RenderCoordinator (~500-600 lines) or WorldInitializer (~350-400 lines)
+**Total Lines Reduced from Application.cpp:** ~1,738 lines (66% reduction)  
+**Total New Files Created:** 12 files (6 .h + 6 .cpp)  
+**Total Refactorings Complete:** 6 (WindowManager, CoordinateUtils, InputManager, VoxelInteractionSystem, PerformanceMonitor, RenderCoordinator)  
+**Current Application.cpp Size:** ~907 lines (from 2,645 original)  
+**Remaining to Target:** ~507 lines to reach ~400 line goal  
+**Next Major Targets:** WorldInitializer (~350-400 lines) or other initialization/setup code
 
 ---
 
 ## Next Session Goals
 
 **Primary Goal:** Continue refactoring toward ~400 line Application.cpp  
-**Best Next Targets:**
-1. **RenderCoordinator** - Extract rendering loop and drawFrame (~500-600 lines) - HIGH IMPACT
-2. **WorldInitializer** - Extract world setup and initialization (~350-400 lines) - MEDIUM IMPACT
+**Best Next Target:**
+1. **WorldInitializer** - Extract world setup and initialization (~350-400 lines) - HIGH IMPACT
 
 **Success Criteria:**
-- PerformanceMonitor fully functional ✅
+- RenderCoordinator fully functional ✅
 - Build successful ✅
 - Runtime verified ✅
 - Documentation updated ✅
 
 **Next Steps:**
-- Choose between RenderCoordinator (highest impact) or WorldInitializer (easier)
+- WorldInitializer extraction to handle initialization code
 - Continue systematic extraction process
 - Maintain testing at each step
+- Target reaching ~400 lines or less in Application.cpp
