@@ -46,18 +46,8 @@ Application::~Application() {
 }
 
 bool Application::initialize() {
-    // Initialize logging system first
-    Utils::Logger::loadConfig("logging.ini"); // Load config if exists
-    LOG_INFO("Application", "Initializing VulkanCube Application...");
-    LOG_INFO("Application", "Logging system initialized (check logging.ini for configuration)");
-
-    // Initialize window first
-    if (!initializeWindow()) {
-        LOG_ERROR("Application", "Failed to initialize window!");
-        return false;
-    }
-
     // Create core components
+    windowManager = std::make_unique<UI::WindowManager>();
     vulkanDevice = std::make_unique<Vulkan::VulkanDevice>();
     renderPipeline = std::make_unique<Vulkan::RenderPipeline>(*vulkanDevice);
     dynamicRenderPipeline = std::make_unique<Vulkan::RenderPipeline>(*vulkanDevice);
@@ -66,122 +56,35 @@ bool Application::initialize() {
     timer = std::make_unique<Timer>();
     chunkManager = std::make_unique<ChunkManager>();
 
-    // Initialize subsystems
-    if (!initializeVulkan()) {
-        LOG_ERROR("Application", "Failed to initialize Vulkan!");
+    // Create WorldInitializer with all dependencies
+    worldInitializer = std::make_unique<Core::WorldInitializer>(
+        windowManager.get(),
+        inputManager.get(),
+        vulkanDevice.get(),
+        renderPipeline.get(),
+        dynamicRenderPipeline.get(),
+        sceneManager.get(),
+        physicsWorld.get(),
+        timer.get(),
+        chunkManager.get(),
+        forceSystem.get(),
+        mouseVelocityTracker.get(),
+        performanceProfiler.get(),
+        performanceMonitor.get(),
+        imguiRenderer.get()
+    );
+
+    // Configure render distances
+    worldInitializer->setMaxChunkRenderDistance(maxChunkRenderDistance);
+    worldInitializer->setChunkInclusionDistance(chunkInclusionDistance);
+
+    // Delegate all initialization to WorldInitializer
+    if (!worldInitializer->initialize()) {
+        LOG_ERROR("Application", "WorldInitializer failed!");
         return false;
     }
 
-    // Load shaders for pipelines (after Vulkan is initialized)
-    if (!renderPipeline->loadShaders("shaders/cube.vert.spv", "shaders/cube.frag.spv")) {
-        LOG_ERROR("Application", "Failed to load static pipeline shaders!");
-        return false;
-    }
-    
-    if (!dynamicRenderPipeline->loadShaders("shaders/dynamic_subcube.vert.spv", "shaders/cube.frag.spv")) {
-        LOG_ERROR("Application", "Failed to load dynamic pipeline shaders!");
-        return false;
-    }
-
-    // Initialize texture atlas system
-    if (!initializeTextureAtlas()) {
-        LOG_ERROR("Application", "Failed to initialize texture atlas!");
-        return false;
-    }
-
-    // Initialize chunk manager after Vulkan is ready
-    chunkManager->initialize(vulkanDevice->getDevice(), vulkanDevice->getPhysicalDevice());
-    
-    // Set physics world for proper cleanup of dynamic objects
-    chunkManager->setPhysicsWorld(physicsWorld.get());
-    
-    // Initialize world storage for persistent chunks
-    if (!chunkManager->initializeWorldStorage("worlds/default.db")) {
-        LOG_WARN("Application", "Failed to initialize world storage. Using temporary chunks.");
-    }
-    
-    // Create chunks
-    //auto origins = MultiChunkDemo::createLinearChunks(10);
-    //auto origins = MultiChunkDemo::createGridChunks(5, 5);
-    auto origins = MultiChunkDemo::create3DGridChunks(2, 2, 2);
-    
-    // Debug: Print chunk origins
-    LOG_DEBUG("Application", "=== CHUNK ORIGINS ===");
-    for (size_t i = 0; i < origins.size(); ++i) {
-        LOG_DEBUG_FMT("Application", "Chunk " << i << " origin: (" << origins[i].x << "," << origins[i].y << "," << origins[i].z << ")");
-    }
-    LOG_DEBUG("Application", "=====================");
-    
-    // Load chunks from database or generate if they don't exist
-    for (const auto& origin : origins) {
-        glm::ivec3 chunkCoord = chunkManager->worldToChunkCoord(origin);
-        chunkManager->generateOrLoadChunk(chunkCoord);
-    }
-    
-    // Rebuild faces for all chunks AFTER all are loaded (critical for cross-chunk culling)
-    chunkManager->rebuildAllChunkFaces();
-    
-    // Initialize hash maps for optimized O(1) hover detection
-    chunkManager->initializeAllChunkVoxelMaps();
-    
-    // Calculate face culling optimization after chunk creation (DISABLED for now)
-    // chunkManager->calculateChunkFaceCulling();
-    
-    // Cross-chunk occlusion culling is now handled in rebuildAllChunkFaces()
-    // chunkManager->performOcclusionCulling();
-    
-    LOG_INFO_FMT("Application", "Created " << chunkManager->chunks.size() << " chunks for testing");
-
-    // if (!initializeScene()) {
-    //     std::cerr << "Failed to initialize scene!" << std::endl;
-    //     return false;
-    // }
-
-    // Initialize input manager and register actions
-    if (!inputManager->initialize(windowManager->getHandle())) {
-        LOG_ERROR("Application", "Failed to initialize input manager!");
-        return false;
-    }
-    
-    // Set up initial camera position and orientation
-    inputManager->setCameraPosition(glm::vec3(50.0f, 50.0f, 50.0f));
-    glm::vec3 lookAt = glm::normalize(glm::vec3(16.0f, 16.0f, 16.0f) - glm::vec3(50.0f, 50.0f, 50.0f));
-    inputManager->setCameraFront(lookAt);
-    inputManager->setYawPitch(-135.0f, -30.0f);
-    
-    // Register mouse position callback for mouse velocity tracker
-    inputManager->setMousePositionCallback([this](double x, double y) {
-        mouseVelocityTracker->updatePosition(x, y);
-    });
-    
-    // Register all input actions
-    initializeInputActions();
-
-    if (!initializePhysics()) {
-        LOG_ERROR("Application", "Failed to initialize physics!");
-        return false;
-    }
-
-    // Create physics bodies for all chunks AFTER physics world is initialized
-    // Each chunk will be a compound shape made from individual cube collision boxes
-    LOG_INFO("Application", "Creating chunk physics bodies...");
-    for (auto& chunk : chunkManager->chunks) {
-        chunk->setPhysicsWorld(physicsWorld.get());
-        chunk->createChunkPhysicsBody();
-    }
-
-    if (!loadAssets()) {
-        LOG_ERROR("Application", "Failed to load assets!");
-        return false;
-    }
-
-    // Initialize ImGui after Vulkan is fully set up
-    if (!imguiRenderer->initialize(windowManager->getHandle(), vulkanDevice.get(), renderPipeline.get())) {
-        LOG_ERROR("Application", "Failed to initialize ImGui!");
-        return false;
-    }
-
-    // Initialize VoxelInteractionSystem after all dependencies are created
+    // Initialize VoxelInteractionSystem after WorldInitializer (dependencies are ready)
     voxelInteractionSystem = std::make_unique<VoxelInteractionSystem>(
         chunkManager.get(),
         physicsWorld.get(),
@@ -191,7 +94,7 @@ bool Application::initialize() {
     );
     LOG_INFO("Application", "VoxelInteractionSystem initialized successfully!");
 
-    // Initialize RenderCoordinator after all rendering dependencies are created
+    // Initialize RenderCoordinator after WorldInitializer (dependencies are ready)
     renderCoordinator = std::make_unique<Graphics::RenderCoordinator>(
         vulkanDevice.get(),
         renderPipeline.get(),
@@ -207,8 +110,9 @@ bool Application::initialize() {
     renderCoordinator->setChunkInclusionDistance(chunkInclusionDistance);
     LOG_INFO("Application", "RenderCoordinator initialized successfully!");
 
-    timer->start();
-    LOG_INFO("Application", "Application initialized successfully!");
+    // Register all input actions (kept in Application)
+    initializeInputActions();
+
     return true;
 }
 
@@ -390,229 +294,6 @@ void Application::setTitle(const std::string& title) {
     }
 }
 
-bool Application::initializeVulkan() {
-    // Create Vulkan instance first
-    if (!vulkanDevice->createInstance()) {
-        LOG_ERROR("Application", "Failed to create Vulkan instance!");
-        return false;
-    }
-
-    // Setup debug messenger
-    if (!vulkanDevice->setupDebugMessenger()) {
-        LOG_ERROR("Application", "Failed to setup debug messenger!");
-        return false;
-    }
-
-    // Create Vulkan surface with the window (must be done before device selection)
-    if (!vulkanDevice->createSurface(windowManager->getHandle())) {
-        LOG_ERROR("Application", "Failed to create Vulkan surface!");
-        return false;
-    }
-
-    // Now pick physical device and create logical device
-    if (!vulkanDevice->pickPhysicalDevice()) {
-        LOG_ERROR("Application", "Failed to pick physical device!");
-        return false;
-    }
-
-    if (!vulkanDevice->createLogicalDevice()) {
-        LOG_ERROR("Application", "Failed to create logical device!");
-        return false;
-    }
-
-    // Create swapchain
-    if (!vulkanDevice->createSwapChain(windowManager->getWidth(), windowManager->getHeight())) {
-        LOG_ERROR("Application", "Failed to create swapchain!");
-        return false;
-    }
-
-    // Create render pass
-    if (!renderPipeline->createRenderPass()) {
-        LOG_ERROR("Application", "Failed to create render pass!");
-        return false;
-    }
-
-    // Create depth resources
-    if (!vulkanDevice->createDepthResources()) {
-        LOG_ERROR("Application", "Failed to create depth resources!");
-        return false;
-    }
-
-    // Create framebuffers
-    if (!vulkanDevice->createFramebuffers(renderPipeline->getRenderPass())) {
-        LOG_ERROR("Application", "Failed to create framebuffers!");
-        return false;
-    }
-
-    // Load shaders for static pipeline
-    if (!renderPipeline->loadShaders("shaders/cube.vert.spv", "shaders/cube.frag.spv")) {
-        LOG_ERROR("Application", "Failed to load static graphics shaders!");
-        return false;
-    }
-
-    // Load shaders for dynamic subcube pipeline
-    if (!dynamicRenderPipeline->loadShaders("shaders/dynamic_subcube.vert.spv", "shaders/cube.frag.spv")) {
-        LOG_ERROR("Application", "Failed to load dynamic subcube graphics shaders!");
-        return false;
-    }
-
-    // TODO: Compute shader functionality for frustum culling (experimental/incomplete)
-    /*
-    if (!renderPipeline->loadComputeShader("shaders/frustum_cull.comp.spv")) {
-        LOG_ERROR("Application", "Failed to load compute shader!");
-        return false;
-    }
-    */
-
-    // Create descriptor set layout before graphics pipeline
-    if (!vulkanDevice->createDescriptorSetLayout()) {
-        LOG_ERROR("Application", "Failed to create descriptor set layout!");
-        return false;
-    }
-
-    if (!renderPipeline->createGraphicsPipeline()) {
-        LOG_ERROR("Application", "Failed to create static graphics pipeline!");
-        return false;
-    }
-
-    if (!dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes()) {
-        LOG_ERROR("Application", "Failed to create dynamic graphics pipeline!");
-        return false;
-    }
-
-    // TODO: Compute pipeline functionality (experimental/incomplete)
-    /*
-    if (!renderPipeline->createComputePipeline()) {
-        return false;
-    }
-    */
-
-    // Note: Compute descriptor sets will be created after scene initialization
-    // when we have actual AABB data to bind
-
-    // Create command buffers
-    if (!vulkanDevice->createCommandBuffers()) {
-        LOG_ERROR("Application", "Failed to create command buffers!");
-        return false;
-    }
-
-    // Create rendering buffers
-    if (!vulkanDevice->createVertexBuffer()) {
-        LOG_ERROR("Application", "Failed to create vertex buffer!");
-        return false;
-    }
-
-    if (!vulkanDevice->createIndexBuffer()) {
-        LOG_ERROR("Application", "Failed to create index buffer!");
-        return false;
-    }
-
-    if (!vulkanDevice->createInstanceBuffer()) {
-        LOG_ERROR("Application", "Failed to create instance buffer!");
-        return false;
-    }
-
-    // Create dynamic subcube buffer (support up to 1000 dynamic subcubes)
-    if (!vulkanDevice->createDynamicSubcubeBuffer(1000)) {
-        LOG_ERROR("Application", "Failed to create dynamic subcube buffer!");
-        return false;
-    }
-
-    // TODO: Frustum culling buffers functionality (experimental/incomplete)
-    /*
-    // Create frustum culling buffers (support up to 35,000 instances)
-    if (!vulkanDevice->createFrustumCullingBuffers(35000)) {
-        LOG_ERROR("Application", "Failed to create frustum culling buffers!");
-        return false;
-    }
-    */
-
-    // Create dynamic subcube buffer (support up to 1000 dynamic subcubes)
-    if (!vulkanDevice->createDynamicSubcubeBuffer(1000)) {
-        LOG_ERROR("Application", "Failed to create dynamic subcube buffer!");
-        return false;
-    }
-
-    if (!vulkanDevice->createUniformBuffers()) {
-        LOG_ERROR("Application", "Failed to create uniform buffers!");
-        return false;
-    }
-
-    if (!vulkanDevice->createDescriptorPool()) {
-        LOG_ERROR("Application", "Failed to create descriptor pool!");
-        return false;
-    }
-
-    // TODO: Compute descriptor pool functionality (experimental/incomplete)
-    /*
-    if (!vulkanDevice->createComputeDescriptorPool()) {
-        LOG_ERROR("Application", "Failed to create compute descriptor pool!");
-        return false;
-    }
-    */
-
-    if (!vulkanDevice->createDescriptorSets()) {
-        LOG_ERROR("Application", "Failed to create descriptor sets!");
-        return false;
-    }
-
-    // Create synchronization objects
-    if (!vulkanDevice->createSyncObjects()) {
-        LOG_ERROR("Application", "Failed to create sync objects!");
-        return false;
-    }
-
-    LOG_INFO("Application", "Vulkan subsystem initialized successfully");
-    return true;
-}
-
-bool Application::initializeTextureAtlas() {
-    LOG_INFO("Application", "Initializing texture atlas system...");
-    
-    // Load the texture atlas
-    if (!vulkanDevice->loadTextureAtlas("resources/textures/cube_atlas.png")) {
-        LOG_ERROR("Application", "Failed to load texture atlas!");
-        return false;
-    }
-    
-    // Create the texture sampler
-    if (!vulkanDevice->createTextureAtlasSampler()) {
-        LOG_ERROR("Application", "Failed to create texture atlas sampler!");
-        return false;
-    }
-    
-    // Update descriptor sets with texture binding
-    vulkanDevice->updateDescriptorSetsWithTexture();
-    
-    LOG_INFO("Application", "Texture atlas system initialized successfully");
-    return true;
-}
-
-bool Application::initializeScene() {
-    // Scene initialization now handled by ChunkManager
-    // No need for separate scene manager initialization
-
-    LOG_INFO("Application", "Scene subsystem initialized successfully");
-    return true;
-}
-
-bool Application::initializePhysics() {
-    if (!physicsWorld->initialize()) {
-        return false;
-    }
-
-    LOG_INFO("Application", "Physics subsystem initialized successfully (static cubes excluded)");
-    return true;
-}
-
-bool Application::loadAssets() {
-    // Load textures, models, etc.
-    // For now, just return true as we have basic cube rendering
-    
-    LOG_INFO("Application", "Assets loaded successfully");
-    return true;
-}
-
 void Application::update(float deltaTime) {
     this->deltaTime = deltaTime;
     
@@ -717,29 +398,6 @@ void Application::render() {
 void Application::handleInput() {
     // Process keyboard and mouse input through InputManager
     inputManager->processInput(deltaTime);
-}
-
-bool Application::initializeWindow() {
-    LOG_INFO("Application", "Initializing window");
-    
-    windowManager = std::make_unique<UI::WindowManager>();
-    
-    if (!windowManager->initialize(1200, 720, "Phyxel - Voxel Physics Engine")) {
-        LOG_ERROR("Application", "Failed to initialize window manager");
-        return false;
-    }
-    
-    // Register resize callback
-    windowManager->setResizeCallback([this](int w, int h) {
-        LOG_DEBUG("Application", "Window resized to {}x{}", w, h);
-        projectionMatrixNeedsUpdate = true;
-    });
-    
-    // Set GLFW window user pointer for callbacks (Application*, not WindowManager*)
-    glfwSetWindowUserPointer(windowManager->getHandle(), this);
-    
-    LOG_INFO("Application", "Window initialization complete");
-    return true;
 }
 
 void Application::initializeInputActions() {

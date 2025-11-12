@@ -18,6 +18,7 @@
 #include "input/InputManager.h"
 #include "core/ChunkManager.h"
 #include "core/ForceSystem.h"
+#include "core/WorldInitializer.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -59,6 +60,7 @@ private:
     std::unique_ptr<ChunkManager> chunkManager;
     std::unique_ptr<VoxelInteractionSystem> voxelInteractionSystem;
     std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;
+    std::unique_ptr<Core::WorldInitializer> worldInitializer;
 
     // Force-based breaking system
     std::unique_ptr<ForceSystem> forceSystem;
@@ -111,14 +113,6 @@ private:
     float getChunkInclusionDistance() const { return chunkInclusionDistance; }
     void setRenderDistance(float distance);
     void setChunkInclusionDistance(float distance);
-
-    // Initialization methods
-    bool initializeWindow();
-    bool initializeVulkan();
-    bool initializeTextureAtlas();
-    bool initializePhysics();
-    bool initializeScene();
-    bool loadAssets();
 
     // Main loop
     void update(float deltaTime);
