@@ -31,7 +31,7 @@ void main() {
     uint subcubeLocalX = (subcubeData >> 1) & 0x3u;     // bits 19-20: local X (0-2)
     uint subcubeLocalY = (subcubeData >> 3) & 0x3u;     // bits 21-22: local Y (0-2)
     uint subcubeLocalZ = (subcubeData >> 5) & 0x3u;     // bits 23-24: local Z (0-2)
-    // bits 25-31 reserved for future use
+    // bits 25-31 reserved for future use (microcubes, etc.)
     
     // Calculate base position (parent cube position for subcubes, cube position for regular cubes)
     vec3 chunkRelativePos = vec3(float(chunkX), float(chunkY), float(chunkZ));

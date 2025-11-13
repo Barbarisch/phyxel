@@ -35,24 +35,24 @@ echo Using shader compiler: %GLSLANG%
 
 if defined USE_GLSLC (
     echo Using glslc syntax...
-    echo Compiling vertex shader...
-    %GLSLANG% -fshader-stage=vert -I. shaders\cube.vert -o shaders\cube.vert.spv
+    echo Compiling static voxel vertex shader...
+    %GLSLANG% -fshader-stage=vert -I. shaders\static_voxel.vert -o shaders\static_voxel.vert.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile vertex shader
         pause
         exit /b 1
     )
 
-    echo Compiling dynamic subcube vertex shader...
-    %GLSLANG% -fshader-stage=vert -I. shaders\dynamic_subcube.vert -o shaders\dynamic_subcube.vert.spv
+    echo Compiling dynamic voxel vertex shader...
+    %GLSLANG% -fshader-stage=vert -I. shaders\dynamic_voxel.vert -o shaders\dynamic_voxel.vert.spv
     if %errorlevel% neq 0 (
-        echo ERROR: Failed to compile dynamic subcube vertex shader
+        echo ERROR: Failed to compile dynamic voxel vertex shader
         pause
         exit /b 1
     )
 
-    echo Compiling fragment shader...
-    %GLSLANG% -fshader-stage=frag -I. shaders\cube.frag -o shaders\cube.frag.spv
+    echo Compiling voxel fragment shader...
+    %GLSLANG% -fshader-stage=frag -I. shaders\voxel.frag -o shaders\voxel.frag.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile fragment shader
         pause
@@ -68,24 +68,24 @@ if defined USE_GLSLC (
     )
 ) else (
     echo Using glslangValidator syntax...
-    echo Compiling vertex shader...
-    %GLSLANG% -V -I. shaders\cube.vert -o shaders\cube.vert.spv
+    echo Compiling static voxel vertex shader...
+    %GLSLANG% -V -I. shaders\static_voxel.vert -o shaders\static_voxel.vert.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile vertex shader
         pause
         exit /b 1
     )
 
-    echo Compiling dynamic subcube vertex shader...
-    %GLSLANG% -V -I. shaders\dynamic_subcube.vert -o shaders\dynamic_subcube.vert.spv
+    echo Compiling dynamic voxel vertex shader...
+    %GLSLANG% -V -I. shaders\dynamic_voxel.vert -o shaders\dynamic_voxel.vert.spv
     if %errorlevel% neq 0 (
-        echo ERROR: Failed to compile dynamic subcube vertex shader
+        echo ERROR: Failed to compile dynamic voxel vertex shader
         pause
         exit /b 1
     )
 
-    echo Compiling fragment shader...
-    %GLSLANG% -V -I. shaders\cube.frag -o shaders\cube.frag.spv
+    echo Compiling voxel fragment shader...
+    %GLSLANG% -V -I. shaders\voxel.frag -o shaders\voxel.frag.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile fragment shader
         pause

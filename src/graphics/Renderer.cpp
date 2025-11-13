@@ -173,12 +173,12 @@ bool Renderer::initializeVulkan() {
 
 bool Renderer::loadShaders() {
     // Load shaders for pipelines
-    if (!renderPipeline->loadShaders("shaders/cube.vert.spv", "shaders/cube.frag.spv")) {
+    if (!renderPipeline->loadShaders("shaders/static_voxel.vert.spv", "shaders/voxel.frag.spv")) {
         LOG_ERROR("Rendering", "Failed to load static pipeline shaders!");
         return false;
     }
     
-    if (!dynamicRenderPipeline->loadShaders("shaders/dynamic_subcube.vert.spv", "shaders/cube.frag.spv")) {
+    if (!dynamicRenderPipeline->loadShaders("shaders/dynamic_voxel.vert.spv", "shaders/voxel.frag.spv")) {
         LOG_ERROR("Rendering", "Failed to load dynamic pipeline shaders!");
         return false;
     }

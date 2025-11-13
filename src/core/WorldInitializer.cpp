@@ -67,12 +67,12 @@ bool WorldInitializer::initialize() {
     }
 
     // Load shaders for pipelines (after Vulkan is initialized)
-    if (!renderPipeline->loadShaders("shaders/cube.vert.spv", "shaders/cube.frag.spv")) {
+    if (!renderPipeline->loadShaders("shaders/static_voxel.vert.spv", "shaders/voxel.frag.spv")) {
         LOG_ERROR("WorldInitializer", "Failed to load static pipeline shaders!");
         return false;
     }
     
-    if (!dynamicRenderPipeline->loadShaders("shaders/dynamic_subcube.vert.spv", "shaders/cube.frag.spv")) {
+    if (!dynamicRenderPipeline->loadShaders("shaders/dynamic_voxel.vert.spv", "shaders/voxel.frag.spv")) {
         LOG_ERROR("WorldInitializer", "Failed to load dynamic pipeline shaders!");
         return false;
     }
@@ -244,13 +244,13 @@ bool WorldInitializer::initializeVulkan() {
     }
 
     // Load shaders for static pipeline
-    if (!renderPipeline->loadShaders("shaders/cube.vert.spv", "shaders/cube.frag.spv")) {
+    if (!renderPipeline->loadShaders("shaders/static_voxel.vert.spv", "shaders/voxel.frag.spv")) {
         LOG_ERROR("WorldInitializer", "Failed to load static graphics shaders!");
         return false;
     }
 
     // Load shaders for dynamic subcube pipeline
-    if (!dynamicRenderPipeline->loadShaders("shaders/dynamic_subcube.vert.spv", "shaders/cube.frag.spv")) {
+    if (!dynamicRenderPipeline->loadShaders("shaders/dynamic_voxel.vert.spv", "shaders/voxel.frag.spv")) {
         LOG_ERROR("WorldInitializer", "Failed to load dynamic subcube graphics shaders!");
         return false;
     }
