@@ -6,7 +6,6 @@
 #include "vulkan/VulkanDevice.h"
 #include "vulkan/RenderPipeline.h"
 #include "graphics/RenderCoordinator.h"
-#include "scene/SceneManager.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "physics/PhysicsWorld.h"
 #include "utils/Timer.h"
@@ -43,30 +42,41 @@ public:
     void setTitle(const std::string& title);
 
 private:
-    // Window management
+    // ============================================================================
+    // CORE SYSTEMS (Ownership)
+    // ============================================================================
+    
+    // Window and display
     std::unique_ptr<UI::WindowManager> windowManager;
     
-    // Core components
-    std::unique_ptr<Vulkan::VulkanDevice> vulkanDevice;
-    std::unique_ptr<Vulkan::RenderPipeline> renderPipeline;         // Static cubes and static subcubes
-    std::unique_ptr<Vulkan::RenderPipeline> dynamicRenderPipeline;  // Dynamic subcubes with physics
-    std::unique_ptr<Scene::SceneManager> sceneManager;             // Still in use for legacy cube rendering
-    std::unique_ptr<Physics::PhysicsWorld> physicsWorld;
-    std::unique_ptr<Timer> timer;
-    std::unique_ptr<PerformanceProfiler> performanceProfiler;
-    std::unique_ptr<Utils::PerformanceMonitor> performanceMonitor;
-    std::unique_ptr<UI::ImGuiRenderer> imguiRenderer;
-    std::unique_ptr<Input::InputManager> inputManager;
-    std::unique_ptr<ChunkManager> chunkManager;
-    std::unique_ptr<VoxelInteractionSystem> voxelInteractionSystem;
-    std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;
-    std::unique_ptr<Core::WorldInitializer> worldInitializer;
+    // Rendering pipeline
+    std::unique_ptr<Vulkan::VulkanDevice> vulkanDevice;                // Low-level Vulkan operations
+    std::unique_ptr<Vulkan::RenderPipeline> renderPipeline;            // Static geometry pipeline
+    std::unique_ptr<Vulkan::RenderPipeline> dynamicRenderPipeline;     // Dynamic objects pipeline
+    std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;    // Coordinates all rendering
+    std::unique_ptr<UI::ImGuiRenderer> imguiRenderer;                  // Debug UI rendering
+    
+    // World and physics
+    std::unique_ptr<ChunkManager> chunkManager;                        // Voxel world management
+    std::unique_ptr<Physics::PhysicsWorld> physicsWorld;               // Bullet physics simulation
+    std::unique_ptr<VoxelInteractionSystem> voxelInteractionSystem;    // Cube/subcube interaction
+    std::unique_ptr<ForceSystem> forceSystem;                          // Force propagation system
+    
+    // Input and interaction
+    std::unique_ptr<Input::InputManager> inputManager;                 // Keyboard/mouse input
+    std::unique_ptr<MouseVelocityTracker> mouseVelocityTracker;        // Mouse velocity tracking
+    
+    // Performance and timing
+    std::unique_ptr<Timer> timer;                                      // Game loop timing
+    std::unique_ptr<PerformanceProfiler> performanceProfiler;          // Frame profiling
+    std::unique_ptr<Utils::PerformanceMonitor> performanceMonitor;     // Performance metrics
+    
+    // Initialization
+    std::unique_ptr<Core::WorldInitializer> worldInitializer;          // Handles initialization
 
-    // Force-based breaking system
-    std::unique_ptr<ForceSystem> forceSystem;
-    std::unique_ptr<MouseVelocityTracker> mouseVelocityTracker;
-
-    // Application state
+    // ============================================================================
+    // APPLICATION STATE
+    // ============================================================================
     bool isRunning;
 
     // Frame timing

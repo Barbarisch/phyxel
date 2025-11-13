@@ -51,7 +51,6 @@ bool Application::initialize() {
     vulkanDevice = std::make_unique<Vulkan::VulkanDevice>();
     renderPipeline = std::make_unique<Vulkan::RenderPipeline>(*vulkanDevice);
     dynamicRenderPipeline = std::make_unique<Vulkan::RenderPipeline>(*vulkanDevice);
-    sceneManager = std::make_unique<Scene::SceneManager>();
     physicsWorld = std::make_unique<Physics::PhysicsWorld>();
     timer = std::make_unique<Timer>();
     chunkManager = std::make_unique<ChunkManager>();
@@ -63,7 +62,6 @@ bool Application::initialize() {
         vulkanDevice.get(),
         renderPipeline.get(),
         dynamicRenderPipeline.get(),
-        sceneManager.get(),
         physicsWorld.get(),
         timer.get(),
         chunkManager.get(),
@@ -260,10 +258,6 @@ void Application::cleanup() {
         vulkanDevice->cleanup();
     }
     
-    if (sceneManager) {
-        sceneManager->cleanup();
-    }
-    
     if (physicsWorld) {
         physicsWorld->cleanup();
     }
@@ -275,7 +269,6 @@ void Application::cleanup() {
     renderPipeline.reset();
     dynamicRenderPipeline.reset();
     vulkanDevice.reset();
-    sceneManager.reset();
     physicsWorld.reset();
     timer.reset();
     imguiRenderer.reset();

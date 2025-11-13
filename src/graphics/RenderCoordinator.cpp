@@ -226,49 +226,6 @@ void RenderCoordinator::drawFrame() {
     vulkanDevice->resetCommandBuffer(currentFrame);
     vulkanDevice->beginCommandBuffer(currentFrame);
     
-    // TODO: GPU frustum culling functionality (experimental/incomplete)
-    /*
-    // Perform GPU frustum culling BEFORE rendering
-    auto frustumCullingStart = std::chrono::high_resolution_clock::now();
-    vulkanDevice->dispatchFrustumCulling(currentFrame, renderPipeline.get(), static_cast<uint32_t>(cubeCount));
-    auto frustumCullingEnd = std::chrono::high_resolution_clock::now();
-    
-    // Download GPU visibility results for performance stats (every 10 frames)
-    static int cullStatsCounter = 0;
-    if (++cullStatsCounter >= 10) {
-        cullStatsCounter = 0;
-        
-        std::vector<uint32_t> visibilityResults = vulkanDevice->downloadVisibilityResults(static_cast<uint32_t>(cubeCount));
-        
-        // Calculate statistics
-        uint32_t totalObjects = static_cast<uint32_t>(visibilityResults.size());
-        uint32_t visibleObjects = 0;
-        for (uint32_t visible : visibilityResults) {
-            if (visible) visibleObjects++;
-        }
-        uint32_t culledObjects = totalObjects - visibleObjects;
-        
-        // Calculate GPU compute time in milliseconds
-        double frustumCullingTimeMs = std::chrono::duration<double, std::milli>(
-            frustumCullingEnd - frustumCullingStart
-        ).count();
-        
-        // Record actual GPU frustum culling statistics
-        // std::cout << "[DEBUG] Performance stats: Total=" << totalObjects 
-        //           << ", Visible=" << visibleObjects 
-        //           << ", Culled=" << culledObjects 
-        //           << " (" << (100.0f * culledObjects / totalObjects) << "% culled)"
-        //           << ", Time=" << frustumCullingTimeMs << "ms" << std::endl;
-        // std::cout << "[DEBUG] Camera pos: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")" << std::endl;
-        
-        // Store results for UI display
-        lastVisibleInstances = visibleObjects;
-        lastCulledInstances = culledObjects;
-        
-        performanceProfiler->recordFrustumCulling(totalObjects, culledObjects, frustumCullingTimeMs);
-    }
-    */
-    
     // Record occlusion culling statistics from chunk manager
     if (chunkManager && !chunkManager->chunks.empty()) {
         // Get occlusion stats from chunk manager

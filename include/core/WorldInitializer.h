@@ -15,7 +15,6 @@ namespace VulkanCube {
         class VulkanDevice;
         class RenderPipeline;
     }
-    namespace Scene { class SceneManager; }
     namespace Physics { class PhysicsWorld; }
     namespace Graphics { class RenderCoordinator; }
     namespace Utils { 
@@ -50,7 +49,6 @@ public:
         Vulkan::VulkanDevice* vulkanDevice,
         Vulkan::RenderPipeline* renderPipeline,
         Vulkan::RenderPipeline* dynamicRenderPipeline,
-        Scene::SceneManager* sceneManager,
         Physics::PhysicsWorld* physicsWorld,
         Timer* timer,
         ChunkManager* chunkManager,
@@ -84,7 +82,6 @@ private:
     Vulkan::VulkanDevice* vulkanDevice;
     Vulkan::RenderPipeline* renderPipeline;
     Vulkan::RenderPipeline* dynamicRenderPipeline;
-    Scene::SceneManager* sceneManager;
     Physics::PhysicsWorld* physicsWorld;
     Timer* timer;
     ChunkManager* chunkManager;

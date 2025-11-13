@@ -3,7 +3,6 @@
 #include "input/InputManager.h"
 #include "vulkan/VulkanDevice.h"
 #include "vulkan/RenderPipeline.h"
-#include "scene/SceneManager.h"
 #include "physics/PhysicsWorld.h"
 #include "core/ChunkManager.h"
 #include "core/ForceSystem.h"
@@ -24,7 +23,6 @@ WorldInitializer::WorldInitializer(
     Vulkan::VulkanDevice* vulkanDevice,
     Vulkan::RenderPipeline* renderPipeline,
     Vulkan::RenderPipeline* dynamicRenderPipeline,
-    Scene::SceneManager* sceneManager,
     Physics::PhysicsWorld* physicsWorld,
     Timer* timer,
     ChunkManager* chunkManager,
@@ -39,7 +37,6 @@ WorldInitializer::WorldInitializer(
     , vulkanDevice(vulkanDevice)
     , renderPipeline(renderPipeline)
     , dynamicRenderPipeline(dynamicRenderPipeline)
-    , sceneManager(sceneManager)
     , physicsWorld(physicsWorld)
     , timer(timer)
     , chunkManager(chunkManager)
