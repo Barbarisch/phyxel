@@ -452,7 +452,12 @@ void Chunk::initializeForLoading() {
 }
 
 void Chunk::rebuildFaces() {
-    // std::cout << "[CHUNK] *** STARTING rebuildFaces() *** Current subcubes: " << subcubes.size() << std::endl;
+    // Call the cross-chunk version without a neighbor lookup function
+    // This will only do intra-chunk culling
+    rebuildFaces(nullptr);
+}
+
+void Chunk::rebuildFaces(const NeighborLookupFunc& getNeighborCube) {
     faces.clear();
     
     // ========================================================================
@@ -487,14 +492,20 @@ void Chunk::rebuildFaces() {
                 neighborPos.y >= 0 && neighborPos.y < 32 &&
                 neighborPos.z >= 0 && neighborPos.z < 32) {
                 
-                // Check if there's a visible cube at the neighbor position
+                // Neighbor within chunk - check directly
                 const Cube* neighborCube = getCubeAt(neighborPos);
                 if (neighborCube && neighborCube->isVisible()) {
-                    // Neighbor cube exists and is visible, so this face is occluded
+                    faceVisible[faceID] = false;
+                }
+            } else if (getNeighborCube) {
+                // Neighbor outside chunk - use cross-chunk lookup if available
+                glm::ivec3 neighborWorldPos = worldOrigin + neighborPos;
+                const Cube* neighborCube = getNeighborCube(neighborWorldPos);
+                if (neighborCube && neighborCube->isVisible()) {
                     faceVisible[faceID] = false;
                 }
             }
-            // If neighbor is outside chunk bounds, face remains visible (edge of chunk)
+            // If no cross-chunk lookup provided, face at boundary remains visible
         }
         
         // Generate instance data for each visible face of the cube
@@ -502,13 +513,12 @@ void Chunk::rebuildFaces() {
             if (faceVisible[faceID]) {
                 InstanceData faceInstance;
                 
-                // Pack cube position (5 bits each) and face ID (3 bits)
-                // Bit layout: [0-4]=x, [5-9]=y, [10-14]=z, [15-17]=faceID, [18]=subcube_flag(0), [19-31]=reserved
+                // Pack cube position and face ID using new layout
+                // Scale level 0 = regular cube
                 const glm::ivec3& cubePos = cube->getPosition();
-                uint32_t subcubeData = 0; // Regular cube: subcube_flag=0, rest=0
-                faceInstance.packedData = (cubePos.x & 0x1F) | ((cubePos.y & 0x1F) << 5) | 
-                                         ((cubePos.z & 0x1F) << 10) | ((faceID & 0x7) << 15) |
-                                         (subcubeData << 18);
+                faceInstance.packedData = VulkanCube::InstanceDataUtils::packCubeFaceData(
+                    cubePos.x, cubePos.y, cubePos.z, faceID
+                );
                 
                 // Assign texture based on face ID
                 faceInstance.textureIndex = VulkanCube::TextureConstants::getTextureIndexForFace(faceID);
@@ -521,10 +531,6 @@ void Chunk::rebuildFaces() {
     // ========================================================================
     // PHASE 2: Process subcubes (from subdivided cubes)
     // ========================================================================
-    // PHASE 2: Process static subcubes only (dynamic subcubes use different rendering pipeline)
-    // ========================================================================
-    // std::cout << "[CHUNK] Processing " << staticSubcubes.size() << " static subcubes in PHASE 2..." << std::endl;
-    int subcubeProcessed = 0;
     for (const Subcube* subcube : staticSubcubes) {
         // Skip broken or hidden subcubes (broken subcubes should be in dynamic list)
         if (!subcube || subcube->isBroken() || !subcube->isVisible()) {
@@ -539,12 +545,6 @@ void Chunk::rebuildFaces() {
         // Get subcube properties
         glm::ivec3 parentPos = subcube->getPosition();     // Parent cube's world position
         glm::ivec3 localPos = subcube->getLocalPosition(); // 0-2 for each axis within parent
-        
-        // std::cout << "[CHUNK] Processing subcube " << subcubeProcessed << " at parent world pos (" 
-        //           << parentPos.x << "," << parentPos.y << "," << parentPos.z 
-        //           << ") local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
-        //           << ") color (" << subcube->getColor().x << "," << subcube->getColor().y << "," << subcube->getColor().z << ")" << std::endl;
-        subcubeProcessed++;
         
         // Convert parent world position to chunk-relative position
         glm::ivec3 parentChunkPos = parentPos - worldOrigin;
@@ -569,17 +569,13 @@ void Chunk::rebuildFaces() {
             if (faceVisible[faceID]) {
                 InstanceData faceInstance;
                 
-                // Pack parent cube position (5 bits each), face ID (3 bits), and subcube data
-                // Bit layout: [0-4]=parent_x, [5-9]=parent_y, [10-14]=parent_z, [15-17]=faceID, 
-                //             [18]=subcube_flag(1), [19-20]=local_x, [21-22]=local_y, [23-24]=local_z, [25-31]=reserved
-                uint32_t subcubeData = (1 << 0) |                           // subcube_flag = 1
-                                      ((localPos.x & 0x3) << 1) |          // local_x (2 bits)
-                                      ((localPos.y & 0x3) << 3) |          // local_y (2 bits)
-                                      ((localPos.z & 0x3) << 5);           // local_z (2 bits)
-                
-                faceInstance.packedData = (parentChunkPos.x & 0x1F) | ((parentChunkPos.y & 0x1F) << 5) | 
-                                         ((parentChunkPos.z & 0x1F) << 10) | ((faceID & 0x7) << 15) |
-                                         (subcubeData << 18);
+                // Pack parent cube position, face ID, and subcube local position using new layout
+                // Scale level 1 = subcube
+                faceInstance.packedData = VulkanCube::InstanceDataUtils::packSubcubeFaceData(
+                    parentChunkPos.x, parentChunkPos.y, parentChunkPos.z,
+                    faceID,
+                    localPos.x, localPos.y, localPos.z
+                );
                 
                 // Assign texture based on face ID
                 faceInstance.textureIndex = VulkanCube::TextureConstants::getTextureIndexForFace(faceID);

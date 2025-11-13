@@ -25,13 +25,20 @@ void main() {
     // Extract face ID from packed data (3 bits)
     uint faceID = (inPackedData >> 15) & 0x7u;  // bits 15-17
     
-    // Extract subcube data from bits 18-31
-    uint subcubeData = (inPackedData >> 18) & 0x3FFFu;  // bits 18-31 (14 bits total)
-    bool isSubcube = (subcubeData & 0x1u) != 0u;        // bit 18: subcube flag
-    uint subcubeLocalX = (subcubeData >> 1) & 0x3u;     // bits 19-20: local X (0-2)
-    uint subcubeLocalY = (subcubeData >> 3) & 0x3u;     // bits 21-22: local Y (0-2)
-    uint subcubeLocalZ = (subcubeData >> 5) & 0x3u;     // bits 23-24: local Z (0-2)
-    // bits 25-31 reserved for future use (microcubes, etc.)
+    // Extract scale level and hierarchy data (NEW MICROCUBE SUPPORT)
+    uint scaleLevel = (inPackedData >> 18) & 0x3u;      // bits 18-19: scale level (0=cube, 1=subcube, 2=microcube)
+    uint subcubeEncoded = (inPackedData >> 20) & 0x3Fu; // bits 20-25: parent subcube position (encoded 3x3x3)
+    uint microcubeEncoded = (inPackedData >> 26) & 0x3Fu; // bits 26-31: microcube position (encoded 3x3x3)
+    
+    // Decode subcube position from 6-bit encoding (x + y*3 + z*9)
+    uint subcubeLocalX = subcubeEncoded % 3u;
+    uint subcubeLocalY = (subcubeEncoded / 3u) % 3u;
+    uint subcubeLocalZ = subcubeEncoded / 9u;
+    
+    // Decode microcube position from 6-bit encoding
+    uint microcubeLocalX = microcubeEncoded % 3u;
+    uint microcubeLocalY = (microcubeEncoded / 3u) % 3u;
+    uint microcubeLocalZ = microcubeEncoded / 9u;
     
     // Calculate base position (parent cube position for subcubes, cube position for regular cubes)
     vec3 chunkRelativePos = vec3(float(chunkX), float(chunkY), float(chunkZ));
@@ -82,22 +89,52 @@ void main() {
     }
     
     vec3 worldPos;
+    float scale;
     
-    if (isSubcube) {
-        // For subcubes: apply 1/3 scaling and local positioning within parent cube
-        const float SUBCUBE_SCALE = 1.0 / 3.0;
+    if (scaleLevel == 0u) {
+        // Regular cube (1.0 scale)
+        scale = 1.0;
+        worldPos = basePos + faceOffset;
         
-        // Calculate subcube offset within parent cube (each subcube is 1/3 size)
+    } else if (scaleLevel == 1u) {
+        // Subcube (1/3 scale)
+        const float SUBCUBE_SCALE = 1.0 / 3.0;
+        scale = SUBCUBE_SCALE;
+        
+        // Calculate subcube offset within parent cube
         vec3 subcubeOffset = vec3(
             float(subcubeLocalX) * SUBCUBE_SCALE,
             float(subcubeLocalY) * SUBCUBE_SCALE,
             float(subcubeLocalZ) * SUBCUBE_SCALE
         );
         
-        // Scale the face offset to subcube size and add to base position + subcube offset
         worldPos = basePos + subcubeOffset + (faceOffset * SUBCUBE_SCALE);
+        
+    } else if (scaleLevel == 2u) {
+        // Microcube (1/9 scale)
+        const float SUBCUBE_SCALE = 1.0 / 3.0;
+        const float MICROCUBE_SCALE = 1.0 / 9.0;
+        scale = MICROCUBE_SCALE;
+        
+        // Calculate subcube offset within parent cube
+        vec3 subcubeOffset = vec3(
+            float(subcubeLocalX) * SUBCUBE_SCALE,
+            float(subcubeLocalY) * SUBCUBE_SCALE,
+            float(subcubeLocalZ) * SUBCUBE_SCALE
+        );
+        
+        // Calculate microcube offset within subcube
+        vec3 microcubeOffset = vec3(
+            float(microcubeLocalX) * MICROCUBE_SCALE,
+            float(microcubeLocalY) * MICROCUBE_SCALE,
+            float(microcubeLocalZ) * MICROCUBE_SCALE
+        );
+        
+        worldPos = basePos + subcubeOffset + microcubeOffset + (faceOffset * MICROCUBE_SCALE);
+        
     } else {
-        // For regular cubes: use standard 1.0 scale
+        // Reserved scale level (fallback to cube)
+        scale = 1.0;
         worldPos = basePos + faceOffset;
     }
     
@@ -129,12 +166,16 @@ void main() {
         baseUV = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
     }
     
-    // For subcubes: modify UV to only sample 1/3 of the texture (6x6 out of 18x18)
-    if (isSubcube) {
-        const float SUBCUBE_UV_SCALE = 1.0 / 3.0;  // Each subcube uses 1/3 of texture
+    // Apply texture coordinate scaling based on scale level
+    if (scaleLevel == 0u) {
+        // Regular cube: use full texture
+        uv = baseUV;
+        
+    } else if (scaleLevel == 1u) {
+        // Subcube: modify UV to sample 1/3 of texture (6x6 out of 18x18)
+        const float SUBCUBE_UV_SCALE = 1.0 / 3.0;
         
         // Map the 3x3x3 subcube grid to 2D texture coordinates based on face orientation
-        // Each face needs specific coordinate mapping and flipping to match texture orientation
         vec2 subcubeGridPos = vec2(0.0);
         
         if (faceID == 0u) {        // North (Front) - Y flipped
@@ -153,8 +194,51 @@ void main() {
         
         // Scale the base UV to subcube size and add offset for this subcube's position
         uv = (baseUV * SUBCUBE_UV_SCALE) + (subcubeGridPos * SUBCUBE_UV_SCALE);
+        
+    } else if (scaleLevel == 2u) {
+        // Microcube: modify UV to sample 1/9 of texture (2x2 out of 18x18)
+        const float SUBCUBE_UV_SCALE = 1.0 / 3.0;
+        const float MICROCUBE_UV_SCALE = 1.0 / 9.0;
+        
+        // First, get the subcube's UV region
+        vec2 subcubeGridPos = vec2(0.0);
+        if (faceID == 0u) {
+            subcubeGridPos = vec2(float(subcubeLocalX), float(2u - subcubeLocalY));
+        } else if (faceID == 1u) {
+            subcubeGridPos = vec2(float(subcubeLocalX), float(subcubeLocalY));
+        } else if (faceID == 2u) {
+            subcubeGridPos = vec2(float(2u - subcubeLocalZ), float(2u - subcubeLocalY));
+        } else if (faceID == 3u) {
+            subcubeGridPos = vec2(float(subcubeLocalZ), float(2u - subcubeLocalY));
+        } else if (faceID == 4u) {
+            subcubeGridPos = vec2(float(2u - subcubeLocalX), float(2u - subcubeLocalZ));
+        } else if (faceID == 5u) {
+            subcubeGridPos = vec2(float(subcubeLocalX), float(2u - subcubeLocalZ));
+        }
+        
+        // Then, get the microcube's position within that subcube
+        vec2 microcubeGridPos = vec2(0.0);
+        if (faceID == 0u) {
+            microcubeGridPos = vec2(float(microcubeLocalX), float(2u - microcubeLocalY));
+        } else if (faceID == 1u) {
+            microcubeGridPos = vec2(float(microcubeLocalX), float(microcubeLocalY));
+        } else if (faceID == 2u) {
+            microcubeGridPos = vec2(float(2u - microcubeLocalZ), float(2u - microcubeLocalY));
+        } else if (faceID == 3u) {
+            microcubeGridPos = vec2(float(microcubeLocalZ), float(2u - microcubeLocalY));
+        } else if (faceID == 4u) {
+            microcubeGridPos = vec2(float(2u - microcubeLocalX), float(2u - microcubeLocalZ));
+        } else if (faceID == 5u) {
+            microcubeGridPos = vec2(float(microcubeLocalX), float(2u - microcubeLocalZ));
+        }
+        
+        // Combine: subcube offset + microcube offset within subcube
+        vec2 subcubeUVBase = subcubeGridPos * SUBCUBE_UV_SCALE;
+        vec2 microcubeUVOffset = microcubeGridPos * MICROCUBE_UV_SCALE;
+        uv = (baseUV * MICROCUBE_UV_SCALE) + subcubeUVBase + microcubeUVOffset;
+        
     } else {
-        // Regular cube: use full texture
+        // Reserved: default to full texture
         uv = baseUV;
     }
     

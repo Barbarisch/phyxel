@@ -160,20 +160,72 @@ struct CubeFaces {
 
 // Utility functions for packing/unpacking instance data
 namespace InstanceDataUtils {
-    // Bit layout in packedData:
-    // Bits 0-4:   X position (5 bits)
-    // Bits 5-9:   Y position (5 bits) 
-    // Bits 10-14: Z position (5 bits)
-    // Bits 15-20: Face mask (6 bits)
-    // Bits 21-31: Available for future features (11 bits) - subcube scaling, material ID, etc.
+    // Bit layout in packedData (NEW MICROCUBE SUPPORT):
+    // Bits 0-4:   X position (5 bits) - cube position in chunk
+    // Bits 5-9:   Y position (5 bits) - cube position in chunk
+    // Bits 10-14: Z position (5 bits) - cube position in chunk
+    // Bits 15-17: Face ID (3 bits) - which face 0-5
+    // Bits 18-19: Scale level (2 bits) - 0=cube, 1=subcube, 2=microcube, 3=reserved
+    // Bits 20-25: Parent subcube encoded position (6 bits) - x+y*3+z*9 for 3x3x3 grid
+    // Bits 26-31: Microcube encoded position (6 bits) - x+y*3+z*9 for 3x3x3 grid within subcube
     
-    // Pack all data into uint32_t
+    // Encode 3D position in 3x3x3 grid to 6 bits (0-26 range)
+    inline uint32_t encodeGrid3x3x3(uint32_t x, uint32_t y, uint32_t z) {
+        return (x & 0x3) + ((y & 0x3) * 3) + ((z & 0x3) * 9);
+    }
+    
+    // Decode 6-bit value back to 3D position in 3x3x3 grid
+    inline void decodeGrid3x3x3(uint32_t encoded, uint32_t& x, uint32_t& y, uint32_t& z) {
+        x = encoded % 3;
+        y = (encoded / 3) % 3;
+        z = encoded / 9;
+    }
+    
+    // Pack all data into uint32_t (OLD - for backward compatibility)
     inline uint32_t packInstanceData(uint32_t x, uint32_t y, uint32_t z, uint32_t faceMask, uint32_t futureData = 0) {
         return (x & 0x1F) |
                ((y & 0x1F) << 5) |
                ((z & 0x1F) << 10) |
                ((faceMask & 0x3F) << 15) |
                ((futureData & 0x7FF) << 21);
+    }
+    
+    // Pack cube face data with new microcube-aware layout
+    inline uint32_t packCubeFaceData(uint32_t x, uint32_t y, uint32_t z, uint32_t faceID) {
+        // Scale level 0 (cube), parent subcube 0, microcube 0
+        return (x & 0x1F) |
+               ((y & 0x1F) << 5) |
+               ((z & 0x1F) << 10) |
+               ((faceID & 0x7) << 15) |
+               (0 << 18);  // scale level = 0
+    }
+    
+    // Pack subcube face data with new layout
+    inline uint32_t packSubcubeFaceData(uint32_t parentX, uint32_t parentY, uint32_t parentZ,
+                                        uint32_t faceID, uint32_t localX, uint32_t localY, uint32_t localZ) {
+        uint32_t subcubeEncoded = encodeGrid3x3x3(localX, localY, localZ);
+        return (parentX & 0x1F) |
+               ((parentY & 0x1F) << 5) |
+               ((parentZ & 0x1F) << 10) |
+               ((faceID & 0x7) << 15) |
+               (1 << 18) |  // scale level = 1
+               ((subcubeEncoded & 0x3F) << 20);
+    }
+    
+    // Pack microcube face data with new layout
+    inline uint32_t packMicrocubeFaceData(uint32_t parentX, uint32_t parentY, uint32_t parentZ,
+                                          uint32_t faceID, 
+                                          uint32_t subcubeX, uint32_t subcubeY, uint32_t subcubeZ,
+                                          uint32_t microX, uint32_t microY, uint32_t microZ) {
+        uint32_t subcubeEncoded = encodeGrid3x3x3(subcubeX, subcubeY, subcubeZ);
+        uint32_t microcubeEncoded = encodeGrid3x3x3(microX, microY, microZ);
+        return (parentX & 0x1F) |
+               ((parentY & 0x1F) << 5) |
+               ((parentZ & 0x1F) << 10) |
+               ((faceID & 0x7) << 15) |
+               (2 << 18) |  // scale level = 2
+               ((subcubeEncoded & 0x3F) << 20) |
+               ((microcubeEncoded & 0x3F) << 26);
     }
     
     // Pack face mask into 6-bit value

@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <memory>
+#include <functional>
 #include <vulkan/vulkan.h>
 
 // Bullet Physics forward declarations (global namespace)
@@ -241,7 +242,12 @@ public:
     // Chunk operations
     void populateWithCubes();                      // Fill chunk with 32x32x32 cubes
     void initializeForLoading();                   // Initialize empty chunk for database loading
-    void rebuildFaces();                           // Regenerate face data from cubes
+    void rebuildFaces();                           // Regenerate face data from cubes (intra-chunk culling only)
+    
+    // Overload for cross-chunk culling: accepts a function to check neighbors in adjacent chunks
+    using NeighborLookupFunc = std::function<const Cube*(const glm::ivec3& worldPos)>;
+    void rebuildFaces(const NeighborLookupFunc& getNeighborCube);
+    
     void updateVulkanBuffer();                     // Update GPU buffer with face data
     
     // Efficient partial updates for hover effects (avoids full rebuild)

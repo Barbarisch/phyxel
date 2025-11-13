@@ -373,178 +373,21 @@ void ChunkManager::rebuildChunkFaces(Chunk& chunk) {
 }
 
 void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
-    chunk.faces.clear();
-    
-    // Get chunk's world origin for cross-chunk lookups
-    glm::ivec3 chunkOrigin = chunk.getWorldOrigin();
-    
-    // Face culling with cross-chunk adjacency checks
-    for (size_t cubeIndex = 0; cubeIndex < chunk.cubes.size(); ++cubeIndex) {
-        const Cube* cube = chunk.cubes[cubeIndex];
+    // Provide a neighbor lookup function that can check cubes in adjacent chunks
+    auto getNeighborCube = [this, &chunk](const glm::ivec3& worldPos) -> const Cube* {
+        glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
+        Chunk* neighborChunk = getChunkAtCoord(chunkCoord);
         
-        // Skip deleted cubes (nullptr) or hidden cubes (subdivided)
-        if (!cube || !cube->isVisible()) continue;
-        
-        // Calculate which faces are visible by checking adjacent positions
-        bool faceVisible[6] = {true, true, true, true, true, true};
-        
-        // Face directions: 0=front(+Z), 1=back(-Z), 2=right(+X), 3=left(-X), 4=top(+Y), 5=bottom(-Y)
-        glm::ivec3 cubePos = cube->getPosition();
-        glm::ivec3 localNeighbors[6] = {
-            cubePos + glm::ivec3(0, 0, 1),   // front (+Z)
-            cubePos + glm::ivec3(0, 0, -1),  // back (-Z)
-            cubePos + glm::ivec3(1, 0, 0),   // right (+X)
-            cubePos + glm::ivec3(-1, 0, 0),  // left (-X)
-            cubePos + glm::ivec3(0, 1, 0),   // top (+Y)
-            cubePos + glm::ivec3(0, -1, 0)   // bottom (-Y)
-        };
-        
-        // Check each face for occlusion by adjacent cubes
-        for (int faceID = 0; faceID < 6; ++faceID) {
-            glm::ivec3 neighborLocalPos = localNeighbors[faceID];
-            glm::ivec3 neighborWorldPos = chunkOrigin + neighborLocalPos;
-            
-            // Check if neighbor position is within current chunk bounds
-            if (neighborLocalPos.x >= 0 && neighborLocalPos.x < 32 &&
-                neighborLocalPos.y >= 0 && neighborLocalPos.y < 32 &&
-                neighborLocalPos.z >= 0 && neighborLocalPos.z < 32) {
-                
-                // Neighbor is within same chunk - check directly
-                const Cube* neighborCube = chunk.getCubeAt(neighborLocalPos);
-                if (neighborCube && neighborCube->isVisible()) {
-                    faceVisible[faceID] = false;
-                }
-            } else {
-                // Neighbor is outside chunk bounds - check in adjacent chunk
-                glm::ivec3 neighborChunkCoord = worldToChunkCoord(neighborWorldPos);
-                Chunk* neighborChunk = getChunkAtCoord(neighborChunkCoord);
-                
-                if (neighborChunk) {
-                    glm::ivec3 neighborLocalInAdjacentChunk = worldToLocalCoord(neighborWorldPos);
-                    
-                    // Debug output for boundary cubes
-                    if ((cubePos.x == 0 || cubePos.x == 31 || 
-                         cubePos.y == 0 || cubePos.y == 31 || 
-                         cubePos.z == 0 || cubePos.z == 31) && 
-                        cubeIndex < 10) { // Only log first few boundary cubes to avoid spam
-                        // std::cout << "[DEBUG] Boundary cube check: chunk origin(" 
-                        //           << chunkOrigin.x << "," << chunkOrigin.y << "," << chunkOrigin.z 
-                        //           << ") cube local(" << cubePos.x << "," << cubePos.y << "," << cubePos.z 
-                        //           << ") face " << faceID << " neighbor world(" << neighborWorldPos.x << "," << neighborWorldPos.y << "," << neighborWorldPos.z
-                        //           << ") neighbor chunk coord(" << neighborChunkCoord.x << "," << neighborChunkCoord.y << "," << neighborChunkCoord.z
-                        //           << ") neighbor local(" << neighborLocalInAdjacentChunk.x << "," << neighborLocalInAdjacentChunk.y << "," << neighborLocalInAdjacentChunk.z 
-                        //           << ") neighbor chunk origin(" << neighborChunk->getWorldOrigin().x << "," << neighborChunk->getWorldOrigin().y << "," << neighborChunk->getWorldOrigin().z << ")" << std::endl;
-                    }
-                    
-                    const Cube* neighborCube = neighborChunk->getCubeAt(neighborLocalInAdjacentChunk);
-                    if (neighborCube && neighborCube->isVisible()) {
-                        faceVisible[faceID] = false;
-                        
-                        // Debug successful culling
-                        // if ((cubePos.x == 0 || cubePos.x == 31 || 
-                        //      cubePos.y == 0 || cubePos.y == 31 || 
-                        //      cubePos.z == 0 || cubePos.z == 31) && 
-                        //     cubeIndex < 5) {
-                        //     std::cout << "[DEBUG] Successfully culled face " << faceID << " for boundary cube" << std::endl;
-                        // }
-                    }
-                } else {
-                    // Debug when no adjacent chunk is found - this is correct behavior for world edges
-                    // if ((cubePos.x == 0 || cubePos.x == 31 || 
-                    //      cubePos.y == 0 || cubePos.y == 31 || 
-                    //      cubePos.z == 0 || cubePos.z == 31) && 
-                    //     cubeIndex < 5) {
-                    //     std::cout << "[DEBUG] No adjacent chunk found for neighbor world(" 
-                    //               << neighborWorldPos.x << "," << neighborWorldPos.y << "," << neighborWorldPos.z 
-                    //               << ") chunk coord(" << neighborChunkCoord.x << "," << neighborChunkCoord.y << "," << neighborChunkCoord.z 
-                    //               << ") - face remains visible (world edge)" << std::endl;
-                    // }
-                }
-                // If no adjacent chunk exists, face remains visible (edge of world)
-            }
+        if (neighborChunk) {
+            glm::ivec3 localPos = worldToLocalCoord(worldPos);
+            return neighborChunk->getCubeAt(localPos);
         }
         
-        // Generate instance data for each visible face
-        for (int faceID = 0; faceID < 6; ++faceID) {
-            if (faceVisible[faceID]) {
-                InstanceData faceInstance;
-                
-                // Pack cube position (5 bits each) and face ID (3 bits)
-                // Convert world position to chunk-relative position
-                glm::ivec3 cubeChunkPos = cubePos - chunkOrigin;
-                uint32_t subcubeData = 0; // Regular cube: subcube_flag=0, rest=0
-                
-                faceInstance.packedData = (cubeChunkPos.x & 0x1F) | ((cubeChunkPos.y & 0x1F) << 5) | 
-                                         ((cubeChunkPos.z & 0x1F) << 10) | ((faceID & 0x7) << 15) |
-                                         (subcubeData << 18);
-                
-                faceInstance.textureIndex = TextureConstants::getTextureIndexForFace(faceID);
-                chunk.faces.push_back(faceInstance);
-            }
-        }
-    }
+        return nullptr;
+    };
     
-    // ========================================================================
-    // PHASE 2: Process static subcubes (from subdivided cubes)
-    // ========================================================================
-    const auto& staticSubcubes = chunk.getStaticSubcubes();
-    for (const Subcube* subcube : staticSubcubes) {
-        // Skip broken or hidden subcubes (broken subcubes should be in dynamic list)
-        if (!subcube || subcube->isBroken() || !subcube->isVisible()) {
-            continue;
-        }
-        
-        // Get subcube properties
-        glm::ivec3 parentPos = subcube->getPosition();     // Parent cube's world position
-        glm::ivec3 localPos = subcube->getLocalPosition(); // 0-2 for each axis within parent
-        
-        // Convert parent world position to chunk-relative position
-        glm::ivec3 parentChunkPos = parentPos - chunkOrigin;
-        
-        // Validate parent position is within chunk bounds
-        if (parentChunkPos.x < 0 || parentChunkPos.x >= 32 ||
-            parentChunkPos.y < 0 || parentChunkPos.y >= 32 ||
-            parentChunkPos.z < 0 || parentChunkPos.z >= 32) {
-            continue; // Skip subcubes with invalid parent positions
-        }
-        
-        // Calculate which faces are visible by checking adjacent subcubes/cubes
-        bool faceVisible[6] = {true, true, true, true, true, true};
-        
-        // For subcubes, we need more sophisticated occlusion culling:
-        // - Check against other subcubes in the same parent cube
-        // - Check against neighboring cubes/subcubes
-        // For now, simplified: assume all subcube faces are visible (we can optimize later)
-        
-        // Generate instance data for each visible face of the subcube
-        for (int faceID = 0; faceID < 6; ++faceID) {
-            if (faceVisible[faceID]) {
-                InstanceData faceInstance;
-                
-                // Pack parent cube position (5 bits each), face ID (3 bits), and subcube data
-                // Bit layout: [0-4]=parent_x, [5-9]=parent_y, [10-14]=parent_z, [15-17]=faceID, 
-                //             [18]=subcube_flag(1), [19-20]=local_x, [21-22]=local_y, [23-24]=local_z, [25-31]=reserved
-                uint32_t subcubeData = (1 << 0) |                           // subcube_flag = 1
-                                      ((localPos.x & 0x3) << 1) |          // local_x (2 bits)
-                                      ((localPos.y & 0x3) << 3) |          // local_y (2 bits)
-                                      ((localPos.z & 0x3) << 5);           // local_z (2 bits)
-                
-                faceInstance.packedData = (parentChunkPos.x & 0x1F) | ((parentChunkPos.y & 0x1F) << 5) | 
-                                         ((parentChunkPos.z & 0x1F) << 10) | ((faceID & 0x7) << 15) |
-                                         (subcubeData << 18);
-                
-                faceInstance.textureIndex = TextureConstants::getTextureIndexForFace(faceID);
-                chunk.faces.push_back(faceInstance);
-            }
-        }
-    }
-    
-    chunk.numInstances = static_cast<uint32_t>(chunk.faces.size());
-    chunk.setNeedsUpdate(true);
-    
-    // std::cout << "[CHUNKMANAGER] Rebuilt faces with cross-chunk culling for chunk at origin (" 
-    //           << chunkOrigin.x << "," << chunkOrigin.y << "," << chunkOrigin.z 
-    //           << "), generated " << chunk.numInstances << " visible faces" << std::endl;
+    // Call rebuildFaces with cross-chunk neighbor lookup enabled
+    chunk.rebuildFaces(getNeighborCube);
 }
 
 // ===============================================================
