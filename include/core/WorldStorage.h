@@ -71,9 +71,11 @@ private:
     sqlite3_stmt* insertChunkStmt = nullptr;
     sqlite3_stmt* insertCubeStmt = nullptr;
     sqlite3_stmt* insertSubcubeStmt = nullptr;
+    sqlite3_stmt* insertMicrocubeStmt = nullptr;
     sqlite3_stmt* selectChunkStmt = nullptr;
     sqlite3_stmt* selectCubesStmt = nullptr;
     sqlite3_stmt* selectSubcubesStmt = nullptr;
+    sqlite3_stmt* selectMicrocubesStmt = nullptr;
     sqlite3_stmt* deleteChunkStmt = nullptr;
     sqlite3_stmt* deleteCubeStmt = nullptr;
     
@@ -94,6 +96,7 @@ private:
     
     bool loadCubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk);
     bool loadSubcubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk);
+    bool loadMicrocubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk);
 };
 
 } // namespace VulkanCube

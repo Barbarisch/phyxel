@@ -49,6 +49,7 @@ bool WorldStorage::beginTransaction() { return false; }
 bool WorldStorage::commitTransaction() { return false; }
 bool WorldStorage::rollbackTransaction() { return false; }
 bool WorldStorage::loadSubcubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk) { return false; }
+bool WorldStorage::loadMicrocubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk) { return false; }
 
 } // namespace VulkanCube
 
@@ -157,10 +158,33 @@ bool WorldStorage::createTables() {
                 REFERENCES cubes(chunk_x, chunk_y, chunk_z, local_x, local_y, local_z)
         );
         
+        -- Microcubes table for subdivided subcubes
+        CREATE TABLE IF NOT EXISTS microcubes (
+            chunk_x INTEGER NOT NULL,
+            chunk_y INTEGER NOT NULL,
+            chunk_z INTEGER NOT NULL,
+            local_x INTEGER NOT NULL,
+            local_y INTEGER NOT NULL,
+            local_z INTEGER NOT NULL,
+            sub_x INTEGER NOT NULL CHECK(sub_x >= 0 AND sub_x < 3),
+            sub_y INTEGER NOT NULL CHECK(sub_y >= 0 AND sub_y < 3),
+            sub_z INTEGER NOT NULL CHECK(sub_z >= 0 AND sub_z < 3),
+            micro_x INTEGER NOT NULL CHECK(micro_x >= 0 AND micro_x < 3),
+            micro_y INTEGER NOT NULL CHECK(micro_y >= 0 AND micro_y < 3),
+            micro_z INTEGER NOT NULL CHECK(micro_z >= 0 AND micro_z < 3),
+            color_r REAL NOT NULL,
+            color_g REAL NOT NULL,
+            color_b REAL NOT NULL,
+            PRIMARY KEY (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z, sub_x, sub_y, sub_z, micro_x, micro_y, micro_z),
+            FOREIGN KEY (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z) 
+                REFERENCES cubes(chunk_x, chunk_y, chunk_z, local_x, local_y, local_z)
+        );
+        
         -- Spatial indexing for fast chunk queries
         CREATE INDEX IF NOT EXISTS idx_chunks_coord ON chunks(chunk_x, chunk_y, chunk_z);
         CREATE INDEX IF NOT EXISTS idx_cubes_chunk ON cubes(chunk_x, chunk_y, chunk_z);
         CREATE INDEX IF NOT EXISTS idx_subcubes_chunk ON subcubes(chunk_x, chunk_y, chunk_z);
+        CREATE INDEX IF NOT EXISTS idx_microcubes_chunk ON microcubes(chunk_x, chunk_y, chunk_z);
     )";
     
     char* errorMsg = nullptr;
@@ -193,6 +217,12 @@ bool WorldStorage::prepareStatements() {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     )";
     
+    const char* insertMicrocubeSQL = R"(
+        INSERT OR REPLACE INTO microcubes 
+        (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z, sub_x, sub_y, sub_z, micro_x, micro_y, micro_z, color_r, color_g, color_b) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    )";
+    
     // Select statements  
     const char* selectChunkSQL = R"(
         SELECT 1 FROM chunks WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;
@@ -208,6 +238,11 @@ bool WorldStorage::prepareStatements() {
         FROM subcubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;
     )";
     
+    const char* selectMicrocubesSQL = R"(
+        SELECT local_x, local_y, local_z, sub_x, sub_y, sub_z, micro_x, micro_y, micro_z, color_r, color_g, color_b 
+        FROM microcubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;
+    )";
+    
     const char* deleteChunkSQL = R"(
         DELETE FROM chunks WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;
     )";
@@ -220,9 +255,11 @@ bool WorldStorage::prepareStatements() {
     return (sqlite3_prepare_v2(db, insertChunkSQL, -1, &insertChunkStmt, nullptr) == SQLITE_OK &&
             sqlite3_prepare_v2(db, insertCubeSQL, -1, &insertCubeStmt, nullptr) == SQLITE_OK &&
             sqlite3_prepare_v2(db, insertSubcubeSQL, -1, &insertSubcubeStmt, nullptr) == SQLITE_OK &&
+            sqlite3_prepare_v2(db, insertMicrocubeSQL, -1, &insertMicrocubeStmt, nullptr) == SQLITE_OK &&
             sqlite3_prepare_v2(db, selectChunkSQL, -1, &selectChunkStmt, nullptr) == SQLITE_OK &&
             sqlite3_prepare_v2(db, selectCubesSQL, -1, &selectCubesStmt, nullptr) == SQLITE_OK &&
             sqlite3_prepare_v2(db, selectSubcubesSQL, -1, &selectSubcubesStmt, nullptr) == SQLITE_OK &&
+            sqlite3_prepare_v2(db, selectMicrocubesSQL, -1, &selectMicrocubesStmt, nullptr) == SQLITE_OK &&
             sqlite3_prepare_v2(db, deleteChunkSQL, -1, &deleteChunkStmt, nullptr) == SQLITE_OK &&
             sqlite3_prepare_v2(db, deleteCubeSQL, -1, &deleteCubeStmt, nullptr) == SQLITE_OK);
 }
@@ -231,9 +268,11 @@ void WorldStorage::finalizeStatements() {
     if (insertChunkStmt) { sqlite3_finalize(insertChunkStmt); insertChunkStmt = nullptr; }
     if (insertCubeStmt) { sqlite3_finalize(insertCubeStmt); insertCubeStmt = nullptr; }
     if (insertSubcubeStmt) { sqlite3_finalize(insertSubcubeStmt); insertSubcubeStmt = nullptr; }
+    if (insertMicrocubeStmt) { sqlite3_finalize(insertMicrocubeStmt); insertMicrocubeStmt = nullptr; }
     if (selectChunkStmt) { sqlite3_finalize(selectChunkStmt); selectChunkStmt = nullptr; }
     if (selectCubesStmt) { sqlite3_finalize(selectCubesStmt); selectCubesStmt = nullptr; }
     if (selectSubcubesStmt) { sqlite3_finalize(selectSubcubesStmt); selectSubcubesStmt = nullptr; }
+    if (selectMicrocubesStmt) { sqlite3_finalize(selectMicrocubesStmt); selectMicrocubesStmt = nullptr; }
     if (deleteChunkStmt) { sqlite3_finalize(deleteChunkStmt); deleteChunkStmt = nullptr; }
     if (deleteCubeStmt) { sqlite3_finalize(deleteCubeStmt); deleteCubeStmt = nullptr; }
 }
@@ -264,12 +303,15 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
         // CRITICAL: For dirty chunks, delete existing data first to handle deletions properly
         const char* deleteCubesSQL = "DELETE FROM cubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?";
         const char* deleteSubcubesSQL = "DELETE FROM subcubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?";
+        const char* deleteMicrocubesSQL = "DELETE FROM microcubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?";
         
         sqlite3_stmt* deleteCubesStmt = nullptr;
         sqlite3_stmt* deleteSubcubesStmt = nullptr;
+        sqlite3_stmt* deleteMicrocubesStmt = nullptr;
         
         if (sqlite3_prepare_v2(db, deleteCubesSQL, -1, &deleteCubesStmt, nullptr) != SQLITE_OK ||
-            sqlite3_prepare_v2(db, deleteSubcubesSQL, -1, &deleteSubcubesStmt, nullptr) != SQLITE_OK) {
+            sqlite3_prepare_v2(db, deleteSubcubesSQL, -1, &deleteSubcubesStmt, nullptr) != SQLITE_OK ||
+            sqlite3_prepare_v2(db, deleteMicrocubesSQL, -1, &deleteMicrocubesStmt, nullptr) != SQLITE_OK) {
             LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to prepare delete statements: " << sqlite3_errmsg(db));
             if (ownTransaction) rollbackTransaction();
             return false;
@@ -291,8 +333,16 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
         int deletedSubcubes = sqlite3_changes(db);
         sqlite3_finalize(deleteSubcubesStmt);
         
+        // Delete old microcubes
+        sqlite3_bind_int(deleteMicrocubesStmt, 1, chunkCoord.x);
+        sqlite3_bind_int(deleteMicrocubesStmt, 2, chunkCoord.y);
+        sqlite3_bind_int(deleteMicrocubesStmt, 3, chunkCoord.z);
+        int deleteMicrocubesResult = sqlite3_step(deleteMicrocubesStmt);
+        int deletedMicrocubes = sqlite3_changes(db);
+        sqlite3_finalize(deleteMicrocubesStmt);
+        
         LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z 
-                  << ") - Deleted " << deletedCubes << " old cubes, " << deletedSubcubes << " old subcubes");
+                  << ") - Deleted " << deletedCubes << " old cubes, " << deletedSubcubes << " old subcubes, " << deletedMicrocubes << " old microcubes");
         
         // Insert/update chunk record
         sqlite3_bind_int(insertChunkStmt, 1, chunkCoord.x);
@@ -384,8 +434,50 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
             }
         }
         
+        // Save static microcubes
+        const auto& staticMicrocubes = chunk.getStaticMicrocubes();
+        int savedMicrocubes = 0;
+        for (const Microcube* microcube : staticMicrocubes) {
+            if (microcube && microcube->isVisible()) {
+                // Calculate parent cube local position from microcube's parent position
+                glm::ivec3 parentWorldPos = microcube->getParentCubePosition();
+                glm::ivec3 parentLocalPos = parentWorldPos - chunkCoord * 32;
+                
+                // Validate parent position is within chunk bounds
+                if (parentLocalPos.x >= 0 && parentLocalPos.x < 32 &&
+                    parentLocalPos.y >= 0 && parentLocalPos.y < 32 &&
+                    parentLocalPos.z >= 0 && parentLocalPos.z < 32) {
+                    
+                    // Bind microcube data
+                    sqlite3_bind_int(insertMicrocubeStmt, 1, chunkCoord.x);
+                    sqlite3_bind_int(insertMicrocubeStmt, 2, chunkCoord.y);
+                    sqlite3_bind_int(insertMicrocubeStmt, 3, chunkCoord.z);
+                    sqlite3_bind_int(insertMicrocubeStmt, 4, parentLocalPos.x);
+                    sqlite3_bind_int(insertMicrocubeStmt, 5, parentLocalPos.y);
+                    sqlite3_bind_int(insertMicrocubeStmt, 6, parentLocalPos.z);
+                    sqlite3_bind_int(insertMicrocubeStmt, 7, microcube->getSubcubeLocalPosition().x);
+                    sqlite3_bind_int(insertMicrocubeStmt, 8, microcube->getSubcubeLocalPosition().y);
+                    sqlite3_bind_int(insertMicrocubeStmt, 9, microcube->getSubcubeLocalPosition().z);
+                    sqlite3_bind_int(insertMicrocubeStmt, 10, microcube->getMicrocubeLocalPosition().x);
+                    sqlite3_bind_int(insertMicrocubeStmt, 11, microcube->getMicrocubeLocalPosition().y);
+                    sqlite3_bind_int(insertMicrocubeStmt, 12, microcube->getMicrocubeLocalPosition().z);
+                    sqlite3_bind_double(insertMicrocubeStmt, 13, microcube->getColor().r);
+                    sqlite3_bind_double(insertMicrocubeStmt, 14, microcube->getColor().g);
+                    sqlite3_bind_double(insertMicrocubeStmt, 15, microcube->getColor().b);
+                    
+                    if (sqlite3_step(insertMicrocubeStmt) != SQLITE_DONE) {
+                        LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert microcube: " << sqlite3_errmsg(db));
+                        if (ownTransaction) rollbackTransaction();
+                        return false;
+                    }
+                    sqlite3_reset(insertMicrocubeStmt);
+                    savedMicrocubes++;
+                }
+            }
+        }
+        
         LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z 
-                  << ") - Saved " << savedCubes << " cubes, " << savedSubcubes << " static subcubes");
+                  << ") - Saved " << savedCubes << " cubes, " << savedSubcubes << " subcubes, " << savedMicrocubes << " microcubes");
         
     } catch (...) {
         LOG_ERROR("WorldStorage", "[WORLD_STORAGE] ERROR: Exception caught in saveChunk()");
@@ -439,6 +531,9 @@ bool WorldStorage::loadChunk(const glm::ivec3& chunkCoord, Chunk& chunk) {
     
     // Load subcubes for this chunk
     loadSubcubesForChunk(chunkCoord, chunk);
+    
+    // Load microcubes for this chunk
+    loadMicrocubesForChunk(chunkCoord, chunk);
     
     LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Loaded " << loadedCubes << " cubes for chunk (" 
               << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
@@ -716,6 +811,49 @@ bool WorldStorage::loadSubcubesForChunk(const glm::ivec3& chunkCoord, Chunk& chu
     
     if (loadedSubcubes > 0) {
         LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Loaded " << loadedSubcubes << " subcubes for chunk (" 
+                  << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
+    }
+    
+    return true;
+}
+
+bool WorldStorage::loadMicrocubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk) {
+    if (!db) return false;
+    
+    // Bind chunk coordinates
+    sqlite3_bind_int(selectMicrocubesStmt, 1, chunkCoord.x);
+    sqlite3_bind_int(selectMicrocubesStmt, 2, chunkCoord.y);
+    sqlite3_bind_int(selectMicrocubesStmt, 3, chunkCoord.z);
+    
+    int loadedMicrocubes = 0;
+    
+    // Load microcubes
+    while (sqlite3_step(selectMicrocubesStmt) == SQLITE_ROW) {
+        int x = sqlite3_column_int(selectMicrocubesStmt, 0);
+        int y = sqlite3_column_int(selectMicrocubesStmt, 1);
+        int z = sqlite3_column_int(selectMicrocubesStmt, 2);
+        int subX = sqlite3_column_int(selectMicrocubesStmt, 3);
+        int subY = sqlite3_column_int(selectMicrocubesStmt, 4);
+        int subZ = sqlite3_column_int(selectMicrocubesStmt, 5);
+        int microX = sqlite3_column_int(selectMicrocubesStmt, 6);
+        int microY = sqlite3_column_int(selectMicrocubesStmt, 7);
+        int microZ = sqlite3_column_int(selectMicrocubesStmt, 8);
+        
+        double r = sqlite3_column_double(selectMicrocubesStmt, 9);
+        double g = sqlite3_column_double(selectMicrocubesStmt, 10);
+        double b = sqlite3_column_double(selectMicrocubesStmt, 11);
+        
+        // Add microcube to chunk
+        if (chunk.addMicrocube(glm::ivec3(x, y, z), glm::ivec3(subX, subY, subZ), 
+                               glm::ivec3(microX, microY, microZ), glm::vec3(r, g, b))) {
+            loadedMicrocubes++;
+        }
+    }
+    
+    sqlite3_reset(selectMicrocubesStmt);
+    
+    if (loadedMicrocubes > 0) {
+        LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Loaded " << loadedMicrocubes << " microcubes for chunk (" 
                   << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
     }
     

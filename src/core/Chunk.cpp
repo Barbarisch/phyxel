@@ -443,6 +443,12 @@ void Chunk::initializeForLoading() {
     }
     staticSubcubes.clear();
     
+    // Clear any existing microcubes
+    for (Microcube* microcube : staticMicrocubes) {
+        delete microcube;
+    }
+    staticMicrocubes.clear();
+    
     // Set bulk operation flag to prevent neighbor collision updates during loading
     isInBulkOperation = true;
     
@@ -970,15 +976,21 @@ const Microcube* Chunk::getMicrocubeAt(const glm::ivec3& cubePos, const glm::ive
 
 std::vector<Microcube*> Chunk::getMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos) {
     std::vector<Microcube*> result;
-    glm::ivec3 parentCubeWorldPos = worldOrigin + cubePos;
     
-    for (Microcube* microcube : staticMicrocubes) {
-        if (microcube && 
-            microcube->getParentCubePosition() == parentCubeWorldPos &&
-            microcube->getSubcubeLocalPosition() == subcubePos) {
-            result.push_back(microcube);
+    // Use hash map lookup instead of linear search - O(1) instead of O(n)
+    auto cubeIt = microcubeMap.find(cubePos);
+    if (cubeIt != microcubeMap.end()) {
+        auto subcubeIt = cubeIt->second.find(subcubePos);
+        if (subcubeIt != cubeIt->second.end()) {
+            // Found the subcube level, now collect all microcubes (0-27)
+            for (const auto& microcubePair : subcubeIt->second) {
+                if (microcubePair.second) {
+                    result.push_back(microcubePair.second);
+                }
+            }
         }
     }
+    
     return result;
 }
 
@@ -1048,34 +1060,6 @@ Cube* Chunk::getCubeAtFast(const glm::ivec3& localPos) {
 const Cube* Chunk::getCubeAtFast(const glm::ivec3& localPos) const {
     auto it = cubeMap.find(localPos);
     return (it != cubeMap.end()) ? it->second : nullptr;
-}
-
-Subcube* Chunk::getSubcubeAtFast(const glm::ivec3& localPos, const glm::ivec3& subcubePos) {
-    auto parentIt = subcubeMap.find(localPos);
-    if (parentIt == subcubeMap.end()) return nullptr;
-    
-    auto subcubeIt = parentIt->second.find(subcubePos);
-    return (subcubeIt != parentIt->second.end()) ? subcubeIt->second : nullptr;
-}
-
-const Subcube* Chunk::getSubcubeAtFast(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const {
-    auto parentIt = subcubeMap.find(localPos);
-    if (parentIt == subcubeMap.end()) return nullptr;
-    
-    auto subcubeIt = parentIt->second.find(subcubePos);
-    return (subcubeIt != parentIt->second.end()) ? subcubeIt->second : nullptr;
-}
-
-std::vector<Subcube*> Chunk::getSubcubesAtFast(const glm::ivec3& localPos) {
-    std::vector<Subcube*> result;
-    auto parentIt = subcubeMap.find(localPos);
-    if (parentIt != subcubeMap.end()) {
-        result.reserve(parentIt->second.size());
-        for (auto& pair : parentIt->second) {
-            result.push_back(pair.second);
-        }
-    }
-    return result;
 }
 
 // Internal: Maintain hash map consistency
@@ -1224,9 +1208,26 @@ void Chunk::initializeVoxelMaps() {
         }
     }
     
+    // Build microcube map from existing vector data
+    for (Microcube* microcube : staticMicrocubes) {
+        if (microcube) {
+            glm::ivec3 parentWorldPos = microcube->getParentCubePosition();
+            glm::ivec3 localPos = parentWorldPos - worldOrigin;
+            glm::ivec3 subcubePos = microcube->getSubcubeLocalPosition();
+            glm::ivec3 microcubePos = microcube->getMicrocubeLocalPosition();
+            
+            // Validate that this microcube belongs to this chunk
+            if (isValidLocalPosition(localPos)) {
+                microcubeMap[localPos][subcubePos][microcubePos] = microcube;
+                voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
+            }
+        }
+    }
+    
     LOG_DEBUG_FMT("Chunk", "Voxel maps initialized: " 
               << cubeMap.size() << " cubes, "
               << subcubeMap.size() << " subdivided positions, "
+              << microcubeMap.size() << " microcube positions, "
               << voxelTypeMap.size() << " total voxels");
 }
 
@@ -2491,9 +2492,9 @@ bool Chunk::addMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subc
     // Check if microcube already exists
     if (getMicrocubeAt(parentCubePos, subcubePos, microcubePos)) return false;
     
-    // Create new microcube
+    // Create new microcube (constructor: parentCubePos, color, subcubeLocalPos, microcubeLocalPos)
     glm::ivec3 parentWorldPos = worldOrigin + parentCubePos;
-    Microcube* newMicrocube = new Microcube(parentWorldPos, subcubePos, color, microcubePos);
+    Microcube* newMicrocube = new Microcube(parentWorldPos, color, subcubePos, microcubePos);
     staticMicrocubes.push_back(newMicrocube);
     
     // Update hash maps

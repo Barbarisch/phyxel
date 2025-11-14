@@ -224,9 +224,6 @@ public:
     // NEW: O(1) optimized lookups (replace linear searches)
     Cube* getCubeAtFast(const glm::ivec3& localPos);
     const Cube* getCubeAtFast(const glm::ivec3& localPos) const;
-    Subcube* getSubcubeAtFast(const glm::ivec3& localPos, const glm::ivec3& subcubePos);
-    const Subcube* getSubcubeAtFast(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const;
-    std::vector<Subcube*> getSubcubesAtFast(const glm::ivec3& localPos);
     
     // Internal: Maintain hash map consistency
     void updateVoxelMaps(const glm::ivec3& localPos);
