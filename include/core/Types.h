@@ -58,6 +58,7 @@ struct VoxelLocation {
     glm::ivec3 localPos{-1};        // Local position within chunk
     glm::ivec3 worldPos{-1};        // World position for convenience
     glm::ivec3 subcubePos{-1};      // Only valid if type == SUBDIVIDED
+    glm::ivec3 microcubePos{-1};    // Only valid if hovering over a microcube
     
     // Face information for cube placement (carried over from raycast)
     int hitFace = -1;               // Which face was hit: 0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z
@@ -66,7 +67,8 @@ struct VoxelLocation {
     VoxelLocation() = default;
     
     bool isValid() const { return chunk != nullptr && type != EMPTY; }
-    bool isSubcube() const { return type == SUBDIVIDED && subcubePos != glm::ivec3(-1); }
+    bool isSubcube() const { return type == SUBDIVIDED && subcubePos != glm::ivec3(-1) && microcubePos == glm::ivec3(-1); }
+    bool isMicrocube() const { return type == SUBDIVIDED && microcubePos != glm::ivec3(-1); }
     bool isCube() const { return type == CUBE; }
     
     // Equality comparison for hover change detection
@@ -75,6 +77,7 @@ struct VoxelLocation {
                localPos == other.localPos && 
                worldPos == other.worldPos &&
                subcubePos == other.subcubePos &&
+               microcubePos == other.microcubePos &&
                type == other.type;
     }
     

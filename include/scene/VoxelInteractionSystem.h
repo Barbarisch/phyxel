@@ -24,21 +24,26 @@ struct CubeLocation {
     glm::ivec3 localPos;        // Local position within chunk
     glm::ivec3 worldPos;        // World position
     bool isSubcube;             // True if this location refers to a subcube
+    bool isMicrocube;           // True if this location refers to a microcube
     glm::ivec3 subcubePos;      // Local position within parent cube (0-2 for each axis)
+    glm::ivec3 microcubePos;    // Local position within parent subcube (0-2 for each axis)
     
     // Face information for cube placement
     int hitFace;                // Which face was hit: 0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z
     glm::vec3 hitNormal;        // Surface normal of hit face
     glm::vec3 hitPoint;         // Exact hit point on the cube surface
     
-    CubeLocation() : chunk(nullptr), localPos(-1), worldPos(-1), isSubcube(false), 
-                     subcubePos(-1), hitFace(-1), hitNormal(0), hitPoint(0) {}
+    CubeLocation() : chunk(nullptr), localPos(-1), worldPos(-1), isSubcube(false), isMicrocube(false),
+                     subcubePos(-1), microcubePos(-1), hitFace(-1), hitNormal(0), hitPoint(0) {}
     CubeLocation(Chunk* c, const glm::ivec3& local, const glm::ivec3& world) 
-        : chunk(c), localPos(local), worldPos(world), isSubcube(false), 
-          subcubePos(-1), hitFace(-1), hitNormal(0), hitPoint(0) {}
+        : chunk(c), localPos(local), worldPos(world), isSubcube(false), isMicrocube(false),
+          subcubePos(-1), microcubePos(-1), hitFace(-1), hitNormal(0), hitPoint(0) {}
     CubeLocation(Chunk* c, const glm::ivec3& local, const glm::ivec3& world, const glm::ivec3& sub) 
-        : chunk(c), localPos(local), worldPos(world), isSubcube(true), 
-          subcubePos(sub), hitFace(-1), hitNormal(0), hitPoint(0) {}
+        : chunk(c), localPos(local), worldPos(world), isSubcube(true), isMicrocube(false),
+          subcubePos(sub), microcubePos(-1), hitFace(-1), hitNormal(0), hitPoint(0) {}
+    CubeLocation(Chunk* c, const glm::ivec3& local, const glm::ivec3& world, const glm::ivec3& sub, const glm::ivec3& micro) 
+        : chunk(c), localPos(local), worldPos(world), isSubcube(false), isMicrocube(true),
+          subcubePos(sub), microcubePos(micro), hitFace(-1), hitNormal(0), hitPoint(0) {}
     
     bool isValid() const { return chunk != nullptr; }
     
@@ -69,8 +74,10 @@ public:
     // Cube manipulation functions
     void removeHoveredCube();           // Remove the currently hovered cube
     void subdivideHoveredCube();        // Subdivide the currently hovered cube into 27 subcubes
+    void subdivideHoveredSubcube();     // Subdivide the currently hovered subcube into 27 microcubes
     void breakHoveredCube(const glm::vec3& cameraPos);            // Break the currently hovered cube into a dynamic cube with physics
     void breakHoveredSubcube();         // Break the currently hovered subcube into a dynamic subcube with physics
+    void breakHoveredMicrocube();       // Break the currently hovered microcube (simple removal for now)
     void breakHoveredCubeWithForce(const glm::vec3& cameraPos, double mouseX, double mouseY);   // Break cube(s) using force propagation system
     void breakCubeAtPosition(const glm::ivec3& worldPos); // Helper: Break a single cube at world position
     

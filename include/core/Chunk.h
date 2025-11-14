@@ -2,6 +2,7 @@
 
 #include "Types.h"
 #include "core/Subcube.h"
+#include "core/Microcube.h"
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
@@ -32,6 +33,7 @@ class Chunk {
 private:
     std::vector<Cube*> cubes;                      // Pointers to cubes for efficient deletion (32x32x32)
     std::vector<Subcube*> staticSubcubes;          // Static subcubes (part of chunk physics body)
+    std::vector<Microcube*> staticMicrocubes;      // Static microcubes (finest subdivision level)
     std::vector<InstanceData> faces;               // Visible faces only (CPU pre-filtered for rendering)
     VkBuffer instanceBuffer = VK_NULL_HANDLE;      // Vulkan buffer for this chunk's face instance data
     VkDeviceMemory instanceMemory = VK_NULL_HANDLE;
@@ -45,6 +47,11 @@ private:
     std::unordered_map<glm::ivec3, 
                       std::unordered_map<glm::ivec3, Subcube*, IVec3Hash>, 
                       IVec3Hash> subcubeMap;                                // O(1) subcube lookup: localPos -> (subcubePos -> subcube)
+    std::unordered_map<glm::ivec3,
+                      std::unordered_map<glm::ivec3,
+                      std::unordered_map<glm::ivec3, Microcube*, IVec3Hash>,
+                      IVec3Hash>,
+                      IVec3Hash> microcubeMap;                              // O(1) microcube lookup: cubePos -> subcubePos -> microcubePos -> microcube
     std::unordered_map<glm::ivec3, VoxelLocation::Type, IVec3Hash> voxelTypeMap; // O(1) voxel type lookup
     
     // Buffer capacity management
@@ -174,6 +181,7 @@ public:
     glm::ivec3 getWorldOrigin() const { return worldOrigin; }
     size_t getCubeCount() const { return cubes.size(); }
     size_t getStaticSubcubeCount() const { return staticSubcubes.size(); }
+    size_t getStaticMicrocubeCount() const { return staticMicrocubes.size(); }
     size_t getTotalSubcubeCount() const { return staticSubcubes.size(); }     // Only static subcubes remain in chunks
     uint32_t getNumInstances() const { return numInstances; }
     bool getNeedsUpdate() const { return needsUpdate; }
@@ -198,8 +206,14 @@ public:
     std::vector<Subcube*> getSubcubesAt(const glm::ivec3& localPos);
     std::vector<Subcube*> getStaticSubcubesAt(const glm::ivec3& localPos);
     
+    // Microcube access
+    Microcube* getMicrocubeAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos);
+    const Microcube* getMicrocubeAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos) const;
+    std::vector<Microcube*> getMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);
+    
     // Physics-related subcube access (legacy for transfer process)
     const std::vector<Subcube*>& getStaticSubcubes() const { return staticSubcubes; }
+    const std::vector<Microcube*>& getStaticMicrocubes() const { return staticMicrocubes; }
     
     // NEW: O(1) VoxelLocation resolution system for optimized hover detection
     VoxelLocation resolveLocalPosition(const glm::ivec3& localPos) const;
@@ -220,6 +234,8 @@ public:
     void removeFromVoxelMaps(const glm::ivec3& localPos);
     void addSubcubeToMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos, Subcube* subcube);
     void removeSubcubeFromMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos);
+    void addMicrocubeToMaps(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos, Microcube* microcube);
+    void removeMicrocubeFromMaps(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos);
     void initializeVoxelMaps();  // Initialize hash maps from existing data
     
     // Cube manipulation
@@ -232,6 +248,12 @@ public:
     bool addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, const glm::vec3& color);
     bool removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos);
     bool clearSubdivisionAt(const glm::ivec3& localPos);       // Remove all subcubes and restore cube
+    
+    // Microcube manipulation
+    bool subdivideSubcubeAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);  // Convert subcube to 27 microcubes
+    bool addMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos, const glm::vec3& color);
+    bool removeMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos);
+    bool clearMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);  // Remove all microcubes and restore subcube
     
     // Physics-related subcube manipulation
     bool breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos,  // Move subcube from static to global dynamic system

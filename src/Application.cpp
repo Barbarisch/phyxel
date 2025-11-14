@@ -419,27 +419,6 @@ void Application::initializeInputActions() {
                  (debugFlags.showForceSystemDebug ? "ENABLED" : "DISABLED"));
     });
     
-    // T - Test camera positions
-    inputManager->registerAction(GLFW_KEY_T, "Test Camera Positions", [this]() {
-        static int cameraPosition = 0;
-        cameraPosition = (cameraPosition + 1) % 3;
-        
-        switch(cameraPosition) {
-            case 0:
-                inputManager->setCameraPosition(glm::vec3(50.0f, 50.0f, 50.0f));
-                LOG_INFO("Application", "Camera: Far view");
-                break;
-            case 1:
-                inputManager->setCameraPosition(glm::vec3(20.0f, 20.0f, 20.0f));
-                LOG_INFO("Application", "Camera: Medium view");
-                break;
-            case 2:
-                inputManager->setCameraPosition(glm::vec3(10.0f, 10.0f, 10.0f));
-                LOG_INFO("Application", "Camera: Close view");
-                break;
-        }
-    });
-    
     // G - Spawn dynamic subcube (placeholder - functionality removed)
     inputManager->registerAction(GLFW_KEY_G, "Spawn Dynamic Subcube", [this]() {
         glm::vec3 spawnPos = inputManager->getCameraPosition() + inputManager->getCameraFront() * 5.0f;
@@ -458,19 +437,6 @@ void Application::initializeInputActions() {
                      << ", " << worldPos.y << ", " << worldPos.z << " not yet implemented");
     });
     
-    // P - Debug coordinates at camera position
-    inputManager->registerAction(GLFW_KEY_P, "Debug Coordinates", [this]() {
-        glm::vec3 pos = inputManager->getCameraPosition();
-        glm::ivec3 worldPos = glm::ivec3(pos);
-        glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(worldPos);
-        glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(worldPos);
-        
-        LOG_INFO_FMT("Application", "Camera World Position: " << pos.x << ", " << pos.y << ", " << pos.z);
-        LOG_INFO_FMT("Application", "World Coord (int): " << worldPos.x << ", " << worldPos.y << ", " << worldPos.z);
-        LOG_INFO_FMT("Application", "Chunk Coord: " << chunkCoord.x << ", " << chunkCoord.y << ", " << chunkCoord.z);
-        LOG_INFO_FMT("Application", "Local Coord: " << localPos.x << ", " << localPos.y << ", " << localPos.z);
-    });
-    
     // O - Toggle breaking forces
     inputManager->registerAction(GLFW_KEY_O, "Toggle Breaking Forces", [this]() {
         debugFlags.disableBreakingForces = !debugFlags.disableBreakingForces;
@@ -480,11 +446,15 @@ void Application::initializeInputActions() {
     
     // Mouse actions
     
-    // Left click - Break cube/subcube
-    inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_LEFT, 0, "Break Cube", [this]() {
-        // Check if we're hovering over a subcube or regular cube
+    // Left click - Break cube/subcube/microcube
+    inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_LEFT, 0, "Break Voxel", [this]() {
+        // Check if we're hovering over a microcube, subcube, or regular cube
         if (voxelInteractionSystem->hasHoveredCube()) {
-            if (voxelInteractionSystem->getCurrentHoveredLocation().isSubcube) {
+            const auto& loc = voxelInteractionSystem->getCurrentHoveredLocation();
+            if (loc.isMicrocube) {
+                // Break microcube
+                voxelInteractionSystem->breakHoveredMicrocube();
+            } else if (loc.isSubcube) {
                 // Break subcube with physics
                 voxelInteractionSystem->breakHoveredSubcube();
             } else {
@@ -497,6 +467,11 @@ void Application::initializeInputActions() {
     // Ctrl + Left click - Subdivide cube
     inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_LEFT, GLFW_MOD_CONTROL, "Subdivide Cube", [this]() {
         voxelInteractionSystem->subdivideHoveredCube();
+    });
+    
+    // Alt + Left click - Subdivide subcube into microcubes
+    inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_LEFT, GLFW_MOD_ALT, "Subdivide Subcube", [this]() {
+        voxelInteractionSystem->subdivideHoveredSubcube();
     });
     
     // Middle click - Subdivide cube
