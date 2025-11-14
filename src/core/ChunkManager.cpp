@@ -1043,14 +1043,115 @@ void ChunkManager::clearAllGlobalDynamicCubes() {
 }
 
 // ===============================================================
+// GLOBAL DYNAMIC MICROCUBE MANAGEMENT
+// ===============================================================
+
+void ChunkManager::addGlobalDynamicMicrocube(std::unique_ptr<Microcube> microcube) {
+    if (microcube) {
+        LOG_DEBUG_FMT("ChunkManager", "[MICROCUBE] Adding global dynamic microcube at world position: ("
+                  << microcube->getWorldPosition().x << "," << microcube->getWorldPosition().y << "," << microcube->getWorldPosition().z << ")");
+        globalDynamicMicrocubes.push_back(std::move(microcube));
+        rebuildGlobalDynamicFaces();  // Rebuild faces after adding new microcube
+    }
+}
+
+void ChunkManager::updateGlobalDynamicMicrocubes(float deltaTime) {
+    // Update lifetimes and remove expired microcubes
+    auto it = globalDynamicMicrocubes.begin();
+    size_t removedCount = 0;
+    
+    while (it != globalDynamicMicrocubes.end()) {
+        (*it)->updateLifetime(deltaTime);
+        
+        if ((*it)->hasExpired()) {
+            // Properly remove physics body from physics world
+            if (physicsWorld && (*it)->getRigidBody()) {
+                LOG_TRACE("ChunkManager", "[MICROCUBE] Removing expired dynamic microcube physics body");
+                physicsWorld->removeCube((*it)->getRigidBody());
+            }
+            
+            removedCount++;
+            // Note: The unique_ptr destructor will automatically clean up the microcube
+            it = globalDynamicMicrocubes.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    
+    // Rebuild faces if any microcubes were removed
+    if (removedCount > 0) {
+        LOG_DEBUG_FMT("ChunkManager", "[MICROCUBE] Removed " << removedCount << " expired dynamic microcubes (lifetime ended)");
+        rebuildGlobalDynamicFaces();
+    }
+}
+
+void ChunkManager::updateGlobalDynamicMicrocubePositions() {
+    // Update positions and rotations of global dynamic microcubes from their physics bodies
+    bool transformsChanged = false;
+    static int logCounter = 0;
+    
+    for (auto& microcube : globalDynamicMicrocubes) {
+        if (microcube && microcube->getRigidBody()) {
+            btRigidBody* body = microcube->getRigidBody();
+            btTransform transform = body->getWorldTransform();
+            
+            // Get the physics world position
+            btVector3 btPos = transform.getOrigin();
+            glm::vec3 newWorldPos(btPos.x(), btPos.y(), btPos.z());
+            
+            // Get the physics rotation (quaternion)
+            btQuaternion btRot = transform.getRotation();
+            glm::vec4 newRotation(btRot.x(), btRot.y(), btRot.z(), btRot.w());
+            
+            // Log position every 60 frames (~1 second at 60fps) to track falling
+            if (logCounter % 60 == 0) {
+                btVector3 velocity = body->getLinearVelocity();
+                LOG_INFO_FMT("ChunkManager", "[DYNAMIC MICROCUBE] Y=" << newWorldPos.y 
+                          << " Active=" << body->isActive()
+                          << " VelY=" << velocity.y());
+            }
+            
+            // Store the smooth floating-point physics position and rotation
+            microcube->setPhysicsPosition(newWorldPos);
+            microcube->setPhysicsRotation(newRotation);
+            transformsChanged = true;
+        }
+    }
+    
+    logCounter++;
+    
+    // Rebuild face data if any transforms changed
+    if (transformsChanged) {
+        rebuildGlobalDynamicFaces();
+    }
+}
+
+void ChunkManager::clearAllGlobalDynamicMicrocubes() {
+    // Properly clean up physics bodies before clearing the vector
+    if (physicsWorld) {
+        for (auto& microcube : globalDynamicMicrocubes) {
+            if (microcube && microcube->getRigidBody()) {
+                LOG_TRACE("ChunkManager", "[MICROCUBE] Cleaning up physics body for microcube during clear");
+                physicsWorld->removeCube(microcube->getRigidBody());
+                microcube->setRigidBody(nullptr); // Prevent double deletion
+            }
+        }
+    }
+    
+    LOG_DEBUG_FMT("ChunkManager", "[MICROCUBE] Clearing all " << globalDynamicMicrocubes.size() << " global dynamic microcubes");
+    globalDynamicMicrocubes.clear();
+}
+
+// ===============================================================
 // COMBINED DYNAMIC OBJECT MANAGEMENT (SUBCUBES + CUBES)
 // ===============================================================
 
 void ChunkManager::rebuildGlobalDynamicFaces() {
     globalDynamicSubcubeFaces.clear();
     
-    static constexpr float SUBCUBE_SCALE = 1.0f / 3.0f; // Subcubes are 1/3 the size
-    static constexpr float CUBE_SCALE = 1.0f;           // Full cubes are full size
+    static constexpr float SUBCUBE_SCALE = 1.0f / 3.0f;   // Subcubes are 1/3 the size
+    static constexpr float CUBE_SCALE = 1.0f;             // Full cubes are full size
+    static constexpr float MICROCUBE_SCALE = 1.0f / 9.0f; // Microcubes are 1/9 the size
     
     // Generate faces for all global dynamic subcubes
     for (const auto& subcube : globalDynamicSubcubes) {
@@ -1098,8 +1199,29 @@ void ChunkManager::rebuildGlobalDynamicFaces() {
         }
     }
     
+    // Generate faces for all global dynamic microcubes
+    for (const auto& microcube : globalDynamicMicrocubes) {
+        if (!microcube->isVisible()) continue;
+        
+        // For dynamic microcubes, we render all faces (they can be in arbitrary positions)
+        for (int faceID = 0; faceID < 6; ++faceID) {
+            DynamicSubcubeInstanceData faceInstance; // Using same data structure
+            
+            // Dynamic microcubes always use physics position and rotation
+            faceInstance.worldPosition = microcube->getPhysicsPosition();
+            faceInstance.rotation = microcube->getPhysicsRotation();
+            // Use grassdirt texture for microcubes (indices 6-11)
+            faceInstance.textureIndex = 6 + faceID; // grassdirt texture range
+            faceInstance.faceID = faceID;
+            faceInstance.scale = microcube->getScale(); // 1/9 for microcubes
+            faceInstance.localPosition = microcube->getMicrocubeLocalPosition(); // Preserve original grid position
+            
+            globalDynamicSubcubeFaces.push_back(faceInstance);
+        }
+    }
+    
     if (!globalDynamicSubcubeFaces.empty()) {
-        //std::cout << "[CHUNK MANAGER] Generated " << globalDynamicSubcubeFaces.size() << " global dynamic faces (subcubes + cubes)" << std::endl;
+        //std::cout << "[CHUNK MANAGER] Generated " << globalDynamicSubcubeFaces.size() << " global dynamic faces (subcubes + cubes + microcubes)" << std::endl;
     }
 }
 

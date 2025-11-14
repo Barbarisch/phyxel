@@ -40,6 +40,9 @@ public:
     // Global dynamic cube management (not tied to specific chunks)
     std::vector<std::unique_ptr<DynamicCube>> globalDynamicCubes;
     
+    // Global dynamic microcube management (not tied to specific chunks)
+    std::vector<std::unique_ptr<Microcube>> globalDynamicMicrocubes;
+    
     // Spatial hash map for O(1) chunk lookup by chunk coordinates
     std::unordered_map<glm::ivec3, Chunk*, ChunkCoordHash> chunkMap;
     
@@ -150,6 +153,14 @@ public:
     void clearAllGlobalDynamicCubes();
     const std::vector<std::unique_ptr<DynamicCube>>& getGlobalDynamicCubes() const { return globalDynamicCubes; }
     size_t getGlobalDynamicCubeCount() const { return globalDynamicCubes.size(); }
+    
+    // Global dynamic microcube management
+    void addGlobalDynamicMicrocube(std::unique_ptr<Microcube> microcube);
+    void updateGlobalDynamicMicrocubes(float deltaTime);  // Update timers and cleanup expired ones
+    void updateGlobalDynamicMicrocubePositions();  // Update positions from physics bodies
+    void clearAllGlobalDynamicMicrocubes();
+    const std::vector<std::unique_ptr<Microcube>>& getGlobalDynamicMicrocubes() const { return globalDynamicMicrocubes; }
+    size_t getGlobalDynamicMicrocubeCount() const { return globalDynamicMicrocubes.size(); }
     
     // Combined dynamic object management - face data access
     const std::vector<DynamicSubcubeInstanceData>& getGlobalDynamicSubcubeFaces() const { return globalDynamicSubcubeFaces; }

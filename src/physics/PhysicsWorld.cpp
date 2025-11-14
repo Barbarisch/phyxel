@@ -385,16 +385,34 @@ btRigidBody* PhysicsWorld::createBreakawaCube(const glm::vec3& position, const g
     
     // Set appropriate collision margin based on cube type
     float objectSize = std::min({shrunkSize.x, shrunkSize.y, shrunkSize.z});
-    float appropriateMargin = (objectSize <= 0.32f) ? 0.005f : 0.01f; // Subcube vs regular cube (accounting for 95% shrink)
+    float appropriateMargin;
+    bool isMicrocube = (objectSize < 0.12f); // Microcubes after 95% shrink are ~0.1056
+    
+    if (isMicrocube) {
+        appropriateMargin = 0.002f; // Smaller margin for tiny microcubes (2% of size)
+    } else if (objectSize <= 0.32f) {
+        appropriateMargin = 0.005f; // Subcubes
+    } else {
+        appropriateMargin = 0.01f; // Regular cubes
+    }
     
     collisionShape->setMargin(appropriateMargin);
-    // std::cout << "[COLLISION] Set collision margin " << appropriateMargin 
-    //           << " for " << (objectSize <= 0.32f ? "subcube" : "regular cube") 
-    //           << " breakaway size " << objectSize << std::endl;
     
     // Add to world
     dynamicsWorld->addRigidBody(body);
     rigidBodies.push_back(body);
+    
+    // For very small objects (microcubes), enable Continuous Collision Detection to prevent tunneling
+    if (isMicrocube) {
+        // CCD motion threshold: object must move more than this in one frame to trigger CCD
+        // Set to 50% of object size - if it moves more than half its size per frame, use CCD
+        body->setCcdMotionThreshold(objectSize * 0.5f);
+        // CCD swept sphere radius: use a sphere 80% of the smallest dimension
+        body->setCcdSweptSphereRadius(objectSize * 0.4f);
+        LOG_INFO_FMT("Physics", "[MICROCUBE CCD] Enabled for object size " << objectSize 
+                  << " - Threshold: " << (objectSize * 0.5f) << " Radius: " << (objectSize * 0.4f)
+                  << " Margin: " << appropriateMargin);
+    }
     
     // Force activation and set collision flags for immediate separation
     body->setActivationState(ACTIVE_TAG);

@@ -484,31 +484,91 @@ void VoxelInteractionSystem::breakHoveredMicrocube() {
         return;
     }
 
-    LOG_DEBUG("Application", "[MICROCUBE BREAKING] Removing microcube (simple removal - no physics yet)");
+    LOG_DEBUG("Application", "[MICROCUBE BREAKING] Breaking microcube and creating dynamic physics object");
     
-    // Remove the microcube (for now, just delete it - physics support can be added later)
-    bool removed = chunk->removeMicrocube(m_currentHoveredLocation.localPos, 
-                                         m_currentHoveredLocation.subcubePos,
-                                         m_currentHoveredLocation.microcubePos);
-    if (removed) {
-        LOG_INFO_FMT("Application", "[MICROCUBE BREAKING] Successfully removed microcube at world pos: (" 
-                  << m_currentHoveredLocation.worldPos.x << "," 
-                  << m_currentHoveredLocation.worldPos.y << "," 
-                  << m_currentHoveredLocation.worldPos.z << ") subcube: ("
-                  << m_currentHoveredLocation.subcubePos.x << ","
-                  << m_currentHoveredLocation.subcubePos.y << ","
-                  << m_currentHoveredLocation.subcubePos.z << ") microcube: ("
-                  << m_currentHoveredLocation.microcubePos.x << ","
-                  << m_currentHoveredLocation.microcubePos.y << ","
-                  << m_currentHoveredLocation.microcubePos.z << ")");
-                  
-        // Rebuild faces for this chunk
-        if (m_chunkManager) {
-            m_chunkManager->updateAfterCubeSubdivision(m_currentHoveredLocation.worldPos);
-        }
-    } else {
-        LOG_WARN("Application", "[MICROCUBE BREAKING] WARNING: Failed to remove microcube");
+    // Get the microcube before removing it
+    glm::ivec3 localPos = m_currentHoveredLocation.localPos;
+    glm::ivec3 subcubePos = m_currentHoveredLocation.subcubePos;
+    glm::ivec3 microcubePos = m_currentHoveredLocation.microcubePos;
+    
+    Microcube* microcube = chunk->getMicrocubeAt(localPos, subcubePos, microcubePos);
+    if (!microcube) {
+        LOG_ERROR("Application", "[MICROCUBE BREAKING] ERROR: Microcube not found");
+        m_hasHoveredCube = false;
+        m_currentHoveredLocation = CubeLocation();
+        return;
     }
+    
+    // Store microcube data before removal
+    glm::vec3 worldPos = microcube->getWorldPosition();
+    glm::vec3 originalColor = microcube->getOriginalColor();
+    bool isVisible = microcube->isVisible();
+    float lifetime = microcube->getLifetime();
+    glm::ivec3 parentCubePos = microcube->getParentCubePosition();
+    
+    // Remove the microcube from chunk
+    bool removed = chunk->removeMicrocube(localPos, subcubePos, microcubePos);
+    if (!removed) {
+        LOG_WARN("Application", "[MICROCUBE BREAKING] WARNING: Failed to remove microcube from chunk");
+        m_hasHoveredCube = false;
+        m_currentHoveredLocation = CubeLocation();
+        return;
+    }
+    
+    // Create new dynamic microcube for physics
+    auto dynamicMicrocube = std::make_unique<Microcube>(parentCubePos, originalColor, subcubePos, microcubePos);
+    dynamicMicrocube->setOriginalColor(originalColor);
+    dynamicMicrocube->setVisible(isVisible);
+    dynamicMicrocube->setLifetime(lifetime);
+    dynamicMicrocube->breakApart(); // Mark as broken
+    
+    // Create physics body for dynamic microcube
+    if (m_physicsWorld) {
+        // Microcube is 1/9 scale, so size is 1/9 of a regular cube
+        glm::vec3 microcubeCornerPos = worldPos; // Corner position
+        glm::vec3 microcubeSize(1.0f / 9.0f);    // Match visual microcube size
+        glm::vec3 physicsCenterPos = microcubeCornerPos + (microcubeSize * 0.5f); // Physics center position
+        
+        LOG_INFO_FMT("Application", "[MICROCUBE PHYSICS DEBUG] Corner pos: (" << microcubeCornerPos.x << "," << microcubeCornerPos.y << "," << microcubeCornerPos.z << ")");
+        LOG_INFO_FMT("Application", "[MICROCUBE PHYSICS DEBUG] Center pos: (" << physicsCenterPos.x << "," << physicsCenterPos.y << "," << physicsCenterPos.z << ")");
+        LOG_INFO_FMT("Application", "[MICROCUBE PHYSICS DEBUG] Size: " << microcubeSize.x);
+        
+        // Create dynamic physics body at center position (very light mass for tiny microcube)
+        btRigidBody* rigidBody = m_physicsWorld->createBreakawaCube(physicsCenterPos, microcubeSize, 0.1f); // 0.1kg mass
+        dynamicMicrocube->setRigidBody(rigidBody);
+        dynamicMicrocube->setPhysicsPosition(physicsCenterPos);
+        
+        LOG_DEBUG("Application", "[MICROCUBE PHYSICS] Created physics body for microcube (no forces applied - gravity only)");
+        
+        // Enable gravity for natural falling behavior
+        if (rigidBody) {
+            rigidBody->setGravity(btVector3(0, -9.81f, 0));
+        }
+    }
+    
+    // Transfer the dynamic microcube to global system
+    if (m_chunkManager) {
+        m_chunkManager->addGlobalDynamicMicrocube(std::move(dynamicMicrocube));
+        LOG_DEBUG("Application", "[GLOBAL TRANSFER] Moved broken microcube to global dynamic system");
+    } else {
+        LOG_ERROR("Application", "[ERROR] No ChunkManager provided - cannot transfer to global system");
+    }
+    
+    // Rebuild faces for this chunk
+    if (m_chunkManager) {
+        m_chunkManager->updateAfterCubeSubdivision(m_currentHoveredLocation.worldPos);
+    }
+    
+    LOG_INFO_FMT("Application", "[MICROCUBE BREAKING] Successfully broke microcube at world pos: (" 
+              << m_currentHoveredLocation.worldPos.x << "," 
+              << m_currentHoveredLocation.worldPos.y << "," 
+              << m_currentHoveredLocation.worldPos.z << ") subcube: ("
+              << m_currentHoveredLocation.subcubePos.x << ","
+              << m_currentHoveredLocation.subcubePos.y << ","
+              << m_currentHoveredLocation.subcubePos.z << ") microcube: ("
+              << m_currentHoveredLocation.microcubePos.x << ","
+              << m_currentHoveredLocation.microcubePos.y << ","
+              << m_currentHoveredLocation.microcubePos.z << ")");
 
     // Clear hover state
     m_hasHoveredCube = false;

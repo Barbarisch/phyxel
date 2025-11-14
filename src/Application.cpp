@@ -320,6 +320,7 @@ void Application::update(float deltaTime) {
         chunkManager->updateDirtyChunks();
         chunkManager->updateGlobalDynamicSubcubes(deltaTime);  // Update global dynamic subcube lifetimes
         chunkManager->updateGlobalDynamicCubes(deltaTime);     // Update global dynamic cube lifetimes
+        chunkManager->updateGlobalDynamicMicrocubes(deltaTime); // Update global dynamic microcube lifetimes
     }
     
     // Update physics with FIXED timestep for smooth, jitter-free simulation
@@ -348,6 +349,8 @@ void Application::update(float deltaTime) {
         chunkManager->updateGlobalDynamicSubcubePositions();
         // Update global dynamic cubes
         chunkManager->updateGlobalDynamicCubePositions();
+        // Update global dynamic microcubes
+        chunkManager->updateGlobalDynamicMicrocubePositions();
     }
     
     static int frameCount = 0;
