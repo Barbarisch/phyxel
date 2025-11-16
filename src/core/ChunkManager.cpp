@@ -1210,11 +1210,19 @@ void ChunkManager::rebuildGlobalDynamicFaces() {
             // Dynamic microcubes always use physics position and rotation
             faceInstance.worldPosition = microcube->getPhysicsPosition();
             faceInstance.rotation = microcube->getPhysicsRotation();
-            // Use grassdirt texture for microcubes (indices 6-11)
-            faceInstance.textureIndex = 6 + faceID; // grassdirt texture range
+            // Use placeholder texture for microcubes
+            faceInstance.textureIndex = TextureConstants::PLACEHOLDER_TEXTURE_INDEX;
             faceInstance.faceID = faceID;
             faceInstance.scale = microcube->getScale(); // 1/9 for microcubes
-            faceInstance.localPosition = microcube->getMicrocubeLocalPosition(); // Preserve original grid position
+            
+            // Pack both subcube and microcube positions into localPosition for texture coordinate calculation
+            // Bits 0-1: subcube X, Bits 2-3: subcube Y, Bits 4-5: subcube Z
+            // Bits 6-7: microcube X, Bits 8-9: microcube Y, Bits 10-11: microcube Z
+            glm::ivec3 subcubePos = microcube->getSubcubeLocalPosition();
+            glm::ivec3 microcubePos = microcube->getMicrocubeLocalPosition();
+            int packed = (subcubePos.x & 0x3) | ((subcubePos.y & 0x3) << 2) | ((subcubePos.z & 0x3) << 4) |
+                        ((microcubePos.x & 0x3) << 6) | ((microcubePos.y & 0x3) << 8) | ((microcubePos.z & 0x3) << 10);
+            faceInstance.localPosition = glm::ivec3(packed, 0, 0); // Store packed data in X component
             
             globalDynamicSubcubeFaces.push_back(faceInstance);
         }

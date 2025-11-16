@@ -108,8 +108,62 @@ void main() {
     }
     
     // Apply texture coordinate scaling based on object scale
-    if (SUBCUBE_SCALE < 1.0) {
-        // For subcubes: use 1/3 UV scaling with proper grid positioning
+    // Microcube: 1/9 ≈ 0.111, Subcube: 1/3 ≈ 0.333, Cube: 1.0
+    if (SUBCUBE_SCALE < 0.2) {
+        // Microcubes: scale < 0.2 (actually 1/9 ≈ 0.111)
+        // Decode packed subcube and microcube positions from localPosition.x
+        // Bits 0-1: subcube X, Bits 2-3: subcube Y, Bits 4-5: subcube Z
+        // Bits 6-7: microcube X, Bits 8-9: microcube Y, Bits 10-11: microcube Z
+        int packed = inLocalPosition.x;
+        uint subcubeLocalX = uint(packed & 0x3);
+        uint subcubeLocalY = uint((packed >> 2) & 0x3);
+        uint subcubeLocalZ = uint((packed >> 4) & 0x3);
+        uint microcubeLocalX = uint((packed >> 6) & 0x3);
+        uint microcubeLocalY = uint((packed >> 8) & 0x3);
+        uint microcubeLocalZ = uint((packed >> 10) & 0x3);
+        
+        const float SUBCUBE_UV_SCALE = 1.0 / 3.0;
+        const float MICROCUBE_UV_SCALE = 1.0 / 9.0;
+        
+        // First, get the subcube's UV region
+        vec2 subcubeGridPos = vec2(0.0);
+        if (inFaceID == 0u) {
+            subcubeGridPos = vec2(float(subcubeLocalX), float(2u - subcubeLocalY));
+        } else if (inFaceID == 1u) {
+            subcubeGridPos = vec2(float(subcubeLocalX), float(subcubeLocalY));
+        } else if (inFaceID == 2u) {
+            subcubeGridPos = vec2(float(2u - subcubeLocalZ), float(2u - subcubeLocalY));
+        } else if (inFaceID == 3u) {
+            subcubeGridPos = vec2(float(subcubeLocalZ), float(2u - subcubeLocalY));
+        } else if (inFaceID == 4u) {
+            subcubeGridPos = vec2(float(2u - subcubeLocalX), float(2u - subcubeLocalZ));
+        } else if (inFaceID == 5u) {
+            subcubeGridPos = vec2(float(subcubeLocalX), float(2u - subcubeLocalZ));
+        }
+        
+        // Then, get the microcube's position within that subcube
+        vec2 microcubeGridPos = vec2(0.0);
+        if (inFaceID == 0u) {
+            microcubeGridPos = vec2(float(microcubeLocalX), float(2u - microcubeLocalY));
+        } else if (inFaceID == 1u) {
+            microcubeGridPos = vec2(float(microcubeLocalX), float(microcubeLocalY));
+        } else if (inFaceID == 2u) {
+            microcubeGridPos = vec2(float(2u - microcubeLocalZ), float(2u - microcubeLocalY));
+        } else if (inFaceID == 3u) {
+            microcubeGridPos = vec2(float(microcubeLocalZ), float(2u - microcubeLocalY));
+        } else if (inFaceID == 4u) {
+            microcubeGridPos = vec2(float(2u - microcubeLocalX), float(2u - microcubeLocalZ));
+        } else if (inFaceID == 5u) {
+            microcubeGridPos = vec2(float(microcubeLocalX), float(2u - microcubeLocalZ));
+        }
+        
+        // Combine: subcube offset + microcube offset within subcube
+        vec2 subcubeUVBase = subcubeGridPos * SUBCUBE_UV_SCALE;
+        vec2 microcubeUVOffset = microcubeGridPos * MICROCUBE_UV_SCALE;
+        uv = (uv * MICROCUBE_UV_SCALE) + subcubeUVBase + microcubeUVOffset;
+        
+    } else if (SUBCUBE_SCALE < 0.8) {
+        // For subcubes: scale < 0.8 (actually 1/3 ≈ 0.333) - use 1/3 UV scaling with proper grid positioning
         const float SUBCUBE_UV_SCALE = 1.0 / 3.0;  // Each subcube uses 1/3 of texture
         
         // Map the 3x3x3 subcube grid to 2D texture coordinates based on face orientation

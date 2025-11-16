@@ -646,8 +646,8 @@ void Chunk::rebuildFaces(const NeighborLookupFunc& getNeighborCube) {
                     microcubePos.x, microcubePos.y, microcubePos.z
                 );
                 
-                // Use grassdirt textures for microcubes to make them visually distinct
-                faceInstance.textureIndex = VulkanCube::TextureConstants::getGrassdirtTextureIndexForFace(faceID);
+                // Use placeholder texture for microcubes
+                faceInstance.textureIndex = VulkanCube::TextureConstants::PLACEHOLDER_TEXTURE_INDEX;
                 faceInstance.reserved = 0;
                 faces.push_back(faceInstance);
             }
