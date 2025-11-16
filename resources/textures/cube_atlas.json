@@ -328,6 +328,168 @@
       "face": "bottom",
       "direction": null,
       "is_directional": false
+    },
+    "hover_side_n": {
+      "index": 12,
+      "grid_pos": [
+        0,
+        2
+      ],
+      "pixel_pos": [
+        1,
+        41
+      ],
+      "uv_min": [
+        0.0078125,
+        0.3203125
+      ],
+      "uv_max": [
+        0.1484375,
+        0.4609375
+      ],
+      "uv_size": [
+        0.140625,
+        0.140625
+      ],
+      "material": "hover",
+      "face": "side",
+      "direction": "n",
+      "is_directional": true
+    },
+    "hover_side_s": {
+      "index": 13,
+      "grid_pos": [
+        1,
+        2
+      ],
+      "pixel_pos": [
+        21,
+        41
+      ],
+      "uv_min": [
+        0.1640625,
+        0.3203125
+      ],
+      "uv_max": [
+        0.3046875,
+        0.4609375
+      ],
+      "uv_size": [
+        0.140625,
+        0.140625
+      ],
+      "material": "hover",
+      "face": "side",
+      "direction": "s",
+      "is_directional": true
+    },
+    "hover_side_e": {
+      "index": 14,
+      "grid_pos": [
+        2,
+        2
+      ],
+      "pixel_pos": [
+        41,
+        41
+      ],
+      "uv_min": [
+        0.3203125,
+        0.3203125
+      ],
+      "uv_max": [
+        0.4609375,
+        0.4609375
+      ],
+      "uv_size": [
+        0.140625,
+        0.140625
+      ],
+      "material": "hover",
+      "face": "side",
+      "direction": "e",
+      "is_directional": true
+    },
+    "hover_side_w": {
+      "index": 15,
+      "grid_pos": [
+        3,
+        2
+      ],
+      "pixel_pos": [
+        61,
+        41
+      ],
+      "uv_min": [
+        0.4765625,
+        0.3203125
+      ],
+      "uv_max": [
+        0.6171875,
+        0.4609375
+      ],
+      "uv_size": [
+        0.140625,
+        0.140625
+      ],
+      "material": "hover",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
+    },
+    "hover_top": {
+      "index": 16,
+      "grid_pos": [
+        4,
+        2
+      ],
+      "pixel_pos": [
+        81,
+        41
+      ],
+      "uv_min": [
+        0.6328125,
+        0.3203125
+      ],
+      "uv_max": [
+        0.7734375,
+        0.4609375
+      ],
+      "uv_size": [
+        0.140625,
+        0.140625
+      ],
+      "material": "hover",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "hover_bottom": {
+      "index": 17,
+      "grid_pos": [
+        5,
+        2
+      ],
+      "pixel_pos": [
+        101,
+        41
+      ],
+      "uv_min": [
+        0.7890625,
+        0.3203125
+      ],
+      "uv_max": [
+        0.9296875,
+        0.4609375
+      ],
+      "uv_size": [
+        0.140625,
+        0.140625
+      ],
+      "material": "hover",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
     }
   },
   "materials": {
@@ -346,6 +508,14 @@
       "side_s": 7,
       "side_e": 8,
       "side_w": 9
+    },
+    "hover": {
+      "top": 16,
+      "bottom": 17,
+      "side_n": 12,
+      "side_s": 13,
+      "side_e": 14,
+      "side_w": 15
     }
   }
 }

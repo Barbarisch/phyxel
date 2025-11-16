@@ -21,6 +21,7 @@ class Chunk;
 // Texture system constants
 namespace TextureConstants {
     constexpr uint16_t PLACEHOLDER_TEXTURE_INDEX = 5;     // Default fallback texture (placeholder_bottom)
+    constexpr uint16_t HOVER_BASE_TEXTURE_INDEX = 12;     // Hover texture base index (12-17 for 6 faces)
     constexpr uint16_t INVALID_TEXTURE_INDEX = 0xFFFF;    // Invalid/unset texture
     constexpr uint16_t MAX_TEXTURE_INDEX = 0xFFFE;        // Maximum valid texture index
     
@@ -29,6 +30,14 @@ namespace TextureConstants {
     inline uint16_t getTextureIndexForFace(int faceID) {
         if (faceID >= 0 && faceID < 6) {
             return static_cast<uint16_t>(faceID);  // Direct mapping: faceID == textureIndex
+        }
+        return PLACEHOLDER_TEXTURE_INDEX; // fallback
+    }
+    
+    // Helper function to get hover texture index for a specific face
+    inline uint16_t getHoverTextureIndexForFace(int faceID) {
+        if (faceID >= 0 && faceID < 6) {
+            return static_cast<uint16_t>(HOVER_BASE_TEXTURE_INDEX + faceID);  // Hover textures are indices 12-17
         }
         return PLACEHOLDER_TEXTURE_INDEX; // fallback
     }

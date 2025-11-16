@@ -25,7 +25,6 @@ VoxelInteractionSystem::VoxelInteractionSystem(ChunkManager* chunkManager,
     , m_forceSystem(forceSystem)
     , m_hasHoveredCube(false)
     , m_lastHoveredCube(-1)
-    , m_originalHoveredColor(0.0f)
     , m_hoverDetectionTimeMs(0.0)
     , m_avgHoverDetectionTimeMs(0.0)
     , m_hoverDetectionSamples(0)
@@ -130,6 +129,17 @@ void VoxelInteractionSystem::removeHoveredCube() {
         return;
     }
     
+    // CRITICAL DEBUG: Log what we're about to break
+    LOG_ERROR_FMT("Application", "========== BREAK/REMOVE VOXEL CALLED ==========");
+    LOG_ERROR_FMT("Application", "[DEBUG] isMicrocube=" << m_currentHoveredLocation.isMicrocube 
+              << " isSubcube=" << m_currentHoveredLocation.isSubcube);
+    LOG_ERROR_FMT("Application", "[DEBUG] World pos: (" << m_currentHoveredLocation.worldPos.x 
+              << "," << m_currentHoveredLocation.worldPos.y << "," << m_currentHoveredLocation.worldPos.z << ")");
+    if (m_currentHoveredLocation.isSubcube || m_currentHoveredLocation.isMicrocube) {
+        LOG_ERROR_FMT("Application", "[DEBUG] Subcube pos: (" << m_currentHoveredLocation.subcubePos.x 
+                  << "," << m_currentHoveredLocation.subcubePos.y << "," << m_currentHoveredLocation.subcubePos.z << ")");
+    }
+    
     // Get the chunk and remove the cube using the stored location
     Chunk* chunk = m_currentHoveredLocation.chunk;
     if (!chunk) {
@@ -142,6 +152,23 @@ void VoxelInteractionSystem::removeHoveredCube() {
     bool removed = false;
     
     if (m_currentHoveredLocation.isSubcube) {
+        // VALIDATION: Verify subcube actually exists before trying to remove
+        Subcube* subcube = chunk->getSubcubeAt(m_currentHoveredLocation.localPos, m_currentHoveredLocation.subcubePos);
+        if (!subcube) {
+            LOG_ERROR("Application", "[SUBCUBE REMOVAL] *** BUG *** Subcube not found at hover location!");
+            LOG_ERROR("Application", "[SUBCUBE REMOVAL] Hover detection gave wrong type!");
+            
+            // Debug what actually exists
+            auto allSubcubes = chunk->getSubcubesAt(m_currentHoveredLocation.localPos);
+            LOG_ERROR_FMT("Application", "[DEBUG] Found " << allSubcubes.size() << " subcubes at this cube position");
+            auto voxelType = chunk->getVoxelType(m_currentHoveredLocation.localPos);
+            LOG_ERROR_FMT("Application", "[DEBUG] VoxelTypeMap: " << (int)voxelType);
+            
+            m_hasHoveredCube = false;
+            m_currentHoveredLocation = CubeLocation();
+            return;
+        }
+        
         // Remove a specific subcube
         removed = chunk->removeSubcube(m_currentHoveredLocation.localPos, m_currentHoveredLocation.subcubePos);
         if (removed) {
@@ -469,9 +496,23 @@ void VoxelInteractionSystem::breakHoveredMicrocube() {
     LOG_INFO_FMT("Application", "[MICROCUBE BREAKING] Current location: isMicrocube=" << m_currentHoveredLocation.isMicrocube 
               << " isSubcube=" << m_currentHoveredLocation.isSubcube);
     
+    // CRITICAL DEBUG: Log exact state and location
+    if (m_currentHoveredLocation.isValid()) {
+        LOG_ERROR_FMT("Application", "========== BREAK MICROCUBE ATTEMPT ==========");
+        LOG_ERROR_FMT("Application", "[DEBUG] World pos: (" << m_currentHoveredLocation.worldPos.x 
+                  << "," << m_currentHoveredLocation.worldPos.y << "," << m_currentHoveredLocation.worldPos.z << ")");
+        LOG_ERROR_FMT("Application", "[DEBUG] Local pos: (" << m_currentHoveredLocation.localPos.x 
+                  << "," << m_currentHoveredLocation.localPos.y << "," << m_currentHoveredLocation.localPos.z << ")");
+        LOG_ERROR_FMT("Application", "[DEBUG] Subcube pos: (" << m_currentHoveredLocation.subcubePos.x 
+                  << "," << m_currentHoveredLocation.subcubePos.y << "," << m_currentHoveredLocation.subcubePos.z << ")");
+        LOG_ERROR_FMT("Application", "[DEBUG] Microcube pos: (" << m_currentHoveredLocation.microcubePos.x 
+                  << "," << m_currentHoveredLocation.microcubePos.y << "," << m_currentHoveredLocation.microcubePos.z << ")");
+    }
+    
     // Only break microcubes
     if (!m_currentHoveredLocation.isMicrocube) {
-        LOG_DEBUG("Application", "[MICROCUBE BREAKING] Hovered object is not a microcube");
+        LOG_ERROR_FMT("Application", "[MICROCUBE BREAKING] *** BUG DETECTED *** Hovered object is NOT a microcube! isSubcube=" 
+                  << m_currentHoveredLocation.isSubcube << " - hover detection gave wrong type!");
         return;
     }
 
@@ -493,7 +534,38 @@ void VoxelInteractionSystem::breakHoveredMicrocube() {
     
     Microcube* microcube = chunk->getMicrocubeAt(localPos, subcubePos, microcubePos);
     if (!microcube) {
-        LOG_ERROR("Application", "[MICROCUBE BREAKING] ERROR: Microcube not found");
+        LOG_ERROR("Application", "[MICROCUBE BREAKING] *** CRITICAL BUG *** Microcube not found at detected location!");
+        LOG_ERROR("Application", "[MICROCUBE BREAKING] Hover detection said microcube exists, but it doesn't!");
+        LOG_ERROR("Application", "[MICROCUBE BREAKING] Checking what actually exists...");
+        
+        // Debug: Check what actually exists
+        auto subcubes = chunk->getSubcubesAt(localPos);
+        LOG_ERROR_FMT("Application", "[DEBUG] Found " << subcubes.size() << " subcubes at parent position");
+        
+        bool foundAnyMicrocubes = false;
+        for (int sx = 0; sx < 3; sx++) {
+            for (int sy = 0; sy < 3; sy++) {
+                for (int sz = 0; sz < 3; sz++) {
+                    glm::ivec3 checkSubcubePos(sx, sy, sz);
+                    auto micros = chunk->getMicrocubesAt(localPos, checkSubcubePos);
+                    if (!micros.empty()) {
+                        LOG_ERROR_FMT("Application", "[DEBUG] Found " << micros.size() 
+                                  << " microcubes at subcube (" << sx << "," << sy << "," << sz << ")");
+                        foundAnyMicrocubes = true;
+                    }
+                }
+            }
+        }
+        
+        if (!foundAnyMicrocubes) {
+            LOG_ERROR("Application", "[DEBUG] NO microcubes found at this cube position!");
+        }
+        
+        // Check voxelTypeMap
+        auto voxelType = chunk->getVoxelType(localPos);
+        LOG_ERROR_FMT("Application", "[DEBUG] VoxelTypeMap shows: " << (int)voxelType 
+                  << " (0=EMPTY, 1=CUBE, 2=SUBDIVIDED)");
+        
         m_hasHoveredCube = false;
         m_currentHoveredLocation = CubeLocation();
         return;
@@ -765,7 +837,12 @@ VoxelLocation VoxelInteractionSystem::pickVoxelOptimized(const glm::vec3& rayOri
             // If subdivided, resolve specific subcube
             if (location.type == VoxelLocation::SUBDIVIDED) {
                 LOG_TRACE_FMT("VoxelInteraction", "[PICK] Found SUBDIVIDED voxel at " << voxel.x << "," << voxel.y << "," << voxel.z << " - resolving...");
-                return resolveSubcubeInVoxel(rayOrigin, rayDirection, location);
+                VoxelLocation resolved = resolveSubcubeInVoxel(rayOrigin, rayDirection, location);
+                if (resolved.isValid()) {
+                    return resolved; // Found a subcube/microcube
+                }
+                // Ray passed through empty space in subdivided voxel - continue DDA to next voxel
+                LOG_TRACE_FMT("VoxelInteraction", "[PICK] Ray passed through subdivided voxel without hitting - continuing to next voxel");
             } else {
                 return location; // Regular cube
             }
@@ -798,6 +875,17 @@ VoxelLocation VoxelInteractionSystem::pickVoxelOptimized(const glm::vec3& rayOri
 
 VoxelLocation VoxelInteractionSystem::resolveSubcubeInVoxel(const glm::vec3& rayOrigin, const glm::vec3& rayDirection, 
                                                            const VoxelLocation& voxelHit) const {
+    // PERFORMANCE FIX: Early exit if ray doesn't intersect the parent voxel at all
+    // This prevents expensive iteration through all 27 subcube positions when the ray
+    // passes through empty space in a subdivided voxel
+    glm::vec3 voxelMin = glm::vec3(voxelHit.worldPos);
+    glm::vec3 voxelMax = voxelMin + glm::vec3(1.0f);
+    float voxelIntersectionDist;
+    if (!rayAABBIntersect(rayOrigin, rayDirection, voxelMin, voxelMax, voxelIntersectionDist)) {
+        LOG_DEBUG("VoxelInteraction", "[RESOLVE] Ray doesn't intersect subdivided voxel bounds - returning empty");
+        return VoxelLocation(); // Ray doesn't hit this voxel at all
+    }
+    
     // Get all existing subcubes at this voxel position
     std::vector<Subcube*> existingSubcubes = voxelHit.chunk->getSubcubesAt(voxelHit.localPos);
     
@@ -811,6 +899,7 @@ VoxelLocation VoxelInteractionSystem::resolveSubcubeInVoxel(const glm::vec3& ray
     
     // First, check for microcubes at all possible subcube positions
     LOG_DEBUG("VoxelInteraction", "[RESOLVE] Checking for microcubes...");
+    int totalMicrocubesChecked = 0;
     for (int sx = 0; sx < 3; ++sx) {
         for (int sy = 0; sy < 3; ++sy) {
             for (int sz = 0; sz < 3; ++sz) {
@@ -818,7 +907,8 @@ VoxelLocation VoxelInteractionSystem::resolveSubcubeInVoxel(const glm::vec3& ray
                 std::vector<Microcube*> microcubes = voxelHit.chunk->getMicrocubesAt(voxelHit.localPos, subcubePos);
                 
                 if (!microcubes.empty()) {
-                    LOG_INFO_FMT("VoxelInteraction", "[RESOLVE] Found " << microcubes.size() << " microcubes at subcube pos " << sx << "," << sy << "," << sz);
+                    totalMicrocubesChecked += microcubes.size();
+                    LOG_TRACE_FMT("VoxelInteraction", "[RESOLVE] Found " << microcubes.size() << " microcubes at subcube pos " << sx << "," << sy << "," << sz);
                     
                     for (Microcube* microcube : microcubes) {
                         if (!microcube || !microcube->isVisible()) continue;
@@ -841,13 +931,17 @@ VoxelLocation VoxelInteractionSystem::resolveSubcubeInVoxel(const glm::vec3& ray
                                 closestHit = voxelHit;
                                 closestHit.subcubePos = microcube->getSubcubeLocalPosition();
                                 closestHit.microcubePos = microcube->getMicrocubeLocalPosition();
-                                LOG_INFO_FMT("VoxelInteraction", "[RESOLVE] Found closer microcube at distance " << intersectionDistance);
+                                LOG_TRACE_FMT("VoxelInteraction", "[RESOLVE] Found closer microcube at distance " << intersectionDistance);
                             }
                         }
                     }
                 }
             }
         }
+    }
+    
+    if (totalMicrocubesChecked > 0) {
+        LOG_DEBUG_FMT("VoxelInteraction", "[RESOLVE] Checked " << totalMicrocubesChecked << " total microcubes");
     }
     
     // Second, test ray intersection against each existing subcube's bounding box
@@ -871,7 +965,7 @@ VoxelLocation VoxelInteractionSystem::resolveSubcubeInVoxel(const glm::vec3& ray
                 closestHit = voxelHit;
                 closestHit.subcubePos = subcube->getLocalPosition();
                 closestHit.microcubePos = glm::ivec3(-1); // Not a microcube
-                LOG_INFO_FMT("VoxelInteraction", "[RESOLVE] Found closer subcube at distance " << intersectionDistance);
+                LOG_TRACE_FMT("VoxelInteraction", "[RESOLVE] Found closer subcube at distance " << intersectionDistance);
             }
         }
     }
@@ -879,16 +973,27 @@ VoxelLocation VoxelInteractionSystem::resolveSubcubeInVoxel(const glm::vec3& ray
     // Return the closest hit (microcube or subcube), or invalid if nothing was hit
     if (closestHit.isValid()) {
         if (closestHit.isMicrocube()) {
-            LOG_INFO_FMT("VoxelInteraction", "[RESOLVE] Returning MICROCUBE at subcube (" 
+            LOG_ERROR_FMT("VoxelInteraction", "[RESOLVE] *** RETURNING MICROCUBE *** at subcube (" 
                       << closestHit.subcubePos.x << "," << closestHit.subcubePos.y << "," << closestHit.subcubePos.z
                       << ") micro (" << closestHit.microcubePos.x << "," << closestHit.microcubePos.y << "," << closestHit.microcubePos.z
                       << ") distance: " << closestDistance);
-        } else {
-            LOG_INFO_FMT("VoxelInteraction", "[RESOLVE] Returning SUBCUBE at pos (" 
+        } else if (closestHit.isSubcube()) {
+            LOG_ERROR_FMT("VoxelInteraction", "[RESOLVE] *** RETURNING SUBCUBE *** at pos (" 
                       << closestHit.subcubePos.x << "," << closestHit.subcubePos.y << "," << closestHit.subcubePos.z
                       << ") distance: " << closestDistance);
+        } else {
+            LOG_ERROR_FMT("VoxelInteraction", "[RESOLVE] *** RETURNING REGULAR CUBE *** distance: " << closestDistance);
         }
         return closestHit;
+    }
+    
+    // Ray passed through subdivided voxel without hitting any subcube/microcube
+    // This can happen if objects are positioned off to the side
+    if (totalMicrocubesChecked > 0 || existingSubcubes.size() > 0) {
+        LOG_WARN_FMT("VoxelInteraction", "[RESOLVE] Ray passed through subdivided voxel at (" 
+                  << voxelHit.worldPos.x << "," << voxelHit.worldPos.y << "," << voxelHit.worldPos.z 
+                  << ") with " << totalMicrocubesChecked << " microcubes and " << existingSubcubes.size() 
+                  << " subcubes, but didn't hit any - position should probably be marked EMPTY");
     }
     
     LOG_DEBUG("VoxelInteraction", "[RESOLVE] No subcubes or microcubes intersected (ray passed through empty space)");

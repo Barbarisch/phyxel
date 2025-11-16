@@ -250,7 +250,7 @@ public:
     bool subdivideSubcubeAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);  // Convert subcube to 27 microcubes
     bool addMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos, const glm::vec3& color);
     bool removeMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos);
-    bool clearMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);  // Remove all microcubes and restore subcube
+    bool clearMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);  // Remove all microcubes at subcube position (leaves empty space)
     
     // Physics-related subcube manipulation
     bool breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos,  // Move subcube from static to global dynamic system
@@ -272,9 +272,8 @@ public:
     // Efficient partial updates for hover effects (avoids full rebuild)
     void updateSingleCubeTexture(const glm::ivec3& localPos, uint16_t textureIndex);
     void updateSingleSubcubeTexture(const glm::ivec3& parentLocalPos, const glm::ivec3& subcubePos, uint16_t textureIndex);
-    
-    // Legacy color functions - TODO: Remove after full texture transition
-    // void updateSingleCubeColor(const glm::ivec3& localPos, const glm::vec3& newColor);
+    void updateSingleCubeColor(const glm::ivec3& localPos, const glm::vec3& newColor);
+    void updateSingleSubcubeColor(const glm::ivec3& localPos, const glm::ivec3& subcubePos, const glm::vec3& newColor);
     // void updateSingleSubcubeColor(const glm::ivec3& parentLocalPos, const glm::ivec3& subcubePos, const glm::vec3& newColor);
     
     // Dirty tracking for smart saves
@@ -304,6 +303,11 @@ public:
     void batchUpdateCollisions();                                       // Process collision changes in batch for performance
     void buildInitialCollisionShapes();                               // Build initial collision shapes with spatial grid
     bool hasExposedFaces(const glm::ivec3& localPos) const;           // Check if cube has exposed faces (optimization)
+    
+    // Collision shape creation helpers - focused single-purpose functions
+    void createCubeCollisionShape(const glm::ivec3& localPos, class btCompoundShape* compound);           // Create collision for full cube
+    void createSubcubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, class btCompoundShape* compound);  // Create collision for one subcube
+    void createMicrocubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const Microcube* microcube, class btCompoundShape* compound);  // Create collision for one microcube
     
     // ENHANCED DEBUG: Spatial grid debugging and validation infrastructure
     void validateCollisionSystem() const;                             // Validate spatial grid consistency and detect issues

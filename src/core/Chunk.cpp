@@ -1764,6 +1764,114 @@ void Chunk::cleanupPhysicsResources() {
     }
 }
 
+// ============================================================================
+// COLLISION SHAPE CREATION HELPERS
+// ============================================================================
+// These focused helper functions each handle creation of ONE type of collision
+// shape. This separation makes the code easier to test, debug, and maintain.
+// Each function has a single, clear responsibility with no conditional logic.
+
+void Chunk::createCubeCollisionShape(const glm::ivec3& localPos, btCompoundShape* compound) {
+    // Calculate center position in world space
+    glm::vec3 shapeCenter = glm::vec3(worldOrigin) + glm::vec3(localPos) + glm::vec3(0.5f);
+    
+    // Create box shape: full cube is 1.0 units, so half-extents are 0.5
+    btBoxShape* boxShape = new btBoxShape(btVector3(0.5f, 0.5f, 0.5f));
+    
+    // Position the shape in the compound
+    btTransform transform;
+    transform.setIdentity();
+    transform.setOrigin(btVector3(shapeCenter.x, shapeCenter.y, shapeCenter.z));
+    compound->addChildShape(transform, boxShape);
+    
+    // Create collision entity for tracking
+    auto entity = std::make_shared<CollisionEntity>(boxShape, CollisionEntity::CUBE, shapeCenter);
+    entity->isInCompound = true; // Shape is now owned by Bullet compound
+    
+    // Add to spatial grid for O(1) lookups
+    collisionGrid.addEntity(localPos, entity);
+    
+    LOG_TRACE_FMT("Chunk", "[COLLISION] Created cube shape at (" 
+                  << localPos.x << "," << localPos.y << "," << localPos.z << ")");
+}
+
+void Chunk::createSubcubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, btCompoundShape* compound) {
+    // Calculate subcube center: offset from cube center by subcube position
+    // Subcube positions are (0,0,0) to (2,2,2), so we offset by -1 to center them
+    constexpr float SUBCUBE_SCALE = 1.0f / 3.0f;
+    glm::vec3 subcubeLocalOffset = glm::vec3(subcubePos) - glm::vec3(1.0f);
+    glm::vec3 subcubeOffset = subcubeLocalOffset * SUBCUBE_SCALE;
+    glm::vec3 subcubeCenter = glm::vec3(worldOrigin) + glm::vec3(cubePos) + glm::vec3(0.5f) + subcubeOffset;
+    
+    // Create box shape: subcube is 1/3 cube size, so half-extents are 1/6
+    btBoxShape* subcubeShape = new btBoxShape(btVector3(1.0f/6.0f, 1.0f/6.0f, 1.0f/6.0f));
+    
+    // Position the shape in the compound
+    btTransform transform;
+    transform.setIdentity();
+    transform.setOrigin(btVector3(subcubeCenter.x, subcubeCenter.y, subcubeCenter.z));
+    compound->addChildShape(transform, subcubeShape);
+    
+    // Create collision entity with hierarchy tracking
+    auto entity = std::make_shared<CollisionEntity>(subcubeShape, CollisionEntity::SUBCUBE, subcubeCenter, 1.0f/6.0f);
+    entity->isInCompound = true;
+    entity->parentChunkPos = cubePos;
+    entity->subcubeLocalPos = subcubePos;
+    
+    // Add to spatial grid
+    collisionGrid.addEntity(cubePos, entity);
+    
+    LOG_TRACE_FMT("Chunk", "[COLLISION] Created subcube shape at cube (" 
+                  << cubePos.x << "," << cubePos.y << "," << cubePos.z 
+                  << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z << ")");
+}
+
+void Chunk::createMicrocubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, 
+                                         const Microcube* microcube, btCompoundShape* compound) {
+    // Calculate microcube center: two-level hierarchy (cube -> subcube -> microcube)
+    constexpr float SUBCUBE_SCALE = 1.0f / 3.0f;
+    constexpr float MICROCUBE_SCALE = 1.0f / 9.0f;
+    
+    // First, offset from cube center to subcube center
+    glm::vec3 subcubeLocalOffset = glm::vec3(subcubePos) - glm::vec3(1.0f);
+    glm::vec3 subcubeOffset = subcubeLocalOffset * SUBCUBE_SCALE;
+    
+    // Then, offset from subcube center to microcube center
+    glm::vec3 microcubeLocalOffset = glm::vec3(microcube->getMicrocubeLocalPosition()) - glm::vec3(1.0f);
+    glm::vec3 microcubeOffset = microcubeLocalOffset * MICROCUBE_SCALE;
+    
+    glm::vec3 microcubeCenter = glm::vec3(worldOrigin) + glm::vec3(cubePos) + glm::vec3(0.5f) + subcubeOffset + microcubeOffset;
+    
+    // Create box shape: microcube is 1/9 cube size, so half-extents are 1/18
+    btBoxShape* microcubeShape = new btBoxShape(btVector3(1.0f/18.0f, 1.0f/18.0f, 1.0f/18.0f));
+    microcubeShape->setMargin(0.002f);
+    
+    // Position the shape in the compound
+    btTransform transform;
+    transform.setIdentity();
+    transform.setOrigin(btVector3(microcubeCenter.x, microcubeCenter.y, microcubeCenter.z));
+    compound->addChildShape(transform, microcubeShape);
+    
+    // Create collision entity with full hierarchy tracking
+    auto entity = std::make_shared<CollisionEntity>(microcubeShape, CollisionEntity::SUBCUBE, microcubeCenter, 1.0f/18.0f);
+    entity->isInCompound = true;
+    entity->parentChunkPos = cubePos;
+    entity->subcubeLocalPos = subcubePos;
+    
+    // Add to spatial grid
+    collisionGrid.addEntity(cubePos, entity);
+    
+    LOG_INFO_FMT("Chunk", "[STATIC COLLISION] Created microcube shape at cube (" 
+                  << cubePos.x << "," << cubePos.y << "," << cubePos.z 
+                  << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z
+                  << ") micro (" << microcube->getMicrocubeLocalPosition().x << "," 
+                  << microcube->getMicrocubeLocalPosition().y << "," << microcube->getMicrocubeLocalPosition().z << ")");
+}
+
+// ============================================================================
+// COLLISION ENTITY MANAGEMENT
+// ============================================================================
+
 // IMPROVED collision system - memory-safe reference-counted shapes with individual subcube tracking
 // This method replaces the old system that used nullptr placeholders and geometric distance heuristics
 // Now provides proper individual tracking for each collision shape with automatic memory management
@@ -1778,21 +1886,8 @@ void Chunk::addCollisionEntity(const glm::ivec3& localPos) {
     // Check for regular cube first
     const Cube* cube = getCubeAt(localPos);
     if (cube && cube->isVisible() && hasExposedFaces(localPos)) {
-        // Create full cube collision shape
-        glm::vec3 shapeCenter = glm::vec3(worldOrigin) + glm::vec3(localPos) + glm::vec3(0.5f);
-        btBoxShape* boxShape = new btBoxShape(btVector3(0.5f, 0.5f, 0.5f));
-        
-        btTransform transform;
-        transform.setIdentity();
-        transform.setOrigin(btVector3(shapeCenter.x, shapeCenter.y, shapeCenter.z));
-        compound->addChildShape(transform, boxShape);
-        
-        // Create collision entity with spatial tracking
-        auto entity = std::make_shared<CollisionEntity>(boxShape, CollisionEntity::CUBE, shapeCenter);
-        entity->isInCompound = true; // Shape is now owned by Bullet compound
-        
-        // Add to spatial grid - O(1) operation
-        collisionGrid.addEntity(localPos, entity);
+        // Delegate to focused helper function
+        createCubeCollisionShape(localPos, compound);
         
         LOG_TRACE_FMT("Chunk", "[COLLISION] Added cube entity at (" 
                   << localPos.x << "," << localPos.y << "," << localPos.z 
@@ -1816,42 +1911,12 @@ void Chunk::addCollisionEntity(const glm::ivec3& localPos) {
                                   << " microcube entities at cube (" << localPos.x << "," << localPos.y << "," << localPos.z 
                                   << ") subcube (" << sx << "," << sy << "," << sz << ")");
                         
-                        // Create collision entity for EACH microcube with individual tracking
+                        // Delegate to helper function for each microcube
                         for (const Microcube* microcube : microcubes) {
-                            // Calculate microcube center position with two-level hierarchy
-                            constexpr float SUBCUBE_SCALE = 1.0f / 3.0f;
-                            constexpr float MICROCUBE_SCALE = 1.0f / 9.0f;
-                            
-                            glm::vec3 subcubeLocalOffset = glm::vec3(subcubePos) - glm::vec3(1.0f);
-                            glm::vec3 subcubeOffset = subcubeLocalOffset * SUBCUBE_SCALE;
-                            
-                            glm::vec3 microcubeLocalOffset = glm::vec3(microcube->getMicrocubeLocalPosition()) - glm::vec3(1.0f);
-                            glm::vec3 microcubeOffset = microcubeLocalOffset * MICROCUBE_SCALE;
-                            
-                            glm::vec3 microcubeCenter = glm::vec3(worldOrigin) + glm::vec3(localPos) + glm::vec3(0.5f) + subcubeOffset + microcubeOffset;
-                            
-                            LOG_INFO_FMT("Chunk", "[STATIC COLLISION] Creating microcube at cube (" << localPos.x << "," << localPos.y << "," << localPos.z 
-                                      << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z
-                                      << ") micro (" << microcube->getMicrocubeLocalPosition().x << "," << microcube->getMicrocubeLocalPosition().y << "," << microcube->getMicrocubeLocalPosition().z << ")");
-                            
-                            btBoxShape* microcubeShape = new btBoxShape(btVector3(1.0f/18.0f, 1.0f/18.0f, 1.0f/18.0f));
-                            microcubeShape->setMargin(0.002f);
-                            
-                            btTransform transform;
-                            transform.setIdentity();
-                            transform.setOrigin(btVector3(microcubeCenter.x, microcubeCenter.y, microcubeCenter.z));
-                            compound->addChildShape(transform, microcubeShape);
-                            
-                            auto entity = std::make_shared<CollisionEntity>(microcubeShape, CollisionEntity::SUBCUBE, microcubeCenter, 1.0f/18.0f);
-                            entity->isInCompound = true;
-                            entity->parentChunkPos = localPos;
-                            entity->subcubeLocalPos = subcubePos;
-                            
-                            collisionGrid.addEntity(localPos, entity);
+                            createMicrocubeCollisionShape(localPos, subcubePos, microcube, compound);
                         }
                     } else {
                         // No microcubes at this position - check for regular subcube
-                        // Get all subcubes at the cube position
                         auto subcubes = getStaticSubcubesAt(localPos);
                         
                         // Find the subcube at this specific subcube position
@@ -1861,31 +1926,8 @@ void Chunk::addCollisionEntity(const glm::ivec3& localPos) {
                                           << localPos.x << "," << localPos.y << "," << localPos.z 
                                           << ") subcube (" << sx << "," << sy << "," << sz << ")");
                                 
-                                // Calculate subcube center position
-                                glm::vec3 subcubeLocalOffset = glm::vec3(subcube->getLocalPosition()) - glm::vec3(1.0f);
-                                glm::vec3 subcubeOffset = subcubeLocalOffset * (1.0f/3.0f);
-                                glm::vec3 subcubeCenter = glm::vec3(worldOrigin) + glm::vec3(localPos) + glm::vec3(0.5f) + subcubeOffset;
-                                
-                                // Create collision shape
-                                btBoxShape* subcubeShape = new btBoxShape(btVector3(1.0f/6.0f, 1.0f/6.0f, 1.0f/6.0f));
-                                
-                                btTransform transform;
-                                transform.setIdentity();
-                                transform.setOrigin(btVector3(subcubeCenter.x, subcubeCenter.y, subcubeCenter.z));
-                                compound->addChildShape(transform, subcubeShape);
-                                
-                                // Create collision entity with spatial and hierarchy data
-                                auto entity = std::make_shared<CollisionEntity>(subcubeShape, CollisionEntity::SUBCUBE, subcubeCenter, 1.0f/6.0f);
-                                entity->isInCompound = true;
-                                entity->parentChunkPos = localPos;
-                                entity->subcubeLocalPos = subcube->getLocalPosition();
-                                
-                                // Add to spatial grid
-                                collisionGrid.addEntity(localPos, entity);
-                                
-                                LOG_TRACE_FMT("Chunk", "[COLLISION] Added subcube entity at local (" 
-                                          << subcube->getLocalPosition().x << "," << subcube->getLocalPosition().y << "," << subcube->getLocalPosition().z 
-                                          << ") center (" << subcubeCenter.x << "," << subcubeCenter.y << "," << subcubeCenter.z << ")");
+                                // Delegate to focused helper function
+                                createSubcubeCollisionShape(localPos, subcubePos, compound);
                                 break;
                             }
                         }
@@ -2506,6 +2548,31 @@ bool Chunk::addMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subc
     // Check if microcube already exists
     if (getMicrocubeAt(parentCubePos, subcubePos, microcubePos)) return false;
     
+    // CRITICAL FIX: Check if this is the first microcube at this subcube position
+    // If parent subcube exists, we need to remove it (defensive fix for database corruption)
+    auto existingMicrocubes = getMicrocubesAt(parentCubePos, subcubePos);
+    if (existingMicrocubes.empty()) {
+        // This is the first microcube at this subcube position
+        // Check if parent subcube exists and remove it if found
+        Subcube* parentSubcube = getSubcubeAt(parentCubePos, subcubePos);
+        if (parentSubcube) {
+            LOG_WARN_FMT("Chunk", "[DATA INTEGRITY] Found parent subcube when adding first microcube at cube (" 
+                      << parentCubePos.x << "," << parentCubePos.y << "," << parentCubePos.z 
+                      << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z 
+                      << ") - removing parent (possible database corruption)");
+            
+            // Remove from maps and vector
+            removeSubcubeFromMaps(parentCubePos, subcubePos);
+            for (auto it = staticSubcubes.begin(); it != staticSubcubes.end(); ++it) {
+                if (*it == parentSubcube) {
+                    delete parentSubcube;
+                    staticSubcubes.erase(it);
+                    break;
+                }
+            }
+        }
+    }
+    
     // Create new microcube (constructor: parentCubePos, color, subcubeLocalPos, microcubeLocalPos)
     glm::ivec3 parentWorldPos = worldOrigin + parentCubePos;
     Microcube* newMicrocube = new Microcube(parentWorldPos, color, subcubePos, microcubePos);
@@ -2571,12 +2638,23 @@ bool Chunk::removeMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& s
                 removeCollisionEntities(parentCubePos);
                 addCollisionEntity(parentCubePos);
             } else {
-                // No more microcubes - remove collision shape entirely
-                LOG_INFO_FMT("Chunk", "[COLLISION] No microcubes remain at parent pos (" 
-                          << parentCubePos.x << "," << parentCubePos.y << "," << parentCubePos.z 
-                          << ") - removing collision shape");
-                removeCollisionEntities(parentCubePos);
-                voxelTypeMap.erase(parentCubePos);
+                // No more microcubes - but check if subcubes still exist
+                auto remainingSubcubes = getStaticSubcubesAt(parentCubePos);
+                if (!remainingSubcubes.empty()) {
+                    LOG_INFO_FMT("Chunk", "[VOXEL MAP] No microcubes remain but " << remainingSubcubes.size() 
+                              << " subcubes still exist at (" << parentCubePos.x << "," << parentCubePos.y 
+                              << "," << parentCubePos.z << ") - keeping SUBDIVIDED state and updating collision");
+                    removeCollisionEntities(parentCubePos);
+                    addCollisionEntity(parentCubePos);
+                    // voxelTypeMap stays as SUBDIVIDED - DO NOT ERASE
+                } else {
+                    // No microcubes AND no subcubes - completely empty position
+                    LOG_INFO_FMT("Chunk", "[COLLISION] No microcubes or subcubes remain at parent pos (" 
+                              << parentCubePos.x << "," << parentCubePos.y << "," << parentCubePos.z 
+                              << ") - removing collision shape and voxel type entry");
+                    removeCollisionEntities(parentCubePos);
+                    voxelTypeMap.erase(parentCubePos);
+                }
             }
             
             // Mark for update
@@ -2594,10 +2672,12 @@ bool Chunk::clearMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcu
     auto microcubes = getMicrocubesAt(cubePos, subcubePos);
     if (microcubes.empty()) return false; // No microcubes to clear
     
-    // Get the color from the first microcube to use for restored subcube
-    glm::vec3 restoredColor = microcubes[0]->getColor();
+    LOG_INFO_FMT("Chunk", "[CLEAR MICROCUBES] Removing all microcubes at cube (" 
+              << cubePos.x << "," << cubePos.y << "," << cubePos.z 
+              << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z 
+              << ") - leaving empty space (no parent restoration)");
     
-    // Remove all microcubes
+    // Remove all microcubes at this subcube position
     for (auto it = staticMicrocubes.begin(); it != staticMicrocubes.end(); ) {
         Microcube* microcube = *it;
         if (microcube && 
@@ -2615,11 +2695,47 @@ bool Chunk::clearMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcu
         }
     }
     
-    // Restore the parent subcube
-    glm::ivec3 parentWorldPos = worldOrigin + cubePos;
-    Subcube* restoredSubcube = new Subcube(parentWorldPos, restoredColor, subcubePos);
-    staticSubcubes.push_back(restoredSubcube);
-    addSubcubeToMaps(cubePos, subcubePos, restoredSubcube);
+    // Update collision to reflect removal
+    // Check if any microcubes remain at the parent cube position
+    bool hasMicrocubes = false;
+    for (int sx = 0; sx < 3; ++sx) {
+        for (int sy = 0; sy < 3; ++sy) {
+            for (int sz = 0; sz < 3; ++sz) {
+                glm::ivec3 checkSubcubePos(sx, sy, sz);
+                auto remainingMicros = getMicrocubesAt(cubePos, checkSubcubePos);
+                if (!remainingMicros.empty()) {
+                    hasMicrocubes = true;
+                    break;
+                }
+            }
+            if (hasMicrocubes) break;
+        }
+        if (hasMicrocubes) break;
+    }
+    
+    if (hasMicrocubes) {
+        // Still have microcubes at other subcube positions - update collision
+        removeCollisionEntities(cubePos);
+        addCollisionEntity(cubePos);
+    } else {
+        // No more microcubes - but check if subcubes still exist
+        auto remainingSubcubes = getStaticSubcubesAt(cubePos);
+        if (!remainingSubcubes.empty()) {
+            LOG_INFO_FMT("Chunk", "[VOXEL MAP] No microcubes remain but " << remainingSubcubes.size() 
+                      << " subcubes still exist at (" << cubePos.x << "," << cubePos.y 
+                      << "," << cubePos.z << ") - keeping SUBDIVIDED state and updating collision");
+            removeCollisionEntities(cubePos);
+            addCollisionEntity(cubePos);
+            // voxelTypeMap stays as SUBDIVIDED - DO NOT ERASE
+        } else {
+            // No microcubes AND no subcubes - completely empty position
+            LOG_INFO_FMT("Chunk", "[CLEAR MICROCUBES] No microcubes or subcubes remain at (" 
+                      << cubePos.x << "," << cubePos.y << "," << cubePos.z 
+                      << ") - removing collision and voxel type entry");
+            removeCollisionEntities(cubePos);
+            voxelTypeMap.erase(cubePos);
+        }
+    }
     
     // Mark for update
     needsUpdate = true;

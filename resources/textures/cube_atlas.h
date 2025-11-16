@@ -1,7 +1,7 @@
 #pragma once
 // Auto-generated texture atlas header for Phyxel Engine
 // Atlas size: 128x128
-// Texture count: 12
+// Texture count: 18
 
 #include <unordered_map>
 #include <string>
@@ -34,7 +34,13 @@ enum TextureIndex {
     TEX_GRASSDIRT_SIDE_W = 9,
     TEX_GRASSDIRT_TOP = 10,
     TEX_GRASSDIRT_BOTTOM = 11,
-    TEXTURE_COUNT = 12
+    TEX_HOVER_SIDE_N = 12,
+    TEX_HOVER_SIDE_S = 13,
+    TEX_HOVER_SIDE_E = 14,
+    TEX_HOVER_SIDE_W = 15,
+    TEX_HOVER_TOP = 16,
+    TEX_HOVER_BOTTOM = 17,
+    TEXTURE_COUNT = 18
 };
 
 // UV lookup table
@@ -51,6 +57,12 @@ const std::unordered_map<std::string, TextureUV> TEXTURE_UVS = {
     {"grassdirt_side_w", {0.476562f, 0.164062f, 0.617188f, 0.304688f}},
     {"grassdirt_top", {0.632812f, 0.164062f, 0.773438f, 0.304688f}},
     {"grassdirt_bottom", {0.789062f, 0.164062f, 0.929688f, 0.304688f}},
+    {"hover_side_n", {0.007812f, 0.320312f, 0.148438f, 0.460938f}},
+    {"hover_side_s", {0.164062f, 0.320312f, 0.304688f, 0.460938f}},
+    {"hover_side_e", {0.320312f, 0.320312f, 0.460938f, 0.460938f}},
+    {"hover_side_w", {0.476562f, 0.320312f, 0.617188f, 0.460938f}},
+    {"hover_top", {0.632812f, 0.320312f, 0.773438f, 0.460938f}},
+    {"hover_bottom", {0.789062f, 0.320312f, 0.929688f, 0.460938f}},
 };
 
 // Get texture index by name
@@ -68,6 +80,12 @@ inline int getTextureIndex(const std::string& name) {
         {"grassdirt_side_w", 9},
         {"grassdirt_top", 10},
         {"grassdirt_bottom", 11},
+        {"hover_side_n", 12},
+        {"hover_side_s", 13},
+        {"hover_side_e", 14},
+        {"hover_side_w", 15},
+        {"hover_top", 16},
+        {"hover_bottom", 17},
     };
     auto it = indices.find(name);
     return (it != indices.end()) ? it->second : -1;
