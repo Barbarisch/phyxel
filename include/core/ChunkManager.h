@@ -2,7 +2,7 @@
 
 #include "Types.h"
 #include "Chunk.h"
-#include "DynamicCube.h"
+#include "Cube.h"
 #include "utils/CoordinateUtils.h"
 #include <vector>
 #include <unordered_map>
@@ -38,7 +38,7 @@ public:
     std::vector<std::unique_ptr<Subcube>> globalDynamicSubcubes;
     
     // Global dynamic cube management (not tied to specific chunks)
-    std::vector<std::unique_ptr<DynamicCube>> globalDynamicCubes;
+    std::vector<std::unique_ptr<Cube>> globalDynamicCubes;
     
     // Global dynamic microcube management (not tied to specific chunks)
     std::vector<std::unique_ptr<Microcube>> globalDynamicMicrocubes;
@@ -147,11 +147,11 @@ public:
     size_t getGlobalDynamicSubcubeCount() const { return globalDynamicSubcubes.size(); }
     
     // Global dynamic cube management
-    void addGlobalDynamicCube(std::unique_ptr<DynamicCube> cube);
+    void addGlobalDynamicCube(std::unique_ptr<Cube> cube);
     void updateGlobalDynamicCubes(float deltaTime);  // Update timers and cleanup expired ones
     void updateGlobalDynamicCubePositions();  // Update positions from physics bodies
     void clearAllGlobalDynamicCubes();
-    const std::vector<std::unique_ptr<DynamicCube>>& getGlobalDynamicCubes() const { return globalDynamicCubes; }
+    const std::vector<std::unique_ptr<Cube>>& getGlobalDynamicCubes() const { return globalDynamicCubes; }
     size_t getGlobalDynamicCubeCount() const { return globalDynamicCubes.size(); }
     
     // Global dynamic microcube management

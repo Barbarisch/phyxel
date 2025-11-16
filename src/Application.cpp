@@ -8,7 +8,6 @@
 #include "utils/Logger.h"
 #include "utils/CoordinateUtils.h"
 #include "examples/MultiChunkDemo.h"
-#include "core/DynamicCube.h"
 #include "core/Chunk.h"
 #include "physics/Material.h"
 #include <iostream>

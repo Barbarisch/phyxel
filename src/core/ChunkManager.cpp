@@ -939,7 +939,7 @@ void ChunkManager::clearAllGlobalDynamicSubcubes() {
 // GLOBAL DYNAMIC CUBE MANAGEMENT
 // ===============================================================
 
-void ChunkManager::addGlobalDynamicCube(std::unique_ptr<DynamicCube> cube) {
+void ChunkManager::addGlobalDynamicCube(std::unique_ptr<Cube> cube) {
     if (cube) {
         LOG_DEBUG_FMT("ChunkManager", "[CHUNK MANAGER] Adding global dynamic cube at world position: ("
                   << cube->getPosition().x << "," << cube->getPosition().y << "," << cube->getPosition().z << ")");

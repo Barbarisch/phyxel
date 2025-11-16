@@ -357,7 +357,7 @@ void VoxelInteractionSystem::breakHoveredCube(const glm::vec3& cameraPos) {
     int materialIndex = (abs(static_cast<int>(cubeWorldPos.x) + static_cast<int>(cubeWorldPos.z))) % materials.size();
     std::string selectedMaterial = materials[materialIndex];
     
-    auto dynamicCube = std::make_unique<DynamicCube>(cubeCornerPos, originalColor, selectedMaterial);
+    auto dynamicCube = std::make_unique<Cube>(cubeCornerPos, originalColor, selectedMaterial);
     
     // Create physics body
     glm::vec3 cubeSize(1.0f);
@@ -658,7 +658,7 @@ void VoxelInteractionSystem::breakCubeAtPosition(const glm::ivec3& worldPos) {
     int materialIndex = (abs(worldPos.x) + abs(worldPos.z)) % materials.size();
     std::string selectedMaterial = materials[materialIndex];
     
-    auto dynamicCube = std::make_unique<DynamicCube>(cubeCornerPos, originalColor, selectedMaterial);
+    auto dynamicCube = std::make_unique<Cube>(cubeCornerPos, originalColor, selectedMaterial);
     
     // Create physics body
     glm::vec3 cubeSize(1.0f);
