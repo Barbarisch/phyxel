@@ -53,14 +53,16 @@ The `Renderer` class exists, is initialized, but **its main entry point `renderF
 
 ## Object Hierarchy: Cubes, Subcubes, and More
 
-You currently support **three classes of voxel objects**:
+You currently support **two classes of voxel objects**:
 
 ### 1. **Cube** (Standard 1.0 scale)
-- **Location:** Static in chunk grid (integer coordinates)
-- **Rendering:** Static pipeline via ChunkManager
-- **Physics:** Static (part of chunk compound shape) OR dynamic (DynamicCube)
+- **Location:** Static in chunk grid (integer coordinates) OR dynamic (floating point physics-driven)
+- **Rendering:** 
+  - Static: Via chunk static pipeline
+  - Dynamic: Via dynamic pipeline when physics-enabled
+- **Physics:** Static (part of chunk compound shape) OR dynamic (individual btRigidBody)
 - **File:** `include/core/Cube.h`
-- **Features:** Bond system for force propagation, can be broken into subcubes
+- **Features:** Bond system for force propagation, can be broken into subcubes, material system, lifetime tracking, supports both grid-aligned and physics-enabled modes
 
 ### 2. **Subcube** (0.333 scale - 1/3 size)
 - **Location:** Either static (part of chunk) OR dynamic (floating)
@@ -70,13 +72,6 @@ You currently support **three classes of voxel objects**:
 - **Physics:** Can be part of chunk OR have individual physics body
 - **File:** `include/core/Subcube.h`
 - **Features:** Local position within parent cube (0-2 for each axis), lifetime-based cleanup
-
-### 3. **DynamicCube** (1.0 scale - full size, floating)
-- **Location:** Physics-driven position (floating point)
-- **Rendering:** Dynamic pipeline
-- **Physics:** Individual btRigidBody with material properties
-- **File:** `include/core/DynamicCube.h`
-- **Features:** Material system, color, lifetime tracking
 
 ### Current Rendering Split
 
@@ -338,11 +333,8 @@ std::unique_ptr<Scene::SceneManager> sceneManager;
 ### 6. **Namespace Inconsistency**
 
 **Static Geometry:**
-- `Cube` - global namespace
+- `Cube` - VulkanCube namespace (supports both static and dynamic modes)
 - `Subcube` - VulkanCube namespace
-- `DynamicCube` - VulkanCube namespace
-
-**Recommendation:** Move Cube to VulkanCube namespace
 
 ---
 
@@ -399,7 +391,7 @@ class Voxel {
 
 ### Option 3: Hybrid Approach (Pragmatic)
 
-Keep existing Cube/Subcube/DynamicCube classes but add:
+Keep existing Cube/Subcube classes (both support static and dynamic modes) and add:
 
 ```cpp
 class VoxelRenderer {
@@ -494,7 +486,7 @@ std::unique_ptr<Scene::SceneManager> sceneManager;
 
 #### 6. **Unify Voxel Type Rendering** 🎨 (8-12 hours)
 
-**Current:** Hardcoded paths for Cube, Subcube, DynamicCube
+**Current:** Hardcoded paths for Cube and Subcube (both support static/dynamic modes)
 
 **Proposed:** Scale-aware rendering system
 
@@ -523,8 +515,8 @@ class VoxelRenderer {
 ### Low Priority (Nice to Have)
 
 #### 8. **Namespace Consistency**
-- Move `Cube` to `VulkanCube::` namespace
-- Consistent with `Subcube` and `DynamicCube`
+- Move `Cube` to `VulkanCube::` namespace (if not already done)
+- Consistent with `Subcube` and `Microcube`
 
 #### 9. **Performance Profiling**
 - Identify actual bottlenecks

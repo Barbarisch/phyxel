@@ -302,7 +302,7 @@ The phyxel codebase has grown to **~14,000 lines** across 24 source files, with 
 
 **Physics Shape Factory** (~200 lines)
 - File: `src/physics/PhysicsShapeFactory.cpp`
-- Extract shape creation logic from Chunk, DynamicCube, Subcube
+- Extract shape creation logic from Chunk, Cube, Subcube
 - Methods: createCubeShape(), createSubcubeShape(), createCompoundShape()
 - Benefit: Consistent shape creation, easier to tune physics
 

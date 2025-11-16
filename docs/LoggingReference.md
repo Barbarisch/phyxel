@@ -134,7 +134,7 @@ Levels:
 - **main.cpp**: ERROR for initialization failures
 - **Material.cpp**: DEBUG for material operations
 - **WorldGenerator.cpp**: DEBUG for generation, ERROR for validation
-- **DynamicCube.cpp**: DEBUG for material application
+- **Cube.cpp**: DEBUG for material application
 - **PhysicsWorld.cpp**: DEBUG for physics operations
 - **SceneManager.cpp**: DEBUG for scene updates
 - **PerformanceProfiler.cpp**: DEBUG for metrics

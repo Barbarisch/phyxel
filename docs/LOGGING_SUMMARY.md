@@ -46,7 +46,7 @@ The comprehensive logging system has been fully implemented and **all applicatio
 #### Physics & Materials
 - ✅ **PhysicsWorld.cpp** - Physics operations
 - ✅ **ForceSystem.cpp** (8 statements) - Force propagation
-- ✅ **DynamicCube.cpp** (1 statement) - Material properties
+- ✅ **Cube.cpp** (1 statement) - Material properties
 - ✅ **Material.cpp** (7 statements) - Material management
 
 #### Scene & Performance
@@ -150,7 +150,7 @@ All application code has been migrated to use the centralized Logger system:
    - PhysicsWorld.cpp, ForceSystem.cpp
 
 3. ✅ **Utility Files** - Supporting systems
-   - main.cpp, Material.cpp, DynamicCube.cpp
+   - main.cpp, Material.cpp, Cube.cpp
    - WorldGenerator.cpp, Timer.cpp
 
 ### Conversion Statistics
