@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include <vector>
 #include <array>
+#include <string>
 
 // Forward declarations
 class btRigidBody;
@@ -65,6 +66,7 @@ public:
     // Constructors
     Cube();
     Cube(const glm::ivec3& pos, const glm::vec3& col);
+    Cube(const glm::ivec3& pos, const glm::vec3& col, const std::string& material);
     
     // Destructor
     ~Cube() = default;
@@ -83,6 +85,18 @@ public:
     bool isVisible() const { return visible; }
     btRigidBody* getRigidBody() const { return rigidBody; }
     
+    // Physics accessors (for dynamic cubes)
+    const glm::vec3& getPhysicsPosition() const { return physicsPosition; }
+    const glm::vec4& getPhysicsRotation() const { return physicsRotation; }
+    bool isDynamic() const { return rigidBody != nullptr; }
+    
+    // Lifetime accessors (for dynamic cubes)
+    float getLifetime() const { return lifetime; }
+    bool hasExpired() const { return isDynamic() && lifetime <= 0.0f; }
+    
+    // Material accessors (for dynamic cubes)
+    const std::string& getMaterialName() const { return materialName; }
+    
     // Bond system accessors
     const std::array<Bond, 6>& getBonds() const { return bonds; }
     const Bond& getBond(BondDirection direction) const { return bonds[static_cast<int>(direction)]; }
@@ -98,6 +112,17 @@ public:
     void setVisible(bool vis) { visible = vis; }
     void setRigidBody(btRigidBody* body) { rigidBody = body; }
     
+    // Physics mutators (for dynamic cubes)
+    void setPhysicsPosition(const glm::vec3& pos) { physicsPosition = pos; }
+    void setPhysicsRotation(const glm::vec4& rot) { physicsRotation = rot; }
+    
+    // Lifetime mutators (for dynamic cubes)
+    void setLifetime(float time) { lifetime = time; }
+    void updateLifetime(float deltaTime) { lifetime -= deltaTime; }
+    
+    // Material mutators (for dynamic cubes)
+    void setMaterial(const std::string& material);
+    
     // Bond system mutators
     void setBondStrength(BondDirection direction, float strength) { bonds[static_cast<int>(direction)].strength = strength; }
     void addForceToDirection(BondDirection direction, float force) { bonds[static_cast<int>(direction)].addForce(force); }
@@ -112,6 +137,12 @@ public:
     void breakApart() { broken = true; }
     void repair() { broken = false; }
     
+    // Material utility methods (for dynamic cubes)
+    void applyMaterialProperties();
+    void applyMaterialProperties(const std::string& newMaterialName);
+    glm::vec3 getEffectiveColor() const;
+    glm::vec3 getWorldPosition() const;
+    
     // Bond utility methods
     void initializeBonds(float defaultStrength = 100.0f);
     bool hasAnyBrokenBonds() const;
@@ -119,7 +150,7 @@ public:
     std::vector<BondDirection> getBrokenBondDirections() const;
     
     // Static utility methods
-    static float getSize() { return CUBE_SIZE; }
+    static float getScale() { return CUBE_SCALE; }
     static BondDirection getOppositeDirection(BondDirection direction);
     static glm::ivec3 getDirectionVector(BondDirection direction);
     static BondDirection vectorToDirection(const glm::ivec3& vector);
@@ -134,10 +165,18 @@ private:
     // Physics body for dynamic cubes
     btRigidBody* rigidBody = nullptr;
     
+    // Physics position/rotation (for dynamic cubes - bypasses integer grid)
+    glm::vec3 physicsPosition = glm::vec3(0.0f);
+    glm::vec4 physicsRotation = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f); // Identity quaternion
+    
+    // Material system (for dynamic cubes)
+    std::string materialName = "Default";
+    float lifetime = 30.0f;     // Lifetime in seconds (auto-cleanup after 30 seconds)
+    
     // Bond system - stores connection strength to neighbors in each direction
     std::array<Bond, 6> bonds;  // Indexed by BondDirection enum
     
-    static constexpr float CUBE_SIZE = 1.0f; // Size of each cube unit
+    static constexpr float CUBE_SCALE = 1.0f; // Scale of each cube unit
 };
 
 } // namespace VulkanCube

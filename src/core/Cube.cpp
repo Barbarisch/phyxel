@@ -1,4 +1,7 @@
 #include "core/Cube.h"
+#include "physics/Material.h"
+#include "utils/Logger.h"
+#include <btBulletDynamicsCommon.h>
 
 namespace VulkanCube {
 
@@ -10,6 +13,13 @@ Cube::Cube()
 Cube::Cube(const glm::ivec3& pos, const glm::vec3& col) 
     : position(pos), color(col), originalColor(col), broken(false), visible(true), rigidBody(nullptr) {
     initializeBonds();
+}
+
+Cube::Cube(const glm::ivec3& pos, const glm::vec3& col, const std::string& material) 
+    : position(pos), color(col), originalColor(col), materialName(material),
+      broken(false), visible(true), rigidBody(nullptr) {
+    initializeBonds();
+    physicsPosition = glm::vec3(pos); // Initialize physics position to grid position
 }
 
 void Cube::initializeBonds(float defaultStrength) {
@@ -75,6 +85,55 @@ BondDirection Cube::vectorToDirection(const glm::ivec3& vector) {
     if (vector == glm::ivec3(0, 0, 1)) return BondDirection::POSITIVE_Z;
     if (vector == glm::ivec3(0, 0, -1)) return BondDirection::NEGATIVE_Z;
     return BondDirection::POSITIVE_X; // fallback for invalid vectors
+}
+
+glm::vec3 Cube::getWorldPosition() const {
+    // If dynamic, use smooth physics position
+    // If static, convert grid position to world
+    return isDynamic() ? physicsPosition : glm::vec3(position);
+}
+
+void Cube::setMaterial(const std::string& newMaterialName) {
+    materialName = newMaterialName;
+    applyMaterialProperties();
+}
+
+void Cube::applyMaterialProperties() {
+    if (!rigidBody) return;
+    
+    // Get material properties
+    static Physics::MaterialManager materialManager;
+    const auto& material = materialManager.getMaterial(materialName);
+    
+    // Apply mass
+    btVector3 localInertia(0, 0, 0);
+    if (material.mass > 0.0f) {
+        rigidBody->getCollisionShape()->calculateLocalInertia(material.mass, localInertia);
+    }
+    rigidBody->setMassProps(material.mass, localInertia);
+    
+    // Apply friction and restitution
+    rigidBody->setFriction(material.friction);
+    rigidBody->setRestitution(material.restitution);
+    
+    // Apply damping
+    rigidBody->setDamping(material.linearDamping, material.angularDamping);
+    
+    LOG_DEBUG_FMT("Physics", "[MATERIAL] Applied '" << materialName << "' material properties to cube");
+}
+
+void Cube::applyMaterialProperties(const std::string& newMaterialName) {
+    materialName = newMaterialName;
+    applyMaterialProperties();
+}
+
+glm::vec3 Cube::getEffectiveColor() const {
+    // Get material properties for color tinting
+    static Physics::MaterialManager materialManager;
+    const auto& material = materialManager.getMaterial(materialName);
+    
+    // Apply material color tint
+    return color * material.colorTint;
 }
 
 } // namespace VulkanCube
