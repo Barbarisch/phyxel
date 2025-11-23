@@ -441,8 +441,9 @@ const Cube* ChunkRenderManager::getCubeAtPosition(
     const glm::ivec3& localPos,
     const std::vector<Cube*>& cubes) const
 {
-    // Use indexed lookup - cubes vector is arranged in X-major order
+    // PERFORMANCE CRITICAL: Use indexed lookup - cubes vector is arranged in X-major order
     // Index formula: z + y*32 + x*32*32 (must match Chunk::localToIndex)
+    // DO NOT use linear search - with 32K cubes × 6 faces × N chunks = billions of lookups!
     if (localPos.x < 0 || localPos.x >= 32 ||
         localPos.y < 0 || localPos.y >= 32 ||
         localPos.z < 0 || localPos.z >= 32) {

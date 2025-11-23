@@ -34,6 +34,9 @@ class Chunk {
     friend class ChunkManager;  // Allow ChunkManager to access private members for cross-chunk culling
     
 private:
+    // CRITICAL: cubes vector is INDEXED by position, not a dynamic list!
+    // Index formula: z + y*32 + x*32*32 (see localToIndex())
+    // Always use getCubeAt(localPos) for O(1) lookup, never linear search!
     std::vector<Cube*> cubes;                      // Pointers to cubes for efficient deletion (32x32x32)
     std::vector<Subcube*> staticSubcubes;          // Static subcubes (part of chunk physics body)
     std::vector<Microcube*> staticMicrocubes;      // Static microcubes (finest subdivision level)
