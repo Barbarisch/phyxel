@@ -5,6 +5,7 @@
 #include "core/Microcube.h"
 #include "physics/CollisionSpatialGrid.h"
 #include "graphics/ChunkRenderBuffer.h"
+#include "graphics/ChunkRenderManager.h"
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
@@ -36,10 +37,10 @@ private:
     std::vector<Cube*> cubes;                      // Pointers to cubes for efficient deletion (32x32x32)
     std::vector<Subcube*> staticSubcubes;          // Static subcubes (part of chunk physics body)
     std::vector<Microcube*> staticMicrocubes;      // Static microcubes (finest subdivision level)
-    std::vector<InstanceData> faces;               // Visible faces only (CPU pre-filtered for rendering)
-    uint32_t numInstances = 0;                     // Variable count based on visible faces
     glm::ivec3 worldOrigin = glm::ivec3(0);        // World-space origin of this chunk
-    bool needsUpdate = false;                      // Flag for buffer updates
+    
+    // Rendering subsystem - manages face generation and Vulkan buffers
+    Graphics::ChunkRenderManager renderManager;
     
     // NEW: O(1) lookup data structures for optimized hover system
     std::unordered_map<glm::ivec3, Cube*, IVec3Hash> cubeMap;              // O(1) cube lookup by local position
@@ -52,9 +53,6 @@ private:
                       IVec3Hash>,
                       IVec3Hash> microcubeMap;                              // O(1) microcube lookup: cubePos -> subcubePos -> microcubePos -> microcube
     std::unordered_map<glm::ivec3, VoxelLocation::Type, IVec3Hash> voxelTypeMap; // O(1) voxel type lookup
-    
-    // Vulkan rendering helper - manages instance buffer
-    Graphics::ChunkRenderBuffer renderBuffer;
     
     // Vulkan device handles (set by ChunkManager)
     VkDevice device = VK_NULL_HANDLE;
@@ -114,16 +112,14 @@ public:
     size_t getStaticSubcubeCount() const { return staticSubcubes.size(); }
     size_t getStaticMicrocubeCount() const { return staticMicrocubes.size(); }
     size_t getTotalSubcubeCount() const { return staticSubcubes.size(); }     // Only static subcubes remain in chunks
-    uint32_t getNumInstances() const { return numInstances; }
-    bool getNeedsUpdate() const { return needsUpdate; }
-    void setNeedsUpdate(bool needsUpdate) { this->needsUpdate = needsUpdate; }
+    uint32_t getNumInstances() const { return renderManager.getNumInstances(); }
+    bool getNeedsUpdate() const { return renderManager.getNeedsUpdate(); }
+    void setNeedsUpdate(bool needsUpdate) { renderManager.setNeedsUpdate(needsUpdate); }
     
     // Buffer capacity analysis
-    size_t getBufferCapacity() const { return renderBuffer.getCapacity(); }
-    size_t getMaxInstancesUsed() const { return renderBuffer.getMaxInstancesUsed(); }
-    float getBufferUtilization() const { 
-        return renderBuffer.getCapacity() > 0 ? float(faces.size()) / float(renderBuffer.getCapacity()) * 100.0f : 0.0f; 
-    }
+    size_t getBufferCapacity() const { return renderManager.getBufferCapacity(); }
+    size_t getMaxInstancesUsed() const { return renderManager.getMaxInstancesUsed(); }
+    float getBufferUtilization() const { return renderManager.getBufferUtilization(); }
     
     // Cube access
     Cube* getCubeAt(const glm::ivec3& localPos);
@@ -195,7 +191,7 @@ public:
     void rebuildFaces();                           // Regenerate face data from cubes (intra-chunk culling only)
     
     // Overload for cross-chunk culling: accepts a function to check neighbors in adjacent chunks
-    using NeighborLookupFunc = std::function<const Cube*(const glm::ivec3& worldPos)>;
+    using NeighborLookupFunc = Graphics::ChunkRenderManager::NeighborLookupFunc;
     void rebuildFaces(const NeighborLookupFunc& getNeighborCube);
     
     void updateVulkanBuffer();                     // Update GPU buffer with face data
@@ -260,9 +256,9 @@ public:
     static size_t subcubeToIndex(const glm::ivec3& parentPos, const glm::ivec3& subcubePos);
     
     // Access for ChunkManager (friend access or public as needed)
-    VkBuffer getInstanceBuffer() const { return renderBuffer.getBuffer(); }
-    const std::vector<InstanceData>& getFaces() const { return faces; }
-    void* getMappedMemory() const { return renderBuffer.getMappedMemory(); }
+    VkBuffer getInstanceBuffer() const { return renderManager.getInstanceBuffer(); }
+    const std::vector<InstanceData>& getFaces() const { return renderManager.getFaces(); }
+    void* getMappedMemory() const { return renderManager.getMappedMemory(); }
 
 private:
     // Collision box structure for physics optimization

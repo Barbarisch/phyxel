@@ -18,11 +18,9 @@
 namespace VulkanCube {
 
 Chunk::Chunk(const glm::ivec3& origin) 
-    : worldOrigin(origin)
-    , renderBuffer(VK_NULL_HANDLE, VK_NULL_HANDLE) {
-    cubes.reserve(32 * 32 * 32);              // Reserve space for all possible cubes // chatGPT thinks max number of viewable cubes to be 2977
+    : worldOrigin(origin) {
+    cubes.reserve(32 * 32 * 32);              // Reserve space for all possible cubes
     staticSubcubes.reserve(1000);             // Reserve reasonable space for static subcubes
-    faces.reserve(32 * 32 * 32 * 6);          // Reserve space for maximum faces (6 per cube)
 }
 
 Chunk::~Chunk() {
@@ -45,11 +43,8 @@ Chunk::~Chunk() {
 Chunk::Chunk(Chunk&& other) noexcept
     : cubes(std::move(other.cubes))
     , staticSubcubes(std::move(other.staticSubcubes))
-    , faces(std::move(other.faces))
-    , numInstances(other.numInstances)
     , worldOrigin(other.worldOrigin)
-    , needsUpdate(other.needsUpdate)
-    , renderBuffer(std::move(other.renderBuffer))
+    , renderManager(std::move(other.renderManager))
     , device(other.device)
     , physicalDevice(other.physicalDevice)
     , collisionGrid(std::move(other.collisionGrid))
@@ -74,11 +69,8 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept {
         // Move data
         cubes = std::move(other.cubes);
         staticSubcubes = std::move(other.staticSubcubes);
-        faces = std::move(other.faces);
-        numInstances = other.numInstances;
         worldOrigin = other.worldOrigin;
-        needsUpdate = other.needsUpdate;
-        renderBuffer = std::move(other.renderBuffer);
+        renderManager = std::move(other.renderManager);
         device = other.device;
         physicalDevice = other.physicalDevice;
         
@@ -101,8 +93,8 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept {
 void Chunk::initialize(VkDevice dev, VkPhysicalDevice physDev) {
     device = dev;
     physicalDevice = physDev;
-    // Reinitialize renderBuffer with new device handles
-    renderBuffer = Graphics::ChunkRenderBuffer(dev, physDev);
+    // Initialize renderManager with device handles
+    renderManager.initialize(dev, physDev);
 }
 
 Cube* Chunk::getCubeAt(const glm::ivec3& localPos) {
@@ -140,7 +132,7 @@ bool Chunk::setCubeColor(const glm::ivec3& localPos, const glm::vec3& color) {
     if (!cube) return false;
     
     cube->setColor(color);
-    needsUpdate = true;
+    renderManager.setNeedsUpdate(true);
     
     // std::cout << "[CHUNK] Set cube color at local pos: (" 
     //           << localPos.x << "," << localPos.y << "," << localPos.z 
@@ -212,7 +204,7 @@ bool Chunk::addCube(const glm::ivec3& localPos, const glm::vec3& color) {
         updateNeighborCollisionShapes(localPos);
     }
     
-    needsUpdate = true;
+    renderManager.setNeedsUpdate(true);
     
     // std::cout << "[CHUNK] Added/restored cube at local pos: (" 
     //           << localPos.x << "," << localPos.y << "," << localPos.z 
@@ -223,7 +215,6 @@ bool Chunk::addCube(const glm::ivec3& localPos, const glm::vec3& color) {
 
 void Chunk::populateWithCubes() {
     cubes.clear();
-    faces.clear();
     
     // Random number generator for colors
     std::random_device rd;
@@ -263,7 +254,6 @@ void Chunk::populateWithCubes() {
 
 void Chunk::initializeForLoading() {
     cubes.clear();
-    faces.clear();
     
     // Initialize sparse cube storage (32x32x32 array with nullptr entries)
     cubes.resize(32 * 32 * 32, nullptr);
@@ -295,345 +285,38 @@ void Chunk::rebuildFaces() {
 }
 
 void Chunk::rebuildFaces(const NeighborLookupFunc& getNeighborCube) {
-    faces.clear();
-    
-    // ========================================================================
-    // PHASE 1: Process regular cubes (only those that aren't subdivided)
-    // ========================================================================
-    for (size_t cubeIndex = 0; cubeIndex < cubes.size(); ++cubeIndex) {
-        const Cube* cube = cubes[cubeIndex];
-        
-        // Skip deleted cubes (nullptr) or hidden cubes (subdivided)
-        if (!cube || !cube->isVisible()) continue;
-        
-        // Calculate which faces are visible by checking adjacent positions
-        bool faceVisible[6] = {true, true, true, true, true, true};
-        
-        // Face directions: 0=front(+Z), 1=back(-Z), 2=right(+X), 3=left(-X), 4=top(+Y), 5=bottom(-Y)
-        glm::ivec3 cubePos = cube->getPosition();
-        glm::ivec3 neighbors[6] = {
-            cubePos + glm::ivec3(0, 0, 1),   // front (+Z)
-            cubePos + glm::ivec3(0, 0, -1),  // back (-Z)
-            cubePos + glm::ivec3(1, 0, 0),   // right (+X)
-            cubePos + glm::ivec3(-1, 0, 0),  // left (-X)
-            cubePos + glm::ivec3(0, 1, 0),   // top (+Y)
-            cubePos + glm::ivec3(0, -1, 0)   // bottom (-Y)
-        };
-        
-        // Check each face for occlusion by adjacent cubes
-        for (int faceID = 0; faceID < 6; ++faceID) {
-            glm::ivec3 neighborPos = neighbors[faceID];
-            
-            // Check if neighbor position is within chunk bounds
-            if (neighborPos.x >= 0 && neighborPos.x < 32 &&
-                neighborPos.y >= 0 && neighborPos.y < 32 &&
-                neighborPos.z >= 0 && neighborPos.z < 32) {
-                
-                // Neighbor within chunk - check directly
-                const Cube* neighborCube = getCubeAt(neighborPos);
-                if (neighborCube && neighborCube->isVisible()) {
-                    faceVisible[faceID] = false;
-                }
-            } else if (getNeighborCube) {
-                // Neighbor outside chunk - use cross-chunk lookup if available
-                glm::ivec3 neighborWorldPos = worldOrigin + neighborPos;
-                const Cube* neighborCube = getNeighborCube(neighborWorldPos);
-                if (neighborCube && neighborCube->isVisible()) {
-                    faceVisible[faceID] = false;
-                }
-            }
-            // If no cross-chunk lookup provided, face at boundary remains visible
-        }
-        
-        // Generate instance data for each visible face of the cube
-        for (int faceID = 0; faceID < 6; ++faceID) {
-            if (faceVisible[faceID]) {
-                InstanceData faceInstance;
-                
-                // Pack cube position and face ID using new layout
-                // Scale level 0 = regular cube
-                const glm::ivec3& cubePos = cube->getPosition();
-                faceInstance.packedData = VulkanCube::InstanceDataUtils::packCubeFaceData(
-                    cubePos.x, cubePos.y, cubePos.z, faceID
-                );
-                
-                // Assign texture based on face ID
-                faceInstance.textureIndex = VulkanCube::TextureConstants::getTextureIndexForFace(faceID);
-                faceInstance.reserved = 0;
-                faces.push_back(faceInstance);
-            }
-        }
-    }
-    
-    // ========================================================================
-    // PHASE 2: Process subcubes (from subdivided cubes)
-    // ========================================================================
-    for (const Subcube* subcube : staticSubcubes) {
-        // Skip broken or hidden subcubes (broken subcubes should be in dynamic list)
-        if (!subcube || subcube->isBroken() || !subcube->isVisible()) {
-            // if (!subcube) {
-            //     std::cout << "[CHUNK] Skipping null subcube" << std::endl;
-            // } else {
-            //     std::cout << "[CHUNK] Skipping subcube - broken: " << subcube->isBroken() << ", visible: " << subcube->isVisible() << std::endl;
-            // }
-            continue;
-        }
-        
-        // Get subcube properties
-        glm::ivec3 parentPos = subcube->getPosition();     // Parent cube's world position
-        glm::ivec3 localPos = subcube->getLocalPosition(); // 0-2 for each axis within parent
-        
-        // Convert parent world position to chunk-relative position
-        glm::ivec3 parentChunkPos = parentPos - worldOrigin;
-        
-        // Validate parent position is within chunk bounds
-        if (parentChunkPos.x < 0 || parentChunkPos.x >= 32 ||
-            parentChunkPos.y < 0 || parentChunkPos.y >= 32 ||
-            parentChunkPos.z < 0 || parentChunkPos.z >= 32) {
-            continue; // Skip subcubes with invalid parent positions
-        }
-        
-        // Calculate which faces are visible by checking adjacent subcubes/cubes
-        bool faceVisible[6] = {true, true, true, true, true, true};
-        
-        // For subcubes, we need more sophisticated occlusion culling:
-        // - Check against other subcubes in the same parent cube
-        // - Check against neighboring cubes/subcubes
-        // For now, simplified: assume all subcube faces are visible (we can optimize later)
-        
-        // Generate instance data for each visible face of the subcube
-        for (int faceID = 0; faceID < 6; ++faceID) {
-            if (faceVisible[faceID]) {
-                InstanceData faceInstance;
-                
-                // Pack parent cube position, face ID, and subcube local position using new layout
-                // Scale level 1 = subcube
-                faceInstance.packedData = VulkanCube::InstanceDataUtils::packSubcubeFaceData(
-                    parentChunkPos.x, parentChunkPos.y, parentChunkPos.z,
-                    faceID,
-                    localPos.x, localPos.y, localPos.z
-                );
-                
-                // Assign texture based on face ID
-                faceInstance.textureIndex = VulkanCube::TextureConstants::getTextureIndexForFace(faceID);
-                faceInstance.reserved = 0;
-                faces.push_back(faceInstance);
-            }
-        }
-    }
-    
-    // ========================================================================
-    // PHASE 3: Process microcubes (from subdivided subcubes)
-    // ========================================================================
-    for (const Microcube* microcube : staticMicrocubes) {
-        // Skip broken or hidden microcubes
-        if (!microcube || microcube->isBroken() || !microcube->isVisible()) {
-            continue;
-        }
-        
-        // Get microcube properties
-        glm::ivec3 parentPos = microcube->getParentCubePosition();     // Parent cube's world position
-        glm::ivec3 subcubePos = microcube->getSubcubeLocalPosition();  // 0-2 for each axis within parent cube
-        glm::ivec3 microcubePos = microcube->getMicrocubeLocalPosition(); // 0-2 for each axis within parent subcube
-        
-        // Convert parent world position to chunk-relative position
-        glm::ivec3 parentChunkPos = parentPos - worldOrigin;
-        
-        // Validate parent position is within chunk bounds
-        if (parentChunkPos.x < 0 || parentChunkPos.x >= 32 ||
-            parentChunkPos.y < 0 || parentChunkPos.y >= 32 ||
-            parentChunkPos.z < 0 || parentChunkPos.z >= 32) {
-            continue; // Skip microcubes with invalid parent positions
-        }
-        
-        // Validate subcube position
-        if (subcubePos.x < 0 || subcubePos.x >= 3 ||
-            subcubePos.y < 0 || subcubePos.y >= 3 ||
-            subcubePos.z < 0 || subcubePos.z >= 3) {
-            continue;
-        }
-        
-        // Validate microcube position
-        if (microcubePos.x < 0 || microcubePos.x >= 3 ||
-            microcubePos.y < 0 || microcubePos.y >= 3 ||
-            microcubePos.z < 0 || microcubePos.z >= 3) {
-            continue;
-        }
-        
-        // For now, assume all microcube faces are visible (can optimize with culling later)
-        bool faceVisible[6] = {true, true, true, true, true, true};
-        
-        // Generate instance data for each visible face of the microcube
-        for (int faceID = 0; faceID < 6; ++faceID) {
-            if (faceVisible[faceID]) {
-                InstanceData faceInstance;
-                
-                // Pack parent cube position, face ID, subcube position, and microcube position
-                // Scale level 2 = microcube
-                faceInstance.packedData = VulkanCube::InstanceDataUtils::packMicrocubeFaceData(
-                    parentChunkPos.x, parentChunkPos.y, parentChunkPos.z,
-                    faceID,
-                    subcubePos.x, subcubePos.y, subcubePos.z,
-                    microcubePos.x, microcubePos.y, microcubePos.z
-                );
-                
-                // Use placeholder texture for microcubes
-                faceInstance.textureIndex = VulkanCube::TextureConstants::PLACEHOLDER_TEXTURE_INDEX;
-                faceInstance.reserved = 0;
-                faces.push_back(faceInstance);
-            }
-        }
-    }
-    
-    numInstances = static_cast<uint32_t>(faces.size());
-    needsUpdate = true;
-    
-    // std::cout << "[CHUNK] Rebuilt faces for chunk at origin (" 
-    //           << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z 
-    //           << "), generated " << numInstances << " visible faces (" 
-    //           << (faces.size() - subcubes.size() * 6) << " cube faces + " 
-    //           << (subcubes.size() * 6) << " subcube faces)" << std::endl;
+    // Delegate to render manager
+    renderManager.rebuildAllFaces(cubes, staticSubcubes, staticMicrocubes, worldOrigin, getNeighborCube);
 }
 
 void Chunk::updateVulkanBuffer() {
-    void* mappedMem = renderBuffer.getMappedMemory();
-    if (!mappedMem || faces.empty()) return;
-    
-    // Ensure buffer capacity is sufficient, reallocate if necessary
-    ensureBufferCapacity(faces.size());
-    
-    // Track peak usage for analysis
-    renderBuffer.updateMaxUsage(faces.size());
-    
-    // Copy data to GPU buffer (only the used portion)
-    VkDeviceSize copySize = sizeof(InstanceData) * faces.size();
-    memcpy(mappedMem, faces.data(), copySize);
-    needsUpdate = false;
-    
-    // Periodic utilization logging
-    static int updateCount = 0;
-    if (++updateCount % 50 == 0) {
-        logBufferUtilization();
-    }
-    
-    // std::cout << "[CHUNK] Updated Vulkan buffer for chunk at origin (" 
-    //           << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z 
-    //           << "), uploaded " << faces.size() << " face instances" << std::endl;
+    renderManager.updateVulkanBuffer();
 }
 
 void Chunk::updateSingleCubeTexture(const glm::ivec3& localPos, uint16_t textureIndex) {
     if (!isValidLocalPosition(localPos)) return;
-    
-    // Find the cube - we don't store texture info in cube objects yet, just update the faces
-    Cube* cube = getCubeAt(localPos);
-    if (!cube) return;
-    
-    // Efficiently update only the affected faces in the buffer
-    // Instead of rebuilding all faces, find and update just this cube's faces
-    if (!renderBuffer.getMappedMemory()) return;
-    
-    bool updatedAnyFaces = false;
-    
-    // Find all face instances for this cube and update their texture indices
-    for (size_t i = 0; i < faces.size(); ++i) {
-        InstanceData& face = faces[i];
-        
-        // Extract position from packed data
-        int faceX = face.packedData & 0x1F;
-        int faceY = (face.packedData >> 5) & 0x1F;
-        int faceZ = (face.packedData >> 10) & 0x1F;
-        
-        // Check if this face belongs to our cube
-        if (faceX == localPos.x && faceY == localPos.y && faceZ == localPos.z) {
-            // Update the texture index in the faces vector
-            faces[i].textureIndex = textureIndex;
-            
-            // Update the GPU buffer directly (partial update)
-            VkDeviceSize offset = i * sizeof(InstanceData) + offsetof(InstanceData, textureIndex);
-            memcpy(static_cast<char*>(renderBuffer.getMappedMemory()) + offset, &textureIndex, sizeof(uint16_t));
-            
-            updatedAnyFaces = true;
-        }
-    }
-    
-    if (updatedAnyFaces) {
-        // Optional: Flush memory if not coherent (most host-visible memory is coherent)
-        // VkMappedMemoryRange range{};
-        // range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-        // range.memory = instanceMemory;
-        // range.offset = 0;
-        // range.size = VK_WHOLE_SIZE;
-        // vkFlushMappedMemoryRanges(device, 1, &range);
-        
-        // std::cout << "[CHUNK] Updated " << localPos.x << "," << localPos.y << "," << localPos.z 
-        //           << " color efficiently (partial buffer update)" << std::endl;
-    }
+    renderManager.updateSingleCubeTexture(localPos, textureIndex, cubes);
 }
 
 void Chunk::updateSingleSubcubeTexture(const glm::ivec3& parentLocalPos, const glm::ivec3& subcubePos, uint16_t textureIndex) {
     if (!isValidLocalPosition(parentLocalPos)) return;
-    if (subcubePos.x < 0 || subcubePos.x >= 3 || 
-        subcubePos.y < 0 || subcubePos.y >= 3 || 
-        subcubePos.z < 0 || subcubePos.z >= 3) return;
-    
-    // Find the subcube - we don't store texture info in subcube objects yet, just update the faces
-    Subcube* subcube = getSubcubeAt(parentLocalPos, subcubePos);
-    if (!subcube) return;
-    
-    // Efficiently update only the affected faces in the buffer
-    if (!renderBuffer.getMappedMemory()) return;
-    
-    bool updatedAnyFaces = false;
-    
-    // Find all face instances for this subcube and update their texture indices
-    for (size_t i = 0; i < faces.size(); ++i) {
-        InstanceData& face = faces[i];
-        
-        // Extract data from packed format for subcubes
-        // Bit layout: [0-4]=parent_x, [5-9]=parent_y, [10-14]=parent_z, [15-17]=faceID, 
-        //             [18]=subcube_flag(1), [19-20]=local_x, [21-22]=local_y, [23-24]=local_z
-        int parentX = face.packedData & 0x1F;
-        int parentY = (face.packedData >> 5) & 0x1F;
-        int parentZ = (face.packedData >> 10) & 0x1F;
-        uint32_t subcubeData = (face.packedData >> 18);
-        bool isSubcubeFace = (subcubeData & 0x1) != 0;
-        
-        // Check if this is a subcube face belonging to our specific subcube
-        if (isSubcubeFace && 
-            parentX == parentLocalPos.x && parentY == parentLocalPos.y && parentZ == parentLocalPos.z) {
-            
-            // Extract subcube local position from packed data
-            int localX = (subcubeData >> 1) & 0x3;
-            int localY = (subcubeData >> 3) & 0x3;
-            int localZ = (subcubeData >> 5) & 0x3;
-            
-            // Check if this face belongs to our specific subcube
-            if (localX == subcubePos.x && localY == subcubePos.y && localZ == subcubePos.z) {
-                // Update the texture index in the faces vector
-                faces[i].textureIndex = textureIndex;
-                
-                // Update the GPU buffer directly (partial update)
-                VkDeviceSize offset = i * sizeof(InstanceData) + offsetof(InstanceData, textureIndex);
-                memcpy(static_cast<char*>(renderBuffer.getMappedMemory()) + offset, &textureIndex, sizeof(uint16_t));
-                
-                updatedAnyFaces = true;
-            }
-        }
-    }
-    
-    if (updatedAnyFaces) {
-        // Successfully updated subcube color
-    } else {
-        // Failed to update subcube color - no faces found for this subcube
-    }
+    renderManager.updateSingleSubcubeTexture(parentLocalPos, subcubePos, textureIndex, staticSubcubes, worldOrigin);
 }
 
 void Chunk::createVulkanBuffer() {
-    renderBuffer.createBuffer(faces);
+    renderManager.createVulkanBuffer();
 }
 
 void Chunk::cleanupVulkanResources() {
-    renderBuffer.cleanup();
+    renderManager.cleanupVulkanResources();
+}
+
+void Chunk::ensureBufferCapacity(size_t requiredInstances) {
+    renderManager.ensureBufferCapacity(requiredInstances);
+}
+
+void Chunk::logBufferUtilization() const {
+    renderManager.logBufferUtilization();
 }
 
 size_t Chunk::localToIndex(const glm::ivec3& localPos) {
@@ -1072,7 +755,7 @@ bool Chunk::subdivideAt(const glm::ivec3& localPos) {
     //           << ", isSubdivided() = " << cube->isSubdivided() << std::endl;
     
     // Mark for update and as dirty for database persistence
-    needsUpdate = true;
+    renderManager.setNeedsUpdate(true);
     setDirty(true);
     
     // std::cout << "[CHUNK] Subdivided cube at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
@@ -1103,7 +786,7 @@ bool Chunk::addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos
     addCollisionEntity(parentPos);
     
     // Mark for update and as dirty for database persistence
-    needsUpdate = true;
+    renderManager.setNeedsUpdate(true);
     setDirty(true);
     
     return true;
@@ -1156,7 +839,7 @@ bool Chunk::removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcube
                           << ") - " << remainingSubcubes.size() << " subcubes remain");
             }
             
-            needsUpdate = true;
+            renderManager.setNeedsUpdate(true);
             setDirty(true);
             return true;
         }
@@ -1193,7 +876,7 @@ bool Chunk::clearSubdivisionAt(const glm::ivec3& localPos) {
     if (removedAny) {
         LOG_DEBUG_FMT("Chunk", "[CHUNK] Cleared subdivision at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
                   << ") - position now empty");
-        needsUpdate = true;
+        renderManager.setNeedsUpdate(true);
     }
     
     return removedAny;
@@ -1210,18 +893,6 @@ bool Chunk::isValidLocalPosition(const glm::ivec3& localPos) const {
     return localPos.x >= 0 && localPos.x < 32 &&
            localPos.y >= 0 && localPos.y < 32 &&
            localPos.z >= 0 && localPos.z < 32;
-}
-
-void Chunk::ensureBufferCapacity(size_t requiredInstances) {
-    if (requiredInstances <= renderBuffer.getCapacity()) {
-        return; // Buffer is large enough
-    }
-    
-    renderBuffer.reallocateBuffer(requiredInstances);
-}
-
-void Chunk::logBufferUtilization() const {
-    renderBuffer.logUtilization(faces.size());
 }
 
 // =============================================================================
@@ -1308,7 +979,7 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
             
             // Rebuild static faces only (no more dynamic faces in chunks)
             rebuildFaces();
-            needsUpdate = true;
+            renderManager.setNeedsUpdate(true);
             
             LOG_DEBUG_FMT("Chunk", "[CHUNK] Broke subcube at parent pos (" 
                       << parentPos.x << "," << parentPos.y << "," << parentPos.z 
@@ -2221,7 +1892,7 @@ bool Chunk::subdivideSubcubeAt(const glm::ivec3& cubePos, const glm::ivec3& subc
     addCollisionEntity(cubePos);       // Add new microcube collision
     
     // Mark for update and as dirty for database persistence
-    needsUpdate = true;
+    renderManager.setNeedsUpdate(true);
     setDirty(true);
     
     return true;
@@ -2278,7 +1949,7 @@ bool Chunk::addMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subc
     addMicrocubeToMaps(parentCubePos, subcubePos, microcubePos, newMicrocube);
     
     // Mark for update and as dirty for database persistence
-    needsUpdate = true;
+    renderManager.setNeedsUpdate(true);
     setDirty(true);
     
     return true;
@@ -2354,7 +2025,7 @@ bool Chunk::removeMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& s
             }
             
             // Mark for update
-            needsUpdate = true;
+            renderManager.setNeedsUpdate(true);
             setDirty(true);
             
             return true;
@@ -2434,7 +2105,7 @@ bool Chunk::clearMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcu
     }
     
     // Mark for update
-    needsUpdate = true;
+    renderManager.setNeedsUpdate(true);
     setDirty(true);
     
     return true;
