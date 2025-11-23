@@ -17,6 +17,15 @@
 
 namespace VulkanCube {
 
+// TEMPORARY COMPATIBILITY MACROS - will be removed once physics extraction is complete
+// These macros allow existing code to access physics manager members without massive refactoring
+#define physicsWorld (physicsManager.getPhysicsWorldRef())
+#define chunkPhysicsBody (physicsManager.getChunkPhysicsBodyRef())
+#define chunkCollisionShape (physicsManager.getChunkCollisionShapeRef())
+#define chunkTriangleMesh (physicsManager.getChunkTriangleMeshRef())
+#define collisionGrid (physicsManager.getCollisionGrid())
+#define collisionNeedsUpdate (physicsManager.getCollisionNeedsUpdateRef())
+
 Chunk::Chunk(const glm::ivec3& origin) 
     : worldOrigin(origin) {
     cubes.reserve(32 * 32 * 32);              // Reserve space for all possible cubes
@@ -45,19 +54,13 @@ Chunk::Chunk(Chunk&& other) noexcept
     , staticSubcubes(std::move(other.staticSubcubes))
     , worldOrigin(other.worldOrigin)
     , renderManager(std::move(other.renderManager))
+    , physicsManager(std::move(other.physicsManager))
     , device(other.device)
-    , physicalDevice(other.physicalDevice)
-    , collisionGrid(std::move(other.collisionGrid))
-    , collisionNeedsUpdate(other.collisionNeedsUpdate)
-    , isInBulkOperation(other.isInBulkOperation) {
+    , physicalDevice(other.physicalDevice) {
     
     // Reset other object's device handles
     other.device = VK_NULL_HANDLE;
     other.physicalDevice = VK_NULL_HANDLE;
-    
-    // Reset other object's collision tracking
-    other.collisionNeedsUpdate = false;
-    other.isInBulkOperation = false;
 }
 
 Chunk& Chunk::operator=(Chunk&& other) noexcept {
@@ -71,21 +74,13 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept {
         staticSubcubes = std::move(other.staticSubcubes);
         worldOrigin = other.worldOrigin;
         renderManager = std::move(other.renderManager);
+        physicsManager = std::move(other.physicsManager);
         device = other.device;
         physicalDevice = other.physicalDevice;
-        
-        // Move collision tracking data
-        collisionGrid = std::move(other.collisionGrid);
-        collisionNeedsUpdate = other.collisionNeedsUpdate;
-        isInBulkOperation = other.isInBulkOperation;
         
         // Reset other object's device handles
         other.device = VK_NULL_HANDLE;
         other.physicalDevice = VK_NULL_HANDLE;
-        
-        // Reset other object's collision tracking
-        other.collisionNeedsUpdate = false;
-        other.isInBulkOperation = false;
     }
     return *this;
 }
@@ -95,6 +90,8 @@ void Chunk::initialize(VkDevice dev, VkPhysicalDevice physDev) {
     physicalDevice = physDev;
     // Initialize renderManager with device handles
     renderManager.initialize(dev, physDev);
+    // Initialize physicsManager with chunk origin
+    physicsManager.initialize(nullptr, worldOrigin); // physicsWorld set separately via setPhysicsWorld
 }
 
 Cube* Chunk::getCubeAt(const glm::ivec3& localPos) {
@@ -200,7 +197,7 @@ bool Chunk::addCube(const glm::ivec3& localPos, const glm::vec3& color) {
     addCollisionEntity(localPos);
     
     // CRITICAL: Only update neighbors during individual operations, not bulk loading
-    if (!isInBulkOperation) {
+    if (!physicsManager.isInBulkOperation()) {
         updateNeighborCollisionShapes(localPos);
     }
     
@@ -271,7 +268,7 @@ void Chunk::initializeForLoading() {
     staticMicrocubes.clear();
     
     // Set bulk operation flag to prevent neighbor collision updates during loading
-    isInBulkOperation = true;
+    physicsManager.setInBulkOperation(true);
     
     LOG_DEBUG_FMT("Chunk", "Initialized chunk at origin (" 
               << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z 
@@ -899,8 +896,10 @@ bool Chunk::isValidLocalPosition(const glm::ivec3& localPos) const {
 // PHYSICS-RELATED METHODS
 // =============================================================================
 
+#undef physicsWorld  // Temporary: parameter name conflicts with macro
 bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, 
                         Physics::PhysicsWorld* physicsWorld, ChunkManager* chunkManager, const glm::vec3& impulseForce) {
+#define physicsWorld (physicsManager.getPhysicsWorldRef())  // Restore macro
     LOG_DEBUG_FMT("Chunk", "[SUBCUBE BREAKING] Attempting to break subcube at parent (" 
                   << parentPos.x << "," << parentPos.y << "," << parentPos.z 
                   << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z 
@@ -1014,6 +1013,45 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
     
     return false; // Subcube not found in static list
 }
+
+// =============================================================================
+// Physics Management - Delegated to ChunkPhysicsManager
+// =============================================================================
+
+void Chunk::setPhysicsWorld(Physics::PhysicsWorld* world) {
+    physicsManager.setPhysicsWorld(world);
+}
+
+btRigidBody* Chunk::getChunkPhysicsBody() const {
+    return physicsManager.getChunkPhysicsBody();
+}
+
+void Chunk::validateCollisionSystem() const {
+    physicsManager.validateCollisionSystem();
+}
+
+void Chunk::debugLogSpatialGrid() const {
+    physicsManager.debugLogSpatialGrid();
+}
+
+size_t Chunk::getCollisionEntityCount() const {
+    return physicsManager.getCollisionEntityCount();
+}
+
+size_t Chunk::getCubeEntityCount() const {
+    return physicsManager.getCubeEntityCount();
+}
+
+size_t Chunk::getSubcubeEntityCount() const {
+    return physicsManager.getSubcubeEntityCount();
+}
+
+void Chunk::debugPrintSpatialGridStats() const {
+    physicsManager.debugPrintSpatialGridStats();
+}
+
+// NOTE: Physics body creation and collision methods still directly access physics members
+// These will be fully extracted in a later refactoring step
 
 void Chunk::createChunkPhysicsBody() {
     if (!physicsWorld) {
@@ -1132,107 +1170,30 @@ void Chunk::cleanupPhysicsResources() {
 }
 
 // ============================================================================
-// COLLISION SHAPE CREATION HELPERS
+// COLLISION SHAPE CREATION HELPERS - Delegated to ChunkPhysicsManager
 // ============================================================================
-// These focused helper functions each handle creation of ONE type of collision
-// shape. This separation makes the code easier to test, debug, and maintain.
-// Each function has a single, clear responsibility with no conditional logic.
+// These wrappers provide cube access to the physics manager
 
 void Chunk::createCubeCollisionShape(const glm::ivec3& localPos, btCompoundShape* compound) {
-    // Calculate center position in world space
-    glm::vec3 shapeCenter = glm::vec3(worldOrigin) + glm::vec3(localPos) + glm::vec3(0.5f);
-    
-    // Create box shape: full cube is 1.0 units, so half-extents are 0.5
-    btBoxShape* boxShape = new btBoxShape(btVector3(0.5f, 0.5f, 0.5f));
-    
-    // Position the shape in the compound
-    btTransform transform;
-    transform.setIdentity();
-    transform.setOrigin(btVector3(shapeCenter.x, shapeCenter.y, shapeCenter.z));
-    compound->addChildShape(transform, boxShape);
-    
-    // Create collision entity for tracking
-    auto entity = std::make_shared<Physics::CollisionSpatialGrid::CollisionEntity>(boxShape, Physics::CollisionSpatialGrid::CollisionEntity::CUBE, shapeCenter);
-    entity->isInCompound = true; // Shape is now owned by Bullet compound
-    
-    // Add to spatial grid for O(1) lookups
-    collisionGrid.addEntity(localPos, entity);
-    
-    LOG_TRACE_FMT("Chunk", "[COLLISION] Created cube shape at (" 
-                  << localPos.x << "," << localPos.y << "," << localPos.z << ")");
+    // Delegate to physicsManager with cube access lambda
+    auto getCube = [this](const glm::ivec3& pos) -> Cube* {
+        return this->getCubeAt(pos);
+    };
+    physicsManager.createCubeCollisionShape(localPos, compound, getCube);
 }
 
 void Chunk::createSubcubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, btCompoundShape* compound) {
-    // Calculate subcube center: offset from cube center by subcube position
-    // Subcube positions are (0,0,0) to (2,2,2), so we offset by -1 to center them
-    constexpr float SUBCUBE_SCALE = 1.0f / 3.0f;
-    glm::vec3 subcubeLocalOffset = glm::vec3(subcubePos) - glm::vec3(1.0f);
-    glm::vec3 subcubeOffset = subcubeLocalOffset * SUBCUBE_SCALE;
-    glm::vec3 subcubeCenter = glm::vec3(worldOrigin) + glm::vec3(cubePos) + glm::vec3(0.5f) + subcubeOffset;
-    
-    // Create box shape: subcube is 1/3 cube size, so half-extents are 1/6
-    btBoxShape* subcubeShape = new btBoxShape(btVector3(1.0f/6.0f, 1.0f/6.0f, 1.0f/6.0f));
-    
-    // Position the shape in the compound
-    btTransform transform;
-    transform.setIdentity();
-    transform.setOrigin(btVector3(subcubeCenter.x, subcubeCenter.y, subcubeCenter.z));
-    compound->addChildShape(transform, subcubeShape);
-    
-    // Create collision entity with hierarchy tracking
-    auto entity = std::make_shared<Physics::CollisionSpatialGrid::CollisionEntity>(subcubeShape, Physics::CollisionSpatialGrid::CollisionEntity::SUBCUBE, subcubeCenter, 1.0f/6.0f);
-    entity->isInCompound = true;
-    entity->parentChunkPos = cubePos;
-    entity->subcubeLocalPos = subcubePos;
-    
-    // Add to spatial grid
-    collisionGrid.addEntity(cubePos, entity);
-    
-    LOG_TRACE_FMT("Chunk", "[COLLISION] Created subcube shape at cube (" 
-                  << cubePos.x << "," << cubePos.y << "," << cubePos.z 
-                  << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z << ")");
+    // Delegate to physicsManager with subcube access lambda
+    auto getSubcube = [this](const glm::ivec3& cPos, const glm::ivec3& sPos) -> Subcube* {
+        return this->getSubcubeAt(cPos, sPos);
+    };
+    physicsManager.createSubcubeCollisionShape(cubePos, subcubePos, compound, getSubcube);
 }
 
 void Chunk::createMicrocubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, 
                                          const Microcube* microcube, btCompoundShape* compound) {
-    // Calculate microcube center: two-level hierarchy (cube -> subcube -> microcube)
-    constexpr float SUBCUBE_SCALE = 1.0f / 3.0f;
-    constexpr float MICROCUBE_SCALE = 1.0f / 9.0f;
-    
-    // First, offset from cube center to subcube center
-    glm::vec3 subcubeLocalOffset = glm::vec3(subcubePos) - glm::vec3(1.0f);
-    glm::vec3 subcubeOffset = subcubeLocalOffset * SUBCUBE_SCALE;
-    
-    // Then, offset from subcube center to microcube center
-    glm::vec3 microcubeLocalOffset = glm::vec3(microcube->getMicrocubeLocalPosition()) - glm::vec3(1.0f);
-    glm::vec3 microcubeOffset = microcubeLocalOffset * MICROCUBE_SCALE;
-    
-    glm::vec3 microcubeCenter = glm::vec3(worldOrigin) + glm::vec3(cubePos) + glm::vec3(0.5f) + subcubeOffset + microcubeOffset;
-    
-    // Create box shape: microcube is 1/9 cube size, so half-extents are 1/18
-    btBoxShape* microcubeShape = new btBoxShape(btVector3(1.0f/18.0f, 1.0f/18.0f, 1.0f/18.0f));
-    microcubeShape->setMargin(0.002f);
-    
-    // Position the shape in the compound
-    btTransform transform;
-    transform.setIdentity();
-    transform.setOrigin(btVector3(microcubeCenter.x, microcubeCenter.y, microcubeCenter.z));
-    compound->addChildShape(transform, microcubeShape);
-    
-    // Create collision entity with full hierarchy tracking
-    auto entity = std::make_shared<Physics::CollisionSpatialGrid::CollisionEntity>(microcubeShape, Physics::CollisionSpatialGrid::CollisionEntity::SUBCUBE, microcubeCenter, 1.0f/18.0f);
-    entity->isInCompound = true;
-    entity->parentChunkPos = cubePos;
-    entity->subcubeLocalPos = subcubePos;
-    
-    // Add to spatial grid
-    collisionGrid.addEntity(cubePos, entity);
-    
-    LOG_INFO_FMT("Chunk", "[STATIC COLLISION] Created microcube shape at cube (" 
-                  << cubePos.x << "," << cubePos.y << "," << cubePos.z 
-                  << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z
-                  << ") micro (" << microcube->getMicrocubeLocalPosition().x << "," 
-                  << microcube->getMicrocubeLocalPosition().y << "," << microcube->getMicrocubeLocalPosition().z << ")");
+    // Delegate to physicsManager
+    physicsManager.createMicrocubeCollisionShape(cubePos, subcubePos, microcube, compound);
 }
 
 // ============================================================================
@@ -1614,12 +1575,12 @@ void Chunk::updateNeighborCollisionShapes(const glm::ivec3& localPos) {
 }
 
 void Chunk::endBulkOperation() {
-    if (!isInBulkOperation) return;
+    if (!physicsManager.isInBulkOperation()) return;
     
     LOG_DEBUG("Chunk", "[CHUNK] Ending bulk operation - building complete collision system");
     
     // Turn off bulk operation flag
-    isInBulkOperation = false;
+    physicsManager.setInBulkOperation(false);
     
     // Now rebuild the entire collision system properly
     if (chunkCollisionShape) {
@@ -1627,8 +1588,8 @@ void Chunk::endBulkOperation() {
     }
 }
 
-std::vector<Chunk::CollisionBox> Chunk::generateMergedCollisionBoxes() {
-    std::vector<CollisionBox> boxes;
+std::vector<Physics::ChunkPhysicsManager::CollisionBox> Chunk::generateMergedCollisionBoxes() {
+    std::vector<Physics::ChunkPhysicsManager::CollisionBox> boxes;
     
     // OPTIMIZED APPROACH: Only create collision shapes for cubes with exposed faces
     // This dramatically reduces collision complexity from ~32K to typically <1K collision boxes
@@ -1730,92 +1691,6 @@ std::vector<Chunk::CollisionBox> Chunk::generateMergedCollisionBoxes() {
               << "% reduction in collision shapes!");
     
     return boxes;
-}
-
-// DEBUG: Collision shape validation and debugging methods
-// Validates consistency between Bullet compound shapes and spatial grid tracking
-// Helps detect memory management issues and spatial grid inconsistencies
-void Chunk::validateCollisionSystem() const {
-    if (!chunkCollisionShape) {
-        LOG_DEBUG("Chunk", "[COLLISION VALIDATION] No compound collision shape exists");
-        return;
-    }
-    
-    btCompoundShape* compound = static_cast<btCompoundShape*>(chunkCollisionShape);
-    int actualShapeCount = compound->getNumChildShapes();
-    
-    LOG_DEBUG_FMT("Chunk", "[COLLISION VALIDATION] Chunk at (" << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z << ")");
-    LOG_DEBUG_FMT("Chunk", "  Compound shape has " << actualShapeCount << " child shapes");
-    LOG_DEBUG_FMT("Chunk", "  Spatial grid tracking " << collisionGrid.getTotalEntityCount() << " entities");
-    LOG_DEBUG_FMT("Chunk", "  Grid breakdown: " << collisionGrid.getCubeEntityCount() << " cubes, " 
-              << collisionGrid.getSubcubeEntityCount() << " subcubes");
-    LOG_DEBUG_FMT("Chunk", "  Occupied cells: " << collisionGrid.getOccupiedCellCount() << "/" 
-              << (Physics::CollisionSpatialGrid::GRID_SIZE * Physics::CollisionSpatialGrid::GRID_SIZE * Physics::CollisionSpatialGrid::GRID_SIZE));
-    
-    // Validate that tracked count matches compound shape count
-    size_t expectedShapeCount = collisionGrid.getTotalEntityCount();
-    if (expectedShapeCount != static_cast<size_t>(actualShapeCount)) {
-        LOG_ERROR_FMT("Chunk", "[COLLISION ERROR] Shape count mismatch! Expected: " << expectedShapeCount 
-                  << ", Actual: " << actualShapeCount);
-    }
-    
-    // Validate spatial grid internal consistency
-    if (!collisionGrid.validateGrid()) {
-        LOG_ERROR("Chunk", "[COLLISION ERROR] Spatial grid internal validation failed!");
-    } else {
-        LOG_DEBUG("Chunk", "  Spatial grid validation: PASSED");
-    }
-}
-
-void Chunk::debugLogSpatialGrid() const {
-    LOG_DEBUG("Chunk", "[COLLISION DEBUG] Spatial grid detailed information:");
-    LOG_DEBUG_FMT("Chunk", "  Chunk origin: (" << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z << ")");
-    
-    // Print spatial grid statistics
-    collisionGrid.debugPrintStats();
-    
-    // Log entities by occupied positions
-    LOG_DEBUG("Chunk", "  Entity details by position:");
-    for (int x = 0; x < Physics::CollisionSpatialGrid::GRID_SIZE; ++x) {
-        for (int y = 0; y < Physics::CollisionSpatialGrid::GRID_SIZE; ++y) {
-            for (int z = 0; z < Physics::CollisionSpatialGrid::GRID_SIZE; ++z) {
-                glm::ivec3 pos(x, y, z);
-                const auto& entities = collisionGrid.getEntitiesAt(pos);
-                if (!entities.empty()) {
-                    LOG_TRACE_FMT("Chunk", "    Position (" << x << "," << y << "," << z << ") has " << entities.size() << " entities:");
-                    for (size_t i = 0; i < entities.size(); ++i) {
-                        const auto& entity = entities[i];
-                        if (entity->isCube()) {
-                            LOG_TRACE_FMT("Chunk", "      [" << i << "] Cube - Shape: " << entity->shape 
-                                      << ", Center: (" << entity->worldCenter.x << "," << entity->worldCenter.y << "," << entity->worldCenter.z
-                                      << "), Refs: " << entity.use_count());
-                        } else {
-                            LOG_TRACE_FMT("Chunk", "      [" << i << "] Subcube - Shape: " << entity->shape 
-                                      << ", Center: (" << entity->worldCenter.x << "," << entity->worldCenter.y << "," << entity->worldCenter.z
-                                      << "), Local: (" << entity->subcubeLocalPos.x << "," << entity->subcubeLocalPos.y << "," << entity->subcubeLocalPos.z
-                                      << "), Refs: " << entity.use_count());
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-size_t Chunk::getCollisionEntityCount() const {
-    return collisionGrid.getTotalEntityCount();
-}
-
-size_t Chunk::getCubeEntityCount() const {
-    return collisionGrid.getCubeEntityCount();
-}
-
-size_t Chunk::getSubcubeEntityCount() const {
-    return collisionGrid.getSubcubeEntityCount();
-}
-
-void Chunk::debugPrintSpatialGridStats() const {
-    collisionGrid.debugPrintStats();
 }
 
 // =============================================================================

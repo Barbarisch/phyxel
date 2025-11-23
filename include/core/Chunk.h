@@ -3,21 +3,15 @@
 #include "Types.h"
 #include "core/Subcube.h"
 #include "core/Microcube.h"
-#include "physics/CollisionSpatialGrid.h"
 #include "graphics/ChunkRenderBuffer.h"
 #include "graphics/ChunkRenderManager.h"
+#include "physics/ChunkPhysicsManager.h"
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
 #include <memory>
 #include <functional>
 #include <vulkan/vulkan.h>
-
-// Bullet Physics forward declarations (global namespace)
-class btRigidBody;
-class btCollisionShape;
-class btCompoundShape;
-class btTriangleMesh; // Bullet forward declaration
 
 namespace VulkanCube {
 
@@ -45,6 +39,9 @@ private:
     // Rendering subsystem - manages face generation and Vulkan buffers
     Graphics::ChunkRenderManager renderManager;
     
+    // Physics subsystem - manages collision shapes and physics bodies
+    Physics::ChunkPhysicsManager physicsManager;
+    
     // NEW: O(1) lookup data structures for optimized hover system
     std::unordered_map<glm::ivec3, Cube*, IVec3Hash> cubeMap;              // O(1) cube lookup by local position
     std::unordered_map<glm::ivec3, 
@@ -61,35 +58,8 @@ private:
     VkDevice device = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     
-    // Physics body for static geometry (compound shape made from individual cube collision boxes)
-    mutable btRigidBody* chunkPhysicsBody = nullptr;
-    mutable btCollisionShape* chunkCollisionShape = nullptr;
-    
     // Dirty tracking for smart saves
     bool isDirty = false;                          // Track if chunk has been modified since last save
-    mutable btTriangleMesh* chunkTriangleMesh = nullptr; // For BVH triangle mesh shape (option B)
-    
-    // UNIFIED SPATIAL COLLISION SYSTEM - O(1) operations with spatial optimization
-    // Uses extracted CollisionSpatialGrid class for better modularity
-    Physics::CollisionSpatialGrid collisionGrid;
-    mutable bool collisionNeedsUpdate = false;                       // Flag for batch collision updates
-    bool isInBulkOperation = false;                                   // Flag to prevent neighbor updates during bulk loading operations
-    
-    // DEBUG: Spatial grid provides O(1) collision tracking and comprehensive metrics
-    
-    /*
-     * COLLISION SYSTEM IMPROVEMENTS SUMMARY:
-     * - Fixed double-deletion crashes with reference counting
-     * - Individual subcube tracking (no more geometric heuristics)
-     * - Memory-safe cleanup with compound shape ownership tracking
-     * - Comprehensive debugging and validation infrastructure
-     * - Eliminated manual memory management errors
-     * 
-     * Trade-offs:
-     * - ~70% increase in collision tracking memory usage
-     * - 20-50% slower individual collision operations
-     * - Significantly faster cleanup and no crashes
-     */
 
 public:
     // Constructor
@@ -220,12 +190,12 @@ public:
     void logBufferUtilization() const;
     
     // Physics management
-    void setPhysicsWorld(class Physics::PhysicsWorld* world) { physicsWorld = world; }
+    void setPhysicsWorld(class Physics::PhysicsWorld* world);
     void createChunkPhysicsBody();                    // Create compound shape physics body for static geometry
     void updateChunkPhysicsBody();                    // Rebuild physics body when static geometry changes
     void forcePhysicsRebuild();                       // Force immediate compound shape rebuild (bypasses performance optimization)
     void cleanupPhysicsResources();                   // Clean up physics bodies
-    class btRigidBody* getChunkPhysicsBody() const { return chunkPhysicsBody; }
+    class btRigidBody* getChunkPhysicsBody() const;
     
     // UNIFIED SPATIAL COLLISION SYSTEM - O(1) operations with spatial grid optimization
     void addCollisionEntity(const glm::ivec3& localPos);                       // Add collision entity with spatial tracking
@@ -264,23 +234,11 @@ public:
     void* getMappedMemory() const { return renderManager.getMappedMemory(); }
 
 private:
-    // Collision box structure for physics optimization
-    struct CollisionBox {
-        glm::vec3 center;
-        glm::vec3 halfExtents;
-        
-        CollisionBox(const glm::vec3& center, const glm::vec3& halfExtents) 
-            : center(center), halfExtents(halfExtents) {}
-    };
-    
-    std::vector<CollisionBox> generateMergedCollisionBoxes();  // Generate optimized collision boxes for compound shape
-    
-private:
-    // Physics world reference for physics body creation
-    class Physics::PhysicsWorld* physicsWorld = nullptr;
+    // No private members needed - all moved to subsystems
     
     // Helper functions
     bool isValidLocalPosition(const glm::ivec3& localPos) const;
+    std::vector<Physics::ChunkPhysicsManager::CollisionBox> generateMergedCollisionBoxes();  // Generate optimized collision boxes for compound shape
 };
 
 } // namespace VulkanCube
