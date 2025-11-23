@@ -73,11 +73,33 @@ public:
     // Access to physics body
     btRigidBody* getChunkPhysicsBody() const { return chunkPhysicsBody; }
     
+    // Callback function typedefs for accessing chunk data
+    // These are defined early because they're used in method signatures below
+    using CubeAccessFunc = std::function<const Cube*(const glm::ivec3&)>;
+    using SubcubeAccessFunc = std::function<Subcube*(const glm::ivec3&, const glm::ivec3&)>;
+    using MicrocubesAccessFunc = std::function<std::vector<Microcube*>(const glm::ivec3&, const glm::ivec3&)>;
+    using StaticSubcubesAccessFunc = std::function<std::vector<Subcube*>(const glm::ivec3&)>;
+    using CubesArrayAccessFunc = std::function<const std::vector<Cube*>&()>;
+    using IndexToLocalFunc = std::function<glm::ivec3(size_t)>;
+    using StaticMicrocubesAccessFunc = std::function<const std::vector<Microcube*>&()>;
+    
     // UNIFIED SPATIAL COLLISION SYSTEM - O(1) operations with spatial grid optimization
     void addCollisionEntity(const glm::ivec3& localPos);              // Add collision entity with spatial tracking
     void removeCollisionEntities(const glm::ivec3& localPos);         // Remove all collision entities at position (O(1))
-    void batchUpdateCollisions();                                      // Process collision changes in batch for performance
-    void buildInitialCollisionShapes();                                // Build initial collision shapes with spatial grid
+    
+    // Build initial collision shapes with spatial grid (requires callbacks)
+    void buildInitialCollisionShapes(const CubesArrayAccessFunc& getCubes,
+                                     const StaticSubcubesAccessFunc& getStaticSubcubes,
+                                     const StaticMicrocubesAccessFunc& getStaticMicrocubes,
+                                     const IndexToLocalFunc& indexToLocal,
+                                     const CubeAccessFunc& getCube);
+    
+    // Process collision changes in batch for performance
+    void batchUpdateCollisions(const CubesArrayAccessFunc& getCubes,
+                              const StaticSubcubesAccessFunc& getStaticSubcubes,
+                              const StaticMicrocubesAccessFunc& getStaticMicrocubes,
+                              const IndexToLocalFunc& indexToLocal,
+                              const CubeAccessFunc& getCube);
     
     // Neighbor collision management
     void updateNeighborCollisionShapes(const glm::ivec3& localPos);   // Update collision shapes of neighboring cubes
@@ -119,12 +141,6 @@ public:
     void debugPrintSpatialGridStats() const;                           // Print spatial grid performance statistics
     
     // Collision shape creation helpers - focused single-purpose functions
-    // These require access to chunk's cube data, so they take function callbacks
-    using CubeAccessFunc = std::function<const Cube*(const glm::ivec3&)>;
-    using SubcubeAccessFunc = std::function<Subcube*(const glm::ivec3&, const glm::ivec3&)>;
-    using MicrocubesAccessFunc = std::function<std::vector<Microcube*>(const glm::ivec3&, const glm::ivec3&)>;
-    using StaticSubcubesAccessFunc = std::function<std::vector<Subcube*>(const glm::ivec3&)>;
-    
     void createCubeCollisionShape(const glm::ivec3& localPos, btCompoundShape* compound,
                                   const CubeAccessFunc& getCube);
     void createSubcubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, 

@@ -1225,14 +1225,13 @@ void Chunk::removeCollisionEntities(const glm::ivec3& localPos) {
 }
 
 void Chunk::batchUpdateCollisions() {
-    if (!collisionNeedsUpdate) return;
-    
-    // Only rebuild if we don't have any collision shapes yet
-    if (collisionGrid.getTotalEntityCount() == 0 && chunkCollisionShape) {
-        buildInitialCollisionShapes();
-    }
-    
-    collisionNeedsUpdate = false;
+    physicsManager.batchUpdateCollisions(
+        [this]() -> const std::vector<Cube*>& { return cubes; },
+        [this](const glm::ivec3&) { return staticSubcubes; },
+        [this]() -> const std::vector<Microcube*>& { return staticMicrocubes; },
+        [this](size_t index) { return indexToLocal(index); },
+        [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); }
+    );
 }
 
 // Helper method to check if a cube has exposed faces (for collision optimization)
@@ -1245,160 +1244,13 @@ bool Chunk::hasExposedFaces(const glm::ivec3& localPos) const {
 }
 
 void Chunk::buildInitialCollisionShapes() {
-    btCompoundShape* compound = static_cast<btCompoundShape*>(chunkCollisionShape);
-    if (!compound) return;
-    
-    // Clear existing spatial grid - shapes auto-delete when entities are destroyed
-    collisionGrid.clear();
-    
-    // Remove all existing children from compound shape
-    while (compound->getNumChildShapes() > 0) {
-        compound->removeChildShapeByIndex(0);
-    }
-    
-    // Reserve space for expected entities
-    size_t expectedEntities = cubes.size() + staticSubcubes.size();
-    collisionGrid.reserve(expectedEntities);
-    
-    // Build collision shapes for visible cubes that have exposed faces
-    for (size_t i = 0; i < cubes.size(); ++i) {
-        const Cube* cube = cubes[i];
-        
-        // Skip deleted cubes (nullptr) or hidden cubes (subdivided)
-        if (!cube || !cube->isVisible()) {
-            continue;
-        }
-        
-        // Get cube's local position within chunk
-        glm::ivec3 localPos = indexToLocal(i);
-        
-        // Only create collision shape if cube has exposed faces (performance optimization)
-        if (hasExposedFaces(localPos)) {
-            glm::vec3 cubeCenter = glm::vec3(worldOrigin) + glm::vec3(localPos) + glm::vec3(0.5f);
-            
-            btBoxShape* boxShape = new btBoxShape(btVector3(0.5f, 0.5f, 0.5f));
-            btTransform transform;
-            transform.setIdentity();
-            transform.setOrigin(btVector3(cubeCenter.x, cubeCenter.y, cubeCenter.z));
-            
-            compound->addChildShape(transform, boxShape);
-            
-            // Create collision entity with spatial tracking
-            auto entity = std::make_shared<Physics::CollisionSpatialGrid::CollisionEntity>(boxShape, Physics::CollisionSpatialGrid::CollisionEntity::CUBE, cubeCenter);
-            entity->isInCompound = true; // Shape is now owned by Bullet compound
-            
-            // Add to spatial grid - O(1) operation
-            collisionGrid.addEntity(localPos, entity);
-        }
-    }
-    
-    // Build collision shapes for static subcubes with individual tracking
-    for (const Subcube* subcube : staticSubcubes) {
-        // Skip broken or hidden subcubes
-        if (!subcube || subcube->isBroken() || !subcube->isVisible()) {
-            continue;
-        }
-        
-        // Get subcube properties
-        glm::ivec3 parentPos = subcube->getPosition();     // Parent cube's world position
-        glm::ivec3 localPos = subcube->getLocalPosition(); // 0-2 for each axis within parent
-        
-        // Convert parent world position to chunk-relative position
-        glm::ivec3 parentLocalPos = parentPos - worldOrigin;
-        
-        // Validate parent position is within chunk bounds
-        if (parentLocalPos.x < 0 || parentLocalPos.x >= 32 ||
-            parentLocalPos.y < 0 || parentLocalPos.y >= 32 ||
-            parentLocalPos.z < 0 || parentLocalPos.z >= 32) {
-            continue; // Skip subcubes with invalid parent positions
-        }
-        
-        // Calculate subcube center
-        glm::vec3 parentCenter = glm::vec3(worldOrigin) + glm::vec3(parentLocalPos) + glm::vec3(0.5f);
-        glm::vec3 subcubeOffset = (glm::vec3(localPos) - glm::vec3(1.0f)) * (1.0f/3.0f);
-        glm::vec3 subcubeCenter = parentCenter + subcubeOffset;
-        
-        btBoxShape* boxShape = new btBoxShape(btVector3(1.0f/6.0f, 1.0f/6.0f, 1.0f/6.0f));
-        btTransform transform;
-        transform.setIdentity();
-        transform.setOrigin(btVector3(subcubeCenter.x, subcubeCenter.y, subcubeCenter.z));
-        
-        compound->addChildShape(transform, boxShape);
-        
-        // Create collision entity with spatial and hierarchy data
-        auto entity = std::make_shared<Physics::CollisionSpatialGrid::CollisionEntity>(boxShape, Physics::CollisionSpatialGrid::CollisionEntity::SUBCUBE, subcubeCenter, 1.0f/6.0f);
-        entity->isInCompound = true; // Shape is now owned by Bullet compound
-        entity->parentChunkPos = parentLocalPos;
-        entity->subcubeLocalPos = localPos;
-        
-        // Add to spatial grid - O(1) operation
-        collisionGrid.addEntity(parentLocalPos, entity);
-    }
-    
-    // Build collision shapes for static microcubes with individual tracking
-    for (const Microcube* microcube : staticMicrocubes) {
-        // Skip broken or hidden microcubes
-        if (!microcube || microcube->isBroken() || !microcube->isVisible()) {
-            continue;
-        }
-        
-        // Get microcube properties
-        glm::ivec3 parentCubePos = microcube->getParentCubePosition();        // Parent cube's world position
-        glm::ivec3 subcubePos = microcube->getSubcubeLocalPosition();         // 0-2 for subcube within cube
-        glm::ivec3 microcubePos = microcube->getMicrocubeLocalPosition();     // 0-2 for microcube within subcube
-        
-        // Convert parent world position to chunk-relative position
-        glm::ivec3 parentLocalPos = parentCubePos - worldOrigin;
-        
-        // Validate parent position is within chunk bounds
-        if (parentLocalPos.x < 0 || parentLocalPos.x >= 32 ||
-            parentLocalPos.y < 0 || parentLocalPos.y >= 32 ||
-            parentLocalPos.z < 0 || parentLocalPos.z >= 32) {
-            continue; // Skip microcubes with invalid parent positions
-        }
-        
-        // Calculate microcube center with two-level hierarchy (consistent with addCollisionEntity)
-        constexpr float SUBCUBE_SCALE = 1.0f / 3.0f;
-        constexpr float MICROCUBE_SCALE = 1.0f / 9.0f;
-        
-        glm::vec3 parentCenter = glm::vec3(worldOrigin) + glm::vec3(parentLocalPos) + glm::vec3(0.5f);
-        
-        // Convert subcube position from 0-2 range to centered offsets
-        glm::vec3 subcubeLocalOffset = glm::vec3(subcubePos) - glm::vec3(1.0f);
-        glm::vec3 subcubeOffset = subcubeLocalOffset * SUBCUBE_SCALE;
-        
-        // Convert microcube position from 0-2 range to centered offsets within subcube
-        glm::vec3 microcubeLocalOffset = glm::vec3(microcubePos) - glm::vec3(1.0f);
-        glm::vec3 microcubeOffset = microcubeLocalOffset * MICROCUBE_SCALE;
-        
-        glm::vec3 microcubeCenter = parentCenter + subcubeOffset + microcubeOffset;
-        
-        // DEBUG: Log initial static microcube collision creation  
-        LOG_INFO_FMT("Chunk", "[INITIAL STATIC COLLISION] Microcube at cube (" << parentLocalPos.x << "," << parentLocalPos.y << "," << parentLocalPos.z
-                  << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z
-                  << ") micro (" << microcubePos.x << "," << microcubePos.y << "," << microcubePos.z << ")");
-        LOG_INFO_FMT("Chunk", "[INITIAL STATIC COLLISION] Center: (" << microcubeCenter.x << "," << microcubeCenter.y << "," << microcubeCenter.z << ") Half-extents: " << (1.0f/18.0f));
-        
-        btBoxShape* boxShape = new btBoxShape(btVector3(1.0f/18.0f, 1.0f/18.0f, 1.0f/18.0f));
-        btTransform transform;
-        transform.setIdentity();
-        transform.setOrigin(btVector3(microcubeCenter.x, microcubeCenter.y, microcubeCenter.z));
-        
-        compound->addChildShape(transform, boxShape);
-        
-        // Create collision entity with spatial and hierarchy data
-        auto entity = std::make_shared<Physics::CollisionSpatialGrid::CollisionEntity>(boxShape, Physics::CollisionSpatialGrid::CollisionEntity::SUBCUBE, microcubeCenter, 1.0f/18.0f);
-        entity->isInCompound = true; // Shape is now owned by Bullet compound
-        entity->parentChunkPos = parentLocalPos;
-        entity->subcubeLocalPos = subcubePos; // Store parent subcube position
-        
-        // Add to spatial grid - O(1) operation
-        collisionGrid.addEntity(parentLocalPos, entity);
-    }
-    
-    LOG_DEBUG_FMT("Chunk", "[COLLISION] Built " << collisionGrid.getTotalEntityCount() << " initial collision entities ("
-              << collisionGrid.getCubeEntityCount() << " cubes, " << collisionGrid.getSubcubeEntityCount() << " subcubes, "
-              << staticMicrocubes.size() << " microcubes) with spatial grid optimization");
+    physicsManager.buildInitialCollisionShapes(
+        [this]() -> const std::vector<Cube*>& { return cubes; },
+        [this](const glm::ivec3&) { return staticSubcubes; },
+        [this]() -> const std::vector<Microcube*>& { return staticMicrocubes; },
+        [this](size_t index) { return indexToLocal(index); },
+        [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); }
+    );
 }
 
 void Chunk::updateNeighborCollisionShapes(const glm::ivec3& localPos) {
