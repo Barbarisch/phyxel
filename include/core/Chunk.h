@@ -22,7 +22,22 @@ namespace Physics {
 
 /**
  * Chunk class that manages a 32x32x32 section of cubes
- * Handles cube storage, face generation, and Vulkan buffer management
+ * 
+ * REFACTORING STATUS (Phase 2 in progress):
+ * ✓ Phase 1 Complete: Rendering extracted to ChunkRenderManager
+ * ⚠ Phase 2 In Progress: Physics being extracted to ChunkPhysicsManager
+ *   - Physics data members moved to manager
+ *   - Collision shape creation methods extracted
+ *   - Compatibility macros in place for gradual migration
+ *   - TODO: Extract remaining physics lifecycle methods
+ * ○ Phase 3 Planned: Voxel hierarchy management extraction
+ * ○ Phase 4 Planned: Final Chunk simplification
+ * 
+ * Current responsibilities:
+ * - Cube storage and voxel hierarchy (cubes, subcubes, microcubes)
+ * - Coordinate with subsystem managers (rendering, physics)
+ * - Voxel manipulation operations (add, remove, subdivide)
+ * - Cross-chunk coordination via ChunkManager
  */
 class Chunk {
     friend class ChunkManager;  // Allow ChunkManager to access private members for cross-chunk culling

@@ -163,6 +163,9 @@ void ChunkPhysicsManager::debugPrintSpatialGridStats() const {
 void ChunkPhysicsManager::createCubeCollisionShape(const glm::ivec3& localPos, 
                                                     btCompoundShape* compound,
                                                     const CubeAccessFunc& getCube) {
+    // PERFORMANCE: This method is called thousands of times during chunk initialization.
+    // Any inefficiency here (e.g., linear search) will cause severe performance degradation.
+    
     // Calculate center position in world space
     glm::vec3 shapeCenter = glm::vec3(chunkOrigin) + glm::vec3(localPos) + glm::vec3(0.5f);
     

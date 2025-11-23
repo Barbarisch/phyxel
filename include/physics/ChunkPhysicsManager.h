@@ -33,6 +33,12 @@ class PhysicsWorld;
  * - Batch collision updates for performance
  * - Neighbor collision shape updates
  * 
+ * CRITICAL PERFORMANCE NOTES:
+ * - Cube access MUST use indexed lookups: index = z + y*32 + x*32*32
+ * - NEVER use linear search through cube vectors (causes O(n²) performance)
+ * - Collision grid provides O(1) spatial lookups
+ * - Always use callback functions (CubeAccessFunc, SubcubeAccessFunc) for data access
+ * 
  * Isolates Bullet Physics dependencies from main Chunk class.
  */
 class ChunkPhysicsManager {
@@ -92,6 +98,10 @@ public:
     
     // TEMPORARY: Direct access to physics members for gradual migration
     // These will be removed once all physics logic is fully extracted
+    // TODO: Remove these accessors after extracting all physics methods from Chunk.cpp
+    // TODO: Move createChunkPhysicsBody, updateChunkPhysicsBody implementations
+    // TODO: Move addCollisionEntity, removeCollisionEntities implementations
+    // TODO: Move buildInitialCollisionShapes, batchUpdateCollisions implementations
     btRigidBody*& getChunkPhysicsBodyRef() { return chunkPhysicsBody; }
     btCollisionShape*& getChunkCollisionShapeRef() { return chunkCollisionShape; }
     btTriangleMesh*& getChunkTriangleMeshRef() { return chunkTriangleMesh; }

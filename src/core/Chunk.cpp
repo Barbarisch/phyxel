@@ -1051,7 +1051,13 @@ void Chunk::debugPrintSpatialGridStats() const {
 }
 
 // NOTE: Physics body creation and collision methods still directly access physics members
-// These will be fully extracted in a later refactoring step
+// These will be fully extracted in Phase 2 completion:
+// - Move createChunkPhysicsBody implementation to ChunkPhysicsManager
+// - Move updateChunkPhysicsBody implementation to ChunkPhysicsManager  
+// - Move addCollisionEntity/removeCollisionEntities implementations
+// - Move buildInitialCollisionShapes implementation
+// - Move updateNeighborCollisionShapes implementation
+// - Remove compatibility macros once all methods are extracted
 
 void Chunk::createChunkPhysicsBody() {
     if (!physicsWorld) {
