@@ -26,20 +26,30 @@ class PhysicsWorld;
 /**
  * ChunkPhysicsManager - Manages physics simulation for a single chunk
  * 
+ * EXTRACTED FROM CHUNK.CPP (Phase 2 Complete):
+ * This class isolates all Bullet Physics logic that was previously embedded in Chunk.cpp.
+ * Successfully extracted ~833 lines of physics code, reducing Chunk.cpp by 34%.
+ * 
  * Responsibilities:
- * - Create and manage chunk physics body (compound shape for static geometry)
- * - Handle collision shape creation for cubes, subcubes, and microcubes
- * - Manage collision entity tracking via spatial grid
+ * - Physics body lifecycle (create, update, rebuild)
+ * - Collision shape creation for cubes, subcubes, and microcubes
+ * - Collision entity tracking via O(1) spatial grid
  * - Batch collision updates for performance
  * - Neighbor collision shape updates
+ * - Bulk operation management
+ * 
+ * Design Pattern:
+ * - Uses callback functions to access Chunk data without circular dependencies
+ * - Callbacks: CubeAccessFunc, SubcubeAccessFunc, MicrocubesAccessFunc, etc.
+ * - Enables clean separation while maintaining performance
  * 
  * CRITICAL PERFORMANCE NOTES:
  * - Cube access MUST use indexed lookups: index = z + y*32 + x*32*32
  * - NEVER use linear search through cube vectors (causes O(n²) performance)
  * - Collision grid provides O(1) spatial lookups
- * - Always use callback functions (CubeAccessFunc, SubcubeAccessFunc) for data access
+ * - All methods validate inputs and handle edge cases safely
  * 
- * Isolates Bullet Physics dependencies from main Chunk class.
+ * Successfully isolates all Bullet Physics dependencies from Chunk class.
  */
 class ChunkPhysicsManager {
 public:

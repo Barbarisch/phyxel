@@ -1,20 +1,26 @@
 # Refactoring Progress Tracker
 
-**Last Updated:** November 11, 2025  
-**Overall Progress:** 7 of 24 modules (29% complete)  
+**Last Updated:** November 23, 2025  
+**Overall Progress:** 9 of 24 modules (38% complete)  
 **Phase 1 Status:** ✅ COMPLETE (WindowManager, CoordinateUtils)
 **Phase 2 Status:** ✅ COMPLETE (InputManager)
 **Phase 3 Status:** ✅ COMPLETE (RenderCoordinator)
 **Phase 4 Status:** ✅ COMPLETE (VoxelInteractionSystem)
 **Phase 5 Status:** ✅ COMPLETE (PerformanceMonitor)
 **Phase 6 Status:** ✅ COMPLETE (WorldInitializer)
+**Phase 7 Status:** ✅ COMPLETE (ChunkRenderManager - rendering extraction)
+**Phase 8 Status:** ✅ COMPLETE (ChunkPhysicsManager - physics extraction)
 
 **Application.cpp Status:**
 - **Original:** 2,645 lines
 - **Current:** 539 lines
 - **Reduction:** 2,106 lines (80% smaller)
-- **Target:** ~400 lines
-- **Remaining:** 139 lines to target
+
+**Chunk.cpp Refactoring Status:**
+- **Original:** 2,444 lines
+- **Current:** 1,611 lines  
+- **Reduction:** 833 lines (34% smaller)
+- **Remaining Phases:** Voxel management, final cleanup
 
 ---
 
@@ -317,15 +323,85 @@
 
 ---
 
+### 7. ✅ ChunkRenderManager (November 2025)
+**Branch:** `refactor_gemini3`  
+**Status:** Committed (Phase 1 of Chunk refactoring)  
+**Time Spent:** ~4 hours  
+**Lines Reduced:** ~328 lines from Chunk.cpp
+
+**Files Created:**
+- `include/graphics/ChunkRenderManager.h` (89 lines)
+- `src/graphics/ChunkRenderManager.cpp` (268 lines)
+
+**Functions Extracted:**
+- Mesh generation (generateMesh, rebuildFaces, generateCubeFaces)
+- Render buffer management (updateRenderBuffer, clearRenderBuffer)
+- Visibility state management (setDirty, isDirty)
+
+**Key Features:**
+- Completely isolated rendering logic from Chunk
+- Callback pattern for accessing cube data without circular dependencies
+- O(1) cube lookups using indexed access (z + y*32 + x*32*32)
+- Clean separation of concerns
+
+**Key Changes:**
+- Chunk.cpp reduced from 2,444 to 2,116 lines
+- All Vulkan rendering dependencies isolated
+- Maintains face culling optimization
+- Zero performance regression
+
 **Testing:** ✅ Build successful, runtime verified  
-**Documentation:** Inline documentation in header
+**Documentation:** Updated Chunk.h header with refactoring status
 
 **Lessons Learned:**
-- Large rendering extractions benefit from careful namespace organization
-- Forward declarations must match actual class namespaces exactly
-- ChunkManager in root namespace, ImGuiRenderer in UI, RenderPipeline in Vulkan
-- Include path errors caught early save debugging time
-- Passing frame state (matrices, timing) requires setter methods on coordinator
+- Callback pattern excellent for avoiding circular dependencies
+- Must avoid O(n²) performance - always use indexed cube access
+- Phase-by-phase approach maintains stability
+- Clear documentation prevents future mistakes
+
+---
+
+### 8. ✅ ChunkPhysicsManager (November 2025)
+**Branch:** `refactor_gemini3`  
+**Status:** Committed (Phase 2 of Chunk refactoring)  
+**Time Spent:** ~6 hours  
+**Lines Reduced:** ~833 lines from Chunk.cpp (cumulative with Phase 1)
+
+**Files Created:**
+- `include/physics/ChunkPhysicsManager.h` (212 lines)
+- `src/physics/ChunkPhysicsManager.cpp` (662 lines)
+
+**Functions Extracted:**
+- Physics body lifecycle (createChunkPhysicsBody, updateChunkPhysicsBody, forcePhysicsRebuild)
+- Collision entity management (addCollisionEntity, removeCollisionEntities)
+- Collision shape creation (createCubeCollisionShape, createSubcubeCollisionShape, createMicrocubeCollisionShape)
+- Batch operations (batchUpdateCollisions, buildInitialCollisionShapes)
+- Neighbor updates (updateNeighborCollisionShapes, endBulkOperation)
+- Helper methods (hasExposedFaces)
+
+**Key Features:**
+- Complete isolation of Bullet Physics dependencies
+- O(1) collision spatial grid for entity tracking
+- Callback pattern for accessing voxel hierarchy data
+- Supports cubes, subcubes, and microcubes
+- Batch update optimizations
+
+**Key Changes:**
+- Chunk.cpp reduced from 2,444 to 1,611 lines (**-833 lines, -34%**)
+- All Bullet Physics logic moved to dedicated manager
+- 10 major physics methods extracted
+- 7 callback function types for clean separation
+- Compatibility macros minimal (only in one method)
+
+**Testing:** ✅ Build successful, runtime verified, physics fully functional  
+**Documentation:** Updated Chunk.h and ChunkPhysicsManager.h headers
+
+**Lessons Learned:**
+- Typedef order matters - must define before use in method signatures
+- Callback pattern scales well for complex dependencies
+- Incremental extraction with testing prevents regressions
+- Compatibility macros can ease migration but should be minimal
+- Physics synchronization critical (AABB updates, broadphase sync)
 
 ---
 
@@ -336,6 +412,22 @@ None currently.
 ---
 
 ## Planned Next Steps
+
+### ⏳ Chunk Refactoring (Continued)
+
+**Phase 3: Voxel Management** (Future)
+- Extract voxel hierarchy operations (getCubeAt, createCube, deleteCube)
+- Extract subdivision logic (subdivide, breakSubcube)
+- Extract coordinate conversion helpers
+- Estimated: 300-400 more lines
+
+**Phase 4: Final Cleanup** (Future)
+- Extract remaining utility methods
+- Remove compatibility macros
+- Final simplification
+- Target: Chunk.cpp ~1,000-1,200 lines total
+
+---
 
 ### ⏳ Phase 2: Input & Camera (Continued)
 

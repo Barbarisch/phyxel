@@ -23,15 +23,19 @@ namespace Physics {
 /**
  * Chunk class that manages a 32x32x32 section of cubes
  * 
- * REFACTORING STATUS (Phase 2 in progress):
- * ✓ Phase 1 Complete: Rendering extracted to ChunkRenderManager
- * ⚠ Phase 2 In Progress: Physics being extracted to ChunkPhysicsManager
- *   - Physics data members moved to manager
- *   - Collision shape creation methods extracted
- *   - Compatibility macros in place for gradual migration
- *   - TODO: Extract remaining physics lifecycle methods
+ * REFACTORING STATUS:
+ * ✓ Phase 1 Complete: Rendering extracted to ChunkRenderManager (~328 lines)
+ * ✓ Phase 2 Complete: Physics extracted to ChunkPhysicsManager (~833 lines)
+ *   - All Bullet Physics logic isolated in dedicated manager
+ *   - Physics body lifecycle fully extracted
+ *   - Collision entity management delegated
+ *   - Callback pattern for clean separation
  * ○ Phase 3 Planned: Voxel hierarchy management extraction
  * ○ Phase 4 Planned: Final Chunk simplification
+ * 
+ * Size Reduction:
+ * - Original: 2,444 lines
+ * - Current: 1,611 lines (-833 lines, -34%)
  * 
  * Current responsibilities:
  * - Cube storage and voxel hierarchy (cubes, subcubes, microcubes)
