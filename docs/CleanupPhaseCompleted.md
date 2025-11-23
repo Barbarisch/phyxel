@@ -11,19 +11,21 @@ Successfully cleaned up the rendering architecture by removing dead code and cla
 
 ## Changes Made
 
-### 1. ✅ Removed SceneManager System (~750 lines)
+### 1. ✅ Removed SceneManager & Renderer Systems (~1,241 lines) - FULLY DELETED Nov 2025
 
-**Files Modified:**
+**Files Deleted:**
+- `include/scene/SceneManager.h` - Dead code, never used for rendering
+- `src/scene/SceneManager.cpp` - Dead code, never used for rendering
+- `include/graphics/Renderer.h` - Dead code, duplicate of RenderCoordinator
+- `src/graphics/Renderer.cpp` - Dead code, duplicate of RenderCoordinator
+
+**Previously Modified Files:**
 - `include/Application.h` - Removed include and member variable
 - `src/Application.cpp` - Removed initialization, usage, and cleanup
 - `include/core/WorldInitializer.h` - Removed forward declaration, constructor parameter, member
 - `src/core/WorldInitializer.cpp` - Removed include, constructor parameter, initializer
 
-**Files Kept (for reference/possible reuse):**
-- `include/scene/SceneManager.h` - Class definition preserved
-- `src/scene/SceneManager.cpp` - Implementation preserved
-
-**Reason:** These files contain face culling logic that might be useful for reference, but they're no longer actively used in the rendering pipeline.
+**Reason:** Analysis revealed these were completely unused - initialized but never called. All rendering handled by ChunkManager + RenderCoordinator.
 
 **Impact:**
 - Eliminated confusing "legacy cube rendering" comment

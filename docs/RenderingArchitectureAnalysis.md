@@ -10,9 +10,9 @@
 Your rendering architecture has **two completely separate rendering systems** operating in parallel:
 
 1. **Modern Chunk-Based System** (ChunkManager + RenderCoordinator) - **ACTIVE AND WORKING**
-2. **Legacy SceneManager System** (SceneManager + Renderer) - **DEPRECATED, NOT RENDERING**
+2. **Legacy SceneManager System** (SceneManager + Renderer) - **DELETED (Nov 2025)**
 
-The SceneManager is **not actually rendering anything**. It's initialized, kept in memory, and even has its instance data checked for updates, but **no draw calls are issued for it**. This is confirmed by:
+The SceneManager and Renderer classes were dead code - initialized but never used for rendering. They have been removed from the codebase. All rendering is now handled exclusively by the ChunkManager + RenderCoordinator system.
 - Application.h comment: `// Still in use for legacy cube rendering` (misleading)
 - RenderCoordinator handles ALL actual rendering
 - Renderer.cpp's `renderFrame()` is never called (orphaned code)

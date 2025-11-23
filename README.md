@@ -29,17 +29,19 @@ A high-performance 3D cube rendering engine built with Vulkan API, featuring rea
 src/
 ├── core/
 │   ├── Application.cpp        # Main application loop and coordination
+│   ├── ChunkManager.cpp       # Multi-chunk world management
 │   └── Timer.cpp             # Performance timing utilities
 ├── graphics/
-│   ├── VulkanDevice.cpp      # Vulkan device and resource management
-│   └── RenderPipeline.cpp    # Graphics and compute pipelines
+│   ├── RenderCoordinator.cpp  # Frame rendering coordination
+│   ├── VulkanDevice.cpp       # Vulkan device and resource management
+│   └── RenderPipeline.cpp     # Graphics and compute pipelines
 ├── scene/
-│   └── SceneManager.cpp      # Scene graph and cube management
+│   └── VoxelInteractionSystem.cpp  # Mouse picking and voxel manipulation
 ├── physics/
-│   └── PhysicsWorld.cpp      # Bullet physics integration
+│   └── PhysicsWorld.cpp       # Bullet physics integration
 └── utils/
-    ├── FileUtils.cpp         # File I/O utilities
-    └── Math.cpp              # Mathematical operations
+    ├── FileUtils.cpp          # File I/O utilities
+    └── Math.cpp               # Mathematical operations
 ```
 
 ## Building
@@ -277,8 +279,9 @@ The modular architecture makes it easy to extend:
 
 - **New rendering effects** → Modify `RenderPipeline`
 - **Physics objects** → Extend `PhysicsWorld`
-- **Input handling** → Update `Application` input methods
-- **Scene objects** → Add to `SceneManager`
+- **Input handling** → Update `InputManager`
+- **World objects** → Add to `ChunkManager`
+- **Voxel interactions** → Extend `VoxelInteractionSystem`
 
 ### Cross-Platform Development
 When adding new features:
