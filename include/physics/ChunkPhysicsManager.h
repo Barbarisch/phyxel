@@ -64,17 +64,8 @@ public:
     void setPhysicsWorld(PhysicsWorld* world) { physicsWorld = world; }
     PhysicsWorld* getPhysicsWorld() const { return physicsWorld; }
     
-    // Physics body lifecycle
-    void createChunkPhysicsBody();           // Create compound shape physics body for static geometry
-    void updateChunkPhysicsBody();           // Rebuild physics body when static geometry changes
-    void forcePhysicsRebuild();              // Force immediate compound shape rebuild (bypasses optimization)
-    void cleanupPhysicsResources();          // Clean up physics bodies
-    
-    // Access to physics body
-    btRigidBody* getChunkPhysicsBody() const { return chunkPhysicsBody; }
-    
     // Callback function typedefs for accessing chunk data
-    // These are defined early because they're used in method signatures below
+    // IMPORTANT: These must be defined before any methods that use them
     using CubeAccessFunc = std::function<const Cube*(const glm::ivec3&)>;
     using SubcubeAccessFunc = std::function<Subcube*(const glm::ivec3&, const glm::ivec3&)>;
     using MicrocubesAccessFunc = std::function<std::vector<Microcube*>(const glm::ivec3&, const glm::ivec3&)>;
@@ -82,6 +73,27 @@ public:
     using CubesArrayAccessFunc = std::function<const std::vector<Cube*>&()>;
     using IndexToLocalFunc = std::function<glm::ivec3(size_t)>;
     using StaticMicrocubesAccessFunc = std::function<const std::vector<Microcube*>&()>;
+    
+    // Physics body lifecycle
+    void createChunkPhysicsBody(const CubesArrayAccessFunc& getCubes,
+                                const StaticSubcubesAccessFunc& getStaticSubcubes,
+                                const StaticMicrocubesAccessFunc& getStaticMicrocubes,
+                                const IndexToLocalFunc& indexToLocal,
+                                const CubeAccessFunc& getCube);
+    void updateChunkPhysicsBody(const CubesArrayAccessFunc& getCubes,
+                                const StaticSubcubesAccessFunc& getStaticSubcubes,
+                                const StaticMicrocubesAccessFunc& getStaticMicrocubes,
+                                const IndexToLocalFunc& indexToLocal,
+                                const CubeAccessFunc& getCube);
+    void forcePhysicsRebuild(const CubesArrayAccessFunc& getCubes,
+                            const StaticSubcubesAccessFunc& getStaticSubcubes,
+                            const StaticMicrocubesAccessFunc& getStaticMicrocubes,
+                            const IndexToLocalFunc& indexToLocal,
+                            const CubeAccessFunc& getCube);
+    void cleanupPhysicsResources();          // Clean up physics bodies
+    
+    // Access to physics body
+    btRigidBody* getChunkPhysicsBody() const { return chunkPhysicsBody; }
     
     // UNIFIED SPATIAL COLLISION SYSTEM - O(1) operations with spatial grid optimization
     void addCollisionEntity(const glm::ivec3& localPos);              // Add collision entity with spatial tracking

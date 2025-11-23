@@ -100,16 +100,97 @@ void ChunkPhysicsManager::cleanupPhysicsResources() {
 
 // Placeholder implementations - will be filled in as methods are extracted from Chunk.cpp
 
-void ChunkPhysicsManager::createChunkPhysicsBody() {
-    LOG_TRACE("ChunkPhysicsManager", "createChunkPhysicsBody - placeholder");
+void ChunkPhysicsManager::createChunkPhysicsBody(const CubesArrayAccessFunc& getCubes,
+                                                 const StaticSubcubesAccessFunc& getStaticSubcubes,
+                                                 const StaticMicrocubesAccessFunc& getStaticMicrocubes,
+                                                 const IndexToLocalFunc& indexToLocal,
+                                                 const CubeAccessFunc& getCube) {
+    if (!physicsWorld) {
+        LOG_TRACE("ChunkPhysicsManager", "No physics world available");
+        return;
+    }
+
+    if (chunkPhysicsBody) {
+        LOG_TRACE("ChunkPhysicsManager", "Physics body already exists");
+        return;
+    }
+
+    LOG_TRACE("ChunkPhysicsManager", "Creating compound collision shape");
+
+    // Create compound shape with dynamic AABB tree
+    btCompoundShape* chunkCompound = new btCompoundShape(true);
+    chunkCollisionShape = chunkCompound;
+    
+    // Clear existing collision tracking
+    collisionGrid.clear();
+    
+    // Build collision shapes
+    buildInitialCollisionShapes(getCubes, getStaticSubcubes, getStaticMicrocubes, indexToLocal, getCube);
+    
+    // Create static rigid body
+    btTransform bodyTransform;
+    bodyTransform.setIdentity();
+    btDefaultMotionState* motionState = new btDefaultMotionState(bodyTransform);
+    btVector3 inertia(0, 0, 0);
+    btRigidBody::btRigidBodyConstructionInfo rbInfo(0.0f, motionState, chunkCompound, inertia);
+    chunkPhysicsBody = new btRigidBody(rbInfo);
+    
+    physicsWorld->getWorld()->addRigidBody(chunkPhysicsBody);
+    
+    LOG_TRACE("ChunkPhysicsManager", "Spatial collision system initialized");
 }
 
-void ChunkPhysicsManager::updateChunkPhysicsBody() {
-    LOG_TRACE("ChunkPhysicsManager", "updateChunkPhysicsBody - placeholder");
+void ChunkPhysicsManager::updateChunkPhysicsBody(const CubesArrayAccessFunc& getCubes,
+                                                 const StaticSubcubesAccessFunc& getStaticSubcubes,
+                                                 const StaticMicrocubesAccessFunc& getStaticMicrocubes,
+                                                 const IndexToLocalFunc& indexToLocal,
+                                                 const CubeAccessFunc& getCube) {
+    if (!physicsWorld || !chunkPhysicsBody) return;
+    
+    // Batch any remaining collision updates
+    batchUpdateCollisions(getCubes, getStaticSubcubes, getStaticMicrocubes, indexToLocal, getCube);
+    
+    // Force physics world to recognize collision shape changes
+    if (chunkPhysicsBody) {
+        chunkPhysicsBody->activate(true);
+        
+        btCompoundShape* compound = static_cast<btCompoundShape*>(chunkPhysicsBody->getCollisionShape());
+        if (compound) {
+            compound->recalculateLocalAabb();
+        }
+        
+        auto* dynamicsWorld = physicsWorld->getWorld();
+        if (dynamicsWorld) {
+            dynamicsWorld->updateSingleAabb(chunkPhysicsBody);
+        }
+        
+        LOG_TRACE("ChunkPhysicsManager", "Spatial collision updates complete");
+    }
 }
 
-void ChunkPhysicsManager::forcePhysicsRebuild() {
-    LOG_TRACE("ChunkPhysicsManager", "forcePhysicsRebuild - placeholder");
+void ChunkPhysicsManager::forcePhysicsRebuild(const CubesArrayAccessFunc& getCubes,
+                                              const StaticSubcubesAccessFunc& getStaticSubcubes,
+                                              const StaticMicrocubesAccessFunc& getStaticMicrocubes,
+                                              const IndexToLocalFunc& indexToLocal,
+                                              const CubeAccessFunc& getCube) {
+    if (!physicsWorld || !chunkPhysicsBody) return;
+    
+    LOG_TRACE("ChunkPhysicsManager", "Force rebuilding compound shape");
+    
+    // Remove existing body from world
+    physicsWorld->getWorld()->removeRigidBody(chunkPhysicsBody);
+    
+    // Clean up existing resources
+    if (chunkCollisionShape) {
+        delete chunkCollisionShape;
+        chunkCollisionShape = nullptr;
+    }
+    chunkPhysicsBody = nullptr;
+    
+    // Recreate with updated geometry
+    createChunkPhysicsBody(getCubes, getStaticSubcubes, getStaticMicrocubes, indexToLocal, getCube);
+    
+    LOG_TRACE("ChunkPhysicsManager", "Compound shape rebuilt");
 }
 
 void ChunkPhysicsManager::addCollisionEntity(const glm::ivec3& localPos) {

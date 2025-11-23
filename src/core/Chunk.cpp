@@ -1060,96 +1060,33 @@ void Chunk::debugPrintSpatialGridStats() const {
 // - Remove compatibility macros once all methods are extracted
 
 void Chunk::createChunkPhysicsBody() {
-    if (!physicsWorld) {
-        LOG_DEBUG("Chunk", "[CHUNK] No physics world available for chunk physics body creation");
-        return;
-    }
-
-    if (chunkPhysicsBody) {
-        LOG_DEBUG("Chunk", "[CHUNK] Chunk physics body already exists, skipping creation");
-        return;
-    }
-
-    LOG_DEBUG_FMT("Chunk", "[CHUNK] Creating optimized compound collision shape for chunk at (" 
-              << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z << ")");
-
-    // Create compound shape with dynamic AABB tree for efficient culling
-    btCompoundShape* chunkCompound = new btCompoundShape(true);
-    chunkCollisionShape = chunkCompound;
-    
-    // Clear existing collision tracking (in case of rebuild) - shapes auto-delete with shared_ptr
-    collisionGrid.clear();
-    
-    // IMPROVED: Build collision shapes with reference-counted tracking
-    buildInitialCollisionShapes();
-    
-    // Create static rigid body
-    btTransform bodyTransform;
-    bodyTransform.setIdentity();
-    btDefaultMotionState* motionState = new btDefaultMotionState(bodyTransform);
-    btVector3 inertia(0, 0, 0);
-    btRigidBody::btRigidBodyConstructionInfo rbInfo(0.0f, motionState, chunkCompound, inertia);
-    chunkPhysicsBody = new btRigidBody(rbInfo);
-    
-    physicsWorld->getWorld()->addRigidBody(chunkPhysicsBody);
-    
-    LOG_DEBUG_FMT("Chunk", "[CHUNK] Spatial collision system initialized with " << collisionGrid.getTotalEntityCount() 
-              << " tracked entities (" << collisionGrid.getCubeEntityCount() << " cubes, " 
-              << collisionGrid.getSubcubeEntityCount() << " subcubes)");
+    physicsManager.createChunkPhysicsBody(
+        [this]() -> const std::vector<Cube*>& { return cubes; },
+        [this](const glm::ivec3&) { return staticSubcubes; },
+        [this]() -> const std::vector<Microcube*>& { return staticMicrocubes; },
+        [this](size_t index) { return indexToLocal(index); },
+        [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); }
+    );
 }
 
 void Chunk::updateChunkPhysicsBody() {
-    if (!physicsWorld || !chunkPhysicsBody) return;
-    
-    // IMPROVED: Batch any remaining collision updates efficiently
-    batchUpdateCollisions();
-    
-    // CRITICAL: Force physics world to recognize collision shape changes
-    if (chunkPhysicsBody) {
-        // Activate the physics body to ensure collision detection updates
-        chunkPhysicsBody->activate(true);
-        
-        // IMPORTANT: Recalculate AABB for the compound shape after collision changes
-        // This ensures the physics world immediately recognizes the new collision geometry
-        btCompoundShape* compound = static_cast<btCompoundShape*>(chunkPhysicsBody->getCollisionShape());
-        if (compound) {
-            compound->recalculateLocalAabb();
-        }
-        
-        // Force the physics world to update the broadphase AABB for this body
-        // This prevents the brief moment where old collision data might be cached
-        auto* dynamicsWorld = physicsWorld->getWorld();
-        if (dynamicsWorld) {
-            dynamicsWorld->updateSingleAabb(chunkPhysicsBody);
-        }
-        
-        LOG_DEBUG_FMT("Chunk", "[INCREMENTAL] Spatial collision updates complete with physics sync - maintaining " 
-                  << collisionGrid.getTotalEntityCount() << " entities (" << collisionGrid.getCubeEntityCount() 
-                  << " cubes, " << collisionGrid.getSubcubeEntityCount() << " subcubes)");
-    } else {
-        LOG_DEBUG("Chunk", "[INCREMENTAL] No collision updates needed");
-    }
+    physicsManager.updateChunkPhysicsBody(
+        [this]() -> const std::vector<Cube*>& { return cubes; },
+        [this](const glm::ivec3&) { return staticSubcubes; },
+        [this]() -> const std::vector<Microcube*>& { return staticMicrocubes; },
+        [this](size_t index) { return indexToLocal(index); },
+        [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); }
+    );
 }
 
 void Chunk::forcePhysicsRebuild() {
-    if (!physicsWorld || !chunkPhysicsBody) return;
-    
-    LOG_DEBUG("Chunk", "[COMPOUND SHAPE] Force rebuilding compound shape to remove static collision");
-    
-    // Remove existing body from world
-    physicsWorld->getWorld()->removeRigidBody(chunkPhysicsBody);
-    
-    // Clean up existing resources
-    if (chunkCollisionShape) {
-        delete chunkCollisionShape;
-        chunkCollisionShape = nullptr;
-    }
-    chunkPhysicsBody = nullptr;
-    
-    // Recreate with updated geometry (this will exclude the broken subcube)
-    createChunkPhysicsBody();
-    
-    LOG_DEBUG("Chunk", "[COMPOUND SHAPE] Compound shape rebuilt - static collision removed");
+    physicsManager.forcePhysicsRebuild(
+        [this]() -> const std::vector<Cube*>& { return cubes; },
+        [this](const glm::ivec3&) { return staticSubcubes; },
+        [this]() -> const std::vector<Microcube*>& { return staticMicrocubes; },
+        [this](size_t index) { return indexToLocal(index); },
+        [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); }
+    );
 }
 
 void Chunk::cleanupPhysicsResources() {
