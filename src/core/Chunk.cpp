@@ -1191,64 +1191,22 @@ void Chunk::buildInitialCollisionShapes() {
 }
 
 void Chunk::updateNeighborCollisionShapes(const glm::ivec3& localPos) {
-    // Check all 6 neighboring positions that might now be exposed
-    glm::ivec3 neighbors[6] = {
-        localPos + glm::ivec3(0, 0, 1),   // front (+Z)
-        localPos + glm::ivec3(0, 0, -1),  // back (-Z)
-        localPos + glm::ivec3(1, 0, 0),   // right (+X)
-        localPos + glm::ivec3(-1, 0, 0),  // left (-X)
-        localPos + glm::ivec3(0, 1, 0),   // top (+Y)
-        localPos + glm::ivec3(0, -1, 0)   // bottom (-Y)
-    };
-    
-    for (int i = 0; i < 6; ++i) {
-        glm::ivec3 neighborPos = neighbors[i];
-        
-        // Skip neighbors outside chunk bounds
-        if (neighborPos.x < 0 || neighborPos.x >= 32 ||
-            neighborPos.y < 0 || neighborPos.y >= 32 ||
-            neighborPos.z < 0 || neighborPos.z >= 32) {
-            continue;
-        }
-        
-        // Check if neighbor cube exists and is visible
-        const Cube* neighborCube = getCubeAt(neighborPos);
-        if (!neighborCube || !neighborCube->isVisible()) {
-            continue; // No cube to update
-        }
-        
-        // Check if this neighbor now has exposed faces (due to the removal)
-        bool hadCollisionShape = !collisionGrid.getEntitiesAt(neighborPos).empty();
-        bool shouldHaveCollisionShape = hasExposedFaces(neighborPos);
-        
-        if (!hadCollisionShape && shouldHaveCollisionShape) {
-            // Neighbor cube is now exposed - add collision shape
-            addCollisionEntity(neighborPos);
-            LOG_TRACE_FMT("Chunk", "[NEIGHBOR] Added collision shape for newly exposed cube at (" 
-                      << neighborPos.x << "," << neighborPos.y << "," << neighborPos.z << ")");
-        } else if (hadCollisionShape && !shouldHaveCollisionShape) {
-            // Neighbor cube is no longer exposed (shouldn't happen when removing, but handle it)
-            removeCollisionEntities(neighborPos);
-            LOG_TRACE_FMT("Chunk", "[NEIGHBOR] Removed collision shape for no longer exposed cube at (" 
-                      << neighborPos.x << "," << neighborPos.y << "," << neighborPos.z << ")");
-        }
-        // If hadCollisionShape && shouldHaveCollisionShape, no change needed
-        // If !hadCollisionShape && !shouldHaveCollisionShape, no change needed
-    }
+    physicsManager.updateNeighborCollisionShapes(
+        localPos,
+        [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); },
+        [this](const glm::ivec3& pos, const glm::ivec3& subPos) { return getMicrocubesAt(pos, subPos); },
+        [this](const glm::ivec3& pos) { return getStaticSubcubesAt(pos); }
+    );
 }
 
 void Chunk::endBulkOperation() {
-    if (!physicsManager.isInBulkOperation()) return;
-    
-    LOG_DEBUG("Chunk", "[CHUNK] Ending bulk operation - building complete collision system");
-    
-    // Turn off bulk operation flag
-    physicsManager.setInBulkOperation(false);
-    
-    // Now rebuild the entire collision system properly
-    if (chunkCollisionShape) {
-        buildInitialCollisionShapes();
-    }
+    physicsManager.endBulkOperation(
+        [this]() -> const std::vector<Cube*>& { return cubes; },
+        [this](const glm::ivec3&) { return staticSubcubes; },
+        [this]() -> const std::vector<Microcube*>& { return staticMicrocubes; },
+        [this](size_t index) { return indexToLocal(index); },
+        [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); }
+    );
 }
 
 std::vector<Physics::ChunkPhysicsManager::CollisionBox> Chunk::generateMergedCollisionBoxes() {

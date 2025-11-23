@@ -519,12 +519,68 @@ void ChunkPhysicsManager::buildInitialCollisionShapes(const CubesArrayAccessFunc
     LOG_TRACE("ChunkPhysicsManager", "Built initial collision shapes");
 }
 
-void ChunkPhysicsManager::updateNeighborCollisionShapes(const glm::ivec3& localPos) {
-    LOG_TRACE("ChunkPhysicsManager", "updateNeighborCollisionShapes - placeholder");
+void ChunkPhysicsManager::updateNeighborCollisionShapes(const glm::ivec3& localPos,
+                                                        const CubeAccessFunc& getCube,
+                                                        const MicrocubesAccessFunc& getMicrocubes,
+                                                        const StaticSubcubesAccessFunc& getStaticSubcubes) {
+    // Check all 6 neighboring positions that might now be exposed
+    glm::ivec3 neighbors[6] = {
+        localPos + glm::ivec3(0, 0, 1),   // front (+Z)
+        localPos + glm::ivec3(0, 0, -1),  // back (-Z)
+        localPos + glm::ivec3(1, 0, 0),   // right (+X)
+        localPos + glm::ivec3(-1, 0, 0),  // left (-X)
+        localPos + glm::ivec3(0, 1, 0),   // top (+Y)
+        localPos + glm::ivec3(0, -1, 0)   // bottom (-Y)
+    };
+    
+    for (int i = 0; i < 6; ++i) {
+        glm::ivec3 neighborPos = neighbors[i];
+        
+        // Skip neighbors outside chunk bounds
+        if (neighborPos.x < 0 || neighborPos.x >= 32 ||
+            neighborPos.y < 0 || neighborPos.y >= 32 ||
+            neighborPos.z < 0 || neighborPos.z >= 32) {
+            continue;
+        }
+        
+        // Check if neighbor cube exists and is visible
+        const Cube* neighborCube = getCube(neighborPos);
+        if (!neighborCube || !neighborCube->isVisible()) {
+            continue;
+        }
+        
+        // Check if this neighbor now has exposed faces
+        bool hadCollisionShape = !collisionGrid.getEntitiesAt(neighborPos).empty();
+        bool shouldHaveCollisionShape = hasExposedFaces(neighborPos, getCube);
+        
+        if (!hadCollisionShape && shouldHaveCollisionShape) {
+            // Neighbor cube is now exposed - add collision shape
+            addCollisionEntity(neighborPos, getCube, getMicrocubes, getStaticSubcubes);
+            LOG_TRACE("ChunkPhysicsManager", "Added collision for newly exposed neighbor");
+        } else if (hadCollisionShape && !shouldHaveCollisionShape) {
+            // Neighbor cube is no longer exposed
+            removeCollisionEntities(neighborPos);
+            LOG_TRACE("ChunkPhysicsManager", "Removed collision for no longer exposed neighbor");
+        }
+    }
 }
 
-void ChunkPhysicsManager::endBulkOperation() {
-    LOG_TRACE("ChunkPhysicsManager", "endBulkOperation - placeholder");
+void ChunkPhysicsManager::endBulkOperation(const CubesArrayAccessFunc& getCubes,
+                                           const StaticSubcubesAccessFunc& getStaticSubcubes,
+                                           const StaticMicrocubesAccessFunc& getStaticMicrocubes,
+                                           const IndexToLocalFunc& indexToLocal,
+                                           const CubeAccessFunc& getCube) {
+    if (!m_isInBulkOperation) return;
+    
+    LOG_TRACE("ChunkPhysicsManager", "Ending bulk operation");
+    
+    // Turn off bulk operation flag
+    m_isInBulkOperation = false;
+    
+    // Rebuild the entire collision system
+    if (chunkCollisionShape) {
+        buildInitialCollisionShapes(getCubes, getStaticSubcubes, getStaticMicrocubes, indexToLocal, getCube);
+    }
 }
 
 void ChunkPhysicsManager::validateCollisionSystem() const {

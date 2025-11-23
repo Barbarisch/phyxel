@@ -114,8 +114,15 @@ public:
                               const CubeAccessFunc& getCube);
     
     // Neighbor collision management
-    void updateNeighborCollisionShapes(const glm::ivec3& localPos);   // Update collision shapes of neighboring cubes
-    void endBulkOperation();                                           // End bulk loading and update all neighbor collision shapes
+    void updateNeighborCollisionShapes(const glm::ivec3& localPos,
+                                       const CubeAccessFunc& getCube,
+                                       const MicrocubesAccessFunc& getMicrocubes,
+                                       const StaticSubcubesAccessFunc& getStaticSubcubes);
+    void endBulkOperation(const CubesArrayAccessFunc& getCubes,
+                         const StaticSubcubesAccessFunc& getStaticSubcubes,
+                         const StaticMicrocubesAccessFunc& getStaticMicrocubes,
+                         const IndexToLocalFunc& indexToLocal,
+                         const CubeAccessFunc& getCube);
     
     // Bulk operation control
     bool isInBulkOperation() const { return m_isInBulkOperation; }
