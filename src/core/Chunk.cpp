@@ -1210,128 +1210,18 @@ void Chunk::createMicrocubeCollisionShape(const glm::ivec3& cubePos, const glm::
 // This method replaces the old system that used nullptr placeholders and geometric distance heuristics
 // Now provides proper individual tracking for each collision shape with automatic memory management
 void Chunk::addCollisionEntity(const glm::ivec3& localPos) {
-    if (!chunkCollisionShape) return;
-    
-    btCompoundShape* compound = static_cast<btCompoundShape*>(chunkCollisionShape);
-    
-    // Remove any existing collision entities at this position first
-    removeCollisionEntities(localPos);
-    
-    // Check for regular cube first
-    const Cube* cube = getCubeAt(localPos);
-    if (cube && cube->isVisible() && hasExposedFaces(localPos)) {
-        // Delegate to focused helper function
-        createCubeCollisionShape(localPos, compound);
-        
-        LOG_TRACE_FMT("Chunk", "[COLLISION] Added cube entity at (" 
-                  << localPos.x << "," << localPos.y << "," << localPos.z 
-                  << ") - Total entities: " << collisionGrid.getTotalEntityCount());
-        
-    } else {
-        // Handle mixed state: process each subcube position individually
-        // Some may be subdivided (microcubes), others may be regular subcubes
-        
-        for (int sx = 0; sx < 3; ++sx) {
-            for (int sy = 0; sy < 3; ++sy) {
-                for (int sz = 0; sz < 3; ++sz) {
-                    glm::ivec3 subcubePos(sx, sy, sz);
-                    
-                    // Check if this subcube position has microcubes
-                    auto microcubes = getMicrocubesAt(localPos, subcubePos);
-                    
-                    if (!microcubes.empty()) {
-                        // This subcube position is subdivided - create microcube collision shapes
-                        LOG_TRACE_FMT("Chunk", "[COLLISION] Creating " << microcubes.size() 
-                                  << " microcube entities at cube (" << localPos.x << "," << localPos.y << "," << localPos.z 
-                                  << ") subcube (" << sx << "," << sy << "," << sz << ")");
-                        
-                        // Delegate to helper function for each microcube
-                        for (const Microcube* microcube : microcubes) {
-                            createMicrocubeCollisionShape(localPos, subcubePos, microcube, compound);
-                        }
-                    } else {
-                        // No microcubes at this position - check for regular subcube
-                        auto subcubes = getStaticSubcubesAt(localPos);
-                        
-                        // Find the subcube at this specific subcube position
-                        for (const Subcube* subcube : subcubes) {
-                            if (subcube->getLocalPosition() == subcubePos) {
-                                LOG_TRACE_FMT("Chunk", "[COLLISION] Creating subcube entity at cube (" 
-                                          << localPos.x << "," << localPos.y << "," << localPos.z 
-                                          << ") subcube (" << sx << "," << sy << "," << sz << ")");
-                                
-                                // Delegate to focused helper function
-                                createSubcubeCollisionShape(localPos, subcubePos, compound);
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    // Delegate to physics manager with callbacks for accessing chunk data
+    physicsManager.addCollisionEntity(
+        localPos,
+        [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); },
+        [this](const glm::ivec3& pos, const glm::ivec3& subPos) { return getMicrocubesAt(pos, subPos); },
+        [this](const glm::ivec3& pos) { return getStaticSubcubesAt(pos); }
+    );
 }
 
 void Chunk::removeCollisionEntities(const glm::ivec3& localPos) {
-    if (!chunkCollisionShape) return;
-    
-    btCompoundShape* compound = static_cast<btCompoundShape*>(chunkCollisionShape);
-    
-    // Get all entities at this position - O(1) operation
-    auto& entities = collisionGrid.getEntitiesAt(localPos);
-    if (entities.empty()) return;
-    
-    LOG_TRACE_FMT("Chunk", "[COLLISION] Removing " << entities.size() 
-              << " collision entities at (" << localPos.x << "," << localPos.y << "," << localPos.z << ")");
-    
-    // Remove each entity from the compound shape
-    for (auto& entity : entities) {
-        btCollisionShape* shapeToRemove = entity->shape;
-        bool shapeRemoved = false;
-        
-        // Remove from compound shape
-        for (int i = compound->getNumChildShapes() - 1; i >= 0; i--) {
-            if (compound->getChildShape(i) == shapeToRemove) {
-                compound->removeChildShapeByIndex(i);
-                shapeRemoved = true;
-                
-                if (entity->isCube()) {
-                    LOG_TRACE_FMT("Chunk", "[COLLISION] Removed cube entity at (" 
-                              << localPos.x << "," << localPos.y << "," << localPos.z << ")");
-                } else {
-                    LOG_TRACE_FMT("Chunk", "[COLLISION] Removed subcube entity at local (" 
-                              << entity->subcubeLocalPos.x << "," << entity->subcubeLocalPos.y << "," << entity->subcubeLocalPos.z << ")");
-                }
-                break;
-            }
-        }
-        
-        if (shapeRemoved) {
-            // Mark shape as no longer in compound so it can be safely deleted
-            entity->isInCompound = false;
-            // Manually delete the shape now since we removed it from compound
-            delete entity->shape;
-            entity->shape = nullptr;
-        }
-    }
-    
-    // Remove all entities from spatial grid - O(1) operation
-    collisionGrid.removeAllAt(localPos);
-    
-    // CRITICAL: Immediately update collision geometry after removal
-    if (chunkPhysicsBody) {
-        // Recalculate the compound shape's AABB after child removal
-        compound->recalculateLocalAabb();
-        
-        // Force immediate physics world synchronization
-        if (physicsWorld && physicsWorld->getWorld()) {
-            chunkPhysicsBody->activate(true);
-            physicsWorld->getWorld()->updateSingleAabb(chunkPhysicsBody);
-        }
-    }
-    
-    LOG_TRACE_FMT("Chunk", "[COLLISION] Total collision entities remaining: " << collisionGrid.getTotalEntityCount() 
-              << " (" << collisionGrid.getCubeEntityCount() << " cubes, " << collisionGrid.getSubcubeEntityCount() << " subcubes)");
+    // Delegate to physics manager
+    physicsManager.removeCollisionEntities(localPos);
 }
 
 void Chunk::batchUpdateCollisions() {
@@ -1347,33 +1237,11 @@ void Chunk::batchUpdateCollisions() {
 
 // Helper method to check if a cube has exposed faces (for collision optimization)
 bool Chunk::hasExposedFaces(const glm::ivec3& localPos) const {
-    // Same logic as in generateMergedCollisionBoxes()
-    glm::ivec3 neighbors[6] = {
-        localPos + glm::ivec3(0, 0, 1),   // front (+Z)
-        localPos + glm::ivec3(0, 0, -1),  // back (-Z)
-        localPos + glm::ivec3(1, 0, 0),   // right (+X)
-        localPos + glm::ivec3(-1, 0, 0),  // left (-X)
-        localPos + glm::ivec3(0, 1, 0),   // top (+Y)
-        localPos + glm::ivec3(0, -1, 0)   // bottom (-Y)
-    };
-    
-    for (int faceID = 0; faceID < 6; ++faceID) {
-        glm::ivec3 neighborPos = neighbors[faceID];
-        
-        // Face is exposed if neighbor is outside chunk bounds OR if no visible cube at neighbor position
-        if (neighborPos.x < 0 || neighborPos.x >= 32 ||
-            neighborPos.y < 0 || neighborPos.y >= 32 ||
-            neighborPos.z < 0 || neighborPos.z >= 32) {
-            return true; // Edge of chunk - exposed
-        } else {
-            const Cube* neighborCube = getCubeAt(neighborPos);
-            if (!neighborCube || !neighborCube->isVisible()) {
-                return true; // No occluding neighbor - exposed
-            }
-        }
-    }
-    
-    return false; // All faces are occluded
+    // Delegate to physics manager with callback for accessing cubes
+    return physicsManager.hasExposedFaces(
+        localPos,
+        [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); }
+    );
 }
 
 void Chunk::buildInitialCollisionShapes() {

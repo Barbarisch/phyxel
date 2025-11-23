@@ -120,8 +120,10 @@ public:
     
     // Collision shape creation helpers - focused single-purpose functions
     // These require access to chunk's cube data, so they take function callbacks
-    using CubeAccessFunc = std::function<Cube*(const glm::ivec3&)>;
+    using CubeAccessFunc = std::function<const Cube*(const glm::ivec3&)>;
     using SubcubeAccessFunc = std::function<Subcube*(const glm::ivec3&, const glm::ivec3&)>;
+    using MicrocubesAccessFunc = std::function<std::vector<Microcube*>(const glm::ivec3&, const glm::ivec3&)>;
+    using StaticSubcubesAccessFunc = std::function<std::vector<Subcube*>(const glm::ivec3&)>;
     
     void createCubeCollisionShape(const glm::ivec3& localPos, btCompoundShape* compound,
                                   const CubeAccessFunc& getCube);
@@ -129,6 +131,12 @@ public:
                                      btCompoundShape* compound, const SubcubeAccessFunc& getSubcube);
     void createMicrocubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos,
                                        const Microcube* microcube, btCompoundShape* compound);
+    
+    // Collision entity management - requires callbacks for voxel data access
+    void addCollisionEntity(const glm::ivec3& localPos,
+                           const CubeAccessFunc& getCube,
+                           const MicrocubesAccessFunc& getMicrocubes,
+                           const StaticSubcubesAccessFunc& getStaticSubcubes);
     
     // Helper: Check if cube has exposed faces (optimization)
     bool hasExposedFaces(const glm::ivec3& localPos, const CubeAccessFunc& getCube) const;
