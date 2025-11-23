@@ -4,6 +4,7 @@
 #include "core/Subcube.h"
 #include "core/Microcube.h"
 #include "physics/CollisionSpatialGrid.h"
+#include "graphics/ChunkRenderBuffer.h"
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
@@ -36,9 +37,6 @@ private:
     std::vector<Subcube*> staticSubcubes;          // Static subcubes (part of chunk physics body)
     std::vector<Microcube*> staticMicrocubes;      // Static microcubes (finest subdivision level)
     std::vector<InstanceData> faces;               // Visible faces only (CPU pre-filtered for rendering)
-    VkBuffer instanceBuffer = VK_NULL_HANDLE;      // Vulkan buffer for this chunk's face instance data
-    VkDeviceMemory instanceMemory = VK_NULL_HANDLE;
-    void* mappedMemory = nullptr;                  // Persistent mapping for updates
     uint32_t numInstances = 0;                     // Variable count based on visible faces
     glm::ivec3 worldOrigin = glm::ivec3(0);        // World-space origin of this chunk
     bool needsUpdate = false;                      // Flag for buffer updates
@@ -55,10 +53,8 @@ private:
                       IVec3Hash> microcubeMap;                              // O(1) microcube lookup: cubePos -> subcubePos -> microcubePos -> microcube
     std::unordered_map<glm::ivec3, VoxelLocation::Type, IVec3Hash> voxelTypeMap; // O(1) voxel type lookup
     
-    // Buffer capacity management
-    static constexpr size_t DEFAULT_BUFFER_CAPACITY = 25000;   // Realistic capacity based on testing (8x current usage)
-    size_t bufferCapacity = 0;                     // Current allocated buffer capacity
-    size_t maxInstancesUsed = 0;                   // Peak usage tracking for analysis
+    // Vulkan rendering helper - manages instance buffer
+    Graphics::ChunkRenderBuffer renderBuffer;
     
     // Vulkan device handles (set by ChunkManager)
     VkDevice device = VK_NULL_HANDLE;
@@ -123,10 +119,10 @@ public:
     void setNeedsUpdate(bool needsUpdate) { this->needsUpdate = needsUpdate; }
     
     // Buffer capacity analysis
-    size_t getBufferCapacity() const { return bufferCapacity; }
-    size_t getMaxInstancesUsed() const { return maxInstancesUsed; }
+    size_t getBufferCapacity() const { return renderBuffer.getCapacity(); }
+    size_t getMaxInstancesUsed() const { return renderBuffer.getMaxInstancesUsed(); }
     float getBufferUtilization() const { 
-        return bufferCapacity > 0 ? float(faces.size()) / float(bufferCapacity) * 100.0f : 0.0f; 
+        return renderBuffer.getCapacity() > 0 ? float(faces.size()) / float(renderBuffer.getCapacity()) * 100.0f : 0.0f; 
     }
     
     // Cube access
@@ -264,9 +260,9 @@ public:
     static size_t subcubeToIndex(const glm::ivec3& parentPos, const glm::ivec3& subcubePos);
     
     // Access for ChunkManager (friend access or public as needed)
-    VkBuffer getInstanceBuffer() const { return instanceBuffer; }
+    VkBuffer getInstanceBuffer() const { return renderBuffer.getBuffer(); }
     const std::vector<InstanceData>& getFaces() const { return faces; }
-    void* getMappedMemory() const { return mappedMemory; }
+    void* getMappedMemory() const { return renderBuffer.getMappedMemory(); }
 
 private:
     // Collision box structure for physics optimization
@@ -285,7 +281,6 @@ private:
     class Physics::PhysicsWorld* physicsWorld = nullptr;
     
     // Helper functions
-    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
     bool isValidLocalPosition(const glm::ivec3& localPos) const;
 };
 
