@@ -6,6 +6,7 @@
 #include "graphics/ChunkRenderBuffer.h"
 #include "graphics/ChunkRenderManager.h"
 #include "physics/ChunkPhysicsManager.h"
+#include "core/ChunkVoxelManager.h"
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
@@ -26,16 +27,17 @@ namespace Physics {
  * REFACTORING STATUS:
  * ✓ Phase 1 Complete: Rendering extracted to ChunkRenderManager (~328 lines)
  * ✓ Phase 2 Complete: Physics extracted to ChunkPhysicsManager (~833 lines)
- *   - All Bullet Physics logic isolated in dedicated manager
- *   - Physics body lifecycle fully extracted
- *   - Collision entity management delegated
+ * ✓ Phase 3 Complete: Voxel management extracted to ChunkVoxelManager (~616 lines)
+ *   - All voxel hierarchy operations (cubes, subcubes, microcubes)
+ *   - Hash map management for O(1) lookups
+ *   - Subdivision logic and voxel type resolution
  *   - Callback pattern for clean separation
- * ○ Phase 3 Planned: Voxel hierarchy management extraction
  * ○ Phase 4 Planned: Final Chunk simplification
  * 
  * Size Reduction:
  * - Original: 2,444 lines
- * - Current: 1,611 lines (-833 lines, -34%)
+ * - Phase 1&2: 1,611 lines (-833 lines, -34%)
+ * - Phase 3: 995 lines (-616 lines from Phase 2, -1,449 total, -59%)
  * 
  * Current responsibilities:
  * - Cube storage and voxel hierarchy (cubes, subcubes, microcubes)
@@ -55,23 +57,10 @@ private:
     std::vector<Microcube*> staticMicrocubes;      // Static microcubes (finest subdivision level)
     glm::ivec3 worldOrigin = glm::ivec3(0);        // World-space origin of this chunk
     
-    // Rendering subsystem - manages face generation and Vulkan buffers
-    Graphics::ChunkRenderManager renderManager;
-    
-    // Physics subsystem - manages collision shapes and physics bodies
-    Physics::ChunkPhysicsManager physicsManager;
-    
-    // NEW: O(1) lookup data structures for optimized hover system
-    std::unordered_map<glm::ivec3, Cube*, IVec3Hash> cubeMap;              // O(1) cube lookup by local position
-    std::unordered_map<glm::ivec3, 
-                      std::unordered_map<glm::ivec3, Subcube*, IVec3Hash>, 
-                      IVec3Hash> subcubeMap;                                // O(1) subcube lookup: localPos -> (subcubePos -> subcube)
-    std::unordered_map<glm::ivec3,
-                      std::unordered_map<glm::ivec3,
-                      std::unordered_map<glm::ivec3, Microcube*, IVec3Hash>,
-                      IVec3Hash>,
-                      IVec3Hash> microcubeMap;                              // O(1) microcube lookup: cubePos -> subcubePos -> microcubePos -> microcube
-    std::unordered_map<glm::ivec3, VoxelLocation::Type, IVec3Hash> voxelTypeMap; // O(1) voxel type lookup
+    // Subsystem managers
+    Graphics::ChunkRenderManager renderManager;    // Manages face generation and Vulkan buffers
+    Physics::ChunkPhysicsManager physicsManager;   // Manages collision shapes and physics bodies
+    ChunkVoxelManager voxelManager;                // Manages voxel hierarchy and hash maps
     
     // Vulkan device handles (set by ChunkManager)
     VkDevice device = VK_NULL_HANDLE;

@@ -34,10 +34,10 @@ Systematically extract **focused modules** from 4 monolithic files into **24 new
 ### Current State (November 2025)
 | Metric | Value | Status |
 |--------|-------|--------|
-| **Largest file** | ~2,500 lines (Application.cpp) | 🟡 Still large, improving |
+| **Largest file** | 2,748 lines (Chunk.cpp) | 🔴 Critical, grew larger |
 | **Modules extracted** | 2 (WindowManager, CoordinateUtils) | ✅ Progress started |
-| **Files > 2000 lines** | 2 files | 🟡 In progress |
-| **Phase 1 completion** | 100% (2/2 quick wins) | ✅ Complete |
+| **Files > 2000 lines** | 1 file | 🟡 In progress |
+| **Phase 1 completion** | 100% (Application.cpp refactored) | ✅ Complete |
 
 ### Target State (After Full Refactoring)
 | Metric | Value | Benefit |
@@ -51,26 +51,22 @@ Systematically extract **focused modules** from 4 monolithic files into **24 new
 
 ## Priority Refactorings (Top 4 Files)
 
-### 1. Application.cpp - CRITICAL (2,645 → ~400 lines)
-**Extract 6 modules:**
-- ✅ WindowManager (~150 lines) - **COMPLETE**
-- ⏳ InputManager (~300 lines) - **NEXT**
-- CameraController (~350 lines)
-- VoxelInteractionSystem (~600 lines)
-- RenderCoordinator (~400 lines)
-- ~~PerformanceMonitor (~250 lines)~~ - **ALREADY EXISTS** as PerformanceProfiler
-
-**Impact:** 85% reduction, removes god object  
-**Progress:** 1/5 modules extracted (20%)
-
-### 2. Chunk.cpp - HIGH (2,130 → ~600 lines)
+### 1. Chunk.cpp - CRITICAL (2,748 → ~600 lines)
 **Extract 3 modules:**
-- ChunkPhysicsManager (~800 lines)
+- ChunkPhysics (~800 lines)
 - ChunkRenderData (~350 lines)
 - VoxelStorage (~400 lines)
 
 **Impact:** 72% reduction, separates physics/rendering/storage  
 **Progress:** 0/3 modules (0%)
+
+### 2. VoxelInteractionSystem.cpp - HIGH (1,275 → ~400 lines)
+**Extract 2 modules:**
+- Raycaster (~400 lines)
+- ForceApplicator (~400 lines)
+
+**Impact:** 68% reduction, separates detection from action
+**Progress:** 0/2 modules (0%)
 
 ### 3. VulkanDevice.cpp - MEDIUM (1,616 → ~600 lines)
 **Extract 3 modules:**
@@ -90,6 +86,15 @@ Systematically extract **focused modules** from 4 monolithic files into **24 new
 
 **Impact:** 72% reduction, separates concerns  
 **Progress:** 1/4 modules extracted (25%)
+
+### 5. Application.cpp - COMPLETE (2,645 → 535 lines)
+**Refactoring Successful:**
+- ✅ WindowManager extracted
+- ✅ InputManager extracted
+- ✅ VoxelInteractionSystem extracted (needs further split)
+- ✅ RenderCoordinator extracted
+
+**Impact:** God object removed.
 
 ---
 

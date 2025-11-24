@@ -125,89 +125,40 @@ const Cube* Chunk::getCubeAtIndex(size_t index) const {
 }
 
 bool Chunk::setCubeColor(const glm::ivec3& localPos, const glm::vec3& color) {
-    Cube* cube = getCubeAt(localPos);
-    if (!cube) return false;
-    
-    cube->setColor(color);
-    renderManager.setNeedsUpdate(true);
-    
-    // std::cout << "[CHUNK] Set cube color at local pos: (" 
-    //           << localPos.x << "," << localPos.y << "," << localPos.z 
-    //           << ") to: (" << color.x << "," << color.y << "," << color.z << ")" << std::endl;
-    
-    return true;
+    return voxelManager.setCubeColor(
+        localPos,
+        color,
+        [this]() -> std::vector<Cube*>& { return cubes; },
+        [this](bool value) { renderManager.setNeedsUpdate(value); }
+    );
 }
 
 bool Chunk::removeCube(const glm::ivec3& localPos) {
-    if (!isValidLocalPosition(localPos)) return false;
-    
-    size_t index = localToIndex(localPos);
-    if (index >= cubes.size() || !cubes[index]) return false; // No cube exists at this position
-    
-    // Actually delete the cube from memory
-    delete cubes[index];
-    cubes[index] = nullptr; // Mark as deleted
-    
-    // Update hash maps to reflect removal
-    removeFromVoxelMaps(localPos);
-    
-    // IMPROVED: Remove collision shape with proper memory management
-    removeCollisionEntities(localPos);
-    
-    // CRITICAL: Update collision shapes of neighboring cubes that might now be exposed
-    updateNeighborCollisionShapes(localPos);
-    
-    // Mark chunk as dirty for smart saving
-    setDirty(true);
-    LOG_DEBUG_FMT("Chunk", "Removed cube at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
-              << ") - Chunk now DIRTY for save");
-    
-    // Immediately rebuild faces to remove the cube from GPU buffer
-    rebuildFaces();
-    updateVulkanBuffer();
-    
-    return true;
+    return voxelManager.removeCube(
+        localPos,
+        [this]() -> std::vector<Cube*>& { return cubes; },
+        [this]() -> const glm::ivec3& { return worldOrigin; },
+        [this](bool value) { setDirty(value); },
+        [this](bool value) { renderManager.setNeedsUpdate(value); },
+        [this](const glm::ivec3& pos) { removeCollisionEntities(pos); },
+        [this](const glm::ivec3& pos) { updateNeighborCollisionShapes(pos); },
+        [this]() { rebuildFaces(); },
+        [this]() { updateVulkanBuffer(); }
+    );
 }
 
 bool Chunk::addCube(const glm::ivec3& localPos, const glm::vec3& color) {
-    if (!isValidLocalPosition(localPos)) return false;
-    
-    size_t index = localToIndex(localPos);
-    if (index >= cubes.size()) return false;
-    
-    // If cube already exists, just update its color
-    if (cubes[index]) {
-        cubes[index]->setColor(color);
-        cubes[index]->setOriginalColor(color); // Update original color too
-        cubes[index]->setBroken(false);
-        // Update hash maps for existing cube
-        addToVoxelMaps(localPos, cubes[index]);
-    } else {
-        // Create new cube
-        cubes[index] = new Cube(localPos, color);
-        cubes[index]->setOriginalColor(color); // Ensure original color is set
-        // Update hash maps for new cube
-        addToVoxelMaps(localPos, cubes[index]);
-    }
-    
-    // Mark chunk as dirty for smart saving
-    setDirty(true);
-    
-    // IMPROVED: Add collision shape with reference counting
-    addCollisionEntity(localPos);
-    
-    // CRITICAL: Only update neighbors during individual operations, not bulk loading
-    if (!physicsManager.isInBulkOperation()) {
-        updateNeighborCollisionShapes(localPos);
-    }
-    
-    renderManager.setNeedsUpdate(true);
-    
-    // std::cout << "[CHUNK] Added/restored cube at local pos: (" 
-    //           << localPos.x << "," << localPos.y << "," << localPos.z 
-    //           << ") with color: (" << color.x << "," << color.y << "," << color.z << ")" << std::endl;
-    
-    return true;
+    return voxelManager.addCube(
+        localPos,
+        color,
+        [this]() -> std::vector<Cube*>& { return cubes; },
+        [this]() -> const glm::ivec3& { return worldOrigin; },
+        [this](bool value) { setDirty(value); },
+        [this](bool value) { renderManager.setNeedsUpdate(value); },
+        [this](const glm::ivec3& pos) { addCollisionEntity(pos); },
+        [this](const glm::ivec3& pos) { updateNeighborCollisionShapes(pos); },
+        [this]() { return physicsManager.isInBulkOperation(); }
+    );
 }
 
 void Chunk::populateWithCubes() {
@@ -399,51 +350,15 @@ std::vector<Subcube*> Chunk::getStaticSubcubesAt(const glm::ivec3& localPos) {
 // =============================================================================
 
 Microcube* Chunk::getMicrocubeAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos) {
-    auto cubeIt = microcubeMap.find(cubePos);
-    if (cubeIt != microcubeMap.end()) {
-        auto subcubeIt = cubeIt->second.find(subcubePos);
-        if (subcubeIt != cubeIt->second.end()) {
-            auto microcubeIt = subcubeIt->second.find(microcubePos);
-            if (microcubeIt != subcubeIt->second.end()) {
-                return microcubeIt->second;
-            }
-        }
-    }
-    return nullptr;
+    return const_cast<Microcube*>(voxelManager.getMicrocubeHelper(cubePos, subcubePos, microcubePos));
 }
 
 const Microcube* Chunk::getMicrocubeAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos) const {
-    auto cubeIt = microcubeMap.find(cubePos);
-    if (cubeIt != microcubeMap.end()) {
-        auto subcubeIt = cubeIt->second.find(subcubePos);
-        if (subcubeIt != cubeIt->second.end()) {
-            auto microcubeIt = subcubeIt->second.find(microcubePos);
-            if (microcubeIt != subcubeIt->second.end()) {
-                return microcubeIt->second;
-            }
-        }
-    }
-    return nullptr;
+    return voxelManager.getMicrocubeHelper(cubePos, subcubePos, microcubePos);
 }
 
 std::vector<Microcube*> Chunk::getMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos) {
-    std::vector<Microcube*> result;
-    
-    // Use hash map lookup instead of linear search - O(1) instead of O(n)
-    auto cubeIt = microcubeMap.find(cubePos);
-    if (cubeIt != microcubeMap.end()) {
-        auto subcubeIt = cubeIt->second.find(subcubePos);
-        if (subcubeIt != cubeIt->second.end()) {
-            // Found the subcube level, now collect all microcubes (0-27)
-            for (const auto& microcubePair : subcubeIt->second) {
-                if (microcubePair.second) {
-                    result.push_back(microcubePair.second);
-                }
-            }
-        }
-    }
-    
-    return result;
+    return voxelManager.getMicrocubesHelper(cubePos, subcubePos);
 }
 
 // =============================================================================
@@ -456,434 +371,136 @@ VoxelLocation Chunk::resolveLocalPosition(const glm::ivec3& localPos) const {
         return VoxelLocation();
     }
     
-    // O(1) voxel type lookup
-    auto typeIt = voxelTypeMap.find(localPos);
-    if (typeIt == voxelTypeMap.end()) {
-        return VoxelLocation(); // No voxel at this position
-    }
+    // Delegate to voxel manager
+    VoxelLocation location = voxelManager.resolveLocalPosition(
+        localPos,
+        [this]() -> std::vector<Cube*>& { return const_cast<std::vector<Cube*>&>(cubes); }
+    );
     
-    glm::ivec3 worldPos = worldOrigin + localPos;
-    VoxelLocation::Type type = typeIt->second;
-    
-    if (type == VoxelLocation::SUBDIVIDED) {
-        VoxelLocation location;
-        location.type = VoxelLocation::SUBDIVIDED;
+    // Fill in chunk-specific fields
+    if (location.type != VoxelLocation::EMPTY) {
         location.chunk = const_cast<Chunk*>(this);
         location.localPos = localPos;
-        location.worldPos = worldPos;
-        location.subcubePos = glm::ivec3(-1);
-        return location;
-    } else if (type == VoxelLocation::CUBE) {
-        VoxelLocation location;
-        location.type = VoxelLocation::CUBE;
-        location.chunk = const_cast<Chunk*>(this);
-        location.localPos = localPos;
-        location.worldPos = worldPos;
-        location.subcubePos = glm::ivec3(-1);
-        return location;
+        location.worldPos = worldOrigin + localPos;
+        if (location.subcubePos == glm::ivec3(0)) {
+            location.subcubePos = glm::ivec3(-1);
+        }
     }
     
-    return VoxelLocation();
+    return location;
 }
 
 bool Chunk::hasVoxelAt(const glm::ivec3& localPos) const {
     if (!isValidLocalPosition(localPos)) return false;
-    return voxelTypeMap.find(localPos) != voxelTypeMap.end();
+    return voxelManager.hasVoxelAt(localPos);
 }
 
 bool Chunk::hasSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const {
-    auto parentIt = subcubeMap.find(localPos);
-    if (parentIt == subcubeMap.end()) return false;
-    
-    return parentIt->second.find(subcubePos) != parentIt->second.end();
+    return voxelManager.hasSubcubeAt(localPos, subcubePos);
 }
 
 VoxelLocation::Type Chunk::getVoxelType(const glm::ivec3& localPos) const {
-    auto it = voxelTypeMap.find(localPos);
-    return (it != voxelTypeMap.end()) ? it->second : VoxelLocation::EMPTY;
+    return voxelManager.getVoxelType(localPos);
 }
 
 // O(1) optimized lookups (replace linear searches)
 Cube* Chunk::getCubeAtFast(const glm::ivec3& localPos) {
-    auto it = cubeMap.find(localPos);
-    return (it != cubeMap.end()) ? it->second : nullptr;
+    return voxelManager.getCubeAtFast(localPos);
 }
 
 const Cube* Chunk::getCubeAtFast(const glm::ivec3& localPos) const {
-    auto it = cubeMap.find(localPos);
-    return (it != cubeMap.end()) ? it->second : nullptr;
+    return voxelManager.getCubeAtFast(localPos);
 }
 
 // Internal: Maintain hash map consistency
 void Chunk::updateVoxelMaps(const glm::ivec3& localPos) {
-    // Check what exists at this position using legacy arrays
-    Cube* cube = getCubeAt(localPos); // Use legacy method
-    auto subcubes = getSubcubesAt(localPos); // Use legacy method
-    
-    if (!subcubes.empty()) {
-        // Position has subcubes - mark as subdivided
-        voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
-        
-        // Update subcube map
-        subcubeMap[localPos].clear();
-        for (Subcube* subcube : subcubes) {
-            if (subcube) {
-                subcubeMap[localPos][subcube->getLocalPosition()] = subcube;
-            }
-        }
-        
-        // Update cube map
-        if (cube) {
-            cubeMap[localPos] = cube;
-        } else {
-            cubeMap.erase(localPos);
-        }
-    } else if (cube) {
-        // Position has cube but no subcubes
-        voxelTypeMap[localPos] = VoxelLocation::CUBE;
-        cubeMap[localPos] = cube;
-        subcubeMap.erase(localPos); // Remove any leftover subcube data
-    } else {
-        // Position is empty
-        voxelTypeMap.erase(localPos);
-        cubeMap.erase(localPos);
-        subcubeMap.erase(localPos);
-    }
+    voxelManager.updateVoxelMaps(
+        localPos,
+        [this]() -> std::vector<Cube*>& { return cubes; }
+    );
 }
 
 void Chunk::addToVoxelMaps(const glm::ivec3& localPos, Cube* cube) {
-    if (cube) {
-        cubeMap[localPos] = cube;
-        
-        // Check if we have subcubes at this position
-        auto subcubes = getSubcubesAt(localPos);
-        if (!subcubes.empty()) {
-            voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
-        } else {
-            voxelTypeMap[localPos] = VoxelLocation::CUBE;
-        }
-    }
+    voxelManager.addToVoxelMaps(localPos, cube);
 }
 
 void Chunk::removeFromVoxelMaps(const glm::ivec3& localPos) {
-    cubeMap.erase(localPos);
-    
-    // Check if we still have subcubes at this position
-    auto subcubes = getSubcubesAt(localPos);
-    if (!subcubes.empty()) {
-        voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
-    } else {
-        voxelTypeMap.erase(localPos);
-        subcubeMap.erase(localPos);
-    }
+    voxelManager.removeFromVoxelMaps(localPos);
 }
 
 void Chunk::addSubcubeToMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos, Subcube* subcube) {
-    if (subcube) {
-        subcubeMap[localPos][subcubePos] = subcube;
-        voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
-    }
+    voxelManager.addSubcubeToMaps(localPos, subcubePos, subcube);
 }
 
 void Chunk::removeSubcubeFromMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos) {
-    auto parentIt = subcubeMap.find(localPos);
-    if (parentIt != subcubeMap.end()) {
-        parentIt->second.erase(subcubePos);
-        
-        // If no subcubes left at this position, just remove the subcubeMap entry
-        // The caller (removeSubcube) will handle voxelTypeMap updates after cube restoration
-        if (parentIt->second.empty()) {
-            subcubeMap.erase(localPos);
-            LOG_TRACE_FMT("Chunk", "Removed subcubeMap entry at (" << localPos.x << "," << localPos.y << "," << localPos.z << ") - no subcubes remain");
-        }
-    }
+    voxelManager.removeSubcubeFromMaps(localPos, subcubePos);
 }
 
 void Chunk::addMicrocubeToMaps(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos, Microcube* microcube) {
-    if (microcube) {
-        microcubeMap[cubePos][subcubePos][microcubePos] = microcube;
-        // Note: voxelTypeMap is already set to SUBDIVIDED by the parent subdivision
-    }
+    voxelManager.addMicrocubeToMaps(cubePos, subcubePos, microcubePos, microcube);
 }
 
 void Chunk::removeMicrocubeFromMaps(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos) {
-    auto cubeIt = microcubeMap.find(cubePos);
-    if (cubeIt != microcubeMap.end()) {
-        auto subcubeIt = cubeIt->second.find(subcubePos);
-        if (subcubeIt != cubeIt->second.end()) {
-            subcubeIt->second.erase(microcubePos);
-            
-            if (subcubeIt->second.empty()) {
-                cubeIt->second.erase(subcubePos);
-                LOG_TRACE_FMT("Chunk", "Removed microcubeMap entry at cube(" << cubePos.x << "," << cubePos.y << "," << cubePos.z 
-                          << ") subcube(" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z << ") - no microcubes remain");
-            }
-            
-            if (cubeIt->second.empty()) {
-                microcubeMap.erase(cubePos);
-            }
-        }
-    }
+    voxelManager.removeMicrocubeFromMaps(cubePos, subcubePos, microcubePos);
 }
 
 void Chunk::initializeVoxelMaps() {
-    // Clear existing maps
-    cubeMap.clear();
-    subcubeMap.clear();
-    microcubeMap.clear();
-    voxelTypeMap.clear();
-    
-    LOG_DEBUG_FMT("Chunk", "Initializing voxel maps for chunk at origin (" 
-              << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z << ")");
-    
-    // Build cube map from existing vector data
-    for (size_t i = 0; i < cubes.size(); ++i) {
-        if (cubes[i]) {
-            glm::ivec3 localPos = indexToLocal(i);
-            cubeMap[localPos] = cubes[i];
-            voxelTypeMap[localPos] = VoxelLocation::CUBE;
-        }
-    }
-    
-    // Build subcube map from existing vector data
-    for (Subcube* subcube : staticSubcubes) {
-        if (subcube) {
-            glm::ivec3 parentWorldPos = subcube->getPosition();
-            glm::ivec3 localPos = parentWorldPos - worldOrigin;
-            glm::ivec3 subcubePos = subcube->getLocalPosition();
-            
-            // Validate that this subcube belongs to this chunk
-            if (isValidLocalPosition(localPos)) {
-                subcubeMap[localPos][subcubePos] = subcube;
-                voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
-            }
-        }
-    }
-    
-    // Build microcube map from existing vector data
-    for (Microcube* microcube : staticMicrocubes) {
-        if (microcube) {
-            glm::ivec3 parentWorldPos = microcube->getParentCubePosition();
-            glm::ivec3 localPos = parentWorldPos - worldOrigin;
-            glm::ivec3 subcubePos = microcube->getSubcubeLocalPosition();
-            glm::ivec3 microcubePos = microcube->getMicrocubeLocalPosition();
-            
-            // Validate that this microcube belongs to this chunk
-            if (isValidLocalPosition(localPos)) {
-                microcubeMap[localPos][subcubePos][microcubePos] = microcube;
-                voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
-            }
-        }
-    }
-    
-    LOG_DEBUG_FMT("Chunk", "Voxel maps initialized: " 
-              << cubeMap.size() << " cubes, "
-              << subcubeMap.size() << " subdivided positions, "
-              << microcubeMap.size() << " microcube positions, "
-              << voxelTypeMap.size() << " total voxels");
+    voxelManager.initializeVoxelMaps(
+        [this]() -> std::vector<Cube*>& { return cubes; },
+        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
+        [this]() -> std::vector<Microcube*>& { return staticMicrocubes; },
+        [this]() -> const glm::ivec3& { return worldOrigin; }
+    );
 }
 
 bool Chunk::subdivideAt(const glm::ivec3& localPos) {
-    // Check if position is valid
-    if (!isValidLocalPosition(localPos)) return false;
-    
-    // Get the cube at this position
-    Cube* cube = getCubeAt(localPos);
-    if (!cube) return false;
-    
-    // Check if already subdivided
-    auto existingSubcubes = getSubcubesAt(localPos);
-    if (!existingSubcubes.empty()) return false; // Already subdivided
-    
-    // Create 27 subcubes (3x3x3) with random colors for clear visual distinction
-    glm::ivec3 parentWorldPos = worldOrigin + localPos;
-    
-    // Use random colors for subcubes instead of parent-based colors
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<float> colorDist(0.2f, 1.0f); // Avoid very dark colors
-    
-    // std::cout << "[CHUNK] Creating 27 subcubes with random colors..." << std::endl;
-    
-    int colorIndex = 0;
-    for (int x = 0; x < 3; ++x) {
-        for (int y = 0; y < 3; ++y) {
-            for (int z = 0; z < 3; ++z) {
-                glm::ivec3 subcubeLocalPos(x, y, z);
-                
-                // Generate completely random color for each subcube
-                glm::vec3 subcubeColor = glm::vec3(
-                    colorDist(gen),
-                    colorDist(gen),
-                    colorDist(gen)
-                );
-                
-                // std::cout << "[CHUNK]   Subcube " << colorIndex << " at (" << x << "," << y << "," << z 
-                //           << ") color: (" << subcubeColor.x << "," << subcubeColor.y << "," << subcubeColor.z << ")" << std::endl;
-                
-                Subcube* newSubcube = new Subcube(parentWorldPos, subcubeColor, subcubeLocalPos);
-                staticSubcubes.push_back(newSubcube); // Add to static subcubes list
-                
-                // CRITICAL: Update hash maps for each subcube for O(1) hover detection
-                addSubcubeToMaps(localPos, subcubeLocalPos, newSubcube);
-                
-                colorIndex++;
-            }
-        }
-    }
-    
-    // CRITICAL ARCHITECTURAL CHANGE: Delete the parent cube completely (don't just hide it)
-    // Remove from cubeMap and cubes vector
-    cubeMap.erase(localPos);
-    size_t cubeIndex = localToIndex(localPos);
-    if (cubeIndex < cubes.size() && cubes[cubeIndex] == cube) {
-        delete cube;  // Delete the cube object
-        cubes[cubeIndex] = nullptr;  // Clear the vector entry
-        LOG_DEBUG_FMT("Chunk", "Completely removed parent cube at (" 
-                  << localPos.x << "," << localPos.y << "," << localPos.z 
-                  << ") - replaced by 27 subcubes");
-    }
-    
-    // CRITICAL: Update voxelTypeMap to mark position as subdivided for proper hover detection
-    voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
-    
-    // Debug: Verify the cube is actually hidden and subdivided
-    // std::cout << "[CHUNK] Parent cube hidden. isVisible() = " << cube->isVisible() 
-    //           << ", isSubdivided() = " << cube->isSubdivided() << std::endl;
-    
-    // Mark for update and as dirty for database persistence
-    renderManager.setNeedsUpdate(true);
-    setDirty(true);
-    
-    // std::cout << "[CHUNK] Subdivided cube at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
-    //           << ") into 27 subcubes with " << staticSubcubes.size() << " static subcubes in chunk" << std::endl;
-    
-    return true;
+    return voxelManager.subdivideAt(
+        localPos,
+        [this]() -> std::vector<Cube*>& { return cubes; },
+        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
+        [this]() -> const glm::ivec3& { return worldOrigin; },
+        [this](bool value) { setDirty(value); },
+        [this](bool value) { renderManager.setNeedsUpdate(value); }
+    );
 }
 
 bool Chunk::addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, const glm::vec3& color) {
-    // Check if position is valid
-    if (!isValidLocalPosition(parentPos)) return false;
-    if (subcubePos.x < 0 || subcubePos.x >= 3 || 
-        subcubePos.y < 0 || subcubePos.y >= 3 || 
-        subcubePos.z < 0 || subcubePos.z >= 3) return false;
-    
-    // Check if subcube already exists
-    if (getSubcubeAt(parentPos, subcubePos)) return false;
-    
-    // Create new subcube (add to static list by default)
-    glm::ivec3 parentWorldPos = worldOrigin + parentPos;
-    Subcube* newSubcube = new Subcube(parentWorldPos, color, subcubePos);
-    staticSubcubes.push_back(newSubcube);
-    
-    // Update hash maps
-    addSubcubeToMaps(parentPos, subcubePos, newSubcube);
-    
-    // IMPROVED: Update collision shape with memory safety
-    addCollisionEntity(parentPos);
-    
-    // Mark for update and as dirty for database persistence
-    renderManager.setNeedsUpdate(true);
-    setDirty(true);
-    
-    return true;
+    return voxelManager.addSubcube(
+        parentPos,
+        subcubePos,
+        color,
+        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
+        [this]() -> const glm::ivec3& { return worldOrigin; },
+        [this](bool value) { setDirty(value); },
+        [this](bool value) { renderManager.setNeedsUpdate(value); },
+        [this](const glm::ivec3& pos) { addCollisionEntity(pos); }
+    );
 }
 
 bool Chunk::removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos) {
-    // Try to find and remove from static subcubes
-    for (auto it = staticSubcubes.begin(); it != staticSubcubes.end(); ++it) {
-        Subcube* subcube = *it;
-        if (subcube && 
-            subcube->getPosition() == worldOrigin + parentPos && 
-            subcube->getLocalPosition() == subcubePos) {
-            
-            delete subcube;
-            staticSubcubes.erase(it);
-            
-            // Update hash maps BEFORE checking remaining subcubes
-            removeSubcubeFromMaps(parentPos, subcubePos);
-            
-            // CRITICAL FIX: Check if any subcubes remain at this parent position
-            std::vector<Subcube*> remainingSubcubes = getStaticSubcubesAt(parentPos);
-            
-            if (remainingSubcubes.empty()) {
-                // No more subcubes at this position - remove collision shape entirely
-                LOG_TRACE_FMT("Chunk", "No subcubes remain at parent pos (" 
-                          << parentPos.x << "," << parentPos.y << "," << parentPos.z 
-                          << ") - removing collision shape");
-                removeCollisionEntities(parentPos);
-                
-                // ARCHITECTURAL CHANGE: Do NOT restore parent cube - leave position empty
-                // The parent cube was deleted during subdivision, so position should become empty
-                voxelTypeMap.erase(parentPos);
-                LOG_DEBUG_FMT("Chunk", "[VOXEL MAP] Position now empty at (" 
-                          << parentPos.x << "," << parentPos.y << "," << parentPos.z 
-                          << ") - all subcubes removed, no cube to restore");
-            } else {
-                // Still have subcubes - update collision shape to reflect remaining subcubes
-                LOG_DEBUG_FMT("Chunk", "[COLLISION] " << remainingSubcubes.size() 
-                          << " subcubes remain at parent pos (" 
-                          << parentPos.x << "," << parentPos.y << "," << parentPos.z 
-                          << ") - updating collision shape");
-                // Remove old shape and add new one to reflect current subcube configuration
-                removeCollisionEntities(parentPos);
-                addCollisionEntity(parentPos);
-                
-                // CRITICAL: Ensure voxelTypeMap shows SUBDIVIDED since subcubes remain
-                voxelTypeMap[parentPos] = VoxelLocation::SUBDIVIDED;
-                LOG_DEBUG_FMT("Chunk", "[VOXEL MAP] Maintained SUBDIVIDED type at (" 
-                          << parentPos.x << "," << parentPos.y << "," << parentPos.z 
-                          << ") - " << remainingSubcubes.size() << " subcubes remain");
-            }
-            
-            renderManager.setNeedsUpdate(true);
-            setDirty(true);
-            return true;
-        }
-    }
-    
-    return false; // Subcube not found
+    return voxelManager.removeSubcube(
+        parentPos,
+        subcubePos,
+        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
+        [this]() -> const glm::ivec3& { return worldOrigin; },
+        [this](bool value) { setDirty(value); },
+        [this](bool value) { renderManager.setNeedsUpdate(value); },
+        [this](const glm::ivec3& pos) { removeCollisionEntities(pos); },
+        [this](const glm::ivec3& pos) { addCollisionEntity(pos); }
+    );
 }
 
 bool Chunk::clearSubdivisionAt(const glm::ivec3& localPos) {
-    // Check if position is valid
-    if (!isValidLocalPosition(localPos)) return false;
-    
-    // Remove all static subcubes at this position
-    glm::ivec3 parentWorldPos = worldOrigin + localPos;
-    auto it = staticSubcubes.begin();
-    bool removedAny = false;
-    
-    while (it != staticSubcubes.end()) {
-        Subcube* subcube = *it;
-        if (subcube && subcube->getPosition() == parentWorldPos) {
-            delete subcube;
-            it = staticSubcubes.erase(it);
-            removedAny = true;
-        } else {
-            ++it;
-        }
-    }
-    
-    // ARCHITECTURAL CHANGE: Don't try to restore parent cube - it was deleted during subdivision
-    // Clear the subdivision state from data structures
-    subcubeMap.erase(localPos);
-    voxelTypeMap.erase(localPos);
-    
-    if (removedAny) {
-        LOG_DEBUG_FMT("Chunk", "[CHUNK] Cleared subdivision at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
-                  << ") - position now empty");
-        renderManager.setNeedsUpdate(true);
-    }
-    
-    return removedAny;
+    return voxelManager.clearSubdivisionAt(
+        localPos,
+        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
+        [this]() -> const glm::ivec3& { return worldOrigin; },
+        [this](bool value) { renderManager.setNeedsUpdate(value); }
+    );
 }
 
 size_t Chunk::subcubeToIndex(const glm::ivec3& parentPos, const glm::ivec3& subcubePos) {
-    // Calculate a unique index for subcube identification
-    size_t parentIndex = localToIndex(parentPos);
-    size_t subcubeOffset = subcubePos.x + subcubePos.y * 3 + subcubePos.z * 9; // 0-26
-    return parentIndex * 27 + subcubeOffset;
+    return ChunkVoxelManager::subcubeToIndex(parentPos, subcubePos);
 }
 
 bool Chunk::isValidLocalPosition(const glm::ivec3& localPos) const {
@@ -1319,292 +936,60 @@ std::vector<Physics::ChunkPhysicsManager::CollisionBox> Chunk::generateMergedCol
 // =============================================================================
 
 bool Chunk::subdivideSubcubeAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos) {
-    // Check if position is valid
-    if (!isValidLocalPosition(cubePos)) return false;
-    if (subcubePos.x < 0 || subcubePos.x >= 3 || 
-        subcubePos.y < 0 || subcubePos.y >= 3 || 
-        subcubePos.z < 0 || subcubePos.z >= 3) return false;
-    
-    // Get the subcube at this position
-    Subcube* subcube = getSubcubeAt(cubePos, subcubePos);
-    if (!subcube) return false;
-    
-    // Check if already subdivided into microcubes
-    auto existingMicrocubes = getMicrocubesAt(cubePos, subcubePos);
-    if (!existingMicrocubes.empty()) return false; // Already subdivided
-    
-    // Create 27 microcubes (3x3x3) with random colors for clear visual distinction
-    glm::ivec3 parentWorldPos = worldOrigin + cubePos;
-    
-    // Use random colors for microcubes
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<float> colorDist(0.3f, 1.0f); // Brighter colors for visibility
-    
-    int colorIndex = 0;
-    for (int x = 0; x < 3; ++x) {
-        for (int y = 0; y < 3; ++y) {
-            for (int z = 0; z < 3; ++z) {
-                glm::ivec3 microcubeLocalPos(x, y, z);
-                
-                // Generate random color for each microcube
-                glm::vec3 microcubeColor = glm::vec3(
-                    colorDist(gen),
-                    colorDist(gen),
-                    colorDist(gen)
-                );
-                
-                Microcube* newMicrocube = new Microcube(parentWorldPos, microcubeColor, subcubePos, microcubeLocalPos);
-                staticMicrocubes.push_back(newMicrocube);
-                
-                // Update hash maps for O(1) hover detection
-                addMicrocubeToMaps(cubePos, subcubePos, microcubeLocalPos, newMicrocube);
-                
-                colorIndex++;
-            }
-        }
-    }
-    
-    // Delete the parent subcube completely
-    removeSubcubeFromMaps(cubePos, subcubePos);
-    
-    // Remove from staticSubcubes vector
-    for (auto it = staticSubcubes.begin(); it != staticSubcubes.end(); ++it) {
-        if (*it == subcube) {
-            delete subcube;
-            staticSubcubes.erase(it);
-            LOG_DEBUG_FMT("Chunk", "Completely removed parent subcube at cube (" 
-                      << cubePos.x << "," << cubePos.y << "," << cubePos.z 
-                      << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z
-                      << ") - replaced by 27 microcubes");
-            break;
-        }
-    }
-    
-    // CRITICAL: Update collision shape to create microcube collision entities
-    LOG_DEBUG_FMT("Chunk", "[COLLISION] Creating collision shapes for 27 new microcubes at cube (" 
-              << cubePos.x << "," << cubePos.y << "," << cubePos.z << ")");
-    removeCollisionEntities(cubePos);  // Remove old subcube collision
-    addCollisionEntity(cubePos);       // Add new microcube collision
-    
-    // Mark for update and as dirty for database persistence
-    renderManager.setNeedsUpdate(true);
-    setDirty(true);
-    
-    return true;
+    return voxelManager.subdivideSubcubeAt(
+        cubePos,
+        subcubePos,
+        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
+        [this]() -> std::vector<Microcube*>& { return staticMicrocubes; },
+        [this]() -> const glm::ivec3& { return worldOrigin; },
+        [this](bool value) { setDirty(value); },
+        [this](bool value) { renderManager.setNeedsUpdate(value); },
+        [this](const glm::ivec3& pos) { removeCollisionEntities(pos); },
+        [this](const glm::ivec3& pos) { addCollisionEntity(pos); }
+    );
 }
 
 bool Chunk::addMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos, const glm::vec3& color) {
-    // Check if cube position is valid
-    if (!isValidLocalPosition(parentCubePos)) return false;
-    
-    // Check if subcube position is valid (0-2 for each axis)
-    if (subcubePos.x < 0 || subcubePos.x >= 3 || 
-        subcubePos.y < 0 || subcubePos.y >= 3 || 
-        subcubePos.z < 0 || subcubePos.z >= 3) return false;
-    
-    // Check if microcube position is valid (0-2 for each axis)
-    if (microcubePos.x < 0 || microcubePos.x >= 3 || 
-        microcubePos.y < 0 || microcubePos.y >= 3 || 
-        microcubePos.z < 0 || microcubePos.z >= 3) return false;
-    
-    // Check if microcube already exists
-    if (getMicrocubeAt(parentCubePos, subcubePos, microcubePos)) return false;
-    
-    // CRITICAL FIX: Check if this is the first microcube at this subcube position
-    // If parent subcube exists, we need to remove it (defensive fix for database corruption)
-    auto existingMicrocubes = getMicrocubesAt(parentCubePos, subcubePos);
-    if (existingMicrocubes.empty()) {
-        // This is the first microcube at this subcube position
-        // Check if parent subcube exists and remove it if found
-        Subcube* parentSubcube = getSubcubeAt(parentCubePos, subcubePos);
-        if (parentSubcube) {
-            LOG_WARN_FMT("Chunk", "[DATA INTEGRITY] Found parent subcube when adding first microcube at cube (" 
-                      << parentCubePos.x << "," << parentCubePos.y << "," << parentCubePos.z 
-                      << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z 
-                      << ") - removing parent (possible database corruption)");
-            
-            // Remove from maps and vector
-            removeSubcubeFromMaps(parentCubePos, subcubePos);
-            for (auto it = staticSubcubes.begin(); it != staticSubcubes.end(); ++it) {
-                if (*it == parentSubcube) {
-                    delete parentSubcube;
-                    staticSubcubes.erase(it);
-                    break;
-                }
-            }
-        }
-    }
-    
-    // Create new microcube (constructor: parentCubePos, color, subcubeLocalPos, microcubeLocalPos)
-    glm::ivec3 parentWorldPos = worldOrigin + parentCubePos;
-    Microcube* newMicrocube = new Microcube(parentWorldPos, color, subcubePos, microcubePos);
-    staticMicrocubes.push_back(newMicrocube);
-    
-    // Update hash maps
-    addMicrocubeToMaps(parentCubePos, subcubePos, microcubePos, newMicrocube);
-    
-    // Mark for update and as dirty for database persistence
-    renderManager.setNeedsUpdate(true);
-    setDirty(true);
-    
-    return true;
+    return voxelManager.addMicrocube(
+        parentCubePos,
+        subcubePos,
+        microcubePos,
+        color,
+        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
+        [this]() -> std::vector<Microcube*>& { return staticMicrocubes; },
+        [this]() -> const glm::ivec3& { return worldOrigin; },
+        [this](bool value) { setDirty(value); },
+        [this](bool value) { renderManager.setNeedsUpdate(value); }
+    );
 }
 
 bool Chunk::removeMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos) {
-    LOG_INFO_FMT("Chunk", "[REMOVE MICROCUBE] Called for cube (" << parentCubePos.x << "," << parentCubePos.y << "," << parentCubePos.z 
-              << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z
-              << ") micro (" << microcubePos.x << "," << microcubePos.y << "," << microcubePos.z << ")");
-    
-    // Try to find and remove from static microcubes
-    for (auto it = staticMicrocubes.begin(); it != staticMicrocubes.end(); ++it) {
-        Microcube* microcube = *it;
-        if (microcube && 
-            microcube->getParentCubePosition() == (worldOrigin + parentCubePos) &&
-            microcube->getSubcubeLocalPosition() == subcubePos &&
-            microcube->getMicrocubeLocalPosition() == microcubePos) {
-            
-            LOG_INFO("Chunk", "[REMOVE MICROCUBE] Found microcube to remove");
-            
-            // Remove from hash maps
-            removeMicrocubeFromMaps(parentCubePos, subcubePos, microcubePos);
-            
-            // Delete and remove from vector
-            delete microcube;
-            staticMicrocubes.erase(it);
-            
-            LOG_INFO("Chunk", "[REMOVE MICROCUBE] Checking for remaining microcubes");
-            
-            // CRITICAL: Update collision shape to reflect microcube removal
-            // Check if any microcubes remain at this parent position
-            bool hasMicrocubes = false;
-            for (int sx = 0; sx < 3; ++sx) {
-                for (int sy = 0; sy < 3; ++sy) {
-                    for (int sz = 0; sz < 3; ++sz) {
-                        glm::ivec3 checkSubcubePos(sx, sy, sz);
-                        auto remainingMicros = getMicrocubesAt(parentCubePos, checkSubcubePos);
-                        if (!remainingMicros.empty()) {
-                            hasMicrocubes = true;
-                            break;
-                        }
-                    }
-                    if (hasMicrocubes) break;
-                }
-                if (hasMicrocubes) break;
-            }
-            
-            if (hasMicrocubes) {
-                // Still have microcubes - update collision shape to reflect remaining microcubes
-                LOG_INFO_FMT("Chunk", "[COLLISION] Microcubes remain at parent pos (" 
-                          << parentCubePos.x << "," << parentCubePos.y << "," << parentCubePos.z 
-                          << ") - updating collision shape");
-                removeCollisionEntities(parentCubePos);
-                addCollisionEntity(parentCubePos);
-            } else {
-                // No more microcubes - but check if subcubes still exist
-                auto remainingSubcubes = getStaticSubcubesAt(parentCubePos);
-                if (!remainingSubcubes.empty()) {
-                    LOG_INFO_FMT("Chunk", "[VOXEL MAP] No microcubes remain but " << remainingSubcubes.size() 
-                              << " subcubes still exist at (" << parentCubePos.x << "," << parentCubePos.y 
-                              << "," << parentCubePos.z << ") - keeping SUBDIVIDED state and updating collision");
-                    removeCollisionEntities(parentCubePos);
-                    addCollisionEntity(parentCubePos);
-                    // voxelTypeMap stays as SUBDIVIDED - DO NOT ERASE
-                } else {
-                    // No microcubes AND no subcubes - completely empty position
-                    LOG_INFO_FMT("Chunk", "[COLLISION] No microcubes or subcubes remain at parent pos (" 
-                              << parentCubePos.x << "," << parentCubePos.y << "," << parentCubePos.z 
-                              << ") - removing collision shape and voxel type entry");
-                    removeCollisionEntities(parentCubePos);
-                    voxelTypeMap.erase(parentCubePos);
-                }
-            }
-            
-            // Mark for update
-            renderManager.setNeedsUpdate(true);
-            setDirty(true);
-            
-            return true;
-        }
-    }
-    
-    return false; // Microcube not found
+    return voxelManager.removeMicrocube(
+        parentCubePos,
+        subcubePos,
+        microcubePos,
+        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
+        [this]() -> std::vector<Microcube*>& { return staticMicrocubes; },
+        [this]() -> const glm::ivec3& { return worldOrigin; },
+        [this](bool value) { setDirty(value); },
+        [this](bool value) { renderManager.setNeedsUpdate(value); },
+        [this](const glm::ivec3& pos) { removeCollisionEntities(pos); },
+        [this](const glm::ivec3& pos) { addCollisionEntity(pos); }
+    );
 }
 
 bool Chunk::clearMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos) {
-    auto microcubes = getMicrocubesAt(cubePos, subcubePos);
-    if (microcubes.empty()) return false; // No microcubes to clear
-    
-    LOG_INFO_FMT("Chunk", "[CLEAR MICROCUBES] Removing all microcubes at cube (" 
-              << cubePos.x << "," << cubePos.y << "," << cubePos.z 
-              << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z 
-              << ") - leaving empty space (no parent restoration)");
-    
-    // Remove all microcubes at this subcube position
-    for (auto it = staticMicrocubes.begin(); it != staticMicrocubes.end(); ) {
-        Microcube* microcube = *it;
-        if (microcube && 
-            microcube->getParentCubePosition() == (worldOrigin + cubePos) &&
-            microcube->getSubcubeLocalPosition() == subcubePos) {
-            
-            // Remove from hash maps
-            removeMicrocubeFromMaps(cubePos, subcubePos, microcube->getMicrocubeLocalPosition());
-            
-            // Delete and remove from vector
-            delete microcube;
-            it = staticMicrocubes.erase(it);
-        } else {
-            ++it;
-        }
-    }
-    
-    // Update collision to reflect removal
-    // Check if any microcubes remain at the parent cube position
-    bool hasMicrocubes = false;
-    for (int sx = 0; sx < 3; ++sx) {
-        for (int sy = 0; sy < 3; ++sy) {
-            for (int sz = 0; sz < 3; ++sz) {
-                glm::ivec3 checkSubcubePos(sx, sy, sz);
-                auto remainingMicros = getMicrocubesAt(cubePos, checkSubcubePos);
-                if (!remainingMicros.empty()) {
-                    hasMicrocubes = true;
-                    break;
-                }
-            }
-            if (hasMicrocubes) break;
-        }
-        if (hasMicrocubes) break;
-    }
-    
-    if (hasMicrocubes) {
-        // Still have microcubes at other subcube positions - update collision
-        removeCollisionEntities(cubePos);
-        addCollisionEntity(cubePos);
-    } else {
-        // No more microcubes - but check if subcubes still exist
-        auto remainingSubcubes = getStaticSubcubesAt(cubePos);
-        if (!remainingSubcubes.empty()) {
-            LOG_INFO_FMT("Chunk", "[VOXEL MAP] No microcubes remain but " << remainingSubcubes.size() 
-                      << " subcubes still exist at (" << cubePos.x << "," << cubePos.y 
-                      << "," << cubePos.z << ") - keeping SUBDIVIDED state and updating collision");
-            removeCollisionEntities(cubePos);
-            addCollisionEntity(cubePos);
-            // voxelTypeMap stays as SUBDIVIDED - DO NOT ERASE
-        } else {
-            // No microcubes AND no subcubes - completely empty position
-            LOG_INFO_FMT("Chunk", "[CLEAR MICROCUBES] No microcubes or subcubes remain at (" 
-                      << cubePos.x << "," << cubePos.y << "," << cubePos.z 
-                      << ") - removing collision and voxel type entry");
-            removeCollisionEntities(cubePos);
-            voxelTypeMap.erase(cubePos);
-        }
-    }
-    
-    // Mark for update
-    renderManager.setNeedsUpdate(true);
-    setDirty(true);
-    
-    return true;
+    return voxelManager.clearMicrocubesAt(
+        cubePos,
+        subcubePos,
+        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
+        [this]() -> std::vector<Microcube*>& { return staticMicrocubes; },
+        [this]() -> const glm::ivec3& { return worldOrigin; },
+        [this](bool value) { setDirty(value); },
+        [this](bool value) { renderManager.setNeedsUpdate(value); },
+        [this](const glm::ivec3& pos) { removeCollisionEntities(pos); },
+        [this](const glm::ivec3& pos) { addCollisionEntity(pos); }
+    );
 }
 
 } // namespace VulkanCube
