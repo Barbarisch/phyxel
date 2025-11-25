@@ -1,16 +1,18 @@
 # Refactoring Progress Tracker
 
 **Last Updated:** November 24, 2025  
-**Overall Progress:** 10 of 24 modules (42% complete)  
+**Overall Progress:** 11 of 24 modules (46% complete)  
 **Phase 1 Status:** ✅ COMPLETE (WindowManager, CoordinateUtils)
 **Phase 2 Status:** ✅ COMPLETE (InputManager)
 **Phase 3 Status:** ✅ COMPLETE (RenderCoordinator)
-**Phase 4 Status:** ✅ COMPLETE (VoxelInteractionSystem)
+**Phase 4 Status:** ✅ COMPLETE (VoxelInteractionSystem - Raycaster + Force extracted)
 **Phase 5 Status:** ✅ COMPLETE (PerformanceMonitor)
 **Phase 6 Status:** ✅ COMPLETE (WorldInitializer)
 **Phase 7 Status:** ✅ COMPLETE (ChunkRenderManager - rendering extraction)
 **Phase 8 Status:** ✅ COMPLETE (ChunkPhysicsManager - physics extraction)
 **Phase 9 Status:** ✅ COMPLETE (ChunkVoxelManager - voxel management extraction)
+**Phase 10 Status:** ✅ COMPLETE (VoxelRaycaster - raycasting extraction)
+**Phase 11 Status:** ✅ COMPLETE (VoxelForceApplicator - force application extraction)
 
 **Application.cpp Status:**
 - **Original:** 2,645 lines
@@ -23,6 +25,12 @@
 - **After Phase 2:** 1,611 lines (-833 cumulative)
 - **After Phase 3:** 995 lines (-1,449 cumulative, -59%)
 - **Remaining Phases:** Final cleanup
+
+**VoxelInteractionSystem.cpp Refactoring Status:**
+- **Original:** 1,275 lines
+- **After VoxelRaycaster:** 985 lines (-290 lines, -23%)
+- **After VoxelForceApplicator:** 891 lines (-384 cumulative, -30%)
+- **Remaining:** Interaction logic (~800 lines)
 
 ---
 
@@ -448,6 +456,89 @@
 - VoxelLocation structure doesn't contain cube pointer (only type/positions)
 - Callback pattern maintains clean separation even with complex data access
 - Iterative build/fix cycles prevent regression
+
+---
+
+### 10. ✅ VoxelRaycaster (November 2025)
+**Branch:** main (direct commit)  
+**Status:** Committed (Phase 1 of VoxelInteractionSystem refactoring)  
+**Time Spent:** ~3 hours  
+**Lines Reduced:** ~290 lines from VoxelInteractionSystem.cpp
+
+**Files Created:**
+- `include/scene/VoxelRaycaster.h` (118 lines)
+- `src/scene/VoxelRaycaster.cpp` (309 lines)
+
+**Functions Extracted:**
+- `pickVoxel()` - DDA raycasting algorithm for voxel traversal (~125 lines)
+- `resolveSubcubeInVoxel()` - Subcube and microcube intersection testing (~100 lines)
+- `rayAABBIntersect()` - Ray-AABB bounding box intersection (~20 lines)
+- `screenToWorldRay()` - Mouse screen coordinates to world ray conversion (~30 lines)
+
+**Key Features:**
+- DDA (Digital Differential Analyzer) algorithm for efficient voxel traversal
+- O(distance) complexity instead of O(n) brute force
+- Handles full voxel hierarchy (cubes → subcubes → microcubes)
+- Callback pattern for ChunkManager and WindowManager access
+- Optimized with early exit conditions
+- Max ray distance: 200 units, max steps: 500
+
+**Key Changes:**
+- VoxelInteractionSystem.cpp reduced from 1,275 to 985 lines (**-290 lines, -23%**)
+- All raycasting logic extracted to dedicated class
+- 4 raycasting methods now delegate via lambda callbacks
+- Pure raycasting logic with no state management
+- Screen-to-world ray conversion handles Vulkan Y-axis flip
+
+**Testing:** ✅ Build successful, runtime verified, hover detection fully functional  
+**Documentation:** Updated VoxelInteractionSystem.h and VoxelRaycaster.h headers
+
+**Lessons Learned:**
+- Callback pattern continues to scale well from Chunk subsystems to scene systems
+- DDA algorithm complexity requires careful extraction with context
+- Screen space conversion needs proper NDC → eye space → world space transformation
+- Subcube/microcube resolution logic benefits from dedicated helper method
+- Clean separation enables future optimization of raycasting independently
+
+---
+
+### 11. ✅ VoxelForceApplicator (November 2025)
+**Branch:** main (direct commit)  
+**Status:** Committed (Phase 2 of VoxelInteractionSystem refactoring)  
+**Time Spent:** ~2 hours  
+**Lines Reduced:** ~94 lines from VoxelInteractionSystem.cpp
+
+**Files Created:**
+- `include/scene/VoxelForceApplicator.h` (100 lines)
+- `src/scene/VoxelForceApplicator.cpp` (165 lines)
+
+**Functions Extracted:**
+- `breakHoveredCubeWithForce()` - Force-based breaking with mouse velocity detection (~70 lines)
+- `breakCubeAtPosition()` - Direct position-based breaking with physics (~95 lines)
+
+**Key Features:**
+- Mouse velocity-based force propagation (>500 units/sec threshold)
+- Integration with ForceSystem for multi-cube breaking
+- Dynamic physics body creation with impulse forces
+- Random force application for natural breaking effects
+- Material-based physics properties (stone, wood, metal, ice)
+
+**Key Changes:**
+- VoxelInteractionSystem.cpp reduced from 985 to 891 lines (**-94 lines**)
+- Cumulative reduction from original: **-384 lines (-30%)**
+- Both force methods now delegate via lambda callbacks
+- Callback pattern for ChunkManager, PhysicsWorld, ForceSystem, MouseVelocityTracker access
+- Handles both normal breaking and force propagation modes
+
+**Testing:** ✅ Build successful, runtime verified, force-based breaking fully functional  
+**Documentation:** Updated VoxelInteractionSystem.h and VoxelForceApplicator.h headers
+
+**Lessons Learned:**
+- Force application logic cleanly separates from interaction state management
+- Callback pattern scales to multiple dependencies (4 different callback types)
+- MouseVelocityTracker defined in core/ForceSystem.h (not a separate header)
+- Material selection algorithm simple but effective (position-based hashing)
+- Small extractions (94 lines) still valuable for separation of concerns
 
 ---
 

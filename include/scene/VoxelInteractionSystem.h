@@ -1,6 +1,8 @@
 #pragma once
 
 #include "core/Types.h"
+#include "scene/VoxelRaycaster.h"
+#include "scene/VoxelForceApplicator.h"
 #include <glm/glm.hpp>
 #include <memory>
 
@@ -56,6 +58,29 @@ struct CubeLocation {
  * 
  * Manages all voxel/cube interactions including hover detection, breaking, and subdivision.
  * Uses optimized O(1) raycasting for hover detection and handles both regular cubes and subcubes.
+ * 
+ * REFACTORING STATUS (November 2025):
+ * ✓ Phase 1 Complete: Raycasting extracted to VoxelRaycaster (~290 lines)
+ *   - DDA raycasting algorithm
+ *   - Subcube/microcube intersection testing  
+ *   - Ray-AABB intersection calculations
+ *   - Screen-to-world ray conversion
+ * ✓ Phase 2 Complete: Force application extracted to VoxelForceApplicator (~140 lines)
+ *   - Force-based breaking with mouse velocity
+ *   - Direct position-based breaking
+ *   - Force propagation system integration
+ *   - Dynamic physics body creation
+ * 
+ * Size Reduction:
+ * - Original: 1,275 lines
+ * - After VoxelRaycaster: 985 lines (-290 lines, -23%)
+ * - After VoxelForceApplicator: ~850 lines (-425 cumulative, -33%)
+ * 
+ * Current responsibilities:
+ * - Hover state management and visual feedback
+ * - Voxel manipulation (break, subdivide, remove)
+ * - Integration with ChunkManager and PhysicsWorld
+ * - Coordination of raycasting and force subsystems
  */
 class VoxelInteractionSystem {
 public:
@@ -106,6 +131,10 @@ private:
     UI::WindowManager* m_windowManager;
     ForceSystem* m_forceSystem;
     
+    // Subsystems
+    VoxelRaycaster m_raycaster;           // Handles all raycasting operations
+    VoxelForceApplicator m_forceApplicator; // Handles force-based breaking and propagation
+    
     // Hover state
     bool m_hasHoveredCube;
     CubeLocation m_currentHoveredLocation;
@@ -125,7 +154,7 @@ private:
         float manualForceValue = 500.0f;
     } m_debugFlags;
     
-    // Optimized O(1) raycasting functions
+    // Optimized O(1) raycasting functions (delegated to VoxelRaycaster)
     VoxelLocation pickVoxelOptimized(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;
     VoxelLocation resolveSubcubeInVoxel(const glm::vec3& rayOrigin, const glm::vec3& rayDirection, 
                                        const VoxelLocation& voxelHit) const;
@@ -141,7 +170,7 @@ private:
     void setHoveredCubeInChunksOptimized(const CubeLocation& location);
     void clearHoveredCubeInChunksOptimized();
     
-    // Utility functions
+    // Utility functions (delegated to VoxelRaycaster)
     bool rayAABBIntersect(const glm::vec3& rayOrigin, const glm::vec3& rayDir, 
                          const glm::vec3& aabbMin, const glm::vec3& aabbMax, 
                          float& distance) const;
