@@ -50,6 +50,22 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
         // RebuildFacesFunc: Rebuild faces when objects change
         [this]() { rebuildGlobalDynamicFaces(); }
     );
+    
+    // Setup face update coordinator callbacks
+    m_faceUpdateCoordinator.setCallbacks(
+        // DynamicSubcubeVectorAccessFunc: Access subcube vector
+        [this]() -> auto& { return globalDynamicSubcubes; },
+        // DynamicCubeVectorAccessFunc: Access cube vector
+        [this]() -> auto& { return globalDynamicCubes; },
+        // DynamicMicrocubeVectorAccessFunc: Access microcube vector
+        [this]() -> auto& { return globalDynamicMicrocubes; },
+        // FaceDataAccessFunc: Access face data
+        [this]() -> auto& { return globalDynamicSubcubeFaces; },
+        // ChunkLookupFunc: Get chunk at position
+        [this](const glm::ivec3& pos) { return getChunkAt(pos); },
+        // MarkChunkDirtyFunc: Mark chunk dirty
+        [this](Chunk* chunk) { markChunkDirty(chunk); }
+    );
 }
 
 void ChunkManager::setPhysicsWorld(Physics::PhysicsWorld* physics) {
@@ -906,90 +922,7 @@ void ChunkManager::clearAllGlobalDynamicMicrocubes() {
 // ===============================================================
 
 void ChunkManager::rebuildGlobalDynamicFaces() {
-    globalDynamicSubcubeFaces.clear();
-    
-    static constexpr float SUBCUBE_SCALE = 1.0f / 3.0f;   // Subcubes are 1/3 the size
-    static constexpr float CUBE_SCALE = 1.0f;             // Full cubes are full size
-    static constexpr float MICROCUBE_SCALE = 1.0f / 9.0f; // Microcubes are 1/9 the size
-    
-    // Generate faces for all global dynamic subcubes
-    for (const auto& subcube : globalDynamicSubcubes) {
-        if (!subcube->isVisible()) continue;
-        
-        // For dynamic subcubes, we render all faces (they can be in arbitrary positions)
-        for (int faceID = 0; faceID < 6; ++faceID) {
-            DynamicSubcubeInstanceData faceInstance;
-            
-            // Use smooth physics position for dynamic subcubes, fallback to grid position for static
-            if (subcube->isDynamic()) {
-                faceInstance.worldPosition = subcube->getPhysicsPosition();
-                faceInstance.rotation = subcube->getPhysicsRotation(); // Get rotation from physics
-            } else {
-                faceInstance.worldPosition = glm::vec3(subcube->getPosition()) + glm::vec3(subcube->getLocalPosition()) * SUBCUBE_SCALE;
-                faceInstance.rotation = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f); // Identity quaternion for static subcubes
-            }
-            
-            faceInstance.textureIndex = TextureConstants::getTextureIndexForFace(faceID);
-            faceInstance.faceID = faceID;
-            faceInstance.scale = subcube->getScale();
-            faceInstance.localPosition = subcube->getLocalPosition(); // Preserve original grid position
-            
-            globalDynamicSubcubeFaces.push_back(faceInstance);
-        }
-    }
-    
-    // Generate faces for all global dynamic cubes
-    for (const auto& cube : globalDynamicCubes) {
-        if (!cube->isVisible()) continue;
-        
-        // For dynamic cubes, we render all faces (they can be in arbitrary positions)
-        for (int faceID = 0; faceID < 6; ++faceID) {
-            DynamicSubcubeInstanceData faceInstance; // Using same data structure as subcubes
-            
-            // Dynamic cubes always use physics position and rotation
-            faceInstance.worldPosition = cube->getPhysicsPosition();
-            faceInstance.rotation = cube->getPhysicsRotation();
-            faceInstance.textureIndex = TextureConstants::getTextureIndexForFace(faceID);
-            faceInstance.faceID = faceID;
-            faceInstance.scale = cube->getScale(); // 1.0 for full cubes
-            faceInstance.localPosition = glm::ivec3(1, 1, 1); // Center position for full cubes
-            
-            globalDynamicSubcubeFaces.push_back(faceInstance);
-        }
-    }
-    
-    // Generate faces for all global dynamic microcubes
-    for (const auto& microcube : globalDynamicMicrocubes) {
-        if (!microcube->isVisible()) continue;
-        
-        // For dynamic microcubes, we render all faces (they can be in arbitrary positions)
-        for (int faceID = 0; faceID < 6; ++faceID) {
-            DynamicSubcubeInstanceData faceInstance; // Using same data structure
-            
-            // Dynamic microcubes always use physics position and rotation
-            faceInstance.worldPosition = microcube->getPhysicsPosition();
-            faceInstance.rotation = microcube->getPhysicsRotation();
-            // Use placeholder texture for microcubes
-            faceInstance.textureIndex = TextureConstants::PLACEHOLDER_TEXTURE_INDEX;
-            faceInstance.faceID = faceID;
-            faceInstance.scale = microcube->getScale(); // 1/9 for microcubes
-            
-            // Pack both subcube and microcube positions into localPosition for texture coordinate calculation
-            // Bits 0-1: subcube X, Bits 2-3: subcube Y, Bits 4-5: subcube Z
-            // Bits 6-7: microcube X, Bits 8-9: microcube Y, Bits 10-11: microcube Z
-            glm::ivec3 subcubePos = microcube->getSubcubeLocalPosition();
-            glm::ivec3 microcubePos = microcube->getMicrocubeLocalPosition();
-            int packed = (subcubePos.x & 0x3) | ((subcubePos.y & 0x3) << 2) | ((subcubePos.z & 0x3) << 4) |
-                        ((microcubePos.x & 0x3) << 6) | ((microcubePos.y & 0x3) << 8) | ((microcubePos.z & 0x3) << 10);
-            faceInstance.localPosition = glm::ivec3(packed, 0, 0); // Store packed data in X component
-            
-            globalDynamicSubcubeFaces.push_back(faceInstance);
-        }
-    }
-    
-    if (!globalDynamicSubcubeFaces.empty()) {
-        //std::cout << "[CHUNK MANAGER] Generated " << globalDynamicSubcubeFaces.size() << " global dynamic faces (subcubes + cubes + microcubes)" << std::endl;
-    }
+    m_faceUpdateCoordinator.rebuildGlobalDynamicFaces();
 }
 
 size_t ChunkManager::getChunkIndex(const Chunk* chunk) const {
@@ -1007,166 +940,39 @@ size_t ChunkManager::getChunkIndex(const Chunk* chunk) const {
 // ========================================================================
 
 void ChunkManager::updateAfterCubeBreak(const glm::ivec3& worldPos) {
-    // When a cube is broken (removed), we need to:
-    // 1. Remove faces of the broken cube (already done by removeCube)
-    // 2. Update faces of neighboring cubes that may now be exposed
-    
-    LOG_DEBUG_FMT("ChunkManager", "[SELECTIVE UPDATE] Cube broken at world pos (" << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")");
-    
-    // Get the chunk containing the broken cube
-    Chunk* primaryChunk = getChunkAt(worldPos);
-    if (primaryChunk) {
-        markChunkDirty(primaryChunk);
-    }
-    
-    // Check if any neighbors are in different chunks and mark those dirty too
-    std::vector<glm::ivec3> neighborPositions = getAffectedNeighborPositions(worldPos);
-    std::set<Chunk*> affectedChunks;
-    
-    for (const glm::ivec3& neighborPos : neighborPositions) {
-        Chunk* neighborChunk = getChunkAt(neighborPos);
-        if (neighborChunk && neighborChunk != primaryChunk) {
-            affectedChunks.insert(neighborChunk);
-        }
-    }
-    
-    // Mark all affected neighbor chunks dirty
-    for (Chunk* chunk : affectedChunks) {
-        markChunkDirty(chunk);
-    }
+    m_faceUpdateCoordinator.updateAfterCubeBreak(worldPos);
 }
 
 void ChunkManager::updateAfterCubePlace(const glm::ivec3& worldPos) {
-    // When a cube is placed (added), we need to:
-    // 1. Generate faces for the new cube (based on neighbors)
-    // 2. Update faces of neighboring cubes that may now be hidden
-    
-    LOG_DEBUG_FMT("ChunkManager", "[SELECTIVE UPDATE] Cube placed at world pos (" << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")");
-    
-    // Get the chunk containing the placed cube
-    Chunk* primaryChunk = getChunkAt(worldPos);
-    if (primaryChunk) {
-        markChunkDirty(primaryChunk);
-    }
-    
-    // Check if any neighbors are in different chunks and mark those dirty too
-    std::vector<glm::ivec3> neighborPositions = getAffectedNeighborPositions(worldPos);
-    std::set<Chunk*> affectedChunks;
-    
-    for (const glm::ivec3& neighborPos : neighborPositions) {
-        Chunk* neighborChunk = getChunkAt(neighborPos);
-        if (neighborChunk && neighborChunk != primaryChunk) {
-            affectedChunks.insert(neighborChunk);
-        }
-    }
-    
-    // Mark all affected neighbor chunks dirty
-    for (Chunk* chunk : affectedChunks) {
-        markChunkDirty(chunk);
-    }
+    m_faceUpdateCoordinator.updateAfterCubePlace(worldPos);
 }
 
 void ChunkManager::updateAfterCubeSubdivision(const glm::ivec3& worldPos) {
-    // When a cube is subdivided, we need to:
-    // 1. Hide original cube faces (cube becomes invisible)
-    // 2. Generate subcube faces (8 or 27 subcubes with their own faces)
-    // 3. Update faces of neighboring cubes (original cube is now hidden)
-    
-    LOG_DEBUG_FMT("ChunkManager", "[SELECTIVE UPDATE] Cube subdivided at world pos (" << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")");
-    
-    // Get the chunk containing the subdivided cube
-    Chunk* primaryChunk = getChunkAt(worldPos);
-    if (primaryChunk) {
-        markChunkDirty(primaryChunk);
-    }
-    
-    // Check if any neighbors are in different chunks and mark those dirty too
-    std::vector<glm::ivec3> neighborPositions = getAffectedNeighborPositions(worldPos);
-    std::set<Chunk*> affectedChunks;
-    
-    for (const glm::ivec3& neighborPos : neighborPositions) {
-        Chunk* neighborChunk = getChunkAt(neighborPos);
-        if (neighborChunk && neighborChunk != primaryChunk) {
-            affectedChunks.insert(neighborChunk);
-        }
-    }
-    
-    // Mark all affected neighbor chunks dirty
-    for (Chunk* chunk : affectedChunks) {
-        markChunkDirty(chunk);
-    }
+    m_faceUpdateCoordinator.updateAfterCubeSubdivision(worldPos);
 }
 
 void ChunkManager::updateAfterSubcubeBreak(const glm::ivec3& parentWorldPos, const glm::ivec3& subcubeLocalPos) {
-    // When a subcube breaks (moves from static to dynamic), we need to:
-    // 1. Remove the subcube's faces from static rendering
-    // 2. Update faces of neighboring subcubes in the same parent cube
-    // 3. Add the subcube to dynamic rendering system
-    
-    LOG_DEBUG_FMT("ChunkManager", "[SELECTIVE UPDATE] Subcube broken at parent pos (" << parentWorldPos.x << "," << parentWorldPos.y << "," << parentWorldPos.z 
-              << ") local (" << subcubeLocalPos.x << "," << subcubeLocalPos.y << "," << subcubeLocalPos.z << ")");
-    
-    // For subcube breaking, only update the chunk containing the parent cube
-    Chunk* chunk = getChunkAt(parentWorldPos);
-    if (chunk) {
-        markChunkDirty(chunk);
-    }
+    m_faceUpdateCoordinator.updateAfterSubcubeBreak(parentWorldPos, subcubeLocalPos);
 }
 
 void ChunkManager::updateFacesForPositionChange(const glm::ivec3& worldPos, bool cubeAdded) {
-    // Central method that handles face updates when a cube is added or removed
-    // This affects the cube at worldPos and its up to 6 neighbors
-    
-    // Update faces for the cube at the changed position
-    updateSingleCubeFaces(worldPos);
-    
-    // Update faces for all neighboring cubes (up to 6 neighbors)
-    updateNeighborFaces(worldPos);
+    m_faceUpdateCoordinator.updateFacesForPositionChange(worldPos, cubeAdded);
 }
 
 void ChunkManager::updateNeighborFaces(const glm::ivec3& worldPos) {
-    // Get all 6 neighboring positions
-    std::vector<glm::ivec3> neighborPositions = getAffectedNeighborPositions(worldPos);
-    
-    // Update faces for each neighbor position
-    for (const glm::ivec3& neighborPos : neighborPositions) {
-        updateFacesAtPosition(neighborPos);
-    }
+    m_faceUpdateCoordinator.updateNeighborFaces(worldPos);
 }
 
 void ChunkManager::updateSingleCubeFaces(const glm::ivec3& worldPos) {
-    // Update faces only for the cube at the specified position
-    updateFacesAtPosition(worldPos);
+    m_faceUpdateCoordinator.updateSingleCubeFaces(worldPos);
 }
 
 std::vector<glm::ivec3> ChunkManager::getAffectedNeighborPositions(const glm::ivec3& worldPos) {
-    // Return all 6 neighbor positions (may span multiple chunks)
-    std::vector<glm::ivec3> neighbors;
-    neighbors.reserve(6);
-    
-    // Face directions: front(+Z), back(-Z), right(+X), left(-X), top(+Y), bottom(-Y)
-    neighbors.push_back(worldPos + glm::ivec3(0, 0, 1));   // front (+Z)
-    neighbors.push_back(worldPos + glm::ivec3(0, 0, -1));  // back (-Z)  
-    neighbors.push_back(worldPos + glm::ivec3(1, 0, 0));   // right (+X)
-    neighbors.push_back(worldPos + glm::ivec3(-1, 0, 0));  // left (-X)
-    neighbors.push_back(worldPos + glm::ivec3(0, 1, 0));   // top (+Y)
-    neighbors.push_back(worldPos + glm::ivec3(0, -1, 0));  // bottom (-Y)
-    
-    return neighbors;
+    return m_faceUpdateCoordinator.getAffectedNeighborPositions(worldPos);
 }
 
 void ChunkManager::updateFacesAtPosition(const glm::ivec3& worldPos) {
-    // Update faces for a single cube at the specified world position
-    // This may be in any chunk, so we need to find the right chunk first
-    
-    Chunk* chunk = getChunkAt(worldPos);
-    if (!chunk) {
-        return; // Position is outside loaded chunks
-    }
-    
-    // For now, use the simple approach: mark the chunk dirty and let the update system handle it
-    // TODO: Implement true single-cube face updates to avoid rebuilding entire chunks
-    markChunkDirty(chunk);
+    m_faceUpdateCoordinator.updateFacesAtPosition(worldPos);
 }
 
 } // namespace VulkanCube

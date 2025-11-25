@@ -6,6 +6,7 @@
 #include "utils/CoordinateUtils.h"
 #include "core/ChunkStreamingManager.h"
 #include "core/DynamicObjectManager.h"
+#include "core/FaceUpdateCoordinator.h"
 #include <vector>
 #include <unordered_map>
 #include <memory>
@@ -25,8 +26,8 @@ namespace VulkanCube {
 // REFACTORING STATUS
 // Phase 1 - ChunkStreamingManager extraction COMPLETE
 // Phase 2 - DynamicObjectManager extraction COMPLETE
-// Original: 1,414 lines → 1,086 lines after extractions (-328 lines, -23.2%)
-// Remaining phases: Face update coordination (~150 lines)
+// Phase 3 - FaceUpdateCoordinator extraction COMPLETE
+// Original: 1,414 lines → Current: 892 lines (-522 lines, -37%)
 // 
 class ChunkManager {
 public:
@@ -60,6 +61,9 @@ public:
     
     // Dynamic object manager (handles global dynamic subcubes/cubes/microcubes)
     DynamicObjectManager m_dynamicObjectManager;
+    
+    // Face update coordinator (handles face rebuilding and updates)
+    FaceUpdateCoordinator m_faceUpdateCoordinator;
     
     // Chunk streaming settings
     float loadDistance = 160.0f;   // Distance to load chunks (5 chunks * 32 units)

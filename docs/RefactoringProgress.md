@@ -1,7 +1,7 @@
 # Refactoring Progress Tracker
 
 **Last Updated:** November 24, 2025  
-**Overall Progress:** 13 of 24 modules (54% complete)  
+**Overall Progress:** 14 of 24 modules (58% complete)  
 **Phase 1 Status:** ✅ COMPLETE (WindowManager, CoordinateUtils)
 **Phase 2 Status:** ✅ COMPLETE (InputManager)
 **Phase 3 Status:** ✅ COMPLETE (RenderCoordinator)
@@ -15,6 +15,7 @@
 **Phase 11 Status:** ✅ COMPLETE (VoxelForceApplicator - force application extraction)
 **Phase 12 Status:** ✅ COMPLETE (ChunkStreamingManager - chunk streaming extraction)
 **Phase 13 Status:** ✅ COMPLETE (DynamicObjectManager - dynamic object lifecycle)
+**Phase 14 Status:** ✅ COMPLETE (FaceUpdateCoordinator - face update coordination)
 
 **Application.cpp Status:**
 - **Original:** 2,645 lines
@@ -38,7 +39,8 @@
 - **Original:** 1,414 lines
 - **After ChunkStreamingManager:** 1,201 lines (-213 lines, -15%)
 - **After DynamicObjectManager:** 1,086 lines (-328 cumulative, -23.2%)
-- **Remaining Phases:** Face update coordination (~150 lines)
+- **After FaceUpdateCoordinator:** 892 lines (-522 cumulative, -36.9%)
+- **Status:** ChunkManager core refactoring complete
 
 ---
 
@@ -725,6 +727,64 @@ None currently.
 - Implementation needs full definitions (Subcube.h, Cube.h, Microcube.h, PhysicsWorld.h)
 - Callback pattern scales excellently (5 dependencies handled cleanly)
 - Include order critical - forward declarations can mask definition issues
+
+---
+
+### 14. ✅ FaceUpdateCoordinator (November 2025)
+**Branch:** `refactor_gemini3` (continuation)  
+**Status:** COMPLETE  
+**Time Spent:** ~2 hours  
+**Lines Reduced:** 194 lines from ChunkManager.cpp (-17.9%)
+
+**Files Created:**
+- `include/core/FaceUpdateCoordinator.h` (93 lines)
+- `src/core/FaceUpdateCoordinator.cpp` (269 lines)
+
+**Files Modified:**
+- `include/core/ChunkManager.h` - Added FaceUpdateCoordinator member
+- `src/core/ChunkManager.cpp` - Delegated 10 face update methods
+
+**Functions Extracted:**
+1. `rebuildGlobalDynamicFaces()` - Generate faces for all dynamic objects
+2. `updateAfterCubeBreak()` - Handle cube removal face updates
+3. `updateAfterCubePlace()` - Handle cube addition face updates
+4. `updateAfterCubeSubdivision()` - Handle subdivision face updates
+5. `updateAfterSubcubeBreak()` - Handle subcube breaking updates
+6. `updateFacesForPositionChange()` - Dispatcher for position-based updates
+7. `updateNeighborFaces()` - Update 6 neighbor faces
+8. `updateSingleCubeFaces()` - Update single cube faces
+9. `getAffectedNeighborPositions()` - Get 6 neighbor coordinates
+10. `updateFacesAtPosition()` - Update faces at specific position
+
+**Callback Pattern (6 callbacks):**
+- DynamicSubcubeVectorAccessFunc - Access global dynamic subcubes
+- DynamicCubeVectorAccessFunc - Access global dynamic cubes
+- DynamicMicrocubeVectorAccessFunc - Access global dynamic microcubes
+- FaceDataAccessFunc - Access global dynamic face data
+- ChunkLookupFunc - Look up chunks by position
+- MarkChunkDirtyFunc - Mark chunks for update
+
+**Key Features:**
+- **Global Dynamic Face Rebuilding**: Generates 6 faces for each dynamic object (subcubes, cubes, microcubes)
+- **Selective Update System**: Minimal chunk updates when cubes are added/removed/subdivided/broken
+- **Cross-Chunk Coordination**: Marks affected chunks dirty when changes span boundaries
+- **Neighbor Management**: Updates faces of up to 6 neighbors when cube state changes
+- **Scale-Aware Face Generation**: Subcube (1/3), Cube (1.0), Microcube (1/9)
+- **Bit Packing**: Microcube position packed into 12 bits for shader texture calculation
+- **Physics Integration**: Dynamic objects use physics position/rotation, static use grid position
+
+**Metrics:**
+- ChunkManager: 1,086 → 892 lines (-194, -17.9%)
+- FaceUpdateCoordinator: 362 lines total (93 header + 269 impl)
+- Combined Phases 12+13+14: -522 lines (-36.9% from original 1,414)
+
+**Testing:** ✅ Build successful, runtime verified
+
+**Lessons Learned:**
+- Include path correction: `core/Types.h` not `graphics/TextureConstants.h`
+- TextureConstants defined in Types.h with getTextureIndexForFace() helper
+- Callback pattern continues to scale well (6 dependencies managed cleanly)
+- Face generation logic consolidation reduces code duplication significantly
 
 ---
 
