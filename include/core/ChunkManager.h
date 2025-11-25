@@ -7,6 +7,7 @@
 #include "core/ChunkStreamingManager.h"
 #include "core/DynamicObjectManager.h"
 #include "core/FaceUpdateCoordinator.h"
+#include "core/ChunkInitializer.h"
 #include <vector>
 #include <unordered_map>
 #include <memory>
@@ -27,7 +28,8 @@ namespace VulkanCube {
 // Phase 1 - ChunkStreamingManager extraction COMPLETE
 // Phase 2 - DynamicObjectManager extraction COMPLETE
 // Phase 3 - FaceUpdateCoordinator extraction COMPLETE
-// Original: 1,414 lines → Current: 892 lines (-522 lines, -37%)
+// Phase 4 - ChunkInitializer extraction COMPLETE
+// Original: 1,414 lines → Current: 802 lines (-612 lines, -43%)
 // 
 class ChunkManager {
 public:
@@ -56,7 +58,7 @@ public:
     // Physics world for proper cleanup of dynamic objects
     Physics::PhysicsWorld* physicsWorld = nullptr;
     
-    // Chunk streaming manager (handles loading/unloading/storage)
+    // Chunk streaming manager (handles chunk loading/unloading/saving)
     ChunkStreamingManager m_streamingManager;
     
     // Dynamic object manager (handles global dynamic subcubes/cubes/microcubes)
@@ -64,6 +66,9 @@ public:
     
     // Face update coordinator (handles face rebuilding and updates)
     FaceUpdateCoordinator m_faceUpdateCoordinator;
+    
+    // Chunk initializer (handles chunk creation, world generation, setup)
+    ChunkInitializer m_chunkInitializer;
     
     // Chunk streaming settings
     float loadDistance = 160.0f;   // Distance to load chunks (5 chunks * 32 units)

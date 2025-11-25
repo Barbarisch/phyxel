@@ -66,6 +66,20 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
         // MarkChunkDirtyFunc: Mark chunk dirty
         [this](Chunk* chunk) { markChunkDirty(chunk); }
     );
+    
+    // Setup chunk initializer callbacks
+    m_chunkInitializer.setCallbacks(
+        // ChunkVectorAccessFunc: Access chunk vector
+        [this]() -> auto& { return chunks; },
+        // ChunkMapAccessFunc: Access chunk map
+        [this]() -> auto& { return chunkMap; },
+        // DeviceAccessFunc: Get Vulkan device handles
+        [this]() { return std::make_pair(device, physicalDevice); },
+        // GetChunkAtCoordFunc: Get chunk at coordinate
+        [this](const glm::ivec3& coord) { return getChunkAtCoord(coord); },
+        // RebuildChunkWithCullingFunc: Rebuild chunk with cross-chunk culling
+        [this](Chunk& chunk) { rebuildChunkFacesWithCrosschunkCulling(chunk); }
+    );
 }
 
 void ChunkManager::setPhysicsWorld(Physics::PhysicsWorld* physics) {
@@ -110,113 +124,19 @@ bool ChunkManager::generateOrLoadChunk(const glm::ivec3& chunkCoord) {
 }
 
 void ChunkManager::rebuildAllChunkFaces() {
-    LOG_INFO("Chunk", "Rebuilding faces for all loaded chunks with cross-chunk culling...");
-    
-    // First: End bulk operations for all chunks and build proper collision systems
-    for (auto& chunk : chunks) {
-        chunk->endBulkOperation();
-    }
-    
-    // Second pass: rebuild basic faces for each chunk
-    for (auto& chunk : chunks) {
-        chunk->rebuildFaces();
-    }
-    
-    // Second pass: perform cross-chunk occlusion culling
-    performOcclusionCulling();
-    
-    // Third pass: update Vulkan buffers with new face data
-    for (auto& chunk : chunks) {
-        chunk->updateVulkanBuffer();
-    }
-    
-    LOG_INFO_FMT("Chunk", "Face rebuilding complete for " << chunks.size() << " chunks");
+    m_chunkInitializer.rebuildAllChunkFaces();
 }
 
 void ChunkManager::initializeAllChunkVoxelMaps() {
-    LOG_INFO_FMT("Chunk", "Initializing voxel hash maps for all " << chunks.size() << " chunks...");
-    
-    for (auto& chunk : chunks) {
-        chunk->initializeVoxelMaps();
-    }
-    
-    LOG_INFO("Chunk", "Completed voxel map initialization for optimized O(1) hover detection");
+    m_chunkInitializer.initializeAllChunkVoxelMaps();
 }
 
 void ChunkManager::createChunks(const std::vector<glm::ivec3>& origins) {
-    chunks.clear();
-    chunkMap.clear();  // Clear the spatial hash map
-    chunks.reserve(origins.size());
-    
-    for (const auto& origin : origins) {
-        auto chunk = std::make_unique<Chunk>(origin);
-        
-        // Initialize with Vulkan device
-        chunk->initialize(device, physicalDevice);
-        
-        // Add to spatial hash map for O(1) lookup
-        glm::ivec3 chunkCoord = worldToChunkCoord(origin);
-        chunkMap[chunkCoord] = chunk.get();
-        
-        // Fill chunk with 32x32x32 cubes at relative positions
-        chunk->populateWithCubes();
-        
-        // Generate face instances from cubes (initial pass - no cross-chunk culling yet)
-        chunk->rebuildFaces();
-        
-        // Create Vulkan buffer for this chunk
-        chunk->createVulkanBuffer();
-        
-        chunks.push_back(std::move(chunk));
-    }
-    
-    // Second pass: Rebuild all chunks with cross-chunk culling now that all chunks exist
-    for (auto& chunk : chunks) {
-        rebuildChunkFacesWithCrosschunkCulling(*chunk);
-        chunk->updateVulkanBuffer();  // Update the GPU buffer with new face data
-    }
+    m_chunkInitializer.createChunks(origins);
 }
 
 void ChunkManager::createChunk(const glm::ivec3& origin) {
-    auto chunk = std::make_unique<Chunk>(origin);
-    
-    // Initialize with Vulkan device
-    chunk->initialize(device, physicalDevice);
-    
-    // Add to spatial hash map for O(1) lookup
-    glm::ivec3 chunkCoord = worldToChunkCoord(origin);
-    chunkMap[chunkCoord] = chunk.get();
-    
-    chunk->populateWithCubes();
-    
-    // Generate face instances from cubes (initial pass)
-    chunk->rebuildFaces();
-    
-    chunk->createVulkanBuffer();
-    
-    chunks.push_back(std::move(chunk));
-    
-    // Update cross-chunk culling for this chunk and its neighbors
-    Chunk* newChunk = chunks.back().get();
-    rebuildChunkFacesWithCrosschunkCulling(*newChunk);
-    newChunk->updateVulkanBuffer();
-    
-    // Also update adjacent chunks to account for the new chunk
-    glm::ivec3 chunkCoordOfNew = worldToChunkCoord(origin);
-    for (int dx = -1; dx <= 1; ++dx) {
-        for (int dy = -1; dy <= 1; ++dy) {
-            for (int dz = -1; dz <= 1; ++dz) {
-                if (dx == 0 && dy == 0 && dz == 0) continue; // Skip the new chunk itself
-                
-                glm::ivec3 adjacentCoord = chunkCoordOfNew + glm::ivec3(dx, dy, dz);
-                Chunk* adjacentChunk = getChunkAtCoord(adjacentCoord);
-                if (adjacentChunk) {
-                    rebuildChunkFacesWithCrosschunkCulling(*adjacentChunk);
-                    adjacentChunk->updateVulkanBuffer();
-                }
-            }
-        }
-    }
+    m_chunkInitializer.createChunk(origin);
 }
 
 void ChunkManager::updateChunk(size_t chunkIndex) {
@@ -670,17 +590,7 @@ uint32_t ChunkManager::calculateOcclusionFaceMask(const glm::ivec3& chunkOrigin,
 }
 
 void ChunkManager::performOcclusionCulling() {
-    LOG_DEBUG("Chunk", "Regenerating chunks with updated cross-chunk occlusion culling...");
-    
-    // With CPU pre-filtering, we need to regenerate all chunk geometry
-    // when occlusion relationships change between chunks
-    for (auto& chunk : chunks) {
-        // Regenerate face instances with cross-chunk occlusion culling
-        rebuildChunkFacesWithCrosschunkCulling(*chunk);
-        
-        // Update GPU buffer with new face data
-        chunk->updateVulkanBuffer();
-    }
+    m_chunkInitializer.performOcclusionCulling();
     
     // Calculate statistics
     ChunkStats stats = getPerformanceStats();
