@@ -10,6 +10,7 @@
 #include "core/ChunkInitializer.h"
 #include "core/DirtyChunkTracker.h"
 #include "core/ChunkVoxelQuerySystem.h"
+#include "core/ChunkVoxelModificationSystem.h"
 #include <vector>
 #include <unordered_map>
 #include <memory>
@@ -32,7 +33,9 @@ namespace VulkanCube {
 // Phase 3 - FaceUpdateCoordinator extraction COMPLETE
 // Phase 4 - ChunkInitializer extraction COMPLETE
 // Phase 5 - DirtyChunkTracker extraction COMPLETE
-// Original: 1,414 lines → Current: 783 lines (-631 lines, -45%)
+// Phase 6 - ChunkVoxelQuerySystem extraction COMPLETE
+// Phase 7 - ChunkVoxelModificationSystem extraction COMPLETE
+// Original: 1,414 lines → Current: 659 lines (-755 lines, -53%)
 // 
 class ChunkManager {
 public:
@@ -74,6 +77,9 @@ public:
     
     // Voxel query system (handles chunk/cube/subcube lookups)
     ChunkVoxelQuerySystem m_voxelQuerySystem;
+    
+    // Voxel modification system (handles add/remove/update operations)
+    ChunkVoxelModificationSystem m_voxelModificationSystem;
     
     // Chunk streaming settings
     float loadDistance = 160.0f;   // Distance to load chunks (5 chunks * 32 units)

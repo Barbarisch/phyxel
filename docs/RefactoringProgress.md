@@ -1,7 +1,7 @@
 # Refactoring Progress Tracker
 
-**Last Updated:** November 24, 2025  
-**Overall Progress:** 16 of 24 modules (67% complete)  
+**Last Updated:** November 25, 2025  
+**Overall Progress:** 18 of 24 modules (75% complete)  
 **Phase 1 Status:** ✅ COMPLETE (WindowManager, CoordinateUtils)
 **Phase 2 Status:** ✅ COMPLETE (InputManager)
 **Phase 3 Status:** ✅ COMPLETE (RenderCoordinator)
@@ -18,6 +18,8 @@
 **Phase 14 Status:** ✅ COMPLETE (FaceUpdateCoordinator - face update coordination)
 **Phase 15 Status:** ✅ COMPLETE (ChunkInitializer - chunk initialization and world generation)
 **Phase 16 Status:** ✅ COMPLETE (DirtyChunkTracker - dirty chunk tracking and selective updates)
+**Phase 17 Status:** ✅ COMPLETE (ChunkVoxelQuerySystem - voxel query and lookup operations)
+**Phase 18 Status:** ✅ COMPLETE (ChunkVoxelModificationSystem - voxel modification operations)
 
 **Application.cpp Status:**
 - **Original:** 2,645 lines
@@ -44,7 +46,9 @@
 - **After FaceUpdateCoordinator:** 892 lines (-522 cumulative, -36.9%)
 - **After ChunkInitializer:** 802 lines (-612 cumulative, -43.3%)
 - **After DirtyChunkTracker:** 783 lines (-631 cumulative, -44.6%)
-- **Status:** ChunkManager refactoring in progress - 45% reduction so far
+- **After ChunkVoxelQuerySystem:** 680 lines (-734 cumulative, -51.9%)
+- **After ChunkVoxelModificationSystem:** 659 lines (-755 cumulative, -53.4%)
+- **Status:** ChunkManager refactoring in progress - 53% reduction achieved
 
 ---
 
@@ -890,6 +894,110 @@ None currently.
 
 ---
 
+### 17. ✅ ChunkVoxelQuerySystem (November 2025)
+**Branch:** `refactor_gemini3` (continuation)  
+**Status:** COMPLETE  
+**Time Spent:** ~1.5 hours  
+**Lines Reduced:** 103 lines from ChunkManager.cpp (-13.2%)
+
+**Files Created:**
+- `include/core/ChunkVoxelQuerySystem.h` (108 lines)
+- `src/core/ChunkVoxelQuerySystem.cpp` (147 lines)
+
+**Files Modified:**
+- `include/core/ChunkManager.h` - Added ChunkVoxelQuerySystem member, forward declared ChunkCoordHash
+- `src/core/ChunkManager.cpp` - Delegated 12 query methods
+
+**Functions Extracted:**
+1. `getChunkAtCoord()` - O(1) chunk lookup by coordinate (const and non-const)
+2. `getChunkAtFast()` - Chunk lookup by world position
+3. `getCubeAtFast()` - O(1) cube lookup by world position
+4. `getChunkAt()` / `getCubeAt()` - Legacy compatibility methods
+5. `resolveGlobalPosition()` - O(1) voxel location resolution
+6. `resolveGlobalPositionWithSubcube()` - Subcube validation
+7. `hasVoxelAt()` - Check if voxel exists at position
+8. `getVoxelTypeAt()` - Get voxel type (EMPTY/CUBE/SUBDIVIDED)
+9. `getSubcubeAt()` - Get subcube at position
+10. `getSubcubeColor()` - Get subcube color
+
+**Callback Pattern (2 callbacks):**
+- ChunkMapAccessFunc - Access chunk spatial hash map
+- ChunkVectorAccessFunc - Access chunk vector
+
+**Key Features:**
+- **Read-Only Operations**: Pure query system, no modifications
+- **O(1) Lookups**: Spatial hash map for chunk access
+- **Coordinate Conversion**: Automatic world → chunk → local conversion
+- **Hover Detection**: VoxelLocation resolution for mouse picking
+- **Legacy Support**: Backward compatibility with old method names
+
+**Metrics:**
+- ChunkManager: 783 → 680 lines (-103, -13.2%)
+- ChunkVoxelQuerySystem: 255 lines total (108 header + 147 impl)
+- Combined Phases 12-17: -734 lines (-51.9% from original 1,414)
+
+**Testing:** ✅ Build successful, runtime verified
+
+**Lessons Learned:**
+- Forward declaration of ChunkCoordHash needed to avoid circular dependency
+- Separating read (query) from write (modification) operations improves design
+- Query system pairs naturally with modification system (next phase)
+- Const-correctness important for query methods
+
+---
+
+### 18. ✅ ChunkVoxelModificationSystem (November 2025)
+**Branch:** `refactor_gemini3` (continuation)  
+**Status:** COMPLETE  
+**Time Spent:** ~1.5 hours  
+**Lines Reduced:** 21 lines from ChunkManager.cpp (-3.1%)
+
+**Files Created:**
+- `include/core/ChunkVoxelModificationSystem.h` (85 lines)
+- `src/core/ChunkVoxelModificationSystem.cpp` (142 lines)
+
+**Files Modified:**
+- `include/core/ChunkManager.h` - Added ChunkVoxelModificationSystem member
+- `src/core/ChunkManager.cpp` - Delegated 8 modification methods
+
+**Functions Extracted:**
+1. `setCubeColorFast()` - Fast color update with dirty marking
+2. `removeCubeFast()` - Fast cube removal
+3. `addCubeFast()` - Fast cube addition
+4. `setCubeColor()` - Legacy color setter
+5. `removeCube()` - Legacy removal with face updates
+6. `addCube()` - Legacy addition with face updates
+7. `setCubeColorEfficient()` - Color change (no texture modification)
+8. `setSubcubeColorEfficient()` - Subcube color change
+
+**Callback Pattern (4 callbacks):**
+- GetChunkFunc - Get chunk at world position
+- MarkChunkDirtyFunc - Mark chunk for GPU update
+- UpdateAfterCubeBreakFunc - Update faces after removal
+- UpdateAfterCubePlaceFunc - Update faces after placement
+
+**Key Features:**
+- **Write Operations**: Complements ChunkVoxelQuerySystem (read/write separation)
+- **Dirty Tracking**: Automatic chunk marking for GPU updates
+- **Face Updates**: Selective face rebuilding after modifications
+- **Legacy Support**: Backward compatibility with updateAfterCubeBreak/Place
+- **Coordinate Conversion**: Automatic world → local translation
+
+**Metrics:**
+- ChunkManager: 680 → 659 lines (-21, -3.1%)
+- ChunkVoxelModificationSystem: 227 lines total (85 header + 142 impl)
+- Combined Phases 12-18: -755 lines (-53.4% from original 1,414)
+
+**Testing:** ✅ Build successful, runtime verified
+
+**Lessons Learned:**
+- Read/write separation (QuerySystem + ModificationSystem) is clean design pattern
+- Modification system naturally uses query system via callbacks
+- Fast methods (mark dirty) vs legacy methods (trigger face updates) serve different needs
+- Color efficient methods preserve current texture-based rendering approach
+
+---
+
 ## Best Practices Identified
 
 ### What Worked Well
@@ -901,6 +1009,7 @@ None currently.
 6. **Use existing patterns** - Follow established code style
 7. **Composite map keys** - When handling button+modifier combinations, use struct keys
 8. **Exact modifier matching** - Don't trigger Ctrl+click when user just clicks
+9. **Read/write separation** - Query and modification systems cleanly separated
 
 ### Challenges Encountered
 1. **Duplicate function declarations** - Syntax errors from copy-paste
