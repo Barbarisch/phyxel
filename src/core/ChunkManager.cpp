@@ -18,14 +18,38 @@ namespace VulkanCube {
 
 ChunkManager::~ChunkManager() {
     cleanup();
-    // Clean up world storage
-    delete worldStorage;
-    worldStorage = nullptr;
+    // ChunkStreamingManager destructor will handle worldStorage cleanup
 }
 
 void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
     device = dev;
     physicalDevice = physDev;
+    
+    // Setup streaming manager callbacks
+    m_streamingManager.setCallbacks(
+        // ChunkCreationFunc: Create chunk via existing createChunk method
+        [this](const glm::ivec3& origin) { createChunk(origin); },
+        // ChunkMapAccessFunc: Access chunk spatial hash map
+        [this]() -> auto& { return chunkMap; },
+        // ChunkVectorAccessFunc: Access chunk vector
+        [this]() -> auto& { return chunks; },
+        // DeviceAccessFunc: Get Vulkan device handles
+        [this]() { return std::make_pair(device, physicalDevice); }
+    );
+    
+    // Setup dynamic object manager callbacks
+    m_dynamicObjectManager.setCallbacks(
+        // PhysicsWorldAccessFunc: Access physics world
+        [this]() { return physicsWorld; },
+        // DynamicSubcubeVectorAccessFunc: Access subcube vector
+        [this]() -> auto& { return globalDynamicSubcubes; },
+        // DynamicCubeVectorAccessFunc: Access cube vector
+        [this]() -> auto& { return globalDynamicCubes; },
+        // DynamicMicrocubeVectorAccessFunc: Access microcube vector
+        [this]() -> auto& { return globalDynamicMicrocubes; },
+        // RebuildFacesFunc: Rebuild faces when objects change
+        [this]() { rebuildGlobalDynamicFaces(); }
+    );
 }
 
 void ChunkManager::setPhysicsWorld(Physics::PhysicsWorld* physics) {
@@ -34,175 +58,39 @@ void ChunkManager::setPhysicsWorld(Physics::PhysicsWorld* physics) {
 }
 
 bool ChunkManager::initializeWorldStorage(const std::string& worldPath) {
-    worldStorage = new WorldStorage(worldPath);
-    if (!worldStorage->initialize()) {
-        LOG_ERROR_FMT("Chunk", "Failed to initialize world storage at: " << worldPath);
-        delete worldStorage;
-        worldStorage = nullptr;
-        return false;
-    }
-    
-    LOG_INFO_FMT("Chunk", "World storage initialized: " << worldPath);
-    return true;
+    return m_streamingManager.initializeWorldStorage(worldPath);
 }
 
 void ChunkManager::updateChunkStreaming() {
-    if (!worldStorage) return;
-    
-    // Load chunks around player
-    loadChunksAroundPosition(playerPosition, loadDistance);
-    
-    // Unload distant chunks
-    unloadDistantChunks(playerPosition, unloadDistance);
+    m_streamingManager.updateStreaming(playerPosition, loadDistance, unloadDistance);
 }
 
 void ChunkManager::loadChunksAroundPosition(const glm::vec3& position, float radius) {
-    glm::ivec3 centerChunk = worldToChunkCoord(glm::ivec3(position));
-    int chunkRadius = static_cast<int>(std::ceil(radius / 32.0f));
-    
-    for (int dx = -chunkRadius; dx <= chunkRadius; ++dx) {
-        for (int dy = -chunkRadius; dy <= chunkRadius; ++dy) {
-            for (int dz = -chunkRadius; dz <= chunkRadius; ++dz) {
-                glm::ivec3 chunkCoord = centerChunk + glm::ivec3(dx, dy, dz);
-                
-                // Check if chunk is within radius
-                glm::vec3 chunkCenter = glm::vec3(chunkCoordToOrigin(chunkCoord)) + glm::vec3(16.0f);
-                float distance = glm::length(chunkCenter - position);
-                
-                if (distance <= radius && !getChunkAtCoord(chunkCoord)) {
-                    // Try to load chunk from storage, or generate if it doesn't exist
-                    generateOrLoadChunk(chunkCoord);
-                }
-            }
-        }
-    }
+    m_streamingManager.loadChunksAroundPosition(position, radius);
 }
 
 void ChunkManager::unloadDistantChunks(const glm::vec3& position, float radius) {
-    auto it = chunks.begin();
-    while (it != chunks.end()) {
-        glm::vec3 chunkCenter = glm::vec3((*it)->getWorldOrigin()) + glm::vec3(16.0f);
-        float distance = glm::length(chunkCenter - position);
-        
-        if (distance > radius) {
-            // Save chunk before unloading
-            if (worldStorage) {
-                saveChunk(it->get());
-            }
-            
-            // Remove from chunk map
-            glm::ivec3 chunkCoord = worldToChunkCoord((*it)->getWorldOrigin());
-            chunkMap.erase(chunkCoord);
-            
-            // Erase chunk from vector
-            it = chunks.erase(it);
-            LOG_DEBUG_FMT("Chunk", "Unloaded distant chunk at: " << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z);
-        } else {
-            ++it;
-        }
-    }
+    m_streamingManager.unloadDistantChunks(position, radius);
 }
 
 bool ChunkManager::saveChunk(Chunk* chunk) {
-    if (!worldStorage || !chunk) return false;
-    return worldStorage->saveChunk(*chunk);
+    return m_streamingManager.saveChunk(chunk);
 }
 
 bool ChunkManager::saveAllChunks() {
-    if (!worldStorage) return false;
-    
-    bool allSuccess = true;
-    for (const auto& chunk : chunks) {
-        if (!worldStorage->saveChunk(*chunk)) {
-            allSuccess = false;
-        }
-    }
-    
-    LOG_INFO_FMT("Chunk", "Saved " << chunks.size() << " chunks to storage");
-    return allSuccess;
+    return m_streamingManager.saveAllChunks();
 }
 
 bool ChunkManager::saveDirtyChunks() {
-    if (!worldStorage) return false;
-    
-    // Build vector of chunk references for dirty saving
-    std::vector<std::reference_wrapper<Chunk>> chunkRefs;
-    chunkRefs.reserve(chunks.size());
-    
-    for (const auto& chunk : chunks) {
-        chunkRefs.emplace_back(*chunk);
-    }
-    
-    return worldStorage->saveDirtyChunks(chunkRefs);
+    return m_streamingManager.saveDirtyChunks();
 }
 
 bool ChunkManager::loadChunk(const glm::ivec3& chunkCoord) {
-    if (!worldStorage) return false;
-    
-    // Don't load if chunk already exists
-    if (getChunkAtCoord(chunkCoord)) {
-        return true;
-    }
-    
-    glm::ivec3 origin = chunkCoordToOrigin(chunkCoord);
-    auto chunk = std::make_unique<Chunk>(origin);
-    chunk->initialize(device, physicalDevice);
-    
-    // Initialize chunk for sparse loading from database
-    chunk->initializeForLoading();
-    
-    if (worldStorage->loadChunk(chunkCoord, *chunk)) {
-        // Successfully loaded from storage - mark as clean since it's from database
-        chunk->markClean();
-        
-        // DON'T rebuild faces yet - wait until all chunks are loaded
-        // chunk->rebuildFaces();  // MOVED to after all chunks loaded
-        chunk->createVulkanBuffer();
-        
-        // Add to map and vector
-        chunkMap[chunkCoord] = chunk.get();
-        chunks.push_back(std::move(chunk));
-        
-        LOG_DEBUG_FMT("Chunk", "Loaded chunk from storage: " << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z);
-        return true;
-    }
-    
-    return false;
+    return m_streamingManager.loadChunk(chunkCoord);
 }
 
 bool ChunkManager::generateOrLoadChunk(const glm::ivec3& chunkCoord) {
-    if (!worldStorage) {
-        // Fallback: create empty chunk
-        createChunk(chunkCoordToOrigin(chunkCoord));
-        return true;
-    }
-    
-    // Try to load from storage first
-    if (loadChunk(chunkCoord)) {
-        return true;
-    }
-    
-    // If not in storage, generate new chunk
-    glm::ivec3 origin = chunkCoordToOrigin(chunkCoord);
-    auto chunk = std::make_unique<Chunk>(origin);
-    chunk->initialize(device, physicalDevice);
-    
-    // Fallback to old random generation
-    chunk->populateWithCubes();
-    
-    // DON'T rebuild faces yet - wait until all chunks are loaded  
-    // chunk->rebuildFaces();  // MOVED to after all chunks loaded
-    chunk->createVulkanBuffer();
-    
-    // Add to map and vector
-    chunkMap[chunkCoord] = chunk.get();
-    chunks.push_back(std::move(chunk));
-    
-    // Save to storage immediately
-    saveChunk(chunks.back().get());
-    
-    LOG_DEBUG_FMT("Chunk", "Generated and saved new chunk: " << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z);
-    return true;
+    return m_streamingManager.generateOrLoadChunk(chunkCoord);
 }
 
 void ChunkManager::rebuildAllChunkFaces() {
@@ -817,12 +705,7 @@ void ChunkManager::clearDirtyChunkList() {
 }
 
 void ChunkManager::addGlobalDynamicSubcube(std::unique_ptr<Subcube> subcube) {
-    if (subcube) {
-        LOG_DEBUG_FMT("Chunk", "Adding global dynamic subcube at world position: ("
-                  << subcube->getPosition().x << "," << subcube->getPosition().y << "," << subcube->getPosition().z << ")");
-        globalDynamicSubcubes.push_back(std::move(subcube));
-        rebuildGlobalDynamicFaces();  // Rebuild faces after adding new subcube
-    }
+    m_dynamicObjectManager.addGlobalDynamicSubcube(std::move(subcube));
 }
 
 void ChunkManager::rebuildGlobalDynamicSubcubeFaces() {
@@ -831,108 +714,15 @@ void ChunkManager::rebuildGlobalDynamicSubcubeFaces() {
 }
 
 void ChunkManager::updateGlobalDynamicSubcubes(float deltaTime) {
-    // Update lifetimes and remove expired subcubes
-    auto it = globalDynamicSubcubes.begin();
-    size_t removedCount = 0;
-    
-    while (it != globalDynamicSubcubes.end()) {
-        (*it)->updateLifetime(deltaTime);
-        
-        if ((*it)->hasExpired()) {
-            // Properly remove physics body from physics world
-            if (physicsWorld && (*it)->getRigidBody()) {
-                LOG_TRACE("Chunk", "Removing expired dynamic subcube physics body");
-                physicsWorld->removeCube((*it)->getRigidBody());
-            }
-            
-            removedCount++;
-            // Note: The unique_ptr destructor will automatically clean up the subcube
-            it = globalDynamicSubcubes.erase(it);
-        } else {
-            ++it;
-        }
-    }
-    
-    // Rebuild faces if any subcubes were removed
-    if (removedCount > 0) {
-        LOG_DEBUG_FMT("Chunk", "Removed " << removedCount << " expired dynamic subcubes (lifetime ended)");
-        rebuildGlobalDynamicFaces();
-    }
+    m_dynamicObjectManager.updateGlobalDynamicSubcubes(deltaTime);
 }
 
 void ChunkManager::updateGlobalDynamicSubcubePositions() {
-    // Update positions and rotations of global dynamic subcubes from their physics bodies
-    bool transformsChanged = false;
-    static int debugCounter = 0;
-    static bool firstUpdate = true;
-    
-    if (firstUpdate && !globalDynamicSubcubes.empty()) {
-        LOG_TRACE("Chunk", "===== FIRST SUBCUBE PHYSICS UPDATE =====");
-        LOG_TRACE_FMT("Chunk", "Found " << globalDynamicSubcubes.size() << " dynamic subcubes to track");
-        firstUpdate = false;
-    }
-    
-    for (auto& subcube : globalDynamicSubcubes) {
-        if (subcube && subcube->getRigidBody()) {
-            btRigidBody* body = subcube->getRigidBody();
-            btTransform transform = body->getWorldTransform();
-            
-            // Get current stored position before update
-            glm::vec3 oldStoredPos = subcube->getPhysicsPosition();
-            
-            // Get the physics world position
-            btVector3 btPos = transform.getOrigin();
-            glm::vec3 newWorldPos(btPos.x(), btPos.y(), btPos.z());
-            
-            // Get the physics rotation (quaternion)
-            btQuaternion btRot = transform.getRotation();
-            glm::vec4 newRotation(btRot.x(), btRot.y(), btRot.z(), btRot.w());
-            
-            // Store the smooth floating-point physics position and rotation
-            subcube->setPhysicsPosition(newWorldPos);
-            subcube->setPhysicsRotation(newRotation);
-            transformsChanged = true;
-            
-            // Enhanced position tracking - show movement from initial spawn position every 60 frames
-            if (debugCounter % 60 == 0) {
-                glm::vec3 movement = newWorldPos - oldStoredPos;
-                float movementMag = glm::length(movement);
-                
-                LOG_TRACE("Chunk", "===== AFTER PHYSICS SIMULATION =====");
-                LOG_TRACE_FMT("Chunk", "Physics body final position: (" 
-                          << newWorldPos.x << ", " << newWorldPos.y << ", " << newWorldPos.z << ")");
-                LOG_TRACE_FMT("Chunk", "Movement from last update: (" 
-                          << movement.x << ", " << movement.y << ", " << movement.z << ") magnitude: " << movementMag);
-                LOG_TRACE_FMT("Chunk", "Rotation: (" 
-                          << newRotation.x << ", " << newRotation.y << ", " << newRotation.z << ", " << newRotation.w << ")");
-                LOG_TRACE("Chunk", "===== END SUBCUBE POSITION TRACKING =====");
-                break; // Only log first subcube
-            }
-        }
-    }
-    
-    debugCounter++;
-    
-    // Rebuild face data if any transforms changed
-    if (transformsChanged) {
-        rebuildGlobalDynamicFaces();
-    }
+    m_dynamicObjectManager.updateGlobalDynamicSubcubePositions();
 }
 
 void ChunkManager::clearAllGlobalDynamicSubcubes() {
-    // Properly clean up physics bodies before clearing the vector
-    if (physicsWorld) {
-        for (auto& subcube : globalDynamicSubcubes) {
-            if (subcube && subcube->getRigidBody()) {
-                LOG_TRACE("Chunk", "Cleaning up physics body for subcube during clear");
-                physicsWorld->removeCube(subcube->getRigidBody());
-                subcube->setRigidBody(nullptr); // Prevent double deletion
-            }
-        }
-    }
-    
-    LOG_DEBUG_FMT("Chunk", "Clearing all " << globalDynamicSubcubes.size() << " global dynamic subcubes");
-    globalDynamicSubcubes.clear();
+    m_dynamicObjectManager.clearAllGlobalDynamicSubcubes();
 }
 
 // ===============================================================
@@ -940,42 +730,11 @@ void ChunkManager::clearAllGlobalDynamicSubcubes() {
 // ===============================================================
 
 void ChunkManager::addGlobalDynamicCube(std::unique_ptr<Cube> cube) {
-    if (cube) {
-        LOG_DEBUG_FMT("ChunkManager", "[CHUNK MANAGER] Adding global dynamic cube at world position: ("
-                  << cube->getPosition().x << "," << cube->getPosition().y << "," << cube->getPosition().z << ")");
-        globalDynamicCubes.push_back(std::move(cube));
-        rebuildGlobalDynamicFaces();  // Rebuild faces after adding new cube
-    }
+    m_dynamicObjectManager.addGlobalDynamicCube(std::move(cube));
 }
 
 void ChunkManager::updateGlobalDynamicCubes(float deltaTime) {
-    // Update lifetimes and remove expired cubes
-    auto it = globalDynamicCubes.begin();
-    size_t removedCount = 0;
-    
-    while (it != globalDynamicCubes.end()) {
-        (*it)->updateLifetime(deltaTime);
-        
-        if ((*it)->hasExpired()) {
-            // Properly remove physics body from physics world
-            if (physicsWorld && (*it)->getRigidBody()) {
-                LOG_DEBUG("ChunkManager", "[CHUNK MANAGER] Removing expired dynamic cube physics body");
-                physicsWorld->removeCube((*it)->getRigidBody());
-            }
-            
-            removedCount++;
-            // Note: The unique_ptr destructor will automatically clean up the cube
-            it = globalDynamicCubes.erase(it);
-        } else {
-            ++it;
-        }
-    }
-    
-    // Rebuild faces if any cubes were removed
-    if (removedCount > 0) {
-        LOG_DEBUG_FMT("ChunkManager", "[CHUNK MANAGER] Removed " << removedCount << " expired dynamic cubes (lifetime ended)");
-        rebuildGlobalDynamicFaces();
-    }
+    m_dynamicObjectManager.updateGlobalDynamicCubes(deltaTime);
 }
 
 void ChunkManager::updateGlobalDynamicCubePositions() {

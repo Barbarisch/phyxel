@@ -1,7 +1,7 @@
 # Refactoring Progress Tracker
 
 **Last Updated:** November 24, 2025  
-**Overall Progress:** 11 of 24 modules (46% complete)  
+**Overall Progress:** 13 of 24 modules (54% complete)  
 **Phase 1 Status:** ✅ COMPLETE (WindowManager, CoordinateUtils)
 **Phase 2 Status:** ✅ COMPLETE (InputManager)
 **Phase 3 Status:** ✅ COMPLETE (RenderCoordinator)
@@ -13,6 +13,8 @@
 **Phase 9 Status:** ✅ COMPLETE (ChunkVoxelManager - voxel management extraction)
 **Phase 10 Status:** ✅ COMPLETE (VoxelRaycaster - raycasting extraction)
 **Phase 11 Status:** ✅ COMPLETE (VoxelForceApplicator - force application extraction)
+**Phase 12 Status:** ✅ COMPLETE (ChunkStreamingManager - chunk streaming extraction)
+**Phase 13 Status:** ✅ COMPLETE (DynamicObjectManager - dynamic object lifecycle)
 
 **Application.cpp Status:**
 - **Original:** 2,645 lines
@@ -31,6 +33,12 @@
 - **After VoxelRaycaster:** 985 lines (-290 lines, -23%)
 - **After VoxelForceApplicator:** 891 lines (-384 cumulative, -30%)
 - **Remaining:** Interaction logic (~800 lines)
+
+**ChunkManager.cpp Refactoring Status:**
+- **Original:** 1,414 lines
+- **After ChunkStreamingManager:** 1,201 lines (-213 lines, -15%)
+- **After DynamicObjectManager:** 1,086 lines (-328 cumulative, -23.2%)
+- **Remaining Phases:** Face update coordination (~150 lines)
 
 ---
 
@@ -542,6 +550,52 @@
 
 ---
 
+### 12. ✅ ChunkStreamingManager (November 2025)
+**Branch:** main (direct commit)  
+**Status:** Committed (Phase 1 of ChunkManager refactoring)  
+**Time Spent:** ~3 hours  
+**Lines Reduced:** ~213 lines from ChunkManager.cpp
+
+**Files Created:**
+- `include/core/ChunkStreamingManager.h` (103 lines)
+- `src/core/ChunkStreamingManager.cpp` (210 lines)
+
+**Functions Extracted:**
+- `updateChunkStreaming()` - Main streaming coordination with player position
+- `loadChunksAroundPosition()` - Load chunks within radius (~30 lines)
+- `unloadDistantChunks()` - Unload and save distant chunks (~25 lines)
+- `generateOrLoadChunk()` - Generate new or load from storage (~40 lines)
+- `loadChunk()` - Load single chunk from WorldStorage (~35 lines)
+- `saveChunk()` / `saveAllChunks()` / `saveDirtyChunks()` - Persistence methods (~30 lines)
+- `initializeWorldStorage()` - Database initialization (~15 lines)
+
+**Key Features:**
+- Dynamic chunk loading based on player proximity (160 unit load distance)
+- Automatic unloading and saving of distant chunks (224 unit unload distance)
+- WorldStorage integration for persistent world data
+- Fallback chunk generation when storage doesn't exist
+- Callback pattern for ChunkManager access (creation, chunk map, chunks vector, device handles)
+
+**Key Changes:**
+- ChunkManager.cpp reduced from 1,414 to 1,201 lines (**-213 lines, -15%**)
+- WorldStorage ownership moved from ChunkManager to ChunkStreamingManager
+- ChunkCoordHash moved to ChunkStreamingManager.h (shared dependency)
+- All streaming methods now delegate via lambda callbacks
+- CoordinateUtils::worldToChunkCoord and chunkCoordToOrigin properly namespaced
+
+**Testing:** ✅ Build successful, runtime verified, chunk streaming fully functional  
+**Documentation:** Updated ChunkManager.h and ChunkStreamingManager.h headers
+
+**Lessons Learned:**
+- Shared utility structs (ChunkCoordHash) belong in the class that needs them first
+- Static utility methods require full namespace qualification (Utils::CoordinateUtils::)
+- WorldStorage ownership cleanly transfers to specialized manager
+- Chunk streaming is complex enough to warrant dedicated subsystem
+- Callback pattern continues to work excellently for ChunkManager extractions
+- Small struct definitions can cause duplicate symbol errors if in multiple headers
+
+---
+
 ## In Progress
 
 None currently.
@@ -622,6 +676,55 @@ None currently.
 - **Completed:** 6 modules (WindowManager, CoordinateUtils, InputManager, VoxelInteractionSystem, PerformanceMonitor, RenderCoordinator)
 - **Remaining:** ~18 modules
 - **Progress:** 25% complete
+
+---
+
+### 13. ✅ DynamicObjectManager (November 2025)
+**Branch:** `refactor_gemini3` (continuation)  
+**Status:** COMPLETE  
+**Time Spent:** ~2 hours  
+**Lines Reduced:** 115 lines from ChunkManager.cpp (-9.6%)
+
+**Files Created:**
+- `include/core/DynamicObjectManager.h` (100 lines)
+- `src/core/DynamicObjectManager.cpp` (320 lines)
+
+**Files Modified:**
+- `include/core/ChunkManager.h` - Added DynamicObjectManager member
+- `src/core/ChunkManager.cpp` - Delegated 12 dynamic object methods
+
+**Functions Extracted:**
+- Subcube Management: add, update, updatePositions, clear (4 methods)
+- Cube Management: add, update, updatePositions, clear (4 methods)  
+- Microcube Management: add, update, updatePositions, clear (4 methods)
+- Combined: updateAllDynamicObjects, updateAllDynamicObjectPositions (2 methods)
+
+**Callback Pattern (5 callbacks):**
+- PhysicsWorldAccessFunc - Physics world access for body removal
+- DynamicSubcubeVectorAccessFunc - Subcube vector access
+- DynamicCubeVectorAccessFunc - Cube vector access
+- DynamicMicrocubeVectorAccessFunc - Microcube vector access
+- RebuildFacesFunc - Face rebuilding coordination
+
+**Key Changes:**
+- Extracted all global dynamic object lifecycle management
+- Consolidated repetitive logic across three object types
+- 8-second lifetime tracking with automatic expiration
+- Proper physics body cleanup on expiration/clear
+- Position/rotation synchronization from Bullet physics
+
+**Metrics:**
+- ChunkManager: 1,201 → 1,086 lines (-115, -9.6%)
+- DynamicObjectManager: 420 lines total (100 header + 320 impl)
+- Combined Phases 12+13: -328 lines (-23.2% from original 1,414)
+
+**Testing:** ✅ Build successful, runtime verified
+
+**Lessons Learned:**
+- Forward declarations must be in correct namespace (VulkanCube::Physics not global)
+- Implementation needs full definitions (Subcube.h, Cube.h, Microcube.h, PhysicsWorld.h)
+- Callback pattern scales excellently (5 dependencies handled cleanly)
+- Include order critical - forward declarations can mask definition issues
 
 ---
 

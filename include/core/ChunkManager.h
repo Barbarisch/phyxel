@@ -4,6 +4,8 @@
 #include "Chunk.h"
 #include "Cube.h"
 #include "utils/CoordinateUtils.h"
+#include "core/ChunkStreamingManager.h"
+#include "core/DynamicObjectManager.h"
 #include <vector>
 #include <unordered_map>
 #include <memory>
@@ -18,18 +20,14 @@ namespace VulkanCube {
 
 namespace VulkanCube {
 
-// Custom hash function for glm::ivec3 to use as key in unordered_map
-struct ChunkCoordHash {
-    std::size_t operator()(const glm::ivec3& coord) const {
-        // Combine X, Y, Z coordinates into a single hash
-        // Using prime numbers to reduce hash collisions
-        return std::hash<int>()(coord.x) ^ 
-               (std::hash<int>()(coord.y) << 1) ^ 
-               (std::hash<int>()(coord.z) << 2);
-    }
-};
-
 // Manages all chunks in the world for scalable multi-chunk rendering
+// 
+// REFACTORING STATUS
+// Phase 1 - ChunkStreamingManager extraction COMPLETE
+// Phase 2 - DynamicObjectManager extraction COMPLETE
+// Original: 1,414 lines → 1,086 lines after extractions (-328 lines, -23.2%)
+// Remaining phases: Face update coordination (~150 lines)
+// 
 class ChunkManager {
 public:
     std::vector<std::unique_ptr<Chunk>> chunks;
@@ -57,8 +55,11 @@ public:
     // Physics world for proper cleanup of dynamic objects
     Physics::PhysicsWorld* physicsWorld = nullptr;
     
-    // World storage for persistent chunk data
-    WorldStorage* worldStorage = nullptr;
+    // Chunk streaming manager (handles loading/unloading/storage)
+    ChunkStreamingManager m_streamingManager;
+    
+    // Dynamic object manager (handles global dynamic subcubes/cubes/microcubes)
+    DynamicObjectManager m_dynamicObjectManager;
     
     // Chunk streaming settings
     float loadDistance = 160.0f;   // Distance to load chunks (5 chunks * 32 units)
