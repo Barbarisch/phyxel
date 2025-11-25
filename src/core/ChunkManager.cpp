@@ -90,6 +90,14 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
         // GetChunkIndexFunc: Get chunk index from pointer
         [this](Chunk* chunk) { return getChunkIndex(chunk); }
     );
+    
+    // Configure voxel query system callbacks
+    m_voxelQuerySystem.setCallbacks(
+        // ChunkMapAccessFunc: Access chunk map
+        [this]() -> auto& { return chunkMap; },
+        // ChunkVectorAccessFunc: Access chunk vector
+        [this]() -> auto& { return chunks; }
+    );
 }
 
 void ChunkManager::setPhysicsWorld(Physics::PhysicsWorld* physics) {
@@ -215,30 +223,19 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
 // ===============================================================
 
 Chunk* ChunkManager::getChunkAtCoord(const glm::ivec3& chunkCoord) {
-    auto it = chunkMap.find(chunkCoord);
-    return (it != chunkMap.end()) ? it->second : nullptr;
+    return m_voxelQuerySystem.getChunkAtCoord(chunkCoord);
 }
 
 const Chunk* ChunkManager::getChunkAtCoord(const glm::ivec3& chunkCoord) const {
-    auto it = chunkMap.find(chunkCoord);
-    return (it != chunkMap.end()) ? it->second : nullptr;
+    return m_voxelQuerySystem.getChunkAtCoord(chunkCoord);
 }
 
 Chunk* ChunkManager::getChunkAtFast(const glm::ivec3& worldPos) {
-    glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(worldPos);
-    return getChunkAtCoord(chunkCoord);
+    return m_voxelQuerySystem.getChunkAtFast(worldPos);
 }
 
 Cube* ChunkManager::getCubeAtFast(const glm::ivec3& worldPos) {
-    // Step 1: Get chunk using O(1) hash map lookup
-    Chunk* chunk = getChunkAtFast(worldPos);
-    if (!chunk) return nullptr;
-    
-    // Step 2: Calculate local position
-    glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(worldPos);
-    
-    // Step 3: Use Chunk class's getCubeAt method
-    return chunk->getCubeAt(localPos);
+    return m_voxelQuerySystem.getCubeAtFast(worldPos);
 }
 
 bool ChunkManager::setCubeColorFast(const glm::ivec3& worldPos, const glm::vec3& color) {
@@ -295,13 +292,11 @@ bool ChunkManager::addCubeFast(const glm::ivec3& worldPos, const glm::vec3& colo
 // ===============================================================
 
 Chunk* ChunkManager::getChunkAt(const glm::ivec3& worldPos) {
-    // Redirect to optimized version
-    return getChunkAtFast(worldPos);
+    return m_voxelQuerySystem.getChunkAt(worldPos);
 }
 
 Cube* ChunkManager::getCubeAt(const glm::ivec3& worldPos) {
-    // Redirect to optimized version
-    return getCubeAtFast(worldPos);
+    return m_voxelQuerySystem.getCubeAt(worldPos);
 }
 
 void ChunkManager::setCubeColor(const glm::ivec3& worldPos, const glm::vec3& color) {
@@ -328,48 +323,19 @@ void ChunkManager::setCubeColorEfficient(const glm::ivec3& worldPos, const glm::
 // =============================================================================
 
 VoxelLocation ChunkManager::resolveGlobalPosition(const glm::ivec3& worldPos) const {
-    // O(1) chunk lookup
-    glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
-    const Chunk* chunk = getChunkAtCoord(chunkCoord);
-    if (!chunk) {
-        return VoxelLocation(); // No chunk exists
-    }
-    
-    // O(1) voxel resolution within chunk
-    glm::ivec3 localPos = worldToLocalCoord(worldPos);
-    return chunk->resolveLocalPosition(localPos);
+    return m_voxelQuerySystem.resolveGlobalPosition(worldPos);
 }
 
 VoxelLocation ChunkManager::resolveGlobalPositionWithSubcube(const glm::ivec3& worldPos, const glm::ivec3& subcubePos) const {
-    VoxelLocation location = resolveGlobalPosition(worldPos);
-    
-    if (location.isValid() && location.type == VoxelLocation::SUBDIVIDED) {
-        // Verify the specific subcube exists
-        if (location.chunk->hasSubcubeAt(location.localPos, subcubePos)) {
-            location.subcubePos = subcubePos;
-            return location;
-        }
-    }
-    
-    return VoxelLocation(); // Subcube doesn't exist
+    return m_voxelQuerySystem.resolveGlobalPositionWithSubcube(worldPos, subcubePos);
 }
 
 bool ChunkManager::hasVoxelAt(const glm::ivec3& worldPos) const {
-    glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
-    const Chunk* chunk = getChunkAtCoord(chunkCoord);
-    if (!chunk) return false;
-    
-    glm::ivec3 localPos = worldToLocalCoord(worldPos);
-    return chunk->hasVoxelAt(localPos);
+    return m_voxelQuerySystem.hasVoxelAt(worldPos);
 }
 
 VoxelLocation::Type ChunkManager::getVoxelTypeAt(const glm::ivec3& worldPos) const {
-    glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
-    const Chunk* chunk = getChunkAtCoord(chunkCoord);
-    if (!chunk) return VoxelLocation::EMPTY;
-    
-    glm::ivec3 localPos = worldToLocalCoord(worldPos);
-    return chunk->getVoxelType(localPos);
+    return m_voxelQuerySystem.getVoxelTypeAt(worldPos);
 }
 
 bool ChunkManager::removeCube(const glm::ivec3& worldPos) {
@@ -411,11 +377,7 @@ bool ChunkManager::addCube(const glm::ivec3& worldPos, const glm::vec3& color) {
 }
 
 Subcube* ChunkManager::getSubcubeAt(const glm::ivec3& worldPos, const glm::ivec3& subcubePos) {
-    Chunk* chunk = getChunkAt(worldPos);
-    if (!chunk) return nullptr;
-    
-    glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(worldPos);
-    return chunk->getSubcubeAt(localPos, subcubePos);
+    return m_voxelQuerySystem.getSubcubeAt(worldPos, subcubePos);
 }
 
 void ChunkManager::setSubcubeColorEfficient(const glm::ivec3& worldPos, const glm::ivec3& subcubePos, const glm::vec3& color) {
@@ -435,15 +397,7 @@ void ChunkManager::setSubcubeColorEfficient(const glm::ivec3& worldPos, const gl
 }
 
 glm::vec3 ChunkManager::getSubcubeColor(const glm::ivec3& worldPos, const glm::ivec3& subcubePos) {
-    Chunk* chunk = getChunkAt(worldPos);
-    if (!chunk) return glm::vec3(1.0f); // Default white
-    
-    glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(worldPos);
-    Subcube* subcube = chunk->getSubcubeAt(localPos, subcubePos);
-    if (subcube) {
-        return subcube->getColor();
-    }
-    return glm::vec3(1.0f); // Default white
+    return m_voxelQuerySystem.getSubcubeColor(worldPos, subcubePos);
 }
 
 uint32_t ChunkManager::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {

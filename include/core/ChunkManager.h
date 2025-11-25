@@ -9,6 +9,7 @@
 #include "core/FaceUpdateCoordinator.h"
 #include "core/ChunkInitializer.h"
 #include "core/DirtyChunkTracker.h"
+#include "core/ChunkVoxelQuerySystem.h"
 #include <vector>
 #include <unordered_map>
 #include <memory>
@@ -65,11 +66,14 @@ public:
     // Face update coordinator (handles face rebuilding and updates)
     FaceUpdateCoordinator m_faceUpdateCoordinator;
     
-    // Chunk initializer (handles chunk creation, world generation, setup)
+    // Chunk initializer (handles chunk creation and world generation)
     ChunkInitializer m_chunkInitializer;
     
-    // Dirty chunk tracker (handles selective chunk update optimization)
+    // Dirty chunk tracker (handles selective chunk updates)
     DirtyChunkTracker m_dirtyChunkTracker;
+    
+    // Voxel query system (handles chunk/cube/subcube lookups)
+    ChunkVoxelQuerySystem m_voxelQuerySystem;
     
     // Chunk streaming settings
     float loadDistance = 160.0f;   // Distance to load chunks (5 chunks * 32 units)
