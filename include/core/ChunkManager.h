@@ -8,6 +8,7 @@
 #include "core/DynamicObjectManager.h"
 #include "core/FaceUpdateCoordinator.h"
 #include "core/ChunkInitializer.h"
+#include "core/DirtyChunkTracker.h"
 #include <vector>
 #include <unordered_map>
 #include <memory>
@@ -29,7 +30,8 @@ namespace VulkanCube {
 // Phase 2 - DynamicObjectManager extraction COMPLETE
 // Phase 3 - FaceUpdateCoordinator extraction COMPLETE
 // Phase 4 - ChunkInitializer extraction COMPLETE
-// Original: 1,414 lines → Current: 802 lines (-612 lines, -43%)
+// Phase 5 - DirtyChunkTracker extraction COMPLETE
+// Original: 1,414 lines → Current: 783 lines (-631 lines, -45%)
 // 
 class ChunkManager {
 public:
@@ -46,10 +48,6 @@ public:
     
     // Spatial hash map for O(1) chunk lookup by chunk coordinates
     std::unordered_map<glm::ivec3, Chunk*, ChunkCoordHash> chunkMap;
-    
-    // Performance optimization: Track chunks that need updating
-    std::vector<size_t> dirtyChunkIndices;  // Indices of chunks marked needsUpdate=true
-    bool hasDirtyChunks = false;            // Quick check to avoid vector operations
     
     // Vulkan device and memory management
     VkDevice device = VK_NULL_HANDLE;
@@ -69,6 +67,9 @@ public:
     
     // Chunk initializer (handles chunk creation, world generation, setup)
     ChunkInitializer m_chunkInitializer;
+    
+    // Dirty chunk tracker (handles selective chunk update optimization)
+    DirtyChunkTracker m_dirtyChunkTracker;
     
     // Chunk streaming settings
     float loadDistance = 160.0f;   // Distance to load chunks (5 chunks * 32 units)

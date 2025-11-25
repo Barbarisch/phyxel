@@ -1,7 +1,7 @@
 # Refactoring Progress Tracker
 
 **Last Updated:** November 24, 2025  
-**Overall Progress:** 15 of 24 modules (62% complete)  
+**Overall Progress:** 16 of 24 modules (67% complete)  
 **Phase 1 Status:** ✅ COMPLETE (WindowManager, CoordinateUtils)
 **Phase 2 Status:** ✅ COMPLETE (InputManager)
 **Phase 3 Status:** ✅ COMPLETE (RenderCoordinator)
@@ -17,6 +17,7 @@
 **Phase 13 Status:** ✅ COMPLETE (DynamicObjectManager - dynamic object lifecycle)
 **Phase 14 Status:** ✅ COMPLETE (FaceUpdateCoordinator - face update coordination)
 **Phase 15 Status:** ✅ COMPLETE (ChunkInitializer - chunk initialization and world generation)
+**Phase 16 Status:** ✅ COMPLETE (DirtyChunkTracker - dirty chunk tracking and selective updates)
 
 **Application.cpp Status:**
 - **Original:** 2,645 lines
@@ -42,7 +43,8 @@
 - **After DynamicObjectManager:** 1,086 lines (-328 cumulative, -23.2%)
 - **After FaceUpdateCoordinator:** 892 lines (-522 cumulative, -36.9%)
 - **After ChunkInitializer:** 802 lines (-612 cumulative, -43.3%)
-- **Status:** ChunkManager refactoring complete - 43% reduction
+- **After DirtyChunkTracker:** 783 lines (-631 cumulative, -44.6%)
+- **Status:** ChunkManager refactoring in progress - 45% reduction so far
 
 ---
 
@@ -837,6 +839,54 @@ None currently.
 - Include ChunkStreamingManager.h in implementation for full definition
 - Duplicate namespace closings cause cascading syntax errors
 - ChunkMap type alias requires ChunkCoordHash definition at use site
+
+---
+
+### 16. ✅ DirtyChunkTracker (November 2025)
+**Branch:** `refactor_gemini3` (continuation)  
+**Status:** COMPLETE  
+**Time Spent:** ~1.5 hours  
+**Lines Reduced:** 19 lines from ChunkManager.cpp (-2.4%)
+
+**Files Created:**
+- `include/core/DirtyChunkTracker.h` (88 lines)
+- `src/core/DirtyChunkTracker.cpp` (57 lines)
+
+**Files Modified:**
+- `include/core/ChunkManager.h` - Added DirtyChunkTracker member, removed old member variables
+- `src/core/ChunkManager.cpp` - Delegated 4 dirty tracking methods + updated updateAllChunks()
+
+**Functions Extracted:**
+1. `markChunkDirty(size_t)` - Mark chunk by index for GPU buffer update
+2. `markChunkDirty(Chunk*)` - Mark chunk by pointer (converts to index)
+3. `updateDirtyChunks()` - Batch update all dirty chunks, clear list
+4. `clearDirtyChunkList()` - Reset tracking state
+
+**Callback Pattern (3 callbacks):**
+- ChunkVectorAccessFunc - Access chunk vector
+- UpdateChunkFunc - Update single chunk's GPU buffers
+- GetChunkIndexFunc - Convert chunk pointer to index
+
+**Key Features:**
+- **Selective Updates**: Only update chunks marked as dirty
+- **Duplicate Prevention**: std::find check before adding to dirty list
+- **Batch Processing**: Update all dirty chunks at once
+- **Early Exit Optimization**: Skip processing if no dirty chunks
+- **Efficient Tracking**: Quick hasDirty() check avoids vector operations
+
+**Metrics:**
+- ChunkManager: 802 → 783 lines (-19, -2.4%)
+- ChunkManager.h: 265 → 261 lines (-4, removed old member variables)
+- DirtyChunkTracker: 145 lines total (88 header + 57 impl)
+- Combined Phases 12-16: -631 lines (-44.6% from original 1,414)
+
+**Testing:** ✅ Build successful, runtime verified
+
+**Lessons Learned:**
+- Small focused extractions can still provide value (cleanup + maintainability)
+- Callback pattern scales well even for simple state access
+- Deprecated methods (updateAllChunks) should be updated to use new abstractions
+- Member variable removal reduces ChunkManager interface complexity
 
 ---
 

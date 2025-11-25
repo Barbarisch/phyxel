@@ -80,6 +80,16 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
         // RebuildChunkWithCullingFunc: Rebuild chunk with cross-chunk culling
         [this](Chunk& chunk) { rebuildChunkFacesWithCrosschunkCulling(chunk); }
     );
+    
+    // Setup dirty chunk tracker callbacks
+    m_dirtyChunkTracker.setCallbacks(
+        // ChunkVectorAccessFunc: Access chunk vector
+        [this]() -> auto& { return chunks; },
+        // UpdateChunkFunc: Update single chunk
+        [this](size_t index) { updateChunk(index); },
+        // GetChunkIndexFunc: Get chunk index from pointer
+        [this](Chunk* chunk) { return getChunkIndex(chunk); }
+    );
 }
 
 void ChunkManager::setPhysicsWorld(Physics::PhysicsWorld* physics) {
@@ -156,20 +166,7 @@ void ChunkManager::updateChunk(size_t chunkIndex) {
 }
 
 void ChunkManager::updateDirtyChunks() {
-    // Early exit if no chunks need updating
-    if (!hasDirtyChunks || dirtyChunkIndices.empty()) {
-        return;
-    }
-    
-    // Update only the chunks that have been marked as dirty
-    for (size_t chunkIndex : dirtyChunkIndices) {
-        if (chunkIndex < chunks.size()) {
-            updateChunk(chunkIndex);
-        }
-    }
-    
-    // Clear the dirty list after updating
-    clearDirtyChunkList();
+    m_dirtyChunkTracker.updateDirtyChunks();
 }
 
 void ChunkManager::updateAllChunks() {
@@ -177,16 +174,15 @@ void ChunkManager::updateAllChunks() {
     // It's kept for backward compatibility but updateDirtyChunks() should be used instead
     
     // Collect all chunks that actually need updating to avoid unnecessary work
-    dirtyChunkIndices.clear();
+    m_dirtyChunkTracker.clearDirtyChunkList();
     for (size_t i = 0; i < chunks.size(); ++i) {
         if (chunks[i]->getNeedsUpdate()) {
-            dirtyChunkIndices.push_back(i);
+            m_dirtyChunkTracker.markChunkDirty(i);
         }
     }
     
-    if (!dirtyChunkIndices.empty()) {
-        hasDirtyChunks = true;
-        updateDirtyChunks();
+    if (m_dirtyChunkTracker.hasDirty()) {
+        m_dirtyChunkTracker.updateDirtyChunks();
     }
 }
 
@@ -604,30 +600,15 @@ void ChunkManager::performOcclusionCulling() {
 // ===============================================================
 
 void ChunkManager::markChunkDirty(size_t chunkIndex) {
-    if (chunkIndex >= chunks.size()) return;
-    
-    // Mark the chunk as needing update
-    chunks[chunkIndex]->setNeedsUpdate(true);
-    
-    // Add to dirty list if not already present
-    if (std::find(dirtyChunkIndices.begin(), dirtyChunkIndices.end(), chunkIndex) == dirtyChunkIndices.end()) {
-        dirtyChunkIndices.push_back(chunkIndex);
-        hasDirtyChunks = true;
-    }
+    m_dirtyChunkTracker.markChunkDirty(chunkIndex);
 }
 
 void ChunkManager::markChunkDirty(Chunk* chunk) {
-    if (!chunk) return;
-    
-    size_t chunkIndex = getChunkIndex(chunk);
-    if (chunkIndex != SIZE_MAX) {
-        markChunkDirty(chunkIndex);
-    }
+    m_dirtyChunkTracker.markChunkDirty(chunk);
 }
 
 void ChunkManager::clearDirtyChunkList() {
-    dirtyChunkIndices.clear();
-    hasDirtyChunks = false;
+    m_dirtyChunkTracker.clearDirtyChunkList();
 }
 
 void ChunkManager::addGlobalDynamicSubcube(std::unique_ptr<Subcube> subcube) {
