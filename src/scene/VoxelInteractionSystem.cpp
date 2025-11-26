@@ -29,6 +29,12 @@ VoxelInteractionSystem::VoxelInteractionSystem(ChunkManager* chunkManager,
     , m_avgHoverDetectionTimeMs(0.0)
     , m_hoverDetectionSamples(0)
 {
+    // Configure VoxelManipulationSystem callbacks
+    m_manipulator.setCallbacks(
+        [this]() -> ChunkManager* { return m_chunkManager; },
+        [this]() -> Physics::PhysicsWorld* { return m_physicsWorld; }
+    );
+    
     LOG_INFO("VoxelInteractionSystem", "VoxelInteractionSystem initialized");
 }
 
@@ -135,96 +141,14 @@ void VoxelInteractionSystem::removeHoveredCube() {
         return;
     }
     
-    // CRITICAL DEBUG: Log what we're about to break
-    LOG_ERROR_FMT("Application", "========== BREAK/REMOVE VOXEL CALLED ==========");
-    LOG_ERROR_FMT("Application", "[DEBUG] isMicrocube=" << m_currentHoveredLocation.isMicrocube 
-              << " isSubcube=" << m_currentHoveredLocation.isSubcube);
-    LOG_ERROR_FMT("Application", "[DEBUG] World pos: (" << m_currentHoveredLocation.worldPos.x 
-              << "," << m_currentHoveredLocation.worldPos.y << "," << m_currentHoveredLocation.worldPos.z << ")");
-    if (m_currentHoveredLocation.isSubcube || m_currentHoveredLocation.isMicrocube) {
-        LOG_ERROR_FMT("Application", "[DEBUG] Subcube pos: (" << m_currentHoveredLocation.subcubePos.x 
-                  << "," << m_currentHoveredLocation.subcubePos.y << "," << m_currentHoveredLocation.subcubePos.z << ")");
-    }
-    
-    // Get the chunk and remove the cube using the stored location
-    Chunk* chunk = m_currentHoveredLocation.chunk;
-    if (!chunk) {
-        LOG_ERROR("Application", "[CUBE REMOVAL] ERROR: Invalid chunk pointer");
-        m_hasHoveredCube = false;
-        m_currentHoveredLocation = CubeLocation();
-        return;
-    }
-    
-    bool removed = false;
-    
-    if (m_currentHoveredLocation.isSubcube) {
-        // VALIDATION: Verify subcube actually exists before trying to remove
-        Subcube* subcube = chunk->getSubcubeAt(m_currentHoveredLocation.localPos, m_currentHoveredLocation.subcubePos);
-        if (!subcube) {
-            LOG_ERROR("Application", "[SUBCUBE REMOVAL] *** BUG *** Subcube not found at hover location!");
-            LOG_ERROR("Application", "[SUBCUBE REMOVAL] Hover detection gave wrong type!");
-            
-            // Debug what actually exists
-            auto allSubcubes = chunk->getSubcubesAt(m_currentHoveredLocation.localPos);
-            LOG_ERROR_FMT("Application", "[DEBUG] Found " << allSubcubes.size() << " subcubes at this cube position");
-            auto voxelType = chunk->getVoxelType(m_currentHoveredLocation.localPos);
-            LOG_ERROR_FMT("Application", "[DEBUG] VoxelTypeMap: " << (int)voxelType);
-            
-            m_hasHoveredCube = false;
-            m_currentHoveredLocation = CubeLocation();
-            return;
-        }
-        
-        // Remove a specific subcube
-        removed = chunk->removeSubcube(m_currentHoveredLocation.localPos, m_currentHoveredLocation.subcubePos);
-        if (removed) {
-            LOG_DEBUG_FMT("Application", "[SUBCUBE REMOVAL] Successfully removed subcube at world pos: (" 
-                      << m_currentHoveredLocation.worldPos.x << "," 
-                      << m_currentHoveredLocation.worldPos.y << "," 
-                      << m_currentHoveredLocation.worldPos.z << ") subcube: ("
-                      << m_currentHoveredLocation.subcubePos.x << ","
-                      << m_currentHoveredLocation.subcubePos.y << ","
-                      << m_currentHoveredLocation.subcubePos.z << ")");
-                      
-            // Check if this was the last subcube - if so, restore the parent cube
-            auto remainingSubcubes = chunk->getSubcubesAt(m_currentHoveredLocation.localPos);
-            if (remainingSubcubes.empty()) {
-                // No more subcubes left, restore the parent cube
-                Cube* parentCube = chunk->getCubeAt(m_currentHoveredLocation.localPos);
-                if (parentCube) {
-                    parentCube->show(); // Make parent cube visible again
-                    LOG_DEBUG("Application", "[CUBE RESTORATION] Restored parent cube as no subcubes remain");
-                }
-            }
-        }
-    } else {
-        // Remove a regular cube (this will also remove all its subcubes if subdivided)
-        Chunk* chunk = m_currentHoveredLocation.chunk;
-        std::vector<Subcube*> subcubes = chunk->getSubcubesAt(m_currentHoveredLocation.localPos);
-        if (!subcubes.empty()) {
-            // First clear all subcubes
-            chunk->clearSubdivisionAt(m_currentHoveredLocation.localPos);
-            LOG_DEBUG("Application", "[SUBDIVISION REMOVAL] Cleared all subcubes for cube removal");
-        }
-        
-        // Remove the cube itself
-        removed = chunk->removeCube(m_currentHoveredLocation.localPos);
-        if (removed) {
-            LOG_DEBUG_FMT("Application", "[CUBE REMOVAL] Successfully removed cube at world pos: (" 
-                      << m_currentHoveredLocation.worldPos.x << "," 
-                      << m_currentHoveredLocation.worldPos.y << "," 
-                      << m_currentHoveredLocation.worldPos.z << ")");
-        }
-    }
+    // Delegate to manipulation system
+    bool removed = m_manipulator.removeVoxel(m_currentHoveredLocation);
     
     if (removed) {
-        // No need to mark chunk dirty - removal methods now immediately update GPU buffer
-        
         // Clear hover state since the object no longer exists
         m_hasHoveredCube = false;
         m_currentHoveredLocation = CubeLocation();
         m_lastHoveredCube = -1; // Reset the hover tracking
-        
     } else {
         LOG_WARN("Application", "[REMOVAL] WARNING: Failed to remove object - it may not exist");
     }
@@ -237,50 +161,15 @@ void VoxelInteractionSystem::subdivideHoveredCube() {
         return;
     }
 
-    // Only subdivide regular cubes (not subcubes)
-    if (m_currentHoveredLocation.isSubcube) {
-        LOG_DEBUG("Application", "[CUBE SUBDIVISION] Cannot subdivide individual subcubes - use left click to break subcubes");
-        return;
-    }
+    // Delegate to manipulation system
+    bool subdivided = m_manipulator.subdivideCube(m_currentHoveredLocation);
 
-    // Get the chunk using the stored location
-    Chunk* chunk = m_currentHoveredLocation.chunk;
-    if (!chunk) {
-        LOG_ERROR("Application", "[CUBE SUBDIVISION] ERROR: Invalid chunk pointer");
+    if (subdivided) {
+        // Clear hover state
         m_hasHoveredCube = false;
         m_currentHoveredLocation = CubeLocation();
-        return;
+        m_lastHoveredCube = -1;
     }
-
-    // Check if cube is already subdivided
-    if (chunk->getSubcubesAt(m_currentHoveredLocation.localPos).size() > 0) {
-        LOG_DEBUG_FMT("Application", "[CUBE SUBDIVISION] Cube at world pos (" 
-                  << m_currentHoveredLocation.worldPos.x << "," 
-                  << m_currentHoveredLocation.worldPos.y << "," 
-                  << m_currentHoveredLocation.worldPos.z << ") is already subdivided");
-        return;
-    }
-
-    // Subdivide the cube into 27 static subcubes
-    bool subdivided = chunk->subdivideAt(m_currentHoveredLocation.localPos);
-    if (subdivided) {
-        LOG_INFO_FMT("Application", "[CUBE SUBDIVISION] Successfully subdivided cube at world pos: (" 
-                  << m_currentHoveredLocation.worldPos.x << "," 
-                  << m_currentHoveredLocation.worldPos.y << "," 
-                  << m_currentHoveredLocation.worldPos.z << ") into 27 static subcubes");
-    } else {
-        LOG_WARN("Application", "[CUBE SUBDIVISION] WARNING: Failed to subdivide cube - cube may not exist");
-    }
-
-    // Use efficient selective update instead of marking entire chunk dirty
-    if (m_chunkManager) {
-        m_chunkManager->updateAfterCubeSubdivision(m_currentHoveredLocation.worldPos);
-    }
-
-    // Clear hover state
-    m_hasHoveredCube = false;
-    m_currentHoveredLocation = CubeLocation();
-    m_lastHoveredCube = -1;
 }
 
 void VoxelInteractionSystem::subdivideHoveredSubcube() {
@@ -290,56 +179,15 @@ void VoxelInteractionSystem::subdivideHoveredSubcube() {
         return;
     }
 
-    // Only subdivide subcubes (not regular cubes or microcubes)
-    if (!m_currentHoveredLocation.isSubcube) {
-        LOG_DEBUG("Application", "[SUBCUBE SUBDIVISION] Cannot subdivide regular cubes with this action - use Ctrl+Click to subdivide cubes");
-        return;
-    }
+    // Delegate to manipulation system
+    bool subdivided = m_manipulator.subdivideSubcube(m_currentHoveredLocation);
 
-    // Get the chunk using the stored location
-    Chunk* chunk = m_currentHoveredLocation.chunk;
-    if (!chunk) {
-        LOG_ERROR("Application", "[SUBCUBE SUBDIVISION] ERROR: Invalid chunk pointer");
+    if (subdivided) {
+        // Clear hover state
         m_hasHoveredCube = false;
         m_currentHoveredLocation = CubeLocation();
-        return;
+        m_lastHoveredCube = -1;
     }
-
-    // Check if subcube is already subdivided into microcubes
-    if (chunk->getMicrocubesAt(m_currentHoveredLocation.localPos, m_currentHoveredLocation.subcubePos).size() > 0) {
-        LOG_DEBUG_FMT("Application", "[SUBCUBE SUBDIVISION] Subcube at cube world pos (" 
-                  << m_currentHoveredLocation.worldPos.x << "," 
-                  << m_currentHoveredLocation.worldPos.y << "," 
-                  << m_currentHoveredLocation.worldPos.z << ") subcube pos ("
-                  << m_currentHoveredLocation.subcubePos.x << ","
-                  << m_currentHoveredLocation.subcubePos.y << ","
-                  << m_currentHoveredLocation.subcubePos.z << ") is already subdivided");
-        return;
-    }
-
-    // Subdivide the subcube into 27 static microcubes
-    bool subdivided = chunk->subdivideSubcubeAt(m_currentHoveredLocation.localPos, m_currentHoveredLocation.subcubePos);
-    if (subdivided) {
-        LOG_INFO_FMT("Application", "[SUBCUBE SUBDIVISION] Successfully subdivided subcube at cube world pos: (" 
-                  << m_currentHoveredLocation.worldPos.x << "," 
-                  << m_currentHoveredLocation.worldPos.y << "," 
-                  << m_currentHoveredLocation.worldPos.z << ") subcube pos ("
-                  << m_currentHoveredLocation.subcubePos.x << ","
-                  << m_currentHoveredLocation.subcubePos.y << ","
-                  << m_currentHoveredLocation.subcubePos.z << ") into 27 static microcubes");
-    } else {
-        LOG_WARN("Application", "[SUBCUBE SUBDIVISION] WARNING: Failed to subdivide subcube - subcube may not exist");
-    }
-
-    // Use efficient selective update instead of marking entire chunk dirty
-    if (m_chunkManager) {
-        m_chunkManager->updateAfterCubeSubdivision(m_currentHoveredLocation.worldPos);
-    }
-
-    // Clear hover state
-    m_hasHoveredCube = false;
-    m_currentHoveredLocation = CubeLocation();
-    m_lastHoveredCube = -1;
 }
 
 void VoxelInteractionSystem::breakHoveredCube(const glm::vec3& cameraPos) {
@@ -349,93 +197,15 @@ void VoxelInteractionSystem::breakHoveredCube(const glm::vec3& cameraPos) {
         return;
     }
     
-    // Only break regular cubes (not subcubes)
-    if (m_currentHoveredLocation.isSubcube) {
-        LOG_DEBUG("Application", "[CUBE BREAKING] Use breakHoveredSubcube() for subcubes");
-        return;
-    }
+    // Delegate to manipulation system
+    bool broken = m_manipulator.breakCube(m_currentHoveredLocation, cameraPos, !m_debugFlags.disableBreakingForces);
     
-    // Get the chunk using the stored location
-    Chunk* chunk = m_currentHoveredLocation.chunk;
-    if (!chunk) {
-        LOG_ERROR("Application", "[CUBE BREAKING] ERROR: Invalid chunk pointer");
+    if (broken) {
+        // Clear hover state
         m_hasHoveredCube = false;
         m_currentHoveredLocation = CubeLocation();
-        return;
+        m_lastHoveredCube = -1;
     }
-    
-    // Get the cube's original color before removing it
-    const Cube* originalCube = chunk->getCubeAt(m_currentHoveredLocation.localPos);
-    if (!originalCube) {
-        LOG_DEBUG("Application", "[CUBE BREAKING] No cube exists at this location");
-        return;
-    }
-    
-    glm::vec3 originalColor = originalCube->getOriginalColor();
-    glm::vec3 cubeWorldPos = glm::vec3(m_currentHoveredLocation.worldPos);
-    
-    // Remove the cube from the chunk
-    bool removed = chunk->removeCube(m_currentHoveredLocation.localPos);
-    if (!removed) {
-        LOG_WARN("Application", "[CUBE BREAKING] WARNING: Failed to remove cube from chunk");
-        return;
-    }
-    
-    // Create a dynamic cube at the position
-    glm::vec3 cubeCornerPos = cubeWorldPos;
-    glm::vec3 physicsCenterPos = cubeCornerPos + glm::vec3(0.5f);
-    
-    // Select material based on position
-    std::vector<std::string> materials = {"Wood", "Metal", "Glass", "Rubber", "Stone", "Ice", "Cork"};
-    int materialIndex = (abs(static_cast<int>(cubeWorldPos.x) + static_cast<int>(cubeWorldPos.z))) % materials.size();
-    std::string selectedMaterial = materials[materialIndex];
-    
-    auto dynamicCube = std::make_unique<Cube>(cubeCornerPos, originalColor, selectedMaterial);
-    
-    // Create physics body
-    glm::vec3 cubeSize(1.0f);
-    btRigidBody* rigidBody = m_physicsWorld->createBreakawaCube(physicsCenterPos, cubeSize, selectedMaterial);
-    dynamicCube->setRigidBody(rigidBody);
-    dynamicCube->setPhysicsPosition(physicsCenterPos);
-    
-    // Calculate and apply impulse force
-    if (rigidBody && !m_debugFlags.disableBreakingForces) {
-        glm::vec3 forceDirection = normalize(cubeWorldPos - cameraPos);
-        glm::vec3 impulseForce = forceDirection * 1.5f + glm::vec3(0.0f, 2.5f, 0.0f);
-        
-        btVector3 btImpulse(impulseForce.x, impulseForce.y, impulseForce.z);
-        rigidBody->applyCentralImpulse(btImpulse);
-        
-        // Add random angular velocity for tumbling effect
-        btVector3 angularVelocity(
-            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 4.0f,
-            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 4.0f,
-            (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 4.0f
-        );
-        rigidBody->setAngularVelocity(angularVelocity);
-        rigidBody->setGravity(btVector3(0, -9.81f, 0));
-    } else if (rigidBody) {
-        rigidBody->setGravity(btVector3(0, -9.81f, 0));
-    }
-    
-    // Mark as broken
-    dynamicCube->breakApart();
-    
-    // Add to global dynamic cubes system
-    m_chunkManager->addGlobalDynamicCube(std::move(dynamicCube));
-    
-    // Update affected chunks
-    m_chunkManager->updateAfterCubeBreak(m_currentHoveredLocation.worldPos);
-    
-    LOG_INFO_FMT("Application", "[CUBE BREAKING] Successfully broke cube at world pos: (" 
-              << m_currentHoveredLocation.worldPos.x << "," 
-              << m_currentHoveredLocation.worldPos.y << "," 
-              << m_currentHoveredLocation.worldPos.z << ")");
-    
-    // Clear hover state
-    m_hasHoveredCube = false;
-    m_currentHoveredLocation = CubeLocation();
-    m_lastHoveredCube = -1;
 }
 
 void VoxelInteractionSystem::breakHoveredSubcube() {
@@ -445,213 +215,33 @@ void VoxelInteractionSystem::breakHoveredSubcube() {
         return;
     }
 
-    // Only break subcubes (not regular cubes)
-    if (!m_currentHoveredLocation.isSubcube) {
-        LOG_DEBUG("Application", "[SUBCUBE BREAKING] Hovered object is not a subcube - use left click to break regular cubes");
-        return;
-    }
+    // Delegate to manipulation system
+    bool broken = m_manipulator.breakSubcube(m_currentHoveredLocation, false);
 
-    // Get the chunk using the stored location
-    Chunk* chunk = m_currentHoveredLocation.chunk;
-    if (!chunk) {
-        LOG_ERROR("Application", "[SUBCUBE BREAKING] ERROR: Invalid chunk pointer");
+    if (broken) {
+        // Clear hover state
         m_hasHoveredCube = false;
         m_currentHoveredLocation = CubeLocation();
-        return;
+        m_lastHoveredCube = -1;
     }
-
-    LOG_DEBUG("Application", "[SUBCUBE BREAKING] Breaking subcube without forces (gentle removal)");
-    
-    // Break subcube WITHOUT any impulse forces (as requested)
-    glm::vec3 noForce(0.0f, 0.0f, 0.0f); // No forces applied
-    
-    bool broken = chunk->breakSubcube(m_currentHoveredLocation.localPos, m_currentHoveredLocation.subcubePos, 
-                                     m_physicsWorld, m_chunkManager, noForce);
-    if (broken) {
-        LOG_INFO_FMT("Application", "[SUBCUBE BREAKING] Successfully broke subcube (no forces) and transferred to global system at world pos: (" 
-                  << m_currentHoveredLocation.worldPos.x << "," 
-                  << m_currentHoveredLocation.worldPos.y << "," 
-                  << m_currentHoveredLocation.worldPos.z << ") subcube: ("
-                  << m_currentHoveredLocation.subcubePos.x << ","
-                  << m_currentHoveredLocation.subcubePos.y << ","
-                  << m_currentHoveredLocation.subcubePos.z << ")");
-                  
-        // Use efficient selective update for subcube breaking
-        if (m_chunkManager) {
-            m_chunkManager->updateAfterSubcubeBreak(m_currentHoveredLocation.worldPos, m_currentHoveredLocation.subcubePos);
-        }
-    } else {
-        LOG_WARN("Application", "[SUBCUBE BREAKING] WARNING: Failed to break subcube");
-    }
-
-    // Clear hover state
-    m_hasHoveredCube = false;
-    m_currentHoveredLocation = CubeLocation();
-    m_lastHoveredCube = -1;
 }
 
 void VoxelInteractionSystem::breakHoveredMicrocube() {
-    LOG_INFO("Application", "[MICROCUBE BREAKING] breakHoveredMicrocube() called");
-    
     // Check if we have a valid hovered microcube
     if (!m_hasHoveredCube || !m_currentHoveredLocation.isValid()) {
-        LOG_DEBUG_FMT("Application", "[MICROCUBE BREAKING] No microcube is currently being hovered - hasHovered=" << m_hasHoveredCube << " isValid=" << m_currentHoveredLocation.isValid());
+        LOG_DEBUG("Application", "[MICROCUBE BREAKING] No microcube is currently being hovered");
         return;
     }
 
-    LOG_INFO_FMT("Application", "[MICROCUBE BREAKING] Current location: isMicrocube=" << m_currentHoveredLocation.isMicrocube 
-              << " isSubcube=" << m_currentHoveredLocation.isSubcube);
-    
-    // CRITICAL DEBUG: Log exact state and location
-    if (m_currentHoveredLocation.isValid()) {
-        LOG_ERROR_FMT("Application", "========== BREAK MICROCUBE ATTEMPT ==========");
-        LOG_ERROR_FMT("Application", "[DEBUG] World pos: (" << m_currentHoveredLocation.worldPos.x 
-                  << "," << m_currentHoveredLocation.worldPos.y << "," << m_currentHoveredLocation.worldPos.z << ")");
-        LOG_ERROR_FMT("Application", "[DEBUG] Local pos: (" << m_currentHoveredLocation.localPos.x 
-                  << "," << m_currentHoveredLocation.localPos.y << "," << m_currentHoveredLocation.localPos.z << ")");
-        LOG_ERROR_FMT("Application", "[DEBUG] Subcube pos: (" << m_currentHoveredLocation.subcubePos.x 
-                  << "," << m_currentHoveredLocation.subcubePos.y << "," << m_currentHoveredLocation.subcubePos.z << ")");
-        LOG_ERROR_FMT("Application", "[DEBUG] Microcube pos: (" << m_currentHoveredLocation.microcubePos.x 
-                  << "," << m_currentHoveredLocation.microcubePos.y << "," << m_currentHoveredLocation.microcubePos.z << ")");
-    }
-    
-    // Only break microcubes
-    if (!m_currentHoveredLocation.isMicrocube) {
-        LOG_ERROR_FMT("Application", "[MICROCUBE BREAKING] *** BUG DETECTED *** Hovered object is NOT a microcube! isSubcube=" 
-                  << m_currentHoveredLocation.isSubcube << " - hover detection gave wrong type!");
-        return;
-    }
+    // Delegate to manipulation system
+    bool broken = m_manipulator.breakMicrocube(m_currentHoveredLocation, false);
 
-    // Get the chunk using the stored location
-    Chunk* chunk = m_currentHoveredLocation.chunk;
-    if (!chunk) {
-        LOG_ERROR("Application", "[MICROCUBE BREAKING] ERROR: Invalid chunk pointer");
+    if (broken) {
+        // Clear hover state
         m_hasHoveredCube = false;
         m_currentHoveredLocation = CubeLocation();
-        return;
+        m_lastHoveredCube = -1;
     }
-
-    LOG_DEBUG("Application", "[MICROCUBE BREAKING] Breaking microcube and creating dynamic physics object");
-    
-    // Get the microcube before removing it
-    glm::ivec3 localPos = m_currentHoveredLocation.localPos;
-    glm::ivec3 subcubePos = m_currentHoveredLocation.subcubePos;
-    glm::ivec3 microcubePos = m_currentHoveredLocation.microcubePos;
-    
-    Microcube* microcube = chunk->getMicrocubeAt(localPos, subcubePos, microcubePos);
-    if (!microcube) {
-        LOG_ERROR("Application", "[MICROCUBE BREAKING] *** CRITICAL BUG *** Microcube not found at detected location!");
-        LOG_ERROR("Application", "[MICROCUBE BREAKING] Hover detection said microcube exists, but it doesn't!");
-        LOG_ERROR("Application", "[MICROCUBE BREAKING] Checking what actually exists...");
-        
-        // Debug: Check what actually exists
-        auto subcubes = chunk->getSubcubesAt(localPos);
-        LOG_ERROR_FMT("Application", "[DEBUG] Found " << subcubes.size() << " subcubes at parent position");
-        
-        bool foundAnyMicrocubes = false;
-        for (int sx = 0; sx < 3; sx++) {
-            for (int sy = 0; sy < 3; sy++) {
-                for (int sz = 0; sz < 3; sz++) {
-                    glm::ivec3 checkSubcubePos(sx, sy, sz);
-                    auto micros = chunk->getMicrocubesAt(localPos, checkSubcubePos);
-                    if (!micros.empty()) {
-                        LOG_ERROR_FMT("Application", "[DEBUG] Found " << micros.size() 
-                                  << " microcubes at subcube (" << sx << "," << sy << "," << sz << ")");
-                        foundAnyMicrocubes = true;
-                    }
-                }
-            }
-        }
-        
-        if (!foundAnyMicrocubes) {
-            LOG_ERROR("Application", "[DEBUG] NO microcubes found at this cube position!");
-        }
-        
-        // Check voxelTypeMap
-        auto voxelType = chunk->getVoxelType(localPos);
-        LOG_ERROR_FMT("Application", "[DEBUG] VoxelTypeMap shows: " << (int)voxelType 
-                  << " (0=EMPTY, 1=CUBE, 2=SUBDIVIDED)");
-        
-        m_hasHoveredCube = false;
-        m_currentHoveredLocation = CubeLocation();
-        return;
-    }
-    
-    // Store microcube data before removal
-    glm::vec3 worldPos = microcube->getWorldPosition();
-    glm::vec3 originalColor = microcube->getOriginalColor();
-    bool isVisible = microcube->isVisible();
-    float lifetime = microcube->getLifetime();
-    glm::ivec3 parentCubePos = microcube->getParentCubePosition();
-    
-    // Remove the microcube from chunk
-    bool removed = chunk->removeMicrocube(localPos, subcubePos, microcubePos);
-    if (!removed) {
-        LOG_WARN("Application", "[MICROCUBE BREAKING] WARNING: Failed to remove microcube from chunk");
-        m_hasHoveredCube = false;
-        m_currentHoveredLocation = CubeLocation();
-        return;
-    }
-    
-    // Create new dynamic microcube for physics
-    auto dynamicMicrocube = std::make_unique<Microcube>(parentCubePos, originalColor, subcubePos, microcubePos);
-    dynamicMicrocube->setOriginalColor(originalColor);
-    dynamicMicrocube->setVisible(isVisible);
-    dynamicMicrocube->setLifetime(lifetime);
-    dynamicMicrocube->breakApart(); // Mark as broken
-    
-    // Create physics body for dynamic microcube
-    if (m_physicsWorld) {
-        // Microcube is 1/9 scale, so size is 1/9 of a regular cube
-        glm::vec3 microcubeCornerPos = worldPos; // Corner position
-        glm::vec3 microcubeSize(1.0f / 9.0f);    // Match visual microcube size
-        glm::vec3 physicsCenterPos = microcubeCornerPos + (microcubeSize * 0.5f); // Physics center position
-        
-        LOG_INFO_FMT("Application", "[MICROCUBE PHYSICS DEBUG] Corner pos: (" << microcubeCornerPos.x << "," << microcubeCornerPos.y << "," << microcubeCornerPos.z << ")");
-        LOG_INFO_FMT("Application", "[MICROCUBE PHYSICS DEBUG] Center pos: (" << physicsCenterPos.x << "," << physicsCenterPos.y << "," << physicsCenterPos.z << ")");
-        LOG_INFO_FMT("Application", "[MICROCUBE PHYSICS DEBUG] Size: " << microcubeSize.x);
-        
-        // Create dynamic physics body at center position (very light mass for tiny microcube)
-        btRigidBody* rigidBody = m_physicsWorld->createBreakawaCube(physicsCenterPos, microcubeSize, 0.1f); // 0.1kg mass
-        dynamicMicrocube->setRigidBody(rigidBody);
-        dynamicMicrocube->setPhysicsPosition(physicsCenterPos);
-        
-        LOG_DEBUG("Application", "[MICROCUBE PHYSICS] Created physics body for microcube (no forces applied - gravity only)");
-        
-        // Enable gravity for natural falling behavior
-        if (rigidBody) {
-            rigidBody->setGravity(btVector3(0, -9.81f, 0));
-        }
-    }
-    
-    // Transfer the dynamic microcube to global system
-    if (m_chunkManager) {
-        m_chunkManager->addGlobalDynamicMicrocube(std::move(dynamicMicrocube));
-        LOG_DEBUG("Application", "[GLOBAL TRANSFER] Moved broken microcube to global dynamic system");
-    } else {
-        LOG_ERROR("Application", "[ERROR] No ChunkManager provided - cannot transfer to global system");
-    }
-    
-    // Rebuild faces for this chunk
-    if (m_chunkManager) {
-        m_chunkManager->updateAfterCubeSubdivision(m_currentHoveredLocation.worldPos);
-    }
-    
-    LOG_INFO_FMT("Application", "[MICROCUBE BREAKING] Successfully broke microcube at world pos: (" 
-              << m_currentHoveredLocation.worldPos.x << "," 
-              << m_currentHoveredLocation.worldPos.y << "," 
-              << m_currentHoveredLocation.worldPos.z << ") subcube: ("
-              << m_currentHoveredLocation.subcubePos.x << ","
-              << m_currentHoveredLocation.subcubePos.y << ","
-              << m_currentHoveredLocation.subcubePos.z << ") microcube: ("
-              << m_currentHoveredLocation.microcubePos.x << ","
-              << m_currentHoveredLocation.microcubePos.y << ","
-              << m_currentHoveredLocation.microcubePos.z << ")");
-
-    // Clear hover state
-    m_hasHoveredCube = false;
-    m_currentHoveredLocation = CubeLocation();
-    m_lastHoveredCube = -1;
 }
 
 void VoxelInteractionSystem::breakHoveredCubeWithForce(const glm::vec3& cameraPos, double mouseX, double mouseY) {
@@ -669,13 +259,8 @@ void VoxelInteractionSystem::breakHoveredCubeWithForce(const glm::vec3& cameraPo
 }
 
 void VoxelInteractionSystem::breakCubeAtPosition(const glm::ivec3& worldPos) {
-    // Delegate to VoxelForceApplicator
-    m_forceApplicator.breakCubeAtPosition(
-        worldPos,
-        [this]() -> ChunkManager* { return m_chunkManager; },
-        [this]() -> Physics::PhysicsWorld* { return m_physicsWorld; },
-        m_debugFlags.disableBreakingForces
-    );
+    // Delegate to manipulation system
+    m_manipulator.breakCubeAtPosition(worldPos, m_debugFlags.disableBreakingForces);
 }
 
 VoxelLocation VoxelInteractionSystem::pickVoxelOptimized(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const {

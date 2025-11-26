@@ -1,8 +1,10 @@
 #pragma once
 
 #include "core/Types.h"
+#include "scene/CubeLocation.h"
 #include "scene/VoxelRaycaster.h"
 #include "scene/VoxelForceApplicator.h"
+#include "scene/VoxelManipulationSystem.h"
 #include <glm/glm.hpp>
 #include <memory>
 
@@ -18,40 +20,6 @@ namespace UI {
     class WindowManager;
 }
 class ForceSystem;
-class Chunk;
-
-// Structure for backward compatibility with existing chunk-based system
-struct CubeLocation {
-    Chunk* chunk;
-    glm::ivec3 localPos;        // Local position within chunk
-    glm::ivec3 worldPos;        // World position
-    bool isSubcube;             // True if this location refers to a subcube
-    bool isMicrocube;           // True if this location refers to a microcube
-    glm::ivec3 subcubePos;      // Local position within parent cube (0-2 for each axis)
-    glm::ivec3 microcubePos;    // Local position within parent subcube (0-2 for each axis)
-    
-    // Face information for cube placement
-    int hitFace;                // Which face was hit: 0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z
-    glm::vec3 hitNormal;        // Surface normal of hit face
-    glm::vec3 hitPoint;         // Exact hit point on the cube surface
-    
-    CubeLocation() : chunk(nullptr), localPos(-1), worldPos(-1), isSubcube(false), isMicrocube(false),
-                     subcubePos(-1), microcubePos(-1), hitFace(-1), hitNormal(0), hitPoint(0) {}
-    CubeLocation(Chunk* c, const glm::ivec3& local, const glm::ivec3& world) 
-        : chunk(c), localPos(local), worldPos(world), isSubcube(false), isMicrocube(false),
-          subcubePos(-1), microcubePos(-1), hitFace(-1), hitNormal(0), hitPoint(0) {}
-    CubeLocation(Chunk* c, const glm::ivec3& local, const glm::ivec3& world, const glm::ivec3& sub) 
-        : chunk(c), localPos(local), worldPos(world), isSubcube(true), isMicrocube(false),
-          subcubePos(sub), microcubePos(-1), hitFace(-1), hitNormal(0), hitPoint(0) {}
-    CubeLocation(Chunk* c, const glm::ivec3& local, const glm::ivec3& world, const glm::ivec3& sub, const glm::ivec3& micro) 
-        : chunk(c), localPos(local), worldPos(world), isSubcube(false), isMicrocube(true),
-          subcubePos(sub), microcubePos(micro), hitFace(-1), hitNormal(0), hitPoint(0) {}
-    
-    bool isValid() const { return chunk != nullptr; }
-    
-    // Get the world position where a new cube should be placed adjacent to this face
-    glm::ivec3 getAdjacentPlacementPosition() const;
-};
 
 /**
  * VoxelInteractionSystem
@@ -70,17 +38,22 @@ struct CubeLocation {
  *   - Direct position-based breaking
  *   - Force propagation system integration
  *   - Dynamic physics body creation
+ * ✓ Phase 3 Complete: Manipulation extracted to VoxelManipulationSystem (~480 lines)
+ *   - Voxel removal (cubes, subcubes, microcubes)
+ *   - Voxel subdivision (cubes → subcubes, subcubes → microcubes)
+ *   - Voxel breaking with physics (static → dynamic conversion)
+ *   - Material selection and physics body creation
  * 
  * Size Reduction:
  * - Original: 1,275 lines
  * - After VoxelRaycaster: 985 lines (-290 lines, -23%)
  * - After VoxelForceApplicator: ~850 lines (-425 cumulative, -33%)
+ * - After VoxelManipulationSystem: ~370 lines (-905 cumulative, -71%)
  * 
  * Current responsibilities:
  * - Hover state management and visual feedback
- * - Voxel manipulation (break, subdivide, remove)
  * - Integration with ChunkManager and PhysicsWorld
- * - Coordination of raycasting and force subsystems
+ * - Coordination of raycasting, manipulation, and force subsystems
  */
 class VoxelInteractionSystem {
 public:
@@ -132,8 +105,9 @@ private:
     ForceSystem* m_forceSystem;
     
     // Subsystems
-    VoxelRaycaster m_raycaster;           // Handles all raycasting operations
+    VoxelRaycaster m_raycaster;             // Handles all raycasting operations
     VoxelForceApplicator m_forceApplicator; // Handles force-based breaking and propagation
+    VoxelManipulationSystem m_manipulator;  // Handles voxel removal, subdivision, and breaking
     
     // Hover state
     bool m_hasHoveredCube;
