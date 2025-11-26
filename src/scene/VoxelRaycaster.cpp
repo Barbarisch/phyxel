@@ -10,6 +10,37 @@
 
 namespace VulkanCube {
 
+/**
+ * Pick a voxel using optimized DDA (Digital Differential Analyzer) raycasting
+ * 
+ * ALGORITHM: DDA Voxel Traversal
+ * Instead of checking every voxel in the world (O(n) brute force), DDA efficiently
+ * steps through only the voxels that the ray passes through (O(distance)).
+ * 
+ * HOW IT WORKS:
+ * 1. Start at rayOrigin, discretize to integer voxel coordinates
+ * 2. Calculate step direction (+1 or -1) for each axis based on ray direction
+ * 3. Calculate deltaDist: distance the ray travels to cross one voxel on each axis
+ * 4. Calculate sideDist: distance to next voxel boundary on each axis
+ * 5. Loop: Always step along the axis with smallest sideDist
+ * 6. Check voxel at each step for solid geometry
+ * 7. Early exit on first hit (nearest voxel)
+ * 
+ * PERFORMANCE:
+ * - O(distance) instead of O(total_voxels)
+ * - Typical: 10-50 steps for max distance of 200 units
+ * - Worst case: 500 steps (hard limit to prevent infinite loops)
+ * 
+ * HIERARCHICAL RESOLUTION:
+ * - If voxel is SUBDIVIDED (contains subcubes/microcubes), call resolveSubcubeInVoxel
+ * - If ray misses all subcubes, continue DDA to next voxel
+ * - This handles hollow subdivided voxels (some subcubes removed)
+ * 
+ * @param rayOrigin Starting point of ray (camera position)
+ * @param rayDirection Normalized direction vector
+ * @param getChunkManager Callback to access ChunkManager for voxel queries
+ * @return VoxelLocation with hit information, or invalid if no hit
+ */
 VoxelLocation VoxelRaycaster::pickVoxel(
     const glm::vec3& rayOrigin,
     const glm::vec3& rayDirection,
@@ -20,22 +51,40 @@ VoxelLocation VoxelRaycaster::pickVoxel(
         return VoxelLocation(); // Invalid location
     }
     
-    // DDA algorithm for efficient voxel traversal
+    // DDA INITIALIZATION:
+    // Set maximum ray distance (prevents infinite loops and improves performance)
     float maxDistance = 200.0f;
+    
+    // Discretize ray origin to integer voxel coordinates (floor to get containing voxel)
     glm::ivec3 voxel = glm::ivec3(glm::floor(rayOrigin));
     
+    // STEP DIRECTION:
+    // Determine which direction to step on each axis (+1, -1, or 0)
+    // Example: If ray goes right (+X), step.x = 1; if left (-X), step.x = -1
     glm::ivec3 step = glm::ivec3(
         rayDirection.x > 0 ? 1 : (rayDirection.x < 0 ? -1 : 0),
         rayDirection.y > 0 ? 1 : (rayDirection.y < 0 ? -1 : 0),
         rayDirection.z > 0 ? 1 : (rayDirection.z < 0 ? -1 : 0)
     );
     
+    // DELTA DISTANCE:
+    // How far the ray must travel to cross one voxel on each axis
+    // deltaDist = 1 / |rayDirection| for each component
+    // If ray is parallel to axis (direction = 0), set to infinity (never crosses)
     glm::vec3 deltaDist = glm::vec3(
         rayDirection.x != 0 ? glm::abs(1.0f / rayDirection.x) : std::numeric_limits<float>::max(),
         rayDirection.y != 0 ? glm::abs(1.0f / rayDirection.y) : std::numeric_limits<float>::max(),
         rayDirection.z != 0 ? glm::abs(1.0f / rayDirection.z) : std::numeric_limits<float>::max()
     );
     
+    // SIDE DISTANCE:
+    // Distance from ray origin to the NEXT voxel boundary on each axis
+    // Depends on which direction we're stepping and where we are in the current voxel
+    // 
+    // If stepping negative (rayDirection < 0):
+    //   sideDist = (rayOrigin - voxel) * deltaDist  (distance to left/bottom/back boundary)
+    // If stepping positive (rayDirection > 0):
+    //   sideDist = (voxel + 1 - rayOrigin) * deltaDist  (distance to right/top/front boundary)
     glm::vec3 sideDist;
     if (rayDirection.x < 0) {
         sideDist.x = (rayOrigin.x - voxel.x) * deltaDist.x;
@@ -53,17 +102,26 @@ VoxelLocation VoxelRaycaster::pickVoxel(
         sideDist.z = (voxel.z + 1.0f - rayOrigin.z) * deltaDist.z;
     }
     
-    int maxSteps = 500;
-    int lastStepAxis = -1;
+    // DDA LOOP PARAMETERS:
+    int maxSteps = 500;        // Hard limit to prevent infinite loops (200 units / 1 voxel = ~200 steps typical)
+    int lastStepAxis = -1;     // Track which axis we stepped on (for face normal calculation)
     
+    // DDA MAIN LOOP:
+    // Step through voxels along the ray until we hit something or exceed max distance
     for (int step_count = 0; step_count < maxSteps; ++step_count) {
-        // O(1) voxel resolution using the VoxelLocation system
+        // O(1) VOXEL QUERY:
+        // ChunkManager.resolveGlobalPosition uses hash maps for instant lookup
+        // Returns VoxelLocation with type (CUBE, SUBDIVIDED, EMPTY) and chunk/position info
         VoxelLocation location = chunkManager->resolveGlobalPosition(voxel);
         
         if (location.isValid()) {
             LOG_TRACE_FMT("VoxelRaycaster", "[PICK] Found valid voxel at " << voxel.x << "," << voxel.y << "," << voxel.z 
                       << " type=" << (int)location.type);
-            // Calculate face information from DDA step
+            
+            // FACE NORMAL CALCULATION:
+            // Determine which face we hit based on which axis we last stepped on
+            // Face numbering: 0=left(-X), 1=right(+X), 2=bottom(-Y), 3=top(+Y), 4=back(-Z), 5=front(+Z)
+            // Normal points OUTWARD from the face (opposite to ray direction on that axis)
             int hitFace = -1;
             glm::vec3 hitNormal(0);
             
@@ -97,22 +155,27 @@ VoxelLocation VoxelRaycaster::pickVoxel(
             }
         }
         
-        // DDA step
+        // DDA STEP:
+        // Always step along the axis with the smallest sideDist (closest boundary)
+        // This ensures we check every voxel the ray passes through in order
+        // After stepping, update sideDist for that axis by adding deltaDist
         if (sideDist.x < sideDist.y && sideDist.x < sideDist.z) {
-            lastStepAxis = 0;
-            sideDist.x += deltaDist.x;
-            voxel.x += step.x;
+            lastStepAxis = 0;           // Stepped on X axis
+            sideDist.x += deltaDist.x;  // Move to next X boundary
+            voxel.x += step.x;          // Increment voxel coordinate
         } else if (sideDist.y < sideDist.z) {
-            lastStepAxis = 1;
-            sideDist.y += deltaDist.y;
-            voxel.y += step.y;
+            lastStepAxis = 1;           // Stepped on Y axis
+            sideDist.y += deltaDist.y;  // Move to next Y boundary
+            voxel.y += step.y;          // Increment voxel coordinate
         } else {
-            lastStepAxis = 2;
-            sideDist.z += deltaDist.z;
-            voxel.z += step.z;
+            lastStepAxis = 2;           // Stepped on Z axis
+            sideDist.z += deltaDist.z;  // Move to next Z boundary
+            voxel.z += step.z;          // Increment voxel coordinate
         }
         
-        // Distance check
+        // DISTANCE CHECK:
+        // Early exit if we've traveled beyond max ray distance
+        // Prevents wasting time checking distant voxels
         glm::vec3 currentPos = glm::vec3(voxel);
         if (glm::length(currentPos - rayOrigin) > maxDistance) {
             break;

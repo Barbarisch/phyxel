@@ -6,75 +6,200 @@
 namespace VulkanCube {
 
 // =============================================================================
-// Coordinate utilities
+// COORDINATE UTILITIES
 // =============================================================================
+// These functions convert 3D coordinates to unique indices for hash map storage
 
+/**
+ * Convert subcube position to unique flat index
+ * 
+ * INDEXING STRATEGY:
+ * Each chunk has 32x32x32 possible cube positions (32,768 cubes max)
+ * Each cube can be subdivided into 3x3x3 subcubes (27 subcubes per cube)
+ * Total possible subcubes: 32,768 * 27 = 884,736
+ * 
+ * CALCULATION:
+ * 1. parentIndex = z + y*32 + x*32*32 (cube's flat index in chunk)
+ * 2. subcubeOffset = sx + sy*3 + sz*9 (subcube's offset within parent, 0-26)
+ * 3. finalIndex = parentIndex * 27 + subcubeOffset
+ * 
+ * WHY UNIQUE?
+ * Each parent cube occupies a distinct range of 27 indices:
+ * - Cube (0,0,0): indices 0-26
+ * - Cube (0,0,1): indices 27-53
+ * - Cube (1,0,0): indices 884,736 - 884,762
+ * No overlap possible!
+ * 
+ * @param parentPos Local position of parent cube (0-31, 0-31, 0-31)
+ * @param subcubePos Local position within parent (0-2, 0-2, 0-2)
+ * @return Unique flat index (0 to 884,735)
+ */
 size_t ChunkVoxelManager::subcubeToIndex(const glm::ivec3& parentPos, const glm::ivec3& subcubePos) {
-    // Calculate a unique index for subcube identification
-    // Note: localToIndex is in Chunk class, so we inline it here
+    // Parent cube's flat index in chunk (0 to 32,767)
     size_t parentIndex = parentPos.z + parentPos.y * 32 + parentPos.x * 32 * 32;
-    size_t subcubeOffset = subcubePos.x + subcubePos.y * 3 + subcubePos.z * 9; // 0-26
+    
+    // Subcube's offset within parent cube (0 to 26)
+    size_t subcubeOffset = subcubePos.x + subcubePos.y * 3 + subcubePos.z * 9;
+    
+    // Final unique index combining both
     return parentIndex * 27 + subcubeOffset;
 }
 
 // =============================================================================
-// Hash map management
+// HASH MAP MANAGEMENT
 // =============================================================================
+// These functions maintain the hash maps that enable O(1) voxel lookups
+// 
+// DATA STRUCTURES:
+// - cubeMap: { localPos -> Cube* }                    // Single-level: cube positions
+// - subcubeMap: { cubePos -> { subcubePos -> Subcube* } }  // Two-level: cube then subcube
+// - microcubeMap: { cubePos -> { subcubePos -> { microPos -> Microcube* } } }  // Three-level
+// - voxelTypeMap: { localPos -> VoxelType }          // Fast type checking (CUBE or SUBDIVIDED)
+// 
+// WHY HASH MAPS?
+// Without hash maps, finding a voxel requires O(n) linear search through vectors.
+// With hash maps, we get O(1) constant-time lookup by position.
+// 
+// CONSISTENCY:
+// ALL add/remove operations MUST update BOTH the vector AND the hash maps.
+// Stale hash map entries cause crashes (dangling pointers) or incorrect rendering.
+// 
+// VOXEL TYPE MAP:
+// Stores whether a position contains a CUBE (single voxel) or SUBDIVIDED (subcubes/microcubes).
+// This enables instant voxel type checking without scanning subcube/microcube maps.
 
+/**
+ * Add cube to hash maps (both cubeMap and voxelTypeMap)
+ * Call this whenever adding a cube to the cubes vector
+ */
 void ChunkVoxelManager::addToVoxelMaps(const glm::ivec3& localPos, Cube* cube) {
     if (cube) {
-        cubeMap[localPos] = cube;
-        voxelTypeMap[localPos] = VoxelLocation::CUBE;
+        cubeMap[localPos] = cube;                      // O(1) position -> cube lookup
+        voxelTypeMap[localPos] = VoxelLocation::CUBE;  // Mark as containing a cube
     }
 }
 
+/**
+ * Remove cube from hash maps
+ * Call this whenever removing a cube from the cubes vector
+ * 
+ * CRITICAL: Also removes voxelTypeMap entry to prevent stale lookups
+ */
 void ChunkVoxelManager::removeFromVoxelMaps(const glm::ivec3& localPos) {
-    cubeMap.erase(localPos);
-    voxelTypeMap.erase(localPos);
+    cubeMap.erase(localPos);       // Remove position -> cube mapping
+    voxelTypeMap.erase(localPos);  // Remove type information
 }
 
+/**
+ * Add subcube to two-level hash map
+ * Call this whenever adding a subcube to staticSubcubes vector
+ * 
+ * STRUCTURE: subcubeMap[cubePos][subcubePos] = Subcube*
+ * - First level: parent cube position
+ * - Second level: subcube position within parent (0-2, 0-2, 0-2)
+ * 
+ * VOXEL TYPE: Marks position as SUBDIVIDED (contains subcubes, not a solid cube)
+ */
 void ChunkVoxelManager::addSubcubeToMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos, Subcube* subcube) {
     if (subcube) {
-        subcubeMap[localPos][subcubePos] = subcube;
-        voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
+        subcubeMap[localPos][subcubePos] = subcube;           // Two-level lookup
+        voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;   // Mark as subdivided
     }
 }
 
+/**
+ * Remove subcube from two-level hash map with automatic cleanup
+ * 
+ * CLEANUP LOGIC:
+ * If removing the last subcube at a cube position, erase the entire parent entry.
+ * This prevents empty hash map entries from accumulating (memory leak).
+ * 
+ * Example:
+ * - Before: subcubeMap[10,5,3] = { (0,0,0)->Subcube1, (1,0,0)->Subcube2 }
+ * - Remove (0,0,0): subcubeMap[10,5,3] = { (1,0,0)->Subcube2 }
+ * - Remove (1,0,0): subcubeMap[10,5,3] is ERASED entirely (empty map)
+ */
 void ChunkVoxelManager::removeSubcubeFromMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos) {
     auto it = subcubeMap.find(localPos);
     if (it != subcubeMap.end()) {
-        it->second.erase(subcubePos);
+        it->second.erase(subcubePos);  // Remove specific subcube
         if (it->second.empty()) {
-            subcubeMap.erase(localPos);
+            subcubeMap.erase(localPos);  // Cleanup: remove empty parent entry
         }
     }
 }
 
+/**
+ * Add microcube to three-level hash map
+ * 
+ * STRUCTURE: microcubeMap[cubePos][subcubePos][microcubePos] = Microcube*
+ * - First level: parent cube position in chunk
+ * - Second level: subcube position within cube (0-2, 0-2, 0-2)
+ * - Third level: microcube position within subcube (0-2, 0-2, 0-2)
+ * 
+ * WHY THREE LEVELS?
+ * Microcubes are 1/9 scale (1/3 * 1/3), requiring triple hierarchy:
+ * Chunk -> Cube (32x32x32) -> Subcube (3x3x3) -> Microcube (3x3x3)
+ * 
+ * TOTAL CAPACITY:
+ * 32,768 cubes * 27 subcubes/cube * 27 microcubes/subcube = 23,887,872 microcubes max!
+ */
 void ChunkVoxelManager::addMicrocubeToMaps(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos, Microcube* microcube) {
     if (microcube) {
-        microcubeMap[cubePos][subcubePos][microcubePos] = microcube;
-        voxelTypeMap[cubePos] = VoxelLocation::SUBDIVIDED;
+        microcubeMap[cubePos][subcubePos][microcubePos] = microcube;  // Three-level lookup
+        voxelTypeMap[cubePos] = VoxelLocation::SUBDIVIDED;            // Mark cube as subdivided
     }
 }
 
+/**
+ * Remove microcube from three-level hash map with cascading cleanup
+ * 
+ * CLEANUP LOGIC (cascading):
+ * 1. Erase microcube from innermost map
+ * 2. If subcube map becomes empty, erase entire subcube entry
+ * 3. If cube map becomes empty, erase entire cube entry
+ * 
+ * This prevents memory leaks from empty nested maps accumulating.
+ * 
+ * Example:
+ * microcubeMap[5,5,5][1,1,1][0,0,0] exists
+ * After removal: entire chain is cleaned if it was the last microcube
+ */
 void ChunkVoxelManager::removeMicrocubeFromMaps(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos) {
     auto cubeIt = microcubeMap.find(cubePos);
     if (cubeIt != microcubeMap.end()) {
         auto subcubeIt = cubeIt->second.find(subcubePos);
         if (subcubeIt != cubeIt->second.end()) {
-            subcubeIt->second.erase(microcubePos);
+            subcubeIt->second.erase(microcubePos);  // Level 3: erase microcube
             if (subcubeIt->second.empty()) {
-                cubeIt->second.erase(subcubePos);
+                cubeIt->second.erase(subcubePos);   // Level 2: cleanup empty subcube map
             }
         }
         if (cubeIt->second.empty()) {
-            microcubeMap.erase(cubePos);
+            microcubeMap.erase(cubePos);            // Level 1: cleanup empty cube map
         }
     }
 }
 
+/**
+ * Update voxelTypeMap after structural changes at a position
+ * 
+ * SMART TYPE DETECTION:
+ * Determines what currently exists at a position and updates voxelTypeMap accordingly:
+ * 1. If cube exists -> type = CUBE
+ * 2. Else if subcubes exist -> type = SUBDIVIDED
+ * 3. Else if microcubes exist -> type = SUBDIVIDED
+ * 4. Else nothing exists -> erase entry
+ * 
+ * WHY NEEDED?
+ * After removing voxels, we may transition from SUBDIVIDED -> empty.
+ * Example: Remove last subcube at position -> should erase voxelTypeMap entry.
+ * 
+ * WHEN TO CALL:
+ * After any operation that changes voxel hierarchy (remove cube, remove all subcubes, etc.)
+ */
 void ChunkVoxelManager::updateVoxelMaps(const glm::ivec3& localPos, CubesVectorAccessFunc getCubes) {
-    // Get the cube at this position
+    // Get the cube at this position (if any)
     Cube* cube = getCubeHelper(localPos, getCubes);
     
     // Update the maps based on what exists at this position
@@ -98,13 +223,35 @@ void ChunkVoxelManager::updateVoxelMaps(const glm::ivec3& localPos, CubesVectorA
     }
 }
 
+/**
+ * Initialize all hash maps from voxel vectors
+ * 
+ * WHEN TO CALL:
+ * - After loading chunk from disk (WorldStorage)
+ * - After major structural changes requiring full rebuild
+ * - During chunk initialization
+ * 
+ * ALGORITHM:
+ * 1. Clear all existing hash maps (fresh start)
+ * 2. Iterate through cubes vector, populate cubeMap and voxelTypeMap
+ * 3. Iterate through staticSubcubes vector, populate subcubeMap
+ * 4. Iterate through staticMicrocubes vector, populate microcubeMap
+ * 
+ * PERFORMANCE:
+ * O(n) where n = total voxels, but only called occasionally (not every frame)
+ * Typical: ~100-1000 voxels per chunk, takes <1ms
+ * 
+ * COORDINATE CONVERSION:
+ * Subcubes/microcubes store world positions, but hash maps use local positions.
+ * Conversion: localPos = worldPos - worldOrigin
+ */
 void ChunkVoxelManager::initializeVoxelMaps(
     CubesVectorAccessFunc getCubes,
     SubcubesVectorAccessFunc getStaticSubcubes,
     MicrocubesVectorAccessFunc getStaticMicrocubes,
     WorldOriginAccessFunc getWorldOrigin
 ) {
-    // Clear existing maps
+    // Clear existing maps (fresh start - prevents stale entries)
     cubeMap.clear();
     subcubeMap.clear();
     microcubeMap.clear();
@@ -112,12 +259,13 @@ void ChunkVoxelManager::initializeVoxelMaps(
     
     glm::ivec3 worldOrigin = getWorldOrigin();
     
-    // Build cubeMap from cubes vector
+    // BUILD CUBE MAP:
+    // Iterate through cubes vector and populate hash map
     auto& cubes = getCubes();
     for (size_t i = 0; i < cubes.size(); ++i) {
         Cube* cube = cubes[i];
         if (cube) {
-            glm::ivec3 localPos = cube->getPosition();
+            glm::ivec3 localPos = cube->getPosition();  // Already in local coordinates
             cubeMap[localPos] = cube;
             voxelTypeMap[localPos] = VoxelLocation::CUBE;
         }

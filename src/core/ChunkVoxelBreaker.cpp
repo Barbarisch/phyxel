@@ -6,6 +6,30 @@
 
 namespace VulkanCube {
 
+/**
+ * Configure callbacks for accessing Chunk's internal state
+ * 
+ * CALLBACK PATTERN RATIONALE:
+ * ChunkVoxelBreaker needs to modify Chunk's data structures without creating circular dependencies.
+ * Instead of holding a Chunk pointer (which would create tight coupling), we use lambda callbacks
+ * that give us access to specific operations we need.
+ * 
+ * BENEFITS:
+ * - No circular dependencies (ChunkVoxelBreaker doesn't include Chunk.h)
+ * - Testable (can inject mock callbacks for unit testing)
+ * - Clear interface (explicitly defines what Chunk state we access)
+ * - Zero runtime cost (lambdas are inlined by compiler)
+ * 
+ * CALLBACKS:
+ * - getSubcubesFunc: Access the vector of static subcubes for searching
+ * - removeSubcubeFunc: Remove subcube from ALL data structures (voxelTypeMap, subcubeMap, etc.)
+ * - rebuildFacesFunc: Trigger face rebuilding after voxel removal
+ * - batchUpdateCollisionsFunc: Update physics collision shape after structural changes
+ * - getMicrocubesAtFunc: Check if subcube position has been subdivided into microcubes
+ * - getSubcubesAtFunc: Debug helper to list all subcubes at a position
+ * - setNeedsUpdateFunc: Mark chunk for GPU buffer update
+ * - worldOriginFunc: Get chunk's world origin for coordinate conversions
+ */
 void ChunkVoxelBreaker::setCallbacks(
     GetSubcubesFunc getSubcubesFunc,
     RemoveSubcubeFunc removeSubcubeFunc,
@@ -16,6 +40,7 @@ void ChunkVoxelBreaker::setCallbacks(
     SetNeedsUpdateFunc setNeedsUpdateFunc,
     WorldOriginAccessFunc worldOriginFunc
 ) {
+    // Store all callbacks for later use
     m_getSubcubes = getSubcubesFunc;
     m_removeSubcube = removeSubcubeFunc;
     m_rebuildFaces = rebuildFacesFunc;
@@ -26,6 +51,35 @@ void ChunkVoxelBreaker::setCallbacks(
     m_getWorldOrigin = worldOriginFunc;
 }
 
+/**
+ * Break a static subcube into a dynamic physics-enabled object
+ * 
+ * ALGORITHM:
+ * 1. Find the subcube in the static list by world position and local position
+ * 2. Store subcube properties (color, visibility, lifetime) before removal
+ * 3. Remove subcube from ALL data structures (vector, hash maps, collision shape)
+ * 4. Create new dynamic Subcube with stored properties
+ * 5. Create physics body with CENTER-BASED coordinates (not corner-based!)
+ * 6. Transfer to ChunkManager's global dynamic system
+ * 7. Rebuild faces and mark chunk dirty
+ * 
+ * COORDINATE SYSTEMS:
+ * - Static subcubes use CORNER-BASED coordinates (bottom-left corner of subcube)
+ * - Physics bodies use CENTER-BASED coordinates (center of mass)
+ * - Conversion: physicsCenter = corner + (size / 2)
+ * 
+ * WHY NO IMPULSE FORCE?
+ * - Subcubes break "gently" with gravity only (no explosive forces)
+ * - Matches the visual behavior of voxels crumbling apart
+ * - Physics body falls naturally under gravity (-9.81 m/s²)
+ * 
+ * @param parentPos Local position of parent cube in chunk (0-31, 0-31, 0-31)
+ * @param subcubePos Local position of subcube within parent (0-2, 0-2, 0-2)
+ * @param physicsWorld Physics world for creating rigid body (can be null)
+ * @param chunkManager ChunkManager for global dynamic object registration
+ * @param impulseForce Force to apply on break (currently unused - gravity only)
+ * @return true if subcube was found and successfully broken
+ */
 bool ChunkVoxelBreaker::breakSubcube(
     const glm::ivec3& parentPos,
     const glm::ivec3& subcubePos,
@@ -33,6 +87,7 @@ bool ChunkVoxelBreaker::breakSubcube(
     ChunkManager* chunkManager,
     const glm::vec3& impulseForce
 ) {
+    // Get access to chunk's static subcube list via callback
     auto& staticSubcubes = m_getSubcubes();
     const glm::ivec3& worldOrigin = m_getWorldOrigin();
     
@@ -41,28 +96,46 @@ bool ChunkVoxelBreaker::breakSubcube(
                   << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z 
                   << ") - searching through " << staticSubcubes.size() << " static subcubes");
     
-    // Find the subcube in static list
+    // LINEAR SEARCH: Find the subcube in static list
+    // Why not hash map? We already have parentPos and subcubePos, but subcubes are stored
+    // in a flat vector. Hash map lookup requires world position, which we calculate here.
+    // Performance: O(n) but n is typically small (< 100 subcubes per chunk)
     auto it = staticSubcubes.begin();
     while (it != staticSubcubes.end()) {
         Subcube* subcube = *it;
+        
+        // Match both world position AND local position for precise identification
+        // worldOrigin + parentPos = parent cube's world position
+        // subcubePos = local offset within parent (0-2, 0-2, 0-2)
         if (subcube && 
             subcube->getPosition() == worldOrigin + parentPos && 
             subcube->getLocalPosition() == subcubePos) {
             
-            // Store subcube data before removal
-            glm::vec3 worldPos = subcube->getWorldPosition();
-            glm::vec3 originalColor = subcube->getOriginalColor();
-            bool isVisible = subcube->isVisible();
-            float lifetime = subcube->getLifetime();
+            // CRITICAL: Store ALL subcube properties before removal
+            // We must preserve these because the removal operation will delete the object
+            glm::vec3 worldPos = subcube->getWorldPosition();      // For physics positioning
+            glm::vec3 originalColor = subcube->getOriginalColor(); // Visual appearance
+            bool isVisible = subcube->isVisible();                 // Visibility state
+            float lifetime = subcube->getLifetime();               // Time until expiration
             
-            // CRITICAL: Use proper removeSubcube to update all data structures (voxelTypeMap, subcubeMap, etc.)
+            // CRITICAL DATA STRUCTURE UPDATE:
+            // removeSubcube() updates ALL of Chunk's internal state:
+            // 1. Removes from staticSubcubes vector (via erase-remove idiom)
+            // 2. Removes from subcubeMap hash map (for O(1) lookups)
+            // 3. Removes from voxelTypeMap (for hover detection)
+            // 4. Updates parent cube's subdivision state if last subcube
+            // If we skip this and just erase from vector, we get stale hash map entries!
             LOG_DEBUG("ChunkVoxelBreaker", "[INCREMENTAL] BEFORE: Using proper subcube removal to update all data structures");
             bool removed = m_removeSubcube(parentPos, subcubePos);
             if (!removed) {
                 LOG_ERROR("ChunkVoxelBreaker", "[ERROR] Failed to remove subcube from data structures");
                 return false;
             }
-            // NEW: Fast collision update (already done in removeSubcube)
+            
+            // PHYSICS COLLISION UPDATE:
+            // After removing a voxel, we must update the chunk's compound collision shape
+            // This ensures physics simulation doesn't collide with the removed subcube
+            // batchUpdateCollisions() rebuilds the entire compound shape efficiently
             m_batchUpdateCollisions();
             LOG_DEBUG("ChunkVoxelBreaker", "[INCREMENTAL] AFTER: All data structures updated and collision shape updated incrementally");
             
@@ -79,19 +152,35 @@ bool ChunkVoxelBreaker::breakSubcube(
             dynamicSubcube->setLifetime(lifetime);
             dynamicSubcube->breakApart(); // Mark as broken
             
-            // Create physics body for dynamic subcube if physics world is available
+            // PHYSICS BODY CREATION:
+            // Create a Bullet Physics rigid body if physics world is available
             if (physicsWorld) {
-                // COORDINATE FIX: Static subcubes use corner-based coordinates, physics uses center-based
-                glm::vec3 subcubeCornerPos = worldPos; // Corner position (matches static subcubes)
-                glm::vec3 subcubeSize(1.0f / 3.0f); // Match visual subcube size
-                glm::vec3 physicsCenterPos = subcubeCornerPos + (subcubeSize * 0.5f); // Physics center position
+                // CRITICAL COORDINATE CONVERSION:
+                // Static rendering uses CORNER-based coordinates (bottom-left corner of voxel)
+                // Physics simulation uses CENTER-based coordinates (center of mass)
+                // Why? Physics engines calculate torque/forces from center of mass
+                // 
+                // Subcube visual size: 1/3 of parent cube (0.333... units)
+                // Conversion formula: center = corner + (size / 2)
+                // 
+                // Example: Corner at (1.0, 2.0, 3.0), size 0.333
+                //          Center at (1.167, 2.167, 3.167)
+                glm::vec3 subcubeCornerPos = worldPos;          // Corner (from static subcube)
+                glm::vec3 subcubeSize(1.0f / 3.0f);             // 0.333... units (1/3 scale)
+                glm::vec3 physicsCenterPos = subcubeCornerPos + (subcubeSize * 0.5f); // Center of mass
                 
-                // Create dynamic physics body at center position
-                btRigidBody* rigidBody = physicsWorld->createBreakawaCube(physicsCenterPos, subcubeSize, 0.5f); // 0.5kg mass
+                // Create dynamic physics body:
+                // - physicsCenterPos: Initial position (center of mass)
+                // - subcubeSize: Collision box dimensions (0.333 x 0.333 x 0.333)
+                // - 0.5f: Mass in kg (lightweight for realistic tumbling)
+                btRigidBody* rigidBody = physicsWorld->createBreakawaCube(physicsCenterPos, subcubeSize, 0.5f);
                 dynamicSubcube->setRigidBody(rigidBody);
                 dynamicSubcube->setPhysicsPosition(physicsCenterPos);
                 
-                // NO FORCES APPLIED - subcubes break gently with gravity only
+                // GENTLE BREAKING BEHAVIOR:
+                // No explosive impulse force applied - subcube falls naturally under gravity
+                // This creates a "crumbling" effect rather than "exploding" effect
+                // Gravity: -9.81 m/s² (Earth standard)
                 LOG_DEBUG("ChunkVoxelBreaker", "[SUBCUBE PHYSICS] Created physics body for subcube (no forces applied - gravity only)");
                 
                 // Enable gravity for natural falling behavior

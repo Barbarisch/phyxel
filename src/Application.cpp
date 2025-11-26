@@ -23,11 +23,29 @@
 
 namespace VulkanCube {
 
+/**
+ * Application Constructor
+ * 
+ * INITIALIZATION ORDER:
+ * 1. Core systems (window, input, profiling) - initialized here with make_unique
+ * 2. Graphics/physics systems - initialized in initialize() method
+ * 3. World setup - delegated to WorldInitializer
+ * 
+ * OWNERSHIP PATTERN:
+ * Application owns all major subsystems via unique_ptr.
+ * Subsystems receive raw pointers to dependencies (non-owning).
+ * This creates clear ownership hierarchy and prevents circular dependencies.
+ * 
+ * PROFILING SYSTEMS:
+ * - PerformanceProfiler: Detailed timing breakdown (frame sections)
+ * - PerformanceMonitor: High-level metrics (FPS, frame time)
+ * Both are created early for startup profiling.
+ */
 Application::Application() 
-    : windowManager(nullptr)
-    , isRunning(false)
-    , deltaTime(0.0f)
-    , frameCount(0)
+    : windowManager(nullptr)     // Created in initialize() after subsystems ready
+    , isRunning(false)            // Set to true in run() method
+    , deltaTime(0.0f)             // Updated each frame
+    , frameCount(0)               // Incremented each frame
     , performanceProfiler(std::make_unique<PerformanceProfiler>())
     , performanceMonitor(std::make_unique<Utils::PerformanceMonitor>())
     , imguiRenderer(std::make_unique<UI::ImGuiRenderer>())
@@ -35,7 +53,7 @@ Application::Application()
     , forceSystem(std::make_unique<ForceSystem>())
     , mouseVelocityTracker(std::make_unique<MouseVelocityTracker>()) {
     
-    // Initialize profiling
+    // Initialize profiling timers
     lastFrameTime = 0.0;
     fpsTimer = 0.0;
 }
@@ -44,17 +62,59 @@ Application::~Application() {
     cleanup();
 }
 
+/**
+ * Initialize all application subsystems
+ * 
+ * INITIALIZATION SEQUENCE:
+ * 1. Create core components (window, vulkan, physics, timing)
+ * 2. Create WorldInitializer with ALL dependencies injected
+ * 3. Delegate world setup to WorldInitializer (chunks, camera, etc.)
+ * 4. Create VoxelInteractionSystem (requires initialized world)
+ * 5. Create RenderCoordinator (requires initialized rendering pipeline)
+ * 6. Register input actions (keyboard/mouse bindings)
+ * 
+ * DEPENDENCY INJECTION PATTERN:
+ * All subsystems receive dependencies via constructor (raw pointers).
+ * Application retains ownership (unique_ptr), subsystems just reference.
+ * This makes testing easier (can inject mocks) and clarifies data flow.
+ * 
+ * WHY WorldInitializer?
+ * Extracted from monolithic Application::initialize() to separate concerns:
+ * - Application: High-level coordination and ownership
+ * - WorldInitializer: Detailed world setup (chunks, camera, materials)
+ * Reduces Application.cpp size and improves maintainability.
+ * 
+ * @return true if initialization successful, false on error
+ */
 bool Application::initialize() {
-    // Create core components
-    windowManager = std::make_unique<UI::WindowManager>();
-    vulkanDevice = std::make_unique<Vulkan::VulkanDevice>();
-    renderPipeline = std::make_unique<Vulkan::RenderPipeline>(*vulkanDevice);
-    dynamicRenderPipeline = std::make_unique<Vulkan::RenderPipeline>(*vulkanDevice);
-    physicsWorld = std::make_unique<Physics::PhysicsWorld>();
-    timer = std::make_unique<Timer>();
-    chunkManager = std::make_unique<ChunkManager>();
+    // STEP 1: CREATE CORE COMPONENTS
+    // These are the foundational systems that other subsystems depend on
+    windowManager = std::make_unique<UI::WindowManager>();                    // GLFW window and input handling
+    vulkanDevice = std::make_unique<Vulkan::VulkanDevice>();                  // Vulkan instance, device, swapchain
+    renderPipeline = std::make_unique<Vulkan::RenderPipeline>(*vulkanDevice); // Static voxel rendering pipeline
+    dynamicRenderPipeline = std::make_unique<Vulkan::RenderPipeline>(*vulkanDevice); // Dynamic physics-enabled pipeline
+    physicsWorld = std::make_unique<Physics::PhysicsWorld>();                 // Bullet Physics simulation
+    timer = std::make_unique<Timer>();                                        // High-precision timing
+    chunkManager = std::make_unique<ChunkManager>();                          // Multi-chunk world manager
 
-    // Create WorldInitializer with all dependencies
+    // STEP 2: CREATE WorldInitializer WITH DEPENDENCY INJECTION
+    // WorldInitializer handles complex world setup (chunks, camera, materials, pipelines)
+    // We inject ALL dependencies it needs via constructor (Dependency Injection pattern)
+    // 
+    // INJECTED DEPENDENCIES (13 subsystems):
+    // - windowManager: Window/input for camera controls and rendering
+    // - inputManager: Keyboard/mouse input processing
+    // - vulkanDevice: GPU device and resource management
+    // - renderPipeline: Static voxel rendering (grid-aligned cubes)
+    // - dynamicRenderPipeline: Dynamic voxel rendering (physics-enabled)
+    // - physicsWorld: Bullet Physics simulation
+    // - timer: High-precision frame timing
+    // - chunkManager: Multi-chunk world coordination
+    // - forceSystem: Physics force application system
+    // - mouseVelocityTracker: Mouse velocity for throwing objects
+    // - performanceProfiler: Detailed timing breakdown
+    // - performanceMonitor: High-level FPS/frame time metrics
+    // - imguiRenderer: ImGui UI rendering
     worldInitializer = std::make_unique<Core::WorldInitializer>(
         windowManager.get(),
         inputManager.get(),
@@ -71,17 +131,29 @@ bool Application::initialize() {
         imguiRenderer.get()
     );
 
-    // Configure render distances
+    // Configure render distances (controls how many chunks are visible)
     worldInitializer->setMaxChunkRenderDistance(maxChunkRenderDistance);
     worldInitializer->setChunkInclusionDistance(chunkInclusionDistance);
 
-    // Delegate all initialization to WorldInitializer
+    // STEP 3: DELEGATE WORLD INITIALIZATION
+    // WorldInitializer.initialize() handles:
+    // - Window creation and Vulkan surface setup
+    // - Shader compilation and pipeline configuration
+    // - Camera initialization with sensible defaults
+    // - Chunk creation and voxel population
+    // - Physics material configuration
+    // - ImGui setup for debug UI
     if (!worldInitializer->initialize()) {
         LOG_ERROR("Application", "WorldInitializer failed!");
         return false;
     }
 
-    // Initialize VoxelInteractionSystem after WorldInitializer (dependencies are ready)
+    // STEP 4: CREATE VoxelInteractionSystem (DEPENDS ON INITIALIZED WORLD)
+    // This system handles mouse picking and voxel manipulation (breaking, subdividing)
+    // Must be created AFTER WorldInitializer because it needs:
+    // - Initialized ChunkManager with chunks
+    // - Configured PhysicsWorld
+    // - Ready WindowManager for screen-to-world ray conversion
     voxelInteractionSystem = std::make_unique<VoxelInteractionSystem>(
         chunkManager.get(),
         physicsWorld.get(),
@@ -91,7 +163,12 @@ bool Application::initialize() {
     );
     LOG_INFO("Application", "VoxelInteractionSystem initialized successfully!");
 
-    // Initialize RenderCoordinator after WorldInitializer (dependencies are ready)
+    // STEP 5: CREATE RenderCoordinator (DEPENDS ON INITIALIZED PIPELINES)
+    // This system orchestrates frame rendering:
+    // - Frustum culling for visible chunks
+    // - Instance buffer updates
+    // - Draw call submission
+    // - ImGui overlay rendering
     renderCoordinator = std::make_unique<Graphics::RenderCoordinator>(
         vulkanDevice.get(),
         renderPipeline.get(),
@@ -107,7 +184,8 @@ bool Application::initialize() {
     renderCoordinator->setChunkInclusionDistance(chunkInclusionDistance);
     LOG_INFO("Application", "RenderCoordinator initialized successfully!");
 
-    // Register all input actions (kept in Application)
+    // STEP 6: REGISTER INPUT ACTIONS
+    // Bind keyboard/mouse events to application functions (kept in Application for flexibility)
     initializeInputActions();
 
     return true;

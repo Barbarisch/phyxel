@@ -75,7 +75,7 @@ Phyxel is a high-performance 3D voxel rendering engine built with Vulkan API, fe
   - All migrated files (19 total, ~250+ statements)
   - Common usage patterns
 
-### Code Organization & Refactoring 🔧 NEW
+### Code Organization & Refactoring 🔧
 - **[ArchitectureOverview.md](ArchitectureOverview.md)** - ⭐ **START HERE** for refactoring
   - Visual architecture diagrams (before/after)
   - Quick-start guides for first refactoring
@@ -92,6 +92,20 @@ Phyxel is a high-performance 3D voxel rendering engine built with Vulkan API, fe
   - Migration checklists
   - Testing strategies
   - Common pitfalls and solutions
+
+- **[SubsystemArchitecture.md](SubsystemArchitecture.md)** - ⭐ **Subsystem Design Pattern Guide** ⭐
+  - Callback-based subsystem architecture philosophy
+  - Major system hierarchies (ChunkManager, Chunk, VoxelInteractionSystem)
+  - Design principles and best practices
+  - Testing strategies for subsystems
+  - When to create subsystems vs. when to stop
+
+- **[TestingGuide.md](TestingGuide.md)** - ⭐ **Testing Setup & Best Practices** ⭐
+  - Google Test framework installation and configuration
+  - Unit test and integration test templates
+  - Mock object creation and usage
+  - Test organization and running tests
+  - CI/CD integration examples
 
 ## Architecture Overview
 
