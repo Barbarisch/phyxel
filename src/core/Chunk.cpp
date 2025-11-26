@@ -92,6 +92,18 @@ void Chunk::initialize(VkDevice dev, VkPhysicalDevice physDev) {
     renderManager.initialize(dev, physDev);
     // Initialize physicsManager with chunk origin
     physicsManager.initialize(nullptr, worldOrigin); // physicsWorld set separately via setPhysicsWorld
+    
+    // Initialize voxelBreaker with callbacks
+    voxelBreaker.setCallbacks(
+        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
+        [this](const glm::ivec3& parent, const glm::ivec3& sub) { return removeSubcube(parent, sub); },
+        [this]() { rebuildFaces(); },
+        [this]() { batchUpdateCollisions(); },
+        [this](const glm::ivec3& p, const glm::ivec3& s) { return getMicrocubesAt(p, s); },
+        [this](const glm::ivec3& p) { return getSubcubesAt(p); },
+        [this](bool v) { renderManager.setNeedsUpdate(v); },
+        [this]() -> const glm::ivec3& { return worldOrigin; }
+    );
 }
 
 Cube* Chunk::getCubeAt(const glm::ivec3& localPos) {
@@ -517,118 +529,7 @@ bool Chunk::isValidLocalPosition(const glm::ivec3& localPos) const {
 bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, 
                         Physics::PhysicsWorld* physicsWorld, ChunkManager* chunkManager, const glm::vec3& impulseForce) {
 #define physicsWorld (physicsManager.getPhysicsWorldRef())  // Restore macro
-    LOG_DEBUG_FMT("Chunk", "[SUBCUBE BREAKING] Attempting to break subcube at parent (" 
-                  << parentPos.x << "," << parentPos.y << "," << parentPos.z 
-                  << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z 
-                  << ") - searching through " << staticSubcubes.size() << " static subcubes");
-    
-    // Find the subcube in static list
-    auto it = staticSubcubes.begin();
-    while (it != staticSubcubes.end()) {
-        Subcube* subcube = *it;
-        if (subcube && 
-            subcube->getPosition() == worldOrigin + parentPos && 
-            subcube->getLocalPosition() == subcubePos) {
-            
-            // Store subcube data before removal
-            glm::vec3 worldPos = subcube->getWorldPosition();
-            glm::vec3 originalColor = subcube->getOriginalColor();
-            bool isVisible = subcube->isVisible();
-            float lifetime = subcube->getLifetime();
-            
-            // CRITICAL: Use proper removeSubcube to update all data structures (voxelTypeMap, subcubeMap, etc.)
-            LOG_DEBUG("Chunk", "[INCREMENTAL] BEFORE: Using proper subcube removal to update all data structures");
-            bool removed = removeSubcube(parentPos, subcubePos);
-            if (!removed) {
-                LOG_ERROR("Chunk", "[ERROR] Failed to remove subcube from data structures");
-                return false;
-            }
-            // NEW: Fast collision update (already done in removeSubcube)
-            batchUpdateCollisions();
-            LOG_DEBUG("Chunk", "[INCREMENTAL] AFTER: All data structures updated and collision shape updated incrementally");
-            
-            // Create new dynamic subcube for physics (since original was removed)
-            auto dynamicSubcube = std::make_unique<Subcube>(
-                worldOrigin + parentPos, 
-                originalColor, 
-                subcubePos
-            );
-            
-            // Set properties from stored data
-            dynamicSubcube->setOriginalColor(originalColor);
-            dynamicSubcube->setVisible(isVisible);
-            dynamicSubcube->setLifetime(lifetime);
-            dynamicSubcube->breakApart(); // Mark as broken
-            
-            // Create physics body for dynamic subcube if physics world is available
-            if (physicsWorld) {
-                // COORDINATE FIX: Static subcubes use corner-based coordinates, physics uses center-based
-                glm::vec3 subcubeCornerPos = worldPos; // Corner position (matches static subcubes)
-                glm::vec3 subcubeSize(1.0f / 3.0f); // Match visual subcube size
-                glm::vec3 physicsCenterPos = subcubeCornerPos + (subcubeSize * 0.5f); // Physics center position
-                
-                // Create dynamic physics body at center position
-                btRigidBody* rigidBody = physicsWorld->createBreakawaCube(physicsCenterPos, subcubeSize, 0.5f); // 0.5kg mass
-                dynamicSubcube->setRigidBody(rigidBody);
-                dynamicSubcube->setPhysicsPosition(physicsCenterPos);
-                
-                // NO FORCES APPLIED - subcubes break gently with gravity only
-                LOG_DEBUG("Chunk", "[SUBCUBE PHYSICS] Created physics body for subcube (no forces applied - gravity only)");
-                
-                // Enable gravity for natural falling behavior
-                if (rigidBody) {
-                    rigidBody->setGravity(btVector3(0, -9.81f, 0));
-                }
-            }
-            
-            // Transfer the dynamic subcube directly to global system
-            if (chunkManager) {
-                // The dynamicSubcube is already properly configured, just transfer it
-                chunkManager->addGlobalDynamicSubcube(std::move(dynamicSubcube));
-                
-                LOG_DEBUG("Chunk", "[GLOBAL TRANSFER] Moved broken subcube directly to global dynamic system (safe transfer)");
-            } else {
-                LOG_ERROR("Chunk", "[ERROR] No ChunkManager provided - cannot transfer to global system");
-            }
-            
-            // Note: No need to delete subcube - it was already properly removed by removeSubcube()
-            
-            // Rebuild static faces only (no more dynamic faces in chunks)
-            rebuildFaces();
-            renderManager.setNeedsUpdate(true);
-            
-            LOG_DEBUG_FMT("Chunk", "[CHUNK] Broke subcube at parent pos (" 
-                      << parentPos.x << "," << parentPos.y << "," << parentPos.z 
-                      << ") subcube pos (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z 
-                      << ") - transferred to global system safely");
-            return true;
-        }
-        ++it;
-    }
-    
-    LOG_ERROR_FMT("Chunk", "[SUBCUBE BREAKING] Subcube NOT FOUND in static list at parent (" 
-                  << parentPos.x << "," << parentPos.y << "," << parentPos.z 
-                  << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z << ")");
-    
-    // Debug: Check if this position has microcubes instead
-    auto microcubes = getMicrocubesAt(parentPos, subcubePos);
-    if (!microcubes.empty()) {
-        LOG_ERROR_FMT("Chunk", "[SUBCUBE BREAKING] DEBUG: Found " << microcubes.size() 
-                      << " microcubes at this subcube position - subcube may have been subdivided");
-    }
-    
-    // Debug: Check all subcubes at this parent position
-    auto allSubcubes = getSubcubesAt(parentPos);
-    LOG_ERROR_FMT("Chunk", "[SUBCUBE BREAKING] DEBUG: Total subcubes at parent position: " << allSubcubes.size());
-    for (auto* sc : allSubcubes) {
-        if (sc) {
-            glm::ivec3 scPos = sc->getLocalPosition();
-            LOG_ERROR_FMT("Chunk", "[SUBCUBE BREAKING] DEBUG:   - Subcube at (" 
-                          << scPos.x << "," << scPos.y << "," << scPos.z << ")");
-        }
-    }
-    
-    return false; // Subcube not found in static list
+    return voxelBreaker.breakSubcube(parentPos, subcubePos, physicsWorld, chunkManager, impulseForce);
 }
 
 // =============================================================================

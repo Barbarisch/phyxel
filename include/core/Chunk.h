@@ -7,6 +7,7 @@
 #include "graphics/ChunkRenderManager.h"
 #include "physics/ChunkPhysicsManager.h"
 #include "core/ChunkVoxelManager.h"
+#include "core/ChunkVoxelBreaker.h"
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
@@ -32,12 +33,16 @@ namespace Physics {
  *   - Hash map management for O(1) lookups
  *   - Subdivision logic and voxel type resolution
  *   - Callback pattern for clean separation
- * ○ Phase 4 Planned: Final Chunk simplification
+ * ✓ Phase 21 Complete: Voxel breaking extracted to ChunkVoxelBreaker (~120 lines)
+ *   - breakSubcube logic for static→dynamic conversion
+ *   - Physics body creation and force application
+ *   - Global dynamic object transfer
  * 
  * Size Reduction:
  * - Original: 2,444 lines
  * - Phase 1&2: 1,611 lines (-833 lines, -34%)
  * - Phase 3: 995 lines (-616 lines from Phase 2, -1,449 total, -59%)
+ * - Phase 21: 876 lines (-120 lines from Phase 3, -1,568 total, -64%)
  * 
  * Current responsibilities:
  * - Cube storage and voxel hierarchy (cubes, subcubes, microcubes)
@@ -61,6 +66,7 @@ private:
     Graphics::ChunkRenderManager renderManager;    // Manages face generation and Vulkan buffers
     Physics::ChunkPhysicsManager physicsManager;   // Manages collision shapes and physics bodies
     ChunkVoxelManager voxelManager;                // Manages voxel hierarchy and hash maps
+    ChunkVoxelBreaker voxelBreaker;                // Manages breaking voxels to dynamic physics objects
     
     // Vulkan device handles (set by ChunkManager)
     VkDevice device = VK_NULL_HANDLE;

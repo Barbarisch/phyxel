@@ -521,62 +521,7 @@ void ChunkManager::updateGlobalDynamicCubes(float deltaTime) {
 }
 
 void ChunkManager::updateGlobalDynamicCubePositions() {
-    // Update positions and rotations of global dynamic cubes from their physics bodies
-    bool transformsChanged = false;
-    static int debugCounter = 0;
-    static bool firstUpdate = true;
-    
-    if (firstUpdate && !globalDynamicCubes.empty()) {
-        LOG_DEBUG_FMT("ChunkManager", "[POSITION TRACK] ===== FIRST PHYSICS UPDATE =====");
-        LOG_DEBUG_FMT("ChunkManager", "[POSITION TRACK] Found " << globalDynamicCubes.size() << " dynamic cubes to track");
-        firstUpdate = false;
-    }
-    
-    for (auto& cube : globalDynamicCubes) {
-        if (cube && cube->getRigidBody()) {
-            btRigidBody* body = cube->getRigidBody();
-            btTransform transform = body->getWorldTransform();
-            
-            // Get current stored position before update
-            glm::vec3 oldStoredPos = cube->getPhysicsPosition();
-            
-            // Get the physics world position
-            btVector3 btPos = transform.getOrigin();
-            glm::vec3 newWorldPos(btPos.x(), btPos.y(), btPos.z());
-            
-            // Get the physics rotation (quaternion)
-            btQuaternion btRot = transform.getRotation();
-            glm::vec4 newRotation(btRot.x(), btRot.y(), btRot.z(), btRot.w());
-            
-            // Store the smooth floating-point physics position and rotation
-            cube->setPhysicsPosition(newWorldPos);
-            cube->setPhysicsRotation(newRotation);
-            transformsChanged = true;
-            
-            // Enhanced position tracking - show movement from initial spawn position
-            if (debugCounter % 60 == 0) {
-                glm::vec3 movement = newWorldPos - oldStoredPos;
-                float movementMag = glm::length(movement);
-                
-                LOG_DEBUG("ChunkManager", "[POSITION TRACK] ===== AFTER PHYSICS SIMULATION =====");
-                LOG_DEBUG_FMT("ChunkManager", "[POSITION TRACK] 6. Physics body final position: (" 
-                          << newWorldPos.x << ", " << newWorldPos.y << ", " << newWorldPos.z << ")");
-                LOG_DEBUG_FMT("ChunkManager", "[POSITION TRACK] 7. Movement from last update: (" 
-                          << movement.x << ", " << movement.y << ", " << movement.z << ") magnitude: " << movementMag);
-                LOG_DEBUG_FMT("ChunkManager", "[POSITION TRACK] 8. Rotation: (" 
-                          << newRotation.x << ", " << newRotation.y << ", " << newRotation.z << ", " << newRotation.w << ")");
-                LOG_DEBUG("ChunkManager", "[POSITION TRACK] ===== END POSITION TRACKING =====");
-                break; // Only log first cube
-            }
-        }
-    }
-    
-    debugCounter++;
-    
-    // Rebuild face data if any transforms changed
-    if (transformsChanged) {
-        rebuildGlobalDynamicFaces();
-    }
+    m_dynamicObjectManager.updateGlobalDynamicCubePositions();
 }
 
 void ChunkManager::clearAllGlobalDynamicCubes() {

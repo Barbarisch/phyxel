@@ -35,7 +35,8 @@ namespace VulkanCube {
 // Phase 5 - DirtyChunkTracker extraction COMPLETE
 // Phase 6 - ChunkVoxelQuerySystem extraction COMPLETE
 // Phase 7 - ChunkVoxelModificationSystem extraction COMPLETE
-// Original: 1,414 lines → Current: 659 lines (-755 lines, -53%)
+// Phase 20 - Removed duplicate physics update code (delegated to DynamicObjectManager) COMPLETE
+// Original: 1,414 lines → Current: 604 lines (-810 lines, -57%)
 // 
 class ChunkManager {
 public:
