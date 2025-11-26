@@ -82,6 +82,27 @@ set(BUILD_BULLET2_DEMOS OFF CACHE BOOL "Disable Bullet2 demos" FORCE)
 set(BUILD_UNIT_TESTS OFF CACHE BOOL "Disable Bullet unit tests" FORCE)
 add_subdirectory(external/bullet3)
 
+# ========================================================================
+# Google Test Framework Setup (for unit testing)
+# ========================================================================
+# Download Google Test automatically using FetchContent (cross-platform)
+include(FetchContent)
+FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG v1.14.0  # Latest stable release
+)
+
+# For Windows: Prevent overriding the parent project's compiler/linker settings
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+
+# Make Google Test available
+FetchContent_MakeAvailable(googletest)
+
+# Enable testing with CTest
+enable_testing()
+include(GoogleTest)
+
 # Set Bullet library names with proper debug suffixes
 if(PLATFORM_WINDOWS)
     set(BULLET_LIBS 
@@ -223,3 +244,9 @@ if(SQLITE3_FOUND)
 else()
     message(STATUS "World storage disabled - SQLite3 not found")
 endif()
+
+# ========================================================================
+# Unit Tests (Google Test)
+# ========================================================================
+# Add tests subdirectory (contains all test files)
+add_subdirectory(tests)
