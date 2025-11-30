@@ -9,15 +9,38 @@ param(
 # Store original location
 $OriginalLocation = Get-Location
 
-# Ensure we're in the project root
-Set-Location "G:\Github\phyxel"
+# Get the script's directory (project root)
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+Set-Location $ScriptDir
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "Setting up Visual Studio environment..." -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
-# Import VS Developer environment
-& 'C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\Launch-VsDevShell.ps1' -Arch amd64 -SkipAutomaticLocation
+# Try to find and import VS Developer environment
+$VsDevShellPaths = @(
+    "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community\Common7\Tools\Launch-VsDevShell.ps1",
+    "${env:ProgramFiles}\Microsoft Visual Studio\2022\Professional\Common7\Tools\Launch-VsDevShell.ps1",
+    "${env:ProgramFiles}\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\Launch-VsDevShell.ps1",
+    "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\Community\Common7\Tools\Launch-VsDevShell.ps1"
+)
+
+$VsDevShell = $null
+foreach ($path in $VsDevShellPaths) {
+    if (Test-Path $path) {
+        $VsDevShell = $path
+        break
+    }
+}
+
+if ($null -eq $VsDevShell) {
+    Write-Host "Error: Could not find Visual Studio 2022 installation" -ForegroundColor Red
+    Write-Host "Please install Visual Studio 2022 or update the script with your VS path" -ForegroundColor Red
+    Set-Location $OriginalLocation
+    exit 1
+}
+
+& $VsDevShell -Arch amd64 -SkipAutomaticLocation
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
@@ -37,7 +60,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # Navigate to build directory
-Set-Location "G:\Github\phyxel\build"
+Set-Location (Join-Path $ScriptDir "build")
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
@@ -60,7 +83,7 @@ if ($LASTEXITCODE -eq 0) {
         Write-Host "Running Unit Tests..." -ForegroundColor Cyan
         Write-Host "========================================" -ForegroundColor Cyan
         
-        $TestExe = ".\tests\$Config\phyxel_tests.exe"
+        $TestExe = Join-Path "tests" (Join-Path $Config "phyxel_tests.exe")
         if (Test-Path $TestExe) {
             & $TestExe
             

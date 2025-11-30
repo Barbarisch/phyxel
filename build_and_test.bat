@@ -1,7 +1,19 @@
 @echo off
-cd /d G:\Github\phyxel\build
+REM Windows Batch Build and Test Script for Phyxel
+REM Builds the project and runs unit tests
+
+REM Store original directory
+set ORIGINAL_DIR=%CD%
+
+REM Change to script directory (project root)
+cd /d "%~dp0"
+
+REM Navigate to build directory
+cd build
+
 echo Building VulkanCube...
 cmake --build . --config Debug --target VulkanCube
+
 if %ERRORLEVEL% EQU 0 (
     echo Build successful!
     cd ..
@@ -17,7 +29,7 @@ if %ERRORLEVEL% EQU 0 (
         echo ========================================
         echo UNIT TESTS FAILED!
         echo ========================================
-        cd /d G:\Github\phyxel
+        cd /d "%ORIGINAL_DIR%"
         exit /b 1
     )
     
@@ -27,7 +39,9 @@ if %ERRORLEVEL% EQU 0 (
     echo ========================================
 ) else (
     echo Build failed!
-    cd /d G:\Github\phyxel
+    cd /d "%ORIGINAL_DIR%"
     exit /b 1
 )
-cd /d G:\Github\phyxel
+
+REM Return to original directory
+cd /d "%ORIGINAL_DIR%"
