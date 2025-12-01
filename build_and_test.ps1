@@ -4,7 +4,8 @@
 param(
     [string]$Config = "Debug",
     [switch]$UnitOnly,
-    [switch]$IntegrationOnly
+    [switch]$IntegrationOnly,
+    [switch]$BenchmarkOnly
 )
 
 # Store original location
@@ -22,8 +23,10 @@ if ($UnitOnly) {
     Write-Host "Mode: Unit Tests Only" -ForegroundColor Yellow
 } elseif ($IntegrationOnly) {
     Write-Host "Mode: Integration Tests Only" -ForegroundColor Yellow
+} elseif ($BenchmarkOnly) {
+    Write-Host "Mode: Benchmark Tests Only" -ForegroundColor Yellow
 } else {
-    Write-Host "Mode: All Tests (Unit + Integration)" -ForegroundColor Yellow
+    Write-Host "Mode: All Tests (Unit + Integration + Benchmark)" -ForegroundColor Yellow
 }
 
 Write-Host ""
@@ -105,9 +108,12 @@ if ($IntegrationOnly) {
     $BuildTargets += "phyxel_integration_tests"
 } elseif ($UnitOnly) {
     $BuildTargets += "phyxel_tests"
+} elseif ($BenchmarkOnly) {
+    $BuildTargets += "phyxel_benchmarks"
 } else {
     $BuildTargets += "phyxel_tests"
     $BuildTargets += "phyxel_integration_tests"
+    $BuildTargets += "phyxel_benchmarks"
 }
 
 $BuildSuccess = $true
@@ -129,7 +135,7 @@ if ($BuildSuccess) {
     
     $TestsFailed = $false
     
-    if (-not $IntegrationOnly) {
+    if (-not $IntegrationOnly -and -not $BenchmarkOnly) {
         Write-Host ""
         Write-Host "========================================" -ForegroundColor Cyan
         Write-Host "Running Unit Tests (251 tests)..." -ForegroundColor Cyan
@@ -154,7 +160,7 @@ if ($BuildSuccess) {
         }
     }
     
-    if (-not $UnitOnly) {
+    if (-not $UnitOnly -and -not $BenchmarkOnly) {
         Write-Host ""
         Write-Host "========================================" -ForegroundColor Cyan
         Write-Host "Running Integration Tests..." -ForegroundColor Cyan
@@ -176,6 +182,31 @@ if ($BuildSuccess) {
             }
         } else {
             Write-Host "Warning: Integration test executable not found: $IntegrationTestExe" -ForegroundColor Yellow
+        }
+    }
+    
+    if (-not $UnitOnly -and -not $IntegrationOnly) {
+        Write-Host ""
+        Write-Host "========================================" -ForegroundColor Cyan
+        Write-Host "Running Benchmark Tests..." -ForegroundColor Cyan
+        Write-Host "========================================" -ForegroundColor Cyan
+        
+        $BenchmarkTestExe = Join-Path "tests" (Join-Path "benchmark" (Join-Path $Config "phyxel_benchmarks.exe"))
+        if (Test-Path $BenchmarkTestExe) {
+            & $BenchmarkTestExe
+            
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host ""
+                Write-Host "========================================" -ForegroundColor Red
+                Write-Host "BENCHMARK TESTS FAILED!" -ForegroundColor Red
+                Write-Host "========================================" -ForegroundColor Red
+                $TestsFailed = $true
+            } else {
+                Write-Host ""
+                Write-Host "Benchmark tests passed!" -ForegroundColor Green
+            }
+        } else {
+            Write-Host "Warning: Benchmark test executable not found: $BenchmarkTestExe" -ForegroundColor Yellow
         }
     }
     
