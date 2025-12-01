@@ -246,7 +246,9 @@ else()
 endif()
 
 # ========================================================================
-# Unit Tests (Google Test)
+# Unit and Integration Tests (Google Test)
 # ========================================================================
-# Add tests subdirectory (contains all test files)
+# Add tests subdirectory (contains unit tests)
 add_subdirectory(tests)
+# Add integration tests subdirectory (requires Vulkan/Physics initialization)
+add_subdirectory(tests/integration)
