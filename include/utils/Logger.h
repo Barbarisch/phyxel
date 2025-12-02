@@ -121,23 +121,23 @@ private:
 };
 
 // Convenience macros for logging with automatic line/file information
-#define LOG_TRACE(module, message) \
-    VulkanCube::Utils::Logger::trace(module, message)
+#define LOG_TRACE(module, ...) \
+    LOG_TRACE_FMT(module, __VA_ARGS__)
 
-#define LOG_DEBUG(module, message) \
-    VulkanCube::Utils::Logger::debug(module, message)
+#define LOG_DEBUG(module, ...) \
+    LOG_DEBUG_FMT(module, __VA_ARGS__)
 
-#define LOG_INFO(module, message) \
-    VulkanCube::Utils::Logger::info(module, message)
+#define LOG_INFO(module, ...) \
+    LOG_INFO_FMT(module, __VA_ARGS__)
 
-#define LOG_WARN(module, message) \
-    VulkanCube::Utils::Logger::warn(module, message)
+#define LOG_WARN(module, ...) \
+    LOG_WARN_FMT(module, __VA_ARGS__)
 
-#define LOG_ERROR(module, message) \
-    VulkanCube::Utils::Logger::error(module, message)
+#define LOG_ERROR(module, ...) \
+    LOG_ERROR_FMT(module, __VA_ARGS__)
 
-#define LOG_FATAL(module, message) \
-    VulkanCube::Utils::Logger::fatal(module, message)
+#define LOG_FATAL(module, ...) \
+    LOG_FATAL_FMT(module, __VA_ARGS__)
 
 // Formatted logging macros (for C++11 compatible string formatting)
 #define LOG_TRACE_FMT(module, ...) \

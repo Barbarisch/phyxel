@@ -1,0 +1,24 @@
+name: CMake Build & Test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgGitCommitId: 'master'
+        
+    - name: Configure CMake
+      run: cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
+      
+    - name: Build
+      run: cmake --build build --config Debug
+      
+    - name: Test
+      run: ctest --test-dir build -C Debug --output-on-failure

@@ -7,6 +7,12 @@
 #include <iostream>
 #include <iomanip>
 
+#ifdef PHYXEL_HEAVY_TESTS
+    #define STRESS_COUNT(heavy, light) (heavy)
+#else
+    #define STRESS_COUNT(heavy, light) (light)
+#endif
+
 namespace VulkanCube {
 namespace Testing {
 

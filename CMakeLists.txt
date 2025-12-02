@@ -3,6 +3,10 @@ project(VulkanCube)
 
 set(CMAKE_CXX_STANDARD 17)
 
+# Include custom CMake modules
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+include(Sanitizers)
+
 # Platform detection
 if(WIN32)
     message(STATUS "Building for Windows")
@@ -166,38 +170,29 @@ if(SQLITE3_FOUND AND DEFINED SQLITE3_SOURCES)
     list(APPEND SOURCES ${SQLITE3_SOURCES})
 endif()
 
-# Create executable
-add_executable(VulkanCube ${SOURCES} ${IMGUI_SOURCES} ${STB_IMAGE_SOURCES})
+# Separate main.cpp from core sources
+set(CORE_SOURCES ${SOURCES})
+list(FILTER CORE_SOURCES EXCLUDE REGEX ".*main\\.cpp$")
 
-# Platform-specific compiler settings
-if(PLATFORM_WINDOWS)
-    # Windows-specific settings
-    target_compile_definitions(VulkanCube PRIVATE GLM_ENABLE_EXPERIMENTAL)
-    
-    # MSVC runtime library (adjust as needed)
-    if(MSVC)
-        set_property(TARGET VulkanCube PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDebug$<$<CONFIG:Debug>:Debug>")
-    endif()
-    
-    # Copy executable to project root on Windows
-    add_custom_command(TARGET VulkanCube POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:VulkanCube> ${CMAKE_SOURCE_DIR}/
-        COMMENT "Copying VulkanCube.exe to project root"
-    )
-endif()
+# Create Core Library
+add_library(phyxel_core STATIC ${CORE_SOURCES} ${IMGUI_SOURCES} ${STB_IMAGE_SOURCES})
 
-# Include directories for all platforms
-target_include_directories(VulkanCube PRIVATE 
+# Enable Sanitizers for Core
+enable_sanitizers(phyxel_core)
+
+# Include directories for Core
+target_include_directories(phyxel_core PUBLIC 
     ${Vulkan_INCLUDE_DIRS}
     include
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
     ${STB_IMAGE_DIR}
+    external/bullet3/src
 )
 
-# Platform-specific linking
+# Platform-specific linking for Core
 if(PLATFORM_WINDOWS)
-    target_link_libraries(VulkanCube PRIVATE 
+    target_link_libraries(phyxel_core PUBLIC 
         Vulkan::Vulkan 
         glfw3
         ${BULLET_LIBS}
@@ -206,13 +201,13 @@ if(PLATFORM_WINDOWS)
     # Add SQLite3 if available
     if(SQLITE3_FOUND)
         if(DEFINED SQLITE3_LIBRARIES)
-            target_link_libraries(VulkanCube PRIVATE ${SQLITE3_LIBRARIES})
+            target_link_libraries(phyxel_core PUBLIC ${SQLITE3_LIBRARIES})
         endif()
-        target_include_directories(VulkanCube PRIVATE ${SQLITE3_INCLUDE_DIRS})
+        target_include_directories(phyxel_core PUBLIC ${SQLITE3_INCLUDE_DIRS})
     endif()
     
 elseif(PLATFORM_LINUX)
-    target_link_libraries(VulkanCube PRIVATE 
+    target_link_libraries(phyxel_core PUBLIC 
         Vulkan::Vulkan 
         glfw
         ${BULLET_LIBS}
@@ -221,17 +216,14 @@ elseif(PLATFORM_LINUX)
     # Add SQLite3 if available
     if(SQLITE3_FOUND)
         if(DEFINED SQLITE3_LIBRARIES)
-            target_link_libraries(VulkanCube PRIVATE ${SQLITE3_LIBRARIES})
+            target_link_libraries(phyxel_core PUBLIC ${SQLITE3_LIBRARIES})
         endif()
-        target_include_directories(VulkanCube PRIVATE ${SQLITE3_INCLUDE_DIRS})
+        target_include_directories(phyxel_core PUBLIC ${SQLITE3_INCLUDE_DIRS})
     endif()
 endif()
 
-# Include Bullet headers for all platforms
-target_include_directories(VulkanCube PRIVATE external/bullet3/src)
-
-# Common compile definitions
-target_compile_definitions(VulkanCube PRIVATE 
+# Common compile definitions for Core
+target_compile_definitions(phyxel_core PUBLIC 
     GLM_ENABLE_EXPERIMENTAL
     $<$<CONFIG:Debug>:DEBUG>
     $<$<CONFIG:Release>:NDEBUG>
@@ -239,10 +231,34 @@ target_compile_definitions(VulkanCube PRIVATE
 
 # Add SQLite3 support if available
 if(SQLITE3_FOUND)
-    target_compile_definitions(VulkanCube PRIVATE ENABLE_WORLD_STORAGE)
+    target_compile_definitions(phyxel_core PUBLIC ENABLE_WORLD_STORAGE)
     message(STATUS "World storage enabled with SQLite3")
 else()
     message(STATUS "World storage disabled - SQLite3 not found")
+endif()
+
+# Create executable
+add_executable(VulkanCube src/main.cpp)
+
+# Link to Core
+target_link_libraries(VulkanCube PRIVATE phyxel_core)
+
+# Enable Sanitizers for Executable
+enable_sanitizers(VulkanCube)
+
+# Platform-specific compiler settings
+if(PLATFORM_WINDOWS)
+    # MSVC runtime library (adjust as needed)
+    if(MSVC)
+        set_property(TARGET VulkanCube PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDebug$<$<CONFIG:Debug>:Debug>")
+        set_property(TARGET phyxel_core PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDebug$<$<CONFIG:Debug>:Debug>")
+    endif()
+    
+    # Copy executable to project root on Windows
+    add_custom_command(TARGET VulkanCube POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:VulkanCube> ${CMAKE_SOURCE_DIR}/
+        COMMENT "Copying VulkanCube.exe to project root"
+    )
 endif()
 
 # ========================================================================

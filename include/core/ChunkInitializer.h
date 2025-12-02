@@ -3,6 +3,7 @@
 #include "Types.h"
 #include <vector>
 #include <functional>
+#include <memory>
 #include <unordered_map>
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>

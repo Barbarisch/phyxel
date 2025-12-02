@@ -9,7 +9,8 @@ param(
     [switch]$BenchmarkOnly,
     [switch]$StressOnly,
     [switch]$E2EOnly,
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [switch]$HeavyTests
 )
 
 # Store original location
@@ -38,6 +39,10 @@ if ($UnitOnly) {
 } else {
     Write-Host "Mode: Build Only (no tests)" -ForegroundColor Yellow
     Write-Host "       Use -RunTests to run tests after build" -ForegroundColor Gray
+}
+
+if ($HeavyTests) {
+    Write-Host "Configuration: HEAVY Stress Tests Enabled" -ForegroundColor Red
 }
 
 Write-Host ""
@@ -77,7 +82,13 @@ if (-not $SkipBuild) {
     Write-Host "========================================" -ForegroundColor Cyan
 
     # Reconfigure CMake (important when new source files are added/removed)
-    cmake -B build -G "Visual Studio 17 2022" -A x64
+    $CMakeArgs = @("-B", "build", "-G", "Visual Studio 17 2022", "-A", "x64")
+    if ($HeavyTests) {
+        $CMakeArgs += "-DPHYXEL_HEAVY_TESTS=ON"
+    } else {
+        $CMakeArgs += "-DPHYXEL_HEAVY_TESTS=OFF"
+    }
+    cmake @CMakeArgs
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""

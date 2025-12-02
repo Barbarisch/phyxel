@@ -1,6 +1,8 @@
 # Stress Tests for Phyxel
 # High-load and endurance testing
 
+option(PHYXEL_HEAVY_TESTS "Enable heavy stress tests" OFF)
+
 # Create stress test executable
 add_executable(phyxel_stress_tests
     # Stress test fixture
@@ -126,6 +128,14 @@ target_compile_definitions(phyxel_stress_tests PRIVATE
     GLM_ENABLE_EXPERIMENTAL
     $<$<BOOL:${SQLITE3_FOUND}>:WORLD_STORAGE_ENABLED>
 )
+
+# Enable heavy tests if requested
+if(PHYXEL_HEAVY_TESTS)
+    target_compile_definitions(phyxel_stress_tests PRIVATE PHYXEL_HEAVY_TESTS)
+    message(STATUS "Stress tests configured for HEAVY load")
+else()
+    message(STATUS "Stress tests configured for LIGHT load (development mode)")
+endif()
 
 # Compiler settings
 set_target_properties(phyxel_stress_tests PROPERTIES
