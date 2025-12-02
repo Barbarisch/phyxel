@@ -296,6 +296,9 @@ private:
 #else
     const bool enableValidationLayers = true;
 #endif
+
+    // Cleanup state tracking
+    bool m_cleanedUp = false;
 };
 
 } // namespace Vulkan

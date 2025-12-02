@@ -48,6 +48,12 @@ bool VulkanDevice::initialize() {
 }
 
 void VulkanDevice::cleanup() {
+    // Guard against double cleanup (destructor calls cleanup())
+    if (m_cleanedUp || device == VK_NULL_HANDLE) {
+        return;
+    }
+    m_cleanedUp = true;
+    
     // Cleanup rendering resources
     if (descriptorPool != VK_NULL_HANDLE) {
         vkDestroyDescriptorPool(device, descriptorPool, nullptr);

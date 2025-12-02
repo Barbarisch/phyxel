@@ -46,6 +46,38 @@ src/
 
 ## Building
 
+### Quick Start (Windows)
+
+**Default (Fast):** Just build the code without running tests
+```powershell
+.\build_and_test.ps1
+```
+
+**With Tests:** Build and run fast unit tests
+```powershell
+.\build_and_test.ps1 -RunTests
+```
+
+**Skip Build:** Just run tests on existing binaries
+```powershell
+.\build_and_test.ps1 -SkipBuild -RunTests
+```
+
+**Specific Test Suites:**
+```powershell
+.\build_and_test.ps1 -UnitOnly          # All unit tests (including benchmarks)
+.\build_and_test.ps1 -IntegrationOnly   # 36 integration tests
+.\build_and_test.ps1 -BenchmarkOnly     # 11 benchmark tests
+.\build_and_test.ps1 -StressOnly        # 24 stress tests
+.\build_and_test.ps1 -E2EOnly           # 25 end-to-end tests
+```
+
+**Combined Options:**
+```powershell
+.\build_and_test.ps1 -SkipBuild -E2EOnly   # Quick E2E test run
+.\build_and_test.ps1 -RunTests -E2EOnly    # Build + unit tests + E2E tests
+```
+
 ### Prerequisites
 
 #### All Platforms
@@ -79,6 +111,29 @@ sudo apt install libglfw3-dev libglm-dev
 
 ### Build Steps
 
+#### Windows (Quick - PowerShell Script)
+```powershell
+# Clone the repository
+git clone <repository-url>
+cd phyxel
+
+# Initialize submodules
+git submodule update --init --recursive
+
+# Download GLFW:
+# 1. Download from https://www.glfw.org/download.html
+# 2. Extract to external/glfw/
+
+# Build (default: build only, no tests - fast!)
+.\build_and_test.ps1
+
+# Build and run tests
+.\build_and_test.ps1 -RunTests
+
+# Run the application
+.\VulkanCube.exe
+```
+
 #### Linux
 ```bash
 # Clone the repository
@@ -99,7 +154,7 @@ make -j$(nproc)
 ./VulkanCube
 ```
 
-#### Windows (Visual Studio)
+#### Windows (Visual Studio - Manual)
 ```cmd
 # Clone the repository
 git clone <repository-url>
@@ -127,6 +182,41 @@ cd ..
 VulkanCube.exe
 ```
 
+#### Windows (MinGW)
+```bash
+# Clone the repository
+git clone <repository-url>
+cd phyxel
+
+# Initialize submodules (this downloads Bullet3 and GLM automatically)
+git submodule update --init --recursive
+
+# Create build directory
+mkdir build && cd build
+
+# Configure and build (Bullet3 and GLM will be built automatically)
+cmake .. -G "MinGW Makefiles"
+cmake --build .
+
+# Run the application
+VulkanCube.exe
+```
+
+### Test Suite (383 Tests Total)
+
+The project includes comprehensive testing:
+- **287 Unit Tests** - Fast component tests (benchmarks excluded by default)
+- **36 Integration Tests** - System interaction tests
+- **11 Benchmark Tests** - Performance measurements
+- **24 Stress Tests** - Load and stability tests
+- **25 E2E Tests** - Full application lifecycle tests
+
+**Default behavior:** `.\build_and_test.ps1` builds without running tests for fast iteration.
+
+Use `-RunTests` flag to run unit tests (excluding slow benchmarks).
+
+Use specific flags (`-UnitOnly`, `-IntegrationOnly`, `-BenchmarkOnly`, `-StressOnly`, `-E2EOnly`) to run particular test suites.
+
 ## Troubleshooting
 
 ### "Could NOT find Vulkan" Error
@@ -153,6 +243,45 @@ sudo apt install libvulkan-dev vulkan-utils libglfw3-dev
 # If Vulkan validation layers missing:
 sudo apt install vulkan-validationlayers-dev
 ```
+
+### Build Script Options (Windows)
+
+The `build_and_test.ps1` script provides flexible build and test options:
+
+**Parameters:**
+- `-SkipBuild` - Skip compilation, use existing binaries
+- `-RunTests` - Run unit tests after build (excludes slow benchmarks)
+- `-UnitOnly` - Run all unit tests including benchmarks
+- `-IntegrationOnly` - Run only integration tests
+- `-BenchmarkOnly` - Run only benchmark tests
+- `-StressOnly` - Run only stress tests
+- `-E2EOnly` - Run only end-to-end tests
+
+**Common Usage:**
+```powershell
+# Fast development iteration (default)
+.\build_and_test.ps1
+
+# Full build with fast tests
+.\build_and_test.ps1 -RunTests
+
+# Quick test run without rebuild
+.\build_and_test.ps1 -SkipBuild -RunTests
+
+# Run specific test suite
+.\build_and_test.ps1 -E2EOnly
+
+# Multiple test suites
+.\build_and_test.ps1 -RunTests -E2EOnly  # Unit tests + E2E tests
+```
+
+**Test Execution Times:**
+- **Unit Tests** (default filter): ~10 seconds
+- **Unit Tests** (all, with benchmarks): ~30 seconds
+- **Integration Tests**: ~5 seconds
+- **Benchmark Tests**: ~20 seconds
+- **Stress Tests**: ~45 seconds
+- **E2E Tests**: ~105 seconds
 
 #### Windows (MinGW)
 ```bash

@@ -188,6 +188,7 @@ bool Application::initialize() {
     // Bind keyboard/mouse events to application functions (kept in Application for flexibility)
     initializeInputActions();
 
+    m_initialized = true;
     return true;
 }
 
@@ -310,6 +311,12 @@ void Application::run() {
 }
 
 void Application::cleanup() {
+    // Guard against double cleanup
+    if (!m_initialized) {
+        return;
+    }
+    m_initialized = false;
+    
     // Cleanup ImGui first (requires Vulkan device to still be active)
     if (imguiRenderer) {
         imguiRenderer->cleanup();
@@ -330,6 +337,11 @@ void Application::cleanup() {
         chunkManager->saveDirtyChunks();
         chunkManager->cleanup();
     }
+    
+    // Reset render coordinator and voxel interaction system before Vulkan cleanup
+    // These hold Vulkan resources that must be destroyed before the device
+    renderCoordinator.reset();
+    voxelInteractionSystem.reset();
     
     if (vulkanDevice) {
         vulkanDevice->cleanup();

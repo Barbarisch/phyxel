@@ -148,6 +148,9 @@ private:
     
     // Performance overlay methods
     void togglePerformanceOverlay();
+    
+    // Initialization state
+    bool m_initialized = false;
     void renderPerformanceOverlay();
 };
 

@@ -3,9 +3,13 @@
 
 param(
     [string]$Config = "Debug",
+    [switch]$RunTests,
     [switch]$UnitOnly,
     [switch]$IntegrationOnly,
-    [switch]$BenchmarkOnly
+    [switch]$BenchmarkOnly,
+    [switch]$StressOnly,
+    [switch]$E2EOnly,
+    [switch]$SkipBuild
 )
 
 # Store original location
@@ -25,8 +29,15 @@ if ($UnitOnly) {
     Write-Host "Mode: Integration Tests Only" -ForegroundColor Yellow
 } elseif ($BenchmarkOnly) {
     Write-Host "Mode: Benchmark Tests Only" -ForegroundColor Yellow
+} elseif ($StressOnly) {
+    Write-Host "Mode: Stress Tests Only" -ForegroundColor Yellow
+} elseif ($E2EOnly) {
+    Write-Host "Mode: End-to-End Tests Only" -ForegroundColor Yellow
+} elseif ($RunTests) {
+    Write-Host "Mode: Build + Fast Unit Tests" -ForegroundColor Yellow
 } else {
-    Write-Host "Mode: All Tests (Unit + Integration + Benchmark)" -ForegroundColor Yellow
+    Write-Host "Mode: Build Only (no tests)" -ForegroundColor Yellow
+    Write-Host "       Use -RunTests to run tests after build" -ForegroundColor Gray
 }
 
 Write-Host ""
@@ -59,25 +70,26 @@ if ($null -eq $VsDevShell) {
 
 & $VsDevShell -Arch amd64 -SkipAutomaticLocation
 
-Write-Host ""
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "Configuring CMake..." -ForegroundColor Cyan
-Write-Host "========================================" -ForegroundColor Cyan
-
-# Reconfigure CMake (important when new source files are added/removed)
-cmake -B build -G "Visual Studio 17 2022" -A x64
-
-if ($LASTEXITCODE -ne 0) {
+if (-not $SkipBuild) {
     Write-Host ""
-    Write-Host "========================================" -ForegroundColor Red
-    Write-Host "CMake configuration failed!" -ForegroundColor Red
-    Write-Host "========================================" -ForegroundColor Red
-    Set-Location $OriginalLocation
-    exit 1
-}
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "Configuring CMake..." -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor Cyan
 
-# Navigate to build directory
-Set-Location (Join-Path $ScriptDir "build")
+    # Reconfigure CMake (important when new source files are added/removed)
+    cmake -B build -G "Visual Studio 17 2022" -A x64
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host ""
+        Write-Host "========================================" -ForegroundColor Red
+        Write-Host "CMake configuration failed!" -ForegroundColor Red
+        Write-Host "========================================" -ForegroundColor Red
+        Set-Location $OriginalLocation
+        exit 1
+    }
+
+    # Navigate to build directory
+    Set-Location (Join-Path $ScriptDir "build")
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
@@ -110,10 +122,16 @@ if ($IntegrationOnly) {
     $BuildTargets += "phyxel_tests"
 } elseif ($BenchmarkOnly) {
     $BuildTargets += "phyxel_benchmarks"
+} elseif ($StressOnly) {
+    $BuildTargets += "phyxel_stress_tests"
+} elseif ($E2EOnly) {
+    $BuildTargets += "phyxel_e2e_tests"
 } else {
     $BuildTargets += "phyxel_tests"
     $BuildTargets += "phyxel_integration_tests"
     $BuildTargets += "phyxel_benchmarks"
+    $BuildTargets += "phyxel_stress_tests"
+    $BuildTargets += "phyxel_e2e_tests"
 }
 
 $BuildSuccess = $true
@@ -127,23 +145,40 @@ foreach ($BuildTarget in $BuildTargets) {
     }
 }
 
-if ($BuildSuccess) {
+} else {
     Write-Host ""
-    Write-Host "========================================" -ForegroundColor Green
-    Write-Host "Build successful!" -ForegroundColor Green
-    Write-Host "========================================" -ForegroundColor Green
+    Write-Host "========================================" -ForegroundColor Yellow
+    Write-Host "Skipping build (using existing binaries)" -ForegroundColor Yellow
+    Write-Host "========================================" -ForegroundColor Yellow
+    Set-Location (Join-Path $ScriptDir "build")
+}
+
+$BuildSuccess = $true
+
+if ($BuildSuccess -and ($RunTests -or $UnitOnly -or $IntegrationOnly -or $BenchmarkOnly -or $StressOnly -or $E2EOnly)) {
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "Running Tests..." -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor Cyan
     
     $TestsFailed = $false
     
-    if (-not $IntegrationOnly -and -not $BenchmarkOnly) {
+    if ($UnitOnly -or ($RunTests -and -not $IntegrationOnly -and -not $BenchmarkOnly -and -not $StressOnly -and -not $E2EOnly)) {
         Write-Host ""
         Write-Host "========================================" -ForegroundColor Cyan
-        Write-Host "Running Unit Tests (251 tests)..." -ForegroundColor Cyan
+        Write-Host "Running Unit Tests (276 core tests, ~5-10 seconds)..." -ForegroundColor Cyan
         Write-Host "========================================" -ForegroundColor Cyan
         
         $UnitTestExe = Join-Path "tests" (Join-Path $Config "phyxel_tests.exe")
         if (Test-Path $UnitTestExe) {
-            & $UnitTestExe
+            # Exclude slow benchmark tests by default (ChunkBenchmarks takes ~88s)
+            if ($UnitOnly) {
+                # When explicitly requested, run all unit tests including benchmarks
+                & $UnitTestExe
+            } else {
+                # By default, skip the slow benchmark tests
+                & $UnitTestExe --gtest_filter=-ChunkBenchmarks.*:PhysicsBenchmarks.*
+            }
             
             if ($LASTEXITCODE -ne 0) {
                 Write-Host ""
@@ -160,10 +195,10 @@ if ($BuildSuccess) {
         }
     }
     
-    if (-not $UnitOnly -and -not $BenchmarkOnly) {
+    if ($IntegrationOnly) {
         Write-Host ""
         Write-Host "========================================" -ForegroundColor Cyan
-        Write-Host "Running Integration Tests..." -ForegroundColor Cyan
+        Write-Host "Running Integration Tests (36 tests)..." -ForegroundColor Cyan
         Write-Host "========================================" -ForegroundColor Cyan
         
         $IntegrationTestExe = Join-Path "tests" (Join-Path "integration" (Join-Path $Config "phyxel_integration_tests.exe"))
@@ -185,10 +220,10 @@ if ($BuildSuccess) {
         }
     }
     
-    if (-not $UnitOnly -and -not $IntegrationOnly) {
+    if ($BenchmarkOnly) {
         Write-Host ""
         Write-Host "========================================" -ForegroundColor Cyan
-        Write-Host "Running Benchmark Tests..." -ForegroundColor Cyan
+        Write-Host "Running Benchmark Tests (11 tests)..." -ForegroundColor Cyan
         Write-Host "========================================" -ForegroundColor Cyan
         
         $BenchmarkTestExe = Join-Path "tests" (Join-Path "benchmark" (Join-Path $Config "phyxel_benchmarks.exe"))
@@ -210,6 +245,60 @@ if ($BuildSuccess) {
         }
     }
     
+    if ($StressOnly) {
+        Write-Host ""
+        Write-Host "========================================" -ForegroundColor Cyan
+        Write-Host "Running Stress Tests (24 tests)..." -ForegroundColor Cyan
+        Write-Host "========================================" -ForegroundColor Cyan
+        
+        $StressTestExe = Join-Path "tests" (Join-Path "stress" (Join-Path $Config "phyxel_stress_tests.exe"))
+        if (Test-Path $StressTestExe) {
+            & $StressTestExe
+            
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host ""
+                Write-Host "========================================" -ForegroundColor Red
+                Write-Host "STRESS TESTS FAILED!" -ForegroundColor Red
+                Write-Host "========================================" -ForegroundColor Red
+                $TestsFailed = $true
+            } else {
+                Write-Host ""
+                Write-Host "Stress tests passed!" -ForegroundColor Green
+            }
+        } else {
+            Write-Host "Warning: Stress test executable not found: $StressTestExe" -ForegroundColor Yellow
+        }
+    }
+    
+    if ($E2EOnly) {
+        Write-Host ""
+        Write-Host "========================================" -ForegroundColor Cyan
+        Write-Host "Running End-to-End Tests (25 tests)..." -ForegroundColor Cyan
+        Write-Host "========================================" -ForegroundColor Cyan
+        
+        $E2ETestExe = Join-Path "tests" (Join-Path "e2e" (Join-Path $Config "phyxel_e2e_tests.exe"))
+        if (Test-Path $E2ETestExe) {
+            $E2ETestDir = Join-Path "tests" (Join-Path "e2e" $Config)
+            Push-Location $E2ETestDir
+            & ".\phyxel_e2e_tests.exe"
+            $TestExitCode = $LASTEXITCODE
+            Pop-Location
+            
+            if ($TestExitCode -ne 0) {
+                Write-Host ""
+                Write-Host "========================================" -ForegroundColor Red
+                Write-Host "END-TO-END TESTS FAILED!" -ForegroundColor Red
+                Write-Host "========================================" -ForegroundColor Red
+                $TestsFailed = $true
+            } else {
+                Write-Host ""
+                Write-Host "End-to-end tests passed!" -ForegroundColor Green
+            }
+        } else {
+            Write-Host "Warning: E2E test executable not found: $E2ETestExe" -ForegroundColor Yellow
+        }
+    }
+    
     if ($TestsFailed) {
         Set-Location $OriginalLocation
         exit 1
@@ -221,11 +310,9 @@ if ($BuildSuccess) {
     Write-Host "========================================" -ForegroundColor Green
 } else {
     Write-Host ""
-    Write-Host "========================================" -ForegroundColor Red
-    Write-Host "Build failed!" -ForegroundColor Red
-    Write-Host "========================================" -ForegroundColor Red
-    Set-Location $OriginalLocation
-    exit 1
+    Write-Host "========================================" -ForegroundColor Green
+    Write-Host "Build successful!" -ForegroundColor Green
+    Write-Host "========================================" -ForegroundColor Green
 }
 
 Set-Location $OriginalLocation
