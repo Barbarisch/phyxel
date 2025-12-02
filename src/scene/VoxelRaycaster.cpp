@@ -1,4 +1,5 @@
 #include "scene/VoxelRaycaster.h"
+#include "core/IChunkManager.h"
 #include "core/ChunkManager.h"
 #include "core/Chunk.h"
 #include "core/Subcube.h"
@@ -7,6 +8,7 @@
 #include "utils/Logger.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <limits>
+#include <iostream>
 
 namespace VulkanCube {
 
@@ -46,7 +48,7 @@ VoxelLocation VoxelRaycaster::pickVoxel(
     const glm::vec3& rayDirection,
     ChunkManagerAccessFunc getChunkManager
 ) const {
-    ChunkManager* chunkManager = getChunkManager();
+    IChunkManager* chunkManager = getChunkManager();
     if (!chunkManager) {
         return VoxelLocation(); // Invalid location
     }
@@ -127,13 +129,13 @@ VoxelLocation VoxelRaycaster::pickVoxel(
             
             if (lastStepAxis >= 0) {
                 if (lastStepAxis == 0) { // X-axis step
-                    hitFace = (step.x > 0) ? 1 : 0;
+                    hitFace = (step.x > 0) ? 0 : 1;
                     hitNormal = (step.x > 0) ? glm::vec3(-1,0,0) : glm::vec3(1,0,0);
                 } else if (lastStepAxis == 1) { // Y-axis step
-                    hitFace = (step.y > 0) ? 3 : 2;
+                    hitFace = (step.y > 0) ? 2 : 3;
                     hitNormal = (step.y > 0) ? glm::vec3(0,-1,0) : glm::vec3(0,1,0);
                 } else if (lastStepAxis == 2) { // Z-axis step
-                    hitFace = (step.z > 0) ? 5 : 4;
+                    hitFace = (step.z > 0) ? 4 : 5;
                     hitNormal = (step.z > 0) ? glm::vec3(0,0,-1) : glm::vec3(0,0,1);
                 }
             }

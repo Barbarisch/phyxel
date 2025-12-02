@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Types.h"
+#include "IChunkManager.h"
 #include "Chunk.h"
 #include "Cube.h"
 #include "utils/CoordinateUtils.h"
@@ -38,7 +39,7 @@ namespace VulkanCube {
 // Phase 20 - Removed duplicate physics update code (delegated to DynamicObjectManager) COMPLETE
 // Original: 1,414 lines → Current: 604 lines (-810 lines, -57%)
 // 
-class ChunkManager {
+class ChunkManager : public IChunkManager {
 public:
     std::vector<std::unique_ptr<Chunk>> chunks;
     
@@ -213,7 +214,7 @@ public:
     bool addCubeFast(const glm::ivec3& worldPos, const glm::vec3& color = glm::vec3(1.0f));  // Fast cube addition
     
     // NEW: O(1) VoxelLocation resolution system for optimized hover detection
-    VoxelLocation resolveGlobalPosition(const glm::ivec3& worldPos) const;
+    VoxelLocation resolveGlobalPosition(const glm::ivec3& worldPos) const override;
     VoxelLocation resolveGlobalPositionWithSubcube(const glm::ivec3& worldPos, const glm::ivec3& subcubePos) const;
     bool hasVoxelAt(const glm::ivec3& worldPos) const;
     VoxelLocation::Type getVoxelTypeAt(const glm::ivec3& worldPos) const;

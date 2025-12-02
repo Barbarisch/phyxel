@@ -7,6 +7,7 @@
 namespace VulkanCube {
 
 // Forward declarations
+class IChunkManager;
 class ChunkManager;
 class Chunk;
 namespace UI {
@@ -44,7 +45,7 @@ namespace UI {
 class VoxelRaycaster {
 public:
     // Callback function types
-    using ChunkManagerAccessFunc = std::function<ChunkManager*()>;
+    using ChunkManagerAccessFunc = std::function<IChunkManager*()>;
     using WindowManagerAccessFunc = std::function<UI::WindowManager*()>;
 
     VoxelRaycaster() = default;

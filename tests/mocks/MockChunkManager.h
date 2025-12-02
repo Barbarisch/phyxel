@@ -12,9 +12,11 @@
 #pragma once
 
 #include "core/Types.h"
+#include "core/IChunkManager.h"
 #include <glm/glm.hpp>
 #include <unordered_map>
 #include <functional>
+#include <iostream>
 
 namespace VulkanCube {
 
@@ -31,7 +33,7 @@ struct Vec3Hash {
  * Mimics ChunkManager::resolveGlobalPosition() behavior using a simple hash map.
  * This is NOT a subclass of ChunkManager - it's a test double.
  */
-class MockChunkManager {
+class MockChunkManager : public IChunkManager {
 public:
     MockChunkManager() = default;
     ~MockChunkManager() = default;
@@ -43,7 +45,7 @@ public:
         VoxelLocation loc;
         loc.worldPos = worldPos;
         loc.type = VoxelLocation::CUBE;
-        loc.chunk = nullptr;
+        loc.chunk = (Chunk*)1; // Dummy non-null pointer to satisfy isValid()
         voxels[worldPos] = loc;
     }
     
@@ -54,7 +56,7 @@ public:
         VoxelLocation loc;
         loc.worldPos = worldPos;
         loc.type = VoxelLocation::SUBDIVIDED;
-        loc.chunk = nullptr;
+        loc.chunk = (Chunk*)1; // Dummy non-null pointer to satisfy isValid()
         voxels[worldPos] = loc;
     }
     
@@ -75,7 +77,7 @@ public:
     /**
      * Resolve global position (mimics ChunkManager interface)
      */
-    VoxelLocation resolveGlobalPosition(const glm::ivec3& worldPos) const {
+    VoxelLocation resolveGlobalPosition(const glm::ivec3& worldPos) const override {
         auto it = voxels.find(worldPos);
         if (it != voxels.end()) {
             return it->second;

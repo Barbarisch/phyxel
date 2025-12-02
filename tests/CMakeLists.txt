@@ -1,10 +1,13 @@
 # Unit Tests CMakeLists.txt
 # This builds the test executable with all unit tests
 
-# Collect all test source files
+# Collect unit test source files (exclude integration/benchmark/stress/e2e)
 file(GLOB_RECURSE TEST_SOURCES
-    "*.cpp"
-    "*.h"
+    "core/*.cpp"
+    "scene/*.cpp"
+    "ui/*.cpp"
+    "utils/*.cpp"
+    "mocks/*.cpp"
 )
 
 # Create test executable
