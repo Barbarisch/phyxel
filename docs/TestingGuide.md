@@ -96,7 +96,64 @@ target_include_directories(phyxel_tests
 gtest_discover_tests(phyxel_tests)
 ```
 
+## Running Tests
+
+### Fast Testing Workflow (Recommended)
+
+For rapid iteration, use the `test_fast.ps1` script. This script builds only the test executable and allows you to run specific tests using a filter.
+
+**Usage:**
+```powershell
+# Run all tests
+.\test_fast.ps1
+
+# Run tests matching a pattern (e.g., all VoxelRaycaster tests)
+.\test_fast.ps1 VoxelRaycasterTest.*
+
+# Run a specific test case
+.\test_fast.ps1 VoxelRaycasterTest.RayHit_SimpleCube
+```
+
+### Standard Workflow (Full Build)
+
+To build and run all tests (including integration tests):
+
+```powershell
+.\build_and_test.ps1
+```
+
 ## Writing Tests
+
+### Mocking Dependencies
+
+To test components in isolation (like `VoxelRaycaster`) without spinning up the entire engine, use **Interface Extraction** and **Mocking**.
+
+**Pattern:**
+1.  **Extract Interface**: Create an interface (e.g., `IChunkManager`) for the dependency.
+2.  **Implement Interface**: Make the real class (e.g., `ChunkManager`) implement this interface.
+3.  **Create Mock**: Create a mock class (e.g., `MockChunkManager`) that implements the interface but uses simplified logic (e.g., a `std::unordered_map` instead of full chunk storage).
+4.  **Inject Dependency**: Update the component under test to accept the interface (or a factory/callback returning the interface) rather than the concrete class.
+
+**Example (VoxelRaycaster):**
+
+```cpp
+// In VoxelRaycaster.h
+// Accepts a callback to get the IChunkManager
+VoxelLocation pickVoxel(
+    const glm::vec3& rayOrigin, 
+    const glm::vec3& rayDirection,
+    std::function<IChunkManager*()> chunkManagerProvider
+);
+
+// In Test
+MockChunkManager mock;
+mock.addCube(glm::ivec3(5, 0, 0)); // Setup mock state
+
+raycaster.pickVoxel(origin, dir, [&]() { return &mock; });
+```
+
+### Test Structure
+
 
 ### Unit Test Template
 

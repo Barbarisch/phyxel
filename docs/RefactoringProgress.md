@@ -998,6 +998,34 @@ None currently.
 
 ---
 
+### 19. ✅ VoxelRaycaster Testability Refactor (November 2025)
+**Branch:** `refactor_gemini3` (continuation)
+**Status:** COMPLETE
+**Time Spent:** ~1 hour
+**Focus:** Unit Testing & Dependency Injection
+
+**Files Modified:**
+- `include/scene/VoxelRaycaster.h` - Added `IChunkManager` dependency injection
+- `src/scene/VoxelRaycaster.cpp` - Updated to use `IChunkManager`
+- `include/core/IChunkManager.h` - Created interface for mocking
+- `include/core/ChunkManager.h` - Implemented `IChunkManager`
+- `tests/scene/VoxelRaycasterTest.cpp` - Added comprehensive unit tests
+
+**Key Changes:**
+- **Interface Extraction**: Created `IChunkManager` to decouple Raycaster from concrete ChunkManager
+- **Dependency Injection**: `pickVoxel` now accepts a provider for the chunk manager
+- **Mocking**: Created `MockChunkManager` for isolated unit tests
+- **Fast Testing**: Created `test_fast.ps1` for rapid iteration
+
+**Testing:** ✅ 4/4 Unit Tests Passing (Empty World, Simple Cube, Diagonal, Face Selection)
+
+**Lessons Learned:**
+- Extracting interfaces from heavy singletons allows for instant unit testing
+- `std::function` is a flexible way to inject dependencies without changing class layout
+- Fast iteration scripts (`test_fast.ps1`) significantly improve developer velocity
+
+---
+
 ## Best Practices Identified
 
 ### What Worked Well

@@ -935,6 +935,51 @@ TEST(ChunkTest, ExistingBehaviorTest) {
 
 ---
 
+## Example 5: Extract Interface for Testing
+
+**Scenario:** A class (`VoxelRaycaster`) depends on a heavy system (`ChunkManager`) that is difficult to instantiate in a unit test environment.
+
+**Solution:** Extract an interface (`IChunkManager`) from the heavy system and have the dependent class use the interface. This allows passing a lightweight `MockChunkManager` during tests.
+
+**Before:**
+```cpp
+// VoxelRaycaster.cpp
+VoxelLocation VoxelRaycaster::pickVoxel(...) {
+    // Direct dependency on the concrete singleton/global
+    ChunkManager* cm = Application::Get().GetChunkManager();
+    return cm->GetBlockAt(pos);
+}
+```
+
+**After:**
+```cpp
+// IChunkManager.h
+class IChunkManager {
+public:
+    virtual ~IChunkManager() = default;
+    virtual BlockType GetBlockAt(const glm::ivec3& pos) const = 0;
+};
+
+// ChunkManager.h
+class ChunkManager : public IChunkManager { ... };
+
+// VoxelRaycaster.h
+// Dependency Injection via function parameter (or constructor)
+VoxelLocation pickVoxel(..., std::function<IChunkManager*()> chunkManagerProvider);
+
+// VoxelRaycaster.cpp
+VoxelLocation VoxelRaycaster::pickVoxel(..., std::function<IChunkManager*()> chunkManagerProvider) {
+    IChunkManager* cm = chunkManagerProvider();
+    return cm->GetBlockAt(pos);
+}
+```
+
+**Benefit:**
+- **Testability:** Tests can run instantly without initializing Vulkan, Window, or Physics systems.
+- **Decoupling:** `VoxelRaycaster` no longer cares how chunks are stored, only that it can query them.
+
+---
+
 ## Success Metrics
 
 Track these metrics before and after each refactoring:

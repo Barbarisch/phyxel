@@ -78,6 +78,15 @@ src/
 .\build_and_test.ps1 -RunTests -E2EOnly    # Build + unit tests + E2E tests
 ```
 
+### Developer Workflow (Rapid Iteration)
+
+For working on a specific feature (like `VoxelRaycaster`), use the fast test script to build only the test executable and run specific tests:
+
+```powershell
+# Build and run only VoxelRaycaster tests
+.\test_fast.ps1 VoxelRaycaster*
+```
+
 ### Prerequisites
 
 #### All Platforms
