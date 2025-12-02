@@ -172,6 +172,9 @@ if ($BuildSuccess -and ($RunTests -or $UnitOnly -or $IntegrationOnly -or $Benchm
     Write-Host "Running Tests..." -ForegroundColor Cyan
     Write-Host "========================================" -ForegroundColor Cyan
     
+    # Run tests from project root so resources can be found
+    Set-Location $ScriptDir
+    
     $TestsFailed = $false
     
     if ($UnitOnly -or ($RunTests -and -not $IntegrationOnly -and -not $BenchmarkOnly -and -not $StressOnly -and -not $E2EOnly)) {
@@ -180,7 +183,7 @@ if ($BuildSuccess -and ($RunTests -or $UnitOnly -or $IntegrationOnly -or $Benchm
         Write-Host "Running Unit Tests (276 core tests, ~5-10 seconds)..." -ForegroundColor Cyan
         Write-Host "========================================" -ForegroundColor Cyan
         
-        $UnitTestExe = Join-Path "tests" (Join-Path $Config "phyxel_tests.exe")
+        $UnitTestExe = Join-Path "build" (Join-Path "tests" (Join-Path $Config "phyxel_tests.exe"))
         if (Test-Path $UnitTestExe) {
             # Exclude slow benchmark tests by default (ChunkBenchmarks takes ~88s)
             if ($UnitOnly) {
@@ -212,7 +215,7 @@ if ($BuildSuccess -and ($RunTests -or $UnitOnly -or $IntegrationOnly -or $Benchm
         Write-Host "Running Integration Tests (36 tests)..." -ForegroundColor Cyan
         Write-Host "========================================" -ForegroundColor Cyan
         
-        $IntegrationTestExe = Join-Path "tests" (Join-Path "integration" (Join-Path $Config "phyxel_integration_tests.exe"))
+        $IntegrationTestExe = Join-Path "build" (Join-Path "tests" (Join-Path "integration" (Join-Path $Config "phyxel_integration_tests.exe")))
         if (Test-Path $IntegrationTestExe) {
             & $IntegrationTestExe
             
@@ -237,7 +240,7 @@ if ($BuildSuccess -and ($RunTests -or $UnitOnly -or $IntegrationOnly -or $Benchm
         Write-Host "Running Benchmark Tests (11 tests)..." -ForegroundColor Cyan
         Write-Host "========================================" -ForegroundColor Cyan
         
-        $BenchmarkTestExe = Join-Path "tests" (Join-Path "benchmark" (Join-Path $Config "phyxel_benchmarks.exe"))
+        $BenchmarkTestExe = Join-Path "build" (Join-Path "tests" (Join-Path "benchmark" (Join-Path $Config "phyxel_benchmarks.exe")))
         if (Test-Path $BenchmarkTestExe) {
             & $BenchmarkTestExe
             
@@ -262,7 +265,7 @@ if ($BuildSuccess -and ($RunTests -or $UnitOnly -or $IntegrationOnly -or $Benchm
         Write-Host "Running Stress Tests (24 tests)..." -ForegroundColor Cyan
         Write-Host "========================================" -ForegroundColor Cyan
         
-        $StressTestExe = Join-Path "tests" (Join-Path "stress" (Join-Path $Config "phyxel_stress_tests.exe"))
+        $StressTestExe = Join-Path "build" (Join-Path "tests" (Join-Path "stress" (Join-Path $Config "phyxel_stress_tests.exe")))
         if (Test-Path $StressTestExe) {
             & $StressTestExe
             
@@ -287,15 +290,11 @@ if ($BuildSuccess -and ($RunTests -or $UnitOnly -or $IntegrationOnly -or $Benchm
         Write-Host "Running End-to-End Tests (25 tests)..." -ForegroundColor Cyan
         Write-Host "========================================" -ForegroundColor Cyan
         
-        $E2ETestExe = Join-Path "tests" (Join-Path "e2e" (Join-Path $Config "phyxel_e2e_tests.exe"))
+        $E2ETestExe = Join-Path "build" (Join-Path "tests" (Join-Path "e2e" (Join-Path $Config "phyxel_e2e_tests.exe")))
         if (Test-Path $E2ETestExe) {
-            $E2ETestDir = Join-Path "tests" (Join-Path "e2e" $Config)
-            Push-Location $E2ETestDir
-            & ".\phyxel_e2e_tests.exe"
-            $TestExitCode = $LASTEXITCODE
-            Pop-Location
+            & $E2ETestExe
             
-            if ($TestExitCode -ne 0) {
+            if ($LASTEXITCODE -ne 0) {
                 Write-Host ""
                 Write-Host "========================================" -ForegroundColor Red
                 Write-Host "END-TO-END TESTS FAILED!" -ForegroundColor Red
