@@ -79,6 +79,11 @@ public:
     void breakHoveredCubeWithForce(const glm::vec3& cameraPos, double mouseX, double mouseY);   // Break cube(s) using force propagation system
     void breakCubeAtPosition(const glm::ivec3& worldPos); // Helper: Break a single cube at world position
     
+    // Placement functions
+    void placeVoxelAtHover();           // Place a voxel adjacent to the currently hovered face
+    void placeSubcubeAtHover();         // Place a subcube adjacent to the currently hovered face
+    void placeMicrocubeAtHover();       // Place a microcube adjacent to the currently hovered face
+    
     // Hover state accessors
     bool hasHoveredCube() const { return m_hasHoveredCube; }
     const CubeLocation& getCurrentHoveredLocation() const { return m_currentHoveredLocation; }

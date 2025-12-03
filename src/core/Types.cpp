@@ -1,7 +1,40 @@
 #include "core/Types.h"
+#include "utils/Logger.h"
 #include <vulkan/vulkan.h>
 
 namespace VulkanCube {
+
+glm::ivec3 VoxelLocation::getAdjacentPlacementPosition() const {
+    LOG_INFO_FMT("VoxelLocation", "[getAdjacentPlacementPosition] Called with worldPos=(" 
+              << worldPos.x << "," << worldPos.y << "," << worldPos.z 
+              << ") hitFace=" << hitFace);
+    
+    if (hitFace < 0) {
+        LOG_INFO("VoxelLocation", "[getAdjacentPlacementPosition] No face data, returning worldPos");
+        return worldPos;
+    }
+    
+    // Face normals match raycaster: 0=left(-X), 1=right(+X), 2=bottom(-Y), 3=top(+Y), 4=back(-Z), 5=front(+Z)
+    glm::ivec3 faceOffset;
+    switch (hitFace) {
+        case 0: faceOffset = glm::ivec3(-1, 0, 0); break;  // left (-X face)
+        case 1: faceOffset = glm::ivec3(1, 0, 0); break;   // right (+X face)
+        case 2: faceOffset = glm::ivec3(0, -1, 0); break;  // bottom (-Y face)
+        case 3: faceOffset = glm::ivec3(0, 1, 0); break;   // top (+Y face)
+        case 4: faceOffset = glm::ivec3(0, 0, -1); break;  // back (-Z face)
+        case 5: faceOffset = glm::ivec3(0, 0, 1); break;   // front (+Z face)
+        default: 
+            LOG_WARN_FMT("VoxelLocation", "[getAdjacentPlacementPosition] Invalid hitFace=" << hitFace);
+            return worldPos;
+    }
+    
+    glm::ivec3 result = worldPos + faceOffset;
+    LOG_INFO_FMT("VoxelLocation", "[getAdjacentPlacementPosition] hitFace=" << hitFace 
+              << " offset=(" << faceOffset.x << "," << faceOffset.y << "," << faceOffset.z
+              << ") result=(" << result.x << "," << result.y << "," << result.z << ")");
+    
+    return result;
+}
 
 VkVertexInputBindingDescription Vertex::getBindingDescription() {
     VkVertexInputBindingDescription desc{};

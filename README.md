@@ -78,15 +78,6 @@ src/
 .\build_and_test.ps1 -RunTests -E2EOnly    # Build + unit tests + E2E tests
 ```
 
-### Developer Workflow (Rapid Iteration)
-
-For working on a specific feature (like `VoxelRaycaster`), use the fast test script to build only the test executable and run specific tests:
-
-```powershell
-# Build and run only VoxelRaycaster tests
-.\test_fast.ps1 VoxelRaycaster*
-```
-
 ### Prerequisites
 
 #### All Platforms
@@ -320,6 +311,13 @@ VulkanCube.exe
 - **Left Shift** - Move down
 - **Right Mouse + Drag** - Look around (camera rotation)
 - **Mouse Hover** - Highlight cubes under cursor
+- **Left Click** - Break/remove hovered voxel (cube/subcube/microcube)
+- **C** - Place cube adjacent to hovered face
+- **Shift + C** - Place subcube adjacent to hovered face
+- **Ctrl + C** - Place microcube adjacent to hovered face
+- **Ctrl + Left Click** - Subdivide cube into 27 subcubes
+- **Alt + Left Click** - Subdivide subcube into 27 microcubes
+- **Middle Click** - Subdivide cube (alternative)
 - **ESC** - Exit application
 
 ### Performance Monitoring

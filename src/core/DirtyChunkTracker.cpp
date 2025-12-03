@@ -18,8 +18,11 @@ void DirtyChunkTracker::markChunkDirty(size_t chunkIndex) {
     auto& chunks = m_getChunks();
     if (chunkIndex >= chunks.size()) return;
     
-    // Mark the chunk as needing update
+    // Mark the chunk as needing update (for GPU rendering)
     chunks[chunkIndex]->setNeedsUpdate(true);
+    
+    // Mark the chunk as dirty (for database persistence)
+    chunks[chunkIndex]->setDirty(true);
     
     // Add to dirty list if not already present (avoid duplicates)
     if (std::find(m_dirtyChunkIndices.begin(), m_dirtyChunkIndices.end(), chunkIndex) == m_dirtyChunkIndices.end()) {

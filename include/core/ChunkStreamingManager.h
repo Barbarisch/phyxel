@@ -92,6 +92,7 @@ public:
     // Manual chunk operations
     void loadChunksAroundPosition(const glm::vec3& position, float radius);
     void unloadDistantChunks(const glm::vec3& position, float radius);
+    std::vector<glm::ivec3> loadAllChunksFromDatabase();
     bool generateOrLoadChunk(const glm::ivec3& chunkCoord);
     bool loadChunk(const glm::ivec3& chunkCoord);
 

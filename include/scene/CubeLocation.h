@@ -18,7 +18,7 @@ struct CubeLocation {
     glm::ivec3 microcubePos;    // Local position within parent subcube (0-2 for each axis)
     
     // Face information for cube placement
-    int hitFace;                // Which face was hit: 0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z
+    int hitFace;                // Which face was hit: 0=left(-X), 1=right(+X), 2=bottom(-Y), 3=top(+Y), 4=back(-Z), 5=front(+Z)
     glm::vec3 hitNormal;        // Surface normal of hit face
     glm::vec3 hitPoint;         // Exact hit point on the cube surface
     

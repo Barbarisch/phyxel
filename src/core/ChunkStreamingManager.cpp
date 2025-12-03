@@ -172,6 +172,37 @@ bool ChunkStreamingManager::loadChunk(const glm::ivec3& chunkCoord) {
     return false;
 }
 
+std::vector<glm::ivec3> ChunkStreamingManager::loadAllChunksFromDatabase() {
+    std::vector<glm::ivec3> loadedChunks;
+    
+    if (!worldStorage) {
+        LOG_WARN("ChunkStreaming", "No world storage available - cannot load chunks from database");
+        return loadedChunks;
+    }
+    
+    // Get all chunk coordinates from database
+    std::vector<glm::ivec3> chunkCoords = worldStorage->getAllChunkCoordinates();
+    
+    if (chunkCoords.empty()) {
+        LOG_INFO("ChunkStreaming", "No chunks found in database");
+        return loadedChunks;
+    }
+    
+    LOG_INFO_FMT("ChunkStreaming", "Loading " << chunkCoords.size() << " chunks from database...");
+    
+    // Load each chunk
+    for (const auto& coord : chunkCoords) {
+        if (loadChunk(coord)) {
+            loadedChunks.push_back(coord);
+        } else {
+            LOG_WARN_FMT("ChunkStreaming", "Failed to load chunk (" << coord.x << "," << coord.y << "," << coord.z << ") from database");
+        }
+    }
+    
+    LOG_INFO_FMT("ChunkStreaming", "Successfully loaded " << loadedChunks.size() << " chunks from database");
+    return loadedChunks;
+}
+
 bool ChunkStreamingManager::generateOrLoadChunk(const glm::ivec3& chunkCoord) {
     if (!worldStorage) {
         // Fallback: create empty chunk via callback

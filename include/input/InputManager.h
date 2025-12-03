@@ -92,16 +92,34 @@ private:
     // Camera movement
     float cameraSpeed;
     
-    // Input state tracking (for key repeat prevention)
-    std::unordered_map<int, bool> keyPressed;
-    
     // Action callbacks
     struct KeyAction {
         std::string name;
         int modifiers; // GLFW modifier flags (0 for none)
         ActionCallback callback;
     };
-    std::unordered_map<int, KeyAction> keyActions;
+    
+    // Helper to create unique key for keyboard key+modifiers combination
+    struct KeyboardKey {
+        int key;
+        int modifiers;
+        
+        bool operator==(const KeyboardKey& other) const {
+            return key == other.key && modifiers == other.modifiers;
+        }
+    };
+    
+    // Hash function for KeyboardKey
+    struct KeyboardKeyHash {
+        std::size_t operator()(const KeyboardKey& k) const {
+            return std::hash<int>()(k.key) ^ (std::hash<int>()(k.modifiers) << 1);
+        }
+    };
+    
+    std::unordered_map<KeyboardKey, KeyAction, KeyboardKeyHash> keyActions;
+    
+    // Input state tracking (for key repeat prevention)
+    std::unordered_map<KeyboardKey, bool, KeyboardKeyHash> keyPressed;
     
     struct MouseAction {
         std::string name;

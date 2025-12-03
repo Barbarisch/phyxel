@@ -480,7 +480,11 @@ bool ChunkVoxelManager::addCube(
     
     size_t index = localPos.z + localPos.y * 32 + localPos.x * 32 * 32;
     auto& cubes = getCubes();
-    if (index >= cubes.size()) return false;
+    
+    // Ensure cubes vector is properly sized (32x32x32 = 32768 elements)
+    if (cubes.size() < 32 * 32 * 32) {
+        cubes.resize(32 * 32 * 32, nullptr);
+    }
     
     // If cube already exists, just update its color
     if (cubes[index]) {

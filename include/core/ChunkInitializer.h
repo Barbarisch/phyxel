@@ -72,8 +72,9 @@ public:
      * Creates chunk and updates all 26 neighbors with cross-chunk culling
      * 
      * @param origin World space origin of the chunk
+     * @param populate If true, fills chunk with world-generated cubes; if false, creates empty chunk
      */
-    void createChunk(const glm::ivec3& origin);
+    void createChunk(const glm::ivec3& origin, bool populate = true);
     
     /**
      * @brief Initialize voxel hash maps for all chunks

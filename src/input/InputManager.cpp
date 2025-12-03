@@ -104,36 +104,39 @@ void InputManager::processCameraMovement(float deltaTime) {
 
 void InputManager::processKeyboardActions() {
     // Process all registered key actions
-    for (auto& [key, action] : keyActions) {
-        int keyState = glfwGetKey(window, key);
+    for (auto& [keyCombo, action] : keyActions) {
+        int keyState = glfwGetKey(window, keyCombo.key);
         
         // Check if key is pressed
         if (keyState == GLFW_PRESS) {
             // Check if this is a new press (not a repeat)
-            if (!keyPressed[key]) {
-                // Check modifiers if specified
-                bool modifiersMatch = true;
-                if (action.modifiers != 0) {
-                    // Check Ctrl
-                    if (action.modifiers & GLFW_MOD_CONTROL) {
-                        if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) != GLFW_PRESS &&
-                            glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) != GLFW_PRESS) {
-                            modifiersMatch = false;
-                        }
-                    }
-                    // Add more modifier checks here if needed (Shift, Alt, etc.)
+            if (!keyPressed[keyCombo]) {
+                // Get current modifier state
+                int currentMods = 0;
+                if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS ||
+                    glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS) {
+                    currentMods |= GLFW_MOD_CONTROL;
+                }
+                if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
+                    glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS) {
+                    currentMods |= GLFW_MOD_SHIFT;
+                }
+                if (glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS ||
+                    glfwGetKey(window, GLFW_KEY_RIGHT_ALT) == GLFW_PRESS) {
+                    currentMods |= GLFW_MOD_ALT;
                 }
                 
-                if (modifiersMatch && action.callback) {
+                // Check if modifiers match exactly
+                if (currentMods == keyCombo.modifiers && action.callback) {
                     LOG_DEBUG("InputManager", "Action triggered: {}", action.name);
                     action.callback();
                 }
                 
-                keyPressed[key] = true;
+                keyPressed[keyCombo] = true;
             }
         } else {
             // Key released
-            keyPressed[key] = false;
+            keyPressed[keyCombo] = false;
         }
     }
 }
@@ -257,12 +260,14 @@ void InputManager::setMousePositionCallback(MousePositionCallback callback) {
 }
 
 void InputManager::registerAction(int key, const std::string& name, ActionCallback callback) {
-    keyActions[key] = KeyAction{name, 0, callback};
+    KeyboardKey keyCombo{key, 0};
+    keyActions[keyCombo] = KeyAction{name, 0, callback};
     LOG_DEBUG("InputManager", "Registered action '{}' for key {}", name, key);
 }
 
 void InputManager::registerActionWithModifier(int key, int modifiers, const std::string& name, ActionCallback callback) {
-    keyActions[key] = KeyAction{name, modifiers, callback};
+    KeyboardKey keyCombo{key, modifiers};
+    keyActions[keyCombo] = KeyAction{name, modifiers, callback};
     LOG_DEBUG("InputManager", "Registered action '{}' for key {} with modifiers", name, key);
 }
 

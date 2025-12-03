@@ -6,6 +6,7 @@
 #include "core/Microcube.h"
 #include "physics/PhysicsWorld.h"
 #include "utils/Logger.h"
+#include "utils/CoordinateUtils.h"
 #include <btBulletDynamicsCommon.h>
 #include <random>
 
@@ -535,6 +536,182 @@ bool VoxelManipulationSystem::breakCubeAtPosition(const glm::ivec3& worldPos, bo
 }
 
 // =============================================================================
+// VOXEL PLACEMENT OPERATIONS
+// =============================================================================
+
+bool VoxelManipulationSystem::placeCube(const glm::ivec3& worldPos, const glm::vec3& color) {
+    ChunkManager* chunkManager = getChunkManager();
+    if (!chunkManager) {
+        LOG_ERROR("VoxelManipulation", "[PLACE CUBE] ChunkManager not available");
+        return false;
+    }
+    
+    LOG_INFO_FMT("VoxelManipulation", "[PLACE CUBE] Attempting to place at (" 
+              << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")");
+    
+    // Ensure chunk exists at target position (auto-create if needed)
+    if (!ensureChunkExists(worldPos)) {
+        LOG_ERROR_FMT("VoxelManipulation", "[PLACE CUBE] Failed to ensure chunk exists at world pos (" 
+                  << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")");
+        return false;
+    }
+    
+    LOG_INFO("VoxelManipulation", "[PLACE CUBE] Chunk exists, checking occupation...");
+    
+    // Check if position is already occupied
+    if (chunkManager->hasVoxelAt(worldPos)) {
+        VoxelLocation::Type existingType = chunkManager->getVoxelTypeAt(worldPos);
+        LOG_WARN_FMT("VoxelManipulation", "[PLACE CUBE] Cannot place - position already occupied at (" 
+                  << worldPos.x << "," << worldPos.y << "," << worldPos.z 
+                  << ") with voxel type: " << (int)existingType 
+                  << " (try placing on a face pointing to empty space)");
+        return false;
+    }
+    
+    LOG_INFO("VoxelManipulation", "[PLACE CUBE] Position empty, placing cube...");
+    
+    // Place the cube
+    bool success = chunkManager->addCube(worldPos, color);
+    if (success) {
+        LOG_INFO_FMT("VoxelManipulation", "[PLACE CUBE] Successfully placed cube at world pos (" 
+                  << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")");
+        
+        // Verify chunk is marked dirty for database persistence
+        Chunk* targetChunk = chunkManager->getChunkAt(worldPos);
+        if (targetChunk) {
+            LOG_INFO_FMT("VoxelManipulation", "[PLACE CUBE] Target chunk dirty state: " 
+                      << (targetChunk->getIsDirty() ? "DIRTY" : "CLEAN"));
+        }
+    } else {
+        LOG_ERROR_FMT("VoxelManipulation", "[PLACE CUBE] addCube returned false at (" 
+                  << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")");
+    }
+    
+    return success;
+}
+
+bool VoxelManipulationSystem::placeSubcube(const glm::ivec3& worldPos, const glm::ivec3& subcubePos, const glm::vec3& color) {
+    ChunkManager* chunkManager = getChunkManager();
+    if (!chunkManager) {
+        LOG_ERROR("VoxelManipulation", "[PLACE SUBCUBE] ChunkManager not available");
+        return false;
+    }
+    
+    // Validate subcube position (must be 0-2 for each axis)
+    if (subcubePos.x < 0 || subcubePos.x >= 3 ||
+        subcubePos.y < 0 || subcubePos.y >= 3 ||
+        subcubePos.z < 0 || subcubePos.z >= 3) {
+        LOG_ERROR_FMT("VoxelManipulation", "[PLACE SUBCUBE] Invalid subcube position (" 
+                  << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z << ")");
+        return false;
+    }
+    
+    // Ensure chunk exists at target position
+    if (!ensureChunkExists(worldPos)) {
+        LOG_ERROR_FMT("VoxelManipulation", "[PLACE SUBCUBE] Failed to ensure chunk exists at world pos (" 
+                  << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")");
+        return false;
+    }
+    
+    // Get the chunk
+    Chunk* chunk = chunkManager->getChunkAt(worldPos);
+    if (!chunk) {
+        LOG_ERROR("VoxelManipulation", "[PLACE SUBCUBE] Chunk not found after creation");
+        return false;
+    }
+    
+    // Get local position within chunk
+    glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(worldPos);
+    
+    // Check if this specific subcube position is already occupied
+    Subcube* existing = chunk->getSubcubeAt(localPos, subcubePos);
+    if (existing) {
+        LOG_DEBUG_FMT("VoxelManipulation", "[PLACE SUBCUBE] Subcube position already occupied at cube (" 
+                  << worldPos.x << "," << worldPos.y << "," << worldPos.z 
+                  << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z << ")");
+        return false;
+    }
+    
+    // Place the subcube (this creates a standalone subcube without requiring parent cube)
+    bool success = chunk->addSubcube(localPos, subcubePos, color);
+    if (success) {
+        LOG_INFO_FMT("VoxelManipulation", "[PLACE SUBCUBE] Successfully placed subcube at world pos (" 
+                  << worldPos.x << "," << worldPos.y << "," << worldPos.z 
+                  << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z << ")");
+    } else {
+        LOG_WARN("VoxelManipulation", "[PLACE SUBCUBE] Failed to place subcube");
+    }
+    
+    return success;
+}
+
+bool VoxelManipulationSystem::placeMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, 
+                                            const glm::ivec3& microcubePos, const glm::vec3& color) {
+    ChunkManager* chunkManager = getChunkManager();
+    if (!chunkManager) {
+        LOG_ERROR("VoxelManipulation", "[PLACE MICROCUBE] ChunkManager not available");
+        return false;
+    }
+    
+    // Validate subcube and microcube positions (must be 0-2 for each axis)
+    if (subcubePos.x < 0 || subcubePos.x >= 3 ||
+        subcubePos.y < 0 || subcubePos.y >= 3 ||
+        subcubePos.z < 0 || subcubePos.z >= 3) {
+        LOG_ERROR_FMT("VoxelManipulation", "[PLACE MICROCUBE] Invalid subcube position (" 
+                  << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z << ")");
+        return false;
+    }
+    
+    if (microcubePos.x < 0 || microcubePos.x >= 3 ||
+        microcubePos.y < 0 || microcubePos.y >= 3 ||
+        microcubePos.z < 0 || microcubePos.z >= 3) {
+        LOG_ERROR_FMT("VoxelManipulation", "[PLACE MICROCUBE] Invalid microcube position (" 
+                  << microcubePos.x << "," << microcubePos.y << "," << microcubePos.z << ")");
+        return false;
+    }
+    
+    // Ensure chunk exists at target position
+    if (!ensureChunkExists(parentCubePos)) {
+        LOG_ERROR_FMT("VoxelManipulation", "[PLACE MICROCUBE] Failed to ensure chunk exists at world pos (" 
+                  << parentCubePos.x << "," << parentCubePos.y << "," << parentCubePos.z << ")");
+        return false;
+    }
+    
+    // Get the chunk
+    Chunk* chunk = chunkManager->getChunkAt(parentCubePos);
+    if (!chunk) {
+        LOG_ERROR("VoxelManipulation", "[PLACE MICROCUBE] Chunk not found after creation");
+        return false;
+    }
+    
+    // Get local position within chunk
+    glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(parentCubePos);
+    
+    // Check if this specific microcube position is already occupied
+    Microcube* existing = chunk->getMicrocubeAt(localPos, subcubePos, microcubePos);
+    if (existing) {
+        LOG_DEBUG_FMT("VoxelManipulation", "[PLACE MICROCUBE] Microcube position already occupied at cube (" 
+                  << parentCubePos.x << "," << parentCubePos.y << "," << parentCubePos.z 
+                  << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z 
+                  << ") microcube (" << microcubePos.x << "," << microcubePos.y << "," << microcubePos.z << ")");
+        return false;
+    }
+    
+    // Place the microcube (standalone, doesn't require parent subcube)
+    bool success = chunk->addMicrocube(localPos, subcubePos, microcubePos, color);
+    if (success) {
+        LOG_INFO_FMT("VoxelManipulation", "[PLACE MICROCUBE] Successfully placed microcube at world pos (" 
+                  << parentCubePos.x << "," << parentCubePos.y << "," << parentCubePos.z 
+                  << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z 
+                  << ") microcube (" << microcubePos.x << "," << microcubePos.y << "," << microcubePos.z << ")");
+    } else {
+        LOG_WARN("VoxelManipulation", "[PLACE MICROCUBE] Failed to place microcube");
+    }
+    
+    return success;
+}
+
+// =============================================================================
 // HELPER METHODS
 // =============================================================================
 
@@ -543,6 +720,46 @@ std::string VoxelManipulationSystem::selectMaterialForCube(const glm::vec3& cube
     std::vector<std::string> materials = {"Wood", "Metal", "Glass", "Rubber", "Stone", "Ice", "Cork"};
     int materialIndex = (abs(static_cast<int>(cubeWorldPos.x) + static_cast<int>(cubeWorldPos.z))) % materials.size();
     return materials[materialIndex];
+}
+
+glm::vec3 VoxelManipulationSystem::getCurrentPlacementColor() const {
+    // For now, return a default grass-green color
+    // TODO: Add material/color selection UI
+    return glm::vec3(0.2f, 0.7f, 0.2f); // Grass green
+}
+
+bool VoxelManipulationSystem::ensureChunkExists(const glm::ivec3& worldPos) {
+    ChunkManager* chunkManager = getChunkManager();
+    if (!chunkManager) {
+        return false;
+    }
+    
+    // Check if chunk already exists
+    Chunk* existingChunk = chunkManager->getChunkAt(worldPos);
+    if (existingChunk) {
+        return true; // Chunk already exists
+    }
+    
+    // Calculate chunk coordinate from world position
+    glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(worldPos);
+    
+    LOG_INFO_FMT("VoxelManipulation", "[CHUNK CREATION] Auto-creating EMPTY chunk at coord (" 
+              << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ") for placement");
+    
+    // Create an EMPTY chunk (populate=false) for player placement - don't use world generator
+    glm::ivec3 chunkOrigin = Utils::CoordinateUtils::chunkCoordToOrigin(chunkCoord);
+    chunkManager->createChunk(chunkOrigin, false);
+    
+    // Verify creation succeeded
+    Chunk* newChunk = chunkManager->getChunkAt(worldPos);
+    if (!newChunk) {
+        LOG_ERROR_FMT("VoxelManipulation", "[CHUNK CREATION] Failed to create chunk at coord (" 
+                  << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
+        return false;
+    }
+    
+    LOG_DEBUG("VoxelManipulation", "[CHUNK CREATION] Successfully created chunk for placement");
+    return true;
 }
 
 } // namespace VulkanCube

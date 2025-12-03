@@ -109,6 +109,44 @@ public:
      * @return true if cube was successfully broken
      */
     bool breakCubeAtPosition(const glm::ivec3& worldPos, bool disableForces = false);
+    
+    // =========================================================================
+    // VOXEL PLACEMENT OPERATIONS
+    // =========================================================================
+    
+    /**
+     * Place a cube at the specified world position
+     * Will auto-create chunk if it doesn't exist
+     * Fails if position is already occupied
+     * @param worldPos World position where cube should be placed
+     * @param color Color/material of the cube
+     * @return true if cube was successfully placed
+     */
+    bool placeCube(const glm::ivec3& worldPos, const glm::vec3& color);
+    
+    /**
+     * Place a subcube at the specified position
+     * Does NOT require parent cube (standalone placement)
+     * Will auto-create chunk if it doesn't exist
+     * @param worldPos World position of the parent cube grid
+     * @param subcubePos Local position within 3x3x3 subcube grid (0-2 for each axis)
+     * @param color Color/material of the subcube
+     * @return true if subcube was successfully placed
+     */
+    bool placeSubcube(const glm::ivec3& worldPos, const glm::ivec3& subcubePos, const glm::vec3& color);
+    
+    /**
+     * Place a microcube at the specified position
+     * Does NOT require parent subcube (standalone placement)
+     * Will auto-create chunk if it doesn't exist
+     * @param parentCubePos World position of the parent cube grid
+     * @param subcubePos Local position within 3x3x3 subcube grid (0-2 for each axis)
+     * @param microcubePos Local position within 3x3x3 microcube grid (0-2 for each axis)
+     * @param color Color/material of the microcube
+     * @return true if microcube was successfully placed
+     */
+    bool placeMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, 
+                       const glm::ivec3& microcubePos, const glm::vec3& color);
 
 private:
     // Callback functions
@@ -117,6 +155,10 @@ private:
     
     // Helper methods for material selection
     std::string selectMaterialForCube(const glm::vec3& cubeWorldPos) const;
+    
+    // Helper methods for placement
+    glm::vec3 getCurrentPlacementColor() const;
+    bool ensureChunkExists(const glm::ivec3& worldPos);
 };
 
 } // namespace VulkanCube

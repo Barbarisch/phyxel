@@ -220,7 +220,7 @@ TEST(VoxelLocationTest, GetAdjacentPlacementPosition_NoFace) {
 TEST(VoxelLocationTest, GetAdjacentPlacementPosition_PositiveX) {
     VoxelLocation loc;
     loc.worldPos = glm::ivec3(5, 10, 15);
-    loc.hitFace = 0; // +X face
+    loc.hitFace = 1; // right (+X face)
     
     glm::ivec3 adjacent = loc.getAdjacentPlacementPosition();
     EXPECT_EQ(adjacent, glm::ivec3(6, 10, 15));
@@ -229,7 +229,7 @@ TEST(VoxelLocationTest, GetAdjacentPlacementPosition_PositiveX) {
 TEST(VoxelLocationTest, GetAdjacentPlacementPosition_NegativeX) {
     VoxelLocation loc;
     loc.worldPos = glm::ivec3(5, 10, 15);
-    loc.hitFace = 1; // -X face
+    loc.hitFace = 0; // left (-X face)
     
     glm::ivec3 adjacent = loc.getAdjacentPlacementPosition();
     EXPECT_EQ(adjacent, glm::ivec3(4, 10, 15));
@@ -238,7 +238,7 @@ TEST(VoxelLocationTest, GetAdjacentPlacementPosition_NegativeX) {
 TEST(VoxelLocationTest, GetAdjacentPlacementPosition_PositiveY) {
     VoxelLocation loc;
     loc.worldPos = glm::ivec3(5, 10, 15);
-    loc.hitFace = 2; // +Y face
+    loc.hitFace = 3; // top (+Y face)
     
     glm::ivec3 adjacent = loc.getAdjacentPlacementPosition();
     EXPECT_EQ(adjacent, glm::ivec3(5, 11, 15));
@@ -247,7 +247,7 @@ TEST(VoxelLocationTest, GetAdjacentPlacementPosition_PositiveY) {
 TEST(VoxelLocationTest, GetAdjacentPlacementPosition_NegativeY) {
     VoxelLocation loc;
     loc.worldPos = glm::ivec3(5, 10, 15);
-    loc.hitFace = 3; // -Y face
+    loc.hitFace = 2; // bottom (-Y face)
     
     glm::ivec3 adjacent = loc.getAdjacentPlacementPosition();
     EXPECT_EQ(adjacent, glm::ivec3(5, 9, 15));
@@ -256,7 +256,7 @@ TEST(VoxelLocationTest, GetAdjacentPlacementPosition_NegativeY) {
 TEST(VoxelLocationTest, GetAdjacentPlacementPosition_PositiveZ) {
     VoxelLocation loc;
     loc.worldPos = glm::ivec3(5, 10, 15);
-    loc.hitFace = 4; // +Z face
+    loc.hitFace = 5; // front (+Z face)
     
     glm::ivec3 adjacent = loc.getAdjacentPlacementPosition();
     EXPECT_EQ(adjacent, glm::ivec3(5, 10, 16));
@@ -265,7 +265,7 @@ TEST(VoxelLocationTest, GetAdjacentPlacementPosition_PositiveZ) {
 TEST(VoxelLocationTest, GetAdjacentPlacementPosition_NegativeZ) {
     VoxelLocation loc;
     loc.worldPos = glm::ivec3(5, 10, 15);
-    loc.hitFace = 5; // -Z face
+    loc.hitFace = 4; // back (-Z face)
     
     glm::ivec3 adjacent = loc.getAdjacentPlacementPosition();
     EXPECT_EQ(adjacent, glm::ivec3(5, 10, 14));
@@ -282,12 +282,12 @@ TEST(VoxelLocationTest, GetAdjacentPlacementPosition_AllFaces) {
     };
     
     FaceTest tests[] = {
-        {0, glm::ivec3(1, 0, 0)},   // +X
-        {1, glm::ivec3(-1, 0, 0)},  // -X
-        {2, glm::ivec3(0, 1, 0)},   // +Y
-        {3, glm::ivec3(0, -1, 0)},  // -Y
-        {4, glm::ivec3(0, 0, 1)},   // +Z
-        {5, glm::ivec3(0, 0, -1)},  // -Z
+        {0, glm::ivec3(-1, 0, 0)},  // left (-X)
+        {1, glm::ivec3(1, 0, 0)},   // right (+X)
+        {2, glm::ivec3(0, -1, 0)},  // bottom (-Y)
+        {3, glm::ivec3(0, 1, 0)},   // top (+Y)
+        {4, glm::ivec3(0, 0, -1)},  // back (-Z)
+        {5, glm::ivec3(0, 0, 1)},   // front (+Z)
     };
     
     for (const auto& test : tests) {
@@ -309,10 +309,10 @@ TEST(VoxelLocationTest, GetAdjacentPlacementPosition_InvalidFaceID) {
 TEST(VoxelLocationTest, GetAdjacentPlacementPosition_NegativeWorldPos) {
     VoxelLocation loc;
     loc.worldPos = glm::ivec3(-5, -10, -15);
-    loc.hitFace = 0; // +X
+    loc.hitFace = 0; // left (-X)
     
     glm::ivec3 adjacent = loc.getAdjacentPlacementPosition();
-    EXPECT_EQ(adjacent, glm::ivec3(-4, -10, -15));
+    EXPECT_EQ(adjacent, glm::ivec3(-6, -10, -15));
 }
 
 // ============================================================================

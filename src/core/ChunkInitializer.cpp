@@ -58,7 +58,7 @@ void ChunkInitializer::createChunks(const std::vector<glm::ivec3>& origins) {
     }
 }
 
-void ChunkInitializer::createChunk(const glm::ivec3& origin) {
+void ChunkInitializer::createChunk(const glm::ivec3& origin, bool populate) {
     auto& chunks = m_getChunks();
     auto& chunkMap = m_getChunkMap();
     auto [device, physicalDevice] = m_getDevice();
@@ -72,7 +72,13 @@ void ChunkInitializer::createChunk(const glm::ivec3& origin) {
     glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(origin);
     chunkMap[chunkCoord] = chunk.get();
     
-    chunk->populateWithCubes();
+    // Only populate with world-generated cubes if requested (default true for world init, false for player placement)
+    if (populate) {
+        chunk->populateWithCubes();
+    }
+    
+    // Mark new chunk as dirty so it gets saved to database
+    chunk->setDirty(true);
     
     // Generate face instances from cubes (initial pass)
     chunk->rebuildFaces();

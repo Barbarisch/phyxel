@@ -334,7 +334,12 @@ void Application::cleanup() {
     if (chunkManager) {
         // Save only dirty chunks to database before cleanup for efficiency
         LOG_INFO("Application", "Saving modified chunks to database...");
-        chunkManager->saveDirtyChunks();
+        bool saveSuccess = chunkManager->saveDirtyChunks();
+        if (saveSuccess) {
+            LOG_INFO("Application", "Successfully saved dirty chunks to database");
+        } else {
+            LOG_ERROR("Application", "Failed to save dirty chunks to database");
+        }
         chunkManager->cleanup();
     }
     
@@ -518,15 +523,22 @@ void Application::initializeInputActions() {
                      << ", " << spawnPos.y << ", " << spawnPos.z << " not yet implemented");
     });
     
-    // C - Place cube (placeholder - functionality removed)
+    // C - Place cube
     inputManager->registerAction(GLFW_KEY_C, "Place Cube", [this]() {
-        glm::vec3 cubePos = inputManager->getCameraPosition() + inputManager->getCameraFront() * 3.0f;
-        glm::ivec3 worldPos = glm::ivec3(cubePos);
-        glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(worldPos);
-        glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(worldPos);
-        
-        LOG_INFO_FMT("Application", "Cube placement at world " << worldPos.x 
-                     << ", " << worldPos.y << ", " << worldPos.z << " not yet implemented");
+        LOG_INFO("Application", "C key pressed - attempting to place cube");
+        voxelInteractionSystem->placeVoxelAtHover();
+    });
+    
+    // Shift + C - Place subcube
+    inputManager->registerActionWithModifier(GLFW_KEY_C, GLFW_MOD_SHIFT, "Place Subcube", [this]() {
+        LOG_INFO("Application", "Shift+C pressed - attempting to place subcube");
+        voxelInteractionSystem->placeSubcubeAtHover();
+    });
+    
+    // Ctrl + C - Place microcube
+    inputManager->registerActionWithModifier(GLFW_KEY_C, GLFW_MOD_CONTROL, "Place Microcube", [this]() {
+        LOG_INFO("Application", "Ctrl+C pressed - attempting to place microcube");
+        voxelInteractionSystem->placeMicrocubeAtHover();
     });
     
     // O - Toggle breaking forces

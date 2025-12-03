@@ -94,22 +94,20 @@ bool WorldInitializer::initialize() {
         LOG_WARN("WorldInitializer", "Failed to initialize world storage. Using temporary chunks.");
     }
     
-    // Create chunks
-    //auto origins = MultiChunkDemo::createLinearChunks(10);
-    //auto origins = MultiChunkDemo::createGridChunks(5, 5);
-    auto origins = MultiChunkDemo::create3DGridChunks(2, 2, 2);
+    // Try to load all chunks from database first
+    std::vector<glm::ivec3> loadedChunks = chunkManager->loadAllChunksFromDatabase();
     
-    // Debug: Print chunk origins
-    LOG_DEBUG("WorldInitializer", "=== CHUNK ORIGINS ===");
-    for (size_t i = 0; i < origins.size(); ++i) {
-        LOG_DEBUG_FMT("WorldInitializer", "Chunk " << i << " origin: (" << origins[i].x << "," << origins[i].y << "," << origins[i].z << ")");
-    }
-    LOG_DEBUG("WorldInitializer", "=====================");
-    
-    // Load chunks from database or generate if they don't exist
-    for (const auto& origin : origins) {
-        glm::ivec3 chunkCoord = chunkManager->worldToChunkCoord(origin);
-        chunkManager->generateOrLoadChunk(chunkCoord);
+    if (loadedChunks.empty()) {
+        // No chunks in database - create initial world
+        LOG_INFO("WorldInitializer", "No chunks found in database - creating initial world");
+        auto origins = MultiChunkDemo::create3DGridChunks(2, 2, 2);
+        
+        for (const auto& origin : origins) {
+            glm::ivec3 chunkCoord = chunkManager->worldToChunkCoord(origin);
+            chunkManager->generateOrLoadChunk(chunkCoord);
+        }
+    } else {
+        LOG_INFO_FMT("WorldInitializer", "Loaded " << loadedChunks.size() << " chunks from database");
     }
     
     // Rebuild faces for all chunks AFTER all are loaded (critical for cross-chunk culling)

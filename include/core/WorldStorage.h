@@ -53,6 +53,7 @@ public:
     bool saveChunks(const std::vector<std::reference_wrapper<const Chunk>>& chunks);
     bool saveDirtyChunks(const std::vector<std::reference_wrapper<Chunk>>& chunks);
     std::vector<glm::ivec3> getChunksInRegion(const glm::ivec3& minChunk, const glm::ivec3& maxChunk);
+    std::vector<glm::ivec3> getAllChunkCoordinates();  // Get coordinates of all chunks in database
     
     // World management
     bool createNewWorld();

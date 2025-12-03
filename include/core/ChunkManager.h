@@ -111,6 +111,7 @@ public:
     bool saveAllChunks();
     bool saveDirtyChunks();  // Save only chunks that have been modified
     bool loadChunk(const glm::ivec3& chunkCoord);
+    std::vector<glm::ivec3> loadAllChunksFromDatabase();  // Load all chunks that exist in the database
     bool generateOrLoadChunk(const glm::ivec3& chunkCoord); // Generate if doesn't exist, load if it does
     
     // Post-loading face rebuilding (call after all chunks are loaded)
@@ -122,8 +123,8 @@ public:
     // Create multiple chunks at specified world origins
     void createChunks(const std::vector<glm::ivec3>& origins);
     
-    // Create a single chunk at specified origin
-    void createChunk(const glm::ivec3& origin);
+    // Create a single chunk at specified origin (populate=true uses world generator, populate=false creates empty chunk)
+    void createChunk(const glm::ivec3& origin, bool populate = true);
     
     // Update chunk data (for dynamic content)
     void updateChunk(size_t chunkIndex);

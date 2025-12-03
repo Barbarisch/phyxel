@@ -95,22 +95,7 @@ struct VoxelLocation {
     }
     
     // Get the world position where a new cube should be placed adjacent to this face
-    glm::ivec3 getAdjacentPlacementPosition() const {
-        if (hitFace < 0) return worldPos; // No face data available
-        
-        // Face normals: 0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z
-        glm::ivec3 faceOffset;
-        switch (hitFace) {
-            case 0: faceOffset = glm::ivec3(1, 0, 0); break;   // +X face
-            case 1: faceOffset = glm::ivec3(-1, 0, 0); break;  // -X face
-            case 2: faceOffset = glm::ivec3(0, 1, 0); break;   // +Y face
-            case 3: faceOffset = glm::ivec3(0, -1, 0); break;  // -Y face
-            case 4: faceOffset = glm::ivec3(0, 0, 1); break;   // +Z face
-            case 5: faceOffset = glm::ivec3(0, 0, -1); break;  // -Z face
-            default: return worldPos;
-        }
-        return worldPos + faceOffset;
-    }
+    glm::ivec3 getAdjacentPlacementPosition() const;
 };
 
 // Core vertex structure

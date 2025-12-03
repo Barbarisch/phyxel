@@ -37,6 +37,7 @@ bool WorldStorage::deleteCube(const glm::ivec3& chunkCoord, const glm::ivec3& lo
 bool WorldStorage::saveChunks(const std::vector<std::reference_wrapper<const Chunk>>& chunks) { return false; }
 bool WorldStorage::saveDirtyChunks(const std::vector<std::reference_wrapper<Chunk>>& chunks) { return false; }
 std::vector<glm::ivec3> WorldStorage::getChunksInRegion(const glm::ivec3& minChunk, const glm::ivec3& maxChunk) { return {}; }
+std::vector<glm::ivec3> WorldStorage::getAllChunkCoordinates() { return {}; }
 bool WorldStorage::createNewWorld() { return false; }
 bool WorldStorage::compactDatabase() { return false; }
 size_t WorldStorage::getChunkCount() { return 0; }
@@ -502,6 +503,9 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
 bool WorldStorage::loadChunk(const glm::ivec3& chunkCoord, Chunk& chunk) {
     if (!db) return false;
     
+    LOG_INFO_FMT("WorldStorage", "[WORLD_STORAGE] Attempting to load chunk (" 
+              << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
+    
     // Bind chunk coordinates
     sqlite3_bind_int(selectCubesStmt, 1, chunkCoord.x);
     sqlite3_bind_int(selectCubesStmt, 2, chunkCoord.y);
@@ -535,7 +539,7 @@ bool WorldStorage::loadChunk(const glm::ivec3& chunkCoord, Chunk& chunk) {
     // Load microcubes for this chunk
     loadMicrocubesForChunk(chunkCoord, chunk);
     
-    LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Loaded " << loadedCubes << " cubes for chunk (" 
+    LOG_INFO_FMT("WorldStorage", "[WORLD_STORAGE] Loaded " << loadedCubes << " cubes for chunk (" 
               << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
     
     return loadedCubes > 0;
@@ -674,6 +678,31 @@ std::vector<glm::ivec3> WorldStorage::getChunksInRegion(const glm::ivec3& minChu
     }
     
     sqlite3_finalize(stmt);
+    return chunks;
+}
+
+std::vector<glm::ivec3> WorldStorage::getAllChunkCoordinates() {
+    std::vector<glm::ivec3> chunks;
+    if (!db) return chunks;
+    
+    const char* sql = "SELECT chunk_x, chunk_y, chunk_z FROM chunks ORDER BY chunk_x, chunk_y, chunk_z;";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] Failed to prepare getAllChunkCoordinates query: " << sqlite3_errmsg(db));
+        return chunks;
+    }
+    
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        chunks.emplace_back(
+            sqlite3_column_int(stmt, 0),
+            sqlite3_column_int(stmt, 1),
+            sqlite3_column_int(stmt, 2)
+        );
+    }
+    
+    sqlite3_finalize(stmt);
+    LOG_INFO_FMT("WorldStorage", "[WORLD_STORAGE] Found " << chunks.size() << " chunks in database");
     return chunks;
 }
 

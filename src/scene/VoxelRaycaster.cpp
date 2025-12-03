@@ -127,6 +127,11 @@ VoxelLocation VoxelRaycaster::pickVoxel(
             int hitFace = -1;
             glm::vec3 hitNormal(0);
             
+            LOG_INFO_FMT("VoxelRaycaster", "[FACE DETECT] lastStepAxis=" << lastStepAxis 
+                       << " step=(" << step.x << "," << step.y << "," << step.z << ")"
+                       << " voxel=(" << voxel.x << "," << voxel.y << "," << voxel.z << ")"
+                       << " rayDir=(" << rayDirection.x << "," << rayDirection.y << "," << rayDirection.z << ")");
+            
             if (lastStepAxis >= 0) {
                 if (lastStepAxis == 0) { // X-axis step
                     hitFace = (step.x > 0) ? 0 : 1;
@@ -139,6 +144,9 @@ VoxelLocation VoxelRaycaster::pickVoxel(
                     hitNormal = (step.z > 0) ? glm::vec3(0,0,-1) : glm::vec3(0,0,1);
                 }
             }
+            
+            LOG_INFO_FMT("VoxelRaycaster", "[FACE DETECT] Computed hitFace=" << hitFace 
+                       << " hitNormal=(" << hitNormal.x << "," << hitNormal.y << "," << hitNormal.z << ")");
             
             location.hitFace = hitFace;
             location.hitNormal = hitNormal;

@@ -149,6 +149,10 @@ bool ChunkManager::loadChunk(const glm::ivec3& chunkCoord) {
     return m_streamingManager.loadChunk(chunkCoord);
 }
 
+std::vector<glm::ivec3> ChunkManager::loadAllChunksFromDatabase() {
+    return m_streamingManager.loadAllChunksFromDatabase();
+}
+
 bool ChunkManager::generateOrLoadChunk(const glm::ivec3& chunkCoord) {
     return m_streamingManager.generateOrLoadChunk(chunkCoord);
 }
@@ -165,8 +169,8 @@ void ChunkManager::createChunks(const std::vector<glm::ivec3>& origins) {
     m_chunkInitializer.createChunks(origins);
 }
 
-void ChunkManager::createChunk(const glm::ivec3& origin) {
-    m_chunkInitializer.createChunk(origin);
+void ChunkManager::createChunk(const glm::ivec3& origin, bool populate) {
+    m_chunkInitializer.createChunk(origin, populate);
 }
 
 void ChunkManager::updateChunk(size_t chunkIndex) {
