@@ -122,7 +122,7 @@ bool WorldStorage::createTables() {
             PRIMARY KEY (chunk_x, chunk_y, chunk_z)
         );
         
-        // Cubes table for sparse storage (only non-air blocks)
+        -- Cubes table for sparse storage (only non-air blocks)
         CREATE TABLE IF NOT EXISTS cubes (
             chunk_x INTEGER NOT NULL,
             chunk_y INTEGER NOT NULL, 

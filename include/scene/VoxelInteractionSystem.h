@@ -5,6 +5,8 @@
 #include "scene/VoxelRaycaster.h"
 #include "scene/VoxelForceApplicator.h"
 #include "scene/VoxelManipulationSystem.h"
+#include "scene/interaction/PlacementTool.h"
+#include "scene/interaction/DestructionTool.h"
 #include <glm/glm.hpp>
 #include <memory>
 
@@ -114,10 +116,19 @@ private:
     VoxelForceApplicator m_forceApplicator; // Handles force-based breaking and propagation
     VoxelManipulationSystem m_manipulator;  // Handles voxel removal, subdivision, and breaking
     
+    // Interaction Tools
+    std::unique_ptr<PlacementTool> m_placementTool;
+    std::unique_ptr<DestructionTool> m_destructionTool;
+    
     // Hover state
     bool m_hasHoveredCube;
     CubeLocation m_currentHoveredLocation;
     int m_lastHoveredCube;
+    
+    // Camera state (cached from updateMouseHover)
+    glm::vec3 m_lastCameraPos;
+    glm::vec3 m_lastCameraFront;
+    glm::vec3 m_lastCameraUp;
     
     // Performance metrics
     double m_hoverDetectionTimeMs;
@@ -132,6 +143,9 @@ private:
         float manualForceValue = 500.0f;
     } m_debugFlags;
     
+    // Helper to create interaction context
+    InteractionContext createContext() const;
+
     // Optimized O(1) raycasting functions (delegated to VoxelRaycaster)
     VoxelLocation pickVoxelOptimized(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const;
     VoxelLocation resolveSubcubeInVoxel(const glm::vec3& rayOrigin, const glm::vec3& rayDirection, 

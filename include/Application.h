@@ -15,6 +15,7 @@
 #include "ui/ImGuiRenderer.h"
 #include "ui/WindowManager.h"
 #include "input/InputManager.h"
+#include "input/InputController.h"
 #include "core/ChunkManager.h"
 #include "core/ForceSystem.h"
 #include "core/WorldInitializer.h"
@@ -36,10 +37,14 @@ public:
     bool initialize();
     void run();
     void cleanup();
+    void quit() { isRunning = false; }
 
     // Configuration
     void setWindowSize(int width, int height);
     void setTitle(const std::string& title);
+    
+    // Performance overlay methods
+    void togglePerformanceOverlay();
 
 private:
     // ============================================================================
@@ -64,6 +69,7 @@ private:
     
     // Input and interaction
     std::unique_ptr<Input::InputManager> inputManager;                 // Keyboard/mouse input
+    std::unique_ptr<InputController> inputController;                  // Input bindings and control
     std::unique_ptr<MouseVelocityTracker> mouseVelocityTracker;        // Mouse velocity tracking
     
     // Performance and timing
@@ -98,16 +104,7 @@ private:
     bool showPerformanceOverlay = false;
     
     // Debug system
-    struct DebugFlags {
-        bool hoverDetection = false;
-        bool cameraMovement = false;
-        bool performanceStats = false;
-        bool chunkOperations = false;
-        bool cubeOperations = false;
-        bool disableBreakingForces = false; // For testing exact positioning without physics forces
-        bool showForceSystemDebug = false;  // Show force system debug overlay
-        float manualForceValue = 500.0f;    // User-controllable force value via slider
-    } debugFlags;
+    // Debug flags moved to InputController
     
     // New chunk-level frustum culling
     Utils::Frustum cameraFrustum;
@@ -132,9 +129,6 @@ private:
     void spawnTestDynamicSubcube();  // Spawn a test dynamic subcube above the chunks
     void placeNewCube();            // Place a new cube adjacent to the hovered cube face
 
-    // Input initialization (registers actions with InputManager)
-    void initializeInputActions();
-    
     // Ray-AABB intersection utility
     bool rayAABBIntersect(const glm::vec3& rayOrigin, const glm::vec3& rayDir, 
                          const glm::vec3& aabbMin, const glm::vec3& aabbMax, 
@@ -145,9 +139,6 @@ private:
     
     // Color utility methods
     glm::vec3 calculateLighterColor(const glm::vec3& originalColor) const;
-    
-    // Performance overlay methods
-    void togglePerformanceOverlay();
     
     // Initialization state
     bool m_initialized = false;

@@ -35,6 +35,10 @@ VoxelInteractionSystem::VoxelInteractionSystem(ChunkManager* chunkManager,
         [this]() -> Physics::PhysicsWorld* { return m_physicsWorld; }
     );
     
+    // Initialize tools
+    m_placementTool = std::make_unique<PlacementTool>(&m_manipulator);
+    m_destructionTool = std::make_unique<DestructionTool>(&m_manipulator);
+    
     LOG_INFO("VoxelInteractionSystem", "VoxelInteractionSystem initialized");
 }
 
@@ -46,6 +50,11 @@ void VoxelInteractionSystem::updateMouseHover(const glm::vec3& cameraPos, const 
     if (isMouseCaptured) {
         return;
     }
+    
+    // Cache camera state for interaction tools
+    m_lastCameraPos = cameraPos;
+    m_lastCameraFront = cameraFront;
+    m_lastCameraUp = cameraUp;
     
     // Performance timing
     auto startTime = std::chrono::high_resolution_clock::now();
@@ -134,38 +143,27 @@ void VoxelInteractionSystem::updateMouseHover(const glm::vec3& cameraPos, const 
     }
 }
 
+InteractionContext VoxelInteractionSystem::createContext() const {
+    InteractionContext context;
+    context.hoveredLocation = m_currentHoveredLocation;
+    context.hasHovered = m_hasHoveredCube;
+    context.cameraPosition = m_lastCameraPos;
+    context.cameraFront = m_lastCameraFront;
+    context.cameraUp = m_lastCameraUp;
+    return context;
+}
+
 void VoxelInteractionSystem::removeHoveredCube() {
-    // Check if we have a valid hovered cube
-    if (!m_hasHoveredCube || !m_currentHoveredLocation.isValid()) {
-        LOG_DEBUG("Application", "[CUBE REMOVAL] No cube is currently being hovered - cannot remove");
-        return;
-    }
-    
-    // Delegate to manipulation system
-    bool removed = m_manipulator.removeVoxel(m_currentHoveredLocation);
-    
-    if (removed) {
-        // Clear hover state since the object no longer exists
+    if (m_hasHoveredCube && m_currentHoveredLocation.isValid()) {
+        m_manipulator.removeVoxel(m_currentHoveredLocation);
         m_hasHoveredCube = false;
         m_currentHoveredLocation = CubeLocation();
-        m_lastHoveredCube = -1; // Reset the hover tracking
-    } else {
-        LOG_WARN("Application", "[REMOVAL] WARNING: Failed to remove object - it may not exist");
+        m_lastHoveredCube = -1;
     }
 }
 
 void VoxelInteractionSystem::subdivideHoveredCube() {
-    // Check if we have a valid hovered cube
-    if (!m_hasHoveredCube || !m_currentHoveredLocation.isValid()) {
-        LOG_DEBUG("Application", "[CUBE SUBDIVISION] No cube is currently being hovered - cannot subdivide");
-        return;
-    }
-
-    // Delegate to manipulation system
-    bool subdivided = m_manipulator.subdivideCube(m_currentHoveredLocation);
-
-    if (subdivided) {
-        // Clear hover state
+    if (m_destructionTool->subdivideCube(createContext())) {
         m_hasHoveredCube = false;
         m_currentHoveredLocation = CubeLocation();
         m_lastHoveredCube = -1;
@@ -173,17 +171,7 @@ void VoxelInteractionSystem::subdivideHoveredCube() {
 }
 
 void VoxelInteractionSystem::subdivideHoveredSubcube() {
-    // Check if we have a valid hovered cube
-    if (!m_hasHoveredCube || !m_currentHoveredLocation.isValid()) {
-        LOG_DEBUG("Application", "[SUBCUBE SUBDIVISION] No voxel is currently being hovered - cannot subdivide");
-        return;
-    }
-
-    // Delegate to manipulation system
-    bool subdivided = m_manipulator.subdivideSubcube(m_currentHoveredLocation);
-
-    if (subdivided) {
-        // Clear hover state
+    if (m_destructionTool->subdivideSubcube(createContext())) {
         m_hasHoveredCube = false;
         m_currentHoveredLocation = CubeLocation();
         m_lastHoveredCube = -1;
@@ -191,17 +179,7 @@ void VoxelInteractionSystem::subdivideHoveredSubcube() {
 }
 
 void VoxelInteractionSystem::breakHoveredCube(const glm::vec3& cameraPos) {
-    // Check if we have a valid hovered cube
-    if (!m_hasHoveredCube || !m_currentHoveredLocation.isValid()) {
-        LOG_DEBUG("Application", "[CUBE BREAKING] No cube is currently being hovered - cannot break");
-        return;
-    }
-    
-    // Delegate to manipulation system
-    bool broken = m_manipulator.breakCube(m_currentHoveredLocation, cameraPos, !m_debugFlags.disableBreakingForces);
-    
-    if (broken) {
-        // Clear hover state
+    if (m_destructionTool->breakCube(createContext())) {
         m_hasHoveredCube = false;
         m_currentHoveredLocation = CubeLocation();
         m_lastHoveredCube = -1;
@@ -209,17 +187,7 @@ void VoxelInteractionSystem::breakHoveredCube(const glm::vec3& cameraPos) {
 }
 
 void VoxelInteractionSystem::breakHoveredSubcube() {
-    // Check if we have a valid hovered subcube
-    if (!m_hasHoveredCube || !m_currentHoveredLocation.isValid()) {
-        LOG_DEBUG("Application", "[SUBCUBE BREAKING] No subcube is currently being hovered - cannot break");
-        return;
-    }
-
-    // Delegate to manipulation system
-    bool broken = m_manipulator.breakSubcube(m_currentHoveredLocation, false);
-
-    if (broken) {
-        // Clear hover state
+    if (m_destructionTool->breakSubcube(createContext())) {
         m_hasHoveredCube = false;
         m_currentHoveredLocation = CubeLocation();
         m_lastHoveredCube = -1;
@@ -227,17 +195,7 @@ void VoxelInteractionSystem::breakHoveredSubcube() {
 }
 
 void VoxelInteractionSystem::breakHoveredMicrocube() {
-    // Check if we have a valid hovered microcube
-    if (!m_hasHoveredCube || !m_currentHoveredLocation.isValid()) {
-        LOG_DEBUG("Application", "[MICROCUBE BREAKING] No microcube is currently being hovered");
-        return;
-    }
-
-    // Delegate to manipulation system
-    bool broken = m_manipulator.breakMicrocube(m_currentHoveredLocation, false);
-
-    if (broken) {
-        // Clear hover state
+    if (m_destructionTool->breakMicrocube(createContext())) {
         m_hasHoveredCube = false;
         m_currentHoveredLocation = CubeLocation();
         m_lastHoveredCube = -1;
@@ -264,117 +222,15 @@ void VoxelInteractionSystem::breakCubeAtPosition(const glm::ivec3& worldPos) {
 }
 
 void VoxelInteractionSystem::placeVoxelAtHover() {
-    LOG_INFO_FMT("VoxelInteraction", "[PLACE VOXEL] Called - hasHoveredCube=" << m_hasHoveredCube 
-              << " isValid=" << (m_hasHoveredCube ? m_currentHoveredLocation.isValid() : false)
-              << " hitFace=" << (m_hasHoveredCube ? m_currentHoveredLocation.hitFace : -99));
-    
-    // Check if we have a valid hovered location with face information
-    if (!m_hasHoveredCube || !m_currentHoveredLocation.isValid()) {
-        LOG_INFO("VoxelInteraction", "[PLACE VOXEL] No voxel is currently hovered - cannot determine placement position");
-        return;
-    }
-    
-    // Calculate adjacent placement position based on hit face
-    glm::ivec3 placementPos = m_currentHoveredLocation.getAdjacentPlacementPosition();
-    
-    LOG_INFO_FMT("VoxelInteraction", "[PLACE VOXEL] Calculated placement pos: (" 
-              << placementPos.x << "," << placementPos.y << "," << placementPos.z 
-              << ") from hover pos (" << m_currentHoveredLocation.worldPos.x << "," 
-              << m_currentHoveredLocation.worldPos.y << "," << m_currentHoveredLocation.worldPos.z 
-              << ") with hitFace=" << m_currentHoveredLocation.hitFace);
-    
-    // Get default placement color (grass green for now)
-    glm::vec3 color(0.2f, 0.7f, 0.2f);
-    
-    // Place the cube
-    bool success = m_manipulator.placeCube(placementPos, color);
-    
-    if (success) {
-        LOG_INFO_FMT("VoxelInteraction", "[PLACE VOXEL] Successfully placed cube at (" 
-                  << placementPos.x << "," << placementPos.y << "," << placementPos.z << ")");
-    } else {
-        LOG_INFO_FMT("VoxelInteraction", "[PLACE VOXEL] FAILED to place cube at (" 
-                  << placementPos.x << "," << placementPos.y << "," << placementPos.z << ")");
-    }
+    m_placementTool->placeVoxel(createContext());
 }
 
 void VoxelInteractionSystem::placeSubcubeAtHover() {
-    // Check if we have a valid hovered location with face information
-    if (!m_hasHoveredCube || !m_currentHoveredLocation.isValid()) {
-        LOG_DEBUG("VoxelInteraction", "[PLACE SUBCUBE] No voxel is currently hovered - cannot determine placement position");
-        return;
-    }
-    
-    // For subcube placement, we place at the same cube grid position but at a specific subcube slot
-    // Use the face normal to determine which subcube slot (0-2 range for each axis)
-    glm::ivec3 cubePos = m_currentHoveredLocation.worldPos;
-    
-    // Determine subcube position based on hit face
-    // If hitting +X face, place subcube at x=2 (rightmost)
-    // If hitting -X face, place subcube at x=0 (leftmost)
-    // Similar for Y and Z
-    glm::ivec3 subcubePos(1, 1, 1); // Default to center
-    
-    if (m_currentHoveredLocation.hitFace >= 0) {
-        switch (m_currentHoveredLocation.hitFace) {
-            case 0: subcubePos.x = 0; break; // left (-X face) -> leftmost subcube
-            case 1: subcubePos.x = 2; break; // right (+X face) -> rightmost subcube
-            case 2: subcubePos.y = 0; break; // bottom (-Y face) -> bottommost subcube
-            case 3: subcubePos.y = 2; break; // top (+Y face) -> topmost subcube
-            case 4: subcubePos.z = 0; break; // back (-Z face) -> backmost subcube
-            case 5: subcubePos.z = 2; break; // front (+Z face) -> frontmost subcube
-        }
-    }
-    
-    // Get default placement color
-    glm::vec3 color(0.2f, 0.7f, 0.2f);
-    
-    // Place the subcube
-    bool success = m_manipulator.placeSubcube(cubePos, subcubePos, color);
-    
-    if (success) {
-        LOG_INFO_FMT("VoxelInteraction", "[PLACE SUBCUBE] Placed subcube at cube (" 
-                  << cubePos.x << "," << cubePos.y << "," << cubePos.z 
-                  << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z << ")");
-    }
+    m_placementTool->placeSubcube(createContext());
 }
 
 void VoxelInteractionSystem::placeMicrocubeAtHover() {
-    // Check if we have a valid hovered location with face information
-    if (!m_hasHoveredCube || !m_currentHoveredLocation.isValid()) {
-        LOG_DEBUG("VoxelInteraction", "[PLACE MICROCUBE] No voxel is currently hovered - cannot determine placement position");
-        return;
-    }
-    
-    // For microcube placement, similar logic to subcube but with an extra level
-    glm::ivec3 cubePos = m_currentHoveredLocation.worldPos;
-    glm::ivec3 subcubePos(1, 1, 1); // Default to center subcube
-    glm::ivec3 microcubePos(1, 1, 1); // Default to center microcube
-    
-    // Determine positions based on hit face
-    if (m_currentHoveredLocation.hitFace >= 0) {
-        switch (m_currentHoveredLocation.hitFace) {
-            case 0: subcubePos.x = 2; microcubePos.x = 2; break; // +X
-            case 1: subcubePos.x = 0; microcubePos.x = 0; break; // -X
-            case 2: subcubePos.y = 2; microcubePos.y = 2; break; // +Y
-            case 3: subcubePos.y = 0; microcubePos.y = 0; break; // -Y
-            case 4: subcubePos.z = 2; microcubePos.z = 2; break; // +Z
-            case 5: subcubePos.z = 0; microcubePos.z = 0; break; // -Z
-        }
-    }
-    
-    // Get default placement color
-    glm::vec3 color(0.2f, 0.7f, 0.2f);
-    
-    // Place the microcube
-    bool success = m_manipulator.placeMicrocube(cubePos, subcubePos, microcubePos, color);
-    
-    if (success) {
-        LOG_INFO_FMT("VoxelInteraction", "[PLACE MICROCUBE] Placed microcube at cube (" 
-                  << cubePos.x << "," << cubePos.y << "," << cubePos.z 
-                  << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z 
-                  << ") microcube (" << microcubePos.x << "," << microcubePos.y << "," << microcubePos.z << ")");
-    }
+    m_placementTool->placeMicrocube(createContext());
 }
 
 VoxelLocation VoxelInteractionSystem::pickVoxelOptimized(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const {

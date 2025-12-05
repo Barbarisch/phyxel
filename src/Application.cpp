@@ -185,8 +185,13 @@ bool Application::initialize() {
     LOG_INFO("Application", "RenderCoordinator initialized successfully!");
 
     // STEP 6: REGISTER INPUT ACTIONS
-    // Bind keyboard/mouse events to application functions (kept in Application for flexibility)
-    initializeInputActions();
+    // Create InputController to handle input bindings
+    inputController = std::make_unique<InputController>(
+        inputManager.get(),
+        voxelInteractionSystem.get(),
+        this
+    );
+    inputController->initializeBindings();
 
     m_initialized = true;
     return true;
@@ -254,13 +259,14 @@ void Application::run() {
         );
         
         // Render Force System Debug overlay
+        auto& flags = inputController->getDebugFlags();
         imguiRenderer->renderForceSystemDebug(
-            debugFlags.showForceSystemDebug,
+            flags.showForceSystemDebug,
             forceSystem.get(),
             mouseVelocityTracker.get(),
             voxelInteractionSystem->hasHoveredCube(),
             voxelInteractionSystem->hasHoveredCube() ? glm::vec3(voxelInteractionSystem->getCurrentHoveredLocation().worldPos) : glm::vec3(0.0f),
-            debugFlags.manualForceValue
+            flags.manualForceValue
         );
         
         // Check if distances were changed by UI
@@ -400,11 +406,12 @@ void Application::update(float deltaTime) {
         );
         
         // Sync debug flags
+        auto& flags = inputController->getDebugFlags();
         voxelInteractionSystem->setDebugFlags(
-            debugFlags.hoverDetection,
-            debugFlags.disableBreakingForces,
-            debugFlags.showForceSystemDebug,
-            debugFlags.manualForceValue
+            flags.hoverDetection,
+            flags.disableBreakingForces,
+            flags.showForceSystemDebug,
+            flags.manualForceValue
         );
     }
     
@@ -490,101 +497,7 @@ void Application::handleInput() {
     inputManager->processInput(deltaTime);
 }
 
-void Application::initializeInputActions() {
-    // Keyboard actions
-    
-    // ESC - Exit application
-    inputManager->registerAction(GLFW_KEY_ESCAPE, "Exit", [this]() {
-        LOG_INFO("Application", "ESC pressed - requesting shutdown");
-        glfwSetWindowShouldClose(windowManager->getHandle(), true);
-    });
-    
-    // F1 - Toggle performance overlay
-    inputManager->registerAction(GLFW_KEY_F1, "Toggle Performance Overlay", [this]() {
-        togglePerformanceOverlay();
-    });
-    
-    // F2 - Save world (placeholder - functionality removed)
-    inputManager->registerAction(GLFW_KEY_F2, "Save World", [this]() {
-        LOG_INFO("Application", "World save functionality not yet implemented in refactored code");
-    });
-    
-    // F3 - Toggle force debug visualization
-    inputManager->registerAction(GLFW_KEY_F3, "Toggle Force Debug", [this]() {
-        debugFlags.showForceSystemDebug = !debugFlags.showForceSystemDebug;
-        LOG_INFO("Application", std::string("Force debug visualization: ") + 
-                 (debugFlags.showForceSystemDebug ? "ENABLED" : "DISABLED"));
-    });
-    
-    // G - Spawn dynamic subcube (placeholder - functionality removed)
-    inputManager->registerAction(GLFW_KEY_G, "Spawn Dynamic Subcube", [this]() {
-        glm::vec3 spawnPos = inputManager->getCameraPosition() + inputManager->getCameraFront() * 5.0f;
-        LOG_INFO_FMT("Application", "Dynamic spawn at " << spawnPos.x 
-                     << ", " << spawnPos.y << ", " << spawnPos.z << " not yet implemented");
-    });
-    
-    // C - Place cube
-    inputManager->registerAction(GLFW_KEY_C, "Place Cube", [this]() {
-        LOG_INFO("Application", "C key pressed - attempting to place cube");
-        voxelInteractionSystem->placeVoxelAtHover();
-    });
-    
-    // Shift + C - Place subcube
-    inputManager->registerActionWithModifier(GLFW_KEY_C, GLFW_MOD_SHIFT, "Place Subcube", [this]() {
-        LOG_INFO("Application", "Shift+C pressed - attempting to place subcube");
-        voxelInteractionSystem->placeSubcubeAtHover();
-    });
-    
-    // Ctrl + C - Place microcube
-    inputManager->registerActionWithModifier(GLFW_KEY_C, GLFW_MOD_CONTROL, "Place Microcube", [this]() {
-        LOG_INFO("Application", "Ctrl+C pressed - attempting to place microcube");
-        voxelInteractionSystem->placeMicrocubeAtHover();
-    });
-    
-    // O - Toggle breaking forces
-    inputManager->registerAction(GLFW_KEY_O, "Toggle Breaking Forces", [this]() {
-        debugFlags.disableBreakingForces = !debugFlags.disableBreakingForces;
-        LOG_INFO("Application", std::string("Breaking forces: ") + 
-                 (debugFlags.disableBreakingForces ? "DISABLED" : "ENABLED"));
-    });
-    
-    // Mouse actions
-    
-    // Left click - Break cube/subcube/microcube
-    inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_LEFT, 0, "Break Voxel", [this]() {
-        // Check if we're hovering over a microcube, subcube, or regular cube
-        if (voxelInteractionSystem->hasHoveredCube()) {
-            const auto& loc = voxelInteractionSystem->getCurrentHoveredLocation();
-            if (loc.isMicrocube) {
-                // Break microcube
-                voxelInteractionSystem->breakHoveredMicrocube();
-            } else if (loc.isSubcube) {
-                // Break subcube with physics
-                voxelInteractionSystem->breakHoveredSubcube();
-            } else {
-                // Break regular cube into dynamic cube with physics
-                voxelInteractionSystem->breakHoveredCube(inputManager->getCameraPosition());
-            }
-        }
-    });
-    
-    // Ctrl + Left click - Subdivide cube
-    inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_LEFT, GLFW_MOD_CONTROL, "Subdivide Cube", [this]() {
-        voxelInteractionSystem->subdivideHoveredCube();
-    });
-    
-    // Alt + Left click - Subdivide subcube into microcubes
-    inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_LEFT, GLFW_MOD_ALT, "Subdivide Subcube", [this]() {
-        voxelInteractionSystem->subdivideHoveredSubcube();
-    });
-    
-    // Middle click - Subdivide cube
-    inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_MIDDLE, 0, "Subdivide Cube (Middle)", [this]() {
-        voxelInteractionSystem->subdivideHoveredCube();
-    });
-    
-    LOG_INFO("Application", "Input actions registered successfully");
-}
+
 
 void Application::togglePerformanceOverlay() {
     showPerformanceOverlay = !showPerformanceOverlay;
