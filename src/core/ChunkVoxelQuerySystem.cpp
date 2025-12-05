@@ -71,18 +71,6 @@ Subcube* ChunkVoxelQuerySystem::getSubcubeAt(const glm::ivec3& worldPos, const g
     return chunk->getSubcubeAt(localPos, subcubePos);
 }
 
-glm::vec3 ChunkVoxelQuerySystem::getSubcubeColor(const glm::ivec3& worldPos, const glm::ivec3& subcubePos) {
-    Chunk* chunk = getChunkAt(worldPos);
-    if (!chunk) return glm::vec3(1.0f); // Default white
-    
-    glm::ivec3 localPos = worldToLocalCoord(worldPos);
-    Subcube* subcube = chunk->getSubcubeAt(localPos, subcubePos);
-    if (subcube) {
-        return subcube->getColor();
-    }
-    return glm::vec3(1.0f); // Default white
-}
-
 // ========================================================================
 // VOXEL LOCATION RESOLUTION (for hover detection)
 // ========================================================================

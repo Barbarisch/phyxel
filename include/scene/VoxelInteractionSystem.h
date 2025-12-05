@@ -118,7 +118,6 @@ private:
     bool m_hasHoveredCube;
     CubeLocation m_currentHoveredLocation;
     int m_lastHoveredCube;
-    glm::vec3 m_originalHoveredColor;
     
     // Performance metrics
     double m_hoverDetectionTimeMs;
@@ -155,7 +154,6 @@ private:
                          float& distance) const;
     glm::vec3 screenToWorldRay(double mouseX, double mouseY, const glm::vec3& cameraPos,
                               const glm::vec3& cameraFront, const glm::vec3& cameraUp) const;
-    glm::vec3 calculateLighterColor(const glm::vec3& originalColor) const;
 };
 
 } // namespace VulkanCube

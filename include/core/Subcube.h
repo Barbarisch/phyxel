@@ -18,8 +18,8 @@ class Subcube {
 public:
     // Constructors
     Subcube();
-    Subcube(const glm::ivec3& pos, const glm::vec3& col);
-    Subcube(const glm::ivec3& pos, const glm::vec3& col, const glm::ivec3& localPos);
+    Subcube(const glm::ivec3& pos);
+    Subcube(const glm::ivec3& pos, const glm::ivec3& localPos);
     
     // Destructor
     ~Subcube() = default;
@@ -32,8 +32,6 @@ public:
     
     // Accessors
     const glm::ivec3& getPosition() const { return position; }
-    const glm::vec3& getColor() const { return color; }
-    const glm::vec3& getOriginalColor() const { return originalColor; }
     const glm::ivec3& getLocalPosition() const { return localPosition; }
     float getScale() const { return scale; }
     bool isBroken() const { return broken; }
@@ -46,8 +44,6 @@ public:
     
     // Mutators
     void setPosition(const glm::ivec3& pos) { position = pos; }
-    void setColor(const glm::vec3& col) { color = col; }
-    void setOriginalColor(const glm::vec3& col) { originalColor = col; }
     void setLocalPosition(const glm::ivec3& localPos) { localPosition = localPos; }
     void setBroken(bool isBroken) { broken = isBroken; }
     void setVisible(bool vis) { visible = vis; }
@@ -67,8 +63,6 @@ public:
     
 private:
     glm::ivec3 position;        // World position of the parent cube (for static subcubes)
-    glm::vec3 color;            // Color of the subcube
-    glm::vec3 originalColor;    // Original color before hover effects
     glm::ivec3 localPosition;   // Local position within parent cube (0-2 for each axis)
     float scale;                // Scale factor (1/3 of regular cube)
     float lifetime = 30.0f;     // Lifetime in seconds (auto-cleanup after 30 seconds)

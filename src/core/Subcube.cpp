@@ -3,15 +3,15 @@
 namespace VulkanCube {
 
 Subcube::Subcube() 
-    : position(0), color(1.0f), originalColor(1.0f), localPosition(0), scale(SUBCUBE_SCALE), broken(false), visible(true), rigidBody(nullptr) {
+    : position(0), localPosition(0), scale(SUBCUBE_SCALE), broken(false), visible(true), rigidBody(nullptr) {
 }
 
-Subcube::Subcube(const glm::ivec3& pos, const glm::vec3& col) 
-    : position(pos), color(col), originalColor(col), localPosition(0), scale(SUBCUBE_SCALE), broken(false), visible(true), rigidBody(nullptr) {
+Subcube::Subcube(const glm::ivec3& pos) 
+    : position(pos), localPosition(0), scale(SUBCUBE_SCALE), broken(false), visible(true), rigidBody(nullptr) {
 }
 
-Subcube::Subcube(const glm::ivec3& pos, const glm::vec3& col, const glm::ivec3& localPos) 
-    : position(pos), color(col), originalColor(col), localPosition(localPos), scale(SUBCUBE_SCALE), broken(false), visible(true), rigidBody(nullptr) {
+Subcube::Subcube(const glm::ivec3& pos, const glm::ivec3& localPos) 
+    : position(pos), localPosition(localPos), scale(SUBCUBE_SCALE), broken(false), visible(true), rigidBody(nullptr) {
 }
 
 glm::vec3 Subcube::getWorldPosition() const {

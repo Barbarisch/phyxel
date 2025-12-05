@@ -23,8 +23,8 @@ class Microcube {
 public:
     // Constructors
     Microcube();
-    Microcube(const glm::ivec3& parentCubePos, const glm::vec3& col);
-    Microcube(const glm::ivec3& parentCubePos, const glm::vec3& col, 
+    Microcube(const glm::ivec3& parentCubePos);
+    Microcube(const glm::ivec3& parentCubePos, 
               const glm::ivec3& subcubeLocalPos, const glm::ivec3& microcubeLocalPos);
     
     // Destructor
@@ -38,8 +38,6 @@ public:
     
     // Accessors
     const glm::ivec3& getParentCubePosition() const { return parentCubePosition; }
-    const glm::vec3& getColor() const { return color; }
-    const glm::vec3& getOriginalColor() const { return originalColor; }
     const glm::ivec3& getSubcubeLocalPosition() const { return subcubeLocalPosition; }
     const glm::ivec3& getMicrocubeLocalPosition() const { return microcubeLocalPosition; }
     float getScale() const { return scale; }
@@ -53,8 +51,6 @@ public:
     
     // Mutators
     void setParentCubePosition(const glm::ivec3& pos) { parentCubePosition = pos; }
-    void setColor(const glm::vec3& col) { color = col; }
-    void setOriginalColor(const glm::vec3& col) { originalColor = col; }
     void setSubcubeLocalPosition(const glm::ivec3& localPos) { subcubeLocalPosition = localPos; }
     void setMicrocubeLocalPosition(const glm::ivec3& localPos) { microcubeLocalPosition = localPos; }
     void setBroken(bool isBroken) { broken = isBroken; }
@@ -75,8 +71,6 @@ public:
     
 private:
     glm::ivec3 parentCubePosition;      // World position of the parent cube
-    glm::vec3 color;                     // Color of the microcube
-    glm::vec3 originalColor;             // Original color before hover effects
     glm::ivec3 subcubeLocalPosition;     // Local position of parent subcube within cube (0-2 for each axis)
     glm::ivec3 microcubeLocalPosition;   // Local position within parent subcube (0-2 for each axis)
     float scale;                         // Scale factor (1/9 of regular cube)

@@ -220,7 +220,6 @@ bool VoxelManipulationSystem::breakCube(const CubeLocation& location, const glm:
         return false;
     }
     
-    glm::vec3 originalColor = originalCube->getOriginalColor();
     glm::vec3 cubeWorldPos = glm::vec3(location.worldPos);
     
     // Remove the cube from the chunk
@@ -237,7 +236,7 @@ bool VoxelManipulationSystem::breakCube(const CubeLocation& location, const glm:
     // Select material based on position
     std::string selectedMaterial = selectMaterialForCube(cubeWorldPos);
     
-    auto dynamicCube = std::make_unique<Cube>(cubeCornerPos, originalColor, selectedMaterial);
+    auto dynamicCube = std::make_unique<Cube>(cubeCornerPos, selectedMaterial);
     
     // Create physics body
     Physics::PhysicsWorld* physicsWorld = getPhysicsWorld();
@@ -396,7 +395,6 @@ bool VoxelManipulationSystem::breakMicrocube(const CubeLocation& location, bool 
     
     // Store microcube data before removal
     glm::vec3 worldPos = microcube->getWorldPosition();
-    glm::vec3 originalColor = microcube->getOriginalColor();
     bool isVisible = microcube->isVisible();
     float lifetime = microcube->getLifetime();
     glm::ivec3 parentCubePos = microcube->getParentCubePosition();
@@ -409,8 +407,7 @@ bool VoxelManipulationSystem::breakMicrocube(const CubeLocation& location, bool 
     }
     
     // Create new dynamic microcube for physics
-    auto dynamicMicrocube = std::make_unique<Microcube>(parentCubePos, originalColor, subcubePos, microcubePos);
-    dynamicMicrocube->setOriginalColor(originalColor);
+    auto dynamicMicrocube = std::make_unique<Microcube>(parentCubePos, subcubePos, microcubePos);
     dynamicMicrocube->setVisible(isVisible);
     dynamicMicrocube->setLifetime(lifetime);
     dynamicMicrocube->breakApart(); // Mark as broken
@@ -485,7 +482,6 @@ bool VoxelManipulationSystem::breakCubeAtPosition(const glm::ivec3& worldPos, bo
         return false;
     }
     
-    glm::vec3 originalColor = originalCube->getOriginalColor();
     glm::vec3 cubeWorldPos = glm::vec3(worldPos);
     
     // Remove cube from chunk
@@ -500,7 +496,7 @@ bool VoxelManipulationSystem::breakCubeAtPosition(const glm::ivec3& worldPos, bo
     glm::vec3 physicsCenterPos = cubeCornerPos + glm::vec3(0.5f);
     
     std::string selectedMaterial = selectMaterialForCube(cubeWorldPos);
-    auto dynamicCube = std::make_unique<Cube>(cubeCornerPos, originalColor, selectedMaterial);
+    auto dynamicCube = std::make_unique<Cube>(cubeCornerPos, selectedMaterial);
     
     // Create physics body
     Physics::PhysicsWorld* physicsWorld = getPhysicsWorld();
@@ -571,7 +567,7 @@ bool VoxelManipulationSystem::placeCube(const glm::ivec3& worldPos, const glm::v
     LOG_INFO("VoxelManipulation", "[PLACE CUBE] Position empty, placing cube...");
     
     // Place the cube
-    bool success = chunkManager->addCube(worldPos, color);
+    bool success = chunkManager->addCube(worldPos);
     if (success) {
         LOG_INFO_FMT("VoxelManipulation", "[PLACE CUBE] Successfully placed cube at world pos (" 
                   << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")");
@@ -633,7 +629,7 @@ bool VoxelManipulationSystem::placeSubcube(const glm::ivec3& worldPos, const glm
     }
     
     // Place the subcube (this creates a standalone subcube without requiring parent cube)
-    bool success = chunk->addSubcube(localPos, subcubePos, color);
+    bool success = chunk->addSubcube(localPos, subcubePos);
     if (success) {
         LOG_INFO_FMT("VoxelManipulation", "[PLACE SUBCUBE] Successfully placed subcube at world pos (" 
                   << worldPos.x << "," << worldPos.y << "," << worldPos.z 
@@ -698,7 +694,7 @@ bool VoxelManipulationSystem::placeMicrocube(const glm::ivec3& parentCubePos, co
     }
     
     // Place the microcube (standalone, doesn't require parent subcube)
-    bool success = chunk->addMicrocube(localPos, subcubePos, microcubePos, color);
+    bool success = chunk->addMicrocube(localPos, subcubePos, microcubePos);
     if (success) {
         LOG_INFO_FMT("VoxelManipulation", "[PLACE MICROCUBE] Successfully placed microcube at world pos (" 
                   << parentCubePos.x << "," << parentCubePos.y << "," << parentCubePos.z 

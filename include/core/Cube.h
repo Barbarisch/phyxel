@@ -65,8 +65,8 @@ class Cube {
 public:
     // Constructors
     Cube();
-    Cube(const glm::ivec3& pos, const glm::vec3& col);
-    Cube(const glm::ivec3& pos, const glm::vec3& col, const std::string& material);
+    Cube(const glm::ivec3& pos);
+    Cube(const glm::ivec3& pos, const std::string& material);
     
     // Destructor
     ~Cube() = default;
@@ -79,8 +79,6 @@ public:
     
     // Accessors
     const glm::ivec3& getPosition() const { return position; }
-    const glm::vec3& getColor() const { return color; }
-    const glm::vec3& getOriginalColor() const { return originalColor; }
     bool isBroken() const { return broken; }
     bool isVisible() const { return visible; }
     btRigidBody* getRigidBody() const { return rigidBody; }
@@ -106,8 +104,6 @@ public:
     
     // Mutators
     void setPosition(const glm::ivec3& pos) { position = pos; }
-    void setColor(const glm::vec3& col) { color = col; }
-    void setOriginalColor(const glm::vec3& col) { originalColor = col; }
     void setBroken(bool isBroken) { broken = isBroken; }
     void setVisible(bool vis) { visible = vis; }
     void setRigidBody(btRigidBody* body) { rigidBody = body; }
@@ -157,8 +153,6 @@ public:
     
 private:
     glm::ivec3 position;        // World position in grid coordinates
-    glm::vec3 color;            // RGB color (0.0 - 1.0) - current color (may be modified by hover, etc.)
-    glm::vec3 originalColor;    // RGB color (0.0 - 1.0) - original color before any modifications
     bool broken = false;        // Whether the cube is broken/damaged
     bool visible = true;        // Whether the cube should be rendered
     

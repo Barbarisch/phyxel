@@ -462,7 +462,6 @@ std::vector<Microcube*> ChunkVoxelManager::getMicrocubesHelper(
 
 bool ChunkVoxelManager::addCube(
     const glm::ivec3& localPos, 
-    const glm::vec3& color,
     CubesVectorAccessFunc getCubes,
     WorldOriginAccessFunc getWorldOrigin,
     SetDirtyFunc setDirty,
@@ -486,17 +485,14 @@ bool ChunkVoxelManager::addCube(
         cubes.resize(32 * 32 * 32, nullptr);
     }
     
-    // If cube already exists, just update its color
+    // If cube already exists, just ensure it's not broken
     if (cubes[index]) {
-        cubes[index]->setColor(color);
-        cubes[index]->setOriginalColor(color);
         cubes[index]->setBroken(false);
         // Update hash maps for existing cube
         addToVoxelMaps(localPos, cubes[index]);
     } else {
         // Create new cube
-        cubes[index] = new Cube(localPos, color);
-        cubes[index]->setOriginalColor(color);
+        cubes[index] = new Cube(localPos);
         // Update hash maps for new cube
         addToVoxelMaps(localPos, cubes[index]);
     }
@@ -564,21 +560,6 @@ bool ChunkVoxelManager::removeCube(
     return true;
 }
 
-bool ChunkVoxelManager::setCubeColor(
-    const glm::ivec3& localPos,
-    const glm::vec3& color,
-    CubesVectorAccessFunc getCubes,
-    SetNeedsUpdateFunc setNeedsUpdate
-) {
-    Cube* cube = getCubeHelper(localPos, getCubes);
-    if (!cube) return false;
-    
-    cube->setColor(color);
-    setNeedsUpdate(true);
-    
-    return true;
-}
-
 // =============================================================================
 // Subcube operations
 // =============================================================================
@@ -606,13 +587,9 @@ bool ChunkVoxelManager::subdivideAt(
     auto existingSubcubes = getSubcubesHelper(localPos, getStaticSubcubes, getWorldOrigin);
     if (!existingSubcubes.empty()) return false;
     
-    // Create 27 subcubes (3x3x3) with random colors
+    // Create 27 subcubes (3x3x3)
     glm::ivec3 worldOrigin = getWorldOrigin();
     glm::ivec3 parentWorldPos = worldOrigin + localPos;
-    
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<float> colorDist(0.2f, 1.0f);
     
     auto& staticSubcubes = getStaticSubcubes();
     for (int x = 0; x < 3; ++x) {
@@ -620,13 +597,7 @@ bool ChunkVoxelManager::subdivideAt(
             for (int z = 0; z < 3; ++z) {
                 glm::ivec3 subcubeLocalPos(x, y, z);
                 
-                glm::vec3 subcubeColor = glm::vec3(
-                    colorDist(gen),
-                    colorDist(gen),
-                    colorDist(gen)
-                );
-                
-                Subcube* newSubcube = new Subcube(parentWorldPos, subcubeColor, subcubeLocalPos);
+                Subcube* newSubcube = new Subcube(parentWorldPos, subcubeLocalPos);
                 staticSubcubes.push_back(newSubcube);
                 
                 // Update hash maps for each subcube
@@ -660,7 +631,6 @@ bool ChunkVoxelManager::subdivideAt(
 bool ChunkVoxelManager::addSubcube(
     const glm::ivec3& parentPos,
     const glm::ivec3& subcubePos,
-    const glm::vec3& color,
     SubcubesVectorAccessFunc getStaticSubcubes,
     WorldOriginAccessFunc getWorldOrigin,
     SetDirtyFunc setDirty,
@@ -686,7 +656,7 @@ bool ChunkVoxelManager::addSubcube(
     
     // Create new subcube
     glm::ivec3 parentWorldPos = getWorldOrigin() + parentPos;
-    Subcube* newSubcube = new Subcube(parentWorldPos, color, subcubePos);
+    Subcube* newSubcube = new Subcube(parentWorldPos, subcubePos);
     auto& staticSubcubes = getStaticSubcubes();
     staticSubcubes.push_back(newSubcube);
     
@@ -847,12 +817,8 @@ bool ChunkVoxelManager::subdivideSubcubeAt(
     auto existingMicrocubes = getMicrocubesHelper(cubePos, subcubePos);
     if (!existingMicrocubes.empty()) return false;
     
-    // Create 27 microcubes (3x3x3) with random colors
+    // Create 27 microcubes (3x3x3)
     glm::ivec3 parentWorldPos = getWorldOrigin() + cubePos;
-    
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<float> colorDist(0.3f, 1.0f);
     
     auto& staticMicrocubes = getStaticMicrocubes();
     for (int x = 0; x < 3; ++x) {
@@ -860,13 +826,7 @@ bool ChunkVoxelManager::subdivideSubcubeAt(
             for (int z = 0; z < 3; ++z) {
                 glm::ivec3 microcubeLocalPos(x, y, z);
                 
-                glm::vec3 microcubeColor = glm::vec3(
-                    colorDist(gen),
-                    colorDist(gen),
-                    colorDist(gen)
-                );
-                
-                Microcube* newMicrocube = new Microcube(parentWorldPos, microcubeColor, subcubePos, microcubeLocalPos);
+                Microcube* newMicrocube = new Microcube(parentWorldPos, subcubePos, microcubeLocalPos);
                 staticMicrocubes.push_back(newMicrocube);
                 
                 // Update hash maps for O(1) hover detection
@@ -909,7 +869,6 @@ bool ChunkVoxelManager::addMicrocube(
     const glm::ivec3& parentCubePos,
     const glm::ivec3& subcubePos,
     const glm::ivec3& microcubePos,
-    const glm::vec3& color,
     SubcubesVectorAccessFunc getStaticSubcubes,
     MicrocubesVectorAccessFunc getStaticMicrocubes,
     WorldOriginAccessFunc getWorldOrigin,
@@ -964,7 +923,7 @@ bool ChunkVoxelManager::addMicrocube(
     
     // Create new microcube
     glm::ivec3 parentWorldPos = getWorldOrigin() + parentCubePos;
-    Microcube* newMicrocube = new Microcube(parentWorldPos, color, subcubePos, microcubePos);
+    Microcube* newMicrocube = new Microcube(parentWorldPos, subcubePos, microcubePos);
     auto& staticMicrocubes = getStaticMicrocubes();
     staticMicrocubes.push_back(newMicrocube);
     

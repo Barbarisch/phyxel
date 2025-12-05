@@ -254,16 +254,12 @@ Cube* ChunkManager::getCubeAtFast(const glm::ivec3& worldPos) {
     return m_voxelQuerySystem.getCubeAtFast(worldPos);
 }
 
-bool ChunkManager::setCubeColorFast(const glm::ivec3& worldPos, const glm::vec3& color) {
-    return m_voxelModificationSystem.setCubeColorFast(worldPos, color);
-}
-
 bool ChunkManager::removeCubeFast(const glm::ivec3& worldPos) {
     return m_voxelModificationSystem.removeCubeFast(worldPos);
 }
 
-bool ChunkManager::addCubeFast(const glm::ivec3& worldPos, const glm::vec3& color) {
-    return m_voxelModificationSystem.addCubeFast(worldPos, color);
+bool ChunkManager::addCubeFast(const glm::ivec3& worldPos) {
+    return m_voxelModificationSystem.addCubeFast(worldPos);
 }
 
 // ===============================================================
@@ -276,14 +272,6 @@ Chunk* ChunkManager::getChunkAt(const glm::ivec3& worldPos) {
 
 Cube* ChunkManager::getCubeAt(const glm::ivec3& worldPos) {
     return m_voxelQuerySystem.getCubeAt(worldPos);
-}
-
-void ChunkManager::setCubeColor(const glm::ivec3& worldPos, const glm::vec3& color) {
-    m_voxelModificationSystem.setCubeColor(worldPos, color);
-}
-
-void ChunkManager::setCubeColorEfficient(const glm::ivec3& worldPos, const glm::vec3& color) {
-    m_voxelModificationSystem.setCubeColorEfficient(worldPos, color);
 }
 
 // =============================================================================
@@ -310,20 +298,12 @@ bool ChunkManager::removeCube(const glm::ivec3& worldPos) {
     return m_voxelModificationSystem.removeCube(worldPos);
 }
 
-bool ChunkManager::addCube(const glm::ivec3& worldPos, const glm::vec3& color) {
-    return m_voxelModificationSystem.addCube(worldPos, color);
+bool ChunkManager::addCube(const glm::ivec3& worldPos) {
+    return m_voxelModificationSystem.addCube(worldPos);
 }
 
 Subcube* ChunkManager::getSubcubeAt(const glm::ivec3& worldPos, const glm::ivec3& subcubePos) {
     return m_voxelQuerySystem.getSubcubeAt(worldPos, subcubePos);
-}
-
-void ChunkManager::setSubcubeColorEfficient(const glm::ivec3& worldPos, const glm::ivec3& subcubePos, const glm::vec3& color) {
-    m_voxelModificationSystem.setSubcubeColorEfficient(worldPos, subcubePos, color);
-}
-
-glm::vec3 ChunkManager::getSubcubeColor(const glm::ivec3& worldPos, const glm::ivec3& subcubePos) {
-    return m_voxelQuerySystem.getSubcubeColor(worldPos, subcubePos);
 }
 
 uint32_t ChunkManager::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {

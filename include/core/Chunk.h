@@ -150,19 +150,18 @@ public:
     void initializeVoxelMaps();  // Initialize hash maps from existing data
     
     // Cube manipulation
-    bool setCubeColor(const glm::ivec3& localPos, const glm::vec3& color);
     bool removeCube(const glm::ivec3& localPos);
-    bool addCube(const glm::ivec3& localPos, const glm::vec3& color);
+    bool addCube(const glm::ivec3& localPos);
     
     // Subcube manipulation
     bool subdivideAt(const glm::ivec3& localPos);              // Convert cube to 27 static subcubes
-    bool addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, const glm::vec3& color);
+    bool addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos);
     bool removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos);
     bool clearSubdivisionAt(const glm::ivec3& localPos);       // Remove all subcubes and restore cube
     
     // Microcube manipulation
     bool subdivideSubcubeAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);  // Convert subcube to 27 microcubes
-    bool addMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos, const glm::vec3& color);
+    bool addMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos);
     bool removeMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos);
     bool clearMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);  // Remove all microcubes at subcube position (leaves empty space)
     
@@ -186,8 +185,6 @@ public:
     // Efficient partial updates for hover effects (avoids full rebuild)
     void updateSingleCubeTexture(const glm::ivec3& localPos, uint16_t textureIndex);
     void updateSingleSubcubeTexture(const glm::ivec3& parentLocalPos, const glm::ivec3& subcubePos, uint16_t textureIndex);
-    void updateSingleCubeColor(const glm::ivec3& localPos, const glm::vec3& newColor);
-    void updateSingleSubcubeColor(const glm::ivec3& localPos, const glm::ivec3& subcubePos, const glm::vec3& newColor);
     // void updateSingleSubcubeColor(const glm::ivec3& parentLocalPos, const glm::ivec3& subcubePos, const glm::vec3& newColor);
     
     // Dirty tracking for smart saves

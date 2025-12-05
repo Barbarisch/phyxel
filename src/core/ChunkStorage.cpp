@@ -44,29 +44,6 @@ void ChunkStorage::addCube(Cube* cube) {
     }
 }
 
-bool ChunkStorage::addCubeWithColor(const glm::ivec3& localPos, const glm::vec3& color) {
-    if (!isValidLocalPosition(localPos)) return false;
-    
-    size_t index = localToIndex(localPos);
-    if (index >= cubes.size()) {
-        cubes.resize(32 * 32 * 32, nullptr);
-    }
-    
-    // If cube already exists, just update its color
-    if (cubes[index]) {
-        cubes[index]->setColor(color);
-        cubes[index]->setOriginalColor(color);
-        cubes[index]->setBroken(false);
-    } else {
-        // Create new cube
-        cubes[index] = new Cube(localPos, color);
-        cubes[index]->setOriginalColor(color);
-    }
-    
-    updateCubeMap(localPos, cubes[index]);
-    return true;
-}
-
 bool ChunkStorage::removeCube(const glm::ivec3& localPos) {
     if (!isValidLocalPosition(localPos)) return false;
     

@@ -114,7 +114,6 @@ bool ChunkVoxelBreaker::breakSubcube(
             // CRITICAL: Store ALL subcube properties before removal
             // We must preserve these because the removal operation will delete the object
             glm::vec3 worldPos = subcube->getWorldPosition();      // For physics positioning
-            glm::vec3 originalColor = subcube->getOriginalColor(); // Visual appearance
             bool isVisible = subcube->isVisible();                 // Visibility state
             float lifetime = subcube->getLifetime();               // Time until expiration
             
@@ -142,12 +141,10 @@ bool ChunkVoxelBreaker::breakSubcube(
             // Create new dynamic subcube for physics (since original was removed)
             auto dynamicSubcube = std::make_unique<Subcube>(
                 worldOrigin + parentPos, 
-                originalColor, 
                 subcubePos
             );
             
             // Set properties from stored data
-            dynamicSubcube->setOriginalColor(originalColor);
             dynamicSubcube->setVisible(isVisible);
             dynamicSubcube->setLifetime(lifetime);
             dynamicSubcube->breakApart(); // Mark as broken

@@ -510,22 +510,12 @@ void VoxelInteractionSystem::setHoveredCubeInChunksOptimized(const CubeLocation&
         Subcube* subcube = chunk->getSubcubeAt(location.localPos, location.subcubePos);
         if (!subcube) return;
         
-        // Store original subcube color and location for later restoration
-        m_originalHoveredColor = subcube->getOriginalColor(); // Use original color, not current color
         m_currentHoveredLocation = location;
         m_hasHoveredCube = true;
         
         LOG_DEBUG_FMT("HoverDetection", "Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
-                  << ") subcube: (" << location.subcubePos.x << "," << location.subcubePos.y << "," << location.subcubePos.z 
-                  << ") original color: (" << m_originalHoveredColor.x << "," << m_originalHoveredColor.y << "," << m_originalHoveredColor.z << ")");
+                  << ") subcube: (" << location.subcubePos.x << "," << location.subcubePos.y << "," << location.subcubePos.z << ")");
         
-        // Set hover color (lighten the original color for subtle highlighting)
-        glm::vec3 hoverColor = calculateLighterColor(m_originalHoveredColor);
-        
-        // Use efficient subcube color update
-        if (m_chunkManager) {
-            m_chunkManager->setSubcubeColorEfficient(location.worldPos, location.subcubePos, hoverColor);
-        }
     } else {
         // Hovering over a regular cube (not subdivided)
         Cube* cube = location.chunk->getCubeAt(location.localPos);
@@ -538,21 +528,10 @@ void VoxelInteractionSystem::setHoveredCubeInChunksOptimized(const CubeLocation&
             return;
         }
         
-        // Store original color and location for later restoration
-        m_originalHoveredColor = cube->getColor();
         m_currentHoveredLocation = location;
         m_hasHoveredCube = true;
         
-        LOG_TRACE_FMT("Application", "[CUBE HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z 
-                  << ") original color: (" << m_originalHoveredColor.x << "," << m_originalHoveredColor.y << "," << m_originalHoveredColor.z << ")");
-        
-        // Set hover color (lighten the original color for subtle highlighting)
-        glm::vec3 hoverColor = calculateLighterColor(m_originalHoveredColor);
-        
-        // Use efficient partial update instead of marking chunk dirty
-        if (m_chunkManager) {
-            m_chunkManager->setCubeColorEfficient(location.worldPos, hoverColor);
-        }
+        LOG_TRACE_FMT("Application", "[CUBE HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z << ")");
     }
 }
 
@@ -560,22 +539,6 @@ void VoxelInteractionSystem::clearHoveredCubeInChunksOptimized() {
     if (m_hasHoveredCube && m_currentHoveredLocation.isValid()) {
         LOG_TRACE_FMT("HoverDetection", "Clearing hover - was: isMicrocube=" << m_currentHoveredLocation.isMicrocube 
                   << " isSubcube=" << m_currentHoveredLocation.isSubcube);
-        // Restore original color based on whether it's a subcube or regular cube
-        if (m_chunkManager) {
-            if (m_currentHoveredLocation.isMicrocube) {
-                // For microcubes, just clear the state - no color restore needed yet
-                LOG_TRACE("HoverDetection", "Clearing microcube hover");
-            } else if (m_currentHoveredLocation.isSubcube) {
-                // Restore subcube color
-                m_chunkManager->setSubcubeColorEfficient(m_currentHoveredLocation.worldPos, m_currentHoveredLocation.subcubePos, m_originalHoveredColor);
-                LOG_TRACE_FMT("Application", "[SUBCUBE HOVER] Cleared hover for subcube at world pos: (" << m_currentHoveredLocation.worldPos.x << "," << m_currentHoveredLocation.worldPos.y << "," << m_currentHoveredLocation.worldPos.z 
-                          << ") subcube: (" << m_currentHoveredLocation.subcubePos.x << "," << m_currentHoveredLocation.subcubePos.y << "," << m_currentHoveredLocation.subcubePos.z << ")");
-            } else {
-                // Restore regular cube color
-                m_chunkManager->setCubeColorEfficient(m_currentHoveredLocation.worldPos, m_originalHoveredColor);
-                LOG_TRACE_FMT("Application", "[CUBE HOVER] Cleared hover for cube at world pos: (" << m_currentHoveredLocation.worldPos.x << "," << m_currentHoveredLocation.worldPos.y << "," << m_currentHoveredLocation.worldPos.z << ")");
-            }
-        }
         
         m_hasHoveredCube = false;
         m_currentHoveredLocation = CubeLocation(); // Reset to invalid state
@@ -596,20 +559,6 @@ glm::vec3 VoxelInteractionSystem::screenToWorldRay(double mouseX, double mouseY,
         mouseX, mouseY, cameraPos, cameraFront, cameraUp,
         [this]() -> UI::WindowManager* { return m_windowManager; }
     );
-}
-
-glm::vec3 VoxelInteractionSystem::calculateLighterColor(const glm::vec3& originalColor) const {
-    // Create a lighter version of the color by mixing with white
-    // This approach maintains the color's hue while making it brighter
-    const float lightenAmount = 0.4f; // How much lighter (0.0 = no change, 1.0 = pure white)
-    
-    // Mix the original color with white
-    glm::vec3 lighterColor = glm::mix(originalColor, glm::vec3(1.0f), lightenAmount);
-    
-    // Ensure we don't exceed maximum color values
-    lighterColor = glm::min(lighterColor, glm::vec3(1.0f));
-    
-    return lighterColor;
 }
 
 glm::ivec3 CubeLocation::getAdjacentPlacementPosition() const {

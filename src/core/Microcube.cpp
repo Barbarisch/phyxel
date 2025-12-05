@@ -3,20 +3,20 @@
 namespace VulkanCube {
 
 Microcube::Microcube() 
-    : parentCubePosition(0), color(1.0f), originalColor(1.0f), 
+    : parentCubePosition(0), 
       subcubeLocalPosition(0), microcubeLocalPosition(0), 
       scale(MICROCUBE_SCALE), broken(false), visible(true), rigidBody(nullptr) {
 }
 
-Microcube::Microcube(const glm::ivec3& parentCubePos, const glm::vec3& col) 
-    : parentCubePosition(parentCubePos), color(col), originalColor(col), 
+Microcube::Microcube(const glm::ivec3& parentCubePos) 
+    : parentCubePosition(parentCubePos), 
       subcubeLocalPosition(0), microcubeLocalPosition(0), 
       scale(MICROCUBE_SCALE), broken(false), visible(true), rigidBody(nullptr) {
 }
 
-Microcube::Microcube(const glm::ivec3& parentCubePos, const glm::vec3& col, 
+Microcube::Microcube(const glm::ivec3& parentCubePos, 
                      const glm::ivec3& subcubeLocalPos, const glm::ivec3& microcubeLocalPos) 
-    : parentCubePosition(parentCubePos), color(col), originalColor(col), 
+    : parentCubePosition(parentCubePos), 
       subcubeLocalPosition(subcubeLocalPos), microcubeLocalPosition(microcubeLocalPos), 
       scale(MICROCUBE_SCALE), broken(false), visible(true), rigidBody(nullptr) {
 }

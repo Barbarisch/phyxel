@@ -21,7 +21,6 @@ public:
     // Core voxel management - extracted from Chunk
     void addCube(const glm::ivec3& localPos, std::unique_ptr<Cube> cube);
     void addCube(Cube* cube);  // For compatibility with existing push_back pattern
-    bool addCubeWithColor(const glm::ivec3& localPos, const glm::vec3& color);  // Helper for existing interface
     bool removeCube(const glm::ivec3& localPos);
     Cube* getCubeAt(const glm::ivec3& localPos) const;
     

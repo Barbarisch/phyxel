@@ -105,9 +105,6 @@ void VoxelForceApplicator::breakCubeAtPosition(
         return;
     }
     
-    // Get the cube's original color before removing it
-    glm::vec3 originalColor = originalCube->getOriginalColor();
-    
     // Remove cube from chunk
     bool removed = chunk->removeCube(localPos);
     if (!removed) {
@@ -124,7 +121,7 @@ void VoxelForceApplicator::breakCubeAtPosition(
     int materialIndex = (abs(worldPos.x) + abs(worldPos.z)) % materials.size();
     std::string selectedMaterial = materials[materialIndex];
     
-    auto dynamicCube = std::make_unique<Cube>(cubeCornerPos, originalColor, selectedMaterial);
+    auto dynamicCube = std::make_unique<Cube>(cubeCornerPos, selectedMaterial);
     
     // Create physics body
     Physics::PhysicsWorld* physicsWorld = getPhysicsWorld();

@@ -20,33 +20,33 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
     
     switch (generationType) {
         case GenerationType::Random:
-            generator = [this](const glm::ivec3& coord, const glm::ivec3& local, glm::vec3& color) {
-                return generateRandom(coord, local, color);
+            generator = [this](const glm::ivec3& coord, const glm::ivec3& local) {
+                return generateRandom(coord, local);
             };
             break;
         case GenerationType::Perlin:
-            generator = [this](const glm::ivec3& coord, const glm::ivec3& local, glm::vec3& color) {
-                return generatePerlin(coord, local, color);
+            generator = [this](const glm::ivec3& coord, const glm::ivec3& local) {
+                return generatePerlin(coord, local);
             };
             break;
         case GenerationType::Flat:
-            generator = [this](const glm::ivec3& coord, const glm::ivec3& local, glm::vec3& color) {
-                return generateFlat(coord, local, color);
+            generator = [this](const glm::ivec3& coord, const glm::ivec3& local) {
+                return generateFlat(coord, local);
             };
             break;
         case GenerationType::Mountains:
-            generator = [this](const glm::ivec3& coord, const glm::ivec3& local, glm::vec3& color) {
-                return generateMountains(coord, local, color);
+            generator = [this](const glm::ivec3& coord, const glm::ivec3& local) {
+                return generateMountains(coord, local);
             };
             break;
         case GenerationType::Caves:
-            generator = [this](const glm::ivec3& coord, const glm::ivec3& local, glm::vec3& color) {
-                return generateCaves(coord, local, color);
+            generator = [this](const glm::ivec3& coord, const glm::ivec3& local) {
+                return generateCaves(coord, local);
             };
             break;
         case GenerationType::City:
-            generator = [this](const glm::ivec3& coord, const glm::ivec3& local, glm::vec3& color) {
-                return generateCity(coord, local, color);
+            generator = [this](const glm::ivec3& coord, const glm::ivec3& local) {
+                return generateCity(coord, local);
             };
             break;
         case GenerationType::Custom:
@@ -64,10 +64,9 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
         for (int y = 0; y < 32; ++y) {
             for (int z = 0; z < 32; ++z) {
                 glm::ivec3 localPos(x, y, z);
-                glm::vec3 color;
                 
-                if (generator(chunkCoord, localPos, color)) {
-                    chunk.addCube(localPos, color);
+                if (generator(chunkCoord, localPos)) {
+                    chunk.addCube(localPos);
                 }
             }
         }
@@ -77,20 +76,19 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
               << ") with type " << static_cast<int>(generationType));
 }
 
-bool WorldGenerator::generateRandom(const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor) {
+bool WorldGenerator::generateRandom(const glm::ivec3& chunkCoord, const glm::ivec3& localPos) {
     // Use chunk coordinate and local position to create deterministic randomness
     std::mt19937 gen(seed + hash(chunkCoord.x, chunkCoord.y, chunkCoord.z) + hash(localPos.x, localPos.y, localPos.z));
     std::uniform_real_distribution<float> dist(0.0f, 1.0f);
     
     // 70% chance of having a cube
     if (dist(gen) > 0.3f) {
-        outColor = glm::vec3(dist(gen), dist(gen), dist(gen));
         return true;
     }
     return false;
 }
 
-bool WorldGenerator::generatePerlin(const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor) {
+bool WorldGenerator::generatePerlin(const glm::ivec3& chunkCoord, const glm::ivec3& localPos) {
     // Convert to world coordinates
     glm::vec3 worldPos = glm::vec3(chunkCoord * 32 + localPos);
     
@@ -107,32 +105,24 @@ bool WorldGenerator::generatePerlin(const glm::ivec3& chunkCoord, const glm::ive
     
     // Create cube if current position is below height
     if (worldPos.y <= height) {
-        outColor = getTerrainColor(height, worldPos.y);
         return true;
     }
     
     return false;
 }
 
-bool WorldGenerator::generateFlat(const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor) {
+bool WorldGenerator::generateFlat(const glm::ivec3& chunkCoord, const glm::ivec3& localPos) {
     glm::vec3 worldPos = glm::vec3(chunkCoord * 32 + localPos);
     
     // Flat world at Y=16
     if (worldPos.y <= 16.0f) {
-        if (worldPos.y == 16.0f) {
-            outColor = glm::vec3(0.2f, 0.8f, 0.2f); // Grass green
-        } else if (worldPos.y >= 13.0f) {
-            outColor = glm::vec3(0.4f, 0.3f, 0.1f); // Dirt brown
-        } else {
-            outColor = glm::vec3(0.5f, 0.5f, 0.5f); // Stone gray
-        }
         return true;
     }
     
     return false;
 }
 
-bool WorldGenerator::generateMountains(const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor) {
+bool WorldGenerator::generateMountains(const glm::ivec3& chunkCoord, const glm::ivec3& localPos) {
     glm::vec3 worldPos = glm::vec3(chunkCoord * 32 + localPos);
     
     // Use multiple noise octaves for mountainous terrain
@@ -141,14 +131,13 @@ bool WorldGenerator::generateMountains(const glm::ivec3& chunkCoord, const glm::
     height += 20.0f; // Base level
     
     if (worldPos.y <= height) {
-        outColor = getTerrainColor(height, worldPos.y);
         return true;
     }
     
     return false;
 }
 
-bool WorldGenerator::generateCaves(const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor) {
+bool WorldGenerator::generateCaves(const glm::ivec3& chunkCoord, const glm::ivec3& localPos) {
     glm::vec3 worldPos = glm::vec3(chunkCoord * 32 + localPos);
     
     // Base terrain
@@ -172,19 +161,17 @@ bool WorldGenerator::generateCaves(const glm::ivec3& chunkCoord, const glm::ivec
     }
     
     if (isGround) {
-        outColor = getTerrainColor(height, worldPos.y, worldPos.y < height - 2.0f);
         return true;
     }
     
     return false;
 }
 
-bool WorldGenerator::generateCity(const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor) {
+bool WorldGenerator::generateCity(const glm::ivec3& chunkCoord, const glm::ivec3& localPos) {
     glm::vec3 worldPos = glm::vec3(chunkCoord * 32 + localPos);
     
     // Flat ground first
     if (worldPos.y <= 15.0f) {
-        outColor = glm::vec3(0.3f, 0.3f, 0.3f); // Concrete gray
         return true;
     }
     
@@ -202,33 +189,10 @@ bool WorldGenerator::generateCity(const glm::ivec3& chunkCoord, const glm::ivec3
     bool inBuildingZ = (static_cast<int>(worldPos.z) % 16) >= 2 && (static_cast<int>(worldPos.z) % 16) <= 13;
     
     if (inBuildingX && inBuildingZ && worldPos.y <= buildingHeight && worldPos.y > 15) {
-        // Building color based on height
-        float colorVariation = static_cast<float>(gen()) / static_cast<float>(gen.max());
-        outColor = glm::vec3(0.6f + colorVariation * 0.3f, 0.6f + colorVariation * 0.2f, 0.6f + colorVariation * 0.3f);
         return true;
     }
     
     return false;
-}
-
-glm::vec3 WorldGenerator::getTerrainColor(float height, float worldY, bool isCave) {
-    if (isCave) {
-        return glm::vec3(0.3f, 0.2f, 0.1f); // Cave brown
-    }
-    
-    if (worldY >= height - 1.0f) {
-        // Surface - grass
-        return glm::vec3(0.2f, 0.8f, 0.2f);
-    } else if (worldY >= height - 4.0f) {
-        // Dirt layer
-        return glm::vec3(0.4f, 0.3f, 0.1f);
-    } else if (worldY >= terrainParams.stoneLevel) {
-        // Stone
-        return glm::vec3(0.5f, 0.5f, 0.5f);
-    } else {
-        // Deep stone (darker)
-        return glm::vec3(0.3f, 0.3f, 0.3f);
-    }
 }
 
 float WorldGenerator::perlinNoise3D(float x, float y, float z, int octaves, float persistence, float lacunarity) {

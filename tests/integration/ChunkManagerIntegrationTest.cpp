@@ -130,8 +130,7 @@ TEST_F(ChunkManagerIntegrationTest, AddCube) {
     EXPECT_EQ(chunkManager->getCubeAt(testPos), nullptr);
 
     // Add it back
-    glm::vec3 color(1.0f, 0.0f, 0.0f);
-    chunkManager->addCube(testPos, color);
+    chunkManager->addCube(testPos);
     
     Cube* cube = chunkManager->getCubeAt(testPos);
     EXPECT_NE(cube, nullptr);

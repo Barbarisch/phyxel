@@ -26,7 +26,7 @@ TEST_F(WorldGeneratorTest, ChunkAddCube) {
     std::cout << "Chunk initialized. Size: " << chunk->getCubeCount() << std::endl;
     
     std::cout << "Adding cube..." << std::endl;
-    bool result = chunk->addCube(glm::ivec3(0, 0, 0), glm::vec3(1.0f));
+    bool result = chunk->addCube(glm::ivec3(0, 0, 0));
     std::cout << "Cube added. Result: " << result << std::endl;
     
     EXPECT_TRUE(result);
@@ -57,9 +57,8 @@ TEST_F(WorldGeneratorTest, CustomGenerator) {
     WorldGenerator generator(WorldGenerator::GenerationType::Custom);
     
     // Custom generator that only creates a cube at (1, 1, 1)
-    generator.setCustomGenerator([](const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor) {
+    generator.setCustomGenerator([](const glm::ivec3& chunkCoord, const glm::ivec3& localPos) {
         if (localPos == glm::ivec3(1, 1, 1)) {
-            outColor = glm::vec3(1.0f, 0.0f, 0.0f);
             return true;
         }
         return false;

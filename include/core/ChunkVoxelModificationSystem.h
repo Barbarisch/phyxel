@@ -38,41 +38,21 @@ public:
     // FAST CUBE MODIFICATION METHODS (Optimized)
     // ========================================================================
     
-    // Set cube color (optimized version with dirty marking)
-    bool setCubeColorFast(const glm::ivec3& worldPos, const glm::vec3& color);
-    
     // Remove cube at position (optimized version)
     bool removeCubeFast(const glm::ivec3& worldPos);
     
     // Add cube at position (optimized version)
-    bool addCubeFast(const glm::ivec3& worldPos, const glm::vec3& color);
+    bool addCubeFast(const glm::ivec3& worldPos);
     
     // ========================================================================
     // LEGACY CUBE MODIFICATION METHODS (Backward compatibility)
     // ========================================================================
     
-    // Legacy: Set cube color (redirects to fast version)
-    void setCubeColor(const glm::ivec3& worldPos, const glm::vec3& color);
-    
     // Legacy: Remove cube with face updates
     bool removeCube(const glm::ivec3& worldPos);
     
     // Legacy: Add cube with face updates
-    bool addCube(const glm::ivec3& worldPos, const glm::vec3& color);
-    
-    // ========================================================================
-    // COLOR MODIFICATION METHODS (Efficient versions)
-    // ========================================================================
-    
-    // Efficient cube color change (no texture modification)
-    void setCubeColorEfficient(const glm::ivec3& worldPos, const glm::vec3& color);
-    
-    // Efficient subcube color change (no texture modification)
-    void setSubcubeColorEfficient(
-        const glm::ivec3& worldPos,
-        const glm::ivec3& subcubePos,
-        const glm::vec3& color
-    );
+    bool addCube(const glm::ivec3& worldPos);
     
 private:
     // Callbacks for chunk access and update coordination

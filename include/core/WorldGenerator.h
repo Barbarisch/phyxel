@@ -16,7 +16,7 @@ class Chunk;
 class WorldGenerator {
 public:
     // Generation function type: takes chunk coordinate and returns true if a cube should exist at local position
-    using GenerationFunction = std::function<bool(const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor)>;
+    using GenerationFunction = std::function<bool(const glm::ivec3& chunkCoord, const glm::ivec3& localPos)>;
     
     // Predefined generation types
     enum class GenerationType {
@@ -61,12 +61,12 @@ private:
     GenerationFunction customGenerator;
     
     // Generation implementations
-    bool generateRandom(const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor);
-    bool generatePerlin(const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor);
-    bool generateFlat(const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor);
-    bool generateMountains(const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor);
-    bool generateCaves(const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor);
-    bool generateCity(const glm::ivec3& chunkCoord, const glm::ivec3& localPos, glm::vec3& outColor);
+    bool generateRandom(const glm::ivec3& chunkCoord, const glm::ivec3& localPos);
+    bool generatePerlin(const glm::ivec3& chunkCoord, const glm::ivec3& localPos);
+    bool generateFlat(const glm::ivec3& chunkCoord, const glm::ivec3& localPos);
+    bool generateMountains(const glm::ivec3& chunkCoord, const glm::ivec3& localPos);
+    bool generateCaves(const glm::ivec3& chunkCoord, const glm::ivec3& localPos);
+    bool generateCity(const glm::ivec3& chunkCoord, const glm::ivec3& localPos);
     
     // Noise functions
     float perlinNoise3D(float x, float y, float z, int octaves, float persistence, float lacunarity);
@@ -76,7 +76,6 @@ private:
     float grad(int hash, float x, float y, float z);
     
     // Utility functions
-    glm::vec3 getTerrainColor(float height, float worldY, bool isCave = false);
     int hash(int x, int y, int z);
 };
 

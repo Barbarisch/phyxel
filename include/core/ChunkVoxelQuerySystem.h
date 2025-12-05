@@ -59,9 +59,6 @@ public:
     // Get subcube at world position and subcube local position
     Subcube* getSubcubeAt(const glm::ivec3& worldPos, const glm::ivec3& subcubePos);
     
-    // Get subcube color
-    glm::vec3 getSubcubeColor(const glm::ivec3& worldPos, const glm::ivec3& subcubePos);
-    
     // ========================================================================
     // VOXEL LOCATION RESOLUTION (for hover detection)
     // ========================================================================

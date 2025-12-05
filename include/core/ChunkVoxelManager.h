@@ -74,7 +74,6 @@ public:
     // Cube operations
     bool addCube(
         const glm::ivec3& localPos, 
-        const glm::vec3& color,
         CubesVectorAccessFunc getCubes,
         WorldOriginAccessFunc getWorldOrigin,
         SetDirtyFunc setDirty,
@@ -96,13 +95,6 @@ public:
         std::function<void()> updateVulkanBuffer
     );
 
-    bool setCubeColor(
-        const glm::ivec3& localPos,
-        const glm::vec3& color,
-        CubesVectorAccessFunc getCubes,
-        SetNeedsUpdateFunc setNeedsUpdate
-    );
-
     // Subcube operations
     bool subdivideAt(
         const glm::ivec3& localPos,
@@ -116,7 +108,6 @@ public:
     bool addSubcube(
         const glm::ivec3& parentPos,
         const glm::ivec3& subcubePos,
-        const glm::vec3& color,
         SubcubesVectorAccessFunc getStaticSubcubes,
         WorldOriginAccessFunc getWorldOrigin,
         SetDirtyFunc setDirty,
@@ -159,7 +150,6 @@ public:
         const glm::ivec3& parentCubePos,
         const glm::ivec3& subcubePos,
         const glm::ivec3& microcubePos,
-        const glm::vec3& color,
         SubcubesVectorAccessFunc getStaticSubcubes,
         MicrocubesVectorAccessFunc getStaticMicrocubes,
         WorldOriginAccessFunc getWorldOrigin,

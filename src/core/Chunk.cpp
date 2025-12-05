@@ -136,15 +136,6 @@ const Cube* Chunk::getCubeAtIndex(size_t index) const {
     return cubes[index];
 }
 
-bool Chunk::setCubeColor(const glm::ivec3& localPos, const glm::vec3& color) {
-    return voxelManager.setCubeColor(
-        localPos,
-        color,
-        [this]() -> std::vector<Cube*>& { return cubes; },
-        [this](bool value) { renderManager.setNeedsUpdate(value); }
-    );
-}
-
 bool Chunk::removeCube(const glm::ivec3& localPos) {
     return voxelManager.removeCube(
         localPos,
@@ -159,10 +150,9 @@ bool Chunk::removeCube(const glm::ivec3& localPos) {
     );
 }
 
-bool Chunk::addCube(const glm::ivec3& localPos, const glm::vec3& color) {
+bool Chunk::addCube(const glm::ivec3& localPos) {
     return voxelManager.addCube(
         localPos,
-        color,
         [this]() -> std::vector<Cube*>& { return cubes; },
         [this]() -> const glm::ivec3& { return worldOrigin; },
         [this](bool value) { setDirty(value); },
@@ -189,13 +179,6 @@ void Chunk::populateWithCubes() {
             for (int z = 0; z < 32; ++z) {
                 Cube* cube = new Cube();
                 cube->setPosition(glm::ivec3(x, y, z));  // Local position within chunk (for 5-bit packing efficiency)
-                glm::vec3 cubeColor = glm::vec3(
-                    colorDist(gen),
-                    colorDist(gen),
-                    colorDist(gen)
-                );
-                cube->setColor(cubeColor);
-                cube->setOriginalColor(cubeColor); // Store original color
                 cubes.push_back(cube);
             }
         }
@@ -476,11 +459,10 @@ bool Chunk::subdivideAt(const glm::ivec3& localPos) {
     );
 }
 
-bool Chunk::addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, const glm::vec3& color) {
+bool Chunk::addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos) {
     return voxelManager.addSubcube(
         parentPos,
         subcubePos,
-        color,
         [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
         [this]() -> const glm::ivec3& { return worldOrigin; },
         [this](bool value) { setDirty(value); },
@@ -850,12 +832,11 @@ bool Chunk::subdivideSubcubeAt(const glm::ivec3& cubePos, const glm::ivec3& subc
     );
 }
 
-bool Chunk::addMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos, const glm::vec3& color) {
+bool Chunk::addMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos) {
     return voxelManager.addMicrocube(
         parentCubePos,
         subcubePos,
         microcubePos,
-        color,
         [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
         [this]() -> std::vector<Microcube*>& { return staticMicrocubes; },
         [this]() -> const glm::ivec3& { return worldOrigin; },

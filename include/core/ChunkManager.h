@@ -151,15 +151,11 @@ public:
     
     // Cube manipulation helpers
     Cube* getCubeAt(const glm::ivec3& worldPos);          // Get cube at world position
-    void setCubeColor(const glm::ivec3& worldPos, const glm::vec3& color);
-    void setCubeColorEfficient(const glm::ivec3& worldPos, const glm::vec3& color); // Efficient version for hover
     bool removeCube(const glm::ivec3& worldPos);          // Returns true if cube was removed
-    bool addCube(const glm::ivec3& worldPos, const glm::vec3& color = glm::vec3(1.0f));
+    bool addCube(const glm::ivec3& worldPos);
     
     // Subcube manipulation helpers
     Subcube* getSubcubeAt(const glm::ivec3& worldPos, const glm::ivec3& subcubePos); // Get subcube at position
-    void setSubcubeColorEfficient(const glm::ivec3& worldPos, const glm::ivec3& subcubePos, const glm::vec3& color);
-    glm::vec3 getSubcubeColor(const glm::ivec3& worldPos, const glm::ivec3& subcubePos);
     
     // Global dynamic subcube management
     void addGlobalDynamicSubcube(std::unique_ptr<Subcube> subcube);
@@ -210,9 +206,8 @@ public:
     
     // Fast O(1) cube lookup functions
     Cube* getCubeAtFast(const glm::ivec3& worldPos);          // Fast O(1) cube lookup
-    bool setCubeColorFast(const glm::ivec3& worldPos, const glm::vec3& color);  // Fast color update
     bool removeCubeFast(const glm::ivec3& worldPos);          // Fast cube removal
-    bool addCubeFast(const glm::ivec3& worldPos, const glm::vec3& color = glm::vec3(1.0f));  // Fast cube addition
+    bool addCubeFast(const glm::ivec3& worldPos);  // Fast cube addition
     
     // NEW: O(1) VoxelLocation resolution system for optimized hover detection
     VoxelLocation resolveGlobalPosition(const glm::ivec3& worldPos) const override;

@@ -122,7 +122,7 @@ bool WorldStorage::createTables() {
             PRIMARY KEY (chunk_x, chunk_y, chunk_z)
         );
         
-        -- Cubes table for sparse storage (only non-air blocks)
+        // Cubes table for sparse storage (only non-air blocks)
         CREATE TABLE IF NOT EXISTS cubes (
             chunk_x INTEGER NOT NULL,
             chunk_y INTEGER NOT NULL, 
@@ -130,9 +130,6 @@ bool WorldStorage::createTables() {
             local_x INTEGER NOT NULL CHECK(local_x >= 0 AND local_x < 32),
             local_y INTEGER NOT NULL CHECK(local_y >= 0 AND local_y < 32),
             local_z INTEGER NOT NULL CHECK(local_z >= 0 AND local_z < 32),
-            color_r REAL NOT NULL,
-            color_g REAL NOT NULL,
-            color_b REAL NOT NULL,
             is_subdivided INTEGER DEFAULT 0,
             is_visible INTEGER DEFAULT 1,
             PRIMARY KEY (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z),
@@ -150,9 +147,6 @@ bool WorldStorage::createTables() {
             sub_x INTEGER NOT NULL CHECK(sub_x >= 0 AND sub_x < 3),
             sub_y INTEGER NOT NULL CHECK(sub_y >= 0 AND sub_y < 3),
             sub_z INTEGER NOT NULL CHECK(sub_z >= 0 AND sub_z < 3),
-            color_r REAL NOT NULL,
-            color_g REAL NOT NULL,
-            color_b REAL NOT NULL,
             is_dynamic INTEGER DEFAULT 0,
             PRIMARY KEY (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z, sub_x, sub_y, sub_z),
             FOREIGN KEY (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z) 
@@ -173,9 +167,6 @@ bool WorldStorage::createTables() {
             micro_x INTEGER NOT NULL CHECK(micro_x >= 0 AND micro_x < 3),
             micro_y INTEGER NOT NULL CHECK(micro_y >= 0 AND micro_y < 3),
             micro_z INTEGER NOT NULL CHECK(micro_z >= 0 AND micro_z < 3),
-            color_r REAL NOT NULL,
-            color_g REAL NOT NULL,
-            color_b REAL NOT NULL,
             PRIMARY KEY (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z, sub_x, sub_y, sub_z, micro_x, micro_y, micro_z),
             FOREIGN KEY (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z) 
                 REFERENCES cubes(chunk_x, chunk_y, chunk_z, local_x, local_y, local_z)
@@ -208,20 +199,20 @@ bool WorldStorage::prepareStatements() {
     
     const char* insertCubeSQL = R"(
         INSERT OR REPLACE INTO cubes 
-        (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z, color_r, color_g, color_b, is_subdivided, is_visible) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z, is_subdivided, is_visible) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?);
     )";
     
     const char* insertSubcubeSQL = R"(
         INSERT OR REPLACE INTO subcubes 
-        (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z, sub_x, sub_y, sub_z, color_r, color_g, color_b, is_dynamic) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z, sub_x, sub_y, sub_z, is_dynamic) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     )";
     
     const char* insertMicrocubeSQL = R"(
         INSERT OR REPLACE INTO microcubes 
-        (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z, sub_x, sub_y, sub_z, micro_x, micro_y, micro_z, color_r, color_g, color_b) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z, sub_x, sub_y, sub_z, micro_x, micro_y, micro_z) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     )";
     
     // Select statements  
@@ -230,17 +221,17 @@ bool WorldStorage::prepareStatements() {
     )";
     
     const char* selectCubesSQL = R"(
-        SELECT local_x, local_y, local_z, color_r, color_g, color_b, is_subdivided, is_visible 
+        SELECT local_x, local_y, local_z, is_subdivided, is_visible 
         FROM cubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;
     )";
     
     const char* selectSubcubesSQL = R"(
-        SELECT local_x, local_y, local_z, sub_x, sub_y, sub_z, color_r, color_g, color_b, is_dynamic 
+        SELECT local_x, local_y, local_z, sub_x, sub_y, sub_z, is_dynamic 
         FROM subcubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;
     )";
     
     const char* selectMicrocubesSQL = R"(
-        SELECT local_x, local_y, local_z, sub_x, sub_y, sub_z, micro_x, micro_y, micro_z, color_r, color_g, color_b 
+        SELECT local_x, local_y, local_z, sub_x, sub_y, sub_z, micro_x, micro_y, micro_z 
         FROM microcubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;
     )";
     
@@ -372,11 +363,8 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
                         sqlite3_bind_int(insertCubeStmt, 4, x);
                         sqlite3_bind_int(insertCubeStmt, 5, y);
                         sqlite3_bind_int(insertCubeStmt, 6, z);
-                        sqlite3_bind_double(insertCubeStmt, 7, cube->getColor().r);
-                        sqlite3_bind_double(insertCubeStmt, 8, cube->getColor().g);
-                        sqlite3_bind_double(insertCubeStmt, 9, cube->getColor().b);
-                        sqlite3_bind_int(insertCubeStmt, 10, 0); // isSubdivided - always false now (subcubes stored at chunk level)
-                        sqlite3_bind_int(insertCubeStmt, 11, cube->isVisible() ? 1 : 0);
+                        sqlite3_bind_int(insertCubeStmt, 7, 0); // isSubdivided - always false now (subcubes stored at chunk level)
+                        sqlite3_bind_int(insertCubeStmt, 8, cube->isVisible() ? 1 : 0);
                         
                         if (sqlite3_step(insertCubeStmt) != SQLITE_DONE) {
                             LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert cube at (" << x << "," << y << "," << z << "): " << sqlite3_errmsg(db));
@@ -414,10 +402,7 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
                     sqlite3_bind_int(insertSubcubeStmt, 7, subcube->getLocalPosition().x);
                     sqlite3_bind_int(insertSubcubeStmt, 8, subcube->getLocalPosition().y);
                     sqlite3_bind_int(insertSubcubeStmt, 9, subcube->getLocalPosition().z);
-                    sqlite3_bind_double(insertSubcubeStmt, 10, subcube->getColor().r);
-                    sqlite3_bind_double(insertSubcubeStmt, 11, subcube->getColor().g);
-                    sqlite3_bind_double(insertSubcubeStmt, 12, subcube->getColor().b);
-                    sqlite3_bind_int(insertSubcubeStmt, 13, subcube->isDynamic() ? 1 : 0);
+                    sqlite3_bind_int(insertSubcubeStmt, 10, subcube->isDynamic() ? 1 : 0);
                     
                     if (sqlite3_step(insertSubcubeStmt) != SQLITE_DONE) {
                         LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert static subcube at (" 
@@ -462,9 +447,6 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
                     sqlite3_bind_int(insertMicrocubeStmt, 10, microcube->getMicrocubeLocalPosition().x);
                     sqlite3_bind_int(insertMicrocubeStmt, 11, microcube->getMicrocubeLocalPosition().y);
                     sqlite3_bind_int(insertMicrocubeStmt, 12, microcube->getMicrocubeLocalPosition().z);
-                    sqlite3_bind_double(insertMicrocubeStmt, 13, microcube->getColor().r);
-                    sqlite3_bind_double(insertMicrocubeStmt, 14, microcube->getColor().g);
-                    sqlite3_bind_double(insertMicrocubeStmt, 15, microcube->getColor().b);
                     
                     if (sqlite3_step(insertMicrocubeStmt) != SQLITE_DONE) {
                         LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert microcube: " << sqlite3_errmsg(db));
@@ -519,14 +501,10 @@ bool WorldStorage::loadChunk(const glm::ivec3& chunkCoord, Chunk& chunk) {
         int y = sqlite3_column_int(selectCubesStmt, 1);
         int z = sqlite3_column_int(selectCubesStmt, 2);
         
-        double r = sqlite3_column_double(selectCubesStmt, 3);
-        double g = sqlite3_column_double(selectCubesStmt, 4);
-        double b = sqlite3_column_double(selectCubesStmt, 5);
+        bool isSubdivided = sqlite3_column_int(selectCubesStmt, 3) != 0;
+        bool isVisible = sqlite3_column_int(selectCubesStmt, 4) != 0;
         
-        bool isSubdivided = sqlite3_column_int(selectCubesStmt, 6) != 0;
-        bool isVisible = sqlite3_column_int(selectCubesStmt, 7) != 0;
-        
-        if (chunk.addCube(glm::ivec3(x, y, z), glm::vec3(r, g, b))) {
+        if (chunk.addCube(glm::ivec3(x, y, z))) {
             loadedCubes++;
         }
     }
@@ -824,14 +802,10 @@ bool WorldStorage::loadSubcubesForChunk(const glm::ivec3& chunkCoord, Chunk& chu
         int subY = sqlite3_column_int(selectSubcubesStmt, 4);
         int subZ = sqlite3_column_int(selectSubcubesStmt, 5);
         
-        double r = sqlite3_column_double(selectSubcubesStmt, 6);
-        double g = sqlite3_column_double(selectSubcubesStmt, 7);
-        double b = sqlite3_column_double(selectSubcubesStmt, 8);
-        
-        bool isDynamic = sqlite3_column_int(selectSubcubesStmt, 9) != 0;
+        bool isDynamic = sqlite3_column_int(selectSubcubesStmt, 6) != 0;
         
         // Add subcube to chunk
-        if (chunk.addSubcube(glm::ivec3(x, y, z), glm::ivec3(subX, subY, subZ), glm::vec3(r, g, b))) {
+        if (chunk.addSubcube(glm::ivec3(x, y, z), glm::ivec3(subX, subY, subZ))) {
             loadedSubcubes++;
         }
     }
@@ -868,13 +842,9 @@ bool WorldStorage::loadMicrocubesForChunk(const glm::ivec3& chunkCoord, Chunk& c
         int microY = sqlite3_column_int(selectMicrocubesStmt, 7);
         int microZ = sqlite3_column_int(selectMicrocubesStmt, 8);
         
-        double r = sqlite3_column_double(selectMicrocubesStmt, 9);
-        double g = sqlite3_column_double(selectMicrocubesStmt, 10);
-        double b = sqlite3_column_double(selectMicrocubesStmt, 11);
-        
         // Add microcube to chunk
         if (chunk.addMicrocube(glm::ivec3(x, y, z), glm::ivec3(subX, subY, subZ), 
-                               glm::ivec3(microX, microY, microZ), glm::vec3(r, g, b))) {
+                               glm::ivec3(microX, microY, microZ))) {
             loadedMicrocubes++;
         }
     }

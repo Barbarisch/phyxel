@@ -6,17 +6,17 @@
 namespace VulkanCube {
 
 Cube::Cube() 
-    : position(0), color(1.0f), originalColor(1.0f), broken(false), visible(true), rigidBody(nullptr) {
+    : position(0), broken(false), visible(true), rigidBody(nullptr) {
     initializeBonds();
 }
 
-Cube::Cube(const glm::ivec3& pos, const glm::vec3& col) 
-    : position(pos), color(col), originalColor(col), broken(false), visible(true), rigidBody(nullptr) {
+Cube::Cube(const glm::ivec3& pos) 
+    : position(pos), broken(false), visible(true), rigidBody(nullptr) {
     initializeBonds();
 }
 
-Cube::Cube(const glm::ivec3& pos, const glm::vec3& col, const std::string& material) 
-    : position(pos), color(col), originalColor(col), materialName(material),
+Cube::Cube(const glm::ivec3& pos, const std::string& material) 
+    : position(pos), materialName(material),
       broken(false), visible(true), rigidBody(nullptr) {
     initializeBonds();
     physicsPosition = glm::vec3(pos); // Initialize physics position to grid position
@@ -133,7 +133,7 @@ glm::vec3 Cube::getEffectiveColor() const {
     const auto& material = materialManager.getMaterial(materialName);
     
     // Apply material color tint
-    return color * material.colorTint;
+    return material.colorTint;
 }
 
 } // namespace VulkanCube
