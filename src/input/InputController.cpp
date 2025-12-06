@@ -57,6 +57,11 @@ void InputController::setupKeyboardBindings() {
                  (m_debugFlags.showForceSystemDebug ? "ENABLED" : "DISABLED"));
     });
     
+    // F4 - Toggle debug rendering mode
+    m_inputManager->registerAction(GLFW_KEY_F4, "Toggle Debug Rendering", [this]() {
+        m_app->toggleDebugRendering();
+    });
+    
     // G - Spawn dynamic subcube (placeholder)
     m_inputManager->registerAction(GLFW_KEY_G, "Spawn Dynamic Subcube", [this]() {
         glm::vec3 spawnPos = m_inputManager->getCameraPosition() + m_inputManager->getCameraFront() * 5.0f;

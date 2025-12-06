@@ -61,6 +61,13 @@ public:
     void setMaxChunkRenderDistance(float distance) { maxChunkRenderDistance = distance; }
     void setChunkInclusionDistance(float distance) { chunkInclusionDistance = distance; }
     
+    // Debug visualization
+    void toggleDebugMode() { debugModeEnabled = !debugModeEnabled; }
+    void setDebugMode(bool enabled) { debugModeEnabled = enabled; }
+    bool isDebugModeEnabled() const { return debugModeEnabled; }
+    void setDebugVisualizationMode(uint32_t mode) { debugVisualizationMode = mode; }
+    uint32_t getDebugVisualizationMode() const { return debugVisualizationMode; }
+    
     // Frame state accessors
     void setFrameStartTime(std::chrono::high_resolution_clock::time_point time) { frameStartTime = time; }
     void setCachedViewMatrix(const glm::mat4& view) { cachedViewMatrix = view; }
@@ -88,6 +95,8 @@ private:
     uint32_t currentFrame = 0;
     float maxChunkRenderDistance = 1000.0f;
     float chunkInclusionDistance = 2000.0f;
+    bool debugModeEnabled = false;  // Toggle for debug visualization
+    uint32_t debugVisualizationMode = 0;  // 0=wireframe, 1=normals, 2=hierarchy
     
     // Cached matrices
     glm::mat4 cachedViewMatrix;

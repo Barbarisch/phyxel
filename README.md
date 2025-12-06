@@ -318,6 +318,8 @@ VulkanCube.exe
 - **Ctrl + Left Click** - Subdivide cube into 27 subcubes
 - **Alt + Left Click** - Subdivide subcube into 27 microcubes
 - **Middle Click** - Subdivide cube (alternative)
+- **F1** - Toggle performance overlay
+- **F4** - Toggle debug rendering mode (wireframe visualization)
 - **ESC** - Exit application
 
 ### Performance Monitoring

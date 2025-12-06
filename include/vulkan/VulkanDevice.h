@@ -159,6 +159,7 @@ public:
         
         // Push constants and chunk rendering
         void pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineLayout, const glm::vec3& chunkBaseOffset);
+        void pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineLayout, const glm::vec3& chunkBaseOffset, uint32_t debugMode);
         void bindInstanceBufferWithOffset(uint32_t frameIndex, VkDeviceSize offset);
         void drawChunk(uint32_t frameIndex, VkPipelineLayout pipelineLayout, 
                       const glm::vec3& chunkBaseOffset, VkDeviceSize instanceOffset, uint32_t instanceCount);
@@ -177,7 +178,7 @@ public:
             VkPushConstantRange range{};
             range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
             range.offset = 0;
-            range.size = sizeof(glm::vec3);  // 12 bytes for chunk base offset
+            range.size = 16;  // 12 bytes for vec3 chunkBaseOffset + 4 bytes for uint debugMode
             return range;
         }
 

@@ -504,6 +504,18 @@ void Application::togglePerformanceOverlay() {
     LOG_INFO_FMT("Application", "Performance Overlay: " << (showPerformanceOverlay ? "ENABLED" : "DISABLED"));
 }
 
+void Application::toggleDebugRendering() {
+    if (renderCoordinator) {
+        renderCoordinator->toggleDebugMode();
+        bool isEnabled = renderCoordinator->isDebugModeEnabled();
+        uint32_t mode = renderCoordinator->getDebugVisualizationMode();
+        const char* modeNames[] = {"Wireframe", "Normals", "Hierarchy", "UV Coords"};
+        const char* modeName = (mode < 4) ? modeNames[mode] : "Unknown";
+        LOG_INFO_FMT("Application", "Debug Rendering: " << (isEnabled ? "ENABLED" : "DISABLED") 
+                     << " (Mode: " << modeName << ")");
+    }
+}
+
 void Application::setRenderDistance(float distance) {
     if (distance != maxChunkRenderDistance) {
         maxChunkRenderDistance = distance;

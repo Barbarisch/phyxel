@@ -321,12 +321,156 @@ bool RenderPipeline::createGraphicsPipelineForDynamicSubcubes() {
     return true;
 }
 
+bool RenderPipeline::createDebugGraphicsPipeline() {
+    // Similar to createGraphicsPipeline but with wireframe polygon mode and debug shaders
+    
+    // Vertex input - use both vertex and instance data (same as regular pipeline)
+    auto vertexBindingDescription = Vertex::getBindingDescription();
+    auto vertexAttributeDescriptions = Vertex::getAttributeDescriptions();
+    auto instanceBindingDescription = InstanceData::getBindingDescription();
+    auto instanceAttributeDescriptions = InstanceData::getAttributeDescriptions();
+
+    std::vector<VkVertexInputBindingDescription> bindingDescriptions = {
+        vertexBindingDescription,
+        instanceBindingDescription
+    };
+
+    std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
+    attributeDescriptions.insert(attributeDescriptions.end(), vertexAttributeDescriptions.begin(), vertexAttributeDescriptions.end());
+    attributeDescriptions.insert(attributeDescriptions.end(), instanceAttributeDescriptions.begin(), instanceAttributeDescriptions.end());
+
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
+    vertexInputInfo.pVertexBindingDescriptions = bindingDescriptions.data();
+    vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+
+    // Input assembly
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+    // Viewport and scissor will be dynamic
+    VkPipelineViewportStateCreateInfo viewportState{};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1;
+    viewportState.scissorCount = 1;
+
+    // Rasterizer - KEY DIFFERENCE: Use LINE mode for wireframe visualization
+    VkPipelineRasterizationStateCreateInfo rasterizer{};
+    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer.depthClampEnable = VK_FALSE;
+    rasterizer.rasterizerDiscardEnable = VK_FALSE;
+    rasterizer.polygonMode = VK_POLYGON_MODE_LINE;  // Wireframe mode!
+    rasterizer.lineWidth = 1.5f;  // Slightly thicker lines for visibility
+    rasterizer.cullMode = VK_CULL_MODE_NONE;  // Show all geometry in debug mode
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    rasterizer.depthBiasEnable = VK_FALSE;
+
+    // Multisampling
+    VkPipelineMultisampleStateCreateInfo multisampling{};
+    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling.sampleShadingEnable = VK_FALSE;
+    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    // Depth and stencil testing
+    VkPipelineDepthStencilStateCreateInfo depthStencil{};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_TRUE;
+    depthStencil.depthWriteEnable = VK_TRUE;
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    depthStencil.depthBoundsTestEnable = VK_FALSE;
+    depthStencil.stencilTestEnable = VK_FALSE;
+
+    // Color blending
+    VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+    colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    colorBlendAttachment.blendEnable = VK_FALSE;
+
+    VkPipelineColorBlendStateCreateInfo colorBlending{};
+    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlending.logicOpEnable = VK_FALSE;
+    colorBlending.logicOp = VK_LOGIC_OP_COPY;
+    colorBlending.attachmentCount = 1;
+    colorBlending.pAttachments = &colorBlendAttachment;
+
+    // Dynamic state
+    std::vector<VkDynamicState> dynamicStates = {
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR
+    };
+
+    VkPipelineDynamicStateCreateInfo dynamicState{};
+    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+    dynamicState.pDynamicStates = dynamicStates.data();
+
+    // Debug shader stages
+    std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
+    
+    if (debugVertShaderModule != VK_NULL_HANDLE) {
+        VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+        vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+        vertShaderStageInfo.module = debugVertShaderModule;
+        vertShaderStageInfo.pName = "main";
+        shaderStages.push_back(vertShaderStageInfo);
+    }
+
+    if (debugFragShaderModule != VK_NULL_HANDLE) {
+        VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+        fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        fragShaderStageInfo.module = debugFragShaderModule;
+        fragShaderStageInfo.pName = "main";
+        shaderStages.push_back(fragShaderStageInfo);
+    }
+
+    if (shaderStages.empty()) {
+        LOG_ERROR("Rendering", "Debug shaders not loaded!");
+        return false;
+    }
+
+    // Graphics pipeline
+    VkGraphicsPipelineCreateInfo pipelineInfo{};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
+    pipelineInfo.pStages = shaderStages.data();
+    pipelineInfo.pVertexInputState = &vertexInputInfo;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pDepthStencilState = &depthStencil;
+    pipelineInfo.pColorBlendState = &colorBlending;
+    pipelineInfo.pDynamicState = &dynamicState;
+    pipelineInfo.layout = pipelineLayout;  // Use same layout as regular pipeline
+    pipelineInfo.renderPass = renderPass;
+    pipelineInfo.subpass = 0;
+
+    VkResult result = vkCreateGraphicsPipelines(vulkanDevice.getDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &debugGraphicsPipeline);
+    if (result != VK_SUCCESS) {
+        LOG_ERROR_FMT("Rendering", "Failed to create debug graphics pipeline! Error: " << result);
+        return false;
+    }
+
+    LOG_INFO("Rendering", "Debug graphics pipeline created successfully");
+    return true;
+}
+
 void RenderPipeline::cleanup() {
     VkDevice device = vulkanDevice.getDevice();
 
     if (graphicsPipeline != VK_NULL_HANDLE) {
         vkDestroyPipeline(device, graphicsPipeline, nullptr);
         graphicsPipeline = VK_NULL_HANDLE;
+    }
+
+    if (debugGraphicsPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, debugGraphicsPipeline, nullptr);
+        debugGraphicsPipeline = VK_NULL_HANDLE;
     }
 
     if (pipelineLayout != VK_NULL_HANDLE) {
@@ -349,6 +493,16 @@ void RenderPipeline::cleanup() {
     if (fragShaderModule != VK_NULL_HANDLE) {
         vkDestroyShaderModule(device, fragShaderModule, nullptr);
         fragShaderModule = VK_NULL_HANDLE;
+    }
+
+    if (debugVertShaderModule != VK_NULL_HANDLE) {
+        vkDestroyShaderModule(device, debugVertShaderModule, nullptr);
+        debugVertShaderModule = VK_NULL_HANDLE;
+    }
+
+    if (debugFragShaderModule != VK_NULL_HANDLE) {
+        vkDestroyShaderModule(device, debugFragShaderModule, nullptr);
+        debugFragShaderModule = VK_NULL_HANDLE;
     }
 }
 
@@ -377,8 +531,37 @@ bool RenderPipeline::loadShaders(const std::string& vertPath, const std::string&
     return true;
 }
 
+bool RenderPipeline::loadDebugShaders(const std::string& vertPath, const std::string& fragPath) {
+    auto vertShaderCode = Utils::readFile(vertPath);
+    auto fragShaderCode = Utils::readFile(fragPath);
+
+    if (vertShaderCode.empty()) {
+        LOG_ERROR_FMT("Rendering", "Failed to load debug vertex shader: " << vertPath);
+        return false;
+    }
+
+    if (fragShaderCode.empty()) {
+        LOG_ERROR_FMT("Rendering", "Failed to load debug fragment shader: " << fragPath);
+        return false;
+    }
+
+    debugVertShaderModule = createShaderModule(vertShaderCode);
+    debugFragShaderModule = createShaderModule(fragShaderCode);
+
+    if (debugVertShaderModule == VK_NULL_HANDLE || debugFragShaderModule == VK_NULL_HANDLE) {
+        LOG_ERROR("Rendering", "Failed to create debug shader modules!");
+        return false;
+    }
+
+    return true;
+}
+
 void RenderPipeline::bindGraphicsPipeline(VkCommandBuffer commandBuffer) {
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+}
+
+void RenderPipeline::bindDebugGraphicsPipeline(VkCommandBuffer commandBuffer) {
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, debugGraphicsPipeline);
 }
 
 bool RenderPipeline::createRenderPass() {

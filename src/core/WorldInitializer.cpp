@@ -66,17 +66,6 @@ bool WorldInitializer::initialize() {
         return false;
     }
 
-    // Load shaders for pipelines (after Vulkan is initialized)
-    if (!renderPipeline->loadShaders("shaders/static_voxel.vert.spv", "shaders/voxel.frag.spv")) {
-        LOG_ERROR("WorldInitializer", "Failed to load static pipeline shaders!");
-        return false;
-    }
-    
-    if (!dynamicRenderPipeline->loadShaders("shaders/dynamic_voxel.vert.spv", "shaders/voxel.frag.spv")) {
-        LOG_ERROR("WorldInitializer", "Failed to load dynamic pipeline shaders!");
-        return false;
-    }
-
     // Initialize texture atlas system
     if (!initializeTextureAtlas()) {
         LOG_ERROR("WorldInitializer", "Failed to initialize texture atlas!");
@@ -252,6 +241,12 @@ bool WorldInitializer::initializeVulkan() {
         LOG_ERROR("WorldInitializer", "Failed to load dynamic subcube graphics shaders!");
         return false;
     }
+    
+    // Load debug shaders for debug visualization pipeline
+    if (!renderPipeline->loadDebugShaders("shaders/debug_voxel.vert.spv", "shaders/debug_voxel.frag.spv")) {
+        LOG_ERROR("WorldInitializer", "Failed to load debug pipeline shaders!");
+        return false;
+    }
 
     // TODO: Compute shader functionality for frustum culling (experimental/incomplete)
     /*
@@ -274,6 +269,11 @@ bool WorldInitializer::initializeVulkan() {
 
     if (!dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes()) {
         LOG_ERROR("WorldInitializer", "Failed to create dynamic graphics pipeline!");
+        return false;
+    }
+    
+    if (!renderPipeline->createDebugGraphicsPipeline()) {
+        LOG_ERROR("WorldInitializer", "Failed to create debug graphics pipeline!");
         return false;
     }
 

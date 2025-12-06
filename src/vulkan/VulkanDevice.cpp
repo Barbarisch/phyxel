@@ -385,6 +385,8 @@ bool VulkanDevice::createLogicalDevice() {
     }
 
     VkPhysicalDeviceFeatures deviceFeatures{};
+    deviceFeatures.fillModeNonSolid = VK_TRUE;  // Required for wireframe rendering (VK_POLYGON_MODE_LINE)
+    deviceFeatures.wideLines = VK_TRUE;          // Required for line width > 1.0
 
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -1236,6 +1238,18 @@ void VulkanDevice::pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineL
         glm::vec3 chunkBaseOffset;
     } pushData;
     pushData.chunkBaseOffset = chunkBaseOffset;
+    
+    vkCmdPushConstants(commandBuffers[frameIndex], pipelineLayout,
+                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushData);
+}
+
+void VulkanDevice::pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineLayout, const glm::vec3& chunkBaseOffset, uint32_t debugMode) {
+    struct PushConstants {
+        glm::vec3 chunkBaseOffset;
+        uint32_t debugMode;
+    } pushData;
+    pushData.chunkBaseOffset = chunkBaseOffset;
+    pushData.debugMode = debugMode;
     
     vkCmdPushConstants(commandBuffers[frameIndex], pipelineLayout,
                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushData);

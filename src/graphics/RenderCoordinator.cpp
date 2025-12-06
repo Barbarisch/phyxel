@@ -42,8 +42,8 @@ void RenderCoordinator::render() {
 
 size_t RenderCoordinator::renderStaticGeometry() {
     // Render static cubes and static subcubes using the standard pipeline
-    // Bind graphics pipeline
-    renderPipeline->bindGraphicsPipeline(vulkanDevice->getCommandBuffer(currentFrame));
+    // Note: Pipeline is already bound in drawFrame() - don't rebind here
+    // as it would overwrite the debug pipeline if debug mode is enabled
     
     size_t renderedChunks = 0;
     
@@ -108,7 +108,13 @@ size_t RenderCoordinator::renderStaticGeometry() {
             // Set chunk origin as push constants for world positioning
             glm::ivec3 worldOrigin = chunk->getWorldOrigin();
             glm::vec3 chunkBaseOffset(worldOrigin.x, worldOrigin.y, worldOrigin.z);
-            vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
+            
+            // Push constants with debug mode if enabled
+            if (debugModeEnabled) {
+                vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), chunkBaseOffset, debugVisualizationMode);
+            } else {
+                vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
+            }
             
             // Draw this chunk's static geometry
             // LEVEL 3: Face culling already applied (only visible faces in buffer)
@@ -247,8 +253,12 @@ void RenderCoordinator::drawFrame() {
     // Begin render pass
     vulkanDevice->beginRenderPass(currentFrame, imageIndex, renderPipeline->getRenderPass());
     
-    // Bind graphics pipeline
-    renderPipeline->bindGraphicsPipeline(vulkanDevice->getCommandBuffer(currentFrame));
+    // Bind graphics pipeline (debug or normal based on debug mode)
+    if (debugModeEnabled) {
+        renderPipeline->bindDebugGraphicsPipeline(vulkanDevice->getCommandBuffer(currentFrame));
+    } else {
+        renderPipeline->bindGraphicsPipeline(vulkanDevice->getCommandBuffer(currentFrame));
+    }
     
     // Set viewport (required for dynamic viewport)
     VkViewport viewport{};

@@ -59,6 +59,22 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
+    echo Compiling debug voxel vertex shader...
+    %GLSLANG% -fshader-stage=vert -I. shaders\debug_voxel.vert -o shaders\debug_voxel.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile debug vertex shader
+        pause
+        exit /b 1
+    )
+
+    echo Compiling debug voxel fragment shader...
+    %GLSLANG% -fshader-stage=frag -I. shaders\debug_voxel.frag -o shaders\debug_voxel.frag.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile debug fragment shader
+        pause
+        exit /b 1
+    )
+
     echo Compiling compute shader...
     %GLSLANG% -fshader-stage=comp -I. shaders\frustum_cull.comp -o shaders\frustum_cull.comp.spv
     if %errorlevel% neq 0 (
@@ -88,6 +104,22 @@ if defined USE_GLSLC (
     %GLSLANG% -V -I. shaders\voxel.frag -o shaders\voxel.frag.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile fragment shader
+        pause
+        exit /b 1
+    )
+
+    echo Compiling debug voxel vertex shader...
+    %GLSLANG% -V -I. shaders\debug_voxel.vert -o shaders\debug_voxel.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile debug vertex shader
+        pause
+        exit /b 1
+    )
+
+    echo Compiling debug voxel fragment shader...
+    %GLSLANG% -V -I. shaders\debug_voxel.frag -o shaders\debug_voxel.frag.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile debug fragment shader
         pause
         exit /b 1
     )
