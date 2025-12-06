@@ -104,6 +104,24 @@ public:
         float& distance
     ) const;
 
+    /**
+     * Get the last raycast debug data for visualization
+     * Contains traversal path, hit info, etc.
+     */
+    struct RaycastDebugData {
+        glm::vec3 rayOrigin;
+        glm::vec3 rayDirection;
+        std::vector<glm::ivec3> traversedVoxels;
+        glm::vec3 hitPoint;
+        glm::vec3 hitNormal;
+        bool hasHit;
+        int hitFace;
+        VoxelLocation hitLocation;
+    };
+
+    const RaycastDebugData& getLastRaycastDebugData() const { return m_lastDebugData; }
+    void setDebugCaptureEnabled(bool enabled) { m_debugCaptureEnabled = enabled; }
+
 private:
     /**
      * Resolve subcube or microcube intersection within a voxel
@@ -131,6 +149,10 @@ private:
         const glm::vec3& rayOrigin,
         const glm::vec3& rayDirection
     ) const;
+
+    // Debug data capture
+    mutable RaycastDebugData m_lastDebugData;
+    mutable bool m_debugCaptureEnabled = false;
 };
 
 } // namespace VulkanCube

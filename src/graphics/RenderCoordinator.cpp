@@ -1,4 +1,5 @@
 #include "graphics/RenderCoordinator.h"
+#include "graphics/RaycastVisualizer.h"
 #include "vulkan/RenderPipeline.h"
 #include "ui/ImGuiRenderer.h"
 #include "vulkan/VulkanDevice.h"
@@ -22,7 +23,8 @@ RenderCoordinator::RenderCoordinator(
     Input::InputManager* inputManager,
     ChunkManager* chunkManager,
     Utils::PerformanceMonitor* performanceMonitor,
-    PerformanceProfiler* performanceProfiler
+    PerformanceProfiler* performanceProfiler,
+    RaycastVisualizer* raycastVisualizer
 )
     : vulkanDevice(vulkanDevice)
     , renderPipeline(renderPipeline)
@@ -33,6 +35,7 @@ RenderCoordinator::RenderCoordinator(
     , chunkManager(chunkManager)
     , performanceMonitor(performanceMonitor)
     , performanceProfiler(performanceProfiler)
+    , raycastVisualizer(raycastVisualizer)
 {
 }
 
@@ -316,6 +319,18 @@ void RenderCoordinator::drawFrame() {
         // No chunks available - render nothing
         performanceMonitor->getCurrentFrameTiming().drawCalls = 0;
         performanceMonitor->getCurrentFrameTiming().vertexCount = 0;
+    }
+    
+    // Render raycast visualization if enabled
+    if (raycastVisualizationEnabled && raycastVisualizer) {
+        // Bind debug line pipeline
+        renderPipeline->bindDebugLinePipeline(vulkanDevice->getCommandBuffer(currentFrame));
+        
+        // Bind descriptor sets for view/projection matrices
+        vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getGraphicsLayout());
+        
+        // Render raycast debug geometry
+        raycastVisualizer->render(vulkanDevice->getCommandBuffer(currentFrame), currentFrame);
     }
     
     // Render ImGui on top

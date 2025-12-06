@@ -163,7 +163,13 @@ bool Application::initialize() {
     );
     LOG_INFO("Application", "VoxelInteractionSystem initialized successfully!");
 
-    // STEP 5: CREATE RenderCoordinator (DEPENDS ON INITIALIZED PIPELINES)
+    // STEP 5: CREATE RaycastVisualizer (DEBUG VISUALIZATION)
+    // This system visualizes raycast operations for debugging
+    raycastVisualizer = std::make_unique<RaycastVisualizer>();
+    raycastVisualizer->initialize(vulkanDevice.get());
+    LOG_INFO("Application", "RaycastVisualizer initialized successfully!");
+
+    // STEP 6: CREATE RenderCoordinator (DEPENDS ON INITIALIZED PIPELINES)
     // This system orchestrates frame rendering:
     // - Frustum culling for visible chunks
     // - Instance buffer updates
@@ -178,13 +184,14 @@ bool Application::initialize() {
         inputManager.get(),
         chunkManager.get(),
         performanceMonitor.get(),
-        performanceProfiler.get()
+        performanceProfiler.get(),
+        raycastVisualizer.get()
     );
     renderCoordinator->setMaxChunkRenderDistance(maxChunkRenderDistance);
     renderCoordinator->setChunkInclusionDistance(chunkInclusionDistance);
     LOG_INFO("Application", "RenderCoordinator initialized successfully!");
 
-    // STEP 6: REGISTER INPUT ACTIONS
+    // STEP 7: REGISTER INPUT ACTIONS
     // Create InputController to handle input bindings
     inputController = std::make_unique<InputController>(
         inputManager.get(),
@@ -413,6 +420,24 @@ void Application::update(float deltaTime) {
             flags.showForceSystemDebug,
             flags.manualForceValue
         );
+        
+        // Update raycast visualizer if enabled
+        if (raycastVisualizer && raycastVisualizer->isEnabled()) {
+            const auto& raycastDebugData = voxelInteractionSystem->getLastRaycastDebugData();
+            
+            // Convert to RaycastVisualizer format
+            RaycastVisualizer::RaycastDebugData vizData;
+            vizData.rayOrigin = raycastDebugData.rayOrigin;
+            vizData.rayDirection = raycastDebugData.rayDirection;
+            vizData.traversedVoxels = raycastDebugData.traversedVoxels;
+            vizData.hitPoint = raycastDebugData.hitPoint;
+            vizData.hitNormal = raycastDebugData.hitNormal;
+            vizData.hasHit = raycastDebugData.hasHit;
+            vizData.hitFace = raycastDebugData.hitFace;
+            
+            raycastVisualizer->setRaycastData(vizData);
+            raycastVisualizer->updateBuffers(renderCoordinator->getCurrentFrame());
+        }
     }
     
     // Update chunks that have been modified (for hover color changes, etc.)
@@ -525,6 +550,19 @@ void Application::cycleDebugVisualizationMode() {
         const char* modeNames[] = {"Wireframe", "Normals", "Hierarchy", "UV Coords"};
         const char* modeName = (nextMode < 4) ? modeNames[nextMode] : "Unknown";
         LOG_INFO_FMT("Application", "Debug Visualization Mode: " << modeName);
+    }
+}
+
+void Application::toggleRaycastVisualization() {
+    if (renderCoordinator && voxelInteractionSystem && raycastVisualizer) {
+        renderCoordinator->toggleRaycastVisualization();
+        bool isEnabled = renderCoordinator->isRaycastVisualizationEnabled();
+        
+        // Enable/disable debug capture in raycaster
+        voxelInteractionSystem->setRaycastDebugCaptureEnabled(isEnabled);
+        raycastVisualizer->setEnabled(isEnabled);
+        
+        LOG_INFO_FMT("Application", "Raycast Visualization: " << (isEnabled ? "ENABLED" : "DISABLED"));
     }
 }
 

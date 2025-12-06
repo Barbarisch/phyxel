@@ -6,6 +6,7 @@
 #include "vulkan/VulkanDevice.h"
 #include "vulkan/RenderPipeline.h"
 #include "graphics/RenderCoordinator.h"
+#include "graphics/RaycastVisualizer.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "physics/PhysicsWorld.h"
 #include "utils/Timer.h"
@@ -47,6 +48,7 @@ public:
     void togglePerformanceOverlay();
     void toggleDebugRendering();
     void cycleDebugVisualizationMode();
+    void toggleRaycastVisualization();
 
 private:
     // ============================================================================
@@ -62,6 +64,7 @@ private:
     std::unique_ptr<Vulkan::RenderPipeline> dynamicRenderPipeline;     // Dynamic objects pipeline
     std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;    // Coordinates all rendering
     std::unique_ptr<UI::ImGuiRenderer> imguiRenderer;                  // Debug UI rendering
+    std::unique_ptr<RaycastVisualizer> raycastVisualizer;              // Raycast debug visualization
     
     // World and physics
     std::unique_ptr<ChunkManager> chunkManager;                        // Voxel world management

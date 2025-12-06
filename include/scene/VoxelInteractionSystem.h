@@ -103,6 +103,15 @@ public:
         m_debugFlags.manualForceValue = manualForceValue;
     }
 
+    // Raycast debug data access
+    const VoxelRaycaster::RaycastDebugData& getLastRaycastDebugData() const {
+        return m_raycaster.getLastRaycastDebugData();
+    }
+    
+    void setRaycastDebugCaptureEnabled(bool enabled) {
+        m_raycaster.setDebugCaptureEnabled(enabled);
+    }
+
 private:
     // Dependencies
     ChunkManager* m_chunkManager;

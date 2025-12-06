@@ -23,6 +23,7 @@ namespace VulkanCube {
     }
     class ChunkManager;
     class PerformanceProfiler;
+    class RaycastVisualizer;
 }
 
 namespace VulkanCube {
@@ -49,7 +50,8 @@ public:
         Input::InputManager* inputManager,
         ChunkManager* chunkManager,
         Utils::PerformanceMonitor* performanceMonitor,
-        PerformanceProfiler* performanceProfiler
+        PerformanceProfiler* performanceProfiler,
+        RaycastVisualizer* raycastVisualizer
     );
     ~RenderCoordinator() = default;
 
@@ -67,6 +69,11 @@ public:
     bool isDebugModeEnabled() const { return debugModeEnabled; }
     void setDebugVisualizationMode(uint32_t mode) { debugVisualizationMode = mode; }
     uint32_t getDebugVisualizationMode() const { return debugVisualizationMode; }
+    
+    // Raycast visualization
+    void toggleRaycastVisualization() { raycastVisualizationEnabled = !raycastVisualizationEnabled; }
+    void setRaycastVisualization(bool enabled) { raycastVisualizationEnabled = enabled; }
+    bool isRaycastVisualizationEnabled() const { return raycastVisualizationEnabled; }
     
     // Frame state accessors
     void setFrameStartTime(std::chrono::high_resolution_clock::time_point time) { frameStartTime = time; }
@@ -90,6 +97,7 @@ private:
     ChunkManager* chunkManager;
     Utils::PerformanceMonitor* performanceMonitor;
     PerformanceProfiler* performanceProfiler;
+    RaycastVisualizer* raycastVisualizer;
     
     // Render state
     uint32_t currentFrame = 0;
@@ -97,6 +105,7 @@ private:
     float chunkInclusionDistance = 2000.0f;
     bool debugModeEnabled = false;  // Toggle for debug visualization
     uint32_t debugVisualizationMode = 0;  // 0=wireframe, 1=normals, 2=hierarchy
+    bool raycastVisualizationEnabled = false;  // Toggle for raycast visualization
     
     // Cached matrices
     glm::mat4 cachedViewMatrix;

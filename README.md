@@ -321,6 +321,7 @@ VulkanCube.exe
 - **F1** - Toggle performance overlay
 - **F4** - Toggle debug rendering on/off
 - **Ctrl + F4** - Cycle debug visualization modes (Wireframe → Normals → Hierarchy → UV Coords)
+- **F5** - Toggle raycast visualization (show ray path, hit point, traversed voxels)
 - **ESC** - Exit application
 
 ### Performance Monitoring

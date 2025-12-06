@@ -48,6 +48,15 @@ VoxelLocation VoxelRaycaster::pickVoxel(
     const glm::vec3& rayDirection,
     ChunkManagerAccessFunc getChunkManager
 ) const {
+    // Initialize debug data capture
+    if (m_debugCaptureEnabled) {
+        m_lastDebugData.rayOrigin = rayOrigin;
+        m_lastDebugData.rayDirection = rayDirection;
+        m_lastDebugData.traversedVoxels.clear();
+        m_lastDebugData.hasHit = false;
+        m_lastDebugData.hitFace = -1;
+    }
+
     IChunkManager* chunkManager = getChunkManager();
     if (!chunkManager) {
         return VoxelLocation(); // Invalid location
@@ -111,6 +120,11 @@ VoxelLocation VoxelRaycaster::pickVoxel(
     // DDA MAIN LOOP:
     // Step through voxels along the ray until we hit something or exceed max distance
     for (int step_count = 0; step_count < maxSteps; ++step_count) {
+        // Capture traversed voxels for debug visualization
+        if (m_debugCaptureEnabled) {
+            m_lastDebugData.traversedVoxels.push_back(voxel);
+        }
+
         // O(1) VOXEL QUERY:
         // ChunkManager.resolveGlobalPosition uses hash maps for instant lookup
         // Returns VoxelLocation with type (CUBE, SUBDIVIDED, EMPTY) and chunk/position info
@@ -150,6 +164,16 @@ VoxelLocation VoxelRaycaster::pickVoxel(
             
             location.hitFace = hitFace;
             location.hitNormal = hitNormal;
+            
+            // Capture hit data for debug visualization
+            if (m_debugCaptureEnabled) {
+                m_lastDebugData.hasHit = true;
+                m_lastDebugData.hitFace = hitFace;
+                m_lastDebugData.hitNormal = hitNormal;
+                // Calculate approximate hit point
+                m_lastDebugData.hitPoint = glm::vec3(voxel) + glm::vec3(0.5f);
+                m_lastDebugData.hitLocation = location;
+            }
             
             // If subdivided, resolve specific subcube
             if (location.type == VoxelLocation::SUBDIVIDED) {

@@ -460,6 +460,154 @@ bool RenderPipeline::createDebugGraphicsPipeline() {
     return true;
 }
 
+bool RenderPipeline::createDebugLinePipeline() {
+    // Pipeline for debug line rendering (raycast visualization, etc.)
+    
+    // Vertex input - only position and color (simpler than voxel rendering)
+    VkVertexInputBindingDescription bindingDescription{};
+    bindingDescription.binding = 0;
+    bindingDescription.stride = sizeof(float) * 6;  // 3 pos + 3 color
+    bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    std::vector<VkVertexInputAttributeDescription> attributeDescriptions(2);
+    // Position
+    attributeDescriptions[0].binding = 0;
+    attributeDescriptions[0].location = 0;
+    attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+    attributeDescriptions[0].offset = 0;
+    // Color
+    attributeDescriptions[1].binding = 0;
+    attributeDescriptions[1].location = 1;
+    attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+    attributeDescriptions[1].offset = sizeof(float) * 3;
+
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+    vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+
+    // Input assembly - LINE LIST topology
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+    inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+    // Viewport and scissor (dynamic)
+    VkPipelineViewportStateCreateInfo viewportState{};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1;
+    viewportState.scissorCount = 1;
+
+    // Rasterizer
+    VkPipelineRasterizationStateCreateInfo rasterizer{};
+    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer.depthClampEnable = VK_FALSE;
+    rasterizer.rasterizerDiscardEnable = VK_FALSE;
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.lineWidth = 2.0f;  // Thicker lines for visibility
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    rasterizer.depthBiasEnable = VK_FALSE;
+
+    // Multisampling
+    VkPipelineMultisampleStateCreateInfo multisampling{};
+    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling.sampleShadingEnable = VK_FALSE;
+    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    // Depth testing - read but don't write (render on top)
+    VkPipelineDepthStencilStateCreateInfo depthStencil{};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_TRUE;
+    depthStencil.depthWriteEnable = VK_FALSE;  // Don't write to depth buffer
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+    depthStencil.depthBoundsTestEnable = VK_FALSE;
+    depthStencil.stencilTestEnable = VK_FALSE;
+
+    // Color blending with alpha
+    VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+    colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    colorBlendAttachment.blendEnable = VK_TRUE;
+    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+    VkPipelineColorBlendStateCreateInfo colorBlending{};
+    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlending.logicOpEnable = VK_FALSE;
+    colorBlending.logicOp = VK_LOGIC_OP_COPY;
+    colorBlending.attachmentCount = 1;
+    colorBlending.pAttachments = &colorBlendAttachment;
+
+    // Dynamic state
+    std::vector<VkDynamicState> dynamicStates = {
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR
+    };
+
+    VkPipelineDynamicStateCreateInfo dynamicState{};
+    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+    dynamicState.pDynamicStates = dynamicStates.data();
+
+    // Shader stages
+    std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
+
+    if (debugLineVertShaderModule != VK_NULL_HANDLE) {
+        VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+        vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+        vertShaderStageInfo.module = debugLineVertShaderModule;
+        vertShaderStageInfo.pName = "main";
+        shaderStages.push_back(vertShaderStageInfo);
+    }
+
+    if (debugLineFragShaderModule != VK_NULL_HANDLE) {
+        VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+        fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        fragShaderStageInfo.module = debugLineFragShaderModule;
+        fragShaderStageInfo.pName = "main";
+        shaderStages.push_back(fragShaderStageInfo);
+    }
+
+    if (shaderStages.empty()) {
+        LOG_ERROR("Rendering", "Debug line shaders not loaded!");
+        return false;
+    }
+
+    // Graphics pipeline
+    VkGraphicsPipelineCreateInfo pipelineInfo{};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
+    pipelineInfo.pStages = shaderStages.data();
+    pipelineInfo.pVertexInputState = &vertexInputInfo;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pDepthStencilState = &depthStencil;
+    pipelineInfo.pColorBlendState = &colorBlending;
+    pipelineInfo.pDynamicState = &dynamicState;
+    pipelineInfo.layout = pipelineLayout;  // Use same layout as regular pipeline
+    pipelineInfo.renderPass = renderPass;
+    pipelineInfo.subpass = 0;
+
+    VkResult result = vkCreateGraphicsPipelines(vulkanDevice.getDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &debugLinePipeline);
+    if (result != VK_SUCCESS) {
+        LOG_ERROR_FMT("Rendering", "Failed to create debug line pipeline! Error: " << result);
+        return false;
+    }
+
+    LOG_INFO("Rendering", "Debug line pipeline created successfully");
+    return true;
+}
+
 void RenderPipeline::cleanup() {
     VkDevice device = vulkanDevice.getDevice();
 
@@ -471,6 +619,11 @@ void RenderPipeline::cleanup() {
     if (debugGraphicsPipeline != VK_NULL_HANDLE) {
         vkDestroyPipeline(device, debugGraphicsPipeline, nullptr);
         debugGraphicsPipeline = VK_NULL_HANDLE;
+    }
+
+    if (debugLinePipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, debugLinePipeline, nullptr);
+        debugLinePipeline = VK_NULL_HANDLE;
     }
 
     if (pipelineLayout != VK_NULL_HANDLE) {
@@ -503,6 +656,16 @@ void RenderPipeline::cleanup() {
     if (debugFragShaderModule != VK_NULL_HANDLE) {
         vkDestroyShaderModule(device, debugFragShaderModule, nullptr);
         debugFragShaderModule = VK_NULL_HANDLE;
+    }
+
+    if (debugLineVertShaderModule != VK_NULL_HANDLE) {
+        vkDestroyShaderModule(device, debugLineVertShaderModule, nullptr);
+        debugLineVertShaderModule = VK_NULL_HANDLE;
+    }
+
+    if (debugLineFragShaderModule != VK_NULL_HANDLE) {
+        vkDestroyShaderModule(device, debugLineFragShaderModule, nullptr);
+        debugLineFragShaderModule = VK_NULL_HANDLE;
     }
 }
 
@@ -556,12 +719,41 @@ bool RenderPipeline::loadDebugShaders(const std::string& vertPath, const std::st
     return true;
 }
 
+bool RenderPipeline::loadDebugLineShaders(const std::string& vertPath, const std::string& fragPath) {
+    auto vertShaderCode = Utils::readFile(vertPath);
+    auto fragShaderCode = Utils::readFile(fragPath);
+
+    if (vertShaderCode.empty()) {
+        LOG_ERROR_FMT("Rendering", "Failed to load debug line vertex shader: " << vertPath);
+        return false;
+    }
+
+    if (fragShaderCode.empty()) {
+        LOG_ERROR_FMT("Rendering", "Failed to load debug line fragment shader: " << fragPath);
+        return false;
+    }
+
+    debugLineVertShaderModule = createShaderModule(vertShaderCode);
+    debugLineFragShaderModule = createShaderModule(fragShaderCode);
+
+    if (debugLineVertShaderModule == VK_NULL_HANDLE || debugLineFragShaderModule == VK_NULL_HANDLE) {
+        LOG_ERROR("Rendering", "Failed to create debug line shader modules!");
+        return false;
+    }
+
+    return true;
+}
+
 void RenderPipeline::bindGraphicsPipeline(VkCommandBuffer commandBuffer) {
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 }
 
 void RenderPipeline::bindDebugGraphicsPipeline(VkCommandBuffer commandBuffer) {
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, debugGraphicsPipeline);
+}
+
+void RenderPipeline::bindDebugLinePipeline(VkCommandBuffer commandBuffer) {
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, debugLinePipeline);
 }
 
 bool RenderPipeline::createRenderPass() {

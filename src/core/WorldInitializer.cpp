@@ -247,6 +247,12 @@ bool WorldInitializer::initializeVulkan() {
         LOG_ERROR("WorldInitializer", "Failed to load debug pipeline shaders!");
         return false;
     }
+    
+    // Load debug line shaders for raycast visualization
+    if (!renderPipeline->loadDebugLineShaders("shaders/debug_line.vert.spv", "shaders/debug_line.frag.spv")) {
+        LOG_ERROR("WorldInitializer", "Failed to load debug line shaders!");
+        return false;
+    }
 
     // TODO: Compute shader functionality for frustum culling (experimental/incomplete)
     /*
@@ -274,6 +280,11 @@ bool WorldInitializer::initializeVulkan() {
     
     if (!renderPipeline->createDebugGraphicsPipeline()) {
         LOG_ERROR("WorldInitializer", "Failed to create debug graphics pipeline!");
+        return false;
+    }
+    
+    if (!renderPipeline->createDebugLinePipeline()) {
+        LOG_ERROR("WorldInitializer", "Failed to create debug line pipeline!");
         return false;
     }
 

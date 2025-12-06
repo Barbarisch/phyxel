@@ -67,6 +67,11 @@ void InputController::setupKeyboardBindings() {
         m_app->cycleDebugVisualizationMode();
     });
     
+    // F5 - Toggle raycast visualization
+    m_inputManager->registerAction(GLFW_KEY_F5, "Toggle Raycast Visualization", [this]() {
+        m_app->toggleRaycastVisualization();
+    });
+    
     // G - Spawn dynamic subcube (placeholder)
     m_inputManager->registerAction(GLFW_KEY_G, "Spawn Dynamic Subcube", [this]() {
         glm::vec3 spawnPos = m_inputManager->getCameraPosition() + m_inputManager->getCameraFront() * 5.0f;
