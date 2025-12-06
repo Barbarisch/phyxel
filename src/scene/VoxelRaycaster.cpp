@@ -277,6 +277,31 @@ VoxelLocation VoxelRaycaster::resolveSubcubeInVoxel(
                                 closestHit.subcubePos = microcube->getSubcubeLocalPosition();
                                 closestHit.microcubePos = microcube->getMicrocubeLocalPosition();
                                 LOG_TRACE_FMT("VoxelRaycaster", "[RESOLVE] Found closer microcube at distance " << intersectionDistance);
+                                
+                                // Capture debug data for microcube hit
+                                if (m_debugCaptureEnabled) {
+                                    glm::vec3 hitPoint = rayOrigin + rayDirection * intersectionDistance;
+                                    m_lastDebugData.hitPoint = hitPoint;
+                                    m_lastDebugData.hasHit = true;
+                                    
+                                    // Determine which face was hit based on hit point position within AABB
+                                    glm::vec3 center = (microcubeMin + microcubeMax) * 0.5f;
+                                    glm::vec3 halfExtents = (microcubeMax - microcubeMin) * 0.5f;
+                                    glm::vec3 localHit = hitPoint - center;
+                                    
+                                    // Find which axis has the largest relative value (that's the hit face)
+                                    glm::vec3 absLocal = glm::abs(localHit / halfExtents);
+                                    if (absLocal.x > absLocal.y && absLocal.x > absLocal.z) {
+                                        m_lastDebugData.hitNormal = glm::vec3(localHit.x > 0 ? 1.0f : -1.0f, 0, 0);
+                                        m_lastDebugData.hitFace = localHit.x > 0 ? 0 : 1;
+                                    } else if (absLocal.y > absLocal.z) {
+                                        m_lastDebugData.hitNormal = glm::vec3(0, localHit.y > 0 ? 1.0f : -1.0f, 0);
+                                        m_lastDebugData.hitFace = localHit.y > 0 ? 2 : 3;
+                                    } else {
+                                        m_lastDebugData.hitNormal = glm::vec3(0, 0, localHit.z > 0 ? 1.0f : -1.0f);
+                                        m_lastDebugData.hitFace = localHit.z > 0 ? 4 : 5;
+                                    }
+                                }
                             }
                         }
                     }
@@ -311,6 +336,31 @@ VoxelLocation VoxelRaycaster::resolveSubcubeInVoxel(
                 closestHit.subcubePos = subcube->getLocalPosition();
                 closestHit.microcubePos = glm::ivec3(-1); // Not a microcube
                 LOG_TRACE_FMT("VoxelRaycaster", "[RESOLVE] Found closer subcube at distance " << intersectionDistance);
+                
+                // Capture debug data for subcube hit
+                if (m_debugCaptureEnabled) {
+                    glm::vec3 hitPoint = rayOrigin + rayDirection * intersectionDistance;
+                    m_lastDebugData.hitPoint = hitPoint;
+                    m_lastDebugData.hasHit = true;
+                    
+                    // Determine which face was hit based on hit point position within AABB
+                    glm::vec3 center = (subcubeMin + subcubeMax) * 0.5f;
+                    glm::vec3 halfExtents = (subcubeMax - subcubeMin) * 0.5f;
+                    glm::vec3 localHit = hitPoint - center;
+                    
+                    // Find which axis has the largest relative value (that's the hit face)
+                    glm::vec3 absLocal = glm::abs(localHit / halfExtents);
+                    if (absLocal.x > absLocal.y && absLocal.x > absLocal.z) {
+                        m_lastDebugData.hitNormal = glm::vec3(localHit.x > 0 ? 1.0f : -1.0f, 0, 0);
+                        m_lastDebugData.hitFace = localHit.x > 0 ? 0 : 1;
+                    } else if (absLocal.y > absLocal.z) {
+                        m_lastDebugData.hitNormal = glm::vec3(0, localHit.y > 0 ? 1.0f : -1.0f, 0);
+                        m_lastDebugData.hitFace = localHit.y > 0 ? 2 : 3;
+                    } else {
+                        m_lastDebugData.hitNormal = glm::vec3(0, 0, localHit.z > 0 ? 1.0f : -1.0f);
+                        m_lastDebugData.hitFace = localHit.z > 0 ? 4 : 5;
+                    }
+                }
             }
         }
     }
