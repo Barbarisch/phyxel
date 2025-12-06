@@ -62,6 +62,11 @@ void InputController::setupKeyboardBindings() {
         m_app->toggleDebugRendering();
     });
     
+    // Ctrl + F4 - Cycle debug visualization mode
+    m_inputManager->registerActionWithModifier(GLFW_KEY_F4, GLFW_MOD_CONTROL, "Cycle Debug Mode", [this]() {
+        m_app->cycleDebugVisualizationMode();
+    });
+    
     // G - Spawn dynamic subcube (placeholder)
     m_inputManager->registerAction(GLFW_KEY_G, "Spawn Dynamic Subcube", [this]() {
         glm::vec3 spawnPos = m_inputManager->getCameraPosition() + m_inputManager->getCameraFront() * 5.0f;

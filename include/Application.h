@@ -46,6 +46,7 @@ public:
     // Performance overlay methods
     void togglePerformanceOverlay();
     void toggleDebugRendering();
+    void cycleDebugVisualizationMode();
 
 private:
     // ============================================================================

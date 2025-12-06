@@ -516,6 +516,18 @@ void Application::toggleDebugRendering() {
     }
 }
 
+void Application::cycleDebugVisualizationMode() {
+    if (renderCoordinator) {
+        uint32_t currentMode = renderCoordinator->getDebugVisualizationMode();
+        uint32_t nextMode = (currentMode + 1) % 4;  // Cycle through 0-3
+        renderCoordinator->setDebugVisualizationMode(nextMode);
+        
+        const char* modeNames[] = {"Wireframe", "Normals", "Hierarchy", "UV Coords"};
+        const char* modeName = (nextMode < 4) ? modeNames[nextMode] : "Unknown";
+        LOG_INFO_FMT("Application", "Debug Visualization Mode: " << modeName);
+    }
+}
+
 void Application::setRenderDistance(float distance) {
     if (distance != maxChunkRenderDistance) {
         maxChunkRenderDistance = distance;

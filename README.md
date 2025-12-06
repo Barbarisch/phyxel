@@ -319,7 +319,8 @@ VulkanCube.exe
 - **Alt + Left Click** - Subdivide subcube into 27 microcubes
 - **Middle Click** - Subdivide cube (alternative)
 - **F1** - Toggle performance overlay
-- **F4** - Toggle debug rendering mode (wireframe visualization)
+- **F4** - Toggle debug rendering on/off
+- **Ctrl + F4** - Cycle debug visualization modes (Wireframe → Normals → Hierarchy → UV Coords)
 - **ESC** - Exit application
 
 ### Performance Monitoring
