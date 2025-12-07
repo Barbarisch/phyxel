@@ -13,8 +13,17 @@ bool PlacementTool::placeVoxel(const InteractionContext& context) {
         return false;
     }
 
+    LOG_INFO_FMT("PlacementTool", "[PLACE VOXEL] Input: worldPos=(" 
+              << context.hoveredLocation.worldPos.x << "," 
+              << context.hoveredLocation.worldPos.y << "," 
+              << context.hoveredLocation.worldPos.z << ") hitFace=" 
+              << context.hoveredLocation.hitFace);
+
     // Calculate placement position based on hit face
     glm::ivec3 placementPos = context.hoveredLocation.getAdjacentPlacementPosition();
+    
+    LOG_INFO_FMT("PlacementTool", "[PLACE VOXEL] Output: placementPos=(" 
+              << placementPos.x << "," << placementPos.y << "," << placementPos.z << ")");
     
     // Get default placement color (greenish)
     glm::vec3 color(0.2f, 0.7f, 0.2f);

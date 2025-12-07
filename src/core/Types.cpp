@@ -1,6 +1,7 @@
 #include "core/Types.h"
 #include "utils/Logger.h"
 #include <vulkan/vulkan.h>
+#include <iostream>
 
 namespace VulkanCube {
 
@@ -8,6 +9,10 @@ glm::ivec3 VoxelLocation::getAdjacentPlacementPosition() const {
     LOG_INFO_FMT("VoxelLocation", "[getAdjacentPlacementPosition] Called with worldPos=(" 
               << worldPos.x << "," << worldPos.y << "," << worldPos.z 
               << ") hitFace=" << hitFace);
+    
+    // TEST: Verify GLM constructor order
+    glm::ivec3 test1(10, 20, 30);
+    LOG_INFO_FMT("VoxelLocation", "[GLM TEST] glm::ivec3(10,20,30) -> x=" << test1.x << " y=" << test1.y << " z=" << test1.z);
     
     if (hitFace < 0) {
         LOG_INFO("VoxelLocation", "[getAdjacentPlacementPosition] No face data, returning worldPos");
@@ -29,9 +34,11 @@ glm::ivec3 VoxelLocation::getAdjacentPlacementPosition() const {
     }
     
     glm::ivec3 result = worldPos + faceOffset;
-    LOG_INFO_FMT("VoxelLocation", "[getAdjacentPlacementPosition] hitFace=" << hitFace 
-              << " offset=(" << faceOffset.x << "," << faceOffset.y << "," << faceOffset.z
-              << ") result=(" << result.x << "," << result.y << "," << result.z << ")");
+    LOG_INFO_FMT("VoxelLocation", "[getAdjacentPlacementPosition] BEFORE addition:");
+    LOG_INFO_FMT("VoxelLocation", "  worldPos: x=" << worldPos.x << " y=" << worldPos.y << " z=" << worldPos.z);
+    LOG_INFO_FMT("VoxelLocation", "  faceOffset: x=" << faceOffset.x << " y=" << faceOffset.y << " z=" << faceOffset.z);
+    LOG_INFO_FMT("VoxelLocation", "[getAdjacentPlacementPosition] AFTER addition:");
+    LOG_INFO_FMT("VoxelLocation", "  result: x=" << result.x << " y=" << result.y << " z=" << result.z);
     
     return result;
 }

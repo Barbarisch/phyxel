@@ -3,6 +3,7 @@
 #include "physics/PhysicsWorld.h"
 #include "physics/CollisionSpatialGrid.h"
 #include "utils/Logger.h"
+#include <iostream>
 #include <stdexcept>
 #include <cstring>
 #include <random>
@@ -377,6 +378,9 @@ VoxelLocation Chunk::resolveLocalPosition(const glm::ivec3& localPos) const {
         location.chunk = const_cast<Chunk*>(this);
         location.localPos = localPos;
         location.worldPos = worldOrigin + localPos;
+        std::cout << "[Chunk::resolveLocalPosition] localPos=(" << localPos.x << "," << localPos.y << "," << localPos.z 
+                  << ") worldOrigin=(" << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z
+                  << ") worldPos=(" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z << ")" << std::endl;
         if (location.subcubePos == glm::ivec3(0)) {
             location.subcubePos = glm::ivec3(-1);
         }

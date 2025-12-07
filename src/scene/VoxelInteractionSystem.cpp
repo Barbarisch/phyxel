@@ -129,9 +129,14 @@ void VoxelInteractionSystem::updateMouseHover(const glm::vec3& cameraPos, const 
         }
     }
     
-    // Update hover state if changed
-    if (hoveredCube != m_lastHoveredCube) {
-        if (m_lastHoveredCube >= 0) {
+    // Update hover state if changed OR if hitFace changed (same cube, different face)
+    bool locationChanged = (hoveredCube != m_lastHoveredCube);
+    bool hitFaceChanged = (hoveredLocation.isValid() && m_currentHoveredLocation.isValid() && 
+                          hoveredLocation.worldPos == m_currentHoveredLocation.worldPos &&
+                          hoveredLocation.hitFace != m_currentHoveredLocation.hitFace);
+    
+    if (locationChanged || hitFaceChanged) {
+        if (m_lastHoveredCube >= 0 && locationChanged) {
             clearHoveredCubeInChunksOptimized();
         }
         
@@ -150,6 +155,9 @@ InteractionContext VoxelInteractionSystem::createContext() const {
     context.cameraPosition = m_lastCameraPos;
     context.cameraFront = m_lastCameraFront;
     context.cameraUp = m_lastCameraUp;
+    
+    LOG_INFO_FMT("VoxelInteraction", "[CREATE CONTEXT] m_currentHoveredLocation: worldPos=(" << m_currentHoveredLocation.worldPos.x << "," << m_currentHoveredLocation.worldPos.y << "," << m_currentHoveredLocation.worldPos.z << ") hitFace=" << m_currentHoveredLocation.hitFace);
+    
     return context;
 }
 
@@ -387,7 +395,7 @@ void VoxelInteractionSystem::setHoveredCubeInChunksOptimized(const CubeLocation&
         m_currentHoveredLocation = location;
         m_hasHoveredCube = true;
         
-        LOG_TRACE_FMT("Application", "[CUBE HOVER] Setting hover at world pos: (" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z << ")");
+        LOG_INFO_FMT("Application", "[CUBE HOVER] Setting m_currentHoveredLocation: worldPos=(" << location.worldPos.x << "," << location.worldPos.y << "," << location.worldPos.z << ") hitFace=" << location.hitFace);
     }
 }
 
