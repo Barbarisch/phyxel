@@ -1,6 +1,7 @@
 #include "core/ChunkInitializer.h"
 #include "core/Chunk.h"
 #include "core/ChunkStreamingManager.h"
+#include "physics/PhysicsWorld.h"
 #include "utils/Logger.h"
 #include "utils/CoordinateUtils.h"
 
@@ -11,13 +12,15 @@ void ChunkInitializer::setCallbacks(
     ChunkMapAccessFunc getChunkMapFunc,
     DeviceAccessFunc getDeviceFunc,
     GetChunkAtCoordFunc getChunkAtCoordFunc,
-    RebuildChunkWithCullingFunc rebuildChunkFunc
+    RebuildChunkWithCullingFunc rebuildChunkFunc,
+    PhysicsWorldAccessFunc getPhysicsWorldFunc
 ) {
     m_getChunks = getChunksFunc;
     m_getChunkMap = getChunkMapFunc;
     m_getDevice = getDeviceFunc;
     m_getChunkAtCoord = getChunkAtCoordFunc;
     m_rebuildChunk = rebuildChunkFunc;
+    m_getPhysicsWorld = getPhysicsWorldFunc;
 }
 
 void ChunkInitializer::createChunks(const std::vector<glm::ivec3>& origins) {
@@ -75,6 +78,19 @@ void ChunkInitializer::createChunk(const glm::ivec3& origin, bool populate) {
     // Only populate with world-generated cubes if requested (default true for world init, false for player placement)
     if (populate) {
         chunk->populateWithCubes();
+    }
+    
+    // Initialize physics for the new chunk
+    // CRITICAL: This was missing for dynamically created chunks, causing them to have no collision
+    // and leading to physics objects falling through or behaving erratically.
+    if (m_getPhysicsWorld) {
+        Physics::PhysicsWorld* physicsWorld = m_getPhysicsWorld();
+        if (physicsWorld) {
+            chunk->setPhysicsWorld(physicsWorld);
+            chunk->createChunkPhysicsBody();
+            LOG_DEBUG_FMT("ChunkInitializer", "Initialized physics for new chunk at (%d, %d, %d)", 
+                       origin.x, origin.y, origin.z);
+        }
     }
     
     // Mark new chunk as dirty so it gets saved to database

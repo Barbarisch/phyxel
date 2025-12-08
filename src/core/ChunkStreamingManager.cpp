@@ -126,8 +126,18 @@ bool ChunkStreamingManager::saveDirtyChunks() {
     std::vector<std::reference_wrapper<Chunk>> chunkRefs;
     chunkRefs.reserve(chunks.size());
     
+    int dirtyCount = 0;
     for (const auto& chunk : chunks) {
         chunkRefs.emplace_back(*chunk);
+        if (chunk->getIsDirty()) {
+            dirtyCount++;
+            glm::ivec3 origin = chunk->getWorldOrigin();
+            LOG_DEBUG_FMT("ChunkStreaming", "Found dirty chunk at (" << origin.x << "," << origin.y << "," << origin.z << ") pending save");
+        }
+    }
+    
+    if (dirtyCount > 0) {
+        LOG_INFO_FMT("ChunkStreaming", "Attempting to save " << dirtyCount << " dirty chunks");
     }
     
     return worldStorage->saveDirtyChunks(chunkRefs);

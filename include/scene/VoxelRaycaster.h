@@ -117,10 +117,28 @@ public:
         bool hasHit;
         int hitFace;
         VoxelLocation hitLocation;
+        
+        // Target placement visualization
+        glm::vec3 targetSubcubeCenter;
+        bool hasTarget = false;
     };
 
     const RaycastDebugData& getLastRaycastDebugData() const { return m_lastDebugData; }
     void setDebugCaptureEnabled(bool enabled) { m_debugCaptureEnabled = enabled; }
+    
+    // Allow external systems (like VoxelInteractionSystem) to augment debug data
+    void setDebugTarget(const glm::vec3& target) const {
+        if (m_debugCaptureEnabled) {
+            m_lastDebugData.targetSubcubeCenter = target;
+            m_lastDebugData.hasTarget = true;
+        }
+    }
+    
+    void clearDebugTarget() const {
+        if (m_debugCaptureEnabled) {
+            m_lastDebugData.hasTarget = false;
+        }
+    }
 
 private:
     /**

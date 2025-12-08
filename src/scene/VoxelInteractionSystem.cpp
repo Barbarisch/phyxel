@@ -71,6 +71,27 @@ void VoxelInteractionSystem::updateMouseHover(const glm::vec3& cameraPos, const 
         [this]() -> ChunkManager* { return m_chunkManager; }
     );
     
+    // NEW: Calculate and visualize placement target
+    if (voxelLocation.isValid()) {
+        // Use robust placement calculation
+        PlacementTool::PlacementResult result = PlacementTool::calculatePlacement(
+            voxelLocation.hitPoint,
+            voxelLocation.hitNormal,
+            voxelLocation.worldPos
+        );
+        
+        // Calculate world space center of the target subcube
+        // Subcube size is 1/3 of a unit
+        float subcubeSize = 1.0f / 3.0f;
+        glm::vec3 subcubeCenter = glm::vec3(result.cubePos) + 
+                                 glm::vec3(result.subcubePos) * subcubeSize + 
+                                 glm::vec3(subcubeSize * 0.5f);
+                                 
+        m_raycaster.setDebugTarget(subcubeCenter);
+    } else {
+        m_raycaster.clearDebugTarget();
+    }
+    
     // Debug logging for hover detection
     static int logCounter = 0;
     if (voxelLocation.isValid() && (++logCounter % 60 == 0)) { // Log once per second at 60fps

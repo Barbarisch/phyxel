@@ -14,6 +14,10 @@ namespace VulkanCube {
 class Chunk;
 struct ChunkCoordHash; // Forward declare - defined in ChunkStreamingManager.h
 
+namespace Physics {
+    class PhysicsWorld;
+}
+
 // Type alias for chunk spatial hash map
 using ChunkMap = std::unordered_map<glm::ivec3, Chunk*, ChunkCoordHash>;
 
@@ -37,6 +41,7 @@ public:
     using DeviceAccessFunc = std::function<std::pair<VkDevice, VkPhysicalDevice>()>;
     using GetChunkAtCoordFunc = std::function<Chunk*(const glm::ivec3&)>;
     using RebuildChunkWithCullingFunc = std::function<void(Chunk&)>;
+    using PhysicsWorldAccessFunc = std::function<Physics::PhysicsWorld*()>;
     
     ChunkInitializer() = default;
     ~ChunkInitializer() = default;
@@ -49,7 +54,8 @@ public:
         ChunkMapAccessFunc getChunkMapFunc,
         DeviceAccessFunc getDeviceFunc,
         GetChunkAtCoordFunc getChunkAtCoordFunc,
-        RebuildChunkWithCullingFunc rebuildChunkFunc
+        RebuildChunkWithCullingFunc rebuildChunkFunc,
+        PhysicsWorldAccessFunc getPhysicsWorldFunc
     );
     
     /**
@@ -105,6 +111,7 @@ private:
     DeviceAccessFunc m_getDevice;
     GetChunkAtCoordFunc m_getChunkAtCoord;
     RebuildChunkWithCullingFunc m_rebuildChunk;
+    PhysicsWorldAccessFunc m_getPhysicsWorld;
 };
 
 } // namespace VulkanCube

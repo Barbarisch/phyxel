@@ -38,6 +38,10 @@ public:
         glm::vec3 hitNormal;
         bool hasHit;
         int hitFace;  // -1 if no hit, 0-5 for faces
+        
+        // Target placement visualization
+        glm::vec3 targetSubcubeCenter;
+        bool hasTarget = false;
     };
 
     RaycastVisualizer();

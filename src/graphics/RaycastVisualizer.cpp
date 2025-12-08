@@ -158,6 +158,47 @@ void RaycastVisualizer::generateDebugGeometry() {
         m_vertices.push_back({arrowEnd, normalColor});
         m_vertices.push_back({arrowBase - perpendicular2 * arrowSize, normalColor});
     }
+
+    // 5. Target placement - magenta wireframe box
+    if (m_data.hasTarget) {
+        glm::vec3 targetColor(1.0f, 0.0f, 1.0f); // Magenta
+        float subcubeSize = 1.0f / 3.0f;
+        float halfSize = subcubeSize * 0.5f;
+        
+        glm::vec3 center = m_data.targetSubcubeCenter;
+        glm::vec3 min = center - glm::vec3(halfSize);
+        glm::vec3 max = center + glm::vec3(halfSize);
+        
+        // Bottom face
+        m_vertices.push_back({glm::vec3(min.x, min.y, min.z), targetColor});
+        m_vertices.push_back({glm::vec3(max.x, min.y, min.z), targetColor});
+        m_vertices.push_back({glm::vec3(max.x, min.y, min.z), targetColor});
+        m_vertices.push_back({glm::vec3(max.x, min.y, max.z), targetColor});
+        m_vertices.push_back({glm::vec3(max.x, min.y, max.z), targetColor});
+        m_vertices.push_back({glm::vec3(min.x, min.y, max.z), targetColor});
+        m_vertices.push_back({glm::vec3(min.x, min.y, max.z), targetColor});
+        m_vertices.push_back({glm::vec3(min.x, min.y, min.z), targetColor});
+
+        // Top face
+        m_vertices.push_back({glm::vec3(min.x, max.y, min.z), targetColor});
+        m_vertices.push_back({glm::vec3(max.x, max.y, min.z), targetColor});
+        m_vertices.push_back({glm::vec3(max.x, max.y, min.z), targetColor});
+        m_vertices.push_back({glm::vec3(max.x, max.y, max.z), targetColor});
+        m_vertices.push_back({glm::vec3(max.x, max.y, max.z), targetColor});
+        m_vertices.push_back({glm::vec3(min.x, max.y, max.z), targetColor});
+        m_vertices.push_back({glm::vec3(min.x, max.y, max.z), targetColor});
+        m_vertices.push_back({glm::vec3(min.x, max.y, min.z), targetColor});
+
+        // Vertical edges
+        m_vertices.push_back({glm::vec3(min.x, min.y, min.z), targetColor});
+        m_vertices.push_back({glm::vec3(min.x, max.y, min.z), targetColor});
+        m_vertices.push_back({glm::vec3(max.x, min.y, min.z), targetColor});
+        m_vertices.push_back({glm::vec3(max.x, max.y, min.z), targetColor});
+        m_vertices.push_back({glm::vec3(max.x, min.y, max.z), targetColor});
+        m_vertices.push_back({glm::vec3(max.x, max.y, max.z), targetColor});
+        m_vertices.push_back({glm::vec3(min.x, min.y, max.z), targetColor});
+        m_vertices.push_back({glm::vec3(min.x, max.y, max.z), targetColor});
+    }
 }
 
 void RaycastVisualizer::updateBuffers(uint32_t currentFrame) {

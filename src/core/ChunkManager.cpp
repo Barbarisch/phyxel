@@ -78,7 +78,9 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
         // GetChunkAtCoordFunc: Get chunk at coordinate
         [this](const glm::ivec3& coord) { return getChunkAtCoord(coord); },
         // RebuildChunkWithCullingFunc: Rebuild chunk with cross-chunk culling
-        [this](Chunk& chunk) { rebuildChunkFacesWithCrosschunkCulling(chunk); }
+        [this](Chunk& chunk) { rebuildChunkFacesWithCrosschunkCulling(chunk); },
+        // PhysicsWorldAccessFunc: Access physics world
+        [this]() { return physicsWorld; }
     );
     
     // Setup dirty chunk tracker callbacks

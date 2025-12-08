@@ -131,6 +131,13 @@ bool Application::initialize() {
         imguiRenderer.get()
     );
 
+    // Check World Storage status
+#ifdef ENABLE_WORLD_STORAGE
+    LOG_INFO("Application", "World Storage is ENABLED (SQLite3 support active)");
+#else
+    LOG_WARN("Application", "World Storage is DISABLED (SQLite3 not found or disabled)");
+#endif
+
     // Configure render distances (controls how many chunks are visible)
     worldInitializer->setMaxChunkRenderDistance(maxChunkRenderDistance);
     worldInitializer->setChunkInclusionDistance(chunkInclusionDistance);
@@ -434,6 +441,10 @@ void Application::update(float deltaTime) {
             vizData.hitNormal = raycastDebugData.hitNormal;
             vizData.hasHit = raycastDebugData.hasHit;
             vizData.hitFace = raycastDebugData.hitFace;
+            
+            // Copy target visualization data
+            vizData.targetSubcubeCenter = raycastDebugData.targetSubcubeCenter;
+            vizData.hasTarget = raycastDebugData.hasTarget;
             
             raycastVisualizer->setRaycastData(vizData);
             raycastVisualizer->updateBuffers(renderCoordinator->getCurrentFrame());
