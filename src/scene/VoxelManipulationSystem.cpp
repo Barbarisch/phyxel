@@ -634,6 +634,11 @@ bool VoxelManipulationSystem::placeSubcube(const glm::ivec3& worldPos, const glm
         LOG_INFO_FMT("VoxelManipulation", "[PLACE SUBCUBE] Successfully placed subcube at world pos (" 
                   << worldPos.x << "," << worldPos.y << "," << worldPos.z 
                   << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z << ")");
+        
+        // Mark chunk as dirty and rebuild faces so the subcube becomes visible
+        chunk->setDirty();
+        chunk->setNeedsUpdate(true);
+        chunkManager->updateAfterCubePlace(worldPos);
     } else {
         LOG_WARN("VoxelManipulation", "[PLACE SUBCUBE] Failed to place subcube");
     }
@@ -700,6 +705,11 @@ bool VoxelManipulationSystem::placeMicrocube(const glm::ivec3& parentCubePos, co
                   << parentCubePos.x << "," << parentCubePos.y << "," << parentCubePos.z 
                   << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z 
                   << ") microcube (" << microcubePos.x << "," << microcubePos.y << "," << microcubePos.z << ")");
+        
+        // Mark chunk as dirty and rebuild faces so the microcube becomes visible
+        chunk->setDirty();
+        chunk->setNeedsUpdate(true);
+        chunkManager->updateAfterCubePlace(parentCubePos);
     } else {
         LOG_WARN("VoxelManipulation", "[PLACE MICROCUBE] Failed to place microcube");
     }

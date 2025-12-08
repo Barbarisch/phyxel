@@ -72,6 +72,7 @@ struct VoxelLocation {
     // Face information for cube placement (carried over from raycast)
     int hitFace = -1;               // Which face was hit: 0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z
     glm::vec3 hitNormal{0};         // Surface normal of hit face
+    glm::vec3 hitPoint{0};          // Exact point where ray hit the voxel (for subcube/microcube placement)
     
     VoxelLocation() = default;
     

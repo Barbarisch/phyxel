@@ -162,16 +162,35 @@ VoxelLocation VoxelRaycaster::pickVoxel(
             LOG_INFO_FMT("VoxelRaycaster", "[FACE DETECT] Computed hitFace=" << hitFace 
                        << " hitNormal=(" << hitNormal.x << "," << hitNormal.y << "," << hitNormal.z << ")");
             
+            // Calculate precise hit point based on which face was hit
+            glm::vec3 hitPoint;
+            if (lastStepAxis == 0) {
+                // Hit on X face - use sideDist.x to go back to the hit point
+                float hitDistance = sideDist.x - deltaDist.x;
+                hitPoint = rayOrigin + rayDirection * hitDistance;
+            } else if (lastStepAxis == 1) {
+                // Hit on Y face
+                float hitDistance = sideDist.y - deltaDist.y;
+                hitPoint = rayOrigin + rayDirection * hitDistance;
+            } else if (lastStepAxis == 2) {
+                // Hit on Z face
+                float hitDistance = sideDist.z - deltaDist.z;
+                hitPoint = rayOrigin + rayDirection * hitDistance;
+            } else {
+                // Fallback to voxel center
+                hitPoint = glm::vec3(voxel) + glm::vec3(0.5f);
+            }
+            
             location.hitFace = hitFace;
             location.hitNormal = hitNormal;
+            location.hitPoint = hitPoint;
             
             // Capture hit data for debug visualization
             if (m_debugCaptureEnabled) {
                 m_lastDebugData.hasHit = true;
                 m_lastDebugData.hitFace = hitFace;
                 m_lastDebugData.hitNormal = hitNormal;
-                // Calculate approximate hit point
-                m_lastDebugData.hitPoint = glm::vec3(voxel) + glm::vec3(0.5f);
+                m_lastDebugData.hitPoint = hitPoint;  // Use precise hit point, not voxel center
                 m_lastDebugData.hitLocation = location;
             }
             

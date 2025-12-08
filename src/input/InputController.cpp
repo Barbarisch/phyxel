@@ -85,9 +85,9 @@ void InputController::setupKeyboardBindings() {
         m_interactionSystem->placeVoxelAtHover();
     });
     
-    // Shift + C - Place subcube
-    m_inputManager->registerActionWithModifier(GLFW_KEY_C, GLFW_MOD_SHIFT, "Place Subcube", [this]() {
-        LOG_INFO("InputController", "Shift+C pressed - attempting to place subcube");
+    // Alt + C - Place subcube
+    m_inputManager->registerActionWithModifier(GLFW_KEY_C, GLFW_MOD_ALT, "Place Subcube", [this]() {
+        LOG_INFO("InputController", "Alt+C pressed - attempting to place subcube");
         m_interactionSystem->placeSubcubeAtHover();
     });
     

@@ -156,7 +156,7 @@ InteractionContext VoxelInteractionSystem::createContext() const {
     context.cameraFront = m_lastCameraFront;
     context.cameraUp = m_lastCameraUp;
     
-    LOG_INFO_FMT("VoxelInteraction", "[CREATE CONTEXT] m_currentHoveredLocation: worldPos=(" << m_currentHoveredLocation.worldPos.x << "," << m_currentHoveredLocation.worldPos.y << "," << m_currentHoveredLocation.worldPos.z << ") hitFace=" << m_currentHoveredLocation.hitFace);
+    LOG_INFO_FMT("VoxelInteraction", "[CREATE CONTEXT] m_currentHoveredLocation: worldPos=(" << m_currentHoveredLocation.worldPos.x << "," << m_currentHoveredLocation.worldPos.y << "," << m_currentHoveredLocation.worldPos.z << ") hitFace=" << m_currentHoveredLocation.hitFace << " hitPoint=(" << m_currentHoveredLocation.hitPoint.x << "," << m_currentHoveredLocation.hitPoint.y << "," << m_currentHoveredLocation.hitPoint.z << ")");
     
     return context;
 }
@@ -267,6 +267,7 @@ CubeLocation VoxelInteractionSystem::voxelLocationToCubeLocation(const VoxelLoca
     cubeLocation.worldPos = voxelLoc.worldPos;
     cubeLocation.hitFace = voxelLoc.hitFace;
     cubeLocation.hitNormal = voxelLoc.hitNormal;
+    cubeLocation.hitPoint = voxelLoc.hitPoint;  // Copy hitPoint for subcube/microcube placement
     
     if (voxelLoc.isMicrocube()) {
         cubeLocation.isMicrocube = true;
