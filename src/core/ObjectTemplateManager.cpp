@@ -249,4 +249,187 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
     return true;
 }
 
+void ObjectTemplateManager::spawnTemplateSequentially(const std::string& name, const glm::vec3& worldPos, bool isStatic) {
+    const VoxelTemplate* tmpl = getTemplate(name);
+    if (!tmpl) {
+        LOG_ERROR_FMT("ObjectTemplateManager", "Template not found: " << name);
+        return;
+    }
+
+    PendingSpawn spawn;
+    spawn.templateName = name;
+    spawn.worldPos = worldPos;
+    spawn.isStatic = isStatic;
+    spawn.templatePtr = tmpl;
+    
+    m_pendingSpawns.push_back(spawn);
+    LOG_INFO_FMT("ObjectTemplateManager", "Queued sequential spawn for template: " << name);
+}
+
+void ObjectTemplateManager::update(float deltaTime) {
+    if (m_pendingSpawns.empty()) return;
+
+    PendingSpawn& spawn = m_pendingSpawns.front();
+    const VoxelTemplate* tmpl = spawn.templatePtr;
+    
+    if (!tmpl) {
+        m_pendingSpawns.pop_front();
+        return;
+    }
+
+    glm::ivec3 basePos = glm::round(spawn.worldPos);
+    std::unordered_set<Chunk*> modifiedChunks;
+    int processedVoxels = 0;
+
+    // Process Cubes
+    while (spawn.currentCubeIndex < tmpl->cubes.size() && processedVoxels < m_voxelsPerFrame) {
+        const auto& tCube = tmpl->cubes[spawn.currentCubeIndex];
+        glm::ivec3 pos = basePos + tCube.relativePos;
+        
+        if (spawn.isStatic) {
+            glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(pos);
+            glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(pos);
+            
+            Chunk* chunk = nullptr;
+            auto it = m_chunkManager->chunkMap.find(chunkCoord);
+            if (it != m_chunkManager->chunkMap.end()) {
+                chunk = it->second;
+            } else {
+                // Create new empty chunk if it doesn't exist
+                glm::ivec3 origin = chunkCoord * 32;
+                m_chunkManager->createChunk(origin, false);
+                
+                it = m_chunkManager->chunkMap.find(chunkCoord);
+                if (it != m_chunkManager->chunkMap.end()) {
+                    chunk = it->second;
+                }
+            }
+
+            if (chunk) {
+                if (chunk->addCube(localPos)) {
+                    modifiedChunks.insert(chunk);
+                }
+            }
+        } else {
+            // Dynamic logic (same as spawnTemplate)
+             auto cube = std::make_unique<Cube>(pos, tCube.material);
+            if (m_chunkManager->physicsWorld) {
+                glm::vec3 center = glm::vec3(pos) + glm::vec3(0.5f);
+                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawaCube(center, glm::vec3(1.0f), 1.0f);
+                cube->setRigidBody(body);
+                cube->setPhysicsPosition(center);
+            }
+            m_dynamicObjectManager->addGlobalDynamicCube(std::move(cube));
+        }
+        
+        spawn.currentCubeIndex++;
+        processedVoxels++;
+    }
+
+    // Process Subcubes
+    while (spawn.currentSubcubeIndex < tmpl->subcubes.size() && processedVoxels < m_voxelsPerFrame) {
+        const auto& tSub = tmpl->subcubes[spawn.currentSubcubeIndex];
+        glm::ivec3 parentPos = basePos + tSub.parentRelativePos;
+        
+        if (spawn.isStatic) {
+            glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(parentPos);
+            glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(parentPos);
+            
+            Chunk* chunk = nullptr;
+            auto it = m_chunkManager->chunkMap.find(chunkCoord);
+            if (it != m_chunkManager->chunkMap.end()) {
+                chunk = it->second;
+            } else {
+                 glm::ivec3 origin = chunkCoord * 32;
+                m_chunkManager->createChunk(origin, false);
+                it = m_chunkManager->chunkMap.find(chunkCoord);
+                if (it != m_chunkManager->chunkMap.end()) {
+                    chunk = it->second;
+                }
+            }
+
+            if (chunk) {
+                if (chunk->addSubcube(localPos, tSub.subcubePos)) {
+                    modifiedChunks.insert(chunk);
+                }
+            }
+        } else {
+             auto subcube = std::make_unique<Subcube>(parentPos, tSub.subcubePos);
+            if (m_chunkManager->physicsWorld) {
+                glm::vec3 corner = subcube->getWorldPosition();
+                glm::vec3 size(1.0f/3.0f);
+                glm::vec3 center = corner + size * 0.5f;
+                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawaCube(center, size, 0.5f);
+                subcube->setRigidBody(body);
+                subcube->setPhysicsPosition(center);
+            }
+            m_dynamicObjectManager->addGlobalDynamicSubcube(std::move(subcube));
+        }
+        
+        spawn.currentSubcubeIndex++;
+        processedVoxels++;
+    }
+
+    // Process Microcubes
+    while (spawn.currentMicrocubeIndex < tmpl->microcubes.size() && processedVoxels < m_voxelsPerFrame) {
+        const auto& tMicro = tmpl->microcubes[spawn.currentMicrocubeIndex];
+        glm::ivec3 parentPos = basePos + tMicro.parentRelativePos;
+        
+        if (spawn.isStatic) {
+            glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(parentPos);
+            glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(parentPos);
+            
+            Chunk* chunk = nullptr;
+            auto it = m_chunkManager->chunkMap.find(chunkCoord);
+            if (it != m_chunkManager->chunkMap.end()) {
+                chunk = it->second;
+            } else {
+                 glm::ivec3 origin = chunkCoord * 32;
+                m_chunkManager->createChunk(origin, false);
+                it = m_chunkManager->chunkMap.find(chunkCoord);
+                if (it != m_chunkManager->chunkMap.end()) {
+                    chunk = it->second;
+                }
+            }
+
+            if (chunk) {
+                if (chunk->addMicrocube(localPos, tMicro.subcubePos, tMicro.microcubePos)) {
+                    modifiedChunks.insert(chunk);
+                }
+            }
+        } else {
+            auto microcube = std::make_unique<Microcube>(parentPos, tMicro.subcubePos, tMicro.microcubePos);
+            if (m_chunkManager->physicsWorld) {
+                glm::vec3 corner = microcube->getWorldPosition();
+                glm::vec3 size(1.0f/9.0f);
+                glm::vec3 center = corner + size * 0.5f;
+                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawaCube(center, size, 0.1f);
+                microcube->setRigidBody(body);
+                microcube->setPhysicsPosition(center);
+            }
+            m_dynamicObjectManager->addGlobalDynamicMicrocube(std::move(microcube));
+        }
+        
+        spawn.currentMicrocubeIndex++;
+        processedVoxels++;
+    }
+
+    // Update modified chunks
+    if (spawn.isStatic) {
+        for (Chunk* chunk : modifiedChunks) {
+            chunk->rebuildFaces();
+            chunk->updateVulkanBuffer();
+        }
+    }
+
+    // Check if done
+    if (spawn.currentCubeIndex >= tmpl->cubes.size() &&
+        spawn.currentSubcubeIndex >= tmpl->subcubes.size() &&
+        spawn.currentMicrocubeIndex >= tmpl->microcubes.size()) {
+        
+        m_pendingSpawns.pop_front();
+        LOG_INFO("ObjectTemplateManager", "Finished sequential spawn");
+    }
+}
+
 } // namespace VulkanCube

@@ -417,6 +417,11 @@ void Application::update(float deltaTime) {
     if (inputController) {
         inputController->update(deltaTime);
     }
+
+    // Update object template manager (for sequential spawning)
+    if (objectTemplateManager) {
+        objectTemplateManager->update(deltaTime);
+    }
     
     // Update mouse hover detection via VoxelInteractionSystem
     if (voxelInteractionSystem) {

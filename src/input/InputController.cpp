@@ -170,12 +170,12 @@ void InputController::setupKeyboardBindings() {
             glm::vec3 pos = glm::vec3(loc.worldPos) + loc.hitNormal;
             
             LOG_INFO_FMT("InputController", "Spawning static tree at " << pos.x << ", " << pos.y << ", " << pos.z);
-            m_app->getObjectTemplateManager()->spawnTemplate("my_model", pos, true);
+            m_app->getObjectTemplateManager()->spawnTemplateSequentially("my_model", pos, true);
         } else {
             // Spawn in front of player if no hover
             glm::vec3 pos = m_inputManager->getCameraPosition() + m_inputManager->getCameraFront() * 5.0f;
             LOG_INFO_FMT("InputController", "Spawning static tree in front of player at " << pos.x << ", " << pos.y << ", " << pos.z);
-            m_app->getObjectTemplateManager()->spawnTemplate("my_model", pos, true);
+            m_app->getObjectTemplateManager()->spawnTemplateSequentially("my_model", pos, true);
         }
     });
 
@@ -197,6 +197,24 @@ void InputController::setupKeyboardBindings() {
         m_debugFlags.disableBreakingForces = !m_debugFlags.disableBreakingForces;
         LOG_INFO("InputController", std::string("Breaking forces: ") + 
                  (m_debugFlags.disableBreakingForces ? "DISABLED" : "ENABLED"));
+    });
+
+    // [ - Decrease Spawn Speed
+    m_inputManager->registerAction(GLFW_KEY_LEFT_BRACKET, "Decrease Spawn Speed", [this]() {
+        auto* tmplMgr = m_app->getObjectTemplateManager();
+        int currentSpeed = tmplMgr->getSpawnSpeed();
+        int newSpeed = std::max(10, currentSpeed - 50);
+        tmplMgr->setSpawnSpeed(newSpeed);
+        LOG_INFO_FMT("InputController", "Spawn Speed Decreased: " << newSpeed << " voxels/frame");
+    });
+
+    // ] - Increase Spawn Speed
+    m_inputManager->registerAction(GLFW_KEY_RIGHT_BRACKET, "Increase Spawn Speed", [this]() {
+        auto* tmplMgr = m_app->getObjectTemplateManager();
+        int currentSpeed = tmplMgr->getSpawnSpeed();
+        int newSpeed = std::min(5000, currentSpeed + 50);
+        tmplMgr->setSpawnSpeed(newSpeed);
+        LOG_INFO_FMT("InputController", "Spawn Speed Increased: " << newSpeed << " voxels/frame");
     });
 }
 
