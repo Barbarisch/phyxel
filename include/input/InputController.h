@@ -30,6 +30,9 @@ public:
 
     void initializeBindings();
     
+    // Called every frame to handle continuous input/logic
+    void update(float deltaTime);
+
     DebugFlags& getDebugFlags() { return m_debugFlags; }
 
 private:
@@ -38,6 +41,9 @@ private:
     Application* m_app;
     DebugFlags m_debugFlags;
     
+    // Preview state
+    bool m_showTreePreview = false;
+
     void setupKeyboardBindings();
     void setupMouseBindings();
 };

@@ -2,6 +2,9 @@
 #include "input/InputManager.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "Application.h"
+#include "core/ObjectTemplateManager.h"
+#include "core/VoxelTemplate.h"
+#include "graphics/RaycastVisualizer.h"
 #include "utils/Logger.h"
 #include <GLFW/glfw3.h>
 
@@ -14,6 +17,57 @@ InputController::InputController(Input::InputManager* inputManager,
     , m_interactionSystem(interactionSystem)
     , m_app(app)
 {
+}
+
+void InputController::update(float deltaTime) {
+    // Handle preview logic
+    if (m_showTreePreview) {
+        // Get visualizer from app (assuming we can access it, or add getter to App)
+        // Application::getRaycastVisualizer() doesn't exist yet, need to add it or pass it in.
+        // For now, let's assume we can get it.
+        // Wait, Application.h has raycastVisualizer as private unique_ptr.
+        // I need to add a getter to Application.h first.
+        
+        auto visualizer = m_app->getRaycastVisualizer();
+        if (visualizer) {
+            visualizer->clearPreviewBoxes();
+            
+            if (m_interactionSystem->hasHoveredCube()) {
+                const auto& loc = m_interactionSystem->getCurrentHoveredLocation();
+                glm::vec3 basePos = glm::vec3(loc.worldPos) + loc.hitNormal;
+                glm::ivec3 iBasePos = glm::round(basePos);
+                
+                const auto* tmpl = m_app->getObjectTemplateManager()->getTemplate("tree");
+                if (tmpl) {
+                    glm::vec3 previewColor(0.0f, 1.0f, 0.0f); // Green ghost
+                    
+                    for (const auto& cube : tmpl->cubes) {
+                        glm::vec3 pos = glm::vec3(iBasePos + cube.relativePos);
+                        visualizer->addPreviewBox(pos, glm::vec3(1.0f), previewColor);
+                    }
+                    
+                    for (const auto& sub : tmpl->subcubes) {
+                        glm::vec3 parentPos = glm::vec3(iBasePos + sub.parentRelativePos);
+                        glm::vec3 subOffset = glm::vec3(sub.subcubePos) * (1.0f/3.0f);
+                        visualizer->addPreviewBox(parentPos + subOffset, glm::vec3(1.0f/3.0f), previewColor);
+                    }
+                    
+                    for (const auto& micro : tmpl->microcubes) {
+                        glm::vec3 parentPos = glm::vec3(iBasePos + micro.parentRelativePos);
+                        glm::vec3 subOffset = glm::vec3(micro.subcubePos) * (1.0f/3.0f);
+                        glm::vec3 microOffset = glm::vec3(micro.microcubePos) * (1.0f/9.0f);
+                        visualizer->addPreviewBox(parentPos + subOffset + microOffset, glm::vec3(1.0f/9.0f), previewColor);
+                    }
+                }
+            }
+        }
+    } else {
+        // Clear preview if disabled
+        auto visualizer = m_app->getRaycastVisualizer();
+        if (visualizer) {
+            visualizer->clearPreviewBoxes();
+        }
+    }
 }
 
 void InputController::initializeBindings() {
@@ -100,6 +154,12 @@ void InputController::setupKeyboardBindings() {
     m_inputManager->registerActionWithModifier(GLFW_KEY_C, GLFW_MOD_ALT, "Place Microcube", [this]() {
         LOG_INFO("InputController", "Alt+C pressed - attempting to place microcube");
         m_interactionSystem->placeMicrocubeAtHover();
+    });
+
+    // P - Toggle Tree Preview
+    m_inputManager->registerAction(GLFW_KEY_P, "Toggle Tree Preview", [this]() {
+        m_showTreePreview = !m_showTreePreview;
+        LOG_INFO_FMT("InputController", "Tree Preview: " << (m_showTreePreview ? "ENABLED" : "DISABLED"));
     });
 
     // T - Spawn Tree Template (Static)

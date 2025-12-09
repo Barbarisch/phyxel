@@ -413,6 +413,10 @@ void Application::update(float deltaTime) {
     this->deltaTime = deltaTime;
     
     // Input is processed in handleInput() which is called from run() loop
+    // Update input controller logic (e.g. previews)
+    if (inputController) {
+        inputController->update(deltaTime);
+    }
     
     // Update mouse hover detection via VoxelInteractionSystem
     if (voxelInteractionSystem) {

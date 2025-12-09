@@ -55,6 +55,15 @@ public:
     void setRaycastData(const RaycastDebugData& data);
     void clearData();
 
+    // Preview functionality
+    struct PreviewBox {
+        glm::vec3 position;
+        glm::vec3 size;
+        glm::vec3 color;
+    };
+    void addPreviewBox(const glm::vec3& pos, const glm::vec3& size, const glm::vec3& color);
+    void clearPreviewBoxes();
+
     // Rendering
     void updateBuffers(uint32_t currentFrame);
     void render(VkCommandBuffer commandBuffer, uint32_t currentFrame);
@@ -85,6 +94,7 @@ private:
 
     // Debug data
     RaycastDebugData m_data;
+    std::vector<PreviewBox> m_previewBoxes;
     bool m_dataValid = false;
     bool m_dataChanged = false;
 

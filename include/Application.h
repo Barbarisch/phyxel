@@ -54,6 +54,7 @@ public:
 
     // Accessors
     ObjectTemplateManager* getObjectTemplateManager() const { return objectTemplateManager.get(); }
+    RaycastVisualizer* getRaycastVisualizer() const { return raycastVisualizer.get(); }
 
 private:
     // ============================================================================

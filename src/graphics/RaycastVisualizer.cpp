@@ -60,10 +60,69 @@ void RaycastVisualizer::clearData() {
     m_dataValid = false;
     m_dataChanged = false;
     m_vertices.clear();
+    // Note: We don't clear preview boxes here, they are managed separately
+}
+
+void RaycastVisualizer::addPreviewBox(const glm::vec3& pos, const glm::vec3& size, const glm::vec3& color) {
+    m_previewBoxes.push_back({pos, size, color});
+    m_dataChanged = true;
+    generateDebugGeometry();
+}
+
+void RaycastVisualizer::clearPreviewBoxes() {
+    m_previewBoxes.clear();
+    m_dataChanged = true;
+    generateDebugGeometry();
 }
 
 void RaycastVisualizer::generateDebugGeometry() {
     m_vertices.clear();
+
+    // Render preview boxes first (always visible if present)
+    for (const auto& box : m_previewBoxes) {
+        glm::vec3 min = box.position;
+        glm::vec3 max = min + box.size;
+        glm::vec3 color = box.color;
+
+        // Bottom face
+        m_vertices.push_back({glm::vec3(min.x, min.y, min.z), color});
+        m_vertices.push_back({glm::vec3(max.x, min.y, min.z), color});
+        
+        m_vertices.push_back({glm::vec3(max.x, min.y, min.z), color});
+        m_vertices.push_back({glm::vec3(max.x, min.y, max.z), color});
+        
+        m_vertices.push_back({glm::vec3(max.x, min.y, max.z), color});
+        m_vertices.push_back({glm::vec3(min.x, min.y, max.z), color});
+        
+        m_vertices.push_back({glm::vec3(min.x, min.y, max.z), color});
+        m_vertices.push_back({glm::vec3(min.x, min.y, min.z), color});
+
+        // Top face
+        m_vertices.push_back({glm::vec3(min.x, max.y, min.z), color});
+        m_vertices.push_back({glm::vec3(max.x, max.y, min.z), color});
+        
+        m_vertices.push_back({glm::vec3(max.x, max.y, min.z), color});
+        m_vertices.push_back({glm::vec3(max.x, max.y, max.z), color});
+        
+        m_vertices.push_back({glm::vec3(max.x, max.y, max.z), color});
+        m_vertices.push_back({glm::vec3(min.x, max.y, max.z), color});
+        
+        m_vertices.push_back({glm::vec3(min.x, max.y, max.z), color});
+        m_vertices.push_back({glm::vec3(min.x, max.y, min.z), color});
+
+        // Vertical edges
+        m_vertices.push_back({glm::vec3(min.x, min.y, min.z), color});
+        m_vertices.push_back({glm::vec3(min.x, max.y, min.z), color});
+        
+        m_vertices.push_back({glm::vec3(max.x, min.y, min.z), color});
+        m_vertices.push_back({glm::vec3(max.x, max.y, min.z), color});
+        
+        m_vertices.push_back({glm::vec3(max.x, min.y, max.z), color});
+        m_vertices.push_back({glm::vec3(max.x, max.y, max.z), color});
+        
+        m_vertices.push_back({glm::vec3(min.x, min.y, max.z), color});
+        m_vertices.push_back({glm::vec3(min.x, max.y, max.z), color});
+    }
 
     if (!m_dataValid) {
         return;
