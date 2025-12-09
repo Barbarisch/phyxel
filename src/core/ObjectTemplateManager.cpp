@@ -256,6 +256,7 @@ void ObjectTemplateManager::spawnTemplateSequentially(const std::string& name, c
         return;
     }
 
+    // Create a new pending spawn task
     PendingSpawn spawn;
     spawn.templateName = name;
     spawn.worldPos = worldPos;
@@ -269,6 +270,7 @@ void ObjectTemplateManager::spawnTemplateSequentially(const std::string& name, c
 void ObjectTemplateManager::update(float deltaTime) {
     if (m_pendingSpawns.empty()) return;
 
+    // Process the first spawn in the queue
     PendingSpawn& spawn = m_pendingSpawns.front();
     const VoxelTemplate* tmpl = spawn.templatePtr;
     
@@ -281,7 +283,9 @@ void ObjectTemplateManager::update(float deltaTime) {
     std::unordered_set<Chunk*> modifiedChunks;
     int processedVoxels = 0;
 
-    // Process Cubes
+    // ---------------------------------------------------------
+    // Process Cubes Batch
+    // ---------------------------------------------------------
     while (spawn.currentCubeIndex < tmpl->cubes.size() && processedVoxels < m_voxelsPerFrame) {
         const auto& tCube = tmpl->cubes[spawn.currentCubeIndex];
         glm::ivec3 pos = basePos + tCube.relativePos;
@@ -295,7 +299,9 @@ void ObjectTemplateManager::update(float deltaTime) {
             if (it != m_chunkManager->chunkMap.end()) {
                 chunk = it->second;
             } else {
-                // Create new empty chunk if it doesn't exist
+                // AUTO-CREATE CHUNK:
+                // If the template extends into a chunk that doesn't exist yet (e.g. high in the air),
+                // we must create it to avoid losing voxels.
                 glm::ivec3 origin = chunkCoord * 32;
                 m_chunkManager->createChunk(origin, false);
                 
@@ -326,7 +332,9 @@ void ObjectTemplateManager::update(float deltaTime) {
         processedVoxels++;
     }
 
-    // Process Subcubes
+    // ---------------------------------------------------------
+    // Process Subcubes Batch
+    // ---------------------------------------------------------
     while (spawn.currentSubcubeIndex < tmpl->subcubes.size() && processedVoxels < m_voxelsPerFrame) {
         const auto& tSub = tmpl->subcubes[spawn.currentSubcubeIndex];
         glm::ivec3 parentPos = basePos + tSub.parentRelativePos;
@@ -370,7 +378,9 @@ void ObjectTemplateManager::update(float deltaTime) {
         processedVoxels++;
     }
 
-    // Process Microcubes
+    // ---------------------------------------------------------
+    // Process Microcubes Batch
+    // ---------------------------------------------------------
     while (spawn.currentMicrocubeIndex < tmpl->microcubes.size() && processedVoxels < m_voxelsPerFrame) {
         const auto& tMicro = tmpl->microcubes[spawn.currentMicrocubeIndex];
         glm::ivec3 parentPos = basePos + tMicro.parentRelativePos;
@@ -414,7 +424,7 @@ void ObjectTemplateManager::update(float deltaTime) {
         processedVoxels++;
     }
 
-    // Update modified chunks
+    // Update modified chunks immediately so the user sees the progress
     if (spawn.isStatic) {
         for (Chunk* chunk : modifiedChunks) {
             chunk->rebuildFaces();

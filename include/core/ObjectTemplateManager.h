@@ -44,10 +44,25 @@ public:
     // isStatic: if true, merges into chunks. if false, creates dynamic objects.
     bool spawnTemplate(const std::string& name, const glm::vec3& worldPos, bool isStatic = true);
 
-    // Spawn a template sequentially over multiple frames to avoid lag
+    /**
+     * @brief Spawns a template sequentially over multiple frames to avoid frame drops.
+     * 
+     * This method queues the spawn operation. The actual voxel placement happens in the update() loop,
+     * processing a limited number of voxels per frame defined by m_voxelsPerFrame.
+     * 
+     * @param name Name of the template to spawn
+     * @param worldPos World position to spawn at
+     * @param isStatic If true, merges into chunks (creating them if needed). If false, creates dynamic physics objects.
+     */
     void spawnTemplateSequentially(const std::string& name, const glm::vec3& worldPos, bool isStatic = true);
 
-    // Update pending spawns
+    /**
+     * @brief Updates the pending spawn queue.
+     * 
+     * Should be called once per frame. Processes a batch of voxels for the current pending spawn.
+     * 
+     * @param deltaTime Time since last frame
+     */
     void update(float deltaTime);
 
     // Configuration
