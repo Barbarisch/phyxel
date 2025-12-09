@@ -113,6 +113,17 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
             auto it = m_chunkManager->chunkMap.find(chunkCoord);
             if (it != m_chunkManager->chunkMap.end()) {
                 chunk = it->second;
+            } else {
+                // Create new empty chunk if it doesn't exist
+                // This ensures templates can be spawned even in empty space/air
+                glm::ivec3 origin = chunkCoord * 32;
+                m_chunkManager->createChunk(origin, false); // false = empty (no noise generation)
+                
+                // Retrieve the newly created chunk
+                it = m_chunkManager->chunkMap.find(chunkCoord);
+                if (it != m_chunkManager->chunkMap.end()) {
+                    chunk = it->second;
+                }
             }
 
             // If chunk doesn't exist, we might need to create it or skip
@@ -149,6 +160,15 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
             auto it = m_chunkManager->chunkMap.find(chunkCoord);
             if (it != m_chunkManager->chunkMap.end()) {
                 chunk = it->second;
+            } else {
+                // Create new empty chunk if it doesn't exist
+                glm::ivec3 origin = chunkCoord * 32;
+                m_chunkManager->createChunk(origin, false);
+                
+                it = m_chunkManager->chunkMap.find(chunkCoord);
+                if (it != m_chunkManager->chunkMap.end()) {
+                    chunk = it->second;
+                }
             }
 
             if (chunk) {
@@ -185,6 +205,15 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
             auto it = m_chunkManager->chunkMap.find(chunkCoord);
             if (it != m_chunkManager->chunkMap.end()) {
                 chunk = it->second;
+            } else {
+                // Create new empty chunk if it doesn't exist
+                glm::ivec3 origin = chunkCoord * 32;
+                m_chunkManager->createChunk(origin, false);
+                
+                it = m_chunkManager->chunkMap.find(chunkCoord);
+                if (it != m_chunkManager->chunkMap.end()) {
+                    chunk = it->second;
+                }
             }
 
             if (chunk) {

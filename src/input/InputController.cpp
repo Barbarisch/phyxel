@@ -37,7 +37,7 @@ void InputController::update(float deltaTime) {
                 glm::vec3 basePos = glm::vec3(loc.worldPos) + loc.hitNormal;
                 glm::ivec3 iBasePos = glm::round(basePos);
                 
-                const auto* tmpl = m_app->getObjectTemplateManager()->getTemplate("tree");
+                const auto* tmpl = m_app->getObjectTemplateManager()->getTemplate("my_model");
                 if (tmpl) {
                     glm::vec3 previewColor(0.0f, 1.0f, 0.0f); // Green ghost
                     
@@ -156,31 +156,31 @@ void InputController::setupKeyboardBindings() {
         m_interactionSystem->placeMicrocubeAtHover();
     });
 
-    // P - Toggle Tree Preview
-    m_inputManager->registerAction(GLFW_KEY_P, "Toggle Tree Preview", [this]() {
+    // P - Toggle Template Preview
+    m_inputManager->registerAction(GLFW_KEY_P, "Toggle Template Preview", [this]() {
         m_showTreePreview = !m_showTreePreview;
-        LOG_INFO_FMT("InputController", "Tree Preview: " << (m_showTreePreview ? "ENABLED" : "DISABLED"));
+        LOG_INFO_FMT("InputController", "Template Preview: " << (m_showTreePreview ? "ENABLED" : "DISABLED"));
     });
 
-    // T - Spawn Tree Template (Static)
-    m_inputManager->registerAction(GLFW_KEY_T, "Spawn Static Tree", [this]() {
+    // T - Spawn Template (Static)
+    m_inputManager->registerAction(GLFW_KEY_T, "Spawn Static Template", [this]() {
         if (m_interactionSystem->hasHoveredCube()) {
             const auto& loc = m_interactionSystem->getCurrentHoveredLocation();
             // Use worldPos + hitNormal to get the adjacent integer coordinate
             glm::vec3 pos = glm::vec3(loc.worldPos) + loc.hitNormal;
             
             LOG_INFO_FMT("InputController", "Spawning static tree at " << pos.x << ", " << pos.y << ", " << pos.z);
-            m_app->getObjectTemplateManager()->spawnTemplate("tree", pos, true);
+            m_app->getObjectTemplateManager()->spawnTemplate("my_model", pos, true);
         } else {
             // Spawn in front of player if no hover
             glm::vec3 pos = m_inputManager->getCameraPosition() + m_inputManager->getCameraFront() * 5.0f;
             LOG_INFO_FMT("InputController", "Spawning static tree in front of player at " << pos.x << ", " << pos.y << ", " << pos.z);
-            m_app->getObjectTemplateManager()->spawnTemplate("tree", pos, true);
+            m_app->getObjectTemplateManager()->spawnTemplate("my_model", pos, true);
         }
     });
 
-    // Shift + T - Spawn Tree Template (Dynamic)
-    m_inputManager->registerActionWithModifier(GLFW_KEY_T, GLFW_MOD_SHIFT, "Spawn Dynamic Tree", [this]() {
+    // Shift + T - Spawn Template (Dynamic)
+    m_inputManager->registerActionWithModifier(GLFW_KEY_T, GLFW_MOD_SHIFT, "Spawn Dynamic Template", [this]() {
         glm::vec3 pos;
         if (m_interactionSystem->hasHoveredCube()) {
             pos = m_interactionSystem->getCurrentHoveredLocation().hitPoint;
@@ -189,7 +189,7 @@ void InputController::setupKeyboardBindings() {
             pos = m_inputManager->getCameraPosition() + m_inputManager->getCameraFront() * 5.0f;
         }
         LOG_INFO_FMT("InputController", "Spawning dynamic tree at " << pos.x << ", " << pos.y << ", " << pos.z);
-        m_app->getObjectTemplateManager()->spawnTemplate("tree", pos, false);
+        m_app->getObjectTemplateManager()->spawnTemplate("my_model", pos, false);
     });
     
     // O - Toggle breaking forces
