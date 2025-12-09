@@ -5,6 +5,7 @@
 #include "utils/Logger.h"
 #include <iostream>
 #include <filesystem>
+#include <unordered_set>
 
 #ifdef ENABLE_WORLD_STORAGE
 #include <sqlite3.h>
@@ -348,13 +349,17 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
         }
         sqlite3_reset(insertChunkStmt);
         
+        // Track which cubes have been saved to avoid duplicates and ensure parent cubes exist
+        std::unordered_set<glm::ivec3, IVec3Hash> savedCubeLocations;
+        
         int savedCubes = 0;
         
         // Save each cube (only non-air blocks to maintain sparseness)
         for (int x = 0; x < 32; ++x) {
             for (int y = 0; y < 32; ++y) {
                 for (int z = 0; z < 32; ++z) {
-                    const Cube* cube = chunk.getCubeAt(glm::ivec3(x, y, z));
+                    glm::ivec3 localPos(x, y, z);
+                    const Cube* cube = chunk.getCubeAt(localPos);
                     if (cube && cube->isVisible()) {
                         // Bind cube data
                         sqlite3_bind_int(insertCubeStmt, 1, chunkCoord.x);
@@ -373,6 +378,7 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
                         }
                         sqlite3_reset(insertCubeStmt);
                         savedCubes++;
+                        savedCubeLocations.insert(localPos);
                     }
                 }
             }
@@ -391,6 +397,27 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
                 if (parentLocalPos.x >= 0 && parentLocalPos.x < 32 &&
                     parentLocalPos.y >= 0 && parentLocalPos.y < 32 &&
                     parentLocalPos.z >= 0 && parentLocalPos.z < 32) {
+                    
+                    // CRITICAL FIX: Ensure parent cube exists in DB (foreign key constraint)
+                    if (savedCubeLocations.find(parentLocalPos) == savedCubeLocations.end()) {
+                        // Insert placeholder cube (invisible, subdivided)
+                        sqlite3_bind_int(insertCubeStmt, 1, chunkCoord.x);
+                        sqlite3_bind_int(insertCubeStmt, 2, chunkCoord.y);
+                        sqlite3_bind_int(insertCubeStmt, 3, chunkCoord.z);
+                        sqlite3_bind_int(insertCubeStmt, 4, parentLocalPos.x);
+                        sqlite3_bind_int(insertCubeStmt, 5, parentLocalPos.y);
+                        sqlite3_bind_int(insertCubeStmt, 6, parentLocalPos.z);
+                        sqlite3_bind_int(insertCubeStmt, 7, 1); // isSubdivided = true
+                        sqlite3_bind_int(insertCubeStmt, 8, 0); // isVisible = false
+                        
+                        if (sqlite3_step(insertCubeStmt) != SQLITE_DONE) {
+                            LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert placeholder cube: " << sqlite3_errmsg(db));
+                            if (ownTransaction) rollbackTransaction();
+                            return false;
+                        }
+                        sqlite3_reset(insertCubeStmt);
+                        savedCubeLocations.insert(parentLocalPos);
+                    }
                     
                     // Bind static subcube data to prepared statement
                     sqlite3_bind_int(insertSubcubeStmt, 1, chunkCoord.x);
@@ -433,6 +460,27 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
                 if (parentLocalPos.x >= 0 && parentLocalPos.x < 32 &&
                     parentLocalPos.y >= 0 && parentLocalPos.y < 32 &&
                     parentLocalPos.z >= 0 && parentLocalPos.z < 32) {
+                    
+                    // CRITICAL FIX: Ensure parent cube exists in DB (foreign key constraint)
+                    if (savedCubeLocations.find(parentLocalPos) == savedCubeLocations.end()) {
+                        // Insert placeholder cube (invisible, subdivided)
+                        sqlite3_bind_int(insertCubeStmt, 1, chunkCoord.x);
+                        sqlite3_bind_int(insertCubeStmt, 2, chunkCoord.y);
+                        sqlite3_bind_int(insertCubeStmt, 3, chunkCoord.z);
+                        sqlite3_bind_int(insertCubeStmt, 4, parentLocalPos.x);
+                        sqlite3_bind_int(insertCubeStmt, 5, parentLocalPos.y);
+                        sqlite3_bind_int(insertCubeStmt, 6, parentLocalPos.z);
+                        sqlite3_bind_int(insertCubeStmt, 7, 1); // isSubdivided = true
+                        sqlite3_bind_int(insertCubeStmt, 8, 0); // isVisible = false
+                        
+                        if (sqlite3_step(insertCubeStmt) != SQLITE_DONE) {
+                            LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert placeholder cube for microcube: " << sqlite3_errmsg(db));
+                            if (ownTransaction) rollbackTransaction();
+                            return false;
+                        }
+                        sqlite3_reset(insertCubeStmt);
+                        savedCubeLocations.insert(parentLocalPos);
+                    }
                     
                     // Bind microcube data
                     sqlite3_bind_int(insertMicrocubeStmt, 1, chunkCoord.x);
@@ -504,7 +552,20 @@ bool WorldStorage::loadChunk(const glm::ivec3& chunkCoord, Chunk& chunk) {
         bool isSubdivided = sqlite3_column_int(selectCubesStmt, 3) != 0;
         bool isVisible = sqlite3_column_int(selectCubesStmt, 4) != 0;
         
+        // If the cube is subdivided, it's a placeholder for subcubes/microcubes.
+        // We should NOT create a full cube object here. The subcubes will be loaded later.
+        if (isSubdivided) {
+            continue;
+        }
+
         if (chunk.addCube(glm::ivec3(x, y, z))) {
+            // If the cube is invisible (but not subdivided), hide it
+            if (!isVisible) {
+                Cube* cube = chunk.getCubeAt(glm::ivec3(x, y, z));
+                if (cube) {
+                    cube->setVisible(false);
+                }
+            }
             loadedCubes++;
         }
     }
@@ -520,7 +581,7 @@ bool WorldStorage::loadChunk(const glm::ivec3& chunkCoord, Chunk& chunk) {
     LOG_INFO_FMT("WorldStorage", "[WORLD_STORAGE] Loaded " << loadedCubes << " cubes for chunk (" 
               << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
     
-    return loadedCubes > 0;
+    return loadedCubes > 0 || chunk.getStaticSubcubeCount() > 0 || chunk.getStaticMicrocubeCount() > 0;
 }
 
 bool WorldStorage::chunkExists(const glm::ivec3& chunkCoord) {
