@@ -101,6 +101,36 @@ void InputController::setupKeyboardBindings() {
         LOG_INFO("InputController", "Alt+C pressed - attempting to place microcube");
         m_interactionSystem->placeMicrocubeAtHover();
     });
+
+    // T - Spawn Tree Template (Static)
+    m_inputManager->registerAction(GLFW_KEY_T, "Spawn Static Tree", [this]() {
+        if (m_interactionSystem->hasHoveredCube()) {
+            const auto& loc = m_interactionSystem->getCurrentHoveredLocation();
+            // Use worldPos + hitNormal to get the adjacent integer coordinate
+            glm::vec3 pos = glm::vec3(loc.worldPos) + loc.hitNormal;
+            
+            LOG_INFO_FMT("InputController", "Spawning static tree at " << pos.x << ", " << pos.y << ", " << pos.z);
+            m_app->getObjectTemplateManager()->spawnTemplate("tree", pos, true);
+        } else {
+            // Spawn in front of player if no hover
+            glm::vec3 pos = m_inputManager->getCameraPosition() + m_inputManager->getCameraFront() * 5.0f;
+            LOG_INFO_FMT("InputController", "Spawning static tree in front of player at " << pos.x << ", " << pos.y << ", " << pos.z);
+            m_app->getObjectTemplateManager()->spawnTemplate("tree", pos, true);
+        }
+    });
+
+    // Shift + T - Spawn Tree Template (Dynamic)
+    m_inputManager->registerActionWithModifier(GLFW_KEY_T, GLFW_MOD_SHIFT, "Spawn Dynamic Tree", [this]() {
+        glm::vec3 pos;
+        if (m_interactionSystem->hasHoveredCube()) {
+            pos = m_interactionSystem->getCurrentHoveredLocation().hitPoint;
+            pos.y += 5.0f; // Drop from height
+        } else {
+            pos = m_inputManager->getCameraPosition() + m_inputManager->getCameraFront() * 5.0f;
+        }
+        LOG_INFO_FMT("InputController", "Spawning dynamic tree at " << pos.x << ", " << pos.y << ", " << pos.z);
+        m_app->getObjectTemplateManager()->spawnTemplate("tree", pos, false);
+    });
     
     // O - Toggle breaking forces
     m_inputManager->registerAction(GLFW_KEY_O, "Toggle Breaking Forces", [this]() {

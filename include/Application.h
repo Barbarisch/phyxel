@@ -20,6 +20,7 @@
 #include "core/ChunkManager.h"
 #include "core/ForceSystem.h"
 #include "core/WorldInitializer.h"
+#include "core/ObjectTemplateManager.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -51,6 +52,9 @@ public:
     void toggleRaycastVisualization();
     void cycleRaycastTargetMode();
 
+    // Accessors
+    ObjectTemplateManager* getObjectTemplateManager() const { return objectTemplateManager.get(); }
+
 private:
     // ============================================================================
     // CORE SYSTEMS (Ownership)
@@ -72,6 +76,7 @@ private:
     std::unique_ptr<Physics::PhysicsWorld> physicsWorld;               // Bullet physics simulation
     std::unique_ptr<VoxelInteractionSystem> voxelInteractionSystem;    // Cube/subcube interaction
     std::unique_ptr<ForceSystem> forceSystem;                          // Force propagation system
+    std::unique_ptr<ObjectTemplateManager> objectTemplateManager;      // Voxel object templates
     
     // Input and interaction
     std::unique_ptr<Input::InputManager> inputManager;                 // Keyboard/mouse input

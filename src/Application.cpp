@@ -170,6 +170,14 @@ bool Application::initialize() {
     );
     LOG_INFO("Application", "VoxelInteractionSystem initialized successfully!");
 
+    // STEP 4.5: CREATE ObjectTemplateManager
+    objectTemplateManager = std::make_unique<ObjectTemplateManager>(
+        chunkManager.get(),
+        &chunkManager->m_dynamicObjectManager
+    );
+    objectTemplateManager->loadTemplates("resources/templates");
+    LOG_INFO("Application", "ObjectTemplateManager initialized successfully!");
+
     // STEP 5: CREATE RaycastVisualizer (DEBUG VISUALIZATION)
     // This system visualizes raycast operations for debugging
     raycastVisualizer = std::make_unique<RaycastVisualizer>();
