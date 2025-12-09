@@ -71,6 +71,11 @@ void InputController::setupKeyboardBindings() {
     m_inputManager->registerAction(GLFW_KEY_F5, "Toggle Raycast Visualization", [this]() {
         m_app->toggleRaycastVisualization();
     });
+
+    // Shift + F5 - Cycle raycast target mode
+    m_inputManager->registerActionWithModifier(GLFW_KEY_F5, GLFW_MOD_SHIFT, "Cycle Raycast Target Mode", [this]() {
+        m_app->cycleRaycastTargetMode();
+    });
     
     // G - Spawn dynamic subcube (placeholder)
     m_inputManager->registerAction(GLFW_KEY_G, "Spawn Dynamic Subcube", [this]() {
@@ -85,15 +90,15 @@ void InputController::setupKeyboardBindings() {
         m_interactionSystem->placeVoxelAtHover();
     });
     
-    // Alt + C - Place subcube
-    m_inputManager->registerActionWithModifier(GLFW_KEY_C, GLFW_MOD_ALT, "Place Subcube", [this]() {
-        LOG_INFO("InputController", "Alt+C pressed - attempting to place subcube");
+    // Ctrl + C - Place subcube
+    m_inputManager->registerActionWithModifier(GLFW_KEY_C, GLFW_MOD_CONTROL, "Place Subcube", [this]() {
+        LOG_INFO("InputController", "Ctrl+C pressed - attempting to place subcube");
         m_interactionSystem->placeSubcubeAtHover();
     });
     
-    // Ctrl + C - Place microcube
-    m_inputManager->registerActionWithModifier(GLFW_KEY_C, GLFW_MOD_CONTROL, "Place Microcube", [this]() {
-        LOG_INFO("InputController", "Ctrl+C pressed - attempting to place microcube");
+    // Alt + C - Place microcube
+    m_inputManager->registerActionWithModifier(GLFW_KEY_C, GLFW_MOD_ALT, "Place Microcube", [this]() {
+        LOG_INFO("InputController", "Alt+C pressed - attempting to place microcube");
         m_interactionSystem->placeMicrocubeAtHover();
     });
     

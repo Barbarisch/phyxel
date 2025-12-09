@@ -80,14 +80,41 @@ void VoxelInteractionSystem::updateMouseHover(const glm::vec3& cameraPos, const 
             voxelLocation.worldPos
         );
         
-        // Calculate world space center of the target subcube
-        // Subcube size is 1/3 of a unit
-        float subcubeSize = 1.0f / 3.0f;
-        glm::vec3 subcubeCenter = glm::vec3(result.cubePos) + 
-                                 glm::vec3(result.subcubePos) * subcubeSize + 
-                                 glm::vec3(subcubeSize * 0.5f);
+        glm::vec3 targetCenter;
+        
+        if (m_targetMode == TargetMode::Cube) {
+            // Cube mode: Snap to integer grid (center of the cube)
+            targetCenter = glm::vec3(result.cubePos) + glm::vec3(0.5f);
+            
+        } else if (m_targetMode == TargetMode::Subcube) {
+            // Subcube mode: Snap to 1/3 grid
+            float subcubeSize = 1.0f / 3.0f;
+            targetCenter = glm::vec3(result.cubePos) + 
+                           glm::vec3(result.subcubePos) * subcubeSize + 
+                           glm::vec3(subcubeSize * 0.5f);
+                           
+        } else if (m_targetMode == TargetMode::Microcube) {
+            // Microcube mode: Snap to 1/9 grid
+            // Calculate microcube position
+            glm::vec3 targetPoint = voxelLocation.hitPoint + voxelLocation.hitNormal * 0.001f;
+            glm::vec3 localPoint = targetPoint - glm::vec3(result.cubePos);
+            glm::vec3 subcubeLocal = glm::fract(localPoint * 3.0f);
+            
+            glm::ivec3 microcubePos;
+            microcubePos.x = glm::clamp(static_cast<int>(subcubeLocal.x * 3.0f), 0, 2);
+            microcubePos.y = glm::clamp(static_cast<int>(subcubeLocal.y * 3.0f), 0, 2);
+            microcubePos.z = glm::clamp(static_cast<int>(subcubeLocal.z * 3.0f), 0, 2);
+            
+            float subcubeSize = 1.0f / 3.0f;
+            float microcubeSize = 1.0f / 9.0f;
+            
+            targetCenter = glm::vec3(result.cubePos) + 
+                           glm::vec3(result.subcubePos) * subcubeSize + 
+                           glm::vec3(microcubePos) * microcubeSize + 
+                           glm::vec3(microcubeSize * 0.5f);
+        }
                                  
-        m_raycaster.setDebugTarget(subcubeCenter);
+        m_raycaster.setDebugTarget(targetCenter);
     } else {
         m_raycaster.clearDebugTarget();
     }
@@ -474,6 +501,23 @@ glm::ivec3 CubeLocation::getAdjacentPlacementPosition() const {
               << "), placing at (" << placementPos.x << "," << placementPos.y << "," << placementPos.z << ")");
     
     return placementPos;
+}
+
+void VoxelInteractionSystem::cycleTargetMode() {
+    switch (m_targetMode) {
+        case TargetMode::Cube:
+            m_targetMode = TargetMode::Subcube;
+            LOG_INFO("VoxelInteractionSystem", "Switched to Subcube placement mode");
+            break;
+        case TargetMode::Subcube:
+            m_targetMode = TargetMode::Microcube;
+            LOG_INFO("VoxelInteractionSystem", "Switched to Microcube placement mode");
+            break;
+        case TargetMode::Microcube:
+            m_targetMode = TargetMode::Cube;
+            LOG_INFO("VoxelInteractionSystem", "Switched to Cube placement mode");
+            break;
+    }
 }
 
 } // namespace VulkanCube

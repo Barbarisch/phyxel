@@ -49,6 +49,7 @@ public:
     void toggleDebugRendering();
     void cycleDebugVisualizationMode();
     void toggleRaycastVisualization();
+    void cycleRaycastTargetMode();
 
 private:
     // ============================================================================

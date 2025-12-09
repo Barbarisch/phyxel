@@ -577,6 +577,17 @@ void Application::toggleRaycastVisualization() {
     }
 }
 
+void Application::cycleRaycastTargetMode() {
+    if (voxelInteractionSystem) {
+        voxelInteractionSystem->cycleTargetMode();
+        
+        // Sync with visualizer
+        if (raycastVisualizer) {
+            raycastVisualizer->setTargetMode(voxelInteractionSystem->getTargetMode());
+        }
+    }
+}
+
 void Application::setRenderDistance(float distance) {
     if (distance != maxChunkRenderDistance) {
         maxChunkRenderDistance = distance;

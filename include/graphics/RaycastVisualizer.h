@@ -65,6 +65,10 @@ public:
     void setShowHitPoint(bool show) { m_showHitPoint = show; }
     void setShowHitNormal(bool show) { m_showHitNormal = show; }
 
+    void cycleTargetMode();
+    TargetMode getTargetMode() const { return m_targetMode; }
+    void setTargetMode(TargetMode mode) { m_targetMode = mode; }
+
     bool isEnabled() const { return m_enabled; }
     void setEnabled(bool enabled) { m_enabled = enabled; }
 
@@ -90,6 +94,7 @@ private:
     bool m_showTraversalBoxes = false;  // Disabled by default
     bool m_showHitPoint = true;
     bool m_showHitNormal = true;
+    TargetMode m_targetMode = TargetMode::Cube;
 
     // Constants
     static constexpr float RAY_LENGTH = 100.0f;

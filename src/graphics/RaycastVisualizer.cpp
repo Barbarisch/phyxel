@@ -30,6 +30,25 @@ void RaycastVisualizer::cleanup() {
     }
 }
 
+void RaycastVisualizer::cycleTargetMode() {
+    switch (m_targetMode) {
+        case TargetMode::Cube:
+            m_targetMode = TargetMode::Subcube;
+            LOG_INFO("RaycastVisualizer", "Switched to Subcube visualization");
+            break;
+        case TargetMode::Subcube:
+            m_targetMode = TargetMode::Microcube;
+            LOG_INFO("RaycastVisualizer", "Switched to Microcube visualization");
+            break;
+        case TargetMode::Microcube:
+            m_targetMode = TargetMode::Cube;
+            LOG_INFO("RaycastVisualizer", "Switched to Cube visualization");
+            break;
+    }
+    m_dataChanged = true;
+    generateDebugGeometry();
+}
+
 void RaycastVisualizer::setRaycastData(const RaycastDebugData& data) {
     m_data = data;
     m_dataValid = true;
@@ -162,8 +181,21 @@ void RaycastVisualizer::generateDebugGeometry() {
     // 5. Target placement - magenta wireframe box
     if (m_data.hasTarget) {
         glm::vec3 targetColor(1.0f, 0.0f, 1.0f); // Magenta
-        float subcubeSize = 1.0f / 3.0f;
-        float halfSize = subcubeSize * 0.5f;
+        float size = 1.0f;
+        
+        switch (m_targetMode) {
+            case TargetMode::Cube:
+                size = 1.0f;
+                break;
+            case TargetMode::Subcube:
+                size = 1.0f / 3.0f;
+                break;
+            case TargetMode::Microcube:
+                size = 1.0f / 9.0f;
+                break;
+        }
+
+        float halfSize = size * 0.5f;
         
         glm::vec3 center = m_data.targetSubcubeCenter;
         glm::vec3 min = center - glm::vec3(halfSize);

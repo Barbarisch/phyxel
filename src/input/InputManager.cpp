@@ -93,11 +93,11 @@ void InputManager::processCameraMovement(float deltaTime) {
         cameraPos += right * speed;
     }
     
-    // Up/Down (Space/Shift)
+    // Up/Down (Space/Z)
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
         cameraPos += cameraUp * speed;
     }
-    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+    if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS) {
         cameraPos -= cameraUp * speed;
     }
 }

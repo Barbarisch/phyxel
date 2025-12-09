@@ -86,6 +86,11 @@ public:
     void placeSubcubeAtHover();         // Place a subcube adjacent to the currently hovered face
     void placeMicrocubeAtHover();       // Place a microcube adjacent to the currently hovered face
     
+    // Target mode management
+    void setTargetMode(TargetMode mode) { m_targetMode = mode; }
+    TargetMode getTargetMode() const { return m_targetMode; }
+    void cycleTargetMode();
+
     // Hover state accessors
     bool hasHoveredCube() const { return m_hasHoveredCube; }
     const CubeLocation& getCurrentHoveredLocation() const { return m_currentHoveredLocation; }
@@ -152,6 +157,8 @@ private:
         float manualForceValue = 500.0f;
     } m_debugFlags;
     
+    TargetMode m_targetMode = TargetMode::Cube;
+
     // Helper to create interaction context
     InteractionContext createContext() const;
 

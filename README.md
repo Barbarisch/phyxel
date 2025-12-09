@@ -308,13 +308,13 @@ VulkanCube.exe
 ### Controls
 - **W/A/S/D** - Move forward/left/backward/right
 - **Space** - Move up
-- **Left Shift** - Move down
+- **Z** - Move down
 - **Right Mouse + Drag** - Look around (camera rotation)
 - **Mouse Hover** - Highlight cubes under cursor
 - **Left Click** - Break/remove hovered voxel (cube/subcube/microcube)
 - **C** - Place cube adjacent to hovered face
-- **Shift + C** - Place subcube adjacent to hovered face
-- **Ctrl + C** - Place microcube adjacent to hovered face
+- **Ctrl + C** - Place subcube adjacent to hovered face
+- **Alt + C** - Place microcube adjacent to hovered face
 - **Ctrl + Left Click** - Subdivide cube into 27 subcubes
 - **Alt + Left Click** - Subdivide subcube into 27 microcubes
 - **Middle Click** - Subdivide cube (alternative)

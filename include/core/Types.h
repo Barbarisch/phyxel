@@ -18,6 +18,12 @@ namespace VulkanCube {
 // Forward declarations within namespace
 class Chunk;
 
+enum class TargetMode {
+    Cube,
+    Subcube,
+    Microcube
+};
+
 // Texture system constants
 namespace TextureConstants {
     constexpr uint16_t PLACEHOLDER_TEXTURE_INDEX = 5;     // Default fallback texture (placeholder_bottom)
