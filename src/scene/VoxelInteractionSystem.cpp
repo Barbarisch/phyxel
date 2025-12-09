@@ -166,6 +166,12 @@ void VoxelInteractionSystem::updateMouseHover(const glm::vec3& cameraPos, const 
         }
         
         m_lastHoveredCube = hoveredCube;
+    } else if (m_hasHoveredCube && hoveredLocation.isValid() && hoveredCube == m_lastHoveredCube) {
+        // CRITICAL FIX: Even if the voxel/face hasn't changed, the hit point has!
+        // We must update the hit point so that subcube placement (which depends on hit point)
+        // is accurate to the current mouse position, not just where we first entered the face.
+        m_currentHoveredLocation.hitPoint = hoveredLocation.hitPoint;
+        m_currentHoveredLocation.hitNormal = hoveredLocation.hitNormal;
     }
 }
 
