@@ -6,7 +6,7 @@ import sys
 from collections import defaultdict
 from scipy import ndimage
 
-def convert_obj_to_template(obj_path, output_path, material_name, target_size, resolution_mode='auto', hollow=False, fill_threshold=1.0):
+def convert_obj_to_template(obj_path, output_path, material_name, target_size, resolution_mode='auto', hollow=False, fill_threshold=1.0, thicken=0, shell=False, shell_thickness=1):
     print(f"Loading mesh: {obj_path}")
     try:
         # Load the mesh
@@ -61,8 +61,21 @@ def convert_obj_to_template(obj_path, output_path, material_name, target_size, r
         print("Ensure the mesh is watertight (manifold) for best results.")
         return
     
-    # Fill hollows (optional, usually desired for solid objects)
-    if not hollow:
+    # Ensure matrix is boolean for ndimage operations
+    matrix = matrix.astype(bool)
+
+    # Process Volume (Shell vs Solid vs Raw)
+    if shell:
+        print(f"Generating hollow shell (thickness={shell_thickness})...")
+        # 1. Create solid volume (fill everything inside)
+        solid_matrix = ndimage.binary_fill_holes(matrix)
+        # 2. Erode to find the core
+        eroded_matrix = ndimage.binary_erosion(solid_matrix, iterations=shell_thickness)
+        # 3. Subtract core from solid to get shell
+        matrix = solid_matrix & ~eroded_matrix
+        print(f"Voxel count after shell generation: {np.sum(matrix)}")
+        
+    elif not hollow:
         # Use scipy binary_fill_holes for robust interior filling
         print("Filling mesh interior...")
         matrix = ndimage.binary_fill_holes(matrix)
@@ -74,19 +87,29 @@ def convert_obj_to_template(obj_path, output_path, material_name, target_size, r
         matrix = ndimage.binary_closing(matrix, iterations=1)
         print(f"Voxel count after closing: {np.sum(matrix)}")
     
-    # Get indices
-    indices = np.argwhere(matrix)
-    
-    if len(indices) == 0:
+    # Thicken (Dilation)
+    if thicken > 0:
+        print(f"Thickening mesh (dilation iterations={thicken})...")
+        matrix = ndimage.binary_dilation(matrix, iterations=thicken)
+        print(f"Voxel count after thickening: {np.sum(matrix)}")
+
+    # Ensure matrix is boolean
+    matrix = matrix.astype(bool)
+
+    # Crop matrix to bounding box of True values
+    true_points = np.argwhere(matrix)
+    if true_points.size == 0:
         print("Warning: No voxels generated. Try increasing the --size.")
         return
 
-    # Shift so min is (0,0,0)
-    min_idx = np.min(indices, axis=0)
-    indices = indices - min_idx
-    
-    # Sort indices for cleaner output (bottom-up)
-    # Sort by Y, then Z, then X
+    min_idx = true_points.min(axis=0)
+    max_idx = true_points.max(axis=0) + 1
+    matrix = matrix[min_idx[0]:max_idx[0], min_idx[1]:max_idx[1], min_idx[2]:max_idx[2]]
+    print(f"Cropped matrix shape: {matrix.shape}")
+
+    # Get indices for non-auto modes (and for sorting check)
+    indices = np.argwhere(matrix)
+    # Sort indices for cleaner output (bottom-up: Y, Z, X)
     indices = indices[np.lexsort((indices[:,0], indices[:,2], indices[:,1]))]
     
     print(f"Processing {len(indices)} voxels...")
@@ -101,55 +124,86 @@ def convert_obj_to_template(obj_path, output_path, material_name, target_size, r
             f.write(f"# Format: [Type] [Coords...] {material_name}\n")
             f.write(f"# Legend: C=Cube, S=Subcube, M=Microcube\n\n")
             
-            # Group by Cube
-            cubes = defaultdict(set)
-            for idx in indices:
-                x, y, z = idx
-                cx, rem_x = divmod(x, 9)
-                cy, rem_y = divmod(y, 9)
-                cz, rem_z = divmod(z, 9)
-                cubes[(cx, cy, cz)].add((rem_x, rem_y, rem_z))
+            # Pad matrix to multiple of 9 for easy reshaping
+            shape = np.array(matrix.shape)
+            pad_shape = (np.ceil(shape / 9) * 9).astype(int)
+            padding = [(0, pad_shape[i] - shape[i]) for i in range(3)]
             
+            padded_matrix = np.pad(matrix, padding, mode='constant', constant_values=0)
+            
+            # --- Level 1: Cubes (9x9x9) ---
+            cx, cy, cz = pad_shape // 9
+            cubes_view = padded_matrix.reshape(cx, 9, cy, 9, cz, 9)
+            cubes_counts = cubes_view.sum(axis=(1, 3, 5))
+            cubes_mask = cubes_counts >= (729 * fill_threshold)
+            
+            # --- Level 2: Subcubes (3x3x3) ---
+            sx, sy, sz = pad_shape // 3
+            subcubes_view = padded_matrix.reshape(sx, 3, sy, 3, sz, 3)
+            subcubes_counts = subcubes_view.sum(axis=(1, 3, 5))
+            subcubes_mask = subcubes_counts >= (27 * fill_threshold)
+            
+            # Exclude subcubes that are inside full cubes
+            cubes_mask_upscaled = cubes_mask.repeat(3, axis=0).repeat(3, axis=1).repeat(3, axis=2)
+            final_subcubes_mask = subcubes_mask & ~cubes_mask_upscaled
+            
+            # --- Level 3: Microcubes ---
+            # Exclude microcubes inside full cubes OR full subcubes
+            cubes_mask_micro = cubes_mask.repeat(9, axis=0).repeat(9, axis=1).repeat(9, axis=2)
+            subcubes_mask_micro = final_subcubes_mask.repeat(3, axis=0).repeat(3, axis=1).repeat(3, axis=2)
+            final_microcubes_mask = padded_matrix & ~cubes_mask_micro & ~subcubes_mask_micro
+            
+            # --- Output Generation ---
             count_c = 0
             count_s = 0
             count_m = 0
             
-            for c_key in sorted(cubes.keys()):
-                c_voxels = cubes[c_key]
-                cx, cy, cz = c_key
+            # Get coordinates
+            c_coords = np.argwhere(cubes_mask)
+            s_coords = np.argwhere(final_subcubes_mask)
+            m_coords = np.argwhere(final_microcubes_mask)
+            
+            # Sort (Y, Z, X)
+            if len(c_coords) > 0:
+                c_coords = c_coords[np.lexsort((c_coords[:,0], c_coords[:,2], c_coords[:,1]))]
+            if len(s_coords) > 0:
+                s_coords = s_coords[np.lexsort((s_coords[:,0], s_coords[:,2], s_coords[:,1]))]
+            if len(m_coords) > 0:
+                m_coords = m_coords[np.lexsort((m_coords[:,0], m_coords[:,2], m_coords[:,1]))]
+            
+            for c in c_coords:
+                f.write(f"C {c[0]} {c[1]} {c[2]} {material_name}\n")
+                count_c += 1
                 
-                # Check if full Cube (9x9x9 = 729 microcubes)
-                if len(c_voxels) >= 729 * fill_threshold:
-                    f.write(f"C {cx} {cy} {cz} {material_name}\n")
-                    count_c += 1
-                else:
-                    # Group by Subcube
-                    subcubes = defaultdict(set)
-                    for v in c_voxels:
-                        rx, ry, rz = v
-                        sx, mx = divmod(rx, 3)
-                        sy, my = divmod(ry, 3)
-                        sz, mz = divmod(rz, 3)
-                        subcubes[(sx, sy, sz)].add((mx, my, mz))
-                    
-                    for s_key in sorted(subcubes.keys()):
-                        s_voxels = subcubes[s_key]
-                        sx, sy, sz = s_key
-                        
-                        # Check if full Subcube (3x3x3 = 27 microcubes)
-                        if len(s_voxels) >= 27 * fill_threshold:
-                            f.write(f"S {cx} {cy} {cz} {sx} {sy} {sz} {material_name}\n")
-                            count_s += 1
-                        else:
-                            # Write Microcubes
-                            for m_key in sorted(list(s_voxels)):
-                                mx, my, mz = m_key
-                                f.write(f"M {cx} {cy} {cz} {sx} {sy} {sz} {mx} {my} {mz} {material_name}\n")
-                                count_m += 1
+            for s in s_coords:
+                cx, rx = divmod(s[0], 3)
+                cy, ry = divmod(s[1], 3)
+                cz, rz = divmod(s[2], 3)
+                f.write(f"S {cx} {cy} {cz} {rx} {ry} {rz} {material_name}\n")
+                count_s += 1
+                
+            for m in m_coords:
+                cx, rem_x = divmod(m[0], 9)
+                cy, rem_y = divmod(m[1], 9)
+                cz, rem_z = divmod(m[2], 9)
+                sx, micro_x = divmod(rem_x, 3)
+                sy, micro_y = divmod(rem_y, 3)
+                sz, micro_z = divmod(rem_z, 3)
+                f.write(f"M {cx} {cy} {cz} {sx} {sy} {sz} {micro_x} {micro_y} {micro_z} {material_name}\n")
+                count_m += 1
             
             print(f"Optimization Results: {count_c} Cubes, {count_s} Subcubes, {count_m} Microcubes")
             
-            if count_c + count_s + count_m == 0:
+            total_primitives = count_c + count_s + count_m
+            if total_primitives > 0:
+                # Calculate effective voxel coverage
+                covered_voxels = (count_c * 729) + (count_s * 27) + (count_m * 1)
+                # Note: This is an approximation if threshold < 1.0, as we count empty space as "covered"
+                
+                print(f"Total Primitives: {total_primitives}")
+                print(f"Compression Ratio: {covered_voxels / total_primitives:.2f} voxels per primitive (avg)")
+            
+            if total_primitives == 0:
                 print("Error: No voxels were written! Check your fill threshold or input model.")
 
         elif resolution_mode == 'microcube':
@@ -189,8 +243,11 @@ if __name__ == "__main__":
     parser.add_argument("--size", type=float, default=5.0, help="Target size in World Cubes (default: 5.0)")
     parser.add_argument("--resolution", choices=['auto', 'cube', 'subcube', 'microcube'], default='auto', 
                         help="Voxel resolution level (default: auto)")
-    parser.add_argument("--hollow", action="store_true", help="Do not fill the interior of the object")
+    parser.add_argument("--hollow", action="store_true", help="Do not fill the interior of the object (keep original voxelization)")
     parser.add_argument("--fill-threshold", type=float, default=1.0, help="Threshold (0.0-1.0) to treat a block as full (default: 1.0)")
+    parser.add_argument("--thicken", type=int, default=0, help="Number of dilation iterations to thicken the model (reduces microcubes)")
+    parser.add_argument("--shell", action="store_true", help="Force generation of a hollow shell from the outer surface (void interior)")
+    parser.add_argument("--shell-thickness", type=int, default=1, help="Wall thickness for shell generation (default: 1)")
     
     args = parser.parse_args()
     
@@ -198,4 +255,4 @@ if __name__ == "__main__":
         print(f"Error: Input file '{args.input}' not found.")
         sys.exit(1)
         
-    convert_obj_to_template(args.input, args.output, args.material, args.size, args.resolution, args.hollow, args.fill_threshold)
+    convert_obj_to_template(args.input, args.output, args.material, args.size, args.resolution, args.hollow, args.fill_threshold, args.thicken, args.shell, args.shell_thickness)

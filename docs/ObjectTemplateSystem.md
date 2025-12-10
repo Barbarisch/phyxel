@@ -21,14 +21,22 @@ python tools/obj_to_template.py input_model.obj output_template.txt [options]
   - `cube`: Forces 1x1x1 resolution.
   - `subcube`: Forces 1/3 resolution.
   - `microcube`: Forces 1/9 resolution.
-- `--hollow`: If set, the interior of the model will NOT be filled. Default behavior fills holes to create solid objects.
+- `--hollow`: If set, the interior of the model will NOT be filled (keeps original voxelization). Default behavior fills holes to create solid objects.
 - `--fill-threshold <float>`: Threshold (0.0-1.0) for optimization. Determines how full a parent voxel must be to be promoted to a larger voxel type.
   - Example: If a Cube contains enough Microcubes to meet the threshold, it is converted into a single solid Cube voxel, saving memory and rendering cost.
+- `--thicken <int>`: Applies binary dilation (thickening) to the voxel grid. Useful for thin objects (like leaves) to make them thick enough to be optimized into Subcubes.
+- `--shell`: Forces the generation of a hollow shell from the outer surface. Calculates `Solid Volume - Inner Volume`.
+- `--shell-thickness <int>`: Wall thickness (in voxels) for shell generation (default: 1).
+
+### Output & Performance
+
+The tool now uses vectorized `numpy` operations for high-speed processing of large models.
+It outputs a **Compression Ratio** (avg voxels per primitive) to help you tune parameters.
 
 ### Dependencies
 - `trimesh`
 - `numpy`
-- `scipy` (for robust hole filling)
+- `scipy` (for robust hole filling and morphological operations)
 
 ## Engine Integration: `ObjectTemplateManager`
 
