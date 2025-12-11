@@ -96,6 +96,15 @@ bool Application::initialize() {
     physicsWorld = std::make_unique<Physics::PhysicsWorld>();                 // Bullet Physics simulation
     timer = std::make_unique<Timer>();                                        // High-precision timing
     chunkManager = std::make_unique<ChunkManager>();                          // Multi-chunk world manager
+    audioSystem = std::make_unique<Core::AudioSystem>();                      // Audio System
+
+    if (!audioSystem->initialize()) {
+        LOG_ERROR("Application", "Failed to initialize AudioSystem");
+        // We continue even if audio fails, it's not critical
+    } else {
+        // Play startup sound
+        audioSystem->playSound("resources/sounds/test.wav");
+    }
 
     // STEP 2: CREATE WorldInitializer WITH DEPENDENCY INJECTION
     // WorldInitializer handles complex world setup (chunks, camera, materials, pipelines)
@@ -523,6 +532,11 @@ void Application::update(float deltaTime) {
     glm::vec3 cameraFront = inputManager->getCameraFront();
     glm::vec3 cameraUp = inputManager->getCameraUp();
     
+    // Update Audio Listener
+    if (audioSystem) {
+        audioSystem->update(cameraPos, cameraFront, cameraUp);
+    }
+
     glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
     glm::mat4 proj = glm::perspective(
         glm::radians(45.0f), 

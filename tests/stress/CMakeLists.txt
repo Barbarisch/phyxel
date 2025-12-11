@@ -108,6 +108,7 @@ target_include_directories(phyxel_stress_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/external/sqlite3
     ${STB_IMAGE_DIR}
     ${Vulkan_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/external/miniaudio
 )
 
 # Platform-specific GLM setup

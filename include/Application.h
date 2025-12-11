@@ -21,6 +21,7 @@
 #include "core/ForceSystem.h"
 #include "core/WorldInitializer.h"
 #include "core/ObjectTemplateManager.h"
+#include "core/AudioSystem.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -91,6 +92,9 @@ private:
     
     // Initialization
     std::unique_ptr<Core::WorldInitializer> worldInitializer;          // Handles initialization
+
+    // Audio System
+    std::unique_ptr<Core::AudioSystem> audioSystem;
 
     // ============================================================================
     // APPLICATION STATE

@@ -188,6 +188,7 @@ target_include_directories(phyxel_core PUBLIC
     ${IMGUI_DIR}/backends
     ${STB_IMAGE_DIR}
     external/bullet3/src
+    external/miniaudio
 )
 
 # Platform-specific linking for Core

@@ -56,6 +56,7 @@ target_include_directories(phyxel_e2e_tests PRIVATE
     ${IMGUI_DIR}/backends
     ${STB_IMAGE_DIR}
     ${CMAKE_SOURCE_DIR}/external/bullet3/src
+    ${CMAKE_SOURCE_DIR}/external/miniaudio
 )
 
 # Platform-specific includes
