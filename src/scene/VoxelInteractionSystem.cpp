@@ -17,12 +17,14 @@ VoxelInteractionSystem::VoxelInteractionSystem(ChunkManager* chunkManager,
                                              Physics::PhysicsWorld* physicsWorld,
                                              MouseVelocityTracker* mouseVelocityTracker,
                                              UI::WindowManager* windowManager,
-                                             ForceSystem* forceSystem)
+                                             ForceSystem* forceSystem,
+                                             Core::AudioSystem* audioSystem)
     : m_chunkManager(chunkManager)
     , m_physicsWorld(physicsWorld)
     , m_mouseVelocityTracker(mouseVelocityTracker)
     , m_windowManager(windowManager)
     , m_forceSystem(forceSystem)
+    , m_audioSystem(audioSystem)
     , m_hasHoveredCube(false)
     , m_lastHoveredCube(-1)
     , m_hoverDetectionTimeMs(0.0)
@@ -284,15 +286,21 @@ void VoxelInteractionSystem::breakCubeAtPosition(const glm::ivec3& worldPos) {
 }
 
 void VoxelInteractionSystem::placeVoxelAtHover() {
-    m_placementTool->placeVoxel(createContext());
+    if (m_placementTool->placeVoxel(createContext())) {
+        if (m_audioSystem) m_audioSystem->playSound("resources/sounds/place.wav");
+    }
 }
 
 void VoxelInteractionSystem::placeSubcubeAtHover() {
-    m_placementTool->placeSubcube(createContext());
+    if (m_placementTool->placeSubcube(createContext())) {
+        if (m_audioSystem) m_audioSystem->playSound("resources/sounds/place.wav");
+    }
 }
 
 void VoxelInteractionSystem::placeMicrocubeAtHover() {
-    m_placementTool->placeMicrocube(createContext());
+    if (m_placementTool->placeMicrocube(createContext())) {
+        if (m_audioSystem) m_audioSystem->playSound("resources/sounds/place.wav");
+    }
 }
 
 VoxelLocation VoxelInteractionSystem::pickVoxelOptimized(const glm::vec3& rayOrigin, const glm::vec3& rayDirection) const {

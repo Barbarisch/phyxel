@@ -101,9 +101,6 @@ bool Application::initialize() {
     if (!audioSystem->initialize()) {
         LOG_ERROR("Application", "Failed to initialize AudioSystem");
         // We continue even if audio fails, it's not critical
-    } else {
-        // Play startup sound
-        audioSystem->playSound("resources/sounds/test.wav");
     }
 
     // STEP 2: CREATE WorldInitializer WITH DEPENDENCY INJECTION
@@ -175,7 +172,8 @@ bool Application::initialize() {
         physicsWorld.get(),
         mouseVelocityTracker.get(),
         windowManager.get(),
-        forceSystem.get()
+        forceSystem.get(),
+        audioSystem.get()
     );
     LOG_INFO("Application", "VoxelInteractionSystem initialized successfully!");
 

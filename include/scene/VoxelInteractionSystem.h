@@ -7,6 +7,7 @@
 #include "scene/VoxelManipulationSystem.h"
 #include "scene/interaction/PlacementTool.h"
 #include "scene/interaction/DestructionTool.h"
+#include "core/AudioSystem.h"
 #include <glm/glm.hpp>
 #include <memory>
 
@@ -63,7 +64,8 @@ public:
                           Physics::PhysicsWorld* physicsWorld,
                           MouseVelocityTracker* mouseVelocityTracker,
                           UI::WindowManager* windowManager,
-                          ForceSystem* forceSystem);
+                          ForceSystem* forceSystem,
+                          Core::AudioSystem* audioSystem = nullptr);
     ~VoxelInteractionSystem() = default;
 
     // Main update function - performs hover detection each frame
@@ -158,6 +160,9 @@ private:
     } m_debugFlags;
     
     TargetMode m_targetMode = TargetMode::Cube;
+
+    // Audio System
+    Core::AudioSystem* m_audioSystem;
 
     // Helper to create interaction context
     InteractionContext createContext() const;
