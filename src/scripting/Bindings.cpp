@@ -36,6 +36,8 @@
 #include "utils/Logger.h"
 #include "Application.h"
 #include "scene/VoxelInteractionSystem.h"
+#include "core/ObjectTemplateManager.h"
+#include "input/InputManager.h"
 
 namespace py = pybind11;
 
@@ -93,10 +95,34 @@ PYBIND11_EMBEDDED_MODULE(phyxel, m) {
             return cm.removeCube(glm::ivec3(x, y, z));
         }, "Remove a cube at the specified world coordinates");
 
+    // Expose ObjectTemplateManager
+    py::class_<ObjectTemplateManager>(m, "ObjectTemplateManager")
+        .def("spawn_template", [](ObjectTemplateManager& tm, const std::string& name, float x, float y, float z, bool isStatic) {
+            return tm.spawnTemplate(name, glm::vec3(x, y, z), isStatic);
+        }, "Spawn a template at a specific world position", 
+           py::arg("name"), py::arg("x"), py::arg("y"), py::arg("z"), py::arg("is_static") = true)
+        .def("spawn_template_sequentially", [](ObjectTemplateManager& tm, const std::string& name, float x, float y, float z, bool isStatic) {
+            tm.spawnTemplateSequentially(name, glm::vec3(x, y, z), isStatic);
+        }, "Spawn a template sequentially over multiple frames",
+           py::arg("name"), py::arg("x"), py::arg("y"), py::arg("z"), py::arg("is_static") = true);
+
+    // Expose InputManager
+    py::class_<Input::InputManager>(m, "InputManager")
+        .def("set_camera_position", [](Input::InputManager& im, float x, float y, float z) {
+            im.setCameraPosition(glm::vec3(x, y, z));
+        }, "Set camera position")
+        .def("get_camera_position", [](Input::InputManager& im) {
+            auto pos = im.getCameraPosition();
+            return py::make_tuple(pos.x, pos.y, pos.z);
+        }, "Get camera position as (x, y, z) tuple")
+        .def("set_yaw_pitch", &Input::InputManager::setYawPitch, "Set camera orientation (yaw, pitch)");
+
     // Expose Application
     py::class_<Application>(m, "Application")
         .def("get_voxel_interaction_system", &Application::getVoxelInteractionSystem, py::return_value_policy::reference)
-        .def("get_chunk_manager", &Application::getChunkManager, py::return_value_policy::reference);
+        .def("get_chunk_manager", &Application::getChunkManager, py::return_value_policy::reference)
+        .def("get_object_template_manager", &Application::getObjectTemplateManager, py::return_value_policy::reference)
+        .def("get_input_manager", &Application::getInputManager, py::return_value_policy::reference);
 
     // Global function to get app
     m.def("get_app", []() { return g_appInstance; }, py::return_value_policy::reference);

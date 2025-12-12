@@ -59,6 +59,7 @@ public:
     RaycastVisualizer* getRaycastVisualizer() const { return raycastVisualizer.get(); }
     VoxelInteractionSystem* getVoxelInteractionSystem() const { return voxelInteractionSystem.get(); }
     ChunkManager* getChunkManager() const { return chunkManager.get(); }
+    Input::InputManager* getInputManager() const { return inputManager.get(); }
 
 private:
     // ============================================================================

@@ -409,9 +409,9 @@ btRigidBody* PhysicsWorld::createBreakawaCube(const glm::vec3& position, const g
         body->setCcdMotionThreshold(objectSize * 0.5f);
         // CCD swept sphere radius: use a sphere 80% of the smallest dimension
         body->setCcdSweptSphereRadius(objectSize * 0.4f);
-        LOG_INFO_FMT("Physics", "[MICROCUBE CCD] Enabled for object size " << objectSize 
-                  << " - Threshold: " << (objectSize * 0.5f) << " Radius: " << (objectSize * 0.4f)
-                  << " Margin: " << appropriateMargin);
+        // LOG_INFO_FMT("Physics", "[MICROCUBE CCD] Enabled for object size " << objectSize 
+        //           << " - Threshold: " << (objectSize * 0.5f) << " Radius: " << (objectSize * 0.4f)
+        //           << " Margin: " << appropriateMargin);
     }
     
     // Force activation and set collision flags for immediate separation

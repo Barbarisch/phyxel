@@ -29,6 +29,8 @@ struct PendingSpawn {
 class ObjectTemplateManager {
 public:
     ObjectTemplateManager(ChunkManager* chunkMgr, DynamicObjectManager* dynamicMgr);
+    ObjectTemplateManager(const ObjectTemplateManager&) = delete;
+    ObjectTemplateManager& operator=(const ObjectTemplateManager&) = delete;
     ~ObjectTemplateManager() = default;
 
     // Load all templates from resources/templates directory

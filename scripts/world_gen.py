@@ -3,34 +3,18 @@ import time
 
 def generate_pyramid(start_x, start_y, start_z, height):
     app = phyxel.get_app()
-    if not app:
-        phyxel.Logger.error("WorldGen", "Failed to get application instance")
-        return
-
     cm = app.get_chunk_manager()
-    if not cm:
-        phyxel.Logger.error("WorldGen", "Failed to get chunk manager")
-        return
-
+    
     phyxel.Logger.info("WorldGen", f"Generating pyramid at ({start_x}, {start_y}, {start_z}) with height {height}")
-
+    
     count = 0
     for y in range(height):
-        # Size of the layer (decreases as we go up)
-        # Base layer (y=0) has size 'height'
-        # Top layer (y=height-1) has size 1
         layer_radius = height - y - 1
-        
         for x in range(-layer_radius, layer_radius + 1):
             for z in range(-layer_radius, layer_radius + 1):
-                world_x = start_x + x
-                world_y = start_y + y
-                world_z = start_z + z
-                
-                cm.add_cube(world_x, world_y, world_z)
+                cm.add_cube(start_x + x, start_y + y, start_z + z)
                 count += 1
-    
-    phyxel.Logger.info("WorldGen", f"Pyramid generation complete. Placed {count} cubes.")
+    return count
 
 def generate_platform(x, y, z, width, depth):
     app = phyxel.get_app()
@@ -45,13 +29,31 @@ def generate_platform(x, y, z, width, depth):
 def run_demo():
     phyxel.Logger.info("WorldGen", "Starting World Generation Demo...")
     
-    # Generate a platform
-    generate_platform(32, 35, 32, 10, 10)
+    app = phyxel.get_app()
     
-    # Generate a pyramid on top of it
-    generate_pyramid(37, 36, 37, 4)
+    # 1. Teleport Player
+    im = app.get_input_manager()
+    if im:
+        # Move player to a good viewing position (looking down at 32,35,32)
+        im.set_camera_position(50.0, 50.0, 50.0)
+        # Set orientation to look somewhat down and towards origin
+        im.set_yaw_pitch(-135.0, -30.0)
+        phyxel.Logger.info("WorldGen", "Teleported player to vantage point")
+
+    # 2. Generate Geometry
+    generate_platform(32, 35, 32, 15, 15)
+    generate_pyramid(39, 36, 39, 4)
     
+    # 3. Spawn Templates
+    tm = app.get_object_template_manager()
+    if tm:
+        # Spawn a static sphere (heavy geometry, but fast to render as static voxels)
+        tm.spawn_template("sphere", 33.0, 36.0, 33.0, True)
+        phyxel.Logger.info("WorldGen", "Spawned static sphere")
+        
+        # Spawn a dynamic tree (lighter physics)
+        tm.spawn_template("tree", 39.0, 60.0, 39.0, False)
+        phyxel.Logger.info("WorldGen", "Spawned dynamic tree above pyramid")
+
     phyxel.Logger.info("WorldGen", "Demo complete!")
 
-if __name__ == "__main__":
-    run_demo()

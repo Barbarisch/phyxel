@@ -52,6 +52,15 @@ To prevent frame rate drops when spawning large objects (which may contain thous
   - `setSpawnSpeed(int voxelsPerFrame)`: Controls how many voxels are placed per frame.
   - Default: 200 voxels/frame.
 
+### Performance Warning: Dynamic Objects
+
+**⚠️ CRITICAL WARNING**: Spawning complex templates as **Dynamic** objects (`isStatic=false`) can cause severe performance issues or application hangs.
+
+- **Static Spawning (`isStatic=true`)**: Highly optimized. Voxels are merged into the chunk mesh and rendered efficiently. Safe for large objects (thousands of voxels).
+- **Dynamic Spawning (`isStatic=false`)**: **Expensive**. Each voxel in the template becomes an individual physics body with its own collision detection overhead.
+  - **Risk**: Spawning a template with high voxel counts (e.g., >500 voxels, especially microcubes) as dynamic will freeze the engine while it initializes thousands of physics bodies.
+  - **Recommendation**: Only use dynamic spawning for simple objects (e.g., < 100 voxels), debris, or small interactive props. For large structures, always use static spawning.
+
 ### Automatic Chunk Creation
 
 When spawning static templates, the manager automatically detects if target chunks exist. If a template extends into empty space (e.g., high in the air), the necessary chunks are created on-the-fly to ensure the object is fully rendered.
