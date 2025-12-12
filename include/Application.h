@@ -22,6 +22,7 @@
 #include "core/WorldInitializer.h"
 #include "core/ObjectTemplateManager.h"
 #include "core/AudioSystem.h"
+#include "scripting/ScriptingSystem.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -56,6 +57,7 @@ public:
     // Accessors
     ObjectTemplateManager* getObjectTemplateManager() const { return objectTemplateManager.get(); }
     RaycastVisualizer* getRaycastVisualizer() const { return raycastVisualizer.get(); }
+    VoxelInteractionSystem* getVoxelInteractionSystem() const { return voxelInteractionSystem.get(); }
 
 private:
     // ============================================================================
@@ -95,6 +97,9 @@ private:
 
     // Audio System
     std::unique_ptr<Core::AudioSystem> audioSystem;
+
+    // Scripting System
+    std::unique_ptr<ScriptingSystem> scriptingSystem;
 
     // ============================================================================
     // APPLICATION STATE

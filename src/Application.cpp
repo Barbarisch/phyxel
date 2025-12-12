@@ -222,6 +222,10 @@ bool Application::initialize() {
     );
     inputController->initializeBindings();
 
+    // STEP 8: INITIALIZE SCRIPTING SYSTEM
+    scriptingSystem = std::make_unique<ScriptingSystem>(this);
+    scriptingSystem->init();
+
     m_initialized = true;
     return true;
 }
@@ -357,6 +361,12 @@ void Application::cleanup() {
         imguiRenderer->cleanup();
     }
     
+    // Shutdown scripting first to stop any running scripts
+    if (scriptingSystem) {
+        scriptingSystem->shutdown();
+        scriptingSystem.reset();
+    }
+    
     if (renderPipeline) {
         renderPipeline->cleanup();
     }
@@ -418,6 +428,11 @@ void Application::setTitle(const std::string& title) {
 
 void Application::update(float deltaTime) {
     this->deltaTime = deltaTime;
+    
+    // Update scripting system
+    if (scriptingSystem) {
+        scriptingSystem->update(deltaTime);
+    }
     
     // Input is processed in handleInput() which is called from run() loop
     // Update input controller logic (e.g. previews)

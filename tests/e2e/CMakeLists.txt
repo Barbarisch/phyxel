@@ -42,9 +42,7 @@ endif()
 # Create E2E test executable
 add_executable(phyxel_e2e_tests
     ${E2E_TEST_SOURCES}
-    ${APP_SOURCES}
-    ${IMGUI_SOURCES}
-    ${STB_IMAGE_SOURCES}
+    # No need to add app sources, we link against phyxel_core
 )
 
 # Include directories
@@ -79,6 +77,7 @@ endif()
 # Link libraries
 if(PLATFORM_WINDOWS)
     target_link_libraries(phyxel_e2e_tests PRIVATE
+        phyxel_core
         GTest::gtest_main
         GTest::gmock
         Vulkan::Vulkan
@@ -92,6 +91,7 @@ if(PLATFORM_WINDOWS)
     
 elseif(PLATFORM_LINUX)
     target_link_libraries(phyxel_e2e_tests PRIVATE
+        phyxel_core
         GTest::gtest_main
         GTest::gmock
         Vulkan::Vulkan

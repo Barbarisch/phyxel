@@ -7,6 +7,12 @@ set(CMAKE_CXX_STANDARD 17)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 include(Sanitizers)
 
+# Prevent pybind11 from auto-linking python library via pragma
+# This fixes the issue where it asks for python313t.lib when we only have python313.lib
+add_compile_definitions(PYBIND11_NOPYTHON_LIB_PRAGMA)
+# Force disable GIL disabled mode (free-threading) to match standard python313.lib
+add_compile_definitions(Py_GIL_DISABLED=0)
+
 # Platform detection
 if(WIN32)
     message(STATUS "Building for Windows")
@@ -103,6 +109,22 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 # Make Google Test available
 FetchContent_MakeAvailable(googletest)
 
+# Pybind11 for scripting
+FetchContent_Declare(
+  pybind11
+  GIT_REPOSITORY https://github.com/pybind/pybind11.git
+  GIT_TAG v2.12.0
+)
+FetchContent_MakeAvailable(pybind11)
+
+# Debug Python detection
+get_target_property(PYBIND11_INCLUDE_DIRS pybind11::headers INTERFACE_INCLUDE_DIRECTORIES)
+message(STATUS "pybind11 include dirs: ${PYBIND11_INCLUDE_DIRS}")
+# pybind11::embed links to Python, let's see if we can find where
+get_target_property(PYBIND11_EMBED_LIBS pybind11::embed INTERFACE_LINK_LIBRARIES)
+message(STATUS "pybind11::embed libs: ${PYBIND11_EMBED_LIBS}")
+
+
 # Enable testing with CTest
 enable_testing()
 include(GoogleTest)
@@ -197,6 +219,7 @@ if(PLATFORM_WINDOWS)
         Vulkan::Vulkan 
         glfw3
         ${BULLET_LIBS}
+        pybind11::embed
     )
     
     # Add SQLite3 if available
@@ -212,6 +235,7 @@ elseif(PLATFORM_LINUX)
         Vulkan::Vulkan 
         glfw
         ${BULLET_LIBS}
+        pybind11::embed
     )
     
     # Add SQLite3 if available
@@ -228,6 +252,11 @@ target_compile_definitions(phyxel_core PUBLIC
     GLM_ENABLE_EXPERIMENTAL
     $<$<CONFIG:Debug>:DEBUG>
     $<$<CONFIG:Release>:NDEBUG>
+    # Prevent pybind11 from auto-linking python library via pragma
+    # This fixes the issue where it asks for python313t.lib when we only have python313.lib
+    PYBIND11_NOPYTHON_LIB_PRAGMA
+    # Force disable GIL disabled mode (free-threading)
+    Py_GIL_DISABLED=0
 )
 
 # Add SQLite3 support if available
@@ -243,6 +272,11 @@ add_executable(VulkanCube src/main.cpp)
 
 # Link to Core
 target_link_libraries(VulkanCube PRIVATE phyxel_core)
+
+# Ignore python313t.lib if it's being requested by mistake
+if(MSVC)
+    set_target_properties(VulkanCube PROPERTIES LINK_FLAGS "/NODEFAULTLIB:python313t.lib")
+endif()
 
 # Enable Sanitizers for Executable
 enable_sanitizers(VulkanCube)

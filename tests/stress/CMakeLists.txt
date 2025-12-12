@@ -47,15 +47,13 @@ endif()
 
 # Add all sources to test executable
 target_sources(phyxel_stress_tests PRIVATE
-    ${APP_SOURCES}
-    ${IMGUI_SOURCES}
-    ${STB_IMAGE_SOURCES}
-    ${SQLITE3_SRC}
+    # No need to add app sources, we link against phyxel_core
 )
 
 # Link against main libraries
 if(PLATFORM_WINDOWS)
     target_link_libraries(phyxel_stress_tests PRIVATE
+        phyxel_core
         # GoogleTest
         GTest::gtest
         GTest::gtest_main
@@ -78,6 +76,7 @@ if(PLATFORM_WINDOWS)
     
 elseif(PLATFORM_LINUX)
     target_link_libraries(phyxel_stress_tests PRIVATE
+        phyxel_core
         # GoogleTest
         GTest::gtest
         GTest::gtest_main
