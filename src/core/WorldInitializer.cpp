@@ -88,13 +88,14 @@ bool WorldInitializer::initialize() {
     
     if (loadedChunks.empty()) {
         // No chunks in database - create initial world
-        LOG_INFO("WorldInitializer", "No chunks found in database - creating initial world");
-        auto origins = MultiChunkDemo::create3DGridChunks(2, 2, 2);
+        // LOG_INFO("WorldInitializer", "No chunks found in database - creating initial world");
+        // auto origins = MultiChunkDemo::create3DGridChunks(2, 2, 2);
         
-        for (const auto& origin : origins) {
-            glm::ivec3 chunkCoord = chunkManager->worldToChunkCoord(origin);
-            chunkManager->generateOrLoadChunk(chunkCoord);
-        }
+        // for (const auto& origin : origins) {
+        //     glm::ivec3 chunkCoord = chunkManager->worldToChunkCoord(origin);
+        //     chunkManager->generateOrLoadChunk(chunkCoord);
+        // }
+        LOG_INFO("WorldInitializer", "No chunks found in database - starting with EMPTY world for Python scripting");
     } else {
         LOG_INFO_FMT("WorldInitializer", "Loaded " << loadedChunks.size() << " chunks from database");
     }

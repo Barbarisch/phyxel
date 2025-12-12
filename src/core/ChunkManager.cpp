@@ -301,6 +301,14 @@ bool ChunkManager::removeCube(const glm::ivec3& worldPos) {
 }
 
 bool ChunkManager::addCube(const glm::ivec3& worldPos) {
+    // Ensure chunk exists before adding cube
+    glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
+    if (!getChunkAtCoord(chunkCoord)) {
+        glm::ivec3 origin = chunkCoordToOrigin(chunkCoord);
+        // Create empty chunk (populate=false)
+        createChunk(origin, false);
+        LOG_INFO_FMT("ChunkManager", "Created new chunk at (%d, %d, %d) for addCube operation", origin.x, origin.y, origin.z);
+    }
     return m_voxelModificationSystem.addCube(worldPos);
 }
 

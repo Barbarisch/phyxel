@@ -84,9 +84,19 @@ PYBIND11_EMBEDDED_MODULE(phyxel, m) {
         .def("break_hovered_microcube", &VoxelInteractionSystem::breakHoveredMicrocube)
         .def("has_hovered_cube", &VoxelInteractionSystem::hasHoveredCube);
 
+    // Expose ChunkManager
+    py::class_<ChunkManager>(m, "ChunkManager")
+        .def("add_cube", [](ChunkManager& cm, int x, int y, int z) {
+            return cm.addCube(glm::ivec3(x, y, z));
+        }, "Add a cube at the specified world coordinates")
+        .def("remove_cube", [](ChunkManager& cm, int x, int y, int z) {
+            return cm.removeCube(glm::ivec3(x, y, z));
+        }, "Remove a cube at the specified world coordinates");
+
     // Expose Application
     py::class_<Application>(m, "Application")
-        .def("get_voxel_interaction_system", &Application::getVoxelInteractionSystem, py::return_value_policy::reference);
+        .def("get_voxel_interaction_system", &Application::getVoxelInteractionSystem, py::return_value_policy::reference)
+        .def("get_chunk_manager", &Application::getChunkManager, py::return_value_policy::reference);
 
     // Global function to get app
     m.def("get_app", []() { return g_appInstance; }, py::return_value_policy::reference);

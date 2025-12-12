@@ -89,6 +89,8 @@ public:
     glm::vec3 playerPosition = glm::vec3(0.0f); // Player position for streaming
     
     ChunkManager() = default;
+    ChunkManager(const ChunkManager&) = delete;
+    ChunkManager& operator=(const ChunkManager&) = delete;
     ~ChunkManager(); // Destructor needs to be defined in .cpp file due to unique_ptr with forward declaration
     
     // Initialize with Vulkan device handles

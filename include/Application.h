@@ -58,6 +58,7 @@ public:
     ObjectTemplateManager* getObjectTemplateManager() const { return objectTemplateManager.get(); }
     RaycastVisualizer* getRaycastVisualizer() const { return raycastVisualizer.get(); }
     VoxelInteractionSystem* getVoxelInteractionSystem() const { return voxelInteractionSystem.get(); }
+    ChunkManager* getChunkManager() const { return chunkManager.get(); }
 
 private:
     // ============================================================================
