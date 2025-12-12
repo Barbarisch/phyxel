@@ -126,4 +126,19 @@ PYBIND11_EMBEDDED_MODULE(phyxel, m) {
 
     // Global function to get app
     m.def("get_app", []() { return g_appInstance; }, py::return_value_policy::reference);
+
+    // Expose app instance as 'app' attribute for easier access
+    if (g_appInstance) {
+        m.attr("app") = py::cast(g_appInstance, py::return_value_policy::reference);
+    }
+
+    // Log redirection helper
+    m.def("log_to_console", [](const std::string& msg) {
+        if (g_appInstance) {
+            auto scripting = g_appInstance->getScriptingSystem();
+            if (scripting) {
+                scripting->appendLog(msg);
+            }
+        }
+    }, "Internal use: log to console window");
 }

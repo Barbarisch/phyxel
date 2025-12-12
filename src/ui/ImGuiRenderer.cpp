@@ -143,43 +143,186 @@ void ImGuiRenderer::render(uint32_t currentFrame, uint32_t imageIndex) {
     }
 }
 
+static int InputTextCallbackStub(ImGuiInputTextCallbackData* data) {
+    ImGuiRenderer* renderer = (ImGuiRenderer*)data->UserData;
+    return renderer->handleInputTextCallback(data);
+}
+
+int ImGuiRenderer::handleInputTextCallback(ImGuiInputTextCallbackData* data) {
+    if (data->EventFlag == ImGuiInputTextFlags_CallbackCompletion) {
+        // Locate beginning of current word with balanced parenthesis support
+        const char* word_end = data->Buf + data->CursorPos;
+        const char* word_start = word_end;
+        int paren_balance = 0;
+
+        while (word_start > data->Buf) {
+            const char c = word_start[-1];
+            
+            if (c == ')') {
+                paren_balance++;
+            } else if (c == '(') {
+                if (paren_balance > 0) {
+                    paren_balance--;
+                } else {
+                    // Unbalanced opening parenthesis - start of argument list
+                    break;
+                }
+            } else if (paren_balance == 0) {
+                // Only break on separators if we are not inside parentheses
+                if (c == ' ' || c == '\t' || c == ',' || c == ';')
+                    break;
+            }
+            
+            word_start--;
+        }
+
+        std::string prefix(word_start, word_end);
+        
+        // Debug logging for completion
+        Utils::Logger::getInstance().log(Utils::LogLevel::Debug, "ImGuiRenderer", "Completion prefix: '" + prefix + "'");
+        
+        if (m_currentScriptingSystem && !prefix.empty()) {
+            m_completions = m_currentScriptingSystem->getCompletions(prefix);
+            if (!m_completions.empty()) {
+                int start_index = (int)(word_start - data->Buf);
+                int count = (int)(word_end - word_start);
+
+                Utils::Logger::getInstance().log(Utils::LogLevel::Debug, "ImGuiRenderer", "Replacing " + std::to_string(count) + " chars at " + std::to_string(start_index) + " with '" + m_completions[0] + "'");
+
+                if (m_completions.size() == 1) {
+                    // Single match. Delete the beginning of the word and replace it entirely
+                    data->DeleteChars(start_index, count);
+                    data->InsertChars(start_index, m_completions[0].c_str());
+                } else {
+                    // Multiple matches. 
+                    // Find common prefix
+                    std::string common = m_completions[0];
+                    for (size_t i = 1; i < m_completions.size(); i++) {
+                        size_t j = 0;
+                        while (j < common.length() && j < m_completions[i].length() && common[j] == m_completions[i][j])
+                            j++;
+                        common = common.substr(0, j);
+                    }
+                    
+                    if (common.length() > prefix.length()) {
+                        data->DeleteChars(start_index, count);
+                        data->InsertChars(start_index, common.c_str());
+                    }
+                    
+                    m_completionPrefix = prefix; // Store original prefix for filtering if needed
+                    m_showCompletionPopup = true;
+                    m_selectedCompletionIndex = 0;
+                }
+            }
+        }
+    }
+    return 0;
+}
+
 void ImGuiRenderer::renderScriptingConsole(bool showConsole, ScriptingSystem* scriptingSystem) {
     if (!showConsole || !scriptingSystem) return;
 
-    ImGui::SetNextWindowSize(ImVec2(500, 300), ImGuiCond_FirstUseEver);
+    m_currentScriptingSystem = scriptingSystem;
+
+    ImGui::SetNextWindowSize(ImVec2(600, 500), ImGuiCond_FirstUseEver);
     if (ImGui::Begin("Scripting Console", nullptr)) {
         
-        // Quick Actions
-        ImGui::Text("Quick Actions:");
-        if (ImGui::Button("Reload & Run world_gen.py")) {
-            scriptingSystem->reloadScript("world_gen.py");
-            scriptingSystem->runCommand("run_demo()");
+        if (ImGui::BeginTabBar("ScriptingTabs")) {
+            
+            // TAB 1: CONSOLE
+            if (ImGui::BeginTabItem("Console")) {
+                // Quick Actions
+                ImGui::Text("Quick Actions:");
+                if (ImGui::Button("Reload & Run world_gen.py")) {
+                    scriptingSystem->reloadScript("world_gen.py");
+                    scriptingSystem->runCommand("run_demo()");
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Reload startup.py")) {
+                    scriptingSystem->reloadScript("startup.py");
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Clear Log")) {
+                    scriptingSystem->clearLog();
+                }
+
+                ImGui::Separator();
+
+                // Log Output
+                ImGui::BeginChild("ScrollingRegion", ImVec2(0, -60), true, ImGuiWindowFlags_HorizontalScrollbar);
+                const auto& logs = scriptingSystem->getLogBuffer();
+                for (const auto& msg : logs) {
+                    ImGui::TextUnformatted(msg.c_str());
+                }
+                // Auto-scroll if at bottom
+                if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+                    ImGui::SetScrollHereY(1.0f);
+                ImGui::EndChild();
+
+                ImGui::Separator();
+
+                // Command Input
+                ImGui::Text("Execute Python Command (Tab for completion):");
+                bool reclaim_focus = false;
+                
+                ImGuiInputTextFlags flags = ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackCompletion;
+                if (ImGui::InputText("##Command", m_scriptInputBuffer, IM_ARRAYSIZE(m_scriptInputBuffer), flags, InputTextCallbackStub, (void*)this)) {
+                    scriptingSystem->runCommand(m_scriptInputBuffer);
+                    // Clear buffer after execution
+                    m_scriptInputBuffer[0] = '\0';
+                    reclaim_focus = true;
+                }
+
+                // Auto-focus input
+                if (reclaim_focus || ImGui::IsWindowAppearing())
+                    ImGui::SetKeyboardFocusHere(-1); // Auto focus previous widget
+                
+                // Completion Popup
+                if (m_showCompletionPopup) {
+                    ImGui::OpenPopup("CompletionPopup");
+                    m_showCompletionPopup = false; // Only open once
+                }
+                
+                if (ImGui::BeginPopup("CompletionPopup")) {
+                    for (int i = 0; i < m_completions.size(); i++) {
+                        if (ImGui::Selectable(m_completions[i].c_str())) {
+                            // In a real implementation, we would insert this back into the input buffer
+                            // But ImGui doesn't make it easy to modify the buffer from outside the callback
+                            // For now, just print it to log or copy to clipboard
+                            ImGui::SetClipboardText(m_completions[i].c_str());
+                        }
+                    }
+                    ImGui::EndPopup();
+                }
+
+                ImGui::Separator();
+                ImGui::TextWrapped("Tip: Use 'phyxel.get_app()' to access engine internals.");
+                ImGui::EndTabItem();
+            }
+            
+            // TAB 2: EDITOR
+            if (ImGui::BeginTabItem("Editor")) {
+                ImGui::Text("Python Script Editor");
+                
+                if (ImGui::Button("Run Script")) {
+                    scriptingSystem->runCommand(m_scriptEditorBuffer);
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Clear")) {
+                    m_scriptEditorBuffer[0] = '\0';
+                }
+                
+                ImGui::InputTextMultiline("##Editor", m_scriptEditorBuffer, IM_ARRAYSIZE(m_scriptEditorBuffer), ImVec2(-FLT_MIN, -FLT_MIN));
+                
+                ImGui::EndTabItem();
+            }
+            
+            ImGui::EndTabBar();
         }
-        ImGui::SameLine();
-        if (ImGui::Button("Reload startup.py")) {
-            scriptingSystem->reloadScript("startup.py");
-        }
-
-        ImGui::Separator();
-
-        // Command Input
-        ImGui::Text("Execute Python Command:");
-        bool reclaim_focus = false;
-        if (ImGui::InputText("##Command", m_scriptInputBuffer, IM_ARRAYSIZE(m_scriptInputBuffer), ImGuiInputTextFlags_EnterReturnsTrue)) {
-            scriptingSystem->runCommand(m_scriptInputBuffer);
-            // Clear buffer after execution
-            m_scriptInputBuffer[0] = '\0';
-            reclaim_focus = true;
-        }
-
-        // Auto-focus input
-        if (reclaim_focus || ImGui::IsWindowAppearing())
-            ImGui::SetKeyboardFocusHere(-1); // Auto focus previous widget
-
-        ImGui::Separator();
-        ImGui::TextWrapped("Tip: Use 'phyxel.get_app()' to access engine internals.");
     }
     ImGui::End();
+    
+    m_currentScriptingSystem = nullptr;
 }
 
 void ImGuiRenderer::renderPerformanceOverlay(

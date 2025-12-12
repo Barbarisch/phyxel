@@ -57,9 +57,20 @@ public:
     // Reload/Run a script file
     void reloadScript(const std::string& filename);
 
+    // Get tab completions for a given prefix
+    std::vector<std::string> getCompletions(const std::string& prefix);
+
+    // Log access
+    const std::vector<std::string>& getLogBuffer() const { return m_logBuffer; }
+    void appendLog(const std::string& msg);
+    void clearLog() { m_logBuffer.clear(); }
+
 private:
     Application* m_app;
     std::unique_ptr<py::scoped_interpreter> m_interpreter;
+    py::object m_completer;
+    py::object m_globals; // Persistent global namespace
+    std::vector<std::string> m_logBuffer;
 };
 
 }

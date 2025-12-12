@@ -61,6 +61,7 @@ public:
     VoxelInteractionSystem* getVoxelInteractionSystem() const { return voxelInteractionSystem.get(); }
     ChunkManager* getChunkManager() const { return chunkManager.get(); }
     Input::InputManager* getInputManager() const { return inputManager.get(); }
+    ScriptingSystem* getScriptingSystem() const { return scriptingSystem.get(); }
 
 private:
     // ============================================================================

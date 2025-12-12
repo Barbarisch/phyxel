@@ -2,11 +2,13 @@
 
 #include <memory>
 #include <vector>
+#include <string>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 
 // Forward declarations
 struct ImGuiContext;
+struct ImGuiInputTextCallbackData;
 namespace VulkanCube {
     class Timer;
     class PerformanceProfiler;
@@ -61,6 +63,9 @@ public:
         float& manualForceValue  // Reference to allow modification by slider
     );
 
+    // Helper for callbacks
+    int handleInputTextCallback(struct ::ImGuiInputTextCallbackData* data);
+
 private:
     ImGuiContext* m_context;
     bool m_initialized;
@@ -72,6 +77,16 @@ private:
     
     // Scripting console state
     char m_scriptInputBuffer[1024] = "";
+    char m_scriptEditorBuffer[1024 * 16] = ""; // 16KB buffer for script editor
+    
+    // Completion state
+    std::vector<std::string> m_completions;
+    int m_selectedCompletionIndex = 0;
+    bool m_showCompletionPopup = false;
+    std::string m_completionPrefix;
+    
+    // Helper for callbacks
+    ScriptingSystem* m_currentScriptingSystem = nullptr;
 };
 
 } // namespace VulkanCube::UI
