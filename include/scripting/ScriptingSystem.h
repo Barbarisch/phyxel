@@ -54,6 +54,9 @@ public:
     // Execute a simple string command
     void runCommand(const std::string& cmd);
 
+    // Reload/Run a script file
+    void reloadScript(const std::string& filename);
+
 private:
     Application* m_app;
     std::unique_ptr<py::scoped_interpreter> m_interpreter;

@@ -58,6 +58,10 @@ public:
     
     // Direct camera orientation (for testing/debugging)
     void setYawPitch(float yaw, float pitch);
+
+    // Scripting Console Mode
+    void setScriptingConsoleMode(bool enabled);
+    bool isScriptingConsoleMode() const { return scriptingConsoleMode; }
     
 private:
     // GLFW callbacks (static, redirect to instance)
@@ -98,6 +102,8 @@ private:
         int modifiers; // GLFW modifier flags (0 for none)
         ActionCallback callback;
     };
+
+    bool scriptingConsoleMode = false;
     
     // Helper to create unique key for keyboard key+modifiers combination
     struct KeyboardKey {

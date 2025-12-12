@@ -49,6 +49,7 @@ public:
     
     // Performance overlay methods
     void togglePerformanceOverlay();
+    void toggleScriptingConsole();
     void toggleDebugRendering();
     void cycleDebugVisualizationMode();
     void toggleRaycastVisualization();
@@ -125,6 +126,7 @@ private:
 
     // Performance overlay
     bool showPerformanceOverlay = false;
+    bool showScriptingConsole = false;
     
     // Debug system
     // Debug flags moved to InputController

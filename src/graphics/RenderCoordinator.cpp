@@ -24,7 +24,8 @@ RenderCoordinator::RenderCoordinator(
     ChunkManager* chunkManager,
     Utils::PerformanceMonitor* performanceMonitor,
     PerformanceProfiler* performanceProfiler,
-    RaycastVisualizer* raycastVisualizer
+    RaycastVisualizer* raycastVisualizer,
+    ScriptingSystem* scriptingSystem
 )
     : vulkanDevice(vulkanDevice)
     , renderPipeline(renderPipeline)
@@ -36,6 +37,7 @@ RenderCoordinator::RenderCoordinator(
     , performanceMonitor(performanceMonitor)
     , performanceProfiler(performanceProfiler)
     , raycastVisualizer(raycastVisualizer)
+    , scriptingSystem(scriptingSystem)
 {
 }
 
@@ -334,6 +336,7 @@ void RenderCoordinator::drawFrame() {
     }
     
     // Render ImGui on top
+    // Scripting console rendering is handled in Application::run() before endFrame()
     imguiRenderer->render(currentFrame, imageIndex);
     
     // End render pass

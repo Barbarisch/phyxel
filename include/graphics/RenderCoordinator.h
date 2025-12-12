@@ -24,6 +24,7 @@ namespace VulkanCube {
     class ChunkManager;
     class PerformanceProfiler;
     class RaycastVisualizer;
+    class ScriptingSystem;
 }
 
 namespace VulkanCube {
@@ -51,7 +52,8 @@ public:
         ChunkManager* chunkManager,
         Utils::PerformanceMonitor* performanceMonitor,
         PerformanceProfiler* performanceProfiler,
-        RaycastVisualizer* raycastVisualizer
+        RaycastVisualizer* raycastVisualizer,
+        ScriptingSystem* scriptingSystem
     );
     ~RenderCoordinator() = default;
 
@@ -75,6 +77,10 @@ public:
     void setRaycastVisualization(bool enabled) { raycastVisualizationEnabled = enabled; }
     bool isRaycastVisualizationEnabled() const { return raycastVisualizationEnabled; }
     
+    // Scripting Console
+    void setShowScriptingConsole(bool show) { showScriptingConsole = show; }
+    bool isScriptingConsoleVisible() const { return showScriptingConsole; }
+
     // Frame state accessors
     void setFrameStartTime(std::chrono::high_resolution_clock::time_point time) { frameStartTime = time; }
     void setCachedViewMatrix(const glm::mat4& view) { cachedViewMatrix = view; }
@@ -98,8 +104,10 @@ private:
     Utils::PerformanceMonitor* performanceMonitor;
     PerformanceProfiler* performanceProfiler;
     RaycastVisualizer* raycastVisualizer;
+    ScriptingSystem* scriptingSystem;
     
     // Render state
+    bool showScriptingConsole = false;
     uint32_t currentFrame = 0;
     float maxChunkRenderDistance = 1000.0f;
     float chunkInclusionDistance = 2000.0f;

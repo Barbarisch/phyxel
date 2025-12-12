@@ -98,6 +98,11 @@ void InputController::setupKeyboardBindings() {
     m_inputManager->registerAction(GLFW_KEY_F1, "Toggle Performance Overlay", [this]() {
         m_app->togglePerformanceOverlay();
     });
+
+    // ` (Grave Accent) - Toggle Scripting Console
+    m_inputManager->registerAction(GLFW_KEY_GRAVE_ACCENT, "Toggle Scripting Console", [this]() {
+        m_app->toggleScriptingConsole();
+    });
     
     // F2 - Save world (placeholder)
     m_inputManager->registerAction(GLFW_KEY_F2, "Save World", []() {

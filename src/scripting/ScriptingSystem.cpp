@@ -69,4 +69,22 @@ void ScriptingSystem::runCommand(const std::string& cmd) {
     }
 }
 
+void ScriptingSystem::reloadScript(const std::string& filename) {
+    try {
+        // Check if file exists in scripts folder
+        std::string path = "scripts/" + filename;
+        
+        // If filename already contains path separators, use it as is
+        if (filename.find("/") != std::string::npos || filename.find("\\") != std::string::npos) {
+            path = filename;
+        }
+        
+        Utils::Logger::getInstance().log(Utils::LogLevel::Info, "ScriptingSystem", "Reloading script: " + path);
+        py::eval_file(path);
+        Utils::Logger::getInstance().log(Utils::LogLevel::Info, "ScriptingSystem", "Script executed successfully");
+    } catch (const std::exception& e) {
+        Utils::Logger::getInstance().log(Utils::LogLevel::Error, "ScriptingSystem", std::string("Script Error: ") + e.what());
+    }
+}
+
 }

@@ -1,6 +1,7 @@
 #include "ui/ImGuiRenderer.h"
 #include "core/Types.h"
 #include "core/ForceSystem.h"
+#include "scripting/ScriptingSystem.h"
 #include "utils/Timer.h"
 #include "utils/PerformanceProfiler.h"
 #include "utils/Logger.h"
@@ -140,6 +141,45 @@ void ImGuiRenderer::render(uint32_t currentFrame, uint32_t imageIndex) {
     if (drawData) {
         ImGui_ImplVulkan_RenderDrawData(drawData, m_vulkanDevice->getCommandBuffer(currentFrame));
     }
+}
+
+void ImGuiRenderer::renderScriptingConsole(bool showConsole, ScriptingSystem* scriptingSystem) {
+    if (!showConsole || !scriptingSystem) return;
+
+    ImGui::SetNextWindowSize(ImVec2(500, 300), ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("Scripting Console", nullptr)) {
+        
+        // Quick Actions
+        ImGui::Text("Quick Actions:");
+        if (ImGui::Button("Reload & Run world_gen.py")) {
+            scriptingSystem->reloadScript("world_gen.py");
+            scriptingSystem->runCommand("run_demo()");
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Reload startup.py")) {
+            scriptingSystem->reloadScript("startup.py");
+        }
+
+        ImGui::Separator();
+
+        // Command Input
+        ImGui::Text("Execute Python Command:");
+        bool reclaim_focus = false;
+        if (ImGui::InputText("##Command", m_scriptInputBuffer, IM_ARRAYSIZE(m_scriptInputBuffer), ImGuiInputTextFlags_EnterReturnsTrue)) {
+            scriptingSystem->runCommand(m_scriptInputBuffer);
+            // Clear buffer after execution
+            m_scriptInputBuffer[0] = '\0';
+            reclaim_focus = true;
+        }
+
+        // Auto-focus input
+        if (reclaim_focus || ImGui::IsWindowAppearing())
+            ImGui::SetKeyboardFocusHere(-1); // Auto focus previous widget
+
+        ImGui::Separator();
+        ImGui::TextWrapped("Tip: Use 'phyxel.get_app()' to access engine internals.");
+    }
+    ImGui::End();
 }
 
 void ImGuiRenderer::renderPerformanceOverlay(

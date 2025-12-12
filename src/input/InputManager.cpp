@@ -74,6 +74,8 @@ void InputManager::processInput(float deltaTime) {
 }
 
 void InputManager::processCameraMovement(float deltaTime) {
+    if (scriptingConsoleMode) return;
+
     float speed = cameraSpeed * deltaTime;
     
     // Forward/Backward (W/S)
@@ -105,6 +107,11 @@ void InputManager::processCameraMovement(float deltaTime) {
 void InputManager::processKeyboardActions() {
     // Process all registered key actions
     for (auto& [keyCombo, action] : keyActions) {
+        // In scripting console mode, only allow the toggle key (Grave Accent)
+        if (scriptingConsoleMode && keyCombo.key != GLFW_KEY_GRAVE_ACCENT) {
+            continue;
+        }
+
         int keyState = glfwGetKey(window, keyCombo.key);
         
         // Check if key is pressed
@@ -206,6 +213,8 @@ void InputManager::mouseButtonCallbackStatic(GLFWwindow* window, int button, int
 }
 
 void InputManager::handleMouseButton(int button, int action, int mods) {
+    if (scriptingConsoleMode) return;
+
     // Handle right mouse button for camera rotation
     if (button == GLFW_MOUSE_BUTTON_RIGHT) {
         if (action == GLFW_PRESS) {
@@ -275,6 +284,20 @@ void InputManager::registerMouseAction(int button, int modifiers, const std::str
     MouseButtonKey key{button, modifiers};
     mouseActions[key] = MouseAction{name, modifiers, callback};
     LOG_DEBUG("InputManager", "Registered mouse action '{}' for button {} with modifiers {}", name, button, modifiers);
+}
+
+void InputManager::setScriptingConsoleMode(bool enabled) {
+    scriptingConsoleMode = enabled;
+    if (enabled) {
+        // Reset mouse capture state to prevent getting stuck in look mode
+        mouseCaptured = false;
+        firstMouse = true;
+    }
+    
+    // Ensure cursor is visible in both modes as requested
+    if (window) {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    }
 }
 
 void InputManager::setYawPitch(float newYaw, float newPitch) {

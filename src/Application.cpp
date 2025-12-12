@@ -191,6 +191,9 @@ bool Application::initialize() {
     raycastVisualizer->initialize(vulkanDevice.get());
     LOG_INFO("Application", "RaycastVisualizer initialized successfully!");
 
+    // Create ScriptingSystem (initialized later, but created here for dependency injection)
+    scriptingSystem = std::make_unique<ScriptingSystem>(this);
+
     // STEP 6: CREATE RenderCoordinator (DEPENDS ON INITIALIZED PIPELINES)
     // This system orchestrates frame rendering:
     // - Frustum culling for visible chunks
@@ -207,7 +210,8 @@ bool Application::initialize() {
         chunkManager.get(),
         performanceMonitor.get(),
         performanceProfiler.get(),
-        raycastVisualizer.get()
+        raycastVisualizer.get(),
+        scriptingSystem.get()
     );
     renderCoordinator->setMaxChunkRenderDistance(maxChunkRenderDistance);
     renderCoordinator->setChunkInclusionDistance(chunkInclusionDistance);
@@ -223,7 +227,7 @@ bool Application::initialize() {
     inputController->initializeBindings();
 
     // STEP 8: INITIALIZE SCRIPTING SYSTEM
-    scriptingSystem = std::make_unique<ScriptingSystem>(this);
+    // scriptingSystem created earlier for dependency injection
     scriptingSystem->init();
 
     m_initialized = true;
@@ -261,13 +265,6 @@ void Application::run() {
         {
             ScopedTimer updateTimer(*performanceProfiler, "update");
             update(deltaTime);
-        }
-        
-        {
-            ScopedTimer renderTimer(*performanceProfiler, "render");
-            // Pass frameStartTime to RenderCoordinator
-            renderCoordinator->setFrameStartTime(frameStartTime);
-            render();
         }
         
         // Start ImGui frame
@@ -309,9 +306,19 @@ void Application::run() {
         if (currentChunkInclusionDistance != chunkInclusionDistance) {
             setChunkInclusionDistance(currentChunkInclusionDistance);
         }
+
+        // Render Scripting Console
+        imguiRenderer->renderScriptingConsole(showScriptingConsole, scriptingSystem.get());
         
         // End ImGui frame
         imguiRenderer->endFrame();
+
+        {
+            ScopedTimer renderTimer(*performanceProfiler, "render");
+            // Pass frameStartTime to RenderCoordinator
+            renderCoordinator->setFrameStartTime(frameStartTime);
+            render();
+        }
         
         // End frame profiling
         performanceProfiler->endFrame();
@@ -605,6 +612,28 @@ void Application::cycleDebugVisualizationMode() {
         const char* modeNames[] = {"Wireframe", "Normals", "Hierarchy", "UV Coords"};
         const char* modeName = (nextMode < 4) ? modeNames[nextMode] : "Unknown";
         LOG_INFO_FMT("Application", "Debug Visualization Mode: " << modeName);
+    }
+}
+
+void Application::toggleScriptingConsole() {
+    if (renderCoordinator) {
+        showScriptingConsole = !showScriptingConsole;
+        renderCoordinator->setShowScriptingConsole(showScriptingConsole);
+        
+        // Toggle mouse cursor visibility when console is open
+        if (showScriptingConsole) {
+            windowManager->setCursorVisible(true);
+        } else {
+            // Keep cursor visible as requested by user
+            windowManager->setCursorVisible(true);
+        }
+        
+        // Update InputManager mode
+        if (inputManager) {
+            inputManager->setScriptingConsoleMode(showScriptingConsole);
+        }
+        
+        LOG_INFO_FMT("Application", "Scripting Console: " << (showScriptingConsole ? "OPEN" : "CLOSED"));
     }
 }
 

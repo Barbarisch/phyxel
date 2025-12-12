@@ -70,3 +70,16 @@ TEST_F(InputManagerTest, ActionRegistration) {
     // but we verified the registration didn't crash.
     SUCCEED();
 }
+
+TEST_F(InputManagerTest, ScriptingConsoleModeToggle) {
+    // Default state should be false
+    EXPECT_FALSE(inputManager.isScriptingConsoleMode());
+    
+    // Enable it
+    inputManager.setScriptingConsoleMode(true);
+    EXPECT_TRUE(inputManager.isScriptingConsoleMode());
+    
+    // Disable it
+    inputManager.setScriptingConsoleMode(false);
+    EXPECT_FALSE(inputManager.isScriptingConsoleMode());
+}

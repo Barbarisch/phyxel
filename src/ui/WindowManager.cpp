@@ -77,6 +77,13 @@ void WindowManager::setSize(int w, int h) {
     }
 }
 
+void WindowManager::setCursorVisible(bool visible) {
+    if (window) {
+        glfwSetInputMode(window, GLFW_CURSOR, visible ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
+        LOG_DEBUG("WindowManager", "Cursor visibility set to: {}", visible);
+    }
+}
+
 void WindowManager::framebufferResizeCallbackStatic(GLFWwindow* window, int w, int h) {
     auto* manager = reinterpret_cast<WindowManager*>(glfwGetWindowUserPointer(window));
     if (!manager) return;

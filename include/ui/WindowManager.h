@@ -27,6 +27,7 @@ public:
     void pollEvents();
     void setTitle(const std::string& title);
     void setSize(int width, int height);
+    void setCursorVisible(bool visible);
     
     // State getters
     GLFWwindow* getHandle() const { return window; }

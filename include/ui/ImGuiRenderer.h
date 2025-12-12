@@ -16,6 +16,7 @@ namespace VulkanCube {
     class MouseVelocityTracker;
     namespace Physics { class PhysicsWorld; }
     namespace Vulkan { class VulkanDevice; class RenderPipeline; }
+    class ScriptingSystem;
 }
 
 namespace VulkanCube::UI {
@@ -33,6 +34,9 @@ public:
     void newFrame();
     void endFrame();
     void render(uint32_t currentFrame, uint32_t imageIndex);
+
+    // Scripting Console
+    void renderScriptingConsole(bool showConsole, ScriptingSystem* scriptingSystem);
 
     // Overlay rendering
     void renderPerformanceOverlay(
@@ -65,6 +69,9 @@ private:
     Vulkan::VulkanDevice* m_vulkanDevice;
     Vulkan::RenderPipeline* m_renderPipeline;
     GLFWwindow* m_window;
+    
+    // Scripting console state
+    char m_scriptInputBuffer[1024] = "";
 };
 
 } // namespace VulkanCube::UI
