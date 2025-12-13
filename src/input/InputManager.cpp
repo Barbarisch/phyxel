@@ -38,11 +38,11 @@ bool InputManager::initialize(GLFWwindow* windowHandle) {
     window = windowHandle;
     
     // Set this InputManager as the window user pointer for callbacks
-    glfwSetWindowUserPointer(window, this);
+    // glfwSetWindowUserPointer(window, this);
     
     // Register GLFW callbacks
-    glfwSetCursorPosCallback(window, mouseCallbackStatic);
-    glfwSetMouseButtonCallback(window, mouseButtonCallbackStatic);
+    // glfwSetCursorPosCallback(window, mouseCallbackStatic);
+    // glfwSetMouseButtonCallback(window, mouseButtonCallbackStatic);
     
     LOG_INFO("InputManager", "InputManager initialized successfully");
     return true;

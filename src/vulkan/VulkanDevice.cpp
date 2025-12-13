@@ -1559,8 +1559,11 @@ void VulkanDevice::cleanupTextureAtlas() {
 }
 
 bool VulkanDevice::recreateSwapChain(int windowWidth, int windowHeight, VkRenderPass renderPass) {
+    LOG_INFO("Vulkan", "Attempting to recreate swapchain: {}x{}", windowWidth, windowHeight);
+
     // Handle minimization - wait until window is visible again
     if (windowWidth == 0 || windowHeight == 0) {
+        LOG_INFO("Vulkan", "Window minimized, skipping swapchain recreation");
         return false; // Signal to try again later
     }
 

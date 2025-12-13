@@ -37,8 +37,11 @@ bool WindowManager::initialize(int w, int h, const std::string& t) {
     // Set user pointer for callbacks
     glfwSetWindowUserPointer(window, this);
     
-    // Register framebuffer resize callback
+    // Register callbacks
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallbackStatic);
+    glfwSetCursorPosCallback(window, cursorPosCallbackStatic);
+    glfwSetMouseButtonCallback(window, mouseButtonCallbackStatic);
+    glfwSetKeyCallback(window, keyCallbackStatic);
     
     return true;
 }
@@ -92,10 +95,31 @@ void WindowManager::framebufferResizeCallbackStatic(GLFWwindow* window, int w, i
     manager->height = h;
     manager->resized = true;
     
-    LOG_DEBUG("WindowManager", "Framebuffer resized: {}x{}", w, h);
+    LOG_INFO("WindowManager", "Framebuffer resized callback triggered: {}x{}", w, h);
     
     if (manager->resizeCallback) {
         manager->resizeCallback(w, h);
+    }
+}
+
+void WindowManager::cursorPosCallbackStatic(GLFWwindow* window, double xpos, double ypos) {
+    auto* manager = reinterpret_cast<WindowManager*>(glfwGetWindowUserPointer(window));
+    if (manager && manager->cursorPosCallback) {
+        manager->cursorPosCallback(xpos, ypos);
+    }
+}
+
+void WindowManager::mouseButtonCallbackStatic(GLFWwindow* window, int button, int action, int mods) {
+    auto* manager = reinterpret_cast<WindowManager*>(glfwGetWindowUserPointer(window));
+    if (manager && manager->mouseButtonCallback) {
+        manager->mouseButtonCallback(button, action, mods);
+    }
+}
+
+void WindowManager::keyCallbackStatic(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    auto* manager = reinterpret_cast<WindowManager*>(glfwGetWindowUserPointer(window));
+    if (manager && manager->keyCallback) {
+        manager->keyCallback(key, scancode, action, mods);
     }
 }
 

@@ -171,10 +171,16 @@ void RenderCoordinator::renderDynamicSubcubes() {
 
 void RenderCoordinator::drawFrame() {
     // Check if we need to recreate swapchain due to window resize
-    if (vulkanDevice->getFramebufferResized()) {
+    if (vulkanDevice->getFramebufferResized() || windowManager->wasResized()) {
+        LOG_INFO("RenderCoordinator", "Resize detected! VulkanFlag: {}, WindowFlag: {}", 
+            vulkanDevice->getFramebufferResized(), windowManager->wasResized());
+            
         if (!vulkanDevice->recreateSwapChain(windowManager->getWidth(), windowManager->getHeight(), renderPipeline->getRenderPass())) {
+            LOG_INFO("RenderCoordinator", "recreateSwapChain returned false (minimized?)");
             return; // Try again next frame
         }
+        windowManager->acknowledgeResize();
+        projectionMatrixNeedsUpdate = true;
     }
 
     // Wait for previous frame

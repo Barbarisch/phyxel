@@ -125,6 +125,15 @@ bool WorldInitializer::initialize() {
         return false;
     }
     
+    // Register InputManager callbacks with WindowManager (delegation)
+    windowManager->setCursorPosCallback([this](double x, double y) {
+        inputManager->handleMouseMove(x, y);
+    });
+    
+    windowManager->setMouseButtonCallback([this](int button, int action, int mods) {
+        inputManager->handleMouseButton(button, action, mods);
+    });
+    
     // Set up initial camera position and orientation
     inputManager->setCameraPosition(glm::vec3(50.0f, 50.0f, 50.0f));
     glm::vec3 lookAt = glm::normalize(glm::vec3(16.0f, 16.0f, 16.0f) - glm::vec3(50.0f, 50.0f, 50.0f));

@@ -63,14 +63,14 @@ public:
     void setScriptingConsoleMode(bool enabled);
     bool isScriptingConsoleMode() const { return scriptingConsoleMode; }
     
+    // Instance callback handlers (public for WindowManager delegation)
+    void handleMouseMove(double xpos, double ypos);
+    void handleMouseButton(int button, int action, int mods);
+    
 private:
     // GLFW callbacks (static, redirect to instance)
     static void mouseCallbackStatic(GLFWwindow* window, double xpos, double ypos);
     static void mouseButtonCallbackStatic(GLFWwindow* window, int button, int action, int mods);
-    
-    // Instance callback handlers
-    void handleMouseMove(double xpos, double ypos);
-    void handleMouseButton(int button, int action, int mods);
     
     // Input processing helpers
     void processCameraMovement(float deltaTime);
