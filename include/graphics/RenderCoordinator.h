@@ -31,6 +31,7 @@ namespace VulkanCube {
 namespace Graphics {
 
 class ShadowMap;
+class PostProcessor;
 
 /**
  * @brief Manages the rendering pipeline and frame rendering
@@ -101,6 +102,7 @@ private:
     Vulkan::RenderPipeline* renderPipeline;
     Vulkan::RenderPipeline* dynamicRenderPipeline;
     std::unique_ptr<ShadowMap> shadowMap;
+    std::unique_ptr<PostProcessor> postProcessor;
     UI::ImGuiRenderer* imguiRenderer;
     UI::WindowManager* windowManager;
     Input::InputManager* inputManager;

@@ -30,10 +30,10 @@ ImGuiRenderer::~ImGuiRenderer() {
     cleanup();
 }
 
-bool ImGuiRenderer::initialize(GLFWwindow* window, Vulkan::VulkanDevice* vulkanDevice, Vulkan::RenderPipeline* renderPipeline) {
+bool ImGuiRenderer::initialize(GLFWwindow* window, Vulkan::VulkanDevice* vulkanDevice, VkRenderPass renderPass) {
     m_window = window;
     m_vulkanDevice = vulkanDevice;
-    m_renderPipeline = renderPipeline;
+    // m_renderPipeline = renderPipeline; // Removed
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -89,7 +89,7 @@ bool ImGuiRenderer::initialize(GLFWwindow* window, Vulkan::VulkanDevice* vulkanD
     init_info.QueueFamily = vulkanDevice->getGraphicsQueueFamily();
     init_info.Queue = vulkanDevice->getGraphicsQueue();
     init_info.DescriptorPool = imguiPool;
-    init_info.RenderPass = renderPipeline->getRenderPass();
+    init_info.RenderPass = renderPass;
     init_info.MinImageCount = vulkanDevice->getSwapChainImageCount();
     init_info.ImageCount = vulkanDevice->getSwapChainImageCount();
     init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;

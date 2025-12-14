@@ -91,6 +91,22 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
+    echo Compiling post-process vertex shader...
+    %GLSLANG% -fshader-stage=vert -I. shaders\post_process.vert -o shaders\post_process.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile post-process vertex shader
+        pause
+        exit /b 1
+    )
+
+    echo Compiling post-process fragment shader...
+    %GLSLANG% -fshader-stage=frag -I. shaders\post_process.frag -o shaders\post_process.frag.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile post-process fragment shader
+        pause
+        exit /b 1
+    )
+
     echo Compiling compute shader...
     %GLSLANG% -fshader-stage=comp -I. shaders\frustum_cull.comp -o shaders\frustum_cull.comp.spv
     if %errorlevel% neq 0 (
@@ -168,6 +184,22 @@ if defined USE_GLSLC (
     %GLSLANG% -V -I. shaders\debug_line.frag -o shaders\debug_line.frag.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile debug line fragment shader
+        pause
+        exit /b 1
+    )
+
+    echo Compiling post-process vertex shader...
+    %GLSLANG% -V -I. shaders\post_process.vert -o shaders\post_process.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile post-process vertex shader
+        pause
+        exit /b 1
+    )
+
+    echo Compiling post-process fragment shader...
+    %GLSLANG% -V -I. shaders\post_process.frag -o shaders\post_process.frag.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile post-process fragment shader
         pause
         exit /b 1
     )

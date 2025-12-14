@@ -164,7 +164,7 @@ bool WorldInitializer::initialize() {
     }
 
     // Initialize ImGui after Vulkan is fully set up
-    if (!imguiRenderer->initialize(windowManager->getHandle(), vulkanDevice, renderPipeline)) {
+    if (!imguiRenderer->initialize(windowManager->getHandle(), vulkanDevice, renderPipeline->getRenderPass())) {
         LOG_ERROR("WorldInitializer", "Failed to initialize ImGui!");
         return false;
     }

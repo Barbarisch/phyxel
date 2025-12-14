@@ -40,12 +40,14 @@ public:
 
     // Render pass management
     bool createRenderPass();
+    void setRenderPass(VkRenderPass pass);
 
 private:
     const VulkanDevice& vulkanDevice;
     
     // Pipeline objects
     VkRenderPass renderPass = VK_NULL_HANDLE;
+    bool ownsRenderPass = true;
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
     VkPipeline graphicsPipeline = VK_NULL_HANDLE;
     VkPipeline debugGraphicsPipeline = VK_NULL_HANDLE;  // Debug voxel visualization pipeline

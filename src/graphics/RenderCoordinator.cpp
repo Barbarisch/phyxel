@@ -1,6 +1,8 @@
 #include "graphics/RenderCoordinator.h"
 #include "graphics/RaycastVisualizer.h"
 #include "graphics/ShadowMap.h"
+#include "graphics/PostProcessor.h"
+#include "graphics/PostProcessor.h"
 #include "vulkan/RenderPipeline.h"
 #include "ui/ImGuiRenderer.h"
 #include "vulkan/VulkanDevice.h"
@@ -48,6 +50,34 @@ RenderCoordinator::RenderCoordinator(
     
     // Trigger descriptor set update to bind the shadow map
     vulkanDevice->updateDescriptorSetsWithTexture();
+
+    // Initialize PostProcessor
+    postProcessor = std::make_unique<PostProcessor>(vulkanDevice, windowManager->getWidth(), windowManager->getHeight());
+    if (!postProcessor->initialize()) {
+        LOG_ERROR("RenderCoordinator", "Failed to initialize PostProcessor!");
+    }
+
+    // Update Render Pipelines to use Offscreen Render Pass
+    // This switches rendering from directly to swapchain to the offscreen buffer
+    renderPipeline->setRenderPass(postProcessor->getSceneRenderPass());
+    // We need to recreate the pipelines because they bake in the render pass
+    renderPipeline->createGraphicsPipeline(); 
+    renderPipeline->createDebugGraphicsPipeline();
+    // Also recreate debug line pipeline if it exists/is used
+    renderPipeline->createDebugLinePipeline();
+
+    dynamicRenderPipeline->setRenderPass(postProcessor->getSceneRenderPass());
+    dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
+
+    // Recreate Swapchain Framebuffers using PostProcess Render Pass
+    // The swapchain framebuffers now need to be compatible with the post-process render pass
+    // which outputs to the swapchain surface
+    vulkanDevice->createFramebuffers(postProcessor->getPostProcessRenderPass());
+
+    // Re-initialize ImGuiRenderer with the correct render pass (Swapchain Pass)
+    // It was initialized with the old render pass in WorldInitializer
+    imguiRenderer->cleanup();
+    imguiRenderer->initialize(windowManager->getHandle(), vulkanDevice, postProcessor->getPostProcessRenderPass());
 }
 
 RenderCoordinator::~RenderCoordinator() = default;
@@ -235,7 +265,16 @@ void RenderCoordinator::drawFrame() {
         LOG_INFO("RenderCoordinator", "Resize detected! VulkanFlag: {}, WindowFlag: {}", 
             vulkanDevice->getFramebufferResized(), windowManager->wasResized());
             
-        if (!vulkanDevice->recreateSwapChain(windowManager->getWidth(), windowManager->getHeight(), renderPipeline->getRenderPass())) {
+        // Resize PostProcessor resources
+        postProcessor->resize(windowManager->getWidth(), windowManager->getHeight());
+        
+        // Recreate pipelines (viewport/scissor change)
+        renderPipeline->createGraphicsPipeline();
+        renderPipeline->createDebugGraphicsPipeline();
+        renderPipeline->createDebugLinePipeline();
+        dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
+
+        if (!vulkanDevice->recreateSwapChain(windowManager->getWidth(), windowManager->getHeight(), postProcessor->getPostProcessRenderPass())) {
             LOG_INFO("RenderCoordinator", "recreateSwapChain returned false (minimized?)");
             return; // Try again next frame
         }
@@ -252,8 +291,17 @@ void RenderCoordinator::drawFrame() {
     VkResult result = vulkanDevice->acquireNextImage(currentFrame, &imageIndex);
     
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        // Resize PostProcessor resources
+        postProcessor->resize(windowManager->getWidth(), windowManager->getHeight());
+        
+        // Recreate pipelines
+        renderPipeline->createGraphicsPipeline();
+        renderPipeline->createDebugGraphicsPipeline();
+        renderPipeline->createDebugLinePipeline();
+        dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
+
         // Swapchain is out of date, recreate it
-        if (!vulkanDevice->recreateSwapChain(windowManager->getWidth(), windowManager->getHeight(), renderPipeline->getRenderPass())) {
+        if (!vulkanDevice->recreateSwapChain(windowManager->getWidth(), windowManager->getHeight(), postProcessor->getPostProcessRenderPass())) {
             return; // Try again next frame
         }
         return; // Skip this frame and try again
@@ -330,8 +378,8 @@ void RenderCoordinator::drawFrame() {
         performanceMonitor->getCurrentFrameTiming().faceCulledFaces = 0;
     }
     
-    // Begin render pass
-    vulkanDevice->beginRenderPass(currentFrame, imageIndex, renderPipeline->getRenderPass());
+    // Begin Scene Render Pass (Offscreen)
+    postProcessor->beginSceneRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
     
     // Bind graphics pipeline (debug or normal based on debug mode)
     if (debugModeEnabled) {
@@ -410,12 +458,21 @@ void RenderCoordinator::drawFrame() {
         raycastVisualizer->render(vulkanDevice->getCommandBuffer(currentFrame), currentFrame);
     }
     
+    // End Scene Render Pass
+    postProcessor->endSceneRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
+
+    // Begin Post Process Render Pass (Swapchain)
+    postProcessor->beginPostProcessRenderPass(vulkanDevice->getCommandBuffer(currentFrame), vulkanDevice->getSwapChainFramebuffer(imageIndex));
+
+    // Draw Fullscreen Quad
+    postProcessor->drawQuad(vulkanDevice->getCommandBuffer(currentFrame));
+
     // Render ImGui on top
     // Scripting console rendering is handled in Application::run() before endFrame()
     imguiRenderer->render(currentFrame, imageIndex);
     
-    // End render pass
-    vulkanDevice->endRenderPass(currentFrame);
+    // End Post Process Render Pass
+    postProcessor->endPostProcessRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
     vulkanDevice->endCommandBuffer(currentFrame);
     auto recordEnd = std::chrono::high_resolution_clock::now();
 

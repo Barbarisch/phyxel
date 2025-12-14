@@ -16,9 +16,11 @@ RenderPipeline::~RenderPipeline() {
 }
 
 bool RenderPipeline::createGraphicsPipeline() {
-    if (!createRenderPass()) {
-        LOG_ERROR("Rendering", "Failed to create render pass!");
-        return false;
+    if (renderPass == VK_NULL_HANDLE) {
+        if (!createRenderPass()) {
+            LOG_ERROR("Rendering", "Failed to create render pass!");
+            return false;
+        }
     }
 
     // Vertex input - use both vertex and instance data
@@ -171,8 +173,10 @@ bool RenderPipeline::createGraphicsPipeline() {
 }
 
 bool RenderPipeline::createGraphicsPipelineForDynamicSubcubes() {
-    if (!createRenderPass()) {
-        return false;
+    if (renderPass == VK_NULL_HANDLE) {
+        if (!createRenderPass()) {
+            return false;
+        }
     }
     
     // Create descriptor set layout same as static pipeline (UBO only)
@@ -608,6 +612,14 @@ bool RenderPipeline::createDebugLinePipeline() {
     return true;
 }
 
+void RenderPipeline::setRenderPass(VkRenderPass pass) {
+    if (ownsRenderPass && renderPass != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(vulkanDevice.getDevice(), renderPass, nullptr);
+    }
+    renderPass = pass;
+    ownsRenderPass = false;
+}
+
 void RenderPipeline::cleanup() {
     VkDevice device = vulkanDevice.getDevice();
 
@@ -631,7 +643,7 @@ void RenderPipeline::cleanup() {
         pipelineLayout = VK_NULL_HANDLE;
     }
 
-    if (renderPass != VK_NULL_HANDLE) {
+    if (ownsRenderPass && renderPass != VK_NULL_HANDLE) {
         vkDestroyRenderPass(device, renderPass, nullptr);
         renderPass = VK_NULL_HANDLE;
     }

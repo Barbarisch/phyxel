@@ -200,6 +200,7 @@ public:
         VkFormat getSwapChainImageFormat() const { return swapChainImageFormat; }
         VkDescriptorSetLayout getDescriptorSetLayout() const { return descriptorSetLayout; }
         uint32_t getSwapChainImageCount() const { return static_cast<uint32_t>(swapChainImages.size()); }
+        VkFramebuffer getSwapChainFramebuffer(uint32_t index) const { return swapChainFramebuffers[index]; }
         uint32_t getGraphicsQueueFamily() const;
         VkCommandBuffer getCommandBuffer(uint32_t frameIndex) const;
         

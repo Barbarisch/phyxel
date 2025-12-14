@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <vulkan/vulkan.h>
 #include <vector>
 #include <string>
 #include <GLFW/glfw3.h>
@@ -29,7 +30,7 @@ public:
     ~ImGuiRenderer();
 
     // Initialization and cleanup
-    bool initialize(GLFWwindow* window, Vulkan::VulkanDevice* vulkanDevice, Vulkan::RenderPipeline* renderPipeline);
+    bool initialize(GLFWwindow* window, Vulkan::VulkanDevice* vulkanDevice, VkRenderPass renderPass);
     void cleanup();
 
     // Frame lifecycle
