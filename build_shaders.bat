@@ -59,6 +59,22 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
+    echo Compiling shadow vertex shader...
+    %GLSLANG% -fshader-stage=vert -I. shaders\shadow.vert -o shaders\shadow.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile shadow vertex shader
+        pause
+        exit /b 1
+    )
+
+    echo Compiling shadow fragment shader...
+    %GLSLANG% -fshader-stage=frag -I. shaders\shadow.frag -o shaders\shadow.frag.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile shadow fragment shader
+        pause
+        exit /b 1
+    )
+
     echo Compiling debug voxel vertex shader...
     %GLSLANG% -fshader-stage=vert -I. shaders\debug_voxel.vert -o shaders\debug_voxel.vert.spv
     if %errorlevel% neq 0 (
@@ -104,6 +120,22 @@ if defined USE_GLSLC (
     %GLSLANG% -V -I. shaders\voxel.frag -o shaders\voxel.frag.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile fragment shader
+        pause
+        exit /b 1
+    )
+
+    echo Compiling shadow vertex shader...
+    %GLSLANG% -V -I. shaders\shadow.vert -o shaders\shadow.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile shadow vertex shader
+        pause
+        exit /b 1
+    )
+
+    echo Compiling shadow fragment shader...
+    %GLSLANG% -V -I. shaders\shadow.frag -o shaders\shadow.frag.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile shadow fragment shader
         pause
         exit /b 1
     )

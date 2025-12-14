@@ -3,8 +3,10 @@
 
 layout(location = 0) in flat uint textureIndex;  // from vertex shader
 layout(location = 1) in vec2 texCoord;           // from vertex shader
+layout(location = 2) in vec4 shadowCoord;        // from vertex shader
 
 layout(set = 0, binding = 1) uniform sampler2D textureAtlas;  // texture atlas sampler
+layout(set = 0, binding = 2) uniform sampler2D shadowMap;     // shadow map sampler
 
 layout(location = 0) out vec4 outColor;   // output color
 
@@ -18,9 +20,17 @@ void main() {
     // Sample from texture atlas
     vec4 textureColor = texture(textureAtlas, atlasUV);
     
-    // For now, output the texture color directly
-    // Later we can add lighting, tinting, etc.
-    outColor = textureColor;
+    // Shadow calculation
+    float shadow = 1.0;
+    if (shadowCoord.z > -1.0 && shadowCoord.z < 1.0) {
+        float dist = texture(shadowMap, shadowCoord.xy).r;
+        if (shadowCoord.w > 0.0 && dist < shadowCoord.z - 0.005) {
+            shadow = 0.5; // In shadow
+        }
+    }
+
+    // Apply shadow
+    outColor = vec4(textureColor.rgb * shadow, textureColor.a);
     
     // Fallback to solid color if texture is transparent or invalid
     if (outColor.a < 0.1) {

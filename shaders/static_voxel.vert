@@ -7,6 +7,7 @@ layout(location = 2) in uint inTextureIndex;    // per-instance texture atlas in
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
     mat4 proj;
+    mat4 lightSpaceMatrix;
 } ubo;
 
 layout(push_constant) uniform PushConstants {
@@ -15,6 +16,7 @@ layout(push_constant) uniform PushConstants {
 
 layout(location = 0) out flat uint textureIndex;  // pass texture index to frag shader
 layout(location = 1) out vec2 texCoord;           // pass texture coordinates to frag shader
+layout(location = 2) out vec4 shadowCoord;        // pass shadow coordinates to frag shader
 
 void main() {
     // Extract chunk-relative position from packed data (5 bits each for x,y,z)
@@ -141,6 +143,18 @@ void main() {
     // Calculate UV coordinates for texture mapping
     // UV coordinates must match the vertex generation pattern for each face
     vec2 uv = vec2(0.0);
+    
+    // Calculate shadow coordinates
+    // Transform world position to light space
+    // Vulkan clip space is [0,1] for Z, but [-1,1] for XY.
+    // We need to transform from clip space [-1,1] to texture space [0,1]
+    const mat4 biasMat = mat4( 
+        0.5, 0.0, 0.0, 0.0,
+        0.0, 0.5, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.5, 0.5, 0.0, 1.0 
+    );
+    shadowCoord = biasMat * ubo.lightSpaceMatrix * vec4(worldPos, 1.0);
     
     // Calculate base UV coordinates for the face (0.0 to 1.0 range)
     vec2 baseUV = vec2(0.0);

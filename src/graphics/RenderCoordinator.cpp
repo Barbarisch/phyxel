@@ -1,5 +1,6 @@
 #include "graphics/RenderCoordinator.h"
 #include "graphics/RaycastVisualizer.h"
+#include "graphics/ShadowMap.h"
 #include "vulkan/RenderPipeline.h"
 #include "ui/ImGuiRenderer.h"
 #include "vulkan/VulkanDevice.h"
@@ -39,7 +40,17 @@ RenderCoordinator::RenderCoordinator(
     , raycastVisualizer(raycastVisualizer)
     , scriptingSystem(scriptingSystem)
 {
+    shadowMap = std::make_unique<ShadowMap>(vulkanDevice);
+    shadowMap->initialize();
+    
+    // Pass shadow map resources to VulkanDevice for descriptor updates
+    vulkanDevice->setShadowMapResources(shadowMap->getDepthImageView(), shadowMap->getSampler());
+    
+    // Trigger descriptor set update to bind the shadow map
+    vulkanDevice->updateDescriptorSetsWithTexture();
 }
+
+RenderCoordinator::~RenderCoordinator() = default;
 
 void RenderCoordinator::render() {
     drawFrame();
@@ -169,6 +180,55 @@ void RenderCoordinator::renderDynamicSubcubes() {
     }
 }
 
+void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const glm::mat4& lightSpaceMatrix) {
+    if (!shadowMap) return;
+
+    shadowMap->beginRenderPass(commandBuffer);
+
+    glm::vec3 cameraPos = inputManager->getCameraPosition();
+
+    // Bind global vertex buffer (binding 0) and index buffer
+    // We use bindVertexBuffers to bind the shared vertex buffer to binding 0
+    // It also binds the global instance buffer to binding 1, but we'll override that per-chunk
+    vulkanDevice->bindVertexBuffers(currentFrame);
+    vulkanDevice->bindIndexBuffer(currentFrame);
+
+    // Iterate chunks and draw
+    if (chunkManager && !chunkManager->chunks.empty()) {
+        for (const auto& chunk : chunkManager->chunks) {
+             if (chunk->getNumInstances() == 0) continue;
+             
+             // Simple distance culling for shadows
+             glm::vec3 minBounds = chunk->getMinBounds();
+             glm::vec3 maxBounds = chunk->getMaxBounds();
+             glm::vec3 chunkCenter = (minBounds + maxBounds) * 0.5f;
+             if (glm::length(chunkCenter - cameraPos) > 100.0f + 32.0f) continue; // Shadow range + chunk radius
+
+             // Bind chunk instance buffer
+             VkBuffer instanceBuffers[] = {chunk->getInstanceBuffer()};
+             VkDeviceSize instanceOffsets[] = {0};
+             vkCmdBindVertexBuffers(commandBuffer, 1, 1, instanceBuffers, instanceOffsets);
+             
+             // Push constants
+             struct ShadowPushConsts {
+                 glm::mat4 lightSpaceMatrix;
+                 glm::vec3 chunkBaseOffset;
+             } pushConsts;
+             
+             pushConsts.lightSpaceMatrix = lightSpaceMatrix;
+             glm::ivec3 worldOrigin = chunk->getWorldOrigin();
+             pushConsts.chunkBaseOffset = glm::vec3(worldOrigin.x, worldOrigin.y, worldOrigin.z);
+             
+             vkCmdPushConstants(commandBuffer, shadowMap->getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConsts), &pushConsts);
+             
+             // Draw
+             vkCmdDrawIndexed(commandBuffer, 36, chunk->getNumInstances(), 0, 0, 0);
+        }
+    }
+
+    shadowMap->endRenderPass(commandBuffer);
+}
+
 void RenderCoordinator::drawFrame() {
     // Check if we need to recreate swapchain due to window resize
     if (vulkanDevice->getFramebufferResized() || windowManager->wasResized()) {
@@ -226,22 +286,31 @@ void RenderCoordinator::drawFrame() {
     // Use cached matrices from update()
     glm::mat4 view = cachedViewMatrix;
     glm::mat4 proj = cachedProjectionMatrix;
+    
+    // Calculate light space matrix for shadows
+    glm::vec3 lightDir = glm::normalize(glm::vec3(-0.5f, -1.0f, -0.3f));
+    glm::vec3 cameraPos = inputManager->getCameraPosition();
+    glm::mat4 lightSpaceMatrix = shadowMap ? shadowMap->getLightSpaceMatrix(lightDir, cameraPos, 100.0f) : glm::mat4(1.0f);
+    
     auto uboEnd = std::chrono::high_resolution_clock::now();
     
     // Update uniform buffer with camera matrices
     auto uniformUploadStart = std::chrono::high_resolution_clock::now();
     
     // Track memory bandwidth for uniform buffer update
-    size_t uniformBufferSize = sizeof(glm::mat4) * 2 + sizeof(uint32_t); // view + proj + cubeCount
+    size_t uniformBufferSize = sizeof(glm::mat4) * 3 + sizeof(uint32_t); // view + proj + lightSpace + cubeCount
     performanceProfiler->recordMemoryTransfer(uniformBufferSize);
     
-    vulkanDevice->updateUniformBuffer(currentFrame, view, proj, static_cast<uint32_t>(chunkStats.totalCubes));
+    vulkanDevice->updateUniformBuffer(currentFrame, view, proj, lightSpaceMatrix, static_cast<uint32_t>(chunkStats.totalCubes));
     auto uniformUploadEnd = std::chrono::high_resolution_clock::now();
 
     // Record command buffer
     auto recordStart = std::chrono::high_resolution_clock::now();
     vulkanDevice->resetCommandBuffer(currentFrame);
     vulkanDevice->beginCommandBuffer(currentFrame);
+    
+    // Render Shadow Pass
+    renderShadowPass(vulkanDevice->getCommandBuffer(currentFrame), lightSpaceMatrix);
     
     // Record occlusion culling statistics from chunk manager
     if (chunkManager && !chunkManager->chunks.empty()) {

@@ -30,6 +30,8 @@ namespace VulkanCube {
 namespace VulkanCube {
 namespace Graphics {
 
+class ShadowMap;
+
 /**
  * @brief Manages the rendering pipeline and frame rendering
  * 
@@ -55,7 +57,7 @@ public:
         RaycastVisualizer* raycastVisualizer,
         ScriptingSystem* scriptingSystem
     );
-    ~RenderCoordinator() = default;
+    ~RenderCoordinator();
 
     // Main rendering interface
     void render();
@@ -92,11 +94,13 @@ private:
     // Rendering subsystems
     size_t renderStaticGeometry();
     void renderDynamicSubcubes();
+    void renderShadowPass(VkCommandBuffer commandBuffer, const glm::mat4& lightSpaceMatrix);
     
     // Dependencies (non-owning pointers)
     Vulkan::VulkanDevice* vulkanDevice;
     Vulkan::RenderPipeline* renderPipeline;
     Vulkan::RenderPipeline* dynamicRenderPipeline;
+    std::unique_ptr<ShadowMap> shadowMap;
     UI::ImGuiRenderer* imguiRenderer;
     UI::WindowManager* windowManager;
     Input::InputManager* inputManager;

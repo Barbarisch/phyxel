@@ -69,6 +69,7 @@ struct InstanceData {
 struct UniformBufferObject {
     glm::mat4 view;
     glm::mat4 proj;
+    glm::mat4 lightSpaceMatrix; // For shadow mapping
     alignas(4) uint32_t numInstances;
 };
 
@@ -110,7 +111,7 @@ public:
     bool createDescriptorSetLayout();
     bool createDescriptorPool();
     bool createDescriptorSets();
-    void updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, uint32_t numInstances);
+    void updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, uint32_t numInstances);
     void updateInstanceBuffer(const std::vector<InstanceData>& instances);
     
     // Dynamic subcube buffer management
@@ -137,6 +138,12 @@ public:
     bool createTextureAtlasSampler();
     void updateDescriptorSetsWithTexture();
     void cleanupTextureAtlas();    
+    
+    // Shadow map resources
+    void setShadowMapResources(VkImageView imageView, VkSampler sampler) {
+        shadowMapImageView = imageView;
+        shadowMapSampler = sampler;
+    }
         
         // Command buffer operations
         void waitForFence(uint32_t frameIndex);
@@ -252,6 +259,10 @@ private:
     VkDeviceMemory textureAtlasImageMemory = VK_NULL_HANDLE;
     VkImageView textureAtlasImageView = VK_NULL_HANDLE;
     VkSampler textureAtlasSampler = VK_NULL_HANDLE;
+
+    // Shadow map resources
+    VkImageView shadowMapImageView = VK_NULL_HANDLE;
+    VkSampler shadowMapSampler = VK_NULL_HANDLE;
 
     // Command buffers
     VkCommandPool commandPool = VK_NULL_HANDLE;
