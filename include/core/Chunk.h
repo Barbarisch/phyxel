@@ -152,6 +152,7 @@ public:
     // Cube manipulation
     bool removeCube(const glm::ivec3& localPos);
     bool addCube(const glm::ivec3& localPos);
+    bool addCube(const glm::ivec3& localPos, const std::string& material);
     
     // Subcube manipulation
     bool subdivideAt(const glm::ivec3& localPos);              // Convert cube to 27 static subcubes

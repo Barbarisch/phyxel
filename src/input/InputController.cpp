@@ -142,6 +142,16 @@ void InputController::setupKeyboardBindings() {
         LOG_INFO_FMT("InputController", "Dynamic spawn at " << spawnPos.x 
                      << ", " << spawnPos.y << ", " << spawnPos.z << " not yet implemented");
     });
+
+    // - - Decrease Ambient Light
+    m_inputManager->registerAction(GLFW_KEY_MINUS, "Decrease Ambient Light", [this]() {
+        m_app->adjustAmbientLight(-0.1f);
+    });
+
+    // = - Increase Ambient Light
+    m_inputManager->registerAction(GLFW_KEY_EQUAL, "Increase Ambient Light", [this]() {
+        m_app->adjustAmbientLight(0.1f);
+    });
     
     // C - Place cube
     m_inputManager->registerAction(GLFW_KEY_C, "Place Cube", [this]() {

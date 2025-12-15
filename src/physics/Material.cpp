@@ -178,6 +178,20 @@ void MaterialManager::initializePredefinedMaterials() {
     cork.colorTint = glm::vec3(0.8f, 0.7f, 0.5f); // Cork color
     materials["Cork"] = cork;
     
+    // Glow - Emissive material
+    MaterialProperties glow;
+    glow.name = "glow";
+    glow.description = "Emissive material that glows";
+    glow.mass = 1.0f;
+    glow.friction = 0.5f;
+    glow.restitution = 0.5f;
+    glow.linearDamping = 0.1f;
+    glow.angularDamping = 0.1f;
+    glow.breakForceMultiplier = 1.0f;
+    glow.angularVelocityScale = 1.0f;
+    glow.colorTint = glm::vec3(1.0f, 1.0f, 1.0f); // White
+    materials["glow"] = glow;
+
     // Default - Balanced properties
     materials["Default"] = getDefault();
 }

@@ -83,6 +83,18 @@ public:
         IsInBulkOperationFunc isInBulkOperation
     );
 
+    bool addCube(
+        const glm::ivec3& localPos, 
+        const std::string& material,
+        CubesVectorAccessFunc getCubes,
+        WorldOriginAccessFunc getWorldOrigin,
+        SetDirtyFunc setDirty,
+        SetNeedsUpdateFunc setNeedsUpdate,
+        AddCollisionFunc addCollision,
+        UpdateNeighborCollisionsFunc updateNeighborCollisions,
+        IsInBulkOperationFunc isInBulkOperation
+    );
+
     bool removeCube(
         const glm::ivec3& localPos,
         CubesVectorAccessFunc getCubes,

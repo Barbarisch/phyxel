@@ -146,7 +146,14 @@ void ChunkRenderManager::rebuildCubeFaces(
                 
                 // Assign texture based on face ID
                 faceInstance.textureIndex = VulkanCube::TextureConstants::getTextureIndexForFace(faceID);
-                faceInstance.reserved = 0;
+                
+                // Check for emissive material
+                if (cube->getMaterialName() == "glow") {
+                    faceInstance.reserved = 1; // Flag 1 = Emissive
+                } else {
+                    faceInstance.reserved = 0;
+                }
+                
                 faces.push_back(faceInstance);
             }
         }

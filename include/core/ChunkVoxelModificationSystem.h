@@ -44,6 +44,9 @@ public:
     // Add cube at position (optimized version)
     bool addCubeFast(const glm::ivec3& worldPos);
     
+    // Add cube with material
+    bool addCubeWithMaterial(const glm::ivec3& worldPos, const std::string& material);
+
     // ========================================================================
     // LEGACY CUBE MODIFICATION METHODS (Backward compatibility)
     // ========================================================================

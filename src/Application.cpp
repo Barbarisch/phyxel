@@ -596,8 +596,8 @@ void Application::toggleDebugRendering() {
         renderCoordinator->toggleDebugMode();
         bool isEnabled = renderCoordinator->isDebugModeEnabled();
         uint32_t mode = renderCoordinator->getDebugVisualizationMode();
-        const char* modeNames[] = {"Wireframe", "Normals", "Hierarchy", "UV Coords"};
-        const char* modeName = (mode < 4) ? modeNames[mode] : "Unknown";
+        const char* modeNames[] = {"Wireframe", "Normals", "Hierarchy", "UV Coords", "Emissive"};
+        const char* modeName = (mode < 5) ? modeNames[mode] : "Unknown";
         LOG_INFO_FMT("Application", "Debug Rendering: " << (isEnabled ? "ENABLED" : "DISABLED") 
                      << " (Mode: " << modeName << ")");
     }
@@ -606,12 +606,19 @@ void Application::toggleDebugRendering() {
 void Application::cycleDebugVisualizationMode() {
     if (renderCoordinator) {
         uint32_t currentMode = renderCoordinator->getDebugVisualizationMode();
-        uint32_t nextMode = (currentMode + 1) % 4;  // Cycle through 0-3
+        uint32_t nextMode = (currentMode + 1) % 5;  // Cycle through 0-4
         renderCoordinator->setDebugVisualizationMode(nextMode);
         
-        const char* modeNames[] = {"Wireframe", "Normals", "Hierarchy", "UV Coords"};
-        const char* modeName = (nextMode < 4) ? modeNames[nextMode] : "Unknown";
+        const char* modeNames[] = {"Wireframe", "Normals", "Hierarchy", "UV Coords", "Emissive"};
+        const char* modeName = (nextMode < 5) ? modeNames[nextMode] : "Unknown";
         LOG_INFO_FMT("Application", "Debug Visualization Mode: " << modeName);
+    }
+}
+
+void Application::adjustAmbientLight(float delta) {
+    if (renderCoordinator) {
+        renderCoordinator->adjustAmbientLightStrength(delta);
+        LOG_INFO_FMT("Application", "Ambient Light: " << renderCoordinator->getAmbientLightStrength());
     }
 }
 

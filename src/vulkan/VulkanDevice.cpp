@@ -994,7 +994,7 @@ bool VulkanDevice::createDescriptorSetLayout() {
     uboLayoutBinding.binding = 0;
     uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     uboLayoutBinding.descriptorCount = 1;
-    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT; // Visible to both stages
     uboLayoutBinding.pImmutableSamplers = nullptr;
 
     // Texture atlas sampler binding (binding 1)
@@ -1143,12 +1143,13 @@ void VulkanDevice::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSi
     vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
 
-void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, uint32_t numInstances) {
+void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, uint32_t numInstances, float ambientLight) {
     UniformBufferObject ubo{};
     ubo.view = view;
     ubo.proj = proj;
     ubo.lightSpaceMatrix = lightSpaceMatrix;
     ubo.numInstances = numInstances;
+    ubo.ambientLight = ambientLight;
 
     // Debug: Log matrix data for the first few frames
     static int debugFrameCount = 0;

@@ -346,10 +346,10 @@ void RenderCoordinator::drawFrame() {
     auto uniformUploadStart = std::chrono::high_resolution_clock::now();
     
     // Track memory bandwidth for uniform buffer update
-    size_t uniformBufferSize = sizeof(glm::mat4) * 3 + sizeof(uint32_t); // view + proj + lightSpace + cubeCount
+    size_t uniformBufferSize = sizeof(glm::mat4) * 3 + sizeof(uint32_t) + sizeof(float); // view + proj + lightSpace + cubeCount + ambient
     performanceProfiler->recordMemoryTransfer(uniformBufferSize);
     
-    vulkanDevice->updateUniformBuffer(currentFrame, view, proj, lightSpaceMatrix, static_cast<uint32_t>(chunkStats.totalCubes));
+    vulkanDevice->updateUniformBuffer(currentFrame, view, proj, lightSpaceMatrix, static_cast<uint32_t>(chunkStats.totalCubes), ambientLightStrength);
     auto uniformUploadEnd = std::chrono::high_resolution_clock::now();
 
     // Record command buffer

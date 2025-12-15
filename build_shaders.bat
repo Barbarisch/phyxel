@@ -204,10 +204,10 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
-    echo Compiling compute shader...
-    %GLSLANG% -V -I. shaders\frustum_cull.comp -o shaders\frustum_cull.comp.spv
+    echo Compiling blur fragment shader...
+    %GLSLANG% -V -I. shaders\blur.frag -o shaders\blur.frag.spv
     if %errorlevel% neq 0 (
-        echo ERROR: Failed to compile compute shader
+        echo ERROR: Failed to compile blur fragment shader
         pause
         exit /b 1
     )

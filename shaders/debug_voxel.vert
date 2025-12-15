@@ -3,6 +3,7 @@
 layout(location = 0) in uint vertexID;          // Face corner ID (0–3 for quad corners)
 layout(location = 1) in uint inPackedData;      // per-instance: packed position + face ID + future data
 layout(location = 2) in uint inTextureIndex;    // per-instance texture atlas index
+layout(location = 3) in uint inFlags;           // per-instance flags (bit 0 = emissive)
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -134,6 +135,13 @@ void main() {
             fragDebugColor = vec3(0.0, 1.0, 0.0);  // Green for subcubes
         } else {
             fragDebugColor = vec3(0.0, 0.0, 1.0);  // Blue for microcubes
+        }
+    } else if (pushConstants.debugMode == 4u) {
+        // Emissive/Flags visualization
+        if ((inFlags & 1u) != 0u) {
+            fragDebugColor = vec3(1.0, 1.0, 0.0);  // Yellow for emissive
+        } else {
+            fragDebugColor = vec3(0.1, 0.1, 0.1);  // Dark gray for non-emissive
         }
     } else {
         // Default: UV coordinates visualization

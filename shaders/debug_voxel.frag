@@ -12,7 +12,8 @@ void main() {
     // 0 = Wireframe/face direction (colored by axis)
     // 1 = Normal vectors (RGB mapped from normal)
     // 2 = Hierarchy levels (red=cube, green=subcube, blue=microcube)
-    // 3+ = UV coordinates
+    // 3 = UV coordinates
+    // 4 = Emissive/Flags (yellow=emissive, dark=normal)
     
     if (debugMode == 0u) {
         // Wireframe mode - solid color based on face direction

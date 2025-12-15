@@ -54,6 +54,7 @@ public:
     void cycleDebugVisualizationMode();
     void toggleRaycastVisualization();
     void cycleRaycastTargetMode();
+    void adjustAmbientLight(float delta);
 
     // Accessors
     ObjectTemplateManager* getObjectTemplateManager() const { return objectTemplateManager.get(); }

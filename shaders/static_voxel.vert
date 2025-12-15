@@ -3,11 +3,14 @@
 layout(location = 0) in uint vertexID;          // Face corner ID (0–3 for quad corners)
 layout(location = 1) in uint inPackedData;      // per-instance: packed position + face ID + future data
 layout(location = 2) in uint inTextureIndex;    // per-instance texture atlas index
+layout(location = 3) in uint inFlags;           // per-instance flags (emissive, etc.)
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
     mat4 proj;
     mat4 lightSpaceMatrix;
+    uint numInstances;
+    float ambientLight;
 } ubo;
 
 layout(push_constant) uniform PushConstants {
@@ -17,6 +20,7 @@ layout(push_constant) uniform PushConstants {
 layout(location = 0) out flat uint textureIndex;  // pass texture index to frag shader
 layout(location = 1) out vec2 texCoord;           // pass texture coordinates to frag shader
 layout(location = 2) out vec4 shadowCoord;        // pass shadow coordinates to frag shader
+layout(location = 3) out flat uint flags;         // pass flags to frag shader
 
 void main() {
     // Extract chunk-relative position from packed data (5 bits each for x,y,z)
@@ -263,4 +267,5 @@ void main() {
     // Pass texture data to fragment shader
     textureIndex = inTextureIndex;
     texCoord = uv;
+    flags = inFlags;
 }

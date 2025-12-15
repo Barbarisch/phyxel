@@ -84,6 +84,11 @@ public:
     void setShowScriptingConsole(bool show) { showScriptingConsole = show; }
     bool isScriptingConsoleVisible() const { return showScriptingConsole; }
 
+    // Ambient Light Control
+    void setAmbientLightStrength(float strength) { ambientLightStrength = glm::clamp(strength, 0.0f, 2.0f); }
+    float getAmbientLightStrength() const { return ambientLightStrength; }
+    void adjustAmbientLightStrength(float delta) { setAmbientLightStrength(ambientLightStrength + delta); }
+
     // Frame state accessors
     void setFrameStartTime(std::chrono::high_resolution_clock::time_point time) { frameStartTime = time; }
     void setCachedViewMatrix(const glm::mat4& view) { cachedViewMatrix = view; }
@@ -118,8 +123,9 @@ private:
     float maxChunkRenderDistance = 1000.0f;
     float chunkInclusionDistance = 2000.0f;
     bool debugModeEnabled = false;  // Toggle for debug visualization
-    uint32_t debugVisualizationMode = 0;  // 0=wireframe, 1=normals, 2=hierarchy
+    uint32_t debugVisualizationMode = 0;  // 0=wireframe, 1=normals, 2=hierarchy, 3=uv, 4=emissive
     bool raycastVisualizationEnabled = false;  // Toggle for raycast visualization
+    float ambientLightStrength = 1.0f; // Default brightness multiplier
     
     // Cached matrices
     glm::mat4 cachedViewMatrix;

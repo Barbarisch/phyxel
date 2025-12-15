@@ -11,10 +11,39 @@ A high-performance 3D cube rendering engine built with Vulkan API, featuring rea
 - **Minimal CPU overhead** with pre-calculated face masks
 
 ### 🎮 **Interactive Controls**
-- **WASD movement** - Navigate through the 3D scene
-- **Mouse look** - Right-click and drag to rotate camera
-- **Vertical movement** - Space (up) and Shift (down)
-- **Mouse hover highlighting** - Cubes light up when cursor hovers over them
+
+#### **Movement & Camera**
+- **WASD**: Move camera
+- **Space**: Move Up
+- **Z**: Move Down
+- **Mouse**: Look around
+
+#### **World Interaction**
+- **Left Click**: Break block / Apply force
+- **Ctrl + Left Click**: Subdivide cube into subcubes
+- **Alt + Left Click**: Subdivide subcube into microcubes
+- **Middle Click**: Subdivide cube
+- **C**: Place Cube
+- **Ctrl + C**: Place Subcube
+- **Alt + C**: Place Microcube
+
+#### **Templates & Spawning**
+- **T**: Spawn Static Template (Tree)
+- **Shift + T**: Spawn Dynamic Template (Physics Tree)
+- **P**: Toggle Template Preview
+- **[ / ]**: Decrease/Increase Spawn Speed
+- **O**: Toggle Breaking Forces
+
+#### **Visuals & Debugging**
+- **- / =**: Decrease/Increase Ambient Light
+- **F1**: Toggle Performance Overlay
+- **F3**: Toggle Force Debug Visualization
+- **F4**: Toggle Debug Rendering
+- **Ctrl + F4**: Cycle Debug Modes (Wireframe, Normals, Hierarchy, UV, Emissive)
+- **F5**: Toggle Raycast Visualization
+- **Shift + F5**: Cycle Raycast Target Mode
+- **~ (Grave)**: Toggle Scripting Console
+- **ESC**: Exit Application
 
 ### 🔧 **Technical Excellence**
 - **Modern Vulkan API** - Low-level graphics programming

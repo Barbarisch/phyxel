@@ -164,6 +164,20 @@ bool Chunk::addCube(const glm::ivec3& localPos) {
     );
 }
 
+bool Chunk::addCube(const glm::ivec3& localPos, const std::string& material) {
+    return voxelManager.addCube(
+        localPos,
+        material,
+        [this]() -> std::vector<Cube*>& { return cubes; },
+        [this]() -> const glm::ivec3& { return worldOrigin; },
+        [this](bool value) { setDirty(value); },
+        [this](bool value) { renderManager.setNeedsUpdate(value); },
+        [this](const glm::ivec3& pos) { addCollisionEntity(pos); },
+        [this](const glm::ivec3& pos) { updateNeighborCollisionShapes(pos); },
+        [this]() { return physicsManager.isInBulkOperation(); }
+    );
+}
+
 void Chunk::populateWithCubes() {
     cubes.clear();
     

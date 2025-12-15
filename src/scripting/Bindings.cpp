@@ -91,6 +91,9 @@ PYBIND11_EMBEDDED_MODULE(phyxel, m) {
         .def("add_cube", [](ChunkManager& cm, int x, int y, int z) {
             return cm.addCube(glm::ivec3(x, y, z));
         }, "Add a cube at the specified world coordinates")
+        .def("add_cube_with_material", [](ChunkManager& cm, int x, int y, int z, const std::string& material) {
+            return cm.m_voxelModificationSystem.addCubeWithMaterial(glm::ivec3(x, y, z), material);
+        }, "Add a cube with specific material at the specified world coordinates")
         .def("remove_cube", [](ChunkManager& cm, int x, int y, int z) {
             return cm.removeCube(glm::ivec3(x, y, z));
         }, "Remove a cube at the specified world coordinates");

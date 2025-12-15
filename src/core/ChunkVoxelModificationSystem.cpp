@@ -87,4 +87,20 @@ bool ChunkVoxelModificationSystem::addCube(const glm::ivec3& worldPos) {
     return result;
 }
 
+bool ChunkVoxelModificationSystem::addCubeWithMaterial(const glm::ivec3& worldPos, const std::string& material) {
+    Chunk* chunk = m_getChunk(worldPos);
+    if (!chunk) return false;
+    
+    glm::ivec3 localPos = worldToLocalCoord(worldPos);
+    
+    // Use the Chunk class's addCube method
+    bool result = chunk->addCube(localPos, material);
+    
+    if (result) {
+        // Use efficient selective update instead of full chunk rebuild
+        m_updateAfterCubePlace(worldPos);
+    }
+    return result;
+}
+
 } // namespace VulkanCube

@@ -26,6 +26,15 @@ def generate_platform(x, y, z, width, depth):
         for k in range(depth):
             cm.add_cube(x + i, y, z + k)
 
+def generate_glow_pillars(x, y, z, height):
+    app = phyxel.get_app()
+    cm = app.get_chunk_manager()
+    
+    phyxel.Logger.info("WorldGen", f"Generating glow pillar at ({x}, {y}, {z}) height {height}")
+    
+    for i in range(height):
+        cm.add_cube_with_material(x, y + i, z, "glow")
+
 def run_demo():
     phyxel.Logger.info("WorldGen", "Starting World Generation Demo...")
     
@@ -35,14 +44,20 @@ def run_demo():
     im = app.get_input_manager()
     if im:
         # Move player to a good viewing position (looking down at 32,35,32)
-        im.set_camera_position(50.0, 50.0, 50.0)
+        im.set_camera_position(60.0, 60.0, 60.0)
         # Set orientation to look somewhat down and towards origin
         im.set_yaw_pitch(-135.0, -30.0)
         phyxel.Logger.info("WorldGen", "Teleported player to vantage point")
 
     # 2. Generate Geometry
-    generate_platform(32, 35, 32, 15, 15)
+    generate_platform(20, 35, 20, 40, 40)
     generate_pyramid(39, 36, 39, 4)
+    
+    # Generate glow pillars
+    generate_glow_pillars(25, 36, 25, 5)
+    generate_glow_pillars(55, 36, 25, 5)
+    generate_glow_pillars(25, 36, 55, 5)
+    generate_glow_pillars(55, 36, 55, 5)
     
     # 3. Spawn Templates
     tm = app.get_object_template_manager()

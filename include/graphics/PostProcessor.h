@@ -3,6 +3,7 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <memory>
+#include <array>
 
 namespace VulkanCube {
     namespace Vulkan { class VulkanDevice; }
@@ -53,6 +54,17 @@ private:
     VkFramebuffer sceneFramebuffer = VK_NULL_HANDLE;
     VkRenderPass sceneRenderPass = VK_NULL_HANDLE;
 
+    // Bloom Resources
+    std::array<VkImage, 2> blurImages = {VK_NULL_HANDLE, VK_NULL_HANDLE};
+    std::array<VkDeviceMemory, 2> blurImageMemory = {VK_NULL_HANDLE, VK_NULL_HANDLE};
+    std::array<VkImageView, 2> blurImageViews = {VK_NULL_HANDLE, VK_NULL_HANDLE};
+    std::array<VkFramebuffer, 2> blurFramebuffers = {VK_NULL_HANDLE, VK_NULL_HANDLE};
+    VkRenderPass blurRenderPass = VK_NULL_HANDLE;
+    VkPipeline blurPipeline = VK_NULL_HANDLE;
+    VkPipelineLayout blurPipelineLayout = VK_NULL_HANDLE;
+    VkDescriptorSetLayout blurDescriptorSetLayout = VK_NULL_HANDLE;
+    std::array<VkDescriptorSet, 2> blurDescriptorSets = {VK_NULL_HANDLE, VK_NULL_HANDLE};
+
     // Post Process Resources
     VkRenderPass postProcessRenderPass = VK_NULL_HANDLE;
     VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
@@ -63,14 +75,23 @@ private:
 
     // Helpers
     bool createOffscreenResources();
+    bool createBloomResources(uint32_t width, uint32_t height);
     bool createSceneRenderPass();
+    bool createBlurRenderPass();
     bool createSceneFramebuffer();
+    bool createBlurFramebuffers(uint32_t width, uint32_t height);
     bool createPostProcessRenderPass();
     bool createDescriptorSetLayout();
+    bool createBlurDescriptorSetLayout();
     bool createPipeline();
+    bool createBlurPipeline();
     bool createDescriptorPool();
     bool createDescriptorSet();
+    bool createBlurDescriptorSets();
     void updateDescriptorSet();
+    void updateBlurDescriptorSets();
+    
+    void renderBloom(VkCommandBuffer commandBuffer);
 };
 
 } // namespace Graphics

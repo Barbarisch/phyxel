@@ -49,7 +49,7 @@ struct InstanceData {
     }
     
     static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
-        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(2);
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(3);
         
         attributeDescriptions[0].binding = 1;
         attributeDescriptions[0].location = 1;
@@ -60,6 +60,11 @@ struct InstanceData {
         attributeDescriptions[1].location = 2;
         attributeDescriptions[1].format = VK_FORMAT_R16_UINT;  // uint16 texture index
         attributeDescriptions[1].offset = offsetof(InstanceData, textureIndex);
+
+        attributeDescriptions[2].binding = 1;
+        attributeDescriptions[2].location = 3;
+        attributeDescriptions[2].format = VK_FORMAT_R16_UINT;  // uint16 reserved (flags)
+        attributeDescriptions[2].offset = offsetof(InstanceData, reserved);
         
         return attributeDescriptions;
     }
@@ -71,6 +76,7 @@ struct UniformBufferObject {
     glm::mat4 proj;
     glm::mat4 lightSpaceMatrix; // For shadow mapping
     alignas(4) uint32_t numInstances;
+    alignas(4) float ambientLight; // Ambient light strength
 };
 
 class VulkanDevice {
@@ -111,7 +117,7 @@ public:
     bool createDescriptorSetLayout();
     bool createDescriptorPool();
     bool createDescriptorSets();
-    void updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, uint32_t numInstances);
+    void updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, uint32_t numInstances, float ambientLight = 1.0f);
     void updateInstanceBuffer(const std::vector<InstanceData>& instances);
     
     // Dynamic subcube buffer management

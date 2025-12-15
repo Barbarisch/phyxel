@@ -470,6 +470,20 @@ bool ChunkVoxelManager::addCube(
     UpdateNeighborCollisionsFunc updateNeighborCollisions,
     IsInBulkOperationFunc isInBulkOperation
 ) {
+    return addCube(localPos, "", getCubes, getWorldOrigin, setDirty, setNeedsUpdate, addCollision, updateNeighborCollisions, isInBulkOperation);
+}
+
+bool ChunkVoxelManager::addCube(
+    const glm::ivec3& localPos, 
+    const std::string& material,
+    CubesVectorAccessFunc getCubes,
+    WorldOriginAccessFunc getWorldOrigin,
+    SetDirtyFunc setDirty,
+    SetNeedsUpdateFunc setNeedsUpdate,
+    AddCollisionFunc addCollision,
+    UpdateNeighborCollisionsFunc updateNeighborCollisions,
+    IsInBulkOperationFunc isInBulkOperation
+) {
     // Validate position
     if (localPos.x < 0 || localPos.x >= 32 ||
         localPos.y < 0 || localPos.y >= 32 ||
@@ -488,11 +502,18 @@ bool ChunkVoxelManager::addCube(
     // If cube already exists, just ensure it's not broken
     if (cubes[index]) {
         cubes[index]->setBroken(false);
+        if (!material.empty()) {
+            cubes[index]->setMaterial(material);
+        }
         // Update hash maps for existing cube
         addToVoxelMaps(localPos, cubes[index]);
     } else {
         // Create new cube
-        cubes[index] = new Cube(localPos);
+        if (!material.empty()) {
+            cubes[index] = new Cube(localPos, material);
+        } else {
+            cubes[index] = new Cube(localPos);
+        }
         // Update hash maps for new cube
         addToVoxelMaps(localPos, cubes[index]);
     }
