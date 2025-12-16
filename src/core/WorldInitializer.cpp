@@ -177,7 +177,7 @@ bool WorldInitializer::initialize() {
 bool WorldInitializer::initializeWindow() {
     LOG_INFO("WorldInitializer", "Initializing window");
     
-    if (!windowManager->initialize(1200, 720, "Phyxel - Voxel Physics Engine")) {
+    if (!windowManager->initialize(1600, 900, "Phyxel - Voxel Physics Engine")) {
         LOG_ERROR("WorldInitializer", "Failed to initialize window manager");
         return false;
     }
