@@ -64,6 +64,14 @@ public:
         float& manualForceValue  // Reference to allow modification by slider
     );
 
+    void renderLightingControls(
+        bool showControls,
+        glm::vec3& sunDirection,
+        glm::vec3& sunColor,
+        float& ambientStrength,
+        float& emissiveMultiplier
+    );
+
     // Helper for callbacks
     int handleInputTextCallback(struct ::ImGuiInputTextCallbackData* data);
 

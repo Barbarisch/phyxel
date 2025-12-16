@@ -310,6 +310,11 @@ void Application::run() {
         // Render Scripting Console
         imguiRenderer->renderScriptingConsole(showScriptingConsole, scriptingSystem.get());
         
+        // Render Lighting Controls
+        if (renderCoordinator) {
+            renderCoordinator->renderUI();
+        }
+        
         // End ImGui frame
         imguiRenderer->endFrame();
 
@@ -589,6 +594,13 @@ void Application::handleInput() {
 void Application::togglePerformanceOverlay() {
     showPerformanceOverlay = !showPerformanceOverlay;
     LOG_INFO_FMT("Application", "Performance Overlay: " << (showPerformanceOverlay ? "ENABLED" : "DISABLED"));
+}
+
+void Application::toggleLightingControls() {
+    if (renderCoordinator) {
+        renderCoordinator->toggleLightingControls();
+        LOG_INFO_FMT("Application", "Lighting Controls: " << (renderCoordinator->isLightingControlsVisible() ? "ENABLED" : "DISABLED"));
+    }
 }
 
 void Application::toggleDebugRendering() {

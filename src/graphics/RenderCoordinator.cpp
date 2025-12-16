@@ -336,9 +336,8 @@ void RenderCoordinator::drawFrame() {
     glm::mat4 proj = cachedProjectionMatrix;
     
     // Calculate light space matrix for shadows
-    glm::vec3 lightDir = glm::normalize(glm::vec3(-0.5f, -1.0f, -0.3f));
     glm::vec3 cameraPos = inputManager->getCameraPosition();
-    glm::mat4 lightSpaceMatrix = shadowMap ? shadowMap->getLightSpaceMatrix(lightDir, cameraPos, 100.0f) : glm::mat4(1.0f);
+    glm::mat4 lightSpaceMatrix = shadowMap ? shadowMap->getLightSpaceMatrix(sunDirection, cameraPos, 100.0f) : glm::mat4(1.0f);
     
     auto uboEnd = std::chrono::high_resolution_clock::now();
     
@@ -346,10 +345,10 @@ void RenderCoordinator::drawFrame() {
     auto uniformUploadStart = std::chrono::high_resolution_clock::now();
     
     // Track memory bandwidth for uniform buffer update
-    size_t uniformBufferSize = sizeof(glm::mat4) * 3 + sizeof(uint32_t) + sizeof(float); // view + proj + lightSpace + cubeCount + ambient
+    size_t uniformBufferSize = sizeof(glm::mat4) * 3 + sizeof(glm::vec3) * 2 + sizeof(uint32_t) + sizeof(float) * 2; // view + proj + lightSpace + sunDir + sunColor + cubeCount + ambient + emissive
     performanceProfiler->recordMemoryTransfer(uniformBufferSize);
     
-    vulkanDevice->updateUniformBuffer(currentFrame, view, proj, lightSpaceMatrix, static_cast<uint32_t>(chunkStats.totalCubes), ambientLightStrength);
+    vulkanDevice->updateUniformBuffer(currentFrame, view, proj, lightSpaceMatrix, sunDirection, sunColor, static_cast<uint32_t>(chunkStats.totalCubes), ambientLightStrength, emissiveMultiplier);
     auto uniformUploadEnd = std::chrono::high_resolution_clock::now();
 
     // Record command buffer
@@ -469,6 +468,7 @@ void RenderCoordinator::drawFrame() {
 
     // Render ImGui on top
     // Scripting console rendering is handled in Application::run() before endFrame()
+    // Lighting controls rendering is handled in Application::run() before endFrame()
     imguiRenderer->render(currentFrame, imageIndex);
     
     // End Post Process Render Pass
@@ -525,6 +525,21 @@ void RenderCoordinator::drawFrame() {
     detailedTiming.presentTime = std::chrono::duration<double, std::milli>(presentEnd - presentStart).count();
     
     performanceMonitor->addDetailedTiming(detailedTiming);
+}
+
+void RenderCoordinator::renderUI() {
+    if (imguiRenderer) {
+        if (showLightingControls) {
+            LOG_DEBUG("RenderCoordinator", "Rendering Lighting Controls UI");
+        }
+        imguiRenderer->renderLightingControls(
+            showLightingControls,
+            sunDirection,
+            sunColor,
+            ambientLightStrength,
+            emissiveMultiplier
+        );
+    }
 }
 
 } // namespace Graphics

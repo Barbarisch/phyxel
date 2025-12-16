@@ -131,6 +131,12 @@ void InputController::setupKeyboardBindings() {
         m_app->toggleRaycastVisualization();
     });
 
+    // F6 - Toggle Lighting Controls
+    m_inputManager->registerAction(GLFW_KEY_F6, "Toggle Lighting Controls", [this]() {
+        LOG_INFO("InputController", "F6 pressed - Toggling Lighting Controls");
+        m_app->toggleLightingControls();
+    });
+
     // Shift + F5 - Cycle raycast target mode
     m_inputManager->registerActionWithModifier(GLFW_KEY_F5, GLFW_MOD_SHIFT, "Cycle Raycast Target Mode", [this]() {
         m_app->cycleRaycastTargetMode();

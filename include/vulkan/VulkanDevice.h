@@ -75,8 +75,11 @@ struct UniformBufferObject {
     glm::mat4 view;
     glm::mat4 proj;
     glm::mat4 lightSpaceMatrix; // For shadow mapping
+    alignas(16) glm::vec3 sunDirection; // Direction of the sun
+    alignas(16) glm::vec3 sunColor;     // Color of the sun
     alignas(4) uint32_t numInstances;
     alignas(4) float ambientLight; // Ambient light strength
+    alignas(4) float emissiveMultiplier; // Brightness of emissive objects
 };
 
 class VulkanDevice {
@@ -117,7 +120,7 @@ public:
     bool createDescriptorSetLayout();
     bool createDescriptorPool();
     bool createDescriptorSets();
-    void updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, uint32_t numInstances, float ambientLight = 1.0f);
+    void updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, const glm::vec3& sunDirection, const glm::vec3& sunColor, uint32_t numInstances, float ambientLight = 1.0f, float emissiveMultiplier = 2.0f);
     void updateInstanceBuffer(const std::vector<InstanceData>& instances);
     
     // Dynamic subcube buffer management

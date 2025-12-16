@@ -21,6 +21,7 @@ layout(location = 0) out flat uint textureIndex;  // pass texture index to frag 
 layout(location = 1) out vec2 texCoord;           // pass texture coordinates to frag shader
 layout(location = 2) out vec4 shadowCoord;        // pass shadow coordinates to frag shader
 layout(location = 3) out flat uint flags;         // pass flags to frag shader
+layout(location = 4) out vec3 outNormal;          // pass normal to frag shader
 
 void main() {
     // Extract chunk-relative position from packed data (5 bits each for x,y,z)
@@ -159,6 +160,15 @@ void main() {
         0.5, 0.5, 0.0, 1.0 
     );
     shadowCoord = biasMat * ubo.lightSpaceMatrix * vec4(worldPos, 1.0);
+
+    // Calculate normal based on faceID
+    if (faceID == 0u) outNormal = vec3(0.0, 0.0, 1.0);       // Front (+Z)
+    else if (faceID == 1u) outNormal = vec3(0.0, 0.0, -1.0); // Back (-Z)
+    else if (faceID == 2u) outNormal = vec3(1.0, 0.0, 0.0);  // Right (+X)
+    else if (faceID == 3u) outNormal = vec3(-1.0, 0.0, 0.0); // Left (-X)
+    else if (faceID == 4u) outNormal = vec3(0.0, 1.0, 0.0);  // Top (+Y)
+    else if (faceID == 5u) outNormal = vec3(0.0, -1.0, 0.0); // Bottom (-Y)
+    else outNormal = vec3(0.0, 1.0, 0.0); // Default
     
     // Calculate base UV coordinates for the face (0.0 to 1.0 range)
     vec2 baseUV = vec2(0.0);

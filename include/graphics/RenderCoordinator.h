@@ -89,6 +89,19 @@ public:
     float getAmbientLightStrength() const { return ambientLightStrength; }
     void adjustAmbientLightStrength(float delta) { setAmbientLightStrength(ambientLightStrength + delta); }
 
+    // Lighting Control
+    glm::vec3& getSunDirection() { return sunDirection; }
+    glm::vec3& getSunColor() { return sunColor; }
+    float& getAmbientLightRef() { return ambientLightStrength; }
+    float& getEmissiveMultiplierRef() { return emissiveMultiplier; }
+    
+    // Lighting Controls UI
+    void toggleLightingControls() { showLightingControls = !showLightingControls; }
+    bool isLightingControlsVisible() const { return showLightingControls; }
+    
+    // Render UI elements (must be called between ImGui::NewFrame and ImGui::Render)
+    void renderUI();
+
     // Frame state accessors
     void setFrameStartTime(std::chrono::high_resolution_clock::time_point time) { frameStartTime = time; }
     void setCachedViewMatrix(const glm::mat4& view) { cachedViewMatrix = view; }
@@ -119,6 +132,7 @@ private:
     
     // Render state
     bool showScriptingConsole = false;
+    bool showLightingControls = false;
     uint32_t currentFrame = 0;
     float maxChunkRenderDistance = 1000.0f;
     float chunkInclusionDistance = 2000.0f;
@@ -126,6 +140,9 @@ private:
     uint32_t debugVisualizationMode = 0;  // 0=wireframe, 1=normals, 2=hierarchy, 3=uv, 4=emissive
     bool raycastVisualizationEnabled = false;  // Toggle for raycast visualization
     float ambientLightStrength = 1.0f; // Default brightness multiplier
+    glm::vec3 sunDirection = glm::normalize(glm::vec3(-0.5f, -1.0f, -0.3f));
+    glm::vec3 sunColor = glm::vec3(1.0f, 1.0f, 1.0f);
+    float emissiveMultiplier = 2.0f;
     
     // Cached matrices
     glm::mat4 cachedViewMatrix;

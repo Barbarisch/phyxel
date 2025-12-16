@@ -11,10 +11,18 @@ layout(location = 6) in ivec3 inLocalPosition;  // per-instance: original local 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
     mat4 proj;
+    mat4 lightSpaceMatrix;
+    vec3 sunDirection;
+    vec3 sunColor;
+    uint numInstances;
+    float ambientLight;
 } ubo;
 
 layout(location = 0) out flat uint textureIndex;  // pass texture index to frag shader
 layout(location = 1) out vec2 texCoord;           // pass texture coordinates to frag shader
+layout(location = 2) out vec4 shadowCoord;        // pass shadow coordinates to frag shader
+layout(location = 3) out flat uint flags;         // pass flags to frag shader
+layout(location = 4) out vec3 outNormal;          // pass normal to frag shader
 
 // Rotate a vector by a quaternion
 vec3 rotateByQuaternion(vec3 v, vec4 q) {
@@ -193,6 +201,30 @@ void main() {
     }
     // For full-sized cubes (scale = 1.0): use uv as-is (full texture)
     
+    // Calculate normal
+    vec3 normal = vec3(0.0);
+    if (inFaceID == 0u) normal = vec3(0.0, 0.0, 1.0);
+    else if (inFaceID == 1u) normal = vec3(0.0, 0.0, -1.0);
+    else if (inFaceID == 2u) normal = vec3(1.0, 0.0, 0.0);
+    else if (inFaceID == 3u) normal = vec3(-1.0, 0.0, 0.0);
+    else if (inFaceID == 4u) normal = vec3(0.0, 1.0, 0.0);
+    else if (inFaceID == 5u) normal = vec3(0.0, -1.0, 0.0);
+    
+    // Rotate normal
+    outNormal = rotateByQuaternion(normal, inRotation);
+
+    // Shadow coord
+    const mat4 biasMat = mat4( 
+        0.5, 0.0, 0.0, 0.0,
+        0.0, 0.5, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.5, 0.5, 0.0, 1.0 
+    );
+    shadowCoord = biasMat * ubo.lightSpaceMatrix * vec4(worldPos, 1.0);
+    
+    // Dummy flags
+    flags = 0u;
+
     gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
     
     // Pass texture data to fragment shader

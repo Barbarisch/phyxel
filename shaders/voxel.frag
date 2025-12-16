@@ -5,13 +5,17 @@ layout(location = 0) in flat uint textureIndex;  // from vertex shader
 layout(location = 1) in vec2 texCoord;           // from vertex shader
 layout(location = 2) in vec4 shadowCoord;        // from vertex shader
 layout(location = 3) in flat uint flags;         // from vertex shader
+layout(location = 4) in vec3 inNormal;           // from vertex shader
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
     mat4 proj;
     mat4 lightSpaceMatrix;
+    vec3 sunDirection;
+    vec3 sunColor;
     uint numInstances;
     float ambientLight;
+    float emissiveMultiplier;
 } ubo;
 
 layout(set = 0, binding = 1) uniform sampler2D textureAtlas;  // texture atlas sampler
@@ -32,24 +36,40 @@ void main() {
     // Check for emissive flag (bit 0)
     bool isEmissive = (flags & 1u) != 0u;
 
-    // Shadow calculation
-    float shadow = 1.0;
-    if (!isEmissive && shadowCoord.z > -1.0 && shadowCoord.z < 1.0) {
-        float dist = texture(shadowMap, shadowCoord.xy).r;
-        if (shadowCoord.w > 0.0 && dist < shadowCoord.z - 0.005) {
-            shadow = 0.5; // In shadow
+    // Normal and Light Direction
+    vec3 normal = normalize(inNormal);
+    vec3 lightDir = normalize(-ubo.sunDirection);
+
+    // Diffuse lighting
+    float diff = max(dot(normal, lightDir), 0.0);
+
+    // Shadow calculation (PCF)
+    float shadowFactor = 1.0;
+    if (!isEmissive && shadowCoord.z > -1.0 && shadowCoord.z < 1.0 && shadowCoord.w > 0.0) {
+        float shadowSum = 0.0;
+        vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+        for(int x = -1; x <= 1; ++x) {
+            for(int y = -1; y <= 1; ++y) {
+                float pcfDepth = texture(shadowMap, shadowCoord.xy + vec2(x, y) * texelSize).r; 
+                if (shadowCoord.z - 0.005 > pcfDepth) {
+                    shadowSum += 1.0;
+                }
+            }    
         }
+        shadowFactor = 1.0 - (shadowSum / 9.0);
     }
 
     // Apply shadow (or boost if emissive)
     if (isEmissive) {
-        outColor = vec4(textureColor.rgb * 2.0, textureColor.a); // Boost brightness for bloom
+        outColor = vec4(textureColor.rgb * ubo.emissiveMultiplier, textureColor.a); // Boost brightness for bloom
     } else {
-        // Apply ambient light scaling
-        // shadow is 1.0 (lit) or 0.5 (shadowed)
-        // ubo.ambientLight acts as a global brightness multiplier
-        float lightIntensity = shadow * ubo.ambientLight;
-        outColor = vec4(textureColor.rgb * lightIntensity, textureColor.a);
+        // Combine Ambient + Diffuse * Shadow
+        vec3 ambient = vec3(ubo.ambientLight);
+        vec3 diffuse = diff * ubo.sunColor;
+        
+        vec3 finalLight = ambient + (diffuse * shadowFactor);
+        
+        outColor = vec4(textureColor.rgb * finalLight, textureColor.a);
     }
     
     // Fallback to solid color if texture is transparent or invalid

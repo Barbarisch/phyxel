@@ -1143,13 +1143,16 @@ void VulkanDevice::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSi
     vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
 
-void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, uint32_t numInstances, float ambientLight) {
+void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, const glm::vec3& sunDirection, const glm::vec3& sunColor, uint32_t numInstances, float ambientLight, float emissiveMultiplier) {
     UniformBufferObject ubo{};
     ubo.view = view;
     ubo.proj = proj;
     ubo.lightSpaceMatrix = lightSpaceMatrix;
+    ubo.sunDirection = sunDirection;
+    ubo.sunColor = sunColor;
     ubo.numInstances = numInstances;
     ubo.ambientLight = ambientLight;
+    ubo.emissiveMultiplier = emissiveMultiplier;
 
     // Debug: Log matrix data for the first few frames
     static int debugFrameCount = 0;

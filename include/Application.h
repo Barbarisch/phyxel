@@ -55,6 +55,7 @@ public:
     void toggleRaycastVisualization();
     void cycleRaycastTargetMode();
     void adjustAmbientLight(float delta);
+    void toggleLightingControls();
 
     // Accessors
     ObjectTemplateManager* getObjectTemplateManager() const { return objectTemplateManager.get(); }

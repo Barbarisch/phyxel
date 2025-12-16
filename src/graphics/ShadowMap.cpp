@@ -355,7 +355,8 @@ void ShadowMap::endRenderPass(VkCommandBuffer commandBuffer) {
 }
 
 glm::mat4 ShadowMap::getLightSpaceMatrix(const glm::vec3& lightDir, const glm::vec3& center, float range) {
-    glm::mat4 lightView = glm::lookAt(center + lightDir * range, center, glm::vec3(0.0f, 1.0f, 0.0f));
+    // Place the "sun" camera opposite to the light direction (up in the sky)
+    glm::mat4 lightView = glm::lookAt(center - lightDir * range, center, glm::vec3(0.0f, 1.0f, 0.0f));
     glm::mat4 lightProj = glm::ortho(-range, range, -range, range, 1.0f, range * 2.0f);
     lightProj[1][1] *= -1; // Vulkan Y flip
     return lightProj * lightView;

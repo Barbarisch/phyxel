@@ -618,4 +618,41 @@ void ImGuiRenderer::renderForceSystemDebug(
     ImGui::End();
 }
 
+void ImGuiRenderer::renderLightingControls(
+    bool showControls,
+    glm::vec3& sunDirection,
+    glm::vec3& sunColor,
+    float& ambientStrength,
+    float& emissiveMultiplier
+) {
+    if (!showControls) return;
+
+    ImGui::SetNextWindowPos(ImVec2(10, 400), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(300, 250), ImGuiCond_FirstUseEver);
+
+    if (ImGui::Begin("Lighting Controls", &showControls)) {
+        ImGui::Text("Sun Direction");
+        // Use a direction widget or simple sliders for XYZ
+        // Normalize after editing to keep it a direction vector
+        if (ImGui::SliderFloat3("Direction", &sunDirection.x, -1.0f, 1.0f)) {
+            if (glm::length(sunDirection) > 0.001f) {
+                sunDirection = glm::normalize(sunDirection);
+            }
+        }
+
+        ImGui::Separator();
+        ImGui::Text("Sun Color");
+        ImGui::ColorEdit3("Color", &sunColor.x);
+
+        ImGui::Separator();
+        ImGui::Text("Ambient Light");
+        ImGui::SliderFloat("Strength", &ambientStrength, 0.0f, 2.0f);
+
+        ImGui::Separator();
+        ImGui::Text("Emissive Glow");
+        ImGui::SliderFloat("Multiplier", &emissiveMultiplier, 1.0f, 10.0f);
+    }
+    ImGui::End();
+}
+
 } // namespace VulkanCube::UI
