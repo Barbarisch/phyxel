@@ -48,6 +48,10 @@ public:
     
     // Mouse position update callback (for external systems like mouse velocity tracker)
     void setMousePositionCallback(MousePositionCallback callback);
+
+    // Query state
+    bool isKeyPressed(int key) const;
+    glm::vec2 getMouseDelta() const { return glm::vec2(currentMouseX - lastX, lastY - currentMouseY); } // Simple approximation, might need reset
     
     // Action registration (Application registers what happens on key press)
     void registerAction(int key, const std::string& name, ActionCallback callback);

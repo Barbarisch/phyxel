@@ -3,9 +3,17 @@
 #include <glm/glm.hpp>
 #include <string>
 #include <memory>
+#include <vector>
 
 namespace VulkanCube {
 namespace Core {
+
+enum class AudioChannel {
+    Master,
+    SFX,
+    Music,
+    Voice
+};
 
 class AudioSystem {
 public:
@@ -15,15 +23,20 @@ public:
     bool initialize();
     void shutdown();
     
-    // Update listener (player) position for 3D audio
-    void update(const glm::vec3& listenerPos, const glm::vec3& listenerForward, const glm::vec3& listenerUp);
+    // Update listener (player) position and velocity for 3D audio
+    void update(const glm::vec3& listenerPos, const glm::vec3& listenerForward, const glm::vec3& listenerUp, const glm::vec3& listenerVelocity = glm::vec3(0.0f));
 
-    // Play a sound file (fire and forget)
-    void playSound(const std::string& filePath);
+    // Play a sound file (fire and forget) - 2D
+    void playSound(const std::string& filePath, AudioChannel channel = AudioChannel::SFX, float volume = 1.0f);
 
     // Play a 3D sound at a specific position
-    // Note: For MVP this might just play 2D until we implement a sound pool
-    void playSound3D(const std::string& filePath, const glm::vec3& position);
+    void playSound3D(const std::string& filePath, const glm::vec3& position, AudioChannel channel = AudioChannel::SFX, float volume = 1.0f, const glm::vec3& velocity = glm::vec3(0.0f));
+
+    // Set volume for a specific channel (0.0 to 1.0)
+    void setChannelVolume(AudioChannel channel, float volume);
+
+    // Preload a sound into memory (optional optimization)
+    void preloadSound(const std::string& filePath);
 
 private:
     struct Impl;

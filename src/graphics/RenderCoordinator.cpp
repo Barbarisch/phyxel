@@ -12,6 +12,9 @@
 #include "utils/CoordinateUtils.h"
 #include "utils/Frustum.h"
 #include "utils/Logger.h"
+#include "scene/Character.h"
+#include "scene/Player.h"
+#include "scene/Enemy.h"
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace VulkanCube {
@@ -65,6 +68,7 @@ RenderCoordinator::RenderCoordinator(
     renderPipeline->createDebugGraphicsPipeline();
     // Also recreate debug line pipeline if it exists/is used
     renderPipeline->createDebugLinePipeline();
+    renderPipeline->createCharacterPipeline();
 
     dynamicRenderPipeline->setRenderPass(postProcessor->getSceneRenderPass());
     dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
@@ -298,6 +302,7 @@ void RenderCoordinator::drawFrame() {
         renderPipeline->createGraphicsPipeline();
         renderPipeline->createDebugGraphicsPipeline();
         renderPipeline->createDebugLinePipeline();
+        renderPipeline->createCharacterPipeline();
         dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
 
         // Swapchain is out of date, recreate it
@@ -417,6 +422,9 @@ void RenderCoordinator::drawFrame() {
         
         // Render dynamic subcubes with separate pipeline
         renderDynamicSubcubes();
+
+        // Render entities (Characters)
+        renderEntities(vulkanDevice->getCommandBuffer(currentFrame));
         
         // Get accurate performance statistics from chunk manager
         auto chunkStats = chunkManager->getPerformanceStats();
@@ -539,6 +547,42 @@ void RenderCoordinator::renderUI() {
             ambientLightStrength,
             emissiveMultiplier
         );
+    }
+}
+
+void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
+    if (!entities || entities->empty()) return;
+
+    renderPipeline->bindCharacterPipeline(commandBuffer);
+
+    for (const auto& entity : *entities) {
+        auto character = dynamic_cast<Scene::Character*>(entity.get());
+        if (character) {
+            glm::mat4 model = character->getModelMatrix();
+            glm::mat4 viewProj = cachedProjectionMatrix * cachedViewMatrix;
+            
+            glm::vec4 color(1.0f); // Default white
+            if (dynamic_cast<Scene::Player*>(character)) {
+                color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f); // Green for Player
+            } else if (dynamic_cast<Scene::Enemy*>(character)) {
+                color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f); // Red for Enemy
+            }
+
+            struct PushConsts {
+                glm::mat4 model;
+                glm::mat4 viewProj;
+                glm::vec4 color;
+            } pushConsts;
+            
+            pushConsts.model = model;
+            pushConsts.viewProj = viewProj;
+            pushConsts.color = color;
+            
+            vkCmdPushConstants(commandBuffer, renderPipeline->getCharacterLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConsts), &pushConsts);
+            
+            // Draw cube (36 vertices generated in shader)
+            vkCmdDraw(commandBuffer, 36, 1, 0, 0);
+        }
     }
 }
 

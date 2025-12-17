@@ -311,5 +311,10 @@ void InputManager::setYawPitch(float newYaw, float newPitch) {
     updateCameraVectors();
 }
 
+bool InputManager::isKeyPressed(int key) const {
+    if (!window) return false;
+    return glfwGetKey(window, key) == GLFW_PRESS;
+}
+
 } // namespace Input
 } // namespace VulkanCube

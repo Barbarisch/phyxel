@@ -23,6 +23,9 @@
 #include "core/ObjectTemplateManager.h"
 #include "core/AudioSystem.h"
 #include "scripting/ScriptingSystem.h"
+#include "scene/Entity.h"
+#include "scene/Player.h"
+#include "scene/Enemy.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -64,6 +67,7 @@ public:
     ChunkManager* getChunkManager() const { return chunkManager.get(); }
     Input::InputManager* getInputManager() const { return inputManager.get(); }
     ScriptingSystem* getScriptingSystem() const { return scriptingSystem.get(); }
+    Core::AudioSystem* getAudioSystem() const { return audioSystem.get(); }
 
 private:
     // ============================================================================
@@ -107,6 +111,10 @@ private:
     // Scripting System
     std::unique_ptr<ScriptingSystem> scriptingSystem;
 
+    // Entities
+    std::vector<std::unique_ptr<Scene::Entity>> entities;
+    Scene::Player* player = nullptr;
+
     // ============================================================================
     // APPLICATION STATE
     // ============================================================================
@@ -120,6 +128,9 @@ private:
     glm::mat4 cachedViewMatrix;
     glm::mat4 cachedProjectionMatrix;
     bool projectionMatrixNeedsUpdate = true;
+    
+    // Camera state for velocity calculation
+    glm::vec3 lastCameraPos = glm::vec3(0.0f);
 
     // Frame profiling timing
     std::chrono::high_resolution_clock::time_point frameStartTime;

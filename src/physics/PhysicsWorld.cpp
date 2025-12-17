@@ -28,6 +28,7 @@ bool PhysicsWorld::initialize() {
         
         // Create broadphase
         broadphase = std::make_unique<btDbvtBroadphase>();
+        broadphase->getOverlappingPairCache()->setInternalGhostPairCallback(new btGhostPairCallback());
         
         // Create solver
         solver = std::make_unique<btSequentialImpulseConstraintSolver>();
@@ -82,6 +83,24 @@ void PhysicsWorld::cleanup() {
     // Note: All collision shapes are created per-cube and cleaned up via collisionShapes vector
     
     rigidBodies.clear();
+
+    // Cleanup characters
+    for (auto* character : characters) {
+        dynamicsWorld->removeAction(character);
+        delete character;
+    }
+    characters.clear();
+
+    for (auto* ghost : ghostObjects) {
+        dynamicsWorld->removeCollisionObject(ghost);
+        delete ghost;
+    }
+    ghostObjects.clear();
+
+    for (auto* shape : characterShapes) {
+        delete shape;
+    }
+    characterShapes.clear();
 }
 
 void PhysicsWorld::stepSimulation(float deltaTime, int maxSubSteps, float fixedTimeStep) {
@@ -430,6 +449,63 @@ btRigidBody* PhysicsWorld::createBreakawaCube(const glm::vec3& position, const g
 
 btRigidBody* PhysicsWorld::createStaticCube(const glm::vec3& position, const glm::vec3& size) {
     return createCube(position, size, 0.0f); // Mass 0 = static
+}
+
+btPairCachingGhostObject* PhysicsWorld::createCharacterGhostObject(const glm::vec3& position, float radius, float height) {
+    btTransform startTransform;
+    startTransform.setIdentity();
+    startTransform.setOrigin(glmToBulletVector(position));
+
+    btConvexShape* capsule = new btCapsuleShape(radius, height);
+    characterShapes.push_back(capsule);
+
+    btPairCachingGhostObject* ghostObject = new btPairCachingGhostObject();
+    ghostObject->setWorldTransform(startTransform);
+    ghostObject->setCollisionShape(capsule);
+    ghostObject->setCollisionFlags(btCollisionObject::CF_CHARACTER_OBJECT);
+
+    dynamicsWorld->addCollisionObject(ghostObject, btBroadphaseProxy::CharacterFilter, btBroadphaseProxy::StaticFilter | btBroadphaseProxy::DefaultFilter);
+    
+    ghostObjects.push_back(ghostObject);
+    return ghostObject;
+}
+
+btKinematicCharacterController* PhysicsWorld::createCharacterController(btPairCachingGhostObject* ghostObject, float stepHeight) {
+    btKinematicCharacterController* controller = new btKinematicCharacterController(ghostObject, static_cast<btConvexShape*>(ghostObject->getCollisionShape()), stepHeight);
+    
+    // Configure controller
+    controller->setGravity(dynamicsWorld->getGravity());
+    controller->setJumpSpeed(10.0f); // Default jump speed
+    
+    dynamicsWorld->addAction(controller);
+    characters.push_back(controller);
+    
+    return controller;
+}
+
+void PhysicsWorld::removeCharacter(btKinematicCharacterController* character) {
+    if (!character) return;
+
+    // Find and remove character
+    auto it = std::find(characters.begin(), characters.end(), character);
+    if (it != characters.end()) {
+        dynamicsWorld->removeAction(character);
+        
+        // Also remove the ghost object
+        btPairCachingGhostObject* ghost = character->getGhostObject();
+        if (ghost) {
+            dynamicsWorld->removeCollisionObject(ghost);
+            
+            auto ghostIt = std::find(ghostObjects.begin(), ghostObjects.end(), ghost);
+            if (ghostIt != ghostObjects.end()) {
+                ghostObjects.erase(ghostIt);
+            }
+            delete ghost;
+        }
+        
+        delete character;
+        characters.erase(it);
+    }
 }
 
 void PhysicsWorld::removeCube(btRigidBody* body) {

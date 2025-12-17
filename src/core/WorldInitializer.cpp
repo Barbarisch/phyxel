@@ -264,6 +264,12 @@ bool WorldInitializer::initializeVulkan() {
         return false;
     }
 
+    // Load character shaders
+    if (!renderPipeline->loadCharacterShaders("shaders/character.vert.spv", "shaders/character.frag.spv")) {
+        LOG_ERROR("WorldInitializer", "Failed to load character pipeline shaders!");
+        return false;
+    }
+
     // TODO: Compute shader functionality for frustum culling (experimental/incomplete)
     /*
     if (!renderPipeline->loadComputeShader("shaders/frustum_cull.comp.spv")) {
@@ -295,6 +301,11 @@ bool WorldInitializer::initializeVulkan() {
     
     if (!renderPipeline->createDebugLinePipeline()) {
         LOG_ERROR("WorldInitializer", "Failed to create debug line pipeline!");
+        return false;
+    }
+
+    if (!renderPipeline->createCharacterPipeline()) {
+        LOG_ERROR("WorldInitializer", "Failed to create character graphics pipeline!");
         return false;
     }
 

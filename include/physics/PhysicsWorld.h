@@ -2,6 +2,8 @@
 
 #include "core/Types.h"
 #include <btBulletDynamicsCommon.h>
+#include <BulletCollision/CollisionDispatch/btGhostObject.h>
+#include <BulletDynamics/Character/btKinematicCharacterController.h>
 #include <vector>
 #include <memory>
 #include <string>
@@ -31,6 +33,11 @@ public:
     btRigidBody* createBreakawaCube(const glm::vec3& position, const glm::vec3& size, float mass); // Special cube with shrunk collision and custom mass
     btRigidBody* createStaticCube(const glm::vec3& position, const glm::vec3& size = glm::vec3(1.0f));
     
+    // Character management
+    btPairCachingGhostObject* createCharacterGhostObject(const glm::vec3& position, float radius, float height);
+    btKinematicCharacterController* createCharacterController(btPairCachingGhostObject* ghostObject, float stepHeight = 0.35f);
+    void removeCharacter(btKinematicCharacterController* character);
+
     // Deprecated: Ground plane no longer needed - fallen cubes are automatically cleaned up
     // btRigidBody* createGround(const glm::vec3& position = glm::vec3(0, -1, 0), const glm::vec3& size = glm::vec3(50, 1, 50));
     
@@ -72,7 +79,12 @@ private:
     std::unique_ptr<btSequentialImpulseConstraintSolver> solver;
     std::unique_ptr<btDiscreteDynamicsWorld> dynamicsWorld;
 
-    // Keep track of created bodies for cleanup
+    // Kharacter components
+    std::vector<btKinematicCharacterController*> characters;
+    std::vector<btPairCachingGhostObject*> ghostObjects;
+    std::vector<btCollisionShape*> characterShapes;
+
+    // Ceep track of created bodies for cleanup
     std::vector<btRigidBody*> rigidBodies;
     std::vector<btDefaultMotionState*> motionStates;
     std::vector<btCollisionShape*> collisionShapes; // Dynamically created shapes

@@ -51,6 +51,22 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
+    echo Compiling character vertex shader...
+    %GLSLANG% -fshader-stage=vert -I. shaders\character.vert -o shaders\character.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile character vertex shader
+        pause
+        exit /b 1
+    )
+
+    echo Compiling character fragment shader...
+    %GLSLANG% -fshader-stage=frag -I. shaders\character.frag -o shaders\character.frag.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile character fragment shader
+        pause
+        exit /b 1
+    )
+
     echo Compiling voxel fragment shader...
     %GLSLANG% -fshader-stage=frag -I. shaders\voxel.frag -o shaders\voxel.frag.spv
     if %errorlevel% neq 0 (
@@ -128,6 +144,22 @@ if defined USE_GLSLC (
     %GLSLANG% -V -I. shaders\dynamic_voxel.vert -o shaders\dynamic_voxel.vert.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile dynamic voxel vertex shader
+        pause
+        exit /b 1
+    )
+
+    echo Compiling character vertex shader...
+    %GLSLANG% -V -I. shaders\character.vert -o shaders\character.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile character vertex shader
+        pause
+        exit /b 1
+    )
+
+    echo Compiling character fragment shader...
+    %GLSLANG% -V -I. shaders\character.frag -o shaders\character.frag.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile character fragment shader
         pause
         exit /b 1
     )
