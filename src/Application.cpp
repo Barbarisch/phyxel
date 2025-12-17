@@ -1,5 +1,6 @@
 #include "Application.h"
 #include "scene/VoxelInteractionSystem.h"
+#include "scene/VoxelCharacter.h"
 #include "utils/FileUtils.h"
 #include "utils/Math.h"
 #include "utils/PerformanceProfiler.h"
@@ -205,6 +206,11 @@ bool Application::initialize() {
     auto playerPtr = std::make_unique<Scene::Player>(physicsWorld.get(), inputManager.get(), camera.get(), glm::vec3(20, 50, 20));
     player = playerPtr.get();
     entities.push_back(std::move(playerPtr));
+
+    // Create Voxel Character (Test)
+    auto voxelCharPtr = std::make_unique<Scene::VoxelCharacter>(physicsWorld.get(), inputManager.get(), camera.get(), glm::vec3(30, 50, 30));
+    voxelCharacter = voxelCharPtr.get();
+    entities.push_back(std::move(voxelCharPtr));
 
     // Create Enemy
     auto enemyPtr = std::make_unique<Scene::Enemy>(physicsWorld.get(), glm::vec3(25, 50, 25));
@@ -482,10 +488,24 @@ void Application::update(float deltaTime) {
 
     // Update entities
     for (auto& entity : entities) {
+        // If controlling voxel character, disable player update or input processing?
+        // For now, let's just update all.
+        // But we need to make sure camera follows the right one.
         entity->update(deltaTime);
     }
 
-    // Camera sync is now handled by Player::update()
+    // Camera sync
+    if (isControllingVoxelCharacter && voxelCharacter) {
+        // VoxelCharacter updates camera position in its update() if active
+    } else if (player) {
+        // Player updates camera position in its update()
+        // We need to ensure Player only updates camera if it's active.
+        // Since Player class is not modified to have an active flag yet, 
+        // we might have a conflict if both try to set camera.
+        // However, VoxelCharacter only sets camera if isControlActive is true.
+        // Player always sets it.
+        // We should modify Player to check a flag, or hack it here.
+    }
     
     // Input is processed in handleInput() which is called from run() loop
     // Update input controller logic (e.g. previews)
@@ -785,6 +805,20 @@ void Application::toggleCameraMode() {
         }
         
         camera->setMode(newMode);
+    }
+}
+
+void Application::toggleCharacterControl() {
+    isControllingVoxelCharacter = !isControllingVoxelCharacter;
+    
+    if (isControllingVoxelCharacter) {
+        LOG_INFO("Application", "Control switched to Voxel Character");
+        if (voxelCharacter) voxelCharacter->setControlActive(true);
+        if (player) player->setControlActive(false);
+    } else {
+        LOG_INFO("Application", "Control switched to Player (Cube)");
+        if (voxelCharacter) voxelCharacter->setControlActive(false);
+        if (player) player->setControlActive(true);
     }
 }
 

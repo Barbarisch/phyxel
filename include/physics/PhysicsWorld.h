@@ -38,6 +38,10 @@ public:
     btKinematicCharacterController* createCharacterController(btPairCachingGhostObject* ghostObject, float stepHeight = 0.35f);
     void removeCharacter(btKinematicCharacterController* character);
 
+    // Constraint management
+    void addConstraint(btTypedConstraint* constraint, bool disableCollisionsBetweenLinkedBodies = false);
+    void removeConstraint(btTypedConstraint* constraint);
+
     // Deprecated: Ground plane no longer needed - fallen cubes are automatically cleaned up
     // btRigidBody* createGround(const glm::vec3& position = glm::vec3(0, -1, 0), const glm::vec3& size = glm::vec3(50, 1, 50));
     

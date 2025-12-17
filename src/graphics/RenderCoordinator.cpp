@@ -16,6 +16,7 @@
 #include "scene/Character.h"
 #include "scene/Player.h"
 #include "scene/Enemy.h"
+#include "scene/VoxelCharacter.h"
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace VulkanCube {
@@ -559,6 +560,44 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
     renderPipeline->bindCharacterPipeline(commandBuffer);
 
     for (const auto& entity : *entities) {
+        // Check for VoxelCharacter first (new system)
+        auto voxelChar = dynamic_cast<Scene::VoxelCharacter*>(entity.get());
+        if (voxelChar) {
+            const auto& parts = voxelChar->getParts();
+            for (const auto& part : parts) {
+                if (!part.rigidBody) continue;
+
+                btTransform trans;
+                part.rigidBody->getMotionState()->getWorldTransform(trans);
+                
+                // Convert Bullet transform to GLM
+                btVector3 pos = trans.getOrigin();
+                btQuaternion rot = trans.getRotation();
+                
+                glm::mat4 model = glm::mat4(1.0f);
+                model = glm::translate(model, glm::vec3(pos.x(), pos.y(), pos.z()));
+                model = model * glm::mat4_cast(glm::quat(rot.w(), rot.x(), rot.y(), rot.z()));
+                model = glm::scale(model, part.scale);
+
+                glm::mat4 viewProj = cachedProjectionMatrix * cachedViewMatrix;
+
+                struct PushConsts {
+                    glm::mat4 model;
+                    glm::mat4 viewProj;
+                    glm::vec4 color;
+                } pushConsts;
+                
+                pushConsts.model = model;
+                pushConsts.viewProj = viewProj;
+                pushConsts.color = part.color;
+                
+                vkCmdPushConstants(commandBuffer, renderPipeline->getCharacterLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConsts), &pushConsts);
+                vkCmdDraw(commandBuffer, 36, 1, 0, 0);
+            }
+            continue; // Done with this entity
+        }
+
+        // Fallback to old Character system
         auto character = dynamic_cast<Scene::Character*>(entity.get());
         if (character) {
             glm::mat4 model = character->getModelMatrix();

@@ -407,6 +407,7 @@ void ChunkPhysicsManager::buildInitialCollisionShapes(const CubesArrayAccessFunc
             glm::vec3 cubeCenter = glm::vec3(chunkOrigin) + glm::vec3(localPos) + glm::vec3(0.5f);
             
             btBoxShape* boxShape = new btBoxShape(btVector3(0.5f, 0.5f, 0.5f));
+            boxShape->setMargin(0.01f); // Tighter margin for better collision accuracy
             btTransform transform;
             transform.setIdentity();
             transform.setOrigin(btVector3(cubeCenter.x, cubeCenter.y, cubeCenter.z));
@@ -449,6 +450,7 @@ void ChunkPhysicsManager::buildInitialCollisionShapes(const CubesArrayAccessFunc
         glm::vec3 subcubeCenter = parentCenter + subcubeOffset;
         
         btBoxShape* boxShape = new btBoxShape(btVector3(1.0f/6.0f, 1.0f/6.0f, 1.0f/6.0f));
+        boxShape->setMargin(0.005f); // Tighter margin for subcubes
         btTransform transform;
         transform.setIdentity();
         transform.setOrigin(btVector3(subcubeCenter.x, subcubeCenter.y, subcubeCenter.z));
@@ -500,6 +502,7 @@ void ChunkPhysicsManager::buildInitialCollisionShapes(const CubesArrayAccessFunc
         glm::vec3 microcubeCenter = parentCenter + subcubeOffset + microcubeOffset;
         
         btBoxShape* boxShape = new btBoxShape(btVector3(1.0f/18.0f, 1.0f/18.0f, 1.0f/18.0f));
+        boxShape->setMargin(0.002f); // Very tight margin for microcubes
         btTransform transform;
         transform.setIdentity();
         transform.setOrigin(btVector3(microcubeCenter.x, microcubeCenter.y, microcubeCenter.z));
@@ -516,7 +519,9 @@ void ChunkPhysicsManager::buildInitialCollisionShapes(const CubesArrayAccessFunc
         collisionGrid.addEntity(parentLocalPos, entity);
     }
     
-    LOG_TRACE("ChunkPhysicsManager", "Built initial collision shapes");
+    LOG_INFO_FMT("ChunkPhysicsManager", "Built initial collision shapes for chunk at (" 
+              << chunkOrigin.x << "," << chunkOrigin.y << "," << chunkOrigin.z 
+              << "): " << compound->getNumChildShapes() << " shapes");
 }
 
 void ChunkPhysicsManager::updateNeighborCollisionShapes(const glm::ivec3& localPos,
@@ -618,6 +623,7 @@ void ChunkPhysicsManager::createCubeCollisionShape(const glm::ivec3& localPos,
     
     // Create box shape: full cube is 1.0 units, so half-extents are 0.5
     btBoxShape* boxShape = new btBoxShape(btVector3(0.5f, 0.5f, 0.5f));
+    boxShape->setMargin(0.01f);
     
     // Position the shape in the compound
     btTransform transform;
@@ -648,6 +654,7 @@ void ChunkPhysicsManager::createSubcubeCollisionShape(const glm::ivec3& cubePos,
     
     // Create box shape: subcube is 1/3 cube size, so half-extents are 1/6
     btBoxShape* subcubeShape = new btBoxShape(btVector3(1.0f/6.0f, 1.0f/6.0f, 1.0f/6.0f));
+    subcubeShape->setMargin(0.005f);
     
     // Position the shape in the compound
     btTransform transform;

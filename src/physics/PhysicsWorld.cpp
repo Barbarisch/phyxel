@@ -186,6 +186,12 @@ btRigidBody* PhysicsWorld::createCube(const glm::vec3& position, const glm::vec3
     //           << " for " << (objectSize <= 0.34f ? "subcube" : "regular cube") 
     //           << " size " << objectSize << std::endl;
     
+    // Enable CCD for dynamic objects to prevent tunneling
+    if (mass > 0.0f) {
+        body->setCcdMotionThreshold(objectSize * 0.5f);
+        body->setCcdSweptSphereRadius(objectSize * 0.2f);
+    }
+
     // Add to world
     dynamicsWorld->addRigidBody(body);
     rigidBodies.push_back(body);
@@ -265,6 +271,12 @@ btRigidBody* PhysicsWorld::createCube(const glm::vec3& position, const glm::vec3
     //           << " for " << (objectSize <= 0.34f ? "subcube" : "regular cube") 
     //           << " size " << objectSize << std::endl;
     
+    // Enable CCD for dynamic objects to prevent tunneling
+    if (material.mass > 0.0f) {
+        body->setCcdMotionThreshold(objectSize * 0.5f);
+        body->setCcdSweptSphereRadius(objectSize * 0.2f);
+    }
+
     // Add to world
     dynamicsWorld->addRigidBody(body);
     rigidBodies.push_back(body);
@@ -505,6 +517,18 @@ void PhysicsWorld::removeCharacter(btKinematicCharacterController* character) {
         
         delete character;
         characters.erase(it);
+    }
+}
+
+void PhysicsWorld::addConstraint(btTypedConstraint* constraint, bool disableCollisionsBetweenLinkedBodies) {
+    if (dynamicsWorld && constraint) {
+        dynamicsWorld->addConstraint(constraint, disableCollisionsBetweenLinkedBodies);
+    }
+}
+
+void PhysicsWorld::removeConstraint(btTypedConstraint* constraint) {
+    if (dynamicsWorld && constraint) {
+        dynamicsWorld->removeConstraint(constraint);
     }
 }
 
@@ -778,6 +802,11 @@ void PhysicsWorld::cleanupFallenCubes() {
         
         // Only check dynamic bodies (mass > 0) - leave static chunks alone
         if (body->getMass() > 0.0f) {
+            // Skip bodies marked as external/character parts (UserPointer != nullptr)
+            if (body->getUserPointer() != nullptr) {
+                continue;
+            }
+
             btTransform transform;
             body->getMotionState()->getWorldTransform(transform);
             float yPosition = transform.getOrigin().getY();

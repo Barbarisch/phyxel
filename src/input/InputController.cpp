@@ -169,6 +169,12 @@ void InputController::setupKeyboardBindings() {
         LOG_INFO("InputController", "C key pressed - attempting to place cube");
         m_interactionSystem->placeVoxelAtHover();
     });
+
+    // K - Toggle Character Control
+    m_inputManager->registerAction(GLFW_KEY_K, "Toggle Character Control", [this]() {
+        LOG_INFO("InputController", "K key pressed - toggling character control");
+        m_app->toggleCharacterControl();
+    });
     
     // Ctrl + C - Place subcube
     m_inputManager->registerActionWithModifier(GLFW_KEY_C, GLFW_MOD_CONTROL, "Place Subcube", [this]() {

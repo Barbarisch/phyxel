@@ -10,7 +10,7 @@ Player::Player(Physics::PhysicsWorld* physicsWorld, Input::InputManager* inputMa
 void Player::update(float deltaTime) {
     Character::update(deltaTime);
 
-    if (!inputManager || !camera) return;
+    if (!inputManager || !camera || !isControlActive) return;
 
     // Handle Camera Rotation
     // Only rotate if mouse is captured (right click held or toggle)

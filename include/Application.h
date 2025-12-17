@@ -27,6 +27,7 @@
 #include "scene/Entity.h"
 #include "scene/Player.h"
 #include "scene/Enemy.h"
+#include "scene/VoxelCharacter.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -61,6 +62,7 @@ public:
     void adjustAmbientLight(float delta);
     void toggleLightingControls();
     void toggleCameraMode();
+    void toggleCharacterControl();
 
     // Accessors
     ObjectTemplateManager* getObjectTemplateManager() const { return objectTemplateManager.get(); }
@@ -117,6 +119,8 @@ private:
     // Entities
     std::vector<std::unique_ptr<Scene::Entity>> entities;
     Scene::Player* player = nullptr;
+    Scene::VoxelCharacter* voxelCharacter = nullptr;
+    bool isControllingVoxelCharacter = false;
 
     // ============================================================================
     // APPLICATION STATE

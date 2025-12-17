@@ -13,6 +13,10 @@ public:
     
     void update(float deltaTime) override;
 
+    // Control management
+    void setControlActive(bool active) { isControlActive = active; }
+    bool isControlActiveState() const { return isControlActive; }
+
     // Camera getters for the Application to use
     float getPitch() const { return pitch; }
     float getYaw() const { return yaw; }
@@ -26,6 +30,8 @@ private:
     // Camera control
     float pitch = 0.0f;
     float yaw = -90.0f;
+    
+    bool isControlActive = true;
 };
 
 } // namespace Scene
