@@ -48,6 +48,12 @@ Phyxel is a high-performance 3D voxel rendering engine built with Vulkan API, fe
 - **[ObjectTemplateSystem.md](ObjectTemplateSystem.md)** - Voxel object import and spawning
   - OBJ to Voxel conversion tool
   - Sequential spawning system
+
+- **[EntitySystem.md](EntitySystem.md)** - Dynamic game object system
+  - Player and Enemy implementation
+  - Physics-based character controller
+  - Dedicated rendering pipeline
+  - Input handling and AI basics
   - Optimization strategies (Cubes vs Subcubes vs Microcubes)
 
 - **[CoordinateSystem.md](CoordinateSystem.md)** - Understanding coordinate transformations
