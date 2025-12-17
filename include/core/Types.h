@@ -124,6 +124,37 @@ struct InstanceData {
     static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions();  // packedData + textureIndex
 };
 
+struct CharacterInstanceData {
+    glm::vec3 position;
+    glm::vec3 color;
+
+    static VkVertexInputBindingDescription getBindingDescription() {
+        VkVertexInputBindingDescription bindingDescription{};
+        bindingDescription.binding = 1; // Binding 1 (0 is vertex)
+        bindingDescription.stride = sizeof(CharacterInstanceData);
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+        return bindingDescription;
+    }
+
+    static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(2);
+
+        // Position
+        attributeDescriptions[0].binding = 1;
+        attributeDescriptions[0].location = 2; // Matches shader layout(location = 2)
+        attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[0].offset = offsetof(CharacterInstanceData, position);
+
+        // Color
+        attributeDescriptions[1].binding = 1;
+        attributeDescriptions[1].location = 3; // Matches shader layout(location = 3)
+        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[1].offset = offsetof(CharacterInstanceData, color);
+
+        return attributeDescriptions;
+    }
+};
+
 // Instance data for dynamic subcubes with physics
 struct DynamicSubcubeInstanceData {
     glm::vec3 worldPosition;  // Full precision world position for physics objects

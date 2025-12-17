@@ -23,6 +23,9 @@
 #include "core/ObjectTemplateManager.h"
 #include "core/AudioSystem.h"
 #include "scripting/ScriptingSystem.h"
+#include "scene/Entity.h"
+#include "scene/Player.h"
+#include "scene/Enemy.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -107,6 +110,10 @@ private:
 
     // Scripting System
     std::unique_ptr<ScriptingSystem> scriptingSystem;
+
+    // Entities
+    std::vector<std::unique_ptr<Scene::Entity>> entities;
+    Scene::Player* player = nullptr;
 
     // ============================================================================
     // APPLICATION STATE

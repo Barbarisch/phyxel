@@ -3,6 +3,7 @@
 #include "core/Types.h"
 #include "utils/PerformanceMonitor.h"
 #include "utils/PerformanceProfiler.h"
+#include "scene/Entity.h"
 #include <memory>
 #include <chrono>
 #include <glm/glm.hpp>
@@ -98,6 +99,9 @@ public:
     // Lighting Controls UI
     void toggleLightingControls() { showLightingControls = !showLightingControls; }
     bool isLightingControlsVisible() const { return showLightingControls; }
+
+    // Entity rendering
+    void setEntities(const std::vector<std::unique_ptr<Scene::Entity>>* entities) { this->entities = entities; }
     
     // Render UI elements (must be called between ImGui::NewFrame and ImGui::Render)
     void renderUI();
@@ -110,9 +114,12 @@ public:
     uint32_t getCurrentFrame() const { return currentFrame; }
 
 private:
+    const std::vector<std::unique_ptr<Scene::Entity>>* entities = nullptr;
+
     // Rendering subsystems
     size_t renderStaticGeometry();
     void renderDynamicSubcubes();
+    void renderEntities(VkCommandBuffer commandBuffer);
     void renderShadowPass(VkCommandBuffer commandBuffer, const glm::mat4& lightSpaceMatrix);
     
     // Dependencies (non-owning pointers)

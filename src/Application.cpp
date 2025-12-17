@@ -194,6 +194,20 @@ bool Application::initialize() {
     raycastVisualizer->initialize(vulkanDevice.get());
     LOG_INFO("Application", "RaycastVisualizer initialized successfully!");
 
+    // STEP 5.5: INITIALIZE ENTITIES
+    // Create Player
+    // Spawn high up to avoid falling through world before chunks load
+    auto playerPtr = std::make_unique<Scene::Player>(physicsWorld.get(), inputManager.get(), glm::vec3(20, 50, 20));
+    player = playerPtr.get();
+    entities.push_back(std::move(playerPtr));
+
+    // Create Enemy
+    auto enemyPtr = std::make_unique<Scene::Enemy>(physicsWorld.get(), glm::vec3(25, 50, 25));
+    enemyPtr->setTarget(player);
+    entities.push_back(std::move(enemyPtr));
+    
+    LOG_INFO("Application", "Entities initialized successfully!");
+
     // Create ScriptingSystem (initialized later, but created here for dependency injection)
     scriptingSystem = std::make_unique<ScriptingSystem>(this);
 
@@ -218,6 +232,7 @@ bool Application::initialize() {
     );
     renderCoordinator->setMaxChunkRenderDistance(maxChunkRenderDistance);
     renderCoordinator->setChunkInclusionDistance(chunkInclusionDistance);
+    renderCoordinator->setEntities(&entities);
     LOG_INFO("Application", "RenderCoordinator initialized successfully!");
 
     // STEP 7: REGISTER INPUT ACTIONS
@@ -447,6 +462,17 @@ void Application::update(float deltaTime) {
     // Update scripting system
     if (scriptingSystem) {
         scriptingSystem->update(deltaTime);
+    }
+
+    // Update entities
+    for (auto& entity : entities) {
+        entity->update(deltaTime);
+    }
+
+    // Sync camera to player
+    if (player) {
+        // Eye level offset
+        inputManager->setCameraPosition(player->getPosition() + glm::vec3(0, 0.8f, 0)); 
     }
     
     // Input is processed in handleInput() which is called from run() loop
