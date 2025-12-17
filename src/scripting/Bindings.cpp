@@ -37,6 +37,7 @@
 #include "Application.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "core/ObjectTemplateManager.h"
+#include "core/AudioSystem.h"
 #include "input/InputManager.h"
 
 namespace py = pybind11;
@@ -120,12 +121,32 @@ PYBIND11_EMBEDDED_MODULE(phyxel, m) {
         }, "Get camera position as (x, y, z) tuple")
         .def("set_yaw_pitch", &Input::InputManager::setYawPitch, "Set camera orientation (yaw, pitch)");
 
+    // Expose AudioChannel
+    py::enum_<Core::AudioChannel>(m, "AudioChannel")
+        .value("Master", Core::AudioChannel::Master)
+        .value("SFX", Core::AudioChannel::SFX)
+        .value("Music", Core::AudioChannel::Music)
+        .value("Voice", Core::AudioChannel::Voice)
+        .export_values();
+
+    // Expose AudioSystem
+    py::class_<Core::AudioSystem>(m, "AudioSystem")
+        .def("play_sound", [](Core::AudioSystem& as, const std::string& path, Core::AudioChannel channel, float volume) {
+            as.playSound(path, channel, volume);
+        }, "Play a 2D sound", py::arg("path"), py::arg("channel") = Core::AudioChannel::SFX, py::arg("volume") = 1.0f)
+        .def("play_sound_3d", [](Core::AudioSystem& as, const std::string& path, float x, float y, float z, Core::AudioChannel channel, float volume, float vx, float vy, float vz) {
+            as.playSound3D(path, glm::vec3(x, y, z), channel, volume, glm::vec3(vx, vy, vz));
+        }, "Play a 3D sound", py::arg("path"), py::arg("x"), py::arg("y"), py::arg("z"), py::arg("channel") = Core::AudioChannel::SFX, py::arg("volume") = 1.0f, py::arg("vx") = 0.0f, py::arg("vy") = 0.0f, py::arg("vz") = 0.0f)
+        .def("set_channel_volume", &Core::AudioSystem::setChannelVolume, "Set volume for a channel", py::arg("channel"), py::arg("volume"))
+        .def("preload_sound", &Core::AudioSystem::preloadSound, "Preload a sound into memory", py::arg("path"));
+
     // Expose Application
     py::class_<Application>(m, "Application")
         .def("get_voxel_interaction_system", &Application::getVoxelInteractionSystem, py::return_value_policy::reference)
         .def("get_chunk_manager", &Application::getChunkManager, py::return_value_policy::reference)
         .def("get_object_template_manager", &Application::getObjectTemplateManager, py::return_value_policy::reference)
-        .def("get_input_manager", &Application::getInputManager, py::return_value_policy::reference);
+        .def("get_input_manager", &Application::getInputManager, py::return_value_policy::reference)
+        .def("get_audio_system", &Application::getAudioSystem, py::return_value_policy::reference);
 
     // Global function to get app
     m.def("get_app", []() { return g_appInstance; }, py::return_value_policy::reference);

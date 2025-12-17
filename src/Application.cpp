@@ -161,6 +161,9 @@ bool Application::initialize() {
         return false;
     }
 
+    // Initialize last camera position to avoid velocity spike
+    lastCameraPos = inputManager->getCameraPosition();
+
     // STEP 4: CREATE VoxelInteractionSystem (DEPENDS ON INITIALIZED WORLD)
     // This system handles mouse picking and voxel manipulation (breaking, subdividing)
     // Must be created AFTER WorldInitializer because it needs:
@@ -559,8 +562,10 @@ void Application::update(float deltaTime) {
     
     // Update Audio Listener
     if (audioSystem) {
-        audioSystem->update(cameraPos, cameraFront, cameraUp);
+        glm::vec3 velocity = (deltaTime > 0.0f) ? (cameraPos - lastCameraPos) / deltaTime : glm::vec3(0.0f);
+        audioSystem->update(cameraPos, cameraFront, cameraUp, velocity);
     }
+    lastCameraPos = cameraPos;
 
     glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
     glm::mat4 proj = glm::perspective(

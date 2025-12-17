@@ -64,6 +64,7 @@ public:
     ChunkManager* getChunkManager() const { return chunkManager.get(); }
     Input::InputManager* getInputManager() const { return inputManager.get(); }
     ScriptingSystem* getScriptingSystem() const { return scriptingSystem.get(); }
+    Core::AudioSystem* getAudioSystem() const { return audioSystem.get(); }
 
 private:
     // ============================================================================
@@ -120,6 +121,9 @@ private:
     glm::mat4 cachedViewMatrix;
     glm::mat4 cachedProjectionMatrix;
     bool projectionMatrixNeedsUpdate = true;
+    
+    // Camera state for velocity calculation
+    glm::vec3 lastCameraPos = glm::vec3(0.0f);
 
     // Frame profiling timing
     std::chrono::high_resolution_clock::time_point frameStartTime;
