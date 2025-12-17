@@ -99,6 +99,11 @@ void InputController::setupKeyboardBindings() {
         m_app->togglePerformanceOverlay();
     });
 
+    // V - Toggle Camera Mode
+    m_inputManager->registerAction(GLFW_KEY_V, "Toggle Camera Mode", [this]() {
+        m_app->toggleCameraMode();
+    });
+
     // ` (Grave Accent) - Toggle Scripting Console
     m_inputManager->registerAction(GLFW_KEY_GRAVE_ACCENT, "Toggle Scripting Console", [this]() {
         m_app->toggleScriptingConsole();

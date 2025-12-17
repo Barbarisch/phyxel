@@ -51,7 +51,8 @@ public:
 
     // Query state
     bool isKeyPressed(int key) const;
-    glm::vec2 getMouseDelta() const { return glm::vec2(currentMouseX - lastX, lastY - currentMouseY); } // Simple approximation, might need reset
+    glm::vec2 getMouseDelta() const { return glm::vec2(mouseDeltaX, mouseDeltaY); }
+    void resetMouseDelta() { mouseDeltaX = 0; mouseDeltaY = 0; }
     
     // Action registration (Application registers what happens on key press)
     void registerAction(int key, const std::string& name, ActionCallback callback);
@@ -93,6 +94,7 @@ private:
     // Mouse state
     double lastX, lastY;
     double currentMouseX, currentMouseY;
+    float mouseDeltaX, mouseDeltaY;
     bool firstMouse;
     bool mouseCaptured;
     float mouseSensitivity;

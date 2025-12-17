@@ -3,6 +3,7 @@
 #include "graphics/ShadowMap.h"
 #include "graphics/PostProcessor.h"
 #include "graphics/PostProcessor.h"
+#include "graphics/Camera.h"
 #include "vulkan/RenderPipeline.h"
 #include "ui/ImGuiRenderer.h"
 #include "vulkan/VulkanDevice.h"
@@ -27,6 +28,7 @@ RenderCoordinator::RenderCoordinator(
     UI::ImGuiRenderer* imguiRenderer,
     UI::WindowManager* windowManager,
     Input::InputManager* inputManager,
+    Camera* camera,
     ChunkManager* chunkManager,
     Utils::PerformanceMonitor* performanceMonitor,
     PerformanceProfiler* performanceProfiler,
@@ -39,6 +41,7 @@ RenderCoordinator::RenderCoordinator(
     , imguiRenderer(imguiRenderer)
     , windowManager(windowManager)
     , inputManager(inputManager)
+    , camera(camera)
     , chunkManager(chunkManager)
     , performanceMonitor(performanceMonitor)
     , performanceProfiler(performanceProfiler)
@@ -116,7 +119,7 @@ size_t RenderCoordinator::renderStaticGeometry() {
             glm::vec3 chunkCenter = (minBounds + maxBounds) * 0.5f;
             
             // LEVEL 1: Chunk inclusion distance culling (broader range for chunk loading)
-            float distanceToCamera = glm::length(chunkCenter - inputManager->getCameraPosition());
+            float distanceToCamera = glm::length(chunkCenter - camera->getPosition());
             if (distanceToCamera > chunkInclusionDistance) {
                 continue; // Skip chunk - too far away even for loading
             }
@@ -126,9 +129,9 @@ size_t RenderCoordinator::renderStaticGeometry() {
             Utils::AABB chunkAABB(minBounds, maxBounds);
             
             // Extract frustum from current view/projection matrices (uses maxChunkRenderDistance)
-            glm::vec3 cameraPos = inputManager->getCameraPosition();
-            glm::vec3 cameraFront = inputManager->getCameraFront();
-            glm::vec3 cameraUp = inputManager->getCameraUp();
+            glm::vec3 cameraPos = camera->getPosition();
+            glm::vec3 cameraFront = camera->getFront();
+            glm::vec3 cameraUp = camera->getUp();
             
             glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
             glm::mat4 proj = cachedProjectionMatrix;
@@ -219,7 +222,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
 
     shadowMap->beginRenderPass(commandBuffer);
 
-    glm::vec3 cameraPos = inputManager->getCameraPosition();
+    glm::vec3 cameraPos = camera->getPosition();
 
     // Bind global vertex buffer (binding 0) and index buffer
     // We use bindVertexBuffers to bind the shared vertex buffer to binding 0
@@ -341,7 +344,7 @@ void RenderCoordinator::drawFrame() {
     glm::mat4 proj = cachedProjectionMatrix;
     
     // Calculate light space matrix for shadows
-    glm::vec3 cameraPos = inputManager->getCameraPosition();
+    glm::vec3 cameraPos = camera->getPosition();
     glm::mat4 lightSpaceMatrix = shadowMap ? shadowMap->getLightSpaceMatrix(sunDirection, cameraPos, 100.0f) : glm::mat4(1.0f);
     
     auto uboEnd = std::chrono::high_resolution_clock::now();

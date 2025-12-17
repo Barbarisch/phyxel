@@ -16,6 +16,8 @@ InputManager::InputManager()
     , lastY(300.0f)
     , currentMouseX(0.0)
     , currentMouseY(0.0)
+    , mouseDeltaX(0.0f)
+    , mouseDeltaY(0.0f)
     , firstMouse(true)
     , mouseCaptured(false)
     , mouseSensitivity(0.3f)
@@ -185,6 +187,9 @@ void InputManager::handleMouseMove(double xpos, double ypos) {
     lastX = xpos;
     lastY = ypos;
     
+    mouseDeltaX += xoffset;
+    mouseDeltaY += yoffset;
+
     xoffset *= mouseSensitivity;
     yoffset *= mouseSensitivity;
     

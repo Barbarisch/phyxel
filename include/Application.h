@@ -7,6 +7,7 @@
 #include "vulkan/RenderPipeline.h"
 #include "graphics/RenderCoordinator.h"
 #include "graphics/RaycastVisualizer.h"
+#include "graphics/Camera.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "physics/PhysicsWorld.h"
 #include "utils/Timer.h"
@@ -59,6 +60,7 @@ public:
     void cycleRaycastTargetMode();
     void adjustAmbientLight(float delta);
     void toggleLightingControls();
+    void toggleCameraMode();
 
     // Accessors
     ObjectTemplateManager* getObjectTemplateManager() const { return objectTemplateManager.get(); }
@@ -84,6 +86,7 @@ private:
     std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;    // Coordinates all rendering
     std::unique_ptr<UI::ImGuiRenderer> imguiRenderer;                  // Debug UI rendering
     std::unique_ptr<RaycastVisualizer> raycastVisualizer;              // Raycast debug visualization
+    std::unique_ptr<Graphics::Camera> camera;                          // Camera system
     
     // World and physics
     std::unique_ptr<ChunkManager> chunkManager;                        // Voxel world management

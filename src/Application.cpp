@@ -195,9 +195,14 @@ bool Application::initialize() {
     LOG_INFO("Application", "RaycastVisualizer initialized successfully!");
 
     // STEP 5.5: INITIALIZE ENTITIES
+    // Create Camera
+    // Start with yaw = 90.0f to face towards the world (positive Z) instead of away
+    camera = std::make_unique<Graphics::Camera>(glm::vec3(50.0f, 50.0f, 50.0f), glm::vec3(0.0f, 1.0f, 0.0f), 90.0f);
+    camera->setMode(Graphics::CameraMode::ThirdPerson);
+
     // Create Player
     // Spawn high up to avoid falling through world before chunks load
-    auto playerPtr = std::make_unique<Scene::Player>(physicsWorld.get(), inputManager.get(), glm::vec3(20, 50, 20));
+    auto playerPtr = std::make_unique<Scene::Player>(physicsWorld.get(), inputManager.get(), camera.get(), glm::vec3(20, 50, 20));
     player = playerPtr.get();
     entities.push_back(std::move(playerPtr));
 
@@ -224,6 +229,7 @@ bool Application::initialize() {
         imguiRenderer.get(),
         windowManager.get(),
         inputManager.get(),
+        camera.get(),
         chunkManager.get(),
         performanceMonitor.get(),
         performanceProfiler.get(),
@@ -270,6 +276,11 @@ void Application::run() {
         deltaTime = currentTime - lastFrameTime;
         lastFrameTime = currentTime;
         
+        // Reset mouse delta before polling new events
+        if (inputManager) {
+            inputManager->resetMouseDelta();
+        }
+
         // Poll GLFW events
         windowManager->pollEvents();
         
@@ -374,6 +385,11 @@ void Application::run() {
         if (frameCount % 60 == 0 && !showPerformanceOverlay) {
             // performanceMonitor->printPerformanceStats(timer.get(), timing, chunkManager.get(), physicsWorld.get());
         }
+
+        // Reset mouse delta at the end of the frame
+        if (inputManager) {
+            inputManager->resetMouseDelta();
+        }
     }
     
     LOG_INFO("Application", "Application shutting down...");
@@ -469,11 +485,7 @@ void Application::update(float deltaTime) {
         entity->update(deltaTime);
     }
 
-    // Sync camera to player
-    if (player) {
-        // Eye level offset
-        inputManager->setCameraPosition(player->getPosition() + glm::vec3(0, 0.8f, 0)); 
-    }
+    // Camera sync is now handled by Player::update()
     
     // Input is processed in handleInput() which is called from run() loop
     // Update input controller logic (e.g. previews)
@@ -581,10 +593,16 @@ void Application::update(float deltaTime) {
     
     // NOTE: Frustum culling is now handled in renderStaticGeometry()
 
+    // Sync Camera to InputManager for other systems (Audio, Scripts, etc.)
+    if (camera && inputManager) {
+        inputManager->setCameraPosition(camera->getPosition());
+        inputManager->setYawPitch(camera->getYaw(), camera->getPitch());
+    }
+
     // Update view and projection matrices for Vulkan rendering
-    glm::vec3 cameraPos = inputManager->getCameraPosition();
-    glm::vec3 cameraFront = inputManager->getCameraFront();
-    glm::vec3 cameraUp = inputManager->getCameraUp();
+    glm::vec3 cameraPos = camera->getPosition();
+    glm::vec3 cameraFront = camera->getFront();
+    glm::vec3 cameraUp = camera->getUp();
     
     // Update Audio Listener
     if (audioSystem) {
@@ -593,7 +611,7 @@ void Application::update(float deltaTime) {
     }
     lastCameraPos = cameraPos;
 
-    glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+    glm::mat4 view = camera->getViewMatrix();
     glm::mat4 proj = glm::perspective(
         glm::radians(45.0f), 
         static_cast<float>(windowManager->getWidth()) / static_cast<float>(windowManager->getHeight()), 
@@ -750,6 +768,23 @@ void Application::setChunkInclusionDistance(float distance) {
         }
         
         LOG_INFO_FMT("Application", "Chunk inclusion distance updated to: " << distance);
+    }
+}
+
+void Application::toggleCameraMode() {
+    if (camera) {
+        Graphics::CameraMode currentMode = camera->getMode();
+        Graphics::CameraMode newMode;
+        
+        if (currentMode == Graphics::CameraMode::FirstPerson) {
+            newMode = Graphics::CameraMode::ThirdPerson;
+            LOG_INFO("Application", "Switched to Third Person Camera");
+        } else {
+            newMode = Graphics::CameraMode::FirstPerson;
+            LOG_INFO("Application", "Switched to First Person Camera");
+        }
+        
+        camera->setMode(newMode);
     }
 }
 

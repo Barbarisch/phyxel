@@ -33,6 +33,7 @@ namespace Graphics {
 
 class ShadowMap;
 class PostProcessor;
+class Camera;
 
 /**
  * @brief Manages the rendering pipeline and frame rendering
@@ -53,6 +54,7 @@ public:
         UI::ImGuiRenderer* imguiRenderer,
         UI::WindowManager* windowManager,
         Input::InputManager* inputManager,
+        Camera* camera,
         ChunkManager* chunkManager,
         Utils::PerformanceMonitor* performanceMonitor,
         PerformanceProfiler* performanceProfiler,
@@ -131,6 +133,7 @@ private:
     UI::ImGuiRenderer* imguiRenderer;
     UI::WindowManager* windowManager;
     Input::InputManager* inputManager;
+    Camera* camera;
     ChunkManager* chunkManager;
     Utils::PerformanceMonitor* performanceMonitor;
     PerformanceProfiler* performanceProfiler;
