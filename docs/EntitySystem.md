@@ -25,6 +25,13 @@ classDiagram
         -btPairCachingGhostObject ghostObject
     }
     
+    class PhysicsCharacter {
+        +walk(direction)
+        +jump()
+        -btRigidBody mainBody
+        -btHingeConstraint legs
+    }
+    
     class Player {
         +handleInput()
     }
@@ -34,6 +41,7 @@ classDiagram
     }
     
     Entity <|-- Character
+    Entity <|-- PhysicsCharacter
     Character <|-- Player
     Character <|-- Enemy
 ```
@@ -43,7 +51,13 @@ The base abstract class defining the interface for all game objects.
 - **Responsibilities**: Lifecycle management (update/render), transform access.
 - **Key Methods**: `update()`, `render()`.
 
-### Character
+### PhysicsCharacter (New)
+A new active-ragdoll based character controller.
+- **Documentation**: See [PhysicsCharacter.md](PhysicsCharacter.md) for full details.
+- **Physics**: Uses `btRigidBody` and `btHingeConstraint` with motors.
+- **Balance**: Uses a PID controller to maintain upright orientation.
+
+### Character (Legacy)
 A specialization of `Entity` that uses Bullet Physics for movement.
 - **Physics Integration**: Uses `btKinematicCharacterController` for robust character movement (handling slopes, stairs, gravity) without the instability of pure rigid bodies.
 - **Collision**: Uses `btPairCachingGhostObject` to detect collisions without applying forces to static geometry in a way that would cause jitter.
@@ -61,8 +75,16 @@ Represents AI-controlled characters.
 ## Physics Integration
 
 The system integrates with Bullet3 via `PhysicsWorld`:
+
+### Kinematic (Legacy)
 - **Kinematic Controllers**: Characters are kinematic objects, meaning their movement is determined by game logic (velocity) rather than forces/impulses, but they still collide with the static world.
 - **Lifecycle**: `PhysicsWorld` manages the creation and destruction of Bullet objects (`btKinematicCharacterController`, `btPairCachingGhostObject`, `btConvexShape`).
+
+### Active Ragdoll (New)
+- **Rigid Bodies**: The `PhysicsCharacter` uses standard `btRigidBody` objects with mass and inertia.
+- **Constraints**: Uses `btHingeConstraint` to connect body parts.
+- **Motors**: Movement is driven by motors on the constraints, not by setting velocity directly.
+
 
 ## Rendering Pipeline
 
