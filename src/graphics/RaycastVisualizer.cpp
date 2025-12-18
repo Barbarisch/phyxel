@@ -75,8 +75,34 @@ void RaycastVisualizer::clearPreviewBoxes() {
     generateDebugGeometry();
 }
 
+void RaycastVisualizer::addLine(const glm::vec3& start, const glm::vec3& end, const glm::vec3& color) {
+    m_lines.push_back({start, end, color});
+    m_dataChanged = true;
+    generateDebugGeometry();
+}
+
+void RaycastVisualizer::clearLines() {
+    m_lines.clear();
+    m_dataChanged = true;
+    generateDebugGeometry();
+}
+
+void RaycastVisualizer::beginFrame() {
+    if (!m_lines.empty()) {
+        m_lines.clear();
+        m_dataChanged = true;
+        generateDebugGeometry();
+    }
+}
+
 void RaycastVisualizer::generateDebugGeometry() {
     m_vertices.clear();
+
+    // Render custom lines
+    for (const auto& line : m_lines) {
+        m_vertices.push_back({line.start, line.color});
+        m_vertices.push_back({line.end, line.color});
+    }
 
     // Render preview boxes first (always visible if present)
     for (const auto& box : m_previewBoxes) {

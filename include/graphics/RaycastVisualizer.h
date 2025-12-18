@@ -61,8 +61,20 @@ public:
         glm::vec3 size;
         glm::vec3 color;
     };
+    struct DebugLine {
+        glm::vec3 start;
+        glm::vec3 end;
+        glm::vec3 color;
+    };
+
     void addPreviewBox(const glm::vec3& pos, const glm::vec3& size, const glm::vec3& color);
     void clearPreviewBoxes();
+    
+    void addLine(const glm::vec3& start, const glm::vec3& end, const glm::vec3& color);
+    void clearLines();
+    
+    // Called at start of frame to clear transient debug data
+    void beginFrame();
 
     // Rendering
     void updateBuffers(uint32_t currentFrame);
@@ -95,6 +107,7 @@ private:
     // Debug data
     RaycastDebugData m_data;
     std::vector<PreviewBox> m_previewBoxes;
+    std::vector<DebugLine> m_lines;
     bool m_dataValid = false;
     bool m_dataChanged = false;
 

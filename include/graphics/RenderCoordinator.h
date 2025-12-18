@@ -82,6 +82,7 @@ public:
     void toggleRaycastVisualization() { raycastVisualizationEnabled = !raycastVisualizationEnabled; }
     void setRaycastVisualization(bool enabled) { raycastVisualizationEnabled = enabled; }
     bool isRaycastVisualizationEnabled() const { return raycastVisualizationEnabled; }
+    RaycastVisualizer* getRaycastVisualizer() const { return raycastVisualizer; }
     
     // Scripting Console
     void setShowScriptingConsole(bool show) { showScriptingConsole = show; }

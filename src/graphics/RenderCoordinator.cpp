@@ -427,6 +427,11 @@ void RenderCoordinator::drawFrame() {
         // Render dynamic subcubes with separate pipeline
         renderDynamicSubcubes();
 
+        // Clear transient debug lines before rendering entities
+        if (raycastVisualizer) {
+            raycastVisualizer->beginFrame();
+        }
+
         // Render entities (Characters)
         renderEntities(vulkanDevice->getCommandBuffer(currentFrame));
         
@@ -563,6 +568,9 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
         // Check for PhysicsCharacter first (new system)
         auto physicsChar = dynamic_cast<Scene::PhysicsCharacter*>(entity.get());
         if (physicsChar) {
+            // Allow character to do its own debug rendering (e.g. raycast lines)
+            physicsChar->render(this);
+
             const auto& parts = physicsChar->getParts();
             for (const auto& part : parts) {
                 if (!part.rigidBody) continue;

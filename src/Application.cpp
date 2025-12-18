@@ -561,6 +561,18 @@ void Application::update(float deltaTime) {
             raycastVisualizer->setRaycastData(vizData);
             raycastVisualizer->updateBuffers(renderCoordinator->getCurrentFrame());
         }
+
+        // Update PhysicsCharacter look target
+        if (physicsCharacter) {
+            const auto& raycastDebugData = voxelInteractionSystem->getLastRaycastDebugData();
+            if (raycastDebugData.hasHit) {
+                physicsCharacter->setLookTarget(raycastDebugData.hitPoint);
+            } else {
+                // Look far away along ray
+                glm::vec3 farPoint = raycastDebugData.rayOrigin + raycastDebugData.rayDirection * 100.0f;
+                physicsCharacter->setLookTarget(farPoint);
+            }
+        }
     }
     
     // Update chunks that have been modified (for hover color changes, etc.)
@@ -592,6 +604,11 @@ void Application::update(float deltaTime) {
     
     auto physicsEnd = std::chrono::high_resolution_clock::now();
     
+    // Update Camera AFTER physics step to prevent jitter/lag
+    if (isControllingPhysicsCharacter && physicsCharacter) {
+        physicsCharacter->updateCamera();
+    }
+
     // Update dynamic subcube positions from physics bodies
     if (chunkManager) {
         // Update global dynamic subcubes (all dynamic subcubes are now global)
