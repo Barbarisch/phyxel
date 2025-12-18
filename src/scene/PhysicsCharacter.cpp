@@ -1,4 +1,4 @@
-#include "scene/VoxelCharacter.h"
+#include "scene/PhysicsCharacter.h"
 #include "graphics/RenderCoordinator.h"
 #include "utils/Logger.h"
 #include <glm/gtc/matrix_transform.hpp>
@@ -7,12 +7,12 @@
 namespace VulkanCube {
 namespace Scene {
 
-VoxelCharacter::VoxelCharacter(Physics::PhysicsWorld* physicsWorld, Input::InputManager* inputManager, Graphics::Camera* camera, const glm::vec3& startPos)
+PhysicsCharacter::PhysicsCharacter(Physics::PhysicsWorld* physicsWorld, Input::InputManager* inputManager, Graphics::Camera* camera, const glm::vec3& startPos)
     : physicsWorld(physicsWorld), inputManager(inputManager), camera(camera) {
     createRagdoll(startPos);
 }
 
-VoxelCharacter::~VoxelCharacter() {
+PhysicsCharacter::~PhysicsCharacter() {
     // Cleanup constraints
     for (auto* constraint : constraints) {
         physicsWorld->removeConstraint(constraint);
@@ -29,7 +29,7 @@ VoxelCharacter::~VoxelCharacter() {
     parts.clear();
 }
 
-void VoxelCharacter::createRagdoll(const glm::vec3& startPos) {
+void PhysicsCharacter::createRagdoll(const glm::vec3& startPos) {
     // Define scales (using Subcube scale approx 0.33f)
     float subScale = 1.0f / 3.0f;
     glm::vec3 torsoScale(subScale, subScale * 1.5f, subScale); // Taller torso
@@ -41,6 +41,7 @@ void VoxelCharacter::createRagdoll(const glm::vec3& startPos) {
     torso->setUserPointer((void*)1); // Mark as character part (prevent auto-cleanup)
     torso->setActivationState(DISABLE_DEACTIVATION);
     torso->setAngularFactor(btVector3(0, 1, 0)); // Limit rotation to Y axis for now (easier balance)
+    torso->setDamping(0.5f, 0.5f); // Add damping to reduce sliding
     parts.push_back({torso, torsoScale, glm::vec4(0.0f, 0.0f, 1.0f, 1.0f), "Torso"});
     torsoIndex = 0;
 
@@ -54,6 +55,13 @@ void VoxelCharacter::createRagdoll(const glm::vec3& startPos) {
     // Neck Joint (Hinge)
     btTransform localA, localB;
     localA.setIdentity(); localB.setIdentity();
+    
+    // Rotate frames so Z axis points along X axis (for nodding)
+    btQuaternion rotZtoX;
+    rotZtoX.setRotation(btVector3(0,1,0), 1.5708f); // 90 degrees around Y
+    localA.setRotation(rotZtoX);
+    localB.setRotation(rotZtoX);
+
     localA.setOrigin(btVector3(0, torsoScale.y * 0.5f + 0.025f, 0));
     localB.setOrigin(btVector3(0, -headScale.y * 0.5f - 0.025f, 0));
     btHingeConstraint* neck = new btHingeConstraint(*torso, *head, localA, localB);
@@ -66,9 +74,9 @@ void VoxelCharacter::createRagdoll(const glm::vec3& startPos) {
         glm::vec3 pos = startPos + offset;
         btRigidBody* limb = physicsWorld->createCube(pos, limbScale, mass);
         limb->setUserPointer((void*)1); // Mark as character part
-        limb->setFriction(0.8f); // High friction for grip
+        limb->setFriction(1.5f); // High friction for grip
         parts.push_back({limb, limbScale, glm::vec4(0.0f, 1.0f, 0.0f, 1.0f), name});
-        return parts.size() - 1;
+        return (int)(parts.size() - 1);
     };
 
     // Legs
@@ -79,8 +87,15 @@ void VoxelCharacter::createRagdoll(const glm::vec3& startPos) {
     rightLegIndex = createLimb(glm::vec3(legOffsetX, legOffsetY, 0), "RightLeg", 5.0f);
 
     // Hip Joints (Hinge for walking)
-    auto createHip = [&](int legIdx, float xDir) {
+    auto createHip = [&](int legIdx, float xDir) -> int {
         localA.setIdentity(); localB.setIdentity();
+        
+        // Rotate frames so Z axis points along X axis (for walking forward/back)
+        btQuaternion rotZtoX;
+        rotZtoX.setRotation(btVector3(0,1,0), 1.5708f); // 90 degrees around Y
+        localA.setRotation(rotZtoX);
+        localB.setRotation(rotZtoX);
+
         localA.setOrigin(btVector3(xDir * legOffsetX, -torsoScale.y * 0.5f, 0));
         localB.setOrigin(btVector3(0, limbScale.y * 0.5f, 0));
         
@@ -90,7 +105,7 @@ void VoxelCharacter::createRagdoll(const glm::vec3& startPos) {
         hip->setLimit(-0.8f, 0.8f);
         physicsWorld->addConstraint(hip, true);
         constraints.push_back(hip);
-        return constraints.size() - 1;
+        return (int)(constraints.size() - 1);
     };
 
     leftHipIndex = createHip(leftLegIndex, -1.0f);
@@ -118,7 +133,9 @@ void VoxelCharacter::createRagdoll(const glm::vec3& startPos) {
     createShoulder(rightArmIndex, 1.0f);
 }
 
-void VoxelCharacter::update(float deltaTime) {
+void PhysicsCharacter::update(float deltaTime) {
+    checkGroundStatus();
+
     if (isControlActive) {
         processInput(deltaTime);
     } else {
@@ -129,7 +146,40 @@ void VoxelCharacter::update(float deltaTime) {
     updateWalkCycle(deltaTime);
 }
 
-void VoxelCharacter::processInput(float deltaTime) {
+void PhysicsCharacter::checkGroundStatus() {
+    // Simple raycast from torso down
+    if (torsoIndex == -1) return;
+    
+    btRigidBody* body = parts[torsoIndex].rigidBody;
+    btTransform trans;
+    body->getMotionState()->getWorldTransform(trans);
+    btVector3 from = trans.getOrigin();
+    btVector3 to = from - btVector3(0, 2.0f, 0); // Increased ray length to 2.0 units to ensure hit
+
+    btCollisionWorld::ClosestRayResultCallback rayCallback(from, to);
+    physicsWorld->getWorld()->rayTest(from, to, rayCallback);
+
+    if (rayCallback.hasHit()) {
+        isGrounded = true;
+    } else {
+        isGrounded = false;
+    }
+    
+    // Update state based on ground status
+    if (!isGrounded) {
+        if (body->getLinearVelocity().y() > 0) {
+            state = CharacterState::Jumping;
+        } else {
+            state = CharacterState::Falling;
+        }
+    } else if (isMoving) {
+        state = CharacterState::Walking;
+    } else {
+        state = CharacterState::Idle;
+    }
+}
+
+void PhysicsCharacter::processInput(float deltaTime) {
     if (!inputManager || !camera) return;
 
     // Handle Camera Rotation
@@ -156,7 +206,7 @@ void VoxelCharacter::processInput(float deltaTime) {
 
     // Jump
     if (jumpCooldown > 0.0f) jumpCooldown -= deltaTime;
-    if (inputManager->isKeyPressed(GLFW_KEY_SPACE) && jumpCooldown <= 0.0f) {
+    if (inputManager->isKeyPressed(GLFW_KEY_SPACE) && jumpCooldown <= 0.0f && isGrounded) {
         jump();
         jumpCooldown = 1.0f;
     }
@@ -171,14 +221,14 @@ void VoxelCharacter::processInput(float deltaTime) {
     camera->updatePositionFromTarget(pos, 1.5f);
 }
 
-void VoxelCharacter::keepUpright(float deltaTime) {
+void PhysicsCharacter::keepUpright(float deltaTime) {
     if (torsoIndex == -1) return;
 
     btRigidBody* body = parts[torsoIndex].rigidBody;
     btTransform trans;
     body->getMotionState()->getWorldTransform(trans);
     
-    // Calculate upright force (PID controller simplified)
+    // Calculate upright force (PID controller)
     btVector3 up(0, 1, 0);
     btVector3 currentUp = trans.getBasis().getColumn(1);
     
@@ -187,33 +237,69 @@ void VoxelCharacter::keepUpright(float deltaTime) {
     
     // Apply torque to correct orientation
     if (angle > 0.01f) {
-        float correctionStrength = 80.0f; // Tune this
-        float damping = 10.0f;
-        btVector3 torque = axis * (angle * correctionStrength) - body->getAngularVelocity() * damping;
+        // Update integral error (clamped to prevent windup)
+        integralError += axis * angle * deltaTime;
+        if (integralError.length() > 1.0f) {
+            integralError = integralError.normalized();
+        }
+
+        // PID formula: Kp*error + Ki*integral + Kd*derivative (derivative is -angularVelocity)
+        btVector3 torque = axis * (angle * kp) 
+                         + integralError * ki 
+                         - body->getAngularVelocity() * kd;
+        
+        body->activate();
         body->applyTorque(torque);
+    } else {
+        // Decay integral error when upright
+        integralError *= 0.95f;
     }
 }
 
-void VoxelCharacter::updateWalkCycle(float deltaTime) {
-    if (!isMoving) {
-        // Reset to standing
+void PhysicsCharacter::updateWalkCycle(float deltaTime) {
+    if (!isMoving || !isGrounded) {
+        // Reset to standing pose
         walkCycleTime = 0.0f;
-        // Apply damping to stop legs
+        
+        // Target 0 angle for hips (standing straight)
+        auto resetLeg = [&](int constraintIdx) {
+            if (constraintIdx >= 0 && constraintIdx < constraints.size()) {
+                btHingeConstraint* hinge = static_cast<btHingeConstraint*>(constraints[constraintIdx]);
+                hinge->enableAngularMotor(true, (0.0f - hinge->getHingeAngle()) * 5.0f, 100.0f);
+            }
+        };
+        resetLeg(leftHipIndex);
+        resetLeg(rightHipIndex);
+
+        // Apply braking force when not moving but grounded
+        if (isGrounded && torsoIndex != -1) {
+            btRigidBody* body = parts[torsoIndex].rigidBody;
+            btVector3 vel = body->getLinearVelocity();
+            // Apply counter-force to stop sliding
+            body->applyCentralForce(-vel * 50.0f);
+        }
         return;
     }
 
     walkCycleTime += deltaTime * walkSpeed;
 
-    // Simple sine wave walk cycle
-    float leftLegTarget = sin(walkCycleTime) * 0.8f;
-    float rightLegTarget = sin(walkCycleTime + 3.14159f) * 0.8f;
+    // Improved walk cycle with phases
+    // Phase 0-PI: Left leg forward, Right leg back
+    // Phase PI-2PI: Right leg forward, Left leg back
+    
+    float hipAmplitude = 0.8f;
+    float leftLegTarget = sin(walkCycleTime) * hipAmplitude;
+    float rightLegTarget = sin(walkCycleTime + 3.14159f) * hipAmplitude;
 
-    // Drive motors (using setLimit as a poor man's motor for HingeConstraint if motor not enabled)
-    // Better: enable angular motor on hinge
+    // Drive motors
     auto driveLeg = [&](int constraintIdx, float targetAngle) {
         if (constraintIdx >= 0 && constraintIdx < constraints.size()) {
             btHingeConstraint* hinge = static_cast<btHingeConstraint*>(constraints[constraintIdx]);
-            hinge->enableAngularMotor(true, (targetAngle - hinge->getHingeAngle()) * 5.0f, 100.0f);
+            // Target velocity is proportional to error (P-controller for velocity)
+            float error = targetAngle - hinge->getHingeAngle();
+            float targetVel = error * 10.0f; // Gain
+            float maxImpulse = 200.0f; // Stronger legs
+            hinge->enableAngularMotor(true, targetVel, maxImpulse);
         }
     };
 
@@ -221,7 +307,7 @@ void VoxelCharacter::updateWalkCycle(float deltaTime) {
     driveLeg(rightHipIndex, rightLegTarget);
 }
 
-void VoxelCharacter::move(const glm::vec3& direction) {
+void PhysicsCharacter::move(const glm::vec3& direction) {
     if (glm::length(direction) > 0.1f) {
         isMoving = true;
         moveDirection = glm::normalize(direction);
@@ -229,11 +315,17 @@ void VoxelCharacter::move(const glm::vec3& direction) {
         // Apply force to torso to move
         if (torsoIndex != -1) {
             btRigidBody* body = parts[torsoIndex].rigidBody;
-            btVector3 force(moveDirection.x * 30.0f, 0, moveDirection.z * 30.0f);
+            
+            // Apply movement force relative to mass to be consistent
+            float moveForce = 40.0f * body->getInvMass(); // Scale force by mass (approx)
+            // Actually getInvMass is 1/mass, so we want force * mass. 
+            // But let's just tune the constant. 30.0f was weak.
+            btVector3 force(moveDirection.x * 50.0f, 0, moveDirection.z * 50.0f);
+            
             body->activate();
             body->applyCentralForce(force);
             
-            // Rotate torso to face movement direction
+            // Rotate torso to face movement direction using Torque
             float targetYaw = atan2(moveDirection.x, moveDirection.z);
             btQuaternion targetRot;
             targetRot.setRotation(btVector3(0, 1, 0), targetYaw);
@@ -242,26 +334,54 @@ void VoxelCharacter::move(const glm::vec3& direction) {
             body->getMotionState()->getWorldTransform(trans);
             btQuaternion currentRot = trans.getRotation();
             
-            btQuaternion newRot = currentRot.slerp(targetRot, 0.1f);
-            // Note: Directly setting rotation is bad for physics, better to use torque, 
-            // but for character facing it's often acceptable if done carefully or via angular velocity.
-            // Here we'll just let the physics engine handle it via friction and leg movement mostly,
-            // but maybe add a small torque to help turn.
+            // Calculate angle difference
+            // Simple approach: look at the angle between forward vectors
+            btVector3 currentForward = trans.getBasis().getColumn(2); // Z is forward? Check basis.
+            // Assuming Z is forward in local space.
+            // Actually let's just use the angle difference around Y.
+            
+            // Get current yaw
+            btVector3 forward = trans.getBasis().getColumn(2);
+            float currentYaw = atan2(forward.x(), forward.z());
+            
+            float yawDiff = targetYaw - currentYaw;
+            // Normalize angle to -PI to PI
+            while (yawDiff > 3.14159f) yawDiff -= 6.28318f;
+            while (yawDiff < -3.14159f) yawDiff += 6.28318f;
+            
+            // Apply torque to turn
+            float turnStrength = 20.0f;
+            float turnDamping = 5.0f;
+            body->applyTorque(btVector3(0, yawDiff * turnStrength - body->getAngularVelocity().y() * turnDamping, 0));
         }
     } else {
         isMoving = false;
     }
 }
 
-void VoxelCharacter::jump() {
+void PhysicsCharacter::jump() {
     if (torsoIndex != -1) {
         btRigidBody* body = parts[torsoIndex].rigidBody;
         body->activate();
-        body->applyCentralImpulse(btVector3(0, jumpForce * 5.0f, 0));
+        body->applyCentralImpulse(btVector3(0, jumpForce * 10.0f, 0));
     }
 }
 
-void VoxelCharacter::setPosition(const glm::vec3& pos) {
+void PhysicsCharacter::reset(const glm::vec3& pos) {
+    setPosition(pos);
+    integralError = btVector3(0,0,0);
+    
+    // Reset velocities
+    for (auto& part : parts) {
+        if (part.rigidBody) {
+            part.rigidBody->setLinearVelocity(btVector3(0,0,0));
+            part.rigidBody->setAngularVelocity(btVector3(0,0,0));
+            part.rigidBody->clearForces();
+        }
+    }
+}
+
+void PhysicsCharacter::setPosition(const glm::vec3& pos) {
     // Teleport all parts
     glm::vec3 currentPos = getPosition();
     glm::vec3 diff = pos - currentPos;
@@ -278,7 +398,7 @@ void VoxelCharacter::setPosition(const glm::vec3& pos) {
     }
 }
 
-glm::vec3 VoxelCharacter::getPosition() const {
+glm::vec3 PhysicsCharacter::getPosition() const {
     if (torsoIndex != -1 && parts[torsoIndex].rigidBody) {
         btTransform trans;
         parts[torsoIndex].rigidBody->getMotionState()->getWorldTransform(trans);
@@ -288,11 +408,11 @@ glm::vec3 VoxelCharacter::getPosition() const {
     return glm::vec3(0.0f);
 }
 
-void VoxelCharacter::render(Graphics::RenderCoordinator* renderer) {
+void PhysicsCharacter::render(Graphics::RenderCoordinator* renderer) {
     // This will be called by RenderCoordinator, but RenderCoordinator needs to be updated 
-    // to handle VoxelCharacter or we need to expose a way to render cubes from here.
+    // to handle PhysicsCharacter or we need to expose a way to render cubes from here.
     // Since RenderCoordinator calls this, we can't easily call back into RenderCoordinator's private methods.
-    // We will rely on RenderCoordinator to cast this Entity to VoxelCharacter and iterate parts.
+    // We will rely on RenderCoordinator to cast this Entity to PhysicsCharacter and iterate parts.
 }
 
 } // namespace Scene

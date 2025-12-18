@@ -11,17 +11,25 @@
 namespace VulkanCube {
 namespace Scene {
 
-struct VoxelPart {
+enum class CharacterState {
+    Idle,
+    Walking,
+    Jumping,
+    Falling,
+    Stumbling
+};
+
+struct PhysicsPart {
     btRigidBody* rigidBody;
     glm::vec3 scale;
     glm::vec4 color;
     std::string name;
 };
 
-class VoxelCharacter : public Entity {
+class PhysicsCharacter : public Entity {
 public:
-    VoxelCharacter(Physics::PhysicsWorld* physicsWorld, Input::InputManager* inputManager, Graphics::Camera* camera, const glm::vec3& startPos);
-    virtual ~VoxelCharacter();
+    PhysicsCharacter(Physics::PhysicsWorld* physicsWorld, Input::InputManager* inputManager, Graphics::Camera* camera, const glm::vec3& startPos);
+    virtual ~PhysicsCharacter();
 
     void update(float deltaTime) override;
     void render(Graphics::RenderCoordinator* renderer) override;
@@ -37,21 +45,27 @@ public:
     // Movement controls
     void move(const glm::vec3& direction);
     void jump();
+    void reset(const glm::vec3& pos);
 
     // Getters for parts (useful for debugging or attachments)
-    const std::vector<VoxelPart>& getParts() const { return parts; }
+    const std::vector<PhysicsPart>& getParts() const { return parts; }
+
+    // State queries
+    CharacterState getState() const { return state; }
+    bool getIsGrounded() const { return isGrounded; }
 
 private:
     void createRagdoll(const glm::vec3& startPos);
     void updateWalkCycle(float deltaTime);
     void keepUpright(float deltaTime);
     void processInput(float deltaTime);
+    void checkGroundStatus();
 
     Physics::PhysicsWorld* physicsWorld;
     Input::InputManager* inputManager;
     Graphics::Camera* camera;
     
-    std::vector<VoxelPart> parts;
+    std::vector<PhysicsPart> parts;
     std::vector<btTypedConstraint*> constraints;
 
     // Control variables
@@ -62,6 +76,16 @@ private:
     float walkCycleTime = 0.0f;
     bool isMoving = false;
     float jumpCooldown = 0.0f;
+
+    // PID Balance Controller
+    float kp = 150.0f; // Proportional gain (increased from 80)
+    float ki = 5.0f;   // Integral gain
+    float kd = 20.0f;  // Derivative gain
+    btVector3 integralError = btVector3(0,0,0);
+
+    // State
+    CharacterState state = CharacterState::Idle;
+    bool isGrounded = false;
 
     // Body parts indices
     int torsoIndex = -1;

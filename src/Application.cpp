@@ -1,6 +1,6 @@
 #include "Application.h"
 #include "scene/VoxelInteractionSystem.h"
-#include "scene/VoxelCharacter.h"
+#include "scene/PhysicsCharacter.h"
 #include "utils/FileUtils.h"
 #include "utils/Math.h"
 #include "utils/PerformanceProfiler.h"
@@ -207,10 +207,10 @@ bool Application::initialize() {
     player = playerPtr.get();
     entities.push_back(std::move(playerPtr));
 
-    // Create Voxel Character (Test)
-    auto voxelCharPtr = std::make_unique<Scene::VoxelCharacter>(physicsWorld.get(), inputManager.get(), camera.get(), glm::vec3(30, 50, 30));
-    voxelCharacter = voxelCharPtr.get();
-    entities.push_back(std::move(voxelCharPtr));
+    // Create Physics Character (Test)
+    auto physicsCharPtr = std::make_unique<Scene::PhysicsCharacter>(physicsWorld.get(), inputManager.get(), camera.get(), glm::vec3(30, 50, 30));
+    physicsCharacter = physicsCharPtr.get();
+    entities.push_back(std::move(physicsCharPtr));
 
     // Create Enemy
     auto enemyPtr = std::make_unique<Scene::Enemy>(physicsWorld.get(), glm::vec3(25, 50, 25));
@@ -495,8 +495,8 @@ void Application::update(float deltaTime) {
     }
 
     // Camera sync
-    if (isControllingVoxelCharacter && voxelCharacter) {
-        // VoxelCharacter updates camera position in its update() if active
+    if (isControllingPhysicsCharacter && physicsCharacter) {
+        // PhysicsCharacter updates camera position in its update() if active
     } else if (player) {
         // Player updates camera position in its update()
         // We need to ensure Player only updates camera if it's active.
@@ -809,15 +809,15 @@ void Application::toggleCameraMode() {
 }
 
 void Application::toggleCharacterControl() {
-    isControllingVoxelCharacter = !isControllingVoxelCharacter;
+    isControllingPhysicsCharacter = !isControllingPhysicsCharacter;
     
-    if (isControllingVoxelCharacter) {
-        LOG_INFO("Application", "Control switched to Voxel Character");
-        if (voxelCharacter) voxelCharacter->setControlActive(true);
+    if (isControllingPhysicsCharacter) {
+        LOG_INFO("Application", "Control switched to Physics Character");
+        if (physicsCharacter) physicsCharacter->setControlActive(true);
         if (player) player->setControlActive(false);
     } else {
         LOG_INFO("Application", "Control switched to Player (Cube)");
-        if (voxelCharacter) voxelCharacter->setControlActive(false);
+        if (physicsCharacter) physicsCharacter->setControlActive(false);
         if (player) player->setControlActive(true);
     }
 }

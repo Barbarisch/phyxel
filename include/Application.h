@@ -27,7 +27,7 @@
 #include "scene/Entity.h"
 #include "scene/Player.h"
 #include "scene/Enemy.h"
-#include "scene/VoxelCharacter.h"
+#include "scene/PhysicsCharacter.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -119,8 +119,8 @@ private:
     // Entities
     std::vector<std::unique_ptr<Scene::Entity>> entities;
     Scene::Player* player = nullptr;
-    Scene::VoxelCharacter* voxelCharacter = nullptr;
-    bool isControllingVoxelCharacter = false;
+    Scene::PhysicsCharacter* physicsCharacter = nullptr;
+    bool isControllingPhysicsCharacter = false;
 
     // ============================================================================
     // APPLICATION STATE

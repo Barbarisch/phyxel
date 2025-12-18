@@ -16,7 +16,7 @@
 #include "scene/Character.h"
 #include "scene/Player.h"
 #include "scene/Enemy.h"
-#include "scene/VoxelCharacter.h"
+#include "scene/PhysicsCharacter.h"
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace VulkanCube {
@@ -560,10 +560,10 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
     renderPipeline->bindCharacterPipeline(commandBuffer);
 
     for (const auto& entity : *entities) {
-        // Check for VoxelCharacter first (new system)
-        auto voxelChar = dynamic_cast<Scene::VoxelCharacter*>(entity.get());
-        if (voxelChar) {
-            const auto& parts = voxelChar->getParts();
+        // Check for PhysicsCharacter first (new system)
+        auto physicsChar = dynamic_cast<Scene::PhysicsCharacter*>(entity.get());
+        if (physicsChar) {
+            const auto& parts = physicsChar->getParts();
             for (const auto& part : parts) {
                 if (!part.rigidBody) continue;
 
