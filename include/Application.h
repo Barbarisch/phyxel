@@ -28,6 +28,7 @@
 #include "scene/Player.h"
 #include "scene/Enemy.h"
 #include "scene/PhysicsCharacter.h"
+#include "scene/SpiderCharacter.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -120,6 +121,14 @@ private:
     std::vector<std::unique_ptr<Scene::Entity>> entities;
     Scene::Player* player = nullptr;
     Scene::PhysicsCharacter* physicsCharacter = nullptr;
+    Scene::SpiderCharacter* spiderCharacter = nullptr;
+    
+    enum class ControlTarget {
+        Spider,
+        PhysicsCharacter
+    };
+    ControlTarget currentControlTarget = ControlTarget::PhysicsCharacter;
+    
     bool isControllingPhysicsCharacter = false;
 
     // ============================================================================

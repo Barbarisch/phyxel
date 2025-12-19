@@ -49,6 +49,7 @@ public:
     void setMode(CameraMode newMode) { mode = newMode; }
     void setYaw(float newYaw) { yaw = newYaw; updateCameraVectors(); }
     void setPitch(float newPitch) { pitch = newPitch; updateCameraVectors(); }
+    void setDistanceFromTarget(float dist) { distanceFromTarget = dist; }
 
 private:
     // Calculates the front vector from the Camera's (updated) Euler Angles

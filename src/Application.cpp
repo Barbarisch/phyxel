@@ -1,6 +1,7 @@
 #include "Application.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "scene/PhysicsCharacter.h"
+#include "scene/SpiderCharacter.h"
 #include "utils/FileUtils.h"
 #include "utils/Math.h"
 #include "utils/PerformanceProfiler.h"
@@ -197,25 +198,42 @@ bool Application::initialize() {
 
     // STEP 5.5: INITIALIZE ENTITIES
     // Create Camera
-    // Start with yaw = 90.0f to face towards the world (positive Z) instead of away
-    camera = std::make_unique<Graphics::Camera>(glm::vec3(50.0f, 50.0f, 50.0f), glm::vec3(0.0f, 1.0f, 0.0f), 90.0f);
-    camera->setMode(Graphics::CameraMode::ThirdPerson);
+    // Position camera to see the spider and physics character
+    // Spider is at (35, 50, 35), PhysicsCharacter at (30, 50, 30)
+    // Place camera at (45, 55, 45) looking back at them
+    camera = std::make_unique<Graphics::Camera>(glm::vec3(45.0f, 55.0f, 45.0f), glm::vec3(0.0f, 1.0f, 0.0f), -135.0f, -30.0f);
+    camera->setMode(Graphics::CameraMode::Free);
+    
+    // Sync InputManager with initial camera state
+    inputManager->setCameraPosition(camera->getPosition());
+    inputManager->setYawPitch(camera->getYaw(), camera->getPitch());
 
     // Create Player
     // Spawn high up to avoid falling through world before chunks load
-    auto playerPtr = std::make_unique<Scene::Player>(physicsWorld.get(), inputManager.get(), camera.get(), glm::vec3(20, 50, 20));
-    player = playerPtr.get();
-    entities.push_back(std::move(playerPtr));
+    // auto playerPtr = std::make_unique<Scene::Player>(physicsWorld.get(), inputManager.get(), camera.get(), glm::vec3(20, 50, 20));
+    // player = playerPtr.get();
+    // entities.push_back(std::move(playerPtr));
 
     // Create Physics Character (Test)
     auto physicsCharPtr = std::make_unique<Scene::PhysicsCharacter>(physicsWorld.get(), inputManager.get(), camera.get(), glm::vec3(30, 50, 30));
     physicsCharacter = physicsCharPtr.get();
+    physicsCharacter->setFaction(Scene::Faction::Player);
     entities.push_back(std::move(physicsCharPtr));
+    
+    // Create Spider Character
+    auto spiderPtr = std::make_unique<Scene::SpiderCharacter>(physicsWorld.get(), glm::vec3(35, 55, 35));
+    spiderCharacter = spiderPtr.get();
+    spiderCharacter->setFaction(Scene::Faction::Enemy);
+    entities.push_back(std::move(spiderPtr));
 
-    // Create Enemy
-    auto enemyPtr = std::make_unique<Scene::Enemy>(physicsWorld.get(), glm::vec3(25, 50, 25));
-    enemyPtr->setTarget(player);
-    entities.push_back(std::move(enemyPtr));
+    // Default to controlling the PhysicsCharacter
+    currentControlTarget = ControlTarget::PhysicsCharacter;
+    isControllingPhysicsCharacter = true;
+    if (physicsCharacter) physicsCharacter->setControlActive(true);
+    
+    // Set camera to follow PhysicsCharacter
+    camera->setMode(Graphics::CameraMode::ThirdPerson);
+    camera->setDistanceFromTarget(4.0f);
     
     LOG_INFO("Application", "Entities initialized successfully!");
 
@@ -495,8 +513,22 @@ void Application::update(float deltaTime) {
     }
 
     // Camera sync
-    if (isControllingPhysicsCharacter && physicsCharacter) {
+    if (camera->getMode() == Graphics::CameraMode::Free) {
+        camera->setPosition(inputManager->getCameraPosition());
+        camera->setFront(inputManager->getCameraFront());
+    } else if (isControllingPhysicsCharacter && physicsCharacter) {
         // PhysicsCharacter updates camera position in its update() if active
+        // But we need to ensure the camera mode is respected
+        physicsCharacter->updateCamera();
+    } else if (!isControllingPhysicsCharacter) {
+        // Sync orientation from InputManager (which handles mouse look)
+        camera->setYaw(inputManager->getYaw());
+        camera->setPitch(inputManager->getPitch());
+        
+        // Update camera to follow active character
+        if (currentControlTarget == ControlTarget::Spider && spiderCharacter) {
+            camera->updatePositionFromTarget(spiderCharacter->getPosition(), 0.5f);
+        }
     } else if (player) {
         // Player updates camera position in its update()
         // We need to ensure Player only updates camera if it's active.
@@ -673,6 +705,44 @@ void Application::render() {
 void Application::handleInput() {
     // Process keyboard and mouse input through InputManager
     inputManager->processInput(deltaTime);
+
+    // Toggle Control Target
+    static bool kPressed = false;
+    if (inputManager->isKeyPressed(GLFW_KEY_K)) {
+        if (!kPressed) {
+            if (currentControlTarget == ControlTarget::PhysicsCharacter) {
+                currentControlTarget = ControlTarget::Spider;
+                isControllingPhysicsCharacter = false;
+                if (physicsCharacter) physicsCharacter->setControlActive(false);
+                LOG_INFO("Application", "Switched control to Spider");
+                if (camera) camera->setDistanceFromTarget(3.0f);
+            } else {
+                currentControlTarget = ControlTarget::PhysicsCharacter;
+                isControllingPhysicsCharacter = true;
+                if (physicsCharacter) physicsCharacter->setControlActive(true);
+                LOG_INFO("Application", "Switched control to PhysicsCharacter");
+                if (camera) camera->setDistanceFromTarget(4.0f);
+            }
+            kPressed = true;
+        }
+    } else {
+        kPressed = false;
+    }
+
+    // Pass movement input to active character
+    if (!isControllingPhysicsCharacter) {
+        float forward = 0.0f;
+        float turn = 0.0f;
+
+        if (inputManager->isKeyPressed(GLFW_KEY_W)) forward += 1.0f;
+        if (inputManager->isKeyPressed(GLFW_KEY_S)) forward -= 1.0f;
+        if (inputManager->isKeyPressed(GLFW_KEY_A)) turn -= 1.0f;
+        if (inputManager->isKeyPressed(GLFW_KEY_D)) turn += 1.0f;
+
+        if (currentControlTarget == ControlTarget::Spider && spiderCharacter) {
+            spiderCharacter->setControlInput(forward, turn);
+        }
+    }
 }
 
 
@@ -816,9 +886,21 @@ void Application::toggleCameraMode() {
         if (currentMode == Graphics::CameraMode::FirstPerson) {
             newMode = Graphics::CameraMode::ThirdPerson;
             LOG_INFO("Application", "Switched to Third Person Camera");
+        } else if (currentMode == Graphics::CameraMode::ThirdPerson) {
+            newMode = Graphics::CameraMode::Free;
+            LOG_INFO("Application", "Switched to Free Camera");
+            
+            // Sync InputManager to current camera state so we don't jump
+            if (inputManager) {
+                inputManager->setCameraPosition(camera->getPosition());
+                inputManager->setYawPitch(camera->getYaw(), camera->getPitch());
+            }
         } else {
             newMode = Graphics::CameraMode::FirstPerson;
             LOG_INFO("Application", "Switched to First Person Camera");
+            
+            // If switching to character modes, ensure we have a character to control
+            // If we are controlling spider, stay on spider
         }
         
         camera->setMode(newMode);
@@ -831,11 +913,15 @@ void Application::toggleCharacterControl() {
     if (isControllingPhysicsCharacter) {
         LOG_INFO("Application", "Control switched to Physics Character");
         if (physicsCharacter) physicsCharacter->setControlActive(true);
-        if (player) player->setControlActive(false);
+        if (spiderCharacter) spiderCharacter->setControlInput(0, 0);
+        // Camera target handled in update()
     } else {
-        LOG_INFO("Application", "Control switched to Player (Cube)");
+        LOG_INFO("Application", "Control switched to Spider");
         if (physicsCharacter) physicsCharacter->setControlActive(false);
-        if (player) player->setControlActive(true);
+        if (spiderCharacter) {
+            // Spider control is handled in handleInput()
+        }
+        // Camera target handled in update()
     }
 }
 

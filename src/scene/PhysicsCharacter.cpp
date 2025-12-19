@@ -15,7 +15,7 @@ void CharacterAction::updateAction(btCollisionWorld* collisionWorld, btScalar de
 }
 
 PhysicsCharacter::PhysicsCharacter(Physics::PhysicsWorld* physicsWorld, Input::InputManager* inputManager, Graphics::Camera* camera, const glm::vec3& startPos)
-    : physicsWorld(physicsWorld), inputManager(inputManager), camera(camera) {
+    : RagdollCharacter(physicsWorld, startPos), inputManager(inputManager), camera(camera) {
     createRagdoll(startPos);
     
     // Register physics action
@@ -29,21 +29,7 @@ PhysicsCharacter::~PhysicsCharacter() {
         delete physicsAction;
         physicsAction = nullptr;
     }
-
-    // Cleanup constraints
-    for (auto* constraint : constraints) {
-        physicsWorld->removeConstraint(constraint);
-        delete constraint;
-    }
-    constraints.clear();
-
-    // Cleanup rigid bodies
-    for (auto& part : parts) {
-        if (part.rigidBody) {
-            physicsWorld->removeCube(part.rigidBody);
-        }
-    }
-    parts.clear();
+    // Base class handles cleanup of parts and constraints
 }
 
 void PhysicsCharacter::createRagdoll(const glm::vec3& startPos) {
@@ -601,33 +587,6 @@ void PhysicsCharacter::reset(const glm::vec3& pos) {
             part.rigidBody->clearForces();
         }
     }
-}
-
-void PhysicsCharacter::setPosition(const glm::vec3& pos) {
-    // Teleport all parts
-    glm::vec3 currentPos = getPosition();
-    glm::vec3 diff = pos - currentPos;
-    
-    for (auto& part : parts) {
-        if (part.rigidBody) {
-            btTransform trans;
-            part.rigidBody->getMotionState()->getWorldTransform(trans);
-            trans.setOrigin(trans.getOrigin() + btVector3(diff.x, diff.y, diff.z));
-            part.rigidBody->setWorldTransform(trans);
-            part.rigidBody->setLinearVelocity(btVector3(0,0,0));
-            part.rigidBody->setAngularVelocity(btVector3(0,0,0));
-        }
-    }
-}
-
-glm::vec3 PhysicsCharacter::getPosition() const {
-    if (torsoIndex != -1 && parts[torsoIndex].rigidBody) {
-        btTransform trans;
-        parts[torsoIndex].rigidBody->getMotionState()->getWorldTransform(trans);
-        btVector3 pos = trans.getOrigin();
-        return glm::vec3(pos.x(), pos.y(), pos.z());
-    }
-    return glm::vec3(0.0f);
 }
 
 void PhysicsCharacter::render(Graphics::RenderCoordinator* renderer) {

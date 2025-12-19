@@ -36,6 +36,8 @@ public:
     const glm::vec3& getCameraPosition() const { return cameraPos; }
     const glm::vec3& getCameraFront() const { return cameraFront; }
     const glm::vec3& getCameraUp() const { return cameraUp; }
+    float getYaw() const { return yaw; }
+    float getPitch() const { return pitch; }
     
     // Camera control
     void setCameraPosition(const glm::vec3& pos);

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "scene/Entity.h"
+#include "scene/RagdollCharacter.h"
 #include "physics/PhysicsWorld.h"
 #include "input/InputManager.h"
 #include "graphics/Camera.h"
@@ -19,13 +19,6 @@ enum class CharacterState {
     Stumbling
 };
 
-struct PhysicsPart {
-    btRigidBody* rigidBody;
-    glm::vec3 scale;
-    glm::vec4 color;
-    std::string name;
-};
-
 class PhysicsCharacter;
 
 // Action interface to hook into physics steps
@@ -37,7 +30,7 @@ public:
     void debugDraw(btIDebugDraw* debugDrawer) override {}
 };
 
-class PhysicsCharacter : public Entity {
+class PhysicsCharacter : public RagdollCharacter {
     friend class CharacterAction;
 public:
     PhysicsCharacter(Physics::PhysicsWorld* physicsWorld, Input::InputManager* inputManager, Graphics::Camera* camera, const glm::vec3& startPos);
@@ -46,10 +39,6 @@ public:
     void update(float deltaTime) override;
     void updateCamera(); // Call this AFTER physics step
     void render(Graphics::RenderCoordinator* renderer) override;
-
-    // Physics overrides
-    void setPosition(const glm::vec3& pos) override;
-    glm::vec3 getPosition() const override;
 
     // Control
     void setControlActive(bool active) { isControlActive = active; }
@@ -64,9 +53,6 @@ public:
     void clearLookTarget();
 
     void reset(const glm::vec3& pos);
-
-    // Getters for parts (useful for debugging or attachments)
-    const std::vector<PhysicsPart>& getParts() const { return parts; }
 
     // State queries
     CharacterState getState() const { return state; }
@@ -83,12 +69,9 @@ private:
     void processInput(float deltaTime);
     void checkGroundStatus();
 
-    Physics::PhysicsWorld* physicsWorld;
     Input::InputManager* inputManager;
     Graphics::Camera* camera;
     
-    std::vector<PhysicsPart> parts;
-    std::vector<btTypedConstraint*> constraints;
     CharacterAction* physicsAction = nullptr;
 
     // Control variables

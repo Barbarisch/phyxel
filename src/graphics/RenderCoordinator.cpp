@@ -16,7 +16,9 @@
 #include "scene/Character.h"
 #include "scene/Player.h"
 #include "scene/Enemy.h"
+#include "scene/RagdollCharacter.h"
 #include "scene/PhysicsCharacter.h"
+#include "scene/SpiderCharacter.h"
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace VulkanCube {
@@ -565,13 +567,13 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
     renderPipeline->bindCharacterPipeline(commandBuffer);
 
     for (const auto& entity : *entities) {
-        // Check for PhysicsCharacter first (new system)
-        auto physicsChar = dynamic_cast<Scene::PhysicsCharacter*>(entity.get());
-        if (physicsChar) {
+        // Check for RagdollCharacter (handles both PhysicsCharacter and SpiderCharacter)
+        auto ragdollChar = dynamic_cast<Scene::RagdollCharacter*>(entity.get());
+        if (ragdollChar) {
             // Allow character to do its own debug rendering (e.g. raycast lines)
-            physicsChar->render(this);
+            ragdollChar->render(this);
 
-            const auto& parts = physicsChar->getParts();
+            const auto& parts = ragdollChar->getParts();
             for (const auto& part : parts) {
                 if (!part.rigidBody) continue;
 
