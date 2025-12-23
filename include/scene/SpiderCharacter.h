@@ -2,8 +2,6 @@
 
 #include "scene/RagdollCharacter.h"
 #include "physics/PhysicsWorld.h"
-#include "scene/Limb.h"
-#include "scene/GaitController.h"
 #include <vector>
 #include <memory>
 
@@ -39,10 +37,6 @@ private:
     int bodyIndex = -1;
     int abdomenIndex = -1;
 
-    // Procedural Animation System
-    std::vector<std::unique_ptr<Limb>> limbs;
-    std::unique_ptr<GaitController> gaitController;
-
     // Control state
     float targetForward = 0.0f;
     float targetTurn = 0.0f;
@@ -50,6 +44,7 @@ private:
     float currentTurn = 0.0f;
     
     // Animation state
+    float walkTime = 0.0f;
     float moveSpeed = 5.0f;
 };
 
