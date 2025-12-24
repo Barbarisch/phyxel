@@ -232,7 +232,7 @@ bool Application::initialize() {
     animatedCharacter = animatedCharPtr.get();
     if (animatedCharacter->loadModel("character.anim")) {
         // Play default animation if available
-        // animatedCharacter->playAnimation("Walk"); // Assuming "Walk" exists, or we can list them
+        animatedCharacter->playAnimation("mixamo.com"); 
         LOG_INFO("Application", "Loaded animated character model");
     } else {
         LOG_ERROR("Application", "Failed to load animated character model");

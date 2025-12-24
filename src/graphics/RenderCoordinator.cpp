@@ -587,6 +587,12 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
                 glm::mat4 model = glm::mat4(1.0f);
                 model = glm::translate(model, glm::vec3(pos.x(), pos.y(), pos.z()));
                 model = model * glm::mat4_cast(glm::quat(rot.w(), rot.x(), rot.y(), rot.z()));
+                
+                // Apply local offset if present
+                if (part.offset != glm::vec3(0.0f)) {
+                    model = glm::translate(model, part.offset);
+                }
+                
                 model = glm::scale(model, part.scale);
 
                 glm::mat4 viewProj = cachedProjectionMatrix * cachedViewMatrix;

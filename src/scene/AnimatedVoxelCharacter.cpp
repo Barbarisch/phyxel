@@ -1,5 +1,7 @@
 #include "scene/AnimatedVoxelCharacter.h"
 #include <iostream>
+#include <algorithm>
+#include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
 
@@ -49,19 +51,176 @@ namespace Scene {
     bool AnimatedVoxelCharacter::loadModel(const std::string& animFile) {
         if (animSystem.loadFromFile(animFile, skeleton, clips, voxelModel)) {
             // Automatically construct voxel bones from the loaded model
-            for (const auto& shape : voxelModel.shapes) {
-                if (shape.boneId >= 0 && shape.boneId < skeleton.bones.size()) {
-                    std::string boneName = skeleton.bones[shape.boneId].name;
+            if (voxelModel.shapes.empty()) {
+                std::cout << "No model shapes found in animation file. Generating default bone shapes." << std::endl;
+                
+                // Build children map
+                std::map<int, std::vector<int>> childrenMap;
+                for (const auto& b : skeleton.bones) {
+                    if (b.parentId != -1) childrenMap[b.parentId].push_back(b.id);
+                }
+
+                for (const auto& bone : skeleton.bones) {
+                    // Performance Optimization: Skip small bones (fingers, toes, facial features)
+                    // This reduces the number of physics bodies from ~65 to ~15-20
+                    std::string nameLower = bone.name;
+                    std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
                     
-                    // Assign colors based on body part names
-                    glm::vec4 color(0.7f, 0.7f, 0.7f, 1.0f); // Default Gray
+                    if (nameLower.find("thumb") != std::string::npos || 
+                        nameLower.find("index") != std::string::npos || 
+                        nameLower.find("middle") != std::string::npos || 
+                        nameLower.find("ring") != std::string::npos || 
+                        nameLower.find("pinky") != std::string::npos || 
+                        nameLower.find("eye") != std::string::npos || 
+                        nameLower.find("toe") != std::string::npos ||
+                        nameLower.find("end") != std::string::npos) {
+                        continue;
+                    }
+
+                    glm::vec3 targetVector(0.0f);
+                    bool hasChild = false;
+
+                    // Find primary child to connect to
+                    if (childrenMap[bone.id].size() > 0) {
+                        hasChild = true;
+                        // If multiple children (e.g. Hips), prefer Spine for the main body block
+                        int targetChildId = -1;
+                        if (childrenMap[bone.id].size() > 1) {
+                            for (int childId : childrenMap[bone.id]) {
+                                if (skeleton.bones[childId].name.find("Spine") != std::string::npos) {
+                                    targetChildId = childId;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (targetChildId != -1) {
+                            targetVector = skeleton.bones[targetChildId].localPosition;
+                        } else {
+                            // Average of all children
+                            for (int childId : childrenMap[bone.id]) {
+                                targetVector += skeleton.bones[childId].localPosition;
+                            }
+                            targetVector /= (float)childrenMap[bone.id].size();
+                        }
+                    }
+
+                    float len = glm::length(targetVector);
+                    if (len < 0.01f) len = 0.1f; // Minimum length for leaf bones or zero-distance children
+
+                    // Determine orientation
+                    glm::vec3 size(0.1f); // Default thickness
+                    glm::vec3 offset = targetVector * 0.5f;
+
+                    // If leaf node (no children), extend a bit in the direction of parent? 
+                    // Or just make a small nub.
+                    if (!hasChild) {
+                        offset = glm::vec3(0.0f);
+                        size = glm::vec3(0.05f); // Small joint nub
+                    } else {
+                        // Align box to dominant axis
+                        glm::vec3 absDir = glm::abs(targetVector);
+                        float thickness = len * 0.25f;
+                        thickness = glm::clamp(thickness, 0.05f, 0.15f);
+                        
+                        // Make torso/head thicker
+                        if (bone.name.find("Spine") != std::string::npos || bone.name.find("Head") != std::string::npos || bone.name.find("Hips") != std::string::npos) {
+                            thickness = glm::clamp(len * 0.6f, 0.15f, 0.3f);
+                        }
+
+                        if (absDir.x >= absDir.y && absDir.x >= absDir.z) {
+                            size = glm::vec3(len, thickness, thickness);
+                        } else if (absDir.y >= absDir.x && absDir.y >= absDir.z) {
+                            size = glm::vec3(thickness, len, thickness);
+                        } else {
+                            size = glm::vec3(thickness, thickness, len);
+                        }
+                    }
                     
-                    if (boneName.find("head") != std::string::npos) color = glm::vec4(1.0f, 0.8f, 0.6f, 1.0f); // Skin tone
-                    else if (boneName.find("arm") != std::string::npos) color = glm::vec4(0.2f, 0.6f, 1.0f, 1.0f); // Blue shirt
-                    else if (boneName.find("leg") != std::string::npos) color = glm::vec4(0.2f, 0.2f, 0.8f, 1.0f); // Dark blue pants
-                    else if (boneName.find("torso") != std::string::npos) color = glm::vec4(0.8f, 0.2f, 0.2f, 1.0f); // Red shirt
+                    glm::vec4 color(0.7f, 0.7f, 0.7f, 1.0f);
+                    if (bone.name.find("Head") != std::string::npos) color = glm::vec4(1.0f, 0.8f, 0.6f, 1.0f);
+                    else if (bone.name.find("Arm") != std::string::npos || bone.name.find("Hand") != std::string::npos) color = glm::vec4(0.2f, 0.6f, 1.0f, 1.0f);
+                    else if (bone.name.find("Leg") != std::string::npos || bone.name.find("Foot") != std::string::npos) color = glm::vec4(0.2f, 0.2f, 0.8f, 1.0f);
+                    else if (bone.name.find("Spine") != std::string::npos || bone.name.find("Torso") != std::string::npos) color = glm::vec4(0.8f, 0.2f, 0.2f, 1.0f);
                     
-                    addVoxelBone(boneName, shape.size, shape.offset, color);
+                    addVoxelBone(bone.name, size, offset, color);
+                }
+            } else {
+                // Group shapes by bone
+                std::map<int, std::vector<Phyxel::BoneShape>> shapesByBone;
+                for (const auto& shape : voxelModel.shapes) {
+                    if (shape.boneId >= 0 && shape.boneId < skeleton.bones.size()) {
+                        shapesByBone[shape.boneId].push_back(shape);
+                    }
+                }
+
+                for (auto& pair : shapesByBone) {
+                    int boneId = pair.first;
+                    const auto& shapes = pair.second;
+                    std::string boneName = skeleton.bones[boneId].name;
+
+                    // Performance Optimization: Skip small bones (fingers, toes, facial features)
+                    std::string nameLower = boneName;
+                    std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+                    
+                    if (nameLower.find("thumb") != std::string::npos || 
+                        nameLower.find("index") != std::string::npos || 
+                        nameLower.find("middle") != std::string::npos || 
+                        nameLower.find("ring") != std::string::npos || 
+                        nameLower.find("pinky") != std::string::npos || 
+                        nameLower.find("eye") != std::string::npos || 
+                        nameLower.find("toe") != std::string::npos ||
+                        nameLower.find("end") != std::string::npos) {
+                        continue;
+                    }
+
+                    // Calculate bounding box for physics body
+                    glm::vec3 minPt(1e9f);
+                    glm::vec3 maxPt(-1e9f);
+                    
+                    for (const auto& shape : shapes) {
+                        glm::vec3 halfSize = shape.size * 0.5f;
+                        minPt = glm::min(minPt, shape.offset - halfSize);
+                        maxPt = glm::max(maxPt, shape.offset + halfSize);
+                    }
+                    
+                    glm::vec3 totalSize = maxPt - minPt;
+                    glm::vec3 centerOffset = (minPt + maxPt) * 0.5f;
+                    
+                    // Ensure minimum size for physics
+                    totalSize = glm::max(totalSize, glm::vec3(0.05f));
+
+                    // Create ONE physics body for the bone
+                    addVoxelBone(boneName, totalSize, centerOffset, glm::vec4(0,0,0,0)); 
+                    
+                    // Now add all visual parts (voxels)
+                    if (boneBodies.find(boneId) != boneBodies.end()) {
+                        btRigidBody* body = boneBodies[boneId];
+                        
+                        // Remove the bounding box visual added by addVoxelBone
+                        if (!parts.empty()) parts.pop_back(); 
+                        
+                        for (const auto& shape : shapes) {
+                            // Calculate offset relative to the physics body center
+                            glm::vec3 relativeOffset = shape.offset - centerOffset;
+                            
+                            // Assign colors based on body part names
+                            glm::vec4 color(0.7f, 0.7f, 0.7f, 1.0f); 
+                            
+                            if (nameLower.find("head") != std::string::npos) color = glm::vec4(1.0f, 0.8f, 0.6f, 1.0f); 
+                            else if (nameLower.find("arm") != std::string::npos) color = glm::vec4(0.2f, 0.6f, 1.0f, 1.0f); 
+                            else if (nameLower.find("leg") != std::string::npos) color = glm::vec4(0.2f, 0.2f, 0.8f, 1.0f); 
+                            else if (nameLower.find("torso") != std::string::npos || nameLower.find("spine") != std::string::npos) color = glm::vec4(0.8f, 0.2f, 0.2f, 1.0f); 
+                            
+                            RagdollPart part;
+                            part.rigidBody = body;
+                            part.scale = shape.size;
+                            part.color = color;
+                            part.name = boneName;
+                            part.offset = relativeOffset;
+                            parts.push_back(part);
+                        }
+                    }
                 }
             }
             return true;

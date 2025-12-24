@@ -3,6 +3,8 @@ import struct
 import sys
 import os
 import math
+import numpy as np
+import argparse
 
 # Try to import pygltflib, if not present, ask user to install
 try:
@@ -11,7 +13,15 @@ except ImportError:
     print("Error: pygltflib is required. Please install it using: pip install pygltflib")
     sys.exit(1)
 
-def extract_animation_data(gltf_path, output_path):
+# Try to import trimesh for voxelization
+try:
+    import trimesh
+    from scipy import ndimage
+except ImportError:
+    print("Warning: trimesh/scipy not found. Voxelization will be skipped.")
+    trimesh = None
+
+def extract_animation_data(gltf_path, output_path, scale_factor=1.0):
     print(f"Loading {gltf_path}...")
     gltf = GLTF2().load(gltf_path)
 
@@ -31,6 +41,9 @@ def extract_animation_data(gltf_path, output_path):
         pos = node.translation if node.translation else [0.0, 0.0, 0.0]
         rot = node.rotation if node.rotation else [0.0, 0.0, 0.0, 1.0] # x, y, z, w
         scale = node.scale if node.scale else [1.0, 1.0, 1.0]
+
+        # Apply global scale to position (translation)
+        pos = [p * scale_factor for p in pos]
 
         bone_idx = len(bones)
         bone_name = node.name if node.name else f"Bone_{bone_idx}"
@@ -158,7 +171,12 @@ def extract_animation_data(gltf_path, output_path):
             ibm_accessor = gltf.accessors[skin.inverseBindMatrices]
             ibms = read_accessor(gltf, ibm_accessor)
         
-    # Iterate meshes
+    # Collect all mesh data for voxelization
+    all_positions = []
+    all_joints = []
+    all_weights = []
+    
+    # Iterate meshes to collect data
     print(f"Scanning {len(gltf.nodes)} nodes for meshes...")
     for node_idx, node in enumerate(gltf.nodes):
         if node.mesh is not None:
@@ -173,6 +191,7 @@ def extract_animation_data(gltf_path, output_path):
 
                     pos_accessor = gltf.accessors[prim.attributes.POSITION]
                     positions = read_accessor(gltf, pos_accessor)
+                    
                     joints = []
                     weights = []
                     
@@ -183,104 +202,95 @@ def extract_animation_data(gltf_path, output_path):
                         weights_accessor = gltf.accessors[prim.attributes.WEIGHTS_0]
                         joints = read_accessor(gltf, joints_accessor)
                         weights = read_accessor(gltf, weights_accessor)
+                    else:
+                        # Rigid binding: assign all vertices to the node
+                        # Use node_idx as the joint index, weight 1.0
+                        joints = [[node_idx, 0, 0, 0]] * len(positions)
+                        weights = [[1.0, 0, 0, 0]] * len(positions)
+                        
+                        # Apply node scale to positions to match World Space/Trimesh behavior
+                        if node.scale:
+                            s = node.scale
+                            positions = [[p[0]*s[0], p[1]*s[1], p[2]*s[2]] for p in positions]
                     
-                    # If no skinning, check if this node IS a bone or attached to one
-                    current_bone_idx = -1
-                    if not has_skinning:
-                        if node_idx in node_index_to_bone_index:
-                            current_bone_idx = node_index_to_bone_index[node_idx]
-                        else:
-                            # Check parent? We don't have parent map easily here unless we built it.
-                            # But we built 'bones' list which has 'parent'.
-                            # node_index_to_bone_index maps gltf node to bone index.
-                            pass
+                    all_positions.extend(positions)
+                    all_joints.extend(joints)
+                    all_weights.extend(weights)
 
-                    for i in range(len(positions)):
-                        p = positions[i]
-                        
-                        target_bone_idx = -1
-                        
-                        if has_skinning and skin:
-                            j = joints[i]    # [j0, j1, j2, j3]
-                            w = weights[i]   # [w0, w1, w2, w3]
-                            
-                            # Find dominant bone
-                            max_w = 0.0
-                            joint_idx = -1
-                            for k in range(4):
-                                if w[k] > max_w:
-                                    max_w = w[k]
-                                    joint_idx = j[k]
-                            
-                            if max_w > 0.4 and joint_idx >= 0 and joint_idx < len(skin.joints):
-                                target_node_idx = skin.joints[joint_idx]
-                                if target_node_idx in node_index_to_bone_index:
-                                    target_bone_idx = node_index_to_bone_index[target_node_idx]
-                                    
-                                    # Transform point to bone local space using IBM
-                                    # P_local = IBM * P_mesh
-                                    if joint_idx < len(ibms):
-                                        p = transform_point(p, ibms[joint_idx])
-                        
-                        elif current_bone_idx != -1:
-                            # Rigid binding to current node (which is a bone)
-                            target_bone_idx = current_bone_idx
-                            # Point is already in node/bone local space (mesh data)
-                            # Apply node scale if present, because physics shapes don't inherit scale from transform
-                            if node.scale:
-                                p = [p[0] * node.scale[0], p[1] * node.scale[1], p[2] * node.scale[2]]
-                        
-                        if target_bone_idx != -1:
-                            if target_bone_idx not in bone_boxes:
-                                bone_boxes[target_bone_idx] = {
-                                    "min": [float('inf')]*3, 
-                                    "max": [float('-inf')]*3
-                                }
-                            
-                            bbox = bone_boxes[target_bone_idx]
-                            for d in range(3):
-                                bbox["min"][d] = min(bbox["min"][d], p[d])
-                                bbox["max"][d] = max(bbox["max"][d], p[d])
-                            
-                            if has_skinning:
-                                j = joints[i]    # [j0, j1, j2, j3]
-                                w = weights[i]   # [w0, w1, w2, w3]
-                                
-                                # Find dominant bone
-                                max_w = 0.0
-                                joint_idx = -1
-                                for k in range(4):
-                                    if w[k] > max_w:
-                                        max_w = w[k]
-                                        joint_idx = j[k]
-                                
-                                if max_w > 0.4 and joint_idx >= 0 and joint_idx < len(skin.joints):
-                                    target_node_idx = skin.joints[joint_idx]
-                                    if target_node_idx in node_index_to_bone_index:
-                                        target_bone_idx = node_index_to_bone_index[target_node_idx]
-                                        
-                                        # Transform point to bone local space using IBM
-                                        if joint_idx < len(ibms):
-                                            p = transform_point(p, ibms[joint_idx])
-                            
-                            elif current_bone_idx != -1:
-                                # Rigid binding to current node (which is a bone)
-                                target_bone_idx = current_bone_idx
-                                # Point is already in node/bone local space (mesh data)
-                                # No transform needed if mesh is directly on the bone node
-                                pass
-                            
-                            if target_bone_idx != -1:
-                                if target_bone_idx not in bone_boxes:
-                                    bone_boxes[target_bone_idx] = {
-                                        "min": [float('inf')]*3, 
-                                        "max": [float('-inf')]*3
-                                    }
-                                
-                                bbox = bone_boxes[target_bone_idx]
-                                for d in range(3):
-                                    bbox["min"][d] = min(bbox["min"][d], p[d])
-                                    bbox["max"][d] = max(bbox["max"][d], p[d])
+    voxel_shapes = []
+    if trimesh is not None:
+        voxel_shapes = voxelize_mesh(gltf_path, all_positions, all_joints, all_weights, node_index_to_bone_index, skin, ibms, scale_factor)
+
+    # Fallback or if voxelization produced nothing (e.g. no skinning found or trimesh failed)
+    if not voxel_shapes:
+        print("Falling back to bounding box generation (or using it for physics)...")
+        
+        bone_boxes = {}
+        
+        for i in range(len(all_positions)):
+            p = all_positions[i]
+            # Apply scale to vertex position for bounding box calculation
+            p = [x * scale_factor for x in p]
+            
+            j = all_joints[i]
+            w = all_weights[i]
+            
+            target_bone_idx = -1
+            
+            # Find dominant bone
+            max_w = 0.0
+            joint_idx = -1
+            for k in range(4):
+                if w[k] > max_w:
+                    max_w = w[k]
+                    joint_idx = j[k]
+            
+            if max_w > 0.4 and joint_idx >= 0:
+                target_node_idx = -1
+                if skin and joint_idx < len(skin.joints):
+                    target_node_idx = skin.joints[joint_idx]
+                elif not skin:
+                    target_node_idx = joint_idx
+
+                if target_node_idx != -1 and target_node_idx in node_index_to_bone_index:
+                    target_bone_idx = node_index_to_bone_index[target_node_idx]
+                    
+                    # Transform point to bone local space using IBM
+                    # Note: IBMs are for unscaled space.
+                    # P_local = IBM * P_mesh_unscaled
+                    # P_local_scaled = P_local * scale_factor
+                    # So we should unscale p, apply IBM, then rescale.
+                    
+                    p_unscaled = [x / scale_factor for x in p]
+                    if skin and joint_idx < len(ibms):
+                        p_local = transform_point(p_unscaled, ibms[joint_idx])
+                        p = [x * scale_factor for x in p_local]
+            
+            if target_bone_idx != -1:
+                if target_bone_idx not in bone_boxes:
+                    bone_boxes[target_bone_idx] = {
+                        "min": [float('inf')]*3, 
+                        "max": [float('-inf')]*3
+                    }
+                
+                bbox = bone_boxes[target_bone_idx]
+                for d in range(3):
+                    bbox["min"][d] = min(bbox["min"][d], p[d])
+                    bbox["max"][d] = max(bbox["max"][d], p[d])
+        
+        # Convert bone_boxes to voxel_shapes format
+        for bid, bbox in bone_boxes.items():
+            min_pt = bbox["min"]
+            max_pt = bbox["max"]
+            size = [max_pt[0] - min_pt[0], max_pt[1] - min_pt[1], max_pt[2] - min_pt[2]]
+            center = [(max_pt[0] + min_pt[0])/2, (max_pt[1] + min_pt[1])/2, (max_pt[2] + min_pt[2])/2]
+            size = [max(0.05, s) for s in size]
+            
+            voxel_shapes.append({
+                "boneId": bid,
+                "size": size,
+                "center": center
+            })
 
     # Output Data - Custom Text Format
     with open(output_path, 'w') as f:
@@ -295,20 +305,13 @@ def extract_animation_data(gltf_path, output_path):
             s = b['scl']
             f.write(f"Bone {bone_map[b['name']]} {safe_name} {b['parent']} {p[0]} {p[1]} {p[2]} {r[0]} {r[1]} {r[2]} {r[3]} {s[0]} {s[1]} {s[2]}\n")
         
-        # Write Model Data (Bounding Boxes)
+        # Write Model Data (Voxel Shapes)
         f.write("MODEL\n")
-        f.write(f"BoxCount {len(bone_boxes)}\n")
-        for bid, bbox in bone_boxes.items():
-            # Calculate center (offset) and size
-            min_pt = bbox["min"]
-            max_pt = bbox["max"]
-            
-            size = [max_pt[0] - min_pt[0], max_pt[1] - min_pt[1], max_pt[2] - min_pt[2]]
-            center = [(max_pt[0] + min_pt[0])/2, (max_pt[1] + min_pt[1])/2, (max_pt[2] + min_pt[2])/2]
-            
-            # Ensure minimum size to avoid physics errors
-            size = [max(0.05, s) for s in size]
-            
+        f.write(f"BoxCount {len(voxel_shapes)}\n")
+        for shape in voxel_shapes:
+            bid = shape["boneId"]
+            size = shape["size"]
+            center = shape["center"]
             f.write(f"Box {bid} {size[0]} {size[1]} {size[2]} {center[0]} {center[1]} {center[2]}\n")
 
         for anim in animations_out:
@@ -332,6 +335,9 @@ def extract_animation_data(gltf_path, output_path):
                 
                 if ch['type'] == 'translation':
                     channels_by_bone[bid]['pos'] = ch['keys']
+                    # Apply scale to translation keys
+                    for k in channels_by_bone[bid]['pos']:
+                        k['v'] = [x * scale_factor for x in k['v']]
                 elif ch['type'] == 'rotation':
                     channels_by_bone[bid]['rot'] = ch['keys']
                 elif ch['type'] == 'scale':
@@ -448,8 +454,140 @@ def read_accessor(gltf, accessor):
         
     return results
 
+def voxelize_mesh(gltf_path, vertices, joints, weights, node_index_to_bone_index, skin, ibms, scale_factor=1.0):
+    if trimesh is None:
+        return []
+
+    print("Voxelizing mesh...")
+    try:
+        # Load mesh
+        mesh = trimesh.load(gltf_path, force='mesh')
+        
+        # Apply scale to mesh
+        mesh.apply_scale(scale_factor)
+        
+        # Scale to a reasonable size if needed, but we want to match the skeleton scale.
+        # The skeleton extraction uses the raw GLTF units.
+        # So we should voxelize in the same units.
+        
+        # Voxel pitch: 0.05 seems to be the "pixel" size in the engine (based on previous heuristic)
+        # Or maybe 0.1. The user said "match the game engine voxels".
+        # In obj_to_template.py, pitch is 1.0/9.0 (~0.11) or 1.0.
+        # Let's try 0.05 for high detail, or 0.1.
+        pitch = 0.05 
+        
+        voxel_grid = mesh.voxelized(pitch=pitch)
+        
+        # Get filled voxel centers
+        # voxel_grid.points are in the mesh's local space (which should match GLTF world space if no transforms on mesh node)
+        # Wait, trimesh loads the geometry. If the GLTF has a node transform, trimesh might or might not apply it.
+        # Usually trimesh.load(glb) loads the scene. force='mesh' merges it.
+        # If we use the vertices from the GLTF accessor directly for KD-Tree, they are in the mesh primitive space.
+        # We need to ensure the voxel grid is also in that space.
+        
+        # Build KD-Tree for skinning
+        from scipy.spatial import cKDTree
+        # Vertices are unscaled. We need to query with unscaled points.
+        tree = cKDTree(vertices)
+        
+        voxel_shapes = []
+        
+        # Iterate voxels
+        # voxel_grid.points gives (N, 3) array of centers
+        centers = voxel_grid.points
+        
+        # Query nearest vertices
+        # Centers are scaled. Unscale them to query the tree.
+        unscaled_centers = centers / scale_factor
+        dists, indices = tree.query(unscaled_centers)
+        
+        print(f"Generated {len(centers)} voxels.")
+        
+        for i, center in enumerate(centers):
+            vertex_idx = indices[i]
+            
+            # Get skinning info for this vertex
+            j = joints[vertex_idx]
+            w = weights[vertex_idx]
+            
+            # Find dominant bone
+            max_w = 0.0
+            joint_idx = -1
+            for k in range(4):
+                if w[k] > max_w:
+                    max_w = w[k]
+                    joint_idx = j[k]
+            
+            target_bone_idx = -1
+            if max_w > 0.4 and joint_idx >= 0 and joint_idx < len(skin.joints):
+                target_node_idx = skin.joints[joint_idx]
+                if target_node_idx in node_index_to_bone_index:
+                    target_bone_idx = node_index_to_bone_index[target_node_idx]
+            
+            if target_bone_idx != -1:
+                # Transform voxel center to bone local space
+                # P_local = IBM * P_world
+                # Note: 'center' is in mesh space. If mesh space == world space (identity transform on mesh node), this works.
+                # If mesh has a transform, we need to apply it?
+                # The 'vertices' passed to this function are raw accessor data (mesh space).
+                # 'centers' are from trimesh, which likely matches mesh space if loaded correctly.
+                
+                # Use unscaled center for IBM transform
+                p_unscaled = list(unscaled_centers[i])
+                if joint_idx < len(ibms):
+                    p_local_unscaled = transform_point(p_unscaled, ibms[joint_idx])
+                    # Scale the local offset
+                    p = [x * scale_factor for x in p_local_unscaled]
+                else:
+                    p = list(center) # Fallback if no IBM?
+                
+                voxel_shapes.append({
+                    "boneId": target_bone_idx,
+                    "size": [pitch, pitch, pitch],
+                    "center": p # This is now the offset from the bone
+                })
+                
+        return voxel_shapes
+
+    except Exception as e:
+        print(f"Voxelization failed: {e}")
+        return []
+
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: python extract_animation.py <input.gltf/glb> <output.anim>")
-    else:
-        extract_animation_data(sys.argv[1], sys.argv[2])
+    parser = argparse.ArgumentParser(description="Extract animation and voxel data from GLTF/FBX")
+    parser.add_argument("input_file", help="Input file (GLTF, GLB, FBX)")
+    parser.add_argument("output_file", help="Output .anim file")
+    parser.add_argument("--scale", type=float, default=1.0, help="Scale factor for the model and animation")
+    
+    args = parser.parse_args()
+    
+    input_file = args.input_file
+    output_file = args.output_file
+    scale_factor = args.scale
+    temp_file = None
+    
+    ext = os.path.splitext(input_file)[1].lower()
+    if ext == '.fbx':
+        print("Detected FBX input. Checking for converters...")
+        converted = convert_fbx_to_gltf(input_file)
+        if converted:
+            input_file = converted
+            temp_file = converted
+        else:
+            print("Error: FBX file detected but no converter found.")
+            print("Please install 'assimp' (and add to PATH) or 'FBX2glTF'.")
+            print("Alternatively, convert the file to GLTF/GLB manually.")
+            sys.exit(1)
+            
+    extract_animation_data(input_file, output_file, scale_factor)
+    
+    # Cleanup temp file if we created one
+    if temp_file and os.path.exists(temp_file):
+        try:
+            os.remove(temp_file)
+            # Assimp might create a .bin file too
+            bin_file = temp_file.replace(".gltf", ".bin")
+            if os.path.exists(bin_file):
+                os.remove(bin_file)
+        except:
+            pass

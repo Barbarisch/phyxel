@@ -20,6 +20,7 @@ struct RagdollPart {
     glm::vec3 scale;
     glm::vec4 color;
     std::string name;
+    glm::vec3 offset = glm::vec3(0.0f); // Offset from rigid body center
 };
 
 class RagdollCharacter : public Entity {
