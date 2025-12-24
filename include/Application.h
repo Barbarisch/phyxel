@@ -29,6 +29,7 @@
 #include "scene/Enemy.h"
 #include "scene/PhysicsCharacter.h"
 #include "scene/SpiderCharacter.h"
+#include "scene/AnimatedVoxelCharacter.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -122,10 +123,12 @@ private:
     Scene::Player* player = nullptr;
     Scene::PhysicsCharacter* physicsCharacter = nullptr;
     Scene::SpiderCharacter* spiderCharacter = nullptr;
+    Scene::AnimatedVoxelCharacter* animatedCharacter = nullptr;
     
     enum class ControlTarget {
         Spider,
-        PhysicsCharacter
+        PhysicsCharacter,
+        AnimatedCharacter
     };
     ControlTarget currentControlTarget = ControlTarget::PhysicsCharacter;
     

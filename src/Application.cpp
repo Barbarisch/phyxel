@@ -2,6 +2,7 @@
 #include "scene/VoxelInteractionSystem.h"
 #include "scene/PhysicsCharacter.h"
 #include "scene/SpiderCharacter.h"
+#include "scene/AnimatedVoxelCharacter.h"
 #include "utils/FileUtils.h"
 #include "utils/Math.h"
 #include "utils/PerformanceProfiler.h"
@@ -225,6 +226,18 @@ bool Application::initialize() {
     spiderCharacter = spiderPtr.get();
     spiderCharacter->setFaction(Scene::Faction::Enemy);
     entities.push_back(std::move(spiderPtr));
+
+    // Create Animated Voxel Character
+    auto animatedCharPtr = std::make_unique<Scene::AnimatedVoxelCharacter>(physicsWorld.get(), glm::vec3(40, 50, 40));
+    animatedCharacter = animatedCharPtr.get();
+    if (animatedCharacter->loadModel("character.anim")) {
+        // Play default animation if available
+        // animatedCharacter->playAnimation("Walk"); // Assuming "Walk" exists, or we can list them
+        LOG_INFO("Application", "Loaded animated character model");
+    } else {
+        LOG_ERROR("Application", "Failed to load animated character model");
+    }
+    entities.push_back(std::move(animatedCharPtr));
 
     // Default to controlling the PhysicsCharacter
     currentControlTarget = ControlTarget::PhysicsCharacter;
@@ -528,6 +541,8 @@ void Application::update(float deltaTime) {
         // Update camera to follow active character
         if (currentControlTarget == ControlTarget::Spider && spiderCharacter) {
             camera->updatePositionFromTarget(spiderCharacter->getPosition(), 0.5f);
+        } else if (currentControlTarget == ControlTarget::AnimatedCharacter && animatedCharacter) {
+            camera->updatePositionFromTarget(animatedCharacter->getPosition(), 0.5f);
         }
     } else if (player) {
         // Player updates camera position in its update()
@@ -706,29 +721,6 @@ void Application::handleInput() {
     // Process keyboard and mouse input through InputManager
     inputManager->processInput(deltaTime);
 
-    // Toggle Control Target
-    static bool kPressed = false;
-    if (inputManager->isKeyPressed(GLFW_KEY_K)) {
-        if (!kPressed) {
-            if (currentControlTarget == ControlTarget::PhysicsCharacter) {
-                currentControlTarget = ControlTarget::Spider;
-                isControllingPhysicsCharacter = false;
-                if (physicsCharacter) physicsCharacter->setControlActive(false);
-                LOG_INFO("Application", "Switched control to Spider");
-                if (camera) camera->setDistanceFromTarget(3.0f);
-            } else {
-                currentControlTarget = ControlTarget::PhysicsCharacter;
-                isControllingPhysicsCharacter = true;
-                if (physicsCharacter) physicsCharacter->setControlActive(true);
-                LOG_INFO("Application", "Switched control to PhysicsCharacter");
-                if (camera) camera->setDistanceFromTarget(4.0f);
-            }
-            kPressed = true;
-        }
-    } else {
-        kPressed = false;
-    }
-
     // Pass movement input to active character
     if (!isControllingPhysicsCharacter) {
         float forward = 0.0f;
@@ -741,6 +733,8 @@ void Application::handleInput() {
 
         if (currentControlTarget == ControlTarget::Spider && spiderCharacter) {
             spiderCharacter->setControlInput(forward, turn);
+        } else if (currentControlTarget == ControlTarget::AnimatedCharacter && animatedCharacter) {
+            animatedCharacter->setControlInput(forward, turn);
         }
     }
 }
@@ -908,21 +902,34 @@ void Application::toggleCameraMode() {
 }
 
 void Application::toggleCharacterControl() {
-    isControllingPhysicsCharacter = !isControllingPhysicsCharacter;
+    // Cycle through control targets: PhysicsCharacter -> Spider -> AnimatedCharacter -> PhysicsCharacter
     
-    if (isControllingPhysicsCharacter) {
-        LOG_INFO("Application", "Control switched to Physics Character");
-        if (physicsCharacter) physicsCharacter->setControlActive(true);
-        if (spiderCharacter) spiderCharacter->setControlInput(0, 0);
-        // Camera target handled in update()
-    } else {
+    if (currentControlTarget == ControlTarget::PhysicsCharacter) {
+        currentControlTarget = ControlTarget::Spider;
         LOG_INFO("Application", "Control switched to Spider");
+        
         if (physicsCharacter) physicsCharacter->setControlActive(false);
-        if (spiderCharacter) {
-            // Spider control is handled in handleInput()
-        }
-        // Camera target handled in update()
+        if (camera) camera->setDistanceFromTarget(3.0f);
+        // Spider control is handled in handleInput()
+        
+    } else if (currentControlTarget == ControlTarget::Spider) {
+        currentControlTarget = ControlTarget::AnimatedCharacter;
+        LOG_INFO("Application", "Control switched to Animated Character");
+        
+        if (spiderCharacter) spiderCharacter->setControlInput(0, 0);
+        if (camera) camera->setDistanceFromTarget(4.0f);
+        // Animated character control logic will need to be added
+        
+    } else {
+        currentControlTarget = ControlTarget::PhysicsCharacter;
+        LOG_INFO("Application", "Control switched to Physics Character");
+        
+        if (physicsCharacter) physicsCharacter->setControlActive(true);
+        if (camera) camera->setDistanceFromTarget(4.0f);
     }
+    
+    // Update flag for legacy checks (though we should migrate to using enum everywhere)
+    isControllingPhysicsCharacter = (currentControlTarget == ControlTarget::PhysicsCharacter);
 }
 
 } // namespace VulkanCube

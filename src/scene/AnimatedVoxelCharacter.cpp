@@ -1,0 +1,286 @@
+#include "scene/AnimatedVoxelCharacter.h"
+#include <iostream>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/quaternion.hpp>
+
+namespace VulkanCube {
+namespace Scene {
+
+    AnimatedVoxelCharacter::AnimatedVoxelCharacter(Physics::PhysicsWorld* physicsWorld, const glm::vec3& position)
+        : RagdollCharacter(physicsWorld, position), worldPosition(position) {
+        createController(position);
+    }
+
+    AnimatedVoxelCharacter::~AnimatedVoxelCharacter() {
+        // Base class handles cleanup of rigid bodies in 'parts'
+        boneBodies.clear();
+        
+        if (controllerBody) {
+            physicsWorld->removeCube(controllerBody);
+            controllerBody = nullptr;
+        }
+    }
+    
+    void AnimatedVoxelCharacter::createController(const glm::vec3& position) {
+        // Create a box for the controller (invisible physics representation)
+        // Note: createCube takes FULL extents, not half-extents
+        // We increase size slightly because dynamic objects are scaled down by 5% in PhysicsWorld
+        // Target: 0.8 x 1.8 x 0.8. Request: 0.85 x 1.9 x 0.85
+        glm::vec3 size(0.85f, 1.9f, 0.85f); 
+        
+        // Create dynamic body
+        // Center is at +0.9 (half height) so feet are at 'position'
+        // We'll let the update() logic handle the exact visual offset
+        controllerBody = physicsWorld->createCube(position + glm::vec3(0, 0.9f, 0), size, 60.0f); // 60kg mass
+        controllerBody->setUserPointer(this); // Mark as character part to prevent auto-cleanup
+        
+        // Prevent tipping over (lock rotation on X and Z)
+        controllerBody->setAngularFactor(btVector3(0, 1, 0)); // Allow Y rotation? No, we handle rotation manually
+        controllerBody->setAngularFactor(btVector3(0, 0, 0));
+        
+        // Friction
+        controllerBody->setFriction(0.0f); // Low friction for movement, we handle stopping manually
+        controllerBody->setRestitution(0.0f);
+        
+        // Disable sleeping
+        controllerBody->setActivationState(DISABLE_DEACTIVATION);
+    }
+
+    bool AnimatedVoxelCharacter::loadModel(const std::string& animFile) {
+        if (animSystem.loadFromFile(animFile, skeleton, clips, voxelModel)) {
+            // Automatically construct voxel bones from the loaded model
+            for (const auto& shape : voxelModel.shapes) {
+                if (shape.boneId >= 0 && shape.boneId < skeleton.bones.size()) {
+                    std::string boneName = skeleton.bones[shape.boneId].name;
+                    
+                    // Assign colors based on body part names
+                    glm::vec4 color(0.7f, 0.7f, 0.7f, 1.0f); // Default Gray
+                    
+                    if (boneName.find("head") != std::string::npos) color = glm::vec4(1.0f, 0.8f, 0.6f, 1.0f); // Skin tone
+                    else if (boneName.find("arm") != std::string::npos) color = glm::vec4(0.2f, 0.6f, 1.0f, 1.0f); // Blue shirt
+                    else if (boneName.find("leg") != std::string::npos) color = glm::vec4(0.2f, 0.2f, 0.8f, 1.0f); // Dark blue pants
+                    else if (boneName.find("torso") != std::string::npos) color = glm::vec4(0.8f, 0.2f, 0.2f, 1.0f); // Red shirt
+                    
+                    addVoxelBone(boneName, shape.size, shape.offset, color);
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    void AnimatedVoxelCharacter::addVoxelBone(const std::string& boneName, const glm::vec3& size, const glm::vec3& offset, const glm::vec4& color) {
+        if (skeleton.boneMap.find(boneName) == skeleton.boneMap.end()) {
+            std::cerr << "Bone not found: " << boneName << std::endl;
+            return;
+        }
+
+        int boneId = skeleton.boneMap[boneName];
+        
+        // Create a static cube initially
+        btRigidBody* body = physicsWorld->createStaticCube(worldPosition, size);
+        
+        // Make it kinematic
+        body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT);
+        body->setActivationState(DISABLE_DEACTIVATION);
+        
+        // Store it
+        boneBodies[boneId] = body;
+        boneOffsets[boneId] = offset;
+        
+        // Ignore collision with controller to prevent self-collision explosions
+        if (controllerBody) {
+            body->setIgnoreCollisionCheck(controllerBody, true);
+            controllerBody->setIgnoreCollisionCheck(body, true);
+        }
+        
+        // Ignore collision with other bones to prevent internal jitter
+        for (auto& pair : boneBodies) {
+            btRigidBody* otherBody = pair.second;
+            if (otherBody != body) {
+                body->setIgnoreCollisionCheck(otherBody, true);
+                otherBody->setIgnoreCollisionCheck(body, true);
+            }
+        }
+        
+        // Add to parts for rendering
+        parts.push_back({body, size, color, boneName});
+    }
+
+    void AnimatedVoxelCharacter::playAnimation(const std::string& animName) {
+        for (size_t i = 0; i < clips.size(); ++i) {
+            if (clips[i].name == animName) {
+                currentClipIndex = (int)i;
+                animTime = 0.0f;
+                return;
+            }
+        }
+        std::cerr << "Animation not found: " << animName << std::endl;
+    }
+
+    void AnimatedVoxelCharacter::setControlInput(float forward, float turn) {
+        currentForwardInput = forward;
+        currentTurnInput = turn;
+    }
+
+    void AnimatedVoxelCharacter::setPosition(const glm::vec3& pos) {
+        worldPosition = pos;
+        if (controllerBody) {
+            // Get actual half-height from collision shape to account for dynamic scaling
+            float halfHeight = 0.9f; // Default fallback
+            if (controllerBody->getCollisionShape()->getShapeType() == BOX_SHAPE_PROXYTYPE) {
+                const btBoxShape* box = static_cast<const btBoxShape*>(controllerBody->getCollisionShape());
+                halfHeight = box->getHalfExtentsWithMargin().y();
+            }
+
+            btTransform trans;
+            trans.setIdentity();
+            trans.setOrigin(btVector3(pos.x, pos.y + halfHeight, pos.z));
+            controllerBody->setWorldTransform(trans);
+            controllerBody->getMotionState()->setWorldTransform(trans);
+            controllerBody->setLinearVelocity(btVector3(0,0,0));
+            controllerBody->setAngularVelocity(btVector3(0,0,0));
+        }
+    }
+
+    glm::vec3 AnimatedVoxelCharacter::getPosition() const {
+        return worldPosition;
+    }
+
+    void AnimatedVoxelCharacter::update(float deltaTime) {
+        // 1. Update Physics Controller
+        if (controllerBody) {
+            // Handle Rotation
+            float turnSpeed = 2.0f;
+            currentYaw -= currentTurnInput * turnSpeed * deltaTime;
+            
+            // Handle Movement
+            float moveSpeed = 5.0f;
+            // Invert Z to match standard camera orientation (Forward is -Z)
+            // Standard rotation of (0,0,-1) vector around Y axis
+            glm::vec3 forwardDir(-sin(currentYaw), 0, -cos(currentYaw));
+            glm::vec3 moveVel = forwardDir * currentForwardInput * moveSpeed;
+            
+            btVector3 currentVel = controllerBody->getLinearVelocity();
+            // Preserve vertical velocity (gravity)
+            controllerBody->setLinearVelocity(btVector3(moveVel.x, currentVel.y(), moveVel.z));
+            
+            // Update World Position from Physics
+            btTransform trans;
+            controllerBody->getMotionState()->getWorldTransform(trans);
+            btVector3 pos = trans.getOrigin();
+            
+            // Get actual half-height from collision shape to account for dynamic scaling
+            float halfHeight = 0.9f; // Default fallback
+            if (controllerBody->getCollisionShape()->getShapeType() == BOX_SHAPE_PROXYTYPE) {
+                const btBoxShape* box = static_cast<const btBoxShape*>(controllerBody->getCollisionShape());
+                halfHeight = box->getHalfExtentsWithMargin().y();
+            }
+            
+            // Pivot is at feet, body center is at +halfHeight
+            worldPosition = glm::vec3(pos.x(), pos.y() - halfHeight, pos.z());
+            
+            // Animation State Logic
+            std::string targetAnim = (glm::abs(currentForwardInput) > 0.1f) ? "walk" : "idle";
+            
+            // Find target animation index
+            int targetIndex = -1;
+            for (size_t i = 0; i < clips.size(); ++i) {
+                // Case insensitive comparison or partial match might be better, but exact for now
+                if (clips[i].name.find(targetAnim) != std::string::npos) {
+                    targetIndex = (int)i;
+                    break;
+                }
+            }
+            
+            // Switch if found and different
+            if (targetIndex != -1 && targetIndex != currentClipIndex) {
+                std::cout << "Switching animation to: " << clips[targetIndex].name << " (Index: " << targetIndex << ")" << std::endl;
+                currentClipIndex = targetIndex;
+                animTime = 0.0f;
+
+                // Reset skeleton to bind pose to prevent artifacts from previous animations
+                // or uninitialized state for bones not covered by the new animation.
+                for(auto& bone : skeleton.bones) {
+                    bone.currentPosition = bone.localPosition;
+                    bone.currentRotation = bone.localRotation;
+                    bone.currentScale = bone.localScale;
+                }
+            }
+        }
+
+        if (currentClipIndex >= 0 && currentClipIndex < clips.size()) {
+            animTime += deltaTime;
+            animSystem.updateAnimation(skeleton, clips[currentClipIndex], animTime, true);
+        }
+
+        animSystem.updateGlobalTransforms(skeleton);
+
+        // Update physics bodies
+        static int debugFrame = 0;
+        debugFrame++;
+        // Print every 60 frames (approx 1 sec) OR if we just started moving (to catch the transition)
+        bool doDebug = (debugFrame % 60 == 0) || (debugFrame < 10); 
+
+        if (doDebug) {
+            std::cout << "=== CHARACTER DEBUG FRAME " << debugFrame << " ===" << std::endl;
+            std::cout << "Position: " << worldPosition.x << ", " << worldPosition.y << ", " << worldPosition.z << std::endl;
+            std::cout << "Animation: " << (currentClipIndex >= 0 ? clips[currentClipIndex].name : "NONE") 
+                      << " (Index: " << currentClipIndex << ") Time: " << animTime << std::endl;
+            
+            std::cout << "--- BONE STATUS ---" << std::endl;
+            for (const auto& bone : skeleton.bones) {
+                // Calculate global position from the matrix for debugging
+                glm::vec3 globalPos = glm::vec3(bone.globalTransform[3]);
+                
+                std::cout << "Bone '" << bone.name << "' (ID " << bone.id << "):" << std::endl;
+                std::cout << "  Bind Local: " << bone.localPosition.x << ", " << bone.localPosition.y << ", " << bone.localPosition.z << std::endl;
+                std::cout << "  Current Local: " << bone.currentPosition.x << ", " << bone.currentPosition.y << ", " << bone.currentPosition.z << std::endl;
+                std::cout << "  Current Scale: " << bone.currentScale.x << ", " << bone.currentScale.y << ", " << bone.currentScale.z << std::endl;
+                std::cout << "  Current Rot: " << bone.currentRotation.x << ", " << bone.currentRotation.y << ", " << bone.currentRotation.z << ", " << bone.currentRotation.w << std::endl;
+                std::cout << "  Model Space: " << globalPos.x << ", " << globalPos.y << ", " << globalPos.z << std::endl;
+            }
+            std::cout << "=======================" << std::endl;
+        }
+
+        for (auto& pair : boneBodies) {
+            int boneId = pair.first;
+            btRigidBody* body = pair.second;
+            
+            const Phyxel::Bone& bone = skeleton.bones[boneId];
+            
+            // Calculate world transform
+            // Bone global transform is in model space. We need to apply model->world transform.
+            
+            glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), worldPosition);
+            modelMatrix = glm::rotate(modelMatrix, currentYaw, glm::vec3(0, 1, 0)); // Apply Yaw
+            
+            glm::mat4 finalTransform = modelMatrix * bone.globalTransform;
+            
+            // Apply offset (local to bone)
+            finalTransform = glm::translate(finalTransform, boneOffsets[boneId]);
+
+            if (doDebug && (bone.name == "Hips" || boneId == 0)) {
+                 glm::vec3 bonePos = glm::vec3(finalTransform[3]);
+                 std::cout << "Bone " << bone.name << " GlobalPos: " << bonePos.x << ", " << bonePos.y << ", " << bonePos.z << std::endl;
+                 std::cout << "Bone Local Matrix Col3: " << bone.globalTransform[3][0] << ", " << bone.globalTransform[3][1] << ", " << bone.globalTransform[3][2] << std::endl;
+            }
+
+            // Convert to Bullet transform
+            glm::vec3 pos = glm::vec3(finalTransform[3]);
+            glm::quat rot = glm::quat_cast(finalTransform);
+            
+            btTransform trans;
+            trans.setOrigin(btVector3(pos.x, pos.y, pos.z));
+            trans.setRotation(btQuaternion(rot.x, rot.y, rot.z, rot.w));
+            
+            body->getMotionState()->setWorldTransform(trans);
+        }
+    }
+
+    void AnimatedVoxelCharacter::render(Graphics::RenderCoordinator* renderer) {
+        // Rendering is handled by RenderCoordinator iterating over 'parts'
+    }
+
+}
+}
