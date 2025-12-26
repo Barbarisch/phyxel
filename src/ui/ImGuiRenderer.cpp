@@ -4,6 +4,7 @@
 #include "scripting/ScriptingSystem.h"
 #include "utils/Timer.h"
 #include "utils/PerformanceProfiler.h"
+#include "utils/GpuProfiler.h"
 #include "utils/Logger.h"
 #include "physics/PhysicsWorld.h"
 #include "vulkan/VulkanDevice.h"
@@ -651,6 +652,64 @@ void ImGuiRenderer::renderLightingControls(
         ImGui::Separator();
         ImGui::Text("Emissive Glow");
         ImGui::SliderFloat("Multiplier", &emissiveMultiplier, 1.0f, 10.0f);
+    }
+    ImGui::End();
+}
+
+void ImGuiRenderer::renderProfilerWindow(bool show, PerformanceProfiler* cpuProfiler, GpuProfiler* gpuProfiler) {
+    if (!show || !cpuProfiler) return;
+
+    ImGui::SetNextWindowSize(ImVec2(500, 600), ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("Performance Profiler", &show)) {
+        
+        if (ImGui::BeginTabBar("ProfilerTabs")) {
+            
+            // CPU Tab
+            if (ImGui::BeginTabItem("CPU Timeline")) {
+                const auto* root = cpuProfiler->getLastFrameRoot();
+                if (root) {
+                    std::function<void(const PerformanceProfiler::ProfilerNode*)> drawNode;
+                    drawNode = [&](const PerformanceProfiler::ProfilerNode* node) {
+                        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_DefaultOpen;
+                        if (node->children.empty()) flags |= ImGuiTreeNodeFlags_Leaf;
+                        
+                        bool open = ImGui::TreeNodeEx(node, flags, "%s: %.3f ms", node->name.c_str(), node->durationMs);
+                        if (open) {
+                            for (const auto& child : node->children) {
+                                drawNode(child.get());
+                            }
+                            ImGui::TreePop();
+                        }
+                    };
+                    drawNode(root);
+                } else {
+                    ImGui::Text("No CPU data available.");
+                }
+                ImGui::EndTabItem();
+            }
+
+            // GPU Tab
+            if (ImGui::BeginTabItem("GPU Timeline")) {
+                if (gpuProfiler) {
+                    const auto& results = gpuProfiler->getResults();
+                    if (results.empty()) {
+                        ImGui::Text("No GPU data available (or waiting for first frame).");
+                    } else {
+                        // Simple list for now, as GPU results are flat list with depth
+                        for (const auto& res : results) {
+                            ImGui::Indent(res.depth * 10.0f);
+                            ImGui::Text("%s: %.3f ms", res.name.c_str(), res.durationMs);
+                            ImGui::Unindent(res.depth * 10.0f);
+                        }
+                    }
+                } else {
+                    ImGui::Text("GPU Profiler not initialized.");
+                }
+                ImGui::EndTabItem();
+            }
+
+            ImGui::EndTabBar();
+        }
     }
     ImGui::End();
 }

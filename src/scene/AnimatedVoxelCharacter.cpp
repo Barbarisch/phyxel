@@ -1,4 +1,5 @@
 #include "scene/AnimatedVoxelCharacter.h"
+#include "utils/Logger.h"
 #include <iostream>
 #include <algorithm>
 #include <glm/glm.hpp>
@@ -412,24 +413,24 @@ namespace Scene {
         bool doDebug = (debugFrame % 60 == 0) || (debugFrame < 10); 
 
         if (doDebug) {
-            std::cout << "=== CHARACTER DEBUG FRAME " << debugFrame << " ===" << std::endl;
-            std::cout << "Position: " << worldPosition.x << ", " << worldPosition.y << ", " << worldPosition.z << std::endl;
-            std::cout << "Animation: " << (currentClipIndex >= 0 ? clips[currentClipIndex].name : "NONE") 
-                      << " (Index: " << currentClipIndex << ") Time: " << animTime << std::endl;
+            LOG_TRACE_FMT("Character", "=== CHARACTER DEBUG FRAME " << debugFrame << " ===");
+            LOG_TRACE_FMT("Character", "Position: " << worldPosition.x << ", " << worldPosition.y << ", " << worldPosition.z);
+            LOG_TRACE_FMT("Character", "Animation: " << (currentClipIndex >= 0 ? clips[currentClipIndex].name : "NONE") 
+                      << " (Index: " << currentClipIndex << ") Time: " << animTime);
             
-            std::cout << "--- BONE STATUS ---" << std::endl;
+            LOG_TRACE_FMT("Character", "--- BONE STATUS ---");
             for (const auto& bone : skeleton.bones) {
                 // Calculate global position from the matrix for debugging
                 glm::vec3 globalPos = glm::vec3(bone.globalTransform[3]);
                 
-                std::cout << "Bone '" << bone.name << "' (ID " << bone.id << "):" << std::endl;
-                std::cout << "  Bind Local: " << bone.localPosition.x << ", " << bone.localPosition.y << ", " << bone.localPosition.z << std::endl;
-                std::cout << "  Current Local: " << bone.currentPosition.x << ", " << bone.currentPosition.y << ", " << bone.currentPosition.z << std::endl;
-                std::cout << "  Current Scale: " << bone.currentScale.x << ", " << bone.currentScale.y << ", " << bone.currentScale.z << std::endl;
-                std::cout << "  Current Rot: " << bone.currentRotation.x << ", " << bone.currentRotation.y << ", " << bone.currentRotation.z << ", " << bone.currentRotation.w << std::endl;
-                std::cout << "  Model Space: " << globalPos.x << ", " << globalPos.y << ", " << globalPos.z << std::endl;
+                LOG_TRACE_FMT("Character", "Bone '" << bone.name << "' (ID " << bone.id << "):");
+                LOG_TRACE_FMT("Character", "  Bind Local: " << bone.localPosition.x << ", " << bone.localPosition.y << ", " << bone.localPosition.z);
+                LOG_TRACE_FMT("Character", "  Current Local: " << bone.currentPosition.x << ", " << bone.currentPosition.y << ", " << bone.currentPosition.z);
+                LOG_TRACE_FMT("Character", "  Current Scale: " << bone.currentScale.x << ", " << bone.currentScale.y << ", " << bone.currentScale.z);
+                LOG_TRACE_FMT("Character", "  Current Rot: " << bone.currentRotation.x << ", " << bone.currentRotation.y << ", " << bone.currentRotation.z << ", " << bone.currentRotation.w);
+                LOG_TRACE_FMT("Character", "  Model Space: " << globalPos.x << ", " << globalPos.y << ", " << globalPos.z);
             }
-            std::cout << "=======================" << std::endl;
+            LOG_TRACE_FMT("Character", "=======================");
         }
 
         for (auto& pair : boneBodies) {

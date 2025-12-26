@@ -11,15 +11,15 @@ def spawn_characters():
     phyxel.Logger.info("Script", "Spawning characters from Python...")
 
     # Create Physics Character
-    app.create_physics_character(30, 50, 30)
+    #app.create_physics_character(30, 50, 30)
     
     # Create Spider Character
-    app.create_spider_character(35, 55, 35)
+    #app.create_spider_character(35, 55, 35)
 
     # Create Animated Voxel Character
     # Note: We use the generated animation file
     #anim_char = app.create_animated_character(40, 50, 40, "character_complete.anim")
-    anim_char = app.create_animated_character(40, 50, 40, "character.anim")
+    anim_char = app.create_animated_character(40, 50, 40, "character_complete.anim")
     if anim_char:
         # Default animation is handled in C++ loadModel, but we can force it here too
         anim_char.play_animation("idle")

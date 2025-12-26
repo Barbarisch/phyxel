@@ -1227,6 +1227,47 @@ void VulkanDevice::cleanupDynamicSubcubeBuffer() {
     }
 }
 
+bool VulkanDevice::createCharacterInstanceBuffer(uint32_t maxInstances) {
+    maxCharacterInstances = maxInstances;
+    VkDeviceSize bufferSize = sizeof(CharacterInstanceData) * maxCharacterInstances;
+
+    createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                characterInstanceBuffer, characterInstanceBufferMemory);
+    
+    return true;
+}
+
+void VulkanDevice::updateCharacterInstanceBuffer(const std::vector<CharacterInstanceData>& instances) {
+    if (instances.empty() || characterInstanceBuffer == VK_NULL_HANDLE) {
+        return;
+    }
+    
+    VkDeviceSize bufferSize = sizeof(CharacterInstanceData) * std::min(static_cast<uint32_t>(instances.size()), maxCharacterInstances);
+    
+    void* data;
+    vkMapMemory(device, characterInstanceBufferMemory, 0, bufferSize, 0, &data);
+    memcpy(data, instances.data(), (size_t) bufferSize);
+    vkUnmapMemory(device, characterInstanceBufferMemory);
+}
+
+void VulkanDevice::bindCharacterInstanceBuffer(VkCommandBuffer commandBuffer) {
+    VkBuffer vertexBuffers[] = {characterInstanceBuffer};
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+}
+
+void VulkanDevice::cleanupCharacterInstanceBuffer() {
+    if (characterInstanceBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, characterInstanceBuffer, nullptr);
+        characterInstanceBuffer = VK_NULL_HANDLE;
+    }
+    if (characterInstanceBufferMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, characterInstanceBufferMemory, nullptr);
+        characterInstanceBufferMemory = VK_NULL_HANDLE;
+    }
+}
+
 void VulkanDevice::bindVertexBuffers(uint32_t frameIndex) {
     VkBuffer vertexBuffers[] = {vertexBuffer, instanceBuffer};
     VkDeviceSize offsets[] = {0, 0};

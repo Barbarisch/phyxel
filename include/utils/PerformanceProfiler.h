@@ -52,12 +52,34 @@ public:
     // Reset statistics
     void resetStats();
 
+    // Hierarchical Profiling
+    struct ProfilerNode {
+        std::string name;
+        double durationMs = 0.0;
+        std::chrono::high_resolution_clock::time_point startTime;
+        std::vector<std::shared_ptr<ProfilerNode>> children;
+        ProfilerNode* parent = nullptr;
+        int callCount = 0;
+    };
+
+    void startScope(const std::string& name);
+    void endScope();
+    const ProfilerNode* getLastFrameRoot() const { return lastFrameRoot.get(); }
+    
+    // Debugging
+    std::string dumpFrameToJSON() const;
+
 private:
     struct Timer {
         std::chrono::high_resolution_clock::time_point startTime;
         double accumulatedTime = 0.0;
         bool isRunning = false;
     };
+
+    // Hierarchical Profiling State
+    std::shared_ptr<ProfilerNode> currentRoot;
+    ProfilerNode* currentNode = nullptr;
+    std::shared_ptr<ProfilerNode> lastFrameRoot;
 
     struct CullingStats {
         int totalObjectsProcessed = 0;
@@ -117,21 +139,25 @@ private:
 // RAII timer helper class
 class ScopedTimer {
 public:
+    ScopedTimer(PerformanceProfiler* profiler, const std::string& name)
+        : profiler_(profiler) {
+        if (profiler_) profiler_->startScope(name);
+    }
+
     ScopedTimer(PerformanceProfiler& profiler, const std::string& name)
-        : profiler_(profiler), name_(name) {
-        profiler_.startTimer(name_);
+        : profiler_(&profiler) {
+        if (profiler_) profiler_->startScope(name);
     }
 
     ~ScopedTimer() {
-        profiler_.endTimer(name_);
+        if (profiler_) profiler_->endScope();
     }
 
 private:
-    PerformanceProfiler& profiler_;
-    std::string name_;
+    PerformanceProfiler* profiler_;
 };
 
 // Convenience macro for scoped timing
-#define PROFILE_SCOPE(profiler, name) ScopedTimer _timer(profiler, name)
+#define PROFILE_SCOPE(profiler, name) ScopedTimer _timer_##__LINE__(profiler, name)
 
 } // namespace VulkanCube

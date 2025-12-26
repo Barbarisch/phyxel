@@ -90,7 +90,7 @@ void ChunkStreamingManager::unloadDistantChunks(const glm::vec3& position, float
             
             // Erase chunk from vector
             it = chunks.erase(it);
-            LOG_DEBUG_FMT("ChunkStreaming", "Unloaded distant chunk at: " << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z);
+            LOG_TRACE_FMT("ChunkStreaming", "Unloaded distant chunk at: " << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z);
         } else {
             ++it;
         }

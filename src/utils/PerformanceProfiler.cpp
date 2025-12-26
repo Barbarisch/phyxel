@@ -4,6 +4,8 @@
 #include <iomanip>
 #include <algorithm>
 #include <numeric>
+#include <sstream>
+#include <functional>
 
 namespace VulkanCube {
 
@@ -18,12 +20,26 @@ void PerformanceProfiler::startFrame() {
     // Reset current frame timing
     currentFrameTiming = FrameTiming{};
     currentDetailedTiming = DetailedFrameTiming{};
+
+    // Start root scope
+    currentRoot = std::make_shared<ProfilerNode>();
+    currentRoot->name = "Frame";
+    currentRoot->startTime = frameStartTime;
+    currentNode = currentRoot.get();
 }
 
 void PerformanceProfiler::endFrame() {
     auto frameEndTime = std::chrono::high_resolution_clock::now();
     double frameTimeMs = std::chrono::duration<double, std::milli>(frameEndTime - frameStartTime).count();
     
+    // Close root scope
+    if (currentRoot) {
+        currentRoot->durationMs = frameTimeMs;
+        lastFrameRoot = currentRoot;
+        currentRoot = nullptr;
+        currentNode = nullptr;
+    }
+
     // Update frame timings
     frameTimings.push_back(frameTimeMs);
     if (frameTimings.size() > MAX_FRAME_SAMPLES) {
@@ -39,6 +55,35 @@ void PerformanceProfiler::endFrame() {
     currentFrameTiming.memoryBandwidthMBps = bandwidthTracker.averageBandwidthMBps;
     
     updateFrameTimings();
+}
+
+void PerformanceProfiler::startScope(const std::string& name) {
+    if (!currentNode) return;
+
+    // Check if child with this name already exists (for loops calling same function)
+    // Actually, for a flame graph, we usually want separate entries if they are sequential,
+    // but for a summary tree, we might merge.
+    // Let's append for now to see the sequence, or we can merge.
+    // Merging is better for "Total time spent in X".
+    // But for "Frame Timeline", sequence is better.
+    // Let's do sequence (append) for now, as it's simpler and preserves order.
+    
+    auto newNode = std::make_shared<ProfilerNode>();
+    newNode->name = name;
+    newNode->startTime = std::chrono::high_resolution_clock::now();
+    newNode->parent = currentNode;
+    
+    currentNode->children.push_back(newNode);
+    currentNode = newNode.get();
+}
+
+void PerformanceProfiler::endScope() {
+    if (!currentNode || !currentNode->parent) return; // Don't pop root
+
+    auto endTime = std::chrono::high_resolution_clock::now();
+    currentNode->durationMs = std::chrono::duration<double, std::milli>(endTime - currentNode->startTime).count();
+    
+    currentNode = currentNode->parent;
 }
 
 void PerformanceProfiler::startTimer(const std::string& name) {
@@ -266,10 +311,41 @@ void PerformanceProfiler::resetStats() {
     currentDetailedTiming = DetailedFrameTiming{};
     
     gpuTimings.clear();
+
+    // Reset hierarchy
+    currentRoot = nullptr;
+    currentNode = nullptr;
+    lastFrameRoot = nullptr;
 }
 
 void PerformanceProfiler::updateFrameTimings() {
     memoryStats.frameCount++;
+}
+
+std::string PerformanceProfiler::dumpFrameToJSON() const {
+    if (!lastFrameRoot) return "{}";
+
+    std::stringstream ss;
+    
+    std::function<void(const ProfilerNode*)> dumpNode = 
+        [&](const ProfilerNode* node) {
+        ss << "{\"name\": \"" << node->name << "\", ";
+        ss << "\"durationMs\": " << std::fixed << std::setprecision(3) << node->durationMs << ", ";
+        ss << "\"callCount\": " << node->callCount << ", ";
+        ss << "\"children\": [";
+        
+        for (size_t i = 0; i < node->children.size(); ++i) {
+            dumpNode(node->children[i].get());
+            if (i < node->children.size() - 1) {
+                ss << ", ";
+            }
+        }
+        
+        ss << "]}";
+    };
+
+    dumpNode(lastFrameRoot.get());
+    return ss.str();
 }
 
 } // namespace VulkanCube

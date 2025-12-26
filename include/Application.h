@@ -63,6 +63,7 @@ public:
     void cycleRaycastTargetMode();
     void adjustAmbientLight(float delta);
     void toggleLightingControls();
+    void toggleProfiler();
     void toggleCameraMode();
     void toggleCharacterControl();
 

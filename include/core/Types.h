@@ -125,31 +125,38 @@ struct InstanceData {
 };
 
 struct CharacterInstanceData {
-    glm::vec3 position;
-    glm::vec3 color;
+    glm::vec3 offset;
+    glm::vec3 scale;
+    glm::vec4 color;
 
     static VkVertexInputBindingDescription getBindingDescription() {
         VkVertexInputBindingDescription bindingDescription{};
-        bindingDescription.binding = 1; // Binding 1 (0 is vertex)
+        bindingDescription.binding = 0; // Binding 0 (we don't use vertex buffer for characters)
         bindingDescription.stride = sizeof(CharacterInstanceData);
         bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
         return bindingDescription;
     }
 
     static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
-        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(2);
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(3);
 
-        // Position
-        attributeDescriptions[0].binding = 1;
-        attributeDescriptions[0].location = 2; // Matches shader layout(location = 2)
+        // Offset
+        attributeDescriptions[0].binding = 0;
+        attributeDescriptions[0].location = 0;
         attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[0].offset = offsetof(CharacterInstanceData, position);
+        attributeDescriptions[0].offset = offsetof(CharacterInstanceData, offset);
+
+        // Scale
+        attributeDescriptions[1].binding = 0;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[1].offset = offsetof(CharacterInstanceData, scale);
 
         // Color
-        attributeDescriptions[1].binding = 1;
-        attributeDescriptions[1].location = 3; // Matches shader layout(location = 3)
-        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[1].offset = offsetof(CharacterInstanceData, color);
+        attributeDescriptions[2].binding = 0;
+        attributeDescriptions[2].location = 2;
+        attributeDescriptions[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        attributeDescriptions[2].offset = offsetof(CharacterInstanceData, color);
 
         return attributeDescriptions;
     }

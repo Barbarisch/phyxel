@@ -99,6 +99,11 @@ void InputController::setupKeyboardBindings() {
         m_app->togglePerformanceOverlay();
     });
 
+    // F7 - Toggle Profiler
+    m_inputManager->registerAction(GLFW_KEY_F7, "Toggle Profiler", [this]() {
+        m_app->toggleProfiler();
+    });
+
     // V - Toggle Camera Mode
     m_inputManager->registerAction(GLFW_KEY_V, "Toggle Camera Mode", [this]() {
         m_app->toggleCameraMode();

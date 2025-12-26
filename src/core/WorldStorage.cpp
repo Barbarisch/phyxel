@@ -655,7 +655,7 @@ bool WorldStorage::saveDirtyChunks(const std::vector<std::reference_wrapper<Chun
     int savedCount = 0;
     int skippedCount = 0;
     
-    LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Processing " << chunks.size() << " chunks for smart save...");
+    LOG_TRACE_FMT("WorldStorage", "[WORLD_STORAGE] Processing " << chunks.size() << " chunks for smart save...");
     
     beginTransaction();
     
@@ -664,7 +664,7 @@ bool WorldStorage::saveDirtyChunks(const std::vector<std::reference_wrapper<Chun
         glm::ivec3 chunkCoord = chunk.getWorldOrigin() / 32;
         
         if (chunk.getIsDirty()) {
-            LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Saving DIRTY chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
+            LOG_TRACE_FMT("WorldStorage", "[WORLD_STORAGE] Saving DIRTY chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
             if (saveChunk(chunk, false)) { // Don't use nested transaction
                 chunk.markClean();
                 savedCount++;

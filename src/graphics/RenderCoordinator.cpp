@@ -13,13 +13,16 @@
 #include "utils/CoordinateUtils.h"
 #include "utils/Frustum.h"
 #include "utils/Logger.h"
+#include "utils/GpuProfiler.h"
 #include "scene/Character.h"
 #include "scene/Player.h"
 #include "scene/Enemy.h"
 #include "scene/RagdollCharacter.h"
 #include "scene/PhysicsCharacter.h"
 #include "scene/SpiderCharacter.h"
+#include "scene/AnimatedVoxelCharacter.h"
 #include <glm/gtc/matrix_transform.hpp>
+#include <map>
 
 namespace VulkanCube {
 namespace Graphics {
@@ -75,9 +78,13 @@ RenderCoordinator::RenderCoordinator(
     // Also recreate debug line pipeline if it exists/is used
     renderPipeline->createDebugLinePipeline();
     renderPipeline->createCharacterPipeline();
+    renderPipeline->createInstancedCharacterPipeline();
 
     dynamicRenderPipeline->setRenderPass(postProcessor->getSceneRenderPass());
     dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
+
+    // Create character instance buffer (max 10000 instances)
+    vulkanDevice->createCharacterInstanceBuffer(10000);
 
     // Recreate Swapchain Framebuffers using PostProcess Render Pass
     // The swapchain framebuffers now need to be compatible with the post-process render pass
@@ -88,6 +95,10 @@ RenderCoordinator::RenderCoordinator(
     // It was initialized with the old render pass in WorldInitializer
     imguiRenderer->cleanup();
     imguiRenderer->initialize(windowManager->getHandle(), vulkanDevice, postProcessor->getPostProcessRenderPass());
+
+    // Initialize GPU Profiler
+    gpuProfiler = std::make_unique<GpuProfiler>();
+    gpuProfiler->init(vulkanDevice);
 }
 
 RenderCoordinator::~RenderCoordinator() = default;
@@ -367,8 +378,14 @@ void RenderCoordinator::drawFrame() {
     vulkanDevice->resetCommandBuffer(currentFrame);
     vulkanDevice->beginCommandBuffer(currentFrame);
     
-    // Render Shadow Pass
-    renderShadowPass(vulkanDevice->getCommandBuffer(currentFrame), lightSpaceMatrix);
+    VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(currentFrame);
+    gpuProfiler->startFrame(currentFrame, cmd);
+    
+    {
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Shadow Pass");
+        // Render Shadow Pass
+        renderShadowPass(cmd, lightSpaceMatrix);
+    }
     
     // Record occlusion culling statistics from chunk manager
     if (chunkManager && !chunkManager->chunks.empty()) {
@@ -391,7 +408,10 @@ void RenderCoordinator::drawFrame() {
     // Begin Scene Render Pass (Offscreen)
     postProcessor->beginSceneRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
     
-    // Bind graphics pipeline (debug or normal based on debug mode)
+    {
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Scene Pass");
+
+        // Bind graphics pipeline (debug or normal based on debug mode)
     if (debugModeEnabled) {
         renderPipeline->bindDebugGraphicsPipeline(vulkanDevice->getCommandBuffer(currentFrame));
     } else {
@@ -424,10 +444,17 @@ void RenderCoordinator::drawFrame() {
     // Draw using dual rendering system
     if (chunkManager && !chunkManager->chunks.empty()) {
         // Render static geometry first and capture how many chunks were actually rendered
-        size_t actuallyRenderedChunks = renderStaticGeometry();
+        size_t actuallyRenderedChunks = 0;
+        {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Static Geometry");
+            actuallyRenderedChunks = renderStaticGeometry();
+        }
         
         // Render dynamic subcubes with separate pipeline
-        renderDynamicSubcubes();
+        {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Dynamic Subcubes");
+            renderDynamicSubcubes();
+        }
 
         // Clear transient debug lines before rendering entities
         if (raycastVisualizer) {
@@ -435,7 +462,10 @@ void RenderCoordinator::drawFrame() {
         }
 
         // Render entities (Characters)
-        renderEntities(vulkanDevice->getCommandBuffer(currentFrame));
+        {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Entities");
+            renderEntities(vulkanDevice->getCommandBuffer(currentFrame));
+        }
         
         // Get accurate performance statistics from chunk manager
         auto chunkStats = chunkManager->getPerformanceStats();
@@ -466,6 +496,7 @@ void RenderCoordinator::drawFrame() {
     
     // Render raycast visualization if enabled
     if (raycastVisualizationEnabled && raycastVisualizer) {
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Debug Lines");
         // Bind debug line pipeline
         renderPipeline->bindDebugLinePipeline(vulkanDevice->getCommandBuffer(currentFrame));
         
@@ -477,13 +508,17 @@ void RenderCoordinator::drawFrame() {
     }
     
     // End Scene Render Pass
+    } // End Scene Pass Scope
     postProcessor->endSceneRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
 
     // Begin Post Process Render Pass (Swapchain)
     postProcessor->beginPostProcessRenderPass(vulkanDevice->getCommandBuffer(currentFrame), vulkanDevice->getSwapChainFramebuffer(imageIndex));
 
-    // Draw Fullscreen Quad
-    postProcessor->drawQuad(vulkanDevice->getCommandBuffer(currentFrame));
+    {
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Post Process");
+        // Draw Fullscreen Quad
+        postProcessor->drawQuad(vulkanDevice->getCommandBuffer(currentFrame));
+    }
 
     // Render ImGui on top
     // Scripting console rendering is handled in Application::run() before endFrame()
@@ -558,17 +593,108 @@ void RenderCoordinator::renderUI() {
             ambientLightStrength,
             emissiveMultiplier
         );
+
+        imguiRenderer->renderProfilerWindow(
+            showProfiler,
+            performanceProfiler,
+            gpuProfiler.get()
+        );
     }
 }
 
 void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
     if (!entities || entities->empty()) return;
 
-    renderPipeline->bindCharacterPipeline(commandBuffer);
+    // Separate entities into instanced and standard
+    std::vector<Scene::AnimatedVoxelCharacter*> instancedCharacters;
+    std::vector<Scene::Entity*> standardEntities;
 
     for (const auto& entity : *entities) {
+        auto animatedChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity.get());
+        if (animatedChar) {
+            instancedCharacters.push_back(animatedChar);
+        } else {
+            standardEntities.push_back(entity.get());
+        }
+    }
+
+    // Render Instanced Characters
+    if (!instancedCharacters.empty()) {
+        std::vector<CharacterInstanceData> instanceData;
+        struct Batch {
+            glm::mat4 model;
+            uint32_t firstInstance;
+            uint32_t instanceCount;
+        };
+        std::vector<Batch> batches;
+
+        for (auto* charPtr : instancedCharacters) {
+            // Group parts by RigidBody
+            std::map<btRigidBody*, std::vector<const Scene::RagdollPart*>> partsByBody;
+            for (const auto& part : charPtr->getParts()) {
+                if (part.rigidBody) {
+                    partsByBody[part.rigidBody].push_back(&part);
+                }
+            }
+
+            // Create batches
+            for (const auto& [body, parts] : partsByBody) {
+                // Calculate Body Transform
+                btTransform trans;
+                body->getMotionState()->getWorldTransform(trans);
+                btVector3 pos = trans.getOrigin();
+                btQuaternion rot = trans.getRotation();
+                
+                glm::mat4 model = glm::mat4(1.0f);
+                model = glm::translate(model, glm::vec3(pos.x(), pos.y(), pos.z()));
+                model = model * glm::mat4_cast(glm::quat(rot.w(), rot.x(), rot.y(), rot.z()));
+
+                Batch batch;
+                batch.model = model;
+                batch.firstInstance = static_cast<uint32_t>(instanceData.size());
+                batch.instanceCount = 0;
+
+                for (const auto* part : parts) {
+                    CharacterInstanceData data;
+                    data.offset = part->offset;
+                    data.scale = part->scale;
+                    data.color = part->color;
+                    instanceData.push_back(data);
+                    batch.instanceCount++;
+                }
+                batches.push_back(batch);
+            }
+        }
+
+        if (!instanceData.empty()) {
+            vulkanDevice->updateCharacterInstanceBuffer(instanceData);
+            renderPipeline->bindInstancedCharacterPipeline(commandBuffer);
+            vulkanDevice->bindCharacterInstanceBuffer(commandBuffer);
+
+            glm::mat4 viewProj = cachedProjectionMatrix * cachedViewMatrix;
+
+            for (const auto& batch : batches) {
+                struct PushConsts {
+                    glm::mat4 model;
+                    glm::mat4 viewProj;
+                } pushConsts;
+                pushConsts.model = batch.model;
+                pushConsts.viewProj = viewProj;
+
+                vkCmdPushConstants(commandBuffer, renderPipeline->getInstancedCharacterLayout(), 
+                                 VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConsts), &pushConsts);
+                
+                // Draw 36 vertices (cube) * instanceCount
+                vkCmdDraw(commandBuffer, 36, batch.instanceCount, 0, batch.firstInstance);
+            }
+        }
+    }
+
+    renderPipeline->bindCharacterPipeline(commandBuffer);
+
+    for (const auto& entity : standardEntities) {
         // Check for RagdollCharacter (handles both PhysicsCharacter and SpiderCharacter)
-        auto ragdollChar = dynamic_cast<Scene::RagdollCharacter*>(entity.get());
+        auto ragdollChar = dynamic_cast<Scene::RagdollCharacter*>(entity);
         if (ragdollChar) {
             // Allow character to do its own debug rendering (e.g. raycast lines)
             ragdollChar->render(this);
@@ -614,7 +740,7 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
         }
 
         // Fallback to old Character system
-        auto character = dynamic_cast<Scene::Character*>(entity.get());
+        auto character = dynamic_cast<Scene::Character*>(entity);
         if (character) {
             glm::mat4 model = character->getModelMatrix();
             glm::mat4 viewProj = cachedProjectionMatrix * cachedViewMatrix;

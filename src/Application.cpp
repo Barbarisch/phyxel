@@ -285,6 +285,9 @@ void Application::run() {
             inputManager->resetMouseDelta();
         }
 
+        // Capture input start time for latency tracking
+        auto inputStartTime = std::chrono::high_resolution_clock::now();
+
         // Poll GLFW events
         windowManager->pollEvents();
         
@@ -364,6 +367,18 @@ void Application::run() {
         // Profile the frame with PerformanceMonitor
         FrameTiming timing = performanceMonitor->profileFrame();
         
+        // --- STUTTER DETECTOR ---
+        // Check if frame time exceeded threshold (e.g., 30ms)
+        // We skip the first 60 frames to allow initialization to settle
+        if (deltaTime * 1000.0 > 30.0 && frameCount > 60) {
+            auto frameEndTime = std::chrono::high_resolution_clock::now();
+            double inputLatencyMs = std::chrono::duration<double, std::milli>(frameEndTime - inputStartTime).count();
+            
+            LOG_WARN_FMT("Performance", "STUTTER DETECTED! Frame Time: " << (deltaTime * 1000.0) << "ms, Input Latency: " << inputLatencyMs << "ms");
+            LOG_INFO_FMT("Performance", "Profile Dump: " << performanceProfiler->dumpFrameToJSON());
+        }
+        // ------------------------
+
         performanceMonitor->updateFrameTiming(deltaTime);
         frameCount++;
         fpsFrameCount++;
@@ -477,53 +492,47 @@ void Application::setTitle(const std::string& title) {
 }
 
 void Application::update(float deltaTime) {
+    PROFILE_SCOPE(*performanceProfiler, "Update");
     this->deltaTime = deltaTime;
     
     // Update scripting system
     if (scriptingSystem) {
+        PROFILE_SCOPE(*performanceProfiler, "Scripting");
         scriptingSystem->update(deltaTime);
     }
 
     // Update entities
-    for (auto& entity : entities) {
-        // If controlling voxel character, disable player update or input processing?
-        // For now, let's just update all.
-        // But we need to make sure camera follows the right one.
-        entity->update(deltaTime);
+    {
+        PROFILE_SCOPE(*performanceProfiler, "Entities");
+        for (auto& entity : entities) {
+            entity->update(deltaTime);
+        }
     }
 
     // Camera sync
-    if (camera->getMode() == Graphics::CameraMode::Free) {
-        camera->setPosition(inputManager->getCameraPosition());
-        camera->setFront(inputManager->getCameraFront());
-    } else if (isControllingPhysicsCharacter && physicsCharacter) {
-        // PhysicsCharacter updates camera position in its update() if active
-        // But we need to ensure the camera mode is respected
-        physicsCharacter->updateCamera();
-    } else if (!isControllingPhysicsCharacter) {
-        // Sync orientation from InputManager (which handles mouse look)
-        camera->setYaw(inputManager->getYaw());
-        camera->setPitch(inputManager->getPitch());
-        
-        // Update camera to follow active character
-        if (currentControlTarget == ControlTarget::Spider && spiderCharacter) {
-            camera->updatePositionFromTarget(spiderCharacter->getPosition(), 0.5f);
-        } else if (currentControlTarget == ControlTarget::AnimatedCharacter && animatedCharacter) {
-            camera->updatePositionFromTarget(animatedCharacter->getPosition(), 0.5f);
+    {
+        PROFILE_SCOPE(*performanceProfiler, "Camera Sync");
+        if (camera->getMode() == Graphics::CameraMode::Free) {
+            camera->setPosition(inputManager->getCameraPosition());
+            camera->setFront(inputManager->getCameraFront());
+        } else if (isControllingPhysicsCharacter && physicsCharacter) {
+            physicsCharacter->updateCamera();
+        } else if (!isControllingPhysicsCharacter) {
+            camera->setYaw(inputManager->getYaw());
+            camera->setPitch(inputManager->getPitch());
+            
+            if (currentControlTarget == ControlTarget::Spider && spiderCharacter) {
+                camera->updatePositionFromTarget(spiderCharacter->getPosition(), 0.5f);
+            } else if (currentControlTarget == ControlTarget::AnimatedCharacter && animatedCharacter) {
+                camera->updatePositionFromTarget(animatedCharacter->getPosition(), 0.5f);
+            }
         }
-    } else if (player) {
-        // Player updates camera position in its update()
-        // We need to ensure Player only updates camera if it's active.
-        // Since Player class is not modified to have an active flag yet, 
-        // we might have a conflict if both try to set camera.
-        // However, VoxelCharacter only sets camera if isControlActive is true.
-        // Player always sets it.
-        // We should modify Player to check a flag, or hack it here.
     }
     
     // Input is processed in handleInput() which is called from run() loop
     // Update input controller logic (e.g. previews)
     if (inputController) {
+        PROFILE_SCOPE(*performanceProfiler, "Input Controller");
         inputController->update(deltaTime);
     }
 
@@ -534,6 +543,7 @@ void Application::update(float deltaTime) {
     
     // Update mouse hover detection via VoxelInteractionSystem
     if (voxelInteractionSystem) {
+        PROFILE_SCOPE(*performanceProfiler, "Voxel Interaction");
         double mouseX, mouseY;
         inputManager->getCurrentMousePosition(mouseX, mouseY);
         voxelInteractionSystem->updateMouseHover(
@@ -728,6 +738,13 @@ void Application::toggleLightingControls() {
     if (renderCoordinator) {
         renderCoordinator->toggleLightingControls();
         LOG_INFO_FMT("Application", "Lighting Controls: " << (renderCoordinator->isLightingControlsVisible() ? "ENABLED" : "DISABLED"));
+    }
+}
+
+void Application::toggleProfiler() {
+    if (renderCoordinator) {
+        renderCoordinator->toggleProfiler();
+        LOG_INFO_FMT("Application", "Profiler: " << (renderCoordinator->isProfilerVisible() ? "ENABLED" : "DISABLED"));
     }
 }
 

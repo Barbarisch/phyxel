@@ -180,7 +180,7 @@ void ChunkManager::updateChunk(size_t chunkIndex) {
     
     Chunk* chunk = chunks[chunkIndex].get();
     if (chunk->getNeedsUpdate()) {
-        LOG_DEBUG_FMT("Chunk", "Updating chunk " << chunkIndex << " with " << chunk->getTotalSubcubeCount() << " subcubes");
+        LOG_TRACE_FMT("Chunk", "Updating chunk " << chunkIndex << " with " << chunk->getTotalSubcubeCount() << " subcubes");
         
         // Use cross-chunk culling method to maintain proper face occlusion across chunk boundaries
         rebuildChunkFacesWithCrosschunkCulling(*chunk);

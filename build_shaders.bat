@@ -156,6 +156,14 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
+    echo Compiling instanced character vertex shader...
+    %GLSLANG% -V -I. shaders\character_instanced.vert -o shaders\character_instanced.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile instanced character vertex shader
+        pause
+        exit /b 1
+    )
+
     echo Compiling character fragment shader...
     %GLSLANG% -V -I. shaders\character.frag -o shaders\character.frag.spv
     if %errorlevel% neq 0 (

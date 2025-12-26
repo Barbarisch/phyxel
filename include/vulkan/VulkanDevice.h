@@ -128,6 +128,12 @@ public:
     void updateDynamicSubcubeBuffer(const std::vector<DynamicSubcubeInstanceData>& dynamicSubcubes);
     void bindDynamicSubcubeBuffer(uint32_t frameIndex);
     void cleanupDynamicSubcubeBuffer();
+
+    // Character instance buffer management
+    bool createCharacterInstanceBuffer(uint32_t maxInstances);
+    void updateCharacterInstanceBuffer(const std::vector<CharacterInstanceData>& instances);
+    void bindCharacterInstanceBuffer(VkCommandBuffer commandBuffer);
+    void cleanupCharacterInstanceBuffer();
     
     // Buffer creation helpers
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
@@ -257,6 +263,11 @@ private:
     VkBuffer dynamicSubcubeBuffer = VK_NULL_HANDLE;
     VkDeviceMemory dynamicSubcubeBufferMemory = VK_NULL_HANDLE;
     uint32_t maxDynamicSubcubes = 0;
+
+    // Character instance buffer
+    VkBuffer characterInstanceBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory characterInstanceBufferMemory = VK_NULL_HANDLE;
+    uint32_t maxCharacterInstances = 0;
     
     std::vector<VkBuffer> uniformBuffers;
     std::vector<VkDeviceMemory> uniformBuffersMemory;

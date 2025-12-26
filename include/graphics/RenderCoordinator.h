@@ -3,6 +3,7 @@
 #include "core/Types.h"
 #include "utils/PerformanceMonitor.h"
 #include "utils/PerformanceProfiler.h"
+#include "utils/GpuProfiler.h"
 #include "scene/Entity.h"
 #include <memory>
 #include <chrono>
@@ -98,10 +99,16 @@ public:
     glm::vec3& getSunColor() { return sunColor; }
     float& getAmbientLightRef() { return ambientLightStrength; }
     float& getEmissiveMultiplierRef() { return emissiveMultiplier; }
+
+    GpuProfiler* getGpuProfiler() { return gpuProfiler.get(); }
     
     // Lighting Controls UI
     void toggleLightingControls() { showLightingControls = !showLightingControls; }
     bool isLightingControlsVisible() const { return showLightingControls; }
+
+    // Profiler UI
+    void toggleProfiler() { showProfiler = !showProfiler; }
+    bool isProfilerVisible() const { return showProfiler; }
 
     // Entity rendering
     void setEntities(const std::vector<std::unique_ptr<Scene::Entity>>* entities) { this->entities = entities; }
@@ -131,6 +138,7 @@ private:
     Vulkan::RenderPipeline* dynamicRenderPipeline;
     std::unique_ptr<ShadowMap> shadowMap;
     std::unique_ptr<PostProcessor> postProcessor;
+    std::unique_ptr<GpuProfiler> gpuProfiler;
     UI::ImGuiRenderer* imguiRenderer;
     UI::WindowManager* windowManager;
     Input::InputManager* inputManager;
@@ -144,6 +152,7 @@ private:
     // Render state
     bool showScriptingConsole = false;
     bool showLightingControls = false;
+    bool showProfiler = false;
     uint32_t currentFrame = 0;
     float maxChunkRenderDistance = 1000.0f;
     float chunkInclusionDistance = 2000.0f;

@@ -13,6 +13,7 @@ struct ImGuiInputTextCallbackData;
 namespace VulkanCube {
     class Timer;
     class PerformanceProfiler;
+    class GpuProfiler;
     struct FrameTiming;
     struct DetailedFrameTiming;
     class ForceSystem;
@@ -53,6 +54,12 @@ public:
         uint64_t frameCount,
         float& renderDistance,          // Reference to allow modification
         float& chunkInclusionDistance   // Reference to allow modification
+    );
+
+    void renderProfilerWindow(
+        bool showProfiler,
+        PerformanceProfiler* cpuProfiler,
+        GpuProfiler* gpuProfiler
     );
     
     void renderForceSystemDebug(
