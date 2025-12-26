@@ -76,6 +76,7 @@ namespace Phyxel {
         std::string name;
         float duration = 0.0f;
         float ticksPerSecond = 0.0f;
+        float speed = 0.0f; // Extracted movement speed (units/sec)
         std::vector<AnimationChannel> channels;
     };
 

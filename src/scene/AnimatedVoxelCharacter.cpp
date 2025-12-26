@@ -314,11 +314,32 @@ namespace Scene {
             currentYaw -= currentTurnInput * turnSpeed * deltaTime;
             
             // Handle Movement
-            float moveSpeed = 5.0f;
+            float moveSpeed = 5.0f; // Default fallback
+            
+            // Use animation speed if available and we are moving
+            if (currentClipIndex >= 0 && currentClipIndex < clips.size()) {
+                float animSpeed = clips[currentClipIndex].speed;
+                if (animSpeed > 0.1f) {
+                    moveSpeed = animSpeed;
+                }
+            }
+
             // Invert Z to match standard camera orientation (Forward is -Z)
             // Standard rotation of (0,0,-1) vector around Y axis
             glm::vec3 forwardDir(-sin(currentYaw), 0, -cos(currentYaw));
-            glm::vec3 moveVel = forwardDir * currentForwardInput * moveSpeed;
+            
+            // Apply movement only if input is non-zero
+            // We use the sign of input to determine direction, but magnitude is 1.0 for speed
+            // Actually, input might be 0.5 for walk, 1.0 for run.
+            // If we are in "Walk" state, we want Walk Speed.
+            // If we are in "Run" state, we want Run Speed.
+            // So we just multiply direction by moveSpeed.
+            
+            float inputDir = 0.0f;
+            if (currentForwardInput > 0.01f) inputDir = 1.0f;
+            else if (currentForwardInput < -0.01f) inputDir = -1.0f;
+            
+            glm::vec3 moveVel = forwardDir * inputDir * moveSpeed;
             
             btVector3 currentVel = controllerBody->getLinearVelocity();
             // Preserve vertical velocity (gravity)
@@ -340,13 +361,22 @@ namespace Scene {
             worldPosition = glm::vec3(pos.x(), pos.y() - halfHeight, pos.z());
             
             // Animation State Logic
-            std::string targetAnim = (glm::abs(currentForwardInput) > 0.1f) ? "walk" : "idle";
+            std::string targetAnim = "idle";
+            if (glm::abs(currentForwardInput) > 0.6f) {
+                targetAnim = "run";
+            } else if (glm::abs(currentForwardInput) > 0.1f) {
+                targetAnim = "walk";
+            }
             
             // Find target animation index
             int targetIndex = -1;
             for (size_t i = 0; i < clips.size(); ++i) {
                 // Case insensitive comparison or partial match might be better, but exact for now
-                if (clips[i].name.find(targetAnim) != std::string::npos) {
+                // Check if the clip name contains the target animation name (case-insensitive logic would be better but simple contains works for now)
+                std::string clipNameLower = clips[i].name;
+                std::transform(clipNameLower.begin(), clipNameLower.end(), clipNameLower.begin(), ::tolower);
+                
+                if (clipNameLower.find(targetAnim) != std::string::npos) {
                     targetIndex = (int)i;
                     break;
                 }

@@ -6,6 +6,18 @@ import math
 import numpy as np
 import argparse
 
+# Try to import local voxelizer module
+try:
+    import voxelizer
+except ImportError:
+    # If running from root, add current dir to path
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        import voxelizer
+    except ImportError:
+        print("Warning: voxelizer module not found.")
+        voxelizer = None
+
 # Try to import pygltflib, if not present, ask user to install
 try:
     from pygltflib import GLTF2
@@ -21,7 +33,7 @@ except ImportError:
     print("Warning: trimesh/scipy not found. Voxelization will be skipped.")
     trimesh = None
 
-def extract_animation_data(gltf_path, output_path, scale_factor=1.0):
+def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxel', extra_animations=None):
     print(f"Loading {gltf_path}...")
     gltf = GLTF2().load(gltf_path)
 
@@ -102,28 +114,58 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0):
     # 2. Extract Animations
     animations_out = []
 
-    if gltf.animations:
-        for anim in gltf.animations:
-            print(f"Processing animation: {anim.name}")
+    def process_gltf_animations(source_gltf, source_name_prefix=""):
+        if not source_gltf.animations:
+            return
+
+        for anim in source_gltf.animations:
+            anim_name = anim.name if anim.name else "anim"
+            # If loading extra animations, use the filename as the animation name
+            if source_name_prefix:
+                anim_name = source_name_prefix
+            
+            print(f"Processing animation: {anim_name}")
             channels_out = []
             
             for channel in anim.channels:
                 target_node_idx = channel.target.node
-                if target_node_idx not in node_index_to_bone_index:
-                    continue # Animation targets a node not in our skeleton
                 
-                bone_idx = node_index_to_bone_index[target_node_idx]
+                # Map target node to bone index
+                # If this is an extra animation file, the node indices might be different!
+                # We need to map by NAME.
+                
+                target_node = source_gltf.nodes[target_node_idx]
+                target_node_name = target_node.name
+                
+                if target_node_name not in bone_map:
+                    # Try fuzzy matching or standard mixamo names
+                    if "mixamorig:" in target_node_name:
+                        simple_name = target_node_name.split(":")[-1]
+                        # Try to find bone with this simple name
+                        found = False
+                        for bname, bidx in bone_map.items():
+                            if simple_name in bname:
+                                bone_idx = bidx
+                                found = True
+                                break
+                        if not found:
+                            continue
+                    else:
+                        continue
+                else:
+                    bone_idx = bone_map[target_node_name]
+
                 path = channel.target.path # translation, rotation, scale
                 
                 sampler = anim.samplers[channel.sampler]
-                input_accessor = gltf.accessors[sampler.input]
-                output_accessor = gltf.accessors[sampler.output]
+                input_accessor = source_gltf.accessors[sampler.input]
+                output_accessor = source_gltf.accessors[sampler.output]
                 
                 # Read Input (Time)
-                times = read_accessor(gltf, input_accessor)
+                times = read_accessor(source_gltf, input_accessor)
                 
                 # Read Output (Values)
-                values = read_accessor(gltf, output_accessor)
+                values = read_accessor(source_gltf, output_accessor)
                 
                 # Group into keyframes
                 keys = []
@@ -139,9 +181,105 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0):
                 })
             
             animations_out.append({
-                "name": anim.name if anim.name else "anim",
-                "channels": channels_out
+                "name": anim_name,
+                "channels": channels_out,
+                "root_motion_speed": 0.0
             })
+
+    # Process main file animations
+    process_gltf_animations(gltf)
+
+    # Process extra animations
+    if extra_animations:
+        for extra_file in extra_animations:
+            print(f"Loading extra animation: {extra_file}...")
+            
+            # Handle FBX conversion if needed
+            temp_extra = None
+            load_path = extra_file
+            ext = os.path.splitext(extra_file)[1].lower()
+            if ext == '.fbx':
+                converted = convert_fbx_to_gltf(extra_file)
+                if converted:
+                    load_path = converted
+                    temp_extra = converted
+            
+            try:
+                extra_gltf = GLTF2().load(load_path)
+                # Use filename (without extension) as animation name
+                anim_name = os.path.splitext(os.path.basename(extra_file))[0]
+                process_gltf_animations(extra_gltf, anim_name)
+            except Exception as e:
+                print(f"Failed to load extra animation {extra_file}: {e}")
+            
+            # Cleanup temp
+            if temp_extra and os.path.exists(temp_extra):
+                try:
+                    os.remove(temp_extra)
+                    bin_file = temp_extra.replace(".gltf", ".bin")
+                    if os.path.exists(bin_file): os.remove(bin_file)
+                except: pass
+
+    # 1.25 Analyze and Strip Root Motion
+    # We look for the "Hips" or root bone.
+    # We calculate the total displacement in X/Z.
+    # We calculate speed.
+    # We strip the X/Z motion from the keys.
+    
+    print("Analyzing root motion...")
+    hips_id = -1
+    for name, idx in bone_map.items():
+        if "Hips" in name or "Root" in name or "mixamorig:Hips" in name:
+            hips_id = idx
+            break
+            
+    if hips_id != -1:
+        print(f"Found root bone: {bones[hips_id]['name']} (ID: {hips_id})")
+        
+        for anim in animations_out:
+            # Find the channel for hips
+            hips_channel = None
+            for ch in anim['channels']:
+                if ch['boneIndex'] == hips_id and ch['type'] == 'translation':
+                    hips_channel = ch
+                    break
+            
+            if hips_channel and len(hips_channel['keys']) > 1:
+                keys = hips_channel['keys']
+                start_pos = keys[0]['v']
+                end_pos = keys[-1]['v']
+                duration = keys[-1]['t'] - keys[0]['t']
+                
+                # Calculate displacement on XZ plane
+                dx = end_pos[0] - start_pos[0]
+                dz = end_pos[2] - start_pos[2]
+                dist = math.sqrt(dx*dx + dz*dz)
+                
+                speed = 0.0
+                if duration > 0.001:
+                    speed = dist / duration
+                
+                print(f"Animation '{anim['name']}': Distance {dist:.2f}, Duration {duration:.2f}, Speed {speed:.2f}")
+                
+                # If speed is significant, store it and strip motion
+                if speed > 0.1:
+                    anim['root_motion_speed'] = speed
+                    print(f"  -> Detected moving animation. Stripping root motion...")
+                    
+                    # Strip motion: Set X and Z to start_pos (or 0 relative to parent?)
+                    # Usually we want to keep the "bobbing" (Y) but remove linear X/Z.
+                    # But we also need to ensure it loops correctly.
+                    # Simplest approach: Set all X/Z to the value of the first frame.
+                    
+                    first_x = keys[0]['v'][0]
+                    first_z = keys[0]['v'][2]
+                    
+                    for k in keys:
+                        k['v'][0] = first_x
+                        k['v'][2] = first_z
+                        
+    else:
+        print("Warning: Could not find Hips/Root bone. Skipping root motion analysis.")
 
     # 1.5 Extract Bone Bounding Boxes (The "Model")
     # We need to process meshes and find which vertices belong to which bone.
@@ -218,10 +356,12 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0):
                     all_weights.extend(weights)
 
     voxel_shapes = []
-    if trimesh is not None:
+    if style == 'voxel' and trimesh is not None:
         voxel_shapes = voxelize_mesh(gltf_path, all_positions, all_joints, all_weights, node_index_to_bone_index, skin, ibms, scale_factor)
+    elif style == 'box':
+        print("Style is 'box'. Skipping voxelization and generating bounding boxes.")
 
-    # Fallback or if voxelization produced nothing (e.g. no skinning found or trimesh failed)
+    # Fallback or if voxelization produced nothing (e.g. no skinning found or trimesh failed or style='box')
     if not voxel_shapes:
         print("Falling back to bounding box generation (or using it for physics)...")
         
@@ -324,6 +464,10 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0):
                     duration = max(duration, ch['keys'][-1]['t'])
             
             f.write(f"Duration {duration}\n")
+            
+            # Write Speed if available
+            if 'root_motion_speed' in anim and anim['root_motion_speed'] > 0.0:
+                f.write(f"Speed {anim['root_motion_speed']}\n")
 
 
             # Group by bone
@@ -354,6 +498,36 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0):
                     f.write(f"ScaleKey {k['t']} {k['v'][0]} {k['v'][1]} {k['v'][2]}\n")
 
     print(f"Saved to {output_path}")
+
+def convert_fbx_to_gltf(fbx_path):
+    import subprocess
+    import shutil
+    
+    # Check for FBX2glTF
+    fbx2gltf = shutil.which("FBX2glTF")
+    if fbx2gltf:
+        print(f"Found FBX2glTF at {fbx2gltf}")
+        output_glb = fbx_path.replace(".fbx", ".glb")
+        try:
+            subprocess.run([fbx2gltf, "-i", fbx_path, "-o", output_glb, "--binary"], check=True)
+            return output_glb
+        except subprocess.CalledProcessError as e:
+            print(f"FBX2glTF failed: {e}")
+            return None
+
+    # Check for Assimp
+    assimp = shutil.which("assimp")
+    if assimp:
+        print(f"Found Assimp at {assimp}")
+        output_gltf = fbx_path.replace(".fbx", ".gltf")
+        try:
+            subprocess.run([assimp, "export", fbx_path, output_gltf], check=True)
+            return output_gltf
+        except subprocess.CalledProcessError as e:
+            print(f"Assimp failed: {e}")
+            return None
+            
+    return None
 
 def read_accessor(gltf, accessor):
     buffer_view = gltf.bufferViews[accessor.bufferView]
@@ -558,12 +732,16 @@ if __name__ == "__main__":
     parser.add_argument("input_file", help="Input file (GLTF, GLB, FBX)")
     parser.add_argument("output_file", help="Output .anim file")
     parser.add_argument("--scale", type=float, default=1.0, help="Scale factor for the model and animation")
+    parser.add_argument("--style", choices=['voxel', 'box'], default='voxel', help="Output style: 'voxel' (default) or 'box' (skeletal boxes only)")
+    parser.add_argument("--animations", nargs='+', help="List of additional animation files (FBX/GLTF) to merge")
     
     args = parser.parse_args()
     
     input_file = args.input_file
     output_file = args.output_file
     scale_factor = args.scale
+    style = args.style
+    extra_animations = args.animations
     temp_file = None
     
     ext = os.path.splitext(input_file)[1].lower()
@@ -579,7 +757,7 @@ if __name__ == "__main__":
             print("Alternatively, convert the file to GLTF/GLB manually.")
             sys.exit(1)
             
-    extract_animation_data(input_file, output_file, scale_factor)
+    extract_animation_data(input_file, output_file, scale_factor, style, extra_animations)
     
     # Cleanup temp file if we created one
     if temp_file and os.path.exists(temp_file):

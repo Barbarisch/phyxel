@@ -66,6 +66,12 @@ public:
     void toggleCameraMode();
     void toggleCharacterControl();
 
+    // Character Management
+    Scene::PhysicsCharacter* createPhysicsCharacter(const glm::vec3& pos);
+    Scene::SpiderCharacter* createSpiderCharacter(const glm::vec3& pos);
+    Scene::AnimatedVoxelCharacter* createAnimatedCharacter(const glm::vec3& pos, const std::string& animFile);
+    void setControlTarget(const std::string& targetName);
+
     // Accessors
     ObjectTemplateManager* getObjectTemplateManager() const { return objectTemplateManager.get(); }
     RaycastVisualizer* getRaycastVisualizer() const { return raycastVisualizer.get(); }

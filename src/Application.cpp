@@ -209,44 +209,11 @@ bool Application::initialize() {
     inputManager->setCameraPosition(camera->getPosition());
     inputManager->setYawPitch(camera->getYaw(), camera->getPitch());
 
-    // Create Player
-    // Spawn high up to avoid falling through world before chunks load
-    // auto playerPtr = std::make_unique<Scene::Player>(physicsWorld.get(), inputManager.get(), camera.get(), glm::vec3(20, 50, 20));
-    // player = playerPtr.get();
-    // entities.push_back(std::move(playerPtr));
+    // Entities are now created via scripting (scripts/startup.py)
+    // See Application::createPhysicsCharacter etc.
 
-    // Create Physics Character (Test)
-    auto physicsCharPtr = std::make_unique<Scene::PhysicsCharacter>(physicsWorld.get(), inputManager.get(), camera.get(), glm::vec3(30, 50, 30));
-    physicsCharacter = physicsCharPtr.get();
-    physicsCharacter->setFaction(Scene::Faction::Player);
-    entities.push_back(std::move(physicsCharPtr));
-    
-    // Create Spider Character
-    auto spiderPtr = std::make_unique<Scene::SpiderCharacter>(physicsWorld.get(), glm::vec3(35, 55, 35));
-    spiderCharacter = spiderPtr.get();
-    spiderCharacter->setFaction(Scene::Faction::Enemy);
-    entities.push_back(std::move(spiderPtr));
-
-    // Create Animated Voxel Character
-    auto animatedCharPtr = std::make_unique<Scene::AnimatedVoxelCharacter>(physicsWorld.get(), glm::vec3(40, 50, 40));
-    animatedCharacter = animatedCharPtr.get();
-    if (animatedCharacter->loadModel("character.anim")) {
-        // Play default animation if available
-        animatedCharacter->playAnimation("mixamo.com"); 
-        LOG_INFO("Application", "Loaded animated character model");
-    } else {
-        LOG_ERROR("Application", "Failed to load animated character model");
-    }
-    entities.push_back(std::move(animatedCharPtr));
-
-    // Default to controlling the PhysicsCharacter
-    currentControlTarget = ControlTarget::PhysicsCharacter;
-    isControllingPhysicsCharacter = true;
-    if (physicsCharacter) physicsCharacter->setControlActive(true);
-    
-    // Set camera to follow PhysicsCharacter
-    camera->setMode(Graphics::CameraMode::ThirdPerson);
-    camera->setDistanceFromTarget(4.0f);
+    // Default camera mode
+    camera->setMode(Graphics::CameraMode::Free);
     
     LOG_INFO("Application", "Entities initialized successfully!");
 
@@ -726,8 +693,19 @@ void Application::handleInput() {
         float forward = 0.0f;
         float turn = 0.0f;
 
-        if (inputManager->isKeyPressed(GLFW_KEY_W)) forward += 1.0f;
-        if (inputManager->isKeyPressed(GLFW_KEY_S)) forward -= 1.0f;
+        // Check for sprint modifier (Shift)
+        bool isSprinting = inputManager->isKeyPressed(GLFW_KEY_LEFT_SHIFT) || inputManager->isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
+        float moveMagnitude = isSprinting ? 1.0f : 0.5f;
+
+        // Invert W/S logic: W should be positive (forward), S negative (backward)
+        // But AnimatedVoxelCharacter uses negative Z as forward.
+        // If W adds +1.0f, and AnimatedVoxelCharacter multiplies by forwardDir (which is -Z),
+        // then +1.0f * -Z = -Z (Forward). This seems correct for standard OpenGL.
+        // However, if the user says it's inverted, maybe the character model is facing +Z?
+        // Or maybe the camera is behind the character looking -Z, so moving -Z is "away" (forward).
+        // If the user says it's inverted, let's swap them.
+        if (inputManager->isKeyPressed(GLFW_KEY_W)) forward -= moveMagnitude;
+        if (inputManager->isKeyPressed(GLFW_KEY_S)) forward += moveMagnitude;
         if (inputManager->isKeyPressed(GLFW_KEY_A)) turn -= 1.0f;
         if (inputManager->isKeyPressed(GLFW_KEY_D)) turn += 1.0f;
 
@@ -909,7 +887,12 @@ void Application::toggleCharacterControl() {
         LOG_INFO("Application", "Control switched to Spider");
         
         if (physicsCharacter) physicsCharacter->setControlActive(false);
-        if (camera) camera->setDistanceFromTarget(3.0f);
+        if (camera) {
+            camera->setDistanceFromTarget(3.0f);
+            if (camera->getMode() == Graphics::CameraMode::Free) {
+                camera->setMode(Graphics::CameraMode::ThirdPerson);
+            }
+        }
         // Spider control is handled in handleInput()
         
     } else if (currentControlTarget == ControlTarget::Spider) {
@@ -917,7 +900,12 @@ void Application::toggleCharacterControl() {
         LOG_INFO("Application", "Control switched to Animated Character");
         
         if (spiderCharacter) spiderCharacter->setControlInput(0, 0);
-        if (camera) camera->setDistanceFromTarget(4.0f);
+        if (camera) {
+            camera->setDistanceFromTarget(4.0f);
+            if (camera->getMode() == Graphics::CameraMode::Free) {
+                camera->setMode(Graphics::CameraMode::ThirdPerson);
+            }
+        }
         // Animated character control logic will need to be added
         
     } else {
@@ -925,11 +913,82 @@ void Application::toggleCharacterControl() {
         LOG_INFO("Application", "Control switched to Physics Character");
         
         if (physicsCharacter) physicsCharacter->setControlActive(true);
-        if (camera) camera->setDistanceFromTarget(4.0f);
+        if (camera) {
+            camera->setDistanceFromTarget(4.0f);
+            if (camera->getMode() == Graphics::CameraMode::Free) {
+                camera->setMode(Graphics::CameraMode::ThirdPerson);
+            }
+        }
     }
     
     // Update flag for legacy checks (though we should migrate to using enum everywhere)
     isControllingPhysicsCharacter = (currentControlTarget == ControlTarget::PhysicsCharacter);
+}
+
+Scene::PhysicsCharacter* Application::createPhysicsCharacter(const glm::vec3& pos) {
+    auto physicsCharPtr = std::make_unique<Scene::PhysicsCharacter>(physicsWorld.get(), inputManager.get(), camera.get(), pos);
+    physicsCharacter = physicsCharPtr.get();
+    physicsCharacter->setFaction(Scene::Faction::Player);
+    entities.push_back(std::move(physicsCharPtr));
+    LOG_INFO("Application", "Created PhysicsCharacter");
+    return physicsCharacter;
+}
+
+Scene::SpiderCharacter* Application::createSpiderCharacter(const glm::vec3& pos) {
+    auto spiderPtr = std::make_unique<Scene::SpiderCharacter>(physicsWorld.get(), pos);
+    spiderCharacter = spiderPtr.get();
+    spiderCharacter->setFaction(Scene::Faction::Enemy);
+    entities.push_back(std::move(spiderPtr));
+    LOG_INFO("Application", "Created SpiderCharacter");
+    return spiderCharacter;
+}
+
+Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::vec3& pos, const std::string& animFile) {
+    auto animatedCharPtr = std::make_unique<Scene::AnimatedVoxelCharacter>(physicsWorld.get(), pos);
+    animatedCharacter = animatedCharPtr.get();
+    if (animatedCharacter->loadModel(animFile)) {
+        // Play default animation if available
+        animatedCharacter->playAnimation("idle"); 
+        LOG_INFO("Application", "Loaded animated character model: " + animFile);
+    } else {
+        LOG_ERROR("Application", "Failed to load animated character model: " + animFile);
+    }
+    entities.push_back(std::move(animatedCharPtr));
+    return animatedCharacter;
+}
+
+void Application::setControlTarget(const std::string& targetName) {
+    if (targetName == "spider") {
+        currentControlTarget = ControlTarget::Spider;
+        if (physicsCharacter) physicsCharacter->setControlActive(false);
+        if (camera) {
+            camera->setDistanceFromTarget(3.0f);
+            if (camera->getMode() == Graphics::CameraMode::Free) {
+                camera->setMode(Graphics::CameraMode::ThirdPerson);
+            }
+        }
+    } else if (targetName == "animated") {
+        currentControlTarget = ControlTarget::AnimatedCharacter;
+        if (physicsCharacter) physicsCharacter->setControlActive(false);
+        if (spiderCharacter) spiderCharacter->setControlInput(0, 0);
+        if (camera) {
+            camera->setDistanceFromTarget(4.0f);
+            if (camera->getMode() == Graphics::CameraMode::Free) {
+                camera->setMode(Graphics::CameraMode::ThirdPerson);
+            }
+        }
+    } else {
+        currentControlTarget = ControlTarget::PhysicsCharacter;
+        if (physicsCharacter) physicsCharacter->setControlActive(true);
+        if (camera) {
+            camera->setDistanceFromTarget(4.0f);
+            if (camera->getMode() == Graphics::CameraMode::Free) {
+                camera->setMode(Graphics::CameraMode::ThirdPerson);
+            }
+        }
+    }
+    isControllingPhysicsCharacter = (currentControlTarget == ControlTarget::PhysicsCharacter);
+    LOG_INFO("Application", "Control target set to: " + targetName);
 }
 
 } // namespace VulkanCube

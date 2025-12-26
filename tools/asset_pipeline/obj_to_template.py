@@ -4,7 +4,13 @@ import numpy as np
 import os
 import sys
 from collections import defaultdict
-from scipy import ndimage
+
+# Import voxelizer
+try:
+    import voxelizer
+except ImportError:
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    import voxelizer
 
 def convert_obj_to_template(obj_path, output_path, material_name, target_size, resolution_mode='auto', hollow=False, fill_threshold=1.0, thicken=0, shell=False, shell_thickness=1):
     print(f"Loading mesh: {obj_path}")
@@ -24,77 +30,15 @@ def convert_obj_to_template(obj_path, output_path, material_name, target_size, r
         print(f"Error loading mesh: {e}")
         return
 
-    # Calculate scale to fit in target_size (World Units / Cubes)
-    extents = mesh.extents
-    if np.max(extents) == 0:
-        print("Error: Mesh has zero extents")
+    # Use voxelizer
+    print(f"Voxelizing (Target Size: {target_size}, Mode: {resolution_mode})...")
+    matrix, pitch, scale = voxelizer.voxelize_mesh(mesh, target_size=target_size, resolution_mode=resolution_mode, hollow=hollow, thicken=thicken, shell=shell, shell_thickness=shell_thickness)
+    
+    if matrix is None:
         return
-        
-    scale = target_size / np.max(extents)
-    print(f"Scaling mesh by factor: {scale:.4f} to fit in {target_size} world units (Cubes)")
-    
-    # Apply scale
-    mesh.apply_scale(scale)
-    
-    # Determine pitch (voxel size in world units)
-    if resolution_mode == 'auto':
-        pitch = 1.0 / 9.0
-        print("Mode: Auto (Adaptive resolution, base 1/9 Cube)")
-    elif resolution_mode == 'microcube':
-        pitch = 1.0 / 9.0
-        print("Mode: Microcube (1/9 Cube resolution)")
-    elif resolution_mode == 'subcube':
-        pitch = 1.0 / 3.0
-        print("Mode: Subcube (1/3 Cube resolution)")
-    else: # cube
-        pitch = 1.0
-        print("Mode: Cube (1 Cube resolution)")
 
-    # Voxelize
-    print(f"Voxelizing with pitch {pitch:.4f}...")
-    try:
-        voxel_grid = mesh.voxelized(pitch=pitch)
-        matrix = voxel_grid.matrix
-        print(f"Initial voxel count: {np.sum(matrix)}")
-    except Exception as e:
-        print(f"Error during voxelization: {e}")
-        print("Ensure the mesh is watertight (manifold) for best results.")
-        return
-    
-    # Ensure matrix is boolean for ndimage operations
-    matrix = matrix.astype(bool)
-
-    # Process Volume (Shell vs Solid vs Raw)
-    if shell:
-        print(f"Generating hollow shell (thickness={shell_thickness})...")
-        # 1. Create solid volume (fill everything inside)
-        solid_matrix = ndimage.binary_fill_holes(matrix)
-        # 2. Erode to find the core
-        eroded_matrix = ndimage.binary_erosion(solid_matrix, iterations=shell_thickness)
-        # 3. Subtract core from solid to get shell
-        matrix = solid_matrix & ~eroded_matrix
-        print(f"Voxel count after shell generation: {np.sum(matrix)}")
-        
-    elif not hollow:
-        # Use scipy binary_fill_holes for robust interior filling
-        print("Filling mesh interior...")
-        matrix = ndimage.binary_fill_holes(matrix)
-        print(f"Voxel count after fill: {np.sum(matrix)}")
-        
-        # Optional: Binary closing to smooth surface and fill small gaps
-        # This helps the optimization logic find complete blocks
-        print("Applying morphological closing...")
-        matrix = ndimage.binary_closing(matrix, iterations=1)
-        print(f"Voxel count after closing: {np.sum(matrix)}")
-    
-    # Thicken (Dilation)
-    if thicken > 0:
-        print(f"Thickening mesh (dilation iterations={thicken})...")
-        matrix = ndimage.binary_dilation(matrix, iterations=thicken)
-        print(f"Voxel count after thickening: {np.sum(matrix)}")
-
-    # Ensure matrix is boolean
-    matrix = matrix.astype(bool)
+    print(f"Voxelization complete. Pitch: {pitch:.4f}, Scale: {scale:.4f}")
+    print(f"Final voxel count: {np.sum(matrix)}")
 
     # Crop matrix to bounding box of True values
     true_points = np.argwhere(matrix)
