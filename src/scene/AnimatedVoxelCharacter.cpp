@@ -51,6 +51,9 @@ namespace Scene {
 
     bool AnimatedVoxelCharacter::loadModel(const std::string& animFile) {
         if (animSystem.loadFromFile(animFile, skeleton, clips, voxelModel)) {
+            // Configure fixes after loading
+            configureAnimationFixes();
+
             // Automatically construct voxel bones from the loaded model
             if (voxelModel.shapes.empty()) {
                 std::cout << "No model shapes found in animation file. Generating default bone shapes." << std::endl;
@@ -278,6 +281,15 @@ namespace Scene {
         std::cerr << "Animation not found: " << animName << std::endl;
     }
 
+    // Helper to configure animation fixes
+    void AnimatedVoxelCharacter::configureAnimationFixes() {
+        // No hardcoded fixes. We rely on the user providing correctly oriented animations.
+        // If you need to rotate an animation, you can add it here:
+        // animationRotationOffsets["walk"] = -90.0f; 
+    }
+
+
+
     void AnimatedVoxelCharacter::setControlInput(float forward, float turn) {
         currentForwardInput = forward;
         currentTurnInput = turn;
@@ -307,6 +319,130 @@ namespace Scene {
         return worldPosition;
     }
 
+    void AnimatedVoxelCharacter::jump() {
+        jumpRequested = true;
+    }
+
+    void AnimatedVoxelCharacter::attack() {
+        attackRequested = true;
+    }
+
+    void AnimatedVoxelCharacter::setCrouch(bool crouch) {
+        isCrouching = crouch;
+    }
+
+    void AnimatedVoxelCharacter::updateStateMachine(float deltaTime) {
+        stateTimer += deltaTime;
+        
+        // Get current animation duration if valid
+        float currentAnimDuration = 0.0f;
+        if (currentClipIndex >= 0 && currentClipIndex < clips.size()) {
+            currentAnimDuration = clips[currentClipIndex].duration;
+        }
+
+        // Check vertical velocity for falling
+        float verticalVel = 0.0f;
+        if (controllerBody) {
+            verticalVel = controllerBody->getLinearVelocity().y();
+        }
+
+        // State Transitions
+        switch (currentState) {
+            case AnimatedCharacterState::Idle:
+            case AnimatedCharacterState::Walk:
+            case AnimatedCharacterState::Run:
+            case AnimatedCharacterState::Crouch:
+            case AnimatedCharacterState::CrouchIdle:
+            case AnimatedCharacterState::CrouchWalk:
+            case AnimatedCharacterState::TurnLeft:
+            case AnimatedCharacterState::TurnRight:
+                // Handle Actions (High Priority)
+                if (jumpRequested) {
+                    std::cout << "DEBUG: Jump requested, switching state." << std::endl;
+                    currentState = AnimatedCharacterState::Jump;
+                    stateTimer = 0.0f;
+                    jumpRequested = false;
+                    // Apply physics impulse
+                    if (controllerBody) {
+                        btVector3 vel = controllerBody->getLinearVelocity();
+                        controllerBody->setLinearVelocity(btVector3(vel.x(), 7.0f, vel.z())); 
+                    }
+                } else if (attackRequested) {
+                    currentState = AnimatedCharacterState::Attack;
+                    stateTimer = 0.0f;
+                    attackRequested = false;
+                } else if (verticalVel < -3.0f) {
+                    // Falling detection
+                    currentState = AnimatedCharacterState::Fall;
+                    stateTimer = 0.0f;
+                } else if (isCrouching) {
+                    if (glm::abs(currentForwardInput) > 0.01f) {
+                        currentState = AnimatedCharacterState::CrouchWalk;
+                    } else {
+                        // If we were walking, go to CrouchIdle immediately
+                        if (currentState == AnimatedCharacterState::CrouchWalk) {
+                             currentState = AnimatedCharacterState::CrouchIdle;
+                        } 
+                        // If we are just starting to crouch, go to Crouch (transition)
+                        else if (currentState != AnimatedCharacterState::Crouch && currentState != AnimatedCharacterState::CrouchIdle) {
+                             currentState = AnimatedCharacterState::Crouch;
+                             stateTimer = 0.0f;
+                        }
+                        // If we are in Crouch and it finished, go to CrouchIdle
+                        else if (currentState == AnimatedCharacterState::Crouch && currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
+                             currentState = AnimatedCharacterState::CrouchIdle;
+                        }
+                    }
+                } else {
+                    // Movement Logic
+                    if (glm::abs(currentForwardInput) > 0.6f) {
+                        currentState = AnimatedCharacterState::Run;
+                    } else if (glm::abs(currentForwardInput) > 0.01f) {
+                        currentState = AnimatedCharacterState::Walk;
+                    } else if (glm::abs(currentTurnInput) > 0.1f) {
+                        // Turn in place
+                        if (currentTurnInput > 0) currentState = AnimatedCharacterState::TurnRight;
+                        else currentState = AnimatedCharacterState::TurnLeft;
+                    } else {
+                        currentState = AnimatedCharacterState::Idle;
+                    }
+                }
+                break;
+
+            case AnimatedCharacterState::Jump:
+                // Physics-driven transition
+                // If we are falling significantly, switch to Fall
+                if (verticalVel < -2.0f) {
+                    currentState = AnimatedCharacterState::Fall;
+                } 
+                // If we hit something above or stopped moving up (apex), stay in Jump until fall starts
+                // If we landed on a ledge (vel ~ 0)
+                else if (glm::abs(verticalVel) < 0.01f && stateTimer > 0.5f) {
+                     // We probably landed
+                     currentState = AnimatedCharacterState::Idle;
+                }
+                break;
+
+            case AnimatedCharacterState::Fall:
+                // If we hit the ground (vertical velocity near 0)
+                if (glm::abs(verticalVel) < 0.1f) {
+                    currentState = AnimatedCharacterState::Idle;
+                }
+                break;
+
+            case AnimatedCharacterState::Attack:
+                // Attack is a one-shot animation
+                if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
+                    currentState = AnimatedCharacterState::Idle;
+                }
+                break;
+                
+            default:
+                currentState = AnimatedCharacterState::Idle;
+                break;
+        }
+    }
+
     void AnimatedVoxelCharacter::update(float deltaTime) {
         // 1. Update Physics Controller
         if (controllerBody) {
@@ -314,32 +450,44 @@ namespace Scene {
             float turnSpeed = 2.0f;
             currentYaw -= currentTurnInput * turnSpeed * deltaTime;
             
-            // Handle Movement
-            float moveSpeed = 5.0f; // Default fallback
+            // Update State Machine
+            updateStateMachine(deltaTime);
+
+            // Handle Movement based on State
+            float moveSpeed = 0.0f;
             
-            // Use animation speed if available and we are moving
+            // Use animation speed if available
             if (currentClipIndex >= 0 && currentClipIndex < clips.size()) {
                 float animSpeed = clips[currentClipIndex].speed;
                 if (animSpeed > 0.1f) {
                     moveSpeed = animSpeed;
                 }
             }
+            
+            // Override speed based on state if needed
+            if (currentState == AnimatedCharacterState::Walk) moveSpeed = 2.0f; // Fallback
+            if (currentState == AnimatedCharacterState::Run) moveSpeed = 5.0f; // Fallback
+            if (currentState == AnimatedCharacterState::CrouchWalk) moveSpeed = 1.5f;
+            if (currentState == AnimatedCharacterState::Idle || currentState == AnimatedCharacterState::Attack || 
+                currentState == AnimatedCharacterState::Crouch || currentState == AnimatedCharacterState::CrouchIdle ||
+                currentState == AnimatedCharacterState::TurnLeft || currentState == AnimatedCharacterState::TurnRight) moveSpeed = 0.0f;
 
             // Invert Z to match standard camera orientation (Forward is -Z)
-            // Standard rotation of (0,0,-1) vector around Y axis
             glm::vec3 forwardDir(-sin(currentYaw), 0, -cos(currentYaw));
-            
-            // Apply movement only if input is non-zero
-            // We use the sign of input to determine direction, but magnitude is 1.0 for speed
-            // Actually, input might be 0.5 for walk, 1.0 for run.
-            // If we are in "Walk" state, we want Walk Speed.
-            // If we are in "Run" state, we want Run Speed.
-            // So we just multiply direction by moveSpeed.
             
             float inputDir = 0.0f;
             if (currentForwardInput > 0.01f) inputDir = 1.0f;
             else if (currentForwardInput < -0.01f) inputDir = -1.0f;
             
+            // Allow some air control or movement during jump?
+            if (currentState == AnimatedCharacterState::Jump || currentState == AnimatedCharacterState::Fall) {
+                // Ensure we have base speed if animation didn't provide it (e.g. in-place jump)
+                if (moveSpeed < 0.1f) moveSpeed = 4.0f;
+                
+                // Reduce control in air?
+                moveSpeed *= 0.8f; 
+            }
+
             glm::vec3 moveVel = forwardDir * inputDir * moveSpeed;
             
             btVector3 currentVel = controllerBody->getLinearVelocity();
@@ -361,36 +509,64 @@ namespace Scene {
             // Pivot is at feet, body center is at +halfHeight
             worldPosition = glm::vec3(pos.x(), pos.y() - halfHeight, pos.z());
             
-            // Animation State Logic
+            // Animation Selection Logic
             std::string targetAnim = "idle";
-            if (glm::abs(currentForwardInput) > 0.6f) {
-                targetAnim = "run";
-            } else if (glm::abs(currentForwardInput) > 0.1f) {
-                targetAnim = "walk";
+            switch (currentState) {
+                case AnimatedCharacterState::Idle: targetAnim = "idle"; break;
+                case AnimatedCharacterState::Walk: targetAnim = "walk"; break;
+                case AnimatedCharacterState::Run: targetAnim = "run"; break;
+                case AnimatedCharacterState::Jump: targetAnim = "jump"; break;
+                case AnimatedCharacterState::Fall: targetAnim = "jump_down"; break;
+                case AnimatedCharacterState::Crouch: targetAnim = "standing_to_crouched"; break;
+                case AnimatedCharacterState::CrouchIdle: targetAnim = "standing_to_crouched"; break;
+                case AnimatedCharacterState::CrouchWalk: targetAnim = "crouched_walking"; break;
+                case AnimatedCharacterState::Attack: targetAnim = "attack"; break;
+                case AnimatedCharacterState::TurnLeft: targetAnim = "left_turn"; break;
+                case AnimatedCharacterState::TurnRight: targetAnim = "right_turn"; break;
+                default: targetAnim = "idle"; break;
             }
             
             // Find target animation index
             int targetIndex = -1;
+            
+            // Priority search for better matching
+            // 1. Exact match (case insensitive)
             for (size_t i = 0; i < clips.size(); ++i) {
-                // Case insensitive comparison or partial match might be better, but exact for now
-                // Check if the clip name contains the target animation name (case-insensitive logic would be better but simple contains works for now)
                 std::string clipNameLower = clips[i].name;
                 std::transform(clipNameLower.begin(), clipNameLower.end(), clipNameLower.begin(), ::tolower);
-                
-                if (clipNameLower.find(targetAnim) != std::string::npos) {
+                if (clipNameLower == targetAnim) {
                     targetIndex = (int)i;
                     break;
                 }
             }
             
+            // 2. "Contains" match, but filter out "strafe" if we want "walk"
+            if (targetIndex == -1) {
+                for (size_t i = 0; i < clips.size(); ++i) {
+                    std::string clipNameLower = clips[i].name;
+                    std::transform(clipNameLower.begin(), clipNameLower.end(), clipNameLower.begin(), ::tolower);
+                    
+                    if (clipNameLower.find(targetAnim) != std::string::npos) {
+                        // Special filtering
+                        if (targetAnim == "walk" && clipNameLower.find("strafe") != std::string::npos) continue;
+                        
+                        targetIndex = (int)i;
+                        break;
+                    }
+                }
+            }
+            
+            if (targetIndex == -1 && targetAnim != "idle") {
+                 std::cout << "WARNING: Animation not found for target: " << targetAnim << std::endl;
+            }
+            
             // Switch if found and different
             if (targetIndex != -1 && targetIndex != currentClipIndex) {
-                std::cout << "Switching animation to: " << clips[targetIndex].name << " (Index: " << targetIndex << ")" << std::endl;
+                // std::cout << "Switching animation to: " << clips[targetIndex].name << " (Index: " << targetIndex << ")" << std::endl;
                 currentClipIndex = targetIndex;
                 animTime = 0.0f;
 
                 // Reset skeleton to bind pose to prevent artifacts from previous animations
-                // or uninitialized state for bones not covered by the new animation.
                 for(auto& bone : skeleton.bones) {
                     bone.currentPosition = bone.localPosition;
                     bone.currentRotation = bone.localRotation;
@@ -401,7 +577,23 @@ namespace Scene {
 
         if (currentClipIndex >= 0 && currentClipIndex < clips.size()) {
             animTime += deltaTime;
-            animSystem.updateAnimation(skeleton, clips[currentClipIndex], animTime, true);
+            // Loop unless it's a one-shot action
+            bool loop = (currentState != AnimatedCharacterState::Attack && 
+                         currentState != AnimatedCharacterState::Jump && 
+                         currentState != AnimatedCharacterState::Crouch &&
+                         currentState != AnimatedCharacterState::CrouchIdle);
+            
+            // Manual clamp for non-looping animations to prevent double-play if state persists
+            if (!loop && animTime > clips[currentClipIndex].duration) {
+                animTime = clips[currentClipIndex].duration;
+            }
+            
+            // Special case for CrouchIdle: Hold the last frame of Standing_To_Crouched
+            if (currentState == AnimatedCharacterState::CrouchIdle) {
+                animTime = clips[currentClipIndex].duration;
+            }
+            
+            animSystem.updateAnimation(skeleton, clips[currentClipIndex], animTime, loop);
         }
 
         animSystem.updateGlobalTransforms(skeleton);
@@ -445,6 +637,26 @@ namespace Scene {
             glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), worldPosition);
             modelMatrix = glm::rotate(modelMatrix, currentYaw, glm::vec3(0, 1, 0)); // Apply Yaw
             
+            // Apply Animation Rotation Offset
+            float animRotation = 0.0f;
+            std::string stateKey = "idle";
+            switch (currentState) {
+                case AnimatedCharacterState::Idle: stateKey = "idle"; break;
+                case AnimatedCharacterState::Walk: stateKey = "walk"; break;
+                case AnimatedCharacterState::Run: stateKey = "run"; break;
+                case AnimatedCharacterState::Jump: stateKey = "jump"; break;
+                case AnimatedCharacterState::Crouch: stateKey = "crouch"; break;
+                case AnimatedCharacterState::Attack: stateKey = "attack"; break;
+            }
+            
+            if (animationRotationOffsets.find(stateKey) != animationRotationOffsets.end()) {
+                animRotation = animationRotationOffsets[stateKey];
+            }
+            
+            if (animRotation != 0.0f) {
+                 modelMatrix = glm::rotate(modelMatrix, glm::radians(animRotation), glm::vec3(0, 1, 0));
+            }
+
             glm::mat4 finalTransform = modelMatrix * bone.globalTransform;
             
             // Apply offset (local to bone)

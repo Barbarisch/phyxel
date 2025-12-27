@@ -321,5 +321,10 @@ bool InputManager::isKeyPressed(int key) const {
     return glfwGetKey(window, key) == GLFW_PRESS;
 }
 
+bool InputManager::isMouseButtonPressed(int button) const {
+    if (!window) return false;
+    return glfwGetMouseButton(window, button) == GLFW_PRESS;
+}
+
 } // namespace Input
 } // namespace VulkanCube

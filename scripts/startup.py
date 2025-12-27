@@ -19,7 +19,7 @@ def spawn_characters():
     # Create Animated Voxel Character
     # Note: We use the generated animation file
     #anim_char = app.create_animated_character(40, 50, 40, "character_complete.anim")
-    anim_char = app.create_animated_character(40, 50, 40, "character_complete.anim")
+    anim_char = app.create_animated_character(40, 50, 40, "resources\\character_female.anim")
     if anim_char:
         # Default animation is handled in C++ loadModel, but we can force it here too
         anim_char.play_animation("idle")

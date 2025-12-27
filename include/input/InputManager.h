@@ -53,6 +53,7 @@ public:
 
     // Query state
     bool isKeyPressed(int key) const;
+    bool isMouseButtonPressed(int button) const;
     glm::vec2 getMouseDelta() const { return glm::vec2(mouseDeltaX, mouseDeltaY); }
     void resetMouseDelta() { mouseDeltaX = 0; mouseDeltaY = 0; }
     

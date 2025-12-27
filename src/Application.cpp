@@ -723,6 +723,22 @@ void Application::handleInput() {
             spiderCharacter->setControlInput(forward, turn);
         } else if (currentControlTarget == ControlTarget::AnimatedCharacter && animatedCharacter) {
             animatedCharacter->setControlInput(forward, turn);
+
+            // New Inputs for Enhanced Animation System
+            // Use a static flag to prevent rapid-fire jumping if key is held
+            static bool spaceWasPressed = false;
+            bool spaceIsPressed = inputManager->isKeyPressed(GLFW_KEY_SPACE);
+            
+            if (spaceIsPressed && !spaceWasPressed) {
+                animatedCharacter->jump();
+            }
+            spaceWasPressed = spaceIsPressed;
+
+            if (inputManager->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT)) {
+                animatedCharacter->attack();
+            }
+            bool isCrouching = inputManager->isKeyPressed(GLFW_KEY_LEFT_CONTROL);
+            animatedCharacter->setCrouch(isCrouching);
         }
     }
 }

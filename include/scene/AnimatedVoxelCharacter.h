@@ -16,6 +16,20 @@ namespace Scene {
         glm::vec4 color;
     };
 
+    enum class AnimatedCharacterState {
+        Idle,
+        Walk,
+        Run,
+        Jump,
+        Fall,
+        Crouch,
+        CrouchIdle,
+        CrouchWalk,
+        Attack,
+        TurnLeft,
+        TurnRight
+    };
+
     class AnimatedVoxelCharacter : public RagdollCharacter {
     public:
         AnimatedVoxelCharacter(Physics::PhysicsWorld* physicsWorld, const glm::vec3& position);
@@ -36,6 +50,9 @@ namespace Scene {
         
         // Control inputs
         void setControlInput(float forward, float turn);
+        void jump();
+        void attack();
+        void setCrouch(bool crouch);
 
     private:
         Phyxel::Skeleton skeleton;
@@ -49,10 +66,20 @@ namespace Scene {
         // Map from Bone ID to the visual offset from the bone pivot
         std::map<int, glm::vec3> boneOffsets; 
         
+        // Per-animation rotation offsets (to fix bad imports)
+        std::map<std::string, float> animationRotationOffsets;
+
         int currentClipIndex = -1;
         float animTime = 0.0f;
         glm::vec3 worldPosition;
         
+        // State Machine
+        AnimatedCharacterState currentState = AnimatedCharacterState::Idle;
+        bool isCrouching = false;
+        bool jumpRequested = false;
+        bool attackRequested = false;
+        float stateTimer = 0.0f;
+
         // Physics Controller
         btRigidBody* controllerBody = nullptr;
         float currentForwardInput = 0.0f;
@@ -60,6 +87,8 @@ namespace Scene {
         float currentYaw = 0.0f;
         
         void createController(const glm::vec3& position);
+        void updateStateMachine(float deltaTime);
+        void configureAnimationFixes();
     };
 }
 }
