@@ -25,7 +25,8 @@ def spawn_characters():
         anim_char.play_animation("idle")
 
     # Default to controlling the PhysicsCharacter
-    app.set_control_target("physics")
+    #app.set_control_target("physics")
+    app.set_control_target("animated")
     
     phyxel.Logger.info("Script", "Characters spawned successfully!")
 

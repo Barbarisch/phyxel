@@ -18,16 +18,24 @@ namespace Scene {
 
     enum class AnimatedCharacterState {
         Idle,
+        StartWalk,
         Walk,
         Run,
         Jump,
         Fall,
+        Land,
         Crouch,
         CrouchIdle,
         CrouchWalk,
+        StandUp,
         Attack,
         TurnLeft,
-        TurnRight
+        TurnRight,
+        StrafeLeft,
+        StrafeRight,
+        WalkStrafeLeft,
+        WalkStrafeRight,
+        Preview
     };
 
     class AnimatedVoxelCharacter : public RagdollCharacter {
@@ -45,11 +53,14 @@ namespace Scene {
         void render(Graphics::RenderCoordinator* renderer) override; 
 
         void playAnimation(const std::string& animName);
+        std::vector<std::string> getAnimationNames() const;
+        void cycleAnimation(bool next);
         void setPosition(const glm::vec3& pos);
         glm::vec3 getPosition() const;
         
         // Control inputs
-        void setControlInput(float forward, float turn);
+        void setControlInput(float forward, float turn, float strafe = 0.0f);
+        void setSprint(bool sprint);
         void jump();
         void attack();
         void setCrouch(bool crouch);
@@ -68,13 +79,24 @@ namespace Scene {
         
         // Per-animation rotation offsets (to fix bad imports)
         std::map<std::string, float> animationRotationOffsets;
+        // Per-animation position offsets (to fix alignment issues)
+        std::map<std::string, glm::vec3> animationPositionOffsets;
 
         int currentClipIndex = -1;
         float animTime = 0.0f;
+        
+        // Blending support
+        int previousClipIndex = -1;
+        float previousAnimTime = 0.0f;
+        float blendFactor = 0.0f;
+        float blendDuration = 0.2f;
+        bool isBlending = false;
+
         glm::vec3 worldPosition;
         
         // State Machine
         AnimatedCharacterState currentState = AnimatedCharacterState::Idle;
+        bool isSprinting = false;
         bool isCrouching = false;
         bool jumpRequested = false;
         bool attackRequested = false;
@@ -84,6 +106,7 @@ namespace Scene {
         btRigidBody* controllerBody = nullptr;
         float currentForwardInput = 0.0f;
         float currentTurnInput = 0.0f;
+        float currentStrafeInput = 0.0f;
         float currentYaw = 0.0f;
         
         void createController(const glm::vec3& position);

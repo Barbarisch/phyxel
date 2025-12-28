@@ -226,6 +226,69 @@ namespace Phyxel {
         }
     }
 
+    void AnimationSystem::blendAnimation(Skeleton& skeleton, 
+                                       const AnimationClip& clipA, float timeA, bool loopA,
+                                       const AnimationClip& clipB, float timeB, bool loopB,
+                                       float blendFactor) {
+        
+        float tA = timeA;
+        if (loopA && clipA.duration > 0.0f) tA = fmod(timeA, clipA.duration);
+        else if (clipA.duration > 0.0f) tA = std::min(timeA, clipA.duration);
+
+        float tB = timeB;
+        if (loopB && clipB.duration > 0.0f) tB = fmod(timeB, clipB.duration);
+        else if (clipB.duration > 0.0f) tB = std::min(timeB, clipB.duration);
+
+        // Optimization: Build quick lookup for channels? 
+        // For now, simple linear search is likely fast enough for < 100 bones
+        
+        for (auto& bone : skeleton.bones) {
+            // Get Pose A
+            glm::vec3 posA = bone.localPosition;
+            glm::quat rotA = bone.localRotation;
+            glm::vec3 scaleA = bone.localScale;
+
+            bool foundA = false;
+            for (const auto& channel : clipA.channels) {
+                if (channel.boneId == bone.id) {
+                    if (!channel.positionKeys.empty()) posA = interpolatePosition(channel.positionKeys, tA);
+                    if (!channel.rotationKeys.empty()) rotA = interpolateRotation(channel.rotationKeys, tA);
+                    if (!channel.scaleKeys.empty()) scaleA = interpolateScale(channel.scaleKeys, tA);
+                    foundA = true;
+                    break;
+                }
+            }
+
+            // Get Pose B
+            glm::vec3 posB = bone.localPosition;
+            glm::quat rotB = bone.localRotation;
+            glm::vec3 scaleB = bone.localScale;
+
+            bool foundB = false;
+            for (const auto& channel : clipB.channels) {
+                if (channel.boneId == bone.id) {
+                    if (!channel.positionKeys.empty()) posB = interpolatePosition(channel.positionKeys, tB);
+                    if (!channel.rotationKeys.empty()) rotB = interpolateRotation(channel.rotationKeys, tB);
+                    if (!channel.scaleKeys.empty()) scaleB = interpolateScale(channel.scaleKeys, tB);
+                    foundB = true;
+                    break;
+                }
+            }
+
+            // Blend
+            if (foundA || foundB) {
+                bone.currentPosition = glm::mix(posA, posB, blendFactor);
+                bone.currentRotation = glm::slerp(rotA, rotB, blendFactor);
+                bone.currentScale = glm::mix(scaleA, scaleB, blendFactor);
+            } else {
+                // Neither animates this bone, reset to bind pose
+                bone.currentPosition = bone.localPosition;
+                bone.currentRotation = bone.localRotation;
+                bone.currentScale = bone.localScale;
+            }
+        }
+    }
+
     void AnimationSystem::updateGlobalTransforms(Skeleton& skeleton) {
         for (auto& bone : skeleton.bones) {
             glm::mat4 localTransform = glm::mat4(1.0f);

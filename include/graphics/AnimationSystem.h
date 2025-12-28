@@ -14,6 +14,13 @@ namespace Phyxel {
         // Update a skeleton's pose based on an animation and time
         // loop: whether to loop the animation
         void updateAnimation(Skeleton& skeleton, const AnimationClip& clip, float time, bool loop = true);
+
+        // Blend between two animations
+        // blendFactor: 0.0 = clipA, 1.0 = clipB
+        void blendAnimation(Skeleton& skeleton, 
+                           const AnimationClip& clipA, float timeA, bool loopA,
+                           const AnimationClip& clipB, float timeB, bool loopB,
+                           float blendFactor);
         
         // Calculate global transforms for all bones in the skeleton
         // This should be called after updateAnimation

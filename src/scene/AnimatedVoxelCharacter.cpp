@@ -51,6 +51,13 @@ namespace Scene {
 
     bool AnimatedVoxelCharacter::loadModel(const std::string& animFile) {
         if (animSystem.loadFromFile(animFile, skeleton, clips, voxelModel)) {
+            // Print loaded animations
+            LOG_INFO_FMT("Character", "=== Loaded Animations (" << clips.size() << ") ===");
+            for (size_t i = 0; i < clips.size(); ++i) {
+                LOG_INFO_FMT("Character", "  [" << i << "] " << clips[i].name << " (Duration: " << clips[i].duration << "s)");
+            }
+            LOG_INFO_FMT("Character", "=====================================");
+
             // Configure fixes after loading
             configureAnimationFixes();
 
@@ -271,14 +278,58 @@ namespace Scene {
     }
 
     void AnimatedVoxelCharacter::playAnimation(const std::string& animName) {
+        // If we are already playing this animation, do nothing
+        if (currentClipIndex >= 0 && currentClipIndex < clips.size() && clips[currentClipIndex].name == animName) {
+            return;
+        }
+
+        // Find the new animation
+        int newClipIndex = -1;
         for (size_t i = 0; i < clips.size(); ++i) {
             if (clips[i].name == animName) {
-                currentClipIndex = (int)i;
-                animTime = 0.0f;
-                return;
+                newClipIndex = (int)i;
+                break;
             }
         }
-        std::cerr << "Animation not found: " << animName << std::endl;
+
+        if (newClipIndex != -1) {
+            // Start blending
+            previousClipIndex = currentClipIndex;
+            previousAnimTime = animTime;
+            
+            currentClipIndex = newClipIndex;
+            animTime = 0.0f;
+            
+            isBlending = true;
+            blendFactor = 0.0f;
+        } else {
+            std::cerr << "Animation not found: " << animName << std::endl;
+        }
+    }
+
+    std::vector<std::string> AnimatedVoxelCharacter::getAnimationNames() const {
+        std::vector<std::string> names;
+        for (const auto& clip : clips) {
+            names.push_back(clip.name);
+        }
+        return names;
+    }
+
+    void AnimatedVoxelCharacter::cycleAnimation(bool next) {
+        if (clips.empty()) return;
+        
+        int nextIndex = currentClipIndex;
+        if (next) {
+            nextIndex++;
+            if (nextIndex >= clips.size()) nextIndex = 0;
+        } else {
+            nextIndex--;
+            if (nextIndex < 0) nextIndex = (int)clips.size() - 1;
+        }
+        
+        currentState = AnimatedCharacterState::Preview;
+        playAnimation(clips[nextIndex].name);
+        std::cout << "Preview Animation: " << clips[nextIndex].name << std::endl;
     }
 
     // Helper to configure animation fixes
@@ -286,13 +337,21 @@ namespace Scene {
         // No hardcoded fixes. We rely on the user providing correctly oriented animations.
         // If you need to rotate an animation, you can add it here:
         // animationRotationOffsets["walk"] = -90.0f; 
+        
+        // Example: Fix Jump_Down alignment if it floats or sinks
+        // animationPositionOffsets["jump_down"] = glm::vec3(0.0f, -0.5f, 0.0f);
     }
 
 
 
-    void AnimatedVoxelCharacter::setControlInput(float forward, float turn) {
+    void AnimatedVoxelCharacter::setControlInput(float forward, float turn, float strafe) {
         currentForwardInput = forward;
         currentTurnInput = turn;
+        currentStrafeInput = strafe;
+    }
+
+    void AnimatedVoxelCharacter::setSprint(bool sprint) {
+        isSprinting = sprint;
     }
 
     void AnimatedVoxelCharacter::setPosition(const glm::vec3& pos) {
@@ -331,7 +390,34 @@ namespace Scene {
         isCrouching = crouch;
     }
 
+    // Helper for debug logging
+    std::string stateToString(AnimatedCharacterState state) {
+        switch (state) {
+            case AnimatedCharacterState::Idle: return "Idle";
+            case AnimatedCharacterState::StartWalk: return "StartWalk";
+            case AnimatedCharacterState::Walk: return "Walk";
+            case AnimatedCharacterState::Run: return "Run";
+            case AnimatedCharacterState::Jump: return "Jump";
+            case AnimatedCharacterState::Fall: return "Fall";
+            case AnimatedCharacterState::Land: return "Land";
+            case AnimatedCharacterState::Crouch: return "Crouch";
+            case AnimatedCharacterState::CrouchIdle: return "CrouchIdle";
+            case AnimatedCharacterState::CrouchWalk: return "CrouchWalk";
+            case AnimatedCharacterState::StandUp: return "StandUp";
+            case AnimatedCharacterState::Attack: return "Attack";
+            case AnimatedCharacterState::TurnLeft: return "TurnLeft";
+            case AnimatedCharacterState::TurnRight: return "TurnRight";
+            case AnimatedCharacterState::StrafeLeft: return "StrafeLeft";
+            case AnimatedCharacterState::StrafeRight: return "StrafeRight";
+            case AnimatedCharacterState::WalkStrafeLeft: return "WalkStrafeLeft";
+            case AnimatedCharacterState::WalkStrafeRight: return "WalkStrafeRight";
+            case AnimatedCharacterState::Preview: return "Preview";
+            default: return "Unknown";
+        }
+    }
+
     void AnimatedVoxelCharacter::updateStateMachine(float deltaTime) {
+        AnimatedCharacterState previousState = currentState;
         stateTimer += deltaTime;
         
         // Get current animation duration if valid
@@ -356,6 +442,10 @@ namespace Scene {
             case AnimatedCharacterState::CrouchWalk:
             case AnimatedCharacterState::TurnLeft:
             case AnimatedCharacterState::TurnRight:
+            case AnimatedCharacterState::StrafeLeft:
+            case AnimatedCharacterState::StrafeRight:
+            case AnimatedCharacterState::WalkStrafeLeft:
+            case AnimatedCharacterState::WalkStrafeRight:
                 // Handle Actions (High Priority)
                 if (jumpRequested) {
                     std::cout << "DEBUG: Jump requested, switching state." << std::endl;
@@ -371,8 +461,8 @@ namespace Scene {
                     currentState = AnimatedCharacterState::Attack;
                     stateTimer = 0.0f;
                     attackRequested = false;
-                } else if (verticalVel < -3.0f) {
-                    // Falling detection
+                } else if (verticalVel < -5.0f) {
+                    // Falling detection (increased threshold to prevent jitter)
                     currentState = AnimatedCharacterState::Fall;
                     stateTimer = 0.0f;
                 } else if (isCrouching) {
@@ -394,11 +484,44 @@ namespace Scene {
                         }
                     }
                 } else {
+                    // Check for StandUp transition
+                    if (currentState == AnimatedCharacterState::Crouch || 
+                        currentState == AnimatedCharacterState::CrouchIdle || 
+                        currentState == AnimatedCharacterState::CrouchWalk) {
+                        currentState = AnimatedCharacterState::StandUp;
+                        stateTimer = 0.0f;
+                        break; 
+                    }
+
                     // Movement Logic
+                    bool isMovingForward = glm::abs(currentForwardInput) > 0.01f;
+                    bool isStrafing = glm::abs(currentStrafeInput) > 0.1f;
+                    
                     if (glm::abs(currentForwardInput) > 0.6f) {
                         currentState = AnimatedCharacterState::Run;
-                    } else if (glm::abs(currentForwardInput) > 0.01f) {
-                        currentState = AnimatedCharacterState::Walk;
+                    } else if (isMovingForward && isStrafing) {
+                        // Diagonal Movement
+                        if (currentStrafeInput > 0) currentState = AnimatedCharacterState::WalkStrafeRight;
+                        else currentState = AnimatedCharacterState::WalkStrafeLeft;
+                    } else if (isMovingForward) {
+                        // If we were Idle, go to StartWalk
+                        if (currentState == AnimatedCharacterState::Idle) {
+                            currentState = AnimatedCharacterState::StartWalk;
+                            stateTimer = 0.0f;
+                        } 
+                        // If we were StartWalk and it finished, go to Walk
+                        else if (currentState == AnimatedCharacterState::StartWalk) {
+                            if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
+                                currentState = AnimatedCharacterState::Walk;
+                            }
+                        }
+                        // If we were already Walking or Running (and slowed down), stay/switch to Walk
+                        else if (currentState != AnimatedCharacterState::StartWalk) {
+                            currentState = AnimatedCharacterState::Walk;
+                        }
+                    } else if (isStrafing) {
+                        if (currentStrafeInput > 0) currentState = AnimatedCharacterState::StrafeRight;
+                        else currentState = AnimatedCharacterState::StrafeLeft;
                     } else if (glm::abs(currentTurnInput) > 0.1f) {
                         // Turn in place
                         if (currentTurnInput > 0) currentState = AnimatedCharacterState::TurnRight;
@@ -406,6 +529,35 @@ namespace Scene {
                     } else {
                         currentState = AnimatedCharacterState::Idle;
                     }
+                }
+                break;
+
+            case AnimatedCharacterState::StandUp:
+                if (isCrouching) {
+                    currentState = AnimatedCharacterState::Crouch;
+                    stateTimer = 0.0f;
+                } else if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
+                    currentState = AnimatedCharacterState::Idle;
+                } else if (glm::abs(currentForwardInput) > 0.1f) {
+                    currentState = AnimatedCharacterState::Walk;
+                } else if (glm::abs(currentStrafeInput) > 0.1f) {
+                    if (currentStrafeInput > 0) currentState = AnimatedCharacterState::StrafeRight;
+                    else currentState = AnimatedCharacterState::StrafeLeft;
+                }
+                break;
+
+            case AnimatedCharacterState::StartWalk:
+                // If stopped moving
+                if (glm::abs(currentForwardInput) < 0.01f) {
+                    currentState = AnimatedCharacterState::Idle;
+                } 
+                // If started running
+                else if (glm::abs(currentForwardInput) > 0.6f) {
+                    currentState = AnimatedCharacterState::Run;
+                }
+                // If animation finished
+                else if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
+                    currentState = AnimatedCharacterState::Walk;
                 }
                 break;
 
@@ -426,7 +578,23 @@ namespace Scene {
             case AnimatedCharacterState::Fall:
                 // If we hit the ground (vertical velocity near 0)
                 if (glm::abs(verticalVel) < 0.1f) {
+                    currentState = AnimatedCharacterState::Land;
+                    stateTimer = 0.0f;
+                }
+                break;
+
+            case AnimatedCharacterState::Land:
+                if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
                     currentState = AnimatedCharacterState::Idle;
+                }
+                // Allow moving to interrupt landing
+                if (glm::abs(currentForwardInput) > 0.1f) {
+                    currentState = AnimatedCharacterState::Walk;
+                }
+                // Allow strafing to interrupt landing
+                else if (glm::abs(currentStrafeInput) > 0.1f) {
+                    if (currentStrafeInput > 0) currentState = AnimatedCharacterState::StrafeRight;
+                    else currentState = AnimatedCharacterState::StrafeLeft;
                 }
                 break;
 
@@ -436,10 +604,25 @@ namespace Scene {
                     currentState = AnimatedCharacterState::Idle;
                 }
                 break;
+
+            case AnimatedCharacterState::Preview:
+                // Exit preview if any input is detected
+                if (glm::abs(currentForwardInput) > 0.01f || 
+                    glm::abs(currentStrafeInput) > 0.01f || 
+                    glm::abs(currentTurnInput) > 0.01f || 
+                    jumpRequested || attackRequested || isCrouching) {
+                    currentState = AnimatedCharacterState::Idle;
+                }
+                break;
                 
             default:
                 currentState = AnimatedCharacterState::Idle;
                 break;
+        }
+
+        if (currentState != previousState) {
+            LOG_DEBUG_FMT("Character", "State Transition: " << stateToString(previousState) << " -> " << stateToString(currentState) 
+                << " (Inputs: Fwd=" << currentForwardInput << ", Strafe=" << currentStrafeInput << ")");
         }
     }
 
@@ -466,7 +649,16 @@ namespace Scene {
             
             // Override speed based on state if needed
             if (currentState == AnimatedCharacterState::Walk) moveSpeed = 2.0f; // Fallback
-            if (currentState == AnimatedCharacterState::Run) moveSpeed = 5.0f; // Fallback
+            if (currentState == AnimatedCharacterState::StartWalk) moveSpeed = 1.5f;
+            if (currentState == AnimatedCharacterState::Run) {
+                moveSpeed = 5.0f; // Fallback
+                if (glm::abs(currentForwardInput) > 0.9f) moveSpeed = 8.0f;
+            }
+            if (currentState == AnimatedCharacterState::StrafeLeft || currentState == AnimatedCharacterState::StrafeRight ||
+                currentState == AnimatedCharacterState::WalkStrafeLeft || currentState == AnimatedCharacterState::WalkStrafeRight) {
+                 moveSpeed = 2.0f;
+                 if (glm::abs(currentStrafeInput) > 0.6f) moveSpeed = 4.0f;
+            }
             if (currentState == AnimatedCharacterState::CrouchWalk) moveSpeed = 1.5f;
             if (currentState == AnimatedCharacterState::Idle || currentState == AnimatedCharacterState::Attack || 
                 currentState == AnimatedCharacterState::Crouch || currentState == AnimatedCharacterState::CrouchIdle ||
@@ -474,10 +666,15 @@ namespace Scene {
 
             // Invert Z to match standard camera orientation (Forward is -Z)
             glm::vec3 forwardDir(-sin(currentYaw), 0, -cos(currentYaw));
+            glm::vec3 rightDir = glm::normalize(glm::cross(forwardDir, glm::vec3(0, 1, 0)));
             
             float inputDir = 0.0f;
             if (currentForwardInput > 0.01f) inputDir = 1.0f;
             else if (currentForwardInput < -0.01f) inputDir = -1.0f;
+            
+            float strafeDir = 0.0f;
+            if (currentStrafeInput > 0.01f) strafeDir = 1.0f;
+            else if (currentStrafeInput < -0.01f) strafeDir = -1.0f;
             
             // Allow some air control or movement during jump?
             if (currentState == AnimatedCharacterState::Jump || currentState == AnimatedCharacterState::Fall) {
@@ -488,7 +685,14 @@ namespace Scene {
                 moveSpeed *= 0.8f; 
             }
 
-            glm::vec3 moveVel = forwardDir * inputDir * moveSpeed;
+            // Invert strafe direction to match standard controls (A=Left, D=Right)
+            // rightDir is calculated as cross(forward, up). If forward is -Z, right is +X.
+            // If strafeDir is positive (D), we want to move +X.
+            // However, user reports it is backwards, so we invert it here.
+            glm::vec3 moveDir = forwardDir * inputDir - rightDir * strafeDir;
+            if (glm::length(moveDir) > 0.001f) moveDir = glm::normalize(moveDir);
+            
+            glm::vec3 moveVel = moveDir * moveSpeed;
             
             btVector3 currentVel = controllerBody->getLinearVelocity();
             // Preserve vertical velocity (gravity)
@@ -511,89 +715,184 @@ namespace Scene {
             
             // Animation Selection Logic
             std::string targetAnim = "idle";
+
+            // DEBUG LOGGING
+            static int debugFrameCounter = 0;
+            bool shouldLog = (debugFrameCounter++ % 30 == 0);
+            if (shouldLog) {
+                 std::cout << "DEBUG: State=" << (int)currentState 
+                           << " Sprint=" << (isSprinting ? "TRUE" : "FALSE")
+                           << " Speed=" << moveSpeed 
+                           << " MoveDir=(" << moveDir.x << "," << moveDir.z << ")"
+                           << std::endl;
+            }
+
             switch (currentState) {
                 case AnimatedCharacterState::Idle: targetAnim = "idle"; break;
+                case AnimatedCharacterState::StartWalk: targetAnim = "start_walking"; break;
                 case AnimatedCharacterState::Walk: targetAnim = "walk"; break;
-                case AnimatedCharacterState::Run: targetAnim = "run"; break;
+                case AnimatedCharacterState::Run: 
+                    if (isSprinting) targetAnim = "fast_run";
+                    else targetAnim = "run"; 
+                    break;
                 case AnimatedCharacterState::Jump: targetAnim = "jump"; break;
                 case AnimatedCharacterState::Fall: targetAnim = "jump_down"; break;
+                case AnimatedCharacterState::Land: targetAnim = "landing"; break;
                 case AnimatedCharacterState::Crouch: targetAnim = "standing_to_crouched"; break;
                 case AnimatedCharacterState::CrouchIdle: targetAnim = "standing_to_crouched"; break;
                 case AnimatedCharacterState::CrouchWalk: targetAnim = "crouched_walking"; break;
+                case AnimatedCharacterState::StandUp: targetAnim = "crouch_to_stand"; break;
                 case AnimatedCharacterState::Attack: targetAnim = "attack"; break;
                 case AnimatedCharacterState::TurnLeft: targetAnim = "left_turn"; break;
                 case AnimatedCharacterState::TurnRight: targetAnim = "right_turn"; break;
+                case AnimatedCharacterState::StrafeLeft: 
+                    // Differentiate between walking strafe and running strafe based on sprint state
+                    if (isSprinting) targetAnim = "left_strafe"; // Run strafe
+                    else targetAnim = "left_strafe_walk"; // Walk strafe
+                    break;
+                case AnimatedCharacterState::StrafeRight: 
+                    // Differentiate between walking strafe and running strafe based on sprint state
+                    if (isSprinting) targetAnim = "right_strafe"; // Run strafe
+                    else targetAnim = "right_strafe_walk"; // Walk strafe
+                    break;
+                case AnimatedCharacterState::WalkStrafeLeft: 
+                    if (isSprinting) targetAnim = "left_strafe"; 
+                    else targetAnim = "left_strafe_walk"; 
+                    break;
+                case AnimatedCharacterState::WalkStrafeRight: 
+                    if (isSprinting) targetAnim = "right_strafe"; 
+                    else targetAnim = "right_strafe_walk"; 
+                    break;
+                case AnimatedCharacterState::Preview: targetAnim = ""; break;
                 default: targetAnim = "idle"; break;
             }
-            
-            // Find target animation index
-            int targetIndex = -1;
-            
-            // Priority search for better matching
-            // 1. Exact match (case insensitive)
-            for (size_t i = 0; i < clips.size(); ++i) {
-                std::string clipNameLower = clips[i].name;
-                std::transform(clipNameLower.begin(), clipNameLower.end(), clipNameLower.begin(), ::tolower);
-                if (clipNameLower == targetAnim) {
-                    targetIndex = (int)i;
-                    break;
-                }
+
+            if (shouldLog) {
+                std::cout << "DEBUG: Selected TargetAnim=" << targetAnim << std::endl;
+            }
+
+            // Apply Animation Position Offset
+            if (animationPositionOffsets.find(targetAnim) != animationPositionOffsets.end()) {
+                worldPosition += animationPositionOffsets[targetAnim];
             }
             
-            // 2. "Contains" match, but filter out "strafe" if we want "walk"
-            if (targetIndex == -1) {
+            // Skip animation update if in preview mode
+            if (currentState == AnimatedCharacterState::Preview) {
+                // Do nothing, let cycleAnimation handle it
+            } else {
+                // Find target animation index
+                int targetIndex = -1;
+                
+                // Priority search for better matching
+                // 1. Exact match (case insensitive)
                 for (size_t i = 0; i < clips.size(); ++i) {
                     std::string clipNameLower = clips[i].name;
                     std::transform(clipNameLower.begin(), clipNameLower.end(), clipNameLower.begin(), ::tolower);
-                    
-                    if (clipNameLower.find(targetAnim) != std::string::npos) {
-                        // Special filtering
-                        if (targetAnim == "walk" && clipNameLower.find("strafe") != std::string::npos) continue;
-                        
+                    if (clipNameLower == targetAnim) {
                         targetIndex = (int)i;
                         break;
                     }
                 }
-            }
-            
-            if (targetIndex == -1 && targetAnim != "idle") {
-                 std::cout << "WARNING: Animation not found for target: " << targetAnim << std::endl;
-            }
-            
-            // Switch if found and different
-            if (targetIndex != -1 && targetIndex != currentClipIndex) {
-                // std::cout << "Switching animation to: " << clips[targetIndex].name << " (Index: " << targetIndex << ")" << std::endl;
-                currentClipIndex = targetIndex;
-                animTime = 0.0f;
-
-                // Reset skeleton to bind pose to prevent artifacts from previous animations
-                for(auto& bone : skeleton.bones) {
-                    bone.currentPosition = bone.localPosition;
-                    bone.currentRotation = bone.localRotation;
-                    bone.currentScale = bone.localScale;
+                
+                // 2. "Contains" match, but filter out "strafe" if we want "walk"
+                if (targetIndex == -1) {
+                    for (size_t i = 0; i < clips.size(); ++i) {
+                        std::string clipNameLower = clips[i].name;
+                        std::transform(clipNameLower.begin(), clipNameLower.end(), clipNameLower.begin(), ::tolower);
+                        
+                        if (clipNameLower.find(targetAnim) != std::string::npos) {
+                            // Special filtering
+                            if (targetAnim == "walk") {
+                                if (clipNameLower.find("strafe") != std::string::npos) continue;
+                                if (clipNameLower.find("crouch") != std::string::npos) continue;
+                            }
+                            if (targetAnim == "run") {
+                                if (clipNameLower.find("fast") != std::string::npos) continue;
+                            }
+                            // Fix for strafe stutter: Ensure we don't pick "left_strafe_walk" when we want "left_strafe"
+                            // "left_strafe" is the running version, "left_strafe_walk" is the walking version.
+                            if (targetAnim == "left_strafe") {
+                                // If we specifically want the run strafe, avoid the walk version
+                                if (clipNameLower.find("walk") != std::string::npos) continue;
+                            }
+                            if (targetAnim == "right_strafe") {
+                                // If we specifically want the run strafe, avoid the walk version
+                                if (clipNameLower.find("walk") != std::string::npos) continue;
+                            }
+                            
+                            targetIndex = (int)i;
+                            break;
+                        }
+                    }
+                }
+                
+                if (targetIndex == -1 && targetAnim != "idle") {
+                     std::cout << "WARNING: Animation not found for target: " << targetAnim << std::endl;
+                }
+                
+                // Switch if found and different
+                if (targetIndex != -1 && targetIndex != currentClipIndex) {
+                    // Start blending
+                    previousClipIndex = currentClipIndex;
+                    previousAnimTime = animTime;
+                    currentClipIndex = targetIndex;
+                    animTime = 0.0f;
+                    
+                    isBlending = true;
+                    blendFactor = 0.0f;
+                    
+                    // If we didn't have a previous animation, just snap (no blend)
+                    if (previousClipIndex == -1) {
+                        isBlending = false;
+                        // Reset skeleton to bind pose
+                        for(auto& bone : skeleton.bones) {
+                            bone.currentPosition = bone.localPosition;
+                            bone.currentRotation = bone.localRotation;
+                            bone.currentScale = bone.localScale;
+                        }
+                    }
                 }
             }
         }
 
         if (currentClipIndex >= 0 && currentClipIndex < clips.size()) {
             animTime += deltaTime;
-            // Loop unless it's a one-shot action
+            
+            // Determine looping for current animation
             bool loop = (currentState != AnimatedCharacterState::Attack && 
                          currentState != AnimatedCharacterState::Jump && 
                          currentState != AnimatedCharacterState::Crouch &&
                          currentState != AnimatedCharacterState::CrouchIdle);
             
-            // Manual clamp for non-looping animations to prevent double-play if state persists
+            // Manual clamp for non-looping animations
             if (!loop && animTime > clips[currentClipIndex].duration) {
                 animTime = clips[currentClipIndex].duration;
             }
             
-            // Special case for CrouchIdle: Hold the last frame of Standing_To_Crouched
+            // Special case for CrouchIdle
             if (currentState == AnimatedCharacterState::CrouchIdle) {
                 animTime = clips[currentClipIndex].duration;
             }
             
-            animSystem.updateAnimation(skeleton, clips[currentClipIndex], animTime, loop);
+            if (isBlending && previousClipIndex >= 0 && previousClipIndex < clips.size()) {
+                blendFactor += deltaTime / blendDuration;
+                if (blendFactor >= 1.0f) {
+                    blendFactor = 1.0f;
+                    isBlending = false;
+                    animSystem.updateAnimation(skeleton, clips[currentClipIndex], animTime, loop);
+                } else {
+                    // Blend with previous animation
+                    // We freeze the previous animation at the transition point to avoid it looping unexpectedly
+                    // or jumping to start if it finished.
+                    bool prevLoop = true; 
+                    animSystem.blendAnimation(skeleton, 
+                        clips[previousClipIndex], previousAnimTime, prevLoop,
+                        clips[currentClipIndex], animTime, loop,
+                        blendFactor);
+                }
+            } else {
+                animSystem.updateAnimation(skeleton, clips[currentClipIndex], animTime, loop);
+            }
         }
 
         animSystem.updateGlobalTransforms(skeleton);
@@ -642,11 +941,24 @@ namespace Scene {
             std::string stateKey = "idle";
             switch (currentState) {
                 case AnimatedCharacterState::Idle: stateKey = "idle"; break;
+                case AnimatedCharacterState::StartWalk: stateKey = "start_walking"; break;
                 case AnimatedCharacterState::Walk: stateKey = "walk"; break;
                 case AnimatedCharacterState::Run: stateKey = "run"; break;
                 case AnimatedCharacterState::Jump: stateKey = "jump"; break;
+                case AnimatedCharacterState::Fall: stateKey = "jump_down"; break;
+                case AnimatedCharacterState::Land: stateKey = "landing"; break;
                 case AnimatedCharacterState::Crouch: stateKey = "crouch"; break;
+                case AnimatedCharacterState::CrouchIdle: stateKey = "crouch"; break;
+                case AnimatedCharacterState::CrouchWalk: stateKey = "crouched_walking"; break;
+                case AnimatedCharacterState::StandUp: stateKey = "crouch_to_stand"; break;
                 case AnimatedCharacterState::Attack: stateKey = "attack"; break;
+                case AnimatedCharacterState::TurnLeft: stateKey = "left_turn"; break;
+                case AnimatedCharacterState::TurnRight: stateKey = "right_turn"; break;
+                case AnimatedCharacterState::StrafeLeft: stateKey = "left_strafe"; break;
+                case AnimatedCharacterState::StrafeRight: stateKey = "right_strafe"; break;
+                case AnimatedCharacterState::WalkStrafeLeft: stateKey = "left_strafe_walk"; break;
+                case AnimatedCharacterState::WalkStrafeRight: stateKey = "right_strafe_walk"; break;
+                default: stateKey = "idle"; break;
             }
             
             if (animationRotationOffsets.find(stateKey) != animationRotationOffsets.end()) {

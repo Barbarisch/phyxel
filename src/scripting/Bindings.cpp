@@ -166,7 +166,8 @@ PYBIND11_EMBEDDED_MODULE(phyxel, m) {
     py::class_<Scene::PhysicsCharacter, Scene::Entity>(m, "PhysicsCharacter");
     py::class_<Scene::SpiderCharacter, Scene::Entity>(m, "SpiderCharacter");
     py::class_<Scene::AnimatedVoxelCharacter, Scene::Entity>(m, "AnimatedVoxelCharacter")
-        .def("play_animation", &Scene::AnimatedVoxelCharacter::playAnimation, "Play an animation by name");
+        .def("play_animation", &Scene::AnimatedVoxelCharacter::playAnimation, "Play an animation by name")
+        .def("get_animation_names", &Scene::AnimatedVoxelCharacter::getAnimationNames, "Get list of all available animation names");
 
     // Global function to get app
     m.def("get_app", []() { return g_appInstance; }, py::return_value_policy::reference);

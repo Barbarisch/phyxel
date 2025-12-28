@@ -13,6 +13,7 @@
 #include "examples/MultiChunkDemo.h"
 #include "core/Chunk.h"
 #include "physics/Material.h"
+#include <imgui.h>
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -702,27 +703,35 @@ void Application::handleInput() {
     if (!isControllingPhysicsCharacter) {
         float forward = 0.0f;
         float turn = 0.0f;
+        float strafe = 0.0f;
 
         // Check for sprint modifier (Shift)
         bool isSprinting = inputManager->isKeyPressed(GLFW_KEY_LEFT_SHIFT) || inputManager->isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
+        
         float moveMagnitude = isSprinting ? 1.0f : 0.5f;
 
-        // Invert W/S logic: W should be positive (forward), S negative (backward)
-        // But AnimatedVoxelCharacter uses negative Z as forward.
-        // If W adds +1.0f, and AnimatedVoxelCharacter multiplies by forwardDir (which is -Z),
-        // then +1.0f * -Z = -Z (Forward). This seems correct for standard OpenGL.
-        // However, if the user says it's inverted, maybe the character model is facing +Z?
-        // Or maybe the camera is behind the character looking -Z, so moving -Z is "away" (forward).
-        // If the user says it's inverted, let's swap them.
-        if (inputManager->isKeyPressed(GLFW_KEY_W)) forward -= moveMagnitude;
-        if (inputManager->isKeyPressed(GLFW_KEY_S)) forward += moveMagnitude;
-        if (inputManager->isKeyPressed(GLFW_KEY_A)) turn -= 1.0f;
-        if (inputManager->isKeyPressed(GLFW_KEY_D)) turn += 1.0f;
+        if (inputManager->isKeyPressed(GLFW_KEY_W) || inputManager->isKeyPressed(GLFW_KEY_UP)) forward -= moveMagnitude;
+        if (inputManager->isKeyPressed(GLFW_KEY_S) || inputManager->isKeyPressed(GLFW_KEY_DOWN)) forward += moveMagnitude;
+        
+        // A/D for Strafe (if controlling AnimatedCharacter)
+        if (currentControlTarget == ControlTarget::AnimatedCharacter) {
+            if (inputManager->isKeyPressed(GLFW_KEY_A) || inputManager->isKeyPressed(GLFW_KEY_LEFT)) strafe -= moveMagnitude;
+            if (inputManager->isKeyPressed(GLFW_KEY_D) || inputManager->isKeyPressed(GLFW_KEY_RIGHT)) strafe += moveMagnitude;
+            
+            // Q/E for Turn
+            if (inputManager->isKeyPressed(GLFW_KEY_Q)) turn -= 1.0f;
+            if (inputManager->isKeyPressed(GLFW_KEY_E)) turn += 1.0f;
+        } else {
+            // Standard Tank Controls for others
+            if (inputManager->isKeyPressed(GLFW_KEY_A) || inputManager->isKeyPressed(GLFW_KEY_LEFT)) turn -= 1.0f;
+            if (inputManager->isKeyPressed(GLFW_KEY_D) || inputManager->isKeyPressed(GLFW_KEY_RIGHT)) turn += 1.0f;
+        }
 
         if (currentControlTarget == ControlTarget::Spider && spiderCharacter) {
             spiderCharacter->setControlInput(forward, turn);
         } else if (currentControlTarget == ControlTarget::AnimatedCharacter && animatedCharacter) {
-            animatedCharacter->setControlInput(forward, turn);
+            animatedCharacter->setControlInput(forward, turn, strafe);
+            animatedCharacter->setSprint(isSprinting);
 
             // New Inputs for Enhanced Animation System
             // Use a static flag to prevent rapid-fire jumping if key is held
@@ -739,6 +748,21 @@ void Application::handleInput() {
             }
             bool isCrouching = inputManager->isKeyPressed(GLFW_KEY_LEFT_CONTROL);
             animatedCharacter->setCrouch(isCrouching);
+
+            // Animation Preview Cycling
+            static bool prevAnimWasPressed = false;
+            bool prevAnimIsPressed = inputManager->isKeyPressed(GLFW_KEY_B);
+            if (prevAnimIsPressed && !prevAnimWasPressed) {
+                animatedCharacter->cycleAnimation(false);
+            }
+            prevAnimWasPressed = prevAnimIsPressed;
+
+            static bool nextAnimWasPressed = false;
+            bool nextAnimIsPressed = inputManager->isKeyPressed(GLFW_KEY_N);
+            if (nextAnimIsPressed && !nextAnimWasPressed) {
+                animatedCharacter->cycleAnimation(true);
+            }
+            nextAnimWasPressed = nextAnimIsPressed;
         }
     }
 }
