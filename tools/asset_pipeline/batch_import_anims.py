@@ -64,6 +64,9 @@ def main():
     parser.add_argument("--rotate_x", type=float, default=0.0, help="Rotate model around X axis (degrees)")
     parser.add_argument("--rotate_y", type=float, default=0.0, help="Rotate model around Y axis (degrees)")
     parser.add_argument("--rotate_z", type=float, default=0.0, help="Rotate model around Z axis (degrees)")
+    parser.add_argument("--resolution", choices=['custom', 'cube', 'subcube', 'microcube'], default='custom', help="Voxel resolution mode")
+    parser.add_argument("--voxel_size", type=float, default=0.05, help="Voxel size (pitch) when resolution is 'custom'")
+    parser.add_argument("--target_height", type=float, help="Target height in world units to normalize scale (optional)")
 
     args = parser.parse_args()
 
@@ -157,7 +160,10 @@ def main():
             extra_animations=anim_files,
             rotate_x=args.rotate_x,
             rotate_y=args.rotate_y,
-            rotate_z=args.rotate_z
+            rotate_z=args.rotate_z,
+            resolution=args.resolution,
+            voxel_size=args.voxel_size,
+            target_height=args.target_height
         )
         print(f"Successfully created {args.out}")
     except Exception as e:

@@ -158,7 +158,35 @@ def decompose_matrix(M):
         
     return pos, [qx, qy, qz, qw], scale
 
-def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxel', extra_animations=None, rotate_x=0.0, rotate_y=0.0, rotate_z=0.0):
+def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxel', extra_animations=None, rotate_x=0.0, rotate_y=0.0, rotate_z=0.0, resolution='custom', voxel_size=0.05, target_height=None):
+    
+    # Determine pitch
+    pitch = voxel_size
+    if resolution == 'cube':
+        pitch = 1.0
+    elif resolution == 'subcube':
+        pitch = 1.0 / 3.0
+    elif resolution == 'microcube':
+        pitch = 1.0 / 9.0
+        
+    # Normalization logic
+    if target_height is not None and trimesh is not None:
+        print(f"Normalizing scale to target height: {target_height}")
+        try:
+            temp_mesh = trimesh.load(gltf_path, force='mesh')
+            extents = temp_mesh.extents
+            # Assuming Y is up in GLTF/Trimesh load
+            current_height = extents[1] 
+            if current_height > 0.001:
+                new_scale = target_height / current_height
+                print(f"  -> Current height: {current_height:.2f}, Target: {target_height:.2f}")
+                print(f"  -> Calculated scale factor: {new_scale:.4f} (overriding user scale {scale_factor})")
+                scale_factor = new_scale
+            else:
+                print("  -> Warning: Mesh height is near zero. Skipping normalization.")
+        except Exception as e:
+            print(f"  -> Normalization failed: {e}")
+
     print(f"Loading {gltf_path}...")
     gltf = GLTF2().load(gltf_path)
 
@@ -506,6 +534,8 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
     all_positions = []
     all_joints = []
     all_weights = []
+    all_faces = []
+    vertex_offset = 0
     
     # Iterate meshes to collect data
     print(f"Scanning {len(gltf.nodes)} nodes for meshes...")
@@ -533,6 +563,27 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
 
                     pos_accessor = gltf.accessors[prim.attributes.POSITION]
                     positions = read_accessor(gltf, pos_accessor)
+                    num_vertices = len(positions)
+                    
+                    # Read indices if available
+                    indices = []
+                    if prim.indices is not None:
+                        indices_accessor = gltf.accessors[prim.indices]
+                        indices = read_accessor(gltf, indices_accessor)
+                    else:
+                        # Generate sequential indices
+                        indices = list(range(num_vertices))
+                    
+                    # Convert indices to faces (triangles) and apply offset
+                    # Assuming TRIANGLES mode (4)
+                    if prim.mode is None or prim.mode == 4:
+                        for i in range(0, len(indices), 3):
+                            if i + 2 < len(indices):
+                                all_faces.append([
+                                    indices[i] + vertex_offset,
+                                    indices[i+1] + vertex_offset,
+                                    indices[i+2] + vertex_offset
+                                ])
                     
                     joints = []
                     weights = []
@@ -547,8 +598,8 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
                     else:
                         # Rigid binding: assign all vertices to the node
                         # Use node_idx as the joint index, weight 1.0
-                        joints = [[node_idx, 0, 0, 0]] * len(positions)
-                        weights = [[1.0, 0, 0, 0]] * len(positions)
+                        joints = [[node_idx, 0, 0, 0]] * num_vertices
+                        weights = [[1.0, 0, 0, 0]] * num_vertices
                         
                         # Apply node scale to positions to match World Space/Trimesh behavior
                         if node.scale:
@@ -558,6 +609,7 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
                     all_positions.extend(positions)
                     all_joints.extend(joints)
                     all_weights.extend(weights)
+                    vertex_offset += num_vertices
 
     voxel_shapes = []
     
@@ -565,7 +617,7 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
     effective_scale_factor = scale_factor * root_scale_mult
     
     if style == 'voxel' and trimesh is not None:
-        voxel_shapes = voxelize_mesh(gltf_path, all_positions, all_joints, all_weights, node_index_to_bone_index, skin, ibms, effective_scale_factor)
+        voxel_shapes = voxelize_mesh(all_positions, all_faces, all_joints, all_weights, node_index_to_bone_index, skin, ibms, effective_scale_factor, pitch)
     elif style == 'box':
         print("Style is 'box'. Skipping voxelization and generating bounding boxes.")
 
@@ -847,36 +899,27 @@ def read_accessor(gltf, accessor):
         
     return results
 
-def voxelize_mesh(gltf_path, vertices, joints, weights, node_index_to_bone_index, skin, ibms, scale_factor=1.0):
+def voxelize_mesh(vertices, faces, joints, weights, node_index_to_bone_index, skin, ibms, scale_factor=1.0, pitch=0.05):
     if trimesh is None:
         return []
 
     print("Voxelizing mesh...")
     try:
-        # Load mesh
-        mesh = trimesh.load(gltf_path, force='mesh')
+        # Create mesh from vertices and faces
+        # Vertices are in Bind Space (unscaled by root, unrotated)
+        mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
         
         # Apply scale to mesh
+        # This scales it to the target size (including root scale if effective_scale_factor includes it)
         mesh.apply_scale(scale_factor)
         
-        # Scale to a reasonable size if needed, but we want to match the skeleton scale.
-        # The skeleton extraction uses the raw GLTF units.
-        # So we should voxelize in the same units.
-        
-        # Voxel pitch: 0.05 seems to be the "pixel" size in the engine (based on previous heuristic)
-        # Or maybe 0.1. The user said "match the game engine voxels".
-        # In obj_to_template.py, pitch is 1.0/9.0 (~0.11) or 1.0.
-        # Let's try 0.05 for high detail, or 0.1.
-        pitch = 0.05 
+        # Voxel pitch passed as argument
+        print(f"Voxelizing with pitch: {pitch:.4f}")
         
         voxel_grid = mesh.voxelized(pitch=pitch)
         
         # Get filled voxel centers
-        # voxel_grid.points are in the mesh's local space (which should match GLTF world space if no transforms on mesh node)
-        # Wait, trimesh loads the geometry. If the GLTF has a node transform, trimesh might or might not apply it.
-        # Usually trimesh.load(glb) loads the scene. force='mesh' merges it.
-        # If we use the vertices from the GLTF accessor directly for KD-Tree, they are in the mesh primitive space.
-        # We need to ensure the voxel grid is also in that space.
+        # voxel_grid.points are in the scaled mesh space
         
         # Build KD-Tree for skinning
         from scipy.spatial import cKDTree
@@ -956,6 +999,9 @@ if __name__ == "__main__":
     parser.add_argument("--rotate_y", type=float, default=0.0, help="Rotate model around Y axis (degrees)")
     parser.add_argument("--rotate_z", type=float, default=0.0, help="Rotate model around Z axis (degrees)")
     parser.add_argument("--animations", nargs='+', help="List of additional animation files (FBX/GLTF) to merge")
+    parser.add_argument("--resolution", choices=['custom', 'cube', 'subcube', 'microcube'], default='custom', help="Voxel resolution mode")
+    parser.add_argument("--voxel_size", type=float, default=0.05, help="Voxel size (pitch) when resolution is 'custom'")
+    parser.add_argument("--target_height", type=float, help="Target height in world units to normalize scale (optional)")
     
     args = parser.parse_args()
     
@@ -967,6 +1013,9 @@ if __name__ == "__main__":
     rotate_y = args.rotate_y
     rotate_z = args.rotate_z
     extra_animations = args.animations
+    resolution = args.resolution
+    voxel_size = args.voxel_size
+    target_height = args.target_height
     temp_file = None
     
     ext = os.path.splitext(input_file)[1].lower()
@@ -982,7 +1031,7 @@ if __name__ == "__main__":
             print("Alternatively, convert the file to GLTF/GLB manually.")
             sys.exit(1)
             
-    extract_animation_data(input_file, output_file, scale_factor, style, extra_animations, rotate_x, rotate_y, rotate_z)
+    extract_animation_data(input_file, output_file, scale_factor, style, extra_animations, rotate_x, rotate_y, rotate_z, resolution, voxel_size, target_height)
     
     # Cleanup temp file if we created one
     if temp_file and os.path.exists(temp_file):
