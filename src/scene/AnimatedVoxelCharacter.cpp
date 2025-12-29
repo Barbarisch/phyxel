@@ -818,37 +818,7 @@ namespace Scene {
                     }
                 }
                 
-                // 2. "Contains" match, but filter out "strafe" if we want "walk"
-                if (targetIndex == -1) {
-                    for (size_t i = 0; i < clips.size(); ++i) {
-                        std::string clipNameLower = clips[i].name;
-                        std::transform(clipNameLower.begin(), clipNameLower.end(), clipNameLower.begin(), ::tolower);
-                        
-                        if (clipNameLower.find(targetAnimLower) != std::string::npos) {
-                            // Special filtering
-                            if (targetAnimLower == "walk") {
-                                if (clipNameLower.find("strafe") != std::string::npos) continue;
-                                if (clipNameLower.find("crouch") != std::string::npos) continue;
-                            }
-                            if (targetAnimLower == "run") {
-                                if (clipNameLower.find("fast") != std::string::npos) continue;
-                            }
-                            // Fix for strafe stutter: Ensure we don't pick "left_strafe_walk" when we want "left_strafe"
-                            // "left_strafe" is the running version, "left_strafe_walk" is the walking version.
-                            if (targetAnimLower == "left_strafe") {
-                                // If we specifically want the run strafe, avoid the walk version
-                                if (clipNameLower.find("walk") != std::string::npos) continue;
-                            }
-                            if (targetAnimLower == "right_strafe") {
-                                // If we specifically want the run strafe, avoid the walk version
-                                if (clipNameLower.find("walk") != std::string::npos) continue;
-                            }
-                            
-                            targetIndex = (int)i;
-                            break;
-                        }
-                    }
-                }
+
                 
                 if (targetIndex == -1) {
                      if (targetAnim == "idle") {
