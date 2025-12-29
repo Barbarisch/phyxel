@@ -60,6 +60,10 @@ def main():
     parser.add_argument("--out", required=True, help="Output .anim file path")
     parser.add_argument("--fbx2gltf", default="FBX2glTF", help="Path to FBX2glTF executable (default: assumes in PATH)")
     parser.add_argument("--scale", type=float, default=1.0, help="Scale factor for the model")
+    parser.add_argument("--style", choices=['voxel', 'box'], default='voxel', help="Output style: 'voxel' (default) or 'box' (skeletal boxes only)")
+    parser.add_argument("--rotate_x", type=float, default=0.0, help="Rotate model around X axis (degrees)")
+    parser.add_argument("--rotate_y", type=float, default=0.0, help="Rotate model around Y axis (degrees)")
+    parser.add_argument("--rotate_z", type=float, default=0.0, help="Rotate model around Z axis (degrees)")
 
     args = parser.parse_args()
 
@@ -149,8 +153,11 @@ def main():
             gltf_path=final_skin_path,
             output_path=args.out,
             scale_factor=args.scale,
-            style='voxel', # Defaulting to voxel style as per context
-            extra_animations=anim_files
+            style=args.style,
+            extra_animations=anim_files,
+            rotate_x=args.rotate_x,
+            rotate_y=args.rotate_y,
+            rotate_z=args.rotate_z
         )
         print(f"Successfully created {args.out}")
     except Exception as e:

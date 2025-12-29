@@ -167,7 +167,8 @@ PYBIND11_EMBEDDED_MODULE(phyxel, m) {
     py::class_<Scene::SpiderCharacter, Scene::Entity>(m, "SpiderCharacter");
     py::class_<Scene::AnimatedVoxelCharacter, Scene::Entity>(m, "AnimatedVoxelCharacter")
         .def("play_animation", &Scene::AnimatedVoxelCharacter::playAnimation, "Play an animation by name")
-        .def("get_animation_names", &Scene::AnimatedVoxelCharacter::getAnimationNames, "Get list of all available animation names");
+        .def("get_animation_names", &Scene::AnimatedVoxelCharacter::getAnimationNames, "Get list of all available animation names")
+        .def("set_animation_mapping", &Scene::AnimatedVoxelCharacter::setAnimationMapping, "Map a state (e.g. 'Walk') to an animation name");
 
     // Global function to get app
     m.def("get_app", []() { return g_appInstance; }, py::return_value_policy::reference);

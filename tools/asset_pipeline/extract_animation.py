@@ -29,11 +29,136 @@ except ImportError:
 try:
     import trimesh
     from scipy import ndimage
+    from scipy.spatial.transform import Rotation as R_scipy
 except ImportError:
     print("Warning: trimesh/scipy not found. Voxelization will be skipped.")
     trimesh = None
+    R_scipy = None
 
-def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxel', extra_animations=None):
+def transform_point(pt, matrix):
+    # pt is [x, y, z]
+    # matrix is 16 floats (column major)
+    x, y, z = pt
+    # Column major:
+    # 0  4  8  12
+    # 1  5  9  13
+    # 2  6  10 14
+    # 3  7  11 15
+    nx = matrix[0]*x + matrix[4]*y + matrix[8]*z + matrix[12]
+    ny = matrix[1]*x + matrix[5]*y + matrix[9]*z + matrix[13]
+    nz = matrix[2]*x + matrix[6]*y + matrix[10]*z + matrix[14]
+    return [nx, ny, nz]
+
+def quat_from_axis_angle(axis, angle_rad):
+    s = math.sin(angle_rad / 2.0)
+    return [axis[0]*s, axis[1]*s, axis[2]*s, math.cos(angle_rad / 2.0)]
+
+def quat_mul(q1, q2):
+    x1, y1, z1, w1 = q1
+    x2, y2, z2, w2 = q2
+    return [
+        w1*x2 + x1*w2 + y1*z2 - z1*y2,
+        w1*y2 - x1*z2 + y1*w2 + z1*x2,
+        w1*z2 + x1*y2 - y1*x2 + z1*w2,
+        w1*w2 - x1*x2 - y1*y2 - z1*z2
+    ]
+
+def rotate_vector(v, q):
+    qx, qy, qz, qw = q
+    x, y, z = v
+    tx = 2.0 * (qy*z - qz*y)
+    ty = 2.0 * (qz*x - qx*z)
+    tz = 2.0 * (qx*y - qy*x)
+    return [x + qw*tx + (qy*tz - qz*ty), y + qw*ty + (qz*tx - qx*tz), z + qw*tz + (qx*ty - qy*tx)]
+
+def get_node_matrix(node):
+    # Returns 4x4 numpy matrix
+    if node.matrix:
+        return np.array(node.matrix, dtype=float).reshape(4, 4, order='F')
+    
+    t = node.translation or [0.0, 0.0, 0.0]
+    r = node.rotation or [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    s = node.scale or [1.0, 1.0, 1.0]
+    
+    T = np.eye(4)
+    T[0:3, 3] = t
+    
+    # Quat to Mat
+    x, y, z, w = r
+    R = np.eye(4)
+    R[0:3, 0:3] = np.array([
+        [1-2*(y*y+z*z), 2*(x*y-z*w),   2*(x*z+y*w)],
+        [2*(x*y+z*w),   1-2*(x*x+z*z), 2*(y*z-x*w)],
+        [2*(x*z-y*w),   2*(y*z+x*w),   1-2*(x*x+y*y)]
+    ])
+    
+    S = np.eye(4)
+    S[0,0] = s[0]
+    S[1,1] = s[1]
+    S[2,2] = s[2]
+    
+    return T @ R @ S
+
+def decompose_matrix(M):
+    # Translation
+    pos = M[0:3, 3].tolist()
+    
+    # Scale
+    sx = np.linalg.norm(M[0:3, 0])
+    sy = np.linalg.norm(M[0:3, 1])
+    sz = np.linalg.norm(M[0:3, 2])
+    scale = [sx, sy, sz]
+    
+    # Rotation
+    R_mat = M[0:3, 0:3].copy()
+    if sx > 1e-6: R_mat[:, 0] /= sx
+    if sy > 1e-6: R_mat[:, 1] /= sy
+    if sz > 1e-6: R_mat[:, 2] /= sz
+    
+    # Check for reflection (negative scale)
+    if np.linalg.det(R_mat) < 0:
+        scale = [sx, sy, -sz]
+        R_mat[:, 2] *= -1
+    
+    # Mat to Quat
+    if R_scipy:
+        try:
+            r = R_scipy.from_matrix(R_mat)
+            quat = r.as_quat().tolist() # x, y, z, w
+            return pos, quat, scale
+        except Exception as e:
+            print(f"Scipy decomposition failed: {e}")
+
+    # Fallback (simplified for robustness)
+    tr = R_mat.trace()
+    if tr > 0:
+        S = math.sqrt(tr + 1.0) * 2
+        qw = 0.25 * S
+        qx = (R_mat[2,1] - R_mat[1,2]) / S
+        qy = (R_mat[0,2] - R_mat[2,0]) / S
+        qz = (R_mat[1,0] - R_mat[0,1]) / S
+    elif (R_mat[0,0] > R_mat[1,1]) and (R_mat[0,0] > R_mat[2,2]):
+        S = math.sqrt(1.0 + R_mat[0,0] - R_mat[1,1] - R_mat[2,2]) * 2
+        qw = (R_mat[2,1] - R_mat[1,2]) / S
+        qx = 0.25 * S
+        qy = (R_mat[0,1] + R_mat[1,0]) / S
+        qz = (R_mat[0,2] + R_mat[2,0]) / S
+    elif R_mat[1,1] > R_mat[2,2]:
+        S = math.sqrt(1.0 + R_mat[1,1] - R_mat[0,0] - R_mat[2,2]) * 2
+        qw = (R_mat[0,2] - R_mat[2,0]) / S
+        qx = (R_mat[0,1] + R_mat[1,0]) / S
+        qy = 0.25 * S
+        qz = (R_mat[1,2] + R_mat[2,1]) / S
+    else:
+        S = math.sqrt(1.0 + R_mat[2,2] - R_mat[0,0] - R_mat[1,1]) * 2
+        qw = (R_mat[1,0] - R_mat[0,1]) / S
+        qx = (R_mat[0,2] + R_mat[2,0]) / S
+        qy = (R_mat[1,2] + R_mat[2,1]) / S
+        qz = 0.25 * S
+        
+    return pos, [qx, qy, qz, qw], scale
+
+def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxel', extra_animations=None, rotate_x=0.0, rotate_y=0.0, rotate_z=0.0):
     print(f"Loading {gltf_path}...")
     gltf = GLTF2().load(gltf_path)
 
@@ -41,12 +166,23 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
     # We need to find the root node of the skeleton. 
     # Often scenes have a default scene.
     
+    # Build parent map
+    node_parents = {}
+    for i, node in enumerate(gltf.nodes):
+        if node.children:
+            for child_idx in node.children:
+                node_parents[child_idx] = i
+
     bones = []
     bone_map = {} # name -> index in our bones list
     node_index_to_bone_index = {} # gltf node index -> our bone index
+    
+    # Store the detected root scale to apply to children and voxels
+    root_scale_mult = 1.0
 
     # Helper to get node hierarchy
     def process_node(node_idx, parent_bone_idx):
+        nonlocal root_scale_mult
         node = gltf.nodes[node_idx]
         
         # Extract transform
@@ -54,8 +190,46 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
         rot = node.rotation if node.rotation else [0.0, 0.0, 0.0, 1.0] # x, y, z, w
         scale = node.scale if node.scale else [1.0, 1.0, 1.0]
 
-        # Apply global scale to position (translation)
-        pos = [p * scale_factor for p in pos]
+        # If this is the root bone (parent_bone_idx == -1), apply accumulated parent transforms
+        if parent_bone_idx == -1:
+            # Walk up parents
+            parent_matrices = []
+            curr = node_idx
+            while curr in node_parents:
+                curr = node_parents[curr]
+                parent_matrices.append(get_node_matrix(gltf.nodes[curr]))
+            
+            if parent_matrices:
+                print(f"Applying {len(parent_matrices)} parent transforms to root bone...")
+                # Multiply from top to bottom
+                final_parent_mat = np.eye(4)
+                for mat in reversed(parent_matrices):
+                    final_parent_mat = final_parent_mat @ mat
+                
+                # Multiply with local matrix
+                local_mat = get_node_matrix(node)
+                final_mat = final_parent_mat @ local_mat
+                
+                # Decompose
+                pos, rot, scale = decompose_matrix(final_mat)
+                print(f"  -> New Root Transform: Pos={pos}, Rot={rot}, Scale={scale}")
+                
+                # Check for significant scale
+                avg_scale = (scale[0] + scale[1] + scale[2]) / 3.0
+                if abs(avg_scale - 1.0) > 0.01:
+                    print(f"  -> Detected Root Scale {avg_scale:.2f}. Baking into positions...")
+                    root_scale_mult = avg_scale
+                    scale = [1.0, 1.0, 1.0] # Reset bone scale to 1
+
+        # Apply scale to position
+        # If root, apply ONLY user scale_factor (root pos is in world/parent space, not affected by root scale)
+        # If child, apply user scale_factor * root_scale_mult
+        
+        current_scale_factor = scale_factor
+        if parent_bone_idx != -1:
+            current_scale_factor *= root_scale_mult
+            
+        pos = [p * current_scale_factor for p in pos]
 
         bone_idx = len(bones)
         bone_name = node.name if node.name else f"Bone_{bone_idx}"
@@ -111,18 +285,51 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
 
     print(f"Extracted {len(bones)} bones.")
 
+    if rotate_x != 0.0 or rotate_y != 0.0 or rotate_z != 0.0:
+        rx = quat_from_axis_angle([1.0, 0.0, 0.0], math.radians(rotate_x))
+        ry = quat_from_axis_angle([0.0, 1.0, 0.0], math.radians(rotate_y))
+        rz = quat_from_axis_angle([0.0, 0.0, 1.0], math.radians(rotate_z))
+        
+        # Combine rotations: Z * Y * X (intrinsic) or just multiply them
+        # We'll apply Y then X then Z (arbitrary but standard enough)
+        # q = rz * ry * rx
+        q_yx = quat_mul(ry, rx)
+        rot_q = quat_mul(rz, q_yx)
+        
+        print(f"Applying rotation X={rotate_x}, Y={rotate_y}, Z={rotate_z} to root bones.")
+        for b in bones:
+            if b['parent'] == -1:
+                b['pos'] = rotate_vector(b['pos'], rot_q)
+                b['rot'] = quat_mul(rot_q, b['rot'])
+
     # 2. Extract Animations
     animations_out = []
+    used_anim_names = set()
 
     def process_gltf_animations(source_gltf, source_name_prefix=""):
         if not source_gltf.animations:
             return
 
         for anim in source_gltf.animations:
-            anim_name = anim.name if anim.name else "anim"
+            base_name = anim.name if anim.name else "anim"
+            
             # If loading extra animations, use the filename as the animation name
             if source_name_prefix:
-                anim_name = source_name_prefix
+                if len(source_gltf.animations) > 1:
+                    # If multiple animations in the extra file, combine filename + anim name
+                    base_name = f"{source_name_prefix}_{base_name}"
+                else:
+                    # If single animation, just use the filename
+                    base_name = source_name_prefix
+            
+            # Ensure uniqueness
+            anim_name = base_name
+            counter = 2
+            while anim_name in used_anim_names:
+                anim_name = f"{base_name}_{counter}"
+                counter += 1
+            
+            used_anim_names.add(anim_name)
             
             print(f"Processing animation: {anim_name}")
             channels_out = []
@@ -285,20 +492,6 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
     # We need to process meshes and find which vertices belong to which bone.
     bone_boxes = {} # bone_index -> {min: [inf,inf,inf], max: [-inf,-inf,-inf]}
     
-    def transform_point(pt, matrix):
-        # pt is [x, y, z]
-        # matrix is 16 floats (column major)
-        x, y, z = pt
-        # Column major:
-        # 0  4  8  12
-        # 1  5  9  13
-        # 2  6  10 14
-        # 3  7  11 15
-        nx = matrix[0]*x + matrix[4]*y + matrix[8]*z + matrix[12]
-        ny = matrix[1]*x + matrix[5]*y + matrix[9]*z + matrix[13]
-        nz = matrix[2]*x + matrix[6]*y + matrix[10]*z + matrix[14]
-        return [nx, ny, nz]
-
     skin = None
     ibms = []
     if gltf.skins:
@@ -321,7 +514,18 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
             print(f"Found mesh on node {node_idx} ({node.name})")
             # Check if this node uses the skin (or if the skin is applied globally)
             # Usually the node with the mesh has the 'skin' property
-            if node.skin is not None or True: # Assuming all meshes are part of the character for now
+            
+            is_valid_mesh = False
+            if node.skin is not None:
+                is_valid_mesh = True
+            else:
+                name = (node.name or "").lower()
+                if "floor" in name or "plane" in name or "ground" in name:
+                    print(f"Skipping mesh node '{node.name}' (likely floor/environment)")
+                else:
+                    is_valid_mesh = True
+
+            if is_valid_mesh:
                 mesh = gltf.meshes[node.mesh]
                 for prim in mesh.primitives:
                     if prim.attributes.POSITION is None:
@@ -356,8 +560,12 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
                     all_weights.extend(weights)
 
     voxel_shapes = []
+    
+    # Update effective scale factor for voxelization
+    effective_scale_factor = scale_factor * root_scale_mult
+    
     if style == 'voxel' and trimesh is not None:
-        voxel_shapes = voxelize_mesh(gltf_path, all_positions, all_joints, all_weights, node_index_to_bone_index, skin, ibms, scale_factor)
+        voxel_shapes = voxelize_mesh(gltf_path, all_positions, all_joints, all_weights, node_index_to_bone_index, skin, ibms, effective_scale_factor)
     elif style == 'box':
         print("Style is 'box'. Skipping voxelization and generating bounding boxes.")
 
@@ -370,7 +578,7 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
         for i in range(len(all_positions)):
             p = all_positions[i]
             # Apply scale to vertex position for bounding box calculation
-            p = [x * scale_factor for x in p]
+            p = [x * effective_scale_factor for x in p]
             
             j = all_joints[i]
             w = all_weights[i]
@@ -401,10 +609,10 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
                     # P_local_scaled = P_local * scale_factor
                     # So we should unscale p, apply IBM, then rescale.
                     
-                    p_unscaled = [x / scale_factor for x in p]
+                    p_unscaled = [x / effective_scale_factor for x in p]
                     if skin and joint_idx < len(ibms):
                         p_local = transform_point(p_unscaled, ibms[joint_idx])
-                        p = [x * scale_factor for x in p_local]
+                        p = [x * effective_scale_factor for x in p_local]
             
             if target_bone_idx != -1:
                 if target_bone_idx not in bone_boxes:
@@ -480,8 +688,19 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
                 if ch['type'] == 'translation':
                     channels_by_bone[bid]['pos'] = ch['keys']
                     # Apply scale to translation keys
+                    # If root bone, apply ONLY user scale_factor
+                    # If child bone, apply user scale_factor * root_scale_mult
+                    
+                    # We need to know if this bone is a root or child.
+                    # We can check if bones[bid]['parent'] == -1
+                    
+                    is_root = (bones[bid]['parent'] == -1)
+                    current_scale = scale_factor
+                    if not is_root:
+                        current_scale *= root_scale_mult
+                    
                     for k in channels_by_bone[bid]['pos']:
-                        k['v'] = [x * scale_factor for x in k['v']]
+                        k['v'] = [x * current_scale for x in k['v']]
                 elif ch['type'] == 'rotation':
                     channels_by_bone[bid]['rot'] = ch['keys']
                 elif ch['type'] == 'scale':
@@ -733,6 +952,9 @@ if __name__ == "__main__":
     parser.add_argument("output_file", help="Output .anim file")
     parser.add_argument("--scale", type=float, default=1.0, help="Scale factor for the model and animation")
     parser.add_argument("--style", choices=['voxel', 'box'], default='voxel', help="Output style: 'voxel' (default) or 'box' (skeletal boxes only)")
+    parser.add_argument("--rotate_x", type=float, default=0.0, help="Rotate model around X axis (degrees)")
+    parser.add_argument("--rotate_y", type=float, default=0.0, help="Rotate model around Y axis (degrees)")
+    parser.add_argument("--rotate_z", type=float, default=0.0, help="Rotate model around Z axis (degrees)")
     parser.add_argument("--animations", nargs='+', help="List of additional animation files (FBX/GLTF) to merge")
     
     args = parser.parse_args()
@@ -741,6 +963,9 @@ if __name__ == "__main__":
     output_file = args.output_file
     scale_factor = args.scale
     style = args.style
+    rotate_x = args.rotate_x
+    rotate_y = args.rotate_y
+    rotate_z = args.rotate_z
     extra_animations = args.animations
     temp_file = None
     
@@ -757,7 +982,7 @@ if __name__ == "__main__":
             print("Alternatively, convert the file to GLTF/GLB manually.")
             sys.exit(1)
             
-    extract_animation_data(input_file, output_file, scale_factor, style, extra_animations)
+    extract_animation_data(input_file, output_file, scale_factor, style, extra_animations, rotate_x, rotate_y, rotate_z)
     
     # Cleanup temp file if we created one
     if temp_file and os.path.exists(temp_file):

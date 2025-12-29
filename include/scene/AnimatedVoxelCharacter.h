@@ -65,6 +65,9 @@ namespace Scene {
         void attack();
         void setCrouch(bool crouch);
 
+        // Animation Mapping
+        void setAnimationMapping(const std::string& stateName, const std::string& animName);
+
     private:
         Phyxel::Skeleton skeleton;
         std::vector<Phyxel::AnimationClip> clips;
@@ -81,6 +84,8 @@ namespace Scene {
         std::map<std::string, float> animationRotationOffsets;
         // Per-animation position offsets (to fix alignment issues)
         std::map<std::string, glm::vec3> animationPositionOffsets;
+        // User-defined mapping from State Name to Animation Name
+        std::map<std::string, std::string> animationMapping;
 
         int currentClipIndex = -1;
         float animTime = 0.0f;
@@ -98,6 +103,8 @@ namespace Scene {
         AnimatedCharacterState currentState = AnimatedCharacterState::Idle;
         bool isSprinting = false;
         bool isCrouching = false;
+
+        std::string stateToString(AnimatedCharacterState state);
         bool jumpRequested = false;
         bool attackRequested = false;
         float stateTimer = 0.0f;

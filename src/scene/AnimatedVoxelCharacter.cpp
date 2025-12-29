@@ -390,8 +390,12 @@ namespace Scene {
         isCrouching = crouch;
     }
 
+    void AnimatedVoxelCharacter::setAnimationMapping(const std::string& stateName, const std::string& animName) {
+        animationMapping[stateName] = animName;
+    }
+
     // Helper for debug logging
-    std::string stateToString(AnimatedCharacterState state) {
+    std::string AnimatedVoxelCharacter::stateToString(AnimatedCharacterState state) {
         switch (state) {
             case AnimatedCharacterState::Idle: return "Idle";
             case AnimatedCharacterState::StartWalk: return "StartWalk";
@@ -647,11 +651,11 @@ namespace Scene {
                 }
             }
             
-            // Override speed based on state if needed
-            if (currentState == AnimatedCharacterState::Walk) moveSpeed = 2.0f; // Fallback
-            if (currentState == AnimatedCharacterState::StartWalk) moveSpeed = 1.5f;
-            if (currentState == AnimatedCharacterState::Run) {
-                moveSpeed = 5.0f; // Fallback
+            // Override speed based on state if needed (only if anim speed wasn't sufficient)
+            if (currentState == AnimatedCharacterState::Walk && moveSpeed < 0.1f) moveSpeed = 2.0f; 
+            if (currentState == AnimatedCharacterState::StartWalk && moveSpeed < 0.1f) moveSpeed = 1.5f;
+            if (currentState == AnimatedCharacterState::Run && moveSpeed < 0.1f) {
+                moveSpeed = 5.0f; 
                 if (glm::abs(currentForwardInput) > 0.9f) moveSpeed = 8.0f;
             }
             if (currentState == AnimatedCharacterState::StrafeLeft || currentState == AnimatedCharacterState::StrafeRight ||
@@ -719,52 +723,52 @@ namespace Scene {
             // DEBUG LOGGING
             static int debugFrameCounter = 0;
             bool shouldLog = (debugFrameCounter++ % 30 == 0);
-            if (shouldLog) {
-                 std::cout << "DEBUG: State=" << (int)currentState 
-                           << " Sprint=" << (isSprinting ? "TRUE" : "FALSE")
-                           << " Speed=" << moveSpeed 
-                           << " MoveDir=(" << moveDir.x << "," << moveDir.z << ")"
-                           << std::endl;
-            }
 
-            switch (currentState) {
-                case AnimatedCharacterState::Idle: targetAnim = "idle"; break;
-                case AnimatedCharacterState::StartWalk: targetAnim = "start_walking"; break;
-                case AnimatedCharacterState::Walk: targetAnim = "walk"; break;
-                case AnimatedCharacterState::Run: 
-                    if (isSprinting) targetAnim = "fast_run";
-                    else targetAnim = "run"; 
-                    break;
-                case AnimatedCharacterState::Jump: targetAnim = "jump"; break;
-                case AnimatedCharacterState::Fall: targetAnim = "jump_down"; break;
-                case AnimatedCharacterState::Land: targetAnim = "landing"; break;
-                case AnimatedCharacterState::Crouch: targetAnim = "standing_to_crouched"; break;
-                case AnimatedCharacterState::CrouchIdle: targetAnim = "standing_to_crouched"; break;
-                case AnimatedCharacterState::CrouchWalk: targetAnim = "crouched_walking"; break;
-                case AnimatedCharacterState::StandUp: targetAnim = "crouch_to_stand"; break;
-                case AnimatedCharacterState::Attack: targetAnim = "attack"; break;
-                case AnimatedCharacterState::TurnLeft: targetAnim = "left_turn"; break;
-                case AnimatedCharacterState::TurnRight: targetAnim = "right_turn"; break;
-                case AnimatedCharacterState::StrafeLeft: 
-                    // Differentiate between walking strafe and running strafe based on sprint state
-                    if (isSprinting) targetAnim = "left_strafe"; // Run strafe
-                    else targetAnim = "left_strafe_walk"; // Walk strafe
-                    break;
-                case AnimatedCharacterState::StrafeRight: 
-                    // Differentiate between walking strafe and running strafe based on sprint state
-                    if (isSprinting) targetAnim = "right_strafe"; // Run strafe
-                    else targetAnim = "right_strafe_walk"; // Walk strafe
-                    break;
-                case AnimatedCharacterState::WalkStrafeLeft: 
-                    if (isSprinting) targetAnim = "left_strafe"; 
-                    else targetAnim = "left_strafe_walk"; 
-                    break;
-                case AnimatedCharacterState::WalkStrafeRight: 
-                    if (isSprinting) targetAnim = "right_strafe"; 
-                    else targetAnim = "right_strafe_walk"; 
-                    break;
-                case AnimatedCharacterState::Preview: targetAnim = ""; break;
-                default: targetAnim = "idle"; break;
+            // Check user-defined mapping first
+            std::string stateKey = stateToString(currentState);
+            if (animationMapping.find(stateKey) != animationMapping.end()) {
+                targetAnim = animationMapping[stateKey];
+            } else {
+                // Default hardcoded mapping
+                switch (currentState) {
+                    case AnimatedCharacterState::Idle: targetAnim = "idle"; break;
+                    case AnimatedCharacterState::StartWalk: targetAnim = "start_walking"; break;
+                    case AnimatedCharacterState::Walk: targetAnim = "walk"; break;
+                    case AnimatedCharacterState::Run: 
+                        if (isSprinting) targetAnim = "fast_run";
+                        else targetAnim = "run"; 
+                        break;
+                    case AnimatedCharacterState::Jump: targetAnim = "jump"; break;
+                    case AnimatedCharacterState::Fall: targetAnim = "jump_down"; break;
+                    case AnimatedCharacterState::Land: targetAnim = "landing"; break;
+                    case AnimatedCharacterState::Crouch: targetAnim = "standing_to_crouched"; break;
+                    case AnimatedCharacterState::CrouchIdle: targetAnim = "standing_to_crouched"; break;
+                    case AnimatedCharacterState::CrouchWalk: targetAnim = "crouched_walking"; break;
+                    case AnimatedCharacterState::StandUp: targetAnim = "crouch_to_stand"; break;
+                    case AnimatedCharacterState::Attack: targetAnim = "attack"; break;
+                    case AnimatedCharacterState::TurnLeft: targetAnim = "left_turn"; break;
+                    case AnimatedCharacterState::TurnRight: targetAnim = "right_turn"; break;
+                    case AnimatedCharacterState::StrafeLeft: 
+                        // Differentiate between walking strafe and running strafe based on sprint state
+                        if (isSprinting) targetAnim = "left_strafe"; // Run strafe
+                        else targetAnim = "left_strafe_walk"; // Walk strafe
+                        break;
+                    case AnimatedCharacterState::StrafeRight: 
+                        // Differentiate between walking strafe and running strafe based on sprint state
+                        if (isSprinting) targetAnim = "right_strafe"; // Run strafe
+                        else targetAnim = "right_strafe_walk"; // Walk strafe
+                        break;
+                    case AnimatedCharacterState::WalkStrafeLeft: 
+                        if (isSprinting) targetAnim = "left_strafe"; 
+                        else targetAnim = "left_strafe_walk"; 
+                        break;
+                    case AnimatedCharacterState::WalkStrafeRight: 
+                        if (isSprinting) targetAnim = "right_strafe"; 
+                        else targetAnim = "right_strafe_walk"; 
+                        break;
+                    case AnimatedCharacterState::Preview: targetAnim = ""; break;
+                    default: targetAnim = "idle"; break;
+                }
             }
 
             if (shouldLog) {
@@ -783,12 +787,16 @@ namespace Scene {
                 // Find target animation index
                 int targetIndex = -1;
                 
+                // Normalize targetAnim to lowercase for searching
+                std::string targetAnimLower = targetAnim;
+                std::transform(targetAnimLower.begin(), targetAnimLower.end(), targetAnimLower.begin(), ::tolower);
+
                 // Priority search for better matching
                 // 1. Exact match (case insensitive)
                 for (size_t i = 0; i < clips.size(); ++i) {
                     std::string clipNameLower = clips[i].name;
                     std::transform(clipNameLower.begin(), clipNameLower.end(), clipNameLower.begin(), ::tolower);
-                    if (clipNameLower == targetAnim) {
+                    if (clipNameLower == targetAnimLower) {
                         targetIndex = (int)i;
                         break;
                     }
@@ -800,22 +808,22 @@ namespace Scene {
                         std::string clipNameLower = clips[i].name;
                         std::transform(clipNameLower.begin(), clipNameLower.end(), clipNameLower.begin(), ::tolower);
                         
-                        if (clipNameLower.find(targetAnim) != std::string::npos) {
+                        if (clipNameLower.find(targetAnimLower) != std::string::npos) {
                             // Special filtering
-                            if (targetAnim == "walk") {
+                            if (targetAnimLower == "walk") {
                                 if (clipNameLower.find("strafe") != std::string::npos) continue;
                                 if (clipNameLower.find("crouch") != std::string::npos) continue;
                             }
-                            if (targetAnim == "run") {
+                            if (targetAnimLower == "run") {
                                 if (clipNameLower.find("fast") != std::string::npos) continue;
                             }
                             // Fix for strafe stutter: Ensure we don't pick "left_strafe_walk" when we want "left_strafe"
                             // "left_strafe" is the running version, "left_strafe_walk" is the walking version.
-                            if (targetAnim == "left_strafe") {
+                            if (targetAnimLower == "left_strafe") {
                                 // If we specifically want the run strafe, avoid the walk version
                                 if (clipNameLower.find("walk") != std::string::npos) continue;
                             }
-                            if (targetAnim == "right_strafe") {
+                            if (targetAnimLower == "right_strafe") {
                                 // If we specifically want the run strafe, avoid the walk version
                                 if (clipNameLower.find("walk") != std::string::npos) continue;
                             }
@@ -826,8 +834,25 @@ namespace Scene {
                     }
                 }
                 
-                if (targetIndex == -1 && targetAnim != "idle") {
-                     std::cout << "WARNING: Animation not found for target: " << targetAnim << std::endl;
+                if (targetIndex == -1) {
+                     if (targetAnim == "idle") {
+                         // If idle is missing, stop animation
+                         if (currentClipIndex != -1) {
+                             std::cout << "WARNING: 'idle' animation not found. Stopping animation." << std::endl;
+                             std::cout << "Available animations: ";
+                             for(const auto& clip : clips) std::cout << clip.name << " ";
+                             std::cout << std::endl;
+                             currentClipIndex = -1;
+                             // Reset skeleton to bind pose so it doesn't freeze in a weird pose
+                             for(auto& bone : skeleton.bones) {
+                                 bone.currentPosition = bone.localPosition;
+                                 bone.currentRotation = bone.localRotation;
+                                 bone.currentScale = bone.localScale;
+                             }
+                         }
+                     } else {
+                         std::cout << "WARNING: Animation not found for target: " << targetAnim << std::endl;
+                     }
                 }
                 
                 // Switch if found and different
