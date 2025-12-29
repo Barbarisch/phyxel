@@ -207,6 +207,9 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
     
     # Store the detected root scale to apply to children and voxels
     root_scale_mult = 1.0
+    
+    # Store correction matrices for root bones to apply to animations
+    bone_correction_matrices = {} # bone_index -> 4x4 numpy matrix
 
     # Helper to get node hierarchy
     def process_node(node_idx, parent_bone_idx):
@@ -248,6 +251,14 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
                     print(f"  -> Detected Root Scale {avg_scale:.2f}. Baking into positions...")
                     root_scale_mult = avg_scale
                     scale = [1.0, 1.0, 1.0] # Reset bone scale to 1
+                
+                # Store correction matrix for animations
+                # We need the matrix that transforms from "local node space" to "baked root space"
+                # The bind pose is now: final_parent_mat * local_mat
+                # The animation replaces local_mat with anim_mat
+                # So the new pose should be: final_parent_mat * anim_mat
+                # Thus, we just need to store final_parent_mat
+                bone_correction_matrices[len(bones)] = final_parent_mat
 
         # Apply scale to position
         # If root, apply ONLY user scale_factor (root pos is in world/parent space, not affected by root scale)
@@ -402,10 +413,52 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
                 # Read Output (Values)
                 values = read_accessor(source_gltf, output_accessor)
                 
+                # Check if we need to apply root correction
+                correction_mat = None
+                if bone_idx in bone_correction_matrices:
+                    correction_mat = bone_correction_matrices[bone_idx]
+                    # Decompose correction matrix once
+                    c_pos, c_rot, c_scale = decompose_matrix(correction_mat)
+                    # c_rot is [x, y, z, w]
+                
                 # Group into keyframes
                 keys = []
                 for i, t in enumerate(times):
                     val = values[i]
+                    
+                    # Apply correction if needed
+                    if correction_mat is not None:
+                        if path == 'translation':
+                            # val is [x, y, z]
+                            # Apply rotation and scale from correction matrix
+                            # We can ignore translation from correction matrix because animation translation is usually absolute relative to parent?
+                            # Wait, if the parent had rotation, the translation vector needs to be rotated.
+                            # If the parent had scale, it needs to be scaled.
+                            # If the parent had translation... that's the tricky part.
+                            # The animation replaces the node's local translation.
+                            # The node's new "local" space is the world space (since parent is removed).
+                            # So we need to transform the animation translation vector by the parent's rotation/scale.
+                            # We do NOT add the parent's translation, because that would shift the animation origin away from the bind pose origin?
+                            # Actually, the bind pose position INCLUDES the parent translation.
+                            # If the animation is "absolute position", it replaces the bind pose position.
+                            # So yes, we MUST include the parent translation.
+                            
+                            # Construct local matrix from anim value
+                            # But we only have translation here.
+                            # We can just transform the point.
+                            val = transform_point(val, correction_mat.flatten(order='F'))
+                            
+                        elif path == 'rotation':
+                            # val is [x, y, z, w]
+                            # Apply correction rotation
+                            # new_rot = correction_rot * anim_rot
+                            val = quat_mul(c_rot, val)
+                            
+                        elif path == 'scale':
+                            # val is [x, y, z]
+                            # Apply correction scale
+                            val = [val[0]*c_scale[0], val[1]*c_scale[1], val[2]*c_scale[2]]
+
                     # Flatten if necessary (though read_accessor should handle it)
                     keys.append({"t": t[0] if isinstance(t, list) else t, "v": val})
 

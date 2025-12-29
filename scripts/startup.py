@@ -2,6 +2,9 @@ import phyxel
 import sys
 import audio_demo
 
+# Global reference to the character for console access
+anim_char = None
+
 def map_animation_states_spider(anim_char):
     # Map generic states to specific animation names found in the file
     # Use 'tools/list_anims.py resources/character_spider.anim' to see all names
@@ -40,7 +43,47 @@ def map_animation_states_female2(anim_char):
     # Default animation is handled in C++ loadModel, but we can force it here too
     anim_char.play_animation("Idle")
 
+def map_animation_states_wolf(anim_char):
+    # Map generic states to specific animation names found in the file
+    # Use 'tools/list_anims.py resources/character_wolf.anim' to see all names
+    anim_char.set_animation_mapping("Idle", "Wolf_with_Animations_04_Idle")
+    anim_char.set_animation_mapping("Walk", "Wolf_with_Animations_02_walk")
+    anim_char.set_animation_mapping("Run", "Wolf_with_Animations_01_Run")
+    #anim_char.set_animation_mapping("Jump", "Jump")
+    #anim_char.set_animation_mapping("Attack", "Attack")
+    #anim_char.set_animation_mapping("StrafeLeft", "Strafe_Left")
+    #anim_char.set_animation_mapping("StrafeRight", "Strafe_Right")
+    
+    # Map missing transition states to their main counterparts
+    #anim_char.set_animation_mapping("StartWalk", "Walk")
+    #anim_char.set_animation_mapping("Fall", "Fall")
+    #anim_char.set_animation_mapping("Land", "Idle") # Use idle for landing
+    
+    # Default animation is handled in C++ loadModel, but we can force it here too
+    anim_char.play_animation("Idle")
+
+def map_animation_states_dragon(anim_char):
+    # Map generic states to specific animation names found in the file
+    # Use 'tools/list_anims.py resources/character_dragon.anim' to see all names
+    #anim_char.set_animation_mapping("Idle", "Dragon_Baked_Actions_fbx_7.4_binary_Armature|Idel_New")
+    #anim_char.set_animation_mapping("Walk", "Dragon_Baked_Actions_fbx_7.4_binary_Armature|Walk_New")
+    #anim_char.set_animation_mapping("Run", "Dragon_Baked_Actions_fbx_7.4_binary_Armature|Run_New")
+    # anim_char.set_animation_mapping("Jump", "Dragon_Armature|Jump")
+    # anim_char.set_animation_mapping("Attack", "Dragon_Armature|Attack")
+    # anim_char.set_animation_mapping("StrafeLeft", "Dragon_Armature|Strafe_Left")
+    # anim_char.set_animation_mapping("StrafeRight", "Dragon_Armature|Strafe_Right")
+    
+    # Map missing transition states to their main counterparts
+    #anim_char.set_animation_mapping("StartWalk", "Dragon_Baked_Actions_fbx_7.4_binary_Armature|Walk_New")
+    #anim_char.set_animation_mapping("Fall", "Dragon_Armature|Fall")
+    # anim_char.set_animation_mapping("Land", "Dragon_Baked_Actions_fbx_7.4_binary_Armature|Idel_New") # Use idle for landing
+    
+    # Default animation is handled in C++ loadModel, but we can force it here too
+    #anim_char.play_animation("Dragon_Baked_Actions_fbx_7.4_binary_Armature|Idel_New")
+    pass
+
 def spawn_characters():
+    global anim_char
     app = phyxel.get_app()
     if not app:
         phyxel.Logger.error("Script", "Failed to get application instance")
@@ -57,12 +100,17 @@ def spawn_characters():
     # Create Animated Voxel Character
     # Note: We use the generated animation file
     #anim_char = app.create_animated_character(40, 50, 40, "character_complete.anim")
-    #anim_char = app.create_animated_character(40, 50, 40, "resources\\character_female2.anim")
+    #anim_char = app.create_animated_character(40, 50, 40, "resources\\character_female3.anim")
     #anim_char = app.create_animated_character(40, 50, 40, "resources\\character_spider.anim")
-    anim_char = app.create_animated_character(40, 50, 40, "resources\\character_spider2.anim")
+    #anim_char = app.create_animated_character(40, 50, 40, "resources\\character_spider3.anim")
+    anim_char = app.create_animated_character(40, 50, 40, "resources\\character_dragon.anim")
+    #anim_char = app.create_animated_character(40, 50, 40, "resources\\character_wolf.anim")
     if anim_char:
-        map_animation_states_spider(anim_char)
+        #map_animation_states_spider(anim_char)
         #map_animation_states_female2(anim_char)
+        #map_animation_states_dragon(anim_char)
+        #map_animation_states_wolf(anim_char)
+        pass
 
     # Default to controlling the PhysicsCharacter
     #app.set_control_target("physics")

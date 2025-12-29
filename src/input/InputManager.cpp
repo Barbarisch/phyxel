@@ -318,11 +318,19 @@ void InputManager::setYawPitch(float newYaw, float newPitch) {
 
 bool InputManager::isKeyPressed(int key) const {
     if (!window) return false;
+    // If scripting console is open, block all key queries to prevent game input leakage
+    // Exception: We might want to allow some keys, but generally the console consumes input.
+    // The toggle key (Grave Accent) is handled via registerAction/processKeyboardActions which bypasses this.
+    if (scriptingConsoleMode) return false;
+    
     return glfwGetKey(window, key) == GLFW_PRESS;
 }
 
 bool InputManager::isMouseButtonPressed(int button) const {
     if (!window) return false;
+    // If scripting console is open, block mouse button queries
+    if (scriptingConsoleMode) return false;
+
     return glfwGetMouseButton(window, button) == GLFW_PRESS;
 }
 

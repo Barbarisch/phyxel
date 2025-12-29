@@ -394,6 +394,22 @@ namespace Scene {
         animationMapping[stateName] = animName;
     }
 
+    std::string AnimatedVoxelCharacter::getAnimationMapping(const std::string& stateName) const {
+        auto it = animationMapping.find(stateName);
+        if (it != animationMapping.end()) {
+            return it->second;
+        }
+        return "";
+    }
+
+    void AnimatedVoxelCharacter::setAnimationRotationOffset(const std::string& animName, float rotationDegrees) {
+        animationRotationOffsets[animName] = rotationDegrees;
+    }
+
+    void AnimatedVoxelCharacter::setAnimationPositionOffset(const std::string& animName, const glm::vec3& offset) {
+        animationPositionOffsets[animName] = offset;
+    }
+
     // Helper for debug logging
     std::string AnimatedVoxelCharacter::stateToString(AnimatedCharacterState state) {
         switch (state) {
@@ -963,31 +979,44 @@ namespace Scene {
             
             // Apply Animation Rotation Offset
             float animRotation = 0.0f;
-            std::string stateKey = "idle";
-            switch (currentState) {
-                case AnimatedCharacterState::Idle: stateKey = "idle"; break;
-                case AnimatedCharacterState::StartWalk: stateKey = "start_walking"; break;
-                case AnimatedCharacterState::Walk: stateKey = "walk"; break;
-                case AnimatedCharacterState::Run: stateKey = "run"; break;
-                case AnimatedCharacterState::Jump: stateKey = "jump"; break;
-                case AnimatedCharacterState::Fall: stateKey = "jump_down"; break;
-                case AnimatedCharacterState::Land: stateKey = "landing"; break;
-                case AnimatedCharacterState::Crouch: stateKey = "crouch"; break;
-                case AnimatedCharacterState::CrouchIdle: stateKey = "crouch"; break;
-                case AnimatedCharacterState::CrouchWalk: stateKey = "crouched_walking"; break;
-                case AnimatedCharacterState::StandUp: stateKey = "crouch_to_stand"; break;
-                case AnimatedCharacterState::Attack: stateKey = "attack"; break;
-                case AnimatedCharacterState::TurnLeft: stateKey = "left_turn"; break;
-                case AnimatedCharacterState::TurnRight: stateKey = "right_turn"; break;
-                case AnimatedCharacterState::StrafeLeft: stateKey = "left_strafe"; break;
-                case AnimatedCharacterState::StrafeRight: stateKey = "right_strafe"; break;
-                case AnimatedCharacterState::WalkStrafeLeft: stateKey = "left_strafe_walk"; break;
-                case AnimatedCharacterState::WalkStrafeRight: stateKey = "right_strafe_walk"; break;
-                default: stateKey = "idle"; break;
-            }
             
-            if (animationRotationOffsets.find(stateKey) != animationRotationOffsets.end()) {
-                animRotation = animationRotationOffsets[stateKey];
+            // Try to find offset by specific animation name first
+            std::string currentAnimName = "";
+            if (currentClipIndex >= 0 && currentClipIndex < clips.size()) {
+                currentAnimName = clips[currentClipIndex].name;
+                if (animationRotationOffsets.find(currentAnimName) != animationRotationOffsets.end()) {
+                    animRotation = animationRotationOffsets[currentAnimName];
+                }
+            }
+
+            // Fallback to state-based lookup if no specific animation offset found
+            if (animRotation == 0.0f) {
+                std::string stateKey = "idle";
+                switch (currentState) {
+                    case AnimatedCharacterState::Idle: stateKey = "idle"; break;
+                    case AnimatedCharacterState::StartWalk: stateKey = "start_walking"; break;
+                    case AnimatedCharacterState::Walk: stateKey = "walk"; break;
+                    case AnimatedCharacterState::Run: stateKey = "run"; break;
+                    case AnimatedCharacterState::Jump: stateKey = "jump"; break;
+                    case AnimatedCharacterState::Fall: stateKey = "jump_down"; break;
+                    case AnimatedCharacterState::Land: stateKey = "landing"; break;
+                    case AnimatedCharacterState::Crouch: stateKey = "crouch"; break;
+                    case AnimatedCharacterState::CrouchIdle: stateKey = "crouch"; break;
+                    case AnimatedCharacterState::CrouchWalk: stateKey = "crouched_walking"; break;
+                    case AnimatedCharacterState::StandUp: stateKey = "crouch_to_stand"; break;
+                    case AnimatedCharacterState::Attack: stateKey = "attack"; break;
+                    case AnimatedCharacterState::TurnLeft: stateKey = "left_turn"; break;
+                    case AnimatedCharacterState::TurnRight: stateKey = "right_turn"; break;
+                    case AnimatedCharacterState::StrafeLeft: stateKey = "left_strafe"; break;
+                    case AnimatedCharacterState::StrafeRight: stateKey = "right_strafe"; break;
+                    case AnimatedCharacterState::WalkStrafeLeft: stateKey = "left_strafe_walk"; break;
+                    case AnimatedCharacterState::WalkStrafeRight: stateKey = "right_strafe_walk"; break;
+                    default: stateKey = "idle"; break;
+                }
+                
+                if (animationRotationOffsets.find(stateKey) != animationRotationOffsets.end()) {
+                    animRotation = animationRotationOffsets[stateKey];
+                }
             }
             
             if (animRotation != 0.0f) {

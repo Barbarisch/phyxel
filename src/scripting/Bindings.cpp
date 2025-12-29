@@ -168,7 +168,12 @@ PYBIND11_EMBEDDED_MODULE(phyxel, m) {
     py::class_<Scene::AnimatedVoxelCharacter, Scene::Entity>(m, "AnimatedVoxelCharacter")
         .def("play_animation", &Scene::AnimatedVoxelCharacter::playAnimation, "Play an animation by name")
         .def("get_animation_names", &Scene::AnimatedVoxelCharacter::getAnimationNames, "Get list of all available animation names")
-        .def("set_animation_mapping", &Scene::AnimatedVoxelCharacter::setAnimationMapping, "Map a state (e.g. 'Walk') to an animation name");
+        .def("set_animation_mapping", &Scene::AnimatedVoxelCharacter::setAnimationMapping, "Map a state (e.g. 'Walk') to an animation name")
+        .def("get_animation_mapping", &Scene::AnimatedVoxelCharacter::getAnimationMapping, "Get the animation name mapped to a state")
+        .def("set_animation_rotation_offset", &Scene::AnimatedVoxelCharacter::setAnimationRotationOffset, "Set rotation offset (degrees) for an animation")
+        .def("set_animation_position_offset", [](Scene::AnimatedVoxelCharacter& c, const std::string& name, float x, float y, float z) {
+            c.setAnimationPositionOffset(name, glm::vec3(x, y, z));
+        }, "Set position offset for an animation");
 
     // Global function to get app
     m.def("get_app", []() { return g_appInstance; }, py::return_value_policy::reference);
