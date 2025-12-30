@@ -48,7 +48,9 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
         // DynamicMicrocubeVectorAccessFunc: Access microcube vector
         [this]() -> auto& { return globalDynamicMicrocubes; },
         // RebuildFacesFunc: Rebuild faces when objects change
-        [this]() { rebuildGlobalDynamicFaces(); }
+        [this]() { rebuildGlobalDynamicFaces(); },
+        // VoxelQuerySystem: For debris collision
+        &m_voxelQuerySystem
     );
     
     // Setup face update coordinator callbacks

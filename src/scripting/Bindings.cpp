@@ -159,7 +159,8 @@ PYBIND11_EMBEDDED_MODULE(phyxel, m) {
         }, py::return_value_policy::reference, "Create an animated character at (x,y,z) with animation file")
         .def("set_control_target", &Application::setControlTarget, "Set the character to control ('spider', 'animated', 'physics')")
         .def("toggle_character_control", &Application::toggleCharacterControl, "Cycle through controllable characters")
-        .def("toggle_camera_mode", &Application::toggleCameraMode, "Toggle camera mode (First/Third/Free)");
+        .def("toggle_camera_mode", &Application::toggleCameraMode, "Toggle camera mode (First/Third/Free)")
+        .def("derez_character", &Application::derezCharacter, "Derez the current character", py::arg("explosion_strength") = 1.0f);
 
     // Expose Character Classes (Opaque handles for now)
     py::class_<Scene::Entity>(m, "Entity");

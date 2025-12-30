@@ -4,6 +4,7 @@
 #include "graphics/PostProcessor.h"
 #include "graphics/PostProcessor.h"
 #include "graphics/Camera.h"
+#include "graphics/DebrisRenderPipeline.h"
 #include "vulkan/RenderPipeline.h"
 #include "ui/ImGuiRenderer.h"
 #include "vulkan/VulkanDevice.h"
@@ -99,6 +100,15 @@ RenderCoordinator::RenderCoordinator(
     // Initialize GPU Profiler
     gpuProfiler = std::make_unique<GpuProfiler>();
     gpuProfiler->init(vulkanDevice);
+
+    // Initialize Debris Pipeline
+    debrisPipeline = std::make_unique<DebrisRenderPipeline>();
+    debrisPipeline->initialize(
+        vulkanDevice->getDevice(), 
+        vulkanDevice->getPhysicalDevice(), 
+        postProcessor->getSceneRenderPass(), 
+        vulkanDevice->getSwapChainExtent()
+    );
 }
 
 RenderCoordinator::~RenderCoordinator() = default;
@@ -505,6 +515,21 @@ void RenderCoordinator::drawFrame() {
         
         // Render raycast debug geometry
         raycastVisualizer->render(vulkanDevice->getCommandBuffer(currentFrame), currentFrame);
+    }
+
+    // Render Debris
+    if (debrisPipeline && chunkManager) {
+        auto* debrisSystem = chunkManager->m_dynamicObjectManager.getDebrisSystem();
+        if (debrisSystem && debrisSystem->getActiveParticleCount() > 0) {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Debris");
+            debrisPipeline->render(
+                vulkanDevice->getCommandBuffer(currentFrame), 
+                *camera, 
+                cachedProjectionMatrix,
+                debrisSystem->getParticles(), 
+                debrisSystem->getActiveParticleCount()
+            );
+        }
     }
     
     // End Scene Render Pass

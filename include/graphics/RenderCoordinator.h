@@ -27,6 +27,9 @@ namespace VulkanCube {
     class PerformanceProfiler;
     class RaycastVisualizer;
     class ScriptingSystem;
+    namespace Graphics {
+        class DebrisRenderPipeline;
+    }
 }
 
 namespace VulkanCube {
@@ -35,6 +38,7 @@ namespace Graphics {
 class ShadowMap;
 class PostProcessor;
 class Camera;
+class DebrisRenderPipeline;
 
 /**
  * @brief Manages the rendering pipeline and frame rendering
@@ -175,6 +179,9 @@ private:
     // GPU culling results (for future GPU frustum culling)
     uint32_t lastVisibleInstances = 0;
     uint32_t lastCulledInstances = 0;
+
+    // Debris Rendering
+    std::unique_ptr<DebrisRenderPipeline> debrisPipeline;
 };
 
 } // namespace Graphics

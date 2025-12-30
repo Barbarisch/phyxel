@@ -2,6 +2,7 @@
 #include "core/Subcube.h"
 #include "core/Cube.h"
 #include "core/Microcube.h"
+#include "core/DebrisSystem.h"
 #include "physics/PhysicsWorld.h"
 #include "scene/AnimatedVoxelCharacter.h"
 #include "utils/Logger.h"
@@ -9,18 +10,26 @@
 
 namespace VulkanCube {
 
+DynamicObjectManager::DynamicObjectManager() = default;
+DynamicObjectManager::~DynamicObjectManager() = default;
+
 void DynamicObjectManager::setCallbacks(
     PhysicsWorldAccessFunc getPhysicsWorldFunc,
     DynamicSubcubeVectorAccessFunc getSubcubesFunc,
     DynamicCubeVectorAccessFunc getCubesFunc,
     DynamicMicrocubeVectorAccessFunc getMicrocubesFunc,
-    RebuildFacesFunc rebuildFacesFunc
+    RebuildFacesFunc rebuildFacesFunc,
+    ChunkVoxelQuerySystem* voxelQuerySystem
 ) {
     m_getPhysicsWorld = getPhysicsWorldFunc;
     m_getSubcubes = getSubcubesFunc;
     m_getCubes = getCubesFunc;
     m_getMicrocubes = getMicrocubesFunc;
     m_rebuildFaces = rebuildFacesFunc;
+    
+    if (voxelQuerySystem) {
+        m_debrisSystem = std::make_unique<DebrisSystem>(voxelQuerySystem);
+    }
 }
 
 // ===============================================================
@@ -331,6 +340,10 @@ void DynamicObjectManager::updateAllDynamicObjects(float deltaTime) {
     updateGlobalDynamicSubcubes(deltaTime);
     updateGlobalDynamicCubes(deltaTime);
     updateGlobalDynamicMicrocubes(deltaTime);
+    
+    if (m_debrisSystem) {
+        m_debrisSystem->update(deltaTime);
+    }
 }
 
 void DynamicObjectManager::updateAllDynamicObjectPositions() {
@@ -362,10 +375,61 @@ void DynamicObjectManager::enforceObjectLimits() {
     }
 }
 
-void DynamicObjectManager::derezCharacter(void* characterPtr) {
+void DynamicObjectManager::derezCharacter(void* characterPtr, float explosionStrength) {
     if (!characterPtr) return;
     
     auto* character = static_cast<Scene::AnimatedVoxelCharacter*>(characterPtr);
+    
+    // OPTIMIZATION: Use DebrisSystem if available for lightweight particles
+    if (m_debrisSystem) {
+        LOG_INFO("DynamicObject", "Derezzing character into debris particles (Verlet System)");
+        
+        const auto& parts = character->getParts();
+        int spawnedCount = 0;
+        
+        for (const auto& part : parts) {
+            if (!part.rigidBody) continue;
+            
+            // 1. Get current world transform
+            btTransform trans;
+            if (part.rigidBody->getMotionState()) {
+                part.rigidBody->getMotionState()->getWorldTransform(trans);
+            } else {
+                trans = part.rigidBody->getWorldTransform();
+            }
+            
+            btVector3 offset(part.offset.x, part.offset.y, part.offset.z);
+            btVector3 worldPos = trans * offset;
+            glm::vec3 pos(static_cast<float>(worldPos.x()), static_cast<float>(worldPos.y()), static_cast<float>(worldPos.z()));
+            
+            // 2. Velocity + Explosion
+            btVector3 currentVel = part.rigidBody->getLinearVelocity();
+            
+            float randomX = ((rand() % 100) / 100.0f - 0.5f) * 4.0f * explosionStrength;
+            float randomY = (((rand() % 100) / 100.0f) * 4.0f + 2.0f) * explosionStrength;
+            float randomZ = ((rand() % 100) / 100.0f - 0.5f) * 4.0f * explosionStrength;
+            
+            glm::vec3 vel(
+                currentVel.x() + randomX, 
+                currentVel.y() + randomY, 
+                currentVel.z() + randomZ
+            );
+            
+            // 3. Spawn Particle
+            m_debrisSystem->spawnDebris(
+                pos, 
+                vel, 
+                part.scale, 
+                part.color, 
+                5.0f + (rand() % 50) / 10.0f
+            );
+            spawnedCount++;
+        }
+        
+        LOG_INFO_FMT("DynamicObject", "Spawned " << spawnedCount << " debris particles");
+        return;
+    }
+
     auto* physicsWorld = m_getPhysicsWorld();
     
     if (!physicsWorld) {

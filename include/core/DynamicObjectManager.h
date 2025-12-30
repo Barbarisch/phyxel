@@ -14,6 +14,8 @@ namespace Physics {
 
 // Forward declarations
 class Microcube;
+class DebrisSystem;
+class ChunkVoxelQuerySystem;
 
 /**
  * DynamicObjectManager - Manages global dynamic voxel objects (subcubes, cubes, microcubes)
@@ -64,8 +66,8 @@ public:
     using DynamicMicrocubeVectorAccessFunc = std::function<std::vector<std::unique_ptr<Microcube>>&()>;
     using RebuildFacesFunc = std::function<void()>;
 
-    DynamicObjectManager() = default;
-    ~DynamicObjectManager() = default;
+    DynamicObjectManager();
+    ~DynamicObjectManager();
 
     // Callback setup
     void setCallbacks(
@@ -73,8 +75,12 @@ public:
         DynamicSubcubeVectorAccessFunc getSubcubesFunc,
         DynamicCubeVectorAccessFunc getCubesFunc,
         DynamicMicrocubeVectorAccessFunc getMicrocubesFunc,
-        RebuildFacesFunc rebuildFacesFunc
+        RebuildFacesFunc rebuildFacesFunc,
+        ChunkVoxelQuerySystem* voxelQuerySystem = nullptr
     );
+
+    // Access to debris system
+    DebrisSystem* getDebrisSystem() const { return m_debrisSystem.get(); }
 
     // ===== SUBCUBE MANAGEMENT =====
     void addGlobalDynamicSubcube(std::unique_ptr<Subcube> subcube);
@@ -102,7 +108,8 @@ public:
     // Derez a character into dynamic physics objects
     // Requires the character to be passed as a void* to avoid circular dependencies
     // (will be cast to Scene::AnimatedVoxelCharacter* internally)
-    void derezCharacter(void* characterPtr);
+    // explosionStrength: Multiplier for random velocity (1.0 = normal, 0.0 = fall in place)
+    void derezCharacter(void* characterPtr, float explosionStrength = 1.0f);
 
 private:
     // Callback functions
@@ -111,6 +118,8 @@ private:
     DynamicCubeVectorAccessFunc m_getCubes;
     DynamicMicrocubeVectorAccessFunc m_getMicrocubes;
     RebuildFacesFunc m_rebuildFaces;
+
+    std::unique_ptr<DebrisSystem> m_debrisSystem;
 
     // Debug tracking
     int m_debugCounter = 0;

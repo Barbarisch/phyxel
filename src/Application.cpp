@@ -604,9 +604,8 @@ void Application::update(float deltaTime) {
     // OPTIMIZED: Only update chunks that have actually changed
     if (chunkManager) {
         chunkManager->updateDirtyChunks();
-        chunkManager->updateGlobalDynamicSubcubes(deltaTime);  // Update global dynamic subcube lifetimes
-        chunkManager->updateGlobalDynamicCubes(deltaTime);     // Update global dynamic cube lifetimes
-        chunkManager->updateGlobalDynamicMicrocubes(deltaTime); // Update global dynamic microcube lifetimes
+        // Use the combined update method which also updates the DebrisSystem
+        chunkManager->m_dynamicObjectManager.updateAllDynamicObjects(deltaTime);
     }
     
     // Update physics with FIXED timestep for smooth, jitter-free simulation
@@ -1048,12 +1047,12 @@ void Application::setControlTarget(const std::string& targetName) {
     LOG_INFO("Application", "Control target set to: " + targetName);
 }
 
-void Application::derezCharacter() {
+void Application::derezCharacter(float explosionStrength) {
     if (animatedCharacter && chunkManager) {
         LOG_INFO("Application", "Triggering derez on animated character");
         
         // 1. Spawn debris
-        chunkManager->m_dynamicObjectManager.derezCharacter(animatedCharacter);
+        chunkManager->m_dynamicObjectManager.derezCharacter(animatedCharacter, explosionStrength);
         
         // 2. Remove character from entities list
         // Find and remove the unique_ptr that matches animatedCharacter

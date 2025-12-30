@@ -117,6 +117,17 @@ def spawn_characters():
     app.set_control_target("animated")
     
     phyxel.Logger.info("Script", "Characters spawned successfully!")
+    
+    # TEST: Derez the character immediately to test debris system
+    # phyxel.Logger.info("Script", "Triggering derez for testing...")
+    # app.derez_character(0.0) # 0.0 for "fall in place"
+
+def derez(strength=1.0):
+    """Helper function to derez the character with a specific explosion strength."""
+    app = phyxel.get_app()
+    if app:
+        app.derez_character(strength)
+        phyxel.Logger.info("Script", f"Derezzing character with strength {strength}")
 
 def on_start():
     phyxel.Logger.info("Script", "Startup script executed!")

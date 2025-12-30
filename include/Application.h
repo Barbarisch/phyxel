@@ -72,7 +72,7 @@ public:
     Scene::SpiderCharacter* createSpiderCharacter(const glm::vec3& pos);
     Scene::AnimatedVoxelCharacter* createAnimatedCharacter(const glm::vec3& pos, const std::string& animFile);
     void setControlTarget(const std::string& targetName);
-    void derezCharacter();
+    void derezCharacter(float explosionStrength = 1.0f);
 
     // Accessors
     ObjectTemplateManager* getObjectTemplateManager() const { return objectTemplateManager.get(); }
