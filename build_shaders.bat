@@ -130,6 +130,22 @@ if defined USE_GLSLC (
         pause
         exit /b 1
     )
+
+    echo Compiling debris vertex shader...
+    %GLSLANG% -fshader-stage=vert -I. shaders\debris.vert -o shaders\debris.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile debris vertex shader
+        pause
+        exit /b 1
+    )
+
+    echo Compiling debris fragment shader...
+    %GLSLANG% -fshader-stage=frag -I. shaders\debris.frag -o shaders\debris.frag.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile debris fragment shader
+        pause
+        exit /b 1
+    )
 ) else (
     echo Using glslangValidator syntax...
     echo Compiling static voxel vertex shader...
@@ -248,21 +264,6 @@ if defined USE_GLSLC (
     %GLSLANG% -V -I. shaders\blur.frag -o shaders\blur.frag.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile blur fragment shader
-        pause
-        exit /b 1
-    )
-    echo Compiling debris vertex shader...
-    %GLSLANG% -fshader-stage=vert -I. shaders\debris.vert -o shaders\debris.vert.spv
-    if %errorlevel% neq 0 (
-        echo ERROR: Failed to compile debris vertex shader
-        pause
-        exit /b 1
-    )
-
-    echo Compiling debris fragment shader...
-    %GLSLANG% -fshader-stage=frag -I. shaders\debris.frag -o shaders\debris.frag.spv
-    if %errorlevel% neq 0 (
-        echo ERROR: Failed to compile debris fragment shader
         pause
         exit /b 1
     )

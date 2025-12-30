@@ -117,7 +117,7 @@ void main() {
     
     // Apply texture coordinate scaling based on object scale
     // Microcube: 1/9 ≈ 0.111, Subcube: 1/3 ≈ 0.333, Cube: 1.0
-    if (SUBCUBE_SCALE < 0.2) {
+    if (SUBCUBE_SCALE.x < 0.2) {
         // Microcubes: scale < 0.2 (actually 1/9 ≈ 0.111)
         // Decode packed subcube and microcube positions from localPosition.x
         // Bits 0-1: subcube X, Bits 2-3: subcube Y, Bits 4-5: subcube Z
@@ -170,7 +170,7 @@ void main() {
         vec2 microcubeUVOffset = microcubeGridPos * MICROCUBE_UV_SCALE;
         uv = (uv * MICROCUBE_UV_SCALE) + subcubeUVBase + microcubeUVOffset;
         
-    } else if (SUBCUBE_SCALE < 0.8) {
+    } else if (SUBCUBE_SCALE.x < 0.8) {
         // For subcubes: scale < 0.8 (actually 1/3 ≈ 0.333) - use 1/3 UV scaling with proper grid positioning
         const float SUBCUBE_UV_SCALE = 1.0 / 3.0;  // Each subcube uses 1/3 of texture
         
