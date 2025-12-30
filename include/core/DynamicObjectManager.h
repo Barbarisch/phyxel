@@ -97,6 +97,12 @@ public:
     // ===== COMBINED OPERATIONS =====
     void updateAllDynamicObjects(float deltaTime);
     void updateAllDynamicObjectPositions();
+    
+    // ===== CHARACTER DESTRUCTION =====
+    // Derez a character into dynamic physics objects
+    // Requires the character to be passed as a void* to avoid circular dependencies
+    // (will be cast to Scene::AnimatedVoxelCharacter* internally)
+    void derezCharacter(void* characterPtr);
 
 private:
     // Callback functions
@@ -109,6 +115,12 @@ private:
     // Debug tracking
     int m_debugCounter = 0;
     bool m_firstUpdate = true;
+    
+    // Maximum number of dynamic objects allowed before cleanup
+    static constexpr size_t MAX_DYNAMIC_OBJECTS = 500;
+    
+    // Enforce object limits to prevent performance degradation
+    void enforceObjectLimits();
 };
 
 } // namespace VulkanCube

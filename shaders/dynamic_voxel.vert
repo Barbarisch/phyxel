@@ -4,7 +4,7 @@ layout(location = 0) in uint vertexID;          // Face corner ID (0–3 for qua
 layout(location = 1) in vec3 inWorldPosition;   // per-instance: world position of subcube
 layout(location = 2) in uint inTextureIndex;    // per-instance texture atlas index
 layout(location = 3) in uint inFaceID;          // per-instance: face ID (0-5)
-layout(location = 4) in float inScale;          // per-instance: scale factor (1/3 for subcubes, 1.0 for cubes)
+layout(location = 4) in vec3 inScale;           // per-instance: scale factor (vec3 for non-uniform scaling)
 layout(location = 5) in vec4 inRotation;        // per-instance: rotation quaternion (x, y, z, w)
 layout(location = 6) in ivec3 inLocalPosition;  // per-instance: original local position in 3x3x3 grid
 
@@ -38,7 +38,7 @@ vec3 rotateByQuaternion(vec3 v, vec4 q) {
 
 void main() {
     // Use per-instance scale to maintain correct subcube size
-    const float SUBCUBE_SCALE = inScale;
+    const vec3 SUBCUBE_SCALE = inScale;
     
     // Generate face vertices based on faceID and vertexID
     vec3 faceOffset = vec3(0.0);

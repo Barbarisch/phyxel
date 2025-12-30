@@ -1048,4 +1048,35 @@ void Application::setControlTarget(const std::string& targetName) {
     LOG_INFO("Application", "Control target set to: " + targetName);
 }
 
+void Application::derezCharacter() {
+    if (animatedCharacter && chunkManager) {
+        LOG_INFO("Application", "Triggering derez on animated character");
+        
+        // 1. Spawn debris
+        chunkManager->m_dynamicObjectManager.derezCharacter(animatedCharacter);
+        
+        // 2. Remove character from entities list
+        // Find and remove the unique_ptr that matches animatedCharacter
+        auto it = std::remove_if(entities.begin(), entities.end(), 
+            [this](const std::unique_ptr<Scene::Entity>& entity) {
+                return entity.get() == animatedCharacter;
+            });
+            
+        if (it != entities.end()) {
+            entities.erase(it, entities.end());
+            LOG_INFO("Application", "Animated character removed from scene");
+        }
+        
+        // 3. Clear the pointer
+        animatedCharacter = nullptr;
+        
+        // If we were controlling it, switch control
+        if (currentControlTarget == ControlTarget::AnimatedCharacter) {
+            toggleCharacterControl(); // Switch to next available
+        }
+    } else {
+        LOG_WARN("Application", "Cannot derez: No animated character or chunk manager");
+    }
+}
+
 } // namespace VulkanCube

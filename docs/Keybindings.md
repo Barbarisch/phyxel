@@ -41,5 +41,6 @@
 - **Space**: Jump (Animated Character)
 - **Left Click**: Attack (Animated Character)
 - **Ctrl**: Crouch (Animated Character)
+- **X**: Derez Character (Explode into physics objects)
 - **N**: Next Animation (Preview Mode)
 - **B**: Previous Animation (Preview Mode)

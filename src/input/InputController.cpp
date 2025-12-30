@@ -109,6 +109,11 @@ void InputController::setupKeyboardBindings() {
         m_app->toggleCameraMode();
     });
 
+    // X - Derez Character
+    m_inputManager->registerAction(GLFW_KEY_X, "Derez Character", [this]() {
+        m_app->derezCharacter();
+    });
+
     // ` (Grave Accent) - Toggle Scripting Console
     m_inputManager->registerAction(GLFW_KEY_GRAVE_ACCENT, "Toggle Scripting Console", [this]() {
         m_app->toggleScriptingConsole();

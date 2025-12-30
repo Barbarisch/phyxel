@@ -168,7 +168,7 @@ struct DynamicSubcubeInstanceData {
     uint16_t textureIndex;    // Texture atlas index (0-65535)
     uint16_t reserved1;       // Alignment padding
     uint32_t faceID;          // Face ID (0-5)
-    float scale;              // Scale factor (1/3 for subcubes, 1.0 for full cubes)
+    glm::vec3 scale;          // Scale factor (vec3 for non-uniform scaling)
     glm::vec4 rotation;       // Quaternion rotation (x, y, z, w) for tumbling effect
     glm::ivec3 localPosition; // Original local position in 3x3x3 grid (0-2 for each axis)
     uint32_t reserved2;       // Alignment padding

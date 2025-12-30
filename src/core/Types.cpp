@@ -117,10 +117,10 @@ std::array<VkVertexInputAttributeDescription, 6> DynamicSubcubeInstanceData::get
     desc[2].format = VK_FORMAT_R32_UINT;
     desc[2].offset = offsetof(DynamicSubcubeInstanceData, faceID);
     
-    // Scale (float)
+    // Scale (vec3)
     desc[3].binding = 1;
-    desc[3].location = 4;  // layout(location = 4) in float inScale
-    desc[3].format = VK_FORMAT_R32_SFLOAT;
+    desc[3].location = 4;  // layout(location = 4) in vec3 inScale
+    desc[3].format = VK_FORMAT_R32G32B32_SFLOAT;
     desc[3].offset = offsetof(DynamicSubcubeInstanceData, scale);
     
     // Rotation quaternion (vec4)

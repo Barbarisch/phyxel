@@ -3,6 +3,7 @@
 #include "core/Cube.h"
 #include "core/Microcube.h"
 #include "physics/PhysicsWorld.h"
+#include "scene/AnimatedVoxelCharacter.h"
 #include "utils/Logger.h"
 #include <btBulletDynamicsCommon.h>
 
@@ -336,6 +337,117 @@ void DynamicObjectManager::updateAllDynamicObjectPositions() {
     updateGlobalDynamicSubcubePositions();
     updateGlobalDynamicCubePositions();
     updateGlobalDynamicMicrocubePositions();
+}
+
+void DynamicObjectManager::enforceObjectLimits() {
+    auto& cubes = m_getCubes();
+    auto physicsWorld = m_getPhysicsWorld();
+    
+    if (cubes.size() > MAX_DYNAMIC_OBJECTS) {
+        size_t removeCount = cubes.size() - MAX_DYNAMIC_OBJECTS;
+        LOG_INFO_FMT("DynamicObject", "Enforcing object limit: Removing " << removeCount << " oldest dynamic cubes");
+        
+        // Remove from the beginning (oldest)
+        for (size_t i = 0; i < removeCount; ++i) {
+            if (cubes.empty()) break;
+            
+            auto& cube = cubes.front();
+            if (physicsWorld && cube->getRigidBody()) {
+                physicsWorld->removeCube(cube->getRigidBody());
+            }
+            cubes.erase(cubes.begin());
+        }
+        
+        m_rebuildFaces();
+    }
+}
+
+void DynamicObjectManager::derezCharacter(void* characterPtr) {
+    if (!characterPtr) return;
+    
+    auto* character = static_cast<Scene::AnimatedVoxelCharacter*>(characterPtr);
+    auto* physicsWorld = m_getPhysicsWorld();
+    
+    if (!physicsWorld) {
+        LOG_ERROR("DynamicObject", "Cannot derez character: Physics world not available");
+        return;
+    }
+    
+    LOG_INFO("DynamicObject", "Derezzing character into dynamic physics objects");
+    
+    // Use getParts() from RagdollCharacter base class
+    const auto& parts = character->getParts();
+    int spawnedCount = 0;
+    
+    for (const auto& part : parts) {
+        if (!part.rigidBody) continue;
+        
+        // 1. Get current world transform of the bone
+        btTransform trans;
+        if (part.rigidBody->getMotionState()) {
+            part.rigidBody->getMotionState()->getWorldTransform(trans);
+        } else {
+            trans = part.rigidBody->getWorldTransform();
+        }
+        
+        // 2. Apply the visual offset (rotated by the body's rotation)
+        // The part.offset is in local space relative to the bone
+        btVector3 offset(part.offset.x, part.offset.y, part.offset.z);
+        btVector3 worldPos = trans * offset;
+        
+        // 3. Create a new dynamic cube
+        auto cube = std::make_unique<Cube>();
+        
+        // Set non-uniform scale based on the part size
+        cube->setDynamicScale(part.scale);
+        
+        // Create physics body with matching size
+        // Explicitly cast to float to avoid ambiguity if btScalar is double
+        glm::vec3 pos(static_cast<float>(worldPos.x()), static_cast<float>(worldPos.y()), static_cast<float>(worldPos.z()));
+        float mass = 10.0f;
+        
+        btRigidBody* newBody = physicsWorld->createCube(pos, part.scale, mass);
+        
+        // Match rotation
+        newBody->setWorldTransform(trans); // Use bone rotation
+        
+        // Transfer velocity (add some randomness for explosion effect)
+        btVector3 currentVel = part.rigidBody->getLinearVelocity();
+        
+        // Random explosion velocity
+        float randomX = ((rand() % 100) / 100.0f - 0.5f) * 2.0f; // -1 to 1
+        float randomY = ((rand() % 100) / 100.0f) * 2.0f + 1.0f; // 1 to 3 (upward)
+        float randomZ = ((rand() % 100) / 100.0f - 0.5f) * 2.0f; // -1 to 1
+        
+        btVector3 explosionVel(randomX, randomY, randomZ);
+        newBody->setLinearVelocity(currentVel + explosionVel);
+        
+        // Add random torque for tumbling
+        newBody->setAngularVelocity(btVector3(randomX, randomY, randomZ));
+        
+        // Set physics properties
+        newBody->setFriction(0.8f);
+        newBody->setRestitution(0.3f);
+        
+        // Aggressive sleeping to save performance
+        newBody->setSleepingThresholds(0.5f, 0.5f);
+        
+        // Link body to cube
+        cube->setRigidBody(newBody);
+        cube->setPhysicsPosition(glm::vec3(worldPos.x(), worldPos.y(), worldPos.z()));
+        
+        // Set lifetime (5-10 seconds)
+        cube->setLifetime(5.0f + (rand() % 50) / 10.0f);
+        
+        // Add to manager
+        addGlobalDynamicCube(std::move(cube));
+        spawnedCount++;
+    }
+    
+    LOG_INFO_FMT("DynamicObject", "Spawned " << spawnedCount << " debris objects from character derez");
+    
+    // Enforce limits immediately
+    enforceObjectLimits();
 }
 
 } // namespace VulkanCube

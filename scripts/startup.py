@@ -103,8 +103,8 @@ def spawn_characters():
     #anim_char = app.create_animated_character(40, 50, 40, "resources\\character_female3.anim")
     #anim_char = app.create_animated_character(40, 50, 40, "resources\\character_spider.anim")
     #anim_char = app.create_animated_character(40, 50, 40, "resources\\character_spider3.anim")
-    anim_char = app.create_animated_character(40, 50, 40, "resources\\character_dragon.anim")
-    #anim_char = app.create_animated_character(40, 50, 40, "resources\\character_wolf.anim")
+    #anim_char = app.create_animated_character(40, 50, 40, "resources\\character_dragon.anim")
+    anim_char = app.create_animated_character(40, 50, 40, "resources\\character_wolf.anim")
     if anim_char:
         #map_animation_states_spider(anim_char)
         #map_animation_states_female2(anim_char)

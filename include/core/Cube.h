@@ -86,6 +86,7 @@ public:
     // Physics accessors (for dynamic cubes)
     const glm::vec3& getPhysicsPosition() const { return physicsPosition; }
     const glm::vec4& getPhysicsRotation() const { return physicsRotation; }
+    const glm::vec3& getDynamicScale() const { return dynamicScale; }
     bool isDynamic() const { return rigidBody != nullptr; }
     
     // Lifetime accessors (for dynamic cubes)
@@ -111,6 +112,7 @@ public:
     // Physics mutators (for dynamic cubes)
     void setPhysicsPosition(const glm::vec3& pos) { physicsPosition = pos; }
     void setPhysicsRotation(const glm::vec4& rot) { physicsRotation = rot; }
+    void setDynamicScale(const glm::vec3& scale) { dynamicScale = scale; }
     
     // Lifetime mutators (for dynamic cubes)
     void setLifetime(float time) { lifetime = time; }
@@ -162,6 +164,7 @@ private:
     // Physics position/rotation (for dynamic cubes - bypasses integer grid)
     glm::vec3 physicsPosition = glm::vec3(0.0f);
     glm::vec4 physicsRotation = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f); // Identity quaternion
+    glm::vec3 dynamicScale = glm::vec3(1.0f); // Scale for non-uniform dynamic objects
     
     // Material system (for dynamic cubes)
     std::string materialName = "Default";

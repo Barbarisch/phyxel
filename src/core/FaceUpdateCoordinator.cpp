@@ -46,14 +46,15 @@ void FaceUpdateCoordinator::rebuildGlobalDynamicFaces() {
             if (subcube->isDynamic()) {
                 faceInstance.worldPosition = subcube->getPhysicsPosition();
                 faceInstance.rotation = subcube->getPhysicsRotation(); // Get rotation from physics
+                faceInstance.scale = glm::vec3(subcube->getScale()); // Uniform scale for subcubes
             } else {
                 faceInstance.worldPosition = glm::vec3(subcube->getPosition()) + glm::vec3(subcube->getLocalPosition()) * SUBCUBE_SCALE;
                 faceInstance.rotation = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f); // Identity quaternion for static subcubes
+                faceInstance.scale = glm::vec3(subcube->getScale());
             }
             
             faceInstance.textureIndex = TextureConstants::getTextureIndexForFace(faceID);
             faceInstance.faceID = faceID;
-            faceInstance.scale = subcube->getScale();
             faceInstance.localPosition = subcube->getLocalPosition(); // Preserve original grid position
             
             globalDynamicSubcubeFaces.push_back(faceInstance);
@@ -74,7 +75,7 @@ void FaceUpdateCoordinator::rebuildGlobalDynamicFaces() {
             faceInstance.rotation = cube->getPhysicsRotation();
             faceInstance.textureIndex = TextureConstants::getTextureIndexForFace(faceID);
             faceInstance.faceID = faceID;
-            faceInstance.scale = cube->getScale(); // 1.0 for full cubes
+            faceInstance.scale = cube->getDynamicScale(); // Use dynamic scale (vec3)
             faceInstance.localPosition = glm::ivec3(1, 1, 1); // Center position for full cubes
             
             globalDynamicSubcubeFaces.push_back(faceInstance);
@@ -96,7 +97,7 @@ void FaceUpdateCoordinator::rebuildGlobalDynamicFaces() {
             // Use placeholder texture for microcubes
             faceInstance.textureIndex = TextureConstants::PLACEHOLDER_TEXTURE_INDEX;
             faceInstance.faceID = faceID;
-            faceInstance.scale = microcube->getScale(); // 1/9 for microcubes
+            faceInstance.scale = glm::vec3(microcube->getScale()); // Uniform scale for microcubes
             
             // Pack both subcube and microcube positions into localPosition for texture coordinate calculation
             // Bits 0-1: subcube X, Bits 2-3: subcube Y, Bits 4-5: subcube Z
