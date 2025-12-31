@@ -514,8 +514,17 @@ void Application::update(float deltaTime) {
     {
         PROFILE_SCOPE(*performanceProfiler, "Camera Sync");
         if (camera->getMode() == Graphics::CameraMode::Free) {
+            // Debug sync
+            static int syncLogCounter = 0;
+            if (++syncLogCounter % 60 == 0) {
+                 LOG_INFO_FMT("Application", "Syncing Free Camera: Pos(" << inputManager->getCameraPosition().x << ") Yaw(" << inputManager->getYaw() << ")");
+            }
+
             camera->setPosition(inputManager->getCameraPosition());
-            camera->setFront(inputManager->getCameraFront());
+            // Sync yaw/pitch so the camera actually rotates
+            // Note: We do NOT sync setFront() because Camera calculates it from yaw/pitch
+            camera->setYaw(inputManager->getYaw());
+            camera->setPitch(inputManager->getPitch());
         } else if (isControllingPhysicsCharacter && physicsCharacter) {
             physicsCharacter->updateCamera();
         } else if (!isControllingPhysicsCharacter) {
@@ -655,7 +664,8 @@ void Application::update(float deltaTime) {
     // NOTE: Frustum culling is now handled in renderStaticGeometry()
 
     // Sync Camera to InputManager for other systems (Audio, Scripts, etc.)
-    if (camera && inputManager) {
+    // Only sync if NOT in Free mode, otherwise InputManager is the master
+    if (camera && inputManager && camera->getMode() != Graphics::CameraMode::Free) {
         inputManager->setCameraPosition(camera->getPosition());
         inputManager->setYawPitch(camera->getYaw(), camera->getPitch());
     }
@@ -699,7 +709,8 @@ void Application::handleInput() {
     inputManager->processInput(deltaTime);
 
     // Pass movement input to active character
-    if (!isControllingPhysicsCharacter) {
+    // Only if NOT in Free Camera mode
+    if (!isControllingPhysicsCharacter && camera && camera->getMode() != Graphics::CameraMode::Free) {
         float forward = 0.0f;
         float turn = 0.0f;
         float strafe = 0.0f;

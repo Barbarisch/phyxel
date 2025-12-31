@@ -198,8 +198,8 @@ void InputManager::handleMouseMove(double xpos, double ypos) {
     
     // Debug output (periodic)
     static int debugCounter = 0;
-    if (++debugCounter % 10 == 0) {
-        LOG_TRACE("InputManager", "Camera look: yaw={:.1f}° pitch={:.1f}°", yaw, pitch);
+    if (++debugCounter % 10 == 0 && mouseCaptured) {
+        LOG_INFO("InputManager", "Camera look: yaw={:.1f}° pitch={:.1f}° (delta: {:.2f}, {:.2f})", yaw, pitch, xoffset, yoffset);
     }
     
     // Constrain pitch
@@ -225,10 +225,10 @@ void InputManager::handleMouseButton(int button, int action, int mods) {
         if (action == GLFW_PRESS) {
             mouseCaptured = true;
             firstMouse = true; // Reset to avoid jump
-            LOG_DEBUG("InputManager", "*** RIGHT MOUSE PRESSED - CAMERA LOOK MODE ENABLED ***");
+            LOG_INFO("InputManager", "*** RIGHT MOUSE PRESSED - CAMERA LOOK MODE ENABLED ***");
         } else if (action == GLFW_RELEASE) {
             mouseCaptured = false;
-            LOG_DEBUG("InputManager", "*** RIGHT MOUSE RELEASED - CAMERA LOOK MODE DISABLED ***");
+            LOG_INFO("InputManager", "*** RIGHT MOUSE RELEASED - CAMERA LOOK MODE DISABLED ***");
         }
     }
     
