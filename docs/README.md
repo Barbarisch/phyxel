@@ -21,6 +21,10 @@ Phyxel is a high-performance 3D voxel rendering engine built with Vulkan API, fe
   - Priority refactorings by file
   - Expected benefits and metrics
 
+### Asset Pipeline
+- **[AssetPipeline.md](AssetPipeline.md)** - Guide for importing 3D models and animations.
+- **[CharacterAnimationGuide.md](CharacterAnimationGuide.md)** - Specifics on animation states and naming conventions.
+
 ### Quick-Start Guides
 - **[QUICKSTART_WindowManager.md](QUICKSTART_WindowManager.md)** - Step-by-step WindowManager extraction
   - Complete implementation guide
