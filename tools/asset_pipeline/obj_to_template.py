@@ -12,7 +12,7 @@ except ImportError:
     sys.path.append(os.path.dirname(os.path.abspath(__file__)))
     import voxelizer
 
-def convert_obj_to_template(obj_path, output_path, material_name, target_size, resolution_mode='auto', hollow=False, fill_threshold=1.0, thicken=0, shell=False, shell_thickness=1):
+def convert_obj_to_template(obj_path, output_path, material_name, target_size, resolution_mode='auto', hollow=False, fill_threshold=1.0, thicken=0, shell=False, shell_thickness=1, optimize=False):
     print(f"Loading mesh: {obj_path}")
     try:
         # Load the mesh
@@ -62,9 +62,18 @@ def convert_obj_to_template(obj_path, output_path, material_name, target_size, r
     # Use the shared template writer
     try:
         import template_writer
+        import optimize_alignment
     except ImportError:
         sys.path.append(os.path.dirname(os.path.abspath(__file__)))
         import template_writer
+        import optimize_alignment
+
+    # Optimization step
+    if optimize:
+        print("Running grid alignment optimization...")
+        offset, matrix, stats = optimize_alignment.find_optimal_offset(matrix, fill_threshold, verbose=False)
+        print(f"Optimization applied. Offset: {offset}")
+        print(f"Optimized Stats: {stats[0]} Cubes, {stats[1]} Subcubes, {stats[2]} Microcubes")
 
     template_writer.write_template(matrix, output_path, material_name, target_size, resolution_mode, fill_threshold)
 
@@ -82,6 +91,7 @@ if __name__ == "__main__":
     parser.add_argument("--thicken", type=int, default=0, help="Number of dilation iterations to thicken the model (reduces microcubes)")
     parser.add_argument("--shell", action="store_true", help="Force generation of a hollow shell from the outer surface (void interior)")
     parser.add_argument("--shell-thickness", type=int, default=1, help="Wall thickness for shell generation (default: 1)")
+    parser.add_argument("--optimize", action="store_true", help="Enable grid alignment optimization to reduce primitive count")
     
     args = parser.parse_args()
     
@@ -89,4 +99,4 @@ if __name__ == "__main__":
         print(f"Error: Input file '{args.input}' not found.")
         sys.exit(1)
         
-    convert_obj_to_template(args.input, args.output, args.material, args.size, args.resolution, args.hollow, args.fill_threshold, args.thicken, args.shell, args.shell_thickness)
+    convert_obj_to_template(args.input, args.output, args.material, args.size, args.resolution, args.hollow, args.fill_threshold, args.thicken, args.shell, args.shell_thickness, args.optimize)

@@ -14,6 +14,7 @@ if current_dir not in sys.path:
 
 import voxelizer
 import template_writer
+import optimize_alignment
 
 def load_bbmodel_as_mesh(file_path):
     try:
@@ -110,6 +111,7 @@ def main():
     parser.add_argument("--thicken", type=int, default=0, help="Number of dilation iterations to thicken the model (reduces microcubes)")
     parser.add_argument("--shell", action="store_true", help="Force generation of a hollow shell from the outer surface (void interior)")
     parser.add_argument("--shell-thickness", type=int, default=1, help="Wall thickness for shell generation (default: 1)")
+    parser.add_argument("--optimize", action="store_true", help="Enable grid alignment optimization to reduce primitive count")
     
     args = parser.parse_args()
     
@@ -142,6 +144,13 @@ def main():
     print(f"Voxelization complete. Pitch: {pitch:.4f}, Scale: {scale:.4f}")
     print(f"Final voxel count: {np.sum(matrix)}")
     
+    # Optimization step
+    if args.optimize:
+        print("Running grid alignment optimization...")
+        offset, matrix, stats = optimize_alignment.find_optimal_offset(matrix, args.fill_threshold, verbose=False)
+        print(f"Optimization applied. Offset: {offset}")
+        print(f"Optimized Stats: {stats[0]} Cubes, {stats[1]} Subcubes, {stats[2]} Microcubes")
+
     print(f"Writing template to {args.output}...")
     template_writer.write_template(
         matrix, 

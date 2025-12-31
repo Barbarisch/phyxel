@@ -1,6 +1,47 @@
 import numpy as np
 import os
 
+def analyze_voxel_data(matrix, fill_threshold=1.0):
+    """
+    Analyzes voxel data to determine optimal hierarchical representation.
+    Returns masks for cubes, subcubes, and microcubes.
+    """
+    # Pad matrix to multiple of 9 for easy reshaping
+    shape = np.array(matrix.shape)
+    pad_shape = (np.ceil(shape / 9) * 9).astype(int)
+    padding = [(0, pad_shape[i] - shape[i]) for i in range(3)]
+    
+    padded_matrix = np.pad(matrix, padding, mode='constant', constant_values=0)
+    
+    # --- Level 1: Cubes (9x9x9) ---
+    cx, cy, cz = pad_shape // 9
+    cubes_view = padded_matrix.reshape(cx, 9, cy, 9, cz, 9)
+    cubes_counts = cubes_view.sum(axis=(1, 3, 5))
+    cubes_mask = cubes_counts >= (729 * fill_threshold)
+    
+    # --- Level 2: Subcubes (3x3x3) ---
+    sx, sy, sz = pad_shape // 3
+    subcubes_view = padded_matrix.reshape(sx, 3, sy, 3, sz, 3)
+    subcubes_counts = subcubes_view.sum(axis=(1, 3, 5))
+    subcubes_mask = subcubes_counts >= (27 * fill_threshold)
+    
+    # Exclude subcubes that are inside full cubes
+    cubes_mask_upscaled = cubes_mask.repeat(3, axis=0).repeat(3, axis=1).repeat(3, axis=2)
+    final_subcubes_mask = subcubes_mask & ~cubes_mask_upscaled
+    
+    # --- Level 3: Microcubes ---
+    # Exclude microcubes inside full cubes OR full subcubes
+    cubes_mask_micro = cubes_mask.repeat(9, axis=0).repeat(9, axis=1).repeat(9, axis=2)
+    subcubes_mask_micro = final_subcubes_mask.repeat(3, axis=0).repeat(3, axis=1).repeat(3, axis=2)
+    final_microcubes_mask = padded_matrix & ~cubes_mask_micro & ~subcubes_mask_micro
+    
+    return {
+        'cubes_mask': cubes_mask,
+        'subcubes_mask': final_subcubes_mask,
+        'microcubes_mask': final_microcubes_mask,
+        'padded_matrix': padded_matrix
+    }
+
 def write_template(matrix, output_path, material_name, target_size, resolution_mode, fill_threshold=1.0):
     """
     Writes a voxel matrix to a Phyxel template file (.txt).
@@ -32,34 +73,10 @@ def write_template(matrix, output_path, material_name, target_size, resolution_m
             f.write(f"# Format: [Type] [Coords...] {material_name}\n")
             f.write(f"# Legend: C=Cube, S=Subcube, M=Microcube\n\n")
             
-            # Pad matrix to multiple of 9 for easy reshaping
-            shape = np.array(matrix.shape)
-            pad_shape = (np.ceil(shape / 9) * 9).astype(int)
-            padding = [(0, pad_shape[i] - shape[i]) for i in range(3)]
-            
-            padded_matrix = np.pad(matrix, padding, mode='constant', constant_values=0)
-            
-            # --- Level 1: Cubes (9x9x9) ---
-            cx, cy, cz = pad_shape // 9
-            cubes_view = padded_matrix.reshape(cx, 9, cy, 9, cz, 9)
-            cubes_counts = cubes_view.sum(axis=(1, 3, 5))
-            cubes_mask = cubes_counts >= (729 * fill_threshold)
-            
-            # --- Level 2: Subcubes (3x3x3) ---
-            sx, sy, sz = pad_shape // 3
-            subcubes_view = padded_matrix.reshape(sx, 3, sy, 3, sz, 3)
-            subcubes_counts = subcubes_view.sum(axis=(1, 3, 5))
-            subcubes_mask = subcubes_counts >= (27 * fill_threshold)
-            
-            # Exclude subcubes that are inside full cubes
-            cubes_mask_upscaled = cubes_mask.repeat(3, axis=0).repeat(3, axis=1).repeat(3, axis=2)
-            final_subcubes_mask = subcubes_mask & ~cubes_mask_upscaled
-            
-            # --- Level 3: Microcubes ---
-            # Exclude microcubes inside full cubes OR full subcubes
-            cubes_mask_micro = cubes_mask.repeat(9, axis=0).repeat(9, axis=1).repeat(9, axis=2)
-            subcubes_mask_micro = final_subcubes_mask.repeat(3, axis=0).repeat(3, axis=1).repeat(3, axis=2)
-            final_microcubes_mask = padded_matrix & ~cubes_mask_micro & ~subcubes_mask_micro
+            analysis = analyze_voxel_data(matrix, fill_threshold)
+            cubes_mask = analysis['cubes_mask']
+            final_subcubes_mask = analysis['subcubes_mask']
+            final_microcubes_mask = analysis['microcubes_mask']
             
             # --- Output Generation ---
             count_c = 0
