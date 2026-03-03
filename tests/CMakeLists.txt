@@ -33,7 +33,7 @@ add_custom_command(TARGET phyxel_tests POST_BUILD
 
 # Platform-specific settings
 if(PLATFORM_WINDOWS AND MSVC)
-    set_property(TARGET phyxel_tests PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDebug$<$<CONFIG:Debug>:Debug>")
+    set_property(TARGET phyxel_tests PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 endif()
 
 # Register tests with CTest

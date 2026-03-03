@@ -212,9 +212,6 @@ bool Application::initialize() {
 
     // Entities are now created via scripting (scripts/startup.py)
     // See Application::createPhysicsCharacter etc.
-
-    // Default camera mode
-    camera->setMode(Graphics::CameraMode::Free);
     
     LOG_INFO("Application", "Entities initialized successfully!");
 
@@ -406,10 +403,6 @@ void Application::run() {
             // performanceMonitor->printPerformanceStats(timer.get(), timing, chunkManager.get(), physicsWorld.get());
         }
 
-        // Reset mouse delta at the end of the frame
-        if (inputManager) {
-            inputManager->resetMouseDelta();
-        }
     }
     
     LOG_INFO("Application", "Application shutting down...");
@@ -459,12 +452,24 @@ void Application::cleanup() {
     renderCoordinator.reset();
     voxelInteractionSystem.reset();
     
+    // Clear entities BEFORE physics cleanup — they hold raw pointers to physics bodies
+    entities.clear();
+    player = nullptr;
+    physicsCharacter = nullptr;
+    spiderCharacter = nullptr;
+    animatedCharacter = nullptr;
+
     if (vulkanDevice) {
         vulkanDevice->cleanup();
     }
     
     if (physicsWorld) {
         physicsWorld->cleanup();
+    }
+
+    // Cleanup audio system
+    if (audioSystem) {
+        audioSystem.reset();
     }
     
     // Cleanup window

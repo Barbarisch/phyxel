@@ -285,8 +285,8 @@ enable_sanitizers(VulkanCube)
 if(PLATFORM_WINDOWS)
     # MSVC runtime library (adjust as needed)
     if(MSVC)
-        set_property(TARGET VulkanCube PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDebug$<$<CONFIG:Debug>:Debug>")
-        set_property(TARGET phyxel_core PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDebug$<$<CONFIG:Debug>:Debug>")
+        set_property(TARGET VulkanCube PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+        set_property(TARGET phyxel_core PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
     endif()
     
     # Copy executable to project root on Windows

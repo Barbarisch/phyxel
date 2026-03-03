@@ -7,7 +7,6 @@
 #include <stdexcept>
 #include <cstring>
 #include <random>
-#include <iostream>
 #include <iomanip>
 #include <unordered_set>
 
@@ -17,15 +16,6 @@
 #include <BulletCollision/CollisionShapes/btBvhTriangleMeshShape.h>
 
 namespace VulkanCube {
-
-// TEMPORARY COMPATIBILITY MACROS - will be removed once physics extraction is complete
-// These macros allow existing code to access physics manager members without massive refactoring
-#define physicsWorld (physicsManager.getPhysicsWorldRef())
-#define chunkPhysicsBody (physicsManager.getChunkPhysicsBodyRef())
-#define chunkCollisionShape (physicsManager.getChunkCollisionShapeRef())
-#define chunkTriangleMesh (physicsManager.getChunkTriangleMeshRef())
-#define collisionGrid (physicsManager.getCollisionGrid())
-#define collisionNeedsUpdate (physicsManager.getCollisionNeedsUpdateRef())
 
 Chunk::Chunk(const glm::ivec3& origin) 
     : worldOrigin(origin) {
@@ -525,10 +515,8 @@ bool Chunk::isValidLocalPosition(const glm::ivec3& localPos) const {
 // PHYSICS-RELATED METHODS
 // =============================================================================
 
-#undef physicsWorld  // Temporary: parameter name conflicts with macro
 bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, 
                         Physics::PhysicsWorld* physicsWorld, ChunkManager* chunkManager, const glm::vec3& impulseForce) {
-#define physicsWorld (physicsManager.getPhysicsWorldRef())  // Restore macro
     return voxelBreaker.breakSubcube(parentPos, subcubePos, physicsWorld, chunkManager, impulseForce);
 }
 
@@ -609,24 +597,25 @@ void Chunk::forcePhysicsRebuild() {
 
 void Chunk::cleanupPhysicsResources() {
     // Clean up spatial collision grid - entities auto-delete when shared_ptrs are destroyed
-    LOG_DEBUG_FMT("Chunk", "[COLLISION CLEANUP] Before cleanup: " << collisionGrid.getTotalEntityCount() << " total entities ("
-              << collisionGrid.getCubeEntityCount() << " cubes, " << collisionGrid.getSubcubeEntityCount() << " subcubes)");
+    auto& grid = physicsManager.getCollisionGrid();
+    LOG_DEBUG_FMT("Chunk", "[COLLISION CLEANUP] Before cleanup: " << grid.getTotalEntityCount() << " total entities ("
+              << grid.getCubeEntityCount() << " cubes, " << grid.getSubcubeEntityCount() << " subcubes)");
     
     // Clear spatial grid - O(1) operation that releases all entity references
-    collisionGrid.clear();
-    collisionNeedsUpdate = false;
+    grid.clear();
+    physicsManager.getCollisionNeedsUpdateRef() = false;
     
-    LOG_DEBUG_FMT("Chunk", "[COLLISION CLEANUP] After cleanup: " << collisionGrid.getTotalEntityCount() << " total entities ("
-              << collisionGrid.getCubeEntityCount() << " cubes, " << collisionGrid.getSubcubeEntityCount() << " subcubes)");
+    LOG_DEBUG_FMT("Chunk", "[COLLISION CLEANUP] After cleanup: " << grid.getTotalEntityCount() << " total entities ("
+              << grid.getCubeEntityCount() << " cubes, " << grid.getSubcubeEntityCount() << " subcubes)");
     
-    if (chunkPhysicsBody) {
+    if (physicsManager.getChunkPhysicsBodyRef()) {
         LOG_DEBUG("Chunk", "[CHUNK] Cleaning up chunk physics body");
-        chunkPhysicsBody = nullptr;
+        physicsManager.getChunkPhysicsBodyRef() = nullptr;
     }
     
-    if (chunkCollisionShape) {
+    if (physicsManager.getChunkCollisionShapeRef()) {
         LOG_DEBUG("Chunk", "[CHUNK] Cleaning up chunk collision shape");
-        chunkCollisionShape = nullptr;
+        physicsManager.getChunkCollisionShapeRef() = nullptr;
     }
 }
 

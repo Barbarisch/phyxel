@@ -242,6 +242,18 @@ void DynamicObjectManager::updateGlobalDynamicCubePositions() {
 
 void DynamicObjectManager::clearAllGlobalDynamicCubes() {
     auto& cubes = m_getCubes();
+    auto physicsWorld = m_getPhysicsWorld();
+    
+    if (physicsWorld) {
+        for (auto& cube : cubes) {
+            if (cube && cube->getRigidBody()) {
+                LOG_TRACE("DynamicObject", "Cleaning up physics body for cube during clear");
+                physicsWorld->removeCube(cube->getRigidBody());
+                cube->setRigidBody(nullptr);
+            }
+        }
+    }
+    
     LOG_DEBUG_FMT("DynamicObject", "Clearing all " << cubes.size() << " global dynamic cubes");
     cubes.clear();
 }
@@ -360,16 +372,15 @@ void DynamicObjectManager::enforceObjectLimits() {
         size_t removeCount = cubes.size() - MAX_DYNAMIC_OBJECTS;
         LOG_INFO_FMT("DynamicObject", "Enforcing object limit: Removing " << removeCount << " oldest dynamic cubes");
         
-        // Remove from the beginning (oldest)
-        for (size_t i = 0; i < removeCount; ++i) {
-            if (cubes.empty()) break;
-            
-            auto& cube = cubes.front();
-            if (physicsWorld && cube->getRigidBody()) {
-                physicsWorld->removeCube(cube->getRigidBody());
+        // Clean up physics bodies for the oldest cubes
+        for (size_t i = 0; i < removeCount && i < cubes.size(); ++i) {
+            if (physicsWorld && cubes[i] && cubes[i]->getRigidBody()) {
+                physicsWorld->removeCube(cubes[i]->getRigidBody());
             }
-            cubes.erase(cubes.begin());
         }
+        
+        // Bulk erase oldest cubes in one O(n) operation
+        cubes.erase(cubes.begin(), cubes.begin() + static_cast<ptrdiff_t>(removeCount));
         
         m_rebuildFaces();
     }

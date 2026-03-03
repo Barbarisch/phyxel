@@ -58,6 +58,26 @@ bool PhysicsWorld::initialize() {
 }
 
 void PhysicsWorld::cleanup() {
+    // Cleanup characters FIRST — they reference the dynamics world
+    if (dynamicsWorld) {
+        for (auto* character : characters) {
+            dynamicsWorld->removeAction(character);
+            delete character;
+        }
+        characters.clear();
+
+        for (auto* ghost : ghostObjects) {
+            dynamicsWorld->removeCollisionObject(ghost);
+            delete ghost;
+        }
+        ghostObjects.clear();
+    }
+
+    for (auto* shape : characterShapes) {
+        delete shape;
+    }
+    characterShapes.clear();
+
     // Remove all rigid bodies
     removeAllCubes();
     
@@ -73,34 +93,14 @@ void PhysicsWorld::cleanup() {
     }
     collisionShapes.clear();
     
-    // Bullet objects will be cleaned up by unique_ptr destructors
+    rigidBodies.clear();
+
+    // Bullet world and subsystems cleaned up by unique_ptr destructors (order matters)
     dynamicsWorld.reset();
     solver.reset();
     broadphase.reset();
     dispatcher.reset();
     collisionConfiguration.reset();
-    
-    // Note: All collision shapes are created per-cube and cleaned up via collisionShapes vector
-    
-    rigidBodies.clear();
-
-    // Cleanup characters
-    for (auto* character : characters) {
-        dynamicsWorld->removeAction(character);
-        delete character;
-    }
-    characters.clear();
-
-    for (auto* ghost : ghostObjects) {
-        dynamicsWorld->removeCollisionObject(ghost);
-        delete ghost;
-    }
-    ghostObjects.clear();
-
-    for (auto* shape : characterShapes) {
-        delete shape;
-    }
-    characterShapes.clear();
 }
 
 void PhysicsWorld::stepSimulation(float deltaTime, int maxSubSteps, float fixedTimeStep) {
@@ -293,7 +293,7 @@ btRigidBody* PhysicsWorld::createCube(const glm::vec3& position, const glm::vec3
     return body;
 }
 
-btRigidBody* PhysicsWorld::createBreakawaCube(const glm::vec3& position, const glm::vec3& size, const std::string& materialName) {
+btRigidBody* PhysicsWorld::createBreakawayCube(const glm::vec3& position, const glm::vec3& size, const std::string& materialName) {
     if (!dynamicsWorld) {
         return nullptr;
     }
@@ -371,7 +371,7 @@ btRigidBody* PhysicsWorld::createBreakawaCube(const glm::vec3& position, const g
     return body;
 }
 
-btRigidBody* PhysicsWorld::createBreakawaCube(const glm::vec3& position, const glm::vec3& size, float mass) {
+btRigidBody* PhysicsWorld::createBreakawayCube(const glm::vec3& position, const glm::vec3& size, float mass) {
     if (!dynamicsWorld) {
         return nullptr;
     }

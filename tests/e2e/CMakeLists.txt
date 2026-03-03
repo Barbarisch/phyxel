@@ -118,7 +118,7 @@ endif()
 
 # Platform-specific settings
 if(PLATFORM_WINDOWS AND MSVC)
-    set_property(TARGET phyxel_e2e_tests PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDebug$<$<CONFIG:Debug>:Debug>")
+    set_property(TARGET phyxel_e2e_tests PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 endif()
 
 # Copy shader files to test output directory so tests can find them

@@ -31,7 +31,7 @@ enable_sanitizers(phyxel_integration_tests)
 
 # Platform-specific settings
 if(PLATFORM_WINDOWS AND MSVC)
-    set_property(TARGET phyxel_integration_tests PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDebug$<$<CONFIG:Debug>:Debug>")
+    set_property(TARGET phyxel_integration_tests PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 endif()
 
 # Register integration tests with CTest

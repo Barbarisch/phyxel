@@ -139,7 +139,7 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
             
             if (m_chunkManager->physicsWorld) {
                 glm::vec3 center = glm::vec3(pos) + glm::vec3(0.5f);
-                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawaCube(center, glm::vec3(1.0f), 1.0f);
+                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawayCube(center, glm::vec3(1.0f), 1.0f);
                 cube->setRigidBody(body);
                 cube->setPhysicsPosition(center);
             }
@@ -184,7 +184,7 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
                 glm::vec3 size(1.0f/3.0f);
                 glm::vec3 center = corner + size * 0.5f;
                 
-                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawaCube(center, size, 0.5f);
+                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawayCube(center, size, 0.5f);
                 subcube->setRigidBody(body);
                 subcube->setPhysicsPosition(center);
             }
@@ -229,7 +229,7 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
                 glm::vec3 size(1.0f/9.0f);
                 glm::vec3 center = corner + size * 0.5f;
                 
-                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawaCube(center, size, 0.1f);
+                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawayCube(center, size, 0.1f);
                 microcube->setRigidBody(body);
                 microcube->setPhysicsPosition(center);
             }
@@ -321,7 +321,7 @@ void ObjectTemplateManager::update(float deltaTime) {
              auto cube = std::make_unique<Cube>(pos, tCube.material);
             if (m_chunkManager->physicsWorld) {
                 glm::vec3 center = glm::vec3(pos) + glm::vec3(0.5f);
-                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawaCube(center, glm::vec3(1.0f), 1.0f);
+                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawayCube(center, glm::vec3(1.0f), 1.0f);
                 cube->setRigidBody(body);
                 cube->setPhysicsPosition(center);
             }
@@ -367,7 +367,7 @@ void ObjectTemplateManager::update(float deltaTime) {
                 glm::vec3 corner = subcube->getWorldPosition();
                 glm::vec3 size(1.0f/3.0f);
                 glm::vec3 center = corner + size * 0.5f;
-                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawaCube(center, size, 0.5f);
+                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawayCube(center, size, 0.5f);
                 subcube->setRigidBody(body);
                 subcube->setPhysicsPosition(center);
             }
@@ -413,7 +413,7 @@ void ObjectTemplateManager::update(float deltaTime) {
                 glm::vec3 corner = microcube->getWorldPosition();
                 glm::vec3 size(1.0f/9.0f);
                 glm::vec3 center = corner + size * 0.5f;
-                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawaCube(center, size, 0.1f);
+                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawayCube(center, size, 0.1f);
                 microcube->setRigidBody(body);
                 microcube->setPhysicsPosition(center);
             }

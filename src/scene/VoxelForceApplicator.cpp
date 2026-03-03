@@ -131,7 +131,7 @@ void VoxelForceApplicator::breakCubeAtPosition(
     }
     
     glm::vec3 cubeSize(1.0f);
-    btRigidBody* rigidBody = physicsWorld->createBreakawaCube(physicsCenterPos, cubeSize, selectedMaterial);
+    btRigidBody* rigidBody = physicsWorld->createBreakawayCube(physicsCenterPos, cubeSize, selectedMaterial);
     dynamicCube->setRigidBody(rigidBody);
     
     // Apply a small random force for natural breaking effect

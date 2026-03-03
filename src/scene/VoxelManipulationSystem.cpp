@@ -242,7 +242,7 @@ bool VoxelManipulationSystem::breakCube(const CubeLocation& location, const glm:
     Physics::PhysicsWorld* physicsWorld = getPhysicsWorld();
     if (physicsWorld) {
         glm::vec3 cubeSize(1.0f);
-        btRigidBody* rigidBody = physicsWorld->createBreakawaCube(physicsCenterPos, cubeSize, selectedMaterial);
+        btRigidBody* rigidBody = physicsWorld->createBreakawayCube(physicsCenterPos, cubeSize, selectedMaterial);
         dynamicCube->setRigidBody(rigidBody);
         dynamicCube->setPhysicsPosition(physicsCenterPos);
         
@@ -425,7 +425,7 @@ bool VoxelManipulationSystem::breakMicrocube(const CubeLocation& location, bool 
         LOG_INFO_FMT("VoxelManipulation", "[MICROCUBE PHYSICS DEBUG] Size: " << microcubeSize.x);
         
         // Create dynamic physics body at center position (very light mass for tiny microcube)
-        btRigidBody* rigidBody = physicsWorld->createBreakawaCube(physicsCenterPos, microcubeSize, 0.1f); // 0.1kg mass
+        btRigidBody* rigidBody = physicsWorld->createBreakawayCube(physicsCenterPos, microcubeSize, 0.1f); // 0.1kg mass
         dynamicMicrocube->setRigidBody(rigidBody);
         dynamicMicrocube->setPhysicsPosition(physicsCenterPos);
         
@@ -502,7 +502,7 @@ bool VoxelManipulationSystem::breakCubeAtPosition(const glm::ivec3& worldPos, bo
     Physics::PhysicsWorld* physicsWorld = getPhysicsWorld();
     if (physicsWorld) {
         glm::vec3 cubeSize(1.0f);
-        btRigidBody* rigidBody = physicsWorld->createBreakawaCube(physicsCenterPos, cubeSize, selectedMaterial);
+        btRigidBody* rigidBody = physicsWorld->createBreakawayCube(physicsCenterPos, cubeSize, selectedMaterial);
         dynamicCube->setRigidBody(rigidBody);
         dynamicCube->setPhysicsPosition(physicsCenterPos);
         

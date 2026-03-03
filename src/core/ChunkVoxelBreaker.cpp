@@ -170,7 +170,7 @@ bool ChunkVoxelBreaker::breakSubcube(
                 // - physicsCenterPos: Initial position (center of mass)
                 // - subcubeSize: Collision box dimensions (0.333 x 0.333 x 0.333)
                 // - 0.5f: Mass in kg (lightweight for realistic tumbling)
-                btRigidBody* rigidBody = physicsWorld->createBreakawaCube(physicsCenterPos, subcubeSize, 0.5f);
+                btRigidBody* rigidBody = physicsWorld->createBreakawayCube(physicsCenterPos, subcubeSize, 0.5f);
                 dynamicSubcube->setRigidBody(rigidBody);
                 dynamicSubcube->setPhysicsPosition(physicsCenterPos);
                 

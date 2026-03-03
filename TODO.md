@@ -1,0 +1,129 @@
+# Phyxel - Issue Tracker
+
+## Critical: Crash-Level Bugs
+
+- [x] **1. PhysicsWorld::cleanup() use-after-free / null dereference**
+  - `dynamicsWorld.reset()` was called before character cleanup, so `dynamicsWorld->removeAction(character)` dereferenced a null pointer.
+  - File: `src/physics/PhysicsWorld.cpp` cleanup() method
+  - **Fixed**: Moved character/ghost/shape cleanup before `dynamicsWorld.reset()`.
+
+- [x] **2. DynamicObjectManager::clearAllGlobalDynamicCubes() leaks physics bodies**
+  - Called `cubes.clear()` without removing rigid bodies from the Bullet world first.
+  - File: `src/core/DynamicObjectManager.cpp`
+  - **Fixed**: Added physics body removal loop matching the subcube/microcube versions.
+
+- [x] **3. Application::cleanup() destroys physics before entities**
+  - `entities` vector was never cleared before `physicsWorld->cleanup()`.
+  - File: `src/Application.cpp` cleanup() method
+  - **Fixed**: Added `entities.clear()` + null out cached pointers before physics cleanup. Also reset `audioSystem`.
+
+## High: Code Hazards
+
+- [x] **4. Compatibility macros in Chunk.cpp**
+  - `#define physicsWorld`, `#define chunkPhysicsBody`, etc. poisoned the entire translation unit.
+  - File: `src/core/Chunk.cpp` lines 23-28
+  - **Fixed**: Replaced all 6 macros with direct `physicsManager.getXxxRef()` calls. Removed the `#undef`/`#define` hack in `breakSubcube()`. Also fixed duplicate `#include <iostream>`.
+
+- [x] **5. MSVC_RUNTIME_LIBRARY double-Debug**
+  - `"MultiThreadedDebug$<$<CONFIG:Debug>:Debug>"` evaluated to `MultiThreadedDebugDebug` in Debug.
+  - Files: `CMakeLists.txt`, `tests/CMakeLists.txt`, `tests/integration/CMakeLists.txt`, `tests/e2e/CMakeLists.txt`
+  - **Fixed**: Changed to `"MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"` to match Bullet/GLFW DLL runtime. Requires CMake regeneration.
+
+- [ ] **6. ChunkVoxelManager callback explosion**
+  - Every public method takes 6-9 `std::function` callback parameters. ChunkVoxelBreaker already uses a `setCallbacks()` pattern — ChunkVoxelManager should follow suit.
+  - Files: `include/core/ChunkVoxelManager.h`, `src/core/ChunkVoxelManager.cpp`, `src/core/Chunk.cpp`
+  - Fix: Store callbacks as members, set once via `setCallbacks()`.
+
+## Medium: Performance Hot-Path Issues
+
+- [ ] **7. DynamicObjectManager rebuilds GPU faces every frame**
+  - `updateGlobalDynamic*Positions()` calls `m_rebuildFaces()` every frame when any transform changes (always true for moving objects).
+  - File: `src/core/DynamicObjectManager.cpp`
+  - Fix: Batch or throttle face rebuilds; separate dynamic object buffer updates from full chunk rebuilds.
+
+- [ ] **8. RenderCoordinator per-frame heap allocation & redundant work**
+  - `std::vector<size_t>` allocated on heap every frame in `renderStaticGeometry()`.
+  - Frustum re-extracted from VP matrix per chunk instead of once per frame.
+  - `getPerformanceStats()` called 3 times per frame.
+  - File: `src/graphics/RenderCoordinator.cpp`
+  - Fix: Preallocate visible chunk vector; compute frustum once; cache perf stats.
+
+- [ ] **9. ChunkVoxelManager removeMicrocube() O(27) nested loop**
+  - Triple-nested 3x3x3 loop calling `getMicrocubesHelper()` per iteration. `microcubeMap[cubePos].empty()` would suffice.
+  - File: `src/core/ChunkVoxelManager.cpp`
+  - Fix: Replace nested loop with map emptiness check.
+
+- [x] **10. DynamicObjectManager enforceObjectLimits() is O(n²)**
+  - `cubes.erase(cubes.begin())` in a loop — front-erasure on a vector.
+  - File: `src/core/DynamicObjectManager.cpp`
+  - **Fixed**: Changed to bulk erase with single `cubes.erase(begin, begin + removeCount)`.
+
+## Low: Code Quality & Cleanup
+
+- [ ] **11. Raw `new` for all voxels (Cube/Subcube/Microcube)**
+  - No RAII wrappers; manual `delete` loops in destructors. Exception-unsafe.
+  - Files: `src/core/ChunkVoxelManager.cpp`, `src/core/Chunk.cpp`
+  - Fix: Migrate to `std::unique_ptr` or pool allocator.
+
+- [x] **12. `createBreakawaCube` typo**
+  - Missing 'y' in "breakaway" — persisted across header and implementation.
+  - Files: `include/physics/PhysicsWorld.h`, `src/physics/PhysicsWorld.cpp`, plus 4 callers
+  - **Fixed**: Renamed to `createBreakawayCube` across all 6 files (15 occurrences).
+
+- [ ] **13. Four near-identical cube creation methods in PhysicsWorld**
+  - `createCube(pos, size, mass)`, `createCube(pos, size, materialName)`, `createBreakawaCube(...)` x2 share ~80% code.
+  - File: `src/physics/PhysicsWorld.cpp`
+  - Fix: Consolidate with a private helper method.
+
+- [ ] **14. `void*` in DynamicObjectManager::derezCharacter()**
+  - C-style type erasure to avoid circular deps. A forward declaration or interface would preserve type safety.
+  - File: `include/core/DynamicObjectManager.h`
+  - Fix: Use forward declaration + properly typed parameter.
+
+- [x] **15. `resetMouseDelta()` called twice per frame**
+  - Called at both top and bottom of the game loop in Application::run().
+  - File: `src/Application.cpp`
+  - **Fixed**: Removed the duplicate call at the end of the frame.
+
+- [x] **16. `camera->setMode(Free)` called twice during init**
+  - Lines 209 and 218 of Application.cpp.
+  - File: `src/Application.cpp`
+  - **Fixed**: Removed the duplicate call.
+
+- [ ] **17. CMake project name still `VulkanCube`**
+  - Executable, .sln, namespace, and many references use the old name despite project being "phyxel".
+  - File: `CMakeLists.txt` and throughout
+  - Note: Larger rename effort — track separately.
+
+- [x] **18. Duplicate `#include <iostream>` in Chunk.cpp**
+  - File: `src/core/Chunk.cpp` lines 8 and 10
+  - **Fixed**: Removed the duplicate (done as part of issue #4).
+
+## Testing Gaps
+
+- [ ] **19. WorldStorage has only 1 test (initialize returns true)**
+  - 926-line class with no save/load round-trip tests.
+  - File: `tests/core/WorldStorageTest.cpp`
+  - Fix: Add round-trip persistence tests, corruption handling, subcube/microcube storage.
+
+- [ ] **20. ChunkManager has zero unit tests**
+  - 1,200+ line orchestrator with no direct unit tests. Integration tests don't assert on face culling correctness.
+  - Fix: Add unit tests with MockChunkManager or test chunks in isolation.
+
+- [ ] **21. E2E tests are ~80% stubs**
+  - Tests call `app.initialize()`, sleep, then `app.cleanup()` with no assertions.
+  - Files: `tests/e2e/ApplicationE2ETests.cpp`, `tests/e2e/WorldInteractionE2ETests.cpp`
+  - Fix: Implement actual assertions or remove placeholder tests.
+
+- [ ] **22. ~60% of benchmarks commented out**
+  - Due to `std::function` callback issues (related to issue #6).
+  - File: `tests/benchmark/ChunkBenchmarks.cpp`
+  - Fix: Unblock after fixing callback explosion (#6).
+
+- [ ] **23. Sanitizers (ASan/TSan) OFF by default**
+  - File: `cmake/Sanitizers.cmake`
+  - Fix: Enable at least ASan for Debug builds by default, or add a CI preset that does.
+
+- [ ] **24. Zero tests for ChunkStreamingManager, ForceSystem, DebrisSystem, ScriptingSystem, CollisionSpatialGrid**
+  - Core gameplay and infrastructure systems with no test coverage.
+  - Fix: Prioritize ForceSystem and ChunkStreamingManager tests.
