@@ -5,6 +5,7 @@ namespace Scene {
 
 Player::Player(Physics::PhysicsWorld* physicsWorld, Input::InputManager* inputManager, Graphics::Camera* camera, const glm::vec3& startPos)
     : Character(physicsWorld, startPos), inputManager(inputManager), camera(camera) {
+    debugColor = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f); // Green for Player
 }
 
 void Player::update(float deltaTime) {

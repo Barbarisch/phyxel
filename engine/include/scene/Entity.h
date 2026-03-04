@@ -35,6 +35,9 @@ public:
         return model;
     }
 
+    /// Debug visualization color (subclasses set this for renderer identification)
+    glm::vec4 debugColor = glm::vec4(1.0f); // default white
+
 protected:
     glm::vec3 position = glm::vec3(0.0f);
     glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);

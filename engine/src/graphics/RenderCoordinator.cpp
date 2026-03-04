@@ -15,11 +15,9 @@
 #include "utils/Logger.h"
 #include "utils/GpuProfiler.h"
 #include "scene/Character.h"
-#include "scene/Player.h"
-#include "scene/Enemy.h"
+#include "scene/Entity.h"
 #include "scene/RagdollCharacter.h"
 #include "scene/PhysicsCharacter.h"
-#include "scene/SpiderCharacter.h"
 #include "scene/AnimatedVoxelCharacter.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <map>
@@ -762,12 +760,7 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
             glm::mat4 model = character->getModelMatrix();
             glm::mat4 viewProj = cachedProjectionMatrix * cachedViewMatrix;
             
-            glm::vec4 color(1.0f); // Default white
-            if (dynamic_cast<Scene::Player*>(character)) {
-                color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f); // Green for Player
-            } else if (dynamic_cast<Scene::Enemy*>(character)) {
-                color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f); // Red for Enemy
-            }
+            glm::vec4 color = character->debugColor;
 
             struct PushConsts {
                 glm::mat4 model;

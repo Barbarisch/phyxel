@@ -6,6 +6,7 @@ namespace Scene {
 
 Enemy::Enemy(Physics::PhysicsWorld* physicsWorld, const glm::vec3& startPos)
     : Character(physicsWorld, startPos) {
+    debugColor = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f); // Red for Enemy
 }
 
 void Enemy::update(float deltaTime) {

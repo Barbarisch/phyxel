@@ -1,5 +1,4 @@
 #include "scripting/ScriptingSystem.h"
-#include "Application.h"
 #include "utils/Logger.h"
 #include <pybind11/pybind11.h>
 #include <algorithm>
