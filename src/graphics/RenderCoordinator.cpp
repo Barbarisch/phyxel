@@ -2,7 +2,6 @@
 #include "graphics/RaycastVisualizer.h"
 #include "graphics/ShadowMap.h"
 #include "graphics/PostProcessor.h"
-#include "graphics/PostProcessor.h"
 #include "graphics/Camera.h"
 #include "graphics/DebrisRenderPipeline.h"
 #include "vulkan/RenderPipeline.h"
@@ -129,7 +128,15 @@ size_t RenderCoordinator::renderStaticGeometry() {
         
         // LEVEL 1: Distance-based culling (sphere of influence)
         // LEVEL 2: Frustum culling (camera view)
-        std::vector<size_t> visibleChunkIndices;
+        visibleChunkIndices.clear();  // Reuse preallocated member vector
+        
+        // Compute camera position and frustum ONCE per frame (invariant across chunks)
+        glm::vec3 cameraPos = camera->getPosition();
+        glm::mat4 view = glm::lookAt(cameraPos, cameraPos + camera->getFront(), camera->getUp());
+        glm::mat4 viewProjection = cachedProjectionMatrix * view;
+        
+        Utils::Frustum cameraFrustum;
+        cameraFrustum.extractFromMatrix(viewProjection);
         
         for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
             const Chunk* chunk = chunkManager->chunks[i].get();
@@ -143,7 +150,7 @@ size_t RenderCoordinator::renderStaticGeometry() {
             glm::vec3 chunkCenter = (minBounds + maxBounds) * 0.5f;
             
             // LEVEL 1: Chunk inclusion distance culling (broader range for chunk loading)
-            float distanceToCamera = glm::length(chunkCenter - camera->getPosition());
+            float distanceToCamera = glm::length(chunkCenter - cameraPos);
             if (distanceToCamera > chunkInclusionDistance) {
                 continue; // Skip chunk - too far away even for loading
             }
@@ -151,18 +158,6 @@ size_t RenderCoordinator::renderStaticGeometry() {
             // LEVEL 2: Frustum culling (uses actual render distance)
             // Create AABB for frustum testing
             Utils::AABB chunkAABB(minBounds, maxBounds);
-            
-            // Extract frustum from current view/projection matrices (uses maxChunkRenderDistance)
-            glm::vec3 cameraPos = camera->getPosition();
-            glm::vec3 cameraFront = camera->getFront();
-            glm::vec3 cameraUp = camera->getUp();
-            
-            glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-            glm::mat4 proj = cachedProjectionMatrix;
-            glm::mat4 viewProjection = proj * view;
-            
-            Utils::Frustum cameraFrustum;
-            cameraFrustum.extractFromMatrix(viewProjection);
             
             // Test chunk against frustum (this uses the shorter render distance in projection matrix)
             if (!cameraFrustum.intersects(chunkAABB)) {
@@ -399,8 +394,7 @@ void RenderCoordinator::drawFrame() {
     
     // Record occlusion culling statistics from chunk manager
     if (chunkManager && !chunkManager->chunks.empty()) {
-        // Get occlusion stats from chunk manager
-        auto chunkStats = chunkManager->getPerformanceStats();
+        // Reuse chunkStats cached at top of drawFrame()
         performanceMonitor->getCurrentFrameTiming().fullyOccludedCubes = static_cast<int>(chunkStats.fullyOccludedCubes);
         performanceMonitor->getCurrentFrameTiming().partiallyOccludedCubes = static_cast<int>(chunkStats.partiallyOccludedCubes);
         performanceMonitor->getCurrentFrameTiming().totalHiddenFaces = static_cast<int>(chunkStats.totalHiddenFaces);
@@ -477,9 +471,7 @@ void RenderCoordinator::drawFrame() {
             renderEntities(vulkanDevice->getCommandBuffer(currentFrame));
         }
         
-        // Get accurate performance statistics from chunk manager
-        auto chunkStats = chunkManager->getPerformanceStats();
-        
+        // Reuse chunkStats cached at top of drawFrame()
         // Update frame timing with chunk-based statistics using ACTUAL rendered chunks
         performanceMonitor->getCurrentFrameTiming().drawCalls = static_cast<int>(actuallyRenderedChunks);  // Only chunks that passed culling
         performanceMonitor->getCurrentFrameTiming().vertexCount = static_cast<int>(chunkStats.totalVertices);

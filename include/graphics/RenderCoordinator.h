@@ -180,6 +180,9 @@ private:
     uint32_t lastVisibleInstances = 0;
     uint32_t lastCulledInstances = 0;
 
+    // Preallocated to avoid per-frame heap allocation in renderStaticGeometry()
+    std::vector<size_t> visibleChunkIndices;
+
     // Debris Rendering
     std::unique_ptr<DebrisRenderPipeline> debrisPipeline;
 };

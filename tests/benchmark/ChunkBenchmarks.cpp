@@ -53,9 +53,10 @@ TEST_F(ChunkBenchmarks, MultipleChunkCreation) {
     EXPECT_LT(result.averageMs, 1300.0) << "Creating 10 chunks is too slow";
 }
 
-// NOTE: ChunkManager benchmarks temporarily disabled due to std::function callback
-// issues in benchmark environment. ChunkManager is tested in integration tests.
-/*
+// NOTE: ChunkManager benchmarks re-enabled after fixing callback explosion (issue #6).
+// ChunkVoxelManager now uses stored callbacks via setCallbacks(), with no std::function
+// arguments needed at call sites.
+
 TEST_F(ChunkBenchmarks, ChunkManagerCreation) {
     auto result = runBenchmark("ChunkManager create chunk", 50, 1, [this]() {
         auto testManager = std::make_unique<ChunkManager>();
@@ -66,13 +67,11 @@ TEST_F(ChunkBenchmarks, ChunkManagerCreation) {
     
     EXPECT_LT(result.averageMs, 150.0) << "ChunkManager chunk creation is too slow";
 }
-*/
 
 // ============================================================================
 // Voxel Operation Benchmarks
 // ============================================================================
 
-/*
 TEST_F(ChunkBenchmarks, AddCubePerformance) {
     auto testManager = std::make_unique<ChunkManager>();
     testManager->setPhysicsWorld(physicsWorld.get());
@@ -83,7 +82,7 @@ TEST_F(ChunkBenchmarks, AddCubePerformance) {
     auto result = runBenchmark("Add 100 cubes", 10, 100, [&]() {
         for (int i = 0; i < 100; ++i) {
             glm::ivec3 pos(cubeIndex % 32, (cubeIndex / 32) % 32, (cubeIndex / 1024) % 32);
-            testManager->addCube(pos, glm::vec3(1.0f, 0.0f, 0.0f));
+            testManager->addCube(pos);
             cubeIndex++;
         }
     });
@@ -126,7 +125,6 @@ TEST_F(ChunkBenchmarks, GetCubeAtPerformance) {
     EXPECT_LT(result.averageMs, 10.0) << "Cube queries are too slow";
     EXPECT_GT(result.opsPerSecond(), 50000.0) << "Should handle at least 50k queries per second";
 }
-*/
 
 // ============================================================================
 // Face Culling Benchmarks
@@ -144,7 +142,6 @@ TEST_F(ChunkBenchmarks, SingleChunkFaceCulling) {
     EXPECT_LT(result.averageMs, 50.0) << "Face rebuilding is too slow";
 }
 
-/*
 TEST_F(ChunkBenchmarks, MultiChunkFaceCulling) {
     auto testManager = std::make_unique<ChunkManager>();
     testManager->setPhysicsWorld(physicsWorld.get());
@@ -160,7 +157,6 @@ TEST_F(ChunkBenchmarks, MultiChunkFaceCulling) {
     
     EXPECT_LT(result.averageMs, 250.0) << "Multi-chunk face rebuilding is too slow";
 }
-*/
 
 // ============================================================================
 // Memory Benchmarks
@@ -200,7 +196,6 @@ TEST_F(ChunkBenchmarks, ChunkMemoryFootprint) {
 // Voxel Map Initialization Benchmark
 // ============================================================================
 
-/*
 TEST_F(ChunkBenchmarks, VoxelMapInitialization) {
     auto testManager = std::make_unique<ChunkManager>();
     testManager->setPhysicsWorld(physicsWorld.get());
@@ -216,7 +211,6 @@ TEST_F(ChunkBenchmarks, VoxelMapInitialization) {
     
     EXPECT_LT(result.averageMs, 600.0) << "Voxel map initialization is too slow";
 }
-*/
 
 } // namespace Testing
 } // namespace VulkanCube

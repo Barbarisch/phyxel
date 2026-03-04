@@ -98,6 +98,23 @@ private:
 
     // Helper functions
     btRigidBody* createRigidBody(float mass, const btTransform& startTransform, btCollisionShape* shape);
+
+    // Consolidated cube creation helper to eliminate code duplication across
+    // createCube(), createBreakawayCube(), and their overloads.
+    struct CubeCreationParams {
+        glm::vec3 position;
+        glm::vec3 size;
+        float mass = 1.0f;
+        float restitution = 0.2f;
+        float friction = 0.8f;
+        float rollingFriction = 0.3f;
+        float linearDamping = 0.0f;
+        float angularDamping = 0.0f;
+        float sizeShrinkFactor = 1.0f;  // 1.0 = no shrink, 0.95 = 5% smaller
+        float deactivationTime = 0.5f;
+        bool isBreakaway = false;       // Adds CF_CUSTOM_MATERIAL_CALLBACK flag
+    };
+    btRigidBody* createCubeInternal(const CubeCreationParams& params);
     void cleanupFallenCubes(); // Remove cubes that have fallen below the world
     btTransform glmToBulletTransform(const glm::vec3& position, const glm::quat& rotation = glm::quat(1,0,0,0)) const;
     glm::mat4 bulletToGlmMatrix(const btTransform& transform) const;

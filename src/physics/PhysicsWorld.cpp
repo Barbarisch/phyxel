@@ -121,342 +121,154 @@ void PhysicsWorld::reset() {
     }
 }
 
-btRigidBody* PhysicsWorld::createCube(const glm::vec3& position, const glm::vec3& size, float mass) {
+// ============================================================================
+// Consolidated cube creation helper
+// All four public cube creation methods delegate to this to eliminate duplication.
+// ============================================================================
+btRigidBody* PhysicsWorld::createCubeInternal(const CubeCreationParams& params) {
     if (!dynamicsWorld) {
         return nullptr;
     }
-    
-    // Make dynamic cubes slightly smaller than static counterparts to prevent embedding
-    // This creates natural gaps that allow broken pieces to separate cleanly
-    glm::vec3 adjustedSize = size;
-    if (mass > 0.0f) { // Only reduce size for dynamic objects
-        const float dynamicSizeReduction = 0.95f; // 5% smaller than static cubes
-        adjustedSize = size * dynamicSizeReduction;
-        // std::cout << "[PHYSICS] Creating dynamic cube with reduced size (" << adjustedSize.x << ", " << adjustedSize.y << ", " << adjustedSize.z 
-        //           << ") - 95% of original (" << size.x << ", " << size.y << ", " << size.z << ") for gap prevention" << std::endl;
-    } else {
-        //std::cout << "[PHYSICS] Creating static cube with full size (" << adjustedSize.x << ", " << adjustedSize.y << ", " << adjustedSize.z << ")" << std::endl;
-    }
-    
-    // Create a collision shape based on the adjusted size parameter
-    // adjustedSize is the full size, btBoxShape expects half-extents
+
+    // Apply size shrink factor (creates gaps so broken pieces separate cleanly)
+    glm::vec3 adjustedSize = params.size * params.sizeShrinkFactor;
+
+    // Create box collision shape (half-extents)
     btVector3 halfExtents(adjustedSize.x / 2.0f, adjustedSize.y / 2.0f, adjustedSize.z / 2.0f);
     btBoxShape* collisionShape = new btBoxShape(halfExtents);
-    collisionShapes.push_back(collisionShape); // Store for cleanup
-    
-    // Create transform
-    btTransform startTransform = glmToBulletTransform(position);
-    
-    // Create motion state
+    collisionShapes.push_back(collisionShape);
+
+    // Transform & motion state
+    btTransform startTransform = glmToBulletTransform(params.position);
     btDefaultMotionState* motionState = new btDefaultMotionState(startTransform);
     motionStates.push_back(motionState);
-    
-    // Calculate local inertia
+
+    // Local inertia
     btVector3 localInertia(0, 0, 0);
-    if (mass != 0.0f) {
-        collisionShape->calculateLocalInertia(mass, localInertia);
-    }
-    
-    // Create rigid body with the correctly sized collision shape
-    btRigidBody::btRigidBodyConstructionInfo rbInfo(mass, motionState, collisionShape, localInertia);
-    
-    // Set more realistic physics properties for dynamic objects
-    if (mass > 0.0f) {
-        rbInfo.m_restitution = 0.2f;  // Low bounce for rock-like behavior
-        rbInfo.m_friction = 0.8f;     // High friction so they don't slide around too much
-        rbInfo.m_rollingFriction = 0.3f; // Rolling resistance
-    }
-    
-    btRigidBody* body = new btRigidBody(rbInfo);
-    
-    // Set appropriate collision margin based on cube type
-    float objectSize = std::min({size.x, size.y, size.z});
-    float appropriateMargin;
-    
-    if (objectSize <= 0.34f) {  // Subcubes are 1/3 scale ≈ 0.333
-        // Subcubes - smaller margin for precision
-        appropriateMargin = 0.005f;
-    } else {
-        // Regular cubes - standard margin
-        appropriateMargin = 0.01f;
-    }
-    
-    collisionShape->setMargin(appropriateMargin);
-    // std::cout << "[COLLISION] Set collision margin " << appropriateMargin 
-    //           << " for " << (objectSize <= 0.34f ? "subcube" : "regular cube") 
-    //           << " size " << objectSize << std::endl;
-    
-    // Enable CCD for dynamic objects to prevent tunneling
-    if (mass > 0.0f) {
-        body->setCcdMotionThreshold(objectSize * 0.5f);
-        body->setCcdSweptSphereRadius(objectSize * 0.2f);
+    if (params.mass != 0.0f) {
+        collisionShape->calculateLocalInertia(params.mass, localInertia);
     }
 
-    // Add to world
+    // Construction info with physics properties
+    btRigidBody::btRigidBodyConstructionInfo rbInfo(params.mass, motionState, collisionShape, localInertia);
+    if (params.mass > 0.0f) {
+        rbInfo.m_restitution = params.restitution;
+        rbInfo.m_friction = params.friction;
+        rbInfo.m_rollingFriction = params.rollingFriction;
+    }
+
+    btRigidBody* body = new btRigidBody(rbInfo);
+
+    // Damping (only meaningful for dynamic objects)
+    if (params.linearDamping > 0.0f || params.angularDamping > 0.0f) {
+        body->setDamping(params.linearDamping, params.angularDamping);
+    }
+
+    // Collision margin based on object size
+    float objectSize = std::min({adjustedSize.x, adjustedSize.y, adjustedSize.z});
+    float appropriateMargin;
+    bool isMicrocube = (objectSize < 0.12f);
+
+    if (isMicrocube) {
+        appropriateMargin = 0.002f;
+    } else if (objectSize <= 0.34f) {
+        appropriateMargin = 0.005f;
+    } else {
+        appropriateMargin = 0.01f;
+    }
+    collisionShape->setMargin(appropriateMargin);
+
+    // CCD for dynamic objects to prevent tunneling
+    if (params.mass > 0.0f) {
+        if (isMicrocube) {
+            body->setCcdMotionThreshold(objectSize * 0.5f);
+            body->setCcdSweptSphereRadius(objectSize * 0.4f);
+        } else {
+            body->setCcdMotionThreshold(objectSize * 0.5f);
+            body->setCcdSweptSphereRadius(objectSize * 0.2f);
+        }
+    }
+
+    // Add to world & track
     dynamicsWorld->addRigidBody(body);
     rigidBodies.push_back(body);
-    
-    // Force activation to ensure immediate overlap resolution when spawned at exact positions
+
+    // Force activation for immediate overlap resolution
     body->setActivationState(ACTIVE_TAG);
     body->activate(true);
-    body->setDeactivationTime(0.5f); // Stay active longer to resolve overlaps
-    
+    body->setDeactivationTime(params.deactivationTime);
+
+    // Breakaway cubes get custom material callback for immediate collision processing
+    if (params.isBreakaway) {
+        body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_CUSTOM_MATERIAL_CALLBACK);
+    }
+
     return body;
+}
+
+btRigidBody* PhysicsWorld::createCube(const glm::vec3& position, const glm::vec3& size, float mass) {
+    CubeCreationParams params;
+    params.position = position;
+    params.size = size;
+    params.mass = mass;
+    params.sizeShrinkFactor = (mass > 0.0f) ? 0.95f : 1.0f;
+    // Default dynamic properties: low bounce, high friction
+    params.restitution = 0.2f;
+    params.friction = 0.8f;
+    params.rollingFriction = 0.3f;
+    return createCubeInternal(params);
 }
 
 btRigidBody* PhysicsWorld::createCube(const glm::vec3& position, const glm::vec3& size, const std::string& materialName) {
-    if (!dynamicsWorld) {
-        return nullptr;
-    }
-    
-    // Get material properties
     static Physics::MaterialManager materialManager;
     const auto& material = materialManager.getMaterial(materialName);
-    
-    // Make dynamic cubes slightly smaller than static counterparts to prevent embedding
-    // This creates natural gaps that allow broken pieces to separate cleanly
-    const float dynamicSizeReduction = 0.95f; // 5% smaller than static cubes
-    glm::vec3 adjustedSize = size * dynamicSizeReduction;
-    
-    // Create a collision shape based on the adjusted size parameter
-    // adjustedSize is the full size, btBoxShape expects half-extents
-    btVector3 halfExtents(adjustedSize.x / 2.0f, adjustedSize.y / 2.0f, adjustedSize.z / 2.0f);
-    btBoxShape* collisionShape = new btBoxShape(halfExtents);
-    collisionShapes.push_back(collisionShape); // Store for cleanup
-    
-    // std::cout << "[PHYSICS] Creating dynamic cube with material '" << materialName << "' at (" 
-    //           << position.x << ", " << position.y << ", " << position.z 
-    //           << ") - size reduced to " << (dynamicSizeReduction * 100) << "% of original for gap prevention" << std::endl;
-    
-    // Create transform
-    btTransform startTransform = glmToBulletTransform(position);
-    
-    // Create motion state
-    btDefaultMotionState* motionState = new btDefaultMotionState(startTransform);
-    motionStates.push_back(motionState);
-    
-    // Calculate local inertia
-    btVector3 localInertia(0, 0, 0);
-    if (material.mass != 0.0f) {
-        collisionShape->calculateLocalInertia(material.mass, localInertia);
-    }
-    
-    // Create rigid body with material properties
-    btRigidBody::btRigidBodyConstructionInfo rbInfo(material.mass, motionState, collisionShape, localInertia);
-    
-    // Apply material physics properties
-    rbInfo.m_restitution = material.restitution;
-    rbInfo.m_friction = material.friction;
-    rbInfo.m_rollingFriction = material.friction * 0.5f; // Rolling friction as fraction of surface friction
-    
-    btRigidBody* body = new btRigidBody(rbInfo);
-    
-    // Apply damping
-    body->setDamping(material.linearDamping, material.angularDamping);
-    
-    // Set appropriate collision margin based on cube type
-    float objectSize = std::min({size.x, size.y, size.z});
-    float appropriateMargin;
-    
-    if (objectSize <= 0.34f) {  // Subcubes are 1/3 scale ≈ 0.333
-        // Subcubes - smaller margin for precision
-        appropriateMargin = 0.005f;
-    } else {
-        // Regular cubes - standard margin
-        appropriateMargin = 0.01f;
-    }
-    
-    collisionShape->setMargin(appropriateMargin);
-    // std::cout << "[COLLISION] Set collision margin " << appropriateMargin 
-    //           << " for " << (objectSize <= 0.34f ? "subcube" : "regular cube") 
-    //           << " size " << objectSize << std::endl;
-    
-    // Enable CCD for dynamic objects to prevent tunneling
-    if (material.mass > 0.0f) {
-        body->setCcdMotionThreshold(objectSize * 0.5f);
-        body->setCcdSweptSphereRadius(objectSize * 0.2f);
-    }
 
-    // Add to world
-    dynamicsWorld->addRigidBody(body);
-    rigidBodies.push_back(body);
-    
-    // Force activation to ensure immediate overlap resolution when spawned at exact positions
-    body->setActivationState(ACTIVE_TAG);
-    body->activate(true);
-    body->setDeactivationTime(0.5f); // Stay active longer to resolve overlaps
-    
-    // std::cout << "[MATERIAL] Applied '" << materialName << "' properties: mass=" << material.mass 
-    //           << ", friction=" << material.friction << ", restitution=" << material.restitution 
-    //           << " (forced activation for overlap resolution)" << std::endl;
-    
-    return body;
+    CubeCreationParams params;
+    params.position = position;
+    params.size = size;
+    params.mass = material.mass;
+    params.sizeShrinkFactor = 0.95f;
+    params.restitution = material.restitution;
+    params.friction = material.friction;
+    params.rollingFriction = material.friction * 0.5f;
+    params.linearDamping = material.linearDamping;
+    params.angularDamping = material.angularDamping;
+    return createCubeInternal(params);
 }
 
 btRigidBody* PhysicsWorld::createBreakawayCube(const glm::vec3& position, const glm::vec3& size, const std::string& materialName) {
-    if (!dynamicsWorld) {
-        return nullptr;
-    }
-    
-    // Get material properties
     static Physics::MaterialManager materialManager;
     const auto& material = materialManager.getMaterial(materialName);
-    
-    // Create a collision shape that's slightly smaller than the visual size to prevent embedding
-    // This gives the physics engine room to separate the cube from surrounding geometry
-    float shrinkFactor = 0.95f; // 5% smaller collision shape
-    glm::vec3 shrunkSize = size * shrinkFactor;
-    btVector3 halfExtents(shrunkSize.x / 2.0f, shrunkSize.y / 2.0f, shrunkSize.z / 2.0f);
-    btBoxShape* collisionShape = new btBoxShape(halfExtents);
-    collisionShapes.push_back(collisionShape); // Store for cleanup
-    
-    // std::cout << "[PHYSICS] Creating breakaway cube with material '" << materialName << "' at (" 
-    //           << position.x << ", " << position.y << ", " << position.z << ")" 
-    //           << " with " << (shrinkFactor * 100) << "% collision size for gap creation" << std::endl;
-    
-    // Create transform
-    btTransform startTransform = glmToBulletTransform(position);
-    
-    // Create motion state
-    btDefaultMotionState* motionState = new btDefaultMotionState(startTransform);
-    motionStates.push_back(motionState);
-    
-    // Calculate local inertia based on the full mass (not the shrunk collision size)
-    btVector3 localInertia(0, 0, 0);
-    if (material.mass != 0.0f) {
-        collisionShape->calculateLocalInertia(material.mass, localInertia);
-    }
-    
-    // Create rigid body with material properties
-    btRigidBody::btRigidBodyConstructionInfo rbInfo(material.mass, motionState, collisionShape, localInertia);
-    
-    // Apply material physics properties
-    rbInfo.m_restitution = material.restitution;
-    rbInfo.m_friction = material.friction;
-    rbInfo.m_rollingFriction = material.friction * 0.5f; // Rolling friction as fraction of surface friction
-    
-    btRigidBody* body = new btRigidBody(rbInfo);
-    
-    // Apply damping
-    body->setDamping(material.linearDamping, material.angularDamping);
-    
-    // Set appropriate collision margin based on cube type
-    float objectSize = std::min({shrunkSize.x, shrunkSize.y, shrunkSize.z});
-    float appropriateMargin = (objectSize <= 0.32f) ? 0.005f : 0.01f; // Subcube vs regular cube (accounting for 95% shrink)
-    
-    collisionShape->setMargin(appropriateMargin);
-    // std::cout << "[COLLISION] Set collision margin " << appropriateMargin 
-    //           << " for " << (objectSize <= 0.32f ? "subcube" : "regular cube") 
-    //           << " breakaway size " << objectSize << std::endl;
-    
-    // Add to world with normal collision (no special filtering)
-    // Dynamic cubes should collide with everything including static chunks and other dynamic cubes
-    dynamicsWorld->addRigidBody(body);
-    rigidBodies.push_back(body);
-    
-    //std::cout << "[COLLISION] Dynamic cube added with normal collision - can collide with static chunks and other cubes" << std::endl;
-    
-    // Force activation and set collision flags for immediate separation
-    body->setActivationState(ACTIVE_TAG);
-    body->activate(true);
-    body->setDeactivationTime(1.0f); // Stay active longer for breakaway cubes
-    
-    // Set collision flags to ensure it processes collisions immediately
-    body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_CUSTOM_MATERIAL_CALLBACK);
-    
-    // std::cout << "[MATERIAL] Applied '" << materialName << "' breakaway properties: mass=" << material.mass 
-    //           << ", friction=" << material.friction << ", restitution=" << material.restitution 
-    //           << " (shrunk collision for gap creation)" << std::endl;
-    
-    return body;
+
+    CubeCreationParams params;
+    params.position = position;
+    params.size = size;
+    params.mass = material.mass;
+    params.sizeShrinkFactor = 0.95f;
+    params.restitution = material.restitution;
+    params.friction = material.friction;
+    params.rollingFriction = material.friction * 0.5f;
+    params.linearDamping = material.linearDamping;
+    params.angularDamping = material.angularDamping;
+    params.deactivationTime = 1.0f;
+    params.isBreakaway = true;
+    return createCubeInternal(params);
 }
 
 btRigidBody* PhysicsWorld::createBreakawayCube(const glm::vec3& position, const glm::vec3& size, float mass) {
-    if (!dynamicsWorld) {
-        return nullptr;
-    }
-    
-    // Create a collision shape that's slightly smaller than the visual size to prevent embedding
-    // This gives the physics engine room to separate the cube from surrounding geometry
-    float shrinkFactor = 0.95f; // 5% smaller collision shape
-    glm::vec3 shrunkSize = size * shrinkFactor;
-    btVector3 halfExtents(shrunkSize.x / 2.0f, shrunkSize.y / 2.0f, shrunkSize.z / 2.0f);
-    btBoxShape* collisionShape = new btBoxShape(halfExtents);
-    collisionShapes.push_back(collisionShape); // Store for cleanup
-    
-    // std::cout << "[PHYSICS] Creating breakaway cube with mass " << mass << " at (" 
-    //           << position.x << ", " << position.y << ", " << position.z << ")" 
-    //           << " with " << (shrinkFactor * 100) << "% collision size for gap creation" << std::endl;
-    
-    // Create transform
-    btTransform startTransform = glmToBulletTransform(position);
-    
-    // Create motion state
-    btDefaultMotionState* motionState = new btDefaultMotionState(startTransform);
-    motionStates.push_back(motionState);
-    
-    // Calculate local inertia based on the mass
-    btVector3 localInertia(0, 0, 0);
-    if (mass != 0.0f) {
-        collisionShape->calculateLocalInertia(mass, localInertia);
-    }
-    
-    // Create rigid body with default properties
-    btRigidBody::btRigidBodyConstructionInfo rbInfo(mass, motionState, collisionShape, localInertia);
-    
-    // Apply reasonable default physics properties for breakaway cubes
-    rbInfo.m_restitution = 0.3f;  // Some bounce
-    rbInfo.m_friction = 0.7f;     // Good friction
-    rbInfo.m_rollingFriction = 0.35f; // Rolling friction
-    
-    btRigidBody* body = new btRigidBody(rbInfo);
-    
-    // Apply damping for stability
-    body->setDamping(0.1f, 0.1f); // Light damping
-    
-    // Set appropriate collision margin based on cube type
-    float objectSize = std::min({shrunkSize.x, shrunkSize.y, shrunkSize.z});
-    float appropriateMargin;
-    bool isMicrocube = (objectSize < 0.12f); // Microcubes after 95% shrink are ~0.1056
-    
-    if (isMicrocube) {
-        appropriateMargin = 0.002f; // Smaller margin for tiny microcubes (2% of size)
-    } else if (objectSize <= 0.32f) {
-        appropriateMargin = 0.005f; // Subcubes
-    } else {
-        appropriateMargin = 0.01f; // Regular cubes
-    }
-    
-    collisionShape->setMargin(appropriateMargin);
-    
-    // Add to world
-    dynamicsWorld->addRigidBody(body);
-    rigidBodies.push_back(body);
-    
-    // For very small objects (microcubes), enable Continuous Collision Detection to prevent tunneling
-    if (isMicrocube) {
-        // CCD motion threshold: object must move more than this in one frame to trigger CCD
-        // Set to 50% of object size - if it moves more than half its size per frame, use CCD
-        body->setCcdMotionThreshold(objectSize * 0.5f);
-        // CCD swept sphere radius: use a sphere 80% of the smallest dimension
-        body->setCcdSweptSphereRadius(objectSize * 0.4f);
-        // LOG_INFO_FMT("Physics", "[MICROCUBE CCD] Enabled for object size " << objectSize 
-        //           << " - Threshold: " << (objectSize * 0.5f) << " Radius: " << (objectSize * 0.4f)
-        //           << " Margin: " << appropriateMargin);
-    }
-    
-    // Force activation and set collision flags for immediate separation
-    body->setActivationState(ACTIVE_TAG);
-    body->activate(true);
-    body->setDeactivationTime(1.0f); // Stay active longer for breakaway cubes
-    
-    // Set collision flags to ensure it processes collisions immediately
-    body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_CUSTOM_MATERIAL_CALLBACK);
-    
-    // std::cout << "[MATERIAL] Applied breakaway properties: mass=" << mass 
-    //           << ", friction=0.7, restitution=0.3 (shrunk collision for gap creation)" << std::endl;
-    
-    return body;
+    CubeCreationParams params;
+    params.position = position;
+    params.size = size;
+    params.mass = mass;
+    params.sizeShrinkFactor = 0.95f;
+    params.restitution = 0.3f;
+    params.friction = 0.7f;
+    params.rollingFriction = 0.35f;
+    params.linearDamping = 0.1f;
+    params.angularDamping = 0.1f;
+    params.deactivationTime = 1.0f;
+    params.isBreakaway = true;
+    return createCubeInternal(params);
 }
 
 btRigidBody* PhysicsWorld::createStaticCube(const glm::vec3& position, const glm::vec3& size) {

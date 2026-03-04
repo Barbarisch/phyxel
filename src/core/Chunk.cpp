@@ -95,6 +95,22 @@ void Chunk::initialize(VkDevice dev, VkPhysicalDevice physDev) {
         [this](bool v) { renderManager.setNeedsUpdate(v); },
         [this]() -> const glm::ivec3& { return worldOrigin; }
     );
+
+    // Initialize voxelManager with callbacks (stored once, not per-call)
+    voxelManager.setCallbacks(
+        [this]() -> std::vector<Cube*>& { return cubes; },
+        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
+        [this]() -> std::vector<Microcube*>& { return staticMicrocubes; },
+        [this]() -> const glm::ivec3& { return worldOrigin; },
+        [this](bool value) { setDirty(value); },
+        [this](bool value) { renderManager.setNeedsUpdate(value); },
+        [this]() { rebuildFaces(); },
+        [this](const glm::ivec3& pos) { addCollisionEntity(pos); },
+        [this](const glm::ivec3& pos) { removeCollisionEntities(pos); },
+        [this](const glm::ivec3& pos) { updateNeighborCollisionShapes(pos); },
+        [this]() { return physicsManager.isInBulkOperation(); },
+        [this]() { updateVulkanBuffer(); }
+    );
 }
 
 Cube* Chunk::getCubeAt(const glm::ivec3& localPos) {
@@ -128,44 +144,15 @@ const Cube* Chunk::getCubeAtIndex(size_t index) const {
 }
 
 bool Chunk::removeCube(const glm::ivec3& localPos) {
-    return voxelManager.removeCube(
-        localPos,
-        [this]() -> std::vector<Cube*>& { return cubes; },
-        [this]() -> const glm::ivec3& { return worldOrigin; },
-        [this](bool value) { setDirty(value); },
-        [this](bool value) { renderManager.setNeedsUpdate(value); },
-        [this](const glm::ivec3& pos) { removeCollisionEntities(pos); },
-        [this](const glm::ivec3& pos) { updateNeighborCollisionShapes(pos); },
-        [this]() { rebuildFaces(); },
-        [this]() { updateVulkanBuffer(); }
-    );
+    return voxelManager.removeCube(localPos);
 }
 
 bool Chunk::addCube(const glm::ivec3& localPos) {
-    return voxelManager.addCube(
-        localPos,
-        [this]() -> std::vector<Cube*>& { return cubes; },
-        [this]() -> const glm::ivec3& { return worldOrigin; },
-        [this](bool value) { setDirty(value); },
-        [this](bool value) { renderManager.setNeedsUpdate(value); },
-        [this](const glm::ivec3& pos) { addCollisionEntity(pos); },
-        [this](const glm::ivec3& pos) { updateNeighborCollisionShapes(pos); },
-        [this]() { return physicsManager.isInBulkOperation(); }
-    );
+    return voxelManager.addCube(localPos);
 }
 
 bool Chunk::addCube(const glm::ivec3& localPos, const std::string& material) {
-    return voxelManager.addCube(
-        localPos,
-        material,
-        [this]() -> std::vector<Cube*>& { return cubes; },
-        [this]() -> const glm::ivec3& { return worldOrigin; },
-        [this](bool value) { setDirty(value); },
-        [this](bool value) { renderManager.setNeedsUpdate(value); },
-        [this](const glm::ivec3& pos) { addCollisionEntity(pos); },
-        [this](const glm::ivec3& pos) { updateNeighborCollisionShapes(pos); },
-        [this]() { return physicsManager.isInBulkOperation(); }
-    );
+    return voxelManager.addCube(localPos, material);
 }
 
 void Chunk::populateWithCubes() {
@@ -372,10 +359,7 @@ VoxelLocation Chunk::resolveLocalPosition(const glm::ivec3& localPos) const {
     }
     
     // Delegate to voxel manager
-    VoxelLocation location = voxelManager.resolveLocalPosition(
-        localPos,
-        [this]() -> std::vector<Cube*>& { return const_cast<std::vector<Cube*>&>(cubes); }
-    );
+    VoxelLocation location = voxelManager.resolveLocalPosition(localPos);
     
     // Fill in chunk-specific fields
     if (location.type != VoxelLocation::EMPTY) {
@@ -417,10 +401,7 @@ const Cube* Chunk::getCubeAtFast(const glm::ivec3& localPos) const {
 
 // Internal: Maintain hash map consistency
 void Chunk::updateVoxelMaps(const glm::ivec3& localPos) {
-    voxelManager.updateVoxelMaps(
-        localPos,
-        [this]() -> std::vector<Cube*>& { return cubes; }
-    );
+    voxelManager.updateVoxelMaps(localPos);
 }
 
 void Chunk::addToVoxelMaps(const glm::ivec3& localPos, Cube* cube) {
@@ -448,57 +429,23 @@ void Chunk::removeMicrocubeFromMaps(const glm::ivec3& cubePos, const glm::ivec3&
 }
 
 void Chunk::initializeVoxelMaps() {
-    voxelManager.initializeVoxelMaps(
-        [this]() -> std::vector<Cube*>& { return cubes; },
-        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
-        [this]() -> std::vector<Microcube*>& { return staticMicrocubes; },
-        [this]() -> const glm::ivec3& { return worldOrigin; }
-    );
+    voxelManager.initializeVoxelMaps();
 }
 
 bool Chunk::subdivideAt(const glm::ivec3& localPos) {
-    return voxelManager.subdivideAt(
-        localPos,
-        [this]() -> std::vector<Cube*>& { return cubes; },
-        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
-        [this]() -> const glm::ivec3& { return worldOrigin; },
-        [this](bool value) { setDirty(value); },
-        [this](bool value) { renderManager.setNeedsUpdate(value); }
-    );
+    return voxelManager.subdivideAt(localPos);
 }
 
 bool Chunk::addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos) {
-    return voxelManager.addSubcube(
-        parentPos,
-        subcubePos,
-        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
-        [this]() -> const glm::ivec3& { return worldOrigin; },
-        [this](bool value) { setDirty(value); },
-        [this](bool value) { renderManager.setNeedsUpdate(value); },
-        [this](const glm::ivec3& pos) { addCollisionEntity(pos); }
-    );
+    return voxelManager.addSubcube(parentPos, subcubePos);
 }
 
 bool Chunk::removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos) {
-    return voxelManager.removeSubcube(
-        parentPos,
-        subcubePos,
-        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
-        [this]() -> const glm::ivec3& { return worldOrigin; },
-        [this](bool value) { setDirty(value); },
-        [this](bool value) { renderManager.setNeedsUpdate(value); },
-        [this](const glm::ivec3& pos) { removeCollisionEntities(pos); },
-        [this](const glm::ivec3& pos) { addCollisionEntity(pos); }
-    );
+    return voxelManager.removeSubcube(parentPos, subcubePos);
 }
 
 bool Chunk::clearSubdivisionAt(const glm::ivec3& localPos) {
-    return voxelManager.clearSubdivisionAt(
-        localPos,
-        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
-        [this]() -> const glm::ivec3& { return worldOrigin; },
-        [this](bool value) { renderManager.setNeedsUpdate(value); }
-    );
+    return voxelManager.clearSubdivisionAt(localPos);
 }
 
 size_t Chunk::subcubeToIndex(const glm::ivec3& parentPos, const glm::ivec3& subcubePos) {
@@ -826,59 +773,19 @@ std::vector<Physics::ChunkPhysicsManager::CollisionBox> Chunk::generateMergedCol
 // =============================================================================
 
 bool Chunk::subdivideSubcubeAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos) {
-    return voxelManager.subdivideSubcubeAt(
-        cubePos,
-        subcubePos,
-        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
-        [this]() -> std::vector<Microcube*>& { return staticMicrocubes; },
-        [this]() -> const glm::ivec3& { return worldOrigin; },
-        [this](bool value) { setDirty(value); },
-        [this](bool value) { renderManager.setNeedsUpdate(value); },
-        [this](const glm::ivec3& pos) { removeCollisionEntities(pos); },
-        [this](const glm::ivec3& pos) { addCollisionEntity(pos); }
-    );
+    return voxelManager.subdivideSubcubeAt(cubePos, subcubePos);
 }
 
 bool Chunk::addMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos) {
-    return voxelManager.addMicrocube(
-        parentCubePos,
-        subcubePos,
-        microcubePos,
-        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
-        [this]() -> std::vector<Microcube*>& { return staticMicrocubes; },
-        [this]() -> const glm::ivec3& { return worldOrigin; },
-        [this](bool value) { setDirty(value); },
-        [this](bool value) { renderManager.setNeedsUpdate(value); }
-    );
+    return voxelManager.addMicrocube(parentCubePos, subcubePos, microcubePos);
 }
 
 bool Chunk::removeMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos) {
-    return voxelManager.removeMicrocube(
-        parentCubePos,
-        subcubePos,
-        microcubePos,
-        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
-        [this]() -> std::vector<Microcube*>& { return staticMicrocubes; },
-        [this]() -> const glm::ivec3& { return worldOrigin; },
-        [this](bool value) { setDirty(value); },
-        [this](bool value) { renderManager.setNeedsUpdate(value); },
-        [this](const glm::ivec3& pos) { removeCollisionEntities(pos); },
-        [this](const glm::ivec3& pos) { addCollisionEntity(pos); }
-    );
+    return voxelManager.removeMicrocube(parentCubePos, subcubePos, microcubePos);
 }
 
 bool Chunk::clearMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos) {
-    return voxelManager.clearMicrocubesAt(
-        cubePos,
-        subcubePos,
-        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
-        [this]() -> std::vector<Microcube*>& { return staticMicrocubes; },
-        [this]() -> const glm::ivec3& { return worldOrigin; },
-        [this](bool value) { setDirty(value); },
-        [this](bool value) { renderManager.setNeedsUpdate(value); },
-        [this](const glm::ivec3& pos) { removeCollisionEntities(pos); },
-        [this](const glm::ivec3& pos) { addCollisionEntity(pos); }
-    );
+    return voxelManager.clearMicrocubesAt(cubePos, subcubePos);
 }
 
 } // namespace VulkanCube

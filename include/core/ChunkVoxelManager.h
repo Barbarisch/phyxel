@@ -34,9 +34,9 @@ namespace Physics {
  * - Voxel location resolution system for hover detection
  * 
  * DESIGN PATTERN:
- * - Uses callback functions to access Chunk data without circular dependencies
+ * - Uses setCallbacks() to receive Chunk data accessors once during initialization
  * - Manages voxel hierarchy data structures (vectors + hash maps)
- * - Coordinates with ChunkRenderManager and ChunkPhysicsManager via callbacks
+ * - Coordinates with ChunkRenderManager and ChunkPhysicsManager via stored callbacks
  * - All voxel state changes trigger appropriate render/physics updates
  * 
  * PERFORMANCE:
@@ -71,151 +71,51 @@ public:
     ChunkVoxelManager() = default;
     ~ChunkVoxelManager() = default;
 
-    // Cube operations
-    bool addCube(
-        const glm::ivec3& localPos, 
+    // One-time callback setup (called from Chunk::initialize)
+    void setCallbacks(
         CubesVectorAccessFunc getCubes,
+        SubcubesVectorAccessFunc getStaticSubcubes,
+        MicrocubesVectorAccessFunc getStaticMicrocubes,
         WorldOriginAccessFunc getWorldOrigin,
         SetDirtyFunc setDirty,
         SetNeedsUpdateFunc setNeedsUpdate,
+        RebuildFacesFunc rebuildFaces,
         AddCollisionFunc addCollision,
-        UpdateNeighborCollisionsFunc updateNeighborCollisions,
-        IsInBulkOperationFunc isInBulkOperation
-    );
-
-    bool addCube(
-        const glm::ivec3& localPos, 
-        const std::string& material,
-        CubesVectorAccessFunc getCubes,
-        WorldOriginAccessFunc getWorldOrigin,
-        SetDirtyFunc setDirty,
-        SetNeedsUpdateFunc setNeedsUpdate,
-        AddCollisionFunc addCollision,
-        UpdateNeighborCollisionsFunc updateNeighborCollisions,
-        IsInBulkOperationFunc isInBulkOperation
-    );
-
-    bool removeCube(
-        const glm::ivec3& localPos,
-        CubesVectorAccessFunc getCubes,
-        WorldOriginAccessFunc getWorldOrigin,
-        SetDirtyFunc setDirty,
-        SetNeedsUpdateFunc setNeedsUpdate,
         RemoveCollisionFunc removeCollision,
         UpdateNeighborCollisionsFunc updateNeighborCollisions,
-        RebuildFacesFunc rebuildFaces,
+        IsInBulkOperationFunc isInBulkOperation,
         std::function<void()> updateVulkanBuffer
     );
 
+    // Cube operations
+    bool addCube(const glm::ivec3& localPos);
+    bool addCube(const glm::ivec3& localPos, const std::string& material);
+    bool removeCube(const glm::ivec3& localPos);
+
     // Subcube operations
-    bool subdivideAt(
-        const glm::ivec3& localPos,
-        CubesVectorAccessFunc getCubes,
-        SubcubesVectorAccessFunc getStaticSubcubes,
-        WorldOriginAccessFunc getWorldOrigin,
-        SetDirtyFunc setDirty,
-        SetNeedsUpdateFunc setNeedsUpdate
-    );
-
-    bool addSubcube(
-        const glm::ivec3& parentPos,
-        const glm::ivec3& subcubePos,
-        SubcubesVectorAccessFunc getStaticSubcubes,
-        WorldOriginAccessFunc getWorldOrigin,
-        SetDirtyFunc setDirty,
-        SetNeedsUpdateFunc setNeedsUpdate,
-        AddCollisionFunc addCollision
-    );
-
-    bool removeSubcube(
-        const glm::ivec3& parentPos,
-        const glm::ivec3& subcubePos,
-        SubcubesVectorAccessFunc getStaticSubcubes,
-        WorldOriginAccessFunc getWorldOrigin,
-        SetDirtyFunc setDirty,
-        SetNeedsUpdateFunc setNeedsUpdate,
-        RemoveCollisionFunc removeCollision,
-        AddCollisionFunc addCollision
-    );
-
-    bool clearSubdivisionAt(
-        const glm::ivec3& localPos,
-        SubcubesVectorAccessFunc getStaticSubcubes,
-        WorldOriginAccessFunc getWorldOrigin,
-        SetNeedsUpdateFunc setNeedsUpdate
-    );
+    bool subdivideAt(const glm::ivec3& localPos);
+    bool addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos);
+    bool removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos);
+    bool clearSubdivisionAt(const glm::ivec3& localPos);
 
     // Microcube operations
-    bool subdivideSubcubeAt(
-        const glm::ivec3& cubePos,
-        const glm::ivec3& subcubePos,
-        SubcubesVectorAccessFunc getStaticSubcubes,
-        MicrocubesVectorAccessFunc getStaticMicrocubes,
-        WorldOriginAccessFunc getWorldOrigin,
-        SetDirtyFunc setDirty,
-        SetNeedsUpdateFunc setNeedsUpdate,
-        RemoveCollisionFunc removeCollision,
-        AddCollisionFunc addCollision
-    );
-
-    bool addMicrocube(
-        const glm::ivec3& parentCubePos,
-        const glm::ivec3& subcubePos,
-        const glm::ivec3& microcubePos,
-        SubcubesVectorAccessFunc getStaticSubcubes,
-        MicrocubesVectorAccessFunc getStaticMicrocubes,
-        WorldOriginAccessFunc getWorldOrigin,
-        SetDirtyFunc setDirty,
-        SetNeedsUpdateFunc setNeedsUpdate
-    );
-
-    bool removeMicrocube(
-        const glm::ivec3& parentCubePos,
-        const glm::ivec3& subcubePos,
-        const glm::ivec3& microcubePos,
-        SubcubesVectorAccessFunc getStaticSubcubes,
-        MicrocubesVectorAccessFunc getStaticMicrocubes,
-        WorldOriginAccessFunc getWorldOrigin,
-        SetDirtyFunc setDirty,
-        SetNeedsUpdateFunc setNeedsUpdate,
-        RemoveCollisionFunc removeCollision,
-        AddCollisionFunc addCollision
-    );
-
-    bool clearMicrocubesAt(
-        const glm::ivec3& cubePos,
-        const glm::ivec3& subcubePos,
-        SubcubesVectorAccessFunc getStaticSubcubes,
-        MicrocubesVectorAccessFunc getStaticMicrocubes,
-        WorldOriginAccessFunc getWorldOrigin,
-        SetDirtyFunc setDirty,
-        SetNeedsUpdateFunc setNeedsUpdate,
-        RemoveCollisionFunc removeCollision,
-        AddCollisionFunc addCollision
-    );
+    bool subdivideSubcubeAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);
+    bool addMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos);
+    bool removeMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos);
+    bool clearMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);
 
     // Hash map management
-    void initializeVoxelMaps(
-        CubesVectorAccessFunc getCubes,
-        SubcubesVectorAccessFunc getStaticSubcubes,
-        MicrocubesVectorAccessFunc getStaticMicrocubes,
-        WorldOriginAccessFunc getWorldOrigin
-    );
-
+    void initializeVoxelMaps();
     void addToVoxelMaps(const glm::ivec3& localPos, Cube* cube);
     void removeFromVoxelMaps(const glm::ivec3& localPos);
     void addSubcubeToMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos, Subcube* subcube);
     void removeSubcubeFromMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos);
     void addMicrocubeToMaps(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos, Microcube* microcube);
     void removeMicrocubeFromMaps(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos);
-    void updateVoxelMaps(const glm::ivec3& localPos, CubesVectorAccessFunc getCubes);
+    void updateVoxelMaps(const glm::ivec3& localPos);
 
     // Voxel location resolution
-    VoxelLocation resolveLocalPosition(
-        const glm::ivec3& localPos,
-        CubesVectorAccessFunc getCubes
-    ) const;
-
+    VoxelLocation resolveLocalPosition(const glm::ivec3& localPos) const;
     bool hasVoxelAt(const glm::ivec3& localPos) const;
     bool hasSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const;
     VoxelLocation::Type getVoxelType(const glm::ivec3& localPos) const;
@@ -233,13 +133,27 @@ public:
     const std::unordered_map<glm::ivec3, VoxelLocation::Type, IVec3Hash>& getVoxelTypeMap() const { return voxelTypeMap; }
 
     // Helper methods for accessing voxels (public for Chunk delegation)
-    Cube* getCubeHelper(const glm::ivec3& localPos, CubesVectorAccessFunc getCubes) const;
-    Subcube* getSubcubeHelper(const glm::ivec3& localPos, const glm::ivec3& subcubePos, SubcubesVectorAccessFunc getStaticSubcubes, WorldOriginAccessFunc getWorldOrigin) const;
-    std::vector<Subcube*> getSubcubesHelper(const glm::ivec3& localPos, SubcubesVectorAccessFunc getStaticSubcubes, WorldOriginAccessFunc getWorldOrigin) const;
+    Cube* getCubeHelper(const glm::ivec3& localPos) const;
+    Subcube* getSubcubeHelper(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const;
+    std::vector<Subcube*> getSubcubesHelper(const glm::ivec3& localPos) const;
     Microcube* getMicrocubeHelper(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos) const;
     std::vector<Microcube*> getMicrocubesHelper(const glm::ivec3& cubePos, const glm::ivec3& subcubePos) const;
 
 private:
+    // Stored callbacks for accessing Chunk state (set once via setCallbacks)
+    CubesVectorAccessFunc m_getCubes;
+    SubcubesVectorAccessFunc m_getStaticSubcubes;
+    MicrocubesVectorAccessFunc m_getStaticMicrocubes;
+    WorldOriginAccessFunc m_getWorldOrigin;
+    SetDirtyFunc m_setDirty;
+    SetNeedsUpdateFunc m_setNeedsUpdate;
+    RebuildFacesFunc m_rebuildFaces;
+    AddCollisionFunc m_addCollision;
+    RemoveCollisionFunc m_removeCollision;
+    UpdateNeighborCollisionsFunc m_updateNeighborCollisions;
+    IsInBulkOperationFunc m_isInBulkOperation;
+    std::function<void()> m_updateVulkanBuffer;
+
     // O(1) lookup data structures for optimized hover system
     std::unordered_map<glm::ivec3, Cube*, IVec3Hash> cubeMap;
     std::unordered_map<glm::ivec3, std::unordered_map<glm::ivec3, Subcube*, IVec3Hash>, IVec3Hash> subcubeMap;

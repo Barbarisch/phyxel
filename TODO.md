@@ -29,10 +29,10 @@
   - Files: `CMakeLists.txt`, `tests/CMakeLists.txt`, `tests/integration/CMakeLists.txt`, `tests/e2e/CMakeLists.txt`
   - **Fixed**: Changed to `"MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"` to match Bullet/GLFW DLL runtime. Requires CMake regeneration.
 
-- [ ] **6. ChunkVoxelManager callback explosion**
-  - Every public method takes 6-9 `std::function` callback parameters. ChunkVoxelBreaker already uses a `setCallbacks()` pattern — ChunkVoxelManager should follow suit.
+- [x] **6. ChunkVoxelManager callback explosion**
+  - Every public method took 6-9 `std::function` callback parameters. Refactored to use `setCallbacks()` pattern (matching ChunkVoxelBreaker).
   - Files: `include/core/ChunkVoxelManager.h`, `src/core/ChunkVoxelManager.cpp`, `src/core/Chunk.cpp`
-  - Fix: Store callbacks as members, set once via `setCallbacks()`.
+  - **Fixed**: Callbacks stored as members via `setCallbacks()`. All 15 call sites in Chunk.cpp simplified from 6-9 lambda args to just positional params. ~130 lines of boilerplate removed.
 
 ## Medium: Performance Hot-Path Issues
 
@@ -41,17 +41,17 @@
   - File: `src/core/DynamicObjectManager.cpp`
   - Fix: Batch or throttle face rebuilds; separate dynamic object buffer updates from full chunk rebuilds.
 
-- [ ] **8. RenderCoordinator per-frame heap allocation & redundant work**
+- [x] **8. RenderCoordinator per-frame heap allocation & redundant work**
   - `std::vector<size_t>` allocated on heap every frame in `renderStaticGeometry()`.
   - Frustum re-extracted from VP matrix per chunk instead of once per frame.
   - `getPerformanceStats()` called 3 times per frame.
-  - File: `src/graphics/RenderCoordinator.cpp`
-  - Fix: Preallocate visible chunk vector; compute frustum once; cache perf stats.
+  - Files: `include/graphics/RenderCoordinator.h`, `src/graphics/RenderCoordinator.cpp`
+  - **Fixed**: Preallocated visible chunk vector as class member; hoisted frustum computation out of per-chunk loop; deduplicated `getPerformanceStats()` to single call. Also removed duplicate `#include "PostProcessor.h"`.
 
-- [ ] **9. ChunkVoxelManager removeMicrocube() O(27) nested loop**
+- [x] **9. ChunkVoxelManager removeMicrocube() O(27) nested loop**
   - Triple-nested 3x3x3 loop calling `getMicrocubesHelper()` per iteration. `microcubeMap[cubePos].empty()` would suffice.
   - File: `src/core/ChunkVoxelManager.cpp`
-  - Fix: Replace nested loop with map emptiness check.
+  - **Fixed**: Replaced both O(27) loops (in `removeMicrocube()` and `clearMicrocubesAt()`) with O(1) `microcubeMap.count(cubePos) > 0` — safe because `removeMicrocubeFromMaps()` already cleans up empty inner maps.
 
 - [x] **10. DynamicObjectManager enforceObjectLimits() is O(n²)**
   - `cubes.erase(cubes.begin())` in a loop — front-erasure on a vector.
@@ -70,10 +70,10 @@
   - Files: `include/physics/PhysicsWorld.h`, `src/physics/PhysicsWorld.cpp`, plus 4 callers
   - **Fixed**: Renamed to `createBreakawayCube` across all 6 files (15 occurrences).
 
-- [ ] **13. Four near-identical cube creation methods in PhysicsWorld**
-  - `createCube(pos, size, mass)`, `createCube(pos, size, materialName)`, `createBreakawaCube(...)` x2 share ~80% code.
-  - File: `src/physics/PhysicsWorld.cpp`
-  - Fix: Consolidate with a private helper method.
+- [x] **13. Four near-identical cube creation methods in PhysicsWorld**
+  - `createCube(pos, size, mass)`, `createCube(pos, size, materialName)`, `createBreakawayCube(...)` x2 share ~80% code.
+  - Files: `include/physics/PhysicsWorld.h`, `src/physics/PhysicsWorld.cpp`
+  - **Fixed**: Added private `CubeCreationParams` struct + `createCubeInternal()` helper. All four public methods now thin wrappers (~10 lines each) that fill params and delegate. ~200 lines of duplication removed.
 
 - [ ] **14. `void*` in DynamicObjectManager::derezCharacter()**
   - C-style type erasure to avoid circular deps. A forward declaration or interface would preserve type safety.
@@ -115,10 +115,10 @@
   - Files: `tests/e2e/ApplicationE2ETests.cpp`, `tests/e2e/WorldInteractionE2ETests.cpp`
   - Fix: Implement actual assertions or remove placeholder tests.
 
-- [ ] **22. ~60% of benchmarks commented out**
+- [x] **22. ~60% of benchmarks commented out**
   - Due to `std::function` callback issues (related to issue #6).
   - File: `tests/benchmark/ChunkBenchmarks.cpp`
-  - Fix: Unblock after fixing callback explosion (#6).
+  - **Fixed**: Uncommented all 6 previously disabled benchmarks (ChunkManagerCreation, AddCube, RemoveCube, GetCubeAt, MultiChunkFaceCulling, VoxelMapInitialization). Fixed `addCube` call to match current single-arg API.
 
 - [ ] **23. Sanitizers (ASan/TSan) OFF by default**
   - File: `cmake/Sanitizers.cmake`
