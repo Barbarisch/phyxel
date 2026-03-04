@@ -117,6 +117,29 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(pybind11)
 
+# ========================================================================
+# nlohmann/json (header-only JSON library for AI integration)
+# ========================================================================
+FetchContent_Declare(
+    nlohmann_json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG v3.11.3
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
+# ========================================================================
+# cpp-httplib (header-only HTTP client/server for goose-server communication)
+# ========================================================================
+set(HTTPLIB_REQUIRE_OPENSSL OFF CACHE BOOL "Disable OpenSSL requirement for httplib" FORCE)
+set(HTTPLIB_REQUIRE_BROTLI OFF CACHE BOOL "Disable Brotli requirement for httplib" FORCE)
+set(HTTPLIB_REQUIRE_ZLIB OFF CACHE BOOL "Disable Zlib requirement for httplib" FORCE)
+FetchContent_Declare(
+    httplib
+    GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
+    GIT_TAG v0.18.3
+)
+FetchContent_MakeAvailable(httplib)
+
 # Debug Python detection
 get_target_property(PYBIND11_INCLUDE_DIRS pybind11::headers INTERFACE_INCLUDE_DIRECTORIES)
 message(STATUS "pybind11 include dirs: ${PYBIND11_INCLUDE_DIRS}")
@@ -220,6 +243,8 @@ if(PLATFORM_WINDOWS)
         glfw3
         ${BULLET_LIBS}
         pybind11::embed
+        nlohmann_json::nlohmann_json
+        httplib::httplib
     )
     
     # Add SQLite3 if available
@@ -236,6 +261,8 @@ elseif(PLATFORM_LINUX)
         glfw
         ${BULLET_LIBS}
         pybind11::embed
+        nlohmann_json::nlohmann_json
+        httplib::httplib
     )
     
     # Add SQLite3 if available
