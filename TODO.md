@@ -36,10 +36,11 @@
 
 ## Medium: Performance Hot-Path Issues
 
-- [ ] **7. DynamicObjectManager rebuilds GPU faces every frame**
-  - `updateGlobalDynamic*Positions()` calls `m_rebuildFaces()` every frame when any transform changes (always true for moving objects).
+- [x] **7. DynamicObjectManager rebuilds GPU faces every frame**
+  - `updateGlobalDynamic*Positions()` called `m_rebuildFaces()` every frame when any transform changes (always true for moving objects).
+  - Three separate calls per frame (subcubes, cubes, microcubes) each triggered a full face regeneration.
   - File: `src/core/DynamicObjectManager.cpp`
-  - Fix: Batch or throttle face rebuilds; separate dynamic object buffer updates from full chunk rebuilds.
+  - **Fixed**: (a) Added movement threshold (`MOVEMENT_THRESHOLD_SQ = 1e-6`) — transforms only update when position changes by >0.001 units. (b) Replaced per-type `m_rebuildFaces()` with a dirty flag (`m_positionsDirty`). (c) Batched all three position updates into a single `updateAllDynamicObjectPositions()` call. (d) Added 30 Hz throttle (`MIN_REBUILD_INTERVAL`) — position-driven rebuilds capped at 30/sec instead of 60+. Add/remove operations still rebuild immediately.
 
 - [x] **8. RenderCoordinator per-frame heap allocation & redundant work**
   - `std::vector<size_t>` allocated on heap every frame in `renderStaticGeometry()`.
@@ -60,10 +61,11 @@
 
 ## Low: Code Quality & Cleanup
 
-- [ ] **11. Raw `new` for all voxels (Cube/Subcube/Microcube)**
+- [x] **11. Raw `new` for all voxels (Cube/Subcube/Microcube)**
   - No RAII wrappers; manual `delete` loops in destructors. Exception-unsafe.
   - Files: `src/core/ChunkVoxelManager.cpp`, `src/core/Chunk.cpp`
-  - Fix: Migrate to `std::unique_ptr` or pool allocator.
+  - **Fixed**: Migrated all three voxel vector types (`cubes`, `staticSubcubes`, `staticMicrocubes`) from raw pointers to `std::unique_ptr` across 12 files. Replaced ~15 `new` sites with `std::make_unique`, removed ~20 manual `delete` calls (auto-cleanup via `unique_ptr::reset()` / vector `erase()`). Hash maps remain non-owning raw pointers (correct: aliases into owning vectors). Also fixed a pre-existing memory leak in `~Chunk()` where `staticMicrocubes` were never deleted.
+  - Files changed: `Chunk.h`, `Chunk.cpp`, `ChunkVoxelManager.h`, `ChunkVoxelManager.cpp`, `ChunkVoxelBreaker.h`, `ChunkVoxelBreaker.cpp`, `ChunkRenderManager.h`, `ChunkRenderManager.cpp`, `ChunkPhysicsManager.h`, `ChunkPhysicsManager.cpp`, `ChunkStorage.h`, `ChunkStorage.cpp`, `WorldStorage.cpp`
 
 - [x] **12. `createBreakawaCube` typo**
   - Missing 'y' in "breakaway" — persisted across header and implementation.
@@ -75,10 +77,10 @@
   - Files: `include/physics/PhysicsWorld.h`, `src/physics/PhysicsWorld.cpp`
   - **Fixed**: Added private `CubeCreationParams` struct + `createCubeInternal()` helper. All four public methods now thin wrappers (~10 lines each) that fill params and delegate. ~200 lines of duplication removed.
 
-- [ ] **14. `void*` in DynamicObjectManager::derezCharacter()**
+- [x] **14. `void*` in DynamicObjectManager::derezCharacter()**
   - C-style type erasure to avoid circular deps. A forward declaration or interface would preserve type safety.
   - File: `include/core/DynamicObjectManager.h`
-  - Fix: Use forward declaration + properly typed parameter.
+  - **Fixed**: Added forward declaration `namespace Scene { class AnimatedVoxelCharacter; }` in header. Changed signature from `void*` to `Scene::AnimatedVoxelCharacter*`. Removed `static_cast` in implementation.
 
 - [x] **15. `resetMouseDelta()` called twice per frame**
   - Called at both top and bottom of the game loop in Application::run().

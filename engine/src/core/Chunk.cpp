@@ -24,17 +24,10 @@ Chunk::Chunk(const glm::ivec3& origin)
 }
 
 Chunk::~Chunk() {
-    // Delete all cube pointers to free memory
-    for (Cube* cube : cubes) {
-        delete cube;
-    }
+    // unique_ptr vectors auto-delete all owned voxels
     cubes.clear();
-    
-    // Delete all static subcube pointers to free memory
-    for (Subcube* subcube : staticSubcubes) {
-        delete subcube;
-    }
     staticSubcubes.clear();
+    staticMicrocubes.clear();
     
     cleanupVulkanResources();
     cleanupPhysicsResources();
@@ -43,6 +36,7 @@ Chunk::~Chunk() {
 Chunk::Chunk(Chunk&& other) noexcept
     : cubes(std::move(other.cubes))
     , staticSubcubes(std::move(other.staticSubcubes))
+    , staticMicrocubes(std::move(other.staticMicrocubes))
     , worldOrigin(other.worldOrigin)
     , renderManager(std::move(other.renderManager))
     , physicsManager(std::move(other.physicsManager))
@@ -63,6 +57,7 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept {
         // Move data
         cubes = std::move(other.cubes);
         staticSubcubes = std::move(other.staticSubcubes);
+        staticMicrocubes = std::move(other.staticMicrocubes);
         worldOrigin = other.worldOrigin;
         renderManager = std::move(other.renderManager);
         physicsManager = std::move(other.physicsManager);
@@ -86,7 +81,7 @@ void Chunk::initialize(VkDevice dev, VkPhysicalDevice physDev) {
     
     // Initialize voxelBreaker with callbacks
     voxelBreaker.setCallbacks(
-        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
+        [this]() -> std::vector<std::unique_ptr<Subcube>>& { return staticSubcubes; },
         [this](const glm::ivec3& parent, const glm::ivec3& sub) { return removeSubcube(parent, sub); },
         [this]() { rebuildFaces(); },
         [this]() { batchUpdateCollisions(); },
@@ -98,9 +93,9 @@ void Chunk::initialize(VkDevice dev, VkPhysicalDevice physDev) {
 
     // Initialize voxelManager with callbacks (stored once, not per-call)
     voxelManager.setCallbacks(
-        [this]() -> std::vector<Cube*>& { return cubes; },
-        [this]() -> std::vector<Subcube*>& { return staticSubcubes; },
-        [this]() -> std::vector<Microcube*>& { return staticMicrocubes; },
+        [this]() -> std::vector<std::unique_ptr<Cube>>& { return cubes; },
+        [this]() -> std::vector<std::unique_ptr<Subcube>>& { return staticSubcubes; },
+        [this]() -> std::vector<std::unique_ptr<Microcube>>& { return staticMicrocubes; },
         [this]() -> const glm::ivec3& { return worldOrigin; },
         [this](bool value) { setDirty(value); },
         [this](bool value) { renderManager.setNeedsUpdate(value); },
@@ -120,7 +115,7 @@ Cube* Chunk::getCubeAt(const glm::ivec3& localPos) {
     if (index >= cubes.size()) return nullptr;
     
     // Return the pointer (which could be nullptr for deleted cubes)
-    return cubes[index];
+    return cubes[index].get();
 }
 
 const Cube* Chunk::getCubeAt(const glm::ivec3& localPos) const {
@@ -130,17 +125,17 @@ const Cube* Chunk::getCubeAt(const glm::ivec3& localPos) const {
     if (index >= cubes.size()) return nullptr;
     
     // Return the pointer (which could be nullptr for deleted cubes)
-    return cubes[index];
+    return cubes[index].get();
 }
 
 Cube* Chunk::getCubeAtIndex(size_t index) {
     if (index >= cubes.size()) return nullptr;
-    return cubes[index];
+    return cubes[index].get();
 }
 
 const Cube* Chunk::getCubeAtIndex(size_t index) const {
     if (index >= cubes.size()) return nullptr;
-    return cubes[index];
+    return cubes[index].get();
 }
 
 bool Chunk::removeCube(const glm::ivec3& localPos) {
@@ -169,9 +164,9 @@ void Chunk::populateWithCubes() {
     for (int x = 0; x < 32; ++x) {
         for (int y = 0; y < 32; ++y) {
             for (int z = 0; z < 32; ++z) {
-                Cube* cube = new Cube();
+                auto cube = std::make_unique<Cube>();
                 cube->setPosition(glm::ivec3(x, y, z));  // Local position within chunk (for 5-bit packing efficiency)
-                cubes.push_back(cube);
+                cubes.push_back(std::move(cube));
             }
         }
     }
@@ -191,18 +186,12 @@ void Chunk::initializeForLoading() {
     cubes.clear();
     
     // Initialize sparse cube storage (32x32x32 array with nullptr entries)
-    cubes.resize(32 * 32 * 32, nullptr);
+    cubes.resize(32 * 32 * 32);  // unique_ptr default-constructs to nullptr
     
-    // Clear any existing subcubes
-    for (Subcube* subcube : staticSubcubes) {
-        delete subcube;
-    }
+    // Clear any existing subcubes (unique_ptr auto-deletes)
     staticSubcubes.clear();
     
-    // Clear any existing microcubes
-    for (Microcube* microcube : staticMicrocubes) {
-        delete microcube;
-    }
+    // Clear any existing microcubes (unique_ptr auto-deletes)
     staticMicrocubes.clear();
     
     // Set bulk operation flag to prevent neighbor collision updates during loading
@@ -285,11 +274,11 @@ glm::vec3 Chunk::getMaxBounds() const {
 
 Subcube* Chunk::getSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) {
     // Search in static subcubes only
-    for (Subcube* subcube : staticSubcubes) {
+    for (const auto& subcube : staticSubcubes) {
         if (subcube && 
             subcube->getPosition() == worldOrigin + localPos && 
             subcube->getLocalPosition() == subcubePos) {
-            return subcube;
+            return subcube.get();
         }
     }
     return nullptr;
@@ -297,11 +286,11 @@ Subcube* Chunk::getSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcu
 
 const Subcube* Chunk::getSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const {
     // Search in static subcubes only
-    for (const Subcube* subcube : staticSubcubes) {
+    for (const auto& subcube : staticSubcubes) {
         if (subcube && 
             subcube->getPosition() == worldOrigin + localPos && 
             subcube->getLocalPosition() == subcubePos) {
-            return subcube;
+            return subcube.get();
         }
     }
     return nullptr;
@@ -312,9 +301,9 @@ std::vector<Subcube*> Chunk::getSubcubesAt(const glm::ivec3& localPos) {
     glm::ivec3 parentWorldPos = worldOrigin + localPos;
     
     // Collect from static subcubes only
-    for (Subcube* subcube : staticSubcubes) {
+    for (const auto& subcube : staticSubcubes) {
         if (subcube && subcube->getPosition() == parentWorldPos) {
-            result.push_back(subcube);
+            result.push_back(subcube.get());
         }
     }
     return result;
@@ -324,9 +313,9 @@ std::vector<Subcube*> Chunk::getStaticSubcubesAt(const glm::ivec3& localPos) {
     std::vector<Subcube*> result;
     glm::ivec3 parentWorldPos = worldOrigin + localPos;
     
-    for (Subcube* subcube : staticSubcubes) {
+    for (const auto& subcube : staticSubcubes) {
         if (subcube && subcube->getPosition() == parentWorldPos) {
-            result.push_back(subcube);
+            result.push_back(subcube.get());
         }
     }
     return result;
@@ -514,9 +503,14 @@ void Chunk::debugPrintSpatialGridStats() const {
 
 void Chunk::createChunkPhysicsBody() {
     physicsManager.createChunkPhysicsBody(
-        [this]() -> const std::vector<Cube*>& { return cubes; },
-        [this](const glm::ivec3&) { return staticSubcubes; },
-        [this]() -> const std::vector<Microcube*>& { return staticMicrocubes; },
+        [this]() -> const std::vector<std::unique_ptr<Cube>>& { return cubes; },
+        [this](const glm::ivec3&) -> std::vector<Subcube*> {
+            std::vector<Subcube*> result;
+            result.reserve(staticSubcubes.size());
+            for (const auto& s : staticSubcubes) { if (s) result.push_back(s.get()); }
+            return result;
+        },
+        [this]() -> const std::vector<std::unique_ptr<Microcube>>& { return staticMicrocubes; },
         [this](size_t index) { return indexToLocal(index); },
         [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); }
     );
@@ -524,9 +518,14 @@ void Chunk::createChunkPhysicsBody() {
 
 void Chunk::updateChunkPhysicsBody() {
     physicsManager.updateChunkPhysicsBody(
-        [this]() -> const std::vector<Cube*>& { return cubes; },
-        [this](const glm::ivec3&) { return staticSubcubes; },
-        [this]() -> const std::vector<Microcube*>& { return staticMicrocubes; },
+        [this]() -> const std::vector<std::unique_ptr<Cube>>& { return cubes; },
+        [this](const glm::ivec3&) -> std::vector<Subcube*> {
+            std::vector<Subcube*> result;
+            result.reserve(staticSubcubes.size());
+            for (const auto& s : staticSubcubes) { if (s) result.push_back(s.get()); }
+            return result;
+        },
+        [this]() -> const std::vector<std::unique_ptr<Microcube>>& { return staticMicrocubes; },
         [this](size_t index) { return indexToLocal(index); },
         [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); }
     );
@@ -534,9 +533,14 @@ void Chunk::updateChunkPhysicsBody() {
 
 void Chunk::forcePhysicsRebuild() {
     physicsManager.forcePhysicsRebuild(
-        [this]() -> const std::vector<Cube*>& { return cubes; },
-        [this](const glm::ivec3&) { return staticSubcubes; },
-        [this]() -> const std::vector<Microcube*>& { return staticMicrocubes; },
+        [this]() -> const std::vector<std::unique_ptr<Cube>>& { return cubes; },
+        [this](const glm::ivec3&) -> std::vector<Subcube*> {
+            std::vector<Subcube*> result;
+            result.reserve(staticSubcubes.size());
+            for (const auto& s : staticSubcubes) { if (s) result.push_back(s.get()); }
+            return result;
+        },
+        [this]() -> const std::vector<std::unique_ptr<Microcube>>& { return staticMicrocubes; },
         [this](size_t index) { return indexToLocal(index); },
         [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); }
     );
@@ -617,9 +621,9 @@ void Chunk::removeCollisionEntities(const glm::ivec3& localPos) {
 
 void Chunk::batchUpdateCollisions() {
     physicsManager.batchUpdateCollisions(
-        [this]() -> const std::vector<Cube*>& { return cubes; },
-        [this](const glm::ivec3&) { return staticSubcubes; },
-        [this]() -> const std::vector<Microcube*>& { return staticMicrocubes; },
+        [this]() -> const std::vector<std::unique_ptr<Cube>>& { return cubes; },
+        [this](const glm::ivec3& pos) { return getStaticSubcubesAt(pos); },
+        [this]() -> const std::vector<std::unique_ptr<Microcube>>& { return staticMicrocubes; },
         [this](size_t index) { return indexToLocal(index); },
         [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); }
     );
@@ -636,9 +640,9 @@ bool Chunk::hasExposedFaces(const glm::ivec3& localPos) const {
 
 void Chunk::buildInitialCollisionShapes() {
     physicsManager.buildInitialCollisionShapes(
-        [this]() -> const std::vector<Cube*>& { return cubes; },
-        [this](const glm::ivec3&) { return staticSubcubes; },
-        [this]() -> const std::vector<Microcube*>& { return staticMicrocubes; },
+        [this]() -> const std::vector<std::unique_ptr<Cube>>& { return cubes; },
+        [this](const glm::ivec3& pos) { return getStaticSubcubesAt(pos); },
+        [this]() -> const std::vector<std::unique_ptr<Microcube>>& { return staticMicrocubes; },
         [this](size_t index) { return indexToLocal(index); },
         [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); }
     );
@@ -655,9 +659,9 @@ void Chunk::updateNeighborCollisionShapes(const glm::ivec3& localPos) {
 
 void Chunk::endBulkOperation() {
     physicsManager.endBulkOperation(
-        [this]() -> const std::vector<Cube*>& { return cubes; },
-        [this](const glm::ivec3&) { return staticSubcubes; },
-        [this]() -> const std::vector<Microcube*>& { return staticMicrocubes; },
+        [this]() -> const std::vector<std::unique_ptr<Cube>>& { return cubes; },
+        [this](const glm::ivec3& pos) { return getStaticSubcubesAt(pos); },
+        [this]() -> const std::vector<std::unique_ptr<Microcube>>& { return staticMicrocubes; },
         [this](size_t index) { return indexToLocal(index); },
         [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); }
     );
@@ -674,7 +678,7 @@ std::vector<Physics::ChunkPhysicsManager::CollisionBox> Chunk::generateMergedCol
     // PHASE 1: Process regular cubes (only those with exposed faces)
     // =========================================================================
     for (size_t i = 0; i < cubes.size(); ++i) {
-        const Cube* cube = cubes[i];
+        const Cube* cube = cubes[i].get();
         
         // Skip deleted cubes (nullptr) or hidden cubes (subdivided)
         if (!cube || !cube->isVisible()) {
@@ -726,7 +730,7 @@ std::vector<Physics::ChunkPhysicsManager::CollisionBox> Chunk::generateMergedCol
     // =========================================================================
     // PHASE 2: Process static subcubes (only those with exposed faces)
     // =========================================================================
-    for (const Subcube* subcube : staticSubcubes) {
+    for (const auto& subcube : staticSubcubes) {
         // Skip broken or hidden subcubes
         if (!subcube || subcube->isBroken() || !subcube->isVisible()) {
             continue;

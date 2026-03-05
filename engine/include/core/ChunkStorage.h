@@ -43,15 +43,15 @@ public:
     void clearVoxelType(const glm::ivec3& localPos);
     
     // Container access - extracted from Chunk
-    const std::vector<Cube*>& getCubes() const { return cubes; }
-    const std::vector<Subcube*>& getStaticSubcubes() const { return staticSubcubes; }
-    std::vector<Cube*>& getCubes() { return cubes; }
-    std::vector<Subcube*>& getStaticSubcubes() { return staticSubcubes; }
+    const std::vector<std::unique_ptr<Cube>>& getCubes() const { return cubes; }
+    const std::vector<std::unique_ptr<Subcube>>& getStaticSubcubes() const { return staticSubcubes; }
+    std::vector<std::unique_ptr<Cube>>& getCubes() { return cubes; }
+    std::vector<std::unique_ptr<Subcube>>& getStaticSubcubes() { return staticSubcubes; }
     
     // Direct container modification (for bulk operations)
     void reserveCubes(size_t capacity) { cubes.reserve(capacity); }
     void reserveSubcubes(size_t capacity) { staticSubcubes.reserve(capacity); }
-    void resizeCubes(size_t size) { cubes.resize(size, nullptr); }
+    void resizeCubes(size_t size) { cubes.resize(size); }
     
     // Statistics and validation - extracted from Chunk
     size_t getCubeCount() const;
@@ -67,8 +67,8 @@ public:
 
 private:
     // Storage containers - moved from Chunk
-    std::vector<Cube*> cubes;                      // 32x32x32 cube storage
-    std::vector<Subcube*> staticSubcubes;          // Static subcube storage
+    std::vector<std::unique_ptr<Cube>> cubes;                      // 32x32x32 cube storage
+    std::vector<std::unique_ptr<Subcube>> staticSubcubes;          // Static subcube storage
     
     // O(1) lookup optimizations - moved from Chunk
     std::unordered_map<glm::ivec3, Cube*, IVec3Hash> cubeMap;

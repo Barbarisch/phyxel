@@ -24,6 +24,7 @@
 #include "core/ObjectTemplateManager.h"
 #include "core/AudioSystem.h"
 #include "scripting/ScriptingSystem.h"
+#include "ai/AISystem.h"
 #include "scene/Entity.h"
 #include "scene/Player.h"
 #include "scene/Enemy.h"
@@ -74,6 +75,10 @@ public:
     void setControlTarget(const std::string& targetName);
     void derezCharacter(float explosionStrength = 1.0f);
 
+    // AI NPC Management
+    void spawnTestAINPC();
+    void toggleAISystem();
+
     // Accessors
     ObjectTemplateManager* getObjectTemplateManager() const { return objectTemplateManager.get(); }
     RaycastVisualizer* getRaycastVisualizer() const { return raycastVisualizer.get(); }
@@ -82,6 +87,7 @@ public:
     Input::InputManager* getInputManager() const { return inputManager.get(); }
     ScriptingSystem* getScriptingSystem() const { return scriptingSystem.get(); }
     Core::AudioSystem* getAudioSystem() const { return audioSystem.get(); }
+    AI::AISystem* getAISystem() const { return aiSystem.get(); }
 
 private:
     // ============================================================================
@@ -125,6 +131,9 @@ private:
 
     // Scripting System
     std::unique_ptr<ScriptingSystem> scriptingSystem;
+
+    // AI System
+    std::unique_ptr<AI::AISystem> aiSystem;
 
     // Entities
     std::vector<std::unique_ptr<Scene::Entity>> entities;

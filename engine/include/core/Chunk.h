@@ -57,9 +57,9 @@ private:
     // CRITICAL: cubes vector is INDEXED by position, not a dynamic list!
     // Index formula: z + y*32 + x*32*32 (see localToIndex())
     // Always use getCubeAt(localPos) for O(1) lookup, never linear search!
-    std::vector<Cube*> cubes;                      // Pointers to cubes for efficient deletion (32x32x32)
-    std::vector<Subcube*> staticSubcubes;          // Static subcubes (part of chunk physics body)
-    std::vector<Microcube*> staticMicrocubes;      // Static microcubes (finest subdivision level)
+    std::vector<std::unique_ptr<Cube>> cubes;                      // Pointers to cubes for efficient deletion (32x32x32)
+    std::vector<std::unique_ptr<Subcube>> staticSubcubes;          // Static subcubes (part of chunk physics body)
+    std::vector<std::unique_ptr<Microcube>> staticMicrocubes;      // Static microcubes (finest subdivision level)
     glm::ivec3 worldOrigin = glm::ivec3(0);        // World-space origin of this chunk
     
     // Subsystem managers
@@ -126,8 +126,8 @@ public:
     std::vector<Microcube*> getMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);
     
     // Physics-related subcube access (legacy for transfer process)
-    const std::vector<Subcube*>& getStaticSubcubes() const { return staticSubcubes; }
-    const std::vector<Microcube*>& getStaticMicrocubes() const { return staticMicrocubes; }
+    const std::vector<std::unique_ptr<Subcube>>& getStaticSubcubes() const { return staticSubcubes; }
+    const std::vector<std::unique_ptr<Microcube>>& getStaticMicrocubes() const { return staticMicrocubes; }
     
     // NEW: O(1) VoxelLocation resolution system for optimized hover detection
     VoxelLocation resolveLocalPosition(const glm::ivec3& localPos) const;

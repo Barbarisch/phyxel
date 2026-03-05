@@ -78,7 +78,6 @@ void DynamicObjectManager::updateGlobalDynamicSubcubes(float deltaTime) {
 
 void DynamicObjectManager::updateGlobalDynamicSubcubePositions() {
     auto& subcubes = m_getSubcubes();
-    bool transformsChanged = false;
     static int debugCounter = 0;
     static bool firstUpdate = true;
     
@@ -101,9 +100,14 @@ void DynamicObjectManager::updateGlobalDynamicSubcubePositions() {
             btQuaternion btRot = transform.getRotation();
             glm::vec4 newRotation(btRot.x(), btRot.y(), btRot.z(), btRot.w());
             
-            subcube->setPhysicsPosition(newWorldPos);
-            subcube->setPhysicsRotation(newRotation);
-            transformsChanged = true;
+            // Only update stored transform if it actually moved
+            glm::vec3 delta = newWorldPos - oldStoredPos;
+            float distSq = glm::dot(delta, delta);
+            if (distSq > MOVEMENT_THRESHOLD_SQ) {
+                subcube->setPhysicsPosition(newWorldPos);
+                subcube->setPhysicsRotation(newRotation);
+                m_positionsDirty = true;
+            }
             
             if (debugCounter % 60 == 0) {
                 glm::vec3 movement = newWorldPos - oldStoredPos;
@@ -123,10 +127,6 @@ void DynamicObjectManager::updateGlobalDynamicSubcubePositions() {
     }
     
     debugCounter++;
-    
-    if (transformsChanged) {
-        m_rebuildFaces();
-    }
 }
 
 void DynamicObjectManager::clearAllGlobalDynamicSubcubes() {
@@ -191,7 +191,6 @@ void DynamicObjectManager::updateGlobalDynamicCubes(float deltaTime) {
 
 void DynamicObjectManager::updateGlobalDynamicCubePositions() {
     auto& cubes = m_getCubes();
-    bool transformsChanged = false;
     
     if (m_firstUpdate && !cubes.empty()) {
         LOG_DEBUG_FMT("DynamicObject", "[POSITION TRACK] ===== FIRST PHYSICS UPDATE =====");
@@ -212,9 +211,14 @@ void DynamicObjectManager::updateGlobalDynamicCubePositions() {
             btQuaternion btRot = transform.getRotation();
             glm::vec4 newRotation(btRot.x(), btRot.y(), btRot.z(), btRot.w());
             
-            cube->setPhysicsPosition(newWorldPos);
-            cube->setPhysicsRotation(newRotation);
-            transformsChanged = true;
+            // Only update stored transform if it actually moved
+            glm::vec3 delta = newWorldPos - oldStoredPos;
+            float distSq = glm::dot(delta, delta);
+            if (distSq > MOVEMENT_THRESHOLD_SQ) {
+                cube->setPhysicsPosition(newWorldPos);
+                cube->setPhysicsRotation(newRotation);
+                m_positionsDirty = true;
+            }
             
             if (m_debugCounter % 60 == 0) {
                 glm::vec3 movement = newWorldPos - oldStoredPos;
@@ -234,10 +238,6 @@ void DynamicObjectManager::updateGlobalDynamicCubePositions() {
     }
     
     m_debugCounter++;
-    
-    if (transformsChanged) {
-        m_rebuildFaces();
-    }
 }
 
 void DynamicObjectManager::clearAllGlobalDynamicCubes() {
@@ -302,12 +302,13 @@ void DynamicObjectManager::updateGlobalDynamicMicrocubes(float deltaTime) {
 
 void DynamicObjectManager::updateGlobalDynamicMicrocubePositions() {
     auto& microcubes = m_getMicrocubes();
-    bool transformsChanged = false;
     
     for (auto& microcube : microcubes) {
         if (microcube && microcube->getRigidBody()) {
             btRigidBody* body = microcube->getRigidBody();
             btTransform transform = body->getWorldTransform();
+            
+            glm::vec3 oldStoredPos = microcube->getPhysicsPosition();
             
             btVector3 btPos = transform.getOrigin();
             glm::vec3 newWorldPos(btPos.x(), btPos.y(), btPos.z());
@@ -315,14 +316,15 @@ void DynamicObjectManager::updateGlobalDynamicMicrocubePositions() {
             btQuaternion btRot = transform.getRotation();
             glm::vec4 newRotation(btRot.x(), btRot.y(), btRot.z(), btRot.w());
             
-            microcube->setPhysicsPosition(newWorldPos);
-            microcube->setPhysicsRotation(newRotation);
-            transformsChanged = true;
+            // Only update stored transform if it actually moved
+            glm::vec3 delta = newWorldPos - oldStoredPos;
+            float distSq = glm::dot(delta, delta);
+            if (distSq > MOVEMENT_THRESHOLD_SQ) {
+                microcube->setPhysicsPosition(newWorldPos);
+                microcube->setPhysicsRotation(newRotation);
+                m_positionsDirty = true;
+            }
         }
-    }
-    
-    if (transformsChanged) {
-        m_rebuildFaces();
     }
 }
 
@@ -362,6 +364,17 @@ void DynamicObjectManager::updateAllDynamicObjectPositions() {
     updateGlobalDynamicSubcubePositions();
     updateGlobalDynamicCubePositions();
     updateGlobalDynamicMicrocubePositions();
+
+    // Single batched rebuild: only if positions actually changed AND throttle interval elapsed
+    if (m_positionsDirty) {
+        auto now = std::chrono::steady_clock::now();
+        float elapsed = std::chrono::duration<float>(now - m_lastPositionRebuildTime).count();
+        if (elapsed >= MIN_REBUILD_INTERVAL) {
+            m_rebuildFaces();
+            m_lastPositionRebuildTime = now;
+        }
+        m_positionsDirty = false;
+    }
 }
 
 void DynamicObjectManager::enforceObjectLimits() {
@@ -386,10 +399,8 @@ void DynamicObjectManager::enforceObjectLimits() {
     }
 }
 
-void DynamicObjectManager::derezCharacter(void* characterPtr, float explosionStrength) {
-    if (!characterPtr) return;
-    
-    auto* character = static_cast<Scene::AnimatedVoxelCharacter*>(characterPtr);
+void DynamicObjectManager::derezCharacter(Scene::AnimatedVoxelCharacter* character, float explosionStrength) {
+    if (!character) return;
     
     // OPTIMIZATION: Use DebrisSystem if available for lightweight particles
     if (m_debrisSystem) {

@@ -5,11 +5,16 @@
 #include <vector>
 #include <memory>
 #include <functional>
+#include <chrono>
 
 namespace VulkanCube {
 
 namespace Physics {
     class PhysicsWorld;
+}
+
+namespace Scene {
+    class AnimatedVoxelCharacter;
 }
 
 // Forward declarations
@@ -103,13 +108,20 @@ public:
     // ===== COMBINED OPERATIONS =====
     void updateAllDynamicObjects(float deltaTime);
     void updateAllDynamicObjectPositions();
+
+    /// Minimum movement (distance²) before a transform is considered "changed".
+    /// Prevents face rebuilds when bodies are sleeping or near-stationary.
+    static constexpr float MOVEMENT_THRESHOLD_SQ = 1e-6f;  // ~0.001 units
+
+    /// Minimum interval between position-driven face rebuilds (in seconds).
+    /// Add/remove operations still rebuild immediately.
+    static constexpr float MIN_REBUILD_INTERVAL = 1.0f / 30.0f;  // 30 Hz max
     
     // ===== CHARACTER DESTRUCTION =====
-    // Derez a character into dynamic physics objects
-    // Requires the character to be passed as a void* to avoid circular dependencies
-    // (will be cast to Scene::AnimatedVoxelCharacter* internally)
-    // explosionStrength: Multiplier for random velocity (1.0 = normal, 0.0 = fall in place)
-    void derezCharacter(void* characterPtr, float explosionStrength = 1.0f);
+    /// Derez a character into dynamic physics objects (debris particles or physics cubes).
+    /// @param character  The animated voxel character to destroy
+    /// @param explosionStrength  Multiplier for random velocity (1.0 = normal, 0.0 = fall in place)
+    void derezCharacter(Scene::AnimatedVoxelCharacter* character, float explosionStrength = 1.0f);
 
 private:
     // Callback functions
@@ -124,6 +136,12 @@ private:
     // Debug tracking
     int m_debugCounter = 0;
     bool m_firstUpdate = true;
+
+    // Dirty flag: set by position update methods, consumed by batched rebuild
+    bool m_positionsDirty = false;
+
+    // Throttle: time of last position-driven face rebuild
+    std::chrono::steady_clock::time_point m_lastPositionRebuildTime{};
     
     // Maximum number of dynamic objects allowed before cleanup
     static constexpr size_t MAX_DYNAMIC_OBJECTS = 500;

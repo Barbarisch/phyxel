@@ -64,9 +64,9 @@ void ChunkRenderManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
 }
 
 void ChunkRenderManager::rebuildAllFaces(
-    const std::vector<Cube*>& cubes,
-    const std::vector<Subcube*>& subcubes,
-    const std::vector<Microcube*>& microcubes,
+    const std::vector<std::unique_ptr<Cube>>& cubes,
+    const std::vector<std::unique_ptr<Subcube>>& subcubes,
+    const std::vector<std::unique_ptr<Microcube>>& microcubes,
     const glm::ivec3& worldOrigin,
     const NeighborLookupFunc& getNeighborCube)
 {
@@ -82,13 +82,13 @@ void ChunkRenderManager::rebuildAllFaces(
 }
 
 void ChunkRenderManager::rebuildCubeFaces(
-    const std::vector<Cube*>& cubes,
+    const std::vector<std::unique_ptr<Cube>>& cubes,
     const glm::ivec3& worldOrigin,
     const NeighborLookupFunc& getNeighborCube)
 {
     // Process regular cubes (only those that aren't subdivided)
     for (size_t cubeIndex = 0; cubeIndex < cubes.size(); ++cubeIndex) {
-        const Cube* cube = cubes[cubeIndex];
+        const Cube* cube = cubes[cubeIndex].get();
         
         // Skip deleted cubes (nullptr) or hidden cubes (subdivided)
         if (!cube || !cube->isVisible()) continue;
@@ -161,11 +161,11 @@ void ChunkRenderManager::rebuildCubeFaces(
 }
 
 void ChunkRenderManager::rebuildSubcubeFaces(
-    const std::vector<Subcube*>& subcubes,
+    const std::vector<std::unique_ptr<Subcube>>& subcubes,
     const glm::ivec3& worldOrigin)
 {
     // Process subcubes (from subdivided cubes)
-    for (const Subcube* subcube : subcubes) {
+    for (const auto& subcube : subcubes) {
         // Skip broken or hidden subcubes
         if (!subcube || subcube->isBroken() || !subcube->isVisible()) {
             continue;
@@ -211,11 +211,11 @@ void ChunkRenderManager::rebuildSubcubeFaces(
 }
 
 void ChunkRenderManager::rebuildMicrocubeFaces(
-    const std::vector<Microcube*>& microcubes,
+    const std::vector<std::unique_ptr<Microcube>>& microcubes,
     const glm::ivec3& worldOrigin)
 {
     // Process microcubes (from subdivided subcubes)
-    for (const Microcube* microcube : microcubes) {
+    for (const auto& microcube : microcubes) {
         // Skip broken or hidden microcubes
         if (!microcube || microcube->isBroken() || !microcube->isVisible()) {
             continue;
@@ -301,7 +301,7 @@ void ChunkRenderManager::updateVulkanBuffer() {
 void ChunkRenderManager::updateSingleCubeTexture(
     const glm::ivec3& localPos,
     uint16_t textureIndex,
-    const std::vector<Cube*>& cubes)
+    const std::vector<std::unique_ptr<Cube>>& cubes)
 {
     // Find the cube
     const Cube* cube = getCubeAtPosition(localPos, cubes);
@@ -339,7 +339,7 @@ void ChunkRenderManager::updateSingleSubcubeTexture(
     const glm::ivec3& parentLocalPos,
     const glm::ivec3& subcubePos,
     uint16_t textureIndex,
-    const std::vector<Subcube*>& subcubes,
+    const std::vector<std::unique_ptr<Subcube>>& subcubes,
     const glm::ivec3& worldOrigin)
 {
     // Validate positions
@@ -390,7 +390,7 @@ void ChunkRenderManager::updateSingleSubcubeTexture(
 void ChunkRenderManager::updateSingleCubeColor(
     const glm::ivec3& localPos,
     const glm::vec3& newColor,
-    const std::vector<Cube*>& cubes)
+    const std::vector<std::unique_ptr<Cube>>& cubes)
 {
     // Color updates would require rebuilding faces since colors are baked into vertex data
     // For now, this is a placeholder - actual implementation depends on rendering architecture
@@ -401,7 +401,7 @@ void ChunkRenderManager::updateSingleSubcubeColor(
     const glm::ivec3& localPos,
     const glm::ivec3& subcubePos,
     const glm::vec3& newColor,
-    const std::vector<Subcube*>& subcubes,
+    const std::vector<std::unique_ptr<Subcube>>& subcubes,
     const glm::ivec3& worldOrigin)
 {
     // Color updates would require rebuilding faces since colors are baked into vertex data
@@ -435,7 +435,7 @@ void ChunkRenderManager::logBufferUtilization() const {
 bool ChunkRenderManager::isCubeFaceVisible(
     const glm::ivec3& cubePos,
     int faceID,
-    const std::vector<Cube*>& cubes,
+    const std::vector<std::unique_ptr<Cube>>& cubes,
     const glm::ivec3& worldOrigin,
     const NeighborLookupFunc& getNeighborCube) const
 {
@@ -446,7 +446,7 @@ bool ChunkRenderManager::isCubeFaceVisible(
 
 const Cube* ChunkRenderManager::getCubeAtPosition(
     const glm::ivec3& localPos,
-    const std::vector<Cube*>& cubes) const
+    const std::vector<std::unique_ptr<Cube>>& cubes) const
 {
     // PERFORMANCE CRITICAL: Use indexed lookup - cubes vector is arranged in X-major order
     // Index formula: z + y*32 + x*32*32 (must match Chunk::localToIndex)
@@ -462,7 +462,7 @@ const Cube* ChunkRenderManager::getCubeAtPosition(
         return nullptr;
     }
     
-    return cubes[index];  // Could be nullptr for deleted cubes
+    return cubes[index].get();  // Could be nullptr for deleted cubes
 }
 
 } // namespace Graphics

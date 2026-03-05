@@ -11,6 +11,7 @@
 #include "utils/Logger.h"
 #include "utils/CoordinateUtils.h"
 #include "examples/MultiChunkDemo.h"
+#include "ai/AISystem.h"
 #include "core/Chunk.h"
 #include "physics/Material.h"
 #include <imgui.h>
@@ -256,6 +257,21 @@ bool Application::initialize() {
     // scriptingSystem created earlier for dependency injection
     scriptingSystem->init();
 
+    // STEP 9: INITIALIZE AI SYSTEM
+    // Create and initialize the AI system (goose-server sidecar, NPC management, story director)
+    aiSystem = std::make_unique<AI::AISystem>();
+    {
+        AI::GooseConfig aiConfig;
+        // Default config: localhost:3000, no TLS
+        // autoStart = false: don't start goose-server automatically
+        // User can start it manually or toggle with F9
+        if (!aiSystem->initialize(aiConfig, /*autoStart=*/false)) {
+            LOG_WARN("Application", "AI system initialization failed (non-critical)");
+        } else {
+            LOG_INFO("Application", "AI system initialized (server not auto-started)");
+        }
+    }
+
     m_initialized = true;
     return true;
 }
@@ -420,6 +436,12 @@ void Application::cleanup() {
         imguiRenderer->cleanup();
     }
     
+    // Shutdown AI system before scripting
+    if (aiSystem) {
+        aiSystem->shutdown();
+        aiSystem.reset();
+    }
+
     // Shutdown scripting first to stop any running scripts
     if (scriptingSystem) {
         scriptingSystem->shutdown();
@@ -505,6 +527,12 @@ void Application::update(float deltaTime) {
     if (scriptingSystem) {
         PROFILE_SCOPE(*performanceProfiler, "Scripting");
         scriptingSystem->update(deltaTime);
+    }
+
+    // Update AI system
+    if (aiSystem) {
+        PROFILE_SCOPE(*performanceProfiler, "AI");
+        aiSystem->update(deltaTime);
     }
 
     // Update entities
@@ -647,14 +675,9 @@ void Application::update(float deltaTime) {
         physicsCharacter->updateCamera();
     }
 
-    // Update dynamic subcube positions from physics bodies
+    // Update dynamic subcube positions from physics bodies (batched + throttled)
     if (chunkManager) {
-        // Update global dynamic subcubes (all dynamic subcubes are now global)
-        chunkManager->updateGlobalDynamicSubcubePositions();
-        // Update global dynamic cubes
-        chunkManager->updateGlobalDynamicCubePositions();
-        // Update global dynamic microcubes
-        chunkManager->updateGlobalDynamicMicrocubePositions();
+        chunkManager->m_dynamicObjectManager.updateAllDynamicObjectPositions();
     }
     
     static int frameCount = 0;
@@ -1091,6 +1114,63 @@ void Application::derezCharacter(float explosionStrength) {
         }
     } else {
         LOG_WARN("Application", "Cannot derez: No animated character or chunk manager");
+    }
+}
+
+void Application::spawnTestAINPC() {
+    if (!aiSystem) {
+        LOG_WARN("Application", "Cannot spawn AI NPC: AI system not initialized");
+        return;
+    }
+
+    // Create a physics character near the camera as the NPC body
+    glm::vec3 spawnPos(0.0f, 20.0f, 0.0f);
+    if (camera) {
+        // Spawn 5 units in front of the camera
+        glm::vec3 camPos = camera->getPosition();
+        glm::vec3 camFront = camera->getFront();
+        spawnPos = camPos + camFront * 5.0f + glm::vec3(0.0f, 2.0f, 0.0f);
+    }
+
+    auto npc = std::make_unique<Scene::PhysicsCharacter>(physicsWorld.get(), inputManager.get(), camera.get(), spawnPos);
+    npc->debugColor = glm::vec4(0.2f, 0.8f, 0.2f, 1.0f); // Green tint for AI NPCs
+    npc->setControlActive(false); // AI-controlled, not player-controlled
+
+    auto* rawPtr = npc.get();
+
+    // Generate a unique ID for this NPC
+    static int npcCounter = 0;
+    std::string npcId = "ai_npc_" + std::to_string(npcCounter++);
+
+    // Register with AI system using guard recipe as default
+    if (aiSystem->createAINPC(rawPtr, npcId, "resources/recipes/characters/guard.yaml",
+                               "You are a guard NPC in a voxel world. Be helpful but cautious.")) {
+        LOG_INFO("Application", "Spawned AI NPC '" << npcId << "' at (" 
+                 << spawnPos.x << ", " << spawnPos.y << ", " << spawnPos.z << ")");
+    } else {
+        LOG_WARN("Application", "AI NPC created but AI registration failed for: " << npcId);
+    }
+
+    entities.push_back(std::move(npc));
+}
+
+void Application::toggleAISystem() {
+    if (!aiSystem) {
+        LOG_WARN("Application", "AI system not available");
+        return;
+    }
+
+    auto stats = aiSystem->getStats();
+    if (stats.serverRunning) {
+        aiSystem->shutdown();
+        LOG_INFO("Application", "AI system stopped");
+    } else {
+        AI::GooseConfig config;
+        if (aiSystem->initialize(config, /*autoStart=*/true)) {
+            LOG_INFO("Application", "AI system started with goose-server");
+        } else {
+            LOG_WARN("Application", "Failed to start AI system");
+        }
     }
 }
 

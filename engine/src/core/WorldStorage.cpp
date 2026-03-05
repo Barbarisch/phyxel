@@ -387,7 +387,7 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
         // Save static subcubes that are stored directly in the chunk
         const auto& staticSubcubes = chunk.getStaticSubcubes();
         int savedSubcubes = 0;
-        for (const Subcube* subcube : staticSubcubes) {
+        for (const auto& subcube : staticSubcubes) {
             if (subcube && subcube->isVisible()) {
                 // Calculate parent cube local position from subcube's world position
                 glm::ivec3 parentWorldPos = subcube->getPosition();
@@ -450,7 +450,7 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
         // Save static microcubes
         const auto& staticMicrocubes = chunk.getStaticMicrocubes();
         int savedMicrocubes = 0;
-        for (const Microcube* microcube : staticMicrocubes) {
+        for (const auto& microcube : staticMicrocubes) {
             if (microcube && microcube->isVisible()) {
                 // Calculate parent cube local position from microcube's parent position
                 glm::ivec3 parentWorldPos = microcube->getParentCubePosition();

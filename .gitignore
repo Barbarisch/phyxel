@@ -202,6 +202,9 @@ cython_debug/
 *.dll
 *.exp
 
+# Temporary build output
+build_output.txt
+
 # World database files
 worlds/*.db
 worlds/*.db-journal

@@ -102,7 +102,7 @@ bool ChunkVoxelBreaker::breakSubcube(
     // Performance: O(n) but n is typically small (< 100 subcubes per chunk)
     auto it = staticSubcubes.begin();
     while (it != staticSubcubes.end()) {
-        Subcube* subcube = *it;
+        Subcube* subcube = it->get();
         
         // Match both world position AND local position for precise identification
         // worldOrigin + parentPos = parent cube's world position

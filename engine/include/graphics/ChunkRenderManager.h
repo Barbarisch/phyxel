@@ -3,6 +3,7 @@
 #include "core/Types.h"
 #include "graphics/ChunkRenderBuffer.h"
 #include <vector>
+#include <memory>
 #include <functional>
 #include <vulkan/vulkan.h>
 
@@ -44,26 +45,26 @@ public:
 
     // Face rebuilding - split into focused methods
     void rebuildAllFaces(
-        const std::vector<Cube*>& cubes,
-        const std::vector<Subcube*>& subcubes,
-        const std::vector<Microcube*>& microcubes,
+        const std::vector<std::unique_ptr<Cube>>& cubes,
+        const std::vector<std::unique_ptr<Subcube>>& subcubes,
+        const std::vector<std::unique_ptr<Microcube>>& microcubes,
         const glm::ivec3& worldOrigin,
         const NeighborLookupFunc& getNeighborCube = nullptr
     );
 
     void rebuildCubeFaces(
-        const std::vector<Cube*>& cubes,
+        const std::vector<std::unique_ptr<Cube>>& cubes,
         const glm::ivec3& worldOrigin,
         const NeighborLookupFunc& getNeighborCube = nullptr
     );
 
     void rebuildSubcubeFaces(
-        const std::vector<Subcube*>& subcubes,
+        const std::vector<std::unique_ptr<Subcube>>& subcubes,
         const glm::ivec3& worldOrigin
     );
 
     void rebuildMicrocubeFaces(
-        const std::vector<Microcube*>& microcubes,
+        const std::vector<std::unique_ptr<Microcube>>& microcubes,
         const glm::ivec3& worldOrigin
     );
 
@@ -77,28 +78,28 @@ public:
     void updateSingleCubeTexture(
         const glm::ivec3& localPos,
         uint16_t textureIndex,
-        const std::vector<Cube*>& cubes
+        const std::vector<std::unique_ptr<Cube>>& cubes
     );
 
     void updateSingleSubcubeTexture(
         const glm::ivec3& parentLocalPos,
         const glm::ivec3& subcubePos,
         uint16_t textureIndex,
-        const std::vector<Subcube*>& subcubes,
+        const std::vector<std::unique_ptr<Subcube>>& subcubes,
         const glm::ivec3& worldOrigin
     );
 
     void updateSingleCubeColor(
         const glm::ivec3& localPos,
         const glm::vec3& newColor,
-        const std::vector<Cube*>& cubes
+        const std::vector<std::unique_ptr<Cube>>& cubes
     );
 
     void updateSingleSubcubeColor(
         const glm::ivec3& localPos,
         const glm::ivec3& subcubePos,
         const glm::vec3& newColor,
-        const std::vector<Subcube*>& subcubes,
+        const std::vector<std::unique_ptr<Subcube>>& subcubes,
         const glm::ivec3& worldOrigin
     );
 
@@ -127,7 +128,7 @@ private:
     bool isCubeFaceVisible(
         const glm::ivec3& cubePos,
         int faceID,
-        const std::vector<Cube*>& cubes,
+        const std::vector<std::unique_ptr<Cube>>& cubes,
         const glm::ivec3& worldOrigin,
         const NeighborLookupFunc& getNeighborCube
     ) const;
@@ -138,7 +139,7 @@ private:
     // DO NOT use linear search - it causes O(n²) performance!
     const Cube* getCubeAtPosition(
         const glm::ivec3& localPos,
-        const std::vector<Cube*>& cubes
+        const std::vector<std::unique_ptr<Cube>>& cubes
     ) const;
 
     // Member variables

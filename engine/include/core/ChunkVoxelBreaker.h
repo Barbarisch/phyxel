@@ -66,7 +66,7 @@ namespace Physics {
 class ChunkVoxelBreaker {
 public:
     // Callback types for accessing Chunk state
-    using GetSubcubesFunc = std::function<std::vector<Subcube*>&()>;
+    using GetSubcubesFunc = std::function<std::vector<std::unique_ptr<Subcube>>&()>;
     using RemoveSubcubeFunc = std::function<bool(const glm::ivec3&, const glm::ivec3&)>;
     using RebuildFacesFunc = std::function<void()>;
     using BatchUpdateCollisionsFunc = std::function<void()>;

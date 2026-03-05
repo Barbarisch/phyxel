@@ -23,21 +23,17 @@ void ChunkStorage::addCube(const glm::ivec3& localPos, std::unique_ptr<Cube> cub
     
     size_t index = localToIndex(localPos);
     if (index >= cubes.size()) {
-        cubes.resize(32 * 32 * 32, nullptr);
+        cubes.resize(32 * 32 * 32);
     }
     
-    // If cube already exists, replace it
-    if (cubes[index]) {
-        delete cubes[index];
-    }
-    
-    cubes[index] = cube.release();
-    updateCubeMap(localPos, cubes[index]);
+    // If cube already exists, unique_ptr handles cleanup via assignment
+    cubes[index] = std::move(cube);
+    updateCubeMap(localPos, cubes[index].get());
 }
 
 void ChunkStorage::addCube(Cube* cube) {
     // Simple push_back for compatibility with existing usage patterns
-    cubes.push_back(cube);
+    cubes.push_back(std::unique_ptr<Cube>(cube));
     if (cube) {
         glm::ivec3 localPos = cube->getPosition();
         updateCubeMap(localPos, cube);
@@ -51,8 +47,7 @@ bool ChunkStorage::removeCube(const glm::ivec3& localPos) {
     if (index >= cubes.size() || !cubes[index]) return false;
     
     // Delete the cube
-    delete cubes[index];
-    cubes[index] = nullptr;
+    cubes[index].reset();
     
     // Update cube map
     updateCubeMap(localPos, nullptr);
@@ -69,7 +64,7 @@ Cube* ChunkStorage::getCubeAt(const glm::ivec3& localPos) const {
     size_t index = localToIndex(localPos);
     if (index >= cubes.size()) return nullptr;
     
-    return cubes[index];
+    return cubes[index].get();
 }
 
 // =============================================================================
@@ -82,16 +77,17 @@ void ChunkStorage::addStaticSubcube(std::unique_ptr<Subcube> subcube) {
     glm::ivec3 parentPos = subcube->getPosition(); // World position
     glm::ivec3 localPos = subcube->getLocalPosition(); // 0-2 for each axis
     
-    staticSubcubes.push_back(subcube.release());
+    Subcube* rawPtr = subcube.get();
+    staticSubcubes.push_back(std::move(subcube));
     
     // Update subcube map for O(1) lookup
-    updateSubcubeMap(parentPos, localPos, staticSubcubes.back());
+    updateSubcubeMap(parentPos, localPos, rawPtr);
 }
 
 void ChunkStorage::addStaticSubcube(Subcube* subcube) {
     // Raw pointer overload for compatibility with existing usage patterns
     if (!subcube) return;
-    staticSubcubes.push_back(subcube);
+    staticSubcubes.push_back(std::unique_ptr<Subcube>(subcube));
     
     glm::ivec3 parentPos = subcube->getPosition(); // World position
     glm::ivec3 localPos = subcube->getLocalPosition(); // 0-2 for each axis
@@ -101,15 +97,14 @@ void ChunkStorage::addStaticSubcube(Subcube* subcube) {
 bool ChunkStorage::removeStaticSubcube(const glm::ivec3& parentPos, const glm::ivec3& localPos) {
     // Find and remove the subcube
     auto it = std::find_if(staticSubcubes.begin(), staticSubcubes.end(),
-        [&](const Subcube* subcube) {
+        [&](const std::unique_ptr<Subcube>& subcube) {
             return subcube && 
                    subcube->getPosition() == parentPos && 
                    subcube->getLocalPosition() == localPos;
         });
     
     if (it != staticSubcubes.end()) {
-        delete *it;
-        staticSubcubes.erase(it);
+        staticSubcubes.erase(it);  // unique_ptr auto-deletes
         
         // Update subcube map
         updateSubcubeMap(parentPos, localPos, nullptr);
@@ -123,9 +118,9 @@ std::vector<Subcube*> ChunkStorage::getStaticSubcubesAt(const glm::ivec3& worldP
     std::vector<Subcube*> result;
     
     // Note: This method takes a world position and finds subcubes at that position
-    for (Subcube* subcube : staticSubcubes) {
+    for (const auto& subcube : staticSubcubes) {
         if (subcube && subcube->getPosition() == worldPos) {
-            result.push_back(subcube);
+            result.push_back(subcube.get());
         }
     }
     return result;
@@ -196,7 +191,7 @@ void ChunkStorage::clearVoxelType(const glm::ivec3& localPos) {
 
 size_t ChunkStorage::getCubeCount() const {
     size_t count = 0;
-    for (const Cube* cube : cubes) {
+    for (const auto& cube : cubes) {
         if (cube) count++;
     }
     return count;
@@ -204,7 +199,7 @@ size_t ChunkStorage::getCubeCount() const {
 
 size_t ChunkStorage::getSubcubeCount() const {
     size_t count = 0;
-    for (const Subcube* subcube : staticSubcubes) {
+    for (const auto& subcube : staticSubcubes) {
         if (subcube) count++;
     }
     return count;
@@ -212,7 +207,7 @@ size_t ChunkStorage::getSubcubeCount() const {
 
 size_t ChunkStorage::getVisibleCubeCount() const {
     size_t count = 0;
-    for (const Cube* cube : cubes) {
+    for (const auto& cube : cubes) {
         if (cube && cube->isVisible()) count++;
     }
     return count;
@@ -220,7 +215,7 @@ size_t ChunkStorage::getVisibleCubeCount() const {
 
 size_t ChunkStorage::getVisibleSubcubeCount() const {
     size_t count = 0;
-    for (const Subcube* subcube : staticSubcubes) {
+    for (const auto& subcube : staticSubcubes) {
         if (subcube && subcube->isVisible()) count++;
     }
     return count;
@@ -233,17 +228,11 @@ void ChunkStorage::clear() {
 }
 
 void ChunkStorage::clearCubes() {
-    for (Cube* cube : cubes) {
-        delete cube;
-    }
     cubes.clear();
     cubeMap.clear();
 }
 
 void ChunkStorage::clearSubcubes() {
-    for (Subcube* subcube : staticSubcubes) {
-        delete subcube;
-    }
     staticSubcubes.clear();
     subcubeMap.clear();
 }

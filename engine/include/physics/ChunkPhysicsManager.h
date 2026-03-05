@@ -80,9 +80,9 @@ public:
     using SubcubeAccessFunc = std::function<Subcube*(const glm::ivec3&, const glm::ivec3&)>;
     using MicrocubesAccessFunc = std::function<std::vector<Microcube*>(const glm::ivec3&, const glm::ivec3&)>;
     using StaticSubcubesAccessFunc = std::function<std::vector<Subcube*>(const glm::ivec3&)>;
-    using CubesArrayAccessFunc = std::function<const std::vector<Cube*>&()>;
+    using CubesArrayAccessFunc = std::function<const std::vector<std::unique_ptr<Cube>>&()>;
     using IndexToLocalFunc = std::function<glm::ivec3(size_t)>;
-    using StaticMicrocubesAccessFunc = std::function<const std::vector<Microcube*>&()>;
+    using StaticMicrocubesAccessFunc = std::function<const std::vector<std::unique_ptr<Microcube>>&()>;
     
     // Physics body lifecycle
     void createChunkPhysicsBody(const CubesArrayAccessFunc& getCubes,

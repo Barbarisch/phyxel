@@ -156,6 +156,18 @@ void InputController::setupKeyboardBindings() {
     m_inputManager->registerActionWithModifier(GLFW_KEY_F5, GLFW_MOD_SHIFT, "Cycle Raycast Target Mode", [this]() {
         m_app->cycleRaycastTargetMode();
     });
+
+    // F8 - Spawn AI NPC
+    m_inputManager->registerAction(GLFW_KEY_F8, "Spawn AI NPC", [this]() {
+        LOG_INFO("InputController", "F8 pressed - Spawning AI NPC");
+        m_app->spawnTestAINPC();
+    });
+
+    // F9 - Toggle AI System (start/stop goose-server)
+    m_inputManager->registerAction(GLFW_KEY_F9, "Toggle AI System", [this]() {
+        LOG_INFO("InputController", "F9 pressed - Toggling AI System");
+        m_app->toggleAISystem();
+    });
     
     // G - Spawn dynamic subcube (placeholder)
     m_inputManager->registerAction(GLFW_KEY_G, "Spawn Dynamic Subcube", [this]() {

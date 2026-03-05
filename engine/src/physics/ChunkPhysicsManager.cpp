@@ -392,7 +392,7 @@ void ChunkPhysicsManager::buildInitialCollisionShapes(const CubesArrayAccessFunc
     
     // Build collision shapes for visible cubes that have exposed faces
     for (size_t i = 0; i < cubes.size(); ++i) {
-        const Cube* cube = cubes[i];
+        const Cube* cube = cubes[i].get();
         
         // Skip deleted cubes (nullptr) or hidden cubes (subdivided)
         if (!cube || !cube->isVisible()) {
@@ -469,7 +469,7 @@ void ChunkPhysicsManager::buildInitialCollisionShapes(const CubesArrayAccessFunc
     
     // Build collision shapes for static microcubes with individual tracking
     const auto& staticMicrocubes = getStaticMicrocubes();
-    for (const Microcube* microcube : staticMicrocubes) {
+    for (const auto& microcube : staticMicrocubes) {
         // Skip broken or hidden microcubes
         if (!microcube || microcube->isBroken() || !microcube->isVisible()) {
             continue;

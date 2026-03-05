@@ -286,7 +286,7 @@ void ChunkVoxelManager::initializeVoxelMaps() {
     // Iterate through cubes vector and populate hash map
     auto& cubes = m_getCubes();
     for (size_t i = 0; i < cubes.size(); ++i) {
-        Cube* cube = cubes[i];
+        Cube* cube = cubes[i].get();
         if (cube) {
             glm::ivec3 localPos = cube->getPosition();  // Already in local coordinates
             cubeMap[localPos] = cube;
@@ -296,25 +296,25 @@ void ChunkVoxelManager::initializeVoxelMaps() {
     
     // Build subcubeMap from static subcubes
     auto& staticSubcubes = m_getStaticSubcubes();
-    for (Subcube* subcube : staticSubcubes) {
+    for (const auto& subcube : staticSubcubes) {
         if (subcube) {
             glm::ivec3 parentWorldPos = subcube->getPosition();
             glm::ivec3 localPos = parentWorldPos - worldOrigin;
             glm::ivec3 subcubePos = subcube->getLocalPosition();
-            subcubeMap[localPos][subcubePos] = subcube;
+            subcubeMap[localPos][subcubePos] = subcube.get();
             voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
         }
     }
     
     // Build microcubeMap from static microcubes
     auto& staticMicrocubes = m_getStaticMicrocubes();
-    for (Microcube* microcube : staticMicrocubes) {
+    for (const auto& microcube : staticMicrocubes) {
         if (microcube) {
             glm::ivec3 parentWorldPos = microcube->getParentCubePosition();
             glm::ivec3 cubePos = parentWorldPos - worldOrigin;
             glm::ivec3 subcubePos = microcube->getSubcubeLocalPosition();
             glm::ivec3 microcubePos = microcube->getMicrocubeLocalPosition();
-            microcubeMap[cubePos][subcubePos][microcubePos] = microcube;
+            microcubeMap[cubePos][subcubePos][microcubePos] = microcube.get();
             voxelTypeMap[cubePos] = VoxelLocation::SUBDIVIDED;
         }
     }
@@ -391,7 +391,7 @@ Cube* ChunkVoxelManager::getCubeHelper(const glm::ivec3& localPos) const {
     size_t index = localPos.z + localPos.y * 32 + localPos.x * 32 * 32;
     auto& cubes = m_getCubes();
     if (index >= cubes.size()) return nullptr;
-    return cubes[index];
+    return cubes[index].get();
 }
 
 Subcube* ChunkVoxelManager::getSubcubeHelper(
@@ -410,11 +410,11 @@ Subcube* ChunkVoxelManager::getSubcubeHelper(
     // Fallback: linear search (slower, but handles inconsistent state)
     glm::ivec3 worldOrigin = m_getWorldOrigin();
     auto& staticSubcubes = m_getStaticSubcubes();
-    for (Subcube* subcube : staticSubcubes) {
+    for (const auto& subcube : staticSubcubes) {
         if (subcube && 
             subcube->getPosition() == worldOrigin + localPos && 
             subcube->getLocalPosition() == subcubePos) {
-            return subcube;
+            return subcube.get();
         }
     }
     return nullptr;
@@ -427,9 +427,9 @@ std::vector<Subcube*> ChunkVoxelManager::getSubcubesHelper(
     glm::ivec3 parentWorldPos = m_getWorldOrigin() + localPos;
     
     auto& staticSubcubes = m_getStaticSubcubes();
-    for (Subcube* subcube : staticSubcubes) {
+    for (const auto& subcube : staticSubcubes) {
         if (subcube && subcube->getPosition() == parentWorldPos) {
-            result.push_back(subcube);
+            result.push_back(subcube.get());
         }
     }
     return result;
@@ -500,7 +500,7 @@ bool ChunkVoxelManager::addCube(
     
     // Ensure cubes vector is properly sized (32x32x32 = 32768 elements)
     if (cubes.size() < 32 * 32 * 32) {
-        cubes.resize(32 * 32 * 32, nullptr);
+        cubes.resize(32 * 32 * 32);
     }
     
     // If cube already exists, just ensure it's not broken
@@ -510,16 +510,16 @@ bool ChunkVoxelManager::addCube(
             cubes[index]->setMaterial(material);
         }
         // Update hash maps for existing cube
-        addToVoxelMaps(localPos, cubes[index]);
+        addToVoxelMaps(localPos, cubes[index].get());
     } else {
         // Create new cube
         if (!material.empty()) {
-            cubes[index] = new Cube(localPos, material);
+            cubes[index] = std::make_unique<Cube>(localPos, material);
         } else {
-            cubes[index] = new Cube(localPos);
+            cubes[index] = std::make_unique<Cube>(localPos);
         }
         // Update hash maps for new cube
-        addToVoxelMaps(localPos, cubes[index]);
+        addToVoxelMaps(localPos, cubes[index].get());
     }
     
     // Mark chunk as dirty for smart saving
@@ -553,8 +553,7 @@ bool ChunkVoxelManager::removeCube(
     if (index >= cubes.size() || !cubes[index]) return false;
     
     // Delete the cube from memory
-    delete cubes[index];
-    cubes[index] = nullptr;
+    cubes[index].reset();
     
     // Update hash maps to reflect removal
     removeFromVoxelMaps(localPos);
@@ -609,11 +608,12 @@ bool ChunkVoxelManager::subdivideAt(
             for (int z = 0; z < 3; ++z) {
                 glm::ivec3 subcubeLocalPos(x, y, z);
                 
-                Subcube* newSubcube = new Subcube(parentWorldPos, subcubeLocalPos);
-                staticSubcubes.push_back(newSubcube);
+                auto newSubcube = std::make_unique<Subcube>(parentWorldPos, subcubeLocalPos);
+                Subcube* rawPtr = newSubcube.get();
+                staticSubcubes.push_back(std::move(newSubcube));
                 
                 // Update hash maps for each subcube
-                addSubcubeToMaps(localPos, subcubeLocalPos, newSubcube);
+                addSubcubeToMaps(localPos, subcubeLocalPos, rawPtr);
             }
         }
     }
@@ -622,9 +622,8 @@ bool ChunkVoxelManager::subdivideAt(
     cubeMap.erase(localPos);
     size_t cubeIndex = localPos.z + localPos.y * 32 + localPos.x * 32 * 32;
     auto& cubes = m_getCubes();
-    if (cubeIndex < cubes.size() && cubes[cubeIndex] == cube) {
-        delete cube;
-        cubes[cubeIndex] = nullptr;
+    if (cubeIndex < cubes.size() && cubes[cubeIndex].get() == cube) {
+        cubes[cubeIndex].reset();
         LOG_DEBUG_FMT("ChunkVoxelManager", "Completely removed parent cube at (" 
                   << localPos.x << "," << localPos.y << "," << localPos.z 
                   << ") - replaced by 27 subcubes");
@@ -663,12 +662,13 @@ bool ChunkVoxelManager::addSubcube(
     
     // Create new subcube
     glm::ivec3 parentWorldPos = m_getWorldOrigin() + parentPos;
-    Subcube* newSubcube = new Subcube(parentWorldPos, subcubePos);
+    auto newSubcube = std::make_unique<Subcube>(parentWorldPos, subcubePos);
+    Subcube* rawPtr = newSubcube.get();
     auto& staticSubcubes = m_getStaticSubcubes();
-    staticSubcubes.push_back(newSubcube);
+    staticSubcubes.push_back(std::move(newSubcube));
     
     // Update hash maps
-    addSubcubeToMaps(parentPos, subcubePos, newSubcube);
+    addSubcubeToMaps(parentPos, subcubePos, rawPtr);
     
     // Update collision shape
     m_addCollision(parentPos);
@@ -689,12 +689,11 @@ bool ChunkVoxelManager::removeSubcube(
     
     // Try to find and remove from static subcubes
     for (auto it = staticSubcubes.begin(); it != staticSubcubes.end(); ++it) {
-        Subcube* subcube = *it;
+        Subcube* subcube = it->get();
         if (subcube && 
             subcube->getPosition() == worldOrigin + parentPos && 
             subcube->getLocalPosition() == subcubePos) {
             
-            delete subcube;
             staticSubcubes.erase(it);
             
             // Update hash maps BEFORE checking remaining subcubes
@@ -757,9 +756,8 @@ bool ChunkVoxelManager::clearSubdivisionAt(
     bool removedAny = false;
     
     while (it != staticSubcubes.end()) {
-        Subcube* subcube = *it;
+        auto& subcube = *it;
         if (subcube && subcube->getPosition() == parentWorldPos) {
-            delete subcube;
             it = staticSubcubes.erase(it);
             removedAny = true;
         } else {
@@ -817,11 +815,12 @@ bool ChunkVoxelManager::subdivideSubcubeAt(
             for (int z = 0; z < 3; ++z) {
                 glm::ivec3 microcubeLocalPos(x, y, z);
                 
-                Microcube* newMicrocube = new Microcube(parentWorldPos, subcubePos, microcubeLocalPos);
-                staticMicrocubes.push_back(newMicrocube);
+                auto newMicrocube = std::make_unique<Microcube>(parentWorldPos, subcubePos, microcubeLocalPos);
+                Microcube* rawPtr = newMicrocube.get();
+                staticMicrocubes.push_back(std::move(newMicrocube));
                 
                 // Update hash maps for O(1) hover detection
-                addMicrocubeToMaps(cubePos, subcubePos, microcubeLocalPos, newMicrocube);
+                addMicrocubeToMaps(cubePos, subcubePos, microcubeLocalPos, rawPtr);
             }
         }
     }
@@ -832,8 +831,7 @@ bool ChunkVoxelManager::subdivideSubcubeAt(
     // Remove from staticSubcubes vector
     auto& staticSubcubes = m_getStaticSubcubes();
     for (auto it = staticSubcubes.begin(); it != staticSubcubes.end(); ++it) {
-        if (*it == subcube) {
-            delete subcube;
+        if (it->get() == subcube) {
             staticSubcubes.erase(it);
             LOG_DEBUG_FMT("ChunkVoxelManager", "Completely removed parent subcube at cube (" 
                       << cubePos.x << "," << cubePos.y << "," << cubePos.z 
@@ -898,8 +896,7 @@ bool ChunkVoxelManager::addMicrocube(
             removeSubcubeFromMaps(parentCubePos, subcubePos);
             auto& staticSubcubes = m_getStaticSubcubes();
             for (auto it = staticSubcubes.begin(); it != staticSubcubes.end(); ++it) {
-                if (*it == parentSubcube) {
-                    delete parentSubcube;
+                if (it->get() == parentSubcube) {
                     staticSubcubes.erase(it);
                     break;
                 }
@@ -909,12 +906,13 @@ bool ChunkVoxelManager::addMicrocube(
     
     // Create new microcube
     glm::ivec3 parentWorldPos = m_getWorldOrigin() + parentCubePos;
-    Microcube* newMicrocube = new Microcube(parentWorldPos, subcubePos, microcubePos);
+    auto newMicrocube = std::make_unique<Microcube>(parentWorldPos, subcubePos, microcubePos);
+    Microcube* rawPtr = newMicrocube.get();
     auto& staticMicrocubes = m_getStaticMicrocubes();
-    staticMicrocubes.push_back(newMicrocube);
+    staticMicrocubes.push_back(std::move(newMicrocube));
     
     // Update hash maps
-    addMicrocubeToMaps(parentCubePos, subcubePos, microcubePos, newMicrocube);
+    addMicrocubeToMaps(parentCubePos, subcubePos, microcubePos, rawPtr);
     
     // Mark for update and as dirty
     m_setNeedsUpdate(true);
@@ -937,7 +935,7 @@ bool ChunkVoxelManager::removeMicrocube(
     
     // Try to find and remove from static microcubes
     for (auto it = staticMicrocubes.begin(); it != staticMicrocubes.end(); ++it) {
-        Microcube* microcube = *it;
+        Microcube* microcube = it->get();
         if (microcube && 
             microcube->getParentCubePosition() == (worldOrigin + parentCubePos) &&
             microcube->getSubcubeLocalPosition() == subcubePos &&
@@ -948,8 +946,7 @@ bool ChunkVoxelManager::removeMicrocube(
             // Remove from hash maps
             removeMicrocubeFromMaps(parentCubePos, subcubePos, microcubePos);
             
-            // Delete and remove from vector
-            delete microcube;
+            // Remove from vector (unique_ptr auto-deletes)
             staticMicrocubes.erase(it);
             
             LOG_INFO("ChunkVoxelManager", "[REMOVE MICROCUBE] Checking for remaining microcubes");
@@ -1011,7 +1008,7 @@ bool ChunkVoxelManager::clearMicrocubesAt(
     
     // Remove all microcubes at this subcube position
     for (auto it = staticMicrocubes.begin(); it != staticMicrocubes.end(); ) {
-        Microcube* microcube = *it;
+        auto& microcube = *it;
         if (microcube && 
             microcube->getParentCubePosition() == (worldOrigin + cubePos) &&
             microcube->getSubcubeLocalPosition() == subcubePos) {
@@ -1019,8 +1016,7 @@ bool ChunkVoxelManager::clearMicrocubesAt(
             // Remove from hash maps
             removeMicrocubeFromMaps(cubePos, subcubePos, microcube->getMicrocubeLocalPosition());
             
-            // Delete and remove from vector
-            delete microcube;
+            // Remove from vector (unique_ptr auto-deletes)
             it = staticMicrocubes.erase(it);
         } else {
             ++it;

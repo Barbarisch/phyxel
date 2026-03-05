@@ -6,6 +6,7 @@
 #include <vector>
 #include <unordered_map>
 #include <functional>
+#include <memory>
 #include <glm/glm.hpp>
 
 namespace VulkanCube {
@@ -55,9 +56,9 @@ namespace Physics {
 class ChunkVoxelManager {
 public:
     // Callback function types for accessing Chunk data
-    using CubesVectorAccessFunc = std::function<std::vector<Cube*>&()>;
-    using SubcubesVectorAccessFunc = std::function<std::vector<Subcube*>&()>;
-    using MicrocubesVectorAccessFunc = std::function<std::vector<Microcube*>&()>;
+    using CubesVectorAccessFunc = std::function<std::vector<std::unique_ptr<Cube>>&()>;
+    using SubcubesVectorAccessFunc = std::function<std::vector<std::unique_ptr<Subcube>>&()>;
+    using MicrocubesVectorAccessFunc = std::function<std::vector<std::unique_ptr<Microcube>>&()>;
     using WorldOriginAccessFunc = std::function<const glm::ivec3&()>;
     using SetDirtyFunc = std::function<void(bool)>;
     using SetNeedsUpdateFunc = std::function<void(bool)>;
