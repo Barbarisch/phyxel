@@ -3,7 +3,7 @@
 #include "core/Chunk.h"
 #include <glm/glm.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 class WorldGeneratorTest : public ::testing::Test {
 protected:
@@ -130,4 +130,4 @@ TEST_F(WorldGeneratorTest, DifferentSeedsProduceDifferentResults) {
     EXPECT_GT(differences, 0);
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

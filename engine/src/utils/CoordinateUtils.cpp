@@ -1,7 +1,7 @@
 #include "utils/CoordinateUtils.h"
 #include "utils/Logger.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Utils {
 
 glm::ivec3 CoordinateUtils::worldToChunkCoord(const glm::ivec3& worldPos) {
@@ -43,4 +43,4 @@ bool CoordinateUtils::isValidLocalCoord(const glm::ivec3& localPos) {
 }
 
 } // namespace Utils
-} // namespace VulkanCube
+} // namespace Phyxel

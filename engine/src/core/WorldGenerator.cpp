@@ -6,7 +6,7 @@
 #include <cmath>
 #include <iostream>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 WorldGenerator::WorldGenerator(GenerationType type, uint32_t seed) 
     : generationType(type), seed(seed) {
@@ -276,4 +276,4 @@ int WorldGenerator::hash(int x, int y, int z) {
     return (x ^ y ^ z) + seed;
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

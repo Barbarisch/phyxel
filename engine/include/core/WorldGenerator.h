@@ -3,7 +3,7 @@
 #include <glm/glm.hpp>
 #include <functional>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 class Chunk;
 
@@ -79,4 +79,4 @@ private:
     int hash(int x, int y, int z);
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

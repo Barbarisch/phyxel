@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <string>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Input {
 
 /**
@@ -169,4 +169,4 @@ private:
 };
 
 } // namespace Input
-} // namespace VulkanCube
+} // namespace Phyxel

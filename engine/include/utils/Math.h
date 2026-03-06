@@ -3,7 +3,7 @@
 #include <glm/glm.hpp>
 #include <random>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declarations
 struct CubeFaces;
@@ -30,4 +30,4 @@ glm::vec3 screenToWorldRay(double mouseX, double mouseY, int screenWidth, int sc
                           const glm::mat4& view, const glm::mat4& proj);
 
 } // namespace Math
-} // namespace VulkanCube
+} // namespace Phyxel

@@ -20,11 +20,11 @@ namespace Physics {
     class PhysicsWorld;
 }
 
-namespace VulkanCube {
+namespace Phyxel {
     class WorldStorage; // Forward declaration
 }
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Manages all chunks in the world for scalable multi-chunk rendering
 // 
@@ -268,4 +268,4 @@ private:
     uint32_t calculateOcclusionFaceMask(const glm::ivec3& chunkOrigin, int relativeX, int relativeY, int relativeZ) const;
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

@@ -22,7 +22,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <map>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Graphics {
 
 RenderCoordinator::RenderCoordinator(
@@ -781,4 +781,4 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
 }
 
 } // namespace Graphics
-} // namespace VulkanCube
+} // namespace Phyxel

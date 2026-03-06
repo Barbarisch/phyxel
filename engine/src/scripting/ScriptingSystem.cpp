@@ -3,7 +3,7 @@
 #include <pybind11/pybind11.h>
 #include <algorithm>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 extern void setScriptingAppInstance(Application* app);
 

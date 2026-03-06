@@ -8,7 +8,7 @@
 #include "utils/Logger.h"
 #include <GLFW/glfw3.h>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 InputController::InputController(Input::InputManager* inputManager, 
                                VoxelInteractionSystem* interactionSystem,

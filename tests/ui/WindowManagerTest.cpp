@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include "ui/WindowManager.h"
 
-using namespace VulkanCube::UI;
+using namespace Phyxel::UI;
 
 class WindowManagerTest : public ::testing::Test {
 protected:

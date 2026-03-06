@@ -7,7 +7,7 @@
 #include <string>
 #include <memory>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 class PerformanceProfiler {
 public:
@@ -160,4 +160,4 @@ private:
 // Convenience macro for scoped timing
 #define PROFILE_SCOPE(profiler, name) ScopedTimer _timer_##__LINE__(profiler, name)
 
-} // namespace VulkanCube
+} // namespace Phyxel

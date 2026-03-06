@@ -1,4 +1,4 @@
-﻿# PowerShell Build and Test Script for Phyxel
+# PowerShell Build and Test Script for Phyxel
 # Sets up VS environment and builds/tests the project
 
 param(
@@ -108,8 +108,8 @@ Write-Host "Building Project ($Config)..." -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
 # Build main executable first
-Write-Host "Building VulkanCube..." -ForegroundColor Yellow
-cmake --build . --config $Config --target VulkanCube
+Write-Host "Building Phyxel..." -ForegroundColor Yellow
+cmake --build . --config $Config --target phyxel
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""

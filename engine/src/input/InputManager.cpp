@@ -3,7 +3,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <iomanip>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Input {
 
 InputManager::InputManager()
@@ -335,4 +335,4 @@ bool InputManager::isMouseButtonPressed(int button) const {
 }
 
 } // namespace Input
-} // namespace VulkanCube
+} // namespace Phyxel

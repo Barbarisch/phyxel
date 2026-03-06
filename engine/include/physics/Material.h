@@ -4,7 +4,7 @@
 #include <string>
 #include <unordered_map>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Physics {
 
 /**
@@ -71,4 +71,4 @@ private:
 };
 
 } // namespace Physics
-} // namespace VulkanCube
+} // namespace Phyxel

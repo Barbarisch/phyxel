@@ -26,7 +26,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 /**
  * Application Constructor
@@ -277,7 +277,7 @@ bool Application::initialize() {
 }
 
 void Application::run() {
-    LOG_INFO("Application", "Starting VulkanCube application...");
+    LOG_INFO("Application", "Starting Phyxel application...");
     isRunning = true;
     
     lastFrameTime = glfwGetTime();
@@ -1174,4 +1174,4 @@ void Application::toggleAISystem() {
     }
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

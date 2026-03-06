@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace AI {
 
 // ============================================================================
@@ -464,4 +464,4 @@ void AICharacterManager::distributeCommands() {
 }
 
 } // namespace AI
-} // namespace VulkanCube
+} // namespace Phyxel

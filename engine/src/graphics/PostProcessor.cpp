@@ -5,7 +5,7 @@
 #include <array>
 #include <stdexcept>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Graphics {
 
 // Helper to create shader module
@@ -654,7 +654,7 @@ void PostProcessor::draw(VkCommandBuffer commandBuffer, VkFramebuffer swapchainF
 }
 
 } // namespace Graphics
-} // namespace VulkanCube
+} // namespace Phyxel
 
 static void insertImageMemoryBarrier(
     VkCommandBuffer cmdbuffer,
@@ -686,7 +686,7 @@ static void insertImageMemoryBarrier(
         1, &imageMemoryBarrier);
 }
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Graphics {
 
 bool PostProcessor::createBloomResources(uint32_t width, uint32_t height) {
@@ -1027,4 +1027,4 @@ void PostProcessor::renderBloom(VkCommandBuffer commandBuffer) {
 }
 
 } // namespace Graphics
-} // namespace VulkanCube
+} // namespace Phyxel

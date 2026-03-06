@@ -3,7 +3,7 @@
 #include "scene/CubeLocation.h"
 #include <glm/glm.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 /**
  * Context data passed to interaction tools during an action.

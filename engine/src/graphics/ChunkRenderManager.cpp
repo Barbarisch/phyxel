@@ -7,7 +7,7 @@
 #include <cstring>
 #include <iostream>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Graphics {
 
 ChunkRenderManager::ChunkRenderManager()
@@ -140,12 +140,12 @@ void ChunkRenderManager::rebuildCubeFaces(
                 // Pack cube position and face ID using new layout
                 // Scale level 0 = regular cube
                 const glm::ivec3& cubePos = cube->getPosition();
-                faceInstance.packedData = VulkanCube::InstanceDataUtils::packCubeFaceData(
+                faceInstance.packedData = Phyxel::InstanceDataUtils::packCubeFaceData(
                     cubePos.x, cubePos.y, cubePos.z, faceID
                 );
                 
                 // Assign texture based on face ID
-                faceInstance.textureIndex = VulkanCube::TextureConstants::getTextureIndexForFace(faceID);
+                faceInstance.textureIndex = Phyxel::TextureConstants::getTextureIndexForFace(faceID);
                 
                 // Check for emissive material
                 if (cube->getMaterialName() == "glow") {
@@ -195,14 +195,14 @@ void ChunkRenderManager::rebuildSubcubeFaces(
                 
                 // Pack parent cube position, face ID, and subcube local position
                 // Scale level 1 = subcube
-                faceInstance.packedData = VulkanCube::InstanceDataUtils::packSubcubeFaceData(
+                faceInstance.packedData = Phyxel::InstanceDataUtils::packSubcubeFaceData(
                     parentChunkPos.x, parentChunkPos.y, parentChunkPos.z,
                     faceID,
                     localPos.x, localPos.y, localPos.z
                 );
                 
                 // Assign texture based on face ID
-                faceInstance.textureIndex = VulkanCube::TextureConstants::getTextureIndexForFace(faceID);
+                faceInstance.textureIndex = Phyxel::TextureConstants::getTextureIndexForFace(faceID);
                 faceInstance.reserved = 0;
                 faces.push_back(faceInstance);
             }
@@ -260,7 +260,7 @@ void ChunkRenderManager::rebuildMicrocubeFaces(
                 
                 // Pack parent cube position, face ID, subcube position, and microcube position
                 // Scale level 2 = microcube
-                faceInstance.packedData = VulkanCube::InstanceDataUtils::packMicrocubeFaceData(
+                faceInstance.packedData = Phyxel::InstanceDataUtils::packMicrocubeFaceData(
                     parentChunkPos.x, parentChunkPos.y, parentChunkPos.z,
                     faceID,
                     subcubePos.x, subcubePos.y, subcubePos.z,
@@ -268,7 +268,7 @@ void ChunkRenderManager::rebuildMicrocubeFaces(
                 );
                 
                 // Use placeholder texture for microcubes
-                faceInstance.textureIndex = VulkanCube::TextureConstants::PLACEHOLDER_TEXTURE_INDEX;
+                faceInstance.textureIndex = Phyxel::TextureConstants::PLACEHOLDER_TEXTURE_INDEX;
                 faceInstance.reserved = 0;
                 faces.push_back(faceInstance);
             }
@@ -466,4 +466,4 @@ const Cube* ChunkRenderManager::getCubeAtPosition(
 }
 
 } // namespace Graphics
-} // namespace VulkanCube
+} // namespace Phyxel

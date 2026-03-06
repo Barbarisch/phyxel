@@ -2,7 +2,7 @@
 #include "utils/Logger.h"
 #include <iomanip>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Utils {
 
 PerformanceMonitor::PerformanceMonitor() {
@@ -167,4 +167,4 @@ void PerformanceMonitor::clearTimings() {
 }
 
 } // namespace Utils
-} // namespace VulkanCube
+} // namespace Phyxel

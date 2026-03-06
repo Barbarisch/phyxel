@@ -7,7 +7,7 @@
 #include <functional>
 #include <vulkan/vulkan.h>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declarations
 class Cube;
@@ -154,4 +154,4 @@ private:
 };
 
 } // namespace Graphics
-} // namespace VulkanCube
+} // namespace Phyxel

@@ -4,7 +4,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <array>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Utils {
 
 struct Plane {
@@ -58,4 +58,4 @@ private:
 };
 
 } // namespace Utils
-} // namespace VulkanCube
+} // namespace Phyxel

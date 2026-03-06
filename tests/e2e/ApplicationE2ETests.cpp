@@ -1,8 +1,8 @@
 #include "E2ETestFixture.h"
 #include <gtest/gtest.h>
 
-using namespace VulkanCube;
-using namespace VulkanCube::Testing;
+using namespace Phyxel;
+using namespace Phyxel::Testing;
 
 /**
  * @brief End-to-End tests for Application lifecycle and workflows

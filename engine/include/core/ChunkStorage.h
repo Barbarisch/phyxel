@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <memory>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 /**
  * @brief Manages voxel storage and organization within a 32x32x32 chunk
@@ -82,4 +82,4 @@ private:
     void updateSubcubeMap(const glm::ivec3& parentPos, const glm::ivec3& localPos, Subcube* subcube);
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

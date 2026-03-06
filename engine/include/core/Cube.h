@@ -8,7 +8,7 @@
 // Forward declarations
 class btRigidBody;
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declaration
 class Subcube;
@@ -176,4 +176,4 @@ private:
     static constexpr float CUBE_SCALE = 1.0f; // Scale of each cube unit
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

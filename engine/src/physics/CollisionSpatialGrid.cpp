@@ -5,7 +5,7 @@
 // Bullet Physics includes
 class btCollisionShape;
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Physics {
 
 // CollisionEntity implementation
@@ -164,4 +164,4 @@ void CollisionSpatialGrid::debugPrintStats() const {
 }
 
 } // namespace Physics
-} // namespace VulkanCube
+} // namespace Phyxel

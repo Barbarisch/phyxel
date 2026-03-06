@@ -38,7 +38,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 class Application {
 public:
@@ -220,4 +220,4 @@ private:
     void renderPerformanceOverlay();
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

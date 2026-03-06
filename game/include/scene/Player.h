@@ -4,7 +4,7 @@
 #include "input/InputManager.h"
 #include "graphics/Camera.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Scene {
 
 class Player : public Character {
@@ -35,4 +35,4 @@ private:
 };
 
 } // namespace Scene
-} // namespace VulkanCube
+} // namespace Phyxel

@@ -4,7 +4,7 @@
 #include <array>
 #include <fstream>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Graphics {
 
 // Standard Cube Vertices (Position + Normal)
@@ -407,4 +407,4 @@ void DebrisRenderPipeline::recreatePipeline(VkRenderPass renderPass, VkExtent2D 
 }
 
 } // namespace Graphics
-} // namespace VulkanCube
+} // namespace Phyxel

@@ -8,7 +8,7 @@
 #include <vector>
 #include <memory>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declarations
 class Cube;
@@ -111,4 +111,4 @@ private:
     WorldOriginAccessFunc m_getWorldOrigin;
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

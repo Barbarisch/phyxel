@@ -4,7 +4,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Graphics {
     class RenderCoordinator;
 }
@@ -45,4 +45,4 @@ protected:
 };
 
 } // namespace Scene
-} // namespace VulkanCube
+} // namespace Phyxel

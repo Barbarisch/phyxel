@@ -5,7 +5,7 @@
 // Forward declarations
 class btRigidBody;
 
-namespace VulkanCube {
+namespace Phyxel {
 
 /**
  * @brief Subcube class for voxel subdivision system
@@ -79,4 +79,4 @@ private:
     static constexpr float SUBCUBE_SCALE = 1.0f / 3.0f; // 1/3 the size of a regular cube
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

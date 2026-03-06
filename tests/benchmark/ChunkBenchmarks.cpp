@@ -4,7 +4,7 @@
 #include "physics/PhysicsWorld.h"
 #include <memory>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Testing {
 
 /**
@@ -213,4 +213,4 @@ TEST_F(ChunkBenchmarks, VoxelMapInitialization) {
 }
 
 } // namespace Testing
-} // namespace VulkanCube
+} // namespace Phyxel

@@ -282,7 +282,7 @@ If tests hang, check for:
 #include "IntegrationTestFixture.h"
 // Include your headers
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Testing {
 
 class MyNewIntegrationTest : public ChunkManagerTestFixture {};
@@ -295,7 +295,7 @@ TEST_F(MyNewIntegrationTest, DescriptiveTestName) {
 }
 
 } // namespace Testing
-} // namespace VulkanCube
+} // namespace Phyxel
 ```
 
 ## Best Practices

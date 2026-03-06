@@ -1,5 +1,5 @@
 /*
- * Multi-Chunk Rendering System for VulkanCube
+ * Multi-Chunk Rendering System for Phyxel
  * 
  * This example demonstrates how to use the new ChunkManager to render
  * multiple 32x32x32 chunks efficiently with separate Vulkan buffers.
@@ -14,7 +14,7 @@
 #include "core/ChunkManager.h"
 #include "examples/MultiChunkDemo.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Example integration in your Application class
 void Application::initializeChunkSystem() {
@@ -108,7 +108,7 @@ void main() {
 }
 */
 
-} // namespace VulkanCube
+} // namespace Phyxel
 
 /*
  * Usage Summary:

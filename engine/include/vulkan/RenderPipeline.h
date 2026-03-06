@@ -6,7 +6,7 @@
 #include <vector>
 #include <string>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Vulkan {
 
 class RenderPipeline {
@@ -91,4 +91,4 @@ private:
 };
 
 } // namespace Vulkan
-} // namespace VulkanCube
+} // namespace Phyxel

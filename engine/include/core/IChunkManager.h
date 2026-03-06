@@ -3,7 +3,7 @@
 #include "Types.h"
 #include <glm/glm.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 /**
  * Interface for ChunkManager to allow mocking in tests.
@@ -23,4 +23,4 @@ public:
     virtual VoxelLocation resolveGlobalPosition(const glm::ivec3& globalPos) const = 0;
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

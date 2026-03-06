@@ -4,7 +4,7 @@
 #include <glm/glm.hpp>
 #include <vector>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Example showing how to easily create multiple chunks for rendering
 class MultiChunkDemo {
@@ -52,4 +52,4 @@ public:
     }
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

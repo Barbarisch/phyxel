@@ -2,7 +2,7 @@
 #include "scene/interaction/PlacementTool.h"
 #include <glm/glm.hpp>
 
-using namespace VulkanCube;
+using namespace Phyxel;
 
 class PlacementToolTest : public ::testing::Test {
 protected:

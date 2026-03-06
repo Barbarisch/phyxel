@@ -8,7 +8,7 @@
 #include <windows.h>
 #endif
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Utils {
 
 // Static instance
@@ -434,4 +434,4 @@ std::string Logger::getCurrentTimestamp() const {
 }
 
 } // namespace Utils
-} // namespace VulkanCube
+} // namespace Phyxel

@@ -8,7 +8,7 @@
 #include <vector>
 #include <memory>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Utils {
 
 /**
@@ -57,4 +57,4 @@ private:
 };
 
 } // namespace Utils
-} // namespace VulkanCube
+} // namespace Phyxel

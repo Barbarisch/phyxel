@@ -13,7 +13,7 @@ typedef struct sqlite3_stmt sqlite3_stmt;
 #include <memory>
 #include <glm/glm.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declarations
 class Chunk;
@@ -100,4 +100,4 @@ private:
     bool loadMicrocubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk);
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

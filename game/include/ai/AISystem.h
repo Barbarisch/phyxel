@@ -8,7 +8,7 @@
 #include "ai/AICharacterComponent.h"
 #include "ai/StoryDirector.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 
 namespace Scene {
     class Entity;
@@ -149,4 +149,4 @@ private:
 };
 
 } // namespace AI
-} // namespace VulkanCube
+} // namespace Phyxel

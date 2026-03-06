@@ -8,7 +8,7 @@
 #include <gtest/gtest.h>
 #include "utils/CoordinateUtils.h"
 
-using namespace VulkanCube::Utils;
+using namespace Phyxel::Utils;
 
 // ============================================================================
 // worldToChunkCoord Tests

@@ -6,7 +6,7 @@
 #include "core/ChunkManager.h"
 #include <memory>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Testing {
 
 /**
@@ -94,4 +94,4 @@ protected:
 };
 
 } // namespace Testing
-} // namespace VulkanCube
+} // namespace Phyxel

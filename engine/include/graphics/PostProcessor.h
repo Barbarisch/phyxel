@@ -5,11 +5,11 @@
 #include <memory>
 #include <array>
 
-namespace VulkanCube {
+namespace Phyxel {
     namespace Vulkan { class VulkanDevice; }
 }
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Graphics {
 
 class PostProcessor {
@@ -95,4 +95,4 @@ private:
 };
 
 } // namespace Graphics
-} // namespace VulkanCube
+} // namespace Phyxel

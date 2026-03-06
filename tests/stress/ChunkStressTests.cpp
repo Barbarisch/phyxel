@@ -5,7 +5,7 @@
 #include <memory>
 #include <vector>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Testing {
 
 /**
@@ -286,4 +286,4 @@ TEST_F(ChunkStressTests, ExtremeChunkCount) {
 }
 
 } // namespace Testing
-} // namespace VulkanCube
+} // namespace Phyxel

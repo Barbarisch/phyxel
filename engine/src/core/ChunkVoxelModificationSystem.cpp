@@ -1,7 +1,7 @@
 #include "core/ChunkVoxelModificationSystem.h"
 #include "utils/Logger.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 
 void ChunkVoxelModificationSystem::setCallbacks(
     GetChunkFunc getChunkFunc,
@@ -103,4 +103,4 @@ bool ChunkVoxelModificationSystem::addCubeWithMaterial(const glm::ivec3& worldPo
     return result;
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

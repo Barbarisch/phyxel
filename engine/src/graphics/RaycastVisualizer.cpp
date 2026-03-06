@@ -3,7 +3,7 @@
 #include "utils/Logger.h"
 #include <algorithm>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 RaycastVisualizer::RaycastVisualizer() {
 }
@@ -363,4 +363,4 @@ void RaycastVisualizer::render(VkCommandBuffer commandBuffer, uint32_t currentFr
     vkCmdDraw(commandBuffer, static_cast<uint32_t>(m_vertices.size()), 1, 0, 0);
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include "core/Types.h"
 
-using namespace VulkanCube;
+using namespace Phyxel;
 
 // ============================================================================
 // CubeFaces Tests - Face Visibility and Occlusion

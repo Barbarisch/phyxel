@@ -7,7 +7,7 @@
 #include <deque>
 #include <glm/glm.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 class ChunkManager;
 class DynamicObjectManager;
@@ -84,4 +84,4 @@ private:
     void parseLine(const std::string& line, VoxelTemplate& tmpl);
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

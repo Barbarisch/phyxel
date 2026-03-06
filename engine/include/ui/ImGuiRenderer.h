@@ -10,7 +10,7 @@
 // Forward declarations
 struct ImGuiContext;
 struct ImGuiInputTextCallbackData;
-namespace VulkanCube {
+namespace Phyxel {
     class Timer;
     class PerformanceProfiler;
     class GpuProfiler;
@@ -23,7 +23,7 @@ namespace VulkanCube {
     class ScriptingSystem;
 }
 
-namespace VulkanCube::UI {
+namespace Phyxel::UI {
 
 class ImGuiRenderer {
 public:
@@ -64,8 +64,8 @@ public:
     
     void renderForceSystemDebug(
         bool showDebug,
-        VulkanCube::ForceSystem* forceSystem,
-        VulkanCube::MouseVelocityTracker* mouseVelocityTracker,
+        Phyxel::ForceSystem* forceSystem,
+        Phyxel::MouseVelocityTracker* mouseVelocityTracker,
         bool hasHoveredCube,
         const glm::vec3& hoveredCubePos,
         float& manualForceValue  // Reference to allow modification by slider
@@ -105,4 +105,4 @@ private:
     ScriptingSystem* m_currentScriptingSystem = nullptr;
 };
 
-} // namespace VulkanCube::UI
+} // namespace Phyxel::UI

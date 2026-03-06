@@ -2,7 +2,7 @@
 
 #include <memory>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 namespace Input {
     class InputManager;

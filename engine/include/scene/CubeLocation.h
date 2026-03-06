@@ -2,7 +2,7 @@
 
 #include <glm/glm.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declarations
 class Chunk;
@@ -40,4 +40,4 @@ struct CubeLocation {
     glm::ivec3 getAdjacentPlacementPosition() const;
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

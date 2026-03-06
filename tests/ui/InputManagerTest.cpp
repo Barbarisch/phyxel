@@ -2,8 +2,8 @@
 #include "input/InputManager.h"
 #include <glm/glm.hpp>
 
-using namespace VulkanCube;
-using namespace VulkanCube::Input;
+using namespace Phyxel;
+using namespace Phyxel::Input;
 
 class InputManagerTest : public ::testing::Test {
 protected:

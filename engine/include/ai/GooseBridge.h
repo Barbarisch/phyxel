@@ -14,7 +14,7 @@
 
 #include "ai/AICommandQueue.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace AI {
 
 using json = nlohmann::json;
@@ -369,4 +369,4 @@ private:
 };
 
 } // namespace AI
-} // namespace VulkanCube
+} // namespace Phyxel

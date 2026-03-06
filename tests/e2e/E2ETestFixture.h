@@ -10,7 +10,7 @@
 #include <thread>
 #include <chrono>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Testing {
 
 /**
@@ -145,4 +145,4 @@ protected:
 };
 
 } // namespace Testing
-} // namespace VulkanCube
+} // namespace Phyxel

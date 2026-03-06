@@ -1,6 +1,6 @@
 #include "graphics/Camera.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Graphics {
 
 Camera::Camera(glm::vec3 position, glm::vec3 up, float yaw, float pitch)
@@ -89,4 +89,4 @@ void Camera::updateCameraVectors() {
 }
 
 } // namespace Graphics
-} // namespace VulkanCube
+} // namespace Phyxel

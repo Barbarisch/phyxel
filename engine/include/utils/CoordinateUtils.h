@@ -2,7 +2,7 @@
 
 #include <glm/glm.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Utils {
 
 /**
@@ -77,4 +77,4 @@ public:
 };
 
 } // namespace Utils
-} // namespace VulkanCube
+} // namespace Phyxel

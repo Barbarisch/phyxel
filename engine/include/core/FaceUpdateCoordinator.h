@@ -7,7 +7,7 @@
 #include <set>
 #include <glm/glm.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declarations
 class Chunk;
@@ -102,4 +102,4 @@ private:
     MarkChunkDirtyFunc m_markChunkDirty;
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

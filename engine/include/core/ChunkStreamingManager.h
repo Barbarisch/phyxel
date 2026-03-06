@@ -8,11 +8,11 @@
 #include <memory>
 #include <unordered_map>
 
-namespace VulkanCube {
+namespace Phyxel {
     class WorldStorage; // Forward declaration
 }
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Custom hash function for glm::ivec3 to use as key in unordered_map
 struct ChunkCoordHash {
@@ -118,4 +118,4 @@ private:
     Chunk* getChunkAtCoord(const glm::ivec3& chunkCoord);
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Scene {
 
     struct VoxelBoneMapping {

@@ -6,7 +6,7 @@
 #include <string>
 #include <glm/glm.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Scene {
 
 enum class Faction {
@@ -94,4 +94,4 @@ protected:
 };
 
 } // namespace Scene
-} // namespace VulkanCube
+} // namespace Phyxel

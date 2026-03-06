@@ -3,7 +3,7 @@
 #include "utils/Logger.h"
 #include <btBulletDynamicsCommon.h>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 Cube::Cube() 
     : position(0), broken(false), visible(true), rigidBody(nullptr) {
@@ -136,4 +136,4 @@ glm::vec3 Cube::getEffectiveColor() const {
     return material.colorTint;
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

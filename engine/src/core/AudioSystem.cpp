@@ -9,7 +9,7 @@
 #define MINIAUDIO_IMPLEMENTATION
 #include "miniaudio.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Core {
 
 struct AudioSystem::Impl {
@@ -198,4 +198,4 @@ void AudioSystem::preloadSound(const std::string& filePath) {
 }
 
 } // namespace Core
-} // namespace VulkanCube
+} // namespace Phyxel

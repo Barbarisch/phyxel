@@ -10,7 +10,7 @@
 #include <glm/glm.hpp>
 
 // Forward declarations
-namespace VulkanCube {
+namespace Phyxel {
     namespace UI { 
         class WindowManager;
         class ImGuiRenderer;
@@ -32,7 +32,7 @@ namespace VulkanCube {
     }
 }
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Graphics {
 
 class ShadowMap;
@@ -188,4 +188,4 @@ private:
 };
 
 } // namespace Graphics
-} // namespace VulkanCube
+} // namespace Phyxel

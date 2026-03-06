@@ -42,7 +42,7 @@
 
 namespace py = pybind11;
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Global pointer to application instance
 static Application* g_appInstance = nullptr;
@@ -52,9 +52,9 @@ void setScriptingAppInstance(Application* app) {
     g_appInstance = app;
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel
 
-using namespace VulkanCube;
+using namespace Phyxel;
 
 PYBIND11_EMBEDDED_MODULE(phyxel, m) {
     m.doc() = "Phyxel Game Engine API";

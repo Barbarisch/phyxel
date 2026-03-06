@@ -4,7 +4,7 @@
 #include <vector>
 #include <glm/glm.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 struct TemplateCube {
     glm::ivec3 relativePos;
@@ -44,4 +44,4 @@ public:
     }
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

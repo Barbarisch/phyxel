@@ -24,7 +24,7 @@
 
 #include "utils/Logger.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace AI {
 
 // ============================================================================
@@ -954,4 +954,4 @@ void GooseBridge::killProcess() {
 }
 
 } // namespace AI
-} // namespace VulkanCube
+} // namespace Phyxel

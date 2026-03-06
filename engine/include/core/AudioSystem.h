@@ -5,7 +5,7 @@
 #include <memory>
 #include <vector>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Core {
 
 enum class AudioChannel {
@@ -44,4 +44,4 @@ private:
 };
 
 } // namespace Core
-} // namespace VulkanCube
+} // namespace Phyxel

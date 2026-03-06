@@ -4,7 +4,7 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Lightweight hover overlay system that doesn't require chunk rebuilds
 class HoverRenderer {
@@ -43,4 +43,4 @@ private:
     void updateHoverBuffer();
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

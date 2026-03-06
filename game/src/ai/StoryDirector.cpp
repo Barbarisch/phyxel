@@ -4,7 +4,7 @@
 #include <sstream>
 #include <algorithm>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace AI {
 
 // ============================================================================
@@ -261,4 +261,4 @@ void StoryDirector::processDirectorCommands() {
 }
 
 } // namespace AI
-} // namespace VulkanCube
+} // namespace Phyxel

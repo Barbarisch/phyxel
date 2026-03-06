@@ -6,7 +6,7 @@
 #include <vector>
 #include <memory>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 struct GpuScopeResult {
     std::string name;
@@ -74,4 +74,4 @@ private:
 
 #define GPU_PROFILE_SCOPE(profiler, cmd, name) ScopedGpuTimer _gpu_timer_##__LINE__(profiler, cmd, name)
 
-} // namespace VulkanCube
+} // namespace Phyxel

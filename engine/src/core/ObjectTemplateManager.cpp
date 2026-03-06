@@ -13,7 +13,7 @@
 #include <iostream>
 #include <unordered_set>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 namespace fs = std::filesystem;
 
@@ -442,4 +442,4 @@ void ObjectTemplateManager::update(float deltaTime) {
     }
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

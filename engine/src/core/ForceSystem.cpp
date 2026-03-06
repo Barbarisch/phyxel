@@ -7,7 +7,7 @@
 #include <iostream>
 #include <cmath>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 ForceSystem::ForceSystem() {
     // Initialize with default configuration
@@ -284,4 +284,4 @@ void MouseVelocityTracker::calculateVelocity() {
     currentVelocity = glm::mix(currentVelocity, instantVelocity, static_cast<float>(VELOCITY_SMOOTHING));
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

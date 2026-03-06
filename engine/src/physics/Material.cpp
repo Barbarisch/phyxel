@@ -3,7 +3,7 @@
 #include <iostream>
 #include <algorithm>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Physics {
 
 MaterialManager::MaterialManager() {
@@ -294,4 +294,4 @@ const MaterialProperties& MaterialManager::getDefault() {
 }
 
 } // namespace Physics
-} // namespace VulkanCube
+} // namespace Phyxel

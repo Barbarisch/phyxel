@@ -2,7 +2,7 @@
 #include "core/Chunk.h"
 #include <algorithm>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 void DirtyChunkTracker::setCallbacks(
     ChunkVectorAccessFunc getChunksFunc,
@@ -64,4 +64,4 @@ void DirtyChunkTracker::clearDirtyChunkList() {
     m_hasDirtyChunks = false;
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

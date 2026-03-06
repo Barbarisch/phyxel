@@ -162,7 +162,7 @@ raycaster.pickVoxel(origin, dir, [&]() { return &mock; });
 #include "core/ChunkVoxelQuerySystem.h"
 #include "mocks/MockChunkManager.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace {
 
 // Test fixture for shared setup
@@ -227,7 +227,7 @@ TEST_F(ChunkVoxelQuerySystemTest, GetChunkAtBoundary) {
 }
 
 } // namespace
-} // namespace VulkanCube
+} // namespace Phyxel
 ```
 
 ### Integration Test Example
@@ -237,7 +237,7 @@ TEST_F(ChunkVoxelQuerySystemTest, GetChunkAtBoundary) {
 #include "core/ChunkManager.h"
 #include "physics/PhysicsWorld.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace {
 
 class ChunkManagerIntegrationTest : public ::testing::Test {
@@ -282,7 +282,7 @@ TEST_F(ChunkManagerIntegrationTest, VoxelModificationPersists) {
 }
 
 } // namespace
-} // namespace VulkanCube
+} // namespace Phyxel
 ```
 
 ## Mock Objects
@@ -294,7 +294,7 @@ TEST_F(ChunkManagerIntegrationTest, VoxelModificationPersists) {
 #pragma once
 #include "core/Chunk.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 
 class MockChunk : public Chunk {
 public:
@@ -309,7 +309,7 @@ public:
     }
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel
 ```
 
 ### Mock ChunkManager
@@ -319,7 +319,7 @@ public:
 #pragma once
 #include "core/ChunkManager.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 
 class MockChunkManager {
 public:
@@ -329,7 +329,7 @@ public:
     MOCK_METHOD(bool, removeCubeFast, (const glm::ivec3&), ());
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel
 ```
 
 ## Test Categories

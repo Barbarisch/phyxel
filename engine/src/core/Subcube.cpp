@@ -1,6 +1,6 @@
 #include "core/Subcube.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 
 Subcube::Subcube() 
     : position(0), localPosition(0), scale(SUBCUBE_SCALE), broken(false), visible(true), rigidBody(nullptr) {
@@ -26,4 +26,4 @@ glm::vec3 Subcube::getWorldPosition() const {
     return parentWorldPos + localOffset;
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

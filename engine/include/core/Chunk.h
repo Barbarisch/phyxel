@@ -15,7 +15,7 @@
 #include <functional>
 #include <vulkan/vulkan.h>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declarations
 namespace Physics {
@@ -253,4 +253,4 @@ private:
     std::vector<Physics::ChunkPhysicsManager::CollisionBox> generateMergedCollisionBoxes();  // Generate optimized collision boxes for compound shape
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

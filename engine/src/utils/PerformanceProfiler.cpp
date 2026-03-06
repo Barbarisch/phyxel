@@ -7,7 +7,7 @@
 #include <sstream>
 #include <functional>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 PerformanceProfiler::PerformanceProfiler() {
     frameTimings.reserve(MAX_FRAME_SAMPLES);
@@ -348,4 +348,4 @@ std::string PerformanceProfiler::dumpFrameToJSON() const {
     return ss.str();
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

@@ -11,7 +11,7 @@
 #include <glm/glm.hpp>
 #include <memory>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declarations
 class ChunkManager;
@@ -191,4 +191,4 @@ private:
                               const glm::vec3& cameraFront, const glm::vec3& cameraUp) const;
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

@@ -14,7 +14,7 @@
 // Only compile SQLite functionality if available
 #ifndef ENABLE_WORLD_STORAGE
 // Provide stub implementations when SQLite is not available
-namespace VulkanCube {
+namespace Phyxel {
 
 WorldStorage::WorldStorage(const std::string& databasePath) : dbPath(databasePath) {
     LOG_INFO("WorldStorage", "[WORLD_STORAGE] SQLite not available - using stub implementation");
@@ -53,13 +53,13 @@ bool WorldStorage::rollbackTransaction() { return false; }
 bool WorldStorage::loadSubcubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk) { return false; }
 bool WorldStorage::loadMicrocubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk) { return false; }
 
-} // namespace VulkanCube
+} // namespace Phyxel
 
 #else // HAVE_SQLITE3 is defined
 
 #include <sqlite3.h>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 WorldStorage::WorldStorage(const std::string& databasePath) : dbPath(databasePath) {
 }
@@ -920,6 +920,6 @@ bool WorldStorage::loadMicrocubesForChunk(const glm::ivec3& chunkCoord, Chunk& c
     return true;
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel
 
 #endif // HAVE_SQLITE3

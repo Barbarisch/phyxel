@@ -4,7 +4,7 @@
 #include "utils/CoordinateUtils.h"
 #include <cmath>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 ChunkStreamingManager::~ChunkStreamingManager() {
     // Clean up world storage
@@ -262,4 +262,4 @@ Chunk* ChunkStreamingManager::getChunkAtCoord(const glm::ivec3& chunkCoord) {
     return nullptr;
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

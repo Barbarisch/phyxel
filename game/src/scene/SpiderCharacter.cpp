@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Scene {
 
 SpiderCharacter::SpiderCharacter(Physics::PhysicsWorld* physicsWorld, const glm::vec3& startPos)
@@ -381,4 +381,4 @@ void SpiderCharacter::update(float deltaTime) {
 }
 
 } // namespace Scene
-} // namespace VulkanCube
+} // namespace Phyxel

@@ -38,7 +38,7 @@
 
 namespace py = pybind11;
 
-namespace VulkanCube {
+namespace Phyxel {
 
 class Application;
 

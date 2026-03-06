@@ -4,7 +4,7 @@
 #include <iostream>
 #include <array>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Vulkan {
 
 RenderPipeline::RenderPipeline(const VulkanDevice& device) : vulkanDevice(device) {
@@ -1316,4 +1316,4 @@ void RenderPipeline::bindInstancedCharacterPipeline(VkCommandBuffer commandBuffe
 }
 
 } // namespace Vulkan
-} // namespace VulkanCube
+} // namespace Phyxel

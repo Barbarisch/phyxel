@@ -12,7 +12,7 @@
 #include "ai/GooseBridge.h"
 #include "ai/AICommandQueue.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declarations
 namespace Scene {
@@ -319,4 +319,4 @@ private:
 };
 
 } // namespace AI
-} // namespace VulkanCube
+} // namespace Phyxel

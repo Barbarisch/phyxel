@@ -9,7 +9,7 @@
 #include <memory>
 #include <glm/glm.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declarations
 class Cube;
@@ -162,4 +162,4 @@ private:
     std::unordered_map<glm::ivec3, VoxelLocation::Type, IVec3Hash> voxelTypeMap;
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

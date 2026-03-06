@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <cstdlib>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Testing {
 
 class WorldStorageTest : public ::testing::Test {
@@ -42,4 +42,4 @@ TEST_F(WorldStorageTest, InitializeCreatesTables) {
 }
 
 } // namespace Testing
-} // namespace VulkanCube
+} // namespace Phyxel

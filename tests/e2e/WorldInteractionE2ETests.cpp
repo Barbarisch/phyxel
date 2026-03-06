@@ -5,8 +5,8 @@
 #include "core/ChunkManager.h"
 #include <glm/glm.hpp>
 
-using namespace VulkanCube;
-using namespace VulkanCube::Testing;
+using namespace Phyxel;
+using namespace Phyxel::Testing;
 
 /**
  * @brief End-to-End tests for world interaction workflows

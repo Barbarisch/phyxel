@@ -1,7 +1,7 @@
 #include "utils/Frustum.h"
 #include <algorithm>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Utils {
 
 void Frustum::extractFromMatrix(const glm::mat4& viewProjectionMatrix) {
@@ -94,4 +94,4 @@ bool Frustum::intersects(const glm::vec3& center, float radius) const {
 }
 
 } // namespace Utils
-} // namespace VulkanCube
+} // namespace Phyxel

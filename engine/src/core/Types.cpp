@@ -3,7 +3,7 @@
 #include <vulkan/vulkan.h>
 #include <iostream>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 glm::ivec3 VoxelLocation::getAdjacentPlacementPosition() const {
     LOG_INFO_FMT("VoxelLocation", "[getAdjacentPlacementPosition] Called with worldPos=(" 
@@ -138,4 +138,4 @@ std::array<VkVertexInputAttributeDescription, 6> DynamicSubcubeInstanceData::get
     return desc;
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

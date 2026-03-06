@@ -4,7 +4,7 @@
 #include <vector>
 #include <cstddef>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 struct InstanceData;  // Forward declaration
 
@@ -122,4 +122,4 @@ private:
 };
 
 } // namespace Graphics
-} // namespace VulkanCube
+} // namespace Phyxel

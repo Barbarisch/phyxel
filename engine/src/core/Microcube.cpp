@@ -1,6 +1,6 @@
 #include "core/Microcube.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 
 Microcube::Microcube() 
     : parentCubePosition(0), 
@@ -36,4 +36,4 @@ glm::vec3 Microcube::getWorldPosition() const {
     return parentWorldPos + subcubeOffset + microcubeOffset;
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

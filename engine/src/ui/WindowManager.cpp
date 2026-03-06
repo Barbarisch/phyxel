@@ -1,7 +1,7 @@
 #include "ui/WindowManager.h"
 #include "utils/Logger.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace UI {
 
 WindowManager::WindowManager() = default;
@@ -124,4 +124,4 @@ void WindowManager::keyCallbackStatic(GLFWwindow* window, int key, int scancode,
 }
 
 } // namespace UI
-} // namespace VulkanCube
+} // namespace Phyxel

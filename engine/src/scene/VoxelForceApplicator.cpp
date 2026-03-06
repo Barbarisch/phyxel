@@ -9,7 +9,7 @@
 #include "utils/Logger.h"
 #include <random>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 void VoxelForceApplicator::breakHoveredCubeWithForce(
     const glm::vec3& cameraPos,
@@ -163,4 +163,4 @@ void VoxelForceApplicator::breakCubeAtPosition(
     chunkManager->updateAfterCubeBreak(worldPos);
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

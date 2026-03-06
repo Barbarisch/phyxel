@@ -7,7 +7,7 @@
 #include "utils/Logger.h"
 #include <set>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 void FaceUpdateCoordinator::setCallbacks(
     DynamicSubcubeVectorAccessFunc getSubcubesFunc,
@@ -280,4 +280,4 @@ void FaceUpdateCoordinator::updateFacesAtPosition(const glm::ivec3& worldPos) {
     m_markChunkDirty(chunk);
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

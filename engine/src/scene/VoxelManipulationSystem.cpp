@@ -10,7 +10,7 @@
 #include <btBulletDynamicsCommon.h>
 #include <random>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 void VoxelManipulationSystem::setCallbacks(
     GetChunkManagerFunc chunkManagerFunc,
@@ -768,4 +768,4 @@ bool VoxelManipulationSystem::ensureChunkExists(const glm::ivec3& worldPos) {
     return true;
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

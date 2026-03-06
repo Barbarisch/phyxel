@@ -12,7 +12,7 @@
 #include "core/Types.h"
 #include <glm/glm.hpp>
 
-using namespace VulkanCube;
+using namespace Phyxel;
 
 // ============================================================================
 // Position/Index Conversion Tests

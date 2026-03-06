@@ -8,8 +8,8 @@
 #include <gtest/gtest.h>
 #include "core/Types.h"
 
-using namespace VulkanCube;
-using namespace VulkanCube::InstanceDataUtils;
+using namespace Phyxel;
+using namespace Phyxel::InstanceDataUtils;
 
 // ============================================================================
 // Grid Encoding Tests (3x3x3 → 6 bits)

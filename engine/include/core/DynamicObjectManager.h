@@ -7,7 +7,7 @@
 #include <functional>
 #include <chrono>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 namespace Physics {
     class PhysicsWorld;
@@ -150,4 +150,4 @@ private:
     void enforceObjectLimits();
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

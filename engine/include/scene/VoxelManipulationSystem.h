@@ -5,7 +5,7 @@
 #include <glm/glm.hpp>
 #include <functional>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declarations
 class ChunkManager;
@@ -161,4 +161,4 @@ private:
     bool ensureChunkExists(const glm::ivec3& worldPos);
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

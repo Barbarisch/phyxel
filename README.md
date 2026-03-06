@@ -1,4 +1,4 @@
-# VulkanCube
+# Phyxel
 
 A high-performance 3D cube rendering engine built with Vulkan API, featuring real-time rendering of 32,000+ cubes with optimized face culling and interactive mouse controls.
 
@@ -160,7 +160,7 @@ git submodule update --init --recursive
 .\build_and_test.ps1 -RunTests
 
 # Run the application
-.\VulkanCube.exe
+.\phyxel.exe
 ```
 
 #### Linux
@@ -180,7 +180,7 @@ cmake ..
 make -j$(nproc)
 
 # Run the application
-./VulkanCube
+./phyxel
 ```
 
 #### Windows (Visual Studio - Manual)
@@ -208,7 +208,7 @@ cmake --build . --config Debug
 
 # Run the application (will be copied to project root)
 cd ..
-VulkanCube.exe
+phyxel.exe
 ```
 
 #### Windows (MinGW)
@@ -228,7 +228,7 @@ cmake .. -G "MinGW Makefiles"
 cmake --build .
 
 # Run the application
-VulkanCube.exe
+phyxel.exe
 ```
 
 ### Test Suite (383 Tests Total)
@@ -329,7 +329,7 @@ cmake .. -G "MinGW Makefiles"
 cmake --build .
 
 # Run the application
-VulkanCube.exe
+phyxel.exe
 ```
 
 ## Usage
@@ -414,7 +414,7 @@ This project began as a monolithic 2,800+ line `main.cpp` file and was successfu
 
 ## Cross-Platform Support
 
-VulkanCube is designed to work on both **Linux** and **Windows** platforms:
+Phyxel is designed to work on both **Linux** and **Windows** platforms:
 
 ### Platform Differences
 - **Linux**: Uses system packages for GLFW and GLM, builds Bullet Physics from source

@@ -4,7 +4,7 @@
 #include <chrono>
 #include <vector>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 class Timer {
 public:
@@ -44,4 +44,4 @@ private:
     int m_fps = 0;
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

@@ -4,7 +4,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <vector>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Graphics {
 
 enum class CameraMode {
@@ -78,4 +78,4 @@ private:
 };
 
 } // namespace Graphics
-} // namespace VulkanCube
+} // namespace Phyxel

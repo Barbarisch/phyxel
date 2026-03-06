@@ -11,7 +11,7 @@
 #include <iomanip>
 #include <limits>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 VoxelInteractionSystem::VoxelInteractionSystem(ChunkManager* chunkManager,
                                              Physics::PhysicsWorld* physicsWorld,
@@ -528,4 +528,4 @@ void VoxelInteractionSystem::cycleTargetMode() {
     }
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

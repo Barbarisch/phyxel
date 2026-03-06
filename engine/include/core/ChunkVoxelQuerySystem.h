@@ -10,7 +10,7 @@
 #include <vector>
 #include <functional>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declaration of ChunkCoordHash (defined in ChunkStreamingManager.h)
 struct ChunkCoordHash;
@@ -94,4 +94,4 @@ private:
     }
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

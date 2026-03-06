@@ -3,7 +3,7 @@
 #include "utils/Logger.h"
 #include <random>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // =============================================================================
 // COORDINATE UTILITIES
@@ -1056,4 +1056,4 @@ bool ChunkVoxelManager::clearMicrocubesAt(
     return true;
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

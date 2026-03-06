@@ -1,6 +1,6 @@
 #include "scene/Character.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Scene {
 
 Character::Character(Physics::PhysicsWorld* physicsWorld, const glm::vec3& startPos) 
@@ -59,4 +59,4 @@ void Character::jump() {
 }
 
 } // namespace Scene
-} // namespace VulkanCube
+} // namespace Phyxel

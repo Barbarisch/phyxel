@@ -2,7 +2,7 @@
 #include "core/ChunkStreamingManager.h"  // For ChunkCoordHash
 #include "utils/Logger.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 
 void ChunkVoxelQuerySystem::setCallbacks(
     ChunkMapAccessFunc chunkMapAccessFunc,
@@ -123,4 +123,4 @@ VoxelLocation::Type ChunkVoxelQuerySystem::getVoxelTypeAt(const glm::ivec3& worl
     return chunk->getVoxelType(localPos);
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

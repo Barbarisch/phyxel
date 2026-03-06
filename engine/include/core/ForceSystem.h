@@ -6,7 +6,7 @@
 #include <chrono>
 #include "core/Cube.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declarations
 class Chunk;
@@ -130,4 +130,4 @@ private:
     void addSample(const glm::vec2& position);
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

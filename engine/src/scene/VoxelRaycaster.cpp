@@ -10,7 +10,7 @@
 #include <limits>
 #include <iostream>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 /**
  * Pick a voxel using optimized DDA (Digital Differential Analyzer) raycasting
@@ -509,4 +509,4 @@ glm::vec3 VoxelRaycaster::screenToWorldRay(
     return glm::normalize(rayWorld);
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

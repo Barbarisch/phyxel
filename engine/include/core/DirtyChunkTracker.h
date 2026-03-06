@@ -5,7 +5,7 @@
 #include <memory>
 #include <cstddef>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declaration
 class Chunk;
@@ -91,4 +91,4 @@ private:
     bool m_hasDirtyChunks = false;
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

@@ -2,7 +2,7 @@
 
 #include "scene/Character.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Scene {
 
 class Player; // Forward declaration
@@ -21,4 +21,4 @@ private:
 };
 
 } // namespace Scene
-} // namespace VulkanCube
+} // namespace Phyxel

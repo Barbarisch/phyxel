@@ -4,7 +4,7 @@
 #include <GLFW/glfw3.h>
 #include <numeric>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 Timer::Timer() {
     m_lastTime = glfwGetTime();
@@ -137,4 +137,4 @@ void Timer::printDetailedTimings() const {
     LOG_INFO("Performance", "=============================");
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

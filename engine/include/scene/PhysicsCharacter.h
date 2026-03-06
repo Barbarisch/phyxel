@@ -8,7 +8,7 @@
 #include <memory>
 #include <map>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Scene {
 
 enum class CharacterState {
@@ -121,4 +121,4 @@ private:
 };
 
 } // namespace Scene
-} // namespace VulkanCube
+} // namespace Phyxel

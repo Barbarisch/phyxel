@@ -17,7 +17,7 @@
 #include <iostream>
 #include <iomanip>
 
-namespace VulkanCube::UI {
+namespace Phyxel::UI {
 
 ImGuiRenderer::ImGuiRenderer()
     : m_context(nullptr)
@@ -490,8 +490,8 @@ void ImGuiRenderer::renderPerformanceOverlay(
 
 void ImGuiRenderer::renderForceSystemDebug(
     bool showDebug,
-    VulkanCube::ForceSystem* forceSystem,
-    VulkanCube::MouseVelocityTracker* mouseVelocityTracker,
+    Phyxel::ForceSystem* forceSystem,
+    Phyxel::MouseVelocityTracker* mouseVelocityTracker,
     bool hasHoveredCube,
     const glm::vec3& hoveredCubePos,
     float& manualForceValue) {
@@ -714,4 +714,4 @@ void ImGuiRenderer::renderProfilerWindow(bool show, PerformanceProfiler* cpuProf
     ImGui::End();
 }
 
-} // namespace VulkanCube::UI
+} // namespace Phyxel::UI

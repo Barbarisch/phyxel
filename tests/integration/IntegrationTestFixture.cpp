@@ -3,7 +3,7 @@
 #include <vector>
 #include <cstring>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Testing {
 
 // ============================================================================
@@ -245,4 +245,4 @@ void ChunkManagerTestFixture::TearDown() {
 }
 
 } // namespace Testing
-} // namespace VulkanCube
+} // namespace Phyxel

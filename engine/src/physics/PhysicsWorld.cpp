@@ -7,7 +7,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Physics {
 
 PhysicsWorld::PhysicsWorld() {
@@ -641,4 +641,4 @@ void PhysicsWorld::cleanupFallenCubes() {
 }
 
 } // namespace Physics
-} // namespace VulkanCube
+} // namespace Phyxel

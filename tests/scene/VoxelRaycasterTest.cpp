@@ -9,7 +9,7 @@
 #include "../mocks/MockChunkManager.h"
 #include <glm/glm.hpp>
 
-using namespace VulkanCube;
+using namespace Phyxel;
 
 class VoxelRaycasterTest : public ::testing::Test {
 protected:

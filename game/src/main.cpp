@@ -4,7 +4,7 @@
 #include <stdexcept>
 
 int main() {
-    VulkanCube::Application app;
+    Phyxel::Application app;
 
     try {
         // Initialize the application

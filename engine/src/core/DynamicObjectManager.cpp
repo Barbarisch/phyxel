@@ -8,7 +8,7 @@
 #include "utils/Logger.h"
 #include <btBulletDynamicsCommon.h>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 DynamicObjectManager::DynamicObjectManager() = default;
 DynamicObjectManager::~DynamicObjectManager() = default;
@@ -536,4 +536,4 @@ void DynamicObjectManager::derezCharacter(Scene::AnimatedVoxelCharacter* charact
     enforceObjectLimits();
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

@@ -4,7 +4,7 @@
 #include <vector>
 #include <glm/glm.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Testing {
 
 /**
@@ -339,4 +339,4 @@ TEST_F(PhysicsStressTests, ExtendedPhysicsSimulation) {
 }
 
 } // namespace Testing
-} // namespace VulkanCube
+} // namespace Phyxel

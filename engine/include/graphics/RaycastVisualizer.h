@@ -5,7 +5,7 @@
 #include <vector>
 #include <memory>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declarations
 namespace Vulkan {
@@ -125,4 +125,4 @@ private:
     static constexpr float HIT_POINT_SIZE = 0.5f;
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

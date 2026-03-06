@@ -2,7 +2,7 @@
 #include "scene/VoxelManipulationSystem.h"
 #include "utils/Logger.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Helper function to calculate subcube grid position (0-2) based on hit point on a cube face
 // hitPoint: world position where ray hit the cube face

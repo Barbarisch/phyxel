@@ -4,7 +4,7 @@
 #include "physics/PhysicsWorld.h"
 #include <memory>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Scene {
 
 class Character : public Entity {
@@ -30,4 +30,4 @@ protected:
 };
 
 } // namespace Scene
-} // namespace VulkanCube
+} // namespace Phyxel

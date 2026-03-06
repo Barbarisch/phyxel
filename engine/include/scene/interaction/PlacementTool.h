@@ -3,7 +3,7 @@
 #include "InteractionContext.h"
 #include <memory>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 class VoxelManipulationSystem;
 

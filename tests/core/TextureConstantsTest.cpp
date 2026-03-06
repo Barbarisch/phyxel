@@ -7,8 +7,8 @@
 #include <gtest/gtest.h>
 #include "core/Types.h"
 
-using namespace VulkanCube;
-using namespace VulkanCube::TextureConstants;
+using namespace Phyxel;
+using namespace Phyxel::TextureConstants;
 
 // ============================================================================
 // Constant Values Tests

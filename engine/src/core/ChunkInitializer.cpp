@@ -5,7 +5,7 @@
 #include "utils/Logger.h"
 #include "utils/CoordinateUtils.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 
 void ChunkInitializer::setCallbacks(
     ChunkVectorAccessFunc getChunksFunc,
@@ -180,4 +180,4 @@ void ChunkInitializer::performOcclusionCulling() {
     }
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

@@ -5,7 +5,7 @@
 #include <vector>
 #include <memory>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 class ChunkVoxelQuerySystem;
 
@@ -45,4 +45,4 @@ private:
     const size_t MAX_PARTICLES = 10000;
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

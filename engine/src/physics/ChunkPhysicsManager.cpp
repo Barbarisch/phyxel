@@ -7,7 +7,7 @@
 #include <btBulletDynamicsCommon.h>
 #include <algorithm>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Physics {
 
 ChunkPhysicsManager::ChunkPhysicsManager()
@@ -721,4 +721,4 @@ ChunkPhysicsManager::generateMergedCollisionBoxes(const CubeAccessFunc& getCube)
 }
 
 } // namespace Physics
-} // namespace VulkanCube
+} // namespace Phyxel

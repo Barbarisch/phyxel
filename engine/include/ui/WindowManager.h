@@ -4,7 +4,7 @@
 #include <string>
 #include <functional>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace UI {
 
 /**
@@ -64,4 +64,4 @@ private:
 };
 
 } // namespace UI
-} // namespace VulkanCube
+} // namespace Phyxel

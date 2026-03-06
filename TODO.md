@@ -92,10 +92,12 @@
   - File: `src/Application.cpp`
   - **Fixed**: Removed the duplicate call.
 
-- [ ] **17. CMake project name still `VulkanCube`**
-  - Executable, .sln, namespace, and many references use the old name despite project being "phyxel".
-  - File: `CMakeLists.txt` and throughout
-  - Note: Larger rename effort — track separately.
+- [x] **17. Rename `VulkanCube` namespace and references to `Phyxel`**
+  - Renamed `VulkanCube` namespace to `Phyxel` across all 180+ source files (~398 occurrences).
+  - Updated README.md, docs, build_and_test.ps1, examples.
+  - Fixed exe references to lowercase `phyxel.exe`, build script target to lowercase `phyxel`.
+  - Vulkan `pApplicationName` set to `"Phyxel"`.
+  - **Fixed**: Global find-replace across engine/, game/, tests/, examples/, docs/.
 
 - [x] **18. Duplicate `#include <iostream>` in Chunk.cpp**
   - File: `src/core/Chunk.cpp` lines 8 and 10

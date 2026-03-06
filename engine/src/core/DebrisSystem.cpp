@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 DebrisSystem::DebrisSystem(ChunkVoxelQuerySystem* voxelQuerySystem)
     : m_voxelQuerySystem(voxelQuerySystem) {
@@ -115,4 +115,4 @@ void DebrisSystem::resolveCollision(DebrisParticle& p, float dt) {
     }
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

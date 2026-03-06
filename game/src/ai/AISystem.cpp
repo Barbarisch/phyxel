@@ -1,7 +1,7 @@
 #include "ai/AISystem.h"
 #include "utils/Logger.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace AI {
 
 // ============================================================================
@@ -196,4 +196,4 @@ AISystem::AIStats AISystem::getStats() const {
 }
 
 } // namespace AI
-} // namespace VulkanCube
+} // namespace Phyxel

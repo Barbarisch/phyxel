@@ -2,7 +2,7 @@
 #include "physics/PhysicsWorld.h"
 #include <glm/glm.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Testing {
 
 /**
@@ -146,4 +146,4 @@ TEST_F(PhysicsBenchmarks, RigidBodyCount) {
 }
 
 } // namespace Testing
-} // namespace VulkanCube
+} // namespace Phyxel

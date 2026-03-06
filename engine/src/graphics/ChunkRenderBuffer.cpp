@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <iostream>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Graphics {
 
 ChunkRenderBuffer::ChunkRenderBuffer(VkDevice device, VkPhysicalDevice physicalDevice)
@@ -211,4 +211,4 @@ uint32_t ChunkRenderBuffer::findMemoryType(uint32_t typeFilter, VkMemoryProperty
 }
 
 } // namespace Graphics
-} // namespace VulkanCube
+} // namespace Phyxel

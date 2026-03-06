@@ -18,7 +18,7 @@
 #include <functional>
 #include <iostream>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Hash function for glm::ivec3
 struct Vec3Hash {
@@ -103,4 +103,4 @@ private:
     std::unordered_map<glm::ivec3, VoxelLocation, Vec3Hash> voxels;
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

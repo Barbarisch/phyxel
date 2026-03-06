@@ -9,7 +9,7 @@
 #include <chrono>
 #include <iomanip>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Utils {
 
 /**
@@ -144,43 +144,43 @@ private:
     do { \
         std::ostringstream oss; \
         oss << __VA_ARGS__; \
-        VulkanCube::Utils::Logger::trace(module, oss.str()); \
+        Phyxel::Utils::Logger::trace(module, oss.str()); \
     } while(0)
 
 #define LOG_DEBUG_FMT(module, ...) \
     do { \
         std::ostringstream oss; \
         oss << __VA_ARGS__; \
-        VulkanCube::Utils::Logger::debug(module, oss.str()); \
+        Phyxel::Utils::Logger::debug(module, oss.str()); \
     } while(0)
 
 #define LOG_INFO_FMT(module, ...) \
     do { \
         std::ostringstream oss; \
         oss << __VA_ARGS__; \
-        VulkanCube::Utils::Logger::info(module, oss.str()); \
+        Phyxel::Utils::Logger::info(module, oss.str()); \
     } while(0)
 
 #define LOG_WARN_FMT(module, ...) \
     do { \
         std::ostringstream oss; \
         oss << __VA_ARGS__; \
-        VulkanCube::Utils::Logger::warn(module, oss.str()); \
+        Phyxel::Utils::Logger::warn(module, oss.str()); \
     } while(0)
 
 #define LOG_ERROR_FMT(module, ...) \
     do { \
         std::ostringstream oss; \
         oss << __VA_ARGS__; \
-        VulkanCube::Utils::Logger::error(module, oss.str()); \
+        Phyxel::Utils::Logger::error(module, oss.str()); \
     } while(0)
 
 #define LOG_FATAL_FMT(module, ...) \
     do { \
         std::ostringstream oss; \
         oss << __VA_ARGS__; \
-        VulkanCube::Utils::Logger::fatal(module, oss.str()); \
+        Phyxel::Utils::Logger::fatal(module, oss.str()); \
     } while(0)
 
 } // namespace Utils
-} // namespace VulkanCube
+} // namespace Phyxel

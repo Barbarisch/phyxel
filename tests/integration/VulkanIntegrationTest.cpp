@@ -2,7 +2,7 @@
 #include "core/Chunk.h"
 #include <glm/glm.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Testing {
 
 /**
@@ -61,4 +61,4 @@ TEST_F(VulkanIntegrationTest, DeviceWaitIdle) {
 }
 
 } // namespace Testing
-} // namespace VulkanCube
+} // namespace Phyxel

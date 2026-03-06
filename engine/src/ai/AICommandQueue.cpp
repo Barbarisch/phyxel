@@ -1,6 +1,6 @@
 #include "ai/AICommandQueue.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace AI {
 
 void AICommandQueue::push(AICommand cmd) {
@@ -37,4 +37,4 @@ size_t AICommandQueue::approximateSize() const {
 }
 
 } // namespace AI
-} // namespace VulkanCube
+} // namespace Phyxel

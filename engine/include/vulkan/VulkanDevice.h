@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <glm/glm.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Vulkan {
 
 // Vertex structure for cube rendering
@@ -335,4 +335,4 @@ private:
 };
 
 } // namespace Vulkan
-} // namespace VulkanCube
+} // namespace Phyxel

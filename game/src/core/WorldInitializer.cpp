@@ -14,7 +14,7 @@
 #include "examples/MultiChunkDemo.h"
 #include <GLFW/glfw3.h>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Core {
 
 WorldInitializer::WorldInitializer(
@@ -51,7 +51,7 @@ WorldInitializer::WorldInitializer(
 bool WorldInitializer::initialize() {
     // Initialize logging system first
     Utils::Logger::loadConfig("logging.ini"); // Load config if exists
-    LOG_INFO("WorldInitializer", "Initializing VulkanCube Application...");
+    LOG_INFO("WorldInitializer", "Initializing Phyxel Application...");
     LOG_INFO("WorldInitializer", "Logging system initialized (check logging.ini for configuration)");
 
     // Initialize window first
@@ -454,4 +454,4 @@ bool WorldInitializer::loadAssets() {
 }
 
 } // namespace Core
-} // namespace VulkanCube
+} // namespace Phyxel

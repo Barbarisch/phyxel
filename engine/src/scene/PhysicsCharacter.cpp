@@ -5,7 +5,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Scene {
 
 void CharacterAction::updateAction(btCollisionWorld* collisionWorld, btScalar deltaTimeStep) {
@@ -617,4 +617,4 @@ void PhysicsCharacter::render(Graphics::RenderCoordinator* renderer) {
 }
 
 } // namespace Scene
-} // namespace VulkanCube
+} // namespace Phyxel

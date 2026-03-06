@@ -1,6 +1,6 @@
 #include "scene/Player.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Scene {
 
 Player::Player(Physics::PhysicsWorld* physicsWorld, Input::InputManager* inputManager, Graphics::Camera* camera, const glm::vec3& startPos)
@@ -56,4 +56,4 @@ void Player::update(float deltaTime) {
 }
 
 } // namespace Scene
-} // namespace VulkanCube
+} // namespace Phyxel

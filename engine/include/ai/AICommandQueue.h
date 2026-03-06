@@ -7,7 +7,7 @@
 #include <functional>
 #include <glm/glm.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace AI {
 
 // ============================================================================
@@ -107,4 +107,4 @@ private:
 };
 
 } // namespace AI
-} // namespace VulkanCube
+} // namespace Phyxel

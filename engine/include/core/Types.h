@@ -13,7 +13,7 @@
 // Forward declarations
 class btRigidBody;
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declarations within namespace
 class Chunk;
@@ -69,7 +69,7 @@ struct VoxelLocation {
     enum Type { EMPTY, CUBE, SUBDIVIDED };
     
     Type type = EMPTY;
-    Chunk* chunk = nullptr;                 // VulkanCube::Chunk forward declaration
+    Chunk* chunk = nullptr;                 // Phyxel::Chunk forward declaration
     glm::ivec3 localPos{-1};        // Local position within chunk
     glm::ivec3 worldPos{-1};        // World position for convenience
     glm::ivec3 subcubePos{-1};      // Only valid if type == SUBDIVIDED
@@ -473,7 +473,7 @@ constexpr bool enableValidationLayers = false;
 constexpr bool enableValidationLayers = true;
 #endif
 
-} // namespace VulkanCube
+} // namespace Phyxel
 
 // Hash function for glm::ivec3 to use in unordered_map
 namespace std {
@@ -488,6 +488,6 @@ namespace std {
     };
 }
 
-namespace VulkanCube {
+namespace Phyxel {
 
-} // namespace VulkanCube
+} // namespace Phyxel

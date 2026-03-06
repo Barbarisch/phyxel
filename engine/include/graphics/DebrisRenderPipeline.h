@@ -6,7 +6,7 @@
 #include <vector>
 #include <glm/glm.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Graphics {
 
 class Camera;
@@ -59,4 +59,4 @@ private:
 };
 
 } // namespace Graphics
-} // namespace VulkanCube
+} // namespace Phyxel

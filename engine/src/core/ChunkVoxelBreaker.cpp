@@ -4,7 +4,7 @@
 #include "utils/Logger.h"
 #include <btBulletDynamicsCommon.h>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 /**
  * Configure callbacks for accessing Chunk's internal state
@@ -236,4 +236,4 @@ bool ChunkVoxelBreaker::breakSubcube(
     return false; // Subcube not found in static list
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

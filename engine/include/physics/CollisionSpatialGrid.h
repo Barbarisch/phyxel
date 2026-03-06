@@ -7,7 +7,7 @@
 // Forward declarations
 class btCollisionShape;
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Physics {
 
 /**
@@ -86,4 +86,4 @@ private:
 };
 
 } // namespace Physics
-} // namespace VulkanCube
+} // namespace Phyxel

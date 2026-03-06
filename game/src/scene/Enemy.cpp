@@ -1,7 +1,7 @@
 #include "scene/Enemy.h"
 #include "scene/Player.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Scene {
 
 Enemy::Enemy(Physics::PhysicsWorld* physicsWorld, const glm::vec3& startPos)
@@ -35,4 +35,4 @@ void Enemy::update(float deltaTime) {
 }
 
 } // namespace Scene
-} // namespace VulkanCube
+} // namespace Phyxel

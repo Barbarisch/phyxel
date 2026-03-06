@@ -3,7 +3,7 @@
 #include <iostream>
 #include <algorithm>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 ChunkStorage::ChunkStorage() {
     cubes.reserve(32 * 32 * 32);
@@ -267,4 +267,4 @@ void ChunkStorage::updateSubcubeMap(const glm::ivec3& parentPos, const glm::ivec
     }
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

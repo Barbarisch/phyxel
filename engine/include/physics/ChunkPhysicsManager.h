@@ -11,7 +11,7 @@ class btCollisionShape;
 class btCompoundShape;
 class btTriangleMesh;
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declarations
 class Cube;
@@ -218,4 +218,4 @@ private:
 };
 
 } // namespace Physics
-} // namespace VulkanCube
+} // namespace Phyxel

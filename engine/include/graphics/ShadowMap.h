@@ -5,7 +5,7 @@
 #include <glm/glm.hpp>
 #include <memory>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Graphics {
 
 class ShadowMap {
@@ -58,4 +58,4 @@ private:
 };
 
 } // namespace Graphics
-} // namespace VulkanCube
+} // namespace Phyxel

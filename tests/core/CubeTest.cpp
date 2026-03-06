@@ -8,7 +8,7 @@
 #include "core/Cube.h"
 #include <glm/glm.hpp>
 
-using namespace VulkanCube;
+using namespace Phyxel;
 
 // ============================================================================
 // Direction Conversion Tests

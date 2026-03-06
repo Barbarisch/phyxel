@@ -8,7 +8,7 @@
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declarations
 class Chunk;
@@ -114,4 +114,4 @@ private:
     PhysicsWorldAccessFunc m_getPhysicsWorld;
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

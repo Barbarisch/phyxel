@@ -12,8 +12,8 @@
 #include "core/Types.h"
 #include <glm/glm.hpp>
 
-using namespace VulkanCube;
-using namespace VulkanCube::InstanceDataUtils;
+using namespace Phyxel;
+using namespace Phyxel::InstanceDataUtils;
 
 // ============================================================================
 // Relative Position Packing Tests

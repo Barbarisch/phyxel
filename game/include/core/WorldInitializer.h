@@ -5,7 +5,7 @@
 #include <glm/glm.hpp>
 
 // Forward declarations
-namespace VulkanCube {
+namespace Phyxel {
     namespace UI { 
         class WindowManager;
         class ImGuiRenderer;
@@ -27,7 +27,7 @@ namespace VulkanCube {
     class PerformanceProfiler;
 }
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Core {
 
 /**
@@ -97,4 +97,4 @@ private:
 };
 
 } // namespace Core
-} // namespace VulkanCube
+} // namespace Phyxel

@@ -4,7 +4,7 @@
 #include <glm/glm.hpp>
 #include <functional>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declarations
 class IChunkManager;
@@ -173,4 +173,4 @@ private:
     mutable bool m_debugCaptureEnabled = false;
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

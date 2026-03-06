@@ -2,7 +2,7 @@
 #include "scene/VoxelManipulationSystem.h"
 #include "utils/Logger.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 
 DestructionTool::DestructionTool(VoxelManipulationSystem* manipulator)
     : m_manipulator(manipulator) {}

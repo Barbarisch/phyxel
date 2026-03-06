@@ -6,7 +6,7 @@
 #include <vector>
 #include <glm/gtc/matrix_transform.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Graphics {
 
 // Helper to create shader module
@@ -363,4 +363,4 @@ glm::mat4 ShadowMap::getLightSpaceMatrix(const glm::vec3& lightDir, const glm::v
 }
 
 } // namespace Graphics
-} // namespace VulkanCube
+} // namespace Phyxel

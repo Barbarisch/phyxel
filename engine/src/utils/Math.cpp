@@ -4,7 +4,7 @@
 #include <cmath>
 #include <algorithm>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Math {
 
 float randomFloat(float strength) {
@@ -81,4 +81,4 @@ glm::vec3 screenToWorldRay(double mouseX, double mouseY, int screenWidth, int sc
 }
 
 } // namespace Math
-} // namespace VulkanCube
+} // namespace Phyxel

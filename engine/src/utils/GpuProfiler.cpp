@@ -2,7 +2,7 @@
 #include "utils/Logger.h"
 #include <iostream>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 GpuProfiler::GpuProfiler() {}
 
@@ -126,4 +126,4 @@ void GpuProfiler::endScope(VkCommandBuffer cmd) {
     frame.completedScopes.push_back(scope);
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

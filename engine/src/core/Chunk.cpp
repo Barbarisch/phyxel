@@ -15,7 +15,7 @@
 #include <BulletCollision/CollisionShapes/btTriangleMesh.h>
 #include <BulletCollision/CollisionShapes/btBvhTriangleMeshShape.h>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 Chunk::Chunk(const glm::ivec3& origin) 
     : worldOrigin(origin) {
@@ -792,4 +792,4 @@ bool Chunk::clearMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcu
     return voxelManager.clearMicrocubesAt(cubePos, subcubePos);
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

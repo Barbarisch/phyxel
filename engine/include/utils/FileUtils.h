@@ -3,7 +3,7 @@
 #include <vector>
 #include <string>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Utils {
 
 // File I/O utilities
@@ -13,4 +13,4 @@ std::vector<char> readFile(const std::string& filename);
 std::vector<char> loadShader(const std::string& shaderPath);
 
 } // namespace Utils
-} // namespace VulkanCube
+} // namespace Phyxel

@@ -8,7 +8,7 @@
 #include <glm/glm.hpp>
 #include <functional>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declarations
 class ChunkVoxelQuerySystem;
@@ -70,4 +70,4 @@ private:
     }
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

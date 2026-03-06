@@ -3,7 +3,7 @@
 #include <glm/glm.hpp>
 #include <functional>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 // Forward declarations
 class ChunkManager;
@@ -102,4 +102,4 @@ public:
     );
 };
 
-} // namespace VulkanCube
+} // namespace Phyxel

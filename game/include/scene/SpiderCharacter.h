@@ -5,7 +5,7 @@
 #include <vector>
 #include <memory>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Scene {
 
 struct SpiderLeg {
@@ -49,4 +49,4 @@ private:
 };
 
 } // namespace Scene
-} // namespace VulkanCube
+} // namespace Phyxel

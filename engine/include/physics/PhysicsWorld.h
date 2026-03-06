@@ -10,7 +10,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace Physics {
 
 class PhysicsWorld {
@@ -123,4 +123,4 @@ private:
 };
 
 } // namespace Physics
-} // namespace VulkanCube
+} // namespace Phyxel

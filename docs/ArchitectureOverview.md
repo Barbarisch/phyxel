@@ -282,7 +282,7 @@ touch src/ui/WindowManager.cpp
 
 # 4. Build and test
 cmake --build build
-./build/Debug/VulkanCube.exe
+./build/Debug/Phyxel.exe
 ```
 
 ### Option 2: CoordinateUtils (Medium, 3 hours)
@@ -402,7 +402,7 @@ git stash
 
 # 2. Verify the old version still works
 cmake --build build --clean-first
-./build/Debug/VulkanCube.exe
+./build/Debug/Phyxel.exe
 
 # 3. Review what went wrong
 git stash show -p

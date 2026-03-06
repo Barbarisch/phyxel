@@ -14,7 +14,7 @@
 // Bullet Physics includes
 #include <btBulletDynamicsCommon.h>
 
-namespace VulkanCube {
+namespace Phyxel {
 
 ChunkManager::~ChunkManager() {
     cleanup();
@@ -683,4 +683,4 @@ void ChunkManager::updateFacesAtPosition(const glm::ivec3& worldPos) {
     m_faceUpdateCoordinator.updateFacesAtPosition(worldPos);
 }
 
-} // namespace VulkanCube
+} // namespace Phyxel

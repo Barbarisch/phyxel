@@ -55,7 +55,7 @@ type nul > include\ui\WindowManager.h
 #include <string>
 #include <functional>
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace UI {
 
 /**
@@ -102,7 +102,7 @@ private:
 };
 
 } // namespace UI
-} // namespace VulkanCube
+} // namespace Phyxel
 ```
 
 **Create implementation file:**
@@ -116,7 +116,7 @@ type nul > src\ui\WindowManager.cpp
 #include "ui/WindowManager.h"
 #include "utils/Logger.h"
 
-namespace VulkanCube {
+namespace Phyxel {
 namespace UI {
 
 WindowManager::WindowManager() = default;
@@ -208,7 +208,7 @@ void WindowManager::framebufferResizeCallbackStatic(GLFWwindow* window, int w, i
 }
 
 } // namespace UI
-} // namespace VulkanCube
+} // namespace Phyxel
 ```
 
 ---
@@ -443,7 +443,7 @@ cmake --build build --clean-first
 **If build succeeds:**
 ```bash
 # Run the game!
-.\build\Debug\VulkanCube.exe
+.\build\Debug\Phyxel.exe
 
 # Or use your existing run script:
 .\run_debug.bat
