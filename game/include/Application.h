@@ -25,6 +25,9 @@
 #include "core/AudioSystem.h"
 #include "scripting/ScriptingSystem.h"
 #include "ai/AISystem.h"
+#include "core/EntityRegistry.h"
+#include "core/APICommandQueue.h"
+#include "core/EngineAPIServer.h"
 #include "scene/Entity.h"
 #include "scene/Player.h"
 #include "scene/Enemy.h"
@@ -88,6 +91,8 @@ public:
     ScriptingSystem* getScriptingSystem() const { return scriptingSystem.get(); }
     Core::AudioSystem* getAudioSystem() const { return audioSystem.get(); }
     AI::AISystem* getAISystem() const { return aiSystem.get(); }
+    Core::EntityRegistry* getEntityRegistry() const { return entityRegistry.get(); }
+    Core::EngineAPIServer* getAPIServer() const { return apiServer.get(); }
 
 private:
     // ============================================================================
@@ -134,6 +139,11 @@ private:
 
     // AI System
     std::unique_ptr<AI::AISystem> aiSystem;
+
+    // Entity Registry & HTTP API
+    std::unique_ptr<Core::EntityRegistry> entityRegistry;
+    std::unique_ptr<Core::APICommandQueue> apiCommandQueue;
+    std::unique_ptr<Core::EngineAPIServer> apiServer;
 
     // Entities
     std::vector<std::unique_ptr<Scene::Entity>> entities;
@@ -203,6 +213,7 @@ private:
     void handleInput();
     void spawnTestDynamicSubcube();  // Spawn a test dynamic subcube above the chunks
     void placeNewCube();            // Place a new cube adjacent to the hovered cube face
+    void processAPICommands();       // Process pending HTTP API commands
 
     // Ray-AABB intersection utility
     bool rayAABBIntersect(const glm::vec3& rayOrigin, const glm::vec3& rayDir, 

@@ -38,6 +38,8 @@
 #include "scene/VoxelInteractionSystem.h"
 #include "core/ObjectTemplateManager.h"
 #include "core/AudioSystem.h"
+#include "core/EntityRegistry.h"
+#include "core/EngineAPIServer.h"
 #include "input/InputManager.h"
 
 namespace py = pybind11;
@@ -160,10 +162,35 @@ PYBIND11_EMBEDDED_MODULE(phyxel, m) {
         .def("set_control_target", &Application::setControlTarget, "Set the character to control ('spider', 'animated', 'physics')")
         .def("toggle_character_control", &Application::toggleCharacterControl, "Cycle through controllable characters")
         .def("toggle_camera_mode", &Application::toggleCameraMode, "Toggle camera mode (First/Third/Free)")
-        .def("derez_character", &Application::derezCharacter, "Derez the current character", py::arg("explosion_strength") = 1.0f);
+        .def("derez_character", &Application::derezCharacter, "Derez the current character", py::arg("explosion_strength") = 1.0f)
+        // Entity Registry access
+        .def("get_entity_registry", &Application::getEntityRegistry, py::return_value_policy::reference)
+        // API Server access
+        .def("get_api_server", &Application::getAPIServer, py::return_value_policy::reference);
+
+    // Expose EntityRegistry
+    py::class_<Core::EntityRegistry>(m, "EntityRegistry")
+        .def("register_entity", [](Core::EntityRegistry& reg, Scene::Entity* entity, const std::string& id, const std::string& typeTag) {
+            return reg.registerEntity(entity, id, typeTag);
+        }, "Register an entity with ID and type", py::arg("entity"), py::arg("id"), py::arg("type_tag") = "")
+        .def("unregister_entity", [](Core::EntityRegistry& reg, const std::string& id) {
+            return reg.unregisterEntity(id);
+        }, "Unregister an entity by ID")
+        .def("get_entity", &Core::EntityRegistry::getEntity, py::return_value_policy::reference, "Get entity by ID")
+        .def("get_entity_id", &Core::EntityRegistry::getEntityId, "Get the ID of an entity")
+        .def("has_entity", &Core::EntityRegistry::hasEntity, "Check if an entity ID exists")
+        .def("get_all_ids", &Core::EntityRegistry::getAllIds, "Get all registered entity IDs")
+        .def("size", &Core::EntityRegistry::size, "Get number of registered entities");
 
     // Expose Character Classes (Opaque handles for now)
-    py::class_<Scene::Entity>(m, "Entity");
+    py::class_<Scene::Entity>(m, "Entity")
+        .def("get_position", [](Scene::Entity& e) {
+            auto pos = e.getPosition();
+            return py::make_tuple(pos.x, pos.y, pos.z);
+        }, "Get entity position as (x, y, z)")
+        .def("set_position", [](Scene::Entity& e, float x, float y, float z) {
+            e.setPosition(glm::vec3(x, y, z));
+        }, "Set entity position");
     py::class_<Scene::PhysicsCharacter, Scene::Entity>(m, "PhysicsCharacter");
     py::class_<Scene::SpiderCharacter, Scene::Entity>(m, "SpiderCharacter");
     py::class_<Scene::AnimatedVoxelCharacter, Scene::Entity>(m, "AnimatedVoxelCharacter")

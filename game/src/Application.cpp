@@ -3,6 +3,9 @@
 #include "scene/PhysicsCharacter.h"
 #include "scene/SpiderCharacter.h"
 #include "scene/AnimatedVoxelCharacter.h"
+#include "core/EntityRegistry.h"
+#include "core/APICommandQueue.h"
+#include "core/EngineAPIServer.h"
 #include "utils/FileUtils.h"
 #include "utils/Math.h"
 #include "utils/PerformanceProfiler.h"
@@ -25,6 +28,14 @@
 #include <random>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+
+// Screenshot support
+#include "stb_image_write.h"
+#ifdef _WIN32
+#include <direct.h>  // _mkdir
+#else
+#include <sys/stat.h> // mkdir
+#endif
 
 namespace Phyxel {
 
@@ -272,6 +283,141 @@ bool Application::initialize() {
         }
     }
 
+    // STEP 10: INITIALIZE ENTITY REGISTRY & HTTP API SERVER
+    entityRegistry = std::make_unique<Core::EntityRegistry>();
+    apiCommandQueue = std::make_unique<Core::APICommandQueue>();
+    apiServer = std::make_unique<Core::EngineAPIServer>(apiCommandQueue.get(), 8090);
+
+    // Wire up read-only handlers (called directly on HTTP thread — must be thread-safe)
+    apiServer->setEntityListHandler([this]() -> nlohmann::json {
+        return entityRegistry->toJson();
+    });
+
+    apiServer->setEntityDetailHandler([this](const std::string& id) -> nlohmann::json {
+        return entityRegistry->entityToJson(id);
+    });
+
+    apiServer->setCameraHandler([this]() -> nlohmann::json {
+        nlohmann::json cam;
+        if (inputManager) {
+            auto pos = inputManager->getCameraPosition();
+            cam["position"] = {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}};
+            cam["yaw"] = inputManager->getYaw();
+            cam["pitch"] = inputManager->getPitch();
+        }
+        if (camera) {
+            auto front = camera->getFront();
+            cam["front"] = {{"x", front.x}, {"y", front.y}, {"z", front.z}};
+        }
+        return cam;
+    });
+
+    apiServer->setVoxelQueryHandler([this](int x, int y, int z) -> nlohmann::json {
+        nlohmann::json result;
+        result["position"] = {{"x", x}, {"y", y}, {"z", z}};
+        if (chunkManager) {
+            auto* cube = chunkManager->getCubeAt(glm::ivec3(x, y, z));
+            result["exists"] = (cube != nullptr);
+        } else {
+            result["exists"] = false;
+        }
+        return result;
+    });
+
+    apiServer->setWorldStateHandler([this]() -> nlohmann::json {
+        nlohmann::json state;
+        state["entities"] = entityRegistry->toJson();
+        if (inputManager) {
+            auto pos = inputManager->getCameraPosition();
+            state["camera"] = {
+                {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}},
+                {"yaw", inputManager->getYaw()},
+                {"pitch", inputManager->getPitch()}
+            };
+        }
+        state["entity_count"] = entityRegistry->size();
+        return state;
+    });
+
+    apiServer->setMaterialListHandler([]() -> nlohmann::json {
+        static Physics::MaterialManager matMgr;
+        auto names = matMgr.getAllMaterialNames();
+        nlohmann::json matArr = nlohmann::json::array();
+        for (const auto& name : names) {
+            const auto& mat = matMgr.getMaterial(name);
+            matArr.push_back({
+                {"name", name},
+                {"mass", mat.mass},
+                {"friction", mat.friction},
+                {"restitution", mat.restitution},
+                {"colorTint", {{"r", mat.colorTint.r}, {"g", mat.colorTint.g}, {"b", mat.colorTint.b}}},
+                {"metallic", mat.metallic},
+                {"roughness", mat.roughness}
+            });
+        }
+        return nlohmann::json{{"materials", matArr}};
+    });
+
+    apiServer->setChunkInfoHandler([this]() -> nlohmann::json {
+        if (!chunkManager) return nlohmann::json{{"error", "ChunkManager not available"}};
+        size_t chunkCount = chunkManager->chunks.size();
+        auto stats = chunkManager->getPerformanceStats();
+        return nlohmann::json{
+            {"chunkCount", chunkCount},
+            {"stats", {
+                {"totalVertices", stats.totalVertices},
+                {"totalVisibleFaces", stats.totalVisibleFaces},
+                {"totalHiddenFaces", stats.totalHiddenFaces},
+                {"fullyOccludedCubes", stats.fullyOccludedCubes}
+            }}
+        };
+    });
+
+    apiServer->setRegionScanHandler([this](int x1, int y1, int z1, int x2, int y2, int z2) -> nlohmann::json {
+        if (!chunkManager) return nlohmann::json{{"error", "ChunkManager not available"}};
+
+        int minX = std::min(x1, x2), maxX = std::max(x1, x2);
+        int minY = std::min(y1, y2), maxY = std::max(y1, y2);
+        int minZ = std::min(z1, z2), maxZ = std::max(z1, z2);
+
+        int64_t volume = (int64_t)(maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
+        if (volume > 100000) {
+            return nlohmann::json{{"error", "Region too large"}, {"volume", volume}, {"max_volume", 100000}};
+        }
+
+        nlohmann::json voxels = nlohmann::json::array();
+        int count = 0;
+        for (int ix = minX; ix <= maxX; ++ix) {
+            for (int iy = minY; iy <= maxY; ++iy) {
+                for (int iz = minZ; iz <= maxZ; ++iz) {
+                    auto* cube = chunkManager->getCubeAt(glm::ivec3(ix, iy, iz));
+                    if (cube) {
+                        voxels.push_back({
+                            {"x", ix}, {"y", iy}, {"z", iz},
+                            {"material", cube->getMaterialName()},
+                            {"visible", cube->isVisible()}
+                        });
+                        ++count;
+                    }
+                }
+            }
+        }
+        return nlohmann::json{
+            {"count", count},
+            {"volume", volume},
+            {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
+            {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}},
+            {"voxels", voxels}
+        };
+    });
+
+    // Start the API server
+    if (apiServer->start()) {
+        LOG_INFO("Application", "Engine HTTP API available at http://localhost:8090/api/status");
+    } else {
+        LOG_WARN("Application", "Failed to start HTTP API server (non-critical)");
+    }
+
     m_initialized = true;
     return true;
 }
@@ -435,6 +581,14 @@ void Application::cleanup() {
     if (imguiRenderer) {
         imguiRenderer->cleanup();
     }
+
+    // Shutdown HTTP API server first (background thread must stop before systems go away)
+    if (apiServer) {
+        apiServer->stop();
+        apiServer.reset();
+    }
+    apiCommandQueue.reset();
+    entityRegistry.reset();
     
     // Shutdown AI system before scripting
     if (aiSystem) {
@@ -523,6 +677,9 @@ void Application::update(float deltaTime) {
     PROFILE_SCOPE(*performanceProfiler, "Update");
     this->deltaTime = deltaTime;
     
+    // Process HTTP API commands (from external agents)
+    processAPICommands();
+
     // Update scripting system
     if (scriptingSystem) {
         PROFILE_SCOPE(*performanceProfiler, "Scripting");
@@ -1025,6 +1182,9 @@ Scene::PhysicsCharacter* Application::createPhysicsCharacter(const glm::vec3& po
     physicsCharacter = physicsCharPtr.get();
     physicsCharacter->setFaction(Scene::Faction::Player);
     entities.push_back(std::move(physicsCharPtr));
+    if (entityRegistry) {
+        entityRegistry->registerEntity(physicsCharacter, "physics_" + std::to_string(entities.size()), "physics");
+    }
     LOG_INFO("Application", "Created PhysicsCharacter");
     return physicsCharacter;
 }
@@ -1034,6 +1194,9 @@ Scene::SpiderCharacter* Application::createSpiderCharacter(const glm::vec3& pos)
     spiderCharacter = spiderPtr.get();
     spiderCharacter->setFaction(Scene::Faction::Enemy);
     entities.push_back(std::move(spiderPtr));
+    if (entityRegistry) {
+        entityRegistry->registerEntity(spiderCharacter, "spider_" + std::to_string(entities.size()), "spider");
+    }
     LOG_INFO("Application", "Created SpiderCharacter");
     return spiderCharacter;
 }
@@ -1049,6 +1212,9 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
         LOG_ERROR("Application", "Failed to load animated character model: " + animFile);
     }
     entities.push_back(std::move(animatedCharPtr));
+    if (entityRegistry) {
+        entityRegistry->registerEntity(animatedCharacter, "animated_" + std::to_string(entities.size()), "animated");
+    }
     return animatedCharacter;
 }
 
@@ -1170,6 +1336,478 @@ void Application::toggleAISystem() {
             LOG_INFO("Application", "AI system started with goose-server");
         } else {
             LOG_WARN("Application", "Failed to start AI system");
+        }
+    }
+}
+
+// ============================================================================
+// HTTP API Command Processor
+// Called once per frame from update() to handle commands from the API server.
+// ============================================================================
+
+void Application::processAPICommands() {
+    if (!apiCommandQueue || !apiCommandQueue->hasPending()) return;
+
+    std::vector<Core::APICommand> commands;
+    apiCommandQueue->drainCommands(commands);
+
+    for (auto& cmd : commands) {
+        nlohmann::json response;
+        try {
+            if (cmd.action == "spawn_entity") {
+                // Required: "type" (physics/spider/animated), "position" {x,y,z}
+                // Optional: "id", "animFile"
+                std::string type = cmd.params.value("type", "physics");
+                float x = 0, y = 20, z = 0;
+                if (cmd.params.contains("position")) {
+                    x = cmd.params["position"].value("x", 0.0f);
+                    y = cmd.params["position"].value("y", 20.0f);
+                    z = cmd.params["position"].value("z", 0.0f);
+                }
+
+                Scene::Entity* spawned = nullptr;
+                std::string entityType = type;
+
+                if (type == "physics") {
+                    spawned = createPhysicsCharacter(glm::vec3(x, y, z));
+                } else if (type == "spider") {
+                    spawned = createSpiderCharacter(glm::vec3(x, y, z));
+                } else if (type == "animated") {
+                    std::string animFile = cmd.params.value("animFile", "character.anim");
+                    spawned = createAnimatedCharacter(glm::vec3(x, y, z), animFile);
+                } else {
+                    response = {{"error", "Unknown entity type: " + type}};
+                    if (cmd.onComplete) cmd.onComplete(response);
+                    continue;
+                }
+
+                if (spawned && entityRegistry) {
+                    std::string id = cmd.params.value("id", "");
+                    if (id.empty()) {
+                        id = entityRegistry->registerEntity(spawned);
+                    } else {
+                        entityRegistry->registerEntity(spawned, id, entityType);
+                    }
+                    response = {{"success", true}, {"id", id}, {"type", entityType},
+                                {"position", {{"x", x}, {"y", y}, {"z", z}}}};
+                } else {
+                    response = {{"error", "Failed to spawn entity"}};
+                }
+
+            } else if (cmd.action == "move_entity") {
+                std::string id = cmd.params.value("id", "");
+                if (id.empty() || !entityRegistry) {
+                    response = {{"error", "Entity ID required"}};
+                } else {
+                    auto* entity = entityRegistry->getEntity(id);
+                    if (!entity) {
+                        response = {{"error", "Entity not found: " + id}};
+                    } else {
+                        float x = cmd.params["position"].value("x", 0.0f);
+                        float y = cmd.params["position"].value("y", 0.0f);
+                        float z = cmd.params["position"].value("z", 0.0f);
+                        entity->setPosition(glm::vec3(x, y, z));
+                        response = {{"success", true}, {"id", id},
+                                    {"position", {{"x", x}, {"y", y}, {"z", z}}}};
+                    }
+                }
+
+            } else if (cmd.action == "remove_entity") {
+                std::string id = cmd.params.value("id", "");
+                if (id.empty() || !entityRegistry) {
+                    response = {{"error", "Entity ID required"}};
+                } else {
+                    auto* entity = entityRegistry->getEntity(id);
+                    if (!entity) {
+                        response = {{"error", "Entity not found: " + id}};
+                    } else {
+                        // Remove from entities vector
+                        auto it = std::remove_if(entities.begin(), entities.end(),
+                            [entity](const std::unique_ptr<Scene::Entity>& e) {
+                                return e.get() == entity;
+                            });
+                        if (it != entities.end()) {
+                            entities.erase(it, entities.end());
+                        }
+                        // Clear named pointers if they match
+                        if (entity == physicsCharacter) physicsCharacter = nullptr;
+                        if (entity == spiderCharacter) spiderCharacter = nullptr;
+                        if (entity == animatedCharacter) animatedCharacter = nullptr;
+                        entityRegistry->unregisterEntity(id);
+                        response = {{"success", true}, {"id", id}};
+                    }
+                }
+
+            } else if (cmd.action == "place_voxel") {
+                int x = cmd.params.value("x", 0);
+                int y = cmd.params.value("y", 0);
+                int z = cmd.params.value("z", 0);
+                if (chunkManager) {
+                    std::string material = cmd.params.value("material", "");
+                    bool ok = false;
+                    if (!material.empty()) {
+                        ok = chunkManager->m_voxelModificationSystem.addCubeWithMaterial(
+                            glm::ivec3(x, y, z), material);
+                    } else {
+                        ok = chunkManager->addCube(glm::ivec3(x, y, z));
+                    }
+                    response = {{"success", ok}, {"position", {{"x", x}, {"y", y}, {"z", z}}}};
+                } else {
+                    response = {{"error", "ChunkManager not available"}};
+                }
+
+            } else if (cmd.action == "fill_region") {
+                // Fill a 3D box with voxels
+                if (!chunkManager) {
+                    response = {{"error", "ChunkManager not available"}};
+                } else {
+                    int x1 = cmd.params.value("x1", 0);
+                    int y1 = cmd.params.value("y1", 0);
+                    int z1 = cmd.params.value("z1", 0);
+                    int x2 = cmd.params.value("x2", 0);
+                    int y2 = cmd.params.value("y2", 0);
+                    int z2 = cmd.params.value("z2", 0);
+                    std::string material = cmd.params.value("material", "");
+                    bool hollow = cmd.params.value("hollow", false);
+
+                    // Normalize coordinates
+                    int minX = std::min(x1, x2), maxX = std::max(x1, x2);
+                    int minY = std::min(y1, y2), maxY = std::max(y1, y2);
+                    int minZ = std::min(z1, z2), maxZ = std::max(z1, z2);
+
+                    // Safety limit: max 100k voxels per call
+                    int64_t volume = (int64_t)(maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
+                    if (volume > 100000) {
+                        response = {{"error", "Region too large"},
+                                    {"volume", volume}, {"max_volume", 100000}};
+                    } else {
+                        int placed = 0, failed = 0;
+                        for (int ix = minX; ix <= maxX; ++ix) {
+                            for (int iy = minY; iy <= maxY; ++iy) {
+                                for (int iz = minZ; iz <= maxZ; ++iz) {
+                                    // Skip interior voxels if hollow
+                                    if (hollow &&
+                                        ix > minX && ix < maxX &&
+                                        iy > minY && iy < maxY &&
+                                        iz > minZ && iz < maxZ) {
+                                        continue;
+                                    }
+                                    bool ok = false;
+                                    if (!material.empty()) {
+                                        ok = chunkManager->m_voxelModificationSystem.addCubeWithMaterial(
+                                            glm::ivec3(ix, iy, iz), material);
+                                    } else {
+                                        ok = chunkManager->addCube(glm::ivec3(ix, iy, iz));
+                                    }
+                                    if (ok) ++placed; else ++failed;
+                                }
+                            }
+                        }
+                        response = {{"success", true}, {"placed", placed}, {"failed", failed},
+                                    {"volume", volume}, {"hollow", hollow},
+                                    {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
+                                    {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}};
+                    }
+                }
+
+            } else if (cmd.action == "list_materials") {
+                static Physics::MaterialManager matMgr;
+                auto names = matMgr.getAllMaterialNames();
+                nlohmann::json matArr = nlohmann::json::array();
+                for (const auto& name : names) {
+                    const auto& mat = matMgr.getMaterial(name);
+                    matArr.push_back({
+                        {"name", name},
+                        {"mass", mat.mass},
+                        {"friction", mat.friction},
+                        {"restitution", mat.restitution},
+                        {"colorTint", {{"r", mat.colorTint.r}, {"g", mat.colorTint.g}, {"b", mat.colorTint.b}}},
+                        {"metallic", mat.metallic},
+                        {"roughness", mat.roughness}
+                    });
+                }
+                response = {{"materials", matArr}};
+
+            } else if (cmd.action == "get_chunk_info") {
+                if (!chunkManager) {
+                    response = {{"error", "ChunkManager not available"}};
+                } else {
+                    size_t chunkCount = chunkManager->chunks.size();
+                    auto stats = chunkManager->getPerformanceStats();
+
+                    // Collect chunk positions and bounds
+                    nlohmann::json chunkArr = nlohmann::json::array();
+                    for (const auto& chunk : chunkManager->chunks) {
+                        if (!chunk) continue;
+                        auto pos = chunk->getWorldOrigin();
+                        auto cubeCount = chunk->getCubeCount();
+                        chunkArr.push_back({
+                            {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}},
+                            {"cubeCount", cubeCount}
+                        });
+                    }
+
+                    response = {
+                        {"chunkCount", chunkCount},
+                        {"chunks", chunkArr},
+                        {"stats", {
+                            {"totalVertices", stats.totalVertices},
+                            {"totalVisibleFaces", stats.totalVisibleFaces},
+                            {"totalHiddenFaces", stats.totalHiddenFaces},
+                            {"fullyOccludedCubes", stats.fullyOccludedCubes}
+                        }}
+                    };
+                }
+
+            } else if (cmd.action == "clear_region") {
+                // Clear (remove) all voxels in a 3D box
+                if (!chunkManager) {
+                    response = {{"error", "ChunkManager not available"}};
+                } else {
+                    int x1 = cmd.params.value("x1", 0);
+                    int y1 = cmd.params.value("y1", 0);
+                    int z1 = cmd.params.value("z1", 0);
+                    int x2 = cmd.params.value("x2", 0);
+                    int y2 = cmd.params.value("y2", 0);
+                    int z2 = cmd.params.value("z2", 0);
+
+                    int minX = std::min(x1, x2), maxX = std::max(x1, x2);
+                    int minY = std::min(y1, y2), maxY = std::max(y1, y2);
+                    int minZ = std::min(z1, z2), maxZ = std::max(z1, z2);
+
+                    int64_t volume = (int64_t)(maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
+                    if (volume > 100000) {
+                        response = {{"error", "Region too large"},
+                                    {"volume", volume}, {"max_volume", 100000}};
+                    } else {
+                        int removed = 0, skipped = 0;
+                        for (int ix = minX; ix <= maxX; ++ix) {
+                            for (int iy = minY; iy <= maxY; ++iy) {
+                                for (int iz = minZ; iz <= maxZ; ++iz) {
+                                    bool ok = chunkManager->removeCube(glm::ivec3(ix, iy, iz));
+                                    if (ok) ++removed; else ++skipped;
+                                }
+                            }
+                        }
+                        response = {{"success", true}, {"removed", removed}, {"skipped", skipped},
+                                    {"volume", volume},
+                                    {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
+                                    {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}};
+                    }
+                }
+
+            } else if (cmd.action == "save_world") {
+                // Save world chunks to SQLite database
+                if (!chunkManager) {
+                    response = {{"error", "ChunkManager not available"}};
+                } else {
+                    bool saveAll = cmd.params.value("all", false);
+                    bool ok = false;
+                    if (saveAll) {
+                        ok = chunkManager->saveAllChunks();
+                    } else {
+                        ok = chunkManager->saveDirtyChunks();
+                    }
+                    response = {{"success", ok},
+                                {"mode", saveAll ? "all" : "dirty"}};
+                    if (ok) {
+                        LOG_INFO("Application", "World saved via API (mode: {})", saveAll ? "all" : "dirty");
+                    }
+                }
+
+            } else if (cmd.action == "update_entity") {
+                std::string id = cmd.params.value("id", "");
+                if (id.empty() || !entityRegistry) {
+                    response = {{"error", "Entity ID required"}};
+                } else {
+                    auto* entity = entityRegistry->getEntity(id);
+                    if (!entity) {
+                        response = {{"error", "Entity not found: " + id}};
+                    } else {
+                        if (cmd.params.contains("position")) {
+                            float x = cmd.params["position"].value("x", 0.0f);
+                            float y = cmd.params["position"].value("y", 0.0f);
+                            float z = cmd.params["position"].value("z", 0.0f);
+                            entity->setPosition(glm::vec3(x, y, z));
+                        }
+                        if (cmd.params.contains("rotation")) {
+                            float w = cmd.params["rotation"].value("w", 1.0f);
+                            float x = cmd.params["rotation"].value("x", 0.0f);
+                            float y = cmd.params["rotation"].value("y", 0.0f);
+                            float z = cmd.params["rotation"].value("z", 0.0f);
+                            entity->setRotation(glm::quat(w, x, y, z));
+                        }
+                        if (cmd.params.contains("scale")) {
+                            float sx = cmd.params["scale"].value("x", 1.0f);
+                            float sy = cmd.params["scale"].value("y", 1.0f);
+                            float sz = cmd.params["scale"].value("z", 1.0f);
+                            entity->setScale(glm::vec3(sx, sy, sz));
+                        }
+                        if (cmd.params.contains("debugColor")) {
+                            float r = cmd.params["debugColor"].value("r", 1.0f);
+                            float g = cmd.params["debugColor"].value("g", 1.0f);
+                            float b = cmd.params["debugColor"].value("b", 1.0f);
+                            float a = cmd.params["debugColor"].value("a", 1.0f);
+                            entity->debugColor = glm::vec4(r, g, b, a);
+                        }
+                        response = {{"success", true}, {"id", id}};
+                    }
+                }
+
+            } else if (cmd.action == "remove_voxel") {
+                int x = cmd.params.value("x", 0);
+                int y = cmd.params.value("y", 0);
+                int z = cmd.params.value("z", 0);
+                if (chunkManager) {
+                    bool ok = chunkManager->removeCube(glm::ivec3(x, y, z));
+                    response = {{"success", ok}, {"position", {{"x", x}, {"y", y}, {"z", z}}}};
+                } else {
+                    response = {{"error", "ChunkManager not available"}};
+                }
+
+            } else if (cmd.action == "place_voxels_batch") {
+                if (!chunkManager) {
+                    response = {{"error", "ChunkManager not available"}};
+                } else if (!cmd.params.contains("voxels")) {
+                    response = {{"error", "Missing 'voxels' array"}};
+                } else {
+                    int placed = 0;
+                    int failed = 0;
+                    for (const auto& v : cmd.params["voxels"]) {
+                        int x = v.value("x", 0);
+                        int y = v.value("y", 0);
+                        int z = v.value("z", 0);
+                        std::string material = v.value("material", "");
+                        bool ok = false;
+                        if (!material.empty()) {
+                            ok = chunkManager->m_voxelModificationSystem.addCubeWithMaterial(
+                                glm::ivec3(x, y, z), material);
+                        } else {
+                            ok = chunkManager->addCube(glm::ivec3(x, y, z));
+                        }
+                        if (ok) ++placed; else ++failed;
+                    }
+                    response = {{"success", true}, {"placed", placed}, {"failed", failed}};
+                }
+
+            } else if (cmd.action == "spawn_template") {
+                std::string name = cmd.params.value("name", "");
+                if (name.empty()) {
+                    response = {{"error", "Template name required"}};
+                } else if (!objectTemplateManager) {
+                    response = {{"error", "ObjectTemplateManager not available"}};
+                } else {
+                    float x = 0, y = 0, z = 0;
+                    if (cmd.params.contains("position")) {
+                        x = cmd.params["position"].value("x", 0.0f);
+                        y = cmd.params["position"].value("y", 0.0f);
+                        z = cmd.params["position"].value("z", 0.0f);
+                    }
+                    bool isStatic = cmd.params.value("static", true);
+                    bool ok = objectTemplateManager->spawnTemplate(name, glm::vec3(x, y, z), isStatic);
+                    response = {{"success", ok}, {"template", name},
+                                {"position", {{"x", x}, {"y", y}, {"z", z}}}};
+                }
+
+            } else if (cmd.action == "list_templates") {
+                if (objectTemplateManager) {
+                    auto names = objectTemplateManager->getTemplateNames();
+                    response = {{"templates", names}};
+                } else {
+                    response = {{"templates", nlohmann::json::array()}};
+                }
+
+            } else if (cmd.action == "set_camera") {
+                if (cmd.params.contains("position") && inputManager) {
+                    float x = cmd.params["position"].value("x", 0.0f);
+                    float y = cmd.params["position"].value("y", 0.0f);
+                    float z = cmd.params["position"].value("z", 0.0f);
+                    inputManager->setCameraPosition(glm::vec3(x, y, z));
+                }
+                if (cmd.params.contains("yaw") && inputManager) {
+                    float yaw = cmd.params.value("yaw", 0.0f);
+                    float pitch = cmd.params.value("pitch", 0.0f);
+                    inputManager->setYawPitch(yaw, pitch);
+                }
+                response = {{"success", true}};
+
+            } else if (cmd.action == "capture_screenshot") {
+                // Capture the current frame via RenderCoordinator
+                if (!renderCoordinator) {
+                    response = {{"error", "RenderCoordinator not available"}};
+                } else {
+                    auto pixels = renderCoordinator->captureScreenshot();
+                    if (pixels.empty()) {
+                        response = {{"error", "Screenshot capture failed"}};
+                    } else {
+                        auto extent = vulkanDevice->getSwapChainExtent();
+                        uint32_t w = extent.width;
+                        uint32_t h = extent.height;
+
+                        // Ensure screenshots directory exists
+                        std::string screenshotDir = "screenshots";
+                        #ifdef _WIN32
+                        _mkdir(screenshotDir.c_str());
+                        #else
+                        mkdir(screenshotDir.c_str(), 0755);
+                        #endif
+
+                        // Generate timestamped filename
+                        auto now = std::chrono::system_clock::now();
+                        auto time = std::chrono::system_clock::to_time_t(now);
+                        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            now.time_since_epoch()) % 1000;
+                        std::tm tm_buf;
+                        #ifdef _WIN32
+                        localtime_s(&tm_buf, &time);
+                        #else
+                        localtime_r(&time, &tm_buf);
+                        #endif
+                        std::ostringstream oss;
+                        oss << screenshotDir << "/screenshot_"
+                            << std::put_time(&tm_buf, "%Y%m%d_%H%M%S")
+                            << "_" << std::setfill('0') << std::setw(3) << ms.count()
+                            << ".png";
+                        std::string filepath = oss.str();
+
+                        // Write PNG using stbi_write_png (writes to file)
+                        int ok = stbi_write_png(filepath.c_str(), w, h, 4, pixels.data(), w * 4);
+                        if (ok) {
+                            response = {
+                                {"success", true},
+                                {"width", w},
+                                {"height", h},
+                                {"format", "png"},
+                                {"path", filepath},
+                                {"size_pixels", w * h}
+                            };
+                            LOG_INFO("Application", "Screenshot saved to {}", filepath);
+                        } else {
+                            response = {{"error", "Failed to write PNG file"}};
+                        }
+                    }
+                }
+
+            } else if (cmd.action == "run_script") {
+                std::string code = cmd.params.value("code", "");
+                if (code.empty()) {
+                    response = {{"error", "Missing 'code' parameter"}};
+                } else if (!scriptingSystem) {
+                    response = {{"error", "ScriptingSystem not available"}};
+                } else {
+                    scriptingSystem->runCommand(code);
+                    response = {{"success", true}, {"executed", code}};
+                }
+
+            } else {
+                response = {{"error", "Unknown action: " + cmd.action}};
+            }
+        } catch (const std::exception& e) {
+            response = {{"error", e.what()}, {"action", cmd.action}};
+        }
+
+        if (cmd.onComplete) {
+            cmd.onComplete(response);
         }
     }
 }

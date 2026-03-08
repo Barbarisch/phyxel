@@ -42,6 +42,9 @@ public:
     // Get a template by name
     const VoxelTemplate* getTemplate(const std::string& name) const;
 
+    // Get all loaded template names
+    std::vector<std::string> getTemplateNames() const;
+
     // Spawn a template at a specific world position
     // isStatic: if true, merges into chunks. if false, creates dynamic objects.
     bool spawnTemplate(const std::string& name, const glm::vec3& worldPos, bool isStatic = true);

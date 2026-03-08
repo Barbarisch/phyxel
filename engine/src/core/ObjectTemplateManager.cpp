@@ -91,6 +91,15 @@ const VoxelTemplate* ObjectTemplateManager::getTemplate(const std::string& name)
     return nullptr;
 }
 
+std::vector<std::string> ObjectTemplateManager::getTemplateNames() const {
+    std::vector<std::string> names;
+    names.reserve(m_templates.size());
+    for (const auto& [name, tmpl] : m_templates) {
+        names.push_back(name);
+    }
+    return names;
+}
+
 bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::vec3& worldPos, bool isStatic) {
     const VoxelTemplate* tmpl = getTemplate(name);
     if (!tmpl) {

@@ -4,3 +4,5 @@ trimesh
 scipy
 networkx
 pygltflib
+mcp
+httpx
