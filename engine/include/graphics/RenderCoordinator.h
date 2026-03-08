@@ -7,6 +7,8 @@
 #include "scene/Entity.h"
 #include <memory>
 #include <chrono>
+#include <vector>
+#include <cstdint>
 #include <glm/glm.hpp>
 
 // Forward declarations
@@ -127,6 +129,14 @@ public:
     
     uint32_t getCurrentFrame() const { return currentFrame; }
 
+    /// Get the swapchain image index that was last rendered and presented.
+    uint32_t getLastImageIndex() const { return m_lastImageIndex; }
+
+    /// Capture the most recently presented swapchain image as RGBA pixel data.
+    /// Returns an empty vector on failure. Must be called from the main thread.
+    /// Output: width*height*4 bytes of RGBA data, top-to-bottom row order.
+    std::vector<uint8_t> captureScreenshot();
+
 private:
     const std::vector<std::unique_ptr<Scene::Entity>>* entities = nullptr;
 
@@ -179,6 +189,9 @@ private:
     // GPU culling results (for future GPU frustum culling)
     uint32_t lastVisibleInstances = 0;
     uint32_t lastCulledInstances = 0;
+
+    // Last rendered swapchain image index (for screenshot capture)
+    uint32_t m_lastImageIndex = 0;
 
     // Preallocated to avoid per-frame heap allocation in renderStaticGeometry()
     std::vector<size_t> visibleChunkIndices;

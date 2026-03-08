@@ -556,6 +556,7 @@ void RenderCoordinator::drawFrame() {
     // Present frame
     auto presentStart = std::chrono::high_resolution_clock::now();
     VkResult presentResult = vulkanDevice->presentFrame(imageIndex, currentFrame);
+    m_lastImageIndex = imageIndex;  // Track for screenshot capture
     
     if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR || vulkanDevice->getFramebufferResized()) {
         // Recreate swapchain on next frame
@@ -778,6 +779,136 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
             vkCmdDraw(commandBuffer, 36, 1, 0, 0);
         }
     }
+}
+
+// ============================================================================
+// Screenshot Capture
+// ============================================================================
+
+std::vector<uint8_t> RenderCoordinator::captureScreenshot() {
+    VkDevice device = vulkanDevice->getDevice();
+    VkExtent2D extent = vulkanDevice->getSwapChainExtent();
+    uint32_t width = extent.width;
+    uint32_t height = extent.height;
+    VkFormat format = vulkanDevice->getSwapChainImageFormat();
+    VkImage srcImage = vulkanDevice->getSwapChainImage(m_lastImageIndex);
+
+    // Ensure all GPU work is done before touching the swapchain image
+    vkDeviceWaitIdle(device);
+
+    // Create a host-visible staging buffer to copy the image into
+    VkDeviceSize bufferSize = static_cast<VkDeviceSize>(width) * height * 4;
+    VkBuffer stagingBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory stagingMemory = VK_NULL_HANDLE;
+
+    vulkanDevice->createBuffer(
+        bufferSize,
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        stagingBuffer,
+        stagingMemory
+    );
+
+    // Use single-time command buffer for the copy
+    VkCommandBuffer cmd = vulkanDevice->beginSingleTimeCommands();
+
+    // Transition swapchain image: PRESENT_SRC_KHR → TRANSFER_SRC_OPTIMAL
+    VkImageMemoryBarrier toTransferSrc{};
+    toTransferSrc.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    toTransferSrc.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    toTransferSrc.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    toTransferSrc.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    toTransferSrc.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    toTransferSrc.image = srcImage;
+    toTransferSrc.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    toTransferSrc.subresourceRange.baseMipLevel = 0;
+    toTransferSrc.subresourceRange.levelCount = 1;
+    toTransferSrc.subresourceRange.baseArrayLayer = 0;
+    toTransferSrc.subresourceRange.layerCount = 1;
+    toTransferSrc.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    toTransferSrc.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+    vkCmdPipelineBarrier(
+        cmd,
+        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &toTransferSrc
+    );
+
+    // Copy image to buffer
+    VkBufferImageCopy region{};
+    region.bufferOffset = 0;
+    region.bufferRowLength = 0;   // tightly packed
+    region.bufferImageHeight = 0; // tightly packed
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.mipLevel = 0;
+    region.imageSubresource.baseArrayLayer = 0;
+    region.imageSubresource.layerCount = 1;
+    region.imageOffset = {0, 0, 0};
+    region.imageExtent = {width, height, 1};
+
+    vkCmdCopyImageToBuffer(cmd, srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, stagingBuffer, 1, &region);
+
+    // Transition swapchain image back: TRANSFER_SRC_OPTIMAL → PRESENT_SRC_KHR
+    VkImageMemoryBarrier toPresent{};
+    toPresent.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    toPresent.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    toPresent.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    toPresent.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    toPresent.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    toPresent.image = srcImage;
+    toPresent.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    toPresent.subresourceRange.baseMipLevel = 0;
+    toPresent.subresourceRange.levelCount = 1;
+    toPresent.subresourceRange.baseArrayLayer = 0;
+    toPresent.subresourceRange.layerCount = 1;
+    toPresent.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    toPresent.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+
+    vkCmdPipelineBarrier(
+        cmd,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &toPresent
+    );
+
+    // Submit and wait (endSingleTimeCommands does vkQueueWaitIdle)
+    vulkanDevice->endSingleTimeCommands(cmd);
+
+    // Map staging buffer and read pixel data
+    void* data = nullptr;
+    vkMapMemory(device, stagingMemory, 0, bufferSize, 0, &data);
+
+    // Convert BGRA → RGBA (swapchain uses VK_FORMAT_B8G8R8A8_SRGB)
+    std::vector<uint8_t> pixels(width * height * 4);
+    const uint8_t* src = static_cast<const uint8_t*>(data);
+
+    bool isBGRA = (format == VK_FORMAT_B8G8R8A8_SRGB || format == VK_FORMAT_B8G8R8A8_UNORM);
+    if (isBGRA) {
+        for (uint32_t i = 0; i < width * height; ++i) {
+            pixels[i * 4 + 0] = src[i * 4 + 2]; // R ← B
+            pixels[i * 4 + 1] = src[i * 4 + 1]; // G ← G
+            pixels[i * 4 + 2] = src[i * 4 + 0]; // B ← R
+            pixels[i * 4 + 3] = src[i * 4 + 3]; // A ← A
+        }
+    } else {
+        std::memcpy(pixels.data(), src, pixels.size());
+    }
+
+    vkUnmapMemory(device, stagingMemory);
+
+    // Clean up staging resources
+    vkDestroyBuffer(device, stagingBuffer, nullptr);
+    vkFreeMemory(device, stagingMemory, nullptr);
+
+    LOG_INFO("RenderCoordinator", "Screenshot captured: {}x{} pixels", width, height);
+    return pixels;
 }
 
 } // namespace Graphics
