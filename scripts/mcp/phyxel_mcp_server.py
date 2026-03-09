@@ -486,6 +486,101 @@ async def list_tools() -> list[Tool]:
                 "required": []
             }
         ),
+
+        # ================================================================
+        # Snapshots (undo/redo)
+        # ================================================================
+        Tool(
+            name="create_snapshot",
+            description="Create a named snapshot of a voxel region for undo. Captures all voxels (with materials) in the bounding box. Use before making destructive changes. Restore with restore_snapshot. Max region 100k voxels, max 50 snapshots (oldest auto-evicted).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Unique name for this snapshot (e.g. 'before_castle')"},
+                    "x1": {"type": "integer", "description": "First corner X"},
+                    "y1": {"type": "integer", "description": "First corner Y"},
+                    "z1": {"type": "integer", "description": "First corner Z"},
+                    "x2": {"type": "integer", "description": "Opposite corner X"},
+                    "y2": {"type": "integer", "description": "Opposite corner Y"},
+                    "z2": {"type": "integer", "description": "Opposite corner Z"}
+                },
+                "required": ["name", "x1", "y1", "z1", "x2", "y2", "z2"]
+            }
+        ),
+        Tool(
+            name="restore_snapshot",
+            description="Restore a previously created snapshot, undoing changes to that region. Clears the region first, then places all voxels from the snapshot with their original materials.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Name of the snapshot to restore"}
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="list_snapshots",
+            description="List all stored snapshots with metadata (name, region bounds, voxel count). Does not include voxel data.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+        Tool(
+            name="delete_snapshot",
+            description="Delete a named snapshot to free memory.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Name of the snapshot to delete"}
+                },
+                "required": ["name"]
+            }
+        ),
+
+        # ================================================================
+        # Clipboard (copy / paste regions)
+        # ================================================================
+        Tool(
+            name="copy_region",
+            description="Copy a voxel region into the clipboard. Captures all voxels with their materials as relative offsets from the min corner. Use paste_region to place the copied data at a new location. Max region 100k voxels.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "x1": {"type": "integer", "description": "First corner X"},
+                    "y1": {"type": "integer", "description": "First corner Y"},
+                    "z1": {"type": "integer", "description": "First corner Z"},
+                    "x2": {"type": "integer", "description": "Opposite corner X"},
+                    "y2": {"type": "integer", "description": "Opposite corner Y"},
+                    "z2": {"type": "integer", "description": "Opposite corner Z"}
+                },
+                "required": ["x1", "y1", "z1", "x2", "y2", "z2"]
+            }
+        ),
+        Tool(
+            name="paste_region",
+            description="Paste the clipboard contents at a new world position. Optionally rotate by 0/90/180/270 degrees clockwise around the Y axis. The clipboard min corner maps to the given position. Does NOT clear the destination first — use clear_region beforehand if needed.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "x": {"type": "integer", "description": "Destination X (maps to clipboard min corner)"},
+                    "y": {"type": "integer", "description": "Destination Y"},
+                    "z": {"type": "integer", "description": "Destination Z"},
+                    "rotate": {"type": "integer", "description": "Rotation in degrees: 0, 90, 180, or 270 (clockwise around Y)", "default": 0}
+                },
+                "required": ["x", "y", "z"]
+            }
+        ),
+        Tool(
+            name="get_clipboard",
+            description="Check the clipboard status: whether it has data, its size, and voxel count.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
     ]
 
 
@@ -667,6 +762,39 @@ def _dispatch_tool(name: str, args: dict) -> dict:
         if "cursor" in args:
             params["since"] = str(args["cursor"])
         return api_get("/api/events", params)
+
+    # --- Snapshots ---
+    elif name == "create_snapshot":
+        return api_post("/api/snapshot/create", {
+            "name": args["name"],
+            "x1": args["x1"], "y1": args["y1"], "z1": args["z1"],
+            "x2": args["x2"], "y2": args["y2"], "z2": args["z2"]
+        })
+
+    elif name == "restore_snapshot":
+        return api_post("/api/snapshot/restore", {"name": args["name"]})
+
+    elif name == "list_snapshots":
+        return api_get("/api/snapshots")
+
+    elif name == "delete_snapshot":
+        return api_post("/api/snapshot/delete", {"name": args["name"]})
+
+    # --- Clipboard ---
+    elif name == "copy_region":
+        return api_post("/api/clipboard/copy", {
+            "x1": args["x1"], "y1": args["y1"], "z1": args["z1"],
+            "x2": args["x2"], "y2": args["y2"], "z2": args["z2"]
+        })
+
+    elif name == "paste_region":
+        body = {"x": args["x"], "y": args["y"], "z": args["z"]}
+        if "rotate" in args:
+            body["rotate"] = args["rotate"]
+        return api_post("/api/clipboard/paste", body)
+
+    elif name == "get_clipboard":
+        return api_get("/api/clipboard")
 
     else:
         return {"error": f"Unknown tool: {name}"}

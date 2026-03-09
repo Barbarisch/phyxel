@@ -503,6 +503,115 @@ void EngineAPIServer::setupRoutes() {
             res.set_content(err.dump(), "application/json");
         }
     });
+
+    // ====================================================================
+    // POST /api/snapshot/create — Create a named snapshot of a region
+    // Body: { "name":"before_castle", "x1":0,"y1":0,"z1":0, "x2":31,"y2":31,"z2":31 }
+    // ====================================================================
+    srv.Post("/api/snapshot/create", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("create_snapshot", params, 30000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/snapshot/restore — Restore a named snapshot (undo)
+    // Body: { "name":"before_castle" }
+    // ====================================================================
+    srv.Post("/api/snapshot/restore", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("restore_snapshot", params, 60000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // DELETE /api/snapshot — Delete a named snapshot
+    // Body: { "name":"before_castle" }
+    // ====================================================================
+    srv.Post("/api/snapshot/delete", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("delete_snapshot", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // GET /api/snapshots — List all snapshots (read-only, no voxel data)
+    // ====================================================================
+    srv.Get("/api/snapshots", [this](const httplib::Request&, httplib::Response& res) {
+        if (m_snapshotListHandler) {
+            json result = m_snapshotListHandler();
+            res.set_content(result.dump(), "application/json");
+        } else {
+            json err = {{"error", "Snapshot list handler not configured"}};
+            res.status = 503;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/clipboard/copy — Copy a region into the clipboard
+    // Body: { "x1":0,"y1":0,"z1":0, "x2":15,"y2":15,"z2":15 }
+    // ====================================================================
+    srv.Post("/api/clipboard/copy", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("copy_region", params, 30000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/clipboard/paste — Paste clipboard at a new position
+    // Body: { "x":50,"y":0,"z":50, "rotate":0 }
+    // rotate: 0, 90, 180, 270 degrees clockwise around Y
+    // ====================================================================
+    srv.Post("/api/clipboard/paste", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("paste_region", params, 60000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // GET /api/clipboard — Get clipboard info (read-only)
+    // ====================================================================
+    srv.Get("/api/clipboard", [this](const httplib::Request&, httplib::Response& res) {
+        if (m_clipboardInfoHandler) {
+            json result = m_clipboardInfoHandler();
+            res.set_content(result.dump(), "application/json");
+        } else {
+            json err = {{"error", "Clipboard info handler not configured"}};
+            res.status = 503;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
 }
 
 // ============================================================================

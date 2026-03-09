@@ -128,6 +128,14 @@ public:
     using EventPollHandler = std::function<json(uint64_t sinceId)>;
     void setEventPollHandler(EventPollHandler handler) { m_eventPollHandler = std::move(handler); }
 
+    /// Handler that lists snapshot metadata. Called on HTTP thread (read-only).
+    using SnapshotListHandler = std::function<json()>;
+    void setSnapshotListHandler(SnapshotListHandler handler) { m_snapshotListHandler = std::move(handler); }
+
+    /// Handler that returns clipboard info. Called on HTTP thread (read-only).
+    using ClipboardInfoHandler = std::function<json()>;
+    void setClipboardInfoHandler(ClipboardInfoHandler handler) { m_clipboardInfoHandler = std::move(handler); }
+
 private:
     void serverThread();
     void setupRoutes();
@@ -155,6 +163,8 @@ private:
     ChunkInfoHandler m_chunkInfoHandler;
     RegionScanHandler m_regionScanHandler;
     EventPollHandler m_eventPollHandler;
+    SnapshotListHandler m_snapshotListHandler;
+    ClipboardInfoHandler m_clipboardInfoHandler;
 
     // Forward-declared impl to keep httplib out of the header
     struct Impl;

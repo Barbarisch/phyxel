@@ -29,6 +29,7 @@
 #include "core/APICommandQueue.h"
 #include "core/EngineAPIServer.h"
 #include "core/GameEventLog.h"
+#include "core/SnapshotManager.h"
 #include "scene/Entity.h"
 #include "scene/Player.h"
 #include "scene/Enemy.h"
@@ -146,6 +147,7 @@ private:
     std::unique_ptr<Core::APICommandQueue> apiCommandQueue;
     std::unique_ptr<Core::EngineAPIServer> apiServer;
     std::unique_ptr<Core::GameEventLog> gameEventLog;
+    std::unique_ptr<Core::SnapshotManager> snapshotManager;
 
     // Entities
     std::vector<std::unique_ptr<Scene::Entity>> entities;

@@ -426,6 +426,40 @@ bool Application::initialize() {
         };
     });
 
+    // Initialize Snapshot Manager
+    snapshotManager = std::make_unique<Core::SnapshotManager>();
+
+    apiServer->setSnapshotListHandler([this]() -> nlohmann::json {
+        if (!snapshotManager) return nlohmann::json{{"error", "SnapshotManager not available"}};
+        auto snapshots = snapshotManager->listSnapshots();
+        nlohmann::json arr = nlohmann::json::array();
+        for (const auto& s : snapshots) {
+            arr.push_back({
+                {"name", s.name},
+                {"min", {{"x", s.min.x}, {"y", s.min.y}, {"z", s.min.z}}},
+                {"max", {{"x", s.max.x}, {"y", s.max.y}, {"z", s.max.z}}},
+                {"size", {{"x", s.size.x}, {"y", s.size.y}, {"z", s.size.z}}},
+                {"volume", s.totalVolume},
+                {"voxel_count", static_cast<int>(s.voxels.size())}
+            });
+        }
+        return nlohmann::json{{"snapshots", arr}, {"count", snapshots.size()}};
+    });
+
+    apiServer->setClipboardInfoHandler([this]() -> nlohmann::json {
+        if (!snapshotManager) return nlohmann::json{{"error", "SnapshotManager not available"}};
+        if (!snapshotManager->hasClipboard()) {
+            return nlohmann::json{{"has_data", false}};
+        }
+        const auto* clip = snapshotManager->getClipboard();
+        return nlohmann::json{
+            {"has_data", true},
+            {"size", {{"x", clip->size.x}, {"y", clip->size.y}, {"z", clip->size.z}}},
+            {"voxel_count", static_cast<int>(clip->voxels.size())},
+            {"volume", clip->totalVolume}
+        };
+    });
+
     // Start the API server
     if (apiServer->start()) {
         LOG_INFO("Application", "Engine HTTP API available at http://localhost:8090/api/status");
@@ -1863,6 +1897,200 @@ void Application::processAPICommands() {
                 } else {
                     scriptingSystem->runCommand(code);
                     response = {{"success", true}, {"executed", code}};
+                }
+
+            // ================================================================
+            // SNAPSHOT COMMANDS
+            // ================================================================
+            } else if (cmd.action == "create_snapshot") {
+                if (!chunkManager || !snapshotManager) {
+                    response = {{"error", "ChunkManager or SnapshotManager not available"}};
+                } else {
+                    std::string name = cmd.params.value("name", "");
+                    if (name.empty()) {
+                        response = {{"error", "Snapshot name required"}};
+                    } else {
+                        int x1 = cmd.params.value("x1", 0), y1 = cmd.params.value("y1", 0), z1 = cmd.params.value("z1", 0);
+                        int x2 = cmd.params.value("x2", 0), y2 = cmd.params.value("y2", 0), z2 = cmd.params.value("z2", 0);
+                        int minX = std::min(x1, x2), maxX = std::max(x1, x2);
+                        int minY = std::min(y1, y2), maxY = std::max(y1, y2);
+                        int minZ = std::min(z1, z2), maxZ = std::max(z1, z2);
+                        int64_t volume = (int64_t)(maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
+                        if (volume > Core::SnapshotManager::MAX_VOLUME) {
+                            response = {{"error", "Region too large"}, {"volume", volume},
+                                        {"max_volume", Core::SnapshotManager::MAX_VOLUME}};
+                        } else {
+                            Core::RegionSnapshot snap;
+                            snap.name = name;
+                            snap.min = glm::ivec3(minX, minY, minZ);
+                            snap.max = glm::ivec3(maxX, maxY, maxZ);
+                            snap.size = snap.max - snap.min + glm::ivec3(1);
+                            snap.totalVolume = volume;
+                            snap.createdAt = std::chrono::system_clock::now();
+                            for (int ix = minX; ix <= maxX; ++ix) {
+                                for (int iy = minY; iy <= maxY; ++iy) {
+                                    for (int iz = minZ; iz <= maxZ; ++iz) {
+                                        auto* cube = chunkManager->getCubeAt(glm::ivec3(ix, iy, iz));
+                                        if (cube && cube->isVisible()) {
+                                            Core::VoxelEntry entry;
+                                            entry.offset = glm::ivec3(ix - minX, iy - minY, iz - minZ);
+                                            entry.material = cube->getMaterialName();
+                                            snap.voxels.push_back(entry);
+                                        }
+                                    }
+                                }
+                            }
+                            bool ok = snapshotManager->addSnapshot(snap);
+                            if (ok) {
+                                response = {{"success", true}, {"name", name},
+                                            {"voxel_count", snap.voxels.size()}, {"volume", volume},
+                                            {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
+                                            {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}};
+                                if (gameEventLog) {
+                                    gameEventLog->emit("snapshot_created", {
+                                        {"name", name}, {"voxel_count", snap.voxels.size()}, {"volume", volume}});
+                                }
+                            } else {
+                                response = {{"error", "Snapshot name already exists or invalid"}, {"name", name}};
+                            }
+                        }
+                    }
+                }
+
+            } else if (cmd.action == "restore_snapshot") {
+                if (!chunkManager || !snapshotManager) {
+                    response = {{"error", "ChunkManager or SnapshotManager not available"}};
+                } else {
+                    std::string name = cmd.params.value("name", "");
+                    if (name.empty()) {
+                        response = {{"error", "Snapshot name required"}};
+                    } else {
+                        const auto* snap = snapshotManager->getSnapshot(name);
+                        if (!snap) {
+                            response = {{"error", "Snapshot not found"}, {"name", name}};
+                        } else {
+                            // Clear the original region first
+                            int cleared = 0;
+                            for (int ix = snap->min.x; ix <= snap->max.x; ++ix) {
+                                for (int iy = snap->min.y; iy <= snap->max.y; ++iy) {
+                                    for (int iz = snap->min.z; iz <= snap->max.z; ++iz) {
+                                        if (chunkManager->removeCube(glm::ivec3(ix, iy, iz)))
+                                            ++cleared;
+                                    }
+                                }
+                            }
+                            // Restore voxels from snapshot
+                            int placed = 0, failed = 0;
+                            for (const auto& v : snap->voxels) {
+                                glm::ivec3 worldPos = snap->min + v.offset;
+                                bool ok = chunkManager->m_voxelModificationSystem.addCubeWithMaterial(
+                                    worldPos, v.material);
+                                if (ok) ++placed; else ++failed;
+                            }
+                            response = {{"success", true}, {"name", name},
+                                        {"cleared", cleared}, {"placed", placed}, {"failed", failed}};
+                            if (gameEventLog) {
+                                gameEventLog->emit("snapshot_restored", {
+                                    {"name", name}, {"cleared", cleared}, {"placed", placed}});
+                            }
+                        }
+                    }
+                }
+
+            } else if (cmd.action == "delete_snapshot") {
+                if (!snapshotManager) {
+                    response = {{"error", "SnapshotManager not available"}};
+                } else {
+                    std::string name = cmd.params.value("name", "");
+                    if (name.empty()) {
+                        response = {{"error", "Snapshot name required"}};
+                    } else {
+                        bool ok = snapshotManager->deleteSnapshot(name);
+                        response = {{"success", ok}, {"name", name}};
+                    }
+                }
+
+            // ================================================================
+            // CLIPBOARD COMMANDS (copy / paste)
+            // ================================================================
+            } else if (cmd.action == "copy_region") {
+                if (!chunkManager || !snapshotManager) {
+                    response = {{"error", "ChunkManager or SnapshotManager not available"}};
+                } else {
+                    int x1 = cmd.params.value("x1", 0), y1 = cmd.params.value("y1", 0), z1 = cmd.params.value("z1", 0);
+                    int x2 = cmd.params.value("x2", 0), y2 = cmd.params.value("y2", 0), z2 = cmd.params.value("z2", 0);
+                    int minX = std::min(x1, x2), maxX = std::max(x1, x2);
+                    int minY = std::min(y1, y2), maxY = std::max(y1, y2);
+                    int minZ = std::min(z1, z2), maxZ = std::max(z1, z2);
+                    int64_t volume = (int64_t)(maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
+                    if (volume > Core::SnapshotManager::MAX_VOLUME) {
+                        response = {{"error", "Region too large"}, {"volume", volume},
+                                    {"max_volume", Core::SnapshotManager::MAX_VOLUME}};
+                    } else {
+                        Core::RegionSnapshot clip;
+                        clip.name = "__clipboard__";
+                        clip.min = glm::ivec3(minX, minY, minZ);
+                        clip.max = glm::ivec3(maxX, maxY, maxZ);
+                        clip.size = clip.max - clip.min + glm::ivec3(1);
+                        clip.totalVolume = volume;
+                        clip.createdAt = std::chrono::system_clock::now();
+                        for (int ix = minX; ix <= maxX; ++ix) {
+                            for (int iy = minY; iy <= maxY; ++iy) {
+                                for (int iz = minZ; iz <= maxZ; ++iz) {
+                                    auto* cube = chunkManager->getCubeAt(glm::ivec3(ix, iy, iz));
+                                    if (cube && cube->isVisible()) {
+                                        Core::VoxelEntry entry;
+                                        entry.offset = glm::ivec3(ix - minX, iy - minY, iz - minZ);
+                                        entry.material = cube->getMaterialName();
+                                        clip.voxels.push_back(entry);
+                                    }
+                                }
+                            }
+                        }
+                        snapshotManager->setClipboard(clip);
+                        response = {{"success", true}, {"voxel_count", clip.voxels.size()},
+                                    {"size", {{"x", clip.size.x}, {"y", clip.size.y}, {"z", clip.size.z}}},
+                                    {"volume", volume}};
+                    }
+                }
+
+            } else if (cmd.action == "paste_region") {
+                if (!chunkManager || !snapshotManager) {
+                    response = {{"error", "ChunkManager or SnapshotManager not available"}};
+                } else if (!snapshotManager->hasClipboard()) {
+                    response = {{"error", "Clipboard is empty — use copy_region first"}};
+                } else {
+                    int px = cmd.params.value("x", 0);
+                    int py = cmd.params.value("y", 0);
+                    int pz = cmd.params.value("z", 0);
+                    int rotate = cmd.params.value("rotate", 0);
+
+                    // Make a copy so we can rotate without affecting stored clipboard
+                    Core::RegionSnapshot clip = *snapshotManager->getClipboard();
+
+                    // Apply rotation (90° increments around Y)
+                    int rotSteps = ((rotate % 360) + 360) % 360 / 90;
+                    for (int r = 0; r < rotSteps; ++r) {
+                        Core::SnapshotManager::rotateY90(clip);
+                    }
+
+                    int placed = 0, failed = 0;
+                    for (const auto& v : clip.voxels) {
+                        glm::ivec3 worldPos = glm::ivec3(px, py, pz) + v.offset;
+                        bool ok = chunkManager->m_voxelModificationSystem.addCubeWithMaterial(
+                            worldPos, v.material);
+                        if (ok) ++placed; else ++failed;
+                    }
+                    response = {{"success", true}, {"placed", placed}, {"failed", failed},
+                                {"position", {{"x", px}, {"y", py}, {"z", pz}}},
+                                {"rotation", rotate},
+                                {"size", {{"x", clip.size.x}, {"y", clip.size.y}, {"z", clip.size.z}}}};
+                    if (placed > 0 && gameEventLog) {
+                        gameEventLog->emit("region_pasted", {
+                            {"placed", placed}, {"failed", failed},
+                            {"position", {{"x", px}, {"y", py}, {"z", pz}}},
+                            {"rotation", rotate}});
+                    }
                 }
 
             } else {

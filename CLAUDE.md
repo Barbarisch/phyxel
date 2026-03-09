@@ -196,6 +196,13 @@ Server: `scripts/mcp/phyxel_mcp_server.py` — connects to engine HTTP API at `l
 | `screenshot` | Capture current game view as PNG |
 | `save_world` | Save world to SQLite (dirty or all chunks) |
 | `poll_events` | Poll game events since cursor (entity spawn/remove/move, voxel place/remove, region fill/clear, world save) |
+| `create_snapshot` | Capture named snapshot of a region for undo. Max 100k voxels, 50 snapshots |
+| `restore_snapshot` | Restore a snapshot (clears region, replaces voxels with saved state) |
+| `list_snapshots` | List all stored snapshots with metadata |
+| `delete_snapshot` | Delete a named snapshot to free memory |
+| `copy_region` | Copy voxel region to clipboard (relative offsets). Max 100k voxels |
+| `paste_region` | Paste clipboard at new position with optional Y-axis rotation (0/90/180/270) |
+| `get_clipboard` | Check clipboard status (has data, size, voxel count) |
 
 ## Project Structure
 
