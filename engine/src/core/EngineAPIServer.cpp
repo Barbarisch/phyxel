@@ -612,6 +612,42 @@ void EngineAPIServer::setupRoutes() {
             res.set_content(err.dump(), "application/json");
         }
     });
+
+    // ====================================================================
+    // POST /api/world/generate — Generate terrain for chunk(s)
+    // Body: { "type":"Perlin", "seed":42,
+    //         "chunks":[{"x":0,"y":0,"z":0}],
+    //         "params":{"heightScale":16, "frequency":0.05} }
+    // OR:   { "type":"Mountains", "seed":42,
+    //         "from":{"x":0,"y":0,"z":0}, "to":{"x":2,"y":0,"z":2} }
+    // ====================================================================
+    srv.Post("/api/world/generate", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("generate_world", params, 120000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/template/save — Save a region as a reusable template
+    // Body: { "name":"my_tower", "x1":0,"y1":0,"z1":0, "x2":10,"y2":20,"z2":10 }
+    // ====================================================================
+    srv.Post("/api/template/save", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("save_template", params, 30000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
 }
 
 // ============================================================================

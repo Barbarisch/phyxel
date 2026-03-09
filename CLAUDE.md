@@ -203,6 +203,8 @@ Server: `scripts/mcp/phyxel_mcp_server.py` — connects to engine HTTP API at `l
 | `copy_region` | Copy voxel region to clipboard (relative offsets). Max 100k voxels |
 | `paste_region` | Paste clipboard at new position with optional Y-axis rotation (0/90/180/270) |
 | `get_clipboard` | Check clipboard status (has data, size, voxel count) |
+| `generate_world` | Generate procedural terrain (Random/Perlin/Flat/Mountains/Caves/City) for chunks. Max 64 chunks |
+| `save_template` | Save a region as a reusable .txt template file, immediately available for spawn_template |
 
 ## Project Structure
 

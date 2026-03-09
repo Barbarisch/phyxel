@@ -581,6 +581,55 @@ async def list_tools() -> list[Tool]:
                 "required": []
             }
         ),
+
+        # ================================================================
+        # World Generation
+        # ================================================================
+        Tool(
+            name="generate_world",
+            description="Generate procedural terrain for one or more chunks. Types: Random (70% fill), Perlin (height-map, base Y=16), Flat (solid below Y=16), Mountains (multi-octave, peaks ~60), Caves (Perlin + cave carving), City (flat ground + buildings). Specify chunks as a list of chunk coordinates OR a from/to range. Max 64 chunks per call. Chunk coordinates are world_pos/32 (e.g., chunk {0,0,0} covers world 0-31, chunk {1,0,0} covers 32-63).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "type": {"type": "string", "description": "Generation type: Random, Perlin, Flat, Mountains, Caves, or City", "enum": ["Random", "Perlin", "Flat", "Mountains", "Caves", "City"]},
+                    "seed": {"type": "integer", "description": "Random seed (0 for default)", "default": 0},
+                    "chunks": {"type": "array", "description": "List of chunk coordinates [{x,y,z}, ...]", "items": {"type": "object", "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}, "z": {"type": "integer"}}}},
+                    "from": {"type": "object", "description": "Range start chunk coord {x,y,z} (use with 'to')", "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}, "z": {"type": "integer"}}},
+                    "to": {"type": "object", "description": "Range end chunk coord {x,y,z} (use with 'from')", "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}, "z": {"type": "integer"}}},
+                    "params": {"type": "object", "description": "Optional terrain parameters", "properties": {
+                        "heightScale": {"type": "number", "description": "Max terrain height (default 16)"},
+                        "frequency": {"type": "number", "description": "Noise frequency (default 0.05)"},
+                        "octaves": {"type": "integer", "description": "Noise octaves (default 4)"},
+                        "persistence": {"type": "number", "description": "Octave contribution (default 0.5)"},
+                        "lacunarity": {"type": "number", "description": "Frequency multiplier per octave (default 2.0)"},
+                        "caveThreshold": {"type": "number", "description": "Cave threshold (default 0.3)"},
+                        "stoneLevel": {"type": "number", "description": "Stone level Y (default 8)"}
+                    }}
+                },
+                "required": ["type"]
+            }
+        ),
+
+        # ================================================================
+        # Template Creation
+        # ================================================================
+        Tool(
+            name="save_template",
+            description="Save a voxel region as a reusable .txt template file. Scans all cubes in the bounding box, converts to relative coordinates, and writes to resources/templates/<name>.txt. The template is immediately available for spawn_template. Max 100k voxels.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Template name (becomes filename, no extension)"},
+                    "x1": {"type": "integer", "description": "First corner X"},
+                    "y1": {"type": "integer", "description": "First corner Y"},
+                    "z1": {"type": "integer", "description": "First corner Z"},
+                    "x2": {"type": "integer", "description": "Opposite corner X"},
+                    "y2": {"type": "integer", "description": "Opposite corner Y"},
+                    "z2": {"type": "integer", "description": "Opposite corner Z"}
+                },
+                "required": ["name", "x1", "y1", "z1", "x2", "y2", "z2"]
+            }
+        ),
     ]
 
 
@@ -795,6 +844,29 @@ def _dispatch_tool(name: str, args: dict) -> dict:
 
     elif name == "get_clipboard":
         return api_get("/api/clipboard")
+
+    # --- World Generation ---
+    elif name == "generate_world":
+        body: dict[str, Any] = {"type": args["type"]}
+        if "seed" in args:
+            body["seed"] = args["seed"]
+        if "chunks" in args:
+            body["chunks"] = args["chunks"]
+        if "from" in args:
+            body["from"] = args["from"]
+        if "to" in args:
+            body["to"] = args["to"]
+        if "params" in args:
+            body["params"] = args["params"]
+        return api_post("/api/world/generate", body)
+
+    # --- Template Save ---
+    elif name == "save_template":
+        return api_post("/api/template/save", {
+            "name": args["name"],
+            "x1": args["x1"], "y1": args["y1"], "z1": args["z1"],
+            "x2": args["x2"], "y2": args["y2"], "z2": args["z2"]
+        })
 
     else:
         return {"error": f"Unknown tool: {name}"}

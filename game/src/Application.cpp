@@ -16,6 +16,8 @@
 #include "examples/MultiChunkDemo.h"
 #include "ai/AISystem.h"
 #include "core/Chunk.h"
+#include "core/WorldGenerator.h"
+#include "core/VoxelTemplate.h"
 #include "physics/Material.h"
 #include <imgui.h>
 #include <iostream>
@@ -2090,6 +2092,182 @@ void Application::processAPICommands() {
                             {"placed", placed}, {"failed", failed},
                             {"position", {{"x", px}, {"y", py}, {"z", pz}}},
                             {"rotation", rotate}});
+                    }
+                }
+
+            // ================================================================
+            // WORLD GENERATION
+            // ================================================================
+            } else if (cmd.action == "generate_world") {
+                if (!chunkManager) {
+                    response = {{"error", "ChunkManager not available"}};
+                } else {
+                    std::string typeStr = cmd.params.value("type", "Perlin");
+                    uint32_t seed = cmd.params.value("seed", 0u);
+
+                    // Map string to GenerationType
+                    WorldGenerator::GenerationType genType = WorldGenerator::GenerationType::Perlin;
+                    if (typeStr == "Random") genType = WorldGenerator::GenerationType::Random;
+                    else if (typeStr == "Perlin") genType = WorldGenerator::GenerationType::Perlin;
+                    else if (typeStr == "Flat") genType = WorldGenerator::GenerationType::Flat;
+                    else if (typeStr == "Mountains") genType = WorldGenerator::GenerationType::Mountains;
+                    else if (typeStr == "Caves") genType = WorldGenerator::GenerationType::Caves;
+                    else if (typeStr == "City") genType = WorldGenerator::GenerationType::City;
+                    else {
+                        response = {{"error", "Unknown generation type: " + typeStr},
+                                    {"valid_types", {"Random", "Perlin", "Flat", "Mountains", "Caves", "City"}}};
+                        goto done_generate;
+                    }
+
+                    {
+                        WorldGenerator generator(genType, seed);
+
+                        // Apply optional terrain params
+                        if (cmd.params.contains("params")) {
+                            auto& tp = generator.getTerrainParams();
+                            auto& p = cmd.params["params"];
+                            if (p.contains("heightScale")) tp.heightScale = p["heightScale"].get<float>();
+                            if (p.contains("frequency")) tp.frequency = p["frequency"].get<float>();
+                            if (p.contains("octaves")) tp.octaves = p["octaves"].get<int>();
+                            if (p.contains("persistence")) tp.persistence = p["persistence"].get<float>();
+                            if (p.contains("lacunarity")) tp.lacunarity = p["lacunarity"].get<float>();
+                            if (p.contains("caveThreshold")) tp.caveThreshold = p["caveThreshold"].get<float>();
+                            if (p.contains("stoneLevel")) tp.stoneLevel = p["stoneLevel"].get<float>();
+                        }
+
+                        // Collect chunk coords: either explicit list or from/to range
+                        std::vector<glm::ivec3> chunkCoords;
+
+                        if (cmd.params.contains("chunks")) {
+                            for (const auto& c : cmd.params["chunks"]) {
+                                chunkCoords.push_back(glm::ivec3(
+                                    c.value("x", 0), c.value("y", 0), c.value("z", 0)));
+                            }
+                        } else if (cmd.params.contains("from") && cmd.params.contains("to")) {
+                            auto& f = cmd.params["from"];
+                            auto& t = cmd.params["to"];
+                            int fx = f.value("x", 0), fy = f.value("y", 0), fz = f.value("z", 0);
+                            int tx = t.value("x", 0), ty = t.value("y", 0), tz = t.value("z", 0);
+                            int minCx = std::min(fx, tx), maxCx = std::max(fx, tx);
+                            int minCy = std::min(fy, ty), maxCy = std::max(fy, ty);
+                            int minCz = std::min(fz, tz), maxCz = std::max(fz, tz);
+                            for (int cx = minCx; cx <= maxCx; ++cx)
+                                for (int cy = minCy; cy <= maxCy; ++cy)
+                                    for (int cz = minCz; cz <= maxCz; ++cz)
+                                        chunkCoords.push_back(glm::ivec3(cx, cy, cz));
+                        } else {
+                            // Default: single chunk at origin
+                            chunkCoords.push_back(glm::ivec3(0, 0, 0));
+                        }
+
+                        // Limit to prevent stalling
+                        if (chunkCoords.size() > 64) {
+                            response = {{"error", "Too many chunks"}, {"count", chunkCoords.size()}, {"max", 64}};
+                            goto done_generate;
+                        }
+
+                        int generated = 0;
+                        std::unordered_set<Chunk*> modifiedChunks;
+                        for (const auto& cc : chunkCoords) {
+                            glm::ivec3 origin = cc * 32;
+                            // Create chunk if it doesn't exist
+                            if (!chunkManager->getChunkAtCoord(cc)) {
+                                chunkManager->createChunk(origin, false);
+                            }
+                            Chunk* chunk = chunkManager->getChunkAtCoord(cc);
+                            if (chunk) {
+                                generator.generateChunk(*chunk, cc);
+                                modifiedChunks.insert(chunk);
+                                ++generated;
+                            }
+                        }
+
+                        // Rebuild faces and GPU buffers for all modified chunks
+                        for (Chunk* chunk : modifiedChunks) {
+                            chunk->rebuildFaces();
+                            chunk->updateVulkanBuffer();
+                        }
+
+                        response = {{"success", true}, {"type", typeStr}, {"seed", seed},
+                                    {"chunks_generated", generated}};
+                        if (gameEventLog) {
+                            gameEventLog->emit("world_generated", {
+                                {"type", typeStr}, {"seed", seed}, {"chunks", generated}});
+                        }
+                    }
+                }
+                done_generate:;
+
+            // ================================================================
+            // SAVE TEMPLATE (region → .txt file)
+            // ================================================================
+            } else if (cmd.action == "save_template") {
+                if (!chunkManager) {
+                    response = {{"error", "ChunkManager not available"}};
+                } else {
+                    std::string name = cmd.params.value("name", "");
+                    if (name.empty()) {
+                        response = {{"error", "Template name required"}};
+                    } else {
+                        int x1 = cmd.params.value("x1", 0), y1 = cmd.params.value("y1", 0), z1 = cmd.params.value("z1", 0);
+                        int x2 = cmd.params.value("x2", 0), y2 = cmd.params.value("y2", 0), z2 = cmd.params.value("z2", 0);
+                        int minX = std::min(x1, x2), maxX = std::max(x1, x2);
+                        int minY = std::min(y1, y2), maxY = std::max(y1, y2);
+                        int minZ = std::min(z1, z2), maxZ = std::max(z1, z2);
+                        int64_t volume = (int64_t)(maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
+
+                        if (volume > 100000) {
+                            response = {{"error", "Region too large"}, {"volume", volume}, {"max_volume", 100000}};
+                        } else {
+                            // Scan region and build template lines
+                            std::vector<std::string> lines;
+                            lines.push_back("# Template: " + name);
+                            lines.push_back("# Generated from region (" +
+                                std::to_string(minX) + "," + std::to_string(minY) + "," + std::to_string(minZ) + ") to (" +
+                                std::to_string(maxX) + "," + std::to_string(maxY) + "," + std::to_string(maxZ) + ")");
+
+                            int cubeCount = 0;
+                            for (int ix = minX; ix <= maxX; ++ix) {
+                                for (int iy = minY; iy <= maxY; ++iy) {
+                                    for (int iz = minZ; iz <= maxZ; ++iz) {
+                                        auto* cube = chunkManager->getCubeAt(glm::ivec3(ix, iy, iz));
+                                        if (cube && cube->isVisible()) {
+                                            int rx = ix - minX, ry = iy - minY, rz = iz - minZ;
+                                            std::string mat = cube->getMaterialName();
+                                            if (mat.empty()) mat = "Default";
+                                            lines.push_back("C " + std::to_string(rx) + " " +
+                                                std::to_string(ry) + " " + std::to_string(rz) + " " + mat);
+                                            ++cubeCount;
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Write to resources/templates/<name>.txt
+                            std::string filepath = "resources/templates/" + name + ".txt";
+                            std::ofstream file(filepath);
+                            if (file.is_open()) {
+                                for (const auto& line : lines) {
+                                    file << line << "\n";
+                                }
+                                file.close();
+
+                                // Reload into ObjectTemplateManager so it's immediately usable
+                                if (objectTemplateManager) {
+                                    objectTemplateManager->loadTemplate(filepath);
+                                }
+
+                                response = {{"success", true}, {"name", name}, {"path", filepath},
+                                            {"voxel_count", cubeCount}};
+                                LOG_INFO("Application", "Template saved: {} ({} cubes)", name, cubeCount);
+                                if (gameEventLog) {
+                                    gameEventLog->emit("template_saved", {
+                                        {"name", name}, {"voxel_count", cubeCount}, {"path", filepath}});
+                                }
+                            } else {
+                                response = {{"error", "Failed to write file: " + filepath}};
+                            }
+                        }
                     }
                 }
 
