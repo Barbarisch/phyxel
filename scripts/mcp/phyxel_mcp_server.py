@@ -56,16 +56,16 @@ logging.basicConfig(
 logger = logging.getLogger("phyxel_mcp")
 
 # ============================================================================
-# HTTP Client
+# HTTP Client (async — must not block the MCP event loop)
 # ============================================================================
 
-http_client = httpx.Client(base_url=ENGINE_API_URL, timeout=ENGINE_API_TIMEOUT)
+http_client = httpx.AsyncClient(base_url=ENGINE_API_URL, timeout=ENGINE_API_TIMEOUT)
 
 
-def api_get(path: str, params: dict | None = None) -> dict:
+async def api_get(path: str, params: dict | None = None) -> dict:
     """GET request to the engine API. Returns parsed JSON."""
     try:
-        resp = http_client.get(path, params=params)
+        resp = await http_client.get(path, params=params)
         resp.raise_for_status()
         return resp.json()
     except httpx.ConnectError:
@@ -74,10 +74,10 @@ def api_get(path: str, params: dict | None = None) -> dict:
         return {"error": str(e)}
 
 
-def api_post(path: str, body: dict) -> dict:
+async def api_post(path: str, body: dict) -> dict:
     """POST request to the engine API. Returns parsed JSON."""
     try:
-        resp = http_client.post(path, json=body)
+        resp = await http_client.post(path, json=body)
         resp.raise_for_status()
         return resp.json()
     except httpx.ConnectError:
@@ -638,30 +638,30 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     """Route tool calls to the engine HTTP API."""
     logger.info(f"Tool call: {name}({json.dumps(arguments, default=str)[:200]})")
 
-    result = _dispatch_tool(name, arguments)
+    result = await _dispatch_tool(name, arguments)
 
     return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
 
-def _dispatch_tool(name: str, args: dict) -> dict:
+async def _dispatch_tool(name: str, args: dict) -> dict:
     """Dispatch a tool call to the appropriate API endpoint."""
 
     # --- Status & State ---
     if name == "engine_status":
-        return api_get("/api/status")
+        return await api_get("/api/status")
 
     elif name == "get_world_state":
-        return api_get("/api/state")
+        return await api_get("/api/state")
 
     elif name == "get_camera":
-        return api_get("/api/camera")
+        return await api_get("/api/camera")
 
     # --- Entity Management ---
     elif name == "list_entities":
-        return api_get("/api/entities")
+        return await api_get("/api/entities")
 
     elif name == "get_entity":
-        return api_get(f"/api/entity/{args['id']}")
+        return await api_get(f"/api/entity/{args['id']}")
 
     elif name == "spawn_entity":
         body: dict[str, Any] = {
@@ -672,43 +672,43 @@ def _dispatch_tool(name: str, args: dict) -> dict:
             body["id"] = args["id"]
         if "animFile" in args:
             body["animFile"] = args["animFile"]
-        return api_post("/api/entity/spawn", body)
+        return await api_post("/api/entity/spawn", body)
 
     elif name == "move_entity":
-        return api_post("/api/entity/move", {
+        return await api_post("/api/entity/move", {
             "id": args["id"],
             "position": {"x": args["x"], "y": args["y"], "z": args["z"]}
         })
 
     elif name == "remove_entity":
-        return api_post("/api/entity/remove", {"id": args["id"]})
+        return await api_post("/api/entity/remove", {"id": args["id"]})
 
     # --- Voxel World ---
     elif name == "place_voxel":
         body = {"x": args["x"], "y": args["y"], "z": args["z"]}
         if "material" in args:
             body["material"] = args["material"]
-        return api_post("/api/world/voxel", body)
+        return await api_post("/api/world/voxel", body)
 
     elif name == "remove_voxel":
-        return api_post("/api/world/voxel/remove", {
+        return await api_post("/api/world/voxel/remove", {
             "x": args["x"], "y": args["y"], "z": args["z"]
         })
 
     elif name == "query_voxel":
-        return api_get("/api/world/voxel", {
+        return await api_get("/api/world/voxel", {
             "x": str(args["x"]), "y": str(args["y"]), "z": str(args["z"])
         })
 
     elif name == "place_voxels_batch":
-        return api_post("/api/world/voxel/batch", {"voxels": args["voxels"]})
+        return await api_post("/api/world/voxel/batch", {"voxels": args["voxels"]})
 
     # --- Templates ---
     elif name == "list_templates":
-        return api_get("/api/templates")
+        return await api_get("/api/templates")
 
     elif name == "spawn_template":
-        return api_post("/api/world/template", {
+        return await api_post("/api/world/template", {
             "name": args["name"],
             "position": {"x": args["x"], "y": args["y"], "z": args["z"]},
             "static": args.get("static", True)
@@ -727,11 +727,11 @@ def _dispatch_tool(name: str, args: dict) -> dict:
             body["yaw"] = args["yaw"]
         if "pitch" in args:
             body["pitch"] = args["pitch"]
-        return api_post("/api/camera", body)
+        return await api_post("/api/camera", body)
 
     # --- Scripting ---
     elif name == "run_script":
-        return api_post("/api/script", {"code": args["code"]})
+        return await api_post("/api/script", {"code": args["code"]})
 
     # --- Region Fill ---
     elif name == "fill_region":
@@ -743,15 +743,15 @@ def _dispatch_tool(name: str, args: dict) -> dict:
             body["material"] = args["material"]
         if "hollow" in args:
             body["hollow"] = args["hollow"]
-        return api_post("/api/world/fill", body)
+        return await api_post("/api/world/fill", body)
 
     # --- Materials ---
     elif name == "list_materials":
-        return api_get("/api/materials")
+        return await api_get("/api/materials")
 
     # --- Chunk Info ---
     elif name == "get_chunk_info":
-        return api_get("/api/world/chunks")
+        return await api_get("/api/world/chunks")
 
     # --- Entity Update ---
     elif name == "update_entity":
@@ -778,22 +778,22 @@ def _dispatch_tool(name: str, args: dict) -> dict:
                 "r": args.get("color_r", 1), "g": args.get("color_g", 1),
                 "b": args.get("color_b", 1), "a": args.get("color_a", 1)
             }
-        return api_post("/api/entity/update", body)
+        return await api_post("/api/entity/update", body)
 
     # --- Screenshot ---
     elif name == "screenshot":
-        return api_get("/api/screenshot")
+        return await api_get("/api/screenshot")
 
     # --- Region Scan ---
     elif name == "scan_region":
-        return api_get("/api/world/scan", {
+        return await api_get("/api/world/scan", {
             "x1": str(args["x1"]), "y1": str(args["y1"]), "z1": str(args["z1"]),
             "x2": str(args["x2"]), "y2": str(args["y2"]), "z2": str(args["z2"])
         })
 
     # --- Region Clear ---
     elif name == "clear_region":
-        return api_post("/api/world/clear", {
+        return await api_post("/api/world/clear", {
             "x1": args["x1"], "y1": args["y1"], "z1": args["z1"],
             "x2": args["x2"], "y2": args["y2"], "z2": args["z2"]
         })
@@ -803,35 +803,35 @@ def _dispatch_tool(name: str, args: dict) -> dict:
         body: dict[str, Any] = {}
         if "all" in args:
             body["all"] = args["all"]
-        return api_post("/api/world/save", body)
+        return await api_post("/api/world/save", body)
 
     # --- Event Polling ---
     elif name == "poll_events":
         params = {}
         if "cursor" in args:
             params["since"] = str(args["cursor"])
-        return api_get("/api/events", params)
+        return await api_get("/api/events", params)
 
     # --- Snapshots ---
     elif name == "create_snapshot":
-        return api_post("/api/snapshot/create", {
+        return await api_post("/api/snapshot/create", {
             "name": args["name"],
             "x1": args["x1"], "y1": args["y1"], "z1": args["z1"],
             "x2": args["x2"], "y2": args["y2"], "z2": args["z2"]
         })
 
     elif name == "restore_snapshot":
-        return api_post("/api/snapshot/restore", {"name": args["name"]})
+        return await api_post("/api/snapshot/restore", {"name": args["name"]})
 
     elif name == "list_snapshots":
-        return api_get("/api/snapshots")
+        return await api_get("/api/snapshots")
 
     elif name == "delete_snapshot":
-        return api_post("/api/snapshot/delete", {"name": args["name"]})
+        return await api_post("/api/snapshot/delete", {"name": args["name"]})
 
     # --- Clipboard ---
     elif name == "copy_region":
-        return api_post("/api/clipboard/copy", {
+        return await api_post("/api/clipboard/copy", {
             "x1": args["x1"], "y1": args["y1"], "z1": args["z1"],
             "x2": args["x2"], "y2": args["y2"], "z2": args["z2"]
         })
@@ -840,10 +840,10 @@ def _dispatch_tool(name: str, args: dict) -> dict:
         body = {"x": args["x"], "y": args["y"], "z": args["z"]}
         if "rotate" in args:
             body["rotate"] = args["rotate"]
-        return api_post("/api/clipboard/paste", body)
+        return await api_post("/api/clipboard/paste", body)
 
     elif name == "get_clipboard":
-        return api_get("/api/clipboard")
+        return await api_get("/api/clipboard")
 
     # --- World Generation ---
     elif name == "generate_world":
@@ -858,11 +858,11 @@ def _dispatch_tool(name: str, args: dict) -> dict:
             body["to"] = args["to"]
         if "params" in args:
             body["params"] = args["params"]
-        return api_post("/api/world/generate", body)
+        return await api_post("/api/world/generate", body)
 
     # --- Template Save ---
     elif name == "save_template":
-        return api_post("/api/template/save", {
+        return await api_post("/api/template/save", {
             "name": args["name"],
             "x1": args["x1"], "y1": args["y1"], "z1": args["z1"],
             "x2": args["x2"], "y2": args["y2"], "z2": args["z2"]
