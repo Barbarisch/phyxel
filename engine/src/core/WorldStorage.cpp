@@ -133,6 +133,7 @@ bool WorldStorage::createTables() {
             local_z INTEGER NOT NULL CHECK(local_z >= 0 AND local_z < 32),
             is_subdivided INTEGER DEFAULT 0,
             is_visible INTEGER DEFAULT 1,
+            material TEXT DEFAULT 'Default',
             PRIMARY KEY (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z),
             FOREIGN KEY (chunk_x, chunk_y, chunk_z) REFERENCES chunks(chunk_x, chunk_y, chunk_z)
         );
@@ -188,6 +189,23 @@ bool WorldStorage::createTables() {
         sqlite3_free(errorMsg);
     }
     
+    // Migrate existing databases: add material column if missing
+    if (success) {
+        const char* migrationSQL = "ALTER TABLE cubes ADD COLUMN material TEXT DEFAULT 'Default';";
+        char* migErr = nullptr;
+        sqlite3_exec(db, migrationSQL, nullptr, nullptr, &migErr);
+        if (migErr) {
+            // "duplicate column name" is expected if column already exists — not an error
+            std::string errStr(migErr);
+            if (errStr.find("duplicate column") == std::string::npos) {
+                LOG_WARN_FMT("WorldStorage", "[WORLD_STORAGE] Migration warning: " << migErr);
+            }
+            sqlite3_free(migErr);
+        } else {
+            LOG_INFO("WorldStorage", "[WORLD_STORAGE] Migrated cubes table: added material column");
+        }
+    }
+    
     return success;
 }
 
@@ -200,8 +218,8 @@ bool WorldStorage::prepareStatements() {
     
     const char* insertCubeSQL = R"(
         INSERT OR REPLACE INTO cubes 
-        (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z, is_subdivided, is_visible) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+        (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z, is_subdivided, is_visible, material) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
     )";
     
     const char* insertSubcubeSQL = R"(
@@ -222,7 +240,7 @@ bool WorldStorage::prepareStatements() {
     )";
     
     const char* selectCubesSQL = R"(
-        SELECT local_x, local_y, local_z, is_subdivided, is_visible 
+        SELECT local_x, local_y, local_z, is_subdivided, is_visible, material 
         FROM cubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;
     )";
     
@@ -370,6 +388,7 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
                         sqlite3_bind_int(insertCubeStmt, 6, z);
                         sqlite3_bind_int(insertCubeStmt, 7, 0); // isSubdivided - always false now (subcubes stored at chunk level)
                         sqlite3_bind_int(insertCubeStmt, 8, cube->isVisible() ? 1 : 0);
+                        sqlite3_bind_text(insertCubeStmt, 9, cube->getMaterialName().c_str(), -1, SQLITE_TRANSIENT);
                         
                         if (sqlite3_step(insertCubeStmt) != SQLITE_DONE) {
                             LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert cube at (" << x << "," << y << "," << z << "): " << sqlite3_errmsg(db));
@@ -409,6 +428,7 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
                         sqlite3_bind_int(insertCubeStmt, 6, parentLocalPos.z);
                         sqlite3_bind_int(insertCubeStmt, 7, 1); // isSubdivided = true
                         sqlite3_bind_int(insertCubeStmt, 8, 0); // isVisible = false
+                        sqlite3_bind_text(insertCubeStmt, 9, "Default", -1, SQLITE_STATIC);
                         
                         if (sqlite3_step(insertCubeStmt) != SQLITE_DONE) {
                             LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert placeholder cube: " << sqlite3_errmsg(db));
@@ -472,6 +492,7 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
                         sqlite3_bind_int(insertCubeStmt, 6, parentLocalPos.z);
                         sqlite3_bind_int(insertCubeStmt, 7, 1); // isSubdivided = true
                         sqlite3_bind_int(insertCubeStmt, 8, 0); // isVisible = false
+                        sqlite3_bind_text(insertCubeStmt, 9, "Default", -1, SQLITE_STATIC);
                         
                         if (sqlite3_step(insertCubeStmt) != SQLITE_DONE) {
                             LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert placeholder cube for microcube: " << sqlite3_errmsg(db));
@@ -552,13 +573,17 @@ bool WorldStorage::loadChunk(const glm::ivec3& chunkCoord, Chunk& chunk) {
         bool isSubdivided = sqlite3_column_int(selectCubesStmt, 3) != 0;
         bool isVisible = sqlite3_column_int(selectCubesStmt, 4) != 0;
         
+        // Read material name (column 5), default to "Default" if NULL
+        const char* materialStr = reinterpret_cast<const char*>(sqlite3_column_text(selectCubesStmt, 5));
+        std::string material = materialStr ? materialStr : "Default";
+        
         // If the cube is subdivided, it's a placeholder for subcubes/microcubes.
         // We should NOT create a full cube object here. The subcubes will be loaded later.
         if (isSubdivided) {
             continue;
         }
 
-        if (chunk.addCube(glm::ivec3(x, y, z))) {
+        if (chunk.addCube(glm::ivec3(x, y, z), material)) {
             // If the cube is invisible (but not subdivided), hide it
             if (!isVisible) {
                 Cube* cube = chunk.getCubeAt(glm::ivec3(x, y, z));
