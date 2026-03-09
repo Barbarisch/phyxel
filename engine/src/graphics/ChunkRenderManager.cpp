@@ -144,8 +144,9 @@ void ChunkRenderManager::rebuildCubeFaces(
                     cubePos.x, cubePos.y, cubePos.z, faceID
                 );
                 
-                // Assign texture based on face ID
-                faceInstance.textureIndex = Phyxel::TextureConstants::getTextureIndexForFace(faceID);
+                // Assign texture based on material and face ID
+                faceInstance.textureIndex = Phyxel::TextureConstants::getTextureIndexForMaterial(
+                    cube->getMaterialName(), faceID);
                 
                 // Check for emissive material
                 if (cube->getMaterialName() == "glow") {

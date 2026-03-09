@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 #include <functional>
+#include <string>
 
 namespace Phyxel {
 
@@ -67,6 +68,9 @@ private:
     bool generateMountains(const glm::ivec3& chunkCoord, const glm::ivec3& localPos);
     bool generateCaves(const glm::ivec3& chunkCoord, const glm::ivec3& localPos);
     bool generateCity(const glm::ivec3& chunkCoord, const glm::ivec3& localPos);
+    
+    // Material selection based on world position and terrain context
+    std::string getMaterialForPosition(const glm::ivec3& worldPos, float surfaceHeight) const;
     
     // Noise functions
     float perlinNoise3D(float x, float y, float z, int octaves, float persistence, float lacunarity);

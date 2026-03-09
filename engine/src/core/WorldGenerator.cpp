@@ -5,6 +5,7 @@
 #include <random>
 #include <cmath>
 #include <iostream>
+#include <string>
 
 namespace Phyxel {
 
@@ -61,12 +62,40 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
     
     // Generate cubes using the selected algorithm
     for (int x = 0; x < 32; ++x) {
-        for (int y = 0; y < 32; ++y) {
-            for (int z = 0; z < 32; ++z) {
+        for (int z = 0; z < 32; ++z) {
+            // Compute approximate surface height for this column (for material selection)
+            glm::ivec3 worldCol = chunkCoord * 32 + glm::ivec3(x, 0, z);
+            float surfaceHeight = 16.0f; // default
+            
+            // Compute surface height based on generation type
+            if (generationType == GenerationType::Perlin) {
+                surfaceHeight = perlinNoise3D(worldCol.x * terrainParams.frequency, 
+                                             0.0f, worldCol.z * terrainParams.frequency,
+                                             terrainParams.octaves, terrainParams.persistence,
+                                             terrainParams.lacunarity) * terrainParams.heightScale + 16.0f;
+            } else if (generationType == GenerationType::Mountains) {
+                surfaceHeight = perlinNoise3D(worldCol.x * 0.01f, 0.0f, worldCol.z * 0.01f, 6, 0.7f, 2.0f) * 40.0f
+                              + perlinNoise3D(worldCol.x * 0.03f, 0.0f, worldCol.z * 0.03f, 4, 0.5f, 2.0f) * 20.0f
+                              + 20.0f;
+            } else if (generationType == GenerationType::Caves) {
+                surfaceHeight = perlinNoise3D(worldCol.x * terrainParams.frequency, 
+                                             0.0f, worldCol.z * terrainParams.frequency,
+                                             terrainParams.octaves, terrainParams.persistence,
+                                             terrainParams.lacunarity) * terrainParams.heightScale + 16.0f;
+            } else if (generationType == GenerationType::Flat) {
+                surfaceHeight = 16.0f;
+            } else if (generationType == GenerationType::City) {
+                surfaceHeight = 15.0f;
+            }
+            
+            for (int y = 0; y < 32; ++y) {
                 glm::ivec3 localPos(x, y, z);
                 
                 if (generator(chunkCoord, localPos)) {
-                    chunk.addCube(localPos);
+                    float worldY = static_cast<float>(chunkCoord.y * 32 + y);
+                    std::string material = getMaterialForPosition(
+                        glm::ivec3(worldCol.x, chunkCoord.y * 32 + y, worldCol.z), surfaceHeight);
+                    chunk.addCube(localPos, material);
                 }
             }
         }
@@ -274,6 +303,47 @@ int WorldGenerator::hash(int x, int y, int z) {
     z = (z >> 16) ^ z;
     
     return (x ^ y ^ z) + seed;
+}
+
+std::string WorldGenerator::getMaterialForPosition(const glm::ivec3& worldPos, float surfaceHeight) const {
+    float y = static_cast<float>(worldPos.y);
+    
+    // City generation uses special materials
+    if (generationType == GenerationType::City) {
+        if (y <= 15.0f) {
+            // Ground layer
+            if (y <= 12.0f) return "Stone";
+            return "Default"; // Road/ground surface
+        }
+        // Building blocks - use Metal for buildings
+        return "Metal";
+    }
+    
+    // Random generation - just use Default for everything
+    if (generationType == GenerationType::Random) {
+        return "Default";
+    }
+    
+    // Natural terrain material assignment based on depth from surface
+    float depthFromSurface = surfaceHeight - y;
+    
+    if (depthFromSurface < 0.5f) {
+        // Surface layer: grass (use grassdirt texture set)
+        // Mountains above 45 get snow (Ice)
+        if (surfaceHeight > 45.0f && generationType == GenerationType::Mountains) {
+            return "Ice";
+        }
+        return "Default"; // Top grass layer
+    } else if (depthFromSurface < 4.0f) {
+        // Dirt layer (just under surface) - use Cork for earthy brown
+        return "Cork";
+    } else if (depthFromSurface < terrainParams.stoneLevel) {
+        // Mid layer - transition to stone
+        return "Stone";
+    } else {
+        // Deep underground - stone
+        return "Stone";
+    }
 }
 
 } // namespace Phyxel

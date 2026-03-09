@@ -73,7 +73,8 @@ void FaceUpdateCoordinator::rebuildGlobalDynamicFaces() {
             // Dynamic cubes always use physics position and rotation
             faceInstance.worldPosition = cube->getPhysicsPosition();
             faceInstance.rotation = cube->getPhysicsRotation();
-            faceInstance.textureIndex = TextureConstants::getTextureIndexForFace(faceID);
+            faceInstance.textureIndex = TextureConstants::getTextureIndexForMaterial(
+                cube->getMaterialName(), faceID);
             faceInstance.faceID = faceID;
             faceInstance.scale = cube->getDynamicScale(); // Use dynamic scale (vec3)
             faceInstance.localPosition = glm::ivec3(1, 1, 1); // Center position for full cubes

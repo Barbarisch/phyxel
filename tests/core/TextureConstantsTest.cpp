@@ -2,10 +2,12 @@
  * Unit tests for TextureConstants utilities
  * 
  * Tests texture index mapping functions for face-based texture selection.
+ * Updated for multi-material atlas (72 textures, 12 materials).
  */
 
 #include <gtest/gtest.h>
 #include "core/Types.h"
+#include <set>
 
 using namespace Phyxel;
 using namespace Phyxel::TextureConstants;
@@ -16,9 +18,10 @@ using namespace Phyxel::TextureConstants;
 
 TEST(TextureConstantsTest, Constants_HaveValidValues) {
     EXPECT_EQ(PLACEHOLDER_TEXTURE_INDEX, 5);
-    EXPECT_EQ(HOVER_BASE_TEXTURE_INDEX, 12);
     EXPECT_EQ(INVALID_TEXTURE_INDEX, 0xFFFF);
     EXPECT_EQ(MAX_TEXTURE_INDEX, 0xFFFE);
+    EXPECT_EQ(TEXTURE_COUNT, 72);
+    EXPECT_EQ(MATERIAL_COUNT, 12);
 }
 
 TEST(TextureConstantsTest, Constants_InvalidIsGreaterThanMax) {
@@ -26,11 +29,10 @@ TEST(TextureConstantsTest, Constants_InvalidIsGreaterThanMax) {
 }
 
 // ============================================================================
-// Face Texture Index Tests
+// Face Texture Index Tests (Legacy placeholder)
 // ============================================================================
 
 TEST(TextureConstantsTest, GetTextureIndexForFace_ValidFaces) {
-    // Face IDs 0-5 should map directly to texture indices 0-5
     EXPECT_EQ(getTextureIndexForFace(0), 0);
     EXPECT_EQ(getTextureIndexForFace(1), 1);
     EXPECT_EQ(getTextureIndexForFace(2), 2);
@@ -40,55 +42,98 @@ TEST(TextureConstantsTest, GetTextureIndexForFace_ValidFaces) {
 }
 
 TEST(TextureConstantsTest, GetTextureIndexForFace_InvalidNegative) {
-    // Negative face IDs should return placeholder
     EXPECT_EQ(getTextureIndexForFace(-1), PLACEHOLDER_TEXTURE_INDEX);
     EXPECT_EQ(getTextureIndexForFace(-100), PLACEHOLDER_TEXTURE_INDEX);
 }
 
 TEST(TextureConstantsTest, GetTextureIndexForFace_InvalidTooLarge) {
-    // Face IDs >= 6 should return placeholder
     EXPECT_EQ(getTextureIndexForFace(6), PLACEHOLDER_TEXTURE_INDEX);
     EXPECT_EQ(getTextureIndexForFace(10), PLACEHOLDER_TEXTURE_INDEX);
-    EXPECT_EQ(getTextureIndexForFace(100), PLACEHOLDER_TEXTURE_INDEX);
-}
-
-TEST(TextureConstantsTest, GetTextureIndexForFace_BoundaryValues) {
-    // Test exact boundaries
-    EXPECT_EQ(getTextureIndexForFace(0), 0);  // Min valid
-    EXPECT_EQ(getTextureIndexForFace(5), 5);  // Max valid
 }
 
 // ============================================================================
-// Hover Texture Index Tests
+// Material ID Tests
+// ============================================================================
+
+TEST(TextureConstantsTest, GetMaterialID_KnownMaterials) {
+    EXPECT_EQ(getMaterialID("placeholder"), 0);
+    EXPECT_EQ(getMaterialID("grassdirt"), 1);
+    EXPECT_EQ(getMaterialID("Cork"), 2);
+    EXPECT_EQ(getMaterialID("Default"), 3);
+    EXPECT_EQ(getMaterialID("Glass"), 4);
+    EXPECT_EQ(getMaterialID("glow"), 5);
+    EXPECT_EQ(getMaterialID("hover"), 6);
+    EXPECT_EQ(getMaterialID("Ice"), 7);
+    EXPECT_EQ(getMaterialID("Metal"), 8);
+    EXPECT_EQ(getMaterialID("Rubber"), 9);
+    EXPECT_EQ(getMaterialID("Stone"), 10);
+    EXPECT_EQ(getMaterialID("Wood"), 11);
+}
+
+TEST(TextureConstantsTest, GetMaterialID_UnknownFallsBackToDefault) {
+    EXPECT_EQ(getMaterialID("unknown"), 3);
+    EXPECT_EQ(getMaterialID(""), 3);
+    EXPECT_EQ(getMaterialID("something_else"), 3);
+}
+
+TEST(TextureConstantsTest, GetMaterialID_CaseSensitive) {
+    // These should NOT match (wrong case)
+    EXPECT_EQ(getMaterialID("stone"), 3);  // Falls back to Default (3)
+    EXPECT_EQ(getMaterialID("STONE"), 3);
+    EXPECT_EQ(getMaterialID("wood"), 3);
+    // But these should match
+    EXPECT_EQ(getMaterialID("Stone"), 10);
+    EXPECT_EQ(getMaterialID("Wood"), 11);
+}
+
+// ============================================================================
+// Material Texture Index Tests
+// ============================================================================
+
+TEST(TextureConstantsTest, GetTextureIndexForMaterial_Stone) {
+    EXPECT_EQ(getTextureIndexForMaterial("Stone", 0), 20);  // side_n
+    EXPECT_EQ(getTextureIndexForMaterial("Stone", 1), 30);  // side_s
+    EXPECT_EQ(getTextureIndexForMaterial("Stone", 2), 40);  // side_e
+    EXPECT_EQ(getTextureIndexForMaterial("Stone", 3), 50);  // side_w
+    EXPECT_EQ(getTextureIndexForMaterial("Stone", 4), 60);  // top
+    EXPECT_EQ(getTextureIndexForMaterial("Stone", 5), 70);  // bottom
+}
+
+TEST(TextureConstantsTest, GetTextureIndexForMaterial_Wood) {
+    EXPECT_EQ(getTextureIndexForMaterial("Wood", 0), 21);  // side_n
+    EXPECT_EQ(getTextureIndexForMaterial("Wood", 4), 61);  // top
+    EXPECT_EQ(getTextureIndexForMaterial("Wood", 5), 71);  // bottom
+}
+
+TEST(TextureConstantsTest, GetTextureIndexForMaterial_InvalidFace) {
+    EXPECT_EQ(getTextureIndexForMaterial("Stone", -1), PLACEHOLDER_TEXTURE_INDEX);
+    EXPECT_EQ(getTextureIndexForMaterial("Stone", 6), PLACEHOLDER_TEXTURE_INDEX);
+}
+
+TEST(TextureConstantsTest, GetTextureIndexForMaterial_Placeholder) {
+    // Placeholder material should still map to indices 0-5
+    for (int faceID = 0; faceID < 6; ++faceID) {
+        EXPECT_EQ(getTextureIndexForMaterial("placeholder", faceID), faceID);
+    }
+}
+
+// ============================================================================
+// Hover Texture Index Tests (updated for new atlas)
 // ============================================================================
 
 TEST(TextureConstantsTest, GetHoverTextureIndexForFace_ValidFaces) {
-    // Hover textures are at indices 12-17 (base + faceID)
-    EXPECT_EQ(getHoverTextureIndexForFace(0), 12);
-    EXPECT_EQ(getHoverTextureIndexForFace(1), 13);
-    EXPECT_EQ(getHoverTextureIndexForFace(2), 14);
-    EXPECT_EQ(getHoverTextureIndexForFace(3), 15);
-    EXPECT_EQ(getHoverTextureIndexForFace(4), 16);
-    EXPECT_EQ(getHoverTextureIndexForFace(5), 17);
+    // Hover textures now at scattered indices in new atlas
+    EXPECT_EQ(getHoverTextureIndexForFace(0), 16);  // hover_side_n
+    EXPECT_EQ(getHoverTextureIndexForFace(1), 26);  // hover_side_s
+    EXPECT_EQ(getHoverTextureIndexForFace(2), 36);  // hover_side_e
+    EXPECT_EQ(getHoverTextureIndexForFace(3), 46);  // hover_side_w
+    EXPECT_EQ(getHoverTextureIndexForFace(4), 56);  // hover_top
+    EXPECT_EQ(getHoverTextureIndexForFace(5), 66);  // hover_bottom
 }
 
-TEST(TextureConstantsTest, GetHoverTextureIndexForFace_InvalidNegative) {
+TEST(TextureConstantsTest, GetHoverTextureIndexForFace_InvalidFaces) {
     EXPECT_EQ(getHoverTextureIndexForFace(-1), PLACEHOLDER_TEXTURE_INDEX);
-    EXPECT_EQ(getHoverTextureIndexForFace(-50), PLACEHOLDER_TEXTURE_INDEX);
-}
-
-TEST(TextureConstantsTest, GetHoverTextureIndexForFace_InvalidTooLarge) {
     EXPECT_EQ(getHoverTextureIndexForFace(6), PLACEHOLDER_TEXTURE_INDEX);
-    EXPECT_EQ(getHoverTextureIndexForFace(20), PLACEHOLDER_TEXTURE_INDEX);
-}
-
-TEST(TextureConstantsTest, GetHoverTextureIndexForFace_OffsetFromBase) {
-    // Verify offset calculation from base
-    for (int faceID = 0; faceID < 6; ++faceID) {
-        uint16_t expected = HOVER_BASE_TEXTURE_INDEX + faceID;
-        EXPECT_EQ(getHoverTextureIndexForFace(faceID), expected)
-            << "Failed for face " << faceID;
-    }
 }
 
 // ============================================================================
@@ -96,7 +141,6 @@ TEST(TextureConstantsTest, GetHoverTextureIndexForFace_OffsetFromBase) {
 // ============================================================================
 
 TEST(TextureConstantsTest, GetGrassdirtTextureIndexForFace_ValidFaces) {
-    // Grassdirt textures are at indices 6-11 (6 + faceID)
     EXPECT_EQ(getGrassdirtTextureIndexForFace(0), 6);
     EXPECT_EQ(getGrassdirtTextureIndexForFace(1), 7);
     EXPECT_EQ(getGrassdirtTextureIndexForFace(2), 8);
@@ -105,137 +149,41 @@ TEST(TextureConstantsTest, GetGrassdirtTextureIndexForFace_ValidFaces) {
     EXPECT_EQ(getGrassdirtTextureIndexForFace(5), 11);
 }
 
-TEST(TextureConstantsTest, GetGrassdirtTextureIndexForFace_InvalidNegative) {
+TEST(TextureConstantsTest, GetGrassdirtTextureIndexForFace_InvalidFaces) {
     EXPECT_EQ(getGrassdirtTextureIndexForFace(-1), PLACEHOLDER_TEXTURE_INDEX);
-    EXPECT_EQ(getGrassdirtTextureIndexForFace(-10), PLACEHOLDER_TEXTURE_INDEX);
-}
-
-TEST(TextureConstantsTest, GetGrassdirtTextureIndexForFace_InvalidTooLarge) {
     EXPECT_EQ(getGrassdirtTextureIndexForFace(6), PLACEHOLDER_TEXTURE_INDEX);
-    EXPECT_EQ(getGrassdirtTextureIndexForFace(100), PLACEHOLDER_TEXTURE_INDEX);
-}
-
-TEST(TextureConstantsTest, GetGrassdirtTextureIndexForFace_OffsetCalculation) {
-    // Verify offset calculation
-    for (int faceID = 0; faceID < 6; ++faceID) {
-        uint16_t expected = 6 + faceID;
-        EXPECT_EQ(getGrassdirtTextureIndexForFace(faceID), expected)
-            << "Failed for face " << faceID;
-    }
 }
 
 // ============================================================================
 // Texture Range Tests
 // ============================================================================
 
-TEST(TextureConstantsTest, TextureRanges_NoOverlap) {
-    // Verify texture index ranges don't overlap
-    // Placeholder: 0-5
-    // Grassdirt: 6-11
-    // Hover: 12-17
-    
-    // Check that grassdirt starts after placeholder
-    EXPECT_GT(getGrassdirtTextureIndexForFace(0), getTextureIndexForFace(5));
-    
-    // Check that hover starts after grassdirt
-    EXPECT_GT(getHoverTextureIndexForFace(0), getGrassdirtTextureIndexForFace(5));
-}
-
-TEST(TextureConstantsTest, TextureRanges_AllValidBelowMax) {
-    // All valid texture indices should be below MAX_TEXTURE_INDEX
-    for (int faceID = 0; faceID < 6; ++faceID) {
-        EXPECT_LT(getTextureIndexForFace(faceID), MAX_TEXTURE_INDEX);
-        EXPECT_LT(getGrassdirtTextureIndexForFace(faceID), MAX_TEXTURE_INDEX);
-        EXPECT_LT(getHoverTextureIndexForFace(faceID), MAX_TEXTURE_INDEX);
+TEST(TextureConstantsTest, AllMaterialIndices_BelowTextureCount) {
+    for (int mat = 0; mat < MATERIAL_COUNT; ++mat) {
+        for (int face = 0; face < 6; ++face) {
+            EXPECT_LT(MATERIAL_FACE_INDEX[mat][face], TEXTURE_COUNT)
+                << "Material " << mat << " face " << face << " out of range";
+        }
     }
 }
 
-TEST(TextureConstantsTest, TextureRanges_ConsecutiveIndices) {
-    // Verify each range has consecutive indices
-    for (int faceID = 0; faceID < 5; ++faceID) {
-        // Placeholder range
-        EXPECT_EQ(getTextureIndexForFace(faceID + 1), 
-                  getTextureIndexForFace(faceID) + 1);
-        
-        // Grassdirt range
-        EXPECT_EQ(getGrassdirtTextureIndexForFace(faceID + 1), 
-                  getGrassdirtTextureIndexForFace(faceID) + 1);
-        
-        // Hover range
-        EXPECT_EQ(getHoverTextureIndexForFace(faceID + 1), 
-                  getHoverTextureIndexForFace(faceID) + 1);
+TEST(TextureConstantsTest, AllMaterialIndices_Unique) {
+    std::set<uint16_t> allIndices;
+    for (int mat = 0; mat < MATERIAL_COUNT; ++mat) {
+        for (int face = 0; face < 6; ++face) {
+            allIndices.insert(MATERIAL_FACE_INDEX[mat][face]);
+        }
     }
+    // Each material x face should produce a unique index
+    EXPECT_EQ(allIndices.size(), MATERIAL_COUNT * 6);
 }
-
-// ============================================================================
-// Edge Cases and Boundary Tests
-// ============================================================================
 
 TEST(TextureConstantsTest, AllFunctions_SameFallback) {
-    // All functions should use the same fallback value for invalid input
     int invalidFaceID = -1;
     EXPECT_EQ(getTextureIndexForFace(invalidFaceID), 
               getHoverTextureIndexForFace(invalidFaceID));
     EXPECT_EQ(getTextureIndexForFace(invalidFaceID), 
               getGrassdirtTextureIndexForFace(invalidFaceID));
-}
-
-TEST(TextureConstantsTest, FaceID_ZeroIsValid) {
-    // Face ID 0 should be valid for all functions
-    EXPECT_NE(getTextureIndexForFace(0), PLACEHOLDER_TEXTURE_INDEX);
-    EXPECT_NE(getHoverTextureIndexForFace(0), PLACEHOLDER_TEXTURE_INDEX);
-    EXPECT_NE(getGrassdirtTextureIndexForFace(0), PLACEHOLDER_TEXTURE_INDEX);
-}
-
-TEST(TextureConstantsTest, FaceID_FiveIsValid) {
-    // Face ID 5 should be valid (last valid face)
-    // For placeholder textures, face 5 returns index 5, which equals PLACEHOLDER_TEXTURE_INDEX
-    // So we check if it's in the valid range instead
-    EXPECT_EQ(getTextureIndexForFace(5), 5);
-    EXPECT_EQ(getHoverTextureIndexForFace(5), 17);  // 12 + 5
-    EXPECT_EQ(getGrassdirtTextureIndexForFace(5), 11);  // 6 + 5
-}
-
-TEST(TextureConstantsTest, FaceID_SixIsInvalid) {
-    // Face ID 6 should be invalid (first invalid face)
-    EXPECT_EQ(getTextureIndexForFace(6), PLACEHOLDER_TEXTURE_INDEX);
-    EXPECT_EQ(getHoverTextureIndexForFace(6), PLACEHOLDER_TEXTURE_INDEX);
-    EXPECT_EQ(getGrassdirtTextureIndexForFace(6), PLACEHOLDER_TEXTURE_INDEX);
-}
-
-// ============================================================================
-// Specific Texture Layout Tests
-// ============================================================================
-
-TEST(TextureConstantsTest, PlaceholderRange_Covers0To5) {
-    // Placeholder textures occupy indices 0-5
-    std::set<uint16_t> indices;
-    for (int faceID = 0; faceID < 6; ++faceID) {
-        indices.insert(getTextureIndexForFace(faceID));
-    }
-    EXPECT_EQ(indices.size(), 6);
-    EXPECT_EQ(*indices.begin(), 0);
-    EXPECT_EQ(*indices.rbegin(), 5);
-}
-
-TEST(TextureConstantsTest, GrassdirtRange_Covers6To11) {
-    // Grassdirt textures occupy indices 6-11
-    std::set<uint16_t> indices;
-    for (int faceID = 0; faceID < 6; ++faceID) {
-        indices.insert(getGrassdirtTextureIndexForFace(faceID));
-    }
-    EXPECT_EQ(indices.size(), 6);
-    EXPECT_EQ(*indices.begin(), 6);
-    EXPECT_EQ(*indices.rbegin(), 11);
-}
-
-TEST(TextureConstantsTest, HoverRange_Covers12To17) {
-    // Hover textures occupy indices 12-17
-    std::set<uint16_t> indices;
-    for (int faceID = 0; faceID < 6; ++faceID) {
-        indices.insert(getHoverTextureIndexForFace(faceID));
-    }
-    EXPECT_EQ(indices.size(), 6);
-    EXPECT_EQ(*indices.begin(), 12);
-    EXPECT_EQ(*indices.rbegin(), 17);
+    EXPECT_EQ(getTextureIndexForFace(invalidFaceID),
+              getTextureIndexForMaterial("Stone", invalidFaceID));
 }

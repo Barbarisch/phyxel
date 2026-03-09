@@ -37,6 +37,7 @@ Phyxel is a voxel game engine built with C++17, Vulkan, and Bullet Physics. It f
 ## Materials
 
 Predefined in `MaterialManager` (engine/src/physics/Material.cpp). Names are **case-sensitive**.
+Each material has its own 6-face texture set in the atlas (72 textures total, 256x256 atlas).
 
 | Name     | Mass | Friction | Restitution | Color Tint (RGB)        | Notes                    |
 |----------|------|----------|-------------|-------------------------|--------------------------|
@@ -49,6 +50,14 @@ Predefined in `MaterialManager` (engine/src/physics/Material.cpp). Names are **c
 | Cork     | 0.2  | 0.5      | 0.4         | (0.8, 0.7, 0.5) tan     | Ultra-light              |
 | glow     | 1.0  | 0.5      | 0.5         | (1.0, 1.0, 1.0) white   | Emissive material        |
 | Default  | 1.0  | 0.5      | 0.3         | (1.0, 1.0, 1.0)         | Balanced defaults        |
+
+### Texture Pipeline
+- Source textures: `textures/` dir, 18x18 PNG per face per material (e.g. `stone_side_n.png`)
+- Atlas builder: `python tools/texture_atlas_builder.py textures/ cube_atlas.png`
+- Outputs: `resources/textures/cube_atlas.{png,json,h,glsl}`
+- Texture generation: `python tools/generate_material_textures.py` (regenerates procedural textures)
+- After atlas changes, rebuild shaders: `.\build_shaders.bat`
+- Material→texture lookup: `TextureConstants::getTextureIndexForMaterial(materialName, faceID)` in `Types.h`
 
 ## Entity Types
 
@@ -83,6 +92,12 @@ Control mode toggled with **K** key. Animated character supports Jump (Space), A
 | `Caves`    | Perlin terrain with 3D cave carving |
 | `City`     | Flat ground at Y=15, procedural 16×16 buildings (height 20-60) |
 | `Custom`   | User-supplied generation function |
+
+**Multi-material terrain**: Generated terrain uses materials based on depth from surface:
+- Surface layer: Default (or Ice on mountain peaks above Y=45)
+- Sub-surface (1-4 blocks deep): Cork (earthy brown)
+- Deep underground: Stone
+- City buildings: Metal, ground: Stone/Default
 
 The Python script `scripts/world_gen.py` provides demo functions: `generate_pyramid()`, `generate_platform()`, `generate_glow_pillars()`, `run_demo()`.
 
