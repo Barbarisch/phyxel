@@ -471,6 +471,21 @@ async def list_tools() -> list[Tool]:
                 "required": []
             }
         ),
+
+        # ================================================================
+        # Event Polling
+        # ================================================================
+        Tool(
+            name="poll_events",
+            description="Poll game events since a cursor. Returns entity spawned/removed/moved/updated, voxel placed/removed, region filled/cleared, and world save events. Pass the 'cursor' value from the previous response to get only new events. Start with cursor=0 to get all buffered events (up to 1000).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "cursor": {"type": "integer", "description": "Event cursor from last poll (0 for first poll)", "default": 0}
+                },
+                "required": []
+            }
+        ),
     ]
 
 
@@ -645,6 +660,13 @@ def _dispatch_tool(name: str, args: dict) -> dict:
         if "all" in args:
             body["all"] = args["all"]
         return api_post("/api/world/save", body)
+
+    # --- Event Polling ---
+    elif name == "poll_events":
+        params = {}
+        if "cursor" in args:
+            params["since"] = str(args["cursor"])
+        return api_get("/api/events", params)
 
     else:
         return {"error": f"Unknown tool: {name}"}

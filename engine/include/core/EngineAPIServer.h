@@ -48,6 +48,7 @@ using json = nlohmann::json;
 //   GET  /api/world/scan        — Scan a region for voxels
 //   POST /api/world/clear       — Clear all voxels in a region
 //   POST /api/world/save        — Save world to database
+//   GET  /api/events            — Poll game events (cursor-based)
 //
 // All POST bodies and responses are JSON.
 // ============================================================================
@@ -123,6 +124,10 @@ public:
     using RegionScanHandler = std::function<json(int x1, int y1, int z1, int x2, int y2, int z2)>;
     void setRegionScanHandler(RegionScanHandler handler) { m_regionScanHandler = std::move(handler); }
 
+    /// Handler that polls game events since a cursor. Called on HTTP thread (read-only).
+    using EventPollHandler = std::function<json(uint64_t sinceId)>;
+    void setEventPollHandler(EventPollHandler handler) { m_eventPollHandler = std::move(handler); }
+
 private:
     void serverThread();
     void setupRoutes();
@@ -149,6 +154,7 @@ private:
     MaterialListHandler m_materialListHandler;
     ChunkInfoHandler m_chunkInfoHandler;
     RegionScanHandler m_regionScanHandler;
+    EventPollHandler m_eventPollHandler;
 
     // Forward-declared impl to keep httplib out of the header
     struct Impl;

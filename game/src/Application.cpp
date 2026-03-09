@@ -286,6 +286,7 @@ bool Application::initialize() {
     // STEP 10: INITIALIZE ENTITY REGISTRY & HTTP API SERVER
     entityRegistry = std::make_unique<Core::EntityRegistry>();
     apiCommandQueue = std::make_unique<Core::APICommandQueue>();
+    gameEventLog = std::make_unique<Core::GameEventLog>(1000);
     apiServer = std::make_unique<Core::EngineAPIServer>(apiCommandQueue.get(), 8090);
 
     // Wire up read-only handlers (called directly on HTTP thread — must be thread-safe)
@@ -408,6 +409,20 @@ bool Application::initialize() {
             {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
             {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}},
             {"voxels", voxels}
+        };
+    });
+
+    apiServer->setEventPollHandler([this](uint64_t sinceId) -> nlohmann::json {
+        if (!gameEventLog) return nlohmann::json{{"error", "GameEventLog not available"}};
+        auto result = gameEventLog->pollSince(sinceId);
+        nlohmann::json eventsArr = nlohmann::json::array();
+        for (const auto& event : result.events) {
+            eventsArr.push_back(Core::GameEventLog::eventToJson(event));
+        }
+        return nlohmann::json{
+            {"events", eventsArr},
+            {"count", result.events.size()},
+            {"cursor", result.nextCursor}
         };
     });
 
@@ -1390,6 +1405,12 @@ void Application::processAPICommands() {
                     }
                     response = {{"success", true}, {"id", id}, {"type", entityType},
                                 {"position", {{"x", x}, {"y", y}, {"z", z}}}};
+                    if (gameEventLog) {
+                        gameEventLog->emit("entity_spawned", {
+                            {"id", id}, {"type", entityType},
+                            {"position", {{"x", x}, {"y", y}, {"z", z}}}
+                        });
+                    }
                 } else {
                     response = {{"error", "Failed to spawn entity"}};
                 }
@@ -1409,6 +1430,11 @@ void Application::processAPICommands() {
                         entity->setPosition(glm::vec3(x, y, z));
                         response = {{"success", true}, {"id", id},
                                     {"position", {{"x", x}, {"y", y}, {"z", z}}}};
+                        if (gameEventLog) {
+                            gameEventLog->emit("entity_moved", {
+                                {"id", id}, {"position", {{"x", x}, {"y", y}, {"z", z}}}
+                            });
+                        }
                     }
                 }
 
@@ -1435,6 +1461,9 @@ void Application::processAPICommands() {
                         if (entity == animatedCharacter) animatedCharacter = nullptr;
                         entityRegistry->unregisterEntity(id);
                         response = {{"success", true}, {"id", id}};
+                        if (gameEventLog) {
+                            gameEventLog->emit("entity_removed", {{"id", id}});
+                        }
                     }
                 }
 
@@ -1452,6 +1481,12 @@ void Application::processAPICommands() {
                         ok = chunkManager->addCube(glm::ivec3(x, y, z));
                     }
                     response = {{"success", ok}, {"position", {{"x", x}, {"y", y}, {"z", z}}}};
+                    if (ok && gameEventLog) {
+                        gameEventLog->emit("voxel_placed", {
+                            {"x", x}, {"y", y}, {"z", z},
+                            {"material", material.empty() ? "Default" : material}
+                        });
+                    }
                 } else {
                     response = {{"error", "ChunkManager not available"}};
                 }
@@ -1507,6 +1542,15 @@ void Application::processAPICommands() {
                                     {"volume", volume}, {"hollow", hollow},
                                     {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
                                     {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}};
+                        if (placed > 0 && gameEventLog) {
+                            gameEventLog->emit("region_filled", {
+                                {"placed", placed}, {"failed", failed}, {"volume", volume},
+                                {"material", material.empty() ? "Default" : material},
+                                {"hollow", hollow},
+                                {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
+                                {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}
+                            });
+                        }
                     }
                 }
 
@@ -1593,6 +1637,13 @@ void Application::processAPICommands() {
                                     {"volume", volume},
                                     {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
                                     {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}};
+                        if (removed > 0 && gameEventLog) {
+                            gameEventLog->emit("region_cleared", {
+                                {"removed", removed}, {"skipped", skipped}, {"volume", volume},
+                                {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
+                                {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}
+                            });
+                        }
                     }
                 }
 
@@ -1612,6 +1663,9 @@ void Application::processAPICommands() {
                                 {"mode", saveAll ? "all" : "dirty"}};
                     if (ok) {
                         LOG_INFO("Application", "World saved via API (mode: {})", saveAll ? "all" : "dirty");
+                        if (gameEventLog) {
+                            gameEventLog->emit("world_saved", {{"mode", saveAll ? "all" : "dirty"}});
+                        }
                     }
                 }
 
@@ -1651,6 +1705,9 @@ void Application::processAPICommands() {
                             entity->debugColor = glm::vec4(r, g, b, a);
                         }
                         response = {{"success", true}, {"id", id}};
+                        if (gameEventLog) {
+                            gameEventLog->emit("entity_updated", {{"id", id}});
+                        }
                     }
                 }
 
@@ -1661,6 +1718,9 @@ void Application::processAPICommands() {
                 if (chunkManager) {
                     bool ok = chunkManager->removeCube(glm::ivec3(x, y, z));
                     response = {{"success", ok}, {"position", {{"x", x}, {"y", y}, {"z", z}}}};
+                    if (ok && gameEventLog) {
+                        gameEventLog->emit("voxel_removed", {{"x", x}, {"y", y}, {"z", z}});
+                    }
                 } else {
                     response = {{"error", "ChunkManager not available"}};
                 }

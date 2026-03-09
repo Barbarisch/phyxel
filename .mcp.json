@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "phyxel": {
+      "command": "python",
+      "args": ["scripts/mcp/phyxel_mcp_server.py"],
+      "cwd": "C:\\Users\\bpete\\Documents\\GitHub\\phyxel"
+    }
+  }
+}

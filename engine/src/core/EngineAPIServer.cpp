@@ -467,6 +467,25 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // GET /api/events — Poll game events (cursor-based)
+    // Query: ?since=42  (returns events with id > 42)
+    // ====================================================================
+    srv.Get("/api/events", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!m_eventPollHandler) {
+            json err = {{"error", "Event poll handler not configured"}};
+            res.status = 503;
+            res.set_content(err.dump(), "application/json");
+            return;
+        }
+        uint64_t sinceId = 0;
+        if (req.has_param("since")) {
+            sinceId = std::stoull(req.get_param_value("since"));
+        }
+        json result = m_eventPollHandler(sinceId);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
     // POST /api/entity/update — Update entity properties
     // Body: { "id":"npc_01", "position":{"x":0,"y":0,"z":0},
     //         "rotation":{"w":1,"x":0,"y":0,"z":0},
