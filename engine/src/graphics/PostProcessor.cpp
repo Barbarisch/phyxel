@@ -154,6 +154,11 @@ void PostProcessor::cleanup() {
 }
 
 void PostProcessor::resize(uint32_t newWidth, uint32_t newHeight) {
+    // Skip resize with zero dimensions (window minimized)
+    if (newWidth == 0 || newHeight == 0) {
+        return;
+    }
+
     width = newWidth;
     height = newHeight;
     

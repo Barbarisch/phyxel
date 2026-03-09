@@ -284,6 +284,11 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
 }
 
 void RenderCoordinator::drawFrame() {
+    // Skip rendering when window is minimized (0x0 extent is invalid in Vulkan)
+    if (windowManager->getWidth() == 0 || windowManager->getHeight() == 0) {
+        return;
+    }
+
     // Check if we need to recreate swapchain due to window resize
     if (vulkanDevice->getFramebufferResized() || windowManager->wasResized()) {
         LOG_INFO("RenderCoordinator", "Resize detected! VulkanFlag: {}, WindowFlag: {}", 

@@ -465,7 +465,13 @@ void Application::run() {
 
         // Poll GLFW events
         windowManager->pollEvents();
-        
+
+        // Skip rendering when minimized (0x0 framebuffer crashes Vulkan)
+        if (windowManager->isMinimized()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            continue;
+        }
+
         timer->update();
         
         {

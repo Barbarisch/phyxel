@@ -38,6 +38,7 @@ public:
     int getHeight() const { return height; }
     bool wasResized() const { return resized; }
     void acknowledgeResize() { resized = false; }
+    bool isMinimized() const { return width == 0 || height == 0; }
     
     // Callback registration
     void setResizeCallback(ResizeCallback callback) { resizeCallback = callback; }
