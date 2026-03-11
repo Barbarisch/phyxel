@@ -625,6 +625,23 @@ bool WorldStorage::chunkExists(const glm::ivec3& chunkCoord) {
 bool WorldStorage::deleteChunk(const glm::ivec3& chunkCoord) {
     if (!db || !deleteChunkStmt) return false;
     
+    // Delete associated microcubes, subcubes, and cubes before removing chunk record
+    const char* sql[] = {
+        "DELETE FROM microcubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?",
+        "DELETE FROM subcubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?",
+        "DELETE FROM cubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?"
+    };
+    for (const char* q : sql) {
+        sqlite3_stmt* stmt = nullptr;
+        if (sqlite3_prepare_v2(db, q, -1, &stmt, nullptr) == SQLITE_OK) {
+            sqlite3_bind_int(stmt, 1, chunkCoord.x);
+            sqlite3_bind_int(stmt, 2, chunkCoord.y);
+            sqlite3_bind_int(stmt, 3, chunkCoord.z);
+            sqlite3_step(stmt);
+        }
+        sqlite3_finalize(stmt);
+    }
+    
     sqlite3_bind_int(deleteChunkStmt, 1, chunkCoord.x);
     sqlite3_bind_int(deleteChunkStmt, 2, chunkCoord.y);
     sqlite3_bind_int(deleteChunkStmt, 3, chunkCoord.z);

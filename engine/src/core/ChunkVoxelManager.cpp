@@ -598,6 +598,9 @@ bool ChunkVoxelManager::subdivideAt(
     auto existingSubcubes = getSubcubesHelper(localPos);
     if (!existingSubcubes.empty()) return false;
     
+    // Inherit material from parent cube
+    std::string material = cube->getMaterialName();
+    
     // Create 27 subcubes (3x3x3)
     glm::ivec3 worldOrigin = m_getWorldOrigin();
     glm::ivec3 parentWorldPos = worldOrigin + localPos;
@@ -608,7 +611,7 @@ bool ChunkVoxelManager::subdivideAt(
             for (int z = 0; z < 3; ++z) {
                 glm::ivec3 subcubeLocalPos(x, y, z);
                 
-                auto newSubcube = std::make_unique<Subcube>(parentWorldPos, subcubeLocalPos);
+                auto newSubcube = std::make_unique<Subcube>(parentWorldPos, subcubeLocalPos, material);
                 Subcube* rawPtr = newSubcube.get();
                 staticSubcubes.push_back(std::move(newSubcube));
                 
@@ -641,7 +644,8 @@ bool ChunkVoxelManager::subdivideAt(
 
 bool ChunkVoxelManager::addSubcube(
     const glm::ivec3& parentPos,
-    const glm::ivec3& subcubePos
+    const glm::ivec3& subcubePos,
+    const std::string& material
 ) {
     // Check if position is valid
     if (parentPos.x < 0 || parentPos.x >= 32 ||
@@ -662,7 +666,7 @@ bool ChunkVoxelManager::addSubcube(
     
     // Create new subcube
     glm::ivec3 parentWorldPos = m_getWorldOrigin() + parentPos;
-    auto newSubcube = std::make_unique<Subcube>(parentWorldPos, subcubePos);
+    auto newSubcube = std::make_unique<Subcube>(parentWorldPos, subcubePos, material);
     Subcube* rawPtr = newSubcube.get();
     auto& staticSubcubes = m_getStaticSubcubes();
     staticSubcubes.push_back(std::move(newSubcube));
@@ -806,6 +810,9 @@ bool ChunkVoxelManager::subdivideSubcubeAt(
     auto existingMicrocubes = getMicrocubesHelper(cubePos, subcubePos);
     if (!existingMicrocubes.empty()) return false;
     
+    // Inherit material from parent subcube
+    std::string material = subcube->getMaterialName();
+    
     // Create 27 microcubes (3x3x3)
     glm::ivec3 parentWorldPos = m_getWorldOrigin() + cubePos;
     
@@ -815,7 +822,7 @@ bool ChunkVoxelManager::subdivideSubcubeAt(
             for (int z = 0; z < 3; ++z) {
                 glm::ivec3 microcubeLocalPos(x, y, z);
                 
-                auto newMicrocube = std::make_unique<Microcube>(parentWorldPos, subcubePos, microcubeLocalPos);
+                auto newMicrocube = std::make_unique<Microcube>(parentWorldPos, subcubePos, microcubeLocalPos, material);
                 Microcube* rawPtr = newMicrocube.get();
                 staticMicrocubes.push_back(std::move(newMicrocube));
                 
@@ -857,7 +864,8 @@ bool ChunkVoxelManager::subdivideSubcubeAt(
 bool ChunkVoxelManager::addMicrocube(
     const glm::ivec3& parentCubePos,
     const glm::ivec3& subcubePos,
-    const glm::ivec3& microcubePos
+    const glm::ivec3& microcubePos,
+    const std::string& material
 ) {
     // Validate positions
     if (parentCubePos.x < 0 || parentCubePos.x >= 32 ||
@@ -906,7 +914,7 @@ bool ChunkVoxelManager::addMicrocube(
     
     // Create new microcube
     glm::ivec3 parentWorldPos = m_getWorldOrigin() + parentCubePos;
-    auto newMicrocube = std::make_unique<Microcube>(parentWorldPos, subcubePos, microcubePos);
+    auto newMicrocube = std::make_unique<Microcube>(parentWorldPos, subcubePos, microcubePos, material);
     Microcube* rawPtr = newMicrocube.get();
     auto& staticMicrocubes = m_getStaticMicrocubes();
     staticMicrocubes.push_back(std::move(newMicrocube));

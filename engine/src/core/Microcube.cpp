@@ -21,6 +21,14 @@ Microcube::Microcube(const glm::ivec3& parentCubePos,
       scale(MICROCUBE_SCALE), broken(false), visible(true), rigidBody(nullptr) {
 }
 
+Microcube::Microcube(const glm::ivec3& parentCubePos, 
+                     const glm::ivec3& subcubeLocalPos, const glm::ivec3& microcubeLocalPos,
+                     const std::string& material) 
+    : parentCubePosition(parentCubePos), 
+      subcubeLocalPosition(subcubeLocalPos), microcubeLocalPosition(microcubeLocalPos), 
+      scale(MICROCUBE_SCALE), materialName(material), broken(false), visible(true), rigidBody(nullptr) {
+}
+
 glm::vec3 Microcube::getWorldPosition() const {
     // Calculate the actual world position with two-level hierarchy:
     // 1. Parent cube position (world coordinates)

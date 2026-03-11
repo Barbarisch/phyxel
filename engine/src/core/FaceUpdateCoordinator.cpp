@@ -53,7 +53,7 @@ void FaceUpdateCoordinator::rebuildGlobalDynamicFaces() {
                 faceInstance.scale = glm::vec3(subcube->getScale());
             }
             
-            faceInstance.textureIndex = TextureConstants::getTextureIndexForFace(faceID);
+            faceInstance.textureIndex = TextureConstants::getTextureIndexForMaterial(subcube->getMaterialName(), faceID);
             faceInstance.faceID = faceID;
             faceInstance.localPosition = subcube->getLocalPosition(); // Preserve original grid position
             
@@ -95,8 +95,7 @@ void FaceUpdateCoordinator::rebuildGlobalDynamicFaces() {
             // Dynamic microcubes always use physics position and rotation
             faceInstance.worldPosition = microcube->getPhysicsPosition();
             faceInstance.rotation = microcube->getPhysicsRotation();
-            // Use placeholder texture for microcubes
-            faceInstance.textureIndex = TextureConstants::PLACEHOLDER_TEXTURE_INDEX;
+            faceInstance.textureIndex = TextureConstants::getTextureIndexForMaterial(microcube->getMaterialName(), faceID);
             faceInstance.faceID = faceID;
             faceInstance.scale = glm::vec3(microcube->getScale()); // Uniform scale for microcubes
             

@@ -202,8 +202,8 @@ void ChunkRenderManager::rebuildSubcubeFaces(
                     localPos.x, localPos.y, localPos.z
                 );
                 
-                // Assign texture based on face ID
-                faceInstance.textureIndex = Phyxel::TextureConstants::getTextureIndexForFace(faceID);
+                // Assign texture based on material and face ID
+                faceInstance.textureIndex = Phyxel::TextureConstants::getTextureIndexForMaterial(subcube->getMaterialName(), faceID);
                 faceInstance.reserved = 0;
                 faces.push_back(faceInstance);
             }
@@ -268,8 +268,8 @@ void ChunkRenderManager::rebuildMicrocubeFaces(
                     microcubePos.x, microcubePos.y, microcubePos.z
                 );
                 
-                // Use placeholder texture for microcubes
-                faceInstance.textureIndex = Phyxel::TextureConstants::PLACEHOLDER_TEXTURE_INDEX;
+                // Assign texture based on material and face ID
+                faceInstance.textureIndex = Phyxel::TextureConstants::getTextureIndexForMaterial(microcube->getMaterialName(), faceID);
                 faceInstance.reserved = 0;
                 faces.push_back(faceInstance);
             }

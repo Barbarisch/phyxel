@@ -1,6 +1,7 @@
 #pragma once
 
 #include <glm/glm.hpp>
+#include <string>
 
 // Forward declarations
 class btRigidBody;
@@ -26,6 +27,9 @@ public:
     Microcube(const glm::ivec3& parentCubePos);
     Microcube(const glm::ivec3& parentCubePos, 
               const glm::ivec3& subcubeLocalPos, const glm::ivec3& microcubeLocalPos);
+    Microcube(const glm::ivec3& parentCubePos, 
+              const glm::ivec3& subcubeLocalPos, const glm::ivec3& microcubeLocalPos,
+              const std::string& material);
     
     // Destructor
     ~Microcube() = default;
@@ -44,6 +48,7 @@ public:
     bool isBroken() const { return broken; }
     bool isVisible() const { return visible; }
     btRigidBody* getRigidBody() const { return rigidBody; }
+    const std::string& getMaterialName() const { return materialName; }
     float getLifetime() const { return lifetime; }
     bool hasExpired() const { return lifetime <= 0.0f; }
     const glm::vec3& getPhysicsPosition() const { return physicsPosition; }
@@ -58,6 +63,7 @@ public:
     void setRigidBody(btRigidBody* body) { rigidBody = body; }
     void setPhysicsPosition(const glm::vec3& pos) { physicsPosition = pos; }
     void setPhysicsRotation(const glm::vec4& rot) { physicsRotation = rot; }
+    void setMaterialName(const std::string& mat) { materialName = mat; }
     void setLifetime(float time) { lifetime = time; }
     void updateLifetime(float deltaTime) { lifetime -= deltaTime; }
     
@@ -74,6 +80,7 @@ private:
     glm::ivec3 subcubeLocalPosition;     // Local position of parent subcube within cube (0-2 for each axis)
     glm::ivec3 microcubeLocalPosition;   // Local position within parent subcube (0-2 for each axis)
     float scale;                         // Scale factor (1/9 of regular cube)
+    std::string materialName = "Default";
     float lifetime = 30.0f;              // Lifetime in seconds (auto-cleanup after 30 seconds)
     bool broken = false;
     bool visible = true;

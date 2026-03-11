@@ -181,12 +181,12 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
             }
 
             if (chunk) {
-                if (chunk->addSubcube(localPos, tSub.subcubePos)) {
+                if (chunk->addSubcube(localPos, tSub.subcubePos, tSub.material)) {
                     modifiedChunks.insert(chunk);
                 }
             }
         } else {
-            auto subcube = std::make_unique<Subcube>(parentPos, tSub.subcubePos);
+            auto subcube = std::make_unique<Subcube>(parentPos, tSub.subcubePos, tSub.material);
             
             if (m_chunkManager->physicsWorld) {
                 glm::vec3 corner = subcube->getWorldPosition();
@@ -226,12 +226,12 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
             }
 
             if (chunk) {
-                if (chunk->addMicrocube(localPos, tMicro.subcubePos, tMicro.microcubePos)) {
+                if (chunk->addMicrocube(localPos, tMicro.subcubePos, tMicro.microcubePos, tMicro.material)) {
                     modifiedChunks.insert(chunk);
                 }
             }
         } else {
-            auto microcube = std::make_unique<Microcube>(parentPos, tMicro.subcubePos, tMicro.microcubePos);
+            auto microcube = std::make_unique<Microcube>(parentPos, tMicro.subcubePos, tMicro.microcubePos, tMicro.material);
             
             if (m_chunkManager->physicsWorld) {
                 glm::vec3 corner = microcube->getWorldPosition();
@@ -366,12 +366,12 @@ void ObjectTemplateManager::update(float deltaTime) {
             }
 
             if (chunk) {
-                if (chunk->addSubcube(localPos, tSub.subcubePos)) {
+                if (chunk->addSubcube(localPos, tSub.subcubePos, tSub.material)) {
                     modifiedChunks.insert(chunk);
                 }
             }
         } else {
-             auto subcube = std::make_unique<Subcube>(parentPos, tSub.subcubePos);
+             auto subcube = std::make_unique<Subcube>(parentPos, tSub.subcubePos, tSub.material);
             if (m_chunkManager->physicsWorld) {
                 glm::vec3 corner = subcube->getWorldPosition();
                 glm::vec3 size(1.0f/3.0f);
@@ -412,12 +412,12 @@ void ObjectTemplateManager::update(float deltaTime) {
             }
 
             if (chunk) {
-                if (chunk->addMicrocube(localPos, tMicro.subcubePos, tMicro.microcubePos)) {
+                if (chunk->addMicrocube(localPos, tMicro.subcubePos, tMicro.microcubePos, tMicro.material)) {
                     modifiedChunks.insert(chunk);
                 }
             }
         } else {
-            auto microcube = std::make_unique<Microcube>(parentPos, tMicro.subcubePos, tMicro.microcubePos);
+            auto microcube = std::make_unique<Microcube>(parentPos, tMicro.subcubePos, tMicro.microcubePos, tMicro.material);
             if (m_chunkManager->physicsWorld) {
                 glm::vec3 corner = microcube->getWorldPosition();
                 glm::vec3 size(1.0f/9.0f);

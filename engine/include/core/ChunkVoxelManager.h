@@ -95,13 +95,13 @@ public:
 
     // Subcube operations
     bool subdivideAt(const glm::ivec3& localPos);
-    bool addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos);
+    bool addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, const std::string& material = "Default");
     bool removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos);
     bool clearSubdivisionAt(const glm::ivec3& localPos);
 
     // Microcube operations
     bool subdivideSubcubeAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);
-    bool addMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos);
+    bool addMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos, const std::string& material = "Default");
     bool removeMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos);
     bool clearMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);
 
@@ -120,6 +120,9 @@ public:
     bool hasVoxelAt(const glm::ivec3& localPos) const;
     bool hasSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const;
     VoxelLocation::Type getVoxelType(const glm::ivec3& localPos) const;
+
+    // Check if callbacks have been configured
+    bool hasCallbacks() const { return static_cast<bool>(m_getCubes); }
 
     // Fast lookups
     Cube* getCubeAtFast(const glm::ivec3& localPos);

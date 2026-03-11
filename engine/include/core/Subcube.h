@@ -1,6 +1,7 @@
 #pragma once
 
 #include <glm/glm.hpp>
+#include <string>
 
 // Forward declarations
 class btRigidBody;
@@ -20,6 +21,7 @@ public:
     Subcube();
     Subcube(const glm::ivec3& pos);
     Subcube(const glm::ivec3& pos, const glm::ivec3& localPos);
+    Subcube(const glm::ivec3& pos, const glm::ivec3& localPos, const std::string& material);
     
     // Destructor
     ~Subcube() = default;
@@ -37,6 +39,7 @@ public:
     bool isBroken() const { return broken; }
     bool isVisible() const { return visible; }
     btRigidBody* getRigidBody() const { return rigidBody; }
+    const std::string& getMaterialName() const { return materialName; }
     float getLifetime() const { return lifetime; }
     bool hasExpired() const { return lifetime <= 0.0f; }
     const glm::vec3& getPhysicsPosition() const { return physicsPosition; }
@@ -50,6 +53,7 @@ public:
     void setRigidBody(btRigidBody* body) { rigidBody = body; }
     void setPhysicsPosition(const glm::vec3& pos) { physicsPosition = pos; }
     void setPhysicsRotation(const glm::vec4& rot) { physicsRotation = rot; }
+    void setMaterialName(const std::string& mat) { materialName = mat; }
     void setLifetime(float time) { lifetime = time; }
     void updateLifetime(float deltaTime) { lifetime -= deltaTime; }
     
@@ -65,6 +69,7 @@ private:
     glm::ivec3 position;        // World position of the parent cube (for static subcubes)
     glm::ivec3 localPosition;   // Local position within parent cube (0-2 for each axis)
     float scale;                // Scale factor (1/3 of regular cube)
+    std::string materialName = "Default";
     float lifetime = 30.0f;     // Lifetime in seconds (auto-cleanup after 30 seconds)
     bool broken = false;
     bool visible = true;

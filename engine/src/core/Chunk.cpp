@@ -194,6 +194,25 @@ void Chunk::initializeForLoading() {
     // Clear any existing microcubes (unique_ptr auto-deletes)
     staticMicrocubes.clear();
     
+    // Set up minimal no-op callbacks if initialize() hasn't been called
+    // (e.g. in unit tests where Vulkan/physics aren't available)
+    if (!voxelManager.hasCallbacks()) {
+        voxelManager.setCallbacks(
+            [this]() -> std::vector<std::unique_ptr<Cube>>& { return cubes; },
+            [this]() -> std::vector<std::unique_ptr<Subcube>>& { return staticSubcubes; },
+            [this]() -> std::vector<std::unique_ptr<Microcube>>& { return staticMicrocubes; },
+            [this]() -> const glm::ivec3& { return worldOrigin; },
+            [this](bool value) { setDirty(value); },
+            [](bool) {},              // setNeedsUpdate - no-op without renderer
+            []() {},                  // rebuildFaces - no-op without renderer
+            [](const glm::ivec3&) {}, // addCollision - no-op without physics
+            [](const glm::ivec3&) {}, // removeCollision - no-op without physics
+            [](const glm::ivec3&) {}, // updateNeighborCollisions - no-op without physics
+            [this]() { return physicsManager.isInBulkOperation(); },
+            []() {}                   // updateVulkanBuffer - no-op without renderer
+        );
+    }
+    
     // Set bulk operation flag to prevent neighbor collision updates during loading
     physicsManager.setInBulkOperation(true);
     
@@ -425,8 +444,8 @@ bool Chunk::subdivideAt(const glm::ivec3& localPos) {
     return voxelManager.subdivideAt(localPos);
 }
 
-bool Chunk::addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos) {
-    return voxelManager.addSubcube(parentPos, subcubePos);
+bool Chunk::addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, const std::string& material) {
+    return voxelManager.addSubcube(parentPos, subcubePos, material);
 }
 
 bool Chunk::removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos) {
@@ -780,8 +799,8 @@ bool Chunk::subdivideSubcubeAt(const glm::ivec3& cubePos, const glm::ivec3& subc
     return voxelManager.subdivideSubcubeAt(cubePos, subcubePos);
 }
 
-bool Chunk::addMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos) {
-    return voxelManager.addMicrocube(parentCubePos, subcubePos, microcubePos);
+bool Chunk::addMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos, const std::string& material) {
+    return voxelManager.addMicrocube(parentCubePos, subcubePos, microcubePos, material);
 }
 
 bool Chunk::removeMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos) {

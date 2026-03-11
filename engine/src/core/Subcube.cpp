@@ -14,6 +14,10 @@ Subcube::Subcube(const glm::ivec3& pos, const glm::ivec3& localPos)
     : position(pos), localPosition(localPos), scale(SUBCUBE_SCALE), broken(false), visible(true), rigidBody(nullptr) {
 }
 
+Subcube::Subcube(const glm::ivec3& pos, const glm::ivec3& localPos, const std::string& material) 
+    : position(pos), localPosition(localPos), scale(SUBCUBE_SCALE), materialName(material), broken(false), visible(true), rigidBody(nullptr) {
+}
+
 glm::vec3 Subcube::getWorldPosition() const {
     // Calculate the actual world position by adding the local offset to the parent cube position
     // Each subcube is offset by its local position * scale within the parent cube space

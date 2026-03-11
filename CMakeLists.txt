@@ -8,6 +8,21 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 include(Sanitizers)
 
+# Address Sanitizer: apply globally before external deps so all libraries match ABI.
+# Pass -DENABLE_ASAN=ON for a Debug ASan build. Requires clean rebuild.
+option(ENABLE_ASAN "Enable Address Sanitizer (Debug builds)" OFF)
+if(ENABLE_ASAN)
+    if(MSVC)
+        add_compile_options($<$<CONFIG:Debug>:/fsanitize=address>)
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+        if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+            add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+            add_link_options(-fsanitize=address)
+        endif()
+    endif()
+    message(STATUS "Address Sanitizer ENABLED for Debug builds")
+endif()
+
 # Prevent pybind11 from auto-linking python library via pragma
 add_compile_definitions(PYBIND11_NOPYTHON_LIB_PRAGMA)
 # Force disable GIL disabled mode (free-threading)
