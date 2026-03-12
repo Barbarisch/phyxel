@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Types.h"
+#include "graphics/LightManager.h"
 #include "utils/PerformanceMonitor.h"
 #include "utils/PerformanceProfiler.h"
 #include "utils/GpuProfiler.h"
@@ -31,6 +32,9 @@ namespace Phyxel {
     class ScriptingSystem;
     namespace Graphics {
         class DebrisRenderPipeline;
+    }
+    namespace Core {
+        class NPCManager;
     }
 }
 
@@ -105,6 +109,7 @@ public:
     glm::vec3& getSunColor() { return sunColor; }
     float& getAmbientLightRef() { return ambientLightStrength; }
     float& getEmissiveMultiplierRef() { return emissiveMultiplier; }
+    LightManager& getLightManager() { return lightManager; }
 
     GpuProfiler* getGpuProfiler() { return gpuProfiler.get(); }
     
@@ -118,6 +123,7 @@ public:
 
     // Entity rendering
     void setEntities(const std::vector<std::unique_ptr<Scene::Entity>>* entities) { this->entities = entities; }
+    void setNPCManager(Core::NPCManager* npcManager) { m_npcManager = npcManager; }
     
     // Render UI elements (must be called between ImGui::NewFrame and ImGui::Render)
     void renderUI();
@@ -139,6 +145,7 @@ public:
 
 private:
     const std::vector<std::unique_ptr<Scene::Entity>>* entities = nullptr;
+    Core::NPCManager* m_npcManager = nullptr;
 
     // Rendering subsystems
     size_t renderStaticGeometry();
@@ -195,6 +202,9 @@ private:
 
     // Preallocated to avoid per-frame heap allocation in renderStaticGeometry()
     std::vector<size_t> visibleChunkIndices;
+
+    // Light management
+    LightManager lightManager;
 
     // Debris Rendering
     std::unique_ptr<DebrisRenderPipeline> debrisPipeline;

@@ -1,6 +1,9 @@
 #include "ui/ImGuiRenderer.h"
+#include "ui/DialogueSystem.h"
+#include "ui/SpeechBubbleManager.h"
 #include "core/Types.h"
 #include "core/ForceSystem.h"
+#include "graphics/LightManager.h"
 #include "scripting/ScriptingSystem.h"
 #include "utils/Timer.h"
 #include "utils/PerformanceProfiler.h"
@@ -624,17 +627,16 @@ void ImGuiRenderer::renderLightingControls(
     glm::vec3& sunDirection,
     glm::vec3& sunColor,
     float& ambientStrength,
-    float& emissiveMultiplier
+    float& emissiveMultiplier,
+    Graphics::LightManager* lightManager
 ) {
     if (!showControls) return;
 
     ImGui::SetNextWindowPos(ImVec2(10, 400), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(300, 250), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(350, 500), ImGuiCond_FirstUseEver);
 
     if (ImGui::Begin("Lighting Controls", &showControls)) {
         ImGui::Text("Sun Direction");
-        // Use a direction widget or simple sliders for XYZ
-        // Normalize after editing to keep it a direction vector
         if (ImGui::SliderFloat3("Direction", &sunDirection.x, -1.0f, 1.0f)) {
             if (glm::length(sunDirection) > 0.001f) {
                 sunDirection = glm::normalize(sunDirection);
@@ -652,6 +654,104 @@ void ImGuiRenderer::renderLightingControls(
         ImGui::Separator();
         ImGui::Text("Emissive Glow");
         ImGui::SliderFloat("Multiplier", &emissiveMultiplier, 1.0f, 10.0f);
+
+        if (lightManager) {
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            // --- Point Lights ---
+            if (ImGui::CollapsingHeader("Point Lights")) {
+                auto pointLights = lightManager->getPointLights();
+                for (size_t i = 0; i < pointLights.size(); i++) {
+                    auto& pl = pointLights[i];
+                    ImGui::PushID(static_cast<int>(i));
+                    if (ImGui::TreeNode("", "Point Light %zu", i)) {
+                        bool changed = false;
+                        changed |= ImGui::DragFloat3("Position", &pl.position.x, 0.5f);
+                        changed |= ImGui::ColorEdit3("Color", &pl.color.x);
+                        changed |= ImGui::SliderFloat("Intensity", &pl.intensity, 0.0f, 20.0f);
+                        changed |= ImGui::SliderFloat("Radius", &pl.radius, 1.0f, 200.0f);
+
+                        if (changed) {
+                            lightManager->updatePointLight(pl.id, pl);
+                        }
+
+                        if (ImGui::Button("Remove")) {
+                            lightManager->removePointLight(pl.id);
+                            ImGui::TreePop();
+                            ImGui::PopID();
+                            break;
+                        }
+                        ImGui::TreePop();
+                    }
+                    ImGui::PopID();
+                }
+
+                if (ImGui::Button("+ Add Point Light")) {
+                    Graphics::PointLight newLight;
+                    newLight.position = glm::vec3(16.0f, 20.0f, 16.0f);
+                    newLight.color = glm::vec3(1.0f, 1.0f, 1.0f);
+                    newLight.intensity = 5.0f;
+                    newLight.radius = 30.0f;
+                    lightManager->addPointLight(newLight);
+                }
+            }
+
+            // --- Spot Lights ---
+            if (ImGui::CollapsingHeader("Spot Lights")) {
+                auto spotLights = lightManager->getSpotLights();
+                for (size_t i = 0; i < spotLights.size(); i++) {
+                    auto& sl = spotLights[i];
+                    ImGui::PushID(static_cast<int>(1000 + i));
+                    if (ImGui::TreeNode("", "Spot Light %zu", i)) {
+                        bool changed = false;
+                        changed |= ImGui::DragFloat3("Position", &sl.position.x, 0.5f);
+                        changed |= ImGui::DragFloat3("Direction", &sl.direction.x, 0.01f, -1.0f, 1.0f);
+                        changed |= ImGui::ColorEdit3("Color", &sl.color.x);
+                        changed |= ImGui::SliderFloat("Intensity", &sl.intensity, 0.0f, 20.0f);
+                        changed |= ImGui::SliderFloat("Radius", &sl.radius, 1.0f, 200.0f);
+                        float innerDeg = glm::degrees(std::acos(sl.innerCone));
+                        float outerDeg = glm::degrees(std::acos(sl.outerCone));
+                        if (ImGui::SliderFloat("Inner Angle", &innerDeg, 1.0f, 89.0f)) {
+                            sl.innerCone = std::cos(glm::radians(innerDeg));
+                            changed = true;
+                        }
+                        if (ImGui::SliderFloat("Outer Angle", &outerDeg, 1.0f, 90.0f)) {
+                            sl.outerCone = std::cos(glm::radians(outerDeg));
+                            changed = true;
+                        }
+
+                        if (changed) {
+                            if (glm::length(sl.direction) > 0.001f) {
+                                sl.direction = glm::normalize(sl.direction);
+                            }
+                            lightManager->updateSpotLight(sl.id, sl);
+                        }
+
+                        if (ImGui::Button("Remove")) {
+                            lightManager->removeSpotLight(sl.id);
+                            ImGui::TreePop();
+                            ImGui::PopID();
+                            break;
+                        }
+                        ImGui::TreePop();
+                    }
+                    ImGui::PopID();
+                }
+
+                if (ImGui::Button("+ Add Spot Light")) {
+                    Graphics::SpotLight newLight;
+                    newLight.position = glm::vec3(16.0f, 25.0f, 16.0f);
+                    newLight.direction = glm::normalize(glm::vec3(0.0f, -1.0f, 0.0f));
+                    newLight.color = glm::vec3(1.0f, 1.0f, 1.0f);
+                    newLight.intensity = 8.0f;
+                    newLight.radius = 50.0f;
+                    newLight.innerCone = std::cos(glm::radians(25.0f));
+                    newLight.outerCone = std::cos(glm::radians(35.0f));
+                    lightManager->addSpotLight(newLight);
+                }
+            }
+        }
     }
     ImGui::End();
 }
@@ -712,6 +812,164 @@ void ImGuiRenderer::renderProfilerWindow(bool show, PerformanceProfiler* cpuProf
         }
     }
     ImGui::End();
+}
+
+// ============================================================================
+// DIALOGUE BOX RENDERING
+// ============================================================================
+
+void ImGuiRenderer::renderDialogueBox(DialogueSystem* dialogueSystem) {
+    if (!dialogueSystem || !dialogueSystem->isActive()) return;
+
+    // Get display size for positioning
+    ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+    float boxHeight = displaySize.y * 0.25f;
+    float boxWidth = displaySize.x * 0.8f;
+    float boxX = (displaySize.x - boxWidth) * 0.5f;
+    float boxY = displaySize.y - boxHeight - 20.0f;
+
+    ImGui::SetNextWindowPos(ImVec2(boxX, boxY));
+    ImGui::SetNextWindowSize(ImVec2(boxWidth, boxHeight));
+    ImGui::SetNextWindowBgAlpha(0.9f);
+
+    ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar |
+                                    ImGuiWindowFlags_NoResize |
+                                    ImGuiWindowFlags_NoMove |
+                                    ImGuiWindowFlags_NoCollapse |
+                                    ImGuiWindowFlags_NoScrollbar;
+
+    if (ImGui::Begin("##DialogueBox", nullptr, windowFlags)) {
+        // Speaker name
+        const auto& speaker = dialogueSystem->getCurrentSpeaker();
+        if (!speaker.empty()) {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.8f, 1.0f, 1.0f));
+            ImGui::Text("%s", speaker.c_str());
+            ImGui::PopStyleColor();
+            ImGui::Separator();
+        }
+
+        // Dialogue text (typewriter effect)
+        const auto& text = dialogueSystem->getRevealedText();
+        ImGui::TextWrapped("%s", text.c_str());
+
+        // Show choices if in choice selection state
+        if (dialogueSystem->getState() == DialogueState::ChoiceSelection) {
+            ImGui::Spacing();
+            ImGui::Separator();
+            const auto& choices = dialogueSystem->getAvailableChoices();
+            for (size_t i = 0; i < choices.size(); ++i) {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.9f, 0.4f, 1.0f));
+                ImGui::Text("[%zu] %s", i + 1, choices[i].text.c_str());
+                ImGui::PopStyleColor();
+            }
+        }
+
+        // Continue indicator
+        if (dialogueSystem->getState() == DialogueState::WaitingForInput) {
+            ImGui::SetCursorPosX(boxWidth - 100.0f);
+            float pulse = 0.5f + 0.5f * sinf(static_cast<float>(ImGui::GetTime()) * 3.0f);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, pulse));
+            ImGui::Text("[Enter] >>>");
+            ImGui::PopStyleColor();
+        }
+    }
+    ImGui::End();
+}
+
+// ============================================================================
+// SPEECH BUBBLE RENDERING
+// ============================================================================
+
+void ImGuiRenderer::renderSpeechBubbles(SpeechBubbleManager* bubbleManager,
+                                         const glm::mat4& viewMatrix,
+                                         const glm::mat4& projectionMatrix,
+                                         float screenWidth, float screenHeight) {
+    if (!bubbleManager || bubbleManager->getBubbleCount() == 0) return;
+
+    for (const auto& bubble : bubbleManager->getBubbles()) {
+        glm::vec3 worldPos = bubbleManager->getBubbleWorldPosition(bubble);
+        float opacity = bubbleManager->getBubbleOpacity(bubble);
+
+        // World-to-screen projection
+        glm::vec4 clipPos = projectionMatrix * viewMatrix * glm::vec4(worldPos, 1.0f);
+        if (clipPos.w <= 0.0f) continue; // Behind camera
+
+        glm::vec3 ndc = glm::vec3(clipPos) / clipPos.w;
+        float screenX = (ndc.x * 0.5f + 0.5f) * screenWidth;
+        float screenY = (1.0f - (ndc.y * 0.5f + 0.5f)) * screenHeight; // Flip Y for Vulkan
+
+        // Skip if off-screen
+        if (screenX < -100 || screenX > screenWidth + 100 ||
+            screenY < -100 || screenY > screenHeight + 100) continue;
+
+        // Calculate bubble size based on text
+        ImVec2 textSize = ImGui::CalcTextSize(bubble.text.c_str(), nullptr, false, 200.0f);
+        float bubbleWidth = textSize.x + 20.0f;
+        float bubbleHeight = textSize.y + 16.0f;
+
+        ImGui::SetNextWindowPos(ImVec2(screenX - bubbleWidth * 0.5f, screenY - bubbleHeight));
+        ImGui::SetNextWindowSize(ImVec2(bubbleWidth, bubbleHeight));
+        ImGui::SetNextWindowBgAlpha(0.85f * opacity);
+
+        char windowId[64];
+        snprintf(windowId, sizeof(windowId), "##Bubble_%s", bubble.speakerEntityId.c_str());
+
+        ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                                  ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
+                                  ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs;
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.0f);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, opacity));
+        if (ImGui::Begin(windowId, nullptr, flags)) {
+            ImGui::TextWrapped("%s", bubble.text.c_str());
+        }
+        ImGui::End();
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+    }
+}
+
+// ============================================================================
+// INTERACTION PROMPT RENDERING
+// ============================================================================
+
+void ImGuiRenderer::renderInteractionPrompt(bool show, const glm::vec3& npcWorldPos,
+                                              const glm::mat4& viewMatrix,
+                                              const glm::mat4& projectionMatrix,
+                                              float screenWidth, float screenHeight) {
+    if (!show) return;
+
+    // Project NPC position to screen
+    glm::vec4 clipPos = projectionMatrix * viewMatrix * glm::vec4(npcWorldPos + glm::vec3(0, 3.0f, 0), 1.0f);
+    if (clipPos.w <= 0.0f) return;
+
+    glm::vec3 ndc = glm::vec3(clipPos) / clipPos.w;
+    float screenX = (ndc.x * 0.5f + 0.5f) * screenWidth;
+    float screenY = (1.0f - (ndc.y * 0.5f + 0.5f)) * screenHeight;
+
+    const char* promptText = "[E] Interact";
+    ImVec2 textSize = ImGui::CalcTextSize(promptText);
+    float promptWidth = textSize.x + 20.0f;
+    float promptHeight = textSize.y + 12.0f;
+
+    ImGui::SetNextWindowPos(ImVec2(screenX - promptWidth * 0.5f, screenY - promptHeight));
+    ImGui::SetNextWindowSize(ImVec2(promptWidth, promptHeight));
+
+    float pulse = 0.7f + 0.3f * sinf(static_cast<float>(ImGui::GetTime()) * 2.5f);
+    ImGui::SetNextWindowBgAlpha(0.8f * pulse);
+
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                              ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
+                              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 0.6f, pulse));
+    if (ImGui::Begin("##InteractPrompt", nullptr, flags)) {
+        ImGui::Text("%s", promptText);
+    }
+    ImGui::End();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
 }
 
 } // namespace Phyxel::UI

@@ -19,8 +19,10 @@ namespace Phyxel {
     class ForceSystem;
     class MouseVelocityTracker;
     namespace Physics { class PhysicsWorld; }
+    namespace Graphics { class LightManager; }
     namespace Vulkan { class VulkanDevice; class RenderPipeline; }
     class ScriptingSystem;
+    namespace UI { class DialogueSystem; class SpeechBubbleManager; }
 }
 
 namespace Phyxel::UI {
@@ -76,8 +78,28 @@ public:
         glm::vec3& sunDirection,
         glm::vec3& sunColor,
         float& ambientStrength,
-        float& emissiveMultiplier
+        float& emissiveMultiplier,
+        Graphics::LightManager* lightManager = nullptr
     );
+
+    /// Render the RPG dialogue box (bottom of screen) when a conversation is active.
+    void renderDialogueBox(DialogueSystem* dialogueSystem);
+
+    /// Render floating speech bubbles above entities.
+    /// @param viewMatrix       Camera view matrix for world-to-screen projection
+    /// @param projectionMatrix Camera projection matrix
+    /// @param screenWidth      Viewport width in pixels
+    /// @param screenHeight     Viewport height in pixels
+    void renderSpeechBubbles(SpeechBubbleManager* bubbleManager,
+                             const glm::mat4& viewMatrix,
+                             const glm::mat4& projectionMatrix,
+                             float screenWidth, float screenHeight);
+
+    /// Render "Press E to interact" prompt above nearest NPC.
+    void renderInteractionPrompt(bool show, const glm::vec3& npcWorldPos,
+                                  const glm::mat4& viewMatrix,
+                                  const glm::mat4& projectionMatrix,
+                                  float screenWidth, float screenHeight);
 
     // Helper for callbacks
     int handleInputTextCallback(struct ::ImGuiInputTextCallbackData* data);

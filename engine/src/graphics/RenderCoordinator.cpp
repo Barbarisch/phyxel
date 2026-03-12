@@ -1,4 +1,5 @@
 #include "graphics/RenderCoordinator.h"
+#include "graphics/LightManager.h"
 #include "graphics/RaycastVisualizer.h"
 #include "graphics/ShadowMap.h"
 #include "graphics/PostProcessor.h"
@@ -19,6 +20,8 @@
 #include "scene/RagdollCharacter.h"
 #include "scene/PhysicsCharacter.h"
 #include "scene/AnimatedVoxelCharacter.h"
+#include "scene/NPCEntity.h"
+#include "core/NPCManager.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <map>
 
@@ -379,6 +382,11 @@ void RenderCoordinator::drawFrame() {
     performanceProfiler->recordMemoryTransfer(uniformBufferSize);
     
     vulkanDevice->updateUniformBuffer(currentFrame, view, proj, lightSpaceMatrix, sunDirection, sunColor, static_cast<uint32_t>(chunkStats.totalCubes), ambientLightStrength, emissiveMultiplier);
+    
+    // Upload light data to GPU SSBO
+    auto gpuLightData = lightManager.getGPUData();
+    vulkanDevice->updateLightBuffer(currentFrame, gpuLightData);
+    
     auto uniformUploadEnd = std::chrono::high_resolution_clock::now();
 
     // Record command buffer
@@ -612,7 +620,8 @@ void RenderCoordinator::renderUI() {
             sunDirection,
             sunColor,
             ambientLightStrength,
-            emissiveMultiplier
+            emissiveMultiplier,
+            &lightManager
         );
 
         imguiRenderer->renderProfilerWindow(
@@ -624,18 +633,35 @@ void RenderCoordinator::renderUI() {
 }
 
 void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
-    if (!entities || entities->empty()) return;
+    bool hasEntities = entities && !entities->empty();
+    bool hasNPCs = m_npcManager && m_npcManager->getNPCCount() > 0;
+    if (!hasEntities && !hasNPCs) return;
 
     // Separate entities into instanced and standard
     std::vector<Scene::AnimatedVoxelCharacter*> instancedCharacters;
     std::vector<Scene::Entity*> standardEntities;
 
-    for (const auto& entity : *entities) {
-        auto animatedChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity.get());
-        if (animatedChar) {
-            instancedCharacters.push_back(animatedChar);
-        } else {
-            standardEntities.push_back(entity.get());
+    if (hasEntities) {
+        for (const auto& entity : *entities) {
+            auto animatedChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity.get());
+            if (animatedChar) {
+                instancedCharacters.push_back(animatedChar);
+            } else {
+                standardEntities.push_back(entity.get());
+            }
+        }
+    }
+
+    // Add NPC animated characters to the instanced list
+    if (hasNPCs) {
+        for (const auto& name : m_npcManager->getAllNPCNames()) {
+            auto* npc = m_npcManager->getNPC(name);
+            if (npc) {
+                auto* animChar = npc->getAnimatedCharacter();
+                if (animChar) {
+                    instancedCharacters.push_back(animChar);
+                }
+            }
         }
     }
 
@@ -691,6 +717,7 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
             vulkanDevice->updateCharacterInstanceBuffer(instanceData);
             renderPipeline->bindInstancedCharacterPipeline(commandBuffer);
             vulkanDevice->bindCharacterInstanceBuffer(commandBuffer);
+            vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getInstancedCharacterLayout());
 
             glm::mat4 viewProj = cachedProjectionMatrix * cachedViewMatrix;
 
@@ -712,6 +739,7 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
     }
 
     renderPipeline->bindCharacterPipeline(commandBuffer);
+    vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getCharacterLayout());
 
     for (const auto& entity : standardEntities) {
         // Check for RagdollCharacter (handles both PhysicsCharacter and SpiderCharacter)

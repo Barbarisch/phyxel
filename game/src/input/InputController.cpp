@@ -5,6 +5,7 @@
 #include "core/ObjectTemplateManager.h"
 #include "core/VoxelTemplate.h"
 #include "graphics/RaycastVisualizer.h"
+#include "ui/DialogueSystem.h"
 #include "utils/Logger.h"
 #include <GLFW/glfw3.h>
 
@@ -77,20 +78,14 @@ void InputController::initializeBindings() {
 }
 
 void InputController::setupKeyboardBindings() {
-    // ESC - Exit application
+    // ESC - Exit application (or end dialogue if active)
     m_inputManager->registerAction(GLFW_KEY_ESCAPE, "Exit", [this]() {
+        auto* ds = m_app->getDialogueSystem();
+        if (ds && ds->isActive()) {
+            ds->endConversation();
+            return;
+        }
         LOG_INFO("InputController", "ESC pressed - requesting shutdown");
-        // We need to access window manager to close. 
-        // Application::cleanup() handles shutdown, but we need to signal it.
-        // Application::run() loop checks windowManager->shouldClose().
-        // So we need to set window should close.
-        // Application doesn't expose windowManager directly but has setWindowSize etc.
-        // But we can use glfwSetWindowShouldClose if we have the window handle.
-        // Or we can add a method to Application to request shutdown.
-        // For now, let's assume we can access it via Application or just use the same logic as before if possible.
-        // The original code used: glfwSetWindowShouldClose(windowManager->getHandle(), true);
-        // Application has windowManager as private.
-        // I should add `Application::quit()` method.
         m_app->quit(); 
     });
     
@@ -107,6 +102,16 @@ void InputController::setupKeyboardBindings() {
     // V - Toggle Camera Mode
     m_inputManager->registerAction(GLFW_KEY_V, "Toggle Camera Mode", [this]() {
         m_app->toggleCameraMode();
+    });
+
+    // Tab - Cycle Camera Slot (next)
+    m_inputManager->registerAction(GLFW_KEY_TAB, "Cycle Camera Slot", [this]() {
+        m_app->cycleCameraSlot();
+    });
+
+    // Shift+Tab - Cycle Camera Slot (previous)
+    m_inputManager->registerActionWithModifier(GLFW_KEY_TAB, GLFW_MOD_SHIFT, "Cycle Camera Slot Reverse", [this]() {
+        m_app->cycleCameraSlotReverse();
     });
 
     // X - Derez Character
@@ -167,6 +172,41 @@ void InputController::setupKeyboardBindings() {
     m_inputManager->registerAction(GLFW_KEY_F9, "Toggle AI System", [this]() {
         LOG_INFO("InputController", "F9 pressed - Toggling AI System");
         m_app->toggleAISystem();
+    });
+
+    // E - Interact with NPC
+    m_inputManager->registerAction(GLFW_KEY_E, "Interact with NPC", [this]() {
+        m_app->interactWithNPC();
+    });
+
+    // Enter - Advance dialogue (when active)
+    m_inputManager->registerAction(GLFW_KEY_ENTER, "Advance Dialogue", [this]() {
+        auto* ds = m_app->getDialogueSystem();
+        if (ds && ds->isActive()) {
+            ds->advanceDialogue();
+        }
+    });
+
+    // 1-4 - Select dialogue choice (when active)
+    m_inputManager->registerAction(GLFW_KEY_1, "Dialogue Choice 1", [this]() {
+        auto* ds = m_app->getDialogueSystem();
+        if (ds && ds->getState() == UI::DialogueState::ChoiceSelection)
+            ds->selectChoice(0);
+    });
+    m_inputManager->registerAction(GLFW_KEY_2, "Dialogue Choice 2", [this]() {
+        auto* ds = m_app->getDialogueSystem();
+        if (ds && ds->getState() == UI::DialogueState::ChoiceSelection)
+            ds->selectChoice(1);
+    });
+    m_inputManager->registerAction(GLFW_KEY_3, "Dialogue Choice 3", [this]() {
+        auto* ds = m_app->getDialogueSystem();
+        if (ds && ds->getState() == UI::DialogueState::ChoiceSelection)
+            ds->selectChoice(2);
+    });
+    m_inputManager->registerAction(GLFW_KEY_4, "Dialogue Choice 4", [this]() {
+        auto* ds = m_app->getDialogueSystem();
+        if (ds && ds->getState() == UI::DialogueState::ChoiceSelection)
+            ds->selectChoice(3);
     });
     
     // G - Spawn dynamic subcube (placeholder)

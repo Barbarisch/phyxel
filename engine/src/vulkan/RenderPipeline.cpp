@@ -341,8 +341,9 @@ bool RenderPipeline::createCharacterPipeline() {
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 0; // No descriptor sets for now
-    pipelineLayoutInfo.pSetLayouts = nullptr;
+    VkDescriptorSetLayout descSetLayout = vulkanDevice.getDescriptorSetLayout();
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = &descSetLayout;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 

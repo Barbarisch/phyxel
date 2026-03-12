@@ -8,6 +8,7 @@
 #include "graphics/RenderCoordinator.h"
 #include "graphics/RaycastVisualizer.h"
 #include "graphics/Camera.h"
+#include "graphics/CameraManager.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "physics/PhysicsWorld.h"
 #include "utils/Timer.h"
@@ -30,6 +31,11 @@
 #include "core/EngineAPIServer.h"
 #include "core/GameEventLog.h"
 #include "core/SnapshotManager.h"
+#include "core/NPCManager.h"
+#include "core/InteractionManager.h"
+#include "ui/DialogueSystem.h"
+#include "ui/SpeechBubbleManager.h"
+#include "scene/NPCEntity.h"
 #include "scene/Entity.h"
 #include "scene/Player.h"
 #include "scene/Enemy.h"
@@ -72,6 +78,8 @@ public:
     void toggleProfiler();
     void toggleCameraMode();
     void toggleCharacterControl();
+    void cycleCameraSlot();
+    void cycleCameraSlotReverse();
 
     // Character Management
     Scene::PhysicsCharacter* createPhysicsCharacter(const glm::vec3& pos);
@@ -83,6 +91,7 @@ public:
     // AI NPC Management
     void spawnTestAINPC();
     void toggleAISystem();
+    void interactWithNPC();
 
     // Accessors
     ObjectTemplateManager* getObjectTemplateManager() const { return objectTemplateManager.get(); }
@@ -95,6 +104,11 @@ public:
     AI::AISystem* getAISystem() const { return aiSystem.get(); }
     Core::EntityRegistry* getEntityRegistry() const { return entityRegistry.get(); }
     Core::EngineAPIServer* getAPIServer() const { return apiServer.get(); }
+    Graphics::CameraManager* getCameraManager() const { return cameraManager.get(); }
+    Core::NPCManager* getNPCManager() const { return npcManager.get(); }
+    Core::InteractionManager* getInteractionManager() const { return interactionManager.get(); }
+    UI::DialogueSystem* getDialogueSystem() const { return dialogueSystem.get(); }
+    UI::SpeechBubbleManager* getSpeechBubbleManager() const { return speechBubbleManager.get(); }
 
 private:
     // ============================================================================
@@ -112,6 +126,7 @@ private:
     std::unique_ptr<UI::ImGuiRenderer> imguiRenderer;                  // Debug UI rendering
     std::unique_ptr<RaycastVisualizer> raycastVisualizer;              // Raycast debug visualization
     std::unique_ptr<Graphics::Camera> camera;                          // Camera system
+    std::unique_ptr<Graphics::CameraManager> cameraManager;             // Camera slots and transitions
     
     // World and physics
     std::unique_ptr<ChunkManager> chunkManager;                        // Voxel world management
@@ -148,6 +163,15 @@ private:
     std::unique_ptr<Core::EngineAPIServer> apiServer;
     std::unique_ptr<Core::GameEventLog> gameEventLog;
     std::unique_ptr<Core::SnapshotManager> snapshotManager;
+
+    // NPC System
+    std::unique_ptr<Core::NPCManager> npcManager;
+    std::unique_ptr<Core::InteractionManager> interactionManager;
+
+    // Dialogue System
+    std::unique_ptr<UI::DialogueSystem> dialogueSystem;
+    std::unique_ptr<UI::SpeechBubbleManager> speechBubbleManager;
+    std::unique_ptr<UI::DialogueTree> m_apiDialogueTree; // Keeps API-started dialogue trees alive
 
     // Entities
     std::vector<std::unique_ptr<Scene::Entity>> entities;

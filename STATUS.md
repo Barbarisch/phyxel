@@ -1,6 +1,6 @@
 # Phyxel — Project Status & Next Steps
 
-*Last updated: March 10, 2026*
+*Last updated: March 11, 2026*
 
 ## What's Been Built
 
@@ -34,7 +34,21 @@
 - All `api_get`/`api_post`/`_dispatch_tool` are now properly async
 - Fixes hanging behavior that confused Claude Code
 
-### Phase 3: Feature & Polish (current session)
+### NPC System (current session)
+
+#### NPCEntity & NPCManager
+- **NPCEntity**: Wraps `AnimatedVoxelCharacter`, delegates to a pluggable `NPCBehavior` strategy. Supports `IdleBehavior` and `PatrolBehavior` (waypoints, walk speed, wait time).
+- **NPCManager**: Owns all NPC entities, registers them with `EntityRegistry` as type `"npc"`. Handles spawn/remove lifecycle and wires NPC context (physics, registry, light manager).
+- **Behaviors**: `IdleBehavior` (stationary), `PatrolBehavior` (ordered waypoints with configurable speed/wait)
+- **Dialogue**: `DialogueSystem`, `SpeechBubbleManager`, `InteractionManager` for NPC interaction
+- **API endpoints**: `POST /api/npc/spawn`, `POST /api/npc/remove`, `GET /api/npcs`, `POST /api/npc/behavior`, `POST /api/npc/dialogue`
+
+#### NPC Rendering Fix
+- **Root cause**: `NPCManager` had no render path — NPCs were updated but never drawn. `AnimatedVoxelCharacter::render()` is a no-op; rendering requires `RenderCoordinator` to iterate the character's `parts`.
+- **Fix**: `RenderCoordinator` now holds a `Core::NPCManager*` (set via `setNPCManager()`). `renderEntities()` pulls each NPC's `AnimatedVoxelCharacter*` via `getAnimatedCharacter()` and adds it to the instanced character batch alongside regular entities.
+- **Spawn position fix**: `spawn_npc` handler now accepts flat `x`/`y`/`z` fields in addition to nested `"position"` object.
+
+### Phase 3: Feature & Polish (previous session)
 
 #### Subcube/Microcube Per-Material Textures
 - Subcube and Microcube now store a `materialName` field (defaults to "Default")

@@ -12,6 +12,7 @@ layout(location = 2) in vec4 inColor;
 
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec3 fragNormal;
+layout(location = 2) out vec3 fragWorldPos;
 
 // Cube vertices (positions)
 const vec3 positions[36] = vec3[36](
@@ -71,4 +72,5 @@ void main() {
     // Transform normal (only rotation from model matrix)
     fragNormal = mat3(pushConsts.model) * normal;
     fragColor = inColor.rgb;
+    fragWorldPos = (pushConsts.model * vec4(localPos, 1.0)).xyz;
 }

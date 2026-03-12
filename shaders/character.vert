@@ -8,6 +8,7 @@ layout(push_constant) uniform PushConstants {
 
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec3 fragNormal;
+layout(location = 2) out vec3 fragWorldPos;
 
 // Cube vertices (positions)
 const vec3 positions[36] = vec3[36](
@@ -60,4 +61,5 @@ void main() {
     gl_Position = pushConsts.viewProj * pushConsts.model * vec4(inPosition, 1.0);
     fragColor = pushConsts.color.rgb;
     fragNormal = mat3(transpose(inverse(pushConsts.model))) * inNormal;
+    fragWorldPos = (pushConsts.model * vec4(inPosition, 1.0)).xyz;
 }

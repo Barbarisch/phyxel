@@ -17,33 +17,50 @@ classDiagram
         +setPosition(pos)
         +getPosition()
     }
-    
+
     class Character {
         +walk(direction)
         +jump()
         -btKinematicCharacterController controller
         -btPairCachingGhostObject ghostObject
     }
-    
+
     class PhysicsCharacter {
         +walk(direction)
         +jump()
         -btRigidBody mainBody
         -btHingeConstraint legs
     }
-    
+
+    class AnimatedVoxelCharacter {
+        +loadModel(animFile)
+        +playAnimation(name)
+        +getParts()
+    }
+
+    class NPCEntity {
+        +getName()
+        +setBehavior(behavior)
+        +getAnimatedCharacter()
+        -AnimatedVoxelCharacter character
+        -NPCBehavior behavior
+    }
+
     class Player {
         +handleInput()
     }
-    
+
     class Enemy {
         +updateAI()
     }
-    
+
     Entity <|-- Character
     Entity <|-- PhysicsCharacter
+    Entity <|-- AnimatedVoxelCharacter
+    Entity <|-- NPCEntity
     Character <|-- Player
     Character <|-- Enemy
+    NPCEntity *-- AnimatedVoxelCharacter
 ```
 
 ### Entity
@@ -71,6 +88,26 @@ Represents the user-controlled character.
 ### Enemy
 Represents AI-controlled characters.
 - **AI**: Implements basic "chase" behavior, moving towards the player if within a certain range.
+
+### AnimatedVoxelCharacter
+A voxel character loaded from `.anim` files with a skeleton, box-based geometry, and named animation clips.
+- **Model**: Bones + box geometry defined in `.anim` files. Available models in `resources/animated_characters/`.
+- **Rendering**: Parts are collected by `RenderCoordinator::renderEntities()` into the instanced character batch.
+- **Animations**: Named clips (idle, walk, run, jump, attack, etc.) driven by bone channel keyframes.
+
+### NPCEntity
+A non-player character that wraps an `AnimatedVoxelCharacter` and delegates logic to a pluggable `NPCBehavior`.
+- **Ownership**: Owned by `NPCManager`, registered in `EntityRegistry` with type tag `"npc"`.
+- **Behaviors**: `IdleBehavior` (stationary), `PatrolBehavior` (waypoint patrol with configurable speed/wait time).
+- **Rendering**: `RenderCoordinator` pulls the inner `AnimatedVoxelCharacter*` via `getAnimatedCharacter()` and renders it alongside regular entities in the instanced batch.
+- **Dialogue**: Supports an attached `DialogueProvider` for NPC conversations.
+- **Lights**: Optional attached point light via `setAttachedLightId()`.
+
+### NPCManager
+Owns and manages all `NPCEntity` instances.
+- **Spawning**: `spawnNPC()` / `spawnNPCWithBehavior()` — creates the entity, registers it in `EntityRegistry`, wires context.
+- **Rendering integration**: `RenderCoordinator` holds a pointer to `NPCManager` (set via `setNPCManager()`). During `renderEntities()`, all NPC characters are added to the instanced render batch.
+- **API**: Exposed via HTTP endpoints — `POST /api/npc/spawn`, `POST /api/npc/remove`, `GET /api/npcs`, `POST /api/npc/behavior`.
 
 ## Physics Integration
 
@@ -119,6 +156,8 @@ entities.push_back(std::move(enemy));
 
 ### The Render Loop
 1. `RenderCoordinator::renderEntities()` binds the character pipeline.
-2. Iterates over entities.
-3. Pushes MVP matrix and Color via Push Constants.
-4. Draws 36 vertices (12 triangles) for the cube mesh.
+2. Iterates over the `entities` vector, collecting `AnimatedVoxelCharacter*` instances into an instanced batch.
+3. Also iterates all NPCs from `NPCManager`, adding their inner `AnimatedVoxelCharacter*` to the same batch.
+4. Renders all instanced characters together via the character instanced pipeline.
+
+Note: `AnimatedVoxelCharacter::render()` itself is a no-op — rendering is handled entirely by `RenderCoordinator` collecting the character's `parts` directly.

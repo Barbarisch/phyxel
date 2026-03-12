@@ -22,6 +22,7 @@ layout(location = 1) out vec2 texCoord;           // pass texture coordinates to
 layout(location = 2) out vec4 shadowCoord;        // pass shadow coordinates to frag shader
 layout(location = 3) out flat uint flags;         // pass flags to frag shader
 layout(location = 4) out vec3 outNormal;          // pass normal to frag shader
+layout(location = 5) out vec3 outWorldPos;        // pass world position to frag shader
 
 void main() {
     // Extract chunk-relative position from packed data (5 bits each for x,y,z)
@@ -273,6 +274,7 @@ void main() {
     // CPU pre-filtering: Only vertices for visible faces are sent to GPU
     // No need for face visibility checking - all vertices here should be rendered
     gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
+    outWorldPos = worldPos;
     
     // Pass texture data to fragment shader
     textureIndex = inTextureIndex;

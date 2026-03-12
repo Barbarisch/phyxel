@@ -648,6 +648,104 @@ void EngineAPIServer::setupRoutes() {
             res.set_content(err.dump(), "application/json");
         }
     });
+
+    // ====================================================================
+    // NPC MANAGEMENT
+    // ====================================================================
+
+    // POST /api/npc/spawn — Spawn an NPC
+    srv.Post("/api/npc/spawn", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("spawn_npc", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/npc/remove — Remove an NPC
+    srv.Post("/api/npc/remove", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("remove_npc", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // GET /api/npcs — List all NPCs
+    srv.Get("/api/npcs", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("list_npcs", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/npc/behavior — Set NPC behavior
+    srv.Post("/api/npc/behavior", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_npc_behavior", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // DIALOGUE & SPEECH BUBBLES
+    // ====================================================================
+
+    // POST /api/npc/dialogue — Set dialogue tree on an NPC
+    srv.Post("/api/npc/dialogue", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_npc_dialogue", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/dialogue/start — Start a dialogue conversation
+    srv.Post("/api/dialogue/start", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("start_dialogue", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/dialogue/end — End active dialogue
+    srv.Post("/api/dialogue/end", [this](const httplib::Request& req, httplib::Response& res) {
+        json result = queueAndWait("end_dialogue", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/speech/say — Create a speech bubble above an entity
+    srv.Post("/api/speech/say", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("say_bubble", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
 }
 
 // ============================================================================

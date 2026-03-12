@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Types.h"
+#include "graphics/Light.h"
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <optional>
@@ -117,6 +118,9 @@ public:
     bool createIndexBuffer();
     bool createInstanceBuffer();
     bool createUniformBuffers();
+    bool createLightBuffers();
+    void updateLightBuffer(uint32_t frameIndex, const Graphics::LightBufferGPU& lightData);
+    void cleanupLightBuffers();
     bool createDescriptorSetLayout();
     bool createDescriptorPool();
     bool createDescriptorSets();
@@ -285,6 +289,10 @@ private:
     // Shadow map resources
     VkImageView shadowMapImageView = VK_NULL_HANDLE;
     VkSampler shadowMapSampler = VK_NULL_HANDLE;
+
+    // Light SSBO resources
+    std::vector<VkBuffer> lightBuffers;
+    std::vector<VkDeviceMemory> lightBuffersMemory;
 
     // Command buffers
     VkCommandPool commandPool = VK_NULL_HANDLE;

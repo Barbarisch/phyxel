@@ -630,6 +630,128 @@ async def list_tools() -> list[Tool]:
                 "required": ["name", "x1", "y1", "z1", "x2", "y2", "z2"]
             }
         ),
+
+        # ================================================================
+        # NPC Management
+        # ================================================================
+        Tool(
+            name="spawn_npc",
+            description="Spawn an NPC with an animated voxel character. NPCs can have idle or patrol behaviors and can be interacted with using the E key. Supports dialogue trees via set_npc_dialogue.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Unique NPC name/identifier"},
+                    "animFile": {"type": "string", "description": "Animation file (default: character.anim)", "default": "character.anim"},
+                    "position": {"type": "object", "description": "Spawn position {x,y,z}", "properties": {
+                        "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}
+                    }},
+                    "behavior": {"type": "string", "description": "Behavior type: idle or patrol", "enum": ["idle", "patrol"], "default": "idle"},
+                    "waypoints": {"type": "array", "description": "Patrol waypoints [{x,y,z}, ...] (required for patrol)", "items": {
+                        "type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}
+                    }},
+                    "walkSpeed": {"type": "number", "description": "Walk speed for patrol (default 2.0)", "default": 2.0},
+                    "waitTime": {"type": "number", "description": "Wait time at waypoints (default 2.0)", "default": 2.0}
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="remove_npc",
+            description="Remove an NPC from the world by name.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "NPC name to remove"}
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="list_npcs",
+            description="List all NPCs in the world with their positions, behaviors, and interaction radii.",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        Tool(
+            name="set_npc_behavior",
+            description="Change an NPC's behavior (idle or patrol with waypoints).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "NPC name"},
+                    "behavior": {"type": "string", "description": "Behavior type: idle or patrol", "enum": ["idle", "patrol"]},
+                    "waypoints": {"type": "array", "description": "Patrol waypoints (for patrol behavior)", "items": {
+                        "type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}
+                    }},
+                    "walkSpeed": {"type": "number", "description": "Walk speed", "default": 2.0},
+                    "waitTime": {"type": "number", "description": "Wait time at waypoints", "default": 2.0}
+                },
+                "required": ["name", "behavior"]
+            }
+        ),
+
+        # ================================================================
+        # Dialogue & Speech Bubbles
+        # ================================================================
+        Tool(
+            name="set_npc_dialogue",
+            description="Assign a dialogue tree (JSON) to an NPC. When a player presses E near this NPC, the dialogue will play in the RPG dialogue box at the bottom of the screen. Dialogue trees have nodes with speaker, text, optional choices, and navigation.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "NPC name to assign dialogue to"},
+                    "tree": {
+                        "type": "object",
+                        "description": "Dialogue tree JSON: {id, startNodeId, nodes: [{id, speaker, text, emotion?, nextNodeId?, choices?: [{text, targetNodeId}]}]}",
+                        "properties": {
+                            "id": {"type": "string"},
+                            "startNodeId": {"type": "string"},
+                            "nodes": {"type": "array", "items": {"type": "object"}}
+                        },
+                        "required": ["id", "startNodeId", "nodes"]
+                    }
+                },
+                "required": ["name", "tree"]
+            }
+        ),
+        Tool(
+            name="start_dialogue",
+            description="Immediately start a dialogue conversation. If the named NPC exists, their dialogue tree is used. Otherwise a standalone dialogue is started with the provided tree. The RPG dialogue box appears at the bottom of the screen with typewriter text reveal. Player uses Enter to advance, 1-4 for choices, Esc to end.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "npc": {"type": "string", "description": "Speaker name (or NPC name if NPC exists)"},
+                    "tree": {
+                        "type": "object",
+                        "description": "Dialogue tree JSON",
+                        "properties": {
+                            "id": {"type": "string"},
+                            "startNodeId": {"type": "string"},
+                            "nodes": {"type": "array", "items": {"type": "object"}}
+                        },
+                        "required": ["id", "startNodeId", "nodes"]
+                    }
+                },
+                "required": ["npc", "tree"]
+            }
+        ),
+        Tool(
+            name="end_dialogue",
+            description="End the currently active dialogue conversation.",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        Tool(
+            name="say_bubble",
+            description="Show a floating speech bubble above an entity. The bubble fades out after the specified duration. Great for ambient NPC chatter or quick messages.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "entityId": {"type": "string", "description": "Entity registry ID (e.g. 'npc_Guard')"},
+                    "text": {"type": "string", "description": "Text to display in the bubble"},
+                    "duration": {"type": "number", "description": "How long the bubble lasts in seconds (default 3.0)", "default": 3.0}
+                },
+                "required": ["entityId", "text"]
+            }
+        ),
     ]
 
 
@@ -867,6 +989,59 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             "x1": args["x1"], "y1": args["y1"], "z1": args["z1"],
             "x2": args["x2"], "y2": args["y2"], "z2": args["z2"]
         })
+
+    # --- NPC Management ---
+    elif name == "spawn_npc":
+        body: dict[str, Any] = {"name": args["name"]}
+        if "animFile" in args:
+            body["animFile"] = args["animFile"]
+        if "position" in args:
+            body["position"] = args["position"]
+        if "behavior" in args:
+            body["behavior"] = args["behavior"]
+        if "waypoints" in args:
+            body["waypoints"] = args["waypoints"]
+        if "walkSpeed" in args:
+            body["walkSpeed"] = args["walkSpeed"]
+        if "waitTime" in args:
+            body["waitTime"] = args["waitTime"]
+        return await api_post("/api/npc/spawn", body)
+
+    elif name == "remove_npc":
+        return await api_post("/api/npc/remove", {"name": args["name"]})
+
+    elif name == "list_npcs":
+        return await api_get("/api/npcs")
+
+    elif name == "set_npc_behavior":
+        body = {"name": args["name"], "behavior": args["behavior"]}
+        if "waypoints" in args:
+            body["waypoints"] = args["waypoints"]
+        if "walkSpeed" in args:
+            body["walkSpeed"] = args["walkSpeed"]
+        if "waitTime" in args:
+            body["waitTime"] = args["waitTime"]
+        return await api_post("/api/npc/behavior", body)
+
+    # --- Dialogue & Speech Bubbles ---
+    elif name == "set_npc_dialogue":
+        return await api_post("/api/npc/dialogue", {
+            "name": args["name"], "tree": args["tree"]
+        })
+
+    elif name == "start_dialogue":
+        return await api_post("/api/dialogue/start", {
+            "npc": args["npc"], "tree": args["tree"]
+        })
+
+    elif name == "end_dialogue":
+        return await api_post("/api/dialogue/end", {})
+
+    elif name == "say_bubble":
+        body = {"entityId": args["entityId"], "text": args["text"]}
+        if "duration" in args:
+            body["duration"] = args["duration"]
+        return await api_post("/api/speech/say", body)
 
     else:
         return {"error": f"Unknown tool: {name}"}

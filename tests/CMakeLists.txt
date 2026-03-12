@@ -4,6 +4,7 @@
 # Collect unit test source files (exclude integration/benchmark/stress/e2e)
 file(GLOB_RECURSE TEST_SOURCES
     "core/*.cpp"
+    "graphics/*.cpp"
     "physics/*.cpp"
     "scene/*.cpp"
     "ui/*.cpp"

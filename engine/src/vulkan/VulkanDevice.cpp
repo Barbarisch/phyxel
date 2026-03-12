@@ -75,6 +75,9 @@ void VulkanDevice::cleanup() {
     }
     uniformBuffers.clear();
     uniformBuffersMemory.clear();
+
+    // Cleanup light SSBO buffers
+    cleanupLightBuffers();
     
     if (instanceBuffer != VK_NULL_HANDLE) {
         vkDestroyBuffer(device, instanceBuffer, nullptr);
@@ -988,6 +991,51 @@ bool VulkanDevice::createUniformBuffers() {
     return true;
 }
 
+bool VulkanDevice::createLightBuffers() {
+    VkDeviceSize bufferSize = sizeof(Graphics::LightBufferGPU);
+
+    lightBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+    lightBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        createBuffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                     lightBuffers[i], lightBuffersMemory[i]);
+    }
+
+    // Initialize with empty data
+    Graphics::LightBufferGPU emptyData{};
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        void* data;
+        vkMapMemory(device, lightBuffersMemory[i], 0, bufferSize, 0, &data);
+        memcpy(data, &emptyData, sizeof(emptyData));
+        vkUnmapMemory(device, lightBuffersMemory[i]);
+    }
+
+    LOG_INFO("Vulkan", "Created light SSBO buffers ({} bytes each)", bufferSize);
+    return true;
+}
+
+void VulkanDevice::updateLightBuffer(uint32_t frameIndex, const Graphics::LightBufferGPU& lightData) {
+    void* data;
+    vkMapMemory(device, lightBuffersMemory[frameIndex], 0, sizeof(lightData), 0, &data);
+    memcpy(data, &lightData, sizeof(lightData));
+    vkUnmapMemory(device, lightBuffersMemory[frameIndex]);
+}
+
+void VulkanDevice::cleanupLightBuffers() {
+    for (size_t i = 0; i < lightBuffers.size(); i++) {
+        if (lightBuffers[i] != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, lightBuffers[i], nullptr);
+        }
+        if (lightBuffersMemory[i] != VK_NULL_HANDLE) {
+            vkFreeMemory(device, lightBuffersMemory[i], nullptr);
+        }
+    }
+    lightBuffers.clear();
+    lightBuffersMemory.clear();
+}
+
 bool VulkanDevice::createDescriptorSetLayout() {
     // UBO binding (binding 0)
     VkDescriptorSetLayoutBinding uboLayoutBinding{};
@@ -1013,7 +1061,15 @@ bool VulkanDevice::createDescriptorSetLayout() {
     shadowMapLayoutBinding.pImmutableSamplers = nullptr;
     shadowMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    std::array<VkDescriptorSetLayoutBinding, 3> bindings = {uboLayoutBinding, samplerLayoutBinding, shadowMapLayoutBinding};
+    // Light SSBO binding (binding 3)
+    VkDescriptorSetLayoutBinding lightBufferBinding{};
+    lightBufferBinding.binding = 3;
+    lightBufferBinding.descriptorCount = 1;
+    lightBufferBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    lightBufferBinding.pImmutableSamplers = nullptr;
+    lightBufferBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    std::array<VkDescriptorSetLayoutBinding, 4> bindings = {uboLayoutBinding, samplerLayoutBinding, shadowMapLayoutBinding, lightBufferBinding};
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
@@ -1028,11 +1084,13 @@ bool VulkanDevice::createDescriptorSetLayout() {
 }
 
 bool VulkanDevice::createDescriptorPool() {
-    std::array<VkDescriptorPoolSize, 2> poolSizes{};
+    std::array<VkDescriptorPoolSize, 3> poolSizes{};
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = MAX_FRAMES_IN_FLIGHT;
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[1].descriptorCount = MAX_FRAMES_IN_FLIGHT * 2; // Texture Atlas + Shadow Map
+    poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    poolSizes[2].descriptorCount = MAX_FRAMES_IN_FLIGHT; // Light SSBO
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1572,7 +1630,13 @@ void VulkanDevice::updateDescriptorSetsWithTexture() {
         shadowInfo.imageView = shadowMapImageView ? shadowMapImageView : textureAtlasImageView;
         shadowInfo.sampler = shadowMapSampler ? shadowMapSampler : textureAtlasSampler;
 
-        std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
+        // Light SSBO descriptor (binding 3)
+        VkDescriptorBufferInfo lightBufferInfo{};
+        lightBufferInfo.buffer = lightBuffers[i];
+        lightBufferInfo.offset = 0;
+        lightBufferInfo.range = sizeof(Graphics::LightBufferGPU);
+
+        std::array<VkWriteDescriptorSet, 4> descriptorWrites{};
 
         // UBO write
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1601,10 +1665,19 @@ void VulkanDevice::updateDescriptorSetsWithTexture() {
         descriptorWrites[2].descriptorCount = 1;
         descriptorWrites[2].pImageInfo = &shadowInfo;
 
+        // Light SSBO write
+        descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[3].dstSet = descriptorSets[i];
+        descriptorWrites[3].dstBinding = 3;
+        descriptorWrites[3].dstArrayElement = 0;
+        descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[3].descriptorCount = 1;
+        descriptorWrites[3].pBufferInfo = &lightBufferInfo;
+
         vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }
     
-    LOG_DEBUG("Vulkan", "Descriptor sets updated with texture atlas");
+    LOG_DEBUG("Vulkan", "Descriptor sets updated with texture atlas and light SSBO");
 }
 
 void VulkanDevice::cleanupTextureAtlas() {

@@ -3,6 +3,9 @@
 #include "scene/PhysicsCharacter.h"
 #include "scene/SpiderCharacter.h"
 #include "scene/AnimatedVoxelCharacter.h"
+#include "scene/NPCEntity.h"
+#include "scene/behaviors/IdleBehavior.h"
+#include "scene/behaviors/PatrolBehavior.h"
 #include "core/EntityRegistry.h"
 #include "core/APICommandQueue.h"
 #include "core/EngineAPIServer.h"
@@ -220,6 +223,19 @@ bool Application::initialize() {
     camera = std::make_unique<Graphics::Camera>(glm::vec3(45.0f, 55.0f, 45.0f), glm::vec3(0.0f, 1.0f, 0.0f), -135.0f, -30.0f);
     camera->setMode(Graphics::CameraMode::Free);
     
+    // Create CameraManager for named slots, transitions, and cinematic paths
+    cameraManager = std::make_unique<Graphics::CameraManager>(camera.get());
+    // Wire entity position lookup to EntityRegistry
+    if (entityRegistry) {
+        cameraManager->setEntityPositionLookup([this](const std::string& entityId) -> std::optional<glm::vec3> {
+            auto* entity = entityRegistry->getEntity(entityId);
+            if (entity) return entity->getPosition();
+            return std::nullopt;
+        });
+    }
+    // Create default camera slot from initial position
+    cameraManager->createSlot("default", glm::vec3(45.0f, 55.0f, 45.0f), -135.0f, -30.0f, Graphics::CameraMode::Free);
+    
     // Sync InputManager with initial camera state
     inputManager->setCameraPosition(camera->getPosition());
     inputManager->setYawPitch(camera->getYaw(), camera->getPitch());
@@ -311,6 +327,20 @@ bool Application::initialize() {
         if (camera) {
             auto front = camera->getFront();
             cam["front"] = {{"x", front.x}, {"y", front.y}, {"z", front.z}};
+        }
+        if (cameraManager) {
+            cam["activeSlot"] = cameraManager->getActiveSlotName();
+            nlohmann::json slotsArr = nlohmann::json::array();
+            for (const auto& slot : cameraManager->getSlots()) {
+                slotsArr.push_back({
+                    {"name", slot.name},
+                    {"position", {{"x", slot.position.x}, {"y", slot.position.y}, {"z", slot.position.z}}},
+                    {"yaw", slot.yaw},
+                    {"pitch", slot.pitch},
+                    {"followEntityId", slot.followEntityId}
+                });
+            }
+            cam["slots"] = slotsArr;
         }
         return cam;
     });
@@ -462,6 +492,38 @@ bool Application::initialize() {
         };
     });
 
+    // Initialize NPC Manager
+    npcManager = std::make_unique<Core::NPCManager>();
+    npcManager->setPhysicsWorld(physicsWorld.get());
+    npcManager->setEntityRegistry(entityRegistry.get());
+    if (renderCoordinator) {
+        npcManager->setLightManager(&renderCoordinator->getLightManager());
+        renderCoordinator->setNPCManager(npcManager.get());
+    }
+
+    // Initialize Interaction Manager
+    interactionManager = std::make_unique<Core::InteractionManager>();
+    interactionManager->setEntityRegistry(entityRegistry.get());
+
+    // Initialize Dialogue System
+    dialogueSystem = std::make_unique<UI::DialogueSystem>();
+    dialogueSystem->setGameEventLog(gameEventLog.get());
+
+    // Initialize Speech Bubble Manager
+    speechBubbleManager = std::make_unique<UI::SpeechBubbleManager>();
+    speechBubbleManager->setEntityRegistry(entityRegistry.get());
+
+    // Wire interaction callback to start dialogues
+    interactionManager->setInteractCallback([this](Scene::NPCEntity* npc) {
+        if (!dialogueSystem || !npc) return;
+        auto* provider = npc->getDialogueProvider();
+        if (provider && provider->getDialogueTree()) {
+            dialogueSystem->startConversation(npc, provider->getDialogueTree());
+        } else {
+            LOG_INFO("Application", "NPC '{}' has no dialogue tree", npc->getName());
+        }
+    });
+
     // Start the API server
     if (apiServer->start()) {
         LOG_INFO("Application", "Engine HTTP API available at http://localhost:8090/api/status");
@@ -563,6 +625,35 @@ void Application::run() {
         // Render Scripting Console
         imguiRenderer->renderScriptingConsole(showScriptingConsole, scriptingSystem.get());
         
+        // Render Dialogue Box
+        if (dialogueSystem) {
+            imguiRenderer->renderDialogueBox(dialogueSystem.get());
+        }
+
+        // Render Speech Bubbles & Interaction Prompt
+        if (speechBubbleManager || interactionManager) {
+            float sw = static_cast<float>(windowManager->getWidth());
+            float sh = static_cast<float>(windowManager->getHeight());
+
+            if (speechBubbleManager) {
+                imguiRenderer->renderSpeechBubbles(
+                    speechBubbleManager.get(),
+                    cachedViewMatrix, cachedProjectionMatrix, sw, sh);
+            }
+
+            if (interactionManager && interactionManager->shouldShowPrompt()) {
+                // Show prompt above the nearest NPC
+                auto* nearestNPC = interactionManager->getNearestInteractableNPC();
+                if (nearestNPC) {
+                    bool showPrompt = !dialogueSystem || !dialogueSystem->isActive();
+                    imguiRenderer->renderInteractionPrompt(
+                        showPrompt,
+                        nearestNPC->getPosition(),
+                        cachedViewMatrix, cachedProjectionMatrix, sw, sh);
+                }
+            }
+        }
+
         // Render Lighting Controls
         if (renderCoordinator) {
             renderCoordinator->renderUI();
@@ -749,6 +840,22 @@ void Application::update(float deltaTime) {
         aiSystem->update(deltaTime);
     }
 
+    // Update NPC system
+    if (npcManager) {
+        PROFILE_SCOPE(*performanceProfiler, "NPCs");
+        npcManager->update(deltaTime);
+    }
+
+    // Update interaction detection
+    if (interactionManager) {
+        glm::vec3 playerPos = camera ? camera->getPosition() : glm::vec3(0);
+        interactionManager->update(deltaTime, playerPos);
+    }
+
+    // Update dialogue & speech bubbles
+    if (dialogueSystem) dialogueSystem->update(deltaTime);
+    if (speechBubbleManager) speechBubbleManager->update(deltaTime);
+
     // Update entities
     {
         PROFILE_SCOPE(*performanceProfiler, "Entities");
@@ -783,6 +890,11 @@ void Application::update(float deltaTime) {
             } else if (currentControlTarget == ControlTarget::AnimatedCharacter && animatedCharacter) {
                 camera->updatePositionFromTarget(animatedCharacter->getPosition(), 0.5f);
             }
+        }
+
+        // CameraManager handles transitions, cinematic paths, and entity-follow
+        if (cameraManager) {
+            cameraManager->update(deltaTime);
         }
     }
     
@@ -1188,6 +1300,20 @@ void Application::toggleCameraMode() {
     }
 }
 
+void Application::cycleCameraSlot() {
+    if (cameraManager && cameraManager->slotCount() > 1) {
+        cameraManager->cycleSlot(0.5f);
+        LOG_INFO("Application", "Cycled to camera slot '{}'", cameraManager->getActiveSlotName());
+    }
+}
+
+void Application::cycleCameraSlotReverse() {
+    if (cameraManager && cameraManager->slotCount() > 1) {
+        cameraManager->cyclePrevSlot(0.5f);
+        LOG_INFO("Application", "Cycled to camera slot '{}'", cameraManager->getActiveSlotName());
+    }
+}
+
 void Application::toggleCharacterControl() {
     // Cycle through control targets: PhysicsCharacter -> Spider -> AnimatedCharacter -> PhysicsCharacter
     
@@ -1395,6 +1521,26 @@ void Application::toggleAISystem() {
             LOG_WARN("Application", "Failed to start AI system");
         }
     }
+}
+
+void Application::interactWithNPC() {
+    if (!interactionManager) return;
+
+    // If dialogue is already active, advance it instead of starting new interaction
+    if (dialogueSystem && dialogueSystem->isActive()) {
+        dialogueSystem->advanceDialogue();
+        return;
+    }
+
+    // Use the current active character as the "player" interactor
+    Scene::Entity* playerEntity = nullptr;
+    if (currentControlTarget == ControlTarget::PhysicsCharacter && physicsCharacter)
+        playerEntity = physicsCharacter;
+    else if (currentControlTarget == ControlTarget::AnimatedCharacter && animatedCharacter)
+        playerEntity = animatedCharacter;
+    else if (currentControlTarget == ControlTarget::Spider && spiderCharacter)
+        playerEntity = spiderCharacter;
+    interactionManager->tryInteract(playerEntity);
 }
 
 // ============================================================================
@@ -1833,6 +1979,47 @@ void Application::processAPICommands() {
                 }
                 response = {{"success", true}};
 
+            } else if (cmd.action == "create_camera_slot") {
+                if (!cameraManager || !cmd.params.contains("name")) {
+                    response = {{"error", "Missing name or CameraManager not available"}};
+                } else {
+                    Graphics::CameraSlot slot;
+                    slot.name = cmd.params.value("name", "");
+                    if (cmd.params.contains("position")) {
+                        slot.position.x = cmd.params["position"].value("x", 0.0f);
+                        slot.position.y = cmd.params["position"].value("y", 0.0f);
+                        slot.position.z = cmd.params["position"].value("z", 0.0f);
+                    }
+                    slot.yaw = cmd.params.value("yaw", -90.0f);
+                    slot.pitch = cmd.params.value("pitch", 0.0f);
+                    int idx = cameraManager->createSlot(slot);
+                    response = {{"success", idx >= 0}, {"index", idx}};
+                }
+
+            } else if (cmd.action == "set_active_camera_slot") {
+                if (!cameraManager || !cmd.params.contains("name")) {
+                    response = {{"error", "Missing name or CameraManager not available"}};
+                } else {
+                    std::string name = cmd.params.value("name", "");
+                    float duration = cmd.params.value("transition_duration", 0.0f);
+                    bool ok = (duration > 0.0f)
+                        ? cameraManager->transitionToSlot(name, duration)
+                        : cameraManager->setActiveSlot(name);
+                    response = {{"success", ok}};
+                }
+
+            } else if (cmd.action == "follow_entity_camera") {
+                if (!cameraManager || !cmd.params.contains("slot") || !cmd.params.contains("entity_id")) {
+                    response = {{"error", "Missing slot/entity_id or CameraManager not available"}};
+                } else {
+                    std::string slotName = cmd.params.value("slot", "");
+                    std::string entityId = cmd.params.value("entity_id", "");
+                    float distance = cmd.params.value("distance", 5.0f);
+                    float height = cmd.params.value("height", 1.5f);
+                    bool ok = cameraManager->followEntity(slotName, entityId, distance, height);
+                    response = {{"success", ok}};
+                }
+
             } else if (cmd.action == "capture_screenshot") {
                 // Capture the current frame via RenderCoordinator
                 if (!renderCoordinator) {
@@ -2267,6 +2454,218 @@ void Application::processAPICommands() {
                             } else {
                                 response = {{"error", "Failed to write file: " + filepath}};
                             }
+                        }
+                    }
+                }
+
+            // ================================================================
+            // NPC COMMANDS
+            // ================================================================
+            } else if (cmd.action == "spawn_npc") {
+                if (!npcManager) {
+                    response = {{"error", "NPCManager not available"}};
+                } else {
+                    std::string name = cmd.params.value("name", "");
+                    if (name.empty()) {
+                        response = {{"error", "NPC name required"}};
+                    } else {
+                        std::string animFile = cmd.params.value("animFile", "character.anim");
+                        float x = 0, y = 20, z = 0;
+                        if (cmd.params.contains("position")) {
+                            x = cmd.params["position"].value("x", 0.0f);
+                            y = cmd.params["position"].value("y", 20.0f);
+                            z = cmd.params["position"].value("z", 0.0f);
+                        } else {
+                            x = cmd.params.value("x", 0.0f);
+                            y = cmd.params.value("y", 20.0f);
+                            z = cmd.params.value("z", 0.0f);
+                        }
+                        std::string behaviorStr = cmd.params.value("behavior", "idle");
+                        Core::NPCBehaviorType behaviorType = Core::NPCBehaviorType::Idle;
+                        std::vector<glm::vec3> waypoints;
+                        float walkSpeed = cmd.params.value("walkSpeed", 2.0f);
+                        float waitTime = cmd.params.value("waitTime", 2.0f);
+
+                        if (behaviorStr == "patrol") {
+                            behaviorType = Core::NPCBehaviorType::Patrol;
+                            if (cmd.params.contains("waypoints")) {
+                                for (const auto& wp : cmd.params["waypoints"]) {
+                                    waypoints.emplace_back(
+                                        wp.value("x", 0.0f),
+                                        wp.value("y", 0.0f),
+                                        wp.value("z", 0.0f));
+                                }
+                            }
+                        }
+
+                        auto* npc = npcManager->spawnNPC(name, animFile, glm::vec3(x, y, z),
+                                                          behaviorType, waypoints, walkSpeed, waitTime);
+                        if (npc) {
+                            response = {{"success", true}, {"name", name}, {"behavior", behaviorStr},
+                                        {"position", {{"x", x}, {"y", y}, {"z", z}}}};
+                            if (gameEventLog) {
+                                gameEventLog->emit("npc_spawned", {
+                                    {"name", name}, {"behavior", behaviorStr},
+                                    {"position", {{"x", x}, {"y", y}, {"z", z}}}
+                                });
+                            }
+                        } else {
+                            response = {{"error", "Failed to spawn NPC (name may already exist)"}};
+                        }
+                    }
+                }
+
+            } else if (cmd.action == "remove_npc") {
+                if (!npcManager) {
+                    response = {{"error", "NPCManager not available"}};
+                } else {
+                    std::string name = cmd.params.value("name", "");
+                    if (name.empty()) {
+                        response = {{"error", "NPC name required"}};
+                    } else {
+                        bool ok = npcManager->removeNPC(name);
+                        response = {{"success", ok}};
+                        if (ok && gameEventLog) {
+                            gameEventLog->emit("npc_removed", {{"name", name}});
+                        }
+                    }
+                }
+
+            } else if (cmd.action == "list_npcs") {
+                if (!npcManager) {
+                    response = {{"error", "NPCManager not available"}};
+                } else {
+                    auto names = npcManager->getAllNPCNames();
+                    nlohmann::json arr = nlohmann::json::array();
+                    for (const auto& n : names) {
+                        auto* npc = npcManager->getNPC(n);
+                        if (npc) {
+                            auto pos = npc->getPosition();
+                            nlohmann::json entry = {
+                                {"name", n},
+                                {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}},
+                                {"interactionRadius", npc->getInteractionRadius()}
+                            };
+                            if (npc->getBehavior()) {
+                                entry["behavior"] = npc->getBehavior()->getBehaviorName();
+                            }
+                            arr.push_back(entry);
+                        }
+                    }
+                    response = {{"success", true}, {"npcs", arr}, {"count", names.size()}};
+                }
+
+            } else if (cmd.action == "set_npc_behavior") {
+                if (!npcManager) {
+                    response = {{"error", "NPCManager not available"}};
+                } else {
+                    std::string name = cmd.params.value("name", "");
+                    std::string behaviorStr = cmd.params.value("behavior", "");
+                    if (name.empty() || behaviorStr.empty()) {
+                        response = {{"error", "NPC name and behavior required"}};
+                    } else {
+                        auto* npc = npcManager->getNPC(name);
+                        if (!npc) {
+                            response = {{"error", "NPC not found: " + name}};
+                        } else {
+                            std::unique_ptr<Scene::NPCBehavior> behavior;
+                            if (behaviorStr == "idle") {
+                                behavior = std::make_unique<Scene::IdleBehavior>();
+                            } else if (behaviorStr == "patrol") {
+                                std::vector<glm::vec3> waypoints;
+                                if (cmd.params.contains("waypoints")) {
+                                    for (const auto& wp : cmd.params["waypoints"]) {
+                                        waypoints.emplace_back(
+                                            wp.value("x", 0.0f),
+                                            wp.value("y", 0.0f),
+                                            wp.value("z", 0.0f));
+                                    }
+                                }
+                                float walkSpeed = cmd.params.value("walkSpeed", 2.0f);
+                                float waitTime = cmd.params.value("waitTime", 2.0f);
+                                behavior = std::make_unique<Scene::PatrolBehavior>(
+                                    waypoints, walkSpeed, waitTime);
+                            } else {
+                                response = {{"error", "Unknown behavior: " + behaviorStr}};
+                                if (cmd.onComplete) cmd.onComplete(response);
+                                continue;
+                            }
+                            npc->setBehavior(std::move(behavior));
+                            response = {{"success", true}, {"name", name}, {"behavior", behaviorStr}};
+                        }
+                    }
+                }
+
+            // ================================================================
+            // DIALOGUE COMMANDS
+            // ================================================================
+            } else if (cmd.action == "start_dialogue") {
+                if (!dialogueSystem) {
+                    response = {{"error", "DialogueSystem not available"}};
+                } else if (dialogueSystem->isActive()) {
+                    response = {{"error", "A conversation is already active"}};
+                } else {
+                    std::string npcName = cmd.params.value("npc", "");
+                    if (npcName.empty() || !cmd.params.contains("tree")) {
+                        response = {{"error", "Required: 'npc' (speaker name) and 'tree' (dialogue JSON)"}};
+                    } else {
+                        auto parsedTree = UI::DialogueTree::fromJson(cmd.params["tree"]);
+                        Scene::NPCEntity* npc = npcManager ? npcManager->getNPC(npcName) : nullptr;
+                        bool ok = false;
+                        if (npc) {
+                            // Set provider first so tree has stable ownership
+                            npc->setDialogueProvider(
+                                std::make_unique<UI::StaticDialogueProvider>(std::move(parsedTree)));
+                            ok = dialogueSystem->startConversation(npc,
+                                npc->getDialogueProvider()->getDialogueTree());
+                        } else {
+                            // No NPC entity — store tree in a member to keep it alive
+                            m_apiDialogueTree = std::make_unique<UI::DialogueTree>(std::move(parsedTree));
+                            ok = dialogueSystem->startConversation(npcName, m_apiDialogueTree.get());
+                        }
+                        response = {{"success", ok}};
+                    }
+                }
+
+            } else if (cmd.action == "end_dialogue") {
+                if (!dialogueSystem || !dialogueSystem->isActive()) {
+                    response = {{"error", "No active conversation"}};
+                } else {
+                    dialogueSystem->endConversation();
+                    response = {{"success", true}};
+                }
+
+            } else if (cmd.action == "say_bubble") {
+                if (!speechBubbleManager) {
+                    response = {{"error", "SpeechBubbleManager not available"}};
+                } else {
+                    std::string entityId = cmd.params.value("entityId", "");
+                    std::string text = cmd.params.value("text", "");
+                    float duration = cmd.params.value("duration", 3.0f);
+                    if (entityId.empty() || text.empty()) {
+                        response = {{"error", "Required: 'entityId' and 'text'"}};
+                    } else {
+                        speechBubbleManager->say(entityId, text, duration);
+                        response = {{"success", true}};
+                    }
+                }
+
+            } else if (cmd.action == "set_npc_dialogue") {
+                if (!npcManager) {
+                    response = {{"error", "NPCManager not available"}};
+                } else {
+                    std::string npcName = cmd.params.value("name", "");
+                    if (npcName.empty() || !cmd.params.contains("tree")) {
+                        response = {{"error", "Required: 'name' (NPC name) and 'tree' (dialogue JSON)"}};
+                    } else {
+                        auto* npc = npcManager->getNPC(npcName);
+                        if (!npc) {
+                            response = {{"error", "NPC not found: " + npcName}};
+                        } else {
+                            auto tree = UI::DialogueTree::fromJson(cmd.params["tree"]);
+                            npc->setDialogueProvider(
+                                std::make_unique<UI::StaticDialogueProvider>(std::move(tree)));
+                            response = {{"success", true}, {"name", npcName}};
                         }
                     }
                 }

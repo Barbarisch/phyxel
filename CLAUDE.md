@@ -6,8 +6,12 @@ Phyxel is a voxel game engine built with C++17, Vulkan, and Bullet Physics. It f
 
 ## Build System
 
-- **CMake 3.15+**, C++17 required
+- **CMake 3.15+**, C++17 required, MSVC 2022
 - **Dependencies**: Vulkan SDK, GLFW, GLM, Bullet Physics, ImGui, pybind11, nlohmann/json, cpp-httplib, Google Test, SQLite3, miniaudio
+- **CMake is NOT in system PATH**. Before running cmake, add it:
+  ```powershell
+  $env:PATH += ";C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin"
+  ```
 - **Build commands**:
   ```powershell
   cmake -B build -S .

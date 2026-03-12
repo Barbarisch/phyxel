@@ -378,6 +378,11 @@ bool WorldInitializer::initializeVulkan() {
         return false;
     }
 
+    if (!vulkanDevice->createLightBuffers()) {
+        LOG_ERROR("WorldInitializer", "Failed to create light SSBO buffers!");
+        return false;
+    }
+
     if (!vulkanDevice->createDescriptorPool()) {
         LOG_ERROR("WorldInitializer", "Failed to create descriptor pool!");
         return false;
