@@ -4,6 +4,7 @@
 #include <vector>
 #include <unordered_map>
 #include <functional>
+#include <optional>
 #include <nlohmann/json.hpp>
 
 namespace Phyxel {
@@ -117,6 +118,13 @@ public:
 private:
     DialogueTree m_tree;
 };
+
+/// Load a dialogue tree from a JSON file on disk.
+/// Returns std::nullopt on failure (file not found or parse error).
+std::optional<DialogueTree> loadDialogueFile(const std::string& filePath);
+
+/// List all .json dialogue files in a directory.
+std::vector<std::string> listDialogueFiles(const std::string& dirPath);
 
 } // namespace UI
 } // namespace Phyxel

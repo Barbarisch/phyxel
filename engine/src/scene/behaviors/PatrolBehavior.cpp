@@ -1,6 +1,8 @@
 #include "scene/behaviors/PatrolBehavior.h"
 #include "scene/Entity.h"
+#include "ui/SpeechBubbleManager.h"
 #include "utils/Logger.h"
+#include <random>
 
 namespace Phyxel {
 namespace Scene {
@@ -33,6 +35,16 @@ void PatrolBehavior::update(float dt, NPCContext& ctx) {
         // Arrived at waypoint
         m_waiting = true;
         m_waitTimer = 0.0f;
+
+        // Ambient speech bubble
+        if (!m_arrivalPhrases.empty() && ctx.speechBubbleManager && !ctx.selfId.empty()) {
+            static thread_local std::mt19937 rng(std::random_device{}());
+            std::uniform_real_distribution<float> roll(0.0f, 1.0f);
+            if (roll(rng) < m_speechChance) {
+                std::uniform_int_distribution<size_t> pick(0, m_arrivalPhrases.size() - 1);
+                ctx.speechBubbleManager->say(ctx.selfId, m_arrivalPhrases[pick(rng)], 3.0f);
+            }
+        }
         return;
     }
 

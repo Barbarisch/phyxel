@@ -3,6 +3,8 @@
 #include "ui/DialogueSystem.h"
 #include "ui/SpeechBubbleManager.h"
 #include <nlohmann/json.hpp>
+#include <fstream>
+#include <filesystem>
 
 using namespace Phyxel;
 using namespace Phyxel::UI;
@@ -426,4 +428,108 @@ TEST(DialogueProviderTest, SetTree) {
     provider.setTree(std::move(tree2));
 
     EXPECT_EQ(provider.getDialogueTree()->id, "tree2");
+}
+
+// ============================================================================
+// Dialogue File I/O Tests
+// ============================================================================
+
+class DialogueFileTest : public ::testing::Test {
+protected:
+    std::string testDir;
+
+    void SetUp() override {
+        testDir = "test_dialogues_tmp";
+        std::filesystem::create_directories(testDir);
+    }
+
+    void TearDown() override {
+        std::filesystem::remove_all(testDir);
+    }
+
+    void writeJsonFile(const std::string& filename, const nlohmann::json& j) {
+        std::ofstream file(testDir + "/" + filename);
+        file << j.dump(2);
+    }
+};
+
+TEST_F(DialogueFileTest, LoadValidFile) {
+    nlohmann::json j = {
+        {"id", "test_load"},
+        {"startNodeId", "start"},
+        {"nodes", nlohmann::json::array({
+            {{"id", "start"}, {"speaker", "NPC"}, {"text", "Hello from file!"},
+             {"nextNodeId", ""}, {"emotion", ""}, {"choices", nlohmann::json::array()}}
+        })}
+    };
+    writeJsonFile("test.json", j);
+
+    auto tree = loadDialogueFile(testDir + "/test.json");
+    ASSERT_TRUE(tree.has_value());
+    EXPECT_EQ(tree->id, "test_load");
+    ASSERT_TRUE(tree->hasNode("start"));
+    EXPECT_EQ(tree->getNode("start")->text, "Hello from file!");
+}
+
+TEST_F(DialogueFileTest, LoadMissingFile) {
+    auto tree = loadDialogueFile(testDir + "/nonexistent.json");
+    EXPECT_FALSE(tree.has_value());
+}
+
+TEST_F(DialogueFileTest, LoadInvalidJson) {
+    std::ofstream file(testDir + "/bad.json");
+    file << "this is not JSON {{{";
+    file.close();
+
+    auto tree = loadDialogueFile(testDir + "/bad.json");
+    EXPECT_FALSE(tree.has_value());
+}
+
+TEST_F(DialogueFileTest, ListFiles) {
+    writeJsonFile("a_dialogue.json", nlohmann::json::object());
+    writeJsonFile("b_dialogue.json", nlohmann::json::object());
+    writeJsonFile("not_json.txt", nlohmann::json::object());
+
+    auto files = listDialogueFiles(testDir);
+    EXPECT_EQ(files.size(), 2u);
+    EXPECT_EQ(files[0], "a_dialogue.json");
+    EXPECT_EQ(files[1], "b_dialogue.json");
+}
+
+TEST_F(DialogueFileTest, ListEmptyDir) {
+    auto files = listDialogueFiles(testDir);
+    EXPECT_TRUE(files.empty());
+}
+
+TEST_F(DialogueFileTest, ListNonexistentDir) {
+    auto files = listDialogueFiles("nonexistent_directory_12345");
+    EXPECT_TRUE(files.empty());
+}
+
+TEST_F(DialogueFileTest, LoadWithChoices) {
+    nlohmann::json j = {
+        {"id", "choice_file"},
+        {"startNodeId", "q"},
+        {"nodes", nlohmann::json::array({
+            {{"id", "q"}, {"speaker", "Guard"}, {"text", "Who are you?"},
+             {"nextNodeId", ""}, {"emotion", "stern"},
+             {"choices", nlohmann::json::array({
+                 {{"text", "A friend."}, {"targetNodeId", "friend"}},
+                 {{"text", "Nobody."}, {"targetNodeId", "nobody"}}
+             })}},
+            {{"id", "friend"}, {"speaker", "Guard"}, {"text", "Welcome then."},
+             {"nextNodeId", ""}, {"emotion", "happy"}, {"choices", nlohmann::json::array()}},
+            {{"id", "nobody"}, {"speaker", "Guard"}, {"text", "Move along."},
+             {"nextNodeId", ""}, {"emotion", "neutral"}, {"choices", nlohmann::json::array()}}
+        })}
+    };
+    writeJsonFile("choices.json", j);
+
+    auto tree = loadDialogueFile(testDir + "/choices.json");
+    ASSERT_TRUE(tree.has_value());
+    EXPECT_EQ(tree->nodes.size(), 3u);
+    auto* q = tree->getNode("q");
+    ASSERT_NE(q, nullptr);
+    EXPECT_EQ(q->choices.size(), 2u);
+    EXPECT_EQ(q->emotion, "stern");
 }

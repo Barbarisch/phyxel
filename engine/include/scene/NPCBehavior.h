@@ -10,6 +10,7 @@ namespace Phyxel {
 // Forward declarations
 namespace Core { class EntityRegistry; }
 namespace Graphics { class LightManager; }
+namespace UI { class SpeechBubbleManager; }
 
 namespace Scene {
 
@@ -21,6 +22,7 @@ struct NPCContext {
     std::string selfId;
     Core::EntityRegistry* entityRegistry = nullptr;
     Graphics::LightManager* lightManager = nullptr;
+    UI::SpeechBubbleManager* speechBubbleManager = nullptr;
 
     /// Lookup position of another entity by ID (may be null if registry unavailable).
     std::function<glm::vec3(const std::string&)> getEntityPosition;

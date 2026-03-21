@@ -1,0 +1,80 @@
+{
+    "id": "merchant_shop",
+    "startNodeId": "welcome",
+    "nodes": [
+        {
+            "id": "welcome",
+            "speaker": "Merchant",
+            "text": "Welcome to my humble shop! What can I do for you today?",
+            "emotion": "happy",
+            "choices": [
+                {"text": "What do you sell?", "targetNodeId": "inventory"},
+                {"text": "I heard about missing shipments.", "targetNodeId": "shipments"},
+                {"text": "Just browsing.", "targetNodeId": "browsing"}
+            ],
+            "nextNodeId": ""
+        },
+        {
+            "id": "inventory",
+            "speaker": "Merchant",
+            "text": "I've got tools, building materials, and a few rare gems if you're interested. Take a look around!",
+            "emotion": "proud",
+            "choices": [],
+            "nextNodeId": "anything_else"
+        },
+        {
+            "id": "shipments",
+            "speaker": "Merchant",
+            "text": "Ah, so the guard told you? Yes, three shipments have gone missing on the mountain road. Strange shadows in the caves nearby... I'd pay well if someone could investigate.",
+            "emotion": "worried",
+            "choices": [
+                {"text": "I'll look into it.", "targetNodeId": "accept_quest"},
+                {"text": "Sounds dangerous. No thanks.", "targetNodeId": "decline_quest"}
+            ],
+            "nextNodeId": ""
+        },
+        {
+            "id": "accept_quest",
+            "speaker": "Merchant",
+            "text": "Wonderful! Head north along the mountain path. The caves are about a hundred paces past the old watchtower. Be careful!",
+            "emotion": "grateful",
+            "choices": [],
+            "nextNodeId": ""
+        },
+        {
+            "id": "decline_quest",
+            "speaker": "Merchant",
+            "text": "I understand. Can't blame you. If you change your mind, I'll be here.",
+            "emotion": "sad",
+            "choices": [],
+            "nextNodeId": ""
+        },
+        {
+            "id": "browsing",
+            "speaker": "Merchant",
+            "text": "Take your time! Let me know if anything catches your eye.",
+            "emotion": "friendly",
+            "choices": [],
+            "nextNodeId": ""
+        },
+        {
+            "id": "anything_else",
+            "speaker": "Merchant",
+            "text": "Anything else I can help with?",
+            "emotion": "neutral",
+            "choices": [
+                {"text": "Tell me about the shipments.", "targetNodeId": "shipments"},
+                {"text": "No, that's all.", "targetNodeId": "goodbye"}
+            ],
+            "nextNodeId": ""
+        },
+        {
+            "id": "goodbye",
+            "speaker": "Merchant",
+            "text": "Come back anytime! Safe travels.",
+            "emotion": "happy",
+            "choices": [],
+            "nextNodeId": ""
+        }
+    ]
+}

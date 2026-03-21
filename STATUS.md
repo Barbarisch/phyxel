@@ -1,6 +1,6 @@
 # Phyxel — Project Status & Next Steps
 
-*Last updated: March 11, 2026*
+*Last updated: March 21, 2026*
 
 ## What's Been Built
 
@@ -80,7 +80,7 @@
 ## Current State of the Build
 
 - **Build**: Clean, all targets compile (`phyxel_core`, `phyxel_game`, `phyxel`)
-- **Tests**: All 412 tests pass (0 failures). 27 test suites.
+- **Tests**: All 511 tests pass (0 failures). 44 test suites.
 - **Executable**: `phyxel.exe` at project root (copied post-build) or `build/game/Debug/phyxel.exe`
 
 ### Build Commands
@@ -98,6 +98,27 @@ $cmakePath = "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\ID
 
 ### Must Do Before Testing with MCP
 - **Regenerate world**: Existing `worlds/default.db` has all cubes saved as "Default" material (pre-migration data). Delete the DB or use MCP `generate_world` to regenerate terrain and see multi-material results.
+
+### Phase 4: Dialogue & Conversation System (current session)
+
+#### Completed
+- **Input suppression during dialogue**: WASD/mouse/camera input blocked when dialogue box is active (prevents character movement during conversation)
+- **SpeechBubbleManager in NPCContext**: Behaviors can now call `ctx.speechBubbleManager->say()` for ambient NPC chatter
+- **PatrolBehavior ambient speech**: NPCs on patrol may speak random phrases when arriving at waypoints (configurable `setArrivalPhrases()`, `setSpeechChance()`)
+- **Dialogue file I/O**: `loadDialogueFile(path)` and `listDialogueFiles(dir)` utility functions for loading JSON dialogue trees from disk
+- **Sample dialogue files**: `resources/dialogues/guard_intro.json` (branching guard conversation), `resources/dialogues/merchant_shop.json` (merchant with quest hook)
+- **New API endpoints**: `GET /api/dialogue/state`, `POST /api/dialogue/advance`, `POST /api/dialogue/choice`, `POST /api/dialogue/load`, `GET /api/dialogue/files`
+- **New MCP tools**: `get_dialogue_state`, `advance_dialogue`, `select_dialogue_choice`, `load_dialogue_file`, `list_dialogue_files`
+- **Unit tests**: 7 new tests for dialogue file loading/listing (total 511 tests, 44 suites)
+
+#### Already existed from Phase 3
+- DialogueSystem state machine (Typing/WaitingForInput/ChoiceSelection), typewriter effect, choice conditions
+- SpeechBubbleManager with world-to-screen projection, fade-out, max 8 bubbles
+- InteractionManager with proximity detection, E key interaction, cooldown
+- renderDialogueBox() (RPG box at bottom 25% of screen), renderSpeechBubbles(), renderInteractionPrompt()
+- Input bindings: E (interact), Enter (advance), 1-4 (choices), ESC (end conversation)
+- API endpoints: `/api/npc/dialogue`, `/api/dialogue/start`, `/api/dialogue/end`, `/api/speech/say`
+- MCP tools: `set_npc_dialogue`, `start_dialogue`, `end_dialogue`, `say_bubble`
 
 ### Open Gaps
 - **Subcube/microcube material persistence**: SQLite schema only stores material for full cubes. Subcube/microcube material defaults to "Default" on save/load. Need to add `material` column to subcube/microcube tables.

@@ -513,6 +513,11 @@ bool Application::initialize() {
     speechBubbleManager = std::make_unique<UI::SpeechBubbleManager>();
     speechBubbleManager->setEntityRegistry(entityRegistry.get());
 
+    // Wire speech bubble manager to NPC manager
+    if (npcManager) {
+        npcManager->setSpeechBubbleManager(speechBubbleManager.get());
+    }
+
     // Wire interaction callback to start dialogues
     interactionManager->setInteractCallback([this](Scene::NPCEntity* npc) {
         if (!dialogueSystem || !npc) return;
@@ -1061,6 +1066,11 @@ void Application::render() {
 void Application::handleInput() {
     // Process keyboard and mouse input through InputManager
     inputManager->processInput(deltaTime);
+
+    // Suppress movement/camera input while dialogue is active
+    if (dialogueSystem && dialogueSystem->isActive()) {
+        return;
+    }
 
     // Pass movement input to active character
     // Only if NOT in Free Camera mode
@@ -2669,6 +2679,81 @@ void Application::processAPICommands() {
                         }
                     }
                 }
+
+            } else if (cmd.action == "get_dialogue_state") {
+                if (!dialogueSystem) {
+                    response = {{"active", false}};
+                } else {
+                    response = {{"active", dialogueSystem->isActive()}};
+                    if (dialogueSystem->isActive()) {
+                        std::string stateStr;
+                        switch (dialogueSystem->getState()) {
+                            case UI::DialogueState::Typing: stateStr = "typing"; break;
+                            case UI::DialogueState::WaitingForInput: stateStr = "waiting_for_input"; break;
+                            case UI::DialogueState::ChoiceSelection: stateStr = "choice_selection"; break;
+                            default: stateStr = "inactive"; break;
+                        }
+                        response["state"] = stateStr;
+                        response["speaker"] = dialogueSystem->getCurrentSpeaker();
+                        response["text"] = dialogueSystem->getCurrentText();
+                        response["revealedText"] = dialogueSystem->getRevealedText();
+                        response["emotion"] = dialogueSystem->getCurrentEmotion();
+                        nlohmann::json choicesArr = nlohmann::json::array();
+                        for (const auto& c : dialogueSystem->getAvailableChoices()) {
+                            choicesArr.push_back({{"text", c.text}, {"targetNodeId", c.targetNodeId}});
+                        }
+                        response["choices"] = choicesArr;
+                    }
+                }
+
+            } else if (cmd.action == "advance_dialogue") {
+                if (!dialogueSystem || !dialogueSystem->isActive()) {
+                    response = {{"error", "No active conversation"}};
+                } else {
+                    dialogueSystem->advanceDialogue();
+                    response = {{"success", true}};
+                }
+
+            } else if (cmd.action == "select_dialogue_choice") {
+                if (!dialogueSystem || dialogueSystem->getState() != UI::DialogueState::ChoiceSelection) {
+                    response = {{"error", "Not in choice selection state"}};
+                } else {
+                    int index = cmd.params.value("index", -1);
+                    if (index < 0 || index >= static_cast<int>(dialogueSystem->getAvailableChoices().size())) {
+                        response = {{"error", "Invalid choice index"}};
+                    } else {
+                        dialogueSystem->selectChoice(index);
+                        response = {{"success", true}};
+                    }
+                }
+
+            } else if (cmd.action == "load_dialogue_file") {
+                std::string filename = cmd.params.value("filename", "");
+                std::string npcName = cmd.params.value("npc", "");
+                if (filename.empty()) {
+                    response = {{"error", "Required: 'filename'"}};
+                } else {
+                    std::string fullPath = "resources/dialogues/" + filename;
+                    auto tree = UI::loadDialogueFile(fullPath);
+                    if (!tree) {
+                        response = {{"error", "Failed to load dialogue file: " + filename}};
+                    } else if (!npcName.empty() && npcManager) {
+                        auto* npc = npcManager->getNPC(npcName);
+                        if (!npc) {
+                            response = {{"error", "NPC not found: " + npcName}};
+                        } else {
+                            npc->setDialogueProvider(
+                                std::make_unique<UI::StaticDialogueProvider>(std::move(*tree)));
+                            response = {{"success", true}, {"npc", npcName}, {"file", filename}};
+                        }
+                    } else {
+                        response = {{"success", true}, {"tree", tree->toJson()}};
+                    }
+                }
+
+            } else if (cmd.action == "list_dialogue_files") {
+                auto files = UI::listDialogueFiles("resources/dialogues");
+                response = {{"files", files}};
 
             } else {
                 response = {{"error", "Unknown action: " + cmd.action}};

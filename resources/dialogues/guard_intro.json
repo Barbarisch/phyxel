@@ -1,0 +1,61 @@
+{
+    "id": "guard_intro",
+    "startNodeId": "greeting",
+    "nodes": [
+        {
+            "id": "greeting",
+            "speaker": "Guard",
+            "text": "Halt! State your business in these parts.",
+            "emotion": "stern",
+            "choices": [
+                {"text": "I'm just passing through.", "targetNodeId": "pass_through"},
+                {"text": "I'm looking for work.", "targetNodeId": "looking_for_work"},
+                {"text": "None of your business.", "targetNodeId": "hostile"}
+            ],
+            "nextNodeId": ""
+        },
+        {
+            "id": "pass_through",
+            "speaker": "Guard",
+            "text": "Alright, move along then. But keep out of trouble.",
+            "emotion": "neutral",
+            "choices": [],
+            "nextNodeId": ""
+        },
+        {
+            "id": "looking_for_work",
+            "speaker": "Guard",
+            "text": "Work, eh? The merchant down the road has been complaining about missing shipments. Might want to talk to her.",
+            "emotion": "helpful",
+            "choices": [
+                {"text": "Thanks, I'll check it out.", "targetNodeId": "thanks"},
+                {"text": "Anything else?", "targetNodeId": "anything_else"}
+            ],
+            "nextNodeId": ""
+        },
+        {
+            "id": "hostile",
+            "speaker": "Guard",
+            "text": "Watch your tongue. I won't ask again.",
+            "emotion": "angry",
+            "choices": [],
+            "nextNodeId": ""
+        },
+        {
+            "id": "thanks",
+            "speaker": "Guard",
+            "text": "Good luck out there. Stay safe.",
+            "emotion": "friendly",
+            "choices": [],
+            "nextNodeId": ""
+        },
+        {
+            "id": "anything_else",
+            "speaker": "Guard",
+            "text": "That's all I know. Now move along.",
+            "emotion": "neutral",
+            "choices": [],
+            "nextNodeId": ""
+        }
+    ]
+}

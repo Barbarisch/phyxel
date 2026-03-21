@@ -51,7 +51,7 @@ Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, cons
     }
 
     // Wire context
-    npc->setContext(m_entityRegistry, m_lightManager, entityId);
+    npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId);
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);

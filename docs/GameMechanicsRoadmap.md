@@ -1,7 +1,7 @@
 # Phyxel — Game Mechanics Infrastructure Roadmap
 
 *Created: March 11, 2026*
-*Status: Planning complete, Phase 1-3 implemented*
+*Status: Planning complete, Phase 1-4 implemented*
 
 ## Overview
 
@@ -308,7 +308,7 @@ Phase 2 (Cameras) ─┘
 
 ## Phase 4: Dialogue & Conversation System
 
-**Status**: Not started
+**Status**: ✅ Complete (511 tests passing)
 **Depends on**: Phase 3 (NPCs trigger dialogue via onInteract)
 **Goal**: RPG-style dialogue box for focused conversation + floating speech bubbles for ambient NPC chatter.
 

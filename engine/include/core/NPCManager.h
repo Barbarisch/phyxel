@@ -11,6 +11,7 @@ namespace Phyxel {
 
 namespace Physics { class PhysicsWorld; }
 namespace Graphics { class LightManager; }
+namespace UI { class SpeechBubbleManager; }
 namespace Core { class EntityRegistry; }
 
 namespace Scene {
@@ -37,6 +38,8 @@ public:
     void setEntityRegistry(EntityRegistry* registry) { m_entityRegistry = registry; }
     /// Set the light manager for NPC-attached lights.
     void setLightManager(Graphics::LightManager* lightManager) { m_lightManager = lightManager; }
+    /// Set the speech bubble manager for NPC ambient chatter.
+    void setSpeechBubbleManager(UI::SpeechBubbleManager* mgr) { m_speechBubbleManager = mgr; }
 
     /// Spawn an NPC with the given behavior type.
     /// @param name       Unique name for this NPC.
@@ -76,6 +79,7 @@ private:
     Physics::PhysicsWorld* m_physicsWorld = nullptr;
     EntityRegistry* m_entityRegistry = nullptr;
     Graphics::LightManager* m_lightManager = nullptr;
+    UI::SpeechBubbleManager* m_speechBubbleManager = nullptr;
 
     /// Owns all NPC entities. Key = NPC name.
     std::unordered_map<std::string, std::unique_ptr<Scene::NPCEntity>> m_npcs;

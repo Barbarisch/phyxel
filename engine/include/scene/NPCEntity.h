@@ -46,7 +46,7 @@ public:
 
     // Context wiring (set by NPCManager after construction)
     void setContext(Core::EntityRegistry* registry, Graphics::LightManager* lightManager,
-                    const std::string& entityId);
+                    UI::SpeechBubbleManager* speechBubbleManager, const std::string& entityId);
 
     // Attached light (e.g. NPC carrying a lantern)
     void setAttachedLightId(int lightId) { m_attachedLightId = lightId; }

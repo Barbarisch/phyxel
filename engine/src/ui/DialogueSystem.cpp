@@ -2,6 +2,9 @@
 #include "scene/NPCEntity.h"
 #include "core/GameEventLog.h"
 #include "utils/Logger.h"
+#include <fstream>
+#include <filesystem>
+#include <algorithm>
 
 namespace Phyxel {
 namespace UI {
@@ -157,6 +160,41 @@ void DialogueSystem::finishTyping() {
     } else {
         m_state = DialogueState::WaitingForInput;
     }
+}
+
+// ============================================================================
+// Dialogue file I/O utilities
+// ============================================================================
+
+std::optional<DialogueTree> loadDialogueFile(const std::string& filePath) {
+    std::ifstream file(filePath);
+    if (!file.is_open()) {
+        LOG_WARN("DialogueData", "Could not open dialogue file: {}", filePath);
+        return std::nullopt;
+    }
+
+    try {
+        nlohmann::json j = nlohmann::json::parse(file);
+        return DialogueTree::fromJson(j);
+    } catch (const std::exception& e) {
+        LOG_ERROR("DialogueData", "Failed to parse dialogue file '{}': {}", filePath, e.what());
+        return std::nullopt;
+    }
+}
+
+std::vector<std::string> listDialogueFiles(const std::string& dirPath) {
+    std::vector<std::string> files;
+    try {
+        for (const auto& entry : std::filesystem::directory_iterator(dirPath)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".json") {
+                files.push_back(entry.path().filename().string());
+            }
+        }
+    } catch (const std::exception& e) {
+        LOG_WARN("DialogueData", "Could not list dialogue directory '{}': {}", dirPath, e.what());
+    }
+    std::sort(files.begin(), files.end());
+    return files;
 }
 
 } // namespace UI

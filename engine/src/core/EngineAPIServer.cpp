@@ -746,6 +746,50 @@ void EngineAPIServer::setupRoutes() {
             res.set_content(err.dump(), "application/json");
         }
     });
+
+    // GET /api/dialogue/state — Get current dialogue conversation state
+    srv.Get("/api/dialogue/state", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("get_dialogue_state", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/dialogue/load — Load a dialogue file from resources/dialogues/
+    srv.Post("/api/dialogue/load", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("load_dialogue_file", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // GET /api/dialogue/files — List available dialogue files
+    srv.Get("/api/dialogue/files", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("list_dialogue_files", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/dialogue/advance — Advance dialogue (skip typewriter or next node)
+    srv.Post("/api/dialogue/advance", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("advance_dialogue", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/dialogue/choice — Select a dialogue choice
+    srv.Post("/api/dialogue/choice", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("select_dialogue_choice", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
 }
 
 // ============================================================================

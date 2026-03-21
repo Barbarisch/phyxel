@@ -67,9 +67,10 @@ void NPCEntity::setBehavior(std::unique_ptr<NPCBehavior> behavior) {
 }
 
 void NPCEntity::setContext(Core::EntityRegistry* registry, Graphics::LightManager* lightManager,
-                           const std::string& entityId) {
+                           UI::SpeechBubbleManager* speechBubbleManager, const std::string& entityId) {
     m_context.entityRegistry = registry;
     m_context.lightManager = lightManager;
+    m_context.speechBubbleManager = speechBubbleManager;
     m_context.selfId = entityId;
     m_context.self = this;
 

@@ -29,6 +29,10 @@ public:
     float getWalkSpeed() const { return m_walkSpeed; }
     void setWalkSpeed(float speed) { m_walkSpeed = speed; }
 
+    /// Set phrases the NPC may say when arriving at a waypoint.
+    void setArrivalPhrases(const std::vector<std::string>& phrases) { m_arrivalPhrases = phrases; }
+    void setSpeechChance(float chance) { m_speechChance = chance; }
+
 private:
     std::vector<glm::vec3> m_waypoints;
     size_t m_currentWaypoint = 0;
@@ -37,6 +41,10 @@ private:
     float m_waitTimer = 0.0f;
     bool m_waiting = false;
     static constexpr float ARRIVAL_THRESHOLD = 0.5f;
+
+    // Ambient speech bubble config
+    std::vector<std::string> m_arrivalPhrases;
+    float m_speechChance = 0.3f; // 30% chance to speak at waypoint
 };
 
 } // namespace Scene

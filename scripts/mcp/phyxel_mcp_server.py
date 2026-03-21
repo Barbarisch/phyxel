@@ -752,6 +752,44 @@ async def list_tools() -> list[Tool]:
                 "required": ["entityId", "text"]
             }
         ),
+        Tool(
+            name="get_dialogue_state",
+            description="Get the current state of the dialogue system. Returns whether a conversation is active, current speaker, text, revealed text (typewriter progress), emotion, and available choices.",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        Tool(
+            name="advance_dialogue",
+            description="Advance the active dialogue: skip the typewriter effect or move to the next node. Equivalent to pressing Enter.",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        Tool(
+            name="select_dialogue_choice",
+            description="Select a dialogue choice by index (0-based) during choice selection state.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "index": {"type": "integer", "description": "Choice index (0-based)"}
+                },
+                "required": ["index"]
+            }
+        ),
+        Tool(
+            name="load_dialogue_file",
+            description="Load a dialogue tree from a JSON file in resources/dialogues/. Optionally assign it to an NPC. If no NPC is specified, returns the parsed tree.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "filename": {"type": "string", "description": "JSON filename (e.g. 'guard_intro.json')"},
+                    "npc": {"type": "string", "description": "Optional NPC name to assign the dialogue to"}
+                },
+                "required": ["filename"]
+            }
+        ),
+        Tool(
+            name="list_dialogue_files",
+            description="List all available dialogue JSON files in resources/dialogues/.",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
     ]
 
 
@@ -1042,6 +1080,24 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         if "duration" in args:
             body["duration"] = args["duration"]
         return await api_post("/api/speech/say", body)
+
+    elif name == "get_dialogue_state":
+        return await api_get("/api/dialogue/state")
+
+    elif name == "advance_dialogue":
+        return await api_post("/api/dialogue/advance", {})
+
+    elif name == "select_dialogue_choice":
+        return await api_post("/api/dialogue/choice", {"index": args["index"]})
+
+    elif name == "load_dialogue_file":
+        body: dict[str, Any] = {"filename": args["filename"]}
+        if "npc" in args:
+            body["npc"] = args["npc"]
+        return await api_post("/api/dialogue/load", body)
+
+    elif name == "list_dialogue_files":
+        return await api_get("/api/dialogue/files")
 
     else:
         return {"error": f"Unknown tool: {name}"}
