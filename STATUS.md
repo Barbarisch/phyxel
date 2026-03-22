@@ -1,8 +1,29 @@
 # Phyxel — Project Status & Next Steps
 
-*Last updated: March 23, 2026*
+*Last updated: March 22, 2026*
 
 ## What's Been Built
+
+### Engine Extraction (Phases E1–E2)
+
+#### E1: Config & Asset Management (commit `baa747c`, 802 tests / 80 suites)
+- **EngineConfig**: JSON-serializable engine configuration (`engine.json`) with defaults for window, rendering, physics, audio, world, API
+- **AssetManager**: Singleton that resolves asset paths (textures, shaders, templates, sounds, worlds, dialogues, recipes) from config
+- **23 new tests** across EngineConfigTest (15) and AssetManagerTest (8)
+
+#### E2: EngineRuntime Extraction (commit `848417b`, 818 tests / 82 suites)
+- **EngineRuntime**: New class that owns all 16 core engine subsystems (window, Vulkan, physics, chunks, audio, input, timing, camera, profiling, etc.) via `unique_ptr`. Provides `initialize(config)`, `run(GameCallbacks&)`, `shutdown()`, `quit()`, `beginFrame()`/`endFrame()`, 16 subsystem accessors.
+- **GameCallbacks**: Virtual interface with `onInitialize`, `onUpdate`, `onRender`, `onHandleInput`, `onShutdown` — all with default no-op implementations. Allows standalone games to hook into the engine loop without the Application monolith.
+- **WorldInitializer moved** from `game/` to `engine/` — reusable by any project linking `phyxel_core`
+- **Application refactored**: Delegates core init to `EngineRuntime`, holds non-owning raw pointer aliases. Cleanup delegated to `runtime->shutdown()`.
+- **ScriptingSystem/Bindings decoupled**: Replaced cross-library `extern` with callback pattern (`registerAppInstanceSetter`) to break phyxel_game→phyxel_core circular dependency.
+- **16 new tests**: EngineRuntimeTest (8) + GameCallbacksTest (8)
+
+#### E3: Project System (826 tests / 83 suites)
+- **Minimal example game** (`examples/minimal_game/`): Standalone game using `EngineRuntime` + `GameCallbacks` — builds a voxel platform, free camera, renders via `RenderCoordinator`. Links only `phyxel_core`, no `Application` monolith.
+- **CMake install targets**: Basic `cmake --install` for `phyxel_core` lib + headers
+- **Project scaffolding**: `python tools/create_project.py MyGame` generates a ready-to-build standalone game directory (CMakeLists.txt, GameCallbacks stub, main.cpp, engine.json)
+- **8 new tests**: ProjectSystemTest (C++) + 6 Python tests for create_project.py
 
 ### AI Agent Control Surface (commits `34fd5a7` → `340fbe5`)
 - **EngineAPIServer**: HTTP/JSON API on `localhost:8090` with 34+ endpoints
@@ -80,8 +101,9 @@
 ## Current State of the Build
 
 - **Build**: Clean, all targets compile (`phyxel_core`, `phyxel_game`, `phyxel`)
-- **Tests**: All 779 tests pass (0 failures). 77 test suites.
+- **Tests**: All 826 tests pass (0 failures). 83 test suites.
 - **Executable**: `phyxel.exe` at project root (copied post-build) or `build/game/Debug/phyxel.exe`
+- **Example**: `phyxel_minimal_game.exe` at `build/examples/minimal_game/Debug/`
 
 ### Build Commands
 ```powershell

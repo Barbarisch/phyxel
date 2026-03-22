@@ -191,6 +191,26 @@ add_subdirectory(game)      # phyxel_game  — game static library
                             # phyxel       — game executable
 add_subdirectory(editor)    # phyxel_editor — editor executable (stub)
 
+# Examples (standalone games using EngineRuntime + GameCallbacks)
+add_subdirectory(examples/minimal_game)
+
+# ==========================================================================
+# Install targets — basic header/lib install for external projects
+# For now, the recommended approach is add_subdirectory() (see create_project.py).
+# Full find_package(Phyxel) support is future work (requires exporting all
+# transitive dependencies: Vulkan, Bullet, pybind11, nlohmann_json, etc.).
+# ==========================================================================
+include(GNUInstallDirs)
+
+install(TARGETS phyxel_core
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
+install(DIRECTORY engine/include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/phyxel
+)
+
 # ==========================================================================
 # Testing
 # ==========================================================================
