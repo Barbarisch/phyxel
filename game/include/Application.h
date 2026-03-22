@@ -21,7 +21,7 @@
 #include "input/InputController.h"
 #include "core/ChunkManager.h"
 #include "core/ForceSystem.h"
-#include "core/WorldInitializer.h"
+// WorldInitializer now lives in engine/ and is used by EngineRuntime internally
 #include "core/ObjectTemplateManager.h"
 #include "core/AudioSystem.h"
 #include "scripting/ScriptingSystem.h"
@@ -37,6 +37,7 @@
 #include "ui/SpeechBubbleManager.h"
 #include "story/StoryEngine.h"
 #include "core/EngineConfig.h"
+#include "core/EngineRuntime.h"
 #include "scene/NPCEntity.h"
 #include "scene/Entity.h"
 #include "scene/Player.h"
@@ -99,14 +100,14 @@ public:
     ObjectTemplateManager* getObjectTemplateManager() const { return objectTemplateManager.get(); }
     RaycastVisualizer* getRaycastVisualizer() const { return raycastVisualizer.get(); }
     VoxelInteractionSystem* getVoxelInteractionSystem() const { return voxelInteractionSystem.get(); }
-    ChunkManager* getChunkManager() const { return chunkManager.get(); }
-    Input::InputManager* getInputManager() const { return inputManager.get(); }
+    ChunkManager* getChunkManager() const { return chunkManager; }
+    Input::InputManager* getInputManager() const { return inputManager; }
     ScriptingSystem* getScriptingSystem() const { return scriptingSystem.get(); }
-    Core::AudioSystem* getAudioSystem() const { return audioSystem.get(); }
+    Core::AudioSystem* getAudioSystem() const { return audioSystem; }
     AI::AISystem* getAISystem() const { return aiSystem.get(); }
     Core::EntityRegistry* getEntityRegistry() const { return entityRegistry.get(); }
     Core::EngineAPIServer* getAPIServer() const { return apiServer.get(); }
-    Graphics::CameraManager* getCameraManager() const { return cameraManager.get(); }
+    Graphics::CameraManager* getCameraManager() const { return cameraManager; }
     Core::NPCManager* getNPCManager() const { return npcManager.get(); }
     Core::InteractionManager* getInteractionManager() const { return interactionManager.get(); }
     UI::DialogueSystem* getDialogueSystem() const { return dialogueSystem.get(); }
@@ -114,47 +115,39 @@ public:
 
 private:
     // ============================================================================
-    // CORE SYSTEMS (Ownership)
+    // ENGINE RUNTIME (owns all core subsystems)
     // ============================================================================
-    
+    std::unique_ptr<Core::EngineRuntime> runtime;
+
     // Engine configuration (loaded from engine.json or defaults)
     Core::EngineConfig engineConfig;
 
-    // Window and display
-    std::unique_ptr<UI::WindowManager> windowManager;
-    
-    // Rendering pipeline
-    std::unique_ptr<Vulkan::VulkanDevice> vulkanDevice;                // Low-level Vulkan operations
-    std::unique_ptr<Vulkan::RenderPipeline> renderPipeline;            // Static geometry pipeline
-    std::unique_ptr<Vulkan::RenderPipeline> dynamicRenderPipeline;     // Dynamic objects pipeline
-    std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;    // Coordinates all rendering
-    std::unique_ptr<UI::ImGuiRenderer> imguiRenderer;                  // Debug UI rendering
-    std::unique_ptr<RaycastVisualizer> raycastVisualizer;              // Raycast debug visualization
-    std::unique_ptr<Graphics::Camera> camera;                          // Camera system
-    std::unique_ptr<Graphics::CameraManager> cameraManager;             // Camera slots and transitions
-    
-    // World and physics
-    std::unique_ptr<ChunkManager> chunkManager;                        // Voxel world management
-    std::unique_ptr<Physics::PhysicsWorld> physicsWorld;               // Bullet physics simulation
-    std::unique_ptr<VoxelInteractionSystem> voxelInteractionSystem;    // Cube/subcube interaction
-    std::unique_ptr<ForceSystem> forceSystem;                          // Force propagation system
-    std::unique_ptr<ObjectTemplateManager> objectTemplateManager;      // Voxel object templates
-    
-    // Input and interaction
-    std::unique_ptr<Input::InputManager> inputManager;                 // Keyboard/mouse input
-    std::unique_ptr<InputController> inputController;                  // Input bindings and control
-    std::unique_ptr<MouseVelocityTracker> mouseVelocityTracker;        // Mouse velocity tracking
-    
-    // Performance and timing
-    std::unique_ptr<Timer> timer;                                      // Game loop timing
-    std::unique_ptr<PerformanceProfiler> performanceProfiler;          // Frame profiling
-    std::unique_ptr<Utils::PerformanceMonitor> performanceMonitor;     // Performance metrics
-    
-    // Initialization
-    std::unique_ptr<Core::WorldInitializer> worldInitializer;          // Handles initialization
+    // Convenience aliases — non-owning pointers into EngineRuntime's subsystems.
+    // These are set in initialize() after runtime->initialize() succeeds.
+    // Using raw pointers keeps existing code unchanged (same -> syntax).
+    UI::WindowManager* windowManager = nullptr;
+    Vulkan::VulkanDevice* vulkanDevice = nullptr;
+    Vulkan::RenderPipeline* renderPipeline = nullptr;
+    Vulkan::RenderPipeline* dynamicRenderPipeline = nullptr;
+    UI::ImGuiRenderer* imguiRenderer = nullptr;
+    Graphics::Camera* camera = nullptr;
+    Graphics::CameraManager* cameraManager = nullptr;
+    ChunkManager* chunkManager = nullptr;
+    Physics::PhysicsWorld* physicsWorld = nullptr;
+    ForceSystem* forceSystem = nullptr;
+    Input::InputManager* inputManager = nullptr;
+    MouseVelocityTracker* mouseVelocityTracker = nullptr;
+    Timer* timer = nullptr;
+    PerformanceProfiler* performanceProfiler = nullptr;
+    Utils::PerformanceMonitor* performanceMonitor = nullptr;
+    Core::AudioSystem* audioSystem = nullptr;
 
-    // Audio System
-    std::unique_ptr<Core::AudioSystem> audioSystem;
+    // Game-specific subsystems (still owned by Application)
+    std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;    // Coordinates all rendering
+    std::unique_ptr<RaycastVisualizer> raycastVisualizer;              // Raycast debug visualization
+    std::unique_ptr<VoxelInteractionSystem> voxelInteractionSystem;    // Cube/subcube interaction
+    std::unique_ptr<ObjectTemplateManager> objectTemplateManager;      // Voxel object templates
+    std::unique_ptr<InputController> inputController;                  // Input bindings and control
 
     // Scripting System
     std::unique_ptr<ScriptingSystem> scriptingSystem;

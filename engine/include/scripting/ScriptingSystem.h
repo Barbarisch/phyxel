@@ -47,6 +47,10 @@ public:
     ScriptingSystem(Application* app);
     ~ScriptingSystem();
 
+    /// Register the function that sets the app instance for Python bindings.
+    /// Called by game-side Bindings.cpp at static-init time.
+    static void registerAppInstanceSetter(void(*setter)(Application*));
+
     void init();
     void update(float deltaTime);
     void shutdown();
@@ -71,6 +75,8 @@ private:
     py::object m_completer;
     py::object m_globals; // Persistent global namespace
     std::vector<std::string> m_logBuffer;
+
+    static void (*s_setAppInstance)(Application*);
 };
 
 }

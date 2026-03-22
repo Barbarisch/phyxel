@@ -52,31 +52,13 @@ namespace Phyxel {
  * Application Constructor
  * 
  * INITIALIZATION ORDER:
- * 1. Core systems (window, input, profiling) - initialized here with make_unique
- * 2. Graphics/physics systems - initialized in initialize() method
- * 3. World setup - delegated to WorldInitializer
- * 
- * OWNERSHIP PATTERN:
- * Application owns all major subsystems via unique_ptr.
- * Subsystems receive raw pointers to dependencies (non-owning).
- * This creates clear ownership hierarchy and prevents circular dependencies.
- * 
- * PROFILING SYSTEMS:
- * - PerformanceProfiler: Detailed timing breakdown (frame sections)
- * - PerformanceMonitor: High-level metrics (FPS, frame time)
- * Both are created early for startup profiling.
+ * 1. Core engine systems created by EngineRuntime in initialize()
+ * 2. Game-specific systems created in initialize() after EngineRuntime
  */
 Application::Application() 
-    : windowManager(nullptr)     // Created in initialize() after subsystems ready
-    , isRunning(false)            // Set to true in run() method
-    , deltaTime(0.0f)             // Updated each frame
-    , frameCount(0)               // Incremented each frame
-    , performanceProfiler(std::make_unique<PerformanceProfiler>())
-    , performanceMonitor(std::make_unique<Utils::PerformanceMonitor>())
-    , imguiRenderer(std::make_unique<UI::ImGuiRenderer>())
-    , inputManager(std::make_unique<Input::InputManager>())
-    , forceSystem(std::make_unique<ForceSystem>())
-    , mouseVelocityTracker(std::make_unique<MouseVelocityTracker>()) {
+    : isRunning(false)
+    , deltaTime(0.0f)
+    , frameCount(0) {
     
     // Initialize profiling timers
     lastFrameTime = 0.0;
@@ -90,113 +72,44 @@ Application::~Application() {
 /**
  * Initialize all application subsystems
  * 
- * INITIALIZATION SEQUENCE:
- * 1. Create core components (window, vulkan, physics, timing)
- * 2. Create WorldInitializer with ALL dependencies injected
- * 3. Delegate world setup to WorldInitializer (chunks, camera, etc.)
- * 4. Create VoxelInteractionSystem (requires initialized world)
- * 5. Create RenderCoordinator (requires initialized rendering pipeline)
- * 6. Register input actions (keyboard/mouse bindings)
- * 
- * DEPENDENCY INJECTION PATTERN:
- * All subsystems receive dependencies via constructor (raw pointers).
- * Application retains ownership (unique_ptr), subsystems just reference.
- * This makes testing easier (can inject mocks) and clarifies data flow.
- * 
- * WHY WorldInitializer?
- * Extracted from monolithic Application::initialize() to separate concerns:
- * - Application: High-level coordination and ownership
- * - WorldInitializer: Detailed world setup (chunks, camera, materials)
- * Reduces Application.cpp size and improves maintainability.
- * 
- * @return true if initialization successful, false on error
+ * Core engine initialization is delegated to EngineRuntime.
+ * Application handles game-specific setup afterwards.
  */
 bool Application::initialize() {
     // STEP 0: LOAD ENGINE CONFIGURATION
-    // Load from engine.json if present, otherwise use defaults
     if (!Core::EngineConfig::loadFromFile("engine.json", engineConfig)) {
         LOG_WARN("Application", "Failed to parse engine.json — using defaults");
         engineConfig = Core::EngineConfig{};
     }
 
-    // Initialize global AssetManager from config
-    Core::AssetManager::instance().initialize(engineConfig);
-    auto& assets = Core::AssetManager::instance();
-
-    // STEP 1: CREATE CORE COMPONENTS
-    // These are the foundational systems that other subsystems depend on
-    windowManager = std::make_unique<UI::WindowManager>();                    // GLFW window and input handling
-    vulkanDevice = std::make_unique<Vulkan::VulkanDevice>();                  // Vulkan instance, device, swapchain
-    renderPipeline = std::make_unique<Vulkan::RenderPipeline>(*vulkanDevice); // Static voxel rendering pipeline
-    dynamicRenderPipeline = std::make_unique<Vulkan::RenderPipeline>(*vulkanDevice); // Dynamic physics-enabled pipeline
-    physicsWorld = std::make_unique<Physics::PhysicsWorld>();                 // Bullet Physics simulation
-    timer = std::make_unique<Timer>();                                        // High-precision timing
-    chunkManager = std::make_unique<ChunkManager>();                          // Multi-chunk world manager
-    audioSystem = std::make_unique<Core::AudioSystem>();                      // Audio System
-
-    if (!audioSystem->initialize()) {
-        LOG_ERROR("Application", "Failed to initialize AudioSystem");
-        // We continue even if audio fails, it's not critical
-    }
-
-    // STEP 2: CREATE WorldInitializer WITH DEPENDENCY INJECTION
-    // WorldInitializer handles complex world setup (chunks, camera, materials, pipelines)
-    // We inject ALL dependencies it needs via constructor (Dependency Injection pattern)
-    // 
-    // INJECTED DEPENDENCIES (13 subsystems):
-    // - windowManager: Window/input for camera controls and rendering
-    // - inputManager: Keyboard/mouse input processing
-    // - vulkanDevice: GPU device and resource management
-    // - renderPipeline: Static voxel rendering (grid-aligned cubes)
-    // - dynamicRenderPipeline: Dynamic voxel rendering (physics-enabled)
-    // - physicsWorld: Bullet Physics simulation
-    // - timer: High-precision frame timing
-    // - chunkManager: Multi-chunk world coordination
-    // - forceSystem: Physics force application system
-    // - mouseVelocityTracker: Mouse velocity for throwing objects
-    // - performanceProfiler: Detailed timing breakdown
-    // - performanceMonitor: High-level FPS/frame time metrics
-    // - imguiRenderer: ImGui UI rendering
-    worldInitializer = std::make_unique<Core::WorldInitializer>(
-        windowManager.get(),
-        inputManager.get(),
-        vulkanDevice.get(),
-        renderPipeline.get(),
-        dynamicRenderPipeline.get(),
-        physicsWorld.get(),
-        timer.get(),
-        chunkManager.get(),
-        forceSystem.get(),
-        mouseVelocityTracker.get(),
-        performanceProfiler.get(),
-        performanceMonitor.get(),
-        imguiRenderer.get(),
-        &engineConfig
-    );
-
-    // Check World Storage status
-#ifdef ENABLE_WORLD_STORAGE
-    LOG_INFO("Application", "World Storage is ENABLED (SQLite3 support active)");
-#else
-    LOG_WARN("Application", "World Storage is DISABLED (SQLite3 not found or disabled)");
-#endif
-
-    // Configure render distances (controls how many chunks are visible)
-    worldInitializer->setMaxChunkRenderDistance(maxChunkRenderDistance);
-    worldInitializer->setChunkInclusionDistance(chunkInclusionDistance);
-
-    // STEP 3: DELEGATE WORLD INITIALIZATION
-    // WorldInitializer.initialize() handles:
-    // - Window creation and Vulkan surface setup
-    // - Shader compilation and pipeline configuration
-    // - Camera initialization with sensible defaults
-    // - Chunk creation and voxel population
-    // - Physics material configuration
-    // - ImGui setup for debug UI
-    if (!worldInitializer->initialize()) {
-        LOG_ERROR("Application", "WorldInitializer failed!");
+    // STEP 1: CREATE AND INITIALIZE ENGINE RUNTIME
+    // EngineRuntime creates all core subsystems: window, Vulkan, physics,
+    // chunks, audio, input, timing, profiling, camera.
+    runtime = std::make_unique<Core::EngineRuntime>();
+    if (!runtime->initialize(engineConfig)) {
+        LOG_ERROR("Application", "EngineRuntime initialization failed!");
         return false;
     }
+
+    // Cache convenience pointers (non-owning aliases into EngineRuntime)
+    windowManager       = runtime->getWindowManager();
+    vulkanDevice        = runtime->getVulkanDevice();
+    renderPipeline      = runtime->getRenderPipeline();
+    dynamicRenderPipeline = runtime->getDynamicRenderPipeline();
+    imguiRenderer       = runtime->getImGuiRenderer();
+    camera              = runtime->getCamera();
+    cameraManager       = runtime->getCameraManager();
+    chunkManager        = runtime->getChunkManager();
+    physicsWorld        = runtime->getPhysicsWorld();
+    forceSystem         = runtime->getForceSystem();
+    inputManager        = runtime->getInputManager();
+    mouseVelocityTracker = runtime->getMouseVelocityTracker();
+    timer               = runtime->getTimer();
+    performanceProfiler = runtime->getPerformanceProfiler();
+    performanceMonitor  = runtime->getPerformanceMonitor();
+    audioSystem         = runtime->getAudioSystem();
+
+    auto& assets = Core::AssetManager::instance();
 
     // Initialize last camera position to avoid velocity spike
     lastCameraPos = inputManager->getCameraPosition();
@@ -208,18 +121,18 @@ bool Application::initialize() {
     // - Configured PhysicsWorld
     // - Ready WindowManager for screen-to-world ray conversion
     voxelInteractionSystem = std::make_unique<VoxelInteractionSystem>(
-        chunkManager.get(),
-        physicsWorld.get(),
-        mouseVelocityTracker.get(),
-        windowManager.get(),
-        forceSystem.get(),
-        audioSystem.get()
+        chunkManager,
+        physicsWorld,
+        mouseVelocityTracker,
+        windowManager,
+        forceSystem,
+        audioSystem
     );
     LOG_INFO("Application", "VoxelInteractionSystem initialized successfully!");
 
     // STEP 4.5: CREATE ObjectTemplateManager
     objectTemplateManager = std::make_unique<ObjectTemplateManager>(
-        chunkManager.get(),
+        chunkManager,
         &chunkManager->m_dynamicObjectManager
     );
     objectTemplateManager->loadTemplates(assets.templatesDir());
@@ -228,20 +141,17 @@ bool Application::initialize() {
     // STEP 5: CREATE RaycastVisualizer (DEBUG VISUALIZATION)
     // This system visualizes raycast operations for debugging
     raycastVisualizer = std::make_unique<RaycastVisualizer>();
-    raycastVisualizer->initialize(vulkanDevice.get());
+    raycastVisualizer->initialize(vulkanDevice);
     LOG_INFO("Application", "RaycastVisualizer initialized successfully!");
 
     // STEP 5.5: INITIALIZE ENTITIES
-    // Create Camera
-    // Position camera to see the spider and physics character
-    // Spider is at (35, 50, 35), PhysicsCharacter at (30, 50, 30)
-    // Place camera at (45, 55, 45) looking back at them
-    camera = std::make_unique<Graphics::Camera>(glm::vec3(45.0f, 55.0f, 45.0f), glm::vec3(0.0f, 1.0f, 0.0f), -135.0f, -30.0f);
+    // Configure camera position (camera already created by EngineRuntime)
+    camera->setPosition(glm::vec3(45.0f, 55.0f, 45.0f));
+    camera->setYaw(-135.0f);
+    camera->setPitch(-30.0f);
     camera->setMode(Graphics::CameraMode::Free);
     
-    // Create CameraManager for named slots, transitions, and cinematic paths
-    cameraManager = std::make_unique<Graphics::CameraManager>(camera.get());
-    // Wire entity position lookup to EntityRegistry
+    // Wire entity position lookup to CameraManager
     if (entityRegistry) {
         cameraManager->setEntityPositionLookup([this](const std::string& entityId) -> std::optional<glm::vec3> {
             auto* entity = entityRegistry->getEntity(entityId);
@@ -271,16 +181,16 @@ bool Application::initialize() {
     // - Draw call submission
     // - ImGui overlay rendering
     renderCoordinator = std::make_unique<Graphics::RenderCoordinator>(
-        vulkanDevice.get(),
-        renderPipeline.get(),
-        dynamicRenderPipeline.get(),
-        imguiRenderer.get(),
-        windowManager.get(),
-        inputManager.get(),
-        camera.get(),
-        chunkManager.get(),
-        performanceMonitor.get(),
-        performanceProfiler.get(),
+        vulkanDevice,
+        renderPipeline,
+        dynamicRenderPipeline,
+        imguiRenderer,
+        windowManager,
+        inputManager,
+        camera,
+        chunkManager,
+        performanceMonitor,
+        performanceProfiler,
         raycastVisualizer.get(),
         scriptingSystem.get()
     );
@@ -292,7 +202,7 @@ bool Application::initialize() {
     // STEP 7: REGISTER INPUT ACTIONS
     // Create InputController to handle input bindings
     inputController = std::make_unique<InputController>(
-        inputManager.get(),
+        inputManager,
         voxelInteractionSystem.get(),
         this
     );
@@ -560,7 +470,7 @@ bool Application::initialize() {
 
     // Initialize NPC Manager
     npcManager = std::make_unique<Core::NPCManager>();
-    npcManager->setPhysicsWorld(physicsWorld.get());
+    npcManager->setPhysicsWorld(physicsWorld);
     npcManager->setEntityRegistry(entityRegistry.get());
     if (renderCoordinator) {
         npcManager->setLightManager(&renderCoordinator->getLightManager());
@@ -663,11 +573,11 @@ void Application::run() {
         // Render ImGui performance overlay instead of console output
         imguiRenderer->renderPerformanceOverlay(
             showPerformanceOverlay,
-            timer.get(),
-            performanceProfiler.get(),
+            timer,
+            performanceProfiler,
             performanceMonitor->getCurrentFrameTiming(),
             performanceMonitor->getDetailedTimings(),
-            physicsWorld.get(),
+            physicsWorld,
             inputManager->getCameraPosition(),
             frameCount,
             currentRenderDistance,         // Pass by reference to allow UI modification
@@ -678,8 +588,8 @@ void Application::run() {
         auto& flags = inputController->getDebugFlags();
         imguiRenderer->renderForceSystemDebug(
             flags.showForceSystemDebug,
-            forceSystem.get(),
-            mouseVelocityTracker.get(),
+            forceSystem,
+            mouseVelocityTracker,
             voxelInteractionSystem->hasHoveredCube(),
             voxelInteractionSystem->hasHoveredCube() ? glm::vec3(voxelInteractionSystem->getCurrentHoveredLocation().worldPos) : glm::vec3(0.0f),
             flags.manualForceValue
@@ -766,7 +676,7 @@ void Application::run() {
         if (currentTime - fpsTimer >= 1.0) {
             if (!showPerformanceOverlay) {
                 // Temporarily disabled performance reports
-                // performanceMonitor->printProfilingInfo(fpsFrameCount, inputManager.get());
+                // performanceMonitor->printProfilingInfo(fpsFrameCount, inputManager);
                 // performanceMonitor->printDetailedTimings();
                 
                 // Print new performance profiler reports
@@ -781,7 +691,7 @@ void Application::run() {
         
         // Print basic stats every 60 frames (only when overlay is disabled)
         if (frameCount % 60 == 0 && !showPerformanceOverlay) {
-            // performanceMonitor->printPerformanceStats(timer.get(), timing, chunkManager.get(), physicsWorld.get());
+            // performanceMonitor->printPerformanceStats(timer, timing, chunkManager, physicsWorld);
         }
 
     }
@@ -795,11 +705,6 @@ void Application::cleanup() {
         return;
     }
     m_initialized = false;
-    
-    // Cleanup ImGui first (requires Vulkan device to still be active)
-    if (imguiRenderer) {
-        imguiRenderer->cleanup();
-    }
 
     // Shutdown HTTP API server first (background thread must stop before systems go away)
     if (apiServer) {
@@ -807,6 +712,7 @@ void Application::cleanup() {
         apiServer.reset();
     }
     apiCommandQueue.reset();
+    gameEventLog.reset();
     entityRegistry.reset();
     
     // Shutdown AI system before scripting
@@ -821,31 +727,12 @@ void Application::cleanup() {
         scriptingSystem.reset();
     }
     
-    if (renderPipeline) {
-        renderPipeline->cleanup();
-    }
-    
-    if (dynamicRenderPipeline) {
-        dynamicRenderPipeline->cleanup();
-    }
-    
-    // Cleanup chunk manager before Vulkan device
-    if (chunkManager) {
-        // Save only dirty chunks to database before cleanup for efficiency
-        LOG_INFO("Application", "Saving modified chunks to database...");
-        bool saveSuccess = chunkManager->saveDirtyChunks();
-        if (saveSuccess) {
-            LOG_INFO("Application", "Successfully saved dirty chunks to database");
-        } else {
-            LOG_ERROR("Application", "Failed to save dirty chunks to database");
-        }
-        chunkManager->cleanup();
-    }
-    
-    // Reset render coordinator and voxel interaction system before Vulkan cleanup
-    // These hold Vulkan resources that must be destroyed before the device
+    // Reset game-specific subsystems before engine cleanup
     renderCoordinator.reset();
     voxelInteractionSystem.reset();
+    raycastVisualizer.reset();
+    objectTemplateManager.reset();
+    inputController.reset();
     
     // Clear entities BEFORE physics cleanup — they hold raw pointers to physics bodies
     entities.clear();
@@ -854,29 +741,36 @@ void Application::cleanup() {
     spiderCharacter = nullptr;
     animatedCharacter = nullptr;
 
-    if (vulkanDevice) {
-        vulkanDevice->cleanup();
-    }
-    
-    if (physicsWorld) {
-        physicsWorld->cleanup();
-    }
+    // Clear NPC / story / dialogue subsystems
+    npcManager.reset();
+    interactionManager.reset();
+    dialogueSystem.reset();
+    speechBubbleManager.reset();
+    storyEngine.reset();
 
-    // Cleanup audio system
-    if (audioSystem) {
-        audioSystem.reset();
+    // Null out convenience pointers (owned by EngineRuntime)
+    windowManager = nullptr;
+    vulkanDevice = nullptr;
+    renderPipeline = nullptr;
+    dynamicRenderPipeline = nullptr;
+    imguiRenderer = nullptr;
+    physicsWorld = nullptr;
+    chunkManager = nullptr;
+    forceSystem = nullptr;
+    inputManager = nullptr;
+    mouseVelocityTracker = nullptr;
+    timer = nullptr;
+    performanceProfiler = nullptr;
+    performanceMonitor = nullptr;
+    audioSystem = nullptr;
+    camera = nullptr;
+    cameraManager = nullptr;
+
+    // Delegate core engine cleanup to EngineRuntime
+    if (runtime) {
+        runtime->shutdown();
+        runtime.reset();
     }
-    
-    // Cleanup window
-    windowManager.reset();  // Calls WindowManager destructor which handles cleanup
-    
-    // Reset unique_ptrs
-    renderPipeline.reset();
-    dynamicRenderPipeline.reset();
-    vulkanDevice.reset();
-    physicsWorld.reset();
-    timer.reset();
-    imguiRenderer.reset();
 }
 
 void Application::setWindowSize(int width, int height) {
@@ -1437,7 +1331,7 @@ void Application::toggleCharacterControl() {
 }
 
 Scene::PhysicsCharacter* Application::createPhysicsCharacter(const glm::vec3& pos) {
-    auto physicsCharPtr = std::make_unique<Scene::PhysicsCharacter>(physicsWorld.get(), inputManager.get(), camera.get(), pos);
+    auto physicsCharPtr = std::make_unique<Scene::PhysicsCharacter>(physicsWorld, inputManager, camera, pos);
     physicsCharacter = physicsCharPtr.get();
     physicsCharacter->setFaction(Scene::Faction::Player);
     entities.push_back(std::move(physicsCharPtr));
@@ -1449,7 +1343,7 @@ Scene::PhysicsCharacter* Application::createPhysicsCharacter(const glm::vec3& po
 }
 
 Scene::SpiderCharacter* Application::createSpiderCharacter(const glm::vec3& pos) {
-    auto spiderPtr = std::make_unique<Scene::SpiderCharacter>(physicsWorld.get(), pos);
+    auto spiderPtr = std::make_unique<Scene::SpiderCharacter>(physicsWorld, pos);
     spiderCharacter = spiderPtr.get();
     spiderCharacter->setFaction(Scene::Faction::Enemy);
     entities.push_back(std::move(spiderPtr));
@@ -1461,7 +1355,7 @@ Scene::SpiderCharacter* Application::createSpiderCharacter(const glm::vec3& pos)
 }
 
 Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::vec3& pos, const std::string& animFile) {
-    auto animatedCharPtr = std::make_unique<Scene::AnimatedVoxelCharacter>(physicsWorld.get(), pos);
+    auto animatedCharPtr = std::make_unique<Scene::AnimatedVoxelCharacter>(physicsWorld, pos);
     animatedCharacter = animatedCharPtr.get();
     if (animatedCharacter->loadModel(animFile)) {
         // Play default animation if available
@@ -1557,7 +1451,7 @@ void Application::spawnTestAINPC() {
         spawnPos = camPos + camFront * 5.0f + glm::vec3(0.0f, 2.0f, 0.0f);
     }
 
-    auto npc = std::make_unique<Scene::PhysicsCharacter>(physicsWorld.get(), inputManager.get(), camera.get(), spawnPos);
+    auto npc = std::make_unique<Scene::PhysicsCharacter>(physicsWorld, inputManager, camera, spawnPos);
     npc->debugColor = glm::vec4(0.2f, 0.8f, 0.2f, 1.0f); // Green tint for AI NPCs
     npc->setControlActive(false); // AI-controlled, not player-controlled
 

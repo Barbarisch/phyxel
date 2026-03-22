@@ -13,7 +13,6 @@
 #include "utils/Logger.h"
 #include "core/EngineConfig.h"
 #include "core/AssetManager.h"
-#include "examples/MultiChunkDemo.h"
 #include <GLFW/glfw3.h>
 
 namespace Phyxel {

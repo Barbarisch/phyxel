@@ -35,6 +35,7 @@
 
 #include "utils/Logger.h"
 #include "Application.h"
+#include "scripting/ScriptingSystem.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "core/ObjectTemplateManager.h"
 #include "core/AudioSystem.h"
@@ -49,10 +50,17 @@ namespace Phyxel {
 // Global pointer to application instance
 static Application* g_appInstance = nullptr;
 
-// Function to set the app instance (called from C++)
-void setScriptingAppInstance(Application* app) {
+// Function to set the app instance (called from ScriptingSystem via registered callback)
+static void setScriptingAppInstance(Application* app) {
     g_appInstance = app;
 }
+
+// Auto-register at static init time so ScriptingSystem can call back
+static struct BindingsRegistration {
+    BindingsRegistration() {
+        ScriptingSystem::registerAppInstanceSetter(&setScriptingAppInstance);
+    }
+} s_bindingsReg;
 
 } // namespace Phyxel
 

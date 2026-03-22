@@ -6,7 +6,12 @@
 
 namespace Phyxel {
 
-extern void setScriptingAppInstance(Application* app);
+// Default null — game-side Bindings.cpp registers the real one at static init
+void (*ScriptingSystem::s_setAppInstance)(Application*) = nullptr;
+
+void ScriptingSystem::registerAppInstanceSetter(void(*setter)(Application*)) {
+    s_setAppInstance = setter;
+}
 
 ScriptingSystem::ScriptingSystem(Application* app) : m_app(app) {
 }
@@ -16,7 +21,9 @@ ScriptingSystem::~ScriptingSystem() {
 }
 
 void ScriptingSystem::init() {
-    setScriptingAppInstance(m_app);
+    if (s_setAppInstance) {
+        s_setAppInstance(m_app);
+    }
     try {
         // Initialize the interpreter
         // This also initializes the GIL
