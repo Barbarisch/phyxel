@@ -1,4 +1,5 @@
 #include "scripting/ScriptingSystem.h"
+#include "core/AssetManager.h"
 #include "utils/Logger.h"
 #include <pybind11/pybind11.h>
 #include <algorithm>
@@ -68,10 +69,10 @@ sys.stderr = LogCatcher()
 
         // Add scripts directory to path
         try {
-            py::module::import("sys").attr("path").attr("append")("scripts");
+            py::module::import("sys").attr("path").attr("append")(Core::AssetManager::instance().scriptsDir());
             
             // Try to load startup script
-            py::eval_file("scripts/startup.py", m_globals);
+            py::eval_file(Core::AssetManager::instance().resolveScript("startup.py"), m_globals);
             Utils::Logger::getInstance().log(Utils::LogLevel::Info, "ScriptingSystem", "Loaded scripts/startup.py");
         } catch (const std::exception& e) {
             Utils::Logger::getInstance().log(Utils::LogLevel::Warn, "ScriptingSystem", std::string("Startup script error: ") + e.what());
@@ -112,7 +113,7 @@ void ScriptingSystem::runCommand(const std::string& cmd) {
 void ScriptingSystem::reloadScript(const std::string& filename) {
     try {
         // Check if file exists in scripts folder
-        std::string path = "scripts/" + filename;
+        std::string path = Core::AssetManager::instance().resolveScript(filename);
         
         // If filename already contains path separators, use it as is
         if (filename.find("/") != std::string::npos || filename.find("\\") != std::string::npos) {

@@ -1,6 +1,7 @@
 #include "graphics/PostProcessor.h"
 #include "vulkan/VulkanDevice.h"
 #include "utils/FileUtils.h"
+#include "core/AssetManager.h"
 #include "utils/Logger.h"
 #include <array>
 #include <stdexcept>
@@ -412,8 +413,8 @@ bool PostProcessor::createDescriptorSetLayout() {
 }
 
 bool PostProcessor::createPipeline() {
-    auto vertShaderCode = Utils::readFile("shaders/post_process.vert.spv");
-    auto fragShaderCode = Utils::readFile("shaders/post_process.frag.spv");
+    auto vertShaderCode = Utils::readFile(Core::AssetManager::instance().resolveShader("post_process.vert.spv"));
+    auto fragShaderCode = Utils::readFile(Core::AssetManager::instance().resolveShader("post_process.frag.spv"));
 
     VkShaderModule vertShaderModule = createShaderModule(device->getDevice(), vertShaderCode);
     VkShaderModule fragShaderModule = createShaderModule(device->getDevice(), fragShaderCode);
@@ -787,8 +788,8 @@ bool PostProcessor::createBlurDescriptorSetLayout() {
 }
 
 bool PostProcessor::createBlurPipeline() {
-    auto vertShaderCode = Utils::readFile("shaders/post_process.vert.spv");
-    auto fragShaderCode = Utils::readFile("shaders/blur.frag.spv");
+    auto vertShaderCode = Utils::readFile(Core::AssetManager::instance().resolveShader("post_process.vert.spv"));
+    auto fragShaderCode = Utils::readFile(Core::AssetManager::instance().resolveShader("blur.frag.spv"));
 
     VkShaderModule vertShaderModule = createShaderModule(device->getDevice(), vertShaderCode);
     VkShaderModule fragShaderModule = createShaderModule(device->getDevice(), fragShaderCode);

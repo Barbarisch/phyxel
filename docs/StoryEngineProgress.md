@@ -206,4 +206,4 @@ Wired the StoryEngine into the game Application so all HTTP/MCP endpoints are fu
 ## Commit History
 
 - Game Mechanics Phases 1–4: complete (commit `4b526b4`)
-- **Story Engine Phases S1–S5 + Application wiring: NOT YET COMMITTED** — stage and commit when ready
+- Story Engine Phases S1–S5 + Application wiring: complete (commit `aba0712`)

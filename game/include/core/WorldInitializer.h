@@ -25,6 +25,7 @@ namespace Phyxel {
     class ForceSystem;
     class MouseVelocityTracker;
     class PerformanceProfiler;
+    namespace Core { struct EngineConfig; }
 }
 
 namespace Phyxel {
@@ -56,7 +57,8 @@ public:
         MouseVelocityTracker* mouseVelocityTracker,
         PerformanceProfiler* performanceProfiler,
         Utils::PerformanceMonitor* performanceMonitor,
-        UI::ImGuiRenderer* imguiRenderer
+        UI::ImGuiRenderer* imguiRenderer,
+        const EngineConfig* config = nullptr
     );
     ~WorldInitializer() = default;
 
@@ -92,6 +94,7 @@ private:
     UI::ImGuiRenderer* imguiRenderer;
     
     // Configuration
+    const EngineConfig* engineConfig = nullptr;
     float maxChunkRenderDistance = 96.0f;
     float chunkInclusionDistance = 128.0f;
 };

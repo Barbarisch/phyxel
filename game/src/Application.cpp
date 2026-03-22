@@ -24,6 +24,8 @@
 #include "physics/Material.h"
 #include "story/StoryWorldLoader.h"
 #include "story/StoryDirectorTypes.h"
+#include "core/EngineConfig.h"
+#include "core/AssetManager.h"
 #include <imgui.h>
 #include <iostream>
 #include <iomanip>
@@ -110,6 +112,17 @@ Application::~Application() {
  * @return true if initialization successful, false on error
  */
 bool Application::initialize() {
+    // STEP 0: LOAD ENGINE CONFIGURATION
+    // Load from engine.json if present, otherwise use defaults
+    if (!Core::EngineConfig::loadFromFile("engine.json", engineConfig)) {
+        LOG_WARN("Application", "Failed to parse engine.json — using defaults");
+        engineConfig = Core::EngineConfig{};
+    }
+
+    // Initialize global AssetManager from config
+    Core::AssetManager::instance().initialize(engineConfig);
+    auto& assets = Core::AssetManager::instance();
+
     // STEP 1: CREATE CORE COMPONENTS
     // These are the foundational systems that other subsystems depend on
     windowManager = std::make_unique<UI::WindowManager>();                    // GLFW window and input handling
@@ -157,7 +170,8 @@ bool Application::initialize() {
         mouseVelocityTracker.get(),
         performanceProfiler.get(),
         performanceMonitor.get(),
-        imguiRenderer.get()
+        imguiRenderer.get(),
+        &engineConfig
     );
 
     // Check World Storage status
@@ -208,7 +222,7 @@ bool Application::initialize() {
         chunkManager.get(),
         &chunkManager->m_dynamicObjectManager
     );
-    objectTemplateManager->loadTemplates("resources/templates");
+    objectTemplateManager->loadTemplates(assets.templatesDir());
     LOG_INFO("Application", "ObjectTemplateManager initialized successfully!");
 
     // STEP 5: CREATE RaycastVisualizer (DEBUG VISUALIZATION)
@@ -307,7 +321,7 @@ bool Application::initialize() {
     entityRegistry = std::make_unique<Core::EntityRegistry>();
     apiCommandQueue = std::make_unique<Core::APICommandQueue>();
     gameEventLog = std::make_unique<Core::GameEventLog>(1000);
-    apiServer = std::make_unique<Core::EngineAPIServer>(apiCommandQueue.get(), 8090);
+    apiServer = std::make_unique<Core::EngineAPIServer>(apiCommandQueue.get(), engineConfig.apiPort);
 
     // Wire up read-only handlers (called directly on HTTP thread — must be thread-safe)
     apiServer->setEntityListHandler([this]() -> nlohmann::json {
@@ -583,7 +597,7 @@ bool Application::initialize() {
 
     // Start the API server
     if (apiServer->start()) {
-        LOG_INFO("Application", "Engine HTTP API available at http://localhost:8090/api/status");
+        LOG_INFO("Application", "Engine HTTP API available at http://localhost:{}/api/status", engineConfig.apiPort);
     } else {
         LOG_WARN("Application", "Failed to start HTTP API server (non-critical)");
     }
@@ -1554,7 +1568,7 @@ void Application::spawnTestAINPC() {
     std::string npcId = "ai_npc_" + std::to_string(npcCounter++);
 
     // Register with AI system using guard recipe as default
-    if (aiSystem->createAINPC(rawPtr, npcId, "resources/recipes/characters/guard.yaml",
+    if (aiSystem->createAINPC(rawPtr, npcId, Core::AssetManager::instance().resolveRecipe("characters/guard.yaml"),
                                "You are a guard NPC in a voxel world. Be helpful but cautious.")) {
         LOG_INFO("Application", "Spawned AI NPC '" << npcId << "' at (" 
                  << spawnPos.x << ", " << spawnPos.y << ", " << spawnPos.z << ")");
@@ -2492,8 +2506,9 @@ void Application::processAPICommands() {
                                 }
                             }
 
-                            // Write to resources/templates/<name>.txt
-                            std::string filepath = "resources/templates/" + name + ".txt";
+                            // Write to templates dir/<name>.txt
+                            auto& assets = Core::AssetManager::instance();
+                            std::string filepath = assets.resolveTemplate(name + ".txt");
                             std::ofstream file(filepath);
                             if (file.is_open()) {
                                 for (const auto& line : lines) {
@@ -2785,7 +2800,7 @@ void Application::processAPICommands() {
                 if (filename.empty()) {
                     response = {{"error", "Required: 'filename'"}};
                 } else {
-                    std::string fullPath = "resources/dialogues/" + filename;
+                    std::string fullPath = Core::AssetManager::instance().resolveDialogue(filename);
                     auto tree = UI::loadDialogueFile(fullPath);
                     if (!tree) {
                         response = {{"error", "Failed to load dialogue file: " + filename}};
@@ -2804,7 +2819,7 @@ void Application::processAPICommands() {
                 }
 
             } else if (cmd.action == "list_dialogue_files") {
-                auto files = UI::listDialogueFiles("resources/dialogues");
+                auto files = UI::listDialogueFiles(Core::AssetManager::instance().dialoguesDir());
                 response = {{"files", files}};
 
             // ================================================================

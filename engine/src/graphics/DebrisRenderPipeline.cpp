@@ -1,5 +1,6 @@
 #include "graphics/DebrisRenderPipeline.h"
 #include "graphics/Camera.h"
+#include "core/AssetManager.h"
 #include "utils/Logger.h"
 #include <array>
 #include <fstream>
@@ -207,8 +208,8 @@ void DebrisRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D sw
     // For now, we'll assume we have 'debris.vert.spv' and 'debris.frag.spv'
     // If not, we can reuse 'character_instanced.vert.spv' and 'character.frag.spv'
     
-    auto vertShaderCode = readFile("shaders/debris.vert.spv");
-    auto fragShaderCode = readFile("shaders/debris.frag.spv");
+    auto vertShaderCode = readFile(Core::AssetManager::instance().resolveShader("debris.vert.spv"));
+    auto fragShaderCode = readFile(Core::AssetManager::instance().resolveShader("debris.frag.spv"));
     
     VkShaderModule vertShaderModule;
     VkShaderModule fragShaderModule;

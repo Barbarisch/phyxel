@@ -11,6 +11,8 @@
 #include "utils/Timer.h"
 #include "ui/ImGuiRenderer.h"
 #include "utils/Logger.h"
+#include "core/EngineConfig.h"
+#include "core/AssetManager.h"
 #include "examples/MultiChunkDemo.h"
 #include <GLFW/glfw3.h>
 
@@ -30,7 +32,8 @@ WorldInitializer::WorldInitializer(
     MouseVelocityTracker* mouseVelocityTracker,
     PerformanceProfiler* performanceProfiler,
     Utils::PerformanceMonitor* performanceMonitor,
-    UI::ImGuiRenderer* imguiRenderer
+    UI::ImGuiRenderer* imguiRenderer,
+    const EngineConfig* config
 )
     : windowManager(windowManager)
     , inputManager(inputManager)
@@ -45,12 +48,14 @@ WorldInitializer::WorldInitializer(
     , performanceProfiler(performanceProfiler)
     , performanceMonitor(performanceMonitor)
     , imguiRenderer(imguiRenderer)
+    , engineConfig(config)
 {
 }
 
 bool WorldInitializer::initialize() {
     // Initialize logging system first
-    Utils::Logger::loadConfig("logging.ini"); // Load config if exists
+    auto& assets = AssetManager::instance();
+    Utils::Logger::loadConfig(assets.loggingConfigPath()); // Load config if exists
     LOG_INFO("WorldInitializer", "Initializing Phyxel Application...");
     LOG_INFO("WorldInitializer", "Logging system initialized (check logging.ini for configuration)");
 
@@ -79,7 +84,7 @@ bool WorldInitializer::initialize() {
     chunkManager->setPhysicsWorld(physicsWorld);
     
     // Initialize world storage for persistent chunks
-    if (!chunkManager->initializeWorldStorage("worlds/default.db")) {
+    if (!chunkManager->initializeWorldStorage(assets.worldDatabasePath())) {
         LOG_WARN("WorldInitializer", "Failed to initialize world storage. Using temporary chunks.");
     }
     
@@ -177,7 +182,14 @@ bool WorldInitializer::initialize() {
 bool WorldInitializer::initializeWindow() {
     LOG_INFO("WorldInitializer", "Initializing window");
     
-    if (!windowManager->initialize(1600, 900, "Phyxel - Voxel Physics Engine")) {
+    int w = 1600, h = 900;
+    std::string title = "Phyxel - Voxel Physics Engine";
+    if (engineConfig) {
+        w = engineConfig->windowWidth;
+        h = engineConfig->windowHeight;
+        title = engineConfig->windowTitle;
+    }
+    if (!windowManager->initialize(w, h, title.c_str())) {
         LOG_ERROR("WorldInitializer", "Failed to initialize window manager");
         return false;
     }
@@ -187,6 +199,7 @@ bool WorldInitializer::initializeWindow() {
 }
 
 bool WorldInitializer::initializeVulkan() {
+    auto& assets = AssetManager::instance();
     // Create Vulkan instance first
     if (!vulkanDevice->createInstance()) {
         LOG_ERROR("WorldInitializer", "Failed to create Vulkan instance!");
@@ -241,37 +254,37 @@ bool WorldInitializer::initializeVulkan() {
     }
 
     // Load shaders for static pipeline
-    if (!renderPipeline->loadShaders("shaders/static_voxel.vert.spv", "shaders/voxel.frag.spv")) {
+    if (!renderPipeline->loadShaders(assets.resolveShader("static_voxel.vert.spv"), assets.resolveShader("voxel.frag.spv"))) {
         LOG_ERROR("WorldInitializer", "Failed to load static graphics shaders!");
         return false;
     }
 
     // Load shaders for dynamic subcube pipeline
-    if (!dynamicRenderPipeline->loadShaders("shaders/dynamic_voxel.vert.spv", "shaders/voxel.frag.spv")) {
+    if (!dynamicRenderPipeline->loadShaders(assets.resolveShader("dynamic_voxel.vert.spv"), assets.resolveShader("voxel.frag.spv"))) {
         LOG_ERROR("WorldInitializer", "Failed to load dynamic subcube graphics shaders!");
         return false;
     }
     
     // Load debug shaders for debug visualization pipeline
-    if (!renderPipeline->loadDebugShaders("shaders/debug_voxel.vert.spv", "shaders/debug_voxel.frag.spv")) {
+    if (!renderPipeline->loadDebugShaders(assets.resolveShader("debug_voxel.vert.spv"), assets.resolveShader("debug_voxel.frag.spv"))) {
         LOG_ERROR("WorldInitializer", "Failed to load debug pipeline shaders!");
         return false;
     }
     
     // Load debug line shaders for raycast visualization
-    if (!renderPipeline->loadDebugLineShaders("shaders/debug_line.vert.spv", "shaders/debug_line.frag.spv")) {
+    if (!renderPipeline->loadDebugLineShaders(assets.resolveShader("debug_line.vert.spv"), assets.resolveShader("debug_line.frag.spv"))) {
         LOG_ERROR("WorldInitializer", "Failed to load debug line shaders!");
         return false;
     }
 
     // Load character shaders
-    if (!renderPipeline->loadCharacterShaders("shaders/character.vert.spv", "shaders/character.frag.spv")) {
+    if (!renderPipeline->loadCharacterShaders(assets.resolveShader("character.vert.spv"), assets.resolveShader("character.frag.spv"))) {
         LOG_ERROR("WorldInitializer", "Failed to load character pipeline shaders!");
         return false;
     }
 
     // Load instanced character shaders
-    if (!renderPipeline->loadInstancedCharacterShaders("shaders/character_instanced.vert.spv", "shaders/character.frag.spv")) {
+    if (!renderPipeline->loadInstancedCharacterShaders(assets.resolveShader("character_instanced.vert.spv"), assets.resolveShader("character.frag.spv"))) {
         LOG_ERROR("WorldInitializer", "Failed to load instanced character pipeline shaders!");
         return false;
     }
@@ -412,10 +425,11 @@ bool WorldInitializer::initializeVulkan() {
 }
 
 bool WorldInitializer::initializeTextureAtlas() {
+    auto& assets = AssetManager::instance();
     LOG_INFO("WorldInitializer", "Initializing texture atlas system...");
     
     // Load the texture atlas
-    if (!vulkanDevice->loadTextureAtlas("resources/textures/cube_atlas.png")) {
+    if (!vulkanDevice->loadTextureAtlas(assets.textureAtlasPath())) {
         LOG_ERROR("WorldInitializer", "Failed to load texture atlas!");
         return false;
     }

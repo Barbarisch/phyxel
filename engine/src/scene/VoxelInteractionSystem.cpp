@@ -1,5 +1,6 @@
 #include "scene/VoxelInteractionSystem.h"
 #include "core/ChunkManager.h"
+#include "core/AssetManager.h"
 #include "physics/PhysicsWorld.h"
 #include "ui/WindowManager.h"
 #include "core/ForceSystem.h"
@@ -287,19 +288,19 @@ void VoxelInteractionSystem::breakCubeAtPosition(const glm::ivec3& worldPos) {
 
 void VoxelInteractionSystem::placeVoxelAtHover() {
     if (m_placementTool->placeVoxel(createContext())) {
-        if (m_audioSystem) m_audioSystem->playSound("resources/sounds/place.wav");
+        if (m_audioSystem) m_audioSystem->playSound(Core::AssetManager::instance().resolveSound("place.wav"));
     }
 }
 
 void VoxelInteractionSystem::placeSubcubeAtHover() {
     if (m_placementTool->placeSubcube(createContext())) {
-        if (m_audioSystem) m_audioSystem->playSound("resources/sounds/place.wav");
+        if (m_audioSystem) m_audioSystem->playSound(Core::AssetManager::instance().resolveSound("place.wav"));
     }
 }
 
 void VoxelInteractionSystem::placeMicrocubeAtHover() {
     if (m_placementTool->placeMicrocube(createContext())) {
-        if (m_audioSystem) m_audioSystem->playSound("resources/sounds/place.wav");
+        if (m_audioSystem) m_audioSystem->playSound(Core::AssetManager::instance().resolveSound("place.wav"));
     }
 }
 

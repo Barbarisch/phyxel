@@ -1,5 +1,6 @@
 #include "graphics/ShadowMap.h"
 #include "utils/FileUtils.h"
+#include "core/AssetManager.h"
 #include "utils/Logger.h"
 #include <stdexcept>
 #include <array>
@@ -184,8 +185,8 @@ bool ShadowMap::createSampler() {
 
 bool ShadowMap::createPipeline() {
     // Load shaders
-    auto vertShaderCode = Utils::readFile("shaders/shadow.vert.spv");
-    auto fragShaderCode = Utils::readFile("shaders/shadow.frag.spv");
+    auto vertShaderCode = Utils::readFile(Core::AssetManager::instance().resolveShader("shadow.vert.spv"));
+    auto fragShaderCode = Utils::readFile(Core::AssetManager::instance().resolveShader("shadow.frag.spv"));
 
     if (vertShaderCode.empty() || fragShaderCode.empty()) {
         LOG_ERROR("ShadowMap", "Failed to load shadow shaders!");

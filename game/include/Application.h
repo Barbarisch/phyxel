@@ -36,6 +36,7 @@
 #include "ui/DialogueSystem.h"
 #include "ui/SpeechBubbleManager.h"
 #include "story/StoryEngine.h"
+#include "core/EngineConfig.h"
 #include "scene/NPCEntity.h"
 #include "scene/Entity.h"
 #include "scene/Player.h"
@@ -116,6 +117,9 @@ private:
     // CORE SYSTEMS (Ownership)
     // ============================================================================
     
+    // Engine configuration (loaded from engine.json or defaults)
+    Core::EngineConfig engineConfig;
+
     // Window and display
     std::unique_ptr<UI::WindowManager> windowManager;
     
