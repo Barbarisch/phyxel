@@ -224,6 +224,57 @@ Server: `scripts/mcp/phyxel_mcp_server.py` — connects to engine HTTP API at `l
 | `get_clipboard` | Check clipboard status (has data, size, voxel count) |
 | `generate_world` | Generate procedural terrain (Random/Perlin/Flat/Mountains/Caves/City) for chunks. Max 64 chunks |
 | `save_template` | Save a region as a reusable .txt template file, immediately available for spawn_template |
+| `load_game_definition` | Load a complete game from a single JSON definition (world, structures, player, NPCs, story) |
+| `export_game_definition` | Export current game state as a game definition JSON |
+| `validate_game_definition` | Validate a game definition JSON without loading |
+| `create_game_npc` | Composite: spawn NPC + dialogue + story character in one call |
+| `build_project` | Build the Phyxel engine (cmake configure + build) |
+| `launch_engine` | Launch the engine executable as background process |
+| `engine_running` | Check if engine process is alive and API is responsive |
+
+### AI Game Development Workflow
+
+The `load_game_definition` tool enables creating entire games from a single JSON payload:
+
+```json
+{
+  "name": "My Game",
+  "world": {"type": "Perlin", "from": {"x":-1,"y":0,"z":-1}, "to": {"x":1,"y":0,"z":1}},
+  "player": {"type": "physics", "position": {"x":16,"y":20,"z":16}},
+  "camera": {"position": {"x":50,"y":50,"z":50}, "yaw": -135, "pitch": -30},
+  "npcs": [
+    {
+      "name": "Guard", "position": {"x":10,"y":20,"z":10},
+      "behavior": "patrol",
+      "waypoints": [{"x":10,"y":20,"z":10}, {"x":20,"y":20,"z":10}],
+      "dialogue": {
+        "id": "guard_talk", "startNodeId": "start",
+        "nodes": [{"id":"start","speaker":"Guard","text":"Hello traveler!"}]
+      },
+      "storyCharacter": {
+        "id": "guard", "faction": "town_guard", "agencyLevel": 1,
+        "traits": {"openness": 0.3, "extraversion": 0.7},
+        "goals": [{"id":"protect","description":"Protect the town","priority":0.9}]
+      }
+    }
+  ],
+  "structures": [
+    {"type": "fill", "from": {"x":0,"y":0,"z":0}, "to": {"x":31,"y":15,"z":31}, "material": "Stone"}
+  ],
+  "story": {
+    "arcs": [{"id":"main","name":"Main Quest","constraintMode":"Guided",
+              "beats":[{"id":"b1","description":"Meet the guard","type":"Hard"}]}]
+  }
+}
+```
+
+**Typical AI workflow:**
+1. `build_project` — Build the engine
+2. `launch_engine` — Start the engine
+3. `engine_running` — Verify it's ready
+4. `load_game_definition` — Load the full game definition
+5. `screenshot` — See the result
+6. Iterate with `create_game_npc`, `fill_region`, `place_voxel`, etc.
 
 ## Project Structure
 

@@ -26,6 +26,7 @@
 #include "story/StoryDirectorTypes.h"
 #include "core/EngineConfig.h"
 #include "core/AssetManager.h"
+#include "core/GameDefinitionLoader.h"
 #include <imgui.h>
 #include <iostream>
 #include <iomanip>
@@ -2862,6 +2863,67 @@ void Application::processAPICommands() {
                     std::string factId = charId + "_api_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
                     storyEngine->addStartingKnowledge(charId, factId, fact);
                     response = {{"success", true}, {"characterId", charId}, {"factId", factId}};
+                }
+
+            // ================================================================
+            // GAME DEFINITION (AI Game Development)
+            // ================================================================
+
+            } else if (cmd.action == "load_game_definition") {
+                Core::GameSubsystems subsystems;
+                subsystems.chunkManager = chunkManager;
+                subsystems.npcManager = npcManager.get();
+                subsystems.entityRegistry = entityRegistry.get();
+                subsystems.templateManager = objectTemplateManager.get();
+                subsystems.gameEventLog = gameEventLog.get();
+                subsystems.camera = camera;
+                subsystems.dialogueSystem = dialogueSystem.get();
+                subsystems.storyEngine = storyEngine.get();
+
+                // Entity spawner callback — delegates to Application factory methods
+                subsystems.entitySpawner = [this](const std::string& type, const glm::vec3& pos,
+                                                   const std::string& animFile) -> Scene::Entity* {
+                    if (type == "physics") return createPhysicsCharacter(pos);
+                    else if (type == "spider") return createSpiderCharacter(pos);
+                    else if (type == "animated") return createAnimatedCharacter(pos, animFile);
+                    return nullptr;
+                };
+
+                auto loadResult = Core::GameDefinitionLoader::load(cmd.params, subsystems);
+                response = loadResult.toJson();
+
+            } else if (cmd.action == "export_game_definition") {
+                Core::GameSubsystems subsystems;
+                subsystems.camera = camera;
+                subsystems.npcManager = npcManager.get();
+                subsystems.storyEngine = storyEngine.get();
+                response = Core::GameDefinitionLoader::exportDefinition(subsystems);
+
+            } else if (cmd.action == "validate_game_definition") {
+                auto [valid, err] = Core::GameDefinitionLoader::validate(cmd.params);
+                response = {{"valid", valid}};
+                if (!err.empty()) response["error"] = err;
+
+            } else if (cmd.action == "create_game_npc") {
+                // Composite NPC creation: spawn + dialogue + story character in one call
+                if (!npcManager) {
+                    response = {{"error", "NPCManager not available"}};
+                } else {
+                    // Use GameDefinitionLoader with a single-NPC definition
+                    Core::GameSubsystems subsystems;
+                    subsystems.chunkManager = chunkManager;
+                    subsystems.npcManager = npcManager.get();
+                    subsystems.entityRegistry = entityRegistry.get();
+                    subsystems.gameEventLog = gameEventLog.get();
+                    subsystems.dialogueSystem = dialogueSystem.get();
+                    subsystems.storyEngine = storyEngine.get();
+
+                    nlohmann::json npcArray = nlohmann::json::array();
+                    npcArray.push_back(cmd.params);
+                    nlohmann::json fakeDef = {{"npcs", npcArray}};
+
+                    auto loadResult = Core::GameDefinitionLoader::load(fakeDef, subsystems);
+                    response = loadResult.toJson();
                 }
 
             } else {

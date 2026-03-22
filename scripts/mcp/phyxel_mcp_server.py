@@ -32,8 +32,10 @@ import json
 import sys
 import os
 import logging
+import subprocess
 import httpx
 from typing import Any
+from pathlib import Path
 
 # MCP SDK imports
 from mcp.server import Server
@@ -940,6 +942,167 @@ async def list_tools() -> list[Tool]:
                 "required": ["characterId", "fact"]
             }
         ),
+
+        # ================================================================
+        # GAME DEFINITION (AI Game Development)
+        # ================================================================
+
+        Tool(
+            name="load_game_definition",
+            description=(
+                "Load a complete game from a single JSON definition. This is the primary tool for AI-driven "
+                "game creation. Provide a game definition with world generation, structures, player, NPCs "
+                "(with dialogue and story roles), camera setup, and story arcs — all in one call. "
+                "Sections: name, description, version, world, structures, player, camera, npcs, story. "
+                "All sections are optional. Example: {\"name\": \"My Game\", \"world\": {\"type\": \"Perlin\", "
+                "\"from\": {\"x\":-1,\"y\":0,\"z\":-1}, \"to\": {\"x\":1,\"y\":0,\"z\":1}}, "
+                "\"player\": {\"type\": \"physics\", \"position\": {\"x\":16,\"y\":20,\"z\":16}}, "
+                "\"npcs\": [{\"name\": \"Guard\", \"position\": {\"x\":10,\"y\":20,\"z\":10}, "
+                "\"dialogue\": {\"id\":\"talk\", \"startNodeId\":\"start\", "
+                "\"nodes\": [{\"id\":\"start\",\"speaker\":\"Guard\",\"text\":\"Hello!\"}]}}]}"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Game name"},
+                    "description": {"type": "string", "description": "Game description"},
+                    "version": {"type": "string", "description": "Version string"},
+                    "world": {
+                        "type": "object",
+                        "description": "World generation config. type: Perlin|Flat|Mountains|Caves|City|Random. "
+                                       "Specify chunks as array of {x,y,z} or from/to range. Max 64 chunks.",
+                        "properties": {
+                            "type": {"type": "string", "enum": ["Perlin", "Flat", "Mountains", "Caves", "City", "Random"]},
+                            "seed": {"type": "integer"},
+                            "chunks": {"type": "array", "items": {"type": "object"}},
+                            "from": {"type": "object"},
+                            "to": {"type": "object"},
+                            "params": {"type": "object", "description": "heightScale, frequency, octaves, persistence, lacunarity, caveThreshold, stoneLevel"}
+                        }
+                    },
+                    "structures": {
+                        "type": "array",
+                        "description": "Array of structures to place. Each has type='fill' (from/to/material/hollow) or type='template' (template/position/dynamic).",
+                        "items": {"type": "object"}
+                    },
+                    "player": {
+                        "type": "object",
+                        "description": "Player entity. type: physics|spider|animated. position: {x,y,z}. Optional: id, animFile.",
+                        "properties": {
+                            "type": {"type": "string", "enum": ["physics", "spider", "animated"]},
+                            "position": {"type": "object"},
+                            "id": {"type": "string"},
+                            "animFile": {"type": "string"}
+                        }
+                    },
+                    "camera": {
+                        "type": "object",
+                        "description": "Camera position and orientation.",
+                        "properties": {
+                            "position": {"type": "object"},
+                            "yaw": {"type": "number"},
+                            "pitch": {"type": "number"}
+                        }
+                    },
+                    "npcs": {
+                        "type": "array",
+                        "description": "Array of NPCs. Each has: name, animFile, position, behavior (idle|patrol), "
+                                       "waypoints, walkSpeed, waitTime, dialogue (DialogueTree JSON), "
+                                       "storyCharacter (id, faction, agencyLevel, traits, goals, roles).",
+                        "items": {"type": "object"}
+                    },
+                    "story": {
+                        "type": "object",
+                        "description": "Story engine setup. world: {factions, locations, variables}. arcs: [{id, name, constraintMode, beats}]."
+                    }
+                }
+            }
+        ),
+        Tool(
+            name="export_game_definition",
+            description="Export the current game state as a game definition JSON. Returns camera, NPCs, and story state.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="validate_game_definition",
+            description="Validate a game definition JSON without loading it. Returns {valid: bool, error?: string}.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "definition": {"type": "object", "description": "The game definition to validate"}
+                },
+                "required": ["definition"]
+            }
+        ),
+        Tool(
+            name="create_game_npc",
+            description=(
+                "Create a complete NPC in one call: spawn animated character + set dialogue tree + "
+                "register story character with personality, goals, and faction. More convenient than "
+                "calling spawn_npc + set_npc_dialogue + story_add_character separately."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "NPC name (unique identifier)"},
+                    "animFile": {"type": "string", "description": "Animation file (default: character.anim)"},
+                    "position": {"type": "object", "description": "{x, y, z} world coordinates",
+                                 "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}},
+                    "behavior": {"type": "string", "enum": ["idle", "patrol"], "description": "NPC behavior type"},
+                    "waypoints": {"type": "array", "description": "Patrol waypoints [{x,y,z}]", "items": {"type": "object"}},
+                    "walkSpeed": {"type": "number"},
+                    "waitTime": {"type": "number"},
+                    "dialogue": {
+                        "type": "object",
+                        "description": "Dialogue tree: {id, startNodeId, nodes: [{id, speaker, text, emotion?, nextNodeId?, choices?: [{text, targetNodeId}]}]}"
+                    },
+                    "storyCharacter": {
+                        "type": "object",
+                        "description": "Story character profile: {id, faction, agencyLevel (0-3), traits: {openness, conscientiousness, extraversion, agreeableness, neuroticism}, goals: [{id, description, priority}], roles: [string]}"
+                    }
+                },
+                "required": ["name"]
+            }
+        ),
+
+        # ================================================================
+        # PROJECT LIFECYCLE
+        # ================================================================
+
+        Tool(
+            name="build_project",
+            description=(
+                "Build the Phyxel engine project using CMake. Runs cmake -B build -S . and "
+                "cmake --build build --config <config>. Returns build output including errors."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "config": {"type": "string", "enum": ["Debug", "Release"], "description": "Build configuration (default: Debug)"},
+                    "reconfigure": {"type": "boolean", "description": "Run cmake configure before build (default: false)"}
+                }
+            }
+        ),
+        Tool(
+            name="launch_engine",
+            description=(
+                "Launch the Phyxel engine executable as a background process. "
+                "The engine must be built first. Once running, all other tools become available. "
+                "Returns the process ID."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "config": {"type": "string", "enum": ["Debug", "Release"], "description": "Which build config to launch (default: Debug)"},
+                    "args": {"type": "array", "items": {"type": "string"}, "description": "Additional command-line arguments"}
+                }
+            }
+        ),
+        Tool(
+            name="engine_running",
+            description="Check if the engine process is currently running and responsive.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
     ]
 
 
@@ -1306,8 +1469,151 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             body["category"] = args["category"]
         return await api_post("/api/story/knowledge", body)
 
+    # --- Game Definition (AI Game Development) ---
+
+    elif name == "load_game_definition":
+        return await api_post("/api/game/load_definition", args)
+
+    elif name == "export_game_definition":
+        return await api_get("/api/game/export_definition")
+
+    elif name == "validate_game_definition":
+        definition = args.get("definition", args)
+        return await api_post("/api/game/validate_definition", definition)
+
+    elif name == "create_game_npc":
+        return await api_post("/api/game/create_npc", args)
+
+    # --- Project Lifecycle ---
+
+    elif name == "build_project":
+        return await _build_project(args)
+
+    elif name == "launch_engine":
+        return await _launch_engine(args)
+
+    elif name == "engine_running":
+        return await _check_engine_running()
+
     else:
         return {"error": f"Unknown tool: {name}"}
+
+
+# ============================================================================
+# Project Lifecycle Helpers
+# ============================================================================
+
+# Resolve project root (parent of scripts/mcp/)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+# CMake path (MSVC 2022)
+CMAKE_PATH = r"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
+
+
+def _get_cmake():
+    """Return cmake executable path."""
+    if os.path.exists(CMAKE_PATH):
+        return CMAKE_PATH
+    # Fallback to PATH
+    return "cmake"
+
+
+async def _build_project(args: dict) -> dict:
+    """Build the project using CMake."""
+    config = args.get("config", "Debug")
+    reconfigure = args.get("reconfigure", False)
+    cmake = _get_cmake()
+    build_dir = PROJECT_ROOT / "build"
+
+    output_lines = []
+
+    if reconfigure or not build_dir.exists():
+        try:
+            result = subprocess.run(
+                [cmake, "-B", "build", "-S", "."],
+                cwd=str(PROJECT_ROOT),
+                capture_output=True, text=True, timeout=120
+            )
+            output_lines.append("=== CMake Configure ===")
+            if result.stdout:
+                output_lines.append(result.stdout[-2000:])
+            if result.returncode != 0:
+                output_lines.append(f"Configure failed (exit {result.returncode})")
+                if result.stderr:
+                    output_lines.append(result.stderr[-2000:])
+                return {"success": False, "output": "\n".join(output_lines)}
+        except subprocess.TimeoutExpired:
+            return {"success": False, "error": "CMake configure timed out"}
+
+    try:
+        result = subprocess.run(
+            [cmake, "--build", "build", "--config", config],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True, text=True, timeout=300
+        )
+        output_lines.append(f"=== CMake Build ({config}) ===")
+        if result.stdout:
+            # Trim to last 3000 chars to avoid huge output
+            output_lines.append(result.stdout[-3000:])
+        if result.returncode != 0:
+            output_lines.append(f"Build failed (exit {result.returncode})")
+            if result.stderr:
+                output_lines.append(result.stderr[-2000:])
+            return {"success": False, "output": "\n".join(output_lines)}
+        return {"success": True, "output": "\n".join(output_lines)}
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": "CMake build timed out (300s)"}
+
+
+_engine_process = None
+
+
+async def _launch_engine(args: dict) -> dict:
+    """Launch the engine executable as a background process."""
+    global _engine_process
+    config = args.get("config", "Debug")
+    extra_args = args.get("args", [])
+
+    # Check if already running
+    if _engine_process and _engine_process.poll() is None:
+        return {"success": True, "message": "Engine already running", "pid": _engine_process.pid}
+
+    exe_path = PROJECT_ROOT / "build" / "game" / config / "phyxel.exe"
+    if not exe_path.exists():
+        # Try root copy
+        exe_path = PROJECT_ROOT / "phyxel.exe"
+    if not exe_path.exists():
+        return {"error": f"Engine executable not found. Build the project first."}
+
+    try:
+        _engine_process = subprocess.Popen(
+            [str(exe_path)] + extra_args,
+            cwd=str(PROJECT_ROOT),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        return {"success": True, "pid": _engine_process.pid, "executable": str(exe_path)}
+    except Exception as e:
+        return {"error": f"Failed to launch engine: {e}"}
+
+
+async def _check_engine_running() -> dict:
+    """Check if the engine is running and responsive."""
+    global _engine_process
+
+    process_alive = _engine_process is not None and _engine_process.poll() is None
+
+    try:
+        result = await api_get("/api/status")
+        api_ok = "error" not in result
+    except Exception:
+        api_ok = False
+
+    return {
+        "process_alive": process_alive,
+        "api_responsive": api_ok,
+        "pid": _engine_process.pid if process_alive else None
+    }
 
 
 # ============================================================================

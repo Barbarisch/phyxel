@@ -25,6 +25,13 @@
 - **Project scaffolding**: `python tools/create_project.py MyGame` generates a ready-to-build standalone game directory (CMakeLists.txt, GameCallbacks stub, main.cpp, engine.json)
 - **8 new tests**: ProjectSystemTest (C++) + 6 Python tests for create_project.py
 
+#### AGD: AI Game Development (852 tests / 84 suites)
+- **GameDefinitionLoader**: Single JSON document describes a complete game — world generation, structures, player, NPCs (with dialogue + story characters), camera, story arcs. Engine loads it atomically via one API call.
+- **6 new MCP tools**: `load_game_definition`, `export_game_definition`, `validate_game_definition`, `create_game_npc` (composite NPC creation), `build_project` (cmake build), `launch_engine` (start engine process), `engine_running` (health check)
+- **HTTP endpoints**: `/api/game/load_definition`, `/api/game/export_definition`, `/api/game/validate_definition`, `/api/game/create_npc`
+- **AI workflow**: build → launch → load_game_definition → screenshot → iterate
+- **26 new tests**: GameDefinitionTest (validation, result serialization, null-subsystem handling, complete schema validation)
+
 ### AI Agent Control Surface (commits `34fd5a7` → `340fbe5`)
 - **EngineAPIServer**: HTTP/JSON API on `localhost:8090` with 34+ endpoints
 - **MCP Server**: `scripts/mcp/phyxel_mcp_server.py` — stdio-based MCP server for Claude Code / Goose

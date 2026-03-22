@@ -972,6 +972,55 @@ void EngineAPIServer::setupRoutes() {
             res.set_content(err.dump(), "application/json");
         }
     });
+
+    // ====================================================================
+    // GAME DEFINITION (AI Game Development)
+    // ====================================================================
+
+    // POST /api/game/load_definition — Load a complete game from a single JSON definition
+    srv.Post("/api/game/load_definition", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("load_game_definition", params, 120000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // GET /api/game/export_definition — Export current game state as a game definition
+    srv.Get("/api/game/export_definition", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("export_game_definition", json{}, 10000);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/game/validate_definition — Validate a game definition without loading
+    srv.Post("/api/game/validate_definition", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("validate_game_definition", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/game/create_npc — Composite: spawn NPC + dialogue + story character in one call
+    srv.Post("/api/game/create_npc", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("create_game_npc", params, 30000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
 }
 
 // ============================================================================
