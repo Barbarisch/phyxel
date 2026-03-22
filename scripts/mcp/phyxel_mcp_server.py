@@ -790,6 +790,156 @@ async def list_tools() -> list[Tool]:
             description="List all available dialogue JSON files in resources/dialogues/.",
             inputSchema={"type": "object", "properties": {}, "required": []}
         ),
+
+        # ================================================================
+        # Story System
+        # ================================================================
+        Tool(
+            name="story_get_state",
+            description="Get the full story engine state including all characters, arcs, world state, and memories.",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        Tool(
+            name="story_list_characters",
+            description="List all story characters with their IDs, names, and factions.",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        Tool(
+            name="story_get_character",
+            description="Get detailed info about a specific story character including profile, memory, and emotional state.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Character ID"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="story_list_arcs",
+            description="List all story arcs with their current status.',",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        Tool(
+            name="story_get_arc",
+            description="Get detailed info about a specific story arc including beats and tension.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Arc ID"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="story_get_world",
+            description="Get the story world state: factions, locations, and variables.",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        Tool(
+            name="story_load_world",
+            description="Load a full world definition from JSON. Defines factions, characters, story arcs, and world variables in one call.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "definition": {"type": "object", "description": "Full world definition JSON object with world, characters, and storyArcs sections"}
+                },
+                "required": ["definition"]
+            }
+        ),
+        Tool(
+            name="story_add_character",
+            description="Add a single character to the story engine.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Unique character ID"},
+                    "name": {"type": "string", "description": "Character display name"},
+                    "faction": {"type": "string", "description": "Faction ID (optional)"},
+                    "agencyLevel": {"type": "integer", "description": "0=Scripted, 1=Templated, 2=Guided, 3=Autonomous"},
+                    "traits": {"type": "object", "description": "Big Five personality traits (openness, conscientiousness, extraversion, agreeableness, neuroticism) from 0.0-1.0"},
+                    "goals": {"type": "array", "items": {"type": "object"}, "description": "Character goals with id, description, priority"}
+                },
+                "required": ["id", "name"]
+            }
+        ),
+        Tool(
+            name="story_remove_character",
+            description="Remove a character from the story engine.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Character ID to remove"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="story_trigger_event",
+            description="Trigger a world event in the story engine. Events propagate to characters and can advance story beats.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "type": {"type": "string", "description": "Event type name"},
+                    "data": {"type": "object", "description": "Event data as key-value pairs"},
+                    "location": {"type": "string", "description": "Location ID where event occurs (optional)"},
+                    "participants": {"type": "array", "items": {"type": "string"}, "description": "Character IDs involved (optional)"}
+                },
+                "required": ["type"]
+            }
+        ),
+        Tool(
+            name="story_add_arc",
+            description="Add a story arc with beats and constraint mode.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Unique arc ID"},
+                    "name": {"type": "string", "description": "Arc display name"},
+                    "constraintMode": {"type": "string", "description": "Scripted, Guided, Emergent, or Freeform"},
+                    "beats": {"type": "array", "items": {"type": "object"}, "description": "Story beats with id, type, conditions"},
+                    "tensionCurve": {"type": "array", "items": {"type": "number"}, "description": "Tension values over arc progress (optional)"}
+                },
+                "required": ["id", "name"]
+            }
+        ),
+        Tool(
+            name="story_set_variable",
+            description="Set a world variable in the story engine.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Variable name"},
+                    "value": {"description": "Variable value (bool, int, float, or string)"}
+                },
+                "required": ["name", "value"]
+            }
+        ),
+        Tool(
+            name="story_set_agency",
+            description="Set a character's agency level (how autonomous their behavior is).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Character ID"},
+                    "level": {"type": "integer", "description": "0=Scripted, 1=Templated, 2=Guided, 3=Autonomous"}
+                },
+                "required": ["id", "level"]
+            }
+        ),
+        Tool(
+            name="story_add_knowledge",
+            description="Add a piece of knowledge to a character's memory.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "characterId": {"type": "string", "description": "Character ID"},
+                    "fact": {"type": "string", "description": "Knowledge fact text"},
+                    "category": {"type": "string", "description": "Knowledge category (optional)"}
+                },
+                "required": ["characterId", "fact"]
+            }
+        ),
     ]
 
 
@@ -1098,6 +1248,63 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     elif name == "list_dialogue_files":
         return await api_get("/api/dialogue/files")
+
+    # --- Story System ---
+    elif name == "story_get_state":
+        return await api_get("/api/story/state")
+
+    elif name == "story_list_characters":
+        return await api_get("/api/story/characters")
+
+    elif name == "story_get_character":
+        return await api_get(f"/api/story/character/{args['id']}")
+
+    elif name == "story_list_arcs":
+        return await api_get("/api/story/arcs")
+
+    elif name == "story_get_arc":
+        return await api_get(f"/api/story/arc/{args['id']}")
+
+    elif name == "story_get_world":
+        return await api_get("/api/story/world")
+
+    elif name == "story_load_world":
+        return await api_post("/api/story/load", {"definition": args["definition"]})
+
+    elif name == "story_add_character":
+        return await api_post("/api/story/character/add", args)
+
+    elif name == "story_remove_character":
+        return await api_post("/api/story/character/remove", {"id": args["id"]})
+
+    elif name == "story_trigger_event":
+        body: dict[str, Any] = {"type": args["type"]}
+        if "data" in args:
+            body["data"] = args["data"]
+        if "location" in args:
+            body["location"] = args["location"]
+        if "participants" in args:
+            body["participants"] = args["participants"]
+        return await api_post("/api/story/event", body)
+
+    elif name == "story_add_arc":
+        return await api_post("/api/story/arc/add", args)
+
+    elif name == "story_set_variable":
+        return await api_post("/api/story/variable", {
+            "name": args["name"], "value": args["value"]
+        })
+
+    elif name == "story_set_agency":
+        return await api_post("/api/story/agency", {
+            "id": args["id"], "level": args["level"]
+        })
+
+    elif name == "story_add_knowledge":
+        body = {"characterId": args["characterId"], "fact": args["fact"]}
+        if "category" in args:
+            body["category"] = args["category"]
+        return await api_post("/api/story/knowledge", body)
 
     else:
         return {"error": f"Unknown tool: {name}"}

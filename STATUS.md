@@ -1,6 +1,6 @@
 # Phyxel — Project Status & Next Steps
 
-*Last updated: March 21, 2026*
+*Last updated: March 23, 2026*
 
 ## What's Been Built
 
@@ -80,7 +80,7 @@
 ## Current State of the Build
 
 - **Build**: Clean, all targets compile (`phyxel_core`, `phyxel_game`, `phyxel`)
-- **Tests**: All 511 tests pass (0 failures). 44 test suites.
+- **Tests**: All 779 tests pass (0 failures). 77 test suites.
 - **Executable**: `phyxel.exe` at project root (copied post-build) or `build/game/Debug/phyxel.exe`
 
 ### Build Commands
@@ -119,6 +119,38 @@ $cmakePath = "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\ID
 - Input bindings: E (interact), Enter (advance), 1-4 (choices), ESC (end conversation)
 - API endpoints: `/api/npc/dialogue`, `/api/dialogue/start`, `/api/dialogue/end`, `/api/speech/say`
 - MCP tools: `set_npc_dialogue`, `start_dialogue`, `end_dialogue`, `say_bubble`
+
+### Open Gaps
+
+### Game Mechanics System (commit `4b526b4`, 511 tests)
+
+#### Phase 1: Crafting System
+- **CraftingRecipe, CraftingSystem** — JSON recipe loading, resource validation, crafting with byproducts
+- **MCP tools**: `list_recipes`, `get_recipe`, `craft_item`, `add_recipe`, `reload_recipes`
+- **Sample recipes**: `resources/recipes/` (wood_planks, stone_bricks, glass_pane, etc.)
+
+#### Phase 2: Environmental Hazards
+- **HazardZone, HazardSystem** — 6 hazard types (Fire, Poison, Ice, Electric, Void, Radiation), stackable effects, resistance, DOT/slow/stun
+- **MCP tools**: `create_hazard`, `remove_hazard`, `list_hazards`, `get_hazard`
+
+#### Phase 3: Day/Night Cycle
+- **DayNightCycle** — configurable day length, time phases (Dawn/Day/Dusk/Night), ambient/sun color interpolation, time speed control
+- **MCP tools**: `get_time`, `set_time`, `set_day_length`, `set_time_speed`
+
+#### Phase 4: Achievements
+- **Achievement, AchievementSystem** — types (Counter/Threshold/OneShot/Composite), JSON persistence, progress tracking, unlock callbacks
+- **MCP tools**: `list_achievements`, `get_achievement`, `create_achievement`, etc.
+
+### Story Engine (Phases S1–S5 + Application wiring)
+
+Full design: `docs/StoryEngineDesign.md` | Progress: `docs/StoryEngineProgress.md`
+
+- **S1 — World State & Character Profiles**: WorldState, Faction, Location, CharacterProfile (Big Five personality), CharacterMemory (knowledge asymmetry), StoryEngine facade (72 tests)
+- **S2 — Event System & Knowledge Propagation**: EventBus (thread-safe), KnowledgePropagator (witnessing/dialogue/rumors), confidence decay (36 tests)
+- **S3 — Story Director Core**: StoryArc with 4 constraint modes (Scripted/Guided/Emergent/Freeform), beat evaluation, tension/pacing management (47 tests)
+- **S4 — Character AI Agents**: CharacterAgent interface, RuleBasedCharacterAgent (personality-driven), LLMCharacterAgent (AI-backed with fallback chain), StoryDrivenBehavior (NPCBehavior bridge) (64 tests)
+- **S5 — Developer API & Tooling**: StoryWorldLoader (JSON world definitions), 14 HTTP API routes, 14 MCP tools (49 tests)
+- **Application wiring**: StoryEngine instantiated in Application, 6 read-only handlers + 8 mutation commands. All 14 endpoints verified via manual testing.
 
 ### Open Gaps
 - **Subcube/microcube material persistence**: SQLite schema only stores material for full cubes. Subcube/microcube material defaults to "Default" on save/load. Need to add `material` column to subcube/microcube tables.

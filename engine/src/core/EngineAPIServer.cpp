@@ -790,6 +790,188 @@ void EngineAPIServer::setupRoutes() {
             res.set_content(err.dump(), "application/json");
         }
     });
+
+    // ========================================================================
+    // Story System Routes
+    // ========================================================================
+
+    // GET /api/story/state — Full story engine state (saveState)
+    srv.Get("/api/story/state", [this](const httplib::Request&, httplib::Response& res) {
+        if (m_storyStateHandler) {
+            json result = m_storyStateHandler();
+            res.set_content(result.dump(), "application/json");
+        } else {
+            json err = {{"error", "Story system not available"}};
+            res.status = 503;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // GET /api/story/characters — List all story character IDs
+    srv.Get("/api/story/characters", [this](const httplib::Request&, httplib::Response& res) {
+        if (m_storyCharacterListHandler) {
+            json result = m_storyCharacterListHandler();
+            res.set_content(result.dump(), "application/json");
+        } else {
+            json err = {{"error", "Story system not available"}};
+            res.status = 503;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // GET /api/story/character/:id — Get character detail by ID
+    srv.Get(R"(/api/story/character/(\w+))", [this](const httplib::Request& req, httplib::Response& res) {
+        if (m_storyCharacterDetailHandler) {
+            std::string id = req.matches[1];
+            json result = m_storyCharacterDetailHandler(id);
+            res.set_content(result.dump(), "application/json");
+        } else {
+            json err = {{"error", "Story system not available"}};
+            res.status = 503;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // GET /api/story/arcs — List all story arcs
+    srv.Get("/api/story/arcs", [this](const httplib::Request&, httplib::Response& res) {
+        if (m_storyArcListHandler) {
+            json result = m_storyArcListHandler();
+            res.set_content(result.dump(), "application/json");
+        } else {
+            json err = {{"error", "Story system not available"}};
+            res.status = 503;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // GET /api/story/arc/:id — Get arc detail by ID
+    srv.Get(R"(/api/story/arc/(\w+))", [this](const httplib::Request& req, httplib::Response& res) {
+        if (m_storyArcDetailHandler) {
+            std::string id = req.matches[1];
+            json result = m_storyArcDetailHandler(id);
+            res.set_content(result.dump(), "application/json");
+        } else {
+            json err = {{"error", "Story system not available"}};
+            res.status = 503;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // GET /api/story/world — World state (factions, locations, variables)
+    srv.Get("/api/story/world", [this](const httplib::Request&, httplib::Response& res) {
+        if (m_storyWorldHandler) {
+            json result = m_storyWorldHandler();
+            res.set_content(result.dump(), "application/json");
+        } else {
+            json err = {{"error", "Story system not available"}};
+            res.status = 503;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/story/load — Load world definition from JSON
+    srv.Post("/api/story/load", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("story_load_world", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/story/character/add — Add a character
+    srv.Post("/api/story/character/add", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("story_add_character", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/story/character/remove — Remove a character
+    srv.Post("/api/story/character/remove", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("story_remove_character", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/story/event — Trigger a world event
+    srv.Post("/api/story/event", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("story_trigger_event", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/story/arc/add — Add a story arc
+    srv.Post("/api/story/arc/add", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("story_add_arc", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/story/variable — Set a world variable
+    srv.Post("/api/story/variable", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("story_set_variable", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/story/agency — Set character agency level
+    srv.Post("/api/story/agency", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("story_set_agency", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/story/knowledge — Add starting knowledge to a character
+    srv.Post("/api/story/knowledge", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("story_add_knowledge", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
 }
 
 // ============================================================================

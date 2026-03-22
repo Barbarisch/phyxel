@@ -7,6 +7,7 @@ file(GLOB_RECURSE TEST_SOURCES
     "graphics/*.cpp"
     "physics/*.cpp"
     "scene/*.cpp"
+    "story/*.cpp"
     "ui/*.cpp"
     "utils/*.cpp"
     "mocks/*.cpp"

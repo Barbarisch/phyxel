@@ -35,6 +35,7 @@
 #include "core/InteractionManager.h"
 #include "ui/DialogueSystem.h"
 #include "ui/SpeechBubbleManager.h"
+#include "story/StoryEngine.h"
 #include "scene/NPCEntity.h"
 #include "scene/Entity.h"
 #include "scene/Player.h"
@@ -167,6 +168,9 @@ private:
     // NPC System
     std::unique_ptr<Core::NPCManager> npcManager;
     std::unique_ptr<Core::InteractionManager> interactionManager;
+
+    // Story Engine
+    std::unique_ptr<Story::StoryEngine> storyEngine;
 
     // Dialogue System
     std::unique_ptr<UI::DialogueSystem> dialogueSystem;

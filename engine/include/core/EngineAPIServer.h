@@ -136,6 +136,34 @@ public:
     using ClipboardInfoHandler = std::function<json()>;
     void setClipboardInfoHandler(ClipboardInfoHandler handler) { m_clipboardInfoHandler = std::move(handler); }
 
+    // ========================================================================
+    // Story System handlers (read-only, called on HTTP thread)
+    // ========================================================================
+
+    /// Handler that returns the full story state (saveState JSON).
+    using StoryStateHandler = std::function<json()>;
+    void setStoryStateHandler(StoryStateHandler handler) { m_storyStateHandler = std::move(handler); }
+
+    /// Handler that returns character list JSON.
+    using StoryCharacterListHandler = std::function<json()>;
+    void setStoryCharacterListHandler(StoryCharacterListHandler handler) { m_storyCharacterListHandler = std::move(handler); }
+
+    /// Handler that returns a single character's JSON by ID.
+    using StoryCharacterDetailHandler = std::function<json(const std::string& id)>;
+    void setStoryCharacterDetailHandler(StoryCharacterDetailHandler handler) { m_storyCharacterDetailHandler = std::move(handler); }
+
+    /// Handler that returns story arcs list JSON.
+    using StoryArcListHandler = std::function<json()>;
+    void setStoryArcListHandler(StoryArcListHandler handler) { m_storyArcListHandler = std::move(handler); }
+
+    /// Handler that returns a single arc's JSON by ID.
+    using StoryArcDetailHandler = std::function<json(const std::string& id)>;
+    void setStoryArcDetailHandler(StoryArcDetailHandler handler) { m_storyArcDetailHandler = std::move(handler); }
+
+    /// Handler that returns world state (factions, locations, variables).
+    using StoryWorldHandler = std::function<json()>;
+    void setStoryWorldHandler(StoryWorldHandler handler) { m_storyWorldHandler = std::move(handler); }
+
 private:
     void serverThread();
     void setupRoutes();
@@ -165,6 +193,12 @@ private:
     EventPollHandler m_eventPollHandler;
     SnapshotListHandler m_snapshotListHandler;
     ClipboardInfoHandler m_clipboardInfoHandler;
+    StoryStateHandler m_storyStateHandler;
+    StoryCharacterListHandler m_storyCharacterListHandler;
+    StoryCharacterDetailHandler m_storyCharacterDetailHandler;
+    StoryArcListHandler m_storyArcListHandler;
+    StoryArcDetailHandler m_storyArcDetailHandler;
+    StoryWorldHandler m_storyWorldHandler;
 
     // Forward-declared impl to keep httplib out of the header
     struct Impl;
