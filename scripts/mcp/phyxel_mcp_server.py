@@ -1309,6 +1309,73 @@ async def list_tools() -> list[Tool]:
             }
         ),
 
+        # ================================================================
+        # HEALTH / DAMAGE
+        # ================================================================
+
+        Tool(
+            name="damage_entity",
+            description="Deal damage to an entity. Returns actual damage dealt and updated health state.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Entity ID"},
+                    "amount": {"type": "number", "description": "Damage amount"},
+                    "source": {"type": "string", "description": "Source entity ID (optional)", "default": ""}
+                },
+                "required": ["id", "amount"]
+            }
+        ),
+        Tool(
+            name="heal_entity",
+            description="Heal an entity. Returns actual amount healed and updated health state.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Entity ID"},
+                    "amount": {"type": "number", "description": "Heal amount"}
+                },
+                "required": ["id", "amount"]
+            }
+        ),
+        Tool(
+            name="set_entity_health",
+            description="Set entity health properties directly (health, maxHealth, invulnerable).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Entity ID"},
+                    "health": {"type": "number", "description": "Set current health"},
+                    "maxHealth": {"type": "number", "description": "Set max health"},
+                    "invulnerable": {"type": "boolean", "description": "Set invulnerability"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="kill_entity",
+            description="Instantly kill an entity (set health to 0).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Entity ID"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="revive_entity",
+            description="Revive a dead entity with optional health percentage (default 100%).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Entity ID"},
+                    "healthPercent": {"type": "number", "description": "Health percentage to revive with (0.01-1.0, default 1.0)", "default": 1.0}
+                },
+                "required": ["id"]
+            }
+        ),
+
         Tool(
             name="list_lights",
             description=(
@@ -1933,6 +2000,35 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     elif name == "set_creative_mode":
         return await api_post("/api/inventory/creative", {"enabled": args["enabled"]})
+
+    # --- Health / Damage ---
+    elif name == "damage_entity":
+        body = {"id": args["id"], "amount": args["amount"]}
+        if "source" in args:
+            body["source"] = args["source"]
+        return await api_post("/api/entity/damage", body)
+
+    elif name == "heal_entity":
+        return await api_post("/api/entity/heal", {"id": args["id"], "amount": args["amount"]})
+
+    elif name == "set_entity_health":
+        body: dict[str, Any] = {"id": args["id"]}
+        if "health" in args:
+            body["health"] = args["health"]
+        if "maxHealth" in args:
+            body["maxHealth"] = args["maxHealth"]
+        if "invulnerable" in args:
+            body["invulnerable"] = args["invulnerable"]
+        return await api_post("/api/entity/set_health", body)
+
+    elif name == "kill_entity":
+        return await api_post("/api/entity/kill", {"id": args["id"]})
+
+    elif name == "revive_entity":
+        body = {"id": args["id"]}
+        if "healthPercent" in args:
+            body["healthPercent"] = args["healthPercent"]
+        return await api_post("/api/entity/revive", body)
 
     # --- Lighting ---
     elif name == "list_lights":

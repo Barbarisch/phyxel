@@ -5,6 +5,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace Phyxel {
+
+namespace Core { class HealthComponent; }
+
 namespace Graphics {
     class RenderCoordinator;
 }
@@ -37,6 +40,10 @@ public:
 
     /// Debug visualization color (subclasses set this for renderer identification)
     glm::vec4 debugColor = glm::vec4(1.0f); // default white
+
+    /// Health component access (nullptr if entity has no health)
+    virtual Core::HealthComponent* getHealthComponent() { return nullptr; }
+    virtual const Core::HealthComponent* getHealthComponent() const { return nullptr; }
 
 protected:
     glm::vec3 position = glm::vec3(0.0f);

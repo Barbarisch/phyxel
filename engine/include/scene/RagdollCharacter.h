@@ -2,8 +2,10 @@
 
 #include "scene/Entity.h"
 #include "physics/PhysicsWorld.h"
+#include "core/HealthComponent.h"
 #include <vector>
 #include <string>
+#include <memory>
 #include <glm/glm.hpp>
 
 namespace Phyxel {
@@ -26,7 +28,7 @@ struct RagdollPart {
 class RagdollCharacter : public Entity {
 public:
     RagdollCharacter(Physics::PhysicsWorld* physicsWorld, const glm::vec3& startPos) 
-        : physicsWorld(physicsWorld), faction(Faction::Neutral) {}
+        : physicsWorld(physicsWorld), faction(Faction::Neutral), m_health(std::make_unique<Core::HealthComponent>(100.0f)) {}
     
     virtual ~RagdollCharacter() {
         // Cleanup constraints
@@ -86,11 +88,16 @@ public:
     // Control interface (can be overridden by specific characters)
     virtual void setControlInput(float forward, float turn) {}
 
+    // Health
+    Core::HealthComponent* getHealthComponent() override { return m_health.get(); }
+    const Core::HealthComponent* getHealthComponent() const override { return m_health.get(); }
+
 protected:
     Physics::PhysicsWorld* physicsWorld;
     std::vector<RagdollPart> parts;
     std::vector<btTypedConstraint*> constraints;
     Faction faction;
+    std::unique_ptr<Core::HealthComponent> m_health;
 };
 
 } // namespace Scene

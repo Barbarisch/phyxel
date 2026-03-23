@@ -2071,6 +2071,128 @@ void Application::processAPICommands() {
                     }
                 }
 
+            // ============================================================
+            // Health/Damage Commands
+            // ============================================================
+            } else if (cmd.action == "damage_entity") {
+                std::string id = cmd.params.value("id", "");
+                float amount = cmd.params.value("amount", 0.0f);
+                std::string source = cmd.params.value("source", "");
+                if (id.empty() || !entityRegistry) {
+                    response = {{"error", "Entity ID required"}};
+                } else {
+                    auto* entity = entityRegistry->getEntity(id);
+                    if (!entity) {
+                        response = {{"error", "Entity not found: " + id}};
+                    } else {
+                        auto* health = entity->getHealthComponent();
+                        if (!health) {
+                            response = {{"error", "Entity has no health component: " + id}};
+                        } else {
+                            float actual = health->takeDamage(amount, source);
+                            response = {{"success", true}, {"id", id}, {"damageDealt", actual}, {"health", health->toJson()}};
+                            if (gameEventLog) {
+                                gameEventLog->emit("entity_damaged", {{"id", id}, {"amount", actual}, {"source", source}, {"alive", health->isAlive()}});
+                            }
+                        }
+                    }
+                }
+
+            } else if (cmd.action == "heal_entity") {
+                std::string id = cmd.params.value("id", "");
+                float amount = cmd.params.value("amount", 0.0f);
+                if (id.empty() || !entityRegistry) {
+                    response = {{"error", "Entity ID required"}};
+                } else {
+                    auto* entity = entityRegistry->getEntity(id);
+                    if (!entity) {
+                        response = {{"error", "Entity not found: " + id}};
+                    } else {
+                        auto* health = entity->getHealthComponent();
+                        if (!health) {
+                            response = {{"error", "Entity has no health component: " + id}};
+                        } else {
+                            float actual = health->heal(amount);
+                            response = {{"success", true}, {"id", id}, {"healed", actual}, {"health", health->toJson()}};
+                            if (gameEventLog) {
+                                gameEventLog->emit("entity_healed", {{"id", id}, {"amount", actual}});
+                            }
+                        }
+                    }
+                }
+
+            } else if (cmd.action == "set_entity_health") {
+                std::string id = cmd.params.value("id", "");
+                if (id.empty() || !entityRegistry) {
+                    response = {{"error", "Entity ID required"}};
+                } else {
+                    auto* entity = entityRegistry->getEntity(id);
+                    if (!entity) {
+                        response = {{"error", "Entity not found: " + id}};
+                    } else {
+                        auto* health = entity->getHealthComponent();
+                        if (!health) {
+                            response = {{"error", "Entity has no health component: " + id}};
+                        } else {
+                            if (cmd.params.contains("maxHealth")) {
+                                health->setMaxHealth(cmd.params["maxHealth"].get<float>());
+                            }
+                            if (cmd.params.contains("health")) {
+                                health->setHealth(cmd.params["health"].get<float>());
+                            }
+                            if (cmd.params.contains("invulnerable")) {
+                                health->setInvulnerable(cmd.params["invulnerable"].get<bool>());
+                            }
+                            response = {{"success", true}, {"id", id}, {"health", health->toJson()}};
+                        }
+                    }
+                }
+
+            } else if (cmd.action == "kill_entity") {
+                std::string id = cmd.params.value("id", "");
+                if (id.empty() || !entityRegistry) {
+                    response = {{"error", "Entity ID required"}};
+                } else {
+                    auto* entity = entityRegistry->getEntity(id);
+                    if (!entity) {
+                        response = {{"error", "Entity not found: " + id}};
+                    } else {
+                        auto* health = entity->getHealthComponent();
+                        if (!health) {
+                            response = {{"error", "Entity has no health component: " + id}};
+                        } else {
+                            health->kill();
+                            response = {{"success", true}, {"id", id}, {"health", health->toJson()}};
+                            if (gameEventLog) {
+                                gameEventLog->emit("entity_killed", {{"id", id}});
+                            }
+                        }
+                    }
+                }
+
+            } else if (cmd.action == "revive_entity") {
+                std::string id = cmd.params.value("id", "");
+                float healthPercent = cmd.params.value("healthPercent", 1.0f);
+                if (id.empty() || !entityRegistry) {
+                    response = {{"error", "Entity ID required"}};
+                } else {
+                    auto* entity = entityRegistry->getEntity(id);
+                    if (!entity) {
+                        response = {{"error", "Entity not found: " + id}};
+                    } else {
+                        auto* health = entity->getHealthComponent();
+                        if (!health) {
+                            response = {{"error", "Entity has no health component: " + id}};
+                        } else {
+                            health->revive(healthPercent);
+                            response = {{"success", true}, {"id", id}, {"health", health->toJson()}};
+                            if (gameEventLog) {
+                                gameEventLog->emit("entity_revived", {{"id", id}});
+                            }
+                        }
+                    }
+                }
+
             } else if (cmd.action == "remove_voxel") {
                 int x = cmd.params.value("x", 0);
                 int y = cmd.params.value("y", 0);

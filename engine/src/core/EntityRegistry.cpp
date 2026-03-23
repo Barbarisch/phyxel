@@ -1,5 +1,6 @@
 #include "core/EntityRegistry.h"
 #include "scene/Entity.h"
+#include "core/HealthComponent.h"
 #include "utils/Logger.h"
 
 namespace Phyxel {
@@ -176,6 +177,10 @@ json EntityRegistry::entityToJson(const std::string& id) const {
         obj["rotation"] = {{"w", rot.w}, {"x", rot.x}, {"y", rot.y}, {"z", rot.z}};
         auto color = it->second.entity->debugColor;
         obj["debugColor"] = {{"r", color.r}, {"g", color.g}, {"b", color.b}, {"a", color.a}};
+        auto* health = it->second.entity->getHealthComponent();
+        if (health) {
+            obj["health"] = health->toJson();
+        }
     }
     return obj;
 }

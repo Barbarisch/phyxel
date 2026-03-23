@@ -5,6 +5,7 @@
 #include "core/EntityRegistry.h"
 #include "core/ObjectTemplateManager.h"
 #include "core/GameEventLog.h"
+#include "core/HealthComponent.h"
 #include "scene/NPCEntity.h"
 #include "graphics/Camera.h"
 #include "ui/DialogueSystem.h"
@@ -410,6 +411,23 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
             continue;
         }
         result.npcsSpawned++;
+
+        // Configure health if provided
+        if (npcDef.contains("health") || npcDef.contains("maxHealth")) {
+            auto* health = npc->getHealthComponent();
+            if (health) {
+                if (npcDef.contains("maxHealth")) {
+                    health->setMaxHealth(npcDef["maxHealth"].get<float>());
+                    health->setHealth(npcDef["maxHealth"].get<float>());
+                }
+                if (npcDef.contains("health")) {
+                    health->setHealth(npcDef["health"].get<float>());
+                }
+                if (npcDef.contains("invulnerable")) {
+                    health->setInvulnerable(npcDef["invulnerable"].get<bool>());
+                }
+            }
+        }
 
         // Set up dialogue if provided
         if (npcDef.contains("dialogue") && sub.dialogueSystem) {

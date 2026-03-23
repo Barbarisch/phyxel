@@ -2,6 +2,7 @@
 
 #include "scene/Entity.h"
 #include "scene/NPCBehavior.h"
+#include "core/HealthComponent.h"
 #include "ui/DialogueData.h"
 #include <string>
 #include <memory>
@@ -55,6 +56,10 @@ public:
     // Access inner animated character for animation control
     AnimatedVoxelCharacter* getAnimatedCharacter() const { return m_character.get(); }
 
+    // Health
+    Core::HealthComponent* getHealthComponent() override { return m_health.get(); }
+    const Core::HealthComponent* getHealthComponent() const override { return m_health.get(); }
+
     // Dialogue
     void setDialogueProvider(std::unique_ptr<UI::DialogueProvider> provider) { m_dialogueProvider = std::move(provider); }
     UI::DialogueProvider* getDialogueProvider() const { return m_dialogueProvider.get(); }
@@ -67,6 +72,7 @@ private:
     NPCContext m_context;
     float m_interactionRadius = 3.0f;
     int m_attachedLightId = -1;
+    std::unique_ptr<Core::HealthComponent> m_health = std::make_unique<Core::HealthComponent>(100.0f);
 };
 
 } // namespace Scene

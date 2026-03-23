@@ -202,6 +202,86 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/entity/damage — Deal damage to an entity
+    // Body: { "id": "npc_01", "amount": 25.0, "source": "player" }
+    // ====================================================================
+    srv.Post("/api/entity/damage", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("damage_entity", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/entity/heal — Heal an entity
+    // Body: { "id": "npc_01", "amount": 30.0 }
+    // ====================================================================
+    srv.Post("/api/entity/heal", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("heal_entity", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/entity/set_health — Set entity health directly
+    // Body: { "id": "npc_01", "health": 50.0 } or { "id": "npc_01", "maxHealth": 200.0 }
+    // ====================================================================
+    srv.Post("/api/entity/set_health", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_entity_health", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/entity/kill — Kill an entity
+    // Body: { "id": "npc_01" }
+    // ====================================================================
+    srv.Post("/api/entity/kill", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("kill_entity", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/entity/revive — Revive a dead entity
+    // Body: { "id": "npc_01", "healthPercent": 0.5 }
+    // ====================================================================
+    srv.Post("/api/entity/revive", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("revive_entity", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // GET /api/world/voxel?x=0&y=0&z=0 — Query voxel at position
     // ====================================================================
     srv.Get("/api/world/voxel", [this](const httplib::Request& req, httplib::Response& res) {

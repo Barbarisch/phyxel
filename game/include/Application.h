@@ -31,6 +31,7 @@
 #include "core/EngineAPIServer.h"
 #include "core/JobSystem.h"
 #include "core/Inventory.h"
+#include "core/HealthComponent.h"
 #include "core/GameEventLog.h"
 #include "core/SnapshotManager.h"
 #include "core/NPCManager.h"
