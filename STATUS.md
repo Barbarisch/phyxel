@@ -32,6 +32,20 @@
 - **AI workflow**: build → launch → load_game_definition → screenshot → iterate
 - **26 new tests**: GameDefinitionTest (validation, result serialization, null-subsystem handling, complete schema validation)
 
+#### E4: Game Project Workflow (852 tests / 84 suites)
+- **`--project` flag**: Engine as editor — `phyxel.exe --project <dir>` opens a game project for development. Loads world from project's `worlds/default.db`, reads project's `engine.json` for window title, auto-loads `game.json` with smart world skip (skips generation when chunks are pre-baked in SQLite).
+- **In-engine build/run API**: Three new endpoints for building and running game projects from within the running engine:
+  - `GET /api/project/info` — project metadata (dir, game.json, CMakeLists.txt, exe status)
+  - `POST /api/project/build` — cmake configure + build with full output capture (300s timeout)
+  - `POST /api/project/run` — launch built game exe as detached process
+- **MCP tools**: `project_info`, `build_game`, `run_game`, `package_game`
+- **Game project scaffolding** (`tools/create_project.py`): Enhanced with `--game-definition` flag — generates full game C++ (NPCManager, DialogueSystem, StoryEngine, RenderCoordinator) from a game definition JSON. CMakeLists uses `add_subdirectory(phyxel)` for phyxel_core linkage. Default output to `Documents/PhyxelProjects/<name>/`.
+- **Game packaging** (`tools/package_game.py`): Packages standalone distributable directory — game exe, compiled shaders, texture atlas, pre-baked world DB, game.json. Scans definition for resource dependencies. Supports `--project-dir` and `--prebake-world` workflows.
+- **CMake improvements**: `PHYXEL_ROOT_DIR` for correct paths when Phyxel is used as `add_subdirectory`. Game/editor/tests/examples guarded behind `CMAKE_SOURCE_DIR` check. Link directories propagated via `target_link_directories` on phyxel_core.
+- **Rendering fix**: `RenderCoordinator::drawFrame()` always refreshes `cachedViewMatrix` from camera — fixes white screen in standalone games using `EngineRuntime`.
+- **Game creator agent**: `.github/agents/game-creator.agent.md` — Copilot agent for AI-assisted game creation
+- **Documentation**: `docs/GameCreationGuide.md`, updated `CLAUDE.md` with full --project workflow
+
 ### AI Agent Control Surface (commits `34fd5a7` → `340fbe5`)
 - **EngineAPIServer**: HTTP/JSON API on `localhost:8090` with 34+ endpoints
 - **MCP Server**: `scripts/mcp/phyxel_mcp_server.py` — stdio-based MCP server for Claude Code / Goose
@@ -108,9 +122,11 @@
 ## Current State of the Build
 
 - **Build**: Clean, all targets compile (`phyxel_core`, `phyxel_game`, `phyxel`)
-- **Tests**: All 826 tests pass (0 failures). 83 test suites.
+- **Tests**: All 852 tests pass (0 failures). 84 test suites.
 - **Executable**: `phyxel.exe` at project root (copied post-build) or `build/game/Debug/phyxel.exe`
 - **Example**: `phyxel_minimal_game.exe` at `build/examples/minimal_game/Debug/`
+- **Game projects**: Scaffolded via `python tools/create_project.py <Name>`, built via in-engine API or cmake directly
+- **Frozen Highlands**: Test game project at `Documents/PhyxelProjects/FrozenHighlands/` (built + verified)
 
 ### Build Commands
 ```powershell
@@ -184,6 +200,9 @@ Full design: `docs/StoryEngineDesign.md` | Progress: `docs/StoryEngineProgress.m
 ### Open Gaps
 - **Subcube/microcube material persistence**: SQLite schema only stores material for full cubes. Subcube/microcube material defaults to "Default" on save/load. Need to add `material` column to subcube/microcube tables.
 - **ScriptingSystem tests**: Skipped — requires Python/pybind11 runtime which isn't available in unit test context.
+- **LOG format strings broken**: All `LOG_INFO("tag", "format {}", args)` calls across codebase are silently broken — LOG macros use `ostringstream << __VA_ARGS__` which means `{}` format-style calls compile but don't format. Must use `<<` concatenation. Systemic fix deferred.
+- **`project_build` runs on game loop thread**: Build subprocess blocks the main loop (via `queueAndWait` with 300s timeout). Consider moving to a background thread to avoid freezing the engine during builds.
+- **`fs::current_path()` in project_build is not thread-safe**: Could be an issue if anything else reads CWD during a build.
 
 ### Texture / Visual Polish
 - **Subcube/microcube textures**: ✅ Per-material rendering implemented. Material inherited on subdivision, passed through from templates.
@@ -212,6 +231,10 @@ Full design: `docs/StoryEngineDesign.md` | Progress: `docs/StoryEngineProgress.m
 | Project Instructions | `CLAUDE.md` |
 | Issue Tracker | `TODO.md` |
 | World Database | `worlds/default.db` |
+| Project Scaffolding | `tools/create_project.py` |
+| Game Packaging | `tools/package_game.py` |
+| Game Creator Agent | `.github/agents/game-creator.agent.md` |
+| Game Creation Guide | `docs/GameCreationGuide.md` |
 
 ## MCP Setup (for Claude Code on new machine)
 

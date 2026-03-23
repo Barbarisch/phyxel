@@ -159,3 +159,18 @@
 
 - [ ] **31. Lighting control via MCP**
   - Ambient and directional lighting adjustable via keybinds but not exposed through MCP API.
+
+- [ ] **32. Fix LOG format string issue globally**
+  - All `LOG_INFO("tag", "format {}", args)` calls are silently broken — LOG macros use `ostringstream << __VA_ARGS__`, so `{}` format placeholders compile but don't substitute. Must use `<<` concatenation or fix the macro system.
+
+- [ ] **33. Move project_build to background thread**
+  - Build subprocess currently runs on the game loop thread (via `queueAndWait` with 300s timeout), freezing the engine during builds. Should run on a dedicated background thread with progress polling.
+
+- [ ] **34. Thread-safe CWD handling in project_build**
+  - `fs::current_path()` is process-global and not thread-safe. The `project_build` handler changes CWD for cmake. Consider using absolute paths or subprocess CWD instead.
+
+- [ ] **35. ImGui build/run buttons in engine**
+  - Add UI buttons in the engine's ImGui overlay for build/run when in --project mode. Currently these operations are API-only.
+
+- [ ] **36. Verify standalone game rendering end-to-end**
+  - The `cachedViewMatrix` fix in RenderCoordinator should fix white screen in standalone games, but the FrozenHighlands standalone exe hasn't been visually verified yet.
