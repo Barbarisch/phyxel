@@ -40,7 +40,7 @@ EngineAPIServer::~EngineAPIServer() {
 
 bool EngineAPIServer::start() {
     if (m_running.load()) {
-        LOG_WARN("EngineAPIServer", "Server already running on port " << m_port);
+        LOG_WARN("EngineAPIServer", "Server already running on port {}", m_port);
         return false;
     }
 
@@ -56,9 +56,9 @@ bool EngineAPIServer::start() {
     }
 
     if (m_running.load()) {
-        LOG_INFO("EngineAPIServer", "HTTP API server started on port " << m_port);
+        LOG_INFO("EngineAPIServer", "HTTP API server started on port {}", m_port);
     } else {
-        LOG_ERROR("EngineAPIServer", "Failed to start HTTP API server on port " << m_port);
+        LOG_ERROR("EngineAPIServer", "Failed to start HTTP API server on port {}", m_port);
     }
     return m_running.load();
 }

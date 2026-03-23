@@ -154,17 +154,17 @@
 - [ ] **29. Entity AI behavior scripting**
   - Spider and animated characters have basic state machines but no scriptable AI behaviors.
 
-- [ ] **30. Audio system MCP integration**
-  - Audio system exists but has no MCP tools for triggering sounds or music from external agents.
+- [x] **30. Audio system MCP integration**
+  - **Fixed**: 3 MCP tools (`list_sounds`, `play_sound`, `set_volume`), 3 HTTP endpoints. Commit `5868a1d`.
 
-- [ ] **31. Lighting control via MCP**
-  - Ambient and directional lighting adjustable via keybinds but not exposed through MCP API.
+- [x] **31. Lighting control via MCP**
+  - **Fixed**: 6 MCP tools (`list_lights`, `add_point_light`, `add_spot_light`, `remove_light`, `update_light`, `set_ambient_light`), 6 HTTP endpoints. Commit `5868a1d`.
 
-- [ ] **32. Fix LOG format string issue globally**
-  - All `LOG_INFO("tag", "format {}", args)` calls are silently broken — LOG macros use `ostringstream << __VA_ARGS__`, so `{}` format placeholders compile but don't substitute. Must use `<<` concatenation or fix the macro system.
+- [x] **32. Fix LOG format string issue globally**
+  - **Fixed**: `LOG_INFO`/`LOG_DEBUG`/etc. now use `logFormat()` which supports `{}` placeholders. `LOG_INFO_FMT`/etc. continue to use `ostringstream <<` style. All 112 broken `{}` format calls now work correctly. Added `logFormat()` variadic template to `Logger.h`.
 
-- [ ] **33. Move project_build to background thread**
-  - Build subprocess currently runs on the game loop thread (via `queueAndWait` with 300s timeout), freezing the engine during builds. Should run on a dedicated background thread with progress polling.
+- [ ] **33. Move project_build to JobSystem**
+  - Build subprocess currently runs on the game loop thread (via `queueAndWait` with 300s timeout), freezing the engine during builds. JobSystem now exists — should use `jobSystem->submitJob()` for background builds with progress polling.
 
 - [ ] **34. Thread-safe CWD handling in project_build**
   - `fs::current_path()` is process-global and not thread-safe. The `project_build` handler changes CWD for cmake. Consider using absolute paths or subprocess CWD instead.
@@ -174,3 +174,12 @@
 
 - [ ] **36. Verify standalone game rendering end-to-end**
   - The `cachedViewMatrix` fix in RenderCoordinator should fix white screen in standalone games, but the FrozenHighlands standalone exe hasn't been visually verified yet.
+
+- [x] **37. Inventory/Hotbar system**
+  - 36-slot inventory, 9-slot hotbar, creative mode, merge/split. 7 MCP tools, 7 HTTP endpoints. 24 tests. Commit `f6263e9`.
+
+- [x] **38. Health/Damage system**
+  - HealthComponent on Entity base, auto-created for RagdollCharacter + NPCEntity. 5 MCP tools, 4 game events. JSON serialization + GameDefinitionLoader support. 25 tests. Commit `a083936`.
+
+- [x] **39. Day/Night cycle**
+  - Time-based sun animation (direction, color, ambient). Integrated into RenderCoordinator UBO pipeline. 2 MCP tools. 18 tests. Commit `4b555ba`.

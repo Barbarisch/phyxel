@@ -111,7 +111,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             }
         }
 
-        LOG_INFO("Application", "Project mode: worlds=" << engineConfig.worldsDir << ", game=" << engineConfig.gameDefinitionFile);
+        LOG_INFO("Application", "Project mode: worlds={}, game={}", engineConfig.worldsDir, engineConfig.gameDefinitionFile);
     }
 
     // STEP 1: CREATE AND INITIALIZE ENGINE RUNTIME
@@ -1599,10 +1599,9 @@ void Application::spawnTestAINPC() {
     // Register with AI system using guard recipe as default
     if (aiSystem->createAINPC(rawPtr, npcId, Core::AssetManager::instance().resolveRecipe("characters/guard.yaml"),
                                "You are a guard NPC in a voxel world. Be helpful but cautious.")) {
-        LOG_INFO("Application", "Spawned AI NPC '" << npcId << "' at (" 
-                 << spawnPos.x << ", " << spawnPos.y << ", " << spawnPos.z << ")");
+        LOG_INFO("Application", "Spawned AI NPC '{}' at ({}, {}, {})", npcId, spawnPos.x, spawnPos.y, spawnPos.z);
     } else {
-        LOG_WARN("Application", "AI NPC created but AI registration failed for: " << npcId);
+        LOG_WARN("Application", "AI NPC created but AI registration failed for: {}", npcId);
     }
 
     entities.push_back(std::move(npc));
@@ -1666,12 +1665,12 @@ void Application::autoLoadGameDefinition() {
 
     if (defPath.empty() || !std::filesystem::exists(defPath)) return;
 
-    LOG_INFO("Application", "Auto-loading game definition: " << defPath);
+    LOG_INFO("Application", "Auto-loading game definition: {}", defPath);
 
     try {
         std::ifstream f(defPath);
         if (!f.is_open()) {
-            LOG_ERROR("Application", "Cannot open game definition: " << defPath);
+            LOG_ERROR("Application", "Cannot open game definition: {}", defPath);
             return;
         }
 
@@ -1681,7 +1680,7 @@ void Application::autoLoadGameDefinition() {
         // skip world generation from the definition — it would overwrite the
         // pre-existing terrain and is very slow.
         if (gameDef.contains("world") && chunkManager && !chunkManager->chunks.empty()) {
-            LOG_INFO("Application", "Skipping world generation - " << chunkManager->chunks.size() << " chunks already loaded from database");
+            LOG_INFO("Application", "Skipping world generation - {} chunks already loaded from database", chunkManager->chunks.size());
             gameDef.erase("world");
         }
 
@@ -1705,7 +1704,7 @@ void Application::autoLoadGameDefinition() {
 
         auto result = Core::GameDefinitionLoader::load(gameDef, subsystems);
         if (result.success) {
-            LOG_INFO("Application", "Game definition loaded: " << result.chunksGenerated << " chunks, " << result.structuresPlaced << " structures, " << result.npcsSpawned << " NPCs");
+            LOG_INFO("Application", "Game definition loaded: {} chunks, {} structures, {} NPCs", result.chunksGenerated, result.structuresPlaced, result.npcsSpawned);
 
             // Sync InputManager with camera set by game definition
             if (inputManager && camera) {
@@ -1713,10 +1712,10 @@ void Application::autoLoadGameDefinition() {
                 inputManager->setYawPitch(camera->getYaw(), camera->getPitch());
             }
         } else {
-            LOG_ERROR("Application", "Failed to load game definition: " << result.error);
+            LOG_ERROR("Application", "Failed to load game definition: {}", result.error);
         }
     } catch (const std::exception& e) {
-        LOG_ERROR("Application", "Error loading game definition '" << defPath << "': " << e.what());
+        LOG_ERROR("Application", "Error loading game definition '{}': {}", defPath, e.what());
     }
 }
 

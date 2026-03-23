@@ -120,26 +120,59 @@ private:
     mutable std::mutex mutex_; // For thread safety
 };
 
-// Convenience macros for logging with automatic line/file information
+// Convenience macros — support {} placeholders: LOG_INFO("tag", "val={}", x)
 #define LOG_TRACE(module, ...) \
-    LOG_TRACE_FMT(module, __VA_ARGS__)
+    do { \
+        Phyxel::Utils::Logger::trace(module, Phyxel::Utils::logFormat(__VA_ARGS__)); \
+    } while(0)
 
 #define LOG_DEBUG(module, ...) \
-    LOG_DEBUG_FMT(module, __VA_ARGS__)
+    do { \
+        Phyxel::Utils::Logger::debug(module, Phyxel::Utils::logFormat(__VA_ARGS__)); \
+    } while(0)
 
 #define LOG_INFO(module, ...) \
-    LOG_INFO_FMT(module, __VA_ARGS__)
+    do { \
+        Phyxel::Utils::Logger::info(module, Phyxel::Utils::logFormat(__VA_ARGS__)); \
+    } while(0)
 
 #define LOG_WARN(module, ...) \
-    LOG_WARN_FMT(module, __VA_ARGS__)
+    do { \
+        Phyxel::Utils::Logger::warn(module, Phyxel::Utils::logFormat(__VA_ARGS__)); \
+    } while(0)
 
 #define LOG_ERROR(module, ...) \
-    LOG_ERROR_FMT(module, __VA_ARGS__)
+    do { \
+        Phyxel::Utils::Logger::error(module, Phyxel::Utils::logFormat(__VA_ARGS__)); \
+    } while(0)
 
 #define LOG_FATAL(module, ...) \
-    LOG_FATAL_FMT(module, __VA_ARGS__)
+    do { \
+        Phyxel::Utils::Logger::fatal(module, Phyxel::Utils::logFormat(__VA_ARGS__)); \
+    } while(0)
 
-// Formatted logging macros (for C++11 compatible string formatting)
+// Format helper: replaces {} placeholders with arguments (like fmt/spdlog)
+// Also accepts a single string with no placeholders.
+inline std::string logFormat(const char* msg) { return std::string(msg); }
+inline std::string logFormat(const std::string& msg) { return msg; }
+inline std::string logFormat(std::string&& msg) { return std::move(msg); }
+
+template<typename T, typename... Args>
+inline std::string logFormat(const char* fmt, T&& val, Args&&... args) {
+    std::string result;
+    for (const char* p = fmt; *p; ++p) {
+        if (*p == '{' && *(p + 1) == '}') {
+            std::ostringstream oss;
+            oss << std::forward<T>(val);
+            result += oss.str();
+            return result + logFormat(p + 2, std::forward<Args>(args)...);
+        }
+        result += *p;
+    }
+    return result;
+}
+
+// Legacy _FMT macros — use ostringstream << style: LOG_INFO_FMT("tag", "val=" << x)
 #define LOG_TRACE_FMT(module, ...) \
     do { \
         std::ostringstream oss; \

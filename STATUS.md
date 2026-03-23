@@ -1,6 +1,6 @@
 # Phyxel — Project Status & Next Steps
 
-*Last updated: March 22, 2026*
+*Last updated: March 23, 2026*
 
 ## What's Been Built
 
@@ -122,7 +122,7 @@
 ## Current State of the Build
 
 - **Build**: Clean, all targets compile (`phyxel_core`, `phyxel_game`, `phyxel`)
-- **Tests**: All 852 tests pass (0 failures). 84 test suites.
+- **Tests**: All 938 tests pass (0 failures). 88 test suites.
 - **Executable**: `phyxel.exe` at project root (copied post-build) or `build/game/Debug/phyxel.exe`
 - **Example**: `phyxel_minimal_game.exe` at `build/examples/minimal_game/Debug/`
 - **Game projects**: Scaffolded via `python tools/create_project.py <Name>`, built via in-engine API or cmake directly
@@ -197,11 +197,46 @@ Full design: `docs/StoryEngineDesign.md` | Progress: `docs/StoryEngineProgress.m
 - **S5 — Developer API & Tooling**: StoryWorldLoader (JSON world definitions), 14 HTTP API routes, 14 MCP tools (49 tests)
 - **Application wiring**: StoryEngine instantiated in Application, 6 read-only handlers + 8 mutation commands. All 14 endpoints verified via manual testing.
 
+### Gameplay Infrastructure (current session, 938 tests / 88 suites)
+
+#### Async JobSystem (commit `1903616`)
+- **JobSystem**: Background thread pool for non-blocking MCP operations. `submitJob()` returns `JobRecord` with progress/status. `JobContext` provides `setProgress()`, `setMessage()`, `setResult()` for reporting.
+- **MCP tools**: `list_jobs`, `get_job`, `cancel_job`
+- **HTTP endpoints**: `GET /api/jobs`, `GET /api/job/:id`, `POST /api/job/:id/cancel`
+- **18 unit tests**
+
+#### Audio & Lighting MCP Tools (commit `5868a1d`)
+- **Audio MCP tools**: `list_sounds`, `play_sound`, `set_volume` — 3 HTTP endpoints, 3 MCP tools
+- **Lighting MCP tools**: `list_lights`, `add_point_light`, `add_spot_light`, `remove_light`, `update_light`, `set_ambient_light` — 6 HTTP endpoints, 6 MCP tools
+- Ambient light read handler, light list handler (all point + spot lights with full properties)
+
+#### Inventory/Hotbar System (commit `f6263e9`)
+- **Inventory**: 36 slots (4 rows of 9), 9-slot hotbar, creative mode (items never consumed)
+- **ItemStack**: material + count + maxStack (64), merge/split logic
+- Default hotbar loaded with all 9 materials at stack of 64
+- **MCP tools**: `get_inventory`, `give_item`, `take_item`, `select_hotbar_slot`, `set_inventory_slot`, `clear_inventory`, `set_creative_mode`
+- **24 unit tests**
+
+#### Health/Damage System (commit `a083936`)
+- **HealthComponent**: health/maxHealth/alive/invulnerable, takeDamage()/heal()/kill()/revive(), JSON serialization
+- Virtual `getHealthComponent()` on Entity base class — `RagdollCharacter` and `NPCEntity` auto-create (100 HP default)
+- `EntityRegistry::entityToJson()` includes health state in entity JSON output
+- `GameDefinitionLoader` supports `health`, `maxHealth`, `invulnerable` in NPC definitions
+- **MCP tools**: `damage_entity`, `heal_entity`, `set_entity_health`, `kill_entity`, `revive_entity`
+- **Game events**: `entity_damaged`, `entity_healed`, `entity_killed`, `entity_revived`
+- **25 unit tests**
+
+#### Day/Night Cycle (commit `4b555ba`)
+- **DayNightCycle**: Animates sun direction, sun color, ambient light over configurable day cycle
+- Time model: 0–24h (0=midnight, 6=dawn, 12=noon, 18=dusk), configurable day length (default 600s), time scale
+- Warm orange at dawn/dusk, white noon, dark night. Integrated into RenderCoordinator (updates each frame via existing UBO pipeline, no shader changes needed)
+- **MCP tools**: `get_day_night`, `set_day_night`
+- **18 unit tests**
+
 ### Open Gaps
 - **Subcube/microcube material persistence**: SQLite schema only stores material for full cubes. Subcube/microcube material defaults to "Default" on save/load. Need to add `material` column to subcube/microcube tables.
 - **ScriptingSystem tests**: Skipped — requires Python/pybind11 runtime which isn't available in unit test context.
-- **LOG format strings broken**: All `LOG_INFO("tag", "format {}", args)` calls across codebase are silently broken — LOG macros use `ostringstream << __VA_ARGS__` which means `{}` format-style calls compile but don't format. Must use `<<` concatenation. Systemic fix deferred.
-- **`project_build` runs on game loop thread**: Build subprocess blocks the main loop (via `queueAndWait` with 300s timeout). Consider moving to a background thread to avoid freezing the engine during builds.
+- **`project_build` runs on game loop thread**: Build subprocess blocks the main loop (via `queueAndWait` with 300s timeout). Should use the new JobSystem for background builds.
 - **`fs::current_path()` in project_build is not thread-safe**: Could be an issue if anything else reads CWD during a build.
 
 ### Texture / Visual Polish
@@ -210,8 +245,7 @@ Full design: `docs/StoryEngineDesign.md` | Progress: `docs/StoryEngineProgress.m
 - **Shader rebuild**: After any atlas changes, run `.\build_shaders.bat`
 
 ### Potential Feature Work
-- Add more MCP tools (e.g., lighting control, entity animation control)
-- Audio system integration via MCP
+- Entity animation control via MCP
 - Entity AI behavior scripting
 - Chunk LOD system for distant terrain
 - Better physics integration for subcube/microcube interactions

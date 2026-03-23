@@ -22,14 +22,14 @@ std::string EntityRegistry::registerEntity(Scene::Entity* entity) {
 
 bool EntityRegistry::registerEntity(Scene::Entity* entity, const std::string& id, const std::string& typeTag) {
     if (!entity) {
-        LOG_WARN("EntityRegistry", "Attempted to register null entity with id: " << id);
+        LOG_WARN("EntityRegistry", "Attempted to register null entity with id: {}", id);
         return false;
     }
 
     std::lock_guard<std::mutex> lock(m_mutex);
 
     if (m_entities.find(id) != m_entities.end()) {
-        LOG_WARN("EntityRegistry", "Entity ID already taken: " << id);
+        LOG_WARN("EntityRegistry", "Entity ID already taken: {}", id);
         return false;
     }
 
@@ -43,7 +43,7 @@ bool EntityRegistry::registerEntity(Scene::Entity* entity, const std::string& id
     m_entities[id] = EntityEntry{entity, typeTag};
     m_reverseMap[entity] = id;
 
-    LOG_DEBUG("EntityRegistry", "Registered entity '" << id << "' (type: " << (typeTag.empty() ? "none" : typeTag) << ")");
+    LOG_DEBUG("EntityRegistry", "Registered entity '{}' (type: {})", id, (typeTag.empty() ? "none" : typeTag));
     return true;
 }
 
@@ -58,7 +58,7 @@ bool EntityRegistry::unregisterEntity(const std::string& id) {
     m_reverseMap.erase(it->second.entity);
     m_entities.erase(it);
 
-    LOG_DEBUG("EntityRegistry", "Unregistered entity: " << id);
+    LOG_DEBUG("EntityRegistry", "Unregistered entity: {}", id);
     return true;
 }
 
