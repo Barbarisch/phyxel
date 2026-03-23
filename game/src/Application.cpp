@@ -570,6 +570,25 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         return result;
     });
 
+    // ========================================================================
+    // Inventory System
+    // ========================================================================
+    inventory = std::make_unique<Core::Inventory>();
+    // Start in creative mode with all materials in hotbar
+    {
+        static const std::vector<std::string> defaultHotbar = {
+            "Stone", "Wood", "Metal", "Glass", "Rubber", "Ice", "Cork", "glow", "Default"
+        };
+        for (int i = 0; i < static_cast<int>(defaultHotbar.size()); ++i) {
+            inventory->setSlot(i, Core::ItemStack{defaultHotbar[i], 64, 64});
+        }
+    }
+
+    apiServer->setInventoryHandler([this]() -> nlohmann::json {
+        if (!inventory) return nlohmann::json{{"error", "Inventory not available"}};
+        return inventory->toJson();
+    });
+
     // Initialize NPC Manager
     npcManager = std::make_unique<Core::NPCManager>();
     npcManager->setPhysicsWorld(physicsWorld);
@@ -3233,6 +3252,90 @@ void Application::processAPICommands() {
                         std::system(launchCmd.c_str());
                         response = {{"success", true}, {"exe_path", exePath.string()}};
                     }
+                }
+
+            // ================================================================
+            // INVENTORY COMMANDS
+            // ================================================================
+            } else if (cmd.action == "inventory_give") {
+                if (!inventory) {
+                    response = {{"error", "Inventory not available"}};
+                } else {
+                    std::string material = cmd.params.value("material", "");
+                    int count = cmd.params.value("count", 1);
+                    if (material.empty()) {
+                        response = {{"error", "Missing 'material' field"}};
+                    } else {
+                        int overflow = inventory->addItem(material, count);
+                        response = {{"success", true}, {"material", material},
+                                    {"given", count - overflow}, {"overflow", overflow},
+                                    {"total", inventory->countItem(material)}};
+                    }
+                }
+
+            } else if (cmd.action == "inventory_take") {
+                if (!inventory) {
+                    response = {{"error", "Inventory not available"}};
+                } else {
+                    std::string material = cmd.params.value("material", "");
+                    int count = cmd.params.value("count", 1);
+                    if (material.empty()) {
+                        response = {{"error", "Missing 'material' field"}};
+                    } else {
+                        int removed = inventory->removeItem(material, count);
+                        response = {{"success", true}, {"material", material},
+                                    {"removed", removed}, {"remaining", inventory->countItem(material)}};
+                    }
+                }
+
+            } else if (cmd.action == "inventory_select") {
+                if (!inventory) {
+                    response = {{"error", "Inventory not available"}};
+                } else {
+                    int slot = cmd.params.value("slot", 0);
+                    bool ok = inventory->setSelectedSlot(slot);
+                    if (ok) {
+                        response = {{"success", true}, {"selected_slot", slot},
+                                    {"material", inventory->getSelectedMaterial()}};
+                    } else {
+                        response = {{"error", "Invalid slot"}, {"slot", slot},
+                                    {"valid_range", "0-8"}};
+                    }
+                }
+
+            } else if (cmd.action == "inventory_set_slot") {
+                if (!inventory) {
+                    response = {{"error", "Inventory not available"}};
+                } else {
+                    int slot = cmd.params.value("slot", -1);
+                    if (slot < 0) {
+                        response = {{"error", "Missing 'slot' field"}};
+                    } else if (cmd.params.contains("material")) {
+                        std::string material = cmd.params["material"].get<std::string>();
+                        int count = cmd.params.value("count", 1);
+                        inventory->setSlot(slot, Core::ItemStack{material, count, 64});
+                        response = {{"success", true}, {"slot", slot}, {"material", material}, {"count", count}};
+                    } else {
+                        inventory->clearSlot(slot);
+                        response = {{"success", true}, {"slot", slot}, {"cleared", true}};
+                    }
+                }
+
+            } else if (cmd.action == "inventory_clear") {
+                if (!inventory) {
+                    response = {{"error", "Inventory not available"}};
+                } else {
+                    inventory->clear();
+                    response = {{"success", true}};
+                }
+
+            } else if (cmd.action == "inventory_creative") {
+                if (!inventory) {
+                    response = {{"error", "Inventory not available"}};
+                } else {
+                    bool creative = cmd.params.value("enabled", true);
+                    inventory->setCreativeMode(creative);
+                    response = {{"success", true}, {"creative", creative}};
                 }
 
             // ================================================================

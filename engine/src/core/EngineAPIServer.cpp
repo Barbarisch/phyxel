@@ -1057,6 +1057,93 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // INVENTORY ENDPOINTS
+    // ====================================================================
+
+    // GET /api/inventory — Get inventory state (all slots, hotbar, selected)
+    srv.Get("/api/inventory", [this](const httplib::Request&, httplib::Response& res) {
+        if (m_inventoryHandler) {
+            json result = m_inventoryHandler();
+            res.set_content(result.dump(), "application/json");
+        } else {
+            res.status = 503;
+            res.set_content(json{{"error", "Inventory handler not configured"}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/inventory/give — Give items to player
+    srv.Post("/api/inventory/give", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("inventory_give", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/inventory/take — Remove items from player
+    srv.Post("/api/inventory/take", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("inventory_take", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/inventory/select — Set selected hotbar slot
+    srv.Post("/api/inventory/select", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("inventory_select", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/inventory/set_slot — Set a specific slot's contents
+    srv.Post("/api/inventory/set_slot", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("inventory_set_slot", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/inventory/clear — Clear entire inventory
+    srv.Post("/api/inventory/clear", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("inventory_clear", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/inventory/creative — Set creative mode on/off
+    srv.Post("/api/inventory/creative", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("inventory_creative", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // LIGHTING ENDPOINTS
     // ====================================================================
 

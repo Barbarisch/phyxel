@@ -30,6 +30,7 @@
 #include "core/APICommandQueue.h"
 #include "core/EngineAPIServer.h"
 #include "core/JobSystem.h"
+#include "core/Inventory.h"
 #include "core/GameEventLog.h"
 #include "core/SnapshotManager.h"
 #include "core/NPCManager.h"
@@ -165,6 +166,7 @@ private:
     std::unique_ptr<Core::APICommandQueue> apiCommandQueue;
     std::unique_ptr<Core::EngineAPIServer> apiServer;
     std::unique_ptr<Core::JobSystem> jobSystem;
+    std::unique_ptr<Core::Inventory> inventory;
     std::unique_ptr<Core::GameEventLog> gameEventLog;
     std::unique_ptr<Core::SnapshotManager> snapshotManager;
 

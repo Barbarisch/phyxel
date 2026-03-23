@@ -185,6 +185,14 @@ public:
     using SoundListHandler = std::function<json()>;
     void setSoundListHandler(SoundListHandler handler) { m_soundListHandler = std::move(handler); }
 
+    // ========================================================================
+    // Inventory handler (read-only, called on HTTP thread)
+    // ========================================================================
+
+    /// Handler that returns inventory state JSON.
+    using InventoryHandler = std::function<json()>;
+    void setInventoryHandler(InventoryHandler handler) { m_inventoryHandler = std::move(handler); }
+
 private:
     void serverThread();
     void setupRoutes();
@@ -223,6 +231,7 @@ private:
     StoryWorldHandler m_storyWorldHandler;
     LightListHandler m_lightListHandler;
     SoundListHandler m_soundListHandler;
+    InventoryHandler m_inventoryHandler;
 
     // Forward-declared impl to keep httplib out of the header
     struct Impl;

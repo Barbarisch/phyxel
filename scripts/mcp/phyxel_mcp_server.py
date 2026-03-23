@@ -1237,6 +1237,79 @@ async def list_tools() -> list[Tool]:
         # ================================================================
 
         Tool(
+            name="get_inventory",
+            description=(
+                "Get the player's inventory state: all slots, hotbar contents, selected slot, "
+                "and creative mode status. Hotbar is slots 0-8."
+            ),
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="give_item",
+            description="Give items to the player's inventory. Stacks automatically.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "material": {"type": "string", "description": "Material name (e.g. 'Stone', 'Wood', 'Metal')"},
+                    "count": {"type": "integer", "description": "Number of items to give (default 1)", "default": 1}
+                },
+                "required": ["material"]
+            }
+        ),
+        Tool(
+            name="take_item",
+            description="Remove items from the player's inventory.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "material": {"type": "string", "description": "Material name to remove"},
+                    "count": {"type": "integer", "description": "Number to remove (default 1)", "default": 1}
+                },
+                "required": ["material"]
+            }
+        ),
+        Tool(
+            name="select_hotbar_slot",
+            description="Set the currently selected hotbar slot (0-8). This determines which material is used when placing voxels.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "slot": {"type": "integer", "description": "Hotbar slot index (0-8)"}
+                },
+                "required": ["slot"]
+            }
+        ),
+        Tool(
+            name="set_inventory_slot",
+            description="Set a specific inventory slot to a material and count. Omit 'material' to clear the slot.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "slot": {"type": "integer", "description": "Slot index (0-35)"},
+                    "material": {"type": "string", "description": "Material name (omit to clear slot)"},
+                    "count": {"type": "integer", "description": "Stack count (default 1)", "default": 1}
+                },
+                "required": ["slot"]
+            }
+        ),
+        Tool(
+            name="clear_inventory",
+            description="Clear all items from the player's inventory.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="set_creative_mode",
+            description="Toggle creative mode. In creative mode, items are never consumed when placing voxels.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "enabled": {"type": "boolean", "description": "True for creative mode, false for survival"}
+                },
+                "required": ["enabled"]
+            }
+        ),
+
+        Tool(
             name="list_lights",
             description=(
                 "List all lights in the scene (point lights, spot lights) and the ambient light strength. "
@@ -1832,6 +1905,34 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     elif name == "cancel_job":
         job_id = args["job_id"]
         return await api_post(f"/api/job/{job_id}/cancel", {})
+
+    # --- Inventory ---
+    elif name == "get_inventory":
+        return await api_get("/api/inventory")
+
+    elif name == "give_item":
+        body = {"material": args["material"], "count": args.get("count", 1)}
+        return await api_post("/api/inventory/give", body)
+
+    elif name == "take_item":
+        body = {"material": args["material"], "count": args.get("count", 1)}
+        return await api_post("/api/inventory/take", body)
+
+    elif name == "select_hotbar_slot":
+        return await api_post("/api/inventory/select", {"slot": args["slot"]})
+
+    elif name == "set_inventory_slot":
+        body: dict[str, Any] = {"slot": args["slot"]}
+        if "material" in args:
+            body["material"] = args["material"]
+            body["count"] = args.get("count", 1)
+        return await api_post("/api/inventory/set_slot", body)
+
+    elif name == "clear_inventory":
+        return await api_post("/api/inventory/clear", {})
+
+    elif name == "set_creative_mode":
+        return await api_post("/api/inventory/creative", {"enabled": args["enabled"]})
 
     # --- Lighting ---
     elif name == "list_lights":
