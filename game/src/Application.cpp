@@ -263,7 +263,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     entityRegistry = std::make_unique<Core::EntityRegistry>();
     apiCommandQueue = std::make_unique<Core::APICommandQueue>();
     gameEventLog = std::make_unique<Core::GameEventLog>(1000);
-    apiServer = std::make_unique<Core::EngineAPIServer>(apiCommandQueue.get(), engineConfig.apiPort);
+    jobSystem = std::make_unique<Core::JobSystem>();
+    apiServer = std::make_unique<Core::EngineAPIServer>(apiCommandQueue.get(), engineConfig.apiPort, jobSystem.get());
 
     // Wire up read-only handlers (called directly on HTTP thread — must be thread-safe)
     apiServer->setEntityListHandler([this]() -> nlohmann::json {
@@ -828,6 +829,11 @@ void Application::update(float deltaTime) {
     
     // Process HTTP API commands (from external agents)
     processAPICommands();
+
+    // Process completed background jobs (finalize on main thread)
+    if (jobSystem) {
+        jobSystem->processCompletedJobs();
+    }
 
     // Update scripting system
     if (scriptingSystem) {
@@ -3158,6 +3164,309 @@ void Application::processAPICommands() {
                         std::system(launchCmd.c_str());
                         response = {{"success", true}, {"exe_path", exePath.string()}};
                     }
+                }
+
+            } else if (cmd.action == "job_submit") {
+                // Submit a background job
+                if (!jobSystem) {
+                    response = {{"error", "Job system not available"}};
+                } else {
+                    std::string jobType = cmd.params.value("type", "");
+                    nlohmann::json jobParams = cmd.params.value("params", nlohmann::json::object());
+                    
+                    Core::JobDescriptor desc;
+                    desc.type = jobType;
+                    desc.params = jobParams;
+                    
+                    if (jobType == "fill_region") {
+                        if (!chunkManager) {
+                            response = {{"error", "ChunkManager not available"}};
+                            if (cmd.onComplete) cmd.onComplete(response);
+                            continue;
+                        }
+                        
+                        int x1 = jobParams.value("x1", 0), y1 = jobParams.value("y1", 0), z1 = jobParams.value("z1", 0);
+                        int x2 = jobParams.value("x2", 0), y2 = jobParams.value("y2", 0), z2 = jobParams.value("z2", 0);
+                        std::string material = jobParams.value("material", "");
+                        bool hollow = jobParams.value("hollow", false);
+                        
+                        int minX = std::min(x1, x2), maxX = std::max(x1, x2);
+                        int minY = std::min(y1, y2), maxY = std::max(y1, y2);
+                        int minZ = std::min(z1, z2), maxZ = std::max(z1, z2);
+                        int64_t volume = (int64_t)(maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
+                        
+                        if (volume > 100000) {
+                            response = {{"error", "Region too large"}, {"volume", volume}, {"max_volume", 100000}};
+                            if (cmd.onComplete) cmd.onComplete(response);
+                            continue;
+                        }
+                        
+                        // Pre-create chunks on main thread (modifies chunks vector)
+                        for (int ix = minX; ix <= maxX; ix += 32) {
+                            for (int iy = minY; iy <= maxY; iy += 32) {
+                                for (int iz = minZ; iz <= maxZ; iz += 32) {
+                                    glm::ivec3 cc = Phyxel::ChunkManager::worldToChunkCoord(glm::ivec3(ix, iy, iz));
+                                    if (!chunkManager->getChunkAtCoord(cc)) {
+                                        chunkManager->createChunk(Phyxel::ChunkManager::chunkCoordToOrigin(cc), false);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        ChunkManager* cmFill = chunkManager;
+                        Core::GameEventLog* evFill = gameEventLog.get();
+                        desc.backgroundWork = [cmFill, minX, maxX, minY, maxY, minZ, maxZ, material, hollow, volume](Core::JobContext& ctx) -> nlohmann::json {
+                            int placed = 0, failed = 0;
+                            int64_t total = volume;
+                            int64_t count = 0;
+                            
+                            auto lock = cmFill->acquireWriteLock();
+                            for (int ix = minX; ix <= maxX; ++ix) {
+                                for (int iy = minY; iy <= maxY; ++iy) {
+                                    for (int iz = minZ; iz <= maxZ; ++iz) {
+                                        if (ctx.cancelled.load()) {
+                                            return {{"success", false}, {"cancelled", true}, {"placed", placed}};
+                                        }
+                                        if (hollow && ix > minX && ix < maxX && iy > minY && iy < maxY && iz > minZ && iz < maxZ) {
+                                            continue;
+                                        }
+                                        bool ok = false;
+                                        if (!material.empty()) {
+                                            ok = cmFill->m_voxelModificationSystem.addCubeWithMaterial(glm::ivec3(ix, iy, iz), material);
+                                        } else {
+                                            ok = cmFill->addCubeFast(glm::ivec3(ix, iy, iz));
+                                        }
+                                        if (ok) ++placed; else ++failed;
+                                        ++count;
+                                        if (count % 1000 == 0) {
+                                            ctx.setProgress(static_cast<float>(count) / total, "Placing voxels...");
+                                        }
+                                    }
+                                }
+                            }
+                            return {{"success", true}, {"placed", placed}, {"failed", failed},
+                                    {"volume", volume}, {"hollow", hollow},
+                                    {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
+                                    {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}};
+                        };
+                        desc.mainThreadFinalize = [cmFill, evFill, material, hollow](nlohmann::json& result) {
+                            cmFill->updateDirtyChunks();
+                            int placed = result.value("placed", 0);
+                            if (placed > 0 && evFill) {
+                                evFill->emit("region_filled", {
+                                    {"placed", placed}, {"material", material.empty() ? "Default" : material},
+                                    {"hollow", hollow}, {"async", true}
+                                });
+                            }
+                        };
+                        
+                    } else if (jobType == "clear_region") {
+                        if (!chunkManager) {
+                            response = {{"error", "ChunkManager not available"}};
+                            if (cmd.onComplete) cmd.onComplete(response);
+                            continue;
+                        }
+                        
+                        int x1 = jobParams.value("x1", 0), y1 = jobParams.value("y1", 0), z1 = jobParams.value("z1", 0);
+                        int x2 = jobParams.value("x2", 0), y2 = jobParams.value("y2", 0), z2 = jobParams.value("z2", 0);
+                        int minX = std::min(x1, x2), maxX = std::max(x1, x2);
+                        int minY = std::min(y1, y2), maxY = std::max(y1, y2);
+                        int minZ = std::min(z1, z2), maxZ = std::max(z1, z2);
+                        int64_t volume = (int64_t)(maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
+                        
+                        if (volume > 100000) {
+                            response = {{"error", "Region too large"}, {"volume", volume}, {"max_volume", 100000}};
+                            if (cmd.onComplete) cmd.onComplete(response);
+                            continue;
+                        }
+                        
+                        ChunkManager* cmClear = chunkManager;
+                        Core::GameEventLog* evClear = gameEventLog.get();
+                        desc.backgroundWork = [cmClear, minX, maxX, minY, maxY, minZ, maxZ, volume](Core::JobContext& ctx) -> nlohmann::json {
+                            int removed = 0;
+                            int64_t count = 0;
+                            
+                            auto lock = cmClear->acquireWriteLock();
+                            for (int ix = minX; ix <= maxX; ++ix) {
+                                for (int iy = minY; iy <= maxY; ++iy) {
+                                    for (int iz = minZ; iz <= maxZ; ++iz) {
+                                        if (ctx.cancelled.load()) {
+                                            return {{"success", false}, {"cancelled", true}, {"removed", removed}};
+                                        }
+                                        if (cmClear->removeCubeFast(glm::ivec3(ix, iy, iz))) ++removed;
+                                        ++count;
+                                        if (count % 1000 == 0) {
+                                            ctx.setProgress(static_cast<float>(count) / volume, "Removing voxels...");
+                                        }
+                                    }
+                                }
+                            }
+                            return {{"success", true}, {"removed", removed}, {"volume", volume},
+                                    {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
+                                    {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}};
+                        };
+                        desc.mainThreadFinalize = [cmClear, evClear](nlohmann::json& result) {
+                            cmClear->updateDirtyChunks();
+                            int removed = result.value("removed", 0);
+                            if (removed > 0 && evClear) {
+                                evClear->emit("region_cleared", {{"removed", removed}, {"async", true}});
+                            }
+                        };
+                        
+                    } else if (jobType == "generate_world") {
+                        if (!chunkManager) {
+                            response = {{"error", "ChunkManager not available"}};
+                            if (cmd.onComplete) cmd.onComplete(response);
+                            continue;
+                        }
+                        
+                        std::string genType = jobParams.value("type", "Perlin");
+                        int fromX = jobParams.value("from_x", 0), fromY = jobParams.value("from_y", 0), fromZ = jobParams.value("from_z", 0);
+                        int toX = jobParams.value("to_x", 0), toY = jobParams.value("to_y", 0), toZ = jobParams.value("to_z", 0);
+                        int seed = jobParams.value("seed", 42);
+                        
+                        int minCX = std::min(fromX, toX), maxCX = std::max(fromX, toX);
+                        int minCY = std::min(fromY, toY), maxCY = std::max(fromY, toY);
+                        int minCZ = std::min(fromZ, toZ), maxCZ = std::max(fromZ, toZ);
+                        int64_t chunkCount = (int64_t)(maxCX - minCX + 1) * (maxCY - minCY + 1) * (maxCZ - minCZ + 1);
+                        
+                        if (chunkCount > 64) {
+                            response = {{"error", "Too many chunks"}, {"count", chunkCount}, {"max", 64}};
+                            if (cmd.onComplete) cmd.onComplete(response);
+                            continue;
+                        }
+                        
+                        // Pre-create chunks on main thread
+                        for (int cx = minCX; cx <= maxCX; ++cx) {
+                            for (int cy = minCY; cy <= maxCY; ++cy) {
+                                for (int cz = minCZ; cz <= maxCZ; ++cz) {
+                                    glm::ivec3 cc(cx, cy, cz);
+                                    if (!chunkManager->getChunkAtCoord(cc)) {
+                                        chunkManager->createChunk(Phyxel::ChunkManager::chunkCoordToOrigin(cc), false);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        ChunkManager* cmGen = chunkManager;
+                        Core::GameEventLog* evGen = gameEventLog.get();
+                        desc.backgroundWork = [cmGen, genType, minCX, maxCX, minCY, maxCY, minCZ, maxCZ, seed, chunkCount](Core::JobContext& ctx) -> nlohmann::json {
+                            WorldGenerator::GenerationType wgType = WorldGenerator::GenerationType::Perlin;
+                            if (genType == "Random") wgType = WorldGenerator::GenerationType::Random;
+                            else if (genType == "Flat") wgType = WorldGenerator::GenerationType::Flat;
+                            else if (genType == "Mountains") wgType = WorldGenerator::GenerationType::Mountains;
+                            else if (genType == "Caves") wgType = WorldGenerator::GenerationType::Caves;
+                            else if (genType == "City") wgType = WorldGenerator::GenerationType::City;
+                            
+                            WorldGenerator generator(wgType, seed);
+                            
+                            int generated = 0;
+                            auto lock = cmGen->acquireWriteLock();
+                            for (int cx = minCX; cx <= maxCX; ++cx) {
+                                for (int cy = minCY; cy <= maxCY; ++cy) {
+                                    for (int cz = minCZ; cz <= maxCZ; ++cz) {
+                                        if (ctx.cancelled.load()) {
+                                            return {{"success", false}, {"cancelled", true}, {"generated", generated}};
+                                        }
+                                        glm::ivec3 cc(cx, cy, cz);
+                                        Chunk* chunk = cmGen->getChunkAtCoord(cc);
+                                        if (chunk) {
+                                            generator.generateChunk(*chunk, cc);
+                                            cmGen->markChunkDirty(chunk);
+                                            ++generated;
+                                        }
+                                        ctx.setProgress(static_cast<float>(generated) / chunkCount, "Generating terrain...");
+                                    }
+                                }
+                            }
+                            return {{"success", true}, {"chunks_generated", generated}, {"type", genType}, {"seed", seed}};
+                        };
+                        desc.mainThreadFinalize = [cmGen, evGen](nlohmann::json& result) {
+                            cmGen->updateDirtyChunks();
+                            if (evGen) {
+                                evGen->emit("world_generated", {
+                                    {"chunks", result.value("chunks_generated", 0)},
+                                    {"type", result.value("type", "")},
+                                    {"async", true}
+                                });
+                            }
+                        };
+                        
+                    } else if (jobType == "save_world") {
+                        if (!chunkManager) {
+                            response = {{"error", "ChunkManager not available"}};
+                            if (cmd.onComplete) cmd.onComplete(response);
+                            continue;
+                        }
+                        
+                        bool dirtyOnly = jobParams.value("dirty_only", true);
+                        ChunkManager* cmSave = chunkManager;
+                        Core::GameEventLog* evSave = gameEventLog.get();
+                        desc.backgroundWork = [cmSave, dirtyOnly](Core::JobContext& ctx) -> nlohmann::json {
+                            ctx.setProgress(0.0f, "Saving world...");
+                            auto lock = cmSave->acquireReadLock();
+                            bool ok = dirtyOnly ? cmSave->saveDirtyChunks() : cmSave->saveAllChunks();
+                            ctx.setProgress(1.0f, "Save complete");
+                            return {{"success", ok}, {"dirty_only", dirtyOnly}};
+                        };
+                        desc.mainThreadFinalize = [evSave](nlohmann::json& result) {
+                            if (evSave) {
+                                evSave->emit("world_saved", {{"async", true}});
+                            }
+                        };
+                        
+                    } else if (jobType == "project_build") {
+                        std::string config = jobParams.value("config", "Debug");
+                        std::string projDir = engineConfig.projectDir;
+                        desc.backgroundWork = [config, projDir](Core::JobContext& ctx) -> nlohmann::json {
+                            ctx.setProgress(0.0f, "Building project...");
+                            
+                            // Run cmake configure + build
+                            std::string cmakePath = "cmake";
+                            std::string buildDir = projDir + "/build";
+                            std::string sourceDir = projDir;
+                            
+                            // Configure
+                            ctx.setProgress(0.1f, "Running cmake configure...");
+                            std::string configCmd = cmakePath + " -B \"" + buildDir + "\" -S \"" + sourceDir + "\" 2>&1";
+                            std::string output;
+                            FILE* pipe = _popen(configCmd.c_str(), "r");
+                            if (pipe) {
+                                char buf[256];
+                                while (fgets(buf, sizeof(buf), pipe)) {
+                                    output += buf;
+                                    if (ctx.cancelled.load()) { _pclose(pipe); return {{"success", false}, {"cancelled", true}}; }
+                                }
+                                _pclose(pipe);
+                            }
+                            
+                            // Build
+                            ctx.setProgress(0.5f, "Running cmake build...");
+                            std::string buildCmd = cmakePath + " --build \"" + buildDir + "\" --config " + config + " 2>&1";
+                            std::string buildOutput;
+                            pipe = _popen(buildCmd.c_str(), "r");
+                            if (pipe) {
+                                char buf[256];
+                                while (fgets(buf, sizeof(buf), pipe)) {
+                                    buildOutput += buf;
+                                    if (ctx.cancelled.load()) { _pclose(pipe); return {{"success", false}, {"cancelled", true}}; }
+                                }
+                                int exitCode = _pclose(pipe);
+                                ctx.setProgress(1.0f, "Build complete");
+                                return {{"success", exitCode == 0}, {"config", config},
+                                        {"configure_output", output}, {"build_output", buildOutput}};
+                            }
+                            return {{"success", false}, {"error", "Failed to start build process"}};
+                        };
+                        
+                    } else {
+                        response = {{"error", "Unknown job type: " + jobType}};
+                        if (cmd.onComplete) cmd.onComplete(response);
+                        continue;
+                    }
+                    
+                    Core::JobId jobId = jobSystem->submitJob(std::move(desc));
+                    response = {{"success", true}, {"job_id", jobId}, {"status", "Pending"}, {"type", jobType}};
                 }
 
             } else {

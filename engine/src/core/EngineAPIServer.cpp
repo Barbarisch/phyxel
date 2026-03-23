@@ -22,8 +22,9 @@ struct EngineAPIServer::Impl {
 // Construction / Destruction
 // ============================================================================
 
-EngineAPIServer::EngineAPIServer(APICommandQueue* commandQueue, int port)
+EngineAPIServer::EngineAPIServer(APICommandQueue* commandQueue, int port, JobSystem* jobSystem)
     : m_commandQueue(commandQueue)
+    , m_jobSystem(jobSystem)
     , m_port(port)
     , m_impl(std::make_unique<Impl>())
 {
@@ -1053,6 +1054,96 @@ void EngineAPIServer::setupRoutes() {
         }
         json result = queueAndWait("project_run", params);
         res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // JOB SYSTEM ENDPOINTS — Async background job management
+    // ====================================================================
+
+    // POST /api/job/submit — Submit a new background job
+    // Body: {"type": "fill_region", "params": {...}}
+    // Returns: {"job_id": 123, "status": "Pending"}
+    srv.Post("/api/job/submit", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!m_jobSystem) {
+            res.status = 503;
+            res.set_content(json{{"error", "Job system not available"}}.dump(), "application/json");
+            return;
+        }
+
+        json params;
+        try {
+            params = json::parse(req.body);
+        } catch (...) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON body"}}.dump(), "application/json");
+            return;
+        }
+
+        if (!params.contains("type")) {
+            res.status = 400;
+            res.set_content(json{{"error", "Missing 'type' field"}}.dump(), "application/json");
+            return;
+        }
+
+        std::string jobType = params["type"].get<std::string>();
+        json jobParams = params.value("params", json::object());
+
+        // Queue a command on the main thread to submit the job
+        // (The main thread has access to ChunkManager and other state
+        //  needed to construct the job's work function)
+        json result = queueAndWait("job_submit", json{{"type", jobType}, {"params", jobParams}}, 5000);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/job/:id — Get job status/progress
+    // Returns: {"job_id": 123, "state": "Running", "progress": 0.45, "message": "Filling voxels..."}
+    srv.Get(R"(/api/job/(\d+))", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!m_jobSystem) {
+            res.status = 503;
+            res.set_content(json{{"error", "Job system not available"}}.dump(), "application/json");
+            return;
+        }
+
+        uint64_t jobId = std::stoull(req.matches[1].str());
+        auto status = m_jobSystem->getJobStatus(jobId);
+        if (!status) {
+            res.status = 404;
+            res.set_content(json{{"error", "Job not found"}, {"job_id", jobId}}.dump(), "application/json");
+            return;
+        }
+
+        res.set_content(status->toJson().dump(), "application/json");
+    });
+
+    // GET /api/jobs — List all active jobs
+    // Returns: {"jobs": [{...}, {...}]}
+    srv.Get("/api/jobs", [this](const httplib::Request&, httplib::Response& res) {
+        if (!m_jobSystem) {
+            res.status = 503;
+            res.set_content(json{{"error", "Job system not available"}}.dump(), "application/json");
+            return;
+        }
+
+        auto jobs = m_jobSystem->listJobs();
+        json jobArray = json::array();
+        for (auto& s : jobs) {
+            jobArray.push_back(s.toJson());
+        }
+        res.set_content(json{{"jobs", jobArray}, {"count", jobArray.size()}}.dump(), "application/json");
+    });
+
+    // POST /api/job/:id/cancel — Cancel a running or pending job
+    // Returns: {"job_id": 123, "cancelled": true}
+    srv.Post(R"(/api/job/(\d+)/cancel)", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!m_jobSystem) {
+            res.status = 503;
+            res.set_content(json{{"error", "Job system not available"}}.dump(), "application/json");
+            return;
+        }
+
+        uint64_t jobId = std::stoull(req.matches[1].str());
+        bool cancelled = m_jobSystem->cancelJob(jobId);
+        res.set_content(json{{"job_id", jobId}, {"cancelled", cancelled}}.dump(), "application/json");
     });
 }
 

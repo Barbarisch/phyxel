@@ -15,6 +15,7 @@
 #include <vector>
 #include <unordered_map>
 #include <memory>
+#include <shared_mutex>
 
 namespace Physics {
     class PhysicsWorld;
@@ -258,6 +259,16 @@ public:
     
     // Cleanup all resources
     void cleanup();
+
+    // Thread-safe chunk access mutex for background job system.
+    // Background jobs acquire write lock for batch voxel operations.
+    // Main thread's updateDirtyChunks acquires read lock when rebuilding faces.
+    // Individual methods do NOT lock internally to avoid deadlocks in callback chains.
+    mutable std::shared_mutex m_chunkAccessMutex;
+
+    // Lock helpers for background job system
+    std::unique_lock<std::shared_mutex> acquireWriteLock() { return std::unique_lock(m_chunkAccessMutex); }
+    std::shared_lock<std::shared_mutex> acquireReadLock() const { return std::shared_lock(m_chunkAccessMutex); }
     
 private:
     // Memory management helper

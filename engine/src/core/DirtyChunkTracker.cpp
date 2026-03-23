@@ -25,6 +25,7 @@ void DirtyChunkTracker::markChunkDirty(size_t chunkIndex) {
     chunks[chunkIndex]->setDirty(true);
     
     // Add to dirty list if not already present (avoid duplicates)
+    std::lock_guard<std::mutex> lock(m_dirtyMutex);
     if (std::find(m_dirtyChunkIndices.begin(), m_dirtyChunkIndices.end(), chunkIndex) == m_dirtyChunkIndices.end()) {
         m_dirtyChunkIndices.push_back(chunkIndex);
         m_hasDirtyChunks = true;
@@ -41,22 +42,25 @@ void DirtyChunkTracker::markChunkDirty(Chunk* chunk) {
 }
 
 void DirtyChunkTracker::updateDirtyChunks() {
-    // Early exit if no chunks need updating
-    if (!m_hasDirtyChunks || m_dirtyChunkIndices.empty()) {
-        return;
+    // Atomically drain the dirty list
+    std::vector<size_t> toUpdate;
+    {
+        std::lock_guard<std::mutex> lock(m_dirtyMutex);
+        if (!m_hasDirtyChunks || m_dirtyChunkIndices.empty()) {
+            return;
+        }
+        std::swap(toUpdate, m_dirtyChunkIndices);
+        m_hasDirtyChunks = false;
     }
     
     auto& chunks = m_getChunks();
     
     // Update only the chunks that have been marked as dirty
-    for (size_t chunkIndex : m_dirtyChunkIndices) {
+    for (size_t chunkIndex : toUpdate) {
         if (chunkIndex < chunks.size()) {
             m_updateChunk(chunkIndex);
         }
     }
-    
-    // Clear the dirty list after updating
-    clearDirtyChunkList();
 }
 
 void DirtyChunkTracker::clearDirtyChunkList() {

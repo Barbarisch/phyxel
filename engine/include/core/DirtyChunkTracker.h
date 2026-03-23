@@ -4,6 +4,7 @@
 #include <functional>
 #include <memory>
 #include <cstddef>
+#include <mutex>
 
 namespace Phyxel {
 
@@ -87,6 +88,7 @@ private:
     GetChunkIndexFunc m_getChunkIndex;
     
     // Dirty chunk tracking state
+    std::mutex m_dirtyMutex;  // Protects dirty indices from concurrent markDirty calls
     std::vector<size_t> m_dirtyChunkIndices;
     bool m_hasDirtyChunks = false;
 };

@@ -8,6 +8,7 @@
 #include <future>
 #include <nlohmann/json.hpp>
 #include "core/APICommandQueue.h"
+#include "core/JobSystem.h"
 
 namespace Phyxel {
 namespace Core {
@@ -58,12 +59,16 @@ public:
     /// Create the API server.
     /// @param commandQueue  Shared command queue (owned by Application)
     /// @param port          Port to listen on (default 8090)
-    EngineAPIServer(APICommandQueue* commandQueue, int port = 8090);
+    /// @param jobSystem     Optional job system for async operations
+    EngineAPIServer(APICommandQueue* commandQueue, int port = 8090, JobSystem* jobSystem = nullptr);
     ~EngineAPIServer();
 
     // Non-copyable
     EngineAPIServer(const EngineAPIServer&) = delete;
     EngineAPIServer& operator=(const EngineAPIServer&) = delete;
+
+    /// Set the job system (can be set after construction)
+    void setJobSystem(JobSystem* jobSystem) { m_jobSystem = jobSystem; }
 
     /// Start the HTTP server on a background thread.
     /// Returns false if already running or port is unavailable.
@@ -174,6 +179,7 @@ private:
     json queueAndWait(const std::string& action, const json& params, int timeoutMs = 5000);
 
     APICommandQueue* m_commandQueue;
+    JobSystem* m_jobSystem;
     int m_port;
     std::atomic<bool> m_running{false};
     std::atomic<bool> m_shouldStop{false};

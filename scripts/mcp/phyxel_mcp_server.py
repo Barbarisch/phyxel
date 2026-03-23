@@ -1165,6 +1165,72 @@ async def list_tools() -> list[Tool]:
             ),
             inputSchema={"type": "object", "properties": {}}
         ),
+
+        # ================================================================
+        # ASYNC JOB SYSTEM
+        # ================================================================
+
+        Tool(
+            name="submit_job",
+            description=(
+                "Submit a long-running operation as a background job. The engine continues "
+                "running while the job executes. Returns a job_id to poll for status. "
+                "Supported job types: fill_region, clear_region, generate_world, save_world, project_build."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": ["fill_region", "clear_region", "generate_world", "save_world", "project_build"],
+                        "description": "The job type to submit"
+                    },
+                    "params": {
+                        "type": "object",
+                        "description": (
+                            "Job-specific parameters. "
+                            "fill_region: {x1,y1,z1,x2,y2,z2, material?, hollow?}. "
+                            "clear_region: {x1,y1,z1,x2,y2,z2}. "
+                            "generate_world: {type, from_x,from_y,from_z, to_x,to_y,to_z, seed?}. "
+                            "save_world: {dirty_only?}. "
+                            "project_build: {config?}."
+                        )
+                    }
+                },
+                "required": ["type", "params"]
+            }
+        ),
+        Tool(
+            name="get_job_status",
+            description=(
+                "Get the status of a background job by ID. Returns state (Pending/Running/"
+                "Completing/Complete/Failed/Cancelled), progress (0.0-1.0), message, and "
+                "result (when complete)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "job_id": {"type": "integer", "description": "The job ID returned by submit_job"}
+                },
+                "required": ["job_id"]
+            }
+        ),
+        Tool(
+            name="list_jobs",
+            description="List all active and recent background jobs with their status.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="cancel_job",
+            description="Cancel a running or pending background job.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "job_id": {"type": "integer", "description": "The job ID to cancel"}
+                },
+                "required": ["job_id"]
+            }
+        ),
     ]
 
 
@@ -1570,6 +1636,25 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     elif name == "run_game":
         return await api_post("/api/project/run", args)
+
+    # --- Async Job System ---
+
+    elif name == "submit_job":
+        return await api_post("/api/job/submit", {
+            "type": args["type"],
+            "params": args.get("params", {})
+        })
+
+    elif name == "get_job_status":
+        job_id = args["job_id"]
+        return await api_get(f"/api/job/{job_id}")
+
+    elif name == "list_jobs":
+        return await api_get("/api/jobs")
+
+    elif name == "cancel_job":
+        job_id = args["job_id"]
+        return await api_post(f"/api/job/{job_id}/cancel", {})
 
     else:
         return {"error": f"Unknown tool: {name}"}

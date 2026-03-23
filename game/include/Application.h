@@ -29,6 +29,7 @@
 #include "core/EntityRegistry.h"
 #include "core/APICommandQueue.h"
 #include "core/EngineAPIServer.h"
+#include "core/JobSystem.h"
 #include "core/GameEventLog.h"
 #include "core/SnapshotManager.h"
 #include "core/NPCManager.h"
@@ -163,6 +164,7 @@ private:
     std::unique_ptr<Core::EntityRegistry> entityRegistry;
     std::unique_ptr<Core::APICommandQueue> apiCommandQueue;
     std::unique_ptr<Core::EngineAPIServer> apiServer;
+    std::unique_ptr<Core::JobSystem> jobSystem;
     std::unique_ptr<Core::GameEventLog> gameEventLog;
     std::unique_ptr<Core::SnapshotManager> snapshotManager;
 
