@@ -34,10 +34,12 @@
 #include <chrono>
 #include <thread>
 #include <cstring>
+#include <cstdio>
 #include <limits>
 #include <random>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <filesystem>
 
 // Screenshot support
 #include "stb_image_write.h"
@@ -76,11 +78,40 @@ Application::~Application() {
  * Core engine initialization is delegated to EngineRuntime.
  * Application handles game-specific setup afterwards.
  */
-bool Application::initialize() {
+bool Application::initialize(const std::string& gameDefinitionPath) {
     // STEP 0: LOAD ENGINE CONFIGURATION
     if (!Core::EngineConfig::loadFromFile("engine.json", engineConfig)) {
         LOG_WARN("Application", "Failed to parse engine.json — using defaults");
         engineConfig = Core::EngineConfig{};
+    }
+
+    // CLI override for game definition path
+    if (!gameDefinitionPath.empty()) {
+        engineConfig.gameDefinitionFile = gameDefinitionPath;
+    }
+
+    // --project: override worldsDir and window title from the project
+    if (!projectDir_.empty()) {
+        namespace fs = std::filesystem;
+        fs::path projPath(projectDir_);
+
+        // Store project dir in the config so the API server can find it
+        engineConfig.projectDir = projectDir_;
+
+        // Use project's worlds directory so DB reads/writes go to the project
+        engineConfig.worldsDir = (projPath / "worlds").string();
+
+        // Load project's engine.json for window title etc.
+        auto projConfig = projPath / "engine.json";
+        if (fs::exists(projConfig)) {
+            Core::EngineConfig projCfg;
+            Core::EngineConfig::loadFromFile(projConfig.string(), projCfg);
+            if (engineConfig.windowTitle == "Phyxel") {
+                engineConfig.windowTitle = projCfg.windowTitle;
+            }
+        }
+
+        LOG_INFO("Application", "Project mode: worlds=" << engineConfig.worldsDir << ", game=" << engineConfig.gameDefinitionFile);
     }
 
     // STEP 1: CREATE AND INITIALIZE ENGINE RUNTIME
@@ -514,6 +545,10 @@ bool Application::initialize() {
     }
 
     m_initialized = true;
+
+    // STEP 11: AUTO-LOAD GAME DEFINITION (after all subsystems are ready)
+    autoLoadGameDefinition();
+
     return true;
 }
 
@@ -1512,6 +1547,78 @@ void Application::interactWithNPC() {
     else if (currentControlTarget == ControlTarget::Spider && spiderCharacter)
         playerEntity = spiderCharacter;
     interactionManager->tryInteract(playerEntity);
+}
+
+// ============================================================================
+// Auto-load Game Definition
+// Checks for a game definition file (from config or game.json in cwd) and
+// loads it after all subsystems are initialized.
+// ============================================================================
+
+void Application::autoLoadGameDefinition() {
+    std::string defPath = engineConfig.gameDefinitionFile;
+
+    // If not configured in engine.json, check for game.json next to the executable
+    if (defPath.empty()) {
+        if (std::filesystem::exists("game.json")) {
+            defPath = "game.json";
+        }
+    }
+
+    if (defPath.empty() || !std::filesystem::exists(defPath)) return;
+
+    LOG_INFO("Application", "Auto-loading game definition: " << defPath);
+
+    try {
+        std::ifstream f(defPath);
+        if (!f.is_open()) {
+            LOG_ERROR("Application", "Cannot open game definition: " << defPath);
+            return;
+        }
+
+        nlohmann::json gameDef = nlohmann::json::parse(f);
+
+        // If chunks were already loaded from the database (pre-baked world),
+        // skip world generation from the definition — it would overwrite the
+        // pre-existing terrain and is very slow.
+        if (gameDef.contains("world") && chunkManager && !chunkManager->chunks.empty()) {
+            LOG_INFO("Application", "Skipping world generation - " << chunkManager->chunks.size() << " chunks already loaded from database");
+            gameDef.erase("world");
+        }
+
+        Core::GameSubsystems subsystems;
+        subsystems.chunkManager     = chunkManager;
+        subsystems.npcManager       = npcManager.get();
+        subsystems.entityRegistry   = entityRegistry.get();
+        subsystems.templateManager  = objectTemplateManager.get();
+        subsystems.gameEventLog     = gameEventLog.get();
+        subsystems.camera           = camera;
+        subsystems.dialogueSystem   = dialogueSystem.get();
+        subsystems.storyEngine      = storyEngine.get();
+
+        subsystems.entitySpawner = [this](const std::string& type, const glm::vec3& pos,
+                                          const std::string& animFile) -> Scene::Entity* {
+            if (type == "physics")       return createPhysicsCharacter(pos);
+            else if (type == "spider")   return createSpiderCharacter(pos);
+            else if (type == "animated") return createAnimatedCharacter(pos, animFile);
+            return nullptr;
+        };
+
+        auto result = Core::GameDefinitionLoader::load(gameDef, subsystems);
+        if (result.success) {
+            LOG_INFO("Application", "Game definition loaded: " << result.chunksGenerated << " chunks, " << result.structuresPlaced << " structures, " << result.npcsSpawned << " NPCs");
+
+            // Sync InputManager with camera set by game definition
+            if (inputManager && camera) {
+                inputManager->setCameraPosition(camera->getPosition());
+                inputManager->setYawPitch(camera->getYaw(), camera->getPitch());
+            }
+        } else {
+            LOG_ERROR("Application", "Failed to load game definition: " << result.error);
+        }
+    } catch (const std::exception& e) {
+        LOG_ERROR("Application", "Error loading game definition '" << defPath << "': " << e.what());
+    }
 }
 
 // ============================================================================
@@ -2924,6 +3031,133 @@ void Application::processAPICommands() {
 
                     auto loadResult = Core::GameDefinitionLoader::load(fakeDef, subsystems);
                     response = loadResult.toJson();
+                }
+
+            // ================================================================
+            // PROJECT BUILD (engine-as-editor workflow)
+            // ================================================================
+            } else if (cmd.action == "project_info") {
+                auto projDir = runtime->getConfig().projectDir;
+                if (projDir.empty()) {
+                    response = {{"error", "No project loaded. Launch engine with --project <dir>"}};
+                } else {
+                    namespace fs = std::filesystem;
+                    fs::path projPath(projDir);
+                    response = {
+                        {"project_dir", projDir},
+                        {"has_game_json", fs::exists(projPath / "game.json")},
+                        {"has_worlds_db", fs::exists(projPath / "worlds" / "default.db")},
+                        {"has_cmakelists", fs::exists(projPath / "CMakeLists.txt")},
+                        {"game_definition", runtime->getConfig().gameDefinitionFile}
+                    };
+                    // Check for built executable
+                    auto exeName = projPath.stem().string() + ".exe";
+                    auto buildExe = projPath / "build" / "Debug" / exeName;
+                    auto rootExe  = projPath / exeName;
+                    response["has_built_exe"] = fs::exists(buildExe) || fs::exists(rootExe);
+                    if (fs::exists(buildExe))
+                        response["exe_path"] = buildExe.string();
+                    else if (fs::exists(rootExe))
+                        response["exe_path"] = rootExe.string();
+                }
+
+            } else if (cmd.action == "project_build") {
+                auto projDir = runtime->getConfig().projectDir;
+                if (projDir.empty()) {
+                    response = {{"error", "No project loaded. Launch engine with --project <dir>"}};
+                } else {
+                    namespace fs = std::filesystem;
+                    fs::path projPath(projDir);
+
+                    if (!fs::exists(projPath / "CMakeLists.txt")) {
+                        response = {{"error", "No CMakeLists.txt found in project directory"},
+                                    {"project_dir", projDir}};
+                    } else {
+                        std::string config = cmd.params.value("config", "Debug");
+                        bool reconfigure = cmd.params.value("reconfigure", false);
+
+                        // Find cmake — check common VS 2022 location, then PATH
+                        std::string cmake = "cmake";
+                        fs::path vsCmake("C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe");
+                        if (fs::exists(vsCmake)) cmake = vsCmake.string();
+
+                        std::string output;
+                        bool success = true;
+
+                        auto runProc = [&](const std::string& cmdStr) -> int {
+                            FILE* pipe = _popen(cmdStr.c_str(), "r");
+                            if (!pipe) { output += "Failed to run: " + cmdStr + "\n"; return -1; }
+                            char buf[256];
+                            while (fgets(buf, sizeof(buf), pipe)) output += buf;
+                            return _pclose(pipe);
+                        };
+
+                        // Configure if needed
+                        if (reconfigure || !fs::exists(projPath / "build" / "CMakeCache.txt")) {
+                            output += "=== CMake Configure ===\n";
+                            std::string configCmd = "\"" + cmake + "\" -B build -S . 2>&1";
+                            std::string savedDir = fs::current_path().string();
+                            fs::current_path(projPath);
+                            int rc = runProc(configCmd);
+                            fs::current_path(savedDir);
+                            if (rc != 0) {
+                                response = {{"success", false}, {"output", output},
+                                            {"error", "CMake configure failed"}};
+                                if (cmd.onComplete) cmd.onComplete(response);
+                                continue;
+                            }
+                        }
+
+                        // Build
+                        output += "=== CMake Build (" + config + ") ===\n";
+                        std::string buildCmd = "\"" + cmake + "\" --build build --config " + config + " 2>&1";
+                        std::string savedDir = fs::current_path().string();
+                        fs::current_path(projPath);
+                        int rc = runProc(buildCmd);
+                        fs::current_path(savedDir);
+
+                        success = (rc == 0);
+                        response = {{"success", success}, {"output", output},
+                                    {"project_dir", projDir}, {"config", config}};
+                        if (!success) response["error"] = "Build failed (exit code " + std::to_string(rc) + ")";
+
+                        // Copy exe to project root if build succeeded
+                        if (success) {
+                            auto exeName = projPath.stem().string() + ".exe";
+                            auto buildExe = projPath / "build" / "Debug" / exeName;
+                            auto rootExe  = projPath / exeName;
+                            if (fs::exists(buildExe)) {
+                                try { fs::copy_file(buildExe, rootExe, fs::copy_options::overwrite_existing); }
+                                catch (...) {}
+                                response["exe_path"] = rootExe.string();
+                            }
+                        }
+                    }
+                }
+
+            } else if (cmd.action == "project_run") {
+                auto projDir = runtime->getConfig().projectDir;
+                if (projDir.empty()) {
+                    response = {{"error", "No project loaded. Launch engine with --project <dir>"}};
+                } else {
+                    namespace fs = std::filesystem;
+                    fs::path projPath(projDir);
+                    auto exeName = projPath.stem().string() + ".exe";
+                    auto rootExe = projPath / exeName;
+                    auto buildExe = projPath / "build" / "Debug" / exeName;
+                    fs::path exePath;
+                    if (fs::exists(rootExe)) exePath = rootExe;
+                    else if (fs::exists(buildExe)) exePath = buildExe;
+
+                    if (exePath.empty()) {
+                        response = {{"error", "Game executable not found. Build first."},
+                                    {"expected", rootExe.string()}};
+                    } else {
+                        // Launch as detached process
+                        std::string launchCmd = "start \"\" \"" + exePath.string() + "\"";
+                        std::system(launchCmd.c_str());
+                        response = {{"success", true}, {"exe_path", exePath.string()}};
+                    }
                 }
 
             } else {

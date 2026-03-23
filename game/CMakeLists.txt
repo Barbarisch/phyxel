@@ -40,7 +40,7 @@ endif()
 # Copy executable to project root on Windows
 if(PLATFORM_WINDOWS)
     add_custom_command(TARGET phyxel POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:phyxel> ${CMAKE_SOURCE_DIR}/
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:phyxel> ${PHYXEL_ROOT_DIR}/
         COMMENT "Copying phyxel.exe to project root"
     )
 endif()

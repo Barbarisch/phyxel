@@ -1021,6 +1021,39 @@ void EngineAPIServer::setupRoutes() {
             res.set_content(err.dump(), "application/json");
         }
     });
+
+    // ====================================================================
+    // PROJECT BUILD (engine-as-editor workflow)
+    // ====================================================================
+
+    // GET /api/project/info — Project metadata (dir, game.json, etc.)
+    srv.Get("/api/project/info", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("project_info", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/project/build — Build the game project via cmake
+    srv.Post("/api/project/build", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (!req.body.empty()) {
+            try { params = json::parse(req.body); }
+            catch (...) {} // use defaults if body not valid JSON
+        }
+        // Build is long-running — 5 minute timeout
+        json result = queueAndWait("project_build", params, 300000);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/project/run — Launch the built game executable
+    srv.Post("/api/project/run", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (!req.body.empty()) {
+            try { params = json::parse(req.body); }
+            catch (...) {}
+        }
+        json result = queueAndWait("project_run", params);
+        res.set_content(result.dump(), "application/json");
+    });
 }
 
 // ============================================================================

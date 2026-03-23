@@ -1103,6 +1103,68 @@ async def list_tools() -> list[Tool]:
             description="Check if the engine process is currently running and responsive.",
             inputSchema={"type": "object", "properties": {}}
         ),
+        Tool(
+            name="package_game",
+            description=(
+                "Package a game into a standalone distributable directory. "
+                "Creates a self-contained folder with game executable, shaders, "
+                "resources, and game definition — no source code, build system, or dev tools. "
+                "Use projectDir to package from a scaffolded game project (own C++ exe). "
+                "Use prebakeWorld to save the engine's current world to SQLite for instant startup."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Game name (used for exe and folder)"},
+                    "definition": {"type": "object", "description": "Game definition JSON (optional — if omitted, exports current engine state)"},
+                    "output": {"type": "string", "description": "Output directory path (default: Documents/PhyxelProjects/<name>)"},
+                    "config": {"type": "string", "enum": ["Debug", "Release"], "description": "Build config binary to package (default: Debug)"},
+                    "projectDir": {"type": "string", "description": "Path to a scaffolded game project directory (uses its own compiled exe)"},
+                    "prebakeWorld": {"type": "boolean", "description": "Save the running engine's world to SQLite first (default: false)"},
+                    "allResources": {"type": "boolean", "description": "Include all resources, not just those referenced (default: false)"},
+                    "includeMcp": {"type": "boolean", "description": "Include MCP server for AI iteration (default: false)"},
+                    "title": {"type": "string", "description": "Window title (default: game name)"}
+                },
+                "required": ["name"]
+            }
+        ),
+
+        # ================================================================
+        # IN-ENGINE PROJECT BUILD / RUN
+        # ================================================================
+
+        Tool(
+            name="project_info",
+            description=(
+                "Get info about the game project currently loaded in the engine "
+                "(via --project flag). Returns project dir, whether game.json/CMakeLists.txt/exe exist."
+            ),
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="build_game",
+            description=(
+                "Build the game project from within the running engine. "
+                "Requires the engine to be running with --project <dir>. "
+                "Runs cmake configure (if needed) and cmake build on the project directory. "
+                "Returns build output including any errors."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "config": {"type": "string", "enum": ["Debug", "Release"], "description": "Build configuration (default: Debug)"},
+                    "reconfigure": {"type": "boolean", "description": "Force cmake reconfigure (default: false)"}
+                }
+            }
+        ),
+        Tool(
+            name="run_game",
+            description=(
+                "Launch the built game executable from within the running engine. "
+                "Requires the engine to be running with --project <dir> and the game to be built."
+            ),
+            inputSchema={"type": "object", "properties": {}}
+        ),
     ]
 
 
@@ -1495,6 +1557,20 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     elif name == "engine_running":
         return await _check_engine_running()
 
+    elif name == "package_game":
+        return await _package_game(args)
+
+    # --- In-Engine Project Build / Run ---
+
+    elif name == "project_info":
+        return await api_get("/api/project/info")
+
+    elif name == "build_game":
+        return await api_post("/api/project/build", args)
+
+    elif name == "run_game":
+        return await api_post("/api/project/run", args)
+
     else:
         return {"error": f"Unknown tool: {name}"}
 
@@ -1614,6 +1690,74 @@ async def _check_engine_running() -> dict:
         "api_responsive": api_ok,
         "pid": _engine_process.pid if process_alive else None
     }
+
+
+# ============================================================================
+# Game Packaging
+# ============================================================================
+
+async def _package_game(args: dict) -> dict:
+    """Package a game into a standalone distributable directory."""
+    name = args.get("name", "MyGame")
+    definition = args.get("definition")
+    output_path = args.get("output")
+    config = args.get("config", "Debug")
+    all_resources = args.get("allResources", False)
+    include_mcp = args.get("includeMcp", False)
+    title = args.get("title")
+    project_dir_path = args.get("projectDir")
+    prebake = args.get("prebakeWorld", False)
+
+    # If no definition provided, export from running engine
+    if not definition:
+        try:
+            result = await api_get("/api/game/export_definition")
+            if "error" in result:
+                return {"error": f"Cannot export from engine: {result['error']}"}
+            definition = result
+        except Exception as e:
+            return {"error": f"Engine not running and no definition provided: {e}"}
+
+    # Import the packaging tool
+    import importlib.util
+    pkg_script = PROJECT_ROOT / "tools" / "package_game.py"
+    if not pkg_script.exists():
+        return {"error": "tools/package_game.py not found"}
+
+    spec = importlib.util.spec_from_file_location("package_game", str(pkg_script))
+    pkg_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(pkg_mod)
+
+    if output_path:
+        output_dir = Path(output_path)
+    else:
+        docs = Path(os.environ.get("USERPROFILE", os.path.expanduser("~"))) / "Documents" / "PhyxelProjects" / name
+        output_dir = docs
+    output_dir = output_dir.resolve()
+
+    # Pre-bake world if requested
+    world_db_path = None
+    if prebake:
+        try:
+            world_db_path = pkg_mod.prebake_world(ENGINE_API_URL)
+        except Exception as e:
+            return {"error": f"Failed to pre-bake world: {e}"}
+
+    project_dir = Path(project_dir_path).resolve() if project_dir_path else None
+
+    result = pkg_mod.package_game(
+        name=name,
+        output_dir=output_dir,
+        definition=definition,
+        config=config,
+        include_all_resources=all_resources,
+        include_mcp=include_mcp,
+        window_title=title,
+        project_dir=project_dir,
+        world_db_path=world_db_path,
+    )
+
+    return result
 
 
 # ============================================================================

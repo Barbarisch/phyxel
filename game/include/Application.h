@@ -60,7 +60,7 @@ public:
     ~Application();
 
     // Application lifecycle
-    bool initialize();
+    bool initialize(const std::string& gameDefinitionPath = "");
     void run();
     void cleanup();
     void quit() { isRunning = false; }
@@ -68,6 +68,7 @@ public:
     // Configuration
     void setWindowSize(int width, int height);
     void setTitle(const std::string& title);
+    void setProjectDir(const std::string& dir) { projectDir_ = dir; }
     
     // Performance overlay methods
     void togglePerformanceOverlay();
@@ -121,6 +122,9 @@ private:
 
     // Engine configuration (loaded from engine.json or defaults)
     Core::EngineConfig engineConfig;
+
+    // Project directory (set via --project flag for dev workflow)
+    std::string projectDir_;
 
     // Convenience aliases — non-owning pointers into EngineRuntime's subsystems.
     // These are set in initialize() after runtime->initialize() succeeds.
@@ -243,6 +247,7 @@ private:
     void spawnTestDynamicSubcube();  // Spawn a test dynamic subcube above the chunks
     void placeNewCube();            // Place a new cube adjacent to the hovered cube face
     void processAPICommands();       // Process pending HTTP API commands
+    void autoLoadGameDefinition();   // Auto-load game.json if present
 
     // Ray-AABB intersection utility
     bool rayAABBIntersect(const glm::vec3& rayOrigin, const glm::vec3& rayDir, 

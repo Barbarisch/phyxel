@@ -4,8 +4,11 @@ project(phyxel VERSION 0.1.0)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Phyxel source root — works when used standalone or as add_subdirectory
+set(PHYXEL_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE INTERNAL "Phyxel engine source root")
+
 # Include custom CMake modules
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+list(APPEND CMAKE_MODULE_PATH "${PHYXEL_ROOT_DIR}/cmake")
 include(Sanitizers)
 
 # Address Sanitizer: apply globally before external deps so all libraries match ABI.
@@ -54,10 +57,10 @@ endif()
 if(PLATFORM_WINDOWS)
     find_path(SQLITE3_INCLUDE_DIR sqlite3.h PATHS external/sqlite3/include)
 
-    if(EXISTS ${CMAKE_SOURCE_DIR}/external/sqlite3/include/sqlite3.c)
+    if(EXISTS ${PHYXEL_ROOT_DIR}/external/sqlite3/include/sqlite3.c)
         set(SQLITE3_FOUND TRUE)
-        set(SQLITE3_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/external/sqlite3/include)
-        set(SQLITE3_SOURCES ${CMAKE_SOURCE_DIR}/external/sqlite3/include/sqlite3.c)
+        set(SQLITE3_INCLUDE_DIRS ${PHYXEL_ROOT_DIR}/external/sqlite3/include)
+        set(SQLITE3_SOURCES ${PHYXEL_ROOT_DIR}/external/sqlite3/include/sqlite3.c)
         message(STATUS "Found SQLite3 amalgamation source")
     else()
         find_library(SQLITE3_LIBRARY sqlite3 PATHS external/sqlite3/lib)
@@ -159,8 +162,9 @@ if(PLATFORM_WINDOWS)
         $<$<CONFIG:Debug>:BulletCollision_Debug>$<$<NOT:$<CONFIG:Debug>>:BulletCollision>
         $<$<CONFIG:Debug>:LinearMath_Debug>$<$<NOT:$<CONFIG:Debug>>:LinearMath>
     )
-    link_directories(${CMAKE_SOURCE_DIR}/external/glfw/lib-vc2022)
-    link_directories(${CMAKE_BINARY_DIR}/lib/$<CONFIG>)
+    # Store lib dirs for phyxel_core target_link_directories (propagates to consumers)
+    set(PHYXEL_GLFW_LIB_DIR ${PHYXEL_ROOT_DIR}/external/glfw/lib-vc2022 CACHE INTERNAL "")
+    set(PHYXEL_BUILD_LIB_DIR ${CMAKE_BINARY_DIR}/lib/$<CONFIG> CACHE INTERNAL "")
 elseif(PLATFORM_LINUX)
     set(BULLET_LIBS BulletDynamics BulletCollision LinearMath)
     find_package(glfw3 REQUIRED)
@@ -169,7 +173,7 @@ endif()
 # ==========================================================================
 # Common source definitions (used by engine/CMakeLists.txt)
 # ==========================================================================
-set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/external/imgui)
+set(IMGUI_DIR ${PHYXEL_ROOT_DIR}/external/imgui)
 set(IMGUI_SOURCES
     ${IMGUI_DIR}/imgui.cpp
     ${IMGUI_DIR}/imgui_demo.cpp
@@ -180,19 +184,20 @@ set(IMGUI_SOURCES
     ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
 )
 
-set(STB_IMAGE_DIR ${CMAKE_SOURCE_DIR}/external/bullet3/examples/ThirdPartyLibs/stb_image)
+set(STB_IMAGE_DIR ${PHYXEL_ROOT_DIR}/external/bullet3/examples/ThirdPartyLibs/stb_image)
 set(STB_IMAGE_SOURCES ${STB_IMAGE_DIR}/stb_image.cpp)
 
 # ==========================================================================
 # Build Targets
 # ==========================================================================
 add_subdirectory(engine)    # phyxel_core  — engine static library
-add_subdirectory(game)      # phyxel_game  — game static library
-                            # phyxel       — game executable
-add_subdirectory(editor)    # phyxel_editor — editor executable (stub)
 
-# Examples (standalone games using EngineRuntime + GameCallbacks)
-add_subdirectory(examples/minimal_game)
+# Game, editor, examples: only when building Phyxel standalone
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    add_subdirectory(game)      # phyxel_game  — game static library + executable
+    add_subdirectory(editor)    # phyxel_editor — editor executable (stub)
+    add_subdirectory(examples/minimal_game)
+endif()
 
 # ==========================================================================
 # Install targets — basic header/lib install for external projects
@@ -214,11 +219,13 @@ install(DIRECTORY engine/include/
 # ==========================================================================
 # Testing
 # ==========================================================================
-enable_testing()
-include(GoogleTest)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    enable_testing()
+    include(GoogleTest)
 
-add_subdirectory(tests)
-add_subdirectory(tests/integration)
-add_subdirectory(tests/benchmark)
-add_subdirectory(tests/stress)
-add_subdirectory(tests/e2e)
+    add_subdirectory(tests)
+    add_subdirectory(tests/integration)
+    add_subdirectory(tests/benchmark)
+    add_subdirectory(tests/stress)
+    add_subdirectory(tests/e2e)
+endif()

@@ -231,6 +231,10 @@ Server: `scripts/mcp/phyxel_mcp_server.py` — connects to engine HTTP API at `l
 | `build_project` | Build the Phyxel engine (cmake configure + build) |
 | `launch_engine` | Launch the engine executable as background process |
 | `engine_running` | Check if engine process is alive and API is responsive |
+| `package_game` | Package game into standalone distributable directory (no source/build files) |
+| `project_info` | Get info about the game project loaded via --project (dir, exe, game.json) |
+| `build_game` | Build the game project from within the running engine (cmake) |
+| `run_game` | Launch the built game executable from within the running engine |
 
 ### AI Game Development Workflow
 
@@ -270,11 +274,43 @@ The `load_game_definition` tool enables creating entire games from a single JSON
 
 **Typical AI workflow:**
 1. `build_project` — Build the engine
-2. `launch_engine` — Start the engine
+2. `launch_engine` — Start the engine (use `args: ["--project", "<path>"]` to open a game project)
 3. `engine_running` — Verify it's ready
 4. `load_game_definition` — Load the full game definition
 5. `screenshot` — See the result
 6. Iterate with `create_game_npc`, `fill_region`, `place_voxel`, etc.
+7. `build_game` — Build the game from within the engine
+8. `run_game` — Launch the built game to test it
+9. `package_game` — Package into standalone distributable directory
+
+**Engine as Editor (--project mode):**
+Launch the engine with `--project <dir>` to open a game project for development:
+```
+phyxel.exe --project C:\Users\jack\Documents\PhyxelProjects\FrozenHighlands
+```
+- Loads world from the project's `worlds/default.db`
+- Auto-loads game definition from project's `game.json`
+- Window title set from project's `engine.json`
+- `save_world` writes back to the project's database
+- `build_game` / `run_game` API endpoints build and launch the standalone game
+
+**Game Project Scaffolding:**
+Each game gets its own C++ source that links against `phyxel_core`. Games are
+standalone executables — no Python scripting, MCP server, or dev tools included.
+
+- Scaffold: `python tools/create_project.py MyGame --game-definition game.json`
+- Build: `cd <project_dir> && cmake -B build -S . && cmake --build build --config Debug`
+- The generated code uses `GameCallbacks` + `EngineRuntime` (same pattern as `examples/minimal_game/`)
+- World terrain is pre-baked in `worlds/default.db` (instant startup)
+- NPCs, dialogue, story, and camera are loaded from `game.json` at runtime (world key is stripped)
+
+**Game Packaging:**
+- `python tools/package_game.py MyGame --project-dir path/to/MyGame` — Package a game project
+- `python tools/package_game.py MyGame --prebake-world --from-engine` — Pre-bake world + package
+- `python tools/package_game.py MyGame --definition game.json` — Legacy: use engine exe
+- Output in `Documents/PhyxelProjects/<GameName>/` — self-contained, no engine source
+- See `docs/GameCreationGuide.md` for full workflow
+- Use `@game-creator` Copilot agent for AI-assisted game creation
 
 ## Project Structure
 
@@ -286,11 +322,16 @@ game/            # Game executable + game library
   include/       # Game-specific headers
   src/           # Application.cpp, WorldInitializer, etc.
 editor/          # Editor executable (stub)
+examples/        # Standalone game examples
+  minimal_game/  # Reference: GameCallbacks + EngineRuntime pattern
 tests/           # Unit tests (Google Test)
   integration/   # Integration tests
   benchmark/     # Benchmark tests
   stress/        # Stress tests
   e2e/           # End-to-end tests
+tools/           # Development tools
+  create_project.py  # Scaffold new game projects
+  package_game.py    # Package games into distributable directories
 scripts/         # Python scripts (world_gen.py, startup.py, audio_demo.py)
   mcp/           # MCP server for AI agents
 resources/       # Templates, animations, textures, sounds, recipes

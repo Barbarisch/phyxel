@@ -24,14 +24,14 @@ target_include_directories(phyxel_core PUBLIC
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
     ${STB_IMAGE_DIR}
-    ${CMAKE_SOURCE_DIR}/external/bullet3/src
-    ${CMAKE_SOURCE_DIR}/external/glm
-    ${CMAKE_SOURCE_DIR}/external/miniaudio
+    ${PHYXEL_ROOT_DIR}/external/bullet3/src
+    ${PHYXEL_ROOT_DIR}/external/glm
+    ${PHYXEL_ROOT_DIR}/external/miniaudio
 )
 
 if(PLATFORM_WINDOWS)
     target_include_directories(phyxel_core PUBLIC
-        ${CMAKE_SOURCE_DIR}/external/glfw/include
+        ${PHYXEL_ROOT_DIR}/external/glfw/include
     )
 endif()
 
@@ -48,6 +48,11 @@ if(PLATFORM_WINDOWS)
         pybind11::embed
         nlohmann_json::nlohmann_json
         httplib::httplib
+    )
+    # Propagate library search paths to consumers (needed for add_subdirectory builds)
+    target_link_directories(phyxel_core PUBLIC
+        ${PHYXEL_GLFW_LIB_DIR}
+        ${PHYXEL_BUILD_LIB_DIR}
     )
 elseif(PLATFORM_LINUX)
     target_link_libraries(phyxel_core PUBLIC

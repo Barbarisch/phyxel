@@ -99,6 +99,12 @@ void EngineConfig::fromJson(const nlohmann::json& j, EngineConfig& cfg) {
         if (c.contains("yaw"))     cfg.cameraYaw    = c["yaw"].get<float>();
         if (c.contains("pitch"))   cfg.cameraPitch   = c["pitch"].get<float>();
     }
+
+    // -- Game Definition
+    if (j.contains("game")) {
+        auto& g = j["game"];
+        if (g.contains("definition_file")) cfg.gameDefinitionFile = g["definition_file"].get<std::string>();
+    }
 }
 
 nlohmann::json EngineConfig::toJson() const {
@@ -144,6 +150,9 @@ nlohmann::json EngineConfig::toJson() const {
             {"start_z", cameraStartZ},
             {"yaw",     cameraYaw},
             {"pitch",   cameraPitch}
+        }},
+        {"game", {
+            {"definition_file", gameDefinitionFile}
         }}
     };
 }

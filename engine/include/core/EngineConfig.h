@@ -58,6 +58,12 @@ struct EngineConfig {
     float       cameraYaw     = -135.0f;
     float       cameraPitch   = -30.0f;
 
+    // -- Game Definition (for packaged games) ---------------------------------
+    std::string gameDefinitionFile;   // Path to game.json for auto-load on startup
+
+    // -- Project Mode (engine-as-editor) --------------------------------------
+    std::string projectDir;           // Absolute path to game project directory (set via --project)
+
     // =====================================================================
     // Convenience path helpers
     // =====================================================================

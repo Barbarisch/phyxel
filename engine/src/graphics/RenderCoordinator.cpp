@@ -365,6 +365,11 @@ void RenderCoordinator::drawFrame() {
     }
 
     // Use cached matrices from update()
+    // Always get fresh view matrix from camera — ensures correctness even when
+    // setCachedViewMatrix() hasn't been called (e.g. standalone games via EngineRuntime)
+    if (camera) {
+        cachedViewMatrix = camera->getViewMatrix();
+    }
     glm::mat4 view = cachedViewMatrix;
     glm::mat4 proj = cachedProjectionMatrix;
     
