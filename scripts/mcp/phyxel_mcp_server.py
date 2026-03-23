@@ -1376,6 +1376,36 @@ async def list_tools() -> list[Tool]:
             }
         ),
 
+        # ================================================================
+        # DAY/NIGHT CYCLE
+        # ================================================================
+
+        Tool(
+            name="get_day_night",
+            description=(
+                "Get the current day/night cycle state: time of day (0-24h), sun direction/color, "
+                "ambient strength, cycle enabled/paused, day length, and time scale."
+            ),
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="set_day_night",
+            description=(
+                "Configure the day/night cycle. Can set time of day, enable/disable the cycle, "
+                "pause it, adjust day length and time scale."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "timeOfDay": {"type": "number", "description": "Time of day in hours (0-24). 0=midnight, 6=dawn, 12=noon, 18=dusk"},
+                    "enabled": {"type": "boolean", "description": "Enable/disable the day/night cycle"},
+                    "paused": {"type": "boolean", "description": "Pause/unpause the cycle"},
+                    "dayLengthSeconds": {"type": "number", "description": "Real seconds for a full day cycle (default 600)"},
+                    "timeScale": {"type": "number", "description": "Time speed multiplier (1.0 = normal)"}
+                }
+            }
+        ),
+
         Tool(
             name="list_lights",
             description=(
@@ -2029,6 +2059,17 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         if "healthPercent" in args:
             body["healthPercent"] = args["healthPercent"]
         return await api_post("/api/entity/revive", body)
+
+    # --- Day/Night Cycle ---
+    elif name == "get_day_night":
+        return await api_get("/api/daynight")
+
+    elif name == "set_day_night":
+        body: dict[str, Any] = {}
+        for key in ("timeOfDay", "enabled", "paused", "dayLengthSeconds", "timeScale"):
+            if key in args:
+                body[key] = args[key]
+        return await api_post("/api/daynight/set", body)
 
     # --- Lighting ---
     elif name == "list_lights":

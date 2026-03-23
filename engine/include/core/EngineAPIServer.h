@@ -193,6 +193,10 @@ public:
     using InventoryHandler = std::function<json()>;
     void setInventoryHandler(InventoryHandler handler) { m_inventoryHandler = std::move(handler); }
 
+    /// Handler that returns day/night cycle state JSON.
+    using DayNightHandler = std::function<json()>;
+    void setDayNightHandler(DayNightHandler handler) { m_dayNightHandler = std::move(handler); }
+
 private:
     void serverThread();
     void setupRoutes();
@@ -232,6 +236,7 @@ private:
     LightListHandler m_lightListHandler;
     SoundListHandler m_soundListHandler;
     InventoryHandler m_inventoryHandler;
+    DayNightHandler m_dayNightHandler;
 
     // Forward-declared impl to keep httplib out of the header
     struct Impl;

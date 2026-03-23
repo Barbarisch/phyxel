@@ -375,6 +375,21 @@ void RenderCoordinator::drawFrame() {
     
     // Calculate light space matrix for shadows
     glm::vec3 cameraPos = camera->getPosition();
+
+    // Update day/night cycle and apply to lighting
+    {
+        auto now = std::chrono::high_resolution_clock::now();
+        float dt = std::chrono::duration<float>(now - frameStartTime).count();
+        // Clamp to avoid huge jumps on first frame or lag spikes
+        dt = std::min(dt, 0.1f);
+        m_dayNightCycle.update(dt);
+        if (m_dayNightCycle.isEnabled()) {
+            sunDirection = m_dayNightCycle.getSunDirection();
+            sunColor = m_dayNightCycle.getSunColor();
+            ambientLightStrength = m_dayNightCycle.getAmbientStrength();
+        }
+    }
+
     glm::mat4 lightSpaceMatrix = shadowMap ? shadowMap->getLightSpaceMatrix(sunDirection, cameraPos, 100.0f) : glm::mat4(1.0f);
     
     auto uboEnd = std::chrono::high_resolution_clock::now();

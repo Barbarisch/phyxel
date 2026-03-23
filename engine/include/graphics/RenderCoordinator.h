@@ -2,6 +2,7 @@
 
 #include "core/Types.h"
 #include "graphics/LightManager.h"
+#include "graphics/DayNightCycle.h"
 #include "utils/PerformanceMonitor.h"
 #include "utils/PerformanceProfiler.h"
 #include "utils/GpuProfiler.h"
@@ -111,6 +112,10 @@ public:
     float& getEmissiveMultiplierRef() { return emissiveMultiplier; }
     LightManager& getLightManager() { return lightManager; }
 
+    // Day/Night Cycle
+    DayNightCycle& getDayNightCycle() { return m_dayNightCycle; }
+    const DayNightCycle& getDayNightCycle() const { return m_dayNightCycle; }
+
     GpuProfiler* getGpuProfiler() { return gpuProfiler.get(); }
     
     // Lighting Controls UI
@@ -185,6 +190,9 @@ private:
     glm::vec3 sunColor = glm::vec3(1.0f, 1.0f, 1.0f);
     float emissiveMultiplier = 2.0f;
     
+    // Day/Night cycle
+    DayNightCycle m_dayNightCycle;
+
     // Cached matrices
     glm::mat4 cachedViewMatrix;
     glm::mat4 cachedProjectionMatrix;

@@ -589,6 +589,11 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         return inventory->toJson();
     });
 
+    apiServer->setDayNightHandler([this]() -> nlohmann::json {
+        if (!renderCoordinator) return nlohmann::json{{"error", "RenderCoordinator not available"}};
+        return renderCoordinator->getDayNightCycle().toJson();
+    });
+
     // Initialize NPC Manager
     npcManager = std::make_unique<Core::NPCManager>();
     npcManager->setPhysicsWorld(physicsWorld);
@@ -3458,6 +3463,32 @@ void Application::processAPICommands() {
                     bool creative = cmd.params.value("enabled", true);
                     inventory->setCreativeMode(creative);
                     response = {{"success", true}, {"creative", creative}};
+                }
+
+            // ================================================================
+            // DAY/NIGHT CYCLE COMMANDS
+            // ================================================================
+            } else if (cmd.action == "daynight_set") {
+                if (!renderCoordinator) {
+                    response = {{"error", "RenderCoordinator not available"}};
+                } else {
+                    auto& cycle = renderCoordinator->getDayNightCycle();
+                    if (cmd.params.contains("timeOfDay")) {
+                        cycle.setTimeOfDay(cmd.params["timeOfDay"].get<float>());
+                    }
+                    if (cmd.params.contains("dayLengthSeconds")) {
+                        cycle.setDayLengthSeconds(cmd.params["dayLengthSeconds"].get<float>());
+                    }
+                    if (cmd.params.contains("timeScale")) {
+                        cycle.setTimeScale(cmd.params["timeScale"].get<float>());
+                    }
+                    if (cmd.params.contains("enabled")) {
+                        cycle.setEnabled(cmd.params["enabled"].get<bool>());
+                    }
+                    if (cmd.params.contains("paused")) {
+                        cycle.setPaused(cmd.params["paused"].get<bool>());
+                    }
+                    response = {{"success", true}, {"daynight", cycle.toJson()}};
                 }
 
             // ================================================================

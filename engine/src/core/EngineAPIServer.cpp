@@ -1224,6 +1224,33 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // DAY/NIGHT CYCLE ENDPOINTS
+    // ====================================================================
+
+    // GET /api/daynight — Get current day/night cycle state
+    srv.Get("/api/daynight", [this](const httplib::Request&, httplib::Response& res) {
+        if (m_dayNightHandler) {
+            json result = m_dayNightHandler();
+            res.set_content(result.dump(), "application/json");
+        } else {
+            res.status = 503;
+            res.set_content(json{{"error", "Day/night handler not configured"}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/daynight/set — Set day/night cycle properties
+    srv.Post("/api/daynight/set", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("daynight_set", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // LIGHTING ENDPOINTS
     // ====================================================================
 
