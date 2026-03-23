@@ -169,6 +169,22 @@ public:
     using StoryWorldHandler = std::function<json()>;
     void setStoryWorldHandler(StoryWorldHandler handler) { m_storyWorldHandler = std::move(handler); }
 
+    // ========================================================================
+    // Lighting handlers (read-only, called on HTTP thread)
+    // ========================================================================
+
+    /// Handler that returns all lights (point + spot) and ambient level.
+    using LightListHandler = std::function<json()>;
+    void setLightListHandler(LightListHandler handler) { m_lightListHandler = std::move(handler); }
+
+    // ========================================================================
+    // Audio handlers (read-only, called on HTTP thread)
+    // ========================================================================
+
+    /// Handler that returns available sound file names.
+    using SoundListHandler = std::function<json()>;
+    void setSoundListHandler(SoundListHandler handler) { m_soundListHandler = std::move(handler); }
+
 private:
     void serverThread();
     void setupRoutes();
@@ -205,6 +221,8 @@ private:
     StoryArcListHandler m_storyArcListHandler;
     StoryArcDetailHandler m_storyArcDetailHandler;
     StoryWorldHandler m_storyWorldHandler;
+    LightListHandler m_lightListHandler;
+    SoundListHandler m_soundListHandler;
 
     // Forward-declared impl to keep httplib out of the header
     struct Impl;

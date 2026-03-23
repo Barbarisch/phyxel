@@ -1231,6 +1231,183 @@ async def list_tools() -> list[Tool]:
                 "required": ["job_id"]
             }
         ),
+
+        # ================================================================
+        # LIGHTING CONTROL
+        # ================================================================
+
+        Tool(
+            name="list_lights",
+            description=(
+                "List all lights in the scene (point lights, spot lights) and the ambient light strength. "
+                "Returns light IDs, positions, colors, intensities, radii, and enabled state."
+            ),
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="add_point_light",
+            description="Add a point light to the scene. Returns the light ID. Max 32 point lights.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "x": {"type": "number", "description": "Light X position"},
+                    "y": {"type": "number", "description": "Light Y position"},
+                    "z": {"type": "number", "description": "Light Z position"},
+                    "color": {
+                        "type": "object",
+                        "description": "Light color (default white)",
+                        "properties": {
+                            "r": {"type": "number", "default": 1.0},
+                            "g": {"type": "number", "default": 1.0},
+                            "b": {"type": "number", "default": 1.0}
+                        }
+                    },
+                    "intensity": {"type": "number", "description": "Light intensity (default 1.0)"},
+                    "radius": {"type": "number", "description": "Light radius in voxel units (default 10.0)"},
+                    "enabled": {"type": "boolean", "description": "Whether the light is enabled (default true)"}
+                },
+                "required": ["x", "y", "z"]
+            }
+        ),
+        Tool(
+            name="add_spot_light",
+            description=(
+                "Add a spot light to the scene. Returns the light ID. Max 16 spot lights. "
+                "Direction (dx, dy, dz) is a normalized vector. Cone angles are cosine values "
+                "(inner_cone=0.9 ≈ 25° half-angle, outer_cone=0.8 ≈ 37° half-angle)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "x": {"type": "number", "description": "Light X position"},
+                    "y": {"type": "number", "description": "Light Y position"},
+                    "z": {"type": "number", "description": "Light Z position"},
+                    "dx": {"type": "number", "description": "Direction X (default 0)", "default": 0},
+                    "dy": {"type": "number", "description": "Direction Y (default -1, pointing down)", "default": -1},
+                    "dz": {"type": "number", "description": "Direction Z (default 0)", "default": 0},
+                    "color": {
+                        "type": "object",
+                        "description": "Light color (default white)",
+                        "properties": {
+                            "r": {"type": "number", "default": 1.0},
+                            "g": {"type": "number", "default": 1.0},
+                            "b": {"type": "number", "default": 1.0}
+                        }
+                    },
+                    "intensity": {"type": "number", "description": "Light intensity (default 1.0)"},
+                    "radius": {"type": "number", "description": "Light radius (default 20.0)"},
+                    "inner_cone": {"type": "number", "description": "Inner cone cosine (default 0.9)"},
+                    "outer_cone": {"type": "number", "description": "Outer cone cosine (default 0.8)"},
+                    "enabled": {"type": "boolean", "description": "Whether enabled (default true)"}
+                },
+                "required": ["x", "y", "z"]
+            }
+        ),
+        Tool(
+            name="remove_light",
+            description="Remove a point or spot light by its ID.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer", "description": "The light ID to remove"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="update_light",
+            description=(
+                "Update properties of an existing light (point or spot). "
+                "Only specify the fields you want to change. The light type is auto-detected by ID."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer", "description": "The light ID to update"},
+                    "x": {"type": "number", "description": "New X position"},
+                    "y": {"type": "number", "description": "New Y position"},
+                    "z": {"type": "number", "description": "New Z position"},
+                    "dx": {"type": "number", "description": "New direction X (spot lights only)"},
+                    "dy": {"type": "number", "description": "New direction Y (spot lights only)"},
+                    "dz": {"type": "number", "description": "New direction Z (spot lights only)"},
+                    "color": {
+                        "type": "object",
+                        "properties": {
+                            "r": {"type": "number"},
+                            "g": {"type": "number"},
+                            "b": {"type": "number"}
+                        }
+                    },
+                    "intensity": {"type": "number"},
+                    "radius": {"type": "number"},
+                    "inner_cone": {"type": "number", "description": "Spot light inner cone cosine"},
+                    "outer_cone": {"type": "number", "description": "Spot light outer cone cosine"},
+                    "enabled": {"type": "boolean"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="set_ambient_light",
+            description="Set the global ambient light strength (0.0 = pitch black, 1.0 = normal, 2.0 = maximum).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "strength": {"type": "number", "description": "Ambient light strength (0.0 to 2.0)"}
+                },
+                "required": ["strength"]
+            }
+        ),
+
+        # ================================================================
+        # AUDIO CONTROL
+        # ================================================================
+
+        Tool(
+            name="list_sounds",
+            description="List available sound files and audio channels.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="play_sound",
+            description=(
+                "Play a sound effect. Specify just the filename (e.g. 'click.wav'). "
+                "For 3D positional audio, include x/y/z coordinates. "
+                "Channels: Master, SFX (default), Music, Voice."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "file": {"type": "string", "description": "Sound filename (e.g. 'click.wav', 'whoosh.wav')"},
+                    "volume": {"type": "number", "description": "Volume 0.0 to 1.0 (default 1.0)"},
+                    "channel": {
+                        "type": "string",
+                        "description": "Audio channel",
+                        "enum": ["Master", "SFX", "Music", "Voice"]
+                    },
+                    "x": {"type": "number", "description": "3D position X (omit for 2D sound)"},
+                    "y": {"type": "number", "description": "3D position Y"},
+                    "z": {"type": "number", "description": "3D position Z"}
+                },
+                "required": ["file"]
+            }
+        ),
+        Tool(
+            name="set_volume",
+            description="Set the volume for an audio channel (Master, SFX, Music, Voice).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "channel": {
+                        "type": "string",
+                        "description": "Audio channel to adjust",
+                        "enum": ["Master", "SFX", "Music", "Voice"]
+                    },
+                    "volume": {"type": "number", "description": "Volume level (0.0 to 1.0)"}
+                },
+                "required": ["channel", "volume"]
+            }
+        ),
     ]
 
 
@@ -1655,6 +1832,62 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     elif name == "cancel_job":
         job_id = args["job_id"]
         return await api_post(f"/api/job/{job_id}/cancel", {})
+
+    # --- Lighting ---
+    elif name == "list_lights":
+        return await api_get("/api/lights")
+
+    elif name == "add_point_light":
+        body: dict[str, Any] = {"x": args["x"], "y": args["y"], "z": args["z"]}
+        if "color" in args:
+            body["color"] = args["color"]
+        if "intensity" in args:
+            body["intensity"] = args["intensity"]
+        if "radius" in args:
+            body["radius"] = args["radius"]
+        if "enabled" in args:
+            body["enabled"] = args["enabled"]
+        return await api_post("/api/light/point/add", body)
+
+    elif name == "add_spot_light":
+        body: dict[str, Any] = {"x": args["x"], "y": args["y"], "z": args["z"]}
+        for key in ("dx", "dy", "dz", "intensity", "radius", "inner_cone", "outer_cone", "enabled"):
+            if key in args:
+                body[key] = args[key]
+        if "color" in args:
+            body["color"] = args["color"]
+        return await api_post("/api/light/spot/add", body)
+
+    elif name == "remove_light":
+        return await api_post("/api/light/remove", {"id": args["id"]})
+
+    elif name == "update_light":
+        body: dict[str, Any] = {"id": args["id"]}
+        for key in ("x", "y", "z", "dx", "dy", "dz", "intensity", "radius",
+                     "inner_cone", "outer_cone", "enabled", "color"):
+            if key in args:
+                body[key] = args[key]
+        return await api_post("/api/light/update", body)
+
+    elif name == "set_ambient_light":
+        return await api_post("/api/ambient", {"strength": args["strength"]})
+
+    # --- Audio ---
+    elif name == "list_sounds":
+        return await api_get("/api/audio/sounds")
+
+    elif name == "play_sound":
+        body: dict[str, Any] = {"file": args["file"]}
+        for key in ("volume", "channel", "x", "y", "z"):
+            if key in args:
+                body[key] = args[key]
+        return await api_post("/api/audio/play", body)
+
+    elif name == "set_volume":
+        return await api_post("/api/audio/volume", {
+            "channel": args["channel"],
+            "volume": args["volume"]
+        })
 
     else:
         return {"error": f"Unknown tool: {name}"}

@@ -1057,6 +1057,120 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // LIGHTING ENDPOINTS
+    // ====================================================================
+
+    // GET /api/lights — List all lights and ambient level
+    srv.Get("/api/lights", [this](const httplib::Request&, httplib::Response& res) {
+        if (m_lightListHandler) {
+            json result = m_lightListHandler();
+            res.set_content(result.dump(), "application/json");
+        } else {
+            res.status = 503;
+            res.set_content(json{{"error", "Light handler not configured"}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/light/point/add — Add a point light
+    srv.Post("/api/light/point/add", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("add_point_light", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/light/spot/add — Add a spot light
+    srv.Post("/api/light/spot/add", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("add_spot_light", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/light/remove — Remove a light by ID
+    srv.Post("/api/light/remove", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("remove_light", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/light/update — Update a light's properties
+    srv.Post("/api/light/update", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("update_light", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/ambient — Set ambient light strength
+    srv.Post("/api/ambient", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_ambient", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // AUDIO ENDPOINTS
+    // ====================================================================
+
+    // GET /api/audio/sounds — List available sound files
+    srv.Get("/api/audio/sounds", [this](const httplib::Request&, httplib::Response& res) {
+        if (m_soundListHandler) {
+            json result = m_soundListHandler();
+            res.set_content(result.dump(), "application/json");
+        } else {
+            res.status = 503;
+            res.set_content(json{{"error", "Sound handler not configured"}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/audio/play — Play a sound (2D or 3D)
+    srv.Post("/api/audio/play", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("play_sound", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/audio/volume — Set channel volume
+    srv.Post("/api/audio/volume", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_volume", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // JOB SYSTEM ENDPOINTS — Async background job management
     // ====================================================================
 
