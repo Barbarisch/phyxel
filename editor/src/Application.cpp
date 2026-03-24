@@ -801,6 +801,9 @@ void Application::run() {
 
         timer->update();
         
+        // Always process API commands (even during launcher — enables MCP project management)
+        processAPICommands();
+
         // Skip game input and update while launcher is active
         if (!launcherActive_) {
         // Route input to custom UI system first (consumes input when menus are visible)
@@ -4247,6 +4250,12 @@ void Application::processAPICommands() {
 
                     // Reload world from the new project
                     autoLoadGameDefinition();
+
+                    // Dismiss launcher if it was active
+                    if (launcherActive_) {
+                        projectLauncher_.reset();
+                        launcherActive_ = false;
+                    }
 
                     response = {{"success", true}, {"project_dir", path}};
                 }

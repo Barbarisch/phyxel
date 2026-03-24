@@ -453,8 +453,9 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/world/fill", [this](const httplib::Request& req, httplib::Response& res) {
         try {
             json params = json::parse(req.body);
-            json result = queueAndWait("fill_region", params, 60000); // long timeout for large fills
-            res.set_content(result.dump(), "application/json");
+            std::string asyncId = queueAsync("fill_region", params);
+            json response = {{"status", "accepted"}, {"async_id", asyncId}, {"action", "fill_region"}};
+            res.set_content(response.dump(), "application/json");
         } catch (const json::exception& e) {
             json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
             res.status = 400;
@@ -519,8 +520,9 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/world/clear", [this](const httplib::Request& req, httplib::Response& res) {
         try {
             json params = json::parse(req.body);
-            json result = queueAndWait("clear_region", params, 60000);
-            res.set_content(result.dump(), "application/json");
+            std::string asyncId = queueAsync("clear_region", params);
+            json response = {{"status", "accepted"}, {"async_id", asyncId}, {"action", "clear_region"}};
+            res.set_content(response.dump(), "application/json");
         } catch (const json::exception& e) {
             json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
             res.status = 400;
@@ -701,12 +703,15 @@ void EngineAPIServer::setupRoutes() {
     //         "params":{"heightScale":16, "frequency":0.05} }
     // OR:   { "type":"Mountains", "seed":42,
     //         "from":{"x":0,"y":0,"z":0}, "to":{"x":2,"y":0,"z":2} }
+    // Returns: { "status": "accepted", "async_id": "123" }
+    // Poll GET /api/async/123 for result
     // ====================================================================
     srv.Post("/api/world/generate", [this](const httplib::Request& req, httplib::Response& res) {
         try {
             json params = json::parse(req.body);
-            json result = queueAndWait("generate_world", params, 120000);
-            res.set_content(result.dump(), "application/json");
+            std::string asyncId = queueAsync("generate_world", params);
+            json response = {{"status", "accepted"}, {"async_id", asyncId}, {"action", "generate_world"}};
+            res.set_content(response.dump(), "application/json");
         } catch (const json::exception& e) {
             json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
             res.status = 400;
@@ -1059,11 +1064,13 @@ void EngineAPIServer::setupRoutes() {
     // ====================================================================
 
     // POST /api/game/load_definition — Load a complete game from a single JSON definition
+    // Returns immediately with async_id; poll GET /api/async/:id for result
     srv.Post("/api/game/load_definition", [this](const httplib::Request& req, httplib::Response& res) {
         try {
             json params = json::parse(req.body);
-            json result = queueAndWait("load_game_definition", params, 120000);
-            res.set_content(result.dump(), "application/json");
+            std::string asyncId = queueAsync("load_game_definition", params);
+            json response = {{"status", "accepted"}, {"async_id", asyncId}, {"action", "load_game_definition"}};
+            res.set_content(response.dump(), "application/json");
         } catch (const json::exception& e) {
             json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
             res.status = 400;
@@ -1594,6 +1601,29 @@ void EngineAPIServer::setupRoutes() {
             res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
         }
     });
+
+    // ====================================================================
+    // ASYNC RESULT POLLING
+    // ====================================================================
+
+    // GET /api/async/:id — Poll for async command result
+    srv.Get(R"(/api/async/(\d+))", [this](const httplib::Request& req, httplib::Response& res) {
+        std::string asyncId = req.matches[1].str();
+        std::lock_guard<std::mutex> lock(m_asyncMutex);
+        auto it = m_asyncResults.find(asyncId);
+        if (it == m_asyncResults.end()) {
+            res.status = 404;
+            res.set_content(json{{"error", "Async result not found"}, {"async_id", asyncId}}.dump(), "application/json");
+        } else if (!it->second.complete) {
+            res.set_content(json{{"status", "processing"}, {"async_id", asyncId}}.dump(), "application/json");
+        } else {
+            json result = it->second.result;
+            result["status"] = "complete";
+            result["async_id"] = asyncId;
+            m_asyncResults.erase(it);
+            res.set_content(result.dump(), "application/json");
+        }
+    });
 }
 
 // ============================================================================
@@ -1623,6 +1653,35 @@ json EngineAPIServer::queueAndWait(const std::string& action, const json& params
     }
 
     return future.get();
+}
+
+// ============================================================================
+// Queue-Async Helper (non-blocking)
+// ============================================================================
+
+std::string EngineAPIServer::queueAsync(const std::string& action, const json& params) {
+    std::string asyncId = std::to_string(m_nextAsyncId.fetch_add(1));
+
+    {
+        std::lock_guard<std::mutex> lock(m_asyncMutex);
+        m_asyncResults[asyncId] = AsyncResult{false, {}};
+    }
+
+    APICommand cmd;
+    cmd.action = action;
+    cmd.params = params;
+    cmd.requestId = m_nextRequestId.fetch_add(1);
+    cmd.onComplete = [this, asyncId](json response) {
+        std::lock_guard<std::mutex> lock(m_asyncMutex);
+        auto it = m_asyncResults.find(asyncId);
+        if (it != m_asyncResults.end()) {
+            it->second.complete = true;
+            it->second.result = std::move(response);
+        }
+    };
+
+    m_commandQueue->push(std::move(cmd));
+    return asyncId;
 }
 
 } // namespace Core

@@ -6,6 +6,8 @@
 #include <atomic>
 #include <functional>
 #include <future>
+#include <mutex>
+#include <unordered_map>
 #include <nlohmann/json.hpp>
 #include "core/APICommandQueue.h"
 #include "core/JobSystem.h"
@@ -213,6 +215,19 @@ private:
     /// Returns the JSON response from the game loop handler.
     /// Times out after timeoutMs.
     json queueAndWait(const std::string& action, const json& params, int timeoutMs = 5000);
+
+    /// Queue a command asynchronously — returns immediately with a token ID.
+    /// The result can be polled via GET /api/async/:id.
+    std::string queueAsync(const std::string& action, const json& params);
+
+    /// Async result storage
+    struct AsyncResult {
+        bool complete = false;
+        json result;
+    };
+    std::mutex m_asyncMutex;
+    std::unordered_map<std::string, AsyncResult> m_asyncResults;
+    std::atomic<uint64_t> m_nextAsyncId{1};
 
     APICommandQueue* m_commandQueue;
     JobSystem* m_jobSystem;

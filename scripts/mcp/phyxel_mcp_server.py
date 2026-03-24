@@ -33,6 +33,7 @@ import sys
 import os
 import logging
 import subprocess
+import asyncio
 import httpx
 from typing import Any
 from pathlib import Path
@@ -86,6 +87,37 @@ async def api_post(path: str, body: dict) -> dict:
         return {"error": f"Engine not running. Start phyxel.exe first. (tried {ENGINE_API_URL}{path})"}
     except Exception as e:
         return {"error": str(e)}
+
+
+ASYNC_POLL_INTERVAL = 1.0    # seconds between polls
+ASYNC_POLL_TIMEOUT  = 300.0  # max seconds to wait for async result
+
+
+async def api_post_async(path: str, body: dict) -> dict:
+    """POST to an async endpoint and poll until the result is ready.
+
+    The engine returns {"status": "accepted", "async_id": "..."} immediately.
+    We then poll GET /api/async/:id until status becomes "complete".
+    """
+    initial = await api_post(path, body)
+    if "error" in initial:
+        return initial
+    if initial.get("status") != "accepted" or "async_id" not in initial:
+        # Not an async response — return as-is (backwards compat)
+        return initial
+
+    async_id = initial["async_id"]
+    elapsed = 0.0
+    while elapsed < ASYNC_POLL_TIMEOUT:
+        await asyncio.sleep(ASYNC_POLL_INTERVAL)
+        elapsed += ASYNC_POLL_INTERVAL
+        poll = await api_get(f"/api/async/{async_id}")
+        if "error" in poll:
+            return poll
+        if poll.get("status") == "complete":
+            return poll
+        # Still processing — continue polling
+    return {"error": f"Async operation timed out after {ASYNC_POLL_TIMEOUT}s", "async_id": async_id}
 
 
 # ============================================================================
@@ -1815,7 +1847,7 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             body["material"] = args["material"]
         if "hollow" in args:
             body["hollow"] = args["hollow"]
-        return await api_post("/api/world/fill", body)
+        return await api_post_async("/api/world/fill", body)
 
     # --- Materials ---
     elif name == "list_materials":
@@ -1865,7 +1897,7 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     # --- Region Clear ---
     elif name == "clear_region":
-        return await api_post("/api/world/clear", {
+        return await api_post_async("/api/world/clear", {
             "x1": args["x1"], "y1": args["y1"], "z1": args["z1"],
             "x2": args["x2"], "y2": args["y2"], "z2": args["z2"]
         })
@@ -1930,7 +1962,7 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             body["to"] = args["to"]
         if "params" in args:
             body["params"] = args["params"]
-        return await api_post("/api/world/generate", body)
+        return await api_post_async("/api/world/generate", body)
 
     # --- Template Save ---
     elif name == "save_template":
@@ -2071,7 +2103,7 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     # --- Game Definition (AI Game Development) ---
 
     elif name == "load_game_definition":
-        return await api_post("/api/game/load_definition", args)
+        return await api_post_async("/api/game/load_definition", args)
 
     elif name == "export_game_definition":
         return await api_get("/api/game/export_definition")

@@ -584,7 +584,7 @@ def main() -> None:
 
     project_dir = Path(args.project_dir).resolve() if args.project_dir else None
 
-    print(f"Packaging game '{args.name}' → {output_dir}")
+    print(f"Packaging game '{args.name}' -> {output_dir}")
     if project_dir:
         print(f"  Source: game project at {project_dir}")
     result = package_game(
