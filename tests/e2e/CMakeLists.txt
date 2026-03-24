@@ -10,10 +10,10 @@ set(E2E_TEST_SOURCES
 
 add_executable(phyxel_e2e_tests ${E2E_TEST_SOURCES})
 
-# Link phyxel_game (not just phyxel_core) because E2E tests use Application
-# phyxel_game transitively provides phyxel_core's includes and libs
+# Link phyxel_editor (not just phyxel_core) because E2E tests use Application
+# phyxel_editor transitively provides phyxel_core's includes and libs
 target_link_libraries(phyxel_e2e_tests PRIVATE
-    phyxel_game
+    phyxel_editor
     GTest::gtest_main
     GTest::gmock
 )

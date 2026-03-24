@@ -10,7 +10,7 @@ add_executable(phyxel_minimal_game
     MinimalGame.h
 )
 
-# Link directly against phyxel_core — no need for phyxel_game
+# Link directly against phyxel_core — no need for phyxel_editor
 target_link_libraries(phyxel_minimal_game PRIVATE phyxel_core)
 
 # Include path for local headers

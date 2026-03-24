@@ -19,7 +19,7 @@ Phyxel is a voxel game engine built with C++17, Vulkan, and Bullet Physics. It f
   ```
 - **Build + test shortcut**: `./build_and_test.ps1 -Config Debug -RunTests`
   - `-UnitOnly`, `-IntegrationOnly`, `-BenchmarkOnly`, `-StressOnly`, `-E2EOnly` flags available
-- **Targets**: `phyxel_core` (engine static lib), `phyxel_game` (game lib + executable), `phyxel_editor` (stub)
+- **Targets**: `phyxel_core` (engine static lib), `phyxel_editor` (editor/dev-tool lib + executable)
 - **Test suites**: `tests/`, `tests/integration/`, `tests/benchmark/`, `tests/stress/`, `tests/e2e/`
 
 ## Coordinate System
@@ -318,10 +318,9 @@ standalone executables — no Python scripting, MCP server, or dev tools include
 engine/          # phyxel_core static library
   include/       # Public headers (core/, graphics/, physics/, scene/, ui/, input/, utils/)
   src/           # Implementation
-game/            # Game executable + game library
-  include/       # Game-specific headers
-  src/           # Application.cpp, WorldInitializer, etc.
-editor/          # Editor executable (stub)
+editor/          # phyxel_editor lib + phyxel executable (dev tool / world editor)
+  include/       # Editor-specific headers (Application, InputController, AI, scene entities)
+  src/           # Application.cpp, scripting bindings, etc.
 examples/        # Standalone game examples
   minimal_game/  # Reference: GameCallbacks + EngineRuntime pattern
 tests/           # Unit tests (Google Test)

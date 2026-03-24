@@ -192,9 +192,9 @@ Phase 2 (Cameras) ─┘
 | **NEW** `engine/include/graphics/CameraPath.h` | CameraPath + CameraWaypoint |
 | **NEW** `engine/src/graphics/CameraPath.cpp` | Spline interpolation, playback |
 | `engine/include/graphics/Camera.h` | Add `setState(pos, yaw, pitch)` for snap-set |
-| `game/src/Application.cpp` | Camera ownership → CameraManager |
-| `game/include/Application.h` | CameraManager member |
-| `game/src/input/InputController.cpp` | Tab/Shift+Tab bindings |
+| `editor/src/Application.cpp` | Camera ownership → CameraManager |
+| `editor/include/Application.h` | CameraManager member |
+| `editor/src/input/InputController.cpp` | Tab/Shift+Tab bindings |
 | `engine/src/core/EngineAPIServer.cpp` | New camera endpoints |
 
 ### Verification
@@ -288,9 +288,9 @@ Phase 2 (Cameras) ─┘
 | **NEW** `engine/include/core/NPCManager.h` | NPC spawning/lifecycle |
 | **NEW** `engine/src/core/NPCManager.cpp` | Implementation |
 | `engine/include/scene/Entity.h` | Add `virtual bool isInteractable() { return false; }` |
-| `game/src/Application.cpp` | Integrate NPCManager + InteractionManager |
-| `game/include/Application.h` | NPCManager + InteractionManager members |
-| `game/src/input/InputController.cpp` | E key binding |
+| `editor/src/Application.cpp` | Integrate NPCManager + InteractionManager |
+| `editor/include/Application.h` | NPCManager + InteractionManager members |
+| `editor/src/input/InputController.cpp` | E key binding |
 | `engine/src/ui/ImGuiRenderer.cpp` | "Press E" interaction prompt |
 
 ### Verification
@@ -385,9 +385,9 @@ Phase 2 (Cameras) ─┘
 | **NEW** `resources/dialogues/` | Directory for dialogue JSON files |
 | `engine/src/ui/ImGuiRenderer.h` | DialogueSystem + SpeechBubbleManager pointers |
 | `engine/src/ui/ImGuiRenderer.cpp` | Render dialogue box + speech bubbles |
-| `game/src/Application.cpp` | Own DialogueSystem + SpeechBubbleManager, input routing |
-| `game/include/Application.h` | Members |
-| `game/src/input/InputController.cpp` | Dialogue-mode input (Enter, 1-4, Esc) |
+| `editor/src/Application.cpp` | Own DialogueSystem + SpeechBubbleManager, input routing |
+| `editor/include/Application.h` | Members |
+| `editor/src/input/InputController.cpp` | Dialogue-mode input (Enter, 1-4, Esc) |
 
 ### Verification
 
@@ -424,8 +424,8 @@ Each phase should end with passing unit tests and manual verification before mov
 - Camera: `engine/include/graphics/Camera.h`
 - ImGuiRenderer: `engine/include/ui/ImGuiRenderer.h`
 - EngineAPIServer: `engine/src/core/EngineAPIServer.cpp`
-- AI system: `game/include/ai/AISystem.h`, `engine/include/ai/GooseBridge.h`, `engine/include/ai/AICharacterComponent.h`
-- StoryDirector: `game/include/ai/StoryDirector.h`
+- AI system: `editor/include/ai/AISystem.h`, `engine/include/ai/GooseBridge.h`, `engine/include/ai/AICharacterComponent.h`
+- StoryDirector: `editor/include/ai/StoryDirector.h`
 - Existing recipes: `resources/recipes/`
 - Shader pipeline: `build_shaders.bat` → glslangValidator
 - UBO struct: `UniformBufferObject` in `VulkanDevice.h`

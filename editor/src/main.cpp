@@ -1,25 +1,58 @@
-/**
- * @file main.cpp
- * @brief Phyxel Editor - Game development tool
- *
- * This is the entry point for the phyxel editor application.
- * The editor links against phyxel_core (the engine library) and provides
- * scene editing, asset management, and developer AI tools.
- *
- * TODO: Implement editor UI, scene viewport, asset browser, etc.
- */
-
+#include "Application.h"
+#include "utils/Logger.h"
 #include <iostream>
+#include <stdexcept>
+#include <string>
+#include <filesystem>
 
 int main(int argc, char* argv[]) {
-    std::cout << "phyxel editor (stub)" << std::endl;
-    std::cout << "This will become the game development editor." << std::endl;
-    std::cout << "It shares phyxel_core with the game runtime." << std::endl;
+    Phyxel::Application app;
 
-    // TODO: Initialize Vulkan device, window, ImGui
-    // TODO: Create editor UI panels (scene hierarchy, inspector, asset browser)
-    // TODO: Load and display scenes from the game project
-    // TODO: Integrate developer AI tools (Goose recipes for asset gen, debug, etc.)
+    // Parse command-line arguments
+    std::string gameDefPath;
+    std::string projectDir;
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+        if ((arg == "--game" || arg == "-g") && i + 1 < argc) {
+            gameDefPath = argv[++i];
+        } else if ((arg == "--project" || arg == "-p") && i + 1 < argc) {
+            projectDir = argv[++i];
+        }
+    }
+
+    // --project points to a game project directory.
+    // Resolve game.json and worlds from it while keeping engine cwd for shaders.
+    if (!projectDir.empty()) {
+        std::filesystem::path projPath = std::filesystem::absolute(projectDir);
+        if (!std::filesystem::is_directory(projPath)) {
+            LOG_ERROR("Main", "Project directory does not exist: {}", projPath.string());
+            return -1;
+        }
+        // Use the project's game.json unless --game was also specified
+        if (gameDefPath.empty()) {
+            auto projGameJson = projPath / "game.json";
+            if (std::filesystem::exists(projGameJson)) {
+                gameDefPath = projGameJson.string();
+            }
+        }
+        // Pass the project directory to Application so it can override worldsDir
+        app.setProjectDir(projPath.string());
+    }
+
+    try {
+        // Initialize the application
+        if (!app.initialize(gameDefPath)) {
+            LOG_ERROR("Main", "Failed to initialize application!");
+            return -1;
+        }
+
+        // Run the main loop
+        app.run();
+
+    } catch (const std::exception& e) {
+        LOG_ERROR_FMT("Main", "Application error: " << e.what());
+        return -1;
+    }
 
     return 0;
 }

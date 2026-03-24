@@ -16,7 +16,7 @@
 - **GameCallbacks**: Virtual interface with `onInitialize`, `onUpdate`, `onRender`, `onHandleInput`, `onShutdown` — all with default no-op implementations. Allows standalone games to hook into the engine loop without the Application monolith.
 - **WorldInitializer moved** from `game/` to `engine/` — reusable by any project linking `phyxel_core`
 - **Application refactored**: Delegates core init to `EngineRuntime`, holds non-owning raw pointer aliases. Cleanup delegated to `runtime->shutdown()`.
-- **ScriptingSystem/Bindings decoupled**: Replaced cross-library `extern` with callback pattern (`registerAppInstanceSetter`) to break phyxel_game→phyxel_core circular dependency.
+- **ScriptingSystem/Bindings decoupled**: Replaced cross-library `extern` with callback pattern (`registerAppInstanceSetter`) to break phyxel_editor→phyxel_core circular dependency.
 - **16 new tests**: EngineRuntimeTest (8) + GameCallbacksTest (8)
 
 #### E3: Project System (826 tests / 83 suites)
@@ -121,7 +121,7 @@
 
 ## Current State of the Build
 
-- **Build**: Clean, all targets compile (`phyxel_core`, `phyxel_game`, `phyxel`)
+- **Build**: Clean, all targets compile (`phyxel_core`, `phyxel_editor`, `phyxel`)
 - **Tests**: All 938 tests pass (0 failures). 88 test suites.
 - **Executable**: `phyxel.exe` at project root (copied post-build) or `build/game/Debug/phyxel.exe`
 - **Example**: `phyxel_minimal_game.exe` at `build/examples/minimal_game/Debug/`

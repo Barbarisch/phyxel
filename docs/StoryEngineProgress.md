@@ -184,8 +184,8 @@ Wired the StoryEngine into the game Application so all HTTP/MCP endpoints are fu
 **Modified files:**
 | File | Change |
 |------|--------|
-| `game/include/Application.h` | Added `#include "story/StoryEngine.h"`, `std::unique_ptr<Story::StoryEngine> storyEngine;` member |
-| `game/src/Application.cpp` | Added includes for `StoryWorldLoader.h` and `StoryDirectorTypes.h`; instantiates StoryEngine; wired 6 read-only handlers (state, character list/detail, arc list/detail, world); added 8 mutation command handlers in `processAPICommands()` (load_world, add/remove character, trigger event, add arc, set variable, set agency, add knowledge) |
+| `editor/include/Application.h` | Added `#include "story/StoryEngine.h"`, `std::unique_ptr<Story::StoryEngine> storyEngine;` member |
+| `editor/src/Application.cpp` | Added includes for `StoryWorldLoader.h` and `StoryDirectorTypes.h`; instantiates StoryEngine; wired 6 read-only handlers (state, character list/detail, arc list/detail, world); added 8 mutation command handlers in `processAPICommands()` (load_world, add/remove character, trigger event, add arc, set variable, set agency, add knowledge) |
 
 **Manual testing verified all 14 endpoints via HTTP (engine running on localhost:8090):**
 - Story state, character list/detail, arc list/detail, world state (GET)

@@ -2,7 +2,7 @@
   "permissions": {
     "allow": [
       "Bash(cd G:/Github/phyxel && PATH=\"$PATH:/c/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin\" cmake --build build --config Debug 2>&1 | tail -30)",
-      "Bash(cd G:/Github/phyxel && PATH=\"$PATH:/c/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin\" cmake --build build --config Debug --target phyxel_game 2>&1 | tail -10)",
+      "Bash(cd G:/Github/phyxel && PATH=\"$PATH:/c/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin\" cmake --build build --config Debug --target phyxel_editor 2>&1 | tail -10)",
       "Bash(curl -s http://localhost:8090/api/entities 2>&1)"
     ]
   },
