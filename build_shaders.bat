@@ -146,6 +146,22 @@ if defined USE_GLSLC (
         pause
         exit /b 1
     )
+
+    echo Compiling UI vertex shader...
+    %GLSLANG% -fshader-stage=vert -I. shaders\ui.vert -o shaders\ui.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile UI vertex shader
+        pause
+        exit /b 1
+    )
+
+    echo Compiling UI fragment shader...
+    %GLSLANG% -fshader-stage=frag -I. shaders\ui.frag -o shaders\ui.frag.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile UI fragment shader
+        pause
+        exit /b 1
+    )
 ) else (
     echo Using glslangValidator syntax...
     echo Compiling static voxel vertex shader...
@@ -279,6 +295,22 @@ if defined USE_GLSLC (
     %GLSLANG% -V -I. shaders\debris.frag -o shaders\debris.frag.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile debris fragment shader
+        pause
+        exit /b 1
+    )
+
+    echo Compiling UI vertex shader...
+    %GLSLANG% -V -I. shaders\ui.vert -o shaders\ui.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile UI vertex shader
+        pause
+        exit /b 1
+    )
+
+    echo Compiling UI fragment shader...
+    %GLSLANG% -V -I. shaders\ui.frag -o shaders\ui.frag.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile UI fragment shader
         pause
         exit /b 1
     )

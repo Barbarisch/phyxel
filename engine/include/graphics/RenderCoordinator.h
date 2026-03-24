@@ -18,6 +18,7 @@ namespace Phyxel {
     namespace UI { 
         class WindowManager;
         class ImGuiRenderer;
+        class UISystem;
     }
     namespace Input { class InputManager; }
     namespace Vulkan { 
@@ -129,6 +130,7 @@ public:
     // Entity rendering
     void setEntities(const std::vector<std::unique_ptr<Scene::Entity>>* entities) { this->entities = entities; }
     void setNPCManager(Core::NPCManager* npcManager) { m_npcManager = npcManager; }
+    void setUISystem(UI::UISystem* uiSystem) { m_uiSystem = uiSystem; }
     
     // Render UI elements (must be called between ImGui::NewFrame and ImGui::Render)
     void renderUI();
@@ -151,6 +153,7 @@ public:
 private:
     const std::vector<std::unique_ptr<Scene::Entity>>* entities = nullptr;
     Core::NPCManager* m_npcManager = nullptr;
+    UI::UISystem* m_uiSystem = nullptr;
 
     // Rendering subsystems
     size_t renderStaticGeometry();

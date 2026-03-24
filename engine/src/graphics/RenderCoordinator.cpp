@@ -7,6 +7,7 @@
 #include "graphics/DebrisRenderPipeline.h"
 #include "vulkan/RenderPipeline.h"
 #include "ui/ImGuiRenderer.h"
+#include "ui/UISystem.h"
 #include "vulkan/VulkanDevice.h"
 #include "ui/WindowManager.h"
 #include "input/InputManager.h"
@@ -566,6 +567,11 @@ void RenderCoordinator::drawFrame() {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Post Process");
         // Draw Fullscreen Quad
         postProcessor->drawQuad(vulkanDevice->getCommandBuffer(currentFrame));
+    }
+
+    // Render custom UI system (non-ImGui menus)
+    if (m_uiSystem) {
+        m_uiSystem->render(vulkanDevice->getCommandBuffer(currentFrame));
     }
 
     // Render ImGui on top
