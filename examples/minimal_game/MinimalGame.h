@@ -2,16 +2,19 @@
 
 #include "core/GameCallbacks.h"
 #include "core/EngineRuntime.h"
+#include "core/Inventory.h"
+#include "core/HealthComponent.h"
+#include "ui/GameScreen.h"
 
 namespace Examples {
 
 /**
  * @brief Minimal example game using EngineRuntime + GameCallbacks.
  *
- * Demonstrates the simplest possible standalone game:
- * - Spawns a flat platform of voxels
+ * Demonstrates:
+ * - Flat voxel platform with pillars
+ * - Main menu / pause menu / HUD / inventory screen via GameScreen + GameMenus
  * - Free camera to fly around
- * - No game-specific subsystems needed
  *
  * Usage:
  *   Phyxel::Core::EngineRuntime engine;
@@ -31,6 +34,10 @@ public:
 private:
     bool initialized_ = false;
     float elapsed_ = 0.0f;
+
+    Phyxel::UI::GameScreen screen_;
+    Phyxel::Core::Inventory inventory_;
+    Phyxel::Core::HealthComponent health_{100.0f};
 };
 
 } // namespace Examples

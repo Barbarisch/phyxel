@@ -8,9 +8,12 @@
 #include "vulkan/RenderPipeline.h"
 #include "ui/WindowManager.h"
 #include "ui/ImGuiRenderer.h"
+#include "ui/GameScreen.h"
+#include "ui/GameMenus.h"
 #include "utils/PerformanceProfiler.h"
 #include "utils/PerformanceMonitor.h"
 #include "utils/Logger.h"
+#include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 
 namespace Examples {
@@ -76,6 +79,15 @@ bool MinimalGame::onInitialize(Phyxel::Core::EngineRuntime& engine) {
         nullptr   // No scripting system
     );
 
+    // Populate inventory with some starter items
+    inventory_.addItem("Stone", 32);
+    inventory_.addItem("Wood", 16);
+    inventory_.addItem("Metal", 8);
+    inventory_.addItem("Glass", 4);
+
+    // Start on main menu
+    screen_.setState(Phyxel::UI::ScreenState::MainMenu);
+
     initialized_ = true;
     LOG_INFO("MinimalGame", "Minimal game initialized");
     return true;
@@ -85,11 +97,36 @@ void MinimalGame::onHandleInput(Phyxel::Core::EngineRuntime& engine) {
     auto* input = engine.getInputManager();
     if (!input) return;
 
-    // processInput handles WASD movement + mouse look + camera sync
-    input->processInput(0.016f);  // fixed step for input
+    auto state = screen_.getState();
+
+    // ESC: pause toggle (in gameplay) or resume (in pause)
+    if (input->isKeyPressed(GLFW_KEY_ESCAPE)) {
+        if (state == Phyxel::UI::ScreenState::Playing) {
+            screen_.togglePause();
+        } else if (state == Phyxel::UI::ScreenState::Paused) {
+            screen_.resume();
+        } else if (state == Phyxel::UI::ScreenState::Inventory) {
+            screen_.resume();
+        }
+    }
+
+    // Tab: toggle inventory (in gameplay or inventory screen)
+    if (input->isKeyPressed(GLFW_KEY_TAB)) {
+        if (state == Phyxel::UI::ScreenState::Playing ||
+            state == Phyxel::UI::ScreenState::Inventory) {
+            screen_.toggleInventory();
+        }
+    }
+
+    // Only process camera/movement input when actually playing
+    if (Phyxel::UI::isGameRunning(screen_.getState())) {
+        input->processInput(0.016f);
+    }
 }
 
 void MinimalGame::onUpdate(Phyxel::Core::EngineRuntime& engine, float dt) {
+    if (!Phyxel::UI::isGameRunning(screen_.getState())) return;
+
     elapsed_ += dt;
 
     // Update physics at fixed step
@@ -103,10 +140,46 @@ void MinimalGame::onRender(Phyxel::Core::EngineRuntime& engine) {
     auto* window = engine.getWindowManager();
     if (window && window->isMinimized()) return;
 
-    // Start ImGui frame (even if we draw nothing — coordinator expects it)
     auto* imgui = engine.getImGuiRenderer();
     if (imgui) {
         imgui->newFrame();
+
+        auto state = screen_.getState();
+
+        switch (state) {
+        case Phyxel::UI::ScreenState::MainMenu:
+            Phyxel::UI::renderMainMenu("Phyxel", {
+                [this]() { screen_.startGame(); },
+                [&engine]() {
+                    auto* w = engine.getWindowManager();
+                    if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE);
+                }
+            });
+            break;
+
+        case Phyxel::UI::ScreenState::Playing:
+            Phyxel::UI::renderGameHUD(&health_, &inventory_);
+            break;
+
+        case Phyxel::UI::ScreenState::Paused:
+            Phyxel::UI::renderGameHUD(&health_, &inventory_);
+            Phyxel::UI::renderPauseMenu({
+                [this]() { screen_.resume(); },
+                [this]() { screen_.returnToMainMenu(); },
+                [&engine]() {
+                    auto* w = engine.getWindowManager();
+                    if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE);
+                }
+            });
+            break;
+
+        case Phyxel::UI::ScreenState::Inventory:
+            Phyxel::UI::renderGameHUD(&health_, &inventory_);
+            Phyxel::UI::renderInventoryScreen(&inventory_,
+                [this]() { screen_.resume(); });
+            break;
+        }
+
         imgui->endFrame();
     }
 
