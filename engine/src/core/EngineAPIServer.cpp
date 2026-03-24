@@ -1114,15 +1114,48 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // POST /api/project/build — Build the game project via cmake
+    // Uses JobSystem if available so the game loop stays responsive.
+    // The HTTP thread blocks until the build finishes (up to 5 min).
     srv.Post("/api/project/build", [this](const httplib::Request& req, httplib::Response& res) {
         json params = json::object();
         if (!req.body.empty()) {
             try { params = json::parse(req.body); }
             catch (...) {} // use defaults if body not valid JSON
         }
-        // Build is long-running — 5 minute timeout
-        json result = queueAndWait("project_build", params, 300000);
-        res.set_content(result.dump(), "application/json");
+
+        if (m_jobSystem) {
+            // Submit build as a background job via the main thread
+            json submitResult = queueAndWait("job_submit",
+                json{{"type", "project_build"}, {"params", params}}, 5000);
+
+            if (!submitResult.value("success", false)) {
+                res.set_content(submitResult.dump(), "application/json");
+                return;
+            }
+
+            uint64_t jobId = submitResult["job_id"].get<uint64_t>();
+
+            // Poll on the HTTP thread until complete (doesn't block game loop)
+            for (;;) {
+                auto status = m_jobSystem->getJobStatus(jobId);
+                if (!status) {
+                    res.set_content(json{{"success", false},
+                        {"error", "Build job lost"}}.dump(), "application/json");
+                    return;
+                }
+                if (status->state == JobState::Complete ||
+                    status->state == JobState::Failed ||
+                    status->state == JobState::Cancelled) {
+                    res.set_content(status->result.dump(), "application/json");
+                    return;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(250));
+            }
+        } else {
+            // Fallback: synchronous build on game loop thread
+            json result = queueAndWait("project_build", params, 300000);
+            res.set_content(result.dump(), "application/json");
+        }
     });
 
     // POST /api/project/run — Launch the built game executable

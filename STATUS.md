@@ -236,8 +236,8 @@ Full design: `docs/StoryEngineDesign.md` | Progress: `docs/StoryEngineProgress.m
 ### Open Gaps
 - **Subcube/microcube material persistence**: SQLite schema only stores material for full cubes. Subcube/microcube material defaults to "Default" on save/load. Need to add `material` column to subcube/microcube tables.
 - **ScriptingSystem tests**: Skipped — requires Python/pybind11 runtime which isn't available in unit test context.
-- **`project_build` runs on game loop thread**: Build subprocess blocks the main loop (via `queueAndWait` with 300s timeout). Should use the new JobSystem for background builds.
-- **`fs::current_path()` in project_build is not thread-safe**: Could be an issue if anything else reads CWD during a build.
+- **`project_build` now uses JobSystem**: Build subprocess runs on the worker thread; game loop stays responsive.
+- **`fs::current_path()` in project_build is not thread-safe**: The background build uses `_popen()` which inherits CWD. Could be an issue if anything else changes CWD concurrently.
 
 ### Texture / Visual Polish
 - **Subcube/microcube textures**: ✅ Per-material rendering implemented. Material inherited on subdivision, passed through from templates.

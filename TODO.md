@@ -163,8 +163,8 @@
 - [x] **32. Fix LOG format string issue globally**
   - **Fixed**: `LOG_INFO`/`LOG_DEBUG`/etc. now use `logFormat()` which supports `{}` placeholders. `LOG_INFO_FMT`/etc. continue to use `ostringstream <<` style. All 112 broken `{}` format calls now work correctly. Added `logFormat()` variadic template to `Logger.h`.
 
-- [ ] **33. Move project_build to JobSystem**
-  - Build subprocess currently runs on the game loop thread (via `queueAndWait` with 300s timeout), freezing the engine during builds. JobSystem now exists — should use `jobSystem->submitJob()` for background builds with progress polling.
+- [x] **33. Move project_build to JobSystem**
+  - **Fixed**: `/api/project/build` now submits a background job via JobSystem when available. HTTP thread polls for completion — game loop stays responsive during builds. Falls back to synchronous `queueAndWait` if JobSystem not available.
 
 - [ ] **34. Thread-safe CWD handling in project_build**
   - `fs::current_path()` is process-global and not thread-safe. The `project_build` handler changes CWD for cmake. Consider using absolute paths or subprocess CWD instead.
