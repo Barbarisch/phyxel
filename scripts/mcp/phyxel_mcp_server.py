@@ -1167,6 +1167,50 @@ async def list_tools() -> list[Tool]:
         ),
 
         # ================================================================
+        # PROJECT MANAGEMENT (launcher / discovery)
+        # ================================================================
+
+        Tool(
+            name="list_projects",
+            description=(
+                "List all game projects discovered in the PhyxelProjects directory "
+                "(typically ~/Documents/PhyxelProjects). Returns project names, paths, "
+                "last-opened timestamps, and metadata (has game.json, CMakeLists.txt, world DB)."
+            ),
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="create_project",
+            description=(
+                "Create a new empty game project. Scaffolds a minimal project directory "
+                "with engine.json and resource folders in the PhyxelProjects directory. "
+                "The project can then be opened with open_project or via the launcher UI."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Project name (used as directory name and window title)"}
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="open_project",
+            description=(
+                "Open/switch to a game project in the running engine. "
+                "Loads the project's world database and game definition. "
+                "The engine must be running."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Absolute path to the project directory"}
+                },
+                "required": ["path"]
+            }
+        ),
+
+        # ================================================================
         # ASYNC JOB SYSTEM
         # ================================================================
 
@@ -2063,6 +2107,17 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     elif name == "run_game":
         return await api_post("/api/project/run", args)
+
+    # --- Project Management ---
+
+    elif name == "list_projects":
+        return await api_get("/api/projects/list")
+
+    elif name == "create_project":
+        return await api_post("/api/projects/create", {"name": args["name"]})
+
+    elif name == "open_project":
+        return await api_post("/api/projects/open", {"path": args["path"]})
 
     # --- Async Job System ---
 

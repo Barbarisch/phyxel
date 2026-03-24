@@ -48,6 +48,7 @@
 #include "scene/PhysicsCharacter.h"
 #include "scene/SpiderCharacter.h"
 #include "scene/AnimatedVoxelCharacter.h"
+#include "ProjectLauncher.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -272,6 +273,12 @@ private:
     // Initialization state
     bool m_initialized = false;
     void renderPerformanceOverlay();
+
+    // Project launcher
+    std::unique_ptr<ProjectLauncher> projectLauncher_;
+    bool launcherActive_ = false;
+    void onLauncherResult(const LauncherResult& result);
+    void applyProjectSelection(const std::string& projectPath);
 };
 
 } // namespace Phyxel

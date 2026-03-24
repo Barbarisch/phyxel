@@ -125,6 +125,9 @@ public:
     /// Access the active configuration (read-only).
     const EngineConfig& getConfig() const { return config_; }
 
+    /// Access the active configuration (mutable — for project switching).
+    EngineConfig& getConfigMutable() { return config_; }
+
     /// Frame counter (incremented each endFrame).
     int getFrameCount() const { return frameCount_; }
 

@@ -1169,6 +1169,34 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(result.dump(), "application/json");
     });
 
+    // GET /api/projects/list — List all discovered + recent projects
+    srv.Get("/api/projects/list", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("projects_list", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/projects/create — Scaffold a new empty project
+    srv.Post("/api/projects/create", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (!req.body.empty()) {
+            try { params = json::parse(req.body); }
+            catch (...) {}
+        }
+        json result = queueAndWait("projects_create", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/projects/open — Open/switch to a project
+    srv.Post("/api/projects/open", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (!req.body.empty()) {
+            try { params = json::parse(req.body); }
+            catch (...) {}
+        }
+        json result = queueAndWait("projects_open", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
     // ====================================================================
     // INVENTORY ENDPOINTS
     // ====================================================================

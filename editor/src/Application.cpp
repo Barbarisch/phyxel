@@ -27,6 +27,8 @@
 #include "core/EngineConfig.h"
 #include "core/AssetManager.h"
 #include "core/GameDefinitionLoader.h"
+#include "core/ProjectInfo.h"
+#include "core/LauncherState.h"
 #include "ui/MenuDefinition.h"
 #include "ui/UISystem.h"
 #include <imgui.h>
@@ -658,10 +660,108 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
     m_initialized = true;
 
+    // STEP 10.5: PROJECT LAUNCHER (if no project specified via CLI)
+    // Initialize the launcher so it can be rendered inside run()'s normal loop.
+    if (projectDir_.empty()) {
+        namespace fs = std::filesystem;
+        std::string baseDir = Core::ProjectInfo::getDefaultProjectsDir();
+        fs::create_directories(baseDir);
+
+        projectLauncher_ = std::make_unique<ProjectLauncher>();
+        projectLauncher_->initialize(baseDir);
+        launcherActive_ = true;
+
+        LOG_INFO("Application", "Project launcher will show on first frame (projects dir: {})", baseDir);
+    }
+
     // STEP 11: AUTO-LOAD GAME DEFINITION (after all subsystems are ready)
-    autoLoadGameDefinition();
+    // Deferred until the launcher selects a project when launcherActive_ is true.
+    if (!launcherActive_) {
+        autoLoadGameDefinition();
+    }
 
     return true;
+}
+
+// ============================================================================
+// PROJECT LAUNCHER
+// ============================================================================
+
+void Application::onLauncherResult(const LauncherResult& result) {
+    namespace fs = std::filesystem;
+    std::string baseDir = Core::ProjectInfo::getDefaultProjectsDir();
+
+    switch (result.action) {
+        case LauncherResult::Action::Open: {
+            applyProjectSelection(result.projectPath);
+            Core::ProjectInfo info;
+            info.path = result.projectPath;
+            info.name = fs::path(result.projectPath).filename().string();
+            projectLauncher_->getState().addRecentProject(info);
+            projectLauncher_->getState().save(baseDir);
+            projectLauncher_.reset();
+            launcherActive_ = false;
+            autoLoadGameDefinition();
+            break;
+        }
+        case LauncherResult::Action::Create: {
+            std::string path = Core::ProjectInfo::scaffoldProject(result.newProjectName, baseDir);
+            if (path.empty()) {
+                LOG_ERROR("Application", "Failed to create project '{}'", result.newProjectName);
+                projectLauncher_->refresh();
+                return; // Stay on launcher
+            }
+            applyProjectSelection(path);
+            Core::ProjectInfo info;
+            info.path = path;
+            info.name = result.newProjectName;
+            projectLauncher_->getState().addRecentProject(info);
+            projectLauncher_->getState().save(baseDir);
+            projectLauncher_.reset();
+            launcherActive_ = false;
+            autoLoadGameDefinition();
+            break;
+        }
+        case LauncherResult::Action::Cancel:
+            projectLauncher_.reset();
+            launcherActive_ = false;
+            break;
+        default:
+            break;
+    }
+}
+
+void Application::applyProjectSelection(const std::string& projectPath) {
+    namespace fs = std::filesystem;
+    fs::path projPath(projectPath);
+
+    projectDir_ = projectPath;
+    engineConfig.projectDir = projectPath;
+    engineConfig.worldsDir = (projPath / "worlds").string();
+
+    // Load project's engine.json for window title
+    auto projConfigPath = projPath / "engine.json";
+    if (fs::exists(projConfigPath)) {
+        Core::EngineConfig projCfg;
+        Core::EngineConfig::loadFromFile(projConfigPath.string(), projCfg);
+        if (projCfg.windowTitle != "Phyxel") {
+            engineConfig.windowTitle = projCfg.windowTitle;
+            windowManager->setTitle(projCfg.windowTitle);
+        }
+    }
+
+    // Set game definition file if present
+    auto gameJsonPath = projPath / "game.json";
+    if (fs::exists(gameJsonPath)) {
+        engineConfig.gameDefinitionFile = gameJsonPath.string();
+    }
+
+    // Update runtime config
+    runtime->getConfigMutable().projectDir = projectPath;
+    runtime->getConfigMutable().worldsDir = engineConfig.worldsDir;
+    runtime->getConfigMutable().gameDefinitionFile = engineConfig.gameDefinitionFile;
+
+    LOG_INFO("Application", "Project selected: {} (worlds: {})", projectPath, engineConfig.worldsDir);
 }
 
 void Application::run() {
@@ -701,6 +801,8 @@ void Application::run() {
 
         timer->update();
         
+        // Skip game input and update while launcher is active
+        if (!launcherActive_) {
         // Route input to custom UI system first (consumes input when menus are visible)
         bool uiConsumedInput = false;
         if (renderCoordinator && renderCoordinator->getUISystem()) {
@@ -721,10 +823,18 @@ void Application::run() {
             ScopedTimer updateTimer(*performanceProfiler, "update");
             update(deltaTime);
         }
+        } // end if (!launcherActive_)
         
         // Start ImGui frame
         imguiRenderer->newFrame();
         
+        // -- Project Launcher overlay (replaces game UI when active) --
+        if (launcherActive_ && projectLauncher_) {
+            LauncherResult result;
+            if (projectLauncher_->render(result)) {
+                onLauncherResult(result);
+            }
+        } else {
         // Store current distances before UI update
         float currentRenderDistance = maxChunkRenderDistance;
         float currentChunkInclusionDistance = chunkInclusionDistance;
@@ -798,6 +908,7 @@ void Application::run() {
         if (renderCoordinator) {
             renderCoordinator->renderUI();
         }
+        } // end else (game UI)
         
         // End ImGui frame
         imguiRenderer->endFrame();
@@ -4083,6 +4194,61 @@ void Application::processAPICommands() {
                 } else {
                     renderCoordinator->getUISystem()->removeScreen(name);
                     response = {{"success", true}, {"name", name}, {"removed", true}};
+                }
+
+            // ================================================================
+            // PROJECT MANAGEMENT COMMANDS
+            // ================================================================
+            } else if (cmd.action == "projects_list") {
+                std::string baseDir = Core::ProjectInfo::getDefaultProjectsDir();
+                Core::LauncherState state;
+                state.load(baseDir);
+                auto projects = state.getMergedProjects(baseDir);
+
+                nlohmann::json arr = nlohmann::json::array();
+                for (const auto& p : projects) {
+                    arr.push_back(p.toJson());
+                }
+                response = {{"projects", arr}, {"base_dir", baseDir}};
+
+            } else if (cmd.action == "projects_create") {
+                std::string name = cmd.params.value("name", "");
+                if (name.empty()) {
+                    response = {{"error", "Missing 'name' field"}};
+                } else {
+                    std::string baseDir = Core::ProjectInfo::getDefaultProjectsDir();
+                    std::string path = Core::ProjectInfo::scaffoldProject(name, baseDir);
+                    if (path.empty()) {
+                        response = {{"error", "Failed to create project"}, {"name", name}};
+                    } else {
+                        response = {{"success", true}, {"name", name}, {"path", path}};
+                    }
+                }
+
+            } else if (cmd.action == "projects_open") {
+                std::string path = cmd.params.value("path", "");
+                if (path.empty()) {
+                    response = {{"error", "Missing 'path' field"}};
+                } else if (!Core::ProjectInfo::isValidProject(path)) {
+                    response = {{"error", "Not a valid project (missing engine.json)"},
+                                {"path", path}};
+                } else {
+                    applyProjectSelection(path);
+
+                    // Record in launcher state
+                    std::string baseDir = Core::ProjectInfo::getDefaultProjectsDir();
+                    Core::LauncherState state;
+                    state.load(baseDir);
+                    Core::ProjectInfo info;
+                    info.path = path;
+                    info.name = std::filesystem::path(path).filename().string();
+                    state.addRecentProject(info);
+                    state.save(baseDir);
+
+                    // Reload world from the new project
+                    autoLoadGameDefinition();
+
+                    response = {{"success", true}, {"project_dir", path}};
                 }
 
             } else {
