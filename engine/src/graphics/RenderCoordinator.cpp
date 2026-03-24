@@ -114,6 +114,21 @@ RenderCoordinator::RenderCoordinator(
 
 RenderCoordinator::~RenderCoordinator() = default;
 
+bool RenderCoordinator::initUISystem() {
+    if (!postProcessor || !vulkanDevice || !windowManager) return false;
+
+    m_uiSystem = std::make_unique<UI::UISystem>(
+        vulkanDevice, windowManager->getWidth(), windowManager->getHeight());
+
+    if (!m_uiSystem->initialize(postProcessor->getPostProcessRenderPass())) {
+        LOG_ERROR("RenderCoordinator", "Failed to initialize UISystem");
+        m_uiSystem.reset();
+        return false;
+    }
+    LOG_INFO("RenderCoordinator", "UISystem initialized successfully");
+    return true;
+}
+
 void RenderCoordinator::render() {
     drawFrame();
 }

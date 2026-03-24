@@ -27,6 +27,8 @@
 #include "core/EngineConfig.h"
 #include "core/AssetManager.h"
 #include "core/GameDefinitionLoader.h"
+#include "ui/MenuDefinition.h"
+#include "ui/UISystem.h"
 #include <imgui.h>
 #include <iostream>
 #include <iomanip>
@@ -229,6 +231,10 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     renderCoordinator->setMaxChunkRenderDistance(maxChunkRenderDistance);
     renderCoordinator->setChunkInclusionDistance(chunkInclusionDistance);
     renderCoordinator->setEntities(&entities);
+
+    // Initialize custom UI system (non-ImGui menus)
+    renderCoordinator->initUISystem();
+
     LOG_INFO("Application", "RenderCoordinator initialized successfully!");
 
     // STEP 7: REGISTER INPUT ACTIONS
@@ -594,6 +600,18 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         return renderCoordinator->getDayNightCycle().toJson();
     });
 
+    apiServer->setMenuListHandler([this]() -> nlohmann::json {
+        if (!renderCoordinator) return nlohmann::json{{"error", "RenderCoordinator not available"}};
+        auto* uiSystem = renderCoordinator->getUISystem();
+        if (!uiSystem) return nlohmann::json{{"error", "UISystem not initialized"}};
+        auto screens = uiSystem->getScreenList();
+        nlohmann::json arr = nlohmann::json::array();
+        for (auto& [name, visible] : screens) {
+            arr.push_back({{"name", name}, {"visible", visible}});
+        }
+        return nlohmann::json{{"menus", arr}, {"count", arr.size()}};
+    });
+
     // Initialize NPC Manager
     npcManager = std::make_unique<Core::NPCManager>();
     npcManager->setPhysicsWorld(physicsWorld);
@@ -683,9 +701,20 @@ void Application::run() {
 
         timer->update();
         
+        // Route input to custom UI system first (consumes input when menus are visible)
+        bool uiConsumedInput = false;
+        if (renderCoordinator && renderCoordinator->getUISystem()) {
+            uiConsumedInput = renderCoordinator->getUISystem()->handleInput(inputManager);
+        }
+
         {
             ScopedTimer inputTimer(*performanceProfiler, "input");
-            handleInput();
+            if (!uiConsumedInput) {
+                handleInput();
+            } else {
+                // Still process input manager for key actions (like menu toggle)
+                inputManager->processInput(deltaTime);
+            }
         }
         
         {
@@ -1254,6 +1283,16 @@ void Application::toggleProfiler() {
     if (renderCoordinator) {
         renderCoordinator->toggleProfiler();
         LOG_INFO_FMT("Application", "Profiler: " << (renderCoordinator->isProfilerVisible() ? "ENABLED" : "DISABLED"));
+    }
+}
+
+void Application::toggleGameMenu(const std::string& name) {
+    if (renderCoordinator) {
+        auto* uiSystem = renderCoordinator->getUISystem();
+        if (uiSystem) {
+            uiSystem->toggleScreen(name);
+            LOG_INFO_FMT("Application", "Menu '" << name << "': " << (uiSystem->isScreenVisible(name) ? "VISIBLE" : "HIDDEN"));
+        }
     }
 }
 
@@ -3980,6 +4019,70 @@ void Application::processAPICommands() {
                     
                     Core::JobId jobId = jobSystem->submitJob(std::move(desc));
                     response = {{"success", true}, {"job_id", jobId}, {"status", "Pending"}, {"type", jobType}};
+                }
+
+            // ── Custom UI Menu Management ──────────────────────────────
+            } else if (cmd.action == "create_menu") {
+                std::string name = cmd.params.value("name", "");
+                if (name.empty()) {
+                    response = {{"error", "Menu name required"}};
+                } else if (!renderCoordinator || !renderCoordinator->getUISystem()) {
+                    response = {{"error", "UISystem not initialized"}};
+                } else if (!cmd.params.contains("definition")) {
+                    response = {{"error", "Menu definition required"}};
+                } else {
+                    auto panel = UI::MenuDefinition::buildFromJson(cmd.params["definition"]);
+                    if (!panel) {
+                        response = {{"error", "Failed to build menu from definition"}};
+                    } else {
+                        renderCoordinator->getUISystem()->addScreen(name, std::move(panel));
+                        response = {{"success", true}, {"name", name}};
+                    }
+                }
+
+            } else if (cmd.action == "show_menu") {
+                std::string name = cmd.params.value("name", "");
+                if (name.empty()) {
+                    response = {{"error", "Menu name required"}};
+                } else if (!renderCoordinator || !renderCoordinator->getUISystem()) {
+                    response = {{"error", "UISystem not initialized"}};
+                } else {
+                    renderCoordinator->getUISystem()->showScreen(name);
+                    response = {{"success", true}, {"name", name}, {"visible", true}};
+                }
+
+            } else if (cmd.action == "hide_menu") {
+                std::string name = cmd.params.value("name", "");
+                if (name.empty()) {
+                    response = {{"error", "Menu name required"}};
+                } else if (!renderCoordinator || !renderCoordinator->getUISystem()) {
+                    response = {{"error", "UISystem not initialized"}};
+                } else {
+                    renderCoordinator->getUISystem()->hideScreen(name);
+                    response = {{"success", true}, {"name", name}, {"visible", false}};
+                }
+
+            } else if (cmd.action == "toggle_menu") {
+                std::string name = cmd.params.value("name", "");
+                if (name.empty()) {
+                    response = {{"error", "Menu name required"}};
+                } else if (!renderCoordinator || !renderCoordinator->getUISystem()) {
+                    response = {{"error", "UISystem not initialized"}};
+                } else {
+                    renderCoordinator->getUISystem()->toggleScreen(name);
+                    bool visible = renderCoordinator->getUISystem()->isScreenVisible(name);
+                    response = {{"success", true}, {"name", name}, {"visible", visible}};
+                }
+
+            } else if (cmd.action == "remove_menu") {
+                std::string name = cmd.params.value("name", "");
+                if (name.empty()) {
+                    response = {{"error", "Menu name required"}};
+                } else if (!renderCoordinator || !renderCoordinator->getUISystem()) {
+                    response = {{"error", "UISystem not initialized"}};
+                } else {
+                    renderCoordinator->getUISystem()->removeScreen(name);
+                    response = {{"success", true}, {"name", name}, {"removed", true}};
                 }
 
             } else {

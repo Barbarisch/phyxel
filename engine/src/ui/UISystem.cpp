@@ -81,6 +81,15 @@ bool UISystem::hasVisibleScreens() const {
     return false;
 }
 
+std::vector<std::pair<std::string, bool>> UISystem::getScreenList() const {
+    std::vector<std::pair<std::string, bool>> result;
+    result.reserve(screens_.size());
+    for (auto& [name, entry] : screens_) {
+        result.emplace_back(name, entry.visible);
+    }
+    return result;
+}
+
 // ── Input routing ───────────────────────────────────────────
 
 bool UISystem::handleInput(Input::InputManager* input) {

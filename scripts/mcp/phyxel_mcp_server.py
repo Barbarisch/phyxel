@@ -1578,6 +1578,86 @@ async def list_tools() -> list[Tool]:
                 "required": ["channel", "volume"]
             }
         ),
+
+        # ================================================================
+        # Custom UI Menu Management
+        # ================================================================
+        Tool(
+            name="list_menus",
+            description="List all registered custom UI menu screens and their visibility state.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+        Tool(
+            name="create_menu",
+            description=(
+                "Create a custom UI menu from a JSON definition. The menu is added as a named screen. "
+                "Definition format: {\"id\": \"menu_id\", \"title\": \"Title\", \"anchor\": \"Center\", "
+                "\"size\": [400, 500], \"children\": [{\"type\": \"label\", \"id\": \"lbl\", \"text\": \"Hello\", \"isTitle\": true}, "
+                "{\"type\": \"slider\", \"id\": \"fov\", \"label\": \"FOV \", \"value\": 70, \"min\": 30, \"max\": 120, \"size\": [380, 32]}, "
+                "{\"type\": \"checkbox\", \"id\": \"vsync\", \"label\": \"VSync\", \"checked\": false, \"size\": [380, 32]}, "
+                "{\"type\": \"dropdown\", \"id\": \"quality\", \"label\": \"Quality \", \"options\": [\"Low\",\"Medium\",\"High\"], \"selected\": 1, \"size\": [380, 40]}, "
+                "{\"type\": \"button\", \"id\": \"back\", \"text\": \"Close\", \"size\": [380, 40]}]}"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Unique name for the menu screen (e.g. 'game_menu')"},
+                    "definition": {
+                        "type": "object",
+                        "description": "Menu definition JSON with id, title, anchor, size, children array of widgets"
+                    }
+                },
+                "required": ["name", "definition"]
+            }
+        ),
+        Tool(
+            name="show_menu",
+            description="Show (make visible) a previously created custom UI menu screen.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Name of the menu screen to show"}
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="hide_menu",
+            description="Hide a custom UI menu screen.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Name of the menu screen to hide"}
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="toggle_menu",
+            description="Toggle the visibility of a custom UI menu screen.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Name of the menu screen to toggle"}
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="remove_menu",
+            description="Remove a custom UI menu screen entirely.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Name of the menu screen to remove"}
+                },
+                "required": ["name"]
+            }
+        ),
     ]
 
 
@@ -2126,6 +2206,28 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             "channel": args["channel"],
             "volume": args["volume"]
         })
+
+    # --- Custom UI Menu Management ---
+    elif name == "list_menus":
+        return await api_get("/api/ui/menus")
+
+    elif name == "create_menu":
+        return await api_post("/api/ui/menu", {
+            "name": args["name"],
+            "definition": args["definition"]
+        })
+
+    elif name == "show_menu":
+        return await api_post("/api/ui/menu/show", {"name": args["name"]})
+
+    elif name == "hide_menu":
+        return await api_post("/api/ui/menu/hide", {"name": args["name"]})
+
+    elif name == "toggle_menu":
+        return await api_post("/api/ui/menu/toggle", {"name": args["name"]})
+
+    elif name == "remove_menu":
+        return await api_post("/api/ui/menu/remove", {"name": args["name"]})
 
     else:
         return {"error": f"Unknown tool: {name}"}

@@ -174,6 +174,12 @@ void InputController::setupKeyboardBindings() {
         m_app->toggleAISystem();
     });
 
+    // F10 - Toggle game menu (custom UI)
+    m_inputManager->registerAction(GLFW_KEY_F10, "Toggle Game Menu", [this]() {
+        LOG_INFO("InputController", "F10 pressed - Toggling game menu");
+        m_app->toggleGameMenu("game_menu");
+    });
+
     // E - Interact with NPC
     m_inputManager->registerAction(GLFW_KEY_E, "Interact with NPC", [this]() {
         m_app->interactWithNPC();

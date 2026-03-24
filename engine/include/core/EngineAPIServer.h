@@ -197,6 +197,14 @@ public:
     using DayNightHandler = std::function<json()>;
     void setDayNightHandler(DayNightHandler handler) { m_dayNightHandler = std::move(handler); }
 
+    // ========================================================================
+    // Custom UI Menu handler (read-only, called on HTTP thread)
+    // ========================================================================
+
+    /// Handler that returns list of registered UI screens and their visibility.
+    using MenuListHandler = std::function<json()>;
+    void setMenuListHandler(MenuListHandler handler) { m_menuListHandler = std::move(handler); }
+
 private:
     void serverThread();
     void setupRoutes();
@@ -237,6 +245,7 @@ private:
     SoundListHandler m_soundListHandler;
     InventoryHandler m_inventoryHandler;
     DayNightHandler m_dayNightHandler;
+    MenuListHandler m_menuListHandler;
 
     // Forward-declared impl to keep httplib out of the header
     struct Impl;

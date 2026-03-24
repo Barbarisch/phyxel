@@ -8,6 +8,8 @@
 #include <unordered_map>
 #include <memory>
 #include <functional>
+#include <vector>
+#include <utility>
 
 namespace Phyxel {
     namespace Vulkan { class VulkanDevice; }
@@ -61,6 +63,9 @@ public:
 
     /// Returns true if any screen is currently visible.
     bool hasVisibleScreens() const;
+
+    /// Get all screen names and their visibility (for API/debug listing).
+    std::vector<std::pair<std::string, bool>> getScreenList() const;
 
     // ── Input routing ───────────────────────────────────────────
 

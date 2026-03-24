@@ -100,6 +100,10 @@ public:
     void toggleAISystem();
     void interactWithNPC();
 
+    // Custom UI menu management
+    void toggleGameMenu(const std::string& name);
+    Graphics::RenderCoordinator* getRenderCoordinator() const { return renderCoordinator.get(); }
+
     // Accessors
     ObjectTemplateManager* getObjectTemplateManager() const { return objectTemplateManager.get(); }
     RaycastVisualizer* getRaycastVisualizer() const { return raycastVisualizer.get(); }

@@ -130,7 +130,11 @@ public:
     // Entity rendering
     void setEntities(const std::vector<std::unique_ptr<Scene::Entity>>* entities) { this->entities = entities; }
     void setNPCManager(Core::NPCManager* npcManager) { m_npcManager = npcManager; }
-    void setUISystem(UI::UISystem* uiSystem) { m_uiSystem = uiSystem; }
+
+    // Custom UI system (non-ImGui menus)
+    /// Create and initialize the UISystem. Must be called after construction.
+    bool initUISystem();
+    UI::UISystem* getUISystem() { return m_uiSystem.get(); }
     
     // Render UI elements (must be called between ImGui::NewFrame and ImGui::Render)
     void renderUI();
@@ -153,7 +157,7 @@ public:
 private:
     const std::vector<std::unique_ptr<Scene::Entity>>* entities = nullptr;
     Core::NPCManager* m_npcManager = nullptr;
-    UI::UISystem* m_uiSystem = nullptr;
+    std::unique_ptr<UI::UISystem> m_uiSystem;
 
     // Rendering subsystems
     size_t renderStaticGeometry();

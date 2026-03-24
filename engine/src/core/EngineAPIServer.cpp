@@ -1486,6 +1486,86 @@ void EngineAPIServer::setupRoutes() {
         bool cancelled = m_jobSystem->cancelJob(jobId);
         res.set_content(json{{"job_id", jobId}, {"cancelled", cancelled}}.dump(), "application/json");
     });
+
+    // ====================================================================
+    // Custom UI Menu Management
+    // ====================================================================
+
+    // GET /api/ui/menus — List all registered UI screens and visibility
+    srv.Get("/api/ui/menus", [this](const httplib::Request&, httplib::Response& res) {
+        if (m_menuListHandler) {
+            json result = m_menuListHandler();
+            res.set_content(result.dump(), "application/json");
+        } else {
+            res.status = 503;
+            res.set_content(json{{"error", "Menu list handler not configured"}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/ui/menu — Create a menu from JSON definition
+    // Body: { "name": "settings", "definition": { ... MenuDefinition JSON ... } }
+    srv.Post("/api/ui/menu", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("create_menu", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/ui/menu/show — Show a menu screen
+    // Body: { "name": "settings" }
+    srv.Post("/api/ui/menu/show", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("show_menu", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/ui/menu/hide — Hide a menu screen
+    // Body: { "name": "settings" }
+    srv.Post("/api/ui/menu/hide", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("hide_menu", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/ui/menu/toggle — Toggle a menu screen's visibility
+    // Body: { "name": "settings" }
+    srv.Post("/api/ui/menu/toggle", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("toggle_menu", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/ui/menu/remove — Remove a menu screen
+    // Body: { "name": "settings" }
+    srv.Post("/api/ui/menu/remove", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("remove_menu", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
 }
 
 // ============================================================================
