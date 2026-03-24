@@ -152,3 +152,80 @@ TEST(GameScreenTest, FullCycleWorkflow) {
     screen.returnToMainMenu();
     EXPECT_EQ(screen.getState(), ScreenState::MainMenu);
 }
+
+// ======== Settings & Keybinding Rebind state tests ========
+
+TEST(GameScreenTest, ToggleSettingsFromPaused) {
+    GameScreen screen;
+    screen.startGame();
+    screen.togglePause();
+    EXPECT_EQ(screen.getState(), ScreenState::Paused);
+    screen.toggleSettings();
+    EXPECT_EQ(screen.getState(), ScreenState::Settings);
+}
+
+TEST(GameScreenTest, ToggleSettingsFromMainMenu) {
+    GameScreen screen;
+    screen.toggleSettings();
+    EXPECT_EQ(screen.getState(), ScreenState::Settings);
+}
+
+TEST(GameScreenTest, GoBackFromSettingsToPaused) {
+    GameScreen screen;
+    screen.startGame();
+    screen.togglePause();
+    screen.toggleSettings();
+    EXPECT_EQ(screen.getState(), ScreenState::Settings);
+    screen.goBack();
+    EXPECT_EQ(screen.getState(), ScreenState::Paused);
+}
+
+TEST(GameScreenTest, GoBackFromSettingsToMainMenu) {
+    GameScreen screen;
+    screen.toggleSettings();
+    EXPECT_EQ(screen.getState(), ScreenState::Settings);
+    screen.goBack();
+    EXPECT_EQ(screen.getState(), ScreenState::MainMenu);
+}
+
+TEST(GameScreenTest, EnterKeybindingRebind) {
+    GameScreen screen;
+    screen.startGame();
+    screen.togglePause();
+    screen.toggleSettings();
+    screen.enterKeybindingRebind();
+    EXPECT_EQ(screen.getState(), ScreenState::KeybindingRebind);
+}
+
+TEST(GameScreenTest, GoBackFromKeybindingToSettings) {
+    GameScreen screen;
+    screen.startGame();
+    screen.togglePause();
+    screen.toggleSettings();
+    screen.enterKeybindingRebind();
+    EXPECT_EQ(screen.getState(), ScreenState::KeybindingRebind);
+    screen.goBack();
+    EXPECT_EQ(screen.getState(), ScreenState::Settings);
+}
+
+TEST(GameScreenTest, FullSettingsCycleFromPaused) {
+    GameScreen screen;
+    screen.startGame();
+    screen.togglePause();
+    screen.toggleSettings();
+    screen.enterKeybindingRebind();
+    screen.goBack();  // Keybinding → Settings
+    EXPECT_EQ(screen.getState(), ScreenState::Settings);
+    screen.goBack();  // Settings → Paused
+    EXPECT_EQ(screen.getState(), ScreenState::Paused);
+}
+
+TEST(GameScreenTest, IsGameRunningSettings) {
+    EXPECT_FALSE(isGameRunning(ScreenState::Settings));
+    EXPECT_FALSE(isGameRunning(ScreenState::KeybindingRebind));
+}
+
+TEST(GameScreenTest, IsMouseFreeSettings) {
+    EXPECT_TRUE(isMouseFree(ScreenState::Settings));
+    EXPECT_TRUE(isMouseFree(ScreenState::KeybindingRebind));
+}

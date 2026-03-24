@@ -482,21 +482,19 @@ VkSurfaceFormatKHR VulkanDevice::chooseSwapSurfaceFormat(const std::vector<VkSur
 }
 
 VkPresentModeKHR VulkanDevice::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) {
-    // First preference: IMMEDIATE for uncapped FPS (no V-Sync) to measure true performance
-    for (const auto& availablePresentMode : availablePresentModes) {
-        if (availablePresentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
-            return availablePresentMode;
+    // Try the preferred mode first
+    for (const auto& mode : availablePresentModes) {
+        if (mode == preferredPresentMode_) {
+            return mode;
         }
     }
-    
-    // Second preference: MAILBOX for smooth experience with triple buffering
-    for (const auto& availablePresentMode : availablePresentModes) {
-        if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
-            return availablePresentMode;
-        }
+    // Fallback chain: IMMEDIATE → MAILBOX → FIFO
+    for (const auto& mode : availablePresentModes) {
+        if (mode == VK_PRESENT_MODE_IMMEDIATE_KHR) return mode;
     }
-    
-    // Fallback: FIFO (V-Sync) - guaranteed to be available
+    for (const auto& mode : availablePresentModes) {
+        if (mode == VK_PRESENT_MODE_MAILBOX_KHR) return mode;
+    }
     return VK_PRESENT_MODE_FIFO_KHR;
 }
 

@@ -304,6 +304,11 @@ private:
     // Helper methods for swapchain
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
     VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
+    VkPresentModeKHR preferredPresentMode_ = VK_PRESENT_MODE_IMMEDIATE_KHR;
+public:
+    void setPreferredPresentMode(VkPresentModeKHR mode) { preferredPresentMode_ = mode; }
+    VkPresentModeKHR getPreferredPresentMode() const { return preferredPresentMode_; }
+private:
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, int windowWidth, int windowHeight);
 
     // Synchronization

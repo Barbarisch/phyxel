@@ -1,7 +1,9 @@
 #include "ui/GameMenus.h"
 #include "core/Inventory.h"
 #include "core/HealthComponent.h"
+#include "core/GameSettings.h"
 #include <imgui.h>
+#include <GLFW/glfw3.h>
 #include <cmath>
 #include <algorithm>
 
@@ -99,6 +101,11 @@ void renderMainMenu(const std::string& title, const MainMenuActions& actions) {
         }
 
         ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 12.0f);
+        if (centeredButton("Settings", btnWidth, btnHeight)) {
+            if (actions.onSettings) actions.onSettings();
+        }
+
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 12.0f);
         if (centeredButton("Quit", btnWidth, btnHeight)) {
             if (actions.onQuit) actions.onQuit();
         }
@@ -152,6 +159,11 @@ void renderPauseMenu(const PauseMenuActions& actions) {
         ImGui::SetCursorPos(ImVec2(0, btnStartY));
         if (centeredButton("Resume", btnWidth, btnHeight)) {
             if (actions.onResume) actions.onResume();
+        }
+
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 10.0f);
+        if (centeredButton("Settings", btnWidth, btnHeight)) {
+            if (actions.onSettings) actions.onSettings();
         }
 
         ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 10.0f);
@@ -428,6 +440,290 @@ void renderInventoryScreen(Core::Inventory* inventory,
     }
     ImGui::End();
     ImGui::PopStyleVar();
+}
+
+// ============================================================================
+// SETTINGS SCREEN
+// ============================================================================
+
+// Common resolutions for the dropdown
+static const int kResolutions[][2] = {
+    {1280, 720}, {1366, 768}, {1600, 900}, {1920, 1080},
+    {2560, 1440}, {3840, 2160}
+};
+static const int kResCount = sizeof(kResolutions) / sizeof(kResolutions[0]);
+
+void renderSettingsScreen(Core::GameSettings& settings,
+                          const SettingsCallbacks& callbacks) {
+    ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+
+    // Full-screen darkened overlay
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::SetNextWindowSize(displaySize);
+    ImGui::SetNextWindowBgAlpha(0.75f);
+    ImGuiWindowFlags bgFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                                ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+                                ImGuiWindowFlags_NoCollapse;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    ImGui::Begin("##SettingsOverlay", nullptr, bgFlags);
+    ImGui::End();
+    ImGui::PopStyleVar();
+
+    // Settings panel (centered, scrollable)
+    float panelW = 520.0f;
+    float panelH = displaySize.y * 0.75f;
+    ImGui::SetNextWindowPos(ImVec2((displaySize.x - panelW) * 0.5f,
+                                    (displaySize.y - panelH) * 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(panelW, panelH));
+    ImGui::SetNextWindowBgAlpha(0.94f);
+    ImGuiWindowFlags panelFlags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+                                   ImGuiWindowFlags_NoCollapse;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.0f);
+    if (ImGui::Begin("Settings", nullptr, panelFlags)) {
+
+        // === DISPLAY ===
+        ImGui::PushStyleColor(ImGuiCol_Text, kColorTitle);
+        ImGui::SetWindowFontScale(1.2f);
+        ImGui::Text("Display");
+        ImGui::SetWindowFontScale(1.0f);
+        ImGui::PopStyleColor();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        // Resolution combo
+        {
+            char currentRes[32];
+            snprintf(currentRes, sizeof(currentRes), "%dx%d",
+                     settings.resolutionWidth, settings.resolutionHeight);
+            if (ImGui::BeginCombo("Resolution", currentRes)) {
+                for (int i = 0; i < kResCount; ++i) {
+                    char label[32];
+                    snprintf(label, sizeof(label), "%dx%d",
+                             kResolutions[i][0], kResolutions[i][1]);
+                    bool selected = (settings.resolutionWidth == kResolutions[i][0] &&
+                                     settings.resolutionHeight == kResolutions[i][1]);
+                    if (ImGui::Selectable(label, selected)) {
+                        settings.resolutionWidth = kResolutions[i][0];
+                        settings.resolutionHeight = kResolutions[i][1];
+                        if (callbacks.onResolutionChanged)
+                            callbacks.onResolutionChanged(kResolutions[i][0], kResolutions[i][1]);
+                    }
+                    if (selected) ImGui::SetItemDefaultFocus();
+                }
+                ImGui::EndCombo();
+            }
+        }
+
+        // Fullscreen
+        if (ImGui::Checkbox("Fullscreen", &settings.fullscreen)) {
+            if (callbacks.onFullscreenChanged)
+                callbacks.onFullscreenChanged(settings.fullscreen);
+        }
+
+        // VSync
+        {
+            const char* vsyncLabels[] = { "Off", "On", "Adaptive" };
+            int vsyncIdx = static_cast<int>(settings.vsync);
+            if (ImGui::Combo("VSync", &vsyncIdx, vsyncLabels, 3)) {
+                settings.vsync = static_cast<Core::VSyncMode>(vsyncIdx);
+                if (callbacks.onVSyncChanged)
+                    callbacks.onVSyncChanged(vsyncIdx);
+            }
+        }
+
+        // FOV
+        if (ImGui::SliderFloat("Field of View", &settings.fov, 30.0f, 120.0f, "%.0f")) {
+            if (callbacks.onFovChanged)
+                callbacks.onFovChanged(settings.fov);
+        }
+
+        ImGui::Spacing();
+        ImGui::Spacing();
+
+        // === AUDIO ===
+        ImGui::PushStyleColor(ImGuiCol_Text, kColorTitle);
+        ImGui::SetWindowFontScale(1.2f);
+        ImGui::Text("Audio");
+        ImGui::SetWindowFontScale(1.0f);
+        ImGui::PopStyleColor();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        if (ImGui::SliderFloat("Master Volume", &settings.masterVolume, 0.0f, 1.0f, "%.0f%%")) {
+            if (callbacks.onMasterVolumeChanged)
+                callbacks.onMasterVolumeChanged(settings.masterVolume);
+        }
+        if (ImGui::SliderFloat("Music Volume", &settings.musicVolume, 0.0f, 1.0f, "%.0f%%")) {
+            if (callbacks.onMusicVolumeChanged)
+                callbacks.onMusicVolumeChanged(settings.musicVolume);
+        }
+        if (ImGui::SliderFloat("SFX Volume", &settings.sfxVolume, 0.0f, 1.0f, "%.0f%%")) {
+            if (callbacks.onSfxVolumeChanged)
+                callbacks.onSfxVolumeChanged(settings.sfxVolume);
+        }
+
+        ImGui::Spacing();
+        ImGui::Spacing();
+
+        // === CONTROLS ===
+        ImGui::PushStyleColor(ImGuiCol_Text, kColorTitle);
+        ImGui::SetWindowFontScale(1.2f);
+        ImGui::Text("Controls");
+        ImGui::SetWindowFontScale(1.0f);
+        ImGui::PopStyleColor();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        if (ImGui::SliderFloat("Mouse Sensitivity", &settings.mouseSensitivity, 0.01f, 1.0f, "%.2f")) {
+            if (callbacks.onMouseSensChanged)
+                callbacks.onMouseSensChanged(settings.mouseSensitivity);
+        }
+        ImGui::Checkbox("Invert Y Axis", &settings.invertY);
+
+        ImGui::Spacing();
+        if (centeredButton("Keybindings...", 200.0f, 35.0f)) {
+            if (callbacks.onKeybindingsPressed)
+                callbacks.onKeybindingsPressed();
+        }
+
+        ImGui::Spacing();
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        // Bottom buttons
+        float bw = 120.0f;
+        float totalBtnW = bw * 2 + 20.0f;
+        ImGui::SetCursorPosX((ImGui::GetContentRegionAvail().x - totalBtnW) * 0.5f);
+
+        ImGui::PushStyleColor(ImGuiCol_Button, kColorButton);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, kColorButtonHov);
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, kColorButtonAct);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
+
+        if (ImGui::Button("Save", ImVec2(bw, 35.0f))) {
+            if (callbacks.onSave) callbacks.onSave();
+        }
+        ImGui::SameLine(0, 20.0f);
+        if (ImGui::Button("Back", ImVec2(bw, 35.0f))) {
+            if (callbacks.onBack) callbacks.onBack();
+        }
+
+        ImGui::PopStyleVar();
+        ImGui::PopStyleColor(3);
+    }
+    ImGui::End();
+    ImGui::PopStyleVar();
+}
+
+// ============================================================================
+// KEYBINDING REBIND SCREEN
+// ============================================================================
+
+int renderKeybindingScreen(std::vector<Core::Keybinding>& bindings,
+                            KeybindRebindState& state,
+                            std::function<void()> onBack) {
+    int capturedKey = -1;
+    ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+
+    // Overlay
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::SetNextWindowSize(displaySize);
+    ImGui::SetNextWindowBgAlpha(0.75f);
+    ImGuiWindowFlags bgFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                                ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+                                ImGuiWindowFlags_NoCollapse;
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    ImGui::Begin("##KBOverlay", nullptr, bgFlags);
+    ImGui::End();
+    ImGui::PopStyleVar();
+
+    // Keybinding panel
+    float panelW = 480.0f;
+    float panelH = displaySize.y * 0.70f;
+    ImGui::SetNextWindowPos(ImVec2((displaySize.x - panelW) * 0.5f,
+                                    (displaySize.y - panelH) * 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(panelW, panelH));
+    ImGui::SetNextWindowBgAlpha(0.94f);
+    ImGuiWindowFlags panelFlags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+                                   ImGuiWindowFlags_NoCollapse;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.0f);
+    if (ImGui::Begin("Keybindings", nullptr, panelFlags)) {
+
+        ImGui::PushStyleColor(ImGuiCol_Text, kColorTitle);
+        ImGui::Text("Click a binding to rebind it, then press any key.");
+        ImGui::PopStyleColor();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        // Scrollable binding list
+        ImGui::BeginChild("##BindingList", ImVec2(0, -45), true);
+        for (int i = 0; i < static_cast<int>(bindings.size()); ++i) {
+            auto& kb = bindings[i];
+            ImGui::PushID(i);
+
+            // Action name (left column)
+            ImGui::Text("%s", kb.action.c_str());
+            ImGui::SameLine(250.0f);
+
+            // Key display (right column — clickable button)
+            std::string keyLabel;
+            if (state.waitingForKey && state.selectedIndex == i) {
+                keyLabel = "[Press a key...]";
+            } else {
+                if (kb.modifiers != 0)
+                    keyLabel = Core::modifiersToString(kb.modifiers) + "+" + Core::keyToString(kb.key);
+                else
+                    keyLabel = Core::keyToString(kb.key);
+            }
+
+            bool isSelected = (state.selectedIndex == i && state.waitingForKey);
+            if (isSelected) {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.7f, 0.5f, 0.1f, 0.8f));
+            }
+
+            if (ImGui::Button(keyLabel.c_str(), ImVec2(180.0f, 0))) {
+                state.selectedIndex = i;
+                state.waitingForKey = true;
+            }
+
+            if (isSelected) {
+                ImGui::PopStyleColor();
+            }
+
+            ImGui::PopID();
+        }
+        ImGui::EndChild();
+
+        // If waiting for key, check for key press
+        if (state.waitingForKey && state.selectedIndex >= 0) {
+            for (int k = GLFW_KEY_SPACE; k <= GLFW_KEY_LAST; ++k) {
+                if (ImGui::IsKeyPressed(static_cast<ImGuiKey>(k), false)) {
+                    capturedKey = k;
+                    bindings[state.selectedIndex].key = k;
+                    bindings[state.selectedIndex].modifiers = 0; // reset mods on rebind
+                    state.waitingForKey = false;
+                    state.selectedIndex = -1;
+                    break;
+                }
+            }
+        }
+
+        // Back button
+        ImGui::Spacing();
+        if (centeredButton("Back", 120.0f, 30.0f)) {
+            state.waitingForKey = false;
+            state.selectedIndex = -1;
+            if (onBack) onBack();
+        }
+    }
+    ImGui::End();
+    ImGui::PopStyleVar();
+
+    return capturedKey;
 }
 
 } // namespace UI

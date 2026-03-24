@@ -87,6 +87,27 @@ void WindowManager::setCursorVisible(bool visible) {
     }
 }
 
+void WindowManager::setFullscreen(bool fullscreen) {
+    if (!window) return;
+    if (fullscreen == fullscreen_) return;
+
+    if (fullscreen) {
+        // Save windowed position/size for restore
+        glfwGetWindowPos(window, &windowedX_, &windowedY_);
+        windowedW_ = width;
+        windowedH_ = height;
+
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+        glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+        LOG_INFO("WindowManager", "Switched to fullscreen {}x{}", mode->width, mode->height);
+    } else {
+        glfwSetWindowMonitor(window, nullptr, windowedX_, windowedY_, windowedW_, windowedH_, 0);
+        LOG_INFO("WindowManager", "Switched to windowed {}x{}", windowedW_, windowedH_);
+    }
+    fullscreen_ = fullscreen;
+}
+
 void WindowManager::framebufferResizeCallbackStatic(GLFWwindow* window, int w, int h) {
     auto* manager = reinterpret_cast<WindowManager*>(glfwGetWindowUserPointer(window));
     if (!manager) return;

@@ -32,6 +32,24 @@ void GameScreen::toggleInventory() {
     }
 }
 
+void GameScreen::toggleSettings() {
+    if (m_state == ScreenState::Paused) {
+        m_settingsReturnState = ScreenState::Paused;
+        setState(ScreenState::Settings);
+    } else if (m_state == ScreenState::MainMenu) {
+        m_settingsReturnState = ScreenState::MainMenu;
+        setState(ScreenState::Settings);
+    } else if (m_state == ScreenState::Settings) {
+        setState(m_settingsReturnState);
+    }
+}
+
+void GameScreen::enterKeybindingRebind() {
+    if (m_state == ScreenState::Settings) {
+        setState(ScreenState::KeybindingRebind);
+    }
+}
+
 void GameScreen::returnToMainMenu() {
     setState(ScreenState::MainMenu);
 }
@@ -39,6 +57,23 @@ void GameScreen::returnToMainMenu() {
 void GameScreen::resume() {
     if (m_state == ScreenState::Paused || m_state == ScreenState::Inventory) {
         setState(ScreenState::Playing);
+    }
+}
+
+void GameScreen::goBack() {
+    switch (m_state) {
+        case ScreenState::KeybindingRebind:
+            setState(ScreenState::Settings);
+            break;
+        case ScreenState::Settings:
+            setState(m_settingsReturnState);
+            break;
+        case ScreenState::Inventory:
+        case ScreenState::Paused:
+            setState(ScreenState::Playing);
+            break;
+        default:
+            break;
     }
 }
 

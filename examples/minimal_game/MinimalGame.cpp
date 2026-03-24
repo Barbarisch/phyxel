@@ -1,5 +1,6 @@
 #include "MinimalGame.h"
 #include "core/ChunkManager.h"
+#include "core/GameSettings.h"
 #include "graphics/Camera.h"
 #include "graphics/CameraManager.h"
 #include "graphics/RenderCoordinator.h"
@@ -88,6 +89,13 @@ bool MinimalGame::onInitialize(Phyxel::Core::EngineRuntime& engine) {
     // Start on main menu
     screen_.setState(Phyxel::UI::ScreenState::MainMenu);
 
+    // Load user settings (or keep defaults if file doesn't exist)
+    Phyxel::Core::GameSettings::loadFromFile("settings.json", settings_);
+    if (settings_.keybindings.empty()) {
+        settings_.keybindings = Phyxel::Core::GameSettings::defaultKeybindings();
+    }
+    applySettings(engine);
+
     initialized_ = true;
     LOG_INFO("MinimalGame", "Minimal game initialized");
     return true;
@@ -99,7 +107,7 @@ void MinimalGame::onHandleInput(Phyxel::Core::EngineRuntime& engine) {
 
     auto state = screen_.getState();
 
-    // ESC: pause toggle (in gameplay) or resume (in pause)
+    // ESC: pause toggle (in gameplay) or resume (in pause) or go back (in settings)
     if (input->isKeyPressed(GLFW_KEY_ESCAPE)) {
         if (state == Phyxel::UI::ScreenState::Playing) {
             screen_.togglePause();
@@ -107,6 +115,9 @@ void MinimalGame::onHandleInput(Phyxel::Core::EngineRuntime& engine) {
             screen_.resume();
         } else if (state == Phyxel::UI::ScreenState::Inventory) {
             screen_.resume();
+        } else if (state == Phyxel::UI::ScreenState::Settings ||
+                   state == Phyxel::UI::ScreenState::KeybindingRebind) {
+            screen_.goBack();
         }
     }
 
@@ -150,6 +161,7 @@ void MinimalGame::onRender(Phyxel::Core::EngineRuntime& engine) {
         case Phyxel::UI::ScreenState::MainMenu:
             Phyxel::UI::renderMainMenu("Phyxel", {
                 [this]() { screen_.startGame(); },
+                [this]() { screen_.toggleSettings(); },
                 [&engine]() {
                     auto* w = engine.getWindowManager();
                     if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE);
@@ -165,6 +177,7 @@ void MinimalGame::onRender(Phyxel::Core::EngineRuntime& engine) {
             Phyxel::UI::renderGameHUD(&health_, &inventory_);
             Phyxel::UI::renderPauseMenu({
                 [this]() { screen_.resume(); },
+                [this]() { screen_.toggleSettings(); },
                 [this]() { screen_.returnToMainMenu(); },
                 [&engine]() {
                     auto* w = engine.getWindowManager();
@@ -177,6 +190,55 @@ void MinimalGame::onRender(Phyxel::Core::EngineRuntime& engine) {
             Phyxel::UI::renderGameHUD(&health_, &inventory_);
             Phyxel::UI::renderInventoryScreen(&inventory_,
                 [this]() { screen_.resume(); });
+            break;
+
+        case Phyxel::UI::ScreenState::Settings:
+            Phyxel::UI::renderSettingsScreen(settings_, {
+                [this, &engine](int w, int h) {
+                    settings_.resolutionWidth = w;
+                    settings_.resolutionHeight = h;
+                    auto* win = engine.getWindowManager();
+                    if (win) win->setSize(w, h);
+                },
+                [this, &engine](bool fs) {
+                    settings_.fullscreen = fs;
+                    auto* win = engine.getWindowManager();
+                    if (win) win->setFullscreen(fs);
+                },
+                [this, &engine](int mode) {
+                    settings_.vsync = static_cast<Phyxel::Core::VSyncMode>(mode);
+                    auto* dev = engine.getVulkanDevice();
+                    if (dev) {
+                        VkPresentModeKHR pm = VK_PRESENT_MODE_IMMEDIATE_KHR;
+                        if (mode == 1) pm = VK_PRESENT_MODE_FIFO_KHR;
+                        else if (mode == 2) pm = VK_PRESENT_MODE_MAILBOX_KHR;
+                        dev->setPreferredPresentMode(pm);
+                        // Takes effect on next swapchain recreation (e.g. window resize)
+                    }
+                },
+                [this, &engine](float fov) {
+                    settings_.fov = fov;
+                    auto* cam = engine.getCamera();
+                    if (cam) cam->setZoom(fov);
+                },
+                [this, &engine](float sens) {
+                    settings_.mouseSensitivity = sens;
+                    auto* cam = engine.getCamera();
+                    if (cam) cam->setMouseSensitivity(sens);
+                },
+                [this](float v) { settings_.masterVolume = v; },
+                [this](float v) { settings_.musicVolume = v; },
+                [this](float v) { settings_.sfxVolume = v; },
+                [this]() { screen_.enterKeybindingRebind(); },
+                [this]() { screen_.goBack(); },
+                [this]() { settings_.saveToFile("settings.json"); }
+            });
+            break;
+
+        case Phyxel::UI::ScreenState::KeybindingRebind:
+            Phyxel::UI::renderKeybindingScreen(
+                settings_.keybindings, rebindState_,
+                [this]() { screen_.goBack(); });
             break;
         }
 
@@ -191,8 +253,33 @@ void MinimalGame::onRender(Phyxel::Core::EngineRuntime& engine) {
 
 void MinimalGame::onShutdown() {
     LOG_INFO("MinimalGame", "Shutting down minimal game...");
+    settings_.saveToFile("settings.json");
     renderCoordinator.reset();
     initialized_ = false;
+}
+
+void MinimalGame::applySettings(Phyxel::Core::EngineRuntime& engine) {
+    auto* win = engine.getWindowManager();
+    if (win) {
+        win->setSize(settings_.resolutionWidth, settings_.resolutionHeight);
+        win->setFullscreen(settings_.fullscreen);
+    }
+
+    auto* cam = engine.getCamera();
+    if (cam) {
+        cam->setZoom(settings_.fov);
+        cam->setMouseSensitivity(settings_.mouseSensitivity);
+    }
+
+    auto* dev = engine.getVulkanDevice();
+    if (dev) {
+        VkPresentModeKHR pm = VK_PRESENT_MODE_IMMEDIATE_KHR;
+        if (settings_.vsync == Phyxel::Core::VSyncMode::On)
+            pm = VK_PRESENT_MODE_FIFO_KHR;
+        else if (settings_.vsync == Phyxel::Core::VSyncMode::Adaptive)
+            pm = VK_PRESENT_MODE_MAILBOX_KHR;
+        dev->setPreferredPresentMode(pm);
+    }
 }
 
 } // namespace Examples

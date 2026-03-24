@@ -31,6 +31,8 @@ public:
     void setTitle(const std::string& title);
     void setSize(int width, int height);
     void setCursorVisible(bool visible);
+    void setFullscreen(bool fullscreen);
+    bool isFullscreen() const { return fullscreen_; }
     
     // State getters
     GLFWwindow* getHandle() const { return window; }
@@ -52,6 +54,9 @@ private:
     int height = 600;
     std::string title = "Phyxel";
     bool resized = false;
+    bool fullscreen_ = false;
+    int windowedX_ = 100, windowedY_ = 100;   // saved windowed position
+    int windowedW_ = 800, windowedH_ = 600;   // saved windowed size
     
     ResizeCallback resizeCallback;
     CursorPosCallback cursorPosCallback;

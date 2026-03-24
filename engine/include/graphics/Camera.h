@@ -50,6 +50,8 @@ public:
     void setYaw(float newYaw) { yaw = newYaw; updateCameraVectors(); }
     void setPitch(float newPitch) { pitch = newPitch; updateCameraVectors(); }
     void setDistanceFromTarget(float dist) { distanceFromTarget = dist; }
+    void setZoom(float fov) { zoom = fov; if (zoom < 1.0f) zoom = 1.0f; if (zoom > 120.0f) zoom = 120.0f; }
+    void setMouseSensitivity(float s) { mouseSensitivity = s; }
 
 private:
     // Calculates the front vector from the Camera's (updated) Euler Angles
