@@ -213,6 +213,7 @@ float EngineRuntime::beginFrame() {
     double currentTime = glfwGetTime();
     float dt = static_cast<float>(currentTime - lastFrameTime_);
     lastFrameTime_ = currentTime;
+    lastDeltaTime_ = dt;
 
     timer_->update();
     return dt;

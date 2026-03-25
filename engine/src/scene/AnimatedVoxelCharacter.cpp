@@ -378,6 +378,14 @@ namespace Scene {
         return worldPosition;
     }
 
+    void AnimatedVoxelCharacter::setMoveVelocity(const glm::vec3& velocity) {
+        if (controllerBody) {
+            btVector3 currentVel = controllerBody->getLinearVelocity();
+            controllerBody->setLinearVelocity(btVector3(velocity.x, currentVel.y(), velocity.z));
+            controllerBody->activate(true);
+        }
+    }
+
     void AnimatedVoxelCharacter::jump() {
         jumpRequested = true;
     }

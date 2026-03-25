@@ -19,6 +19,8 @@ class StubEntity : public Scene::Entity {
 public:
     void update(float) override {}
     void render(Graphics::RenderCoordinator*) override {}
+    void setMoveVelocity(const glm::vec3& velocity) override { lastMoveVelocity = velocity; }
+    glm::vec3 lastMoveVelocity{0.0f};
 };
 
 // ============================================================================
@@ -94,8 +96,8 @@ TEST_F(PatrolBehaviorTest, MovesTowardFirstWaypoint) {
     std::vector<glm::vec3> waypoints = {glm::vec3(10, 0, 0), glm::vec3(0, 0, 10)};
     Scene::PatrolBehavior patrol(waypoints, 5.0f, 0.0f);
     patrol.update(1.0f, ctx);
-    // Should have moved toward (10, 0, 0)
-    EXPECT_GT(entity->getPosition().x, 0.0f);
+    // Should have set velocity toward (10, 0, 0)
+    EXPECT_GT(entity->lastMoveVelocity.x, 0.0f);
 }
 
 TEST_F(PatrolBehaviorTest, ArrivalAdvancesToNextWaypoint) {
@@ -127,18 +129,17 @@ TEST_F(PatrolBehaviorTest, OnInteractPausesPatrol) {
     std::vector<glm::vec3> waypoints = {glm::vec3(100, 0, 0)};
     Scene::PatrolBehavior patrol(waypoints, 5.0f, 1.0f);
 
-    // Start moving
+    // Start moving — velocity should be set toward waypoint
     patrol.update(1.0f, ctx);
-    glm::vec3 posBeforeInteract = entity->getPosition();
+    EXPECT_GT(entity->lastMoveVelocity.x, 0.0f);
 
     // Interact pauses movement
     StubEntity interactor;
     patrol.onInteract(&interactor);
 
-    // Now update should be in waiting state
+    // Now update should be in waiting state — velocity zeroed
     patrol.update(0.1f, ctx);
-    glm::vec3 posAfterInteract = entity->getPosition();
-    EXPECT_FLOAT_EQ(posBeforeInteract.x, posAfterInteract.x);
+    EXPECT_FLOAT_EQ(entity->lastMoveVelocity.x, 0.0f);
 }
 
 TEST_F(PatrolBehaviorTest, SetWaypointsResetsState) {
@@ -171,7 +172,7 @@ TEST_F(PatrolBehaviorTest, WalkSpeedAffectsMovement) {
     slowPatrol.update(1.0f, slowCtx);
     fastPatrol.update(1.0f, fastCtx);
 
-    EXPECT_GT(fastEntity->getPosition().x, slowEntity->getPosition().x);
+    EXPECT_GT(fastEntity->lastMoveVelocity.x, slowEntity->lastMoveVelocity.x);
 }
 
 // ============================================================================

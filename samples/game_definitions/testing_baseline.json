@@ -1,0 +1,162 @@
+{
+  "name": "TestGame",
+  "description": "Standard test game definition for manual testing. Exercises all Phase 1-5 features: player, NPCs, terrain, input, menus.",
+  "version": "1.0",
+  "world": {
+    "type": "Perlin",
+    "seed": 12345,
+    "from": {"x": -1, "y": 0, "z": -1},
+    "to": {"x": 1, "y": 0, "z": 1},
+    "params": {
+      "heightScale": 4.0,
+      "frequency": 0.04,
+      "octaves": 3,
+      "persistence": 0.4
+    }
+  },
+  "camera": {
+    "position": {"x": 30, "y": 35, "z": 30},
+    "yaw": -135,
+    "pitch": -25
+  },
+  "player": {
+    "type": "physics",
+    "position": {"x": 16, "y": 25, "z": 16}
+  },
+  "structures": [
+    {
+      "type": "fill",
+      "from": {"x": 10, "y": 17, "z": 10},
+      "to": {"x": 22, "y": 17, "z": 22},
+      "material": "Stone",
+      "_comment": "Stone platform — confirms structure placement on gentle terrain"
+    },
+    {
+      "type": "fill",
+      "from": {"x": 12, "y": 18, "z": 12},
+      "to": {"x": 20, "y": 22, "z": 20},
+      "material": "Wood",
+      "hollow": true,
+      "_comment": "Hollow wooden hut — walkable interior"
+    },
+    {
+      "type": "fill",
+      "from": {"x": 15, "y": 18, "z": 12},
+      "to": {"x": 17, "y": 20, "z": 12},
+      "material": "Glass",
+      "_comment": "Doorway cutout (glass so it's visible)"
+    }
+  ],
+  "npcs": [
+    {
+      "name": "Guard",
+      "position": {"x": 14, "y": 25, "z": 14},
+      "animFile": "character.anim",
+      "behavior": "patrol",
+      "walkSpeed": 2.0,
+      "waitTime": 2.0,
+      "waypoints": [
+        {"x": 14, "y": 25, "z": 14},
+        {"x": 22, "y": 25, "z": 14},
+        {"x": 22, "y": 25, "z": 22},
+        {"x": 14, "y": 25, "z": 22}
+      ],
+      "arrivalPhrases": ["All clear.", "Perimeter secure.", "Nothing to report."],
+      "speechChance": 0.5,
+      "dialogue": {
+        "id": "guard_talk",
+        "startNodeId": "start",
+        "nodes": [
+          {
+            "id": "start",
+            "speaker": "Guard",
+            "text": "Halt! State your business.",
+            "choices": [
+              {"text": "Just passing through.", "nextNodeId": "pass"},
+              {"text": "What are you guarding?", "nextNodeId": "guarding"}
+            ]
+          },
+          {
+            "id": "pass",
+            "speaker": "Guard",
+            "text": "Very well. Move along."
+          },
+          {
+            "id": "guarding",
+            "speaker": "Guard",
+            "text": "This hut. The merchant inside has valuable wares.",
+            "choices": [
+              {"text": "Thanks.", "nextNodeId": "pass"}
+            ]
+          }
+        ]
+      },
+      "storyCharacter": {
+        "id": "guard",
+        "faction": "town_guard",
+        "agencyLevel": 1,
+        "traits": {"openness": 0.3, "conscientiousness": 0.8, "extraversion": 0.5},
+        "goals": [{"id": "protect", "description": "Protect the merchant", "priority": 0.9}]
+      }
+    },
+    {
+      "name": "Merchant",
+      "position": {"x": 16, "y": 25, "z": 16},
+      "animFile": "character.anim",
+      "behavior": "idle",
+      "dialogue": {
+        "id": "merchant_talk",
+        "startNodeId": "start",
+        "nodes": [
+          {
+            "id": "start",
+            "speaker": "Merchant",
+            "text": "Welcome! Care to see my wares?",
+            "choices": [
+              {"text": "What do you have?", "nextNodeId": "wares"},
+              {"text": "No thanks.", "nextNodeId": "bye"}
+            ]
+          },
+          {
+            "id": "wares",
+            "speaker": "Merchant",
+            "text": "Fine stones, rare metals, and enchanted glass!"
+          },
+          {
+            "id": "bye",
+            "speaker": "Merchant",
+            "text": "Come back anytime!"
+          }
+        ]
+      },
+      "storyCharacter": {
+        "id": "merchant",
+        "faction": "traders",
+        "agencyLevel": 0,
+        "traits": {"openness": 0.7, "conscientiousness": 0.6, "extraversion": 0.9},
+        "goals": [{"id": "sell", "description": "Sell goods to travelers", "priority": 0.7}]
+      }
+    }
+  ],
+  "story": {
+    "arcs": [
+      {
+        "id": "main",
+        "name": "The Merchant's Request",
+        "constraintMode": "Guided",
+        "beats": [
+          {
+            "id": "meet_guard",
+            "description": "Talk to the guard outside the hut",
+            "type": "Hard"
+          },
+          {
+            "id": "trade_merchant",
+            "description": "Visit the merchant inside the hut",
+            "type": "Hard"
+          }
+        ]
+      }
+    ]
+  }
+}

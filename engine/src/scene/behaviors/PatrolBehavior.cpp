@@ -16,6 +16,8 @@ void PatrolBehavior::update(float dt, NPCContext& ctx) {
 
     if (m_waiting) {
         m_waitTimer += dt;
+        // Stop movement while waiting
+        ctx.self->setMoveVelocity(glm::vec3(0.0f));
         if (m_waitTimer >= m_waitTime) {
             m_waiting = false;
             m_waitTimer = 0.0f;
@@ -32,7 +34,8 @@ void PatrolBehavior::update(float dt, NPCContext& ctx) {
     float distXZ = glm::length(glm::vec2(diff.x, diff.z));
 
     if (distXZ < ARRIVAL_THRESHOLD) {
-        // Arrived at waypoint
+        // Arrived at waypoint — stop moving
+        ctx.self->setMoveVelocity(glm::vec3(0.0f));
         m_waiting = true;
         m_waitTimer = 0.0f;
 
@@ -48,10 +51,9 @@ void PatrolBehavior::update(float dt, NPCContext& ctx) {
         return;
     }
 
-    // Normalize direction and move
-    glm::vec3 direction = glm::normalize(diff);
-    glm::vec3 newPos = pos + direction * m_walkSpeed * dt;
-    ctx.self->setPosition(newPos);
+    // Compute XZ direction toward waypoint and set velocity (gravity handles Y)
+    glm::vec3 direction = glm::normalize(glm::vec3(diff.x, 0.0f, diff.z));
+    ctx.self->setMoveVelocity(direction * m_walkSpeed);
 
     // Face movement direction
     if (glm::length(glm::vec2(direction.x, direction.z)) > 0.01f) {

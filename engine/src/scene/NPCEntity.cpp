@@ -62,6 +62,12 @@ glm::vec3 NPCEntity::getPosition() const {
     return position;
 }
 
+void NPCEntity::setMoveVelocity(const glm::vec3& velocity) {
+    if (m_character) {
+        m_character->setMoveVelocity(velocity);
+    }
+}
+
 void NPCEntity::setBehavior(std::unique_ptr<NPCBehavior> behavior) {
     m_behavior = std::move(behavior);
 }

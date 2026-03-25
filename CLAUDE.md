@@ -358,3 +358,27 @@ docs/            # Documentation
 - **Logging**: `LOG_INFO("Tag", "message")`, `LOG_DEBUG`, `LOG_WARN`, `LOG_ERROR`, `LOG_TRACE_FMT`
 - **Entity registration**: `registry.registerEntity(entity, "my_id", "type_tag")`
 - **Voxel placement**: `chunkManager->addCube(worldX, worldY, worldZ)` or with material: `addCubeWithMaterial(x, y, z, "Stone")`
+
+## Testing
+
+### Automated Tests
+```powershell
+# All unit tests (1033+)
+.\build\tests\Debug\phyxel_tests.exe --gtest_brief=1
+
+# Integration tests (36)
+.\build\tests\integration\Debug\phyxel_integration_tests.exe --gtest_brief=1
+
+# Or use the build script
+./build_and_test.ps1 -Config Debug -RunTests
+```
+
+### Manual Standalone Game Testing
+Use `samples/game_definitions/testing_baseline.json` and follow the checklist in `docs/StandaloneGameTesting.md`.
+
+Quick scaffold-and-test:
+```powershell
+python tools/create_project.py TestGame --game-definition samples/game_definitions/testing_baseline.json
+```
+
+The test definition exercises: player spawn + third-person camera, NPC patrol movement with gravity, gentle Perlin terrain (heightScale=4), menus (main + pause), input gating, and dialogue/story.

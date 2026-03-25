@@ -131,6 +131,9 @@ public:
     /// Frame counter (incremented each endFrame).
     int getFrameCount() const { return frameCount_; }
 
+    /// Delta time from the most recent beginFrame() call.
+    float getLastDeltaTime() const { return lastDeltaTime_; }
+
     /// True after initialize() succeeds and before shutdown().
     bool isInitialized() const { return initialized_; }
 
@@ -140,6 +143,7 @@ private:
     bool initialized_ = false;
     bool quitRequested_ = false;
     int  frameCount_ = 0;
+    float lastDeltaTime_ = 0.0f;
     double lastFrameTime_ = 0.0;
 
     // ========================================================================

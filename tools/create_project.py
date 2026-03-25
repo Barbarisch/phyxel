@@ -13,7 +13,7 @@ When given a --game-definition, generates C++ that loads the full game
 
 Usage:
   python tools/create_project.py MyAwesomeGame
-  python tools/create_project.py MyAwesomeGame --game-definition frozen_highlands.json
+  python tools/create_project.py MyAwesomeGame --game-definition samples/game_definitions/mountains_rpg.json
   python tools/create_project.py MyAwesomeGame --output ~/projects/MyAwesomeGame
 """
 
@@ -112,7 +112,13 @@ def create_project(
     extra_fwd_decls = []
 
     extra_includes.append('#include "graphics/RenderCoordinator.h"')
+    extra_includes.append('#include "scene/PhysicsCharacter.h"')
+    extra_includes.append('#include "ui/GameScreen.h"')
+    extra_includes.append('#include "ui/GameMenus.h"')
     extra_members.append("    std::unique_ptr<Phyxel::Graphics::RenderCoordinator> renderCoordinator_;")
+    extra_members.append("    Phyxel::Scene::PhysicsCharacter* playerCharacter_ = nullptr;")
+    extra_members.append("    std::vector<std::unique_ptr<Phyxel::Scene::Entity>> entities_;")
+    extra_members.append("    Phyxel::UI::GameScreen screen_;")
 
     if has_npcs or game_definition:
         extra_includes.append('#include "core/EntityRegistry.h"')
@@ -140,8 +146,10 @@ def create_project(
         "#pragma once",
         '#include "core/GameCallbacks.h"',
         '#include "core/EngineRuntime.h"',
+        '#include "scene/Entity.h"',
         *sorted(set(extra_includes)),
         "#include <memory>",
+        "#include <vector>",
         "",
         f"class {class_name} : public Phyxel::Core::GameCallbacks {{",
         "public:",
@@ -153,6 +161,8 @@ def create_project(
         "",
         "private:",
         f"    bool loadGameDefinition(Phyxel::Core::EngineRuntime& engine);",
+        f"    Phyxel::Scene::Entity* spawnEntity(const std::string& type, const glm::vec3& pos, const std::string& animFile);",
+        f"    void updateCursorMode(Phyxel::Core::EngineRuntime& engine);",
         "",
         "    float elapsed_ = 0.0f;",
         f"    Phyxel::Core::EngineRuntime* engine_ = nullptr;",
@@ -235,17 +245,51 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         #include "graphics/CameraManager.h"
         #include "graphics/RenderCoordinator.h"
         #include "input/InputManager.h"
+        #include "physics/PhysicsWorld.h"
+        #include "scene/PhysicsCharacter.h"
         #include "vulkan/VulkanDevice.h"
         #include "vulkan/RenderPipeline.h"
         #include "ui/WindowManager.h"
         #include "ui/ImGuiRenderer.h"
+        #include "ui/GameScreen.h"
+        #include "ui/GameMenus.h"
         #include "utils/PerformanceProfiler.h"
         #include "utils/PerformanceMonitor.h"
         #include "utils/Logger.h"
         #include <nlohmann/json.hpp>
         #include <glm/glm.hpp>
+        #include <GLFW/glfw3.h>
         #include <fstream>
         #include <filesystem>
+
+        // ====================================================================
+        // Entity Spawning
+        // ====================================================================
+
+        Phyxel::Scene::Entity* {class_name}::spawnEntity(
+                const std::string& type, const glm::vec3& pos, const std::string& animFile) {{
+            if (type == "physics") {{
+                auto ptr = std::make_unique<Phyxel::Scene::PhysicsCharacter>(
+                    engine_->getPhysicsWorld(), engine_->getInputManager(),
+                    engine_->getCamera(), pos);
+                auto* raw = ptr.get();
+                entities_.push_back(std::move(ptr));
+                return raw;
+            }}
+            LOG_WARN("{class_name}", "Unknown entity type: {{}}", type);
+            return nullptr;
+        }}
+
+        // ====================================================================
+        // Cursor mode helper
+        // ====================================================================
+
+        void {class_name}::updateCursorMode(Phyxel::Core::EngineRuntime& engine) {{
+            auto* window = engine.getWindowManager();
+            if (!window) return;
+            bool shouldCapture = !Phyxel::UI::isMouseFree(screen_.getState());
+            window->setCursorVisible(!shouldCapture);
+        }}
 
         // ====================================================================
         // Initialization
@@ -289,6 +333,27 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 LOG_WARN("{class_name}", "No game.json found — starting with empty world");
             }}
 
+            // If no player was spawned, create a default one
+            if (!playerCharacter_) {{
+                auto* entity = spawnEntity("physics", glm::vec3(16.0f, 25.0f, 16.0f), "");
+                if (entity) {{
+                    playerCharacter_ = static_cast<Phyxel::Scene::PhysicsCharacter*>(entity);
+                    if (entityRegistry_) {{
+                        entityRegistry_->registerEntity(playerCharacter_, "player", "physics");
+                    }}
+                }}
+            }}
+
+            // Set up third-person camera following the player
+            if (playerCharacter_) {{
+                auto* cam = engine.getCamera();
+                cam->setMode(Phyxel::Graphics::CameraMode::ThirdPerson);
+            }}
+
+            // Start on main menu, cursor free
+            screen_.setState(Phyxel::UI::ScreenState::MainMenu);
+            updateCursorMode(engine);
+
             LOG_INFO("{class_name}", "Game initialized");
             return true;
         }}
@@ -313,6 +378,17 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 subsystems.dialogueSystem  = dialogueSystem_.get();
                 subsystems.storyEngine     = storyEngine_.get();
                 subsystems.camera          = engine.getCamera();
+
+                // Wire up entity spawner so the loader can create the player
+                subsystems.entitySpawner = [this](const std::string& type,
+                        const glm::vec3& pos, const std::string& animFile)
+                        -> Phyxel::Scene::Entity* {{
+                    auto* entity = spawnEntity(type, pos, animFile);
+                    if (entity && type == "physics") {{
+                        playerCharacter_ = static_cast<Phyxel::Scene::PhysicsCharacter*>(entity);
+                    }}
+                    return entity;
+                }};
 
                 auto result = Phyxel::Core::GameDefinitionLoader::load(gameDef, subsystems);
                 if (result.success) {{
@@ -341,14 +417,40 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
 
         void {class_name}::onHandleInput(Phyxel::Core::EngineRuntime& engine) {{
             auto* input = engine.getInputManager();
-            if (input) input->processInput(0.016f);
+            if (!input) return;
+
+            auto state = screen_.getState();
+
+            // ESC: pause/resume toggle
+            if (input->isKeyPressed(GLFW_KEY_ESCAPE)) {{
+                if (state == Phyxel::UI::ScreenState::Playing) {{
+                    screen_.togglePause();
+                    updateCursorMode(engine);
+                }} else if (state == Phyxel::UI::ScreenState::Paused) {{
+                    screen_.resume();
+                    updateCursorMode(engine);
+                }}
+            }}
+
+            // Only process camera/movement input when actually playing
+            if (Phyxel::UI::isGameRunning(screen_.getState())) {{
+                input->processInput(engine.getLastDeltaTime());
+            }}
         }}
 
         void {class_name}::onUpdate(Phyxel::Core::EngineRuntime& engine, float dt) {{
+            if (!Phyxel::UI::isGameRunning(screen_.getState())) return;
+
             elapsed_ += dt;
 
             auto* physics = engine.getPhysicsWorld();
             if (physics) physics->stepSimulation(dt);
+
+            // Update player character + camera tracking
+            if (playerCharacter_) {{
+                playerCharacter_->update(dt);
+                playerCharacter_->updateCamera();
+            }}
 
             if (npcManager_) npcManager_->update(dt);
             if (storyEngine_) storyEngine_->update(dt);
@@ -362,10 +464,55 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             auto* imgui = engine.getImGuiRenderer();
             if (imgui) {{
                 imgui->newFrame();
-                // Render dialogue UI via ImGuiRenderer
+
+                auto state = screen_.getState();
+
+                switch (state) {{
+                case Phyxel::UI::ScreenState::MainMenu:
+                    Phyxel::UI::renderMainMenu("{class_name}", {{
+                        [this]() {{
+                            screen_.startGame();
+                            if (engine_) updateCursorMode(*engine_);
+                        }},
+                        nullptr,  // no settings
+                        [&engine]() {{
+                            auto* w = engine.getWindowManager();
+                            if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE);
+                        }}
+                    }});
+                    break;
+
+                case Phyxel::UI::ScreenState::Playing:
+                    // Minimal HUD — could add crosshair, health, etc.
+                    break;
+
+                case Phyxel::UI::ScreenState::Paused:
+                    Phyxel::UI::renderPauseMenu({{
+                        [this]() {{
+                            screen_.resume();
+                            if (engine_) updateCursorMode(*engine_);
+                        }},
+                        nullptr,  // no settings
+                        [this]() {{
+                            screen_.returnToMainMenu();
+                            if (engine_) updateCursorMode(*engine_);
+                        }},
+                        [&engine]() {{
+                            auto* w = engine.getWindowManager();
+                            if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE);
+                        }}
+                    }});
+                    break;
+
+                default:
+                    break;
+                }}
+
+                // Render dialogue UI
                 if (dialogueSystem_ && dialogueSystem_->isActive()) {{
                     imgui->renderDialogueBox(dialogueSystem_.get());
                 }}
+
                 imgui->endFrame();
             }}
 
@@ -375,6 +522,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         void {class_name}::onShutdown() {{
             LOG_INFO("{class_name}", "Shutting down...");
             renderCoordinator_.reset();
+            entities_.clear();
+            playerCharacter_ = nullptr;
             speechBubbleManager_.reset();
             dialogueSystem_.reset();
             storyEngine_.reset();

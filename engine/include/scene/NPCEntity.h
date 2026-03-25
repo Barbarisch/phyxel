@@ -33,6 +33,7 @@ public:
     // Position delegates to inner character
     void setPosition(const glm::vec3& pos) override;
     glm::vec3 getPosition() const override;
+    void setMoveVelocity(const glm::vec3& velocity) override;
 
     // NPC identity
     const std::string& getName() const { return m_name; }

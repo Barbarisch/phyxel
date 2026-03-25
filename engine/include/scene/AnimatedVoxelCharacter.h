@@ -57,6 +57,9 @@ namespace Scene {
         void cycleAnimation(bool next);
         void setPosition(const glm::vec3& pos);
         glm::vec3 getPosition() const;
+
+        /// Set horizontal movement velocity (XZ), preserving vertical velocity (gravity).
+        void setMoveVelocity(const glm::vec3& velocity);
         
         // Control inputs
         void setControlInput(float forward, float turn, float strafe = 0.0f);
