@@ -178,10 +178,14 @@ Replacing the Goose-based AI pipeline with a direct LLM client so shipped games 
 - **WorldStorage::getDb()**: Public accessor added to share SQLite db handle with ConversationMemory.
 - **Unit Tests**: 31 new tests (LLMClientTest, ConversationMemoryTest, ContextManagerTest, AIConversationServiceTest) — 1064 total.
 - **CMake**: `winhttp` added to `phyxel_core` link libraries. Test glob extended with `ai/*.cpp`.
+- **GameSettings AI fields**: `aiProvider`, `aiModel`, `aiApiKey` added to GameSettings struct. Provider/model serialized to settings.json; API key excluded for security (loaded from PHYXEL_AI_API_KEY env var). 3 new tests.
+- **Settings screen AI section**: Provider dropdown (anthropic/openai/ollama), model text input, masked API key input, status indicator. `onAISettingsChanged` callback in SettingsCallbacks struct.
+- **Game template integration**: Scaffolded projects (`create_project.py`) now include AIConversationService initialization, full settings screen with AI section, and runtime config update callback. Settings auto-saved on shutdown.
+- **AI E2E tests**: 3 live LLM pipeline tests (auto-skip when `PHYXEL_AI_API_KEY` not set). Direct LLM call, context assembly + call, full service pipeline. 1070 total tests (1067 pass + 3 skipped).
 
 #### Remaining
-- API key settings UI in game menus
-- End-to-end test with a real LLM call
+- End-to-end manual test: run engine with VillageChat, interact with AI-mode NPC (Herbalist agencyLevel=1)
+- Wire InteractionManager into scaffolded game template (currently only in editor)
 
 ### Open Gaps
 

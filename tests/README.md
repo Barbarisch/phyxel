@@ -36,6 +36,7 @@ ctest --output-on-failure
 tests/
 ├── ai/                  # AI/LLM integration tests
 │   ├── AIConversationServiceTest.cpp
+│   ├── AIEndToEndTest.cpp       # Live LLM tests (skipped without API key)
 │   ├── ContextManagerTest.cpp
 │   ├── ConversationMemoryTest.cpp
 │   └── LLMClientTest.cpp

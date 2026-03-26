@@ -363,7 +363,7 @@ docs/            # Documentation
 
 ### Automated Tests
 ```powershell
-# All unit tests (1064+)
+# All unit tests (1070+, 3 AI E2E auto-skip without API key)
 .\build\tests\Debug\phyxel_tests.exe --gtest_brief=1
 
 # Integration tests (36)
