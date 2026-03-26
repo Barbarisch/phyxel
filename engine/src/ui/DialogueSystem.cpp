@@ -221,13 +221,14 @@ bool DialogueSystem::startAIConversation(Scene::NPCEntity* npc, const std::strin
     m_conversationHistory.clear();
 
     m_currentSpeaker = npcName;
-    m_currentFullText.clear();
+    m_currentFullText = "...";
     m_currentEmotion.clear();
-    m_revealedText.clear();
+    m_revealedText = "...";
 
-    m_state = DialogueState::AITextInput;
+    // Start in waiting state — NPC will greet the player first
+    m_state = DialogueState::AIWaitingForResponse;
 
-    LOG_INFO("DialogueSystem", "Started AI conversation with '{}'", npcName);
+    LOG_INFO("DialogueSystem", "Started AI conversation with '{}' (awaiting greeting)", npcName);
 
     if (m_gameEventLog) {
         m_gameEventLog->emit("ai_conversation_started", {{"npc", npcName}});

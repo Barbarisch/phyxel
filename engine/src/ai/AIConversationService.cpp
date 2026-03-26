@@ -107,7 +107,45 @@ bool AIConversationService::startConversation(Scene::NPCEntity* npc,
         }).detach();
     };
 
-    return m_dialogue->startAIConversation(npc, npcName, sendCallback);
+    if (!m_dialogue->startAIConversation(npc, npcName, sendCallback)) {
+        return false;
+    }
+
+    // Fire initial greeting — NPC speaks first
+    glm::vec3 playerPos(0.0f);
+    if (m_registry) {
+        auto* playerEntity = m_registry->getEntity("player");
+        if (playerEntity) {
+            playerPos = playerEntity->getPosition();
+        }
+    }
+
+    std::thread([this, npcId, npcName, playerPos]() {
+        // Empty playerMessage tells ContextManager this is a greeting
+        auto ctx = m_contextManager->buildContext(npcId, "", playerPos);
+
+        LOG_DEBUG("AI", "Requesting greeting from '{}' (~{} tokens)", npcName, ctx.estimatedTokens);
+
+        auto response = m_llmClient->complete(ctx.messages);
+
+        if (response.ok()) {
+            if (m_memory && m_memory->isInitialized()) {
+                m_memory->recordTurn(npcId, npcId, response.content);
+            }
+            if (m_dialogue) {
+                m_dialogue->receiveAIResponse(response.content);
+            }
+            LOG_DEBUG("AI", "Greeting from '{}': {} tokens in, {} tokens out",
+                      npcName, response.inputTokens, response.outputTokens);
+        } else {
+            LOG_ERROR("AI", "Greeting error for '{}': {}", npcName, response.error);
+            if (m_dialogue) {
+                m_dialogue->receiveAIResponse("*looks up at you*");
+            }
+        }
+    }).detach();
+
+    return true;
 }
 
 void AIConversationService::setLLMConfig(const LLMConfig& config) {

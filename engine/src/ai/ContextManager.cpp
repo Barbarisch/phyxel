@@ -40,13 +40,19 @@ ConversationContext ContextManager::buildContext(
 {
     ConversationContext ctx;
 
+    // Empty playerMessage means this is a greeting request — NPC speaks first
+    bool isGreeting = playerMessage.empty();
+
     const auto* profile = m_story ? m_story->getCharacter(npcId) : nullptr;
     if (!profile) {
         LOG_WARN("AI", "ContextManager: no CharacterProfile for '{}'", npcId);
         // Minimal fallback — still usable
         ctx.messages.push_back({"system", "You are an NPC in a voxel world. Respond in character. Keep responses under 3 sentences."});
-        ctx.messages.push_back({"user", playerMessage});
-        ctx.estimatedTokens = estimateTokens(playerMessage) + 30;
+        std::string prompt = isGreeting
+            ? "The player has just approached you. Greet them in character."
+            : playerMessage;
+        ctx.messages.push_back({"user", prompt});
+        ctx.estimatedTokens = estimateTokens(prompt) + 30;
         return ctx;
     }
 
@@ -84,8 +90,12 @@ ConversationContext ContextManager::buildContext(
         }
     }
 
-    // === Add current player message ===
-    ctx.messages.push_back({"user", playerMessage});
+    // === Add current player message (or greeting prompt) ===
+    if (isGreeting) {
+        ctx.messages.push_back({"user", "The player has just approached you. Greet them in character."});
+    } else {
+        ctx.messages.push_back({"user", playerMessage});
+    }
 
     // Estimate total tokens
     int total = 0;
