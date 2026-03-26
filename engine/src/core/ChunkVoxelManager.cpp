@@ -74,6 +74,17 @@ void ChunkVoxelManager::setCallbacks(
 }
 
 // =============================================================================
+// BULK OPERATIONS
+// =============================================================================
+
+void ChunkVoxelManager::clearAllVoxels() {
+    cubeMap.clear();
+    subcubeMap.clear();
+    microcubeMap.clear();
+    voxelTypeMap.clear();
+}
+
+// =============================================================================
 // HASH MAP MANAGEMENT
 // =============================================================================
 // These functions maintain the hash maps that enable O(1) voxel lookups
@@ -574,6 +585,72 @@ bool ChunkVoxelManager::removeCube(
     m_updateVulkanBuffer();
     
     return true;
+}
+
+int ChunkVoxelManager::removeCubesBatch(const std::vector<glm::ivec3>& positions) {
+    auto& cubes = m_getCubes();
+    int removed = 0;
+
+    for (const auto& localPos : positions) {
+        if (localPos.x < 0 || localPos.x >= 32 ||
+            localPos.y < 0 || localPos.y >= 32 ||
+            localPos.z < 0 || localPos.z >= 32) {
+            continue;
+        }
+        size_t index = localPos.z + localPos.y * 32 + localPos.x * 32 * 32;
+        if (index >= cubes.size() || !cubes[index]) continue;
+
+        cubes[index].reset();
+        removeFromVoxelMaps(localPos);
+        m_removeCollision(localPos);
+        ++removed;
+    }
+
+    if (removed > 0) {
+        m_setDirty(true);
+        m_rebuildFaces();
+        m_updateVulkanBuffer();
+    }
+    return removed;
+}
+
+int ChunkVoxelManager::addCubesBatch(const std::vector<glm::ivec3>& positions, const std::string& material) {
+    auto& cubes = m_getCubes();
+    int added = 0;
+
+    if (cubes.size() < 32 * 32 * 32) {
+        cubes.resize(32 * 32 * 32);
+    }
+
+    for (const auto& localPos : positions) {
+        if (localPos.x < 0 || localPos.x >= 32 ||
+            localPos.y < 0 || localPos.y >= 32 ||
+            localPos.z < 0 || localPos.z >= 32) {
+            continue;
+        }
+        size_t index = localPos.z + localPos.y * 32 + localPos.x * 32 * 32;
+        if (cubes[index]) {
+            cubes[index]->setBroken(false);
+            if (!material.empty()) cubes[index]->setMaterial(material);
+        } else {
+            if (!material.empty()) {
+                cubes[index] = std::make_unique<Cube>(localPos, material);
+            } else {
+                cubes[index] = std::make_unique<Cube>(localPos);
+            }
+        }
+        addToVoxelMaps(localPos, cubes[index].get());
+        m_addCollision(localPos);
+        ++added;
+    }
+
+    if (added > 0) {
+        m_setDirty(true);
+        m_setNeedsUpdate(true);
+        m_rebuildFaces();
+        m_updateVulkanBuffer();
+    }
+    return added;
 }
 
 // =============================================================================

@@ -224,6 +224,7 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, GameSubsystems& sub, 
     for (Chunk* chunk : modifiedChunks) {
         chunk->rebuildFaces();
         chunk->updateVulkanBuffer();
+        chunk->forcePhysicsRebuild();
     }
 
     LOG_INFO("GameDefinitionLoader", "World: generated " + std::to_string(result.chunksGenerated) +
@@ -431,10 +432,54 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
 
         // Set up dialogue if provided
         if (npcDef.contains("dialogue") && sub.dialogueSystem) {
-            auto tree = UI::DialogueTree::fromJson(npcDef["dialogue"]);
-            auto provider = std::make_unique<UI::StaticDialogueProvider>(std::move(tree));
-            npc->setDialogueProvider(std::move(provider));
-            LOG_DEBUG("GameDefinitionLoader", "NPC " + name + ": dialogue configured");
+            int agencyLevel = 0;
+            if (npcDef.contains("storyCharacter")) {
+                agencyLevel = npcDef["storyCharacter"].value("agencyLevel", 0);
+            }
+
+            if (agencyLevel >= 1) {
+                // Hybrid dialogue: parse tree AND enable AI enhancement
+                auto tree = UI::DialogueTree::fromJson(npcDef["dialogue"]);
+                auto treePtr = std::make_unique<UI::DialogueTree>(std::move(tree));
+
+                std::string entityId = "";
+                if (npcDef.contains("storyCharacter")) {
+                    entityId = npcDef["storyCharacter"].value("id", name);
+                }
+                if (entityId.empty()) entityId = name;
+
+                auto aiProvider = std::make_unique<UI::AIDialogueProvider>(entityId, name, std::move(treePtr));
+                npc->setDialogueProvider(std::move(aiProvider));
+
+                // Also register with AI system via callback
+                if (sub.aiRegister) {
+                    std::string personality = npcDef.value("personality", "");
+                    sub.aiRegister(npc, entityId, name, personality);
+                }
+                LOG_DEBUG("GameDefinitionLoader", "NPC " + name + ": hybrid dialogue configured (tree + AI, agencyLevel=" + std::to_string(agencyLevel) + ")");
+            } else {
+                // Static dialogue tree
+                auto tree = UI::DialogueTree::fromJson(npcDef["dialogue"]);
+                auto provider = std::make_unique<UI::StaticDialogueProvider>(std::move(tree));
+                npc->setDialogueProvider(std::move(provider));
+                LOG_DEBUG("GameDefinitionLoader", "NPC " + name + ": static dialogue configured");
+            }
+        } else if (npcDef.contains("storyCharacter")) {
+            // No dialogue provided but has storyCharacter — check if AI mode
+            int agencyLevel = npcDef["storyCharacter"].value("agencyLevel", 0);
+            if (agencyLevel >= 1) {
+                std::string entityId = npcDef["storyCharacter"].value("id", name);
+                if (entityId.empty()) entityId = name;
+
+                auto aiProvider = std::make_unique<UI::AIDialogueProvider>(entityId, name);
+                npc->setDialogueProvider(std::move(aiProvider));
+
+                if (sub.aiRegister) {
+                    std::string personality = npcDef.value("personality", "");
+                    sub.aiRegister(npc, entityId, name, personality);
+                }
+                LOG_DEBUG("GameDefinitionLoader", "NPC " + name + ": AI dialogue configured (no static tree, agencyLevel=" + std::to_string(agencyLevel) + ")");
+            }
         }
 
         // Register story character if provided

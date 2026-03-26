@@ -132,6 +132,12 @@ struct GameSubsystems {
     /// Takes (type, position, animFile) → returns entity pointer or nullptr.
     using EntitySpawnFn = std::function<Scene::Entity*(const std::string& type, const glm::vec3& pos, const std::string& animFile)>;
     EntitySpawnFn entitySpawner = nullptr;
+
+    /// Optional callback for registering AI NPCs (Application-specific).
+    /// Takes (entity, entityId, npcName, personality) → called when agencyLevel >= 1.
+    using AIRegisterFn = std::function<void(Scene::Entity* entity, const std::string& entityId,
+                                             const std::string& npcName, const std::string& personality)>;
+    AIRegisterFn aiRegister = nullptr;
 };
 
 class GameDefinitionLoader {

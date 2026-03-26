@@ -274,6 +274,13 @@ Chunk* ChunkManager::getChunkAt(const glm::ivec3& worldPos) {
     return m_voxelQuerySystem.getChunkAt(worldPos);
 }
 
+bool ChunkManager::clearChunk(const glm::ivec3& chunkCoord) {
+    Chunk* chunk = getChunkAtCoord(chunkCoord);
+    if (!chunk) return false;
+    chunk->clearAll();
+    return true;
+}
+
 Cube* ChunkManager::getCubeAt(const glm::ivec3& worldPos) {
     return m_voxelQuerySystem.getCubeAt(worldPos);
 }

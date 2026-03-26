@@ -257,7 +257,7 @@ private:
     std::vector<AICommand> m_pendingCommands;
 
     // Pending async reply futures
-    std::vector<std::future<bool>> m_pendingReplies;
+    std::vector<std::future<ChatResponse>> m_pendingReplies;
 
     // Action handlers
     DialogHandler m_dialogHandler;

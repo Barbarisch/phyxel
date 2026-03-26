@@ -1,6 +1,6 @@
 # Phyxel — Project Status & Next Steps
 
-*Last updated: March 23, 2026*
+*Last updated: March 25, 2026*
 
 ## What's Been Built
 
@@ -122,11 +122,11 @@
 ## Current State of the Build
 
 - **Build**: Clean, all targets compile (`phyxel_core`, `phyxel_editor`, `phyxel`)
-- **Tests**: All 938 tests pass (0 failures). 88 test suites.
-- **Executable**: `phyxel.exe` at project root (copied post-build) or `build/game/Debug/phyxel.exe`
+- **Tests**: All 1033 tests pass (0 failures). 98 test suites. 36 integration tests.
+- **Executable**: `phyxel.exe` at project root (copied post-build) or `build/editor/Debug/phyxel.exe`
 - **Example**: `phyxel_minimal_game.exe` at `build/examples/minimal_game/Debug/`
 - **Game projects**: Scaffolded via `python tools/create_project.py <Name>`, built via in-engine API or cmake directly
-- **Frozen Highlands**: Test game project at `Documents/PhyxelProjects/FrozenHighlands/` (built + verified)
+- **VillageChat**: Active test game project at `Documents/PhyxelProjects/VillageChat/`
 
 ### Build Commands
 ```powershell
@@ -164,6 +164,23 @@ $cmakePath = "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\ID
 - Input bindings: E (interact), Enter (advance), 1-4 (choices), ESC (end conversation)
 - API endpoints: `/api/npc/dialogue`, `/api/dialogue/start`, `/api/dialogue/end`, `/api/speech/say`
 - MCP tools: `set_npc_dialogue`, `start_dialogue`, `end_dialogue`, `say_bubble`
+
+### LLM Integration — Direct API Client (current session)
+
+Replacing the Goose-based AI pipeline with a direct LLM client so shipped games can call Claude/OpenAI/Ollama APIs without external dependencies. Players provide their own API key in game settings. Goose stays as an editor dev tool only.
+
+#### Completed
+- **LLMClient** (`engine/include/ai/LLMClient.h`, `engine/src/ai/LLMClient.cpp`): Direct HTTPS via WinHTTP (Windows) — zero external dependencies. Supports three providers: Anthropic Claude, OpenAI, and Ollama (local). Async support via `completeAsync()`, token usage tracking, configurable timeouts.
+- **ContextManager** (`engine/include/ai/ContextManager.h`, `engine/src/ai/ContextManager.cpp`): Assembles optimal LLM prompts from game state. Pulls character personality (Big Five traits), emotional state, active goals, relationships, nearby entities, character knowledge/memories, conversation summaries, active story arcs, world variables. Token budget management with automatic trimming.
+- **ConversationMemory** (`engine/include/ai/ConversationMemory.h`, `engine/src/ai/ConversationMemory.cpp`): SQLite-backed conversation persistence (shares WorldStorage's DB). Tables: `conversation_turns`, `conversation_summaries`. LLM-powered summarization of old conversations. Automatic pruning of old turns.
+- **AIConversationService** (`engine/include/ai/AIConversationService.h`, `engine/src/ai/AIConversationService.cpp`): Orchestrator wiring LLMClient + ContextManager + ConversationMemory into `DialogueSystem::startAIConversation()`. Player message → ContextManager builds prompt → LLMClient calls LLM on background thread → response delivered to DialogueSystem (thread-safe). Falls back to "[NPC seems lost in thought...]" on LLM errors.
+- **CMake**: `winhttp` added to `phyxel_core` link libraries.
+
+#### Remaining
+- Wire `AIConversationService` into `editor/Application.cpp` InteractionManager callback (so AI NPCs use LLMClient instead of Goose/AIEnhancer)
+- API key settings UI in game menus
+- Unit tests for LLMClient, ContextManager, ConversationMemory
+- End-to-end test with a real LLM call
 
 ### Open Gaps
 
@@ -269,6 +286,11 @@ Full design: `docs/StoryEngineDesign.md` | Progress: `docs/StoryEngineProgress.m
 | Game Packaging | `tools/package_game.py` |
 | Game Creator Agent | `.github/agents/game-creator.agent.md` |
 | Game Creation Guide | `docs/GameCreationGuide.md` |
+| LLM Client | `engine/include/ai/LLMClient.h`, `engine/src/ai/LLMClient.cpp` |
+| Context Manager | `engine/include/ai/ContextManager.h`, `engine/src/ai/ContextManager.cpp` |
+| Conversation Memory | `engine/include/ai/ConversationMemory.h`, `engine/src/ai/ConversationMemory.cpp` |
+| AI Conversation Service | `engine/include/ai/AIConversationService.h`, `engine/src/ai/AIConversationService.cpp` |
+| Goose Bridge (editor only) | `engine/include/ai/GooseBridge.h`, `scripts/goose_bridge.py` |
 
 ## MCP Setup (for Claude Code on new machine)
 

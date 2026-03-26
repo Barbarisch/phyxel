@@ -32,6 +32,9 @@ public:
     /// Triggers onInteract on the nearest NPC if one is in range.
     void tryInteract(Scene::Entity* playerEntity);
 
+    /// Trigger the interaction callback directly for a specific NPC (for API/testing).
+    void triggerInteraction(Scene::NPCEntity* npc);
+
     /// Returns the NPC currently in interaction range, or nullptr.
     Scene::NPCEntity* getNearestInteractableNPC() const { return m_nearestNPC; }
 

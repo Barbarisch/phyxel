@@ -18,6 +18,7 @@
 #include "utils/CoordinateUtils.h"
 #include "examples/MultiChunkDemo.h"
 #include "ai/AISystem.h"
+#include "ai/AIEnhancer.h"
 #include "core/Chunk.h"
 #include "core/WorldGenerator.h"
 #include "core/VoxelTemplate.h"
@@ -257,14 +258,43 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     aiSystem = std::make_unique<AI::AISystem>();
     {
         AI::GooseConfig aiConfig;
-        // Default config: localhost:3000, no TLS
-        // autoStart = false: don't start goose-server automatically
-        // User can start it manually or toggle with F9
-        if (!aiSystem->initialize(aiConfig, /*autoStart=*/false)) {
+        aiConfig.defaultProvider = engineConfig.aiProvider;
+        if (!engineConfig.aiModel.empty())
+            aiConfig.defaultModel = engineConfig.aiModel;
+
+        bool autoStart = engineConfig.aiAutoStart;
+        if (!aiSystem->initialize(aiConfig, autoStart)) {
             LOG_WARN("Application", "AI system initialization failed (non-critical)");
         } else {
-            LOG_INFO("Application", "AI system initialized (server not auto-started)");
+            if (autoStart)
+                LOG_INFO("Application", "AI system initialized (server auto-started, provider={})", engineConfig.aiProvider);
+            else
+                LOG_INFO("Application", "AI system initialized (server not auto-started, provider={})", engineConfig.aiProvider);
         }
+    }
+
+    // STEP 9.5: INITIALIZE LIGHTWEIGHT AI ENHANCER (bypasses Goose, calls Claude API directly)
+    {
+        // Resolve path to ai_enhance.py — try engine source tree first, then project scripts dir
+        std::string scriptPath;
+        for (const auto& candidate : {
+            std::string("scripts/ai_enhance.py"),
+            std::string("../scripts/ai_enhance.py"),
+            engineConfig.scriptsDir + "/ai_enhance.py"
+        }) {
+            if (std::filesystem::exists(candidate)) {
+                scriptPath = std::filesystem::absolute(candidate).string();
+                break;
+            }
+        }
+        std::string model = engineConfig.aiModel.empty() ? "claude-sonnet-4-20250514" : engineConfig.aiModel;
+        std::string apiKey = engineConfig.aiApiKey;
+        // Fallback: try reading env var directly (in case EngineConfig didn't pick it up)
+        if (apiKey.empty()) {
+            if (const char* envKey = std::getenv("PHYXEL_AI_API_KEY"); envKey && envKey[0] != '\0')
+                apiKey = envKey;
+        }
+        aiEnhancer = std::make_unique<AI::AIEnhancer>(apiKey, model, scriptPath);
     }
 
     // STEP 10: INITIALIZE ENTITY REGISTRY & HTTP API SERVER
@@ -640,15 +670,37 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         npcManager->setSpeechBubbleManager(speechBubbleManager.get());
     }
 
-    // Wire interaction callback to start dialogues
+    // Wire interaction callback to start dialogues (tree-based with optional AI enhancement)
     interactionManager->setInteractCallback([this](Scene::NPCEntity* npc) {
         if (!dialogueSystem || !npc) return;
         auto* provider = npc->getDialogueProvider();
-        if (provider && provider->getDialogueTree()) {
-            dialogueSystem->startConversation(npc, provider->getDialogueTree());
-        } else {
+
+        // Get dialogue tree (works for both static and AI-enhanced NPCs)
+        const UI::DialogueTree* tree = provider ? provider->getDialogueTree() : nullptr;
+        if (!tree) {
             LOG_INFO("Application", "NPC '{}' has no dialogue tree", npc->getName());
+            return;
         }
+
+        // Set up AI enhancement if this NPC has AI capabilities and AIEnhancer is ready
+        if (provider->isAIMode() && aiEnhancer && aiEnhancer->isReady()) {
+            auto* ds = dialogueSystem.get();
+            auto* enhancer = aiEnhancer.get();
+            // Wire AI enhancement: when a tree node loads, ask AI to rephrase in character
+            ds->setAIEnhanceCallback([enhancer, ds](const std::string& nodeId,
+                                                     const std::string& nodeText,
+                                                     const std::string& speaker,
+                                                     const std::string& emotion) {
+                enhancer->enhance(nodeId, nodeText, speaker, emotion,
+                    [ds](const std::string& nid, const std::string& text, const std::string& emo) {
+                        ds->receiveAIEnhancement(nid, text, emo);
+                    });
+            });
+        } else {
+            dialogueSystem->setAIEnhanceCallback(nullptr);
+        }
+
+        dialogueSystem->startConversation(npc, tree);
     });
 
     // Start the API server
@@ -979,7 +1031,19 @@ void Application::cleanup() {
     }
     m_initialized = false;
 
-    // Shutdown HTTP API server first (background thread must stop before systems go away)
+    // Drain pending API commands so blocked HTTP handlers can return
+    // (prevents shutdown hang from unfulfilled promises)
+    if (apiCommandQueue) {
+        std::vector<Core::APICommand> pending;
+        apiCommandQueue->drainCommands(pending);
+        for (auto& cmd : pending) {
+            if (cmd.onComplete) {
+                cmd.onComplete({{"error", "Engine shutting down"}});
+            }
+        }
+    }
+
+    // Shutdown HTTP API server (background thread must stop before systems go away)
     if (apiServer) {
         apiServer->stop();
         apiServer.reset();
@@ -1089,9 +1153,17 @@ void Application::update(float deltaTime) {
         npcManager->update(deltaTime);
     }
 
-    // Update interaction detection
+    // Update interaction detection (use actual player position, not camera)
     if (interactionManager) {
-        glm::vec3 playerPos = camera ? camera->getPosition() : glm::vec3(0);
+        glm::vec3 playerPos(0);
+        if (physicsCharacter && currentControlTarget == ControlTarget::PhysicsCharacter)
+            playerPos = physicsCharacter->getPosition();
+        else if (animatedCharacter && currentControlTarget == ControlTarget::AnimatedCharacter)
+            playerPos = animatedCharacter->getPosition();
+        else if (spiderCharacter && currentControlTarget == ControlTarget::Spider)
+            playerPos = spiderCharacter->getPosition();
+        else if (camera)
+            playerPos = camera->getPosition();
         interactionManager->update(deltaTime, playerPos);
     }
 
@@ -1772,8 +1844,10 @@ void Application::toggleAISystem() {
         LOG_INFO("Application", "AI system stopped");
     } else {
         AI::GooseConfig config;
+        config.defaultProvider = engineConfig.aiProvider;
+        if (!engineConfig.aiModel.empty()) config.defaultModel = engineConfig.aiModel;
         if (aiSystem->initialize(config, /*autoStart=*/true)) {
-            LOG_INFO("Application", "AI system started with goose-server");
+            LOG_INFO("Application", "AI system started with goose-server (provider={})", engineConfig.aiProvider);
         } else {
             LOG_WARN("Application", "Failed to start AI system");
         }
@@ -1855,6 +1929,28 @@ void Application::autoLoadGameDefinition() {
             return nullptr;
         };
 
+        // AI NPC registration callback: creates AIController when agencyLevel >= 1
+        subsystems.aiRegister = [this](Scene::Entity* entity, const std::string& entityId,
+                                        const std::string& npcName, const std::string& personality) {
+            if (!aiSystem) {
+                LOG_WARN("Application", "Cannot register AI NPC '{}': AI system not initialized", npcName);
+                return;
+            }
+            std::string recipe = Core::AssetManager::instance().resolveRecipe("characters/" + entityId + ".yaml");
+            if (recipe.empty()) {
+                recipe = Core::AssetManager::instance().resolveRecipe("characters/guard.yaml");
+            }
+            std::string personalityStr = personality;
+            if (personalityStr.empty()) {
+                personalityStr = "You are " + npcName + ", an NPC in a voxel world. Stay in character and be conversational.";
+            }
+            if (aiSystem->createAINPC(entity, entityId, recipe, personalityStr)) {
+                LOG_INFO("Application", "Registered AI NPC '{}' (id={}) with AI system", npcName, entityId);
+            } else {
+                LOG_WARN("Application", "AI NPC '{}' registered but AIController creation failed (server may not be running)", npcName);
+            }
+        };
+
         auto result = Core::GameDefinitionLoader::load(gameDef, subsystems);
         if (result.success) {
             LOG_INFO("Application", "Game definition loaded: {} chunks, {} structures, {} NPCs", result.chunksGenerated, result.structuresPlaced, result.npcsSpawned);
@@ -1863,6 +1959,15 @@ void Application::autoLoadGameDefinition() {
             if (inputManager && camera) {
                 inputManager->setCameraPosition(camera->getPosition());
                 inputManager->setYawPitch(camera->getYaw(), camera->getPitch());
+            }
+
+            // If a player was spawned, switch to third-person camera and character control
+            if (result.playerSpawned && physicsCharacter && camera) {
+                camera->setMode(Graphics::CameraMode::ThirdPerson);
+                currentControlTarget = ControlTarget::PhysicsCharacter;
+                isControllingPhysicsCharacter = true;
+                physicsCharacter->setControlActive(true);
+                LOG_INFO("Application", "Camera set to ThirdPerson following player");
             }
         } else {
             LOG_ERROR("Application", "Failed to load game definition: {}", result.error);
@@ -2009,7 +2114,7 @@ void Application::processAPICommands() {
                 }
 
             } else if (cmd.action == "fill_region") {
-                // Fill a 3D box with voxels
+                // Fill a 3D box with voxels — batched per-chunk for performance
                 if (!chunkManager) {
                     response = {{"error", "ChunkManager not available"}};
                 } else {
@@ -2034,26 +2139,37 @@ void Application::processAPICommands() {
                                     {"volume", volume}, {"max_volume", 100000}};
                     } else {
                         int placed = 0, failed = 0;
+
+                        // Group positions by chunk for batch placement
+                        std::unordered_map<glm::ivec3, std::vector<glm::ivec3>, ChunkCoordHash> chunkBatches;
                         for (int ix = minX; ix <= maxX; ++ix) {
                             for (int iy = minY; iy <= maxY; ++iy) {
                                 for (int iz = minZ; iz <= maxZ; ++iz) {
-                                    // Skip interior voxels if hollow
                                     if (hollow &&
                                         ix > minX && ix < maxX &&
                                         iy > minY && iy < maxY &&
                                         iz > minZ && iz < maxZ) {
                                         continue;
                                     }
-                                    bool ok = false;
-                                    if (!material.empty()) {
-                                        ok = chunkManager->m_voxelModificationSystem.addCubeWithMaterial(
-                                            glm::ivec3(ix, iy, iz), material);
-                                    } else {
-                                        ok = chunkManager->addCube(glm::ivec3(ix, iy, iz));
-                                    }
-                                    if (ok) ++placed; else ++failed;
+                                    glm::ivec3 worldPos(ix, iy, iz);
+                                    glm::ivec3 cc = ChunkManager::worldToChunkCoord(worldPos);
+                                    glm::ivec3 lp = ChunkManager::worldToLocalCoord(worldPos);
+                                    chunkBatches[cc].push_back(lp);
                                 }
                             }
+                        }
+
+                        for (auto& [cc, positions] : chunkBatches) {
+                            // Ensure chunk exists
+                            if (!chunkManager->getChunkAtCoord(cc)) {
+                                glm::ivec3 origin = cc * 32;
+                                chunkManager->createChunk(origin, false);
+                            }
+                            Chunk* chunk = chunkManager->getChunkAtCoord(cc);
+                            if (!chunk) { failed += static_cast<int>(positions.size()); continue; }
+                            int batchPlaced = chunk->addCubesBatch(positions, material);
+                            placed += batchPlaced;
+                            failed += static_cast<int>(positions.size()) - batchPlaced;
                         }
                         response = {{"success", true}, {"placed", placed}, {"failed", failed},
                                     {"volume", volume}, {"hollow", hollow},
@@ -2121,7 +2237,7 @@ void Application::processAPICommands() {
                 }
 
             } else if (cmd.action == "clear_region") {
-                // Clear (remove) all voxels in a 3D box
+                // Clear (remove) all voxels in a 3D box — batched per-chunk for performance
                 if (!chunkManager) {
                     response = {{"error", "ChunkManager not available"}};
                 } else {
@@ -2142,12 +2258,38 @@ void Application::processAPICommands() {
                                     {"volume", volume}, {"max_volume", 100000}};
                     } else {
                         int removed = 0, skipped = 0;
+
+                        // Group positions by chunk for batch removal
+                        std::unordered_map<glm::ivec3, std::vector<glm::ivec3>, ChunkCoordHash> chunkBatches;
                         for (int ix = minX; ix <= maxX; ++ix) {
                             for (int iy = minY; iy <= maxY; ++iy) {
                                 for (int iz = minZ; iz <= maxZ; ++iz) {
-                                    bool ok = chunkManager->removeCube(glm::ivec3(ix, iy, iz));
-                                    if (ok) ++removed; else ++skipped;
+                                    glm::ivec3 worldPos(ix, iy, iz);
+                                    glm::ivec3 cc = ChunkManager::worldToChunkCoord(worldPos);
+                                    glm::ivec3 lp = ChunkManager::worldToLocalCoord(worldPos);
+                                    chunkBatches[cc].push_back(lp);
                                 }
+                            }
+                        }
+
+                        for (auto& [cc, positions] : chunkBatches) {
+                            Chunk* chunk = chunkManager->getChunkAtCoord(cc);
+                            if (!chunk) { skipped += static_cast<int>(positions.size()); continue; }
+
+                            // If clearing all 32k positions, use fast path
+                            if (positions.size() >= 32 * 32 * 32) {
+                                // Count existing cubes before clearing
+                                int existing = 0;
+                                for (const auto& p : positions) {
+                                    if (chunk->getCubeAt(p)) ++existing;
+                                }
+                                chunk->clearAll();
+                                removed += existing;
+                                skipped += static_cast<int>(positions.size()) - existing;
+                            } else {
+                                int batchRemoved = chunk->removeCubesBatch(positions);
+                                removed += batchRemoved;
+                                skipped += static_cast<int>(positions.size()) - batchRemoved;
                             }
                         }
                         response = {{"success", true}, {"removed", removed}, {"skipped", skipped},
@@ -2161,6 +2303,165 @@ void Application::processAPICommands() {
                                 {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}
                             });
                         }
+                    }
+                }
+
+            } else if (cmd.action == "clear_chunk") {
+                // Instantly clear all voxels in a chunk (bulk operation)
+                if (!chunkManager) {
+                    response = {{"error", "ChunkManager not available"}};
+                } else {
+                    int cx = cmd.params.value("x", 0);
+                    int cy = cmd.params.value("y", 0);
+                    int cz = cmd.params.value("z", 0);
+                    glm::ivec3 cc(cx, cy, cz);
+                    bool ok = chunkManager->clearChunk(cc);
+                    if (ok) {
+                        response = {{"success", true}, {"chunk", {{"x", cx}, {"y", cy}, {"z", cz}}}};
+                        if (gameEventLog) {
+                            gameEventLog->emit("chunk_cleared", {{"chunk", {{"x", cx}, {"y", cy}, {"z", cz}}}});
+                        }
+                    } else {
+                        response = {{"error", "Chunk not found"}, {"chunk", {{"x", cx}, {"y", cy}, {"z", cz}}}};
+                    }
+                }
+
+            } else if (cmd.action == "rebuild_physics") {
+                // Force rebuild physics collision for all or specific chunks
+                if (!chunkManager) {
+                    response = {{"error", "ChunkManager not available"}};
+                } else {
+                    int rebuilt = 0;
+                    if (cmd.params.contains("chunk")) {
+                        int cx = cmd.params["chunk"].value("x", 0);
+                        int cy = cmd.params["chunk"].value("y", 0);
+                        int cz = cmd.params["chunk"].value("z", 0);
+                        Chunk* chunk = chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz));
+                        if (chunk) { chunk->forcePhysicsRebuild(); rebuilt = 1; }
+                    } else {
+                        for (auto& chunk : chunkManager->chunks) {
+                            if (chunk) { chunk->forcePhysicsRebuild(); ++rebuilt; }
+                        }
+                    }
+                    response = {{"success", true}, {"chunks_rebuilt", rebuilt}};
+                }
+
+            } else if (cmd.action == "clear_all_entities") {
+                // Remove all entities from the world
+                if (!entityRegistry) {
+                    response = {{"error", "EntityRegistry not available"}};
+                } else {
+                    int count = static_cast<int>(entityRegistry->getAllIds().size());
+                    entityRegistry->clear();
+                    entities.clear();
+                    player = nullptr;
+                    physicsCharacter = nullptr;
+                    spiderCharacter = nullptr;
+                    animatedCharacter = nullptr;
+                    response = {{"success", true}, {"removed", count}};
+                    if (gameEventLog) {
+                        gameEventLog->emit("all_entities_cleared", {{"removed", count}});
+                    }
+                }
+
+            } else if (cmd.action == "reload_game_definition") {
+                // Destructive reload: clear entities, NPCs, story, then load fresh
+                if (!chunkManager) {
+                    response = {{"error", "ChunkManager not available"}};
+                } else {
+                    // Clear entities
+                    if (entityRegistry) {
+                        entityRegistry->clear();
+                    }
+                    entities.clear();
+                    player = nullptr;
+                    physicsCharacter = nullptr;
+                    spiderCharacter = nullptr;
+                    animatedCharacter = nullptr;
+
+                    // Clear NPC / dialogue / story subsystems
+                    if (npcManager) {
+                        auto names = npcManager->getAllNPCNames();
+                        for (const auto& n : names) npcManager->removeNPC(n);
+                    }
+                    if (dialogueSystem) dialogueSystem->endConversation();
+                    if (storyEngine) {
+                        auto charIds = storyEngine->getCharacterIds();
+                        for (const auto& cid : charIds) storyEngine->removeCharacter(cid);
+                    }
+
+                    // Load the game definition
+                    std::string jsonStr = cmd.params.value("definition", "");
+                    if (jsonStr.empty()) {
+                        response = {{"error", "No definition provided"}};
+                    } else {
+                        try {
+                            auto defJson = nlohmann::json::parse(jsonStr);
+
+                            Core::GameSubsystems subsystems;
+                            subsystems.chunkManager = chunkManager;
+                            subsystems.npcManager = npcManager.get();
+                            subsystems.entityRegistry = entityRegistry.get();
+                            subsystems.templateManager = objectTemplateManager.get();
+                            subsystems.gameEventLog = gameEventLog.get();
+                            subsystems.camera = camera;
+                            subsystems.dialogueSystem = dialogueSystem.get();
+                            subsystems.storyEngine = storyEngine.get();
+                            subsystems.entitySpawner = [this](const std::string& type, const glm::vec3& pos,
+                                                               const std::string& animFile) -> Scene::Entity* {
+                                if (type == "physics") return createPhysicsCharacter(pos);
+                                else if (type == "spider") return createSpiderCharacter(pos);
+                                else if (type == "animated") return createAnimatedCharacter(pos, animFile);
+                                return nullptr;
+                            };
+                            subsystems.aiRegister = [this](Scene::Entity* entity, const std::string& entityId,
+                                                            const std::string& npcName, const std::string& personality) {
+                                if (!aiSystem) return;
+                                std::string recipe = Core::AssetManager::instance().resolveRecipe("characters/" + entityId + ".yaml");
+                                if (recipe.empty()) recipe = Core::AssetManager::instance().resolveRecipe("characters/guard.yaml");
+                                std::string p = personality.empty() ? "You are " + npcName + ", an NPC in a voxel world." : personality;
+                                aiSystem->createAINPC(entity, entityId, recipe, p);
+                            };
+
+                            auto loadResult = Core::GameDefinitionLoader::load(defJson, subsystems);
+                            response = loadResult.toJson();
+                            response["reloaded"] = true;
+
+                            // Switch to third-person if player was spawned
+                            if (loadResult.playerSpawned && physicsCharacter && camera) {
+                                camera->setMode(Graphics::CameraMode::ThirdPerson);
+                                currentControlTarget = ControlTarget::PhysicsCharacter;
+                                isControllingPhysicsCharacter = true;
+                                physicsCharacter->setControlActive(true);
+                            }
+                        } catch (const std::exception& ex) {
+                            response = {{"error", ex.what()}};
+                        }
+                    }
+                }
+
+            } else if (cmd.action == "get_terrain_height") {
+                // Query the surface Y coordinate at a given (x, z)
+                if (!chunkManager) {
+                    response = {{"error", "ChunkManager not available"}};
+                } else {
+                    int qx = cmd.params.value("x", 0);
+                    int qz = cmd.params.value("z", 0);
+                    int maxY = cmd.params.value("max_y", 255);
+                    int minY = cmd.params.value("min_y", 0);
+
+                    int surfaceY = -1;
+                    for (int y = maxY; y >= minY; --y) {
+                        if (chunkManager->hasVoxelAt(glm::ivec3(qx, y, qz))) {
+                            surfaceY = y;
+                            break;
+                        }
+                    }
+                    if (surfaceY >= 0) {
+                        response = {{"x", qx}, {"z", qz}, {"surface_y", surfaceY}, {"spawn_y", surfaceY + 1}};
+                    } else {
+                        response = {{"x", qx}, {"z", qz}, {"surface_y", nullptr}, {"spawn_y", nullptr},
+                                    {"message", "No terrain found"}};
                     }
                 }
 
@@ -3051,6 +3352,25 @@ void Application::processAPICommands() {
             // ================================================================
             // DIALOGUE COMMANDS
             // ================================================================
+            } else if (cmd.action == "interact_npc") {
+                // Trigger the same interaction callback as pressing E near an NPC
+                std::string npcName = cmd.params.value("name", "");
+                if (npcName.empty()) {
+                    response = {{"error", "Required: 'name' (NPC name)"}};
+                } else if (!npcManager) {
+                    response = {{"error", "NPCManager not available"}};
+                } else {
+                    auto* npc = npcManager->getNPC(npcName);
+                    if (!npc) {
+                        response = {{"error", "NPC not found: " + npcName}};
+                    } else if (!interactionManager) {
+                        response = {{"error", "InteractionManager not available"}};
+                    } else {
+                        interactionManager->triggerInteraction(npc);
+                        response = {{"success", true}, {"npc", npcName}};
+                    }
+                }
+
             } else if (cmd.action == "start_dialogue") {
                 if (!dialogueSystem) {
                     response = {{"error", "DialogueSystem not available"}};
@@ -3369,8 +3689,25 @@ void Application::processAPICommands() {
                     return nullptr;
                 };
 
+                subsystems.aiRegister = [this](Scene::Entity* entity, const std::string& entityId,
+                                                const std::string& npcName, const std::string& personality) {
+                    if (!aiSystem) return;
+                    std::string recipe = Core::AssetManager::instance().resolveRecipe("characters/" + entityId + ".yaml");
+                    if (recipe.empty()) recipe = Core::AssetManager::instance().resolveRecipe("characters/guard.yaml");
+                    std::string p = personality.empty() ? "You are " + npcName + ", an NPC in a voxel world." : personality;
+                    aiSystem->createAINPC(entity, entityId, recipe, p);
+                };
+
                 auto loadResult = Core::GameDefinitionLoader::load(cmd.params, subsystems);
                 response = loadResult.toJson();
+
+                // Switch to third-person if player was spawned
+                if (loadResult.playerSpawned && physicsCharacter && camera) {
+                    camera->setMode(Graphics::CameraMode::ThirdPerson);
+                    currentControlTarget = ControlTarget::PhysicsCharacter;
+                    isControllingPhysicsCharacter = true;
+                    physicsCharacter->setControlActive(true);
+                }
 
             } else if (cmd.action == "export_game_definition") {
                 Core::GameSubsystems subsystems;
@@ -3397,6 +3734,14 @@ void Application::processAPICommands() {
                     subsystems.gameEventLog = gameEventLog.get();
                     subsystems.dialogueSystem = dialogueSystem.get();
                     subsystems.storyEngine = storyEngine.get();
+                    subsystems.aiRegister = [this](Scene::Entity* entity, const std::string& entityId,
+                                                    const std::string& npcName, const std::string& personality) {
+                        if (!aiSystem) return;
+                        std::string recipe = Core::AssetManager::instance().resolveRecipe("characters/" + entityId + ".yaml");
+                        if (recipe.empty()) recipe = Core::AssetManager::instance().resolveRecipe("characters/guard.yaml");
+                        std::string p = personality.empty() ? "You are " + npcName + ", an NPC in a voxel world." : personality;
+                        aiSystem->createAINPC(entity, entityId, recipe, p);
+                    };
 
                     nlohmann::json npcArray = nlohmann::json::array();
                     npcArray.push_back(cmd.params);

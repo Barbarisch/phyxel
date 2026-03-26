@@ -150,6 +150,40 @@ bool Chunk::addCube(const glm::ivec3& localPos, const std::string& material) {
     return voxelManager.addCube(localPos, material);
 }
 
+int Chunk::removeCubesBatch(const std::vector<glm::ivec3>& positions) {
+    return voxelManager.removeCubesBatch(positions);
+}
+
+int Chunk::addCubesBatch(const std::vector<glm::ivec3>& positions, const std::string& material) {
+    return voxelManager.addCubesBatch(positions, material);
+}
+
+void Chunk::clearAll() {
+    // Bulk clear: reset all cubes to nullptr (no per-voxel callbacks)
+    for (auto& cube : cubes) {
+        cube.reset();
+    }
+    staticSubcubes.clear();
+    staticMicrocubes.clear();
+
+    // Clear all hash maps in one pass
+    voxelManager.clearAllVoxels();
+
+    // Clear collision spatial grid
+    auto& grid = physicsManager.getCollisionGrid();
+    grid.clear();
+    physicsManager.getCollisionNeedsUpdateRef() = false;
+
+    // Single rebuild of faces (now empty), GPU buffer, and physics
+    rebuildFaces();
+    updateVulkanBuffer();
+    forcePhysicsRebuild();
+
+    setDirty(true);
+
+    LOG_INFO_FMT("Chunk", "Bulk cleared chunk at (" << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z << ")");
+}
+
 void Chunk::populateWithCubes() {
     cubes.clear();
     

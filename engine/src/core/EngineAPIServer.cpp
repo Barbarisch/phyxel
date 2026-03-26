@@ -531,6 +531,84 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/world/clear_chunk — Instantly clear all voxels in a chunk
+    // Body: { "x":0, "y":0, "z":0 }  (chunk coordinates, not world)
+    // ====================================================================
+    srv.Post("/api/world/clear_chunk", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("clear_chunk", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/world/rebuild_physics — Force rebuild physics collision
+    // Body: { "chunk": {"x":0,"y":0,"z":0} }  (optional, rebuilds all if omitted)
+    // ====================================================================
+    srv.Post("/api/world/rebuild_physics", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::object();
+            if (!req.body.empty()) params = json::parse(req.body);
+            json result = queueAndWait("rebuild_physics", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/entities/clear — Remove all entities from the world
+    // ====================================================================
+    srv.Post("/api/entities/clear", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::object();
+            json result = queueAndWait("clear_all_entities", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/game/reload — Destructive reload of game definition
+    // Body: { "definition": "{...json string...}" }
+    // ====================================================================
+    srv.Post("/api/game/reload", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("reload_game_definition", params, 30000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // GET /api/world/terrain_height — Query surface Y at (x, z)
+    // Query: ?x=16&z=16&max_y=255&min_y=0
+    // ====================================================================
+    srv.Get("/api/world/terrain_height", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("x")) params["x"] = std::stoi(req.get_param_value("x"));
+        if (req.has_param("z")) params["z"] = std::stoi(req.get_param_value("z"));
+        if (req.has_param("max_y")) params["max_y"] = std::stoi(req.get_param_value("max_y"));
+        if (req.has_param("min_y")) params["min_y"] = std::stoi(req.get_param_value("min_y"));
+        json result = queueAndWait("get_terrain_height", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
     // POST /api/world/save — Save dirty chunks to database
     // Body: { "all": false }  (optional, default saves only dirty chunks)
     // ====================================================================
@@ -793,6 +871,19 @@ void EngineAPIServer::setupRoutes() {
         try {
             json params = json::parse(req.body);
             json result = queueAndWait("set_npc_dialogue", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/dialogue/interact — Interact with an NPC (like pressing E near them)
+    srv.Post("/api/dialogue/interact", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("interact_npc", params);
             res.set_content(result.dump(), "application/json");
         } catch (const json::exception& e) {
             json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};

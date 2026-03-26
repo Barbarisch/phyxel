@@ -88,7 +88,8 @@ void DialogueSystem::endConversation() {
 
     if (m_gameEventLog) {
         m_gameEventLog->emit("conversation_ended", {
-            {"npc", m_npcName}, {"lastNode", m_currentNodeId}
+            {"npc", m_npcName}, {"lastNode", m_currentNodeId},
+            {"ai_mode", m_isAIMode}
         });
     }
 
@@ -108,9 +109,39 @@ void DialogueSystem::endConversation() {
     m_availableChoices.clear();
     m_typingProgress = 0.0f;
     m_revealedCharCount = 0;
+
+    // Reset AI state
+    m_isAIMode = false;
+    m_inputBuffer[0] = '\0';
+    m_conversationHistory.clear();
+    m_aiSendCallback = nullptr;
+    m_aiEnhanceCallback = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(m_pendingMutex);
+        m_hasPendingResponse = false;
+        m_pendingResponseText.clear();
+        m_pendingResponseEmotion.clear();
+    }
+    {
+        std::lock_guard<std::mutex> lock(m_enhanceMutex);
+        m_hasPendingEnhancement = false;
+        m_pendingEnhanceNodeId.clear();
+        m_pendingEnhanceText.clear();
+        m_pendingEnhanceEmotion.clear();
+    }
 }
 
 void DialogueSystem::update(float dt) {
+    // Check for pending AI response (thread-safe)
+    if (m_isAIMode && m_state == DialogueState::AIWaitingForResponse) {
+        applyPendingAIResponse();
+    }
+
+    // Check for pending AI enhancement (hybrid dialogue)
+    if (m_aiEnhanceCallback) {
+        applyPendingEnhancement();
+    }
+
     if (m_state != DialogueState::Typing) return;
 
     m_typingProgress += dt * m_typingSpeed;
@@ -149,16 +180,166 @@ void DialogueSystem::loadNode(const std::string& nodeId) {
     }
 
     m_state = DialogueState::Typing;
+
+    // Request AI enhancement if available (async — static text shows immediately)
+    if (m_aiEnhanceCallback) {
+        m_aiEnhanceCallback(node->id, node->text, node->speaker, node->emotion);
+    }
 }
 
 void DialogueSystem::finishTyping() {
     m_revealedText = m_currentFullText;
     m_revealedCharCount = static_cast<int>(m_currentFullText.size());
 
+    if (m_isAIMode) {
+        // In AI mode, after NPC finishes typing, go back to text input
+        m_state = DialogueState::AITextInput;
+        return;
+    }
+
     if (!m_availableChoices.empty()) {
         m_state = DialogueState::ChoiceSelection;
     } else {
         m_state = DialogueState::WaitingForInput;
+    }
+}
+
+// ============================================================================
+// AI Conversation
+// ============================================================================
+
+bool DialogueSystem::startAIConversation(Scene::NPCEntity* npc, const std::string& npcName,
+                                          AISendCallback sendCallback) {
+    if (m_state != DialogueState::Inactive) return false;
+    if (!sendCallback) return false;
+
+    m_npc = npc;
+    m_npcName = npcName;
+    m_isAIMode = true;
+    m_aiSendCallback = std::move(sendCallback);
+    m_inputBuffer[0] = '\0';
+    m_conversationHistory.clear();
+
+    m_currentSpeaker = npcName;
+    m_currentFullText.clear();
+    m_currentEmotion.clear();
+    m_revealedText.clear();
+
+    m_state = DialogueState::AITextInput;
+
+    LOG_INFO("DialogueSystem", "Started AI conversation with '{}'", npcName);
+
+    if (m_gameEventLog) {
+        m_gameEventLog->emit("ai_conversation_started", {{"npc", npcName}});
+    }
+    return true;
+}
+
+void DialogueSystem::submitPlayerMessage() {
+    if (m_state != DialogueState::AITextInput) return;
+
+    std::string message(m_inputBuffer);
+    // Trim whitespace
+    size_t start = message.find_first_not_of(" \t\n\r");
+    size_t end = message.find_last_not_of(" \t\n\r");
+    if (start == std::string::npos) return; // empty message
+    message = message.substr(start, end - start + 1);
+
+    if (message.empty()) return;
+
+    // Add player message to history
+    m_conversationHistory.push_back({"Player", message, ""});
+
+    // Clear input buffer
+    m_inputBuffer[0] = '\0';
+
+    // Show "waiting" state
+    m_currentSpeaker = m_npcName;
+    m_currentFullText = "...";
+    m_revealedText = "...";
+    m_state = DialogueState::AIWaitingForResponse;
+
+    LOG_DEBUG("DialogueSystem", "Player said to '{}': {}", m_npcName, message);
+
+    // Send to AI
+    if (m_aiSendCallback) {
+        m_aiSendCallback(message);
+    }
+}
+
+void DialogueSystem::receiveAIResponse(const std::string& text, const std::string& emotion) {
+    std::lock_guard<std::mutex> lock(m_pendingMutex);
+    m_pendingResponseText = text;
+    m_pendingResponseEmotion = emotion;
+    m_hasPendingResponse = true;
+}
+
+void DialogueSystem::applyPendingAIResponse() {
+    std::string text, emotion;
+    {
+        std::lock_guard<std::mutex> lock(m_pendingMutex);
+        if (!m_hasPendingResponse) return;
+        text = std::move(m_pendingResponseText);
+        emotion = std::move(m_pendingResponseEmotion);
+        m_hasPendingResponse = false;
+    }
+
+    // Add NPC response to history
+    m_conversationHistory.push_back({m_npcName, text, emotion});
+
+    // Start typewriter effect for the response
+    m_currentSpeaker = m_npcName;
+    m_currentFullText = text;
+    m_currentEmotion = emotion;
+    m_revealedText.clear();
+    m_typingProgress = 0.0f;
+    m_revealedCharCount = 0;
+    m_state = DialogueState::Typing;
+
+    LOG_DEBUG("DialogueSystem", "AI '{}' responded: {}", m_npcName, text);
+}
+
+// ============================================================================
+// AI Enhancement (hybrid dialogue)
+// ============================================================================
+
+void DialogueSystem::receiveAIEnhancement(const std::string& nodeId, const std::string& text, const std::string& emotion) {
+    std::lock_guard<std::mutex> lock(m_enhanceMutex);
+    m_pendingEnhanceNodeId = nodeId;
+    m_pendingEnhanceText = text;
+    m_pendingEnhanceEmotion = emotion;
+    m_hasPendingEnhancement = true;
+}
+
+void DialogueSystem::applyPendingEnhancement() {
+    std::string text, emotion, nodeId;
+    {
+        std::lock_guard<std::mutex> lock(m_enhanceMutex);
+        if (!m_hasPendingEnhancement) return;
+        text = std::move(m_pendingEnhanceText);
+        emotion = std::move(m_pendingEnhanceEmotion);
+        nodeId = std::move(m_pendingEnhanceNodeId);
+        m_hasPendingEnhancement = false;
+    }
+
+    // Only apply if still on the same node
+    if (nodeId != m_currentNodeId) return;
+
+    LOG_INFO("DialogueSystem", "AI enhancement applied for node '{}': {}", nodeId, text);
+
+    // Replace text with the AI-enhanced version
+    m_currentFullText = text;
+    if (!emotion.empty()) m_currentEmotion = emotion;
+
+    if (m_state == DialogueState::Typing) {
+        // Still typing — restart typewriter with AI text
+        m_revealedText.clear();
+        m_typingProgress = 0.0f;
+        m_revealedCharCount = 0;
+    } else {
+        // Already past typing (e.g. ChoiceSelection) — swap in the final text directly
+        m_revealedText = text;
+        m_revealedCharCount = static_cast<int>(text.size());
     }
 }
 

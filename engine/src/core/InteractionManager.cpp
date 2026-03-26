@@ -53,5 +53,13 @@ void InteractionManager::tryInteract(Scene::Entity* playerEntity) {
     }
 }
 
+void InteractionManager::triggerInteraction(Scene::NPCEntity* npc) {
+    if (!npc) return;
+    LOG_INFO("InteractionManager", "API-triggered interaction with NPC '{}'", npc->getName());
+    if (m_interactCallback) {
+        m_interactCallback(npc);
+    }
+}
+
 } // namespace Core
 } // namespace Phyxel

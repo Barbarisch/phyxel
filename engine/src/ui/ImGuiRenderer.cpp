@@ -823,7 +823,9 @@ void ImGuiRenderer::renderDialogueBox(DialogueSystem* dialogueSystem) {
 
     // Get display size for positioning
     ImVec2 displaySize = ImGui::GetIO().DisplaySize;
-    float boxHeight = displaySize.y * 0.25f;
+    float boxHeight = dialogueSystem->isAIConversation()
+                          ? displaySize.y * 0.4f   // Taller box for AI conversation history
+                          : displaySize.y * 0.25f;
     float boxWidth = displaySize.x * 0.8f;
     float boxX = (displaySize.x - boxWidth) * 0.5f;
     float boxY = displaySize.y - boxHeight - 20.0f;
@@ -836,41 +838,124 @@ void ImGuiRenderer::renderDialogueBox(DialogueSystem* dialogueSystem) {
                                     ImGuiWindowFlags_NoResize |
                                     ImGuiWindowFlags_NoMove |
                                     ImGuiWindowFlags_NoCollapse |
-                                    ImGuiWindowFlags_NoScrollbar;
+                                    ImGuiWindowFlags_NoFocusOnAppearing |
+                                    ImGuiWindowFlags_NoNav;
 
     if (ImGui::Begin("##DialogueBox", nullptr, windowFlags)) {
         // Speaker name
         const auto& speaker = dialogueSystem->getCurrentSpeaker();
         if (!speaker.empty()) {
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.8f, 1.0f, 1.0f));
-            ImGui::Text("%s", speaker.c_str());
+            if (dialogueSystem->isAIConversation()) {
+                ImGui::Text("Talking to %s  [AI]", speaker.c_str());
+            } else {
+                ImGui::Text("%s", speaker.c_str());
+            }
             ImGui::PopStyleColor();
             ImGui::Separator();
         }
 
-        // Dialogue text (typewriter effect)
-        const auto& text = dialogueSystem->getRevealedText();
-        ImGui::TextWrapped("%s", text.c_str());
+        if (dialogueSystem->isAIConversation()) {
+            // === AI conversation rendering ===
+            const auto& history = dialogueSystem->getConversationHistory();
+            auto state = dialogueSystem->getState();
 
-        // Show choices if in choice selection state
-        if (dialogueSystem->getState() == DialogueState::ChoiceSelection) {
-            ImGui::Spacing();
-            ImGui::Separator();
-            const auto& choices = dialogueSystem->getAvailableChoices();
-            for (size_t i = 0; i < choices.size(); ++i) {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.9f, 0.4f, 1.0f));
-                ImGui::Text("[%zu] %s", i + 1, choices[i].text.c_str());
+            // Scrollable conversation history
+            float inputAreaHeight = 30.0f;
+            float historyHeight = ImGui::GetContentRegionAvail().y - inputAreaHeight - 10.0f;
+
+            ImGui::BeginChild("##ConversationHistory", ImVec2(0, historyHeight), false,
+                               ImGuiWindowFlags_NoScrollbar);
+            for (const auto& msg : history) {
+                if (msg.speaker == "Player") {
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 1.0f, 0.4f, 1.0f));
+                    ImGui::TextWrapped("You: %s", msg.text.c_str());
+                    ImGui::PopStyleColor();
+                } else {
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.85f, 0.7f, 1.0f));
+                    ImGui::TextWrapped("%s: %s", msg.speaker.c_str(), msg.text.c_str());
+                    ImGui::PopStyleColor();
+                }
+                ImGui::Spacing();
+            }
+
+            // Show current typing response
+            if (state == DialogueState::Typing) {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.85f, 0.7f, 1.0f));
+                ImGui::TextWrapped("%s: %s", speaker.c_str(),
+                                   dialogueSystem->getRevealedText().c_str());
                 ImGui::PopStyleColor();
             }
-        }
 
-        // Continue indicator
-        if (dialogueSystem->getState() == DialogueState::WaitingForInput) {
-            ImGui::SetCursorPosX(boxWidth - 100.0f);
-            float pulse = 0.5f + 0.5f * sinf(static_cast<float>(ImGui::GetTime()) * 3.0f);
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, pulse));
-            ImGui::Text("[Enter] >>>");
+            // Waiting indicator
+            if (state == DialogueState::AIWaitingForResponse) {
+                float pulse = 0.5f + 0.5f * sinf(static_cast<float>(ImGui::GetTime()) * 3.0f);
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, pulse));
+                ImGui::TextWrapped("%s is thinking...", speaker.c_str());
+                ImGui::PopStyleColor();
+            }
+
+            // Auto-scroll to bottom
+            if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 20.0f) {
+                ImGui::SetScrollHereY(1.0f);
+            }
+            ImGui::EndChild();
+
+            // Text input area
+            if (state == DialogueState::AITextInput) {
+                ImGui::Separator();
+                ImGui::PushItemWidth(boxWidth - 100.0f);
+
+                // Focus the input field automatically
+                if (ImGui::IsWindowAppearing() || !ImGui::IsAnyItemActive()) {
+                    ImGui::SetKeyboardFocusHere();
+                }
+
+                bool submitted = ImGui::InputText("##AIInput",
+                    dialogueSystem->getInputBuffer(),
+                    DialogueSystem::INPUT_BUFFER_SIZE,
+                    ImGuiInputTextFlags_EnterReturnsTrue);
+                ImGui::PopItemWidth();
+
+                ImGui::SameLine();
+                if (submitted || ImGui::Button("Send")) {
+                    dialogueSystem->submitPlayerMessage();
+                }
+            }
+
+            // ESC hint
+            ImGui::SetCursorPosX(boxWidth - 120.0f);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 0.7f));
+            ImGui::Text("[ESC] End");
             ImGui::PopStyleColor();
+
+        } else {
+            // === Static dialogue tree rendering ===
+
+            // Dialogue text (typewriter effect)
+            const auto& text = dialogueSystem->getRevealedText();
+            ImGui::TextWrapped("%s", text.c_str());
+
+            // Show choices if in choice selection state
+            if (dialogueSystem->getState() == DialogueState::ChoiceSelection) {
+                ImGui::Spacing();
+                ImGui::Separator();
+                const auto& choices = dialogueSystem->getAvailableChoices();
+                for (size_t i = 0; i < choices.size(); ++i) {
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.9f, 0.4f, 1.0f));
+                    ImGui::Text("[%zu] %s", i + 1, choices[i].text.c_str());
+                    ImGui::PopStyleColor();
+                }
+            }
+
+            // Continue indicator
+            if (dialogueSystem->getState() == DialogueState::WaitingForInput) {
+                ImGui::SetCursorPosX(boxWidth - 100.0f);
+                float pulse = 0.5f + 0.5f * sinf(static_cast<float>(ImGui::GetTime()) * 3.0f);
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, pulse));
+                ImGui::Text("[Enter] >>>");
+                ImGui::PopStyleColor();
+            }
         }
     }
     ImGui::End();

@@ -156,8 +156,18 @@ void EngineRuntime::shutdown() {
     // Save and clean up chunks before Vulkan device goes away
     if (chunkManager_) {
         LOG_INFO("EngineRuntime", "Saving modified chunks to database...");
+        auto saveStart = std::chrono::steady_clock::now();
         chunkManager_->saveDirtyChunks();
+        auto saveEnd = std::chrono::steady_clock::now();
+        auto saveMs = std::chrono::duration_cast<std::chrono::milliseconds>(saveEnd - saveStart).count();
+        LOG_INFO("EngineRuntime", "Chunk save complete ({} ms)", saveMs);
+
+        LOG_INFO("EngineRuntime", "Cleaning up chunk resources...");
+        auto cleanStart = std::chrono::steady_clock::now();
         chunkManager_->cleanup();
+        auto cleanEnd = std::chrono::steady_clock::now();
+        auto cleanMs = std::chrono::duration_cast<std::chrono::milliseconds>(cleanEnd - cleanStart).count();
+        LOG_INFO("EngineRuntime", "Chunk cleanup complete ({} ms)", cleanMs);
     }
 
     // Vulkan device

@@ -5,14 +5,13 @@
 #include <chrono>
 #include <fstream>
 #include <algorithm>
+#include <filesystem>
 
 // Platform-specific includes for process management
 #ifdef _WIN32
     #define WIN32_LEAN_AND_MEAN
     #define NOMINMAX
     #include <windows.h>
-    #include <winhttp.h>
-    #pragma comment(lib, "winhttp.lib")
 #else
     #include <signal.h>
     #include <sys/wait.h>
@@ -67,7 +66,7 @@ json MCPExtensionConfig::toJson() const {
 GooseBridge::GooseBridge(const GooseConfig& config)
     : m_config(config)
 {
-    LOG_INFO("AI", "GooseBridge created with server at {}", m_config.baseUrl());
+    LOG_INFO("AI", "GooseBridge created (bridge at {})", m_config.baseUrl());
 }
 
 GooseBridge::~GooseBridge() {
@@ -84,22 +83,22 @@ bool GooseBridge::startServer() {
         return true;
     }
 
-    LOG_INFO("AI", "GooseBridge: starting goose-server...");
+    LOG_INFO("AI", "GooseBridge: starting Python bridge + goose web...");
 
     if (!launchProcess()) {
-        LOG_ERROR("AI", "GooseBridge: failed to launch goosed process");
+        LOG_ERROR("AI", "GooseBridge: failed to launch bridge process");
         return false;
     }
 
     if (!waitForServerReady(m_config.startupTimeoutMs)) {
-        LOG_ERROR("AI", "GooseBridge: goosed did not become healthy within {}ms",
+        LOG_ERROR("AI", "GooseBridge: bridge did not become healthy within {}ms",
                   m_config.startupTimeoutMs);
         killProcess();
         return false;
     }
 
     m_serverRunning = true;
-    LOG_INFO("AI", "GooseBridge: goose-server is ready at {}", m_config.baseUrl());
+    LOG_INFO("AI", "GooseBridge: bridge is ready at {}", m_config.baseUrl());
 
     // Start health monitoring
     m_healthThreadRunning = true;
@@ -117,7 +116,7 @@ bool GooseBridge::startServer() {
 void GooseBridge::stopServer() {
     if (!m_serverRunning) return;
 
-    LOG_INFO("AI", "GooseBridge: stopping goose-server...");
+    LOG_INFO("AI", "GooseBridge: stopping...");
 
     // Stop health monitor
     m_healthThreadRunning = false;
@@ -125,14 +124,14 @@ void GooseBridge::stopServer() {
         m_healthThread.join();
     }
 
-    // Destroy all active sessions
+    // Destroy all active sessions via bridge
     {
         std::lock_guard<std::mutex> lock(m_sessionsMutex);
         for (auto& [id, session] : m_sessions) {
             if (session.isActive) {
                 json body;
                 body["session_id"] = id;
-                httpPost("/agent/stop", body);
+                httpPost("/session/destroy", body);
                 session.isActive = false;
             }
         }
@@ -149,7 +148,7 @@ void GooseBridge::stopServer() {
         if (m_serverStateCallback) m_serverStateCallback(false);
     }
 
-    LOG_INFO("AI", "GooseBridge: server stopped");
+    LOG_INFO("AI", "GooseBridge: stopped");
 }
 
 bool GooseBridge::isServerRunning() const {
@@ -162,99 +161,22 @@ void GooseBridge::setServerStateCallback(ServerStateCallback callback) {
 }
 
 // ============================================================================
-// Extension Management
+// Extension Management (stub — reserved for future use)
 // ============================================================================
 
 bool GooseBridge::registerPhyxelExtension() {
-    MCPExtensionConfig ext;
-    ext.name = "phyxel";
-    ext.type = "stdio";
-    ext.command = "python";
-    ext.args = {m_config.mcpExtensionPath};
-    ext.envVars["PHYXEL_ENGINE_HOST"] = m_config.host;
-
-    return addGlobalExtension(ext);
-}
-
-bool GooseBridge::addGlobalExtension(const MCPExtensionConfig& ext) {
-    auto resp = httpPost("/config/extensions", ext.toJson());
-    if (!resp || !resp->ok()) {
-        LOG_ERROR("AI", "GooseBridge: failed to register global extension '{}'", ext.name);
-        return false;
-    }
-    LOG_INFO("AI", "GooseBridge: registered global extension '{}'", ext.name);
+    // In the bridge architecture, extensions are configured via Goose's config.yaml
+    LOG_INFO("AI", "GooseBridge: Phyxel extension registration is handled via Goose config");
     return true;
-}
-
-bool GooseBridge::addSessionExtension(const std::string& sessionId,
-                                       const MCPExtensionConfig& ext) {
-    json body;
-    body["session_id"] = sessionId;
-    body["config"] = ext.toJson()["config"];
-
-    auto resp = httpPost("/agent/add_extension", body);
-    if (!resp || !resp->ok()) {
-        LOG_ERROR("AI", "GooseBridge: failed to add extension '{}' to session {}",
-                  ext.name, sessionId);
-        return false;
-    }
-    return true;
-}
-
-bool GooseBridge::removeSessionExtension(const std::string& sessionId,
-                                          const std::string& extensionName) {
-    json body;
-    body["session_id"] = sessionId;
-    body["name"] = extensionName;
-
-    auto resp = httpPost("/agent/remove_extension", body);
-    return resp && resp->ok();
 }
 
 // ============================================================================
 // Agent Session Management
 // ============================================================================
 
-std::string GooseBridge::createSession(
-    const std::string& entityId,
-    const std::string& recipePath,
-    const std::vector<MCPExtensionConfig>& extraExtensions)
+std::string GooseBridge::createSession(const std::string& entityId)
 {
-    json body;
-    body["working_dir"] = m_config.workingDir;
-
-    // Load recipe from YAML file if provided
-    if (!recipePath.empty()) {
-        std::ifstream file(recipePath);
-        if (file.is_open()) {
-            // Read YAML and let goose-server parse it
-            std::string yamlContent((std::istreambuf_iterator<char>(file)),
-                                     std::istreambuf_iterator<char>());
-            // First parse the YAML via the recipes API
-            json parseBody;
-            parseBody["content"] = yamlContent;
-            auto parseResp = httpPost("/recipes/parse", parseBody);
-            if (parseResp && parseResp->ok()) {
-                auto parsed = json::parse(parseResp->body, nullptr, false);
-                if (!parsed.is_discarded() && parsed.contains("recipe")) {
-                    body["recipe"] = parsed["recipe"];
-                }
-            }
-        } else {
-            LOG_WARN("AI", "GooseBridge: could not open recipe file: {}", recipePath);
-        }
-    }
-
-    // Add extension overrides if any
-    if (!extraExtensions.empty()) {
-        json overrides = json::array();
-        for (const auto& ext : extraExtensions) {
-            overrides.push_back(ext.toJson());
-        }
-        body["extension_overrides"] = overrides;
-    }
-
-    auto resp = httpPost("/agent/start", body);
+    auto resp = httpPost("/session/create");
     if (!resp || !resp->ok()) {
         LOG_ERROR("AI", "GooseBridge: failed to create session for entity '{}'", entityId);
         return "";
@@ -262,7 +184,7 @@ std::string GooseBridge::createSession(
 
     auto respJson = json::parse(resp->body, nullptr, false);
     if (respJson.is_discarded() || !respJson.contains("session_id")) {
-        LOG_ERROR("AI", "GooseBridge: invalid response from /agent/start");
+        LOG_ERROR("AI", "GooseBridge: invalid response from /session/create");
         return "";
     }
 
@@ -273,7 +195,6 @@ std::string GooseBridge::createSession(
     session.sessionId = sessionId;
     session.entityId = entityId;
     session.isActive = true;
-    session.recipeName = recipePath;
 
     {
         std::lock_guard<std::mutex> lock(m_sessionsMutex);
@@ -286,32 +207,19 @@ std::string GooseBridge::createSession(
 }
 
 bool GooseBridge::resumeSession(const std::string& sessionId) {
-    json body;
-    body["session_id"] = sessionId;
-    body["load_model_and_extensions"] = true;
-
-    auto resp = httpPost("/agent/resume", body);
-    if (!resp || !resp->ok()) {
-        LOG_ERROR("AI", "GooseBridge: failed to resume session {}", sessionId);
-        return false;
+    // The bridge keeps sessions alive in Goose — just re-mark as active
+    std::lock_guard<std::mutex> lock(m_sessionsMutex);
+    if (m_sessions.count(sessionId)) {
+        m_sessions[sessionId].isActive = true;
+        return true;
     }
-
-    {
-        std::lock_guard<std::mutex> lock(m_sessionsMutex);
-        if (m_sessions.count(sessionId)) {
-            m_sessions[sessionId].isActive = true;
-        }
-    }
-
-    LOG_INFO("AI", "GooseBridge: resumed session {}", sessionId);
-    return true;
+    return false;
 }
 
 bool GooseBridge::destroySession(const std::string& sessionId) {
     json body;
     body["session_id"] = sessionId;
-
-    auto resp = httpPost("/agent/stop", body);
+    auto resp = httpPost("/session/destroy", body);
 
     {
         std::lock_guard<std::mutex> lock(m_sessionsMutex);
@@ -354,43 +262,58 @@ std::optional<std::string> GooseBridge::getSessionForEntity(const std::string& e
 // Communication
 // ============================================================================
 
-std::future<bool> GooseBridge::sendMessage(
+std::future<ChatResponse> GooseBridge::sendMessage(
     const std::string& sessionId,
-    const std::string& message,
-    SSECallback callback)
+    const std::string& message)
 {
-    json body;
-    body["session_id"] = sessionId;
-
-    // Build the user message in Goose's Message format
-    json userMsg;
-    userMsg["role"] = "user";
-    json content = json::array();
-    json textPart;
-    textPart["type"] = "text";
-    textPart["text"] = message;
-    content.push_back(textPart);
-    userMsg["content"] = content;
-    body["user_message"] = userMsg;
-
-    return std::async(std::launch::async, [this, sessionId, body, callback]() -> bool {
+    return std::async(std::launch::async, [this, sessionId, message]() -> ChatResponse {
         try {
-            processSSEStream(sessionId, body, callback);
-            return true;
+            json body;
+            body["session_id"] = sessionId;
+            body["message"] = message;
+
+            auto resp = httpPost("/chat", body);
+            if (!resp) {
+                return ChatResponse{"", {}, "Connection to bridge failed"};
+            }
+
+            auto respJson = json::parse(resp->body, nullptr, false);
+            if (respJson.is_discarded()) {
+                return ChatResponse{"", {}, "Invalid JSON response"};
+            }
+
+            ChatResponse chatResp;
+            chatResp.response = respJson.value("response", "");
+            chatResp.error = respJson.value("error", "");
+
+            if (respJson.contains("tool_calls") && respJson["tool_calls"].is_array()) {
+                chatResp.toolCalls = respJson["tool_calls"].get<std::vector<json>>();
+                // Extract engine commands from tool calls
+                extractCommands(chatResp.toolCalls);
+            }
+
+            // Notify finish callback
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                if (m_replyFinishCallback) {
+                    m_replyFinishCallback(sessionId, chatResp);
+                }
+            }
+
+            return chatResp;
         } catch (const std::exception& e) {
-            LOG_ERROR("AI", "GooseBridge: error in reply stream for session {}: {}",
+            LOG_ERROR("AI", "GooseBridge: error sending message to session {}: {}",
                       sessionId, e.what());
-            return false;
+            return ChatResponse{"", {}, e.what()};
         }
     });
 }
 
-std::future<bool> GooseBridge::sendGameEvent(
+std::future<ChatResponse> GooseBridge::sendGameEvent(
     const std::string& sessionId,
     const std::string& eventType,
     const json& eventData)
 {
-    // Format game events into natural language for the AI
     std::ostringstream msg;
     msg << "[Game Event: " << eventType << "]\n";
     msg << eventData.dump(2);
@@ -401,77 +324,6 @@ std::future<bool> GooseBridge::sendGameEvent(
 void GooseBridge::setReplyFinishCallback(ReplyFinishCallback callback) {
     std::lock_guard<std::mutex> lock(m_callbackMutex);
     m_replyFinishCallback = std::move(callback);
-}
-
-// ============================================================================
-// Recipe Management
-// ============================================================================
-
-std::optional<std::string> GooseBridge::loadRecipe(const std::string& yamlPath) {
-    std::ifstream file(yamlPath);
-    if (!file.is_open()) {
-        LOG_ERROR("AI", "GooseBridge: cannot open recipe file: {}", yamlPath);
-        return std::nullopt;
-    }
-
-    std::string content((std::istreambuf_iterator<char>(file)),
-                         std::istreambuf_iterator<char>());
-
-    // Parse YAML via goose-server
-    json parseBody;
-    parseBody["content"] = content;
-    auto parseResp = httpPost("/recipes/parse", parseBody);
-    if (!parseResp || !parseResp->ok()) {
-        LOG_ERROR("AI", "GooseBridge: failed to parse recipe: {}", yamlPath);
-        return std::nullopt;
-    }
-
-    auto parsed = json::parse(parseResp->body, nullptr, false);
-    if (parsed.is_discarded()) return std::nullopt;
-
-    // Save recipe to server
-    json saveBody;
-    saveBody["recipe"] = parsed["recipe"];
-    auto saveResp = httpPost("/recipes/save", saveBody);
-    if (!saveResp || !saveResp->ok()) {
-        LOG_ERROR("AI", "GooseBridge: failed to save recipe: {}", yamlPath);
-        return std::nullopt;
-    }
-
-    auto saveResult = json::parse(saveResp->body, nullptr, false);
-    if (saveResult.contains("id")) {
-        return saveResult["id"].get<std::string>();
-    }
-    return std::nullopt;
-}
-
-std::vector<json> GooseBridge::listRecipes() {
-    auto resp = httpGet("/recipes/list");
-    if (!resp || !resp->ok()) return {};
-
-    auto data = json::parse(resp->body, nullptr, false);
-    if (data.is_discarded() || !data.contains("manifests")) return {};
-
-    return data["manifests"].get<std::vector<json>>();
-}
-
-// ============================================================================
-// Configuration
-// ============================================================================
-
-bool GooseBridge::setProvider(const std::string& provider, const std::string& model) {
-    json body;
-    body["provider"] = provider;
-    body["model"] = model;
-
-    auto resp = httpPost("/config/set_provider", body);
-    if (resp && resp->ok()) {
-        m_config.defaultProvider = provider;
-        m_config.defaultModel = model;
-        LOG_INFO("AI", "GooseBridge: provider set to {}/{}", provider, model);
-        return true;
-    }
-    return false;
 }
 
 // ============================================================================
@@ -495,23 +347,16 @@ size_t GooseBridge::getActiveSessionCount() const {
 }
 
 // ============================================================================
-// Internal: HTTP Client
+// Internal: HTTP Client (talks to the Python bridge on bridgePort)
 // ============================================================================
 
 std::optional<GooseBridge::HttpResponse> GooseBridge::httpGet(const std::string& path) {
     try {
-        httplib::Client cli(m_config.host, m_config.port);
+        httplib::Client cli(m_config.host, m_config.bridgePort);
         cli.set_connection_timeout(5);
         cli.set_read_timeout(30);
 
-        // Disable SSL verification for self-signed certs
-        
-        httplib::Headers headers = {
-            {"X-Secret-Key", m_config.secretKey},
-            {"Accept", "application/json"}
-        };
-
-        auto result = cli.Get(path, headers);
+        auto result = cli.Get(path);
         if (!result) {
             LOG_ERROR("AI", "GooseBridge HTTP GET {} failed: connection error", path);
             return std::nullopt;
@@ -528,18 +373,12 @@ std::optional<GooseBridge::HttpResponse> GooseBridge::httpPost(
     const std::string& path, const json& body)
 {
     try {
-        httplib::Client cli(m_config.host, m_config.port);
+        httplib::Client cli(m_config.host, m_config.bridgePort);
         cli.set_connection_timeout(5);
-        cli.set_read_timeout(60);
-        
-        httplib::Headers headers = {
-            {"X-Secret-Key", m_config.secretKey},
-            {"Content-Type", "application/json"},
-            {"Accept", "application/json"}
-        };
+        cli.set_read_timeout(120);  // AI replies can take a while
 
         std::string bodyStr = body.dump();
-        auto result = cli.Post(path, headers, bodyStr, "application/json");
+        auto result = cli.Post(path, bodyStr, "application/json");
         if (!result) {
             LOG_ERROR("AI", "GooseBridge HTTP POST {} failed: connection error", path);
             return std::nullopt;
@@ -552,262 +391,76 @@ std::optional<GooseBridge::HttpResponse> GooseBridge::httpPost(
     }
 }
 
-std::optional<GooseBridge::HttpResponse> GooseBridge::httpPut(
-    const std::string& path, const json& body)
-{
-    try {
-        httplib::Client cli(m_config.host, m_config.port);
-        cli.set_connection_timeout(5);
-        cli.set_read_timeout(30);
-        
-        httplib::Headers headers = {
-            {"X-Secret-Key", m_config.secretKey},
-            {"Content-Type", "application/json"},
-            {"Accept", "application/json"}
-        };
-
-        std::string bodyStr = body.dump();
-        auto result = cli.Put(path, headers, bodyStr, "application/json");
-        if (!result) return std::nullopt;
-
-        return HttpResponse{result->status, result->body};
-    } catch (const std::exception& e) {
-        LOG_ERROR("AI", "GooseBridge HTTP PUT {} exception: {}", path, e.what());
-        return std::nullopt;
-    }
-}
-
-std::optional<GooseBridge::HttpResponse> GooseBridge::httpDelete(const std::string& path) {
-    try {
-        httplib::Client cli(m_config.host, m_config.port);
-        cli.set_connection_timeout(5);
-        cli.set_read_timeout(30);
-        
-        httplib::Headers headers = {
-            {"X-Secret-Key", m_config.secretKey}
-        };
-
-        auto result = cli.Delete(path, headers);
-        if (!result) return std::nullopt;
-
-        return HttpResponse{result->status, result->body};
-    } catch (const std::exception& e) {
-        LOG_ERROR("AI", "GooseBridge HTTP DELETE {} exception: {}", path, e.what());
-        return std::nullopt;
-    }
-}
-
 // ============================================================================
-// Internal: SSE Stream Processing
+// Internal: Command Extraction from Tool Calls
 // ============================================================================
 
-void GooseBridge::processSSEStream(
-    const std::string& sessionId,
-    const json& requestBody,
-    SSECallback callback)
-{
-    httplib::Client cli(m_config.host, m_config.port);
-    cli.set_connection_timeout(5);
-    cli.set_read_timeout(120);  // Replies can take a while
-    
-    httplib::Headers headers = {
-        {"X-Secret-Key", m_config.secretKey},
-        {"Content-Type", "application/json"},
-        {"Accept", "text/event-stream"}
-    };
+void GooseBridge::extractCommands(const std::vector<json>& toolCalls) {
+    for (const auto& call : toolCalls) {
+        std::string toolName = call.value("tool_name", "");
+        json input = call.value("arguments", json::object());
 
-    std::string bodyStr = requestBody.dump();
-    json lastMessage;
-
-    // httplib doesn't have Post overloads with ContentReceiver,
-    // so we build a Request manually to stream SSE response chunks.
-    httplib::Request req;
-    req.method = "POST";
-    req.path = "/reply";
-    req.headers = headers;
-    req.body = bodyStr;
-    req.set_header("Content-Type", "application/json");
-
-    req.content_receiver = [&](const char* data, size_t len,
-                               uint64_t /*offset*/, uint64_t /*total*/) -> bool {
-        std::string chunk(data, len);
-
-        // SSE events are separated by double newlines
-        // Each event starts with "data: "
-        std::istringstream stream(chunk);
-        std::string line;
-
-        while (std::getline(stream, line)) {
-            // Remove trailing \r
-            if (!line.empty() && line.back() == '\r') line.pop_back();
-
-            if (line.empty()) continue;
-
-            if (line.substr(0, 6) == "data: ") {
-                std::string eventData = line.substr(6);
-                SSEEvent event = parseSSEEvent(eventData);
-
-                // Track token usage
-                if (event.tokenState.has_value()) {
-                    std::lock_guard<std::mutex> lock(m_sessionsMutex);
-                    auto it = m_sessions.find(sessionId);
-                    if (it != m_sessions.end()) {
-                        it->second.totalInputTokens =
-                            event.tokenState->inputTokens;
-                        it->second.totalOutputTokens =
-                            event.tokenState->outputTokens;
-                    }
-                }
-
-                // Extract commands from message events
-                if (event.type == SSEEventType::Message) {
-                    extractCommands(event.data);
-                    lastMessage = event.data;
-                }
-
-                // Notify per-message callback
-                if (callback) callback(event);
-
-                // On Finish, notify the global callback
-                if (event.type == SSEEventType::Finish) {
-                    std::lock_guard<std::mutex> lock(m_callbackMutex);
-                    if (m_replyFinishCallback) {
-                        m_replyFinishCallback(sessionId, lastMessage);
-                    }
-                }
-
-                // Stop on error
-                if (event.type == SSEEventType::Error) {
-                    LOG_ERROR("AI", "GooseBridge: SSE error for session {}: {}",
-                              sessionId, event.data.dump());
-                    return false;
-                }
-            }
+        if (toolName == "move_to") {
+            MoveToCommand cmd;
+            cmd.entityId = input.value("entity_id", "");
+            cmd.target = glm::vec3(
+                input.value("x", 0.0f),
+                input.value("y", 0.0f),
+                input.value("z", 0.0f)
+            );
+            cmd.speed = input.value("speed", 1.0f);
+            m_commandQueue.push(std::move(cmd));
         }
-        return true;  // Continue receiving
-    };
-
-    auto result = cli.send(req);
-
-    if (!result) {
-        LOG_ERROR("AI", "GooseBridge: SSE stream for session {} failed", sessionId);
-    }
-}
-
-SSEEvent GooseBridge::parseSSEEvent(const std::string& data) {
-    SSEEvent event;
-    event.data = json::parse(data, nullptr, false);
-
-    if (event.data.is_discarded()) {
-        event.type = SSEEventType::Unknown;
-        return event;
-    }
-
-    // Parse event type from tagged union
-    std::string typeStr = event.data.value("type", "");
-    if (typeStr == "Message")              event.type = SSEEventType::Message;
-    else if (typeStr == "Error")           event.type = SSEEventType::Error;
-    else if (typeStr == "Finish")          event.type = SSEEventType::Finish;
-    else if (typeStr == "ModelChange")     event.type = SSEEventType::ModelChange;
-    else if (typeStr == "Notification")    event.type = SSEEventType::Notification;
-    else if (typeStr == "UpdateConversation") event.type = SSEEventType::UpdateConversation;
-    else if (typeStr == "Ping")            event.type = SSEEventType::Ping;
-    else                                   event.type = SSEEventType::Unknown;
-
-    // Parse token state if present
-    if (event.data.contains("token_state")) {
-        auto& ts = event.data["token_state"];
-        SSEEvent::TokenState tokenState;
-        tokenState.inputTokens = ts.value("accumulated_input_tokens", (int64_t)0);
-        tokenState.outputTokens = ts.value("accumulated_output_tokens", (int64_t)0);
-        tokenState.totalTokens = ts.value("accumulated_total_tokens", (int64_t)0);
-        event.tokenState = tokenState;
-    }
-
-    return event;
-}
-
-void GooseBridge::extractCommands(const json& message) {
-    // The AI agent's response contains tool_use results from the MCP extension.
-    // These tool calls correspond to engine commands (move_to, say_dialog, etc.)
-    // The MCP extension may also push commands directly via the callback HTTP endpoint,
-    // but we also parse them from the message for redundancy.
-
-    if (!message.contains("message")) return;
-    const auto& msg = message["message"];
-    if (!msg.contains("content")) return;
-
-    for (const auto& part : msg["content"]) {
-        if (!part.contains("type")) continue;
-        std::string partType = part["type"].get<std::string>();
-
-        if (partType == "tool_use") {
-            std::string toolName = part.value("name", "");
-            json input = part.value("input", json::object());
-
-            // Map tool calls to engine commands
-            if (toolName == "move_to") {
-                MoveToCommand cmd;
-                cmd.entityId = input.value("entity_id", "");
-                cmd.target = glm::vec3(
-                    input.value("x", 0.0f),
-                    input.value("y", 0.0f),
-                    input.value("z", 0.0f)
-                );
-                cmd.speed = input.value("speed", 1.0f);
-                m_commandQueue.push(std::move(cmd));
-            }
-            else if (toolName == "say_dialog") {
-                SayDialogCommand cmd;
-                cmd.entityId = input.value("entity_id", "");
-                cmd.text = input.value("text", "");
-                cmd.emotion = input.value("emotion", "neutral");
-                m_commandQueue.push(std::move(cmd));
-            }
-            else if (toolName == "play_animation") {
-                PlayAnimationCommand cmd;
-                cmd.entityId = input.value("entity_id", "");
-                cmd.animationName = input.value("animation_name", "");
-                cmd.loop = input.value("loop", false);
-                m_commandQueue.push(std::move(cmd));
-            }
-            else if (toolName == "attack") {
-                AttackCommand cmd;
-                cmd.entityId = input.value("entity_id", "");
-                cmd.targetId = input.value("target_id", "");
-                cmd.skillName = input.value("skill_name", "basic_attack");
-                m_commandQueue.push(std::move(cmd));
-            }
-            else if (toolName == "emote") {
-                EmoteCommand cmd;
-                cmd.entityId = input.value("entity_id", "");
-                cmd.emoteType = input.value("emote_type", "idle");
-                m_commandQueue.push(std::move(cmd));
-            }
-            else if (toolName == "spawn_entity") {
-                SpawnEntityCommand cmd;
-                cmd.templateName = input.value("template", "");
-                cmd.position = glm::vec3(
-                    input.value("x", 0.0f),
-                    input.value("y", 0.0f),
-                    input.value("z", 0.0f)
-                );
-                cmd.assignedId = input.value("entity_id", "");
-                m_commandQueue.push(std::move(cmd));
-            }
-            else if (toolName == "set_quest_state") {
-                SetQuestStateCommand cmd;
-                cmd.questId = input.value("quest_id", "");
-                cmd.state = input.value("state", "");
-                cmd.detail = input.value("detail", "");
-                m_commandQueue.push(std::move(cmd));
-            }
-            else if (toolName == "trigger_event") {
-                TriggerEventCommand cmd;
-                cmd.eventName = input.value("event_name", "");
-                cmd.payload = input.value("payload", json::object()).dump();
-                m_commandQueue.push(std::move(cmd));
-            }
+        else if (toolName == "say_dialog") {
+            SayDialogCommand cmd;
+            cmd.entityId = input.value("entity_id", "");
+            cmd.text = input.value("text", "");
+            cmd.emotion = input.value("emotion", "neutral");
+            m_commandQueue.push(std::move(cmd));
+        }
+        else if (toolName == "play_animation") {
+            PlayAnimationCommand cmd;
+            cmd.entityId = input.value("entity_id", "");
+            cmd.animationName = input.value("animation_name", "");
+            cmd.loop = input.value("loop", false);
+            m_commandQueue.push(std::move(cmd));
+        }
+        else if (toolName == "attack") {
+            AttackCommand cmd;
+            cmd.entityId = input.value("entity_id", "");
+            cmd.targetId = input.value("target_id", "");
+            cmd.skillName = input.value("skill_name", "basic_attack");
+            m_commandQueue.push(std::move(cmd));
+        }
+        else if (toolName == "emote") {
+            EmoteCommand cmd;
+            cmd.entityId = input.value("entity_id", "");
+            cmd.emoteType = input.value("emote_type", "idle");
+            m_commandQueue.push(std::move(cmd));
+        }
+        else if (toolName == "spawn_entity") {
+            SpawnEntityCommand cmd;
+            cmd.templateName = input.value("template", "");
+            cmd.position = glm::vec3(
+                input.value("x", 0.0f),
+                input.value("y", 0.0f),
+                input.value("z", 0.0f)
+            );
+            cmd.assignedId = input.value("entity_id", "");
+            m_commandQueue.push(std::move(cmd));
+        }
+        else if (toolName == "set_quest_state") {
+            SetQuestStateCommand cmd;
+            cmd.questId = input.value("quest_id", "");
+            cmd.state = input.value("state", "");
+            cmd.detail = input.value("detail", "");
+            m_commandQueue.push(std::move(cmd));
+        }
+        else if (toolName == "trigger_event") {
+            TriggerEventCommand cmd;
+            cmd.eventName = input.value("event_name", "");
+            cmd.payload = input.value("payload", json::object()).dump();
+            m_commandQueue.push(std::move(cmd));
         }
     }
 }
@@ -827,7 +480,10 @@ bool GooseBridge::waitForServerReady(uint32_t timeoutMs) {
 
         auto resp = httpGet("/status");
         if (resp && resp->ok()) {
-            return true;
+            auto data = json::parse(resp->body, nullptr, false);
+            if (!data.is_discarded() && data.value("goose_alive", false)) {
+                return true;
+            }
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -841,15 +497,19 @@ void GooseBridge::healthMonitorLoop() {
 
         auto resp = httpGet("/status");
         bool healthy = resp && resp->ok();
+        if (healthy) {
+            auto data = json::parse(resp->body, nullptr, false);
+            healthy = !data.is_discarded() && data.value("goose_alive", false);
+        }
 
         if (!healthy && m_serverRunning) {
-            LOG_WARN("AI", "GooseBridge: goose-server health check failed, attempting restart...");
+            LOG_WARN("AI", "GooseBridge: bridge health check failed, attempting restart...");
             killProcess();
 
             if (launchProcess() && waitForServerReady(m_config.startupTimeoutMs)) {
-                LOG_INFO("AI", "GooseBridge: goose-server restarted successfully");
+                LOG_INFO("AI", "GooseBridge: bridge restarted successfully");
             } else {
-                LOG_ERROR("AI", "GooseBridge: failed to restart goose-server");
+                LOG_ERROR("AI", "GooseBridge: failed to restart bridge");
                 m_serverRunning = false;
 
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
@@ -864,23 +524,57 @@ void GooseBridge::healthMonitorLoop() {
 // ============================================================================
 
 bool GooseBridge::launchProcess() {
-#ifdef _WIN32
-    // Set environment variables for the goosed process
-    SetEnvironmentVariableA("GOOSE_HOST", m_config.host.c_str());
-    SetEnvironmentVariableA("GOOSE_PORT", std::to_string(m_config.port).c_str());
-    SetEnvironmentVariableA("GOOSE_SERVER__SECRET_KEY", m_config.secretKey.c_str());
+    // Resolve paths
+    std::string goosePath = m_config.goosePath;
+    std::string bridgeScript = m_config.bridgeScript;
 
-    std::string cmdLine = m_config.goosedPath + " agent";
+    // Make paths absolute if relative
+    if (!std::filesystem::path(goosePath).is_absolute()) {
+        goosePath = (std::filesystem::current_path() / goosePath).string();
+    }
+    if (!std::filesystem::path(bridgeScript).is_absolute()) {
+        bridgeScript = (std::filesystem::current_path() / bridgeScript).string();
+    }
+
+    if (!std::filesystem::exists(goosePath)) {
+        LOG_ERROR("AI", "GooseBridge: goose binary not found at: {}", goosePath);
+        return false;
+    }
+    if (!std::filesystem::exists(bridgeScript)) {
+        LOG_ERROR("AI", "GooseBridge: bridge script not found at: {}", bridgeScript);
+        return false;
+    }
+
+#ifdef _WIN32
+    // Find Python — prefer .venv in the engine or working directory
+    std::string pythonExe = "python";
+    auto cwd = std::filesystem::current_path();
+    auto venvPython = cwd / ".venv" / "Scripts" / "python.exe";
+    if (std::filesystem::exists(venvPython)) {
+        pythonExe = "\"" + venvPython.string() + "\"";
+        LOG_INFO("AI", "GooseBridge: using venv Python at {}", venvPython.string());
+    }
+
+    // Build command line: python goose_bridge.py --goose-path <path> --goose-port <port> --bridge-port <port>
+    std::string cmdLine = pythonExe + " \"" + bridgeScript + "\""
+        + " --goose-path \"" + goosePath + "\""
+        + " --goose-port " + std::to_string(m_config.goosePort)
+        + " --bridge-port " + std::to_string(m_config.bridgePort);
 
     STARTUPINFOA si;
     PROCESS_INFORMATION pi;
     ZeroMemory(&si, sizeof(si));
     ZeroMemory(&pi, sizeof(pi));
     si.cb = sizeof(si);
-
-    // Redirect stdout/stderr for debugging
     si.dwFlags = STARTF_USESHOWWINDOW;
-    si.wShowWindow = SW_HIDE;  // Hidden window
+    si.wShowWindow = SW_HIDE;
+
+    // Pass ANTHROPIC_API_KEY from PHYXEL_AI_API_KEY if not already set
+    if (const char* phyxelKey = std::getenv("PHYXEL_AI_API_KEY")) {
+        if (!std::getenv("ANTHROPIC_API_KEY")) {
+            SetEnvironmentVariableA("ANTHROPIC_API_KEY", phyxelKey);
+        }
+    }
 
     BOOL success = CreateProcessA(
         nullptr,
@@ -901,7 +595,7 @@ bool GooseBridge::launchProcess() {
     m_processHandle = pi.hProcess;
     CloseHandle(pi.hThread);
 
-    LOG_INFO("AI", "GooseBridge: launched goosed process (PID: {})", pi.dwProcessId);
+    LOG_INFO("AI", "GooseBridge: launched bridge process (PID: {})", pi.dwProcessId);
     return true;
 #else
     pid_t pid = fork();
@@ -911,17 +605,24 @@ bool GooseBridge::launchProcess() {
     }
 
     if (pid == 0) {
-        // Child process
-        setenv("GOOSE_HOST", m_config.host.c_str(), 1);
-        setenv("GOOSE_PORT", std::to_string(m_config.port).c_str(), 1);
-        setenv("GOOSE_SERVER__SECRET_KEY", m_config.secretKey.c_str(), 1);
+        // Child process — pass ANTHROPIC_API_KEY from PHYXEL_AI_API_KEY if needed
+        if (const char* phyxelKey = std::getenv("PHYXEL_AI_API_KEY")) {
+            if (!std::getenv("ANTHROPIC_API_KEY")) {
+                setenv("ANTHROPIC_API_KEY", phyxelKey, 1);
+            }
+        }
 
-        execlp(m_config.goosedPath.c_str(), "goosed", "agent", nullptr);
+        execlp("python3", "python3",
+               bridgeScript.c_str(),
+               "--goose-path", goosePath.c_str(),
+               "--goose-port", std::to_string(m_config.goosePort).c_str(),
+               "--bridge-port", std::to_string(m_config.bridgePort).c_str(),
+               nullptr);
         _exit(1);  // exec failed
     }
 
     m_processPid = pid;
-    LOG_INFO("AI", "GooseBridge: launched goosed process (PID: {})", pid);
+    LOG_INFO("AI", "GooseBridge: launched bridge process (PID: {})", pid);
     return true;
 #endif
 }
@@ -937,7 +638,6 @@ void GooseBridge::killProcess() {
 #else
     if (m_processPid > 0) {
         kill(m_processPid, SIGTERM);
-        // Wait for graceful shutdown
         int status;
         int waited = waitpid(m_processPid, &status, WNOHANG);
         if (waited == 0) {

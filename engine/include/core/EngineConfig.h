@@ -47,6 +47,12 @@ struct EngineConfig {
     bool        enablePython  = true;
     bool        enableAudio   = true;
 
+    // -- AI / LLM ---------------------------------------------------------
+    std::string aiProvider    = "anthropic";  // "anthropic", "openai", "ollama"
+    std::string aiModel       = "";           // e.g. "claude-sonnet-4-20250514", empty = provider default
+    std::string aiApiKey      = "";           // API key (prefer env var over config file)
+    bool        aiAutoStart   = false;         // Start Goose server automatically on engine init
+
     // -- Rendering --------------------------------------------------------
     float       maxChunkRenderDistance = 256.0f;
     float       chunkInclusionDistance = 320.0f;

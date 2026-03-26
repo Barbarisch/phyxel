@@ -75,7 +75,7 @@ bool AIController::start() {
     }
 
     // Create a session for this character
-    m_sessionId = m_bridge->createSession(m_entityId, m_recipePath);
+    m_sessionId = m_bridge->createSession(m_entityId);
     if (m_sessionId.empty()) {
         LOG_ERROR("AI", "AIController: failed to create session for entity '{}'", m_entityId);
         return false;
@@ -145,7 +145,7 @@ void AIController::update(float deltaTime) {
     // Clean up completed futures
     m_pendingReplies.erase(
         std::remove_if(m_pendingReplies.begin(), m_pendingReplies.end(),
-            [](const std::future<bool>& f) {
+            [](const std::future<ChatResponse>& f) {
                 return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
             }),
         m_pendingReplies.end()

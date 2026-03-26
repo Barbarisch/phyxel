@@ -31,7 +31,7 @@ bool StoryDirector::start(const std::string& recipePath) {
         return false;
     }
 
-    m_sessionId = m_bridge->createSession("story_director", recipePath);
+    m_sessionId = m_bridge->createSession("story_director");
     if (m_sessionId.empty()) {
         LOG_ERROR("AI", "StoryDirector: failed to create session");
         return false;

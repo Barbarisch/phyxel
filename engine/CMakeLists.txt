@@ -48,6 +48,7 @@ if(PLATFORM_WINDOWS)
         pybind11::embed
         nlohmann_json::nlohmann_json
         httplib::httplib
+        winhttp
     )
     # Propagate library search paths to consumers (needed for add_subdirectory builds)
     target_link_directories(phyxel_core PUBLIC

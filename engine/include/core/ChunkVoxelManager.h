@@ -88,10 +88,15 @@ public:
         std::function<void()> updateVulkanBuffer
     );
 
+    // Bulk operations
+    void clearAllVoxels();  // Clear all hash maps (cubeMap, subcubeMap, microcubeMap, voxelTypeMap)
+
     // Cube operations
     bool addCube(const glm::ivec3& localPos);
     bool addCube(const glm::ivec3& localPos, const std::string& material);
     bool removeCube(const glm::ivec3& localPos);
+    int removeCubesBatch(const std::vector<glm::ivec3>& positions);  // Remove multiple cubes, rebuild once
+    int addCubesBatch(const std::vector<glm::ivec3>& positions, const std::string& material = "");  // Add multiple cubes, rebuild once
 
     // Subcube operations
     bool subdivideAt(const glm::ivec3& localPos);

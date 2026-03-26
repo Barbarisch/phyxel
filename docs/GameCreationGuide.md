@@ -25,6 +25,29 @@ The agent will:
 4. Load it into the engine
 5. Screenshot the result
 
+## Critical: Editor vs. Project Mode
+
+The engine has two modes. **Using the wrong mode is the #1 source of confusion.**
+
+| Mode | Launch Command | Who Uses It | World Saved To |
+|------|---------------|-------------|---------------|
+| **Editor mode** | `.\phyxel.exe` | Engine development, testing | `<engine>/worlds/default.db` |
+| **Project mode** | `.\phyxel.exe --project <path>` | **Game development** | `<project>/worlds/default.db` |
+
+**When developing a game, ALWAYS use `--project` mode:**
+```powershell
+.\phyxel.exe --project C:\Users\jack\Documents\PhyxelProjects\MyGame
+```
+
+Project mode:
+- Loads world from the **project's** `worlds/default.db`
+- Auto-loads game definition from the **project's** `game.json`
+- `save_world` writes back to the **project's** database
+- `build_game` / `run_game` API endpoints build and launch the standalone game
+- Window title shows the project name
+
+**Without `--project`, all MCP changes go to the engine's own world — NOT your game.**
+
 ## Step-by-Step Workflow
 
 ### Step 1: Start the Engine
@@ -109,63 +132,89 @@ Constraint modes:
 
 ### Step 9: Package for Distribution
 
-The recommended flow creates a standalone game project with its own C++ source,
-then packages it into a distributable directory:
+There are two paths: **editor preview** (quick iteration) and **standalone game** (distributable).
 
-```bash
-# 1. Scaffold a game project from the definition
-python tools/create_project.py MyGame --game-definition game.json
+#### Path A: Editor Preview (Quick Iteration)
 
-# 2. Pre-bake the world (engine must be running with the game loaded)
-python tools/package_game.py MyGame --prebake-world --world-db worlds/default.db
+Use the editor's HTTP API to preview your game definition in the running engine.
+This is NOT a standalone game — it requires the engine to be running.
 
-# 3. Copy the pre-baked world into the project
-copy worlds/default.db <project_dir>/worlds/default.db
+```
+1. Engine running with world loaded from load_game_definition
+2. save_world (persists current state to worlds/default.db)
+3. export_game_definition (exports as reusable JSON)
+4. screenshot / iterate as needed
+```
 
-# 4. Build the game project
-cd <project_dir>
+#### Path B: Standalone Game (Recommended for Distribution)
+
+Creates a self-contained game project with its own C++ source and executable.
+
+```powershell
+# ── Step 1: Scaffold the project ──────────────────────────
+python tools/create_project.py MyGame --game-definition samples/game_definitions/my_game.json
+# Output: Documents/PhyxelProjects/MyGame/
+
+# ── Step 2: Copy engine assets to the project ─────────────
+# The scaffolder creates the project structure but does NOT copy
+# compiled shaders or textures. You must copy these manually:
+$proj = "$env:USERPROFILE\Documents\PhyxelProjects\MyGame"
+Copy-Item "shaders\*.spv" "$proj\shaders\" -Force
+Copy-Item "resources\textures\cube_atlas.png" "$proj\resources\textures\" -Force
+Copy-Item "resources\textures\cube_atlas.json" "$proj\resources\textures\" -Force
+# Copy animation files referenced by your NPCs:
+Copy-Item "character.anim" "$proj\" -Force
+
+# ── Step 3: Pre-bake the world ────────────────────────────
+# The engine must be running with your game definition loaded.
+# Save all chunks, then copy the database to the project:
+curl.exe -s -X POST http://localhost:8090/api/world/save -H "Content-Type: application/json" -d '{"all": true}'
+Copy-Item "worlds\default.db" "$proj\worlds\default.db" -Force
+
+# ── Step 4: Build the game ────────────────────────────────
+# CMake is not in system PATH on MSVC. Add it first:
+$env:PATH += ";C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin"
+Push-Location $proj
 cmake -B build -S .
 cmake --build build --config Debug
+# Output: build/Debug/MyGame.exe (with all assets copied by CMake post-build)
+Pop-Location
 
-# 5. Package
-python tools/package_game.py MyGame --project-dir <project_dir>
+# ── Step 5: Package ──────────────────────────────────────
+python tools/package_game.py MyGame --project-dir $proj
 ```
 
-For quick iteration (uses engine exe directly — includes Python/scripting):
-```bash
-# Via MCP tool:
-package_game(name="MyGame")
-
-# Via CLI:
-python tools/package_game.py MyGame --from-engine
-python tools/package_game.py MyGame --definition game.json
-```
+> **Important notes:**
+> - `load_game_definition` is an **editor-only preview** — it does not create a project
+> - `save_world` saves to the engine's current database path, not a custom one — you must copy the file
+> - PowerShell aliases `curl` to `Invoke-WebRequest` — use `curl.exe` for raw HTTP
+> - The scaffolder generates empty `shaders/` and `resources/` dirs — you must populate them
 
 **Output structure** (`Documents/PhyxelProjects/MyGame/`):
 ```
 MyGame/
-├── MyGame.exe              # Game executable (own C++ or engine binary)
-├── Play MyGame.bat         # Double-click launcher
-├── game.json               # Game definition (NPCs, story, camera)
-├── engine.json             # Engine config
-├── README.md               # Player instructions
-├── shaders/                # Compiled SPIR-V only
+├── MyGame.exe              # Standalone game executable
+├── MyGame.cpp/.h           # Generated C++ source (GameCallbacks)
+├── main.cpp                # Entry point
+├── CMakeLists.txt          # Build config (links phyxel_core)
+├── game.json               # NPCs, story, camera (no world gen)
+├── engine.json             # Engine config (resolution, title)
+├── character.anim          # Animation files (if NPCs use them)
+├── shaders/                # Compiled SPIR-V shaders
 ├── resources/
-│   ├── textures/           # Texture atlas
-│   ├── templates/          # Only referenced templates
-│   ├── animated_characters/# Only referenced anims
-│   ├── dialogues/          # Dialogue files
-│   └── sounds/             # Audio files
-└── worlds/
-    └── default.db          # Pre-baked world (instant startup)
+│   └── textures/           # Texture atlas (cube_atlas.png/.json)
+├── worlds/
+│   └── default.db          # Pre-baked terrain (instant startup)
+└── build/
+    └── Debug/
+        └── MyGame.exe      # Built executable + all runtime assets
 ```
 
-**Options:**
+**Package options:**
 - `--project-dir` — use a scaffolded game project (own exe, no Python/MCP)
 - `--prebake-world` — save engine world to SQLite first
 - `--world-db` — supply an existing pre-baked database
 - `--all-resources` — include everything (not just what the game references)
-- `--include-mcp` — bundle the MCP server for continued AI iteration
 - `--config Release` — use Release build for final distribution
 - `--output /path` — custom output directory
 
@@ -232,18 +281,27 @@ MyGame/
 }
 ```
 
-## Player Controls After Loading
+## Player Controls (Standalone Games)
+
+Standalone games use the standard `GameSettings::defaultKeybindings()`:
 
 | Key | Action |
 |-----|--------|
-| K | Toggle character control mode |
-| WASD | Move |
-| Space | Jump (animated character) |
+| W/A/S/D | Move forward/left/backward/right |
+| Space | Jump |
 | Shift | Sprint |
+| Ctrl | Crouch |
+| E | Interact (talk to NPC) |
+| F | Attack |
 | V | Toggle camera mode (1st/3rd/free) |
-| Left Click | Attack / Break voxel |
-| T | Spawn template object |
-| ESC | Exit |
+| Tab | Inventory |
+| ESC | Pause menu / back |
+| C | Place cube |
+
+These can be rebound in the Settings → Keybindings screen.
+
+> **Editor-only controls** (not available in standalone games):
+> K = toggle character, T = spawn template, F1-F7 = debug overlays
 
 ## Iterating on a Live Game
 

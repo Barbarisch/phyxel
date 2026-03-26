@@ -185,10 +185,10 @@ void InputController::setupKeyboardBindings() {
         m_app->interactWithNPC();
     });
 
-    // Enter - Advance dialogue (when active)
+    // Enter - Advance dialogue (when active, non-AI mode)
     m_inputManager->registerAction(GLFW_KEY_ENTER, "Advance Dialogue", [this]() {
         auto* ds = m_app->getDialogueSystem();
-        if (ds && ds->isActive()) {
+        if (ds && ds->isActive() && !ds->isAIConversation()) {
             ds->advanceDialogue();
         }
     });

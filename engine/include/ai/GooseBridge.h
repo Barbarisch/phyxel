@@ -24,41 +24,36 @@ using json = nlohmann::json;
 // ============================================================================
 
 struct GooseConfig {
-    /// Path to the goosed binary (built from external/goose)
-    std::string goosedPath = "goosed";
+    /// Path to the goose CLI binary
+    std::string goosePath = "external/goose/bin/goose.exe";
 
-    /// Host the goose-server binds to
+    /// Path to the Python bridge script
+    std::string bridgeScript = "scripts/goose_bridge.py";
+
+    /// Host the bridge server binds to
     std::string host = "127.0.0.1";
 
-    /// Port the goose-server listens on
-    uint16_t port = 3000;
+    /// Port the goose web server listens on (managed by bridge)
+    uint16_t goosePort = 3000;
 
-    /// Secret key for API authentication
-    std::string secretKey = "phyxel-engine";
+    /// Port the Python bridge HTTP server listens on
+    uint16_t bridgePort = 3001;
 
     /// Working directory for goose sessions
     std::string workingDir = ".";
 
-    /// Default LLM provider (e.g., "openai", "anthropic", "ollama")
-    std::string defaultProvider = "openai";
+    /// Default LLM provider (e.g., "anthropic", "openai", "ollama")
+    std::string defaultProvider = "anthropic";
 
     /// Default model name
-    std::string defaultModel = "gpt-4o-mini";
+    std::string defaultModel = "claude-sonnet-4-20250514";
 
-    /// Enable TLS (goose-server uses self-signed certs by default)
-    /// Note: Requires OpenSSL. Disabled by default for simpler setup.
-    bool useTLS = false;
+    /// Max time to wait for bridge+goose to start (ms)
+    uint32_t startupTimeoutMs = 45000;
 
-    /// Path to the Phyxel MCP extension script
-    std::string mcpExtensionPath = "scripts/mcp/phyxel_extension.py";
-
-    /// Max time to wait for goose-server to start (ms)
-    uint32_t startupTimeoutMs = 15000;
-
-    /// Base URL constructed from config
+    /// Base URL for the Python bridge HTTP server
     std::string baseUrl() const {
-        std::string scheme = useTLS ? "https" : "http";
-        return scheme + "://" + host + ":" + std::to_string(port);
+        return "http://" + host + ":" + std::to_string(bridgePort);
     }
 };
 
@@ -83,31 +78,14 @@ struct MCPExtensionConfig {
 };
 
 // ============================================================================
-// SSE event types received from goose-server /reply endpoint
+// Chat response from the Goose bridge
 // ============================================================================
 
-enum class SSEEventType {
-    Message,
-    Error,
-    Finish,
-    ModelChange,
-    Notification,
-    UpdateConversation,
-    Ping,
-    Unknown
-};
-
-struct SSEEvent {
-    SSEEventType type = SSEEventType::Unknown;
-    json data;
-
-    /// Token usage info (present on Message and Finish events)
-    struct TokenState {
-        int64_t inputTokens = 0;
-        int64_t outputTokens = 0;
-        int64_t totalTokens = 0;
-    };
-    std::optional<TokenState> tokenState;
+struct ChatResponse {
+    std::string response;              // AI's text response
+    std::vector<json> toolCalls;       // Tool call requests from the AI
+    std::string error;                 // Error message if any
+    bool ok() const { return error.empty(); }
 };
 
 // ============================================================================
@@ -129,12 +107,9 @@ struct AgentSession {
 // Callback types
 // ============================================================================
 
-/// Called when an SSE event arrives from a /reply stream
-using SSECallback = std::function<void(const SSEEvent& event)>;
-
 /// Called when the agent finishes a reply cycle
 using ReplyFinishCallback = std::function<void(const std::string& sessionId,
-                                                const json& finalMessage)>;
+                                                const ChatResponse& response)>;
 
 /// Called when the goose-server process state changes
 using ServerStateCallback = std::function<void(bool isRunning)>;
@@ -177,33 +152,19 @@ public:
     void setServerStateCallback(ServerStateCallback callback);
 
     // ========================================================================
-    // Extension Management
+    // Extension Management (reserved for future use)
     // ========================================================================
 
-    /// Register the Phyxel MCP extension with the server's global config.
-    /// This makes it available to all new sessions automatically.
+    /// Register the Phyxel MCP extension with the server.
     bool registerPhyxelExtension();
-
-    /// Add a custom MCP extension to the server's global config.
-    bool addGlobalExtension(const MCPExtensionConfig& ext);
-
-    /// Add an MCP extension to a specific session.
-    bool addSessionExtension(const std::string& sessionId,
-                             const MCPExtensionConfig& ext);
-
-    /// Remove an MCP extension from a specific session.
-    bool removeSessionExtension(const std::string& sessionId,
-                                const std::string& extensionName);
 
     // ========================================================================
     // Agent Session Management
     // ========================================================================
 
-    /// Create a new agent session, optionally from a recipe file.
+    /// Create a new agent session.
     /// Returns the session ID on success, empty string on failure.
-    std::string createSession(const std::string& entityId,
-                              const std::string& recipePath = "",
-                              const std::vector<MCPExtensionConfig>& extraExtensions = {});
+    std::string createSession(const std::string& entityId);
 
     /// Resume a previously created session.
     bool resumeSession(const std::string& sessionId);
@@ -225,22 +186,19 @@ public:
     // ========================================================================
 
     /// Send a message to an agent session asynchronously.
-    /// The reply arrives via SSE streaming; parsed commands are pushed
-    /// to the shared AICommandQueue.
+    /// The reply is a complete ChatResponse from the bridge.
     ///
     /// @param sessionId  Target session
     /// @param message    The user/game message (e.g., "A player approaches you")
-    /// @param callback   Optional per-message callback for SSE events
-    /// @return Future that resolves when the reply stream finishes
-    std::future<bool> sendMessage(const std::string& sessionId,
-                                  const std::string& message,
-                                  SSECallback callback = nullptr);
+    /// @return Future that resolves to the complete ChatResponse
+    std::future<ChatResponse> sendMessage(const std::string& sessionId,
+                                          const std::string& message);
 
     /// Send a structured game event to an agent session.
     /// Formats the event as a descriptive message for the AI.
-    std::future<bool> sendGameEvent(const std::string& sessionId,
-                                    const std::string& eventType,
-                                    const json& eventData);
+    std::future<ChatResponse> sendGameEvent(const std::string& sessionId,
+                                            const std::string& eventType,
+                                            const json& eventData);
 
     /// Set the default callback for when any reply finishes.
     void setReplyFinishCallback(ReplyFinishCallback callback);
@@ -255,22 +213,8 @@ public:
     const AICommandQueue& getCommandQueue() const { return m_commandQueue; }
 
     // ========================================================================
-    // Recipe Management
-    // ========================================================================
-
-    /// Load a recipe from a YAML file and register it with goose-server.
-    /// Returns the recipe ID on success.
-    std::optional<std::string> loadRecipe(const std::string& yamlPath);
-
-    /// List all registered recipes.
-    std::vector<json> listRecipes();
-
-    // ========================================================================
     // Configuration
     // ========================================================================
-
-    /// Set the LLM provider and model for future sessions.
-    bool setProvider(const std::string& provider, const std::string& model);
 
     /// Get the current configuration.
     const GooseConfig& getConfig() const { return m_config; }
@@ -295,7 +239,7 @@ private:
     // Internal Implementation
     // ========================================================================
 
-    /// HTTP helper — performs a request to goose-server.
+    /// HTTP helper — performs a request to the bridge server.
     /// Returns nullopt on connection failure.
     struct HttpResponse {
         int statusCode = 0;
@@ -306,32 +250,20 @@ private:
     std::optional<HttpResponse> httpGet(const std::string& path);
     std::optional<HttpResponse> httpPost(const std::string& path,
                                          const json& body = {});
-    std::optional<HttpResponse> httpPut(const std::string& path,
-                                        const json& body = {});
-    std::optional<HttpResponse> httpDelete(const std::string& path);
 
-    /// SSE stream reader — connects to /reply and processes events.
-    void processSSEStream(const std::string& sessionId,
-                          const json& requestBody,
-                          SSECallback callback);
+    /// Extract AI commands from tool_calls in a ChatResponse.
+    void extractCommands(const std::vector<json>& toolCalls);
 
-    /// Parse an SSE event line into an SSEEvent struct.
-    SSEEvent parseSSEEvent(const std::string& data);
-
-    /// Extract AI commands from a Message-type SSE event.
-    /// Tool call results from the MCP extension are parsed into AICommands.
-    void extractCommands(const json& message);
-
-    /// Wait for the server to become healthy (polls /status).
+    /// Wait for the bridge server to become healthy (polls /status).
     bool waitForServerReady(uint32_t timeoutMs);
 
-    /// Monitor the sidecar process health in a background thread.
+    /// Monitor the bridge process health in a background thread.
     void healthMonitorLoop();
 
-    /// Start the goosed process.
+    /// Start the Python bridge process (which also starts goose).
     bool launchProcess();
 
-    /// Kill the goosed process.
+    /// Kill the bridge process (and goose with it).
     void killProcess();
 
     // ========================================================================
@@ -357,10 +289,6 @@ private:
     mutable std::mutex m_sessionsMutex;
     std::unordered_map<std::string, AgentSession> m_sessions;         // sessionId → session
     std::unordered_map<std::string, std::string> m_entityToSession;   // entityId → sessionId
-
-    // Async reply threads
-    mutable std::mutex m_replyThreadsMutex;
-    std::vector<std::future<void>> m_pendingReplies;
 
     // Callbacks
     ReplyFinishCallback m_replyFinishCallback;

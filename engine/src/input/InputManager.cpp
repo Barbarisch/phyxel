@@ -1,5 +1,6 @@
 #include "input/InputManager.h"
 #include "utils/Logger.h"
+#include <imgui.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <iomanip>
 
@@ -107,10 +108,19 @@ void InputManager::processCameraMovement(float deltaTime) {
 }
 
 void InputManager::processKeyboardActions() {
+    // When ImGui wants keyboard input (e.g. text fields), skip game key actions
+    // except ESC which should always work for closing dialogues/menus.
+    bool imguiWantsKeyboard = ImGui::GetIO().WantCaptureKeyboard;
+
     // Process all registered key actions
     for (auto& [keyCombo, action] : keyActions) {
         // In scripting console mode, only allow the toggle key (Grave Accent)
         if (scriptingConsoleMode && keyCombo.key != GLFW_KEY_GRAVE_ACCENT) {
+            continue;
+        }
+
+        // When ImGui captures keyboard, only allow ESC
+        if (imguiWantsKeyboard && keyCombo.key != GLFW_KEY_ESCAPE) {
             continue;
         }
 

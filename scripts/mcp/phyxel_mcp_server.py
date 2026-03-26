@@ -1734,6 +1734,79 @@ async def list_tools() -> list[Tool]:
                 "required": ["name"]
             }
         ),
+
+        # ================================================================
+        # Bulk Operations (fast chunk-level ops)
+        # ================================================================
+        Tool(
+            name="clear_chunk",
+            description="Instantly clear ALL voxels in a chunk. Much faster than clear_region for whole chunks. Takes chunk coordinates (not world coordinates).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "x": {"type": "integer", "description": "Chunk X coordinate (world_x / 32)"},
+                    "y": {"type": "integer", "description": "Chunk Y coordinate (world_y / 32)"},
+                    "z": {"type": "integer", "description": "Chunk Z coordinate (world_z / 32)"},
+                },
+                "required": ["x", "y", "z"]
+            }
+        ),
+        Tool(
+            name="rebuild_physics",
+            description="Force rebuild physics collision shapes. Optionally target a specific chunk. Useful after bulk modifications.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "chunk": {
+                        "type": "object",
+                        "description": "Optional: rebuild only this chunk (chunk coordinates)",
+                        "properties": {
+                            "x": {"type": "integer"},
+                            "y": {"type": "integer"},
+                            "z": {"type": "integer"},
+                        }
+                    }
+                },
+                "required": []
+            }
+        ),
+        Tool(
+            name="clear_all_entities",
+            description="Remove ALL entities from the world (player, NPCs, all characters). Use before reload_game_definition to start fresh.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+        Tool(
+            name="reload_game_definition",
+            description="Destructively reload a game definition: clears all entities, NPCs, dialogue, and story, then loads the provided definition fresh. Unlike load_game_definition which is additive, this replaces everything.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "definition": {
+                        "type": "string",
+                        "description": "Complete game definition as a JSON string"
+                    }
+                },
+                "required": ["definition"]
+            }
+        ),
+        Tool(
+            name="get_terrain_height",
+            description="Query the surface Y coordinate at a given (x, z) world position. Returns the highest voxel Y and the spawn Y (surface + 1). Useful for placing entities on terrain.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "x": {"type": "integer", "description": "World X coordinate"},
+                    "z": {"type": "integer", "description": "World Z coordinate"},
+                    "max_y": {"type": "integer", "description": "Maximum Y to search (default: 255)"},
+                    "min_y": {"type": "integer", "description": "Minimum Y to search (default: 0)"},
+                },
+                "required": ["x", "z"]
+            }
+        ),
     ]
 
 
@@ -2316,6 +2389,34 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     elif name == "remove_menu":
         return await api_post("/api/ui/menu/remove", {"name": args["name"]})
 
+    # --- Bulk Operations ---
+    elif name == "clear_chunk":
+        return await api_post("/api/world/clear_chunk", {
+            "x": args["x"], "y": args["y"], "z": args["z"]
+        })
+
+    elif name == "rebuild_physics":
+        body = {}
+        if "chunk" in args:
+            body["chunk"] = args["chunk"]
+        return await api_post("/api/world/rebuild_physics", body)
+
+    elif name == "clear_all_entities":
+        return await api_post("/api/entities/clear", {})
+
+    elif name == "reload_game_definition":
+        return await api_post("/api/game/reload", {
+            "definition": args["definition"]
+        })
+
+    elif name == "get_terrain_height":
+        params = {"x": str(args["x"]), "z": str(args["z"])}
+        if "max_y" in args:
+            params["max_y"] = str(args["max_y"])
+        if "min_y" in args:
+            params["min_y"] = str(args["min_y"])
+        return await api_get("/api/world/terrain_height", params)
+
     else:
         return {"error": f"Unknown tool: {name}"}
 
@@ -2399,7 +2500,10 @@ async def _launch_engine(args: dict) -> dict:
     if _engine_process and _engine_process.poll() is None:
         return {"success": True, "message": "Engine already running", "pid": _engine_process.pid}
 
-    exe_path = PROJECT_ROOT / "build" / "game" / config / "phyxel.exe"
+    exe_path = PROJECT_ROOT / "build" / "editor" / config / "phyxel.exe"
+    if not exe_path.exists():
+        # Try old path (pre-rename)
+        exe_path = PROJECT_ROOT / "build" / "game" / config / "phyxel.exe"
     if not exe_path.exists():
         # Try root copy
         exe_path = PROJECT_ROOT / "phyxel.exe"

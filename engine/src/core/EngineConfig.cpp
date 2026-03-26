@@ -1,6 +1,7 @@
 #include "core/EngineConfig.h"
 #include <fstream>
 #include <filesystem>
+#include <cstdlib>
 
 namespace Phyxel {
 namespace Core {
@@ -83,6 +84,23 @@ void EngineConfig::fromJson(const nlohmann::json& j, EngineConfig& cfg) {
         if (f.contains("audio"))  cfg.enableAudio  = f["audio"].get<bool>();
     }
 
+    // -- AI
+    if (j.contains("ai")) {
+        auto& a = j["ai"];
+        if (a.contains("provider"))   cfg.aiProvider   = a["provider"].get<std::string>();
+        if (a.contains("model"))      cfg.aiModel      = a["model"].get<std::string>();
+        if (a.contains("api_key"))    cfg.aiApiKey     = a["api_key"].get<std::string>();
+        if (a.contains("auto_start")) cfg.aiAutoStart  = a["auto_start"].get<bool>();
+    }
+
+    // Environment variable overrides (higher priority than config file)
+    if (const char* envKey = std::getenv("PHYXEL_AI_API_KEY"); envKey && envKey[0] != '\0')
+        cfg.aiApiKey = envKey;
+    if (const char* envProvider = std::getenv("PHYXEL_AI_PROVIDER"); envProvider && envProvider[0] != '\0')
+        cfg.aiProvider = envProvider;
+    if (const char* envModel = std::getenv("PHYXEL_AI_MODEL"); envModel && envModel[0] != '\0')
+        cfg.aiModel = envModel;
+
     // -- Rendering
     if (j.contains("rendering")) {
         auto& r = j["rendering"];
@@ -153,6 +171,12 @@ nlohmann::json EngineConfig::toJson() const {
         }},
         {"game", {
             {"definition_file", gameDefinitionFile}
+        }},
+        {"ai", {
+            {"provider",   aiProvider},
+            {"model",      aiModel},
+            {"auto_start", aiAutoStart}
+            // Note: api_key intentionally NOT serialized — use env var PHYXEL_AI_API_KEY
         }}
     };
 }

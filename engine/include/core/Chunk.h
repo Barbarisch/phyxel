@@ -153,6 +153,8 @@ public:
     bool removeCube(const glm::ivec3& localPos);
     bool addCube(const glm::ivec3& localPos);
     bool addCube(const glm::ivec3& localPos, const std::string& material);
+    int removeCubesBatch(const std::vector<glm::ivec3>& positions);
+    int addCubesBatch(const std::vector<glm::ivec3>& positions, const std::string& material = "");
     
     // Subcube manipulation
     bool subdivideAt(const glm::ivec3& localPos);              // Convert cube to 27 static subcubes
@@ -173,6 +175,7 @@ public:
                      const glm::vec3& impulseForce = glm::vec3(0.0f));
     
     // Chunk operations
+    void clearAll();                                   // Bulk clear: remove all voxels, rebuild once
     void populateWithCubes();                      // Fill chunk with 32x32x32 cubes
     void initializeForLoading();                   // Initialize empty chunk for database loading
     void rebuildFaces();                           // Regenerate face data from cubes (intra-chunk culling only)

@@ -165,7 +165,10 @@ void AISystem::stopStoryDirector() {
 // ============================================================================
 
 bool AISystem::setProvider(const std::string& provider, const std::string& model) {
-    return m_bridge ? m_bridge->setProvider(provider, model) : false;
+    // Provider/model are configured via GooseConfig at startup;
+    // runtime changes are not supported in the bridge architecture.
+    LOG_WARN("AI", "AISystem::setProvider called but runtime provider changes are not supported");
+    return false;
 }
 
 const GooseConfig& AISystem::getConfig() const {

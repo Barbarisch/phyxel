@@ -151,7 +151,10 @@ public:
     
     // Get chunk at world position (for adding/removing cubes)
     Chunk* getChunkAt(const glm::ivec3& worldPos);
-    
+
+    // Bulk clear all voxels in a chunk (instant, single rebuild)
+    bool clearChunk(const glm::ivec3& chunkCoord);
+
     // Cube manipulation helpers
     Cube* getCubeAt(const glm::ivec3& worldPos);          // Get cube at world position
     bool removeCube(const glm::ivec3& worldPos);          // Returns true if cube was removed

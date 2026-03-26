@@ -64,7 +64,11 @@ struct DialogueTree {
                     for (const auto& choiceJson : nodeJson["choices"]) {
                         DialogueChoice choice;
                         choice.text = choiceJson.value("text", "");
+                        // Accept both "targetNodeId" and "nextNodeId" for choice targets
                         choice.targetNodeId = choiceJson.value("targetNodeId", "");
+                        if (choice.targetNodeId.empty()) {
+                            choice.targetNodeId = choiceJson.value("nextNodeId", "");
+                        }
                         // condition is not serializable — set programmatically
                         node.choices.push_back(std::move(choice));
                     }
@@ -107,6 +111,8 @@ public:
     virtual ~DialogueProvider() = default;
     /// Get the dialogue tree to use for the current context.
     virtual const DialogueTree* getDialogueTree() const = 0;
+    /// Returns true if this provider uses AI-driven dialogue instead of a static tree.
+    virtual bool isAIMode() const { return false; }
 };
 
 /// Simple provider that holds a single loaded tree.
@@ -117,6 +123,29 @@ public:
     void setTree(DialogueTree tree) { m_tree = std::move(tree); }
 private:
     DialogueTree m_tree;
+};
+
+/// AI-driven dialogue provider. Signals that the NPC uses AI conversation
+/// instead of a static tree. The actual AI communication is handled by
+/// AIController via the DialogueSystem's AI conversation mode.
+class AIDialogueProvider : public DialogueProvider {
+public:
+    explicit AIDialogueProvider(const std::string& entityId,
+                                 const std::string& npcName = "",
+                                 std::unique_ptr<DialogueTree> tree = nullptr)
+        : m_entityId(entityId), m_npcName(npcName), m_tree(std::move(tree)) {}
+
+    const DialogueTree* getDialogueTree() const override { return m_tree.get(); }
+    bool isAIMode() const override { return true; }
+
+    const std::string& getEntityId() const { return m_entityId; }
+    const std::string& getNpcName() const { return m_npcName; }
+
+    void setTree(std::unique_ptr<DialogueTree> tree) { m_tree = std::move(tree); }
+private:
+    std::string m_entityId;
+    std::string m_npcName;
+    std::unique_ptr<DialogueTree> m_tree;
 };
 
 /// Load a dialogue tree from a JSON file on disk.
