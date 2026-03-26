@@ -49,6 +49,11 @@ struct GameSettings {
     // -- Rendering --------------------------------------------------------
     float       renderDistance    = 256.0f;
 
+    // -- AI ---------------------------------------------------------------
+    std::string aiProvider        = "anthropic";  // "anthropic", "openai", "ollama"
+    std::string aiModel           = "";            // empty = provider default
+    std::string aiApiKey          = "";            // API key for cloud providers
+
     // =====================================================================
     // Load / Save
     // =====================================================================

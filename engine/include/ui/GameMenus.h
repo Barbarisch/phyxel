@@ -41,6 +41,9 @@ struct SettingsCallbacks {
     std::function<void()>              onKeybindingsPressed;
     std::function<void()>              onBack;
     std::function<void()>              onSave;
+    std::function<void(const std::string& provider,
+                       const std::string& model,
+                       const std::string& apiKey)> onAISettingsChanged;
 };
 
 /// State for the keybinding rebind screen.

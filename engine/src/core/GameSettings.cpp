@@ -2,6 +2,7 @@
 #include "utils/Logger.h"
 #include <GLFW/glfw3.h>
 #include <fstream>
+#include <cstdlib>
 
 namespace Phyxel {
 namespace Core {
@@ -81,6 +82,10 @@ nlohmann::json GameSettings::toJson() const {
     // Rendering
     j["rendering"]["render_distance"] = renderDistance;
 
+    // AI (api_key intentionally excluded from serialization for security)
+    j["ai"]["provider"] = aiProvider;
+    j["ai"]["model"]    = aiModel;
+
     return j;
 }
 
@@ -121,6 +126,19 @@ void GameSettings::fromJson(const nlohmann::json& j, GameSettings& s) {
     // Rendering
     if (j.contains("rendering")) {
         s.renderDistance = j["rendering"].value("render_distance", s.renderDistance);
+    }
+
+    // AI
+    if (j.contains("ai")) {
+        auto& ai = j["ai"];
+        s.aiProvider = ai.value("provider", s.aiProvider);
+        s.aiModel    = ai.value("model",    s.aiModel);
+        // api_key loaded from env var, not file — but accept it if present
+        s.aiApiKey   = ai.value("api_key",  s.aiApiKey);
+    }
+    // Env var override for API key (highest priority)
+    if (const char* envKey = std::getenv("PHYXEL_AI_API_KEY"); envKey && envKey[0] != '\0') {
+        s.aiApiKey = envKey;
     }
 }
 

@@ -590,6 +590,79 @@ void renderSettingsScreen(Core::GameSettings& settings,
 
         ImGui::Spacing();
         ImGui::Spacing();
+
+        // === AI ===
+        ImGui::PushStyleColor(ImGuiCol_Text, kColorTitle);
+        ImGui::SetWindowFontScale(1.2f);
+        ImGui::Text("AI");
+        ImGui::SetWindowFontScale(1.0f);
+        ImGui::PopStyleColor();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        // Provider dropdown
+        {
+            const char* providers[] = { "anthropic", "openai", "ollama" };
+            int providerIdx = 0;
+            for (int i = 0; i < 3; ++i) {
+                if (settings.aiProvider == providers[i]) { providerIdx = i; break; }
+            }
+            if (ImGui::Combo("AI Provider", &providerIdx, providers, 3)) {
+                settings.aiProvider = providers[providerIdx];
+                if (callbacks.onAISettingsChanged)
+                    callbacks.onAISettingsChanged(settings.aiProvider, settings.aiModel, settings.aiApiKey);
+            }
+        }
+
+        // Model name
+        {
+            static char modelBuf[256] = {};
+            static bool modelInited = false;
+            if (!modelInited) {
+                snprintf(modelBuf, sizeof(modelBuf), "%s", settings.aiModel.c_str());
+                modelInited = true;
+            }
+            if (ImGui::InputText("AI Model", modelBuf, sizeof(modelBuf))) {
+                settings.aiModel = modelBuf;
+            }
+            if (ImGui::IsItemDeactivatedAfterEdit()) {
+                if (callbacks.onAISettingsChanged)
+                    callbacks.onAISettingsChanged(settings.aiProvider, settings.aiModel, settings.aiApiKey);
+            }
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("(?)");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Leave empty for provider default.\nExamples: claude-sonnet-4-20250514, gpt-4o, llama3.2");
+
+        // API Key (masked input)
+        {
+            static char keyBuf[256] = {};
+            static bool keyInited = false;
+            if (!keyInited) {
+                snprintf(keyBuf, sizeof(keyBuf), "%s", settings.aiApiKey.c_str());
+                keyInited = true;
+            }
+            if (ImGui::InputText("API Key", keyBuf, sizeof(keyBuf), ImGuiInputTextFlags_Password)) {
+                settings.aiApiKey = keyBuf;
+            }
+            if (ImGui::IsItemDeactivatedAfterEdit()) {
+                if (callbacks.onAISettingsChanged)
+                    callbacks.onAISettingsChanged(settings.aiProvider, settings.aiModel, settings.aiApiKey);
+            }
+        }
+
+        // Status indicator
+        {
+            bool hasKey = !settings.aiApiKey.empty();
+            ImVec4 statusColor = hasKey ? ImVec4(0.3f, 0.9f, 0.3f, 1.0f) : ImVec4(0.9f, 0.5f, 0.2f, 1.0f);
+            ImGui::PushStyleColor(ImGuiCol_Text, statusColor);
+            ImGui::Text(hasKey ? "API key configured" : "No API key (set PHYXEL_AI_API_KEY env var or enter above)");
+            ImGui::PopStyleColor();
+        }
+
+        ImGui::Spacing();
+        ImGui::Spacing();
         ImGui::Separator();
         ImGui::Spacing();
 

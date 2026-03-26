@@ -231,7 +231,11 @@ void MinimalGame::onRender(Phyxel::Core::EngineRuntime& engine) {
                 [this](float v) { settings_.sfxVolume = v; },
                 [this]() { screen_.enterKeybindingRebind(); },
                 [this]() { screen_.goBack(); },
-                [this]() { settings_.saveToFile("settings.json"); }
+                [this]() { settings_.saveToFile("settings.json"); },
+                [this](const std::string& provider, const std::string& model, const std::string& apiKey) {
+                    // AI settings changed — update LLM config if service exists
+                    (void)provider; (void)model; (void)apiKey;
+                }
             });
             break;
 

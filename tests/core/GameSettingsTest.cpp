@@ -196,3 +196,36 @@ TEST(GameSettingsTest, ModifiersToString) {
     // GLFW_MOD_SHIFT = 0x0001
     EXPECT_NE(modifiersToString(1).find("Shift"), std::string::npos);
 }
+
+// ============================================================================
+// AI settings
+// ============================================================================
+
+TEST(GameSettingsTest, AIDefaultValues) {
+    GameSettings s;
+    EXPECT_EQ(s.aiProvider, "anthropic");
+    EXPECT_EQ(s.aiModel, "");
+    EXPECT_EQ(s.aiApiKey, "");
+}
+
+TEST(GameSettingsTest, AIJsonRoundTrip) {
+    GameSettings s;
+    s.aiProvider = "openai";
+    s.aiModel = "gpt-4o";
+
+    auto j = s.toJson();
+    GameSettings s2;
+    GameSettings::fromJson(j, s2);
+
+    EXPECT_EQ(s2.aiProvider, "openai");
+    EXPECT_EQ(s2.aiModel, "gpt-4o");
+}
+
+TEST(GameSettingsTest, AIApiKeyNotSerialized) {
+    GameSettings s;
+    s.aiApiKey = "sk-secret-key-12345";
+
+    auto j = s.toJson();
+    // API key should NOT be in the JSON output (security)
+    EXPECT_FALSE(j.contains("ai") && j["ai"].contains("api_key"));
+}
