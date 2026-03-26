@@ -142,3 +142,104 @@ TEST_F(ConversationMemoryTest, PruneOldTurns) {
     GTEST_SKIP() << "SQLite not available";
 #endif
 }
+
+// ============================================================================
+// Auto-Summarization Tests
+// ============================================================================
+
+TEST_F(ConversationMemoryTest, ShouldSummarizeReturnsFalseUnderThreshold) {
+#ifdef ENABLE_WORLD_STORAGE
+    // Default threshold is 20
+    for (int i = 0; i < 15; i++) {
+        memory->recordTurn("npc_01", "Speaker", "Turn " + std::to_string(i), "", 1.0f,
+                           static_cast<float>(i));
+    }
+    EXPECT_FALSE(memory->shouldSummarize("npc_01"));
+#else
+    GTEST_SKIP() << "SQLite not available";
+#endif
+}
+
+TEST_F(ConversationMemoryTest, ShouldSummarizeReturnsTrueOverThreshold) {
+#ifdef ENABLE_WORLD_STORAGE
+    for (int i = 0; i < 25; i++) {
+        memory->recordTurn("npc_01", "Speaker", "Turn " + std::to_string(i), "", 1.0f,
+                           static_cast<float>(i));
+    }
+    EXPECT_TRUE(memory->shouldSummarize("npc_01"));
+#else
+    GTEST_SKIP() << "SQLite not available";
+#endif
+}
+
+TEST_F(ConversationMemoryTest, CustomSummarizationThreshold) {
+#ifdef ENABLE_WORLD_STORAGE
+    memory->setSummarizationThreshold(5);
+    EXPECT_EQ(memory->getSummarizationThreshold(), 5);
+
+    for (int i = 0; i < 4; i++) {
+        memory->recordTurn("npc_01", "Speaker", "Turn " + std::to_string(i), "", 1.0f,
+                           static_cast<float>(i));
+    }
+    EXPECT_FALSE(memory->shouldSummarize("npc_01"));
+
+    memory->recordTurn("npc_01", "Speaker", "Turn 4", "", 1.0f, 4.0f);
+    memory->recordTurn("npc_01", "Speaker", "Turn 5", "", 1.0f, 5.0f);
+    EXPECT_TRUE(memory->shouldSummarize("npc_01"));
+#else
+    GTEST_SKIP() << "SQLite not available";
+#endif
+}
+
+TEST_F(ConversationMemoryTest, KeepRecentTurnsConfigurable) {
+#ifdef ENABLE_WORLD_STORAGE
+    memory->setKeepRecentTurns(3);
+    EXPECT_EQ(memory->getKeepRecentTurns(), 3);
+
+    memory->setKeepRecentTurns(10);
+    EXPECT_EQ(memory->getKeepRecentTurns(), 10);
+#else
+    GTEST_SKIP() << "SQLite not available";
+#endif
+}
+
+TEST_F(ConversationMemoryTest, AutoSummarizeWithoutLLMReturnsFalse) {
+#ifdef ENABLE_WORLD_STORAGE
+    memory->setSummarizationThreshold(5);
+    for (int i = 0; i < 10; i++) {
+        memory->recordTurn("npc_01", "Speaker", "Turn " + std::to_string(i), "", 1.0f,
+                           static_cast<float>(i));
+    }
+    // No LLM configured — should not crash, just return false
+    EXPECT_FALSE(memory->autoSummarizeIfNeeded("npc_01", nullptr));
+    // Turns should remain unchanged (no pruning without summarization)
+    EXPECT_EQ(memory->getTotalTurns("npc_01"), 10);
+#else
+    GTEST_SKIP() << "SQLite not available";
+#endif
+}
+
+TEST_F(ConversationMemoryTest, ShouldSummarizeEmptyNPC) {
+#ifdef ENABLE_WORLD_STORAGE
+    EXPECT_FALSE(memory->shouldSummarize("nonexistent"));
+#else
+    GTEST_SKIP() << "SQLite not available";
+#endif
+}
+
+TEST_F(ConversationMemoryTest, ShouldSummarizeExactThreshold) {
+#ifdef ENABLE_WORLD_STORAGE
+    memory->setSummarizationThreshold(10);
+    for (int i = 0; i < 10; i++) {
+        memory->recordTurn("npc_01", "Speaker", "Turn " + std::to_string(i), "", 1.0f,
+                           static_cast<float>(i));
+    }
+    // Exactly at threshold — should NOT trigger (need to exceed it)
+    EXPECT_FALSE(memory->shouldSummarize("npc_01"));
+
+    memory->recordTurn("npc_01", "Speaker", "Turn 10", "", 1.0f, 10.0f);
+    EXPECT_TRUE(memory->shouldSummarize("npc_01"));
+#else
+    GTEST_SKIP() << "SQLite not available";
+#endif
+}

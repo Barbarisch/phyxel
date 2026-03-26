@@ -247,18 +247,33 @@ void ConversationMemory::generateSummary(const std::string& npcId,
     int summarizeCount = totalTurns - keepRecent;
     std::ostringstream convo;
     for (int i = 0; i < summarizeCount; i++) {
-        convo << allTurns[i].speaker << ": " << allTurns[i].text << "\n";
+        convo << allTurns[i].speaker << ": " << allTurns[i].text;
+        // Include emotion/importance metadata when present
+        bool hasMeta = false;
+        if (!allTurns[i].emotion.empty()) {
+            convo << " [emotion: " << allTurns[i].emotion << "]";
+            hasMeta = true;
+        }
+        if (allTurns[i].importance > 1.5f) {
+            convo << " [important]";
+        }
+        convo << "\n";
     }
 
     // Get existing summary to include in the prompt
     std::string existingSummary = getSummary(npcId);
 
-    // Ask LLM to summarize
+    // Ask LLM to summarize with structured guidance
     std::vector<LLMMessage> messages;
-    std::string sysPrompt = "Summarize this conversation history in 2-3 sentences. "
-        "Focus on key topics discussed, any promises made, and the emotional tone.";
+    std::string sysPrompt =
+        "Summarize this conversation history concisely in 2-4 sentences. Include:\n"
+        "- Key topics discussed and decisions made\n"
+        "- Any promises, agreements, or commitments\n"
+        "- The overall relationship tone and emotional arc\n"
+        "- Important facts the NPC learned about the player\n"
+        "Write from the NPC's perspective as a memory of past interactions.";
     if (!existingSummary.empty()) {
-        sysPrompt += " Previous summary: " + existingSummary;
+        sysPrompt += "\n\nPrevious summary to incorporate and update:\n" + existingSummary;
     }
     messages.push_back({"system", sysPrompt});
     messages.push_back({"user", convo.str()});
@@ -303,6 +318,23 @@ void ConversationMemory::generateSummary(const std::string& npcId,
     LOG_INFO("AI", "Generated conversation summary for '{}', pruned {} old turns",
              npcId, summarizeCount);
 #endif
+}
+
+bool ConversationMemory::shouldSummarize(const std::string& npcId) const {
+    int total = getTotalTurns(npcId);
+    return total > m_summarizationThreshold;
+}
+
+bool ConversationMemory::autoSummarizeIfNeeded(const std::string& npcId, LLMClient* llm) {
+    if (!llm || !llm->isConfigured()) return false;
+    if (!shouldSummarize(npcId)) return false;
+
+    int total = getTotalTurns(npcId);
+    LOG_INFO("AI", "Auto-summarizing conversation with '{}' ({} turns, threshold {})",
+             npcId, total, m_summarizationThreshold);
+
+    generateSummary(npcId, llm, m_keepRecentTurns);
+    return true;
 }
 
 // ============================================================================

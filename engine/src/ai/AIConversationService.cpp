@@ -85,6 +85,9 @@ bool AIConversationService::startConversation(Scene::NPCEntity* npc,
                 // Record NPC's response
                 if (m_memory && m_memory->isInitialized()) {
                     m_memory->recordTurn(npcId, npcId, response.content);
+
+                    // Auto-summarize old turns if conversation has grown long
+                    m_memory->autoSummarizeIfNeeded(npcId, m_llmClient.get());
                 }
 
                 // Deliver to DialogueSystem (thread-safe)

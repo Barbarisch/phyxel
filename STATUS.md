@@ -183,6 +183,7 @@ Replacing the Goose-based AI pipeline with a direct LLM client so shipped games 
 - **Game template integration**: Scaffolded projects (`create_project.py`) now include AIConversationService initialization, full settings screen with AI section, and runtime config update callback. Settings auto-saved on shutdown.
 - **AI E2E tests**: 3 live LLM pipeline tests (auto-skip when `PHYXEL_AI_API_KEY` not set). Direct LLM call, context assembly + call, full service pipeline. 1070 total tests (1067 pass + 3 skipped).
 - **InteractionManager in game template**: Standalone games now have full NPC interaction support — InteractionManager with proximity detection, E-key interaction, AI conversation priority (direct LLM → tree dialogue fallback), speech bubble rendering, interaction prompts, and input suppression during dialogue. RenderCoordinator view/projection matrix getters added.
+- **Auto-summarization**: ConversationMemory now auto-summarizes old turns when conversation length exceeds a configurable threshold (default: 20 turns). After summarization, old turns are pruned keeping only recent ones (default: 6). Enhanced summary prompt includes emotion/importance metadata and structured guidance. Wired into AIConversationService — happens automatically after each NPC response on the background thread. 1077 tests (1074 pass + 3 skipped).
 
 #### Remaining
 - End-to-end manual test: run standalone VillageChat, walk to NPC, press E to test interaction

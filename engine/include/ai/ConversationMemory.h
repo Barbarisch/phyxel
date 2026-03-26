@@ -68,6 +68,21 @@ public:
     /// Generate a summary of old turns using the LLM, store it, prune old turns
     void generateSummary(const std::string& npcId, LLMClient* llm, int keepRecent = 10);
 
+    /// Check if an NPC's conversation has enough turns to warrant summarization
+    bool shouldSummarize(const std::string& npcId) const;
+
+    /// Auto-summarize if turn count exceeds threshold, then prune.
+    /// Returns true if summarization was triggered.
+    bool autoSummarizeIfNeeded(const std::string& npcId, LLMClient* llm);
+
+    /// Set the turn threshold that triggers auto-summarization (default: 20)
+    void setSummarizationThreshold(int threshold) { m_summarizationThreshold = threshold; }
+    int getSummarizationThreshold() const { return m_summarizationThreshold; }
+
+    /// Set how many recent turns to keep after summarization (default: 6)
+    void setKeepRecentTurns(int keep) { m_keepRecentTurns = keep; }
+    int getKeepRecentTurns() const { return m_keepRecentTurns; }
+
     // ---- Maintenance ----
 
     /// Prune old turns per NPC, keeping only the most recent N
@@ -79,6 +94,8 @@ private:
     void finalizeStatements();
 
     sqlite3* m_db = nullptr;
+    int m_summarizationThreshold = 20;  // Trigger auto-summary when turns exceed this
+    int m_keepRecentTurns = 6;          // Keep this many recent turns after summarizing
 
     // Prepared statements for performance
     sqlite3_stmt* m_insertTurnStmt   = nullptr;
