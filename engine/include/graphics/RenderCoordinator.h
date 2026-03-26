@@ -142,6 +142,8 @@ public:
     // Frame state accessors
     void setFrameStartTime(std::chrono::high_resolution_clock::time_point time) { frameStartTime = time; }
     void setCachedViewMatrix(const glm::mat4& view) { cachedViewMatrix = view; }
+    const glm::mat4& getCachedViewMatrix() const { return cachedViewMatrix; }
+    const glm::mat4& getCachedProjectionMatrix() const { return cachedProjectionMatrix; }
     void setProjectionMatrixNeedsUpdate(bool needsUpdate) { projectionMatrixNeedsUpdate = needsUpdate; }
     
     uint32_t getCurrentFrame() const { return currentFrame; }

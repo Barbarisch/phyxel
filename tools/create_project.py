@@ -136,6 +136,11 @@ def create_project(
         extra_includes.append('#include "story/StoryEngine.h"')
         extra_members.append("    std::unique_ptr<Phyxel::Story::StoryEngine> storyEngine_;")
 
+    # Interaction manager for E-key NPC interaction
+    if has_npcs or game_definition:
+        extra_includes.append('#include "core/InteractionManager.h"')
+        extra_members.append("    std::unique_ptr<Phyxel::Core::InteractionManager> interactionManager_;")
+
     # AI conversation service (always available — uses API key from settings/env)
     if has_npcs or game_definition:
         extra_includes.append('#include "ai/AIConversationService.h"')
@@ -262,6 +267,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         #include "ui/GameMenus.h"
         #include "core/ChunkStreamingManager.h"
         #include "core/WorldStorage.h"
+        #include "core/InteractionManager.h"
         #include "utils/PerformanceProfiler.h"
         #include "utils/PerformanceMonitor.h"
         #include "utils/Logger.h"
@@ -296,7 +302,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         void {class_name}::updateCursorMode(Phyxel::Core::EngineRuntime& engine) {{
             auto* window = engine.getWindowManager();
             if (!window) return;
-            bool shouldCapture = !Phyxel::UI::isMouseFree(screen_.getState());
+            bool inDialogue = dialogueSystem_ && dialogueSystem_->isActive();
+            bool shouldCapture = !Phyxel::UI::isMouseFree(screen_.getState()) && !inDialogue;
             window->setCursorVisible(!shouldCapture);
         }}
 
@@ -320,6 +327,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             npcManager_->setSpeechBubbleManager(speechBubbleManager_.get());
 
             storyEngine_ = std::make_unique<Phyxel::Story::StoryEngine>();
+
+            // Interaction manager — detects player proximity to NPCs, handles E-key
+            interactionManager_ = std::make_unique<Phyxel::Core::InteractionManager>();
+            interactionManager_->setEntityRegistry(entityRegistry_.get());
 
             // Load user settings (AI config, display prefs, etc.)
             Phyxel::Core::GameSettings::loadFromFile("settings.json", settings_);
@@ -360,6 +371,32 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (!loadGameDefinition(engine)) {{
                 LOG_WARN("{class_name}", "No game.json found — starting with empty world");
             }}
+
+            // Wire NPC interaction callback — priority: AI conversation > tree dialogue
+            interactionManager_->setInteractCallback([this](Phyxel::Scene::NPCEntity* npc) {{
+                if (!dialogueSystem_ || !npc) return;
+                auto* provider = npc->getDialogueProvider();
+
+                // AI conversation via direct LLM
+                if (provider && provider->isAIMode() &&
+                    aiConversationService_ && aiConversationService_->isConfigured()) {{
+                    std::string npcId = entityRegistry_ ? entityRegistry_->getEntityId(npc) : npc->getName();
+                    if (aiConversationService_->startConversation(npc, npcId, npc->getName())) {{
+                        LOG_INFO("{class_name}", "Started AI conversation with '{{}}'", npc->getName());
+                        if (engine_) updateCursorMode(*engine_);
+                        return;
+                    }}
+                }}
+
+                // Fallback: tree-based dialogue
+                const Phyxel::UI::DialogueTree* tree = provider ? provider->getDialogueTree() : nullptr;
+                if (tree) {{
+                    dialogueSystem_->startConversation(npc->getName(), tree);
+                    if (engine_) updateCursorMode(*engine_);
+                }} else {{
+                    LOG_INFO("{class_name}", "NPC '{{}}' has no dialogue", npc->getName());
+                }}
+            }});
 
             // If no player was spawned, create a default one
             if (!playerCharacter_) {{
@@ -449,9 +486,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
 
             auto state = screen_.getState();
 
-            // ESC: pause/resume toggle
+            // ESC: pause/resume toggle, or close dialogue
             if (input->isKeyPressed(GLFW_KEY_ESCAPE)) {{
-                if (state == Phyxel::UI::ScreenState::Playing) {{
+                if (dialogueSystem_ && dialogueSystem_->isActive()) {{
+                    dialogueSystem_->endConversation();
+                    updateCursorMode(engine);
+                }} else if (state == Phyxel::UI::ScreenState::Playing) {{
                     screen_.togglePause();
                     updateCursorMode(engine);
                 }} else if (state == Phyxel::UI::ScreenState::Paused) {{
@@ -460,8 +500,32 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 }}
             }}
 
-            // Only process camera/movement input when actually playing
-            if (Phyxel::UI::isGameRunning(screen_.getState())) {{
+            // E key: interact with NPC / advance dialogue
+            if (Phyxel::UI::isGameRunning(state) && input->isKeyPressed(GLFW_KEY_E)) {{
+                if (dialogueSystem_ && dialogueSystem_->isActive()) {{
+                    dialogueSystem_->advanceDialogue();
+                }} else if (interactionManager_) {{
+                    interactionManager_->tryInteract(playerCharacter_);
+                }}
+            }}
+
+            // Enter key: advance dialogue
+            if (dialogueSystem_ && dialogueSystem_->isActive() && input->isKeyPressed(GLFW_KEY_ENTER)) {{
+                dialogueSystem_->advanceDialogue();
+            }}
+
+            // Number keys 1-4: select dialogue choices
+            if (dialogueSystem_ && dialogueSystem_->isActive()) {{
+                for (int k = GLFW_KEY_1; k <= GLFW_KEY_4; ++k) {{
+                    if (input->isKeyPressed(k)) {{
+                        dialogueSystem_->selectChoice(k - GLFW_KEY_1);
+                    }}
+                }}
+            }}
+
+            // Only process camera/movement input when actually playing and not in dialogue
+            bool inDialogue = dialogueSystem_ && dialogueSystem_->isActive();
+            if (Phyxel::UI::isGameRunning(screen_.getState()) && !inDialogue) {{
                 input->processInput(engine.getLastDeltaTime());
             }}
         }}
@@ -483,6 +547,13 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (npcManager_) npcManager_->update(dt);
             if (storyEngine_) storyEngine_->update(dt);
             if (speechBubbleManager_) speechBubbleManager_->update(dt);
+
+            // Update interaction manager with player position
+            if (interactionManager_ && playerCharacter_) {{
+                interactionManager_->update(dt, playerCharacter_->getPosition());
+            }}
+
+            if (dialogueSystem_) dialogueSystem_->update(dt);
         }}
 
         void {class_name}::onRender(Phyxel::Core::EngineRuntime& engine) {{
@@ -502,7 +573,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             screen_.startGame();
                             if (engine_) updateCursorMode(*engine_);
                         }},
-                        [this]() {{ screen_.enterSettings(); if (engine_) updateCursorMode(*engine_); }},
+                        [this]() {{ screen_.toggleSettings(); if (engine_) updateCursorMode(*engine_); }},
                         [&engine]() {{
                             auto* w = engine.getWindowManager();
                             if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE);
@@ -520,7 +591,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             screen_.resume();
                             if (engine_) updateCursorMode(*engine_);
                         }},
-                        [this]() {{ screen_.enterSettings(); if (engine_) updateCursorMode(*engine_); }},
+                        [this]() {{ screen_.toggleSettings(); if (engine_) updateCursorMode(*engine_); }},
                         [this]() {{
                             screen_.returnToMainMenu();
                             if (engine_) updateCursorMode(*engine_);
@@ -594,6 +665,30 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     imgui->renderDialogueBox(dialogueSystem_.get());
                 }}
 
+                // Render speech bubbles
+                if (speechBubbleManager_ && renderCoordinator_) {{
+                    auto* win = engine.getWindowManager();
+                    float sw = win ? static_cast<float>(win->getWidth()) : 1280.0f;
+                    float sh = win ? static_cast<float>(win->getHeight()) : 720.0f;
+                    const auto& view = renderCoordinator_->getCachedViewMatrix();
+                    const auto& proj = renderCoordinator_->getCachedProjectionMatrix();
+                    imgui->renderSpeechBubbles(speechBubbleManager_.get(), view, proj, sw, sh);
+                }}
+
+                // Render "Press E to interact" prompt
+                if (interactionManager_ && interactionManager_->shouldShowPrompt()) {{
+                    auto* nearNPC = interactionManager_->getNearestInteractableNPC();
+                    if (nearNPC) {{
+                        bool show = !dialogueSystem_ || !dialogueSystem_->isActive();
+                        auto* win = engine.getWindowManager();
+                        float sw = win ? static_cast<float>(win->getWidth()) : 1280.0f;
+                        float sh = win ? static_cast<float>(win->getHeight()) : 720.0f;
+                        const auto& view = renderCoordinator_->getCachedViewMatrix();
+                        const auto& proj = renderCoordinator_->getCachedProjectionMatrix();
+                        imgui->renderInteractionPrompt(show, nearNPC->getPosition(), view, proj, sw, sh);
+                    }}
+                }}
+
                 imgui->endFrame();
             }}
 
@@ -607,6 +702,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             entities_.clear();
             playerCharacter_ = nullptr;
             aiConversationService_.reset();
+            interactionManager_.reset();
             speechBubbleManager_.reset();
             dialogueSystem_.reset();
             storyEngine_.reset();

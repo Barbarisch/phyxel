@@ -182,10 +182,10 @@ Replacing the Goose-based AI pipeline with a direct LLM client so shipped games 
 - **Settings screen AI section**: Provider dropdown (anthropic/openai/ollama), model text input, masked API key input, status indicator. `onAISettingsChanged` callback in SettingsCallbacks struct.
 - **Game template integration**: Scaffolded projects (`create_project.py`) now include AIConversationService initialization, full settings screen with AI section, and runtime config update callback. Settings auto-saved on shutdown.
 - **AI E2E tests**: 3 live LLM pipeline tests (auto-skip when `PHYXEL_AI_API_KEY` not set). Direct LLM call, context assembly + call, full service pipeline. 1070 total tests (1067 pass + 3 skipped).
+- **InteractionManager in game template**: Standalone games now have full NPC interaction support — InteractionManager with proximity detection, E-key interaction, AI conversation priority (direct LLM → tree dialogue fallback), speech bubble rendering, interaction prompts, and input suppression during dialogue. RenderCoordinator view/projection matrix getters added.
 
 #### Remaining
-- End-to-end manual test: run engine with VillageChat, interact with AI-mode NPC (Herbalist agencyLevel=1)
-- Wire InteractionManager into scaffolded game template (currently only in editor)
+- End-to-end manual test: run standalone VillageChat, walk to NPC, press E to test interaction
 
 ### Open Gaps
 
