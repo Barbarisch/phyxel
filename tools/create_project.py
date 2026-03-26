@@ -136,6 +136,13 @@ def create_project(
         extra_includes.append('#include "story/StoryEngine.h"')
         extra_members.append("    std::unique_ptr<Phyxel::Story::StoryEngine> storyEngine_;")
 
+    # AI conversation service (always available — uses API key from settings/env)
+    if has_npcs or game_definition:
+        extra_includes.append('#include "ai/AIConversationService.h"')
+        extra_includes.append('#include "core/GameSettings.h"')
+        extra_members.append("    std::unique_ptr<Phyxel::AI::AIConversationService> aiConversationService_;")
+        extra_members.append("    Phyxel::Core::GameSettings settings_;")
+
     extra_includes.append('#include "core/ObjectTemplateManager.h"')
 
     includes_str = "\n".join(sorted(set(extra_includes)))
@@ -253,6 +260,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         #include "ui/ImGuiRenderer.h"
         #include "ui/GameScreen.h"
         #include "ui/GameMenus.h"
+        #include "core/ChunkStreamingManager.h"
+        #include "core/WorldStorage.h"
         #include "utils/PerformanceProfiler.h"
         #include "utils/PerformanceMonitor.h"
         #include "utils/Logger.h"
@@ -311,6 +320,25 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             npcManager_->setSpeechBubbleManager(speechBubbleManager_.get());
 
             storyEngine_ = std::make_unique<Phyxel::Story::StoryEngine>();
+
+            // Load user settings (AI config, display prefs, etc.)
+            Phyxel::Core::GameSettings::loadFromFile("settings.json", settings_);
+
+            // AI conversation service — enables LLM-driven NPC dialogue
+            aiConversationService_ = std::make_unique<Phyxel::AI::AIConversationService>(
+                storyEngine_.get(), entityRegistry_.get(), dialogueSystem_.get());
+
+            auto* worldStorage = engine.getChunkManager()->m_streamingManager.getWorldStorage();
+            if (worldStorage) {{
+                Phyxel::AI::LLMConfig llmConfig;
+                llmConfig.provider = settings_.aiProvider;
+                llmConfig.model    = settings_.aiModel;
+                llmConfig.apiKey   = settings_.aiApiKey;
+                if (aiConversationService_->initialize(worldStorage->getDb(), llmConfig)) {{
+                    LOG_INFO("{class_name}", "AI Conversation Service ready (configured={{}})",
+                             aiConversationService_->isConfigured() ? "yes" : "no");
+                }}
+            }}
 
             // Create the render coordinator
             renderCoordinator_ = std::make_unique<Phyxel::Graphics::RenderCoordinator>(
@@ -474,7 +502,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             screen_.startGame();
                             if (engine_) updateCursorMode(*engine_);
                         }},
-                        nullptr,  // no settings
+                        [this]() {{ screen_.enterSettings(); if (engine_) updateCursorMode(*engine_); }},
                         [&engine]() {{
                             auto* w = engine.getWindowManager();
                             if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE);
@@ -492,7 +520,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             screen_.resume();
                             if (engine_) updateCursorMode(*engine_);
                         }},
-                        nullptr,  // no settings
+                        [this]() {{ screen_.enterSettings(); if (engine_) updateCursorMode(*engine_); }},
                         [this]() {{
                             screen_.returnToMainMenu();
                             if (engine_) updateCursorMode(*engine_);
@@ -500,6 +528,59 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         [&engine]() {{
                             auto* w = engine.getWindowManager();
                             if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE);
+                        }}
+                    }});
+                    break;
+
+                case Phyxel::UI::ScreenState::Settings:
+                    Phyxel::UI::renderSettingsScreen(settings_, {{
+                        [this, &engine](int w, int h) {{
+                            settings_.resolutionWidth = w; settings_.resolutionHeight = h;
+                            auto* win = engine.getWindowManager();
+                            if (win) win->setSize(w, h);
+                        }},
+                        [this, &engine](bool fs) {{
+                            settings_.fullscreen = fs;
+                            auto* win = engine.getWindowManager();
+                            if (win) win->setFullscreen(fs);
+                        }},
+                        [this, &engine](int mode) {{
+                            settings_.vsync = static_cast<Phyxel::Core::VSyncMode>(mode);
+                            auto* dev = engine.getVulkanDevice();
+                            if (dev) {{
+                                VkPresentModeKHR pm = VK_PRESENT_MODE_IMMEDIATE_KHR;
+                                if (mode == 1) pm = VK_PRESENT_MODE_FIFO_KHR;
+                                else if (mode == 2) pm = VK_PRESENT_MODE_MAILBOX_KHR;
+                                dev->setPreferredPresentMode(pm);
+                            }}
+                        }},
+                        [this, &engine](float fov) {{
+                            settings_.fov = fov;
+                            auto* cam = engine.getCamera();
+                            if (cam) cam->setZoom(fov);
+                        }},
+                        [this, &engine](float sens) {{
+                            settings_.mouseSensitivity = sens;
+                            auto* cam = engine.getCamera();
+                            if (cam) cam->setMouseSensitivity(sens);
+                        }},
+                        [this](float v) {{ settings_.masterVolume = v; }},
+                        [this](float v) {{ settings_.musicVolume = v; }},
+                        [this](float v) {{ settings_.sfxVolume = v; }},
+                        [this]() {{ screen_.enterKeybindingRebind(); }},
+                        [this]() {{ screen_.goBack(); }},
+                        [this]() {{ settings_.saveToFile("settings.json"); }},
+                        [this](const std::string& provider, const std::string& model, const std::string& apiKey) {{
+                            settings_.aiProvider = provider;
+                            settings_.aiModel = model;
+                            settings_.aiApiKey = apiKey;
+                            if (aiConversationService_) {{
+                                Phyxel::AI::LLMConfig cfg;
+                                cfg.provider = provider;
+                                cfg.model = model;
+                                cfg.apiKey = apiKey;
+                                aiConversationService_->setLLMConfig(cfg);
+                            }}
                         }}
                     }});
                     break;
@@ -521,9 +602,11 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
 
         void {class_name}::onShutdown() {{
             LOG_INFO("{class_name}", "Shutting down...");
+            settings_.saveToFile("settings.json");
             renderCoordinator_.reset();
             entities_.clear();
             playerCharacter_ = nullptr;
+            aiConversationService_.reset();
             speechBubbleManager_.reset();
             dialogueSystem_.reset();
             storyEngine_.reset();
