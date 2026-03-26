@@ -27,6 +27,7 @@
 #include "scripting/ScriptingSystem.h"
 #include "ai/AISystem.h"
 #include "ai/AIEnhancer.h"
+#include "ai/AIConversationService.h"
 #include "core/EntityRegistry.h"
 #include "core/APICommandQueue.h"
 #include "core/EngineAPIServer.h"
@@ -168,6 +169,7 @@ private:
     // AI System
     std::unique_ptr<AI::AISystem> aiSystem;
     std::unique_ptr<AI::AIEnhancer> aiEnhancer;
+    std::unique_ptr<AI::AIConversationService> aiConversationService;
 
     // Entity Registry & HTTP API
     std::unique_ptr<Core::EntityRegistry> entityRegistry;

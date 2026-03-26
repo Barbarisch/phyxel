@@ -63,6 +63,9 @@ public:
     size_t getChunkCount();
     size_t getTotalCubeCount();
     size_t getDatabaseSize();
+
+    /// Raw SQLite handle (for subsystems that share this database, e.g. ConversationMemory)
+    sqlite3* getDb() const { return db; }
     
 private:
     sqlite3* db = nullptr;

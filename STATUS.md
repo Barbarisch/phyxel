@@ -174,12 +174,13 @@ Replacing the Goose-based AI pipeline with a direct LLM client so shipped games 
 - **ContextManager** (`engine/include/ai/ContextManager.h`, `engine/src/ai/ContextManager.cpp`): Assembles optimal LLM prompts from game state. Pulls character personality (Big Five traits), emotional state, active goals, relationships, nearby entities, character knowledge/memories, conversation summaries, active story arcs, world variables. Token budget management with automatic trimming.
 - **ConversationMemory** (`engine/include/ai/ConversationMemory.h`, `engine/src/ai/ConversationMemory.cpp`): SQLite-backed conversation persistence (shares WorldStorage's DB). Tables: `conversation_turns`, `conversation_summaries`. LLM-powered summarization of old conversations. Automatic pruning of old turns.
 - **AIConversationService** (`engine/include/ai/AIConversationService.h`, `engine/src/ai/AIConversationService.cpp`): Orchestrator wiring LLMClient + ContextManager + ConversationMemory into `DialogueSystem::startAIConversation()`. Player message → ContextManager builds prompt → LLMClient calls LLM on background thread → response delivered to DialogueSystem (thread-safe). Falls back to "[NPC seems lost in thought...]" on LLM errors.
-- **CMake**: `winhttp` added to `phyxel_core` link libraries.
+- **Application wiring**: AIConversationService initialized in `editor/src/Application.cpp` from EngineConfig settings (aiProvider/aiModel/aiApiKey + PHYXEL_AI_API_KEY env fallback). InteractionManager callback prioritizes: 1) Full AI conversation (direct LLM) for AI-mode NPCs with configured API key, 2) AI-enhanced tree dialogue via AIEnhancer, 3) Plain tree dialogue.
+- **WorldStorage::getDb()**: Public accessor added to share SQLite db handle with ConversationMemory.
+- **Unit Tests**: 31 new tests (LLMClientTest, ConversationMemoryTest, ContextManagerTest, AIConversationServiceTest) — 1064 total.
+- **CMake**: `winhttp` added to `phyxel_core` link libraries. Test glob extended with `ai/*.cpp`.
 
 #### Remaining
-- Wire `AIConversationService` into `editor/Application.cpp` InteractionManager callback (so AI NPCs use LLMClient instead of Goose/AIEnhancer)
 - API key settings UI in game menus
-- Unit tests for LLMClient, ContextManager, ConversationMemory
 - End-to-end test with a real LLM call
 
 ### Open Gaps

@@ -34,11 +34,19 @@ ctest --output-on-failure
 
 ```
 tests/
+├── ai/                  # AI/LLM integration tests
+│   ├── AIConversationServiceTest.cpp
+│   ├── ContextManagerTest.cpp
+│   ├── ConversationMemoryTest.cpp
+│   └── LLMClientTest.cpp
+├── core/                # Core system tests (ChunkManager, EntityRegistry, etc.)
+├── graphics/            # Rendering tests
+├── physics/             # Physics system tests
+├── scene/               # Entity and scene tests
+├── story/               # Story engine, character, memory tests
+├── ui/                  # UI/dialogue system tests
 ├── utils/               # Utility class tests
-│   └── CoordinateUtilsTest.cpp
-├── core/                # Core system tests (future)
-├── scene/               # Scene system tests (future)
-└── mocks/               # Mock objects for testing (future)
+└── mocks/               # Mock objects for testing
 ```
 
 ## Writing New Tests

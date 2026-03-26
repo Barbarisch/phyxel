@@ -19,6 +19,8 @@
 #include "examples/MultiChunkDemo.h"
 #include "ai/AISystem.h"
 #include "ai/AIEnhancer.h"
+#include "ai/AIConversationService.h"
+#include "core/WorldStorage.h"
 #include "core/Chunk.h"
 #include "core/WorldGenerator.h"
 #include "core/VoxelTemplate.h"
@@ -670,12 +672,61 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         npcManager->setSpeechBubbleManager(speechBubbleManager.get());
     }
 
-    // Wire interaction callback to start dialogues (tree-based with optional AI enhancement)
+    // INITIALIZE AI CONVERSATION SERVICE (direct LLM client for shipped games)
+    {
+        aiConversationService = std::make_unique<AI::AIConversationService>(
+            storyEngine.get(), entityRegistry.get(), dialogueSystem.get());
+
+        // Get SQLite db handle from WorldStorage (shares the world database)
+        sqlite3* worldDb = nullptr;
+        auto* worldStorage = chunkManager->m_streamingManager.getWorldStorage();
+        if (worldStorage) {
+            worldDb = worldStorage->getDb();
+        }
+
+        if (worldDb) {
+            // Build LLM config from engine settings
+            AI::LLMConfig llmConfig;
+            llmConfig.provider = engineConfig.aiProvider;
+            llmConfig.model = engineConfig.aiModel;
+            llmConfig.apiKey = engineConfig.aiApiKey;
+            // Fallback: try env var
+            if (llmConfig.apiKey.empty()) {
+                if (const char* envKey = std::getenv("PHYXEL_AI_API_KEY"); envKey && envKey[0] != '\0')
+                    llmConfig.apiKey = envKey;
+            }
+
+            if (aiConversationService->initialize(worldDb, llmConfig)) {
+                LOG_INFO("Application", "AI Conversation Service initialized (provider={}, configured={})",
+                         llmConfig.provider, aiConversationService->isConfigured() ? "yes" : "no");
+            } else {
+                LOG_WARN("Application", "AI Conversation Service initialization failed (non-critical)");
+            }
+        } else {
+            LOG_INFO("Application", "AI Conversation Service skipped (no world database available)");
+        }
+    }
+
+    // Wire interaction callback to start dialogues
+    // Priority: 1) Full AI conversation (direct LLM), 2) AI-enhanced tree dialogue, 3) Plain tree dialogue
     interactionManager->setInteractCallback([this](Scene::NPCEntity* npc) {
         if (!dialogueSystem || !npc) return;
         auto* provider = npc->getDialogueProvider();
 
-        // Get dialogue tree (works for both static and AI-enhanced NPCs)
+        // OPTION 1: Full AI conversation via direct LLM client
+        // Used when NPC is in AI mode and AIConversationService is configured with an API key
+        if (provider && provider->isAIMode() &&
+            aiConversationService && aiConversationService->isConfigured()) {
+            std::string npcId = entityRegistry ? entityRegistry->getEntityId(npc) : npc->getName();
+            std::string npcName = npc->getName();
+            if (aiConversationService->startConversation(npc, npcId, npcName)) {
+                LOG_INFO("Application", "Started AI conversation with '{}' (direct LLM)", npcName);
+                return;
+            }
+            LOG_WARN("Application", "AI conversation failed for '{}', falling back to tree dialogue", npcName);
+        }
+
+        // OPTION 2 & 3: Tree-based dialogue (with optional AI enhancement)
         const UI::DialogueTree* tree = provider ? provider->getDialogueTree() : nullptr;
         if (!tree) {
             LOG_INFO("Application", "NPC '{}' has no dialogue tree", npc->getName());

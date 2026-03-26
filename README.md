@@ -75,6 +75,7 @@ See [docs/GameCreationGuide.md](docs/GameCreationGuide.md) for the full workflow
 - **NPC System** — Behaviors (idle, patrol, story-driven), interaction triggers, speech bubbles
 - **Dialogue System** — Branching dialogue trees, typewriter effect, choice selection
 - **Story Engine** — Story arcs, character agents, event bus, LLM integration
+- **Direct LLM Client** — WinHTTP-based API client for Claude/OpenAI/Ollama, context-aware NPC conversations, SQLite conversation memory
 - **UI System** — Custom menu screens (main menu, pause, HUD, inventory, settings) + ImGui overlays
 - **Audio** — Spatial audio via miniaudio
 - **Python Scripting** — Embedded interpreter via pybind11

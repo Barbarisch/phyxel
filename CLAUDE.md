@@ -363,7 +363,7 @@ docs/            # Documentation
 
 ### Automated Tests
 ```powershell
-# All unit tests (1033+)
+# All unit tests (1064+)
 .\build\tests\Debug\phyxel_tests.exe --gtest_brief=1
 
 # Integration tests (36)
