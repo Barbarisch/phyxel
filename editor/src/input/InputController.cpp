@@ -180,6 +180,12 @@ void InputController::setupKeyboardBindings() {
         m_app->toggleGameMenu("game_menu");
     });
 
+    // F11 - Toggle Character Customizer
+    m_inputManager->registerAction(GLFW_KEY_F11, "Toggle Character Customizer", [this]() {
+        LOG_INFO("InputController", "F11 pressed - Toggling Character Customizer");
+        m_app->toggleCharacterCustomizer();
+    });
+
     // E - Interact with NPC
     m_inputManager->registerAction(GLFW_KEY_E, "Interact with NPC", [this]() {
         m_app->interactWithNPC();

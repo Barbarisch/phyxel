@@ -1,5 +1,6 @@
 #include "scene/NPCEntity.h"
 #include "scene/AnimatedVoxelCharacter.h"
+#include "scene/CharacterAppearance.h"
 #include "graphics/LightManager.h"
 #include "core/EntityRegistry.h"
 #include "utils/Logger.h"
@@ -8,12 +9,30 @@ namespace Phyxel {
 namespace Scene {
 
 NPCEntity::NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& position,
-                     const std::string& name, const std::string& animFile)
+                     const std::string& name, const std::string& animFile,
+                     const CharacterAppearance& appearance)
     : m_name(name)
 {
     m_character = std::make_unique<AnimatedVoxelCharacter>(physicsWorld, position);
+    m_character->setAppearance(appearance);
     if (!m_character->loadModel(animFile)) {
         LOG_WARN("NPCEntity", "Failed to load anim file '{}' for NPC '{}'", animFile, name);
+    } else {
+        m_character->playAnimation("idle");
+    }
+    this->position = position;
+}
+
+NPCEntity::NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& position,
+                     const std::string& name, const CharacterAppearance& appearance,
+                     const Phyxel::Skeleton& skeleton, const Phyxel::VoxelModel& model,
+                     const std::vector<Phyxel::AnimationClip>& clips)
+    : m_name(name)
+{
+    m_character = std::make_unique<AnimatedVoxelCharacter>(physicsWorld, position);
+    m_character->setAppearance(appearance);
+    if (!m_character->loadFromSkeleton(skeleton, model, clips)) {
+        LOG_WARN("NPCEntity", "Failed to load skeleton template for NPC '{}'", name);
     } else {
         m_character->playAnimation("idle");
     }

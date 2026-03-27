@@ -86,6 +86,7 @@ public:
     void adjustAmbientLight(float delta);
     void toggleLightingControls();
     void toggleProfiler();
+    void toggleCharacterCustomizer();
     void toggleCameraMode();
     void toggleCharacterControl();
     void cycleCameraSlot();
@@ -234,6 +235,9 @@ private:
     // Performance overlay
     bool showPerformanceOverlay = false;
     bool showScriptingConsole = false;
+    bool showCharacterCustomizer = false;
+    std::string customizerSelectedNPC;
+    void renderCharacterCustomizer();
     
     // Debug system
     // Debug flags moved to InputController

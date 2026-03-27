@@ -862,6 +862,27 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // GET /api/npc/appearance?name=... — Get NPC appearance
+    srv.Get("/api/npc/appearance", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("name")) params["name"] = req.get_param_value("name");
+        json result = queueAndWait("get_npc_appearance", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/npc/appearance — Set NPC appearance
+    srv.Post("/api/npc/appearance", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_npc_appearance", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
     // ====================================================================
     // DIALOGUE & SPEECH BUBBLES
     // ====================================================================

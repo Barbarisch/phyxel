@@ -1,9 +1,11 @@
 #include "core/NPCManager.h"
 #include "scene/NPCEntity.h"
+#include "scene/AnimatedVoxelCharacter.h"
 #include "scene/behaviors/IdleBehavior.h"
 #include "scene/behaviors/PatrolBehavior.h"
 #include "core/EntityRegistry.h"
 #include "graphics/LightManager.h"
+#include "graphics/AnimationSystem.h"
 #include "utils/Logger.h"
 
 namespace Phyxel {
@@ -12,7 +14,8 @@ namespace Core {
 Scene::NPCEntity* NPCManager::spawnNPC(const std::string& name, const std::string& animFile,
                                         const glm::vec3& position, NPCBehaviorType behaviorType,
                                         const std::vector<glm::vec3>& waypoints,
-                                        float walkSpeed, float waitTime) {
+                                        float walkSpeed, float waitTime,
+                                        const Scene::CharacterAppearance& appearance) {
     std::unique_ptr<Scene::NPCBehavior> behavior;
 
     switch (behaviorType) {
@@ -25,12 +28,13 @@ Scene::NPCEntity* NPCManager::spawnNPC(const std::string& name, const std::strin
             break;
     }
 
-    return spawnNPCWithBehavior(name, animFile, position, std::move(behavior));
+    return spawnNPCWithBehavior(name, animFile, position, std::move(behavior), appearance);
 }
 
 Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, const std::string& animFile,
                                                      const glm::vec3& position,
-                                                     std::unique_ptr<Scene::NPCBehavior> behavior) {
+                                                     std::unique_ptr<Scene::NPCBehavior> behavior,
+                                                     const Scene::CharacterAppearance& appearance) {
     if (m_npcs.count(name)) {
         LOG_WARN("NPCManager", "NPC '{}' already exists", name);
         return nullptr;
@@ -41,7 +45,7 @@ Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, cons
         return nullptr;
     }
 
-    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, position, name, animFile);
+    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, position, name, animFile, appearance);
     npc->setBehavior(std::move(behavior));
 
     // Register with EntityRegistry
@@ -98,6 +102,85 @@ void NPCManager::update(float deltaTime) {
     for (auto& [name, npc] : m_npcs) {
         npc->update(deltaTime);
     }
+}
+
+const NPCManager::AnimTemplate* NPCManager::getOrLoadTemplate(const std::string& animFile) {
+    auto it = m_templateCache.find(animFile);
+    if (it != m_templateCache.end()) {
+        return &it->second;
+    }
+
+    // Load from file
+    AnimTemplate tmpl;
+    Phyxel::AnimationSystem animSys;
+    if (!animSys.loadFromFile(animFile, tmpl.skeleton, tmpl.clips, tmpl.voxelModel)) {
+        LOG_ERROR("NPCManager", "Failed to load template anim file: {}", animFile);
+        return nullptr;
+    }
+
+    LOG_INFO("NPCManager", "Cached anim template '{}' ({} bones, {} shapes, {} clips)",
+             animFile, tmpl.skeleton.bones.size(), tmpl.voxelModel.shapes.size(), tmpl.clips.size());
+
+    auto [insertIt, _] = m_templateCache.emplace(animFile, std::move(tmpl));
+    return &insertIt->second;
+}
+
+Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const std::string& seedAnimFile,
+                                                   const glm::vec3& position, NPCBehaviorType behaviorType,
+                                                   const std::string& role,
+                                                   const std::vector<glm::vec3>& waypoints,
+                                                   float walkSpeed, float waitTime,
+                                                   const Scene::CharacterAppearance& appearance) {
+    if (m_npcs.count(name)) {
+        LOG_WARN("NPCManager", "NPC '{}' already exists", name);
+        return nullptr;
+    }
+    if (!m_physicsWorld) {
+        LOG_ERROR("NPCManager", "Cannot spawn NPC '{}': PhysicsWorld not set", name);
+        return nullptr;
+    }
+
+    const AnimTemplate* tmpl = getOrLoadTemplate(seedAnimFile);
+    if (!tmpl) {
+        return nullptr;
+    }
+
+    // Generate appearance: use provided appearance, or auto-generate from name+role
+    Scene::CharacterAppearance finalAppearance = appearance;
+    if (!role.empty()) {
+        finalAppearance = Scene::CharacterAppearance::generateFromSeed(name, role);
+    }
+
+    // Create NPC entity with procedural skeleton (no file re-read)
+    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, position, name, finalAppearance,
+                                                   tmpl->skeleton, tmpl->voxelModel, tmpl->clips);
+
+    // Set behavior
+    std::unique_ptr<Scene::NPCBehavior> behavior;
+    switch (behaviorType) {
+        case NPCBehaviorType::Patrol:
+            behavior = std::make_unique<Scene::PatrolBehavior>(waypoints, walkSpeed, waitTime);
+            break;
+        case NPCBehaviorType::Idle:
+        default:
+            behavior = std::make_unique<Scene::IdleBehavior>();
+            break;
+    }
+    npc->setBehavior(std::move(behavior));
+
+    // Register with EntityRegistry
+    std::string entityId = "npc_" + name;
+    if (m_entityRegistry) {
+        m_entityRegistry->registerEntity(npc.get(), entityId, "npc");
+    }
+    npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId);
+
+    auto* rawPtr = npc.get();
+    m_npcs[name] = std::move(npc);
+
+    LOG_INFO("NPCManager", "Spawned procedural NPC '{}' (role='{}') at ({}, {}, {})",
+             name, role, position.x, position.y, position.z);
+    return rawPtr;
 }
 
 

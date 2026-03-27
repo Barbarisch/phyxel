@@ -1,5 +1,7 @@
 #pragma once
 #include "scene/RagdollCharacter.h"
+#include "scene/CharacterAppearance.h"
+#include "scene/CharacterSkeleton.h"
 #include "graphics/AnimationSystem.h"
 #include "physics/PhysicsWorld.h"
 #include <map>
@@ -43,8 +45,24 @@ namespace Scene {
         AnimatedVoxelCharacter(Physics::PhysicsWorld* physicsWorld, const glm::vec3& position);
         virtual ~AnimatedVoxelCharacter();
 
-        // Load skeleton and animations
+        // Load skeleton and animations from .anim file
         bool loadModel(const std::string& animFile);
+
+        /// Load from in-memory skeleton data (for procedural/template-based characters).
+        /// Avoids re-reading .anim files when spawning from a cached template.
+        bool loadFromSkeleton(const Phyxel::Skeleton& skel, const Phyxel::VoxelModel& model,
+                              const std::vector<Phyxel::AnimationClip>& animations);
+        
+        // Set character appearance (colors + proportions). Call before loadModel().
+        void setAppearance(const CharacterAppearance& appearance);
+        const CharacterAppearance& getAppearance() const { return appearance_; }
+
+        // Re-apply appearance colors to all existing parts (use after setAppearance on already-loaded character).
+        void recolorFromAppearance();
+
+        /// Rebuild character with new appearance proportions (destroys and recreates physics bodies).
+        /// Call setAppearance() first, then this.
+        void rebuildWithAppearance(const CharacterAppearance& appearance);
         
         // Attach a voxel shape (represented as a box for now) to a bone
         void addVoxelBone(const std::string& boneName, const glm::vec3& size, const glm::vec3& offset, const glm::vec4& color);
@@ -73,6 +91,14 @@ namespace Scene {
         std::string getAnimationMapping(const std::string& stateName) const;
         void setAnimationRotationOffset(const std::string& animName, float rotationDegrees);
         void setAnimationPositionOffset(const std::string& animName, const glm::vec3& offset);
+
+        // Build a CharacterSkeleton from the currently loaded model.
+        // Includes skeleton hierarchy, voxel model, appearance, bone sizes, and auto-generated joint defs.
+        CharacterSkeleton buildCharacterSkeleton() const;
+
+        // Access the loaded animation clips (for use as motor targets in physics mode)
+        const std::vector<Phyxel::AnimationClip>& getAnimationClips() const { return clips; }
+        const Phyxel::Skeleton& getSkeleton() const { return skeleton; }
 
     private:
         Phyxel::Skeleton skeleton;
@@ -121,10 +147,26 @@ namespace Scene {
         float currentTurnInput = 0.0f;
         float currentStrafeInput = 0.0f;
         float currentYaw = 0.0f;
+
+        // External velocity override (used by NPC patrol behavior)
+        glm::vec3 externalVelocity{0.0f};
+        bool hasExternalVelocity = false;
         
         void createController(const glm::vec3& position);
         void updateStateMachine(float deltaTime);
         void configureAnimationFixes();
+        void applySkeletonProportions();  // Scale skeleton joints + anim keyframes per appearance
+        void buildBodiesFromModel();  // Builds physics + visual bodies from skeleton/voxelModel
+        void clearBodies();  // Remove all physics bodies for rebuild
+
+        // Appearance (colors + proportions)
+        CharacterAppearance appearance_;
+
+        // Original unscaled template data (for rebuilding with different proportions)
+        Phyxel::Skeleton originalSkeleton_;
+        Phyxel::VoxelModel originalVoxelModel_;
+        std::vector<Phyxel::AnimationClip> originalClips_;
+        bool hasOriginalTemplate_ = false;
     };
 }
 }

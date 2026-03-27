@@ -7,6 +7,7 @@
 #include "core/GameEventLog.h"
 #include "core/HealthComponent.h"
 #include "scene/NPCEntity.h"
+#include "scene/AnimatedVoxelCharacter.h"
 #include "graphics/Camera.h"
 #include "ui/DialogueSystem.h"
 #include "ui/DialogueData.h"
@@ -329,6 +330,19 @@ void GameDefinitionLoader::loadPlayer(const json& playerDef, GameSubsystems& sub
 
     Scene::Entity* entity = sub.entitySpawner(type, glm::vec3(x, y, z), animFile);
     if (entity) {
+        // Apply appearance to animated characters
+        if (type == "animated") {
+            auto* animChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity);
+            if (animChar) {
+                Scene::CharacterAppearance appearance;
+                if (playerDef.contains("appearance")) {
+                    appearance = Scene::CharacterAppearance::fromJson(playerDef["appearance"]);
+                }
+                animChar->setAppearance(appearance);
+                animChar->recolorFromAppearance();
+            }
+        }
+
         // Register with optional custom ID
         std::string id = playerDef.value("id", "player");
         if (sub.entityRegistry) {
@@ -405,8 +419,18 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
             }
         }
 
+        // Parse or generate appearance
+        std::string npcRole = npcDef.value("role", "");
+        Scene::CharacterAppearance appearance;
+        if (npcDef.contains("appearance")) {
+            appearance = Scene::CharacterAppearance::fromJson(npcDef["appearance"]);
+        } else {
+            appearance = Scene::CharacterAppearance::generateFromSeed(name, npcRole);
+        }
+
         auto* npc = sub.npcManager->spawnNPC(name, animFile, glm::vec3(x, y, z),
-                                               behaviorType, waypoints, walkSpeed, waitTime);
+                                               behaviorType, waypoints, walkSpeed, waitTime,
+                                               appearance);
         if (!npc) {
             LOG_WARN("GameDefinitionLoader", "Failed to spawn NPC: " + name);
             continue;

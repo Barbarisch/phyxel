@@ -980,6 +980,9 @@ void Application::run() {
 
         // Render Scripting Console
         imguiRenderer->renderScriptingConsole(showScriptingConsole, scriptingSystem.get());
+
+        // Render Character Customizer
+        renderCharacterCustomizer();
         
         // Render Dialogue Box
         if (dialogueSystem) {
@@ -1507,6 +1510,137 @@ void Application::handleInput() {
 void Application::togglePerformanceOverlay() {
     showPerformanceOverlay = !showPerformanceOverlay;
     LOG_INFO_FMT("Application", "Performance Overlay: " << (showPerformanceOverlay ? "ENABLED" : "DISABLED"));
+}
+
+void Application::toggleCharacterCustomizer() {
+    showCharacterCustomizer = !showCharacterCustomizer;
+    LOG_INFO_FMT("Application", "Character Customizer: " << (showCharacterCustomizer ? "ENABLED" : "DISABLED"));
+}
+
+void Application::renderCharacterCustomizer() {
+    if (!showCharacterCustomizer) return;
+
+    ImGui::SetNextWindowSize(ImVec2(340, 520), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Character Customizer", &showCharacterCustomizer)) {
+        ImGui::End();
+        return;
+    }
+
+    // Build list of customizable characters: player + all NPCs
+    std::vector<std::string> targets;
+    if (animatedCharacter) targets.push_back("Player");
+    if (npcManager) {
+        auto names = npcManager->getAllNPCNames();
+        targets.insert(targets.end(), names.begin(), names.end());
+    }
+
+    if (targets.empty()) {
+        ImGui::Text("No characters available.");
+        ImGui::End();
+        return;
+    }
+
+    // Target selector
+    if (customizerSelectedNPC.empty() || std::find(targets.begin(), targets.end(), customizerSelectedNPC) == targets.end()) {
+        customizerSelectedNPC = targets[0];
+    }
+
+    if (ImGui::BeginCombo("Character", customizerSelectedNPC.c_str())) {
+        for (auto& t : targets) {
+            bool selected = (t == customizerSelectedNPC);
+            if (ImGui::Selectable(t.c_str(), selected)) {
+                customizerSelectedNPC = t;
+            }
+        }
+        ImGui::EndCombo();
+    }
+
+    // Get the target character
+    Scene::AnimatedVoxelCharacter* target = nullptr;
+    if (customizerSelectedNPC == "Player") {
+        target = animatedCharacter;
+    } else if (npcManager) {
+        auto* npc = npcManager->getNPC(customizerSelectedNPC);
+        if (npc) target = npc->getAnimatedCharacter();
+    }
+
+    if (!target) {
+        ImGui::Text("Character not found.");
+        ImGui::End();
+        return;
+    }
+
+    // Get a mutable copy of appearance
+    Scene::CharacterAppearance app = target->getAppearance();
+    bool changed = false;
+    bool colorOnly = false;
+
+    ImGui::Separator();
+    ImGui::Text("Proportions");
+
+    changed |= ImGui::SliderFloat("Height",    &app.heightScale,          0.4f, 1.6f, "%.2f");
+    changed |= ImGui::SliderFloat("Bulk",      &app.bulkScale,            0.5f, 1.8f, "%.2f");
+    changed |= ImGui::SliderFloat("Head Size", &app.headScale,            0.6f, 1.6f, "%.2f");
+
+    ImGui::Separator();
+    ImGui::Text("Limb Proportions");
+
+    changed |= ImGui::SliderFloat("Arm Length",      &app.armLengthScale,      0.5f, 1.5f, "%.2f");
+    changed |= ImGui::SliderFloat("Leg Length",      &app.legLengthScale,      0.5f, 1.5f, "%.2f");
+    changed |= ImGui::SliderFloat("Torso Length",    &app.torsoLengthScale,    0.6f, 1.5f, "%.2f");
+    changed |= ImGui::SliderFloat("Shoulder Width",  &app.shoulderWidthScale,  0.5f, 1.6f, "%.2f");
+
+    ImGui::Separator();
+    ImGui::Text("Colors");
+
+    glm::vec3 skin(app.skinColor);
+    glm::vec3 torso(app.torsoColor);
+    glm::vec3 arm(app.armColor);
+    glm::vec3 leg(app.legColor);
+
+    if (ImGui::ColorEdit3("Skin",  &skin.x))  { app.skinColor  = glm::vec4(skin, 1.0f);  colorOnly = true; }
+    if (ImGui::ColorEdit3("Torso", &torso.x)) { app.torsoColor = glm::vec4(torso, 1.0f); colorOnly = true; }
+    if (ImGui::ColorEdit3("Arms",  &arm.x))   { app.armColor   = glm::vec4(arm, 1.0f);   colorOnly = true; }
+    if (ImGui::ColorEdit3("Legs",  &leg.x))   { app.legColor   = glm::vec4(leg, 1.0f);   colorOnly = true; }
+
+    ImGui::Separator();
+
+    // Presets
+    if (ImGui::Button("Dwarf")) {
+        app.heightScale = 0.6f; app.bulkScale = 1.4f; app.headScale = 1.15f;
+        app.shoulderWidthScale = 1.35f; app.armLengthScale = 0.85f;
+        app.legLengthScale = 0.7f; app.torsoLengthScale = 1.1f;
+        changed = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Giant")) {
+        app.heightScale = 1.5f; app.bulkScale = 1.3f; app.headScale = 0.9f;
+        app.shoulderWidthScale = 1.2f; app.armLengthScale = 1.1f;
+        app.legLengthScale = 1.2f; app.torsoLengthScale = 1.1f;
+        changed = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Child")) {
+        app.heightScale = 0.7f; app.bulkScale = 0.75f; app.headScale = 1.25f;
+        app.shoulderWidthScale = 0.9f; app.armLengthScale = 0.9f;
+        app.legLengthScale = 0.85f; app.torsoLengthScale = 0.9f;
+        changed = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Reset")) {
+        app = Scene::CharacterAppearance{};
+        changed = true;
+    }
+
+    // Apply changes
+    if (changed) {
+        target->rebuildWithAppearance(app);
+    } else if (colorOnly) {
+        target->setAppearance(app);
+        target->recolorFromAppearance();
+    }
+
+    ImGui::End();
 }
 
 void Application::toggleLightingControls() {
@@ -3302,10 +3436,30 @@ void Application::processAPICommands() {
                             }
                         }
 
-                        auto* npc = npcManager->spawnNPC(name, animFile, glm::vec3(x, y, z),
-                                                          behaviorType, waypoints, walkSpeed, waitTime);
+                        // Parse optional appearance
+                        Scene::CharacterAppearance appearance;
+                        std::string role = cmd.params.value("role", "");
+                        bool procedural = cmd.params.value("procedural", false);
+
+                        if (cmd.params.contains("appearance")) {
+                            appearance = Scene::CharacterAppearance::fromJson(cmd.params["appearance"]);
+                        } else if (!role.empty()) {
+                            appearance = Scene::CharacterAppearance::generateFromSeed(name, role);
+                        }
+
+                        Scene::NPCEntity* npc = nullptr;
+                        if (procedural) {
+                            // Procedural mode: use cached template + unique appearance
+                            npc = npcManager->spawnProceduralNPC(name, animFile, glm::vec3(x, y, z),
+                                                                  behaviorType, role, waypoints, walkSpeed, waitTime, appearance);
+                        } else {
+                            npc = npcManager->spawnNPC(name, animFile, glm::vec3(x, y, z),
+                                                       behaviorType, waypoints, walkSpeed, waitTime, appearance);
+                        }
+
                         if (npc) {
                             response = {{"success", true}, {"name", name}, {"behavior", behaviorStr},
+                                        {"procedural", procedural}, {"role", role},
                                         {"position", {{"x", x}, {"y", y}, {"z", z}}}};
                             if (gameEventLog) {
                                 gameEventLog->emit("npc_spawned", {
@@ -3403,6 +3557,61 @@ void Application::processAPICommands() {
             // ================================================================
             // DIALOGUE COMMANDS
             // ================================================================
+            } else if (cmd.action == "get_npc_appearance") {
+                if (!npcManager) {
+                    response = {{"error", "NPCManager not available"}};
+                } else {
+                    std::string name = cmd.params.value("name", "");
+                    if (name.empty()) {
+                        response = {{"error", "NPC name required"}};
+                    } else {
+                        auto* npc = npcManager->getNPC(name);
+                        if (!npc) {
+                            response = {{"error", "NPC not found: " + name}};
+                        } else {
+                            auto* character = npc->getAnimatedCharacter();
+                            if (!character) {
+                                response = {{"error", "NPC has no animated character"}};
+                            } else {
+                                const auto& app = character->getAppearance();
+                                response = {{"success", true}, {"name", name}, {"appearance", app.toJson()}};
+                            }
+                        }
+                    }
+                }
+
+            } else if (cmd.action == "set_npc_appearance") {
+                if (!npcManager) {
+                    response = {{"error", "NPCManager not available"}};
+                } else {
+                    std::string name = cmd.params.value("name", "");
+                    if (name.empty()) {
+                        response = {{"error", "NPC name required"}};
+                    } else {
+                        auto* npc = npcManager->getNPC(name);
+                        if (!npc) {
+                            response = {{"error", "NPC not found: " + name}};
+                        } else {
+                            auto* character = npc->getAnimatedCharacter();
+                            if (!character) {
+                                response = {{"error", "NPC has no animated character"}};
+                            } else {
+                                // Merge provided fields with current appearance
+                                auto currentApp = character->getAppearance();
+                                auto newJson = currentApp.toJson();
+                                if (cmd.params.contains("appearance")) {
+                                    for (auto& [key, val] : cmd.params["appearance"].items()) {
+                                        newJson[key] = val;
+                                    }
+                                }
+                                auto newApp = Scene::CharacterAppearance::fromJson(newJson);
+                                character->rebuildWithAppearance(newApp);
+                                response = {{"success", true}, {"name", name}, {"appearance", newApp.toJson()}};
+                            }
+                        }
+                    }
+                }
+
             } else if (cmd.action == "interact_npc") {
                 // Trigger the same interaction callback as pressing E near an NPC
                 std::string npcName = cmd.params.value("name", "");

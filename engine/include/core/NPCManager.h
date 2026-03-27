@@ -1,6 +1,8 @@
 #pragma once
 
 #include "scene/NPCEntity.h"
+#include "scene/CharacterAppearance.h"
+#include "graphics/Animation.h"
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -49,16 +51,29 @@ public:
     /// @param waypoints  For Patrol behavior: ordered waypoints.
     /// @param walkSpeed  For Patrol behavior: movement speed.
     /// @param waitTime   For Patrol behavior: wait time at each waypoint.
+    /// @param appearance Character appearance (colors + proportions).
     /// @return Pointer to the spawned NPC, or nullptr on failure.
     Scene::NPCEntity* spawnNPC(const std::string& name, const std::string& animFile,
                                const glm::vec3& position, NPCBehaviorType behaviorType,
                                const std::vector<glm::vec3>& waypoints = {},
-                               float walkSpeed = 2.0f, float waitTime = 2.0f);
+                               float walkSpeed = 2.0f, float waitTime = 2.0f,
+                               const Scene::CharacterAppearance& appearance = Scene::CharacterAppearance{});
 
     /// Spawn an NPC with a custom behavior.
     Scene::NPCEntity* spawnNPCWithBehavior(const std::string& name, const std::string& animFile,
                                             const glm::vec3& position,
-                                            std::unique_ptr<Scene::NPCBehavior> behavior);
+                                            std::unique_ptr<Scene::NPCBehavior> behavior,
+                                            const Scene::CharacterAppearance& appearance = Scene::CharacterAppearance{});
+
+    /// Spawn a procedural NPC using a cached .anim template + unique appearance.
+    /// Loads the template .anim file once (cached), then applies per-NPC appearance variations.
+    /// If role is non-empty, appearance is auto-generated from name+role via generateFromSeed.
+    Scene::NPCEntity* spawnProceduralNPC(const std::string& name, const std::string& seedAnimFile,
+                                          const glm::vec3& position, NPCBehaviorType behaviorType,
+                                          const std::string& role = "",
+                                          const std::vector<glm::vec3>& waypoints = {},
+                                          float walkSpeed = 2.0f, float waitTime = 2.0f,
+                                          const Scene::CharacterAppearance& appearance = Scene::CharacterAppearance{});
 
     /// Remove an NPC by name. Returns false if not found.
     bool removeNPC(const std::string& name);
@@ -83,6 +98,17 @@ private:
 
     /// Owns all NPC entities. Key = NPC name.
     std::unordered_map<std::string, std::unique_ptr<Scene::NPCEntity>> m_npcs;
+
+    /// Cached .anim templates: animFile -> {skeleton, voxelModel, clips}
+    struct AnimTemplate {
+        Phyxel::Skeleton skeleton;
+        Phyxel::VoxelModel voxelModel;
+        std::vector<Phyxel::AnimationClip> clips;
+    };
+    std::unordered_map<std::string, AnimTemplate> m_templateCache;
+
+    /// Load or retrieve a cached anim template.
+    const AnimTemplate* getOrLoadTemplate(const std::string& animFile);
 };
 
 } // namespace Core

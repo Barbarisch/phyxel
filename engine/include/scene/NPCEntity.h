@@ -2,6 +2,8 @@
 
 #include "scene/Entity.h"
 #include "scene/NPCBehavior.h"
+#include "scene/CharacterAppearance.h"
+#include "graphics/Animation.h"
 #include "core/HealthComponent.h"
 #include "ui/DialogueData.h"
 #include <string>
@@ -23,7 +25,15 @@ class AnimatedVoxelCharacter;
 class NPCEntity : public Entity {
 public:
     NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& position,
-              const std::string& name, const std::string& animFile);
+              const std::string& name, const std::string& animFile,
+              const CharacterAppearance& appearance = CharacterAppearance{});
+
+    /// Construct from in-memory skeleton data (procedural/template-based, no file re-read).
+    NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& position,
+              const std::string& name, const CharacterAppearance& appearance,
+              const Phyxel::Skeleton& skeleton, const Phyxel::VoxelModel& model,
+              const std::vector<Phyxel::AnimationClip>& clips);
+
     ~NPCEntity() override;
 
     // Entity interface

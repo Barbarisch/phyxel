@@ -722,6 +722,53 @@ async def list_tools() -> list[Tool]:
                 "required": ["name", "behavior"]
             }
         ),
+        Tool(
+            name="get_npc_appearance",
+            description="Get the current appearance (colors and proportions) of an NPC. Returns heightScale, bulkScale, headScale, armLengthScale, legLengthScale, torsoLengthScale, shoulderWidthScale, and color values.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "NPC name"}
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="set_npc_appearance",
+            description=(
+                "Set or update appearance (colors and proportions) of an existing NPC. "
+                "Only provided fields are changed; others keep their current values. "
+                "Proportion changes rebuild the character's skeleton in real-time. "
+                "Fields: heightScale (0.4-1.6), bulkScale (0.5-1.8), headScale (0.6-1.6), "
+                "armLengthScale (0.5-1.5), legLengthScale (0.5-1.5), torsoLengthScale (0.6-1.5), "
+                "shoulderWidthScale (0.5-1.6), "
+                "skinColor/torsoColor/armColor/legColor ({r,g,b,a} 0.0-1.0)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "NPC name"},
+                    "appearance": {
+                        "type": "object",
+                        "description": "Partial appearance object — only include fields you want to change",
+                        "properties": {
+                            "heightScale": {"type": "number"},
+                            "bulkScale": {"type": "number"},
+                            "headScale": {"type": "number"},
+                            "armLengthScale": {"type": "number"},
+                            "legLengthScale": {"type": "number"},
+                            "torsoLengthScale": {"type": "number"},
+                            "shoulderWidthScale": {"type": "number"},
+                            "skinColor": {"type": "object", "properties": {"r": {"type": "number"}, "g": {"type": "number"}, "b": {"type": "number"}, "a": {"type": "number"}}},
+                            "torsoColor": {"type": "object", "properties": {"r": {"type": "number"}, "g": {"type": "number"}, "b": {"type": "number"}, "a": {"type": "number"}}},
+                            "armColor": {"type": "object", "properties": {"r": {"type": "number"}, "g": {"type": "number"}, "b": {"type": "number"}, "a": {"type": "number"}}},
+                            "legColor": {"type": "object", "properties": {"r": {"type": "number"}, "g": {"type": "number"}, "b": {"type": "number"}, "a": {"type": "number"}}}
+                        }
+                    }
+                },
+                "required": ["name", "appearance"]
+            }
+        ),
 
         # ================================================================
         # Dialogue & Speech Bubbles
@@ -2077,6 +2124,14 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         if "waitTime" in args:
             body["waitTime"] = args["waitTime"]
         return await api_post("/api/npc/behavior", body)
+
+    elif name == "get_npc_appearance":
+        return await api_get(f"/api/npc/appearance?name={args['name']}")
+
+    elif name == "set_npc_appearance":
+        return await api_post("/api/npc/appearance", {
+            "name": args["name"], "appearance": args["appearance"]
+        })
 
     # --- Dialogue & Speech Bubbles ---
     elif name == "set_npc_dialogue":

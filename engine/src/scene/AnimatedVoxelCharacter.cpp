@@ -49,194 +49,331 @@ namespace Scene {
         controllerBody->setActivationState(DISABLE_DEACTIVATION);
     }
 
+    void AnimatedVoxelCharacter::setAppearance(const CharacterAppearance& appearance) {
+        appearance_ = appearance;
+    }
+
+    void AnimatedVoxelCharacter::recolorFromAppearance() {
+        for (auto& part : parts) {
+            // Skip parts with alpha=0 (physics-only bounding boxes)
+            if (part.color.a > 0.0f) {
+                part.color = appearance_.getColorForBone(part.name);
+            }
+        }
+    }
+
     bool AnimatedVoxelCharacter::loadModel(const std::string& animFile) {
         if (animSystem.loadFromFile(animFile, skeleton, clips, voxelModel)) {
-            // Print loaded animations
+            // Store original unscaled template for later rebuilds
+            originalSkeleton_ = skeleton;
+            originalVoxelModel_ = voxelModel;
+            originalClips_ = clips;
+            hasOriginalTemplate_ = true;
+
             LOG_INFO_FMT("Character", "=== Loaded Animations (" << clips.size() << ") ===");
             for (size_t i = 0; i < clips.size(); ++i) {
                 LOG_INFO_FMT("Character", "  [" << i << "] " << clips[i].name << " (Duration: " << clips[i].duration << "s)");
             }
             LOG_INFO_FMT("Character", "=====================================");
-
-            // Configure fixes after loading
             configureAnimationFixes();
-
-            // Automatically construct voxel bones from the loaded model
-            if (voxelModel.shapes.empty()) {
-                std::cout << "No model shapes found in animation file. Generating default bone shapes." << std::endl;
-                
-                // Build children map
-                std::map<int, std::vector<int>> childrenMap;
-                for (const auto& b : skeleton.bones) {
-                    if (b.parentId != -1) childrenMap[b.parentId].push_back(b.id);
-                }
-
-                for (const auto& bone : skeleton.bones) {
-                    // Performance Optimization: Skip small bones (fingers, toes, facial features)
-                    // This reduces the number of physics bodies from ~65 to ~15-20
-                    std::string nameLower = bone.name;
-                    std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
-                    
-                    if (nameLower.find("thumb") != std::string::npos || 
-                        nameLower.find("index") != std::string::npos || 
-                        nameLower.find("middle") != std::string::npos || 
-                        nameLower.find("ring") != std::string::npos || 
-                        nameLower.find("pinky") != std::string::npos || 
-                        nameLower.find("eye") != std::string::npos || 
-                        nameLower.find("toe") != std::string::npos ||
-                        nameLower.find("end") != std::string::npos) {
-                        continue;
-                    }
-
-                    glm::vec3 targetVector(0.0f);
-                    bool hasChild = false;
-
-                    // Find primary child to connect to
-                    if (childrenMap[bone.id].size() > 0) {
-                        hasChild = true;
-                        // If multiple children (e.g. Hips), prefer Spine for the main body block
-                        int targetChildId = -1;
-                        if (childrenMap[bone.id].size() > 1) {
-                            for (int childId : childrenMap[bone.id]) {
-                                if (skeleton.bones[childId].name.find("Spine") != std::string::npos) {
-                                    targetChildId = childId;
-                                    break;
-                                }
-                            }
-                        }
-                        
-                        if (targetChildId != -1) {
-                            targetVector = skeleton.bones[targetChildId].localPosition;
-                        } else {
-                            // Average of all children
-                            for (int childId : childrenMap[bone.id]) {
-                                targetVector += skeleton.bones[childId].localPosition;
-                            }
-                            targetVector /= (float)childrenMap[bone.id].size();
-                        }
-                    }
-
-                    float len = glm::length(targetVector);
-                    if (len < 0.01f) len = 0.1f; // Minimum length for leaf bones or zero-distance children
-
-                    // Determine orientation
-                    glm::vec3 size(0.1f); // Default thickness
-                    glm::vec3 offset = targetVector * 0.5f;
-
-                    // If leaf node (no children), extend a bit in the direction of parent? 
-                    // Or just make a small nub.
-                    if (!hasChild) {
-                        offset = glm::vec3(0.0f);
-                        size = glm::vec3(0.05f); // Small joint nub
-                    } else {
-                        // Align box to dominant axis
-                        glm::vec3 absDir = glm::abs(targetVector);
-                        float thickness = len * 0.25f;
-                        thickness = glm::clamp(thickness, 0.05f, 0.15f);
-                        
-                        // Make torso/head thicker
-                        if (bone.name.find("Spine") != std::string::npos || bone.name.find("Head") != std::string::npos || bone.name.find("Hips") != std::string::npos) {
-                            thickness = glm::clamp(len * 0.6f, 0.15f, 0.3f);
-                        }
-
-                        if (absDir.x >= absDir.y && absDir.x >= absDir.z) {
-                            size = glm::vec3(len, thickness, thickness);
-                        } else if (absDir.y >= absDir.x && absDir.y >= absDir.z) {
-                            size = glm::vec3(thickness, len, thickness);
-                        } else {
-                            size = glm::vec3(thickness, thickness, len);
-                        }
-                    }
-                    
-                    glm::vec4 color(0.7f, 0.7f, 0.7f, 1.0f);
-                    if (bone.name.find("Head") != std::string::npos) color = glm::vec4(1.0f, 0.8f, 0.6f, 1.0f);
-                    else if (bone.name.find("Arm") != std::string::npos || bone.name.find("Hand") != std::string::npos) color = glm::vec4(0.2f, 0.6f, 1.0f, 1.0f);
-                    else if (bone.name.find("Leg") != std::string::npos || bone.name.find("Foot") != std::string::npos) color = glm::vec4(0.2f, 0.2f, 0.8f, 1.0f);
-                    else if (bone.name.find("Spine") != std::string::npos || bone.name.find("Torso") != std::string::npos) color = glm::vec4(0.8f, 0.2f, 0.2f, 1.0f);
-                    
-                    addVoxelBone(bone.name, size, offset, color);
-                }
-            } else {
-                // Group shapes by bone
-                std::map<int, std::vector<Phyxel::BoneShape>> shapesByBone;
-                for (const auto& shape : voxelModel.shapes) {
-                    if (shape.boneId >= 0 && shape.boneId < skeleton.bones.size()) {
-                        shapesByBone[shape.boneId].push_back(shape);
-                    }
-                }
-
-                for (auto& pair : shapesByBone) {
-                    int boneId = pair.first;
-                    const auto& shapes = pair.second;
-                    std::string boneName = skeleton.bones[boneId].name;
-
-                    // Performance Optimization: Skip small bones (fingers, toes, facial features)
-                    std::string nameLower = boneName;
-                    std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
-                    
-                    if (nameLower.find("thumb") != std::string::npos || 
-                        nameLower.find("index") != std::string::npos || 
-                        nameLower.find("middle") != std::string::npos || 
-                        nameLower.find("ring") != std::string::npos || 
-                        nameLower.find("pinky") != std::string::npos || 
-                        nameLower.find("eye") != std::string::npos || 
-                        nameLower.find("toe") != std::string::npos ||
-                        nameLower.find("end") != std::string::npos) {
-                        continue;
-                    }
-
-                    // Calculate bounding box for physics body
-                    glm::vec3 minPt(1e9f);
-                    glm::vec3 maxPt(-1e9f);
-                    
-                    for (const auto& shape : shapes) {
-                        glm::vec3 halfSize = shape.size * 0.5f;
-                        minPt = glm::min(minPt, shape.offset - halfSize);
-                        maxPt = glm::max(maxPt, shape.offset + halfSize);
-                    }
-                    
-                    glm::vec3 totalSize = maxPt - minPt;
-                    glm::vec3 centerOffset = (minPt + maxPt) * 0.5f;
-                    
-                    // Ensure minimum size for physics
-                    totalSize = glm::max(totalSize, glm::vec3(0.05f));
-
-                    // Create ONE physics body for the bone
-                    addVoxelBone(boneName, totalSize, centerOffset, glm::vec4(0,0,0,0)); 
-                    
-                    // Now add all visual parts (voxels)
-                    if (boneBodies.find(boneId) != boneBodies.end()) {
-                        btRigidBody* body = boneBodies[boneId];
-                        
-                        // Remove the bounding box visual added by addVoxelBone
-                        if (!parts.empty()) parts.pop_back(); 
-                        
-                        for (const auto& shape : shapes) {
-                            // Calculate offset relative to the physics body center
-                            glm::vec3 relativeOffset = shape.offset - centerOffset;
-                            
-                            // Assign colors based on body part names
-                            glm::vec4 color(0.7f, 0.7f, 0.7f, 1.0f); 
-                            
-                            if (nameLower.find("head") != std::string::npos) color = glm::vec4(1.0f, 0.8f, 0.6f, 1.0f); 
-                            else if (nameLower.find("arm") != std::string::npos) color = glm::vec4(0.2f, 0.6f, 1.0f, 1.0f); 
-                            else if (nameLower.find("leg") != std::string::npos) color = glm::vec4(0.2f, 0.2f, 0.8f, 1.0f); 
-                            else if (nameLower.find("torso") != std::string::npos || nameLower.find("spine") != std::string::npos) color = glm::vec4(0.8f, 0.2f, 0.2f, 1.0f); 
-                            
-                            RagdollPart part;
-                            part.rigidBody = body;
-                            part.scale = shape.size;
-                            part.color = color;
-                            part.name = boneName;
-                            part.offset = relativeOffset;
-                            parts.push_back(part);
-                        }
-                    }
-                }
-            }
+            buildBodiesFromModel();
             return true;
         }
         return false;
+    }
+
+    bool AnimatedVoxelCharacter::loadFromSkeleton(const Phyxel::Skeleton& skel,
+                                                   const Phyxel::VoxelModel& model,
+                                                   const std::vector<Phyxel::AnimationClip>& animations) {
+        skeleton = skel;
+        voxelModel = model;
+        clips = animations;
+
+        // Store original unscaled template for later rebuilds
+        originalSkeleton_ = skel;
+        originalVoxelModel_ = model;
+        originalClips_ = animations;
+        hasOriginalTemplate_ = true;
+
+        LOG_INFO_FMT("Character", "=== Loaded from skeleton template (" << clips.size() << " animations, " << voxelModel.shapes.size() << " shapes) ===");
+        for (size_t i = 0; i < clips.size(); ++i) {
+            LOG_INFO_FMT("Character", "  [" << i << "] " << clips[i].name << " (Duration: " << clips[i].duration << "s)");
+        }
+
+        configureAnimationFixes();
+        applySkeletonProportions();
+        buildBodiesFromModel();
+        return true;
+    }
+
+    // Determine per-limb scale factors for a bone based on its lowercased name
+    static void getLimbScales(const std::string& nameLower, const CharacterAppearance& app,
+                              float& lengthScale, float& thicknessScale) {
+        lengthScale = app.heightScale;
+        thicknessScale = app.bulkScale;
+
+        if (nameLower.find("head") != std::string::npos ||
+            nameLower.find("neck") != std::string::npos) {
+            // Head uses its own scale; neck uses torso length
+            if (nameLower.find("head") != std::string::npos) {
+                lengthScale = app.headScale;
+                thicknessScale = app.headScale;
+            } else {
+                lengthScale = app.heightScale * app.torsoLengthScale;
+            }
+        } else if (nameLower.find("arm") != std::string::npos ||
+                   nameLower.find("forearm") != std::string::npos ||
+                   nameLower.find("hand") != std::string::npos) {
+            lengthScale = app.heightScale * app.armLengthScale;
+        } else if (nameLower.find("shoulder") != std::string::npos) {
+            lengthScale = app.shoulderWidthScale;
+            thicknessScale = app.bulkScale * app.shoulderWidthScale;
+        } else if (nameLower.find("leg") != std::string::npos ||
+                   nameLower.find("upleg") != std::string::npos ||
+                   nameLower.find("foot") != std::string::npos) {
+            lengthScale = app.heightScale * app.legLengthScale;
+        } else if (nameLower.find("spine") != std::string::npos ||
+                   nameLower.find("chest") != std::string::npos) {
+            lengthScale = app.heightScale * app.torsoLengthScale;
+        } else if (nameLower.find("hip") != std::string::npos) {
+            lengthScale = app.heightScale;
+            thicknessScale = app.bulkScale;
+        }
+    }
+
+    void AnimatedVoxelCharacter::applySkeletonProportions() {
+        // Scale skeleton joint positions and animation keyframes based on appearance proportions.
+        // Without this, only the visual box sizes change but joints stay in place,
+        // so characters all look the same height/shape.
+        for (auto& bone : skeleton.bones) {
+            if (bone.parentId == -1) continue; // Skip root bone
+
+            std::string nameLower = bone.name;
+            std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+
+            float lengthScale = 1.0f, thicknessScale = 1.0f;
+            getLimbScales(nameLower, appearance_, lengthScale, thicknessScale);
+
+            // Scale the bone's position relative to its parent (this is what determines
+            // actual limb length / body proportions)
+            bone.localPosition *= lengthScale;
+            bone.currentPosition = bone.localPosition;
+        }
+
+        // Scale animation position keyframes to match the new skeleton proportions.
+        // Otherwise animations would snap joints back to their original unscaled positions.
+        for (auto& clip : clips) {
+            for (auto& channel : clip.channels) {
+                if (channel.boneId <= 0 ||
+                    channel.boneId >= static_cast<int>(skeleton.bones.size()))
+                    continue;
+                if (channel.positionKeys.empty()) continue;
+
+                std::string nameLower = skeleton.bones[channel.boneId].name;
+                std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+
+                float lengthScale = 1.0f, thicknessScale = 1.0f;
+                getLimbScales(nameLower, appearance_, lengthScale, thicknessScale);
+
+                for (auto& key : channel.positionKeys) {
+                    key.value *= lengthScale;
+                }
+            }
+        }
+    }
+
+    void AnimatedVoxelCharacter::buildBodiesFromModel() {
+        if (voxelModel.shapes.empty()) {
+            std::cout << "No model shapes found. Generating default bone shapes." << std::endl;
+
+            // Build children map
+            std::map<int, std::vector<int>> childrenMap;
+            for (const auto& b : skeleton.bones) {
+                if (b.parentId != -1) childrenMap[b.parentId].push_back(b.id);
+            }
+
+            for (const auto& bone : skeleton.bones) {
+                std::string nameLower = bone.name;
+                std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+
+                if (nameLower.find("thumb") != std::string::npos ||
+                    nameLower.find("index") != std::string::npos ||
+                    nameLower.find("middle") != std::string::npos ||
+                    nameLower.find("ring") != std::string::npos ||
+                    nameLower.find("pinky") != std::string::npos ||
+                    nameLower.find("eye") != std::string::npos ||
+                    nameLower.find("toe") != std::string::npos ||
+                    nameLower.find("end") != std::string::npos) {
+                    continue;
+                }
+
+                glm::vec3 targetVector(0.0f);
+                bool hasChild = false;
+
+                if (childrenMap[bone.id].size() > 0) {
+                    hasChild = true;
+                    int targetChildId = -1;
+                    if (childrenMap[bone.id].size() > 1) {
+                        for (int childId : childrenMap[bone.id]) {
+                            if (skeleton.bones[childId].name.find("Spine") != std::string::npos) {
+                                targetChildId = childId;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (targetChildId != -1) {
+                        targetVector = skeleton.bones[targetChildId].localPosition;
+                    } else {
+                        for (int childId : childrenMap[bone.id]) {
+                            targetVector += skeleton.bones[childId].localPosition;
+                        }
+                        targetVector /= (float)childrenMap[bone.id].size();
+                    }
+                }
+
+                float len = glm::length(targetVector);
+                if (len < 0.01f) len = 0.1f;
+
+                glm::vec3 size(0.1f);
+                glm::vec3 offset = targetVector * 0.5f;
+
+                if (!hasChild) {
+                    offset = glm::vec3(0.0f);
+                    size = glm::vec3(0.05f);
+                } else {
+                    glm::vec3 absDir = glm::abs(targetVector);
+                    float thickness = len * 0.25f;
+                    thickness = glm::clamp(thickness, 0.05f, 0.15f);
+
+                    if (bone.name.find("Spine") != std::string::npos || bone.name.find("Head") != std::string::npos || bone.name.find("Hips") != std::string::npos) {
+                        thickness = glm::clamp(len * 0.6f, 0.15f, 0.3f);
+                    }
+
+                    if (absDir.x >= absDir.y && absDir.x >= absDir.z) {
+                        size = glm::vec3(len, thickness, thickness);
+                    } else if (absDir.y >= absDir.x && absDir.y >= absDir.z) {
+                        size = glm::vec3(thickness, len, thickness);
+                    } else {
+                        size = glm::vec3(thickness, thickness, len);
+                    }
+                }
+
+                glm::vec4 color = appearance_.getColorForBone(bone.name);
+
+                // Apply per-limb proportion scales
+                std::string nameLwr = bone.name;
+                std::transform(nameLwr.begin(), nameLwr.end(), nameLwr.begin(), ::tolower);
+                float limbLength = 1.0f, limbThickness = 1.0f;
+                getLimbScales(nameLwr, appearance_, limbLength, limbThickness);
+
+                if (nameLwr.find("head") != std::string::npos) {
+                    size *= appearance_.headScale;
+                } else {
+                    glm::vec3 absDir2 = glm::abs(offset);
+                    if (absDir2.y >= absDir2.x && absDir2.y >= absDir2.z) {
+                        size.x *= limbThickness;
+                        size.y *= limbLength;
+                        size.z *= limbThickness;
+                    } else {
+                        // Horizontal bone (shoulders, etc)
+                        size.x *= limbLength;
+                        size.y *= limbThickness;
+                        size.z *= limbThickness;
+                    }
+                }
+                offset.y *= limbLength;
+
+                addVoxelBone(bone.name, size, offset, color);
+            }
+        } else {
+            // Group shapes by bone
+            std::map<int, std::vector<Phyxel::BoneShape>> shapesByBone;
+            for (const auto& shape : voxelModel.shapes) {
+                if (shape.boneId >= 0 && shape.boneId < static_cast<int>(skeleton.bones.size())) {
+                    shapesByBone[shape.boneId].push_back(shape);
+                }
+            }
+
+            for (auto& pair : shapesByBone) {
+                int boneId = pair.first;
+                const auto& shapes = pair.second;
+                std::string boneName = skeleton.bones[boneId].name;
+
+                std::string nameLower = boneName;
+                std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+
+                if (nameLower.find("thumb") != std::string::npos ||
+                    nameLower.find("index") != std::string::npos ||
+                    nameLower.find("middle") != std::string::npos ||
+                    nameLower.find("ring") != std::string::npos ||
+                    nameLower.find("pinky") != std::string::npos ||
+                    nameLower.find("eye") != std::string::npos ||
+                    nameLower.find("toe") != std::string::npos ||
+                    nameLower.find("end") != std::string::npos) {
+                    continue;
+                }
+
+                glm::vec3 minPt(1e9f);
+                glm::vec3 maxPt(-1e9f);
+
+                for (const auto& shape : shapes) {
+                    glm::vec3 halfSize = shape.size * 0.5f;
+                    minPt = glm::min(minPt, shape.offset - halfSize);
+                    maxPt = glm::max(maxPt, shape.offset + halfSize);
+                }
+
+                glm::vec3 totalSize = maxPt - minPt;
+                glm::vec3 centerOffset = (minPt + maxPt) * 0.5f;
+                totalSize = glm::max(totalSize, glm::vec3(0.05f));
+
+                // Per-limb scaling
+                float limbLength = 1.0f, limbThickness = 1.0f;
+                getLimbScales(nameLower, appearance_, limbLength, limbThickness);
+
+                if (nameLower.find("head") != std::string::npos) {
+                    totalSize *= appearance_.headScale;
+                    centerOffset *= appearance_.headScale;
+                } else {
+                    totalSize.x *= limbThickness;
+                    totalSize.y *= limbLength;
+                    totalSize.z *= limbThickness;
+                    centerOffset.y *= limbLength;
+                }
+
+                addVoxelBone(boneName, totalSize, centerOffset, glm::vec4(0,0,0,0));
+
+                if (boneBodies.find(boneId) != boneBodies.end()) {
+                    btRigidBody* body = boneBodies[boneId];
+
+                    if (!parts.empty()) parts.pop_back();
+
+                    for (const auto& shape : shapes) {
+                        glm::vec3 relativeOffset = shape.offset - centerOffset;
+                        glm::vec4 color = appearance_.getColorForBone(boneName);
+
+                        glm::vec3 scaledSize = shape.size;
+                        if (nameLower.find("head") != std::string::npos) {
+                            scaledSize *= appearance_.headScale;
+                            relativeOffset *= appearance_.headScale;
+                        } else {
+                            scaledSize.x *= limbThickness;
+                            scaledSize.y *= limbLength;
+                            scaledSize.z *= limbThickness;
+                            relativeOffset.y *= limbLength;
+                        }
+
+                        RagdollPart part;
+                        part.rigidBody = body;
+                        part.scale = scaledSize;
+                        part.color = color;
+                        part.name = boneName;
+                        part.offset = relativeOffset;
+                        parts.push_back(part);
+                    }
+                }
+            }
+        }
     }
 
     void AnimatedVoxelCharacter::addVoxelBone(const std::string& boneName, const glm::vec3& size, const glm::vec3& offset, const glm::vec4& color) {
@@ -277,18 +414,66 @@ namespace Scene {
         parts.push_back({body, size, color, boneName});
     }
 
+    void AnimatedVoxelCharacter::clearBodies() {
+        // Remove all bone bodies from the physics world
+        for (auto& pair : boneBodies) {
+            if (pair.second) {
+                physicsWorld->removeCube(pair.second);
+            }
+        }
+        boneBodies.clear();
+        boneOffsets.clear();
+        parts.clear();
+    }
+
+    void AnimatedVoxelCharacter::rebuildWithAppearance(const CharacterAppearance& appearance) {
+        if (!hasOriginalTemplate_) return;
+
+        appearance_ = appearance;
+
+        // Remove existing bodies
+        clearBodies();
+
+        // Restore skeleton/model/clips from the original unscaled template
+        skeleton = originalSkeleton_;
+        voxelModel = originalVoxelModel_;
+        clips = originalClips_;
+
+        // Re-apply proportions and rebuild
+        configureAnimationFixes();
+        applySkeletonProportions();
+        buildBodiesFromModel();
+    }
+
+    CharacterSkeleton AnimatedVoxelCharacter::buildCharacterSkeleton() const {
+        CharacterSkeleton cs;
+        cs.skeleton = skeleton;
+        cs.voxelModel = voxelModel;
+        cs.appearance = appearance_;
+        cs.computeBoneSizes();
+        cs.generateJointDefs();
+        return cs;
+    }
+
     void AnimatedVoxelCharacter::playAnimation(const std::string& animName) {
         // If we are already playing this animation, do nothing
         if (currentClipIndex >= 0 && currentClipIndex < clips.size() && clips[currentClipIndex].name == animName) {
             return;
         }
 
-        // Find the new animation
+        // Find the new animation (exact match first, then case-insensitive)
         int newClipIndex = -1;
+        std::string animLower = animName;
+        std::transform(animLower.begin(), animLower.end(), animLower.begin(), ::tolower);
         for (size_t i = 0; i < clips.size(); ++i) {
             if (clips[i].name == animName) {
                 newClipIndex = (int)i;
                 break;
+            }
+            std::string clipLower = clips[i].name;
+            std::transform(clipLower.begin(), clipLower.end(), clipLower.begin(), ::tolower);
+            if (clipLower == animLower && newClipIndex == -1) {
+                newClipIndex = (int)i;
             }
         }
 
@@ -379,11 +564,8 @@ namespace Scene {
     }
 
     void AnimatedVoxelCharacter::setMoveVelocity(const glm::vec3& velocity) {
-        if (controllerBody) {
-            btVector3 currentVel = controllerBody->getLinearVelocity();
-            controllerBody->setLinearVelocity(btVector3(velocity.x, currentVel.y(), velocity.z));
-            controllerBody->activate(true);
-        }
+        externalVelocity = velocity;
+        hasExternalVelocity = true;
     }
 
     void AnimatedVoxelCharacter::jump() {
@@ -656,7 +838,57 @@ namespace Scene {
 
     void AnimatedVoxelCharacter::update(float deltaTime) {
         // 1. Update Physics Controller
+        bool usedExternalVelocity = false;
         if (controllerBody) {
+            // External velocity mode (used by NPC patrol behavior)
+            if (hasExternalVelocity) {
+                usedExternalVelocity = true;
+                btVector3 currentVel = controllerBody->getLinearVelocity();
+                controllerBody->setLinearVelocity(btVector3(externalVelocity.x, currentVel.y(), externalVelocity.z));
+                controllerBody->activate(true);
+                hasExternalVelocity = false;
+
+                // Face movement direction
+                float speed = glm::length(glm::vec2(externalVelocity.x, externalVelocity.z));
+                if (speed > 0.01f) {
+                    currentYaw = atan2(externalVelocity.x, externalVelocity.z);
+                }
+
+                // Update world position from physics
+                btTransform trans;
+                controllerBody->getMotionState()->getWorldTransform(trans);
+                btVector3 pos = trans.getOrigin();
+                float halfHeight = 0.9f;
+                if (controllerBody->getCollisionShape()->getShapeType() == BOX_SHAPE_PROXYTYPE) {
+                    const btBoxShape* box = static_cast<const btBoxShape*>(controllerBody->getCollisionShape());
+                    halfHeight = box->getHalfExtentsWithMargin().y();
+                }
+                worldPosition = glm::vec3(pos.x(), pos.y() - halfHeight, pos.z());
+
+                // Play walk or idle animation based on speed (case-insensitive, try variants)
+                std::vector<std::string> candidates;
+                if (speed > 0.1f) {
+                    candidates = {"walk", "walking", "Walk", "Walking", "unarmed_walk"};
+                } else {
+                    candidates = {"idle", "Idle", "Standing", "standing"};
+                }
+                int targetIndex = -1;
+                for (const auto& candidate : candidates) {
+                    for (size_t i = 0; i < clips.size(); ++i) {
+                        if (clips[i].name == candidate) { targetIndex = static_cast<int>(i); break; }
+                    }
+                    if (targetIndex >= 0) break;
+                }
+                if (targetIndex >= 0 && targetIndex != currentClipIndex) {
+                    previousClipIndex = currentClipIndex;
+                    previousAnimTime = animTime;
+                    currentClipIndex = targetIndex;
+                    animTime = 0.0f;
+                    blendFactor = 0.0f;
+                    isBlending = true;
+                }
+            } else {
+            // Normal input-driven movement
             // Handle Rotation
             float turnSpeed = 2.0f;
             currentYaw -= currentTurnInput * turnSpeed * deltaTime;
@@ -740,8 +972,10 @@ namespace Scene {
             
             // Pivot is at feet, body center is at +halfHeight
             worldPosition = glm::vec3(pos.x(), pos.y() - halfHeight, pos.z());
+            } // end normal input-driven movement
             
-            // Animation Selection Logic
+            // Animation Selection Logic (only for input-driven mode; external velocity handles its own)
+            if (!usedExternalVelocity) {
             std::string targetAnim = "idle";
 
             // DEBUG LOGGING
@@ -872,6 +1106,7 @@ namespace Scene {
                     }
                 }
             }
+            } // end !usedExternalVelocity
         }
 
         if (currentClipIndex >= 0 && currentClipIndex < clips.size()) {
