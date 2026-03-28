@@ -319,14 +319,14 @@ void GameDefinitionLoader::loadPlayer(const json& playerDef, GameSubsystems& sub
         return;
     }
 
-    std::string type = playerDef.value("type", "physics");
+    std::string type = playerDef.value("type", "animated");
     float x = 16.0f, y = 20.0f, z = 16.0f;
     if (playerDef.contains("position")) {
         x = playerDef["position"].value("x", 16.0f);
         y = playerDef["position"].value("y", 20.0f);
         z = playerDef["position"].value("z", 16.0f);
     }
-    std::string animFile = playerDef.value("animFile", "character.anim");
+    std::string animFile = playerDef.value("animFile", "resources/animated_characters/humanoid.anim");
 
     Scene::Entity* entity = sub.entitySpawner(type, glm::vec3(x, y, z), animFile);
     if (entity) {
@@ -395,7 +395,7 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
 
     for (const auto& npcDef : npcsDef) {
         std::string name = npcDef["name"].get<std::string>();
-        std::string animFile = npcDef.value("animFile", "character.anim");
+        std::string animFile = npcDef.value("animFile", "resources/animated_characters/humanoid.anim");
 
         float x = 0.0f, y = 20.0f, z = 0.0f;
         if (npcDef.contains("position")) {
@@ -425,7 +425,17 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
         if (npcDef.contains("appearance")) {
             appearance = Scene::CharacterAppearance::fromJson(npcDef["appearance"]);
         } else {
-            appearance = Scene::CharacterAppearance::generateFromSeed(name, npcRole);
+            // Detect morphology from anim file name
+            std::string animLower = animFile;
+            std::transform(animLower.begin(), animLower.end(), animLower.begin(), ::tolower);
+            Scene::MorphologyType morph = Scene::MorphologyType::Humanoid;
+            if (animLower.find("wolf") != std::string::npos)
+                morph = Scene::MorphologyType::Quadruped;
+            else if (animLower.find("spider") != std::string::npos)
+                morph = Scene::MorphologyType::Arachnid;
+            else if (animLower.find("dragon") != std::string::npos)
+                morph = Scene::MorphologyType::Dragon;
+            appearance = Scene::CharacterAppearance::generateFromSeed(name, npcRole, morph);
         }
 
         auto* npc = sub.npcManager->spawnNPC(name, animFile, glm::vec3(x, y, z),

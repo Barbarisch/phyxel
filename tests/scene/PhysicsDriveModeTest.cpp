@@ -72,11 +72,9 @@ static CharacterSkeleton makeHumanoidSkeleton() {
 TEST(PhysicsDriveConfigTest, DefaultValues) {
     PhysicsDriveConfig config;
     EXPECT_FLOAT_EQ(config.motorStrengthScale, 1.0f);
-    EXPECT_FLOAT_EQ(config.balanceKp, 150.0f);
-    EXPECT_FLOAT_EQ(config.balanceKi, 5.0f);
-    EXPECT_FLOAT_EQ(config.balanceKd, 20.0f);
-    EXPECT_FLOAT_EQ(config.moveForce, 50.0f);
-    EXPECT_FLOAT_EQ(config.jumpImpulse, 100.0f);
+    EXPECT_FLOAT_EQ(config.moveSpeed, 3.0f);
+    EXPECT_FLOAT_EQ(config.turnRate, 6.0f);
+    EXPECT_FLOAT_EQ(config.jumpImpulse, 200.0f);
     EXPECT_GT(config.fallAngleThreshold, 0.0f);
 }
 
@@ -235,9 +233,9 @@ TEST_F(PhysicsDriveModeWithPhysicsTest, SetAndGetPosition) {
 TEST_F(PhysicsDriveModeWithPhysicsTest, ConfigMutable) {
     drive_ = std::make_unique<PhysicsDriveMode>(physicsWorld_.get());
     drive_->config().motorStrengthScale = 2.0f;
-    drive_->config().balanceKp = 200.0f;
+    drive_->config().moveSpeed = 5.0f;
     EXPECT_FLOAT_EQ(drive_->config().motorStrengthScale, 2.0f);
-    EXPECT_FLOAT_EQ(drive_->config().balanceKp, 200.0f);
+    EXPECT_FLOAT_EQ(drive_->config().moveSpeed, 5.0f);
 }
 
 TEST_F(PhysicsDriveModeWithPhysicsTest, SetJointGainsOverride) {

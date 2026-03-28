@@ -21,7 +21,10 @@ VoxelCharacter::VoxelCharacter(Physics::PhysicsWorld* physicsWorld, const glm::v
 }
 
 VoxelCharacter::~VoxelCharacter() {
-    // Destroy physics drive before base class cleans up its parts
+    // Clear synced parts first to prevent base class from double-freeing physics drive bodies
+    parts.clear();
+
+    // Destroy physics drive before base class cleans up
     physicsDrive_.reset();
 
     boneBodies_.clear();
@@ -64,6 +67,22 @@ bool VoxelCharacter::loadModel(const std::string& animFile) {
     characterSkeleton_.generateJointDefs();
 
     LOG_INFO_FMT("VoxelCharacter", "Loaded " << clips_.size() << " animations from " << animFile);
+
+    buildAnimatedBodies();
+    modelLoaded_ = true;
+    return true;
+}
+
+bool VoxelCharacter::loadFromData(const Skeleton& skeleton, const VoxelModel& model,
+                                   const std::vector<AnimationClip>& clips) {
+    characterSkeleton_.skeleton = skeleton;
+    characterSkeleton_.voxelModel = model;
+    characterSkeleton_.appearance = appearance_;
+    characterSkeleton_.computeBoneSizes();
+    characterSkeleton_.generateJointDefs();
+    clips_ = clips;
+
+    LOG_INFO_FMT("VoxelCharacter", "Loaded " << clips_.size() << " animations from template data");
 
     buildAnimatedBodies();
     modelLoaded_ = true;
@@ -405,6 +424,9 @@ void VoxelCharacter::update(float deltaTime) {
                 physicsDrive_->setTargetPoseFromClip(clips_[currentClipIndex_], animTime_);
             }
             physicsDrive_->update(deltaTime);
+
+            // Sync physics drive parts into base class parts so the renderer picks them up
+            parts = physicsDrive_->getParts();
         }
         break;
     }
@@ -452,6 +474,35 @@ void VoxelCharacter::setMoveVelocity(const glm::vec3& velocity) {
         controllerBody_->activate(true);
     } else if (physicsDrive_) {
         physicsDrive_->move(velocity);
+
+        // Auto-select walk/idle animation based on XZ speed
+        float xzSpeed = glm::length(glm::vec2(velocity.x, velocity.z));
+        std::vector<std::string> candidates;
+        if (xzSpeed > 0.1f) {
+            candidates = {"walk", "walking", "Walk", "Walking", "unarmed_walk"};
+        } else {
+            candidates = {"idle", "Idle", "Standing", "standing"};
+        }
+
+        int targetIndex = -1;
+        for (const auto& candidate : candidates) {
+            for (size_t i = 0; i < clips_.size(); ++i) {
+                if (clips_[i].name == candidate) {
+                    targetIndex = static_cast<int>(i);
+                    break;
+                }
+            }
+            if (targetIndex >= 0) break;
+        }
+
+        if (targetIndex >= 0 && targetIndex != currentClipIndex_) {
+            previousClipIndex_ = currentClipIndex_;
+            previousAnimTime_ = animTime_;
+            currentClipIndex_ = targetIndex;
+            animTime_ = 0.0f;
+            isBlending_ = (previousClipIndex_ >= 0);
+            blendFactor_ = 0.0f;
+        }
     }
 }
 

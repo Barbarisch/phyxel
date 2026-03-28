@@ -148,7 +148,8 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
     // Generate appearance: use provided appearance, or auto-generate from name+role
     Scene::CharacterAppearance finalAppearance = appearance;
     if (!role.empty()) {
-        finalAppearance = Scene::CharacterAppearance::generateFromSeed(name, role);
+        auto morph = Scene::detectMorphology(tmpl->skeleton);
+        finalAppearance = Scene::CharacterAppearance::generateFromSeed(name, role, morph);
     }
 
     // Create NPC entity with procedural skeleton (no file re-read)
@@ -179,6 +180,102 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
     m_npcs[name] = std::move(npc);
 
     LOG_INFO("NPCManager", "Spawned procedural NPC '{}' (role='{}') at ({}, {}, {})",
+             name, role, position.x, position.y, position.z);
+    return rawPtr;
+}
+
+Scene::NPCEntity* NPCManager::spawnPhysicsNPC(const std::string& name, const std::string& animFile,
+                                                const glm::vec3& position, NPCBehaviorType behaviorType,
+                                                const std::vector<glm::vec3>& waypoints,
+                                                float walkSpeed, float waitTime,
+                                                const Scene::CharacterAppearance& appearance) {
+    if (m_npcs.count(name)) {
+        LOG_WARN("NPCManager", "NPC '{}' already exists", name);
+        return nullptr;
+    }
+    if (!m_physicsWorld) {
+        LOG_ERROR("NPCManager", "Cannot spawn NPC '{}': PhysicsWorld not set", name);
+        return nullptr;
+    }
+
+    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, position, name, animFile, appearance, true);
+
+    std::unique_ptr<Scene::NPCBehavior> behavior;
+    switch (behaviorType) {
+        case NPCBehaviorType::Patrol:
+            behavior = std::make_unique<Scene::PatrolBehavior>(waypoints, walkSpeed, waitTime);
+            break;
+        case NPCBehaviorType::Idle:
+        default:
+            behavior = std::make_unique<Scene::IdleBehavior>();
+            break;
+    }
+    npc->setBehavior(std::move(behavior));
+
+    std::string entityId = "npc_" + name;
+    if (m_entityRegistry) {
+        m_entityRegistry->registerEntity(npc.get(), entityId, "npc");
+    }
+    npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId);
+
+    auto* rawPtr = npc.get();
+    m_npcs[name] = std::move(npc);
+
+    LOG_INFO("NPCManager", "Spawned physics NPC '{}' at ({}, {}, {})", name, position.x, position.y, position.z);
+    return rawPtr;
+}
+
+Scene::NPCEntity* NPCManager::spawnPhysicsProceduralNPC(const std::string& name, const std::string& seedAnimFile,
+                                                          const glm::vec3& position, NPCBehaviorType behaviorType,
+                                                          const std::string& role,
+                                                          const std::vector<glm::vec3>& waypoints,
+                                                          float walkSpeed, float waitTime,
+                                                          const Scene::CharacterAppearance& appearance) {
+    if (m_npcs.count(name)) {
+        LOG_WARN("NPCManager", "NPC '{}' already exists", name);
+        return nullptr;
+    }
+    if (!m_physicsWorld) {
+        LOG_ERROR("NPCManager", "Cannot spawn NPC '{}': PhysicsWorld not set", name);
+        return nullptr;
+    }
+
+    const AnimTemplate* tmpl = getOrLoadTemplate(seedAnimFile);
+    if (!tmpl) {
+        return nullptr;
+    }
+
+    Scene::CharacterAppearance finalAppearance = appearance;
+    if (!role.empty()) {
+        auto morph = Scene::detectMorphology(tmpl->skeleton);
+        finalAppearance = Scene::CharacterAppearance::generateFromSeed(name, role, morph);
+    }
+
+    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, position, name, finalAppearance,
+                                                   tmpl->skeleton, tmpl->voxelModel, tmpl->clips, true);
+
+    std::unique_ptr<Scene::NPCBehavior> behavior;
+    switch (behaviorType) {
+        case NPCBehaviorType::Patrol:
+            behavior = std::make_unique<Scene::PatrolBehavior>(waypoints, walkSpeed, waitTime);
+            break;
+        case NPCBehaviorType::Idle:
+        default:
+            behavior = std::make_unique<Scene::IdleBehavior>();
+            break;
+    }
+    npc->setBehavior(std::move(behavior));
+
+    std::string entityId = "npc_" + name;
+    if (m_entityRegistry) {
+        m_entityRegistry->registerEntity(npc.get(), entityId, "npc");
+    }
+    npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId);
+
+    auto* rawPtr = npc.get();
+    m_npcs[name] = std::move(npc);
+
+    LOG_INFO("NPCManager", "Spawned physics procedural NPC '{}' (role='{}') at ({}, {}, {})",
              name, role, position.x, position.y, position.z);
     return rawPtr;
 }

@@ -78,10 +78,7 @@ namespace Phyxel {
                 std::string durToken;
                 ssDur >> durToken >> clip.duration;
 
-                // Speed (Optional, for backward compatibility check next token)
-                // We peek at the next line. If it starts with "Speed", we parse it.
-                // Otherwise we assume it's BoneChannelCount.
-                std::streampos oldPos = file.tellg();
+                // Next line is either Speed (optional) or BoneChannelCount
                 std::getline(file, line);
                 std::stringstream ssPeek(line);
                 std::string peekToken;
@@ -89,13 +86,11 @@ namespace Phyxel {
                 
                 if (peekToken == "Speed") {
                     ssPeek >> clip.speed;
-                } else {
-                    // Not speed, rewind
-                    file.seekg(oldPos);
+                    // Read the actual BoneChannelCount line
+                    std::getline(file, line);
                 }
+                // else: line already contains BoneChannelCount
 
-                // BoneChannelCount
-                std::getline(file, line);
                 std::stringstream ssCount(line);
                 std::string countToken;
                 int channelCount;

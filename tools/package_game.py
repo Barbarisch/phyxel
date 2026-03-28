@@ -76,6 +76,7 @@ ALL_ANIM_FILES = [
     "resources/animated_characters/character_female.anim",
     "resources/animated_characters/character_female2.anim",
     "resources/animated_characters/character_female3.anim",
+    "resources/animated_characters/humanoid.anim",
     "resources/animated_characters/character_spider.anim",
     "resources/animated_characters/character_spider2.anim",
     "resources/animated_characters/character_spider3.anim",

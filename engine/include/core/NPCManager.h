@@ -75,6 +75,22 @@ public:
                                           float walkSpeed = 2.0f, float waitTime = 2.0f,
                                           const Scene::CharacterAppearance& appearance = Scene::CharacterAppearance{});
 
+    /// Spawn a physics-driven NPC (active ragdoll with PID-controlled joints).
+    /// Uses VoxelCharacter in Physics drive mode. Animations become motor targets.
+    Scene::NPCEntity* spawnPhysicsNPC(const std::string& name, const std::string& animFile,
+                                       const glm::vec3& position, NPCBehaviorType behaviorType,
+                                       const std::vector<glm::vec3>& waypoints = {},
+                                       float walkSpeed = 2.0f, float waitTime = 2.0f,
+                                       const Scene::CharacterAppearance& appearance = Scene::CharacterAppearance{});
+
+    /// Spawn a physics-driven NPC from a cached template.
+    Scene::NPCEntity* spawnPhysicsProceduralNPC(const std::string& name, const std::string& seedAnimFile,
+                                                  const glm::vec3& position, NPCBehaviorType behaviorType,
+                                                  const std::string& role = "",
+                                                  const std::vector<glm::vec3>& waypoints = {},
+                                                  float walkSpeed = 2.0f, float waitTime = 2.0f,
+                                                  const Scene::CharacterAppearance& appearance = Scene::CharacterAppearance{});
+
     /// Remove an NPC by name. Returns false if not found.
     bool removeNPC(const std::string& name);
 

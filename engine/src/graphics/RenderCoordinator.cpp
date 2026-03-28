@@ -679,7 +679,7 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
     if (!hasEntities && !hasNPCs) return;
 
     // Separate entities into instanced and standard
-    std::vector<Scene::AnimatedVoxelCharacter*> instancedCharacters;
+    std::vector<Scene::RagdollCharacter*> instancedCharacters;
     std::vector<Scene::Entity*> standardEntities;
 
     if (hasEntities) {
@@ -693,14 +693,14 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
         }
     }
 
-    // Add NPC animated characters to the instanced list
+    // Add NPC characters to the instanced list (both animated and physics-driven)
     if (hasNPCs) {
         for (const auto& name : m_npcManager->getAllNPCNames()) {
             auto* npc = m_npcManager->getNPC(name);
             if (npc) {
-                auto* animChar = npc->getAnimatedCharacter();
-                if (animChar) {
-                    instancedCharacters.push_back(animChar);
+                auto* renderable = npc->getRenderableCharacter();
+                if (renderable) {
+                    instancedCharacters.push_back(renderable);
                 }
             }
         }

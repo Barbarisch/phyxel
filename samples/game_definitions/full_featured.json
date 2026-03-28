@@ -1,82 +1,523 @@
-﻿{
+{
   "name": "Enchanted Realms",
   "world": {
     "type": "Mountains",
     "seed": 42,
-    "from": {"x": -1, "y": 0, "z": -1},
-    "to": {"x": 1, "y": 0, "z": 1}
+    "from": {
+      "x": -1,
+      "y": 0,
+      "z": -1
+    },
+    "to": {
+      "x": 1,
+      "y": 0,
+      "z": 1
+    }
   },
   "camera": {
-    "position": {"x": 48, "y": 55, "z": 48},
+    "position": {
+      "x": 48,
+      "y": 55,
+      "z": 48
+    },
     "yaw": -135,
     "pitch": -25
   },
   "player": {
-    "type": "physics",
-    "position": {"x": 16, "y": 35, "z": 16}
+    "type": "animated",
+    "position": {
+      "x": 16,
+      "y": 35,
+      "z": 16
+    }
   },
   "structures": [
-    {"type": "fill", "from": {"x": 10, "y": 25, "z": 10}, "to": {"x": 22, "y": 25, "z": 22}, "material": "Stone"},
-    {"type": "fill", "from": {"x": 10, "y": 26, "z": 10}, "to": {"x": 10, "y": 32, "z": 22}, "material": "Stone"},
-    {"type": "fill", "from": {"x": 22, "y": 26, "z": 10}, "to": {"x": 22, "y": 32, "z": 22}, "material": "Stone"},
-    {"type": "fill", "from": {"x": 10, "y": 26, "z": 10}, "to": {"x": 22, "y": 32, "z": 10}, "material": "Stone"},
-    {"type": "fill", "from": {"x": 10, "y": 26, "z": 22}, "to": {"x": 22, "y": 32, "z": 22}, "material": "Stone"},
-    {"type": "fill", "from": {"x": 10, "y": 33, "z": 10}, "to": {"x": 22, "y": 33, "z": 22}, "material": "Stone"},
-    {"type": "fill", "from": {"x": 14, "y": 33, "z": 14}, "to": {"x": 18, "y": 38, "z": 18}, "material": "Stone"},
-    {"type": "fill", "from": {"x": 15, "y": 39, "z": 15}, "to": {"x": 17, "y": 39, "z": 17}, "material": "glow"},
-    {"type": "fill", "from": {"x": 15, "y": 26, "z": 10}, "to": {"x": 17, "y": 28, "z": 10}, "material": "Wood"},
-    {"type": "fill", "from": {"x": -5, "y": 22, "z": -5}, "to": {"x": 1, "y": 22, "z": 1}, "material": "Wood"},
-    {"type": "fill", "from": {"x": -5, "y": 23, "z": -5}, "to": {"x": -5, "y": 26, "z": 1}, "material": "Wood"},
-    {"type": "fill", "from": {"x": 1, "y": 23, "z": -5}, "to": {"x": 1, "y": 26, "z": 1}, "material": "Wood"},
-    {"type": "fill", "from": {"x": -5, "y": 23, "z": -5}, "to": {"x": 1, "y": 26, "z": -5}, "material": "Wood"},
-    {"type": "fill", "from": {"x": -5, "y": 23, "z": 1}, "to": {"x": 1, "y": 26, "z": 1}, "material": "Wood"},
-    {"type": "fill", "from": {"x": -5, "y": 27, "z": -5}, "to": {"x": 1, "y": 27, "z": 1}, "material": "Wood"},
-    {"type": "fill", "from": {"x": -3, "y": 23, "z": -5}, "to": {"x": -1, "y": 25, "z": -5}, "material": "Glass"},
-    {"type": "fill", "from": {"x": 30, "y": 22, "z": 30}, "to": {"x": 36, "y": 22, "z": 36}, "material": "Wood"},
-    {"type": "fill", "from": {"x": 30, "y": 23, "z": 30}, "to": {"x": 30, "y": 26, "z": 36}, "material": "Wood"},
-    {"type": "fill", "from": {"x": 36, "y": 23, "z": 30}, "to": {"x": 36, "y": 26, "z": 36}, "material": "Wood"},
-    {"type": "fill", "from": {"x": 30, "y": 23, "z": 30}, "to": {"x": 36, "y": 26, "z": 30}, "material": "Wood"},
-    {"type": "fill", "from": {"x": 30, "y": 23, "z": 36}, "to": {"x": 36, "y": 26, "z": 36}, "material": "Wood"},
-    {"type": "fill", "from": {"x": 30, "y": 27, "z": 30}, "to": {"x": 36, "y": 27, "z": 36}, "material": "Wood"},
-    {"type": "fill", "from": {"x": 33, "y": 23, "z": 30}, "to": {"x": 34, "y": 25, "z": 30}, "material": "Glass"},
-    {"type": "fill", "from": {"x": 40, "y": 22, "z": 10}, "to": {"x": 42, "y": 22, "z": 12}, "material": "Metal"},
-    {"type": "fill", "from": {"x": 40, "y": 23, "z": 10}, "to": {"x": 42, "y": 30, "z": 12}, "material": "Metal"},
-    {"type": "fill", "from": {"x": 41, "y": 31, "z": 11}, "to": {"x": 41, "y": 31, "z": 11}, "material": "glow"},
-    {"type": "fill", "from": {"x": -10, "y": 22, "z": 30}, "to": {"x": -8, "y": 22, "z": 32}, "material": "Ice"},
-    {"type": "fill", "from": {"x": -10, "y": 23, "z": 30}, "to": {"x": -8, "y": 28, "z": 32}, "material": "Ice"},
-    {"type": "fill", "from": {"x": -9, "y": 29, "z": 31}, "to": {"x": -9, "y": 29, "z": 31}, "material": "glow"}
+    {
+      "type": "fill",
+      "from": {
+        "x": 10,
+        "y": 25,
+        "z": 10
+      },
+      "to": {
+        "x": 22,
+        "y": 25,
+        "z": 22
+      },
+      "material": "Stone"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": 10,
+        "y": 26,
+        "z": 10
+      },
+      "to": {
+        "x": 10,
+        "y": 32,
+        "z": 22
+      },
+      "material": "Stone"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": 22,
+        "y": 26,
+        "z": 10
+      },
+      "to": {
+        "x": 22,
+        "y": 32,
+        "z": 22
+      },
+      "material": "Stone"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": 10,
+        "y": 26,
+        "z": 10
+      },
+      "to": {
+        "x": 22,
+        "y": 32,
+        "z": 10
+      },
+      "material": "Stone"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": 10,
+        "y": 26,
+        "z": 22
+      },
+      "to": {
+        "x": 22,
+        "y": 32,
+        "z": 22
+      },
+      "material": "Stone"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": 10,
+        "y": 33,
+        "z": 10
+      },
+      "to": {
+        "x": 22,
+        "y": 33,
+        "z": 22
+      },
+      "material": "Stone"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": 14,
+        "y": 33,
+        "z": 14
+      },
+      "to": {
+        "x": 18,
+        "y": 38,
+        "z": 18
+      },
+      "material": "Stone"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": 15,
+        "y": 39,
+        "z": 15
+      },
+      "to": {
+        "x": 17,
+        "y": 39,
+        "z": 17
+      },
+      "material": "glow"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": 15,
+        "y": 26,
+        "z": 10
+      },
+      "to": {
+        "x": 17,
+        "y": 28,
+        "z": 10
+      },
+      "material": "Wood"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": -5,
+        "y": 22,
+        "z": -5
+      },
+      "to": {
+        "x": 1,
+        "y": 22,
+        "z": 1
+      },
+      "material": "Wood"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": -5,
+        "y": 23,
+        "z": -5
+      },
+      "to": {
+        "x": -5,
+        "y": 26,
+        "z": 1
+      },
+      "material": "Wood"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": 1,
+        "y": 23,
+        "z": -5
+      },
+      "to": {
+        "x": 1,
+        "y": 26,
+        "z": 1
+      },
+      "material": "Wood"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": -5,
+        "y": 23,
+        "z": -5
+      },
+      "to": {
+        "x": 1,
+        "y": 26,
+        "z": -5
+      },
+      "material": "Wood"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": -5,
+        "y": 23,
+        "z": 1
+      },
+      "to": {
+        "x": 1,
+        "y": 26,
+        "z": 1
+      },
+      "material": "Wood"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": -5,
+        "y": 27,
+        "z": -5
+      },
+      "to": {
+        "x": 1,
+        "y": 27,
+        "z": 1
+      },
+      "material": "Wood"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": -3,
+        "y": 23,
+        "z": -5
+      },
+      "to": {
+        "x": -1,
+        "y": 25,
+        "z": -5
+      },
+      "material": "Glass"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": 30,
+        "y": 22,
+        "z": 30
+      },
+      "to": {
+        "x": 36,
+        "y": 22,
+        "z": 36
+      },
+      "material": "Wood"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": 30,
+        "y": 23,
+        "z": 30
+      },
+      "to": {
+        "x": 30,
+        "y": 26,
+        "z": 36
+      },
+      "material": "Wood"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": 36,
+        "y": 23,
+        "z": 30
+      },
+      "to": {
+        "x": 36,
+        "y": 26,
+        "z": 36
+      },
+      "material": "Wood"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": 30,
+        "y": 23,
+        "z": 30
+      },
+      "to": {
+        "x": 36,
+        "y": 26,
+        "z": 30
+      },
+      "material": "Wood"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": 30,
+        "y": 23,
+        "z": 36
+      },
+      "to": {
+        "x": 36,
+        "y": 26,
+        "z": 36
+      },
+      "material": "Wood"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": 30,
+        "y": 27,
+        "z": 30
+      },
+      "to": {
+        "x": 36,
+        "y": 27,
+        "z": 36
+      },
+      "material": "Wood"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": 33,
+        "y": 23,
+        "z": 30
+      },
+      "to": {
+        "x": 34,
+        "y": 25,
+        "z": 30
+      },
+      "material": "Glass"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": 40,
+        "y": 22,
+        "z": 10
+      },
+      "to": {
+        "x": 42,
+        "y": 22,
+        "z": 12
+      },
+      "material": "Metal"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": 40,
+        "y": 23,
+        "z": 10
+      },
+      "to": {
+        "x": 42,
+        "y": 30,
+        "z": 12
+      },
+      "material": "Metal"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": 41,
+        "y": 31,
+        "z": 11
+      },
+      "to": {
+        "x": 41,
+        "y": 31,
+        "z": 11
+      },
+      "material": "glow"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": -10,
+        "y": 22,
+        "z": 30
+      },
+      "to": {
+        "x": -8,
+        "y": 22,
+        "z": 32
+      },
+      "material": "Ice"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": -10,
+        "y": 23,
+        "z": 30
+      },
+      "to": {
+        "x": -8,
+        "y": 28,
+        "z": 32
+      },
+      "material": "Ice"
+    },
+    {
+      "type": "fill",
+      "from": {
+        "x": -9,
+        "y": 29,
+        "z": 31
+      },
+      "to": {
+        "x": -9,
+        "y": 29,
+        "z": 31
+      },
+      "material": "glow"
+    }
   ],
   "npcs": [
     {
       "name": "Castle Guard",
-      "position": {"x": 16, "y": 34, "z": 12},
+      "position": {
+        "x": 16,
+        "y": 34,
+        "z": 12
+      },
       "type": "animated",
       "animation": "character_complete.anim",
       "behavior": "patrol",
-      "waypoints": [{"x": 12, "y": 34, "z": 12}, {"x": 20, "y": 34, "z": 12}],
+      "waypoints": [
+        {
+          "x": 12,
+          "y": 34,
+          "z": 12
+        },
+        {
+          "x": 20,
+          "y": 34,
+          "z": 12
+        }
+      ],
       "dialogue": {
         "id": "guard_talk",
         "startNodeId": "start",
         "nodes": [
-          {"id": "start", "speaker": "Castle Guard", "text": "Halt! Who goes there? State your business in the Enchanted Realms.", "choices": [
-            {"text": "I seek the Crystal of Power.", "nextNodeId": "crystal_quest"},
-            {"text": "Just exploring.", "nextNodeId": "explore"}
-          ]},
-          {"id": "crystal_quest", "speaker": "Castle Guard", "text": "The Crystal? It was stolen by the Shadow Mage who lives in the Ice Tower to the northwest. The King has offered a great reward for its return."},
-          {"id": "explore", "speaker": "Castle Guard", "text": "Welcome then, traveler. The village is south of the castle. Visit the Blacksmith for supplies."}
+          {
+            "id": "start",
+            "speaker": "Castle Guard",
+            "text": "Halt! Who goes there? State your business in the Enchanted Realms.",
+            "choices": [
+              {
+                "text": "I seek the Crystal of Power.",
+                "nextNodeId": "crystal_quest"
+              },
+              {
+                "text": "Just exploring.",
+                "nextNodeId": "explore"
+              }
+            ]
+          },
+          {
+            "id": "crystal_quest",
+            "speaker": "Castle Guard",
+            "text": "The Crystal? It was stolen by the Shadow Mage who lives in the Ice Tower to the northwest. The King has offered a great reward for its return."
+          },
+          {
+            "id": "explore",
+            "speaker": "Castle Guard",
+            "text": "Welcome then, traveler. The village is south of the castle. Visit the Blacksmith for supplies."
+          }
         ]
       },
       "storyCharacter": {
         "id": "guard",
         "faction": "kingdom",
         "agencyLevel": 1,
-        "traits": {"openness": 0.3, "conscientiousness": 0.9, "extraversion": 0.5},
-        "goals": [{"id": "protect_castle", "description": "Protect the castle gates", "priority": 0.95}]
+        "traits": {
+          "openness": 0.3,
+          "conscientiousness": 0.9,
+          "extraversion": 0.5
+        },
+        "goals": [
+          {
+            "id": "protect_castle",
+            "description": "Protect the castle gates",
+            "priority": 0.95
+          }
+        ]
       }
     },
     {
       "name": "Blacksmith Goroth",
-      "position": {"x": -2, "y": 27, "z": -2},
+      "position": {
+        "x": -2,
+        "y": 27,
+        "z": -2
+      },
       "type": "animated",
       "animation": "character_complete.anim",
       "behavior": "stationary",
@@ -84,25 +525,58 @@
         "id": "blacksmith_talk",
         "startNodeId": "start",
         "nodes": [
-          {"id": "start", "speaker": "Blacksmith Goroth", "text": "Welcome to my forge! I craft the finest weapons in the realm. What can I do for you?", "choices": [
-            {"text": "Tell me about the Shadow Mage.", "nextNodeId": "shadow_mage"},
-            {"text": "What do you sell?", "nextNodeId": "shop"}
-          ]},
-          {"id": "shadow_mage", "speaker": "Blacksmith Goroth", "text": "That dark sorcerer? He appeared a fortnight ago and stole the Crystal from the castle tower. His Ice Tower is dangerous - you'll need strong equipment."},
-          {"id": "shop", "speaker": "Blacksmith Goroth", "text": "I have swords of metal and shields of stone. Take what you need, adventurer!"}
+          {
+            "id": "start",
+            "speaker": "Blacksmith Goroth",
+            "text": "Welcome to my forge! I craft the finest weapons in the realm. What can I do for you?",
+            "choices": [
+              {
+                "text": "Tell me about the Shadow Mage.",
+                "nextNodeId": "shadow_mage"
+              },
+              {
+                "text": "What do you sell?",
+                "nextNodeId": "shop"
+              }
+            ]
+          },
+          {
+            "id": "shadow_mage",
+            "speaker": "Blacksmith Goroth",
+            "text": "That dark sorcerer? He appeared a fortnight ago and stole the Crystal from the castle tower. His Ice Tower is dangerous - you'll need strong equipment."
+          },
+          {
+            "id": "shop",
+            "speaker": "Blacksmith Goroth",
+            "text": "I have swords of metal and shields of stone. Take what you need, adventurer!"
+          }
         ]
       },
       "storyCharacter": {
         "id": "blacksmith",
         "faction": "village",
         "agencyLevel": 2,
-        "traits": {"openness": 0.6, "conscientiousness": 0.8, "extraversion": 0.7},
-        "goals": [{"id": "serve_customers", "description": "Help adventurers with equipment", "priority": 0.8}]
+        "traits": {
+          "openness": 0.6,
+          "conscientiousness": 0.8,
+          "extraversion": 0.7
+        },
+        "goals": [
+          {
+            "id": "serve_customers",
+            "description": "Help adventurers with equipment",
+            "priority": 0.8
+          }
+        ]
       }
     },
     {
       "name": "Elder Mirwen",
-      "position": {"x": 33, "y": 27, "z": 33},
+      "position": {
+        "x": 33,
+        "y": 27,
+        "z": 33
+      },
       "type": "animated",
       "animation": "character_complete.anim",
       "behavior": "stationary",
@@ -110,25 +584,58 @@
         "id": "elder_talk",
         "startNodeId": "start",
         "nodes": [
-          {"id": "start", "speaker": "Elder Mirwen", "text": "Greetings, young one. I sense great destiny about you. The Enchanted Realms need a hero.", "choices": [
-            {"text": "What happened to these lands?", "nextNodeId": "history"},
-            {"text": "How can I help?", "nextNodeId": "quest"}
-          ]},
-          {"id": "history", "speaker": "Elder Mirwen", "text": "Once, the Crystal of Power kept these lands in balance. Its light warded off darkness. But the Shadow Mage took it, and now ice creeps across the northwest mountains."},
-          {"id": "quest", "speaker": "Elder Mirwen", "text": "Journey to the Ice Tower in the northwest. Defeat the Shadow Mage and return the Crystal to its rightful place atop the Castle Tower. Only then will peace return."}
+          {
+            "id": "start",
+            "speaker": "Elder Mirwen",
+            "text": "Greetings, young one. I sense great destiny about you. The Enchanted Realms need a hero.",
+            "choices": [
+              {
+                "text": "What happened to these lands?",
+                "nextNodeId": "history"
+              },
+              {
+                "text": "How can I help?",
+                "nextNodeId": "quest"
+              }
+            ]
+          },
+          {
+            "id": "history",
+            "speaker": "Elder Mirwen",
+            "text": "Once, the Crystal of Power kept these lands in balance. Its light warded off darkness. But the Shadow Mage took it, and now ice creeps across the northwest mountains."
+          },
+          {
+            "id": "quest",
+            "speaker": "Elder Mirwen",
+            "text": "Journey to the Ice Tower in the northwest. Defeat the Shadow Mage and return the Crystal to its rightful place atop the Castle Tower. Only then will peace return."
+          }
         ]
       },
       "storyCharacter": {
         "id": "elder",
         "faction": "village",
         "agencyLevel": 3,
-        "traits": {"openness": 0.9, "conscientiousness": 0.7, "extraversion": 0.4},
-        "goals": [{"id": "guide_hero", "description": "Guide the hero to save the realm", "priority": 0.99}]
+        "traits": {
+          "openness": 0.9,
+          "conscientiousness": 0.7,
+          "extraversion": 0.4
+        },
+        "goals": [
+          {
+            "id": "guide_hero",
+            "description": "Guide the hero to save the realm",
+            "priority": 0.99
+          }
+        ]
       }
     },
     {
       "name": "Shadow Mage",
-      "position": {"x": -9, "y": 29, "z": 31},
+      "position": {
+        "x": -9,
+        "y": 29,
+        "z": 31
+      },
       "type": "animated",
       "animation": "character_complete.anim",
       "behavior": "stationary",
@@ -136,20 +643,49 @@
         "id": "mage_talk",
         "startNodeId": "start",
         "nodes": [
-          {"id": "start", "speaker": "Shadow Mage", "text": "You dare enter my domain? The Crystal's power is MINE now!", "choices": [
-            {"text": "Return the Crystal or face justice!", "nextNodeId": "fight"},
-            {"text": "Why did you take it?", "nextNodeId": "motive"}
-          ]},
-          {"id": "fight", "speaker": "Shadow Mage", "text": "Then prepare yourself, fool! You will become another ice statue in my collection!"},
-          {"id": "motive", "speaker": "Shadow Mage", "text": "The kingdom banished me! They feared my power. Now they will fear the eternal winter I bring!"}
+          {
+            "id": "start",
+            "speaker": "Shadow Mage",
+            "text": "You dare enter my domain? The Crystal's power is MINE now!",
+            "choices": [
+              {
+                "text": "Return the Crystal or face justice!",
+                "nextNodeId": "fight"
+              },
+              {
+                "text": "Why did you take it?",
+                "nextNodeId": "motive"
+              }
+            ]
+          },
+          {
+            "id": "fight",
+            "speaker": "Shadow Mage",
+            "text": "Then prepare yourself, fool! You will become another ice statue in my collection!"
+          },
+          {
+            "id": "motive",
+            "speaker": "Shadow Mage",
+            "text": "The kingdom banished me! They feared my power. Now they will fear the eternal winter I bring!"
+          }
         ]
       },
       "storyCharacter": {
         "id": "shadow_mage",
         "faction": "shadow",
         "agencyLevel": 3,
-        "traits": {"openness": 0.4, "conscientiousness": 0.6, "extraversion": 0.3},
-        "goals": [{"id": "conquer", "description": "Plunge the realm into eternal winter", "priority": 0.95}]
+        "traits": {
+          "openness": 0.4,
+          "conscientiousness": 0.6,
+          "extraversion": 0.3
+        },
+        "goals": [
+          {
+            "id": "conquer",
+            "description": "Plunge the realm into eternal winter",
+            "priority": 0.95
+          }
+        ]
       }
     }
   ],
@@ -160,11 +696,31 @@
         "name": "The Crystal of Power",
         "constraintMode": "Guided",
         "beats": [
-          {"id": "b1", "description": "Arrive in the Enchanted Realms and speak with the Castle Guard", "type": "Hard"},
-          {"id": "b2", "description": "Visit the village and learn about the Shadow Mage from the Blacksmith", "type": "Soft"},
-          {"id": "b3", "description": "Seek wisdom from Elder Mirwen", "type": "Soft"},
-          {"id": "b4", "description": "Journey to the Ice Tower and confront the Shadow Mage", "type": "Hard"},
-          {"id": "b5", "description": "Return the Crystal to the Castle Tower", "type": "Hard"}
+          {
+            "id": "b1",
+            "description": "Arrive in the Enchanted Realms and speak with the Castle Guard",
+            "type": "Hard"
+          },
+          {
+            "id": "b2",
+            "description": "Visit the village and learn about the Shadow Mage from the Blacksmith",
+            "type": "Soft"
+          },
+          {
+            "id": "b3",
+            "description": "Seek wisdom from Elder Mirwen",
+            "type": "Soft"
+          },
+          {
+            "id": "b4",
+            "description": "Journey to the Ice Tower and confront the Shadow Mage",
+            "type": "Hard"
+          },
+          {
+            "id": "b5",
+            "description": "Return the Crystal to the Castle Tower",
+            "type": "Hard"
+          }
         ]
       }
     ]

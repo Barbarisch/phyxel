@@ -95,7 +95,7 @@ TEST_F(AssetManagerTest, SpecialFiles) {
     EXPECT_EQ(am.textureAtlasPath(), "resources/textures/cube_atlas.png");
     EXPECT_EQ(am.worldDatabasePath(), "worlds/default.db");
     EXPECT_EQ(am.loggingConfigPath(), "logging.ini");
-    EXPECT_EQ(am.defaultAnimFile(), "character.anim");
+    EXPECT_EQ(am.defaultAnimFile(), "resources/animated_characters/humanoid.anim");
 }
 
 // ============================================================================

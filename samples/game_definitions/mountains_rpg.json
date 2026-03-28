@@ -5,114 +5,242 @@
   "world": {
     "type": "Mountains",
     "seed": 2026,
-    "from": {"x": -1, "y": 0, "z": -1},
-    "to": {"x": 1, "y": 0, "z": 1}
+    "from": {
+      "x": -1,
+      "y": 0,
+      "z": -1
+    },
+    "to": {
+      "x": 1,
+      "y": 0,
+      "z": 1
+    }
   },
   "structures": [
     {
       "type": "fill",
-      "from": {"x": 14, "y": 20, "z": 14},
-      "to": {"x": 50, "y": 20, "z": 50},
+      "from": {
+        "x": 14,
+        "y": 20,
+        "z": 14
+      },
+      "to": {
+        "x": 50,
+        "y": 20,
+        "z": 50
+      },
       "material": "Stone"
     },
     {
       "type": "fill",
-      "from": {"x": 20, "y": 21, "z": 20},
-      "to": {"x": 30, "y": 26, "z": 30},
+      "from": {
+        "x": 20,
+        "y": 21,
+        "z": 20
+      },
+      "to": {
+        "x": 30,
+        "y": 26,
+        "z": 30
+      },
       "material": "Wood",
       "hollow": true
     },
     {
       "type": "fill",
-      "from": {"x": 35, "y": 21, "z": 22},
-      "to": {"x": 45, "y": 25, "z": 28},
+      "from": {
+        "x": 35,
+        "y": 21,
+        "z": 22
+      },
+      "to": {
+        "x": 45,
+        "y": 25,
+        "z": 28
+      },
       "material": "Wood",
       "hollow": true
     },
     {
       "type": "fill",
-      "from": {"x": 20, "y": 27, "z": 20},
-      "to": {"x": 30, "y": 27, "z": 30},
+      "from": {
+        "x": 20,
+        "y": 27,
+        "z": 20
+      },
+      "to": {
+        "x": 30,
+        "y": 27,
+        "z": 30
+      },
       "material": "Wood"
     },
     {
       "type": "fill",
-      "from": {"x": 35, "y": 26, "z": 22},
-      "to": {"x": 45, "y": 26, "z": 28},
+      "from": {
+        "x": 35,
+        "y": 26,
+        "z": 22
+      },
+      "to": {
+        "x": 45,
+        "y": 26,
+        "z": 28
+      },
       "material": "Wood"
     },
     {
       "type": "fill",
-      "from": {"x": -20, "y": 30, "z": -20},
-      "to": {"x": -10, "y": 40, "z": -10},
+      "from": {
+        "x": -20,
+        "y": 30,
+        "z": -20
+      },
+      "to": {
+        "x": -10,
+        "y": 40,
+        "z": -10
+      },
       "material": "Ice",
       "hollow": true
     },
     {
       "type": "fill",
-      "from": {"x": -20, "y": 41, "z": -20},
-      "to": {"x": -10, "y": 41, "z": -10},
+      "from": {
+        "x": -20,
+        "y": 41,
+        "z": -20
+      },
+      "to": {
+        "x": -10,
+        "y": 41,
+        "z": -10
+      },
       "material": "Ice"
     },
     {
       "type": "fill",
-      "from": {"x": -16, "y": 35, "z": -16},
-      "to": {"x": -14, "y": 39, "z": -14},
+      "from": {
+        "x": -16,
+        "y": 35,
+        "z": -16
+      },
+      "to": {
+        "x": -14,
+        "y": 39,
+        "z": -14
+      },
       "material": "glow"
     },
     {
       "type": "fill",
-      "from": {"x": 16, "y": 21, "z": 38},
-      "to": {"x": 18, "y": 25, "z": 38},
+      "from": {
+        "x": 16,
+        "y": 21,
+        "z": 38
+      },
+      "to": {
+        "x": 18,
+        "y": 25,
+        "z": 38
+      },
       "material": "glow"
     },
     {
       "type": "fill",
-      "from": {"x": 46, "y": 21, "z": 38},
-      "to": {"x": 48, "y": 25, "z": 38},
+      "from": {
+        "x": 46,
+        "y": 21,
+        "z": 38
+      },
+      "to": {
+        "x": 48,
+        "y": 25,
+        "z": 38
+      },
       "material": "glow"
     },
     {
       "type": "template",
       "name": "tree.txt",
-      "position": {"x": 52, "y": 21, "z": 18}
+      "position": {
+        "x": 52,
+        "y": 21,
+        "z": 18
+      }
     },
     {
       "type": "template",
       "name": "tree.txt",
-      "position": {"x": 55, "y": 21, "z": 30}
+      "position": {
+        "x": 55,
+        "y": 21,
+        "z": 30
+      }
     },
     {
       "type": "template",
       "name": "tree.txt",
-      "position": {"x": 12, "y": 21, "z": 45}
+      "position": {
+        "x": 12,
+        "y": 21,
+        "z": 45
+      }
     },
     {
       "type": "fill",
-      "from": {"x": 38, "y": 21, "z": 35},
-      "to": {"x": 42, "y": 21, "z": 45},
+      "from": {
+        "x": 38,
+        "y": 21,
+        "z": 35
+      },
+      "to": {
+        "x": 42,
+        "y": 21,
+        "z": 45
+      },
       "material": "Metal"
     },
     {
       "type": "fill",
-      "from": {"x": 39, "y": 22, "z": 36},
-      "to": {"x": 41, "y": 22, "z": 44},
+      "from": {
+        "x": 39,
+        "y": 22,
+        "z": 36
+      },
+      "to": {
+        "x": 41,
+        "y": 22,
+        "z": 44
+      },
       "material": "Metal"
     }
   ],
   "player": {
-    "type": "physics",
-    "position": {"x": 25, "y": 25, "z": 25}
+    "type": "animated",
+    "position": {
+      "x": 25,
+      "y": 25,
+      "z": 25
+    }
   },
   "camera": {
-    "position": {"x": 70, "y": 55, "z": 70},
+    "position": {
+      "x": 70,
+      "y": 55,
+      "z": 70
+    },
     "yaw": -135,
     "pitch": -25
   },
   "npcs": [
     {
       "name": "Elder_Frostbeard",
-      "position": {"x": 25, "y": 22, "z": 25},
+      "position": {
+        "x": 25,
+        "y": 22,
+        "z": 25
+      },
       "behavior": "idle",
       "dialogue": {
         "id": "elder_talk",
@@ -123,8 +251,14 @@
             "speaker": "Elder Frostbeard",
             "text": "Welcome to Highland Village, stranger. These mountains hold many secrets.",
             "choices": [
-              {"text": "What secrets?", "nextNodeId": "secrets"},
-              {"text": "I'm looking for the lost expedition.", "nextNodeId": "expedition"}
+              {
+                "text": "What secrets?",
+                "nextNodeId": "secrets"
+              },
+              {
+                "text": "I'm looking for the lost expedition.",
+                "nextNodeId": "expedition"
+              }
             ]
           },
           {
@@ -132,8 +266,14 @@
             "speaker": "Elder Frostbeard",
             "text": "There is a frozen temple far to the northwest. It glows with an unearthly light. No one who has entered has returned.",
             "choices": [
-              {"text": "Tell me about the expedition.", "nextNodeId": "expedition"},
-              {"text": "I'll find it myself.", "nextNodeId": "farewell"}
+              {
+                "text": "Tell me about the expedition.",
+                "nextNodeId": "expedition"
+              },
+              {
+                "text": "I'll find it myself.",
+                "nextNodeId": "farewell"
+              }
             ]
           },
           {
@@ -141,7 +281,10 @@
             "speaker": "Elder Frostbeard",
             "text": "A group of explorers went to the temple weeks ago. The Ranger may know their last known position. She patrols the village perimeter.",
             "choices": [
-              {"text": "I'll speak with her.", "nextNodeId": "farewell"}
+              {
+                "text": "I'll speak with her.",
+                "nextNodeId": "farewell"
+              }
             ]
           },
           {
@@ -163,22 +306,57 @@
           "neuroticism": 0.3
         },
         "goals": [
-          {"id": "protect_village", "description": "Protect Highland Village from threats", "priority": 0.95},
-          {"id": "find_expedition", "description": "Learn the fate of the lost expedition", "priority": 0.7}
+          {
+            "id": "protect_village",
+            "description": "Protect Highland Village from threats",
+            "priority": 0.95
+          },
+          {
+            "id": "find_expedition",
+            "description": "Learn the fate of the lost expedition",
+            "priority": 0.7
+          }
         ],
-        "roles": ["quest_giver", "village_leader"]
+        "roles": [
+          "quest_giver",
+          "village_leader"
+        ]
       }
     },
     {
       "name": "Ranger_Kira",
-      "position": {"x": 40, "y": 22, "z": 25},
+      "position": {
+        "x": 40,
+        "y": 22,
+        "z": 25
+      },
       "behavior": "patrol",
       "waypoints": [
-        {"x": 40, "y": 22, "z": 25},
-        {"x": 50, "y": 22, "z": 25},
-        {"x": 50, "y": 22, "z": 45},
-        {"x": 14, "y": 22, "z": 45},
-        {"x": 14, "y": 22, "z": 25}
+        {
+          "x": 40,
+          "y": 22,
+          "z": 25
+        },
+        {
+          "x": 50,
+          "y": 22,
+          "z": 25
+        },
+        {
+          "x": 50,
+          "y": 22,
+          "z": 45
+        },
+        {
+          "x": 14,
+          "y": 22,
+          "z": 45
+        },
+        {
+          "x": 14,
+          "y": 22,
+          "z": 25
+        }
       ],
       "dialogue": {
         "id": "ranger_talk",
@@ -189,8 +367,14 @@
             "speaker": "Ranger Kira",
             "text": "Hold. You don't look like a villager. State your business.",
             "choices": [
-              {"text": "The Elder sent me about the lost expedition.", "nextNodeId": "expedition"},
-              {"text": "Just passing through.", "nextNodeId": "warning"}
+              {
+                "text": "The Elder sent me about the lost expedition.",
+                "nextNodeId": "expedition"
+              },
+              {
+                "text": "Just passing through.",
+                "nextNodeId": "warning"
+              }
             ]
           },
           {
@@ -198,22 +382,31 @@
             "speaker": "Ranger Kira",
             "text": "The expedition... I tracked them to the frozen temple northwest of here. I found supplies scattered in the snow but no bodies. Something drove them inside.",
             "choices": [
-              {"text": "What's inside the temple?", "nextNodeId": "temple"},
-              {"text": "I'll head there now.", "nextNodeId": "directions"}
+              {
+                "text": "What's inside the temple?",
+                "nextNodeId": "temple"
+              },
+              {
+                "text": "I'll head there now.",
+                "nextNodeId": "directions"
+              }
             ]
           },
           {
             "id": "temple",
             "speaker": "Ranger Kira",
-            "text": "I don't know. I heard strange sounds from within — like wind through crystal. The walls glow. It's not natural ice.",
+            "text": "I don't know. I heard strange sounds from within \u2014 like wind through crystal. The walls glow. It's not natural ice.",
             "choices": [
-              {"text": "How do I get there?", "nextNodeId": "directions"}
+              {
+                "text": "How do I get there?",
+                "nextNodeId": "directions"
+              }
             ]
           },
           {
             "id": "directions",
             "speaker": "Ranger Kira",
-            "text": "Head northwest from the village. You'll see the glow before you see the temple. The entrance faces south. And take this — you'll need warmth."
+            "text": "Head northwest from the village. You'll see the glow before you see the temple. The entrance faces south. And take this \u2014 you'll need warmth."
           },
           {
             "id": "warning",
@@ -234,15 +427,30 @@
           "neuroticism": 0.4
         },
         "goals": [
-          {"id": "patrol", "description": "Patrol the village perimeter", "priority": 0.8},
-          {"id": "track_expedition", "description": "Track the missing expedition members", "priority": 0.9}
+          {
+            "id": "patrol",
+            "description": "Patrol the village perimeter",
+            "priority": 0.8
+          },
+          {
+            "id": "track_expedition",
+            "description": "Track the missing expedition members",
+            "priority": 0.9
+          }
         ],
-        "roles": ["guide", "combat"]
+        "roles": [
+          "guide",
+          "combat"
+        ]
       }
     },
     {
       "name": "Blacksmith_Torvin",
-      "position": {"x": 40, "y": 22, "z": 40},
+      "position": {
+        "x": 40,
+        "y": 22,
+        "z": 40
+      },
       "behavior": "idle",
       "dialogue": {
         "id": "smith_talk",
@@ -253,14 +461,20 @@
             "speaker": "Torvin",
             "text": "*hammering metal* Another adventurer! My blades are the finest in the highlands. Interested?",
             "choices": [
-              {"text": "What do you have?", "nextNodeId": "wares"},
-              {"text": "Know anything about the frozen temple?", "nextNodeId": "temple"}
+              {
+                "text": "What do you have?",
+                "nextNodeId": "wares"
+              },
+              {
+                "text": "Know anything about the frozen temple?",
+                "nextNodeId": "temple"
+              }
             ]
           },
           {
             "id": "wares",
             "speaker": "Torvin",
-            "text": "I forge with highland metal — tougher than anything you'll find in the lowlands. Strong enough to cut through enchanted ice, if the stories are true."
+            "text": "I forge with highland metal \u2014 tougher than anything you'll find in the lowlands. Strong enough to cut through enchanted ice, if the stories are true."
           },
           {
             "id": "temple",
@@ -281,15 +495,30 @@
           "neuroticism": 0.2
         },
         "goals": [
-          {"id": "forge", "description": "Forge the finest weapons in the highlands", "priority": 0.85},
-          {"id": "find_brother", "description": "Learn the fate of his brother in the expedition", "priority": 0.9}
+          {
+            "id": "forge",
+            "description": "Forge the finest weapons in the highlands",
+            "priority": 0.85
+          },
+          {
+            "id": "find_brother",
+            "description": "Learn the fate of his brother in the expedition",
+            "priority": 0.9
+          }
         ],
-        "roles": ["merchant", "craftsman"]
+        "roles": [
+          "merchant",
+          "craftsman"
+        ]
       }
     },
     {
       "name": "Merchant_Yuki",
-      "position": {"x": 22, "y": 22, "z": 35},
+      "position": {
+        "x": 22,
+        "y": 22,
+        "z": 35
+      },
       "behavior": "idle",
       "dialogue": {
         "id": "merchant_talk",
@@ -298,16 +527,22 @@
           {
             "id": "greet",
             "speaker": "Yuki",
-            "text": "Welcome! Hot soup, warm cloaks, healing herbs — everything a traveler needs for the frozen highlands!",
+            "text": "Welcome! Hot soup, warm cloaks, healing herbs \u2014 everything a traveler needs for the frozen highlands!",
             "choices": [
-              {"text": "I need supplies for a long trek.", "nextNodeId": "supplies"},
-              {"text": "Have you heard of the frozen temple?", "nextNodeId": "temple"}
+              {
+                "text": "I need supplies for a long trek.",
+                "nextNodeId": "supplies"
+              },
+              {
+                "text": "Have you heard of the frozen temple?",
+                "nextNodeId": "temple"
+              }
             ]
           },
           {
             "id": "supplies",
             "speaker": "Yuki",
-            "text": "You're heading into the mountains? Take extra frostroot — it keeps the cold from your bones. And don't forget torches. The nights up there are pitch black."
+            "text": "You're heading into the mountains? Take extra frostroot \u2014 it keeps the cold from your bones. And don't forget torches. The nights up there are pitch black."
           },
           {
             "id": "temple",
@@ -328,24 +563,67 @@
           "neuroticism": 0.3
         },
         "goals": [
-          {"id": "trade", "description": "Run a successful trading post", "priority": 0.7},
-          {"id": "preserve_lore", "description": "Preserve highland stories and traditions", "priority": 0.6}
+          {
+            "id": "trade",
+            "description": "Run a successful trading post",
+            "priority": 0.7
+          },
+          {
+            "id": "preserve_lore",
+            "description": "Preserve highland stories and traditions",
+            "priority": 0.6
+          }
         ],
-        "roles": ["merchant"]
+        "roles": [
+          "merchant"
+        ]
       }
     }
   ],
   "story": {
     "world": {
       "factions": [
-        {"id": "highland_village", "name": "Highland Village"},
-        {"id": "lost_expedition", "name": "The Lost Expedition"},
-        {"id": "temple_guardians", "name": "Temple Guardians"}
+        {
+          "id": "highland_village",
+          "name": "Highland Village"
+        },
+        {
+          "id": "lost_expedition",
+          "name": "The Lost Expedition"
+        },
+        {
+          "id": "temple_guardians",
+          "name": "Temple Guardians"
+        }
       ],
       "locations": [
-        {"id": "village", "name": "Highland Village", "position": {"x": 32, "y": 20, "z": 32}},
-        {"id": "frozen_temple", "name": "The Frozen Temple", "position": {"x": -15, "y": 30, "z": -15}},
-        {"id": "mountain_pass", "name": "Mountain Pass", "position": {"x": 0, "y": 25, "z": 0}}
+        {
+          "id": "village",
+          "name": "Highland Village",
+          "position": {
+            "x": 32,
+            "y": 20,
+            "z": 32
+          }
+        },
+        {
+          "id": "frozen_temple",
+          "name": "The Frozen Temple",
+          "position": {
+            "x": -15,
+            "y": 30,
+            "z": -15
+          }
+        },
+        {
+          "id": "mountain_pass",
+          "name": "Mountain Pass",
+          "position": {
+            "x": 0,
+            "y": 25,
+            "z": 0
+          }
+        }
       ]
     },
     "arcs": [
@@ -353,7 +631,14 @@
         "id": "main_quest",
         "name": "The Frozen Expedition",
         "constraintMode": "Guided",
-        "tensionCurve": [0.2, 0.4, 0.6, 0.8, 1.0, 0.7],
+        "tensionCurve": [
+          0.2,
+          0.4,
+          0.6,
+          0.8,
+          1.0,
+          0.7
+        ],
         "beats": [
           {
             "id": "arrive_village",

@@ -19,6 +19,8 @@ namespace Core { class EntityRegistry; }
 namespace Scene {
 
 class AnimatedVoxelCharacter;
+class VoxelCharacter;
+class RagdollCharacter;
 
 /// An NPC entity that wraps an AnimatedVoxelCharacter and delegates
 /// behavior to a pluggable NPCBehavior strategy.
@@ -33,6 +35,17 @@ public:
               const std::string& name, const CharacterAppearance& appearance,
               const Phyxel::Skeleton& skeleton, const Phyxel::VoxelModel& model,
               const std::vector<Phyxel::AnimationClip>& clips);
+
+    /// Construct a physics-driven NPC (active ragdoll via VoxelCharacter).
+    NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& position,
+              const std::string& name, const std::string& animFile,
+              const CharacterAppearance& appearance, bool physicsDriven);
+
+    /// Construct a physics-driven NPC from cached template data.
+    NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& position,
+              const std::string& name, const CharacterAppearance& appearance,
+              const Phyxel::Skeleton& skeleton, const Phyxel::VoxelModel& model,
+              const std::vector<Phyxel::AnimationClip>& clips, bool physicsDriven);
 
     ~NPCEntity() override;
 
@@ -67,6 +80,15 @@ public:
     // Access inner animated character for animation control
     AnimatedVoxelCharacter* getAnimatedCharacter() const { return m_character.get(); }
 
+    // Access inner physics-driven character (VoxelCharacter)
+    VoxelCharacter* getVoxelCharacter() const { return m_voxelCharacter.get(); }
+
+    /// Whether this NPC uses physics-driven (active ragdoll) mode.
+    bool isPhysicsDriven() const { return m_voxelCharacter != nullptr; }
+
+    /// Get the underlying RagdollCharacter for rendering (works for both character types).
+    RagdollCharacter* getRenderableCharacter() const;
+
     // Health
     Core::HealthComponent* getHealthComponent() override { return m_health.get(); }
     const Core::HealthComponent* getHealthComponent() const override { return m_health.get(); }
@@ -77,7 +99,8 @@ public:
 
 private:
     std::string m_name;
-    std::unique_ptr<AnimatedVoxelCharacter> m_character;
+    std::unique_ptr<AnimatedVoxelCharacter> m_character;       // Kinematic (animated) character
+    std::unique_ptr<VoxelCharacter> m_voxelCharacter;          // Physics-driven character (active ragdoll)
     std::unique_ptr<NPCBehavior> m_behavior;
     std::unique_ptr<UI::DialogueProvider> m_dialogueProvider;
     NPCContext m_context;

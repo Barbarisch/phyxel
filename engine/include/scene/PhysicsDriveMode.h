@@ -35,46 +35,63 @@ struct JointPIDState {
     }
 };
 
-/// Per-joint PID gains. Separate from CharacterJointDef so they can be tuned at runtime.
+/// Per-joint PID gains (only used in ragdoll/limp recovery mode).
 struct JointPIDGains {
-    float kp = 30.0f;   // Proportional gain
-    float ki = 1.0f;    // Integral gain
-    float kd = 5.0f;    // Derivative gain
-    float maxIntegral = 1.0f; // Integral windup clamp
+    float kp = 20.0f;
+    float ki = 0.5f;
+    float kd = 5.0f;
+    float maxIntegral = 1.0f;
 };
 
 /// Configuration for the physics drive mode.
+///
+/// In normal mode, bone bodies are placed directly at their animation-target
+/// positions each physics substep (kinematic pose matching).  The root body is
+/// fully kinematic — moved directly by the NPC's AI controller.
+/// PID motors are only active during ragdoll-to-animation recovery.
 struct PhysicsDriveConfig {
-    /// Global motor strength multiplier (0.0 = passive ragdoll, 1.0 = normal, >1 = stiff/robotic).
+    /// Global motor strength multiplier (only used during ragdoll recovery).
     float motorStrengthScale = 1.0f;
 
-    /// PID gains for balance (keeping root upright).
-    float balanceKp = 150.0f;
-    float balanceKi = 5.0f;
-    float balanceKd = 20.0f;
-
-    /// Default per-joint PID gains (can be overridden per joint).
+    /// Default per-joint PID gains (only used during ragdoll recovery).
     JointPIDGains defaultJointGains;
 
-    /// Movement parameters.
-    float moveForce = 50.0f;
-    float turnStrength = 20.0f;
-    float turnDamping = 5.0f;
-    float brakingForce = 50.0f;
+    /// Movement speed for kinematic root (units/sec).
+    float moveSpeed = 3.0f;
 
-    /// Jump impulse magnitude.
-    float jumpImpulse = 100.0f;
+    /// Turn rate for kinematic root (radians/sec).
+    float turnRate = 6.0f;
+
+    /// Jump impulse magnitude (temporarily makes root dynamic).
+    float jumpImpulse = 200.0f;
 
     /// Ground detection ray length (downwards from root).
-    float groundRayLength = 2.0f;
+    float groundRayLength = 3.0f;
+
+    /// Height offset: how high root body center should be above ground.
+    float rootHeightOffset = 0.0f;
 
     /// Max angle from vertical before considered "fallen" (radians).
-    float fallAngleThreshold = 1.2f; // ~70 degrees
+    float fallAngleThreshold = 1.2f;
 
-    /// Linear damping for all bodies.
-    float linearDamping = 0.1f;
-    /// Angular damping for all bodies.
-    float angularDamping = 0.3f;
+    /// Time before a fallen character auto-recovers (seconds).
+    float fallRecoveryTime = 0.5f;
+
+    /// Safety teleport threshold below ground.
+    float safetyTeleportThreshold = 10.0f;
+
+    /// Angular damping for limb bodies (high = less wobble).
+    float limbAngularDamping = 0.95f;
+
+    /// Linear damping for limb bodies.
+    float limbLinearDamping = 0.8f;
+
+    /// Maximum mass per bone.
+    float maxBoneMass = 2.0f;
+
+    /// How strongly limb bodies are pulled toward animation targets (0-1).
+    /// 1.0 = snap exactly to animation. 0.0 = pure ragdoll.
+    float poseBlendStrength = 1.0f;
 };
 
 /// Active ragdoll drive mode: creates Bullet rigid bodies + motorized joints from a
@@ -170,14 +187,10 @@ private:
                                     const glm::vec3& worldOrigin);
     void createConstraint(const CharacterJointDef& jointDef, const CharacterSkeleton& skel);
 
-    // Motor driving
-    void driveHingeMotor(btHingeConstraint* hinge, float targetAngle,
-                         int childBoneId, float deltaTime);
-    void driveConeTwistMotor(btConeTwistConstraint* cone, const glm::quat& targetRotation,
-                              int childBoneId, float deltaTime);
+    // Pose matching — directly place bone bodies at animation targets
+    void matchPose();
 
-    // Balance
-    void keepUpright(float deltaTime);
+    // Ground status
     void checkGroundStatus();
 
     Physics::PhysicsWorld* physicsWorld_ = nullptr;
@@ -194,17 +207,21 @@ private:
 
     int rootIndex_ = -1;
 
-    // Per-joint PID state
+    // Per-joint PID state (only used during ragdoll recovery)
     std::map<int, JointPIDState> pidStates_;
-    // Per-joint PID gains (overrides)
     std::map<int, JointPIDGains> jointGainsOverrides_;
 
-    // Target pose (from animation)
-    std::map<int, float> targetHingeAngles_;       // For hinge joints
-    std::map<int, glm::quat> targetRotations_;     // For cone-twist joints
+    // Target pose (from animation) — bone transforms in model space
+    std::map<int, glm::vec3> targetBonePositions_;   // World-space target per bone
+    std::map<int, glm::quat> targetBoneRotations_;   // World-space target rotation per bone
 
-    // Balance PID state
-    glm::vec3 balanceIntegralError_{0.0f};
+    // Stored skeleton data for computing animation poses
+    Skeleton bindSkeleton_;               // Copy of skeleton hierarchy / bind pose
+    std::map<int, glm::vec3> boneOffsets_; // Center offset per bone
+    glm::vec3 worldOrigin_{0.0f};         // Character world origin
+
+    // Current yaw of the character (radians)
+    float currentYaw_ = 0.0f;
 
     // Movement state
     glm::vec3 moveDirection_{0.0f};
@@ -212,12 +229,16 @@ private:
     bool grounded_ = false;
     bool fallen_ = false;
     bool limp_ = false;
+    float fallenTimer_ = 0.0f;
+    float groundHeight_ = 0.0f;
+    bool groundHeightValid_ = false;
+    glm::vec3 lastGoodPosition_{0.0f};
 
     PhysicsDriveConfig config_;
 
     // Store skeleton info needed at runtime
     std::map<int, CharacterJointDef> jointDefs_;
-    std::map<int, JointType> jointTypes_;  // Quick lookup
+    std::map<int, JointType> jointTypes_;
 
     // btActionInterface for Bullet substep callbacks
     class PhysicsDriveAction;

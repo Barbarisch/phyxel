@@ -76,6 +76,26 @@ namespace Scene {
         void setPosition(const glm::vec3& pos);
         glm::vec3 getPosition() const;
 
+        // Animation state queries
+        AnimatedCharacterState getAnimationState() const { return currentState; }
+        std::string getCurrentClipName() const;
+        float getAnimationProgress() const;
+        float getAnimationDuration() const;
+
+        // Configurable blend duration
+        void setBlendDuration(float duration) { blendDuration = duration; }
+        float getBlendDuration() const { return blendDuration; }
+
+        // Force a specific state machine state
+        void setAnimationState(AnimatedCharacterState state);
+
+        // Hot-reload animation clips from file (skeleton/model unchanged)
+        bool reloadAnimations(const std::string& animFile);
+
+        // State string conversion (public)
+        static AnimatedCharacterState stringToState(const std::string& str);
+        std::string stateToString(AnimatedCharacterState state) const;
+
         /// Set horizontal movement velocity (XZ), preserving vertical velocity (gravity).
         void setMoveVelocity(const glm::vec3& velocity);
         
@@ -136,7 +156,6 @@ namespace Scene {
         bool isSprinting = false;
         bool isCrouching = false;
 
-        std::string stateToString(AnimatedCharacterState state);
         bool jumpRequested = false;
         bool attackRequested = false;
         float stateTimer = 0.0f;
@@ -153,6 +172,8 @@ namespace Scene {
         bool hasExternalVelocity = false;
         
         void createController(const glm::vec3& position);
+        void resizeController();  // Resize controller body to match scaled skeleton height
+        float computeSkeletonHeight() const;  // Compute Y-extent of scaled skeleton
         void updateStateMachine(float deltaTime);
         void configureAnimationFixes();
         void applySkeletonProportions();  // Scale skeleton joints + anim keyframes per appearance
@@ -161,6 +182,10 @@ namespace Scene {
 
         // Appearance (colors + proportions)
         CharacterAppearance appearance_;
+
+        // Vertical offset from model-space origin to the lowest bone (feet).
+        // Used to align visual feet with the bottom of the controller box.
+        float skeletonFootOffset_ = 0.0f;
 
         // Original unscaled template data (for rebuilding with different proportions)
         Phyxel::Skeleton originalSkeleton_;

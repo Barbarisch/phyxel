@@ -112,11 +112,11 @@ def create_project(
     extra_fwd_decls = []
 
     extra_includes.append('#include "graphics/RenderCoordinator.h"')
-    extra_includes.append('#include "scene/PhysicsCharacter.h"')
+    extra_includes.append('#include "scene/AnimatedVoxelCharacter.h"')
     extra_includes.append('#include "ui/GameScreen.h"')
     extra_includes.append('#include "ui/GameMenus.h"')
     extra_members.append("    std::unique_ptr<Phyxel::Graphics::RenderCoordinator> renderCoordinator_;")
-    extra_members.append("    Phyxel::Scene::PhysicsCharacter* playerCharacter_ = nullptr;")
+    extra_members.append("    Phyxel::Scene::AnimatedVoxelCharacter* playerCharacter_ = nullptr;")
     extra_members.append("    std::vector<std::unique_ptr<Phyxel::Scene::Entity>> entities_;")
     extra_members.append("    Phyxel::UI::GameScreen screen_;")
 
@@ -258,6 +258,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         #include "graphics/RenderCoordinator.h"
         #include "input/InputManager.h"
         #include "physics/PhysicsWorld.h"
+        #include "scene/AnimatedVoxelCharacter.h"
         #include "scene/PhysicsCharacter.h"
         #include "vulkan/VulkanDevice.h"
         #include "vulkan/RenderPipeline.h"
@@ -283,7 +284,19 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
 
         Phyxel::Scene::Entity* {class_name}::spawnEntity(
                 const std::string& type, const glm::vec3& pos, const std::string& animFile) {{
-            if (type == "physics") {{
+            if (type == "animated") {{
+                auto ptr = std::make_unique<Phyxel::Scene::AnimatedVoxelCharacter>(
+                    engine_->getPhysicsWorld(), pos);
+                auto* raw = ptr.get();
+                std::string file = animFile.empty() ? "resources/animated_characters/humanoid.anim" : animFile;
+                if (raw->loadModel(file)) {{
+                    raw->playAnimation("idle");
+                }} else {{
+                    LOG_ERROR("{class_name}", "Failed to load animated character: {{}}", file);
+                }}
+                entities_.push_back(std::move(ptr));
+                return raw;
+            }} else if (type == "physics") {{
                 auto ptr = std::make_unique<Phyxel::Scene::PhysicsCharacter>(
                     engine_->getPhysicsWorld(), engine_->getInputManager(),
                     engine_->getCamera(), pos);
@@ -400,11 +413,11 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
 
             // If no player was spawned, create a default one
             if (!playerCharacter_) {{
-                auto* entity = spawnEntity("physics", glm::vec3(16.0f, 25.0f, 16.0f), "");
+                auto* entity = spawnEntity("animated", glm::vec3(16.0f, 25.0f, 16.0f), "");
                 if (entity) {{
-                    playerCharacter_ = static_cast<Phyxel::Scene::PhysicsCharacter*>(entity);
-                    if (entityRegistry_) {{
-                        entityRegistry_->registerEntity(playerCharacter_, "player", "physics");
+                    playerCharacter_ = dynamic_cast<Phyxel::Scene::AnimatedVoxelCharacter*>(entity);
+                    if (entityRegistry_ && playerCharacter_) {{
+                        entityRegistry_->registerEntity(playerCharacter_, "player", "animated");
                     }}
                 }}
             }}
@@ -413,6 +426,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (playerCharacter_) {{
                 auto* cam = engine.getCamera();
                 cam->setMode(Phyxel::Graphics::CameraMode::ThirdPerson);
+                cam->setDistanceFromTarget(4.0f);
             }}
 
             // Start on main menu, cursor free
@@ -449,8 +463,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         const glm::vec3& pos, const std::string& animFile)
                         -> Phyxel::Scene::Entity* {{
                     auto* entity = spawnEntity(type, pos, animFile);
-                    if (entity && type == "physics") {{
-                        playerCharacter_ = static_cast<Phyxel::Scene::PhysicsCharacter*>(entity);
+                    if (entity && type == "animated") {{
+                        playerCharacter_ = dynamic_cast<Phyxel::Scene::AnimatedVoxelCharacter*>(entity);
                     }}
                     return entity;
                 }};
@@ -526,6 +540,26 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // Only process camera/movement input when actually playing and not in dialogue
             bool inDialogue = dialogueSystem_ && dialogueSystem_->isActive();
             if (Phyxel::UI::isGameRunning(screen_.getState()) && !inDialogue) {{
+                // Route player movement input to animated character
+                if (playerCharacter_) {{
+                    float forward = 0.0f, turn = 0.0f, strafe = 0.0f;
+                    if (input->isKeyHeld(GLFW_KEY_W)) forward += 1.0f;
+                    if (input->isKeyHeld(GLFW_KEY_S)) forward -= 1.0f;
+                    if (input->isKeyHeld(GLFW_KEY_A)) turn += 1.0f;
+                    if (input->isKeyHeld(GLFW_KEY_D)) turn -= 1.0f;
+
+                    playerCharacter_->setControlInput(forward, turn, strafe);
+                    playerCharacter_->setSprint(input->isKeyHeld(GLFW_KEY_LEFT_SHIFT));
+                    playerCharacter_->setCrouch(input->isKeyHeld(GLFW_KEY_LEFT_CONTROL));
+
+                    if (input->isKeyPressed(GLFW_KEY_SPACE)) {{
+                        playerCharacter_->jump();
+                    }}
+                    if (input->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT)) {{
+                        playerCharacter_->attack();
+                    }}
+                }}
+
                 input->processInput(engine.getLastDeltaTime());
             }}
         }}
@@ -541,7 +575,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // Update player character + camera tracking
             if (playerCharacter_) {{
                 playerCharacter_->update(dt);
-                playerCharacter_->updateCamera();
+                auto* cam = engine.getCamera();
+                if (cam) {{
+                    cam->updatePositionFromTarget(playerCharacter_->getPosition(), 0.5f);
+                }}
             }}
 
             if (npcManager_) npcManager_->update(dt);

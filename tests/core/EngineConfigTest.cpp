@@ -27,7 +27,7 @@ TEST(EngineConfigTest, DefaultValues) {
     EXPECT_EQ(cfg.textureAtlasFile, "cube_atlas.png");
     EXPECT_EQ(cfg.defaultWorldFile, "default.db");
     EXPECT_EQ(cfg.loggingConfigFile, "logging.ini");
-    EXPECT_EQ(cfg.defaultAnimFile, "character.anim");
+    EXPECT_EQ(cfg.defaultAnimFile, "resources/animated_characters/humanoid.anim");
     EXPECT_EQ(cfg.apiPort, 8090);
     EXPECT_TRUE(cfg.enableHTTPAPI);
     EXPECT_TRUE(cfg.enablePython);

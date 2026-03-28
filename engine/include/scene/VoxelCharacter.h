@@ -39,6 +39,10 @@ public:
     /// Load skeleton, voxel model, and animations from a .anim file.
     bool loadModel(const std::string& animFile);
 
+    /// Load from pre-loaded skeleton data (template-based, no file re-read).
+    bool loadFromData(const Skeleton& skeleton, const VoxelModel& model,
+                      const std::vector<AnimationClip>& clips);
+
     // ---- Appearance ----
 
     void setAppearance(const CharacterAppearance& appearance);

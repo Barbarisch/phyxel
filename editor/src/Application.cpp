@@ -1451,14 +1451,13 @@ void Application::handleInput() {
         if (inputManager->isKeyPressed(GLFW_KEY_W) || inputManager->isKeyPressed(GLFW_KEY_UP)) forward -= moveMagnitude;
         if (inputManager->isKeyPressed(GLFW_KEY_S) || inputManager->isKeyPressed(GLFW_KEY_DOWN)) forward += moveMagnitude;
         
-        // A/D for Strafe (if controlling AnimatedCharacter)
+        // A/D for Turn (if controlling AnimatedCharacter)
         if (currentControlTarget == ControlTarget::AnimatedCharacter) {
-            if (inputManager->isKeyPressed(GLFW_KEY_A) || inputManager->isKeyPressed(GLFW_KEY_LEFT)) strafe -= moveMagnitude;
-            if (inputManager->isKeyPressed(GLFW_KEY_D) || inputManager->isKeyPressed(GLFW_KEY_RIGHT)) strafe += moveMagnitude;
+            if (inputManager->isKeyPressed(GLFW_KEY_A) || inputManager->isKeyPressed(GLFW_KEY_LEFT)) turn -= 1.0f;
+            if (inputManager->isKeyPressed(GLFW_KEY_D) || inputManager->isKeyPressed(GLFW_KEY_RIGHT)) turn += 1.0f;
             
-            // Q/E for Turn
-            if (inputManager->isKeyPressed(GLFW_KEY_Q)) turn -= 1.0f;
-            if (inputManager->isKeyPressed(GLFW_KEY_E)) turn += 1.0f;
+            // Q for Strafe left (E reserved for NPC interaction)
+            if (inputManager->isKeyPressed(GLFW_KEY_Q)) strafe -= moveMagnitude;
         } else {
             // Standard Tank Controls for others
             if (inputManager->isKeyPressed(GLFW_KEY_A) || inputManager->isKeyPressed(GLFW_KEY_LEFT)) turn -= 1.0f;
@@ -2147,12 +2146,19 @@ void Application::autoLoadGameDefinition() {
             }
 
             // If a player was spawned, switch to third-person camera and character control
-            if (result.playerSpawned && physicsCharacter && camera) {
+            if (result.playerSpawned && camera) {
                 camera->setMode(Graphics::CameraMode::ThirdPerson);
-                currentControlTarget = ControlTarget::PhysicsCharacter;
-                isControllingPhysicsCharacter = true;
-                physicsCharacter->setControlActive(true);
-                LOG_INFO("Application", "Camera set to ThirdPerson following player");
+                if (animatedCharacter) {
+                    currentControlTarget = ControlTarget::AnimatedCharacter;
+                    isControllingPhysicsCharacter = false;
+                    camera->setDistanceFromTarget(4.0f);
+                    LOG_INFO("Application", "Camera set to ThirdPerson following animated player");
+                } else if (physicsCharacter) {
+                    currentControlTarget = ControlTarget::PhysicsCharacter;
+                    isControllingPhysicsCharacter = true;
+                    physicsCharacter->setControlActive(true);
+                    LOG_INFO("Application", "Camera set to ThirdPerson following physics player");
+                }
             }
         } else {
             LOG_ERROR("Application", "Failed to load game definition: {}", result.error);
@@ -2195,7 +2201,7 @@ void Application::processAPICommands() {
                 } else if (type == "spider") {
                     spawned = createSpiderCharacter(glm::vec3(x, y, z));
                 } else if (type == "animated") {
-                    std::string animFile = cmd.params.value("animFile", "character.anim");
+                    std::string animFile = cmd.params.value("animFile", "resources/animated_characters/humanoid.anim");
                     spawned = createAnimatedCharacter(glm::vec3(x, y, z), animFile);
                 } else {
                     response = {{"error", "Unknown entity type: " + type}};
@@ -2613,11 +2619,17 @@ void Application::processAPICommands() {
                             response["reloaded"] = true;
 
                             // Switch to third-person if player was spawned
-                            if (loadResult.playerSpawned && physicsCharacter && camera) {
+                            if (loadResult.playerSpawned && camera) {
                                 camera->setMode(Graphics::CameraMode::ThirdPerson);
-                                currentControlTarget = ControlTarget::PhysicsCharacter;
-                                isControllingPhysicsCharacter = true;
-                                physicsCharacter->setControlActive(true);
+                                if (animatedCharacter) {
+                                    currentControlTarget = ControlTarget::AnimatedCharacter;
+                                    isControllingPhysicsCharacter = false;
+                                    camera->setDistanceFromTarget(4.0f);
+                                } else if (physicsCharacter) {
+                                    currentControlTarget = ControlTarget::PhysicsCharacter;
+                                    isControllingPhysicsCharacter = true;
+                                    physicsCharacter->setControlActive(true);
+                                }
                             }
                         } catch (const std::exception& ex) {
                             response = {{"error", ex.what()}};
@@ -3407,7 +3419,7 @@ void Application::processAPICommands() {
                     if (name.empty()) {
                         response = {{"error", "NPC name required"}};
                     } else {
-                        std::string animFile = cmd.params.value("animFile", "character.anim");
+                        std::string animFile = cmd.params.value("animFile", "resources/animated_characters/humanoid.anim");
                         float x = 0, y = 20, z = 0;
                         if (cmd.params.contains("position")) {
                             x = cmd.params["position"].value("x", 0.0f);
@@ -3440,15 +3452,35 @@ void Application::processAPICommands() {
                         Scene::CharacterAppearance appearance;
                         std::string role = cmd.params.value("role", "");
                         bool procedural = cmd.params.value("procedural", false);
+                        std::string driveModeStr = cmd.params.value("driveMode", "animated");
+                        bool physicsDriven = (driveModeStr == "physics");
 
                         if (cmd.params.contains("appearance")) {
                             appearance = Scene::CharacterAppearance::fromJson(cmd.params["appearance"]);
                         } else if (!role.empty()) {
-                            appearance = Scene::CharacterAppearance::generateFromSeed(name, role);
+                            // Detect morphology from anim file name
+                            std::string animLower = animFile;
+                            std::transform(animLower.begin(), animLower.end(), animLower.begin(), ::tolower);
+                            Scene::MorphologyType morph = Scene::MorphologyType::Humanoid;
+                            if (animLower.find("wolf") != std::string::npos)
+                                morph = Scene::MorphologyType::Quadruped;
+                            else if (animLower.find("spider") != std::string::npos)
+                                morph = Scene::MorphologyType::Arachnid;
+                            else if (animLower.find("dragon") != std::string::npos)
+                                morph = Scene::MorphologyType::Dragon;
+                            appearance = Scene::CharacterAppearance::generateFromSeed(name, role, morph);
                         }
 
                         Scene::NPCEntity* npc = nullptr;
-                        if (procedural) {
+                        if (physicsDriven) {
+                            if (procedural) {
+                                npc = npcManager->spawnPhysicsProceduralNPC(name, animFile, glm::vec3(x, y, z),
+                                                                             behaviorType, role, waypoints, walkSpeed, waitTime, appearance);
+                            } else {
+                                npc = npcManager->spawnPhysicsNPC(name, animFile, glm::vec3(x, y, z),
+                                                                    behaviorType, waypoints, walkSpeed, waitTime, appearance);
+                            }
+                        } else if (procedural) {
                             // Procedural mode: use cached template + unique appearance
                             npc = npcManager->spawnProceduralNPC(name, animFile, glm::vec3(x, y, z),
                                                                   behaviorType, role, waypoints, walkSpeed, waitTime, appearance);
@@ -3459,7 +3491,7 @@ void Application::processAPICommands() {
 
                         if (npc) {
                             response = {{"success", true}, {"name", name}, {"behavior", behaviorStr},
-                                        {"procedural", procedural}, {"role", role},
+                                        {"procedural", procedural}, {"role", role}, {"driveMode", driveModeStr},
                                         {"position", {{"x", x}, {"y", y}, {"z", z}}}};
                             if (gameEventLog) {
                                 gameEventLog->emit("npc_spawned", {
@@ -3962,11 +3994,17 @@ void Application::processAPICommands() {
                 response = loadResult.toJson();
 
                 // Switch to third-person if player was spawned
-                if (loadResult.playerSpawned && physicsCharacter && camera) {
+                if (loadResult.playerSpawned && camera) {
                     camera->setMode(Graphics::CameraMode::ThirdPerson);
-                    currentControlTarget = ControlTarget::PhysicsCharacter;
-                    isControllingPhysicsCharacter = true;
-                    physicsCharacter->setControlActive(true);
+                    if (animatedCharacter) {
+                        currentControlTarget = ControlTarget::AnimatedCharacter;
+                        isControllingPhysicsCharacter = false;
+                        camera->setDistanceFromTarget(4.0f);
+                    } else if (physicsCharacter) {
+                        currentControlTarget = ControlTarget::PhysicsCharacter;
+                        isControllingPhysicsCharacter = true;
+                        physicsCharacter->setControlActive(true);
+                    }
                 }
 
             } else if (cmd.action == "export_game_definition") {
@@ -4863,6 +4901,165 @@ void Application::processAPICommands() {
                     }
 
                     response = {{"success", true}, {"project_dir", path}};
+                }
+
+            // ================================================================
+            // ANIMATION CONTROL COMMANDS
+            // ================================================================
+            } else if (cmd.action == "list_animations") {
+                std::string id = cmd.params.value("id", "");
+                Scene::AnimatedVoxelCharacter* character = nullptr;
+
+                // Try NPC first (strip "npc_" prefix if present)
+                if (npcManager) {
+                    std::string npcName = id;
+                    if (npcName.substr(0, 4) == "npc_") npcName = npcName.substr(4);
+                    auto* npc = npcManager->getNPC(npcName);
+                    if (npc) character = npc->getAnimatedCharacter();
+                }
+                // Fallback to player animated character
+                if (!character && (id.empty() || id == "player") && animatedCharacter) {
+                    character = animatedCharacter;
+                }
+
+                if (!character) {
+                    response = {{"error", "No animated character found for: " + id}};
+                } else {
+                    auto names = character->getAnimationNames();
+                    nlohmann::json clipList = nlohmann::json::array();
+                    const auto& clips = character->getAnimationClips();
+                    for (size_t i = 0; i < clips.size(); ++i) {
+                        clipList.push_back({{"index", i}, {"name", clips[i].name},
+                                            {"duration", clips[i].duration}, {"speed", clips[i].speed}});
+                    }
+                    response = {{"success", true}, {"id", id}, {"animations", clipList}};
+                }
+
+            } else if (cmd.action == "play_animation") {
+                std::string id = cmd.params.value("id", "");
+                std::string animName = cmd.params.value("animation", "");
+                if (animName.empty()) {
+                    response = {{"error", "Animation name required"}};
+                } else {
+                    Scene::AnimatedVoxelCharacter* character = nullptr;
+                    if (npcManager) {
+                        std::string npcName = id;
+                        if (npcName.substr(0, 4) == "npc_") npcName = npcName.substr(4);
+                        auto* npc = npcManager->getNPC(npcName);
+                        if (npc) character = npc->getAnimatedCharacter();
+                    }
+                    if (!character && (id.empty() || id == "player") && animatedCharacter) {
+                        character = animatedCharacter;
+                    }
+
+                    if (!character) {
+                        response = {{"error", "No animated character found for: " + id}};
+                    } else {
+                        character->setAnimationState(Scene::AnimatedCharacterState::Preview);
+                        character->playAnimation(animName);
+                        response = {{"success", true}, {"id", id}, {"animation", animName}};
+                    }
+                }
+
+            } else if (cmd.action == "get_animation_state") {
+                std::string id = cmd.params.value("id", "");
+                Scene::AnimatedVoxelCharacter* character = nullptr;
+                if (npcManager) {
+                    std::string npcName = id;
+                    if (npcName.substr(0, 4) == "npc_") npcName = npcName.substr(4);
+                    auto* npc = npcManager->getNPC(npcName);
+                    if (npc) character = npc->getAnimatedCharacter();
+                }
+                if (!character && (id.empty() || id == "player") && animatedCharacter) {
+                    character = animatedCharacter;
+                }
+
+                if (!character) {
+                    response = {{"error", "No animated character found for: " + id}};
+                } else {
+                    response = {{"success", true}, {"id", id},
+                                {"state", character->stateToString(character->getAnimationState())},
+                                {"clip", character->getCurrentClipName()},
+                                {"progress", character->getAnimationProgress()},
+                                {"duration", character->getAnimationDuration()},
+                                {"blendDuration", character->getBlendDuration()}};
+                }
+
+            } else if (cmd.action == "set_animation_state") {
+                std::string id = cmd.params.value("id", "");
+                std::string stateName = cmd.params.value("state", "");
+                if (stateName.empty()) {
+                    response = {{"error", "State name required"}};
+                } else {
+                    Scene::AnimatedVoxelCharacter* character = nullptr;
+                    if (npcManager) {
+                        std::string npcName = id;
+                        if (npcName.substr(0, 4) == "npc_") npcName = npcName.substr(4);
+                        auto* npc = npcManager->getNPC(npcName);
+                        if (npc) character = npc->getAnimatedCharacter();
+                    }
+                    if (!character && (id.empty() || id == "player") && animatedCharacter) {
+                        character = animatedCharacter;
+                    }
+
+                    if (!character) {
+                        response = {{"error", "No animated character found for: " + id}};
+                    } else {
+                        auto state = Scene::AnimatedVoxelCharacter::stringToState(stateName);
+                        character->setAnimationState(state);
+                        response = {{"success", true}, {"id", id}, {"state", stateName}};
+                    }
+                }
+
+            } else if (cmd.action == "set_blend_duration") {
+                std::string id = cmd.params.value("id", "");
+                float duration = cmd.params.value("duration", 0.2f);
+                Scene::AnimatedVoxelCharacter* character = nullptr;
+                if (npcManager) {
+                    std::string npcName = id;
+                    if (npcName.substr(0, 4) == "npc_") npcName = npcName.substr(4);
+                    auto* npc = npcManager->getNPC(npcName);
+                    if (npc) character = npc->getAnimatedCharacter();
+                }
+                if (!character && (id.empty() || id == "player") && animatedCharacter) {
+                    character = animatedCharacter;
+                }
+
+                if (!character) {
+                    response = {{"error", "No animated character found for: " + id}};
+                } else {
+                    character->setBlendDuration(duration);
+                    response = {{"success", true}, {"id", id}, {"blendDuration", duration}};
+                }
+
+            } else if (cmd.action == "reload_animation") {
+                std::string id = cmd.params.value("id", "");
+                std::string animFile = cmd.params.value("animFile", "");
+                if (animFile.empty()) {
+                    response = {{"error", "animFile path required"}};
+                } else {
+                    Scene::AnimatedVoxelCharacter* character = nullptr;
+                    if (npcManager) {
+                        std::string npcName = id;
+                        if (npcName.substr(0, 4) == "npc_") npcName = npcName.substr(4);
+                        auto* npc = npcManager->getNPC(npcName);
+                        if (npc) character = npc->getAnimatedCharacter();
+                    }
+                    if (!character && (id.empty() || id == "player") && animatedCharacter) {
+                        character = animatedCharacter;
+                    }
+
+                    if (!character) {
+                        response = {{"error", "No animated character found for: " + id}};
+                    } else {
+                        bool ok = character->reloadAnimations(animFile);
+                        if (ok) {
+                            response = {{"success", true}, {"id", id}, {"animFile", animFile},
+                                        {"clipCount", (int)character->getAnimationNames().size()}};
+                        } else {
+                            response = {{"error", "Failed to reload animations from: " + animFile}};
+                        }
+                    }
                 }
 
             } else {

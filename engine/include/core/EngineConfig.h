@@ -37,7 +37,7 @@ struct EngineConfig {
     std::string textureAtlasFile      = "cube_atlas.png";
     std::string defaultWorldFile      = "default.db";
     std::string loggingConfigFile     = "logging.ini";
-    std::string defaultAnimFile       = "character.anim";
+    std::string defaultAnimFile       = "resources/animated_characters/humanoid.anim";
 
     // -- Network ----------------------------------------------------------
     int         apiPort       = 8090;

@@ -75,6 +75,12 @@ namespace Scene {
                 LOG_INFO_FMT("Character", "  [" << i << "] " << clips[i].name << " (Duration: " << clips[i].duration << "s)");
             }
             LOG_INFO_FMT("Character", "=====================================");
+
+            // Auto-detect morphology if not already set
+            if (appearance_.morphology == MorphologyType::Unknown) {
+                appearance_.morphology = detectMorphology(skeleton);
+            }
+
             configureAnimationFixes();
             buildBodiesFromModel();
             return true;
@@ -100,44 +106,121 @@ namespace Scene {
             LOG_INFO_FMT("Character", "  [" << i << "] " << clips[i].name << " (Duration: " << clips[i].duration << "s)");
         }
 
+        // Auto-detect morphology if not already set
+        if (appearance_.morphology == MorphologyType::Unknown) {
+            appearance_.morphology = detectMorphology(skeleton);
+        }
+
         configureAnimationFixes();
         applySkeletonProportions();
+        resizeController();
         buildBodiesFromModel();
         return true;
     }
 
-    // Determine per-limb scale factors for a bone based on its lowercased name
+    // Determine per-limb scale factors for a bone based on its lowercased name.
+    // Dispatches to morphology-specific logic.
     static void getLimbScales(const std::string& nameLower, const CharacterAppearance& app,
                               float& lengthScale, float& thicknessScale) {
         lengthScale = app.heightScale;
         thicknessScale = app.bulkScale;
 
-        if (nameLower.find("head") != std::string::npos ||
-            nameLower.find("neck") != std::string::npos) {
-            // Head uses its own scale; neck uses torso length
+        switch (app.morphology) {
+        case MorphologyType::Quadruped:
             if (nameLower.find("head") != std::string::npos) {
                 lengthScale = app.headScale;
                 thicknessScale = app.headScale;
-            } else {
+            } else if (nameLower.find("neck") != std::string::npos) {
+                lengthScale = app.heightScale * app.neckLengthScale;
+            } else if (nameLower.find("tail") != std::string::npos) {
+                lengthScale = app.heightScale * app.tailLengthScale;
+            } else if (nameLower.find("paw") != std::string::npos ||
+                       nameLower.find("ankle") != std::string::npos) {
+                lengthScale = app.heightScale * app.legLengthScale;
+                thicknessScale = app.bulkScale * 0.9f;
+            } else if (nameLower.find("leg") != std::string::npos) {
+                lengthScale = app.heightScale * app.legLengthScale;
+            } else if (nameLower.find("shoulder") != std::string::npos) {
+                lengthScale = app.shoulderWidthScale;
+                thicknessScale = app.bulkScale * app.shoulderWidthScale;
+            } else if (nameLower.find("chest") != std::string::npos ||
+                       nameLower.find("belly") != std::string::npos ||
+                       nameLower.find("pelvis") != std::string::npos) {
                 lengthScale = app.heightScale * app.torsoLengthScale;
             }
-        } else if (nameLower.find("arm") != std::string::npos ||
-                   nameLower.find("forearm") != std::string::npos ||
-                   nameLower.find("hand") != std::string::npos) {
-            lengthScale = app.heightScale * app.armLengthScale;
-        } else if (nameLower.find("shoulder") != std::string::npos) {
-            lengthScale = app.shoulderWidthScale;
-            thicknessScale = app.bulkScale * app.shoulderWidthScale;
-        } else if (nameLower.find("leg") != std::string::npos ||
-                   nameLower.find("upleg") != std::string::npos ||
-                   nameLower.find("foot") != std::string::npos) {
-            lengthScale = app.heightScale * app.legLengthScale;
-        } else if (nameLower.find("spine") != std::string::npos ||
-                   nameLower.find("chest") != std::string::npos) {
-            lengthScale = app.heightScale * app.torsoLengthScale;
-        } else if (nameLower.find("hip") != std::string::npos) {
-            lengthScale = app.heightScale;
-            thicknessScale = app.bulkScale;
+            break;
+
+        case MorphologyType::Arachnid:
+            if (nameLower.find("coxa") != std::string::npos ||
+                nameLower.find("femur") != std::string::npos ||
+                nameLower.find("tibia") != std::string::npos ||
+                nameLower.find("leg") != std::string::npos) {
+                lengthScale = app.heightScale * app.legLengthScale;
+            } else if (nameLower.find("abdomen") != std::string::npos) {
+                lengthScale = app.heightScale * app.torsoLengthScale;
+                thicknessScale = app.bulkScale * 1.1f;
+            } else if (nameLower.find("thorax") != std::string::npos ||
+                       nameLower.find("cephalothorax") != std::string::npos) {
+                lengthScale = app.heightScale * app.torsoLengthScale;
+            } else if (nameLower.find("fang") != std::string::npos ||
+                       nameLower.find("pedipalp") != std::string::npos) {
+                lengthScale = app.headScale;
+            }
+            break;
+
+        case MorphologyType::Dragon:
+            if (nameLower.find("head") != std::string::npos ||
+                nameLower.find("jaw") != std::string::npos ||
+                nameLower.find("snout") != std::string::npos) {
+                lengthScale = app.headScale;
+                thicknessScale = app.headScale;
+            } else if (nameLower.find("neck") != std::string::npos) {
+                lengthScale = app.heightScale * app.neckLengthScale;
+            } else if (nameLower.find("wing") != std::string::npos) {
+                lengthScale = app.heightScale * app.wingSpanScale;
+            } else if (nameLower.find("tail") != std::string::npos) {
+                lengthScale = app.heightScale * app.tailLengthScale;
+            } else if (nameLower.find("leg") != std::string::npos ||
+                       nameLower.find("forearm") != std::string::npos) {
+                lengthScale = app.heightScale * app.legLengthScale;
+            } else if (nameLower.find("pelvis") != std::string::npos ||
+                       nameLower.find("belly") != std::string::npos ||
+                       nameLower.find("breast") != std::string::npos) {
+                lengthScale = app.heightScale * app.torsoLengthScale;
+            }
+            break;
+
+        case MorphologyType::Humanoid:
+        case MorphologyType::Unknown:
+        default:
+            // Original humanoid logic
+            if (nameLower.find("head") != std::string::npos ||
+                nameLower.find("neck") != std::string::npos) {
+                if (nameLower.find("head") != std::string::npos) {
+                    lengthScale = app.headScale;
+                    thicknessScale = app.headScale;
+                } else {
+                    lengthScale = app.heightScale * app.torsoLengthScale;
+                }
+            } else if (nameLower.find("arm") != std::string::npos ||
+                       nameLower.find("forearm") != std::string::npos ||
+                       nameLower.find("hand") != std::string::npos) {
+                lengthScale = app.heightScale * app.armLengthScale;
+            } else if (nameLower.find("shoulder") != std::string::npos) {
+                lengthScale = app.shoulderWidthScale;
+                thicknessScale = app.bulkScale * app.shoulderWidthScale;
+            } else if (nameLower.find("leg") != std::string::npos ||
+                       nameLower.find("upleg") != std::string::npos ||
+                       nameLower.find("foot") != std::string::npos) {
+                lengthScale = app.heightScale * app.legLengthScale;
+            } else if (nameLower.find("spine") != std::string::npos ||
+                       nameLower.find("chest") != std::string::npos) {
+                lengthScale = app.heightScale * app.torsoLengthScale;
+            } else if (nameLower.find("hip") != std::string::npos) {
+                lengthScale = app.heightScale;
+                thicknessScale = app.bulkScale;
+            }
+            break;
         }
     }
 
@@ -180,6 +263,106 @@ namespace Scene {
                 }
             }
         }
+    }
+
+    float AnimatedVoxelCharacter::computeSkeletonHeight() const {
+        if (skeleton.bones.empty()) return 1.8f;
+
+        // Compute proper global transforms (respecting bone rotations) to find the
+        // real model-space Y extent.  The naive approach of summing localPosition.y
+        // values up the parent chain is wrong because bones like legs are *rotated*
+        // so their localPosition points downward in world space.
+        std::vector<glm::mat4> globalTransforms(skeleton.bones.size(), glm::mat4(1.0f));
+        for (size_t i = 0; i < skeleton.bones.size(); ++i) {
+            const auto& bone = skeleton.bones[i];
+            glm::mat4 local = glm::translate(glm::mat4(1.0f), bone.localPosition);
+            local = local * glm::mat4_cast(bone.localRotation);
+
+            if (bone.parentId == -1) {
+                globalTransforms[i] = local;
+            } else if (bone.parentId >= 0 && bone.parentId < static_cast<int>(skeleton.bones.size())) {
+                globalTransforms[i] = globalTransforms[bone.parentId] * local;
+            }
+        }
+
+        float minY = 0.0f, maxY = 0.0f;
+        for (size_t i = 0; i < skeleton.bones.size(); ++i) {
+            float y = globalTransforms[i][3][1]; // model-space Y
+            if (i == 0) { minY = maxY = y; }
+            else { minY = std::min(minY, y); maxY = std::max(maxY, y); }
+        }
+
+        // Add padding for head volume top and foot sole bottom
+        return (maxY - minY) + 0.3f;
+    }
+
+    void AnimatedVoxelCharacter::resizeController() {
+        if (!controllerBody) return;
+
+        // Compute proper model-space global transforms to find the lowest bone (feet)
+        std::vector<glm::mat4> globalTransforms(skeleton.bones.size(), glm::mat4(1.0f));
+        for (size_t i = 0; i < skeleton.bones.size(); ++i) {
+            const auto& bone = skeleton.bones[i];
+            glm::mat4 local = glm::translate(glm::mat4(1.0f), bone.localPosition);
+            local = local * glm::mat4_cast(bone.localRotation);
+
+            if (bone.parentId == -1) {
+                globalTransforms[i] = local;
+            } else if (bone.parentId >= 0 && bone.parentId < static_cast<int>(skeleton.bones.size())) {
+                globalTransforms[i] = globalTransforms[bone.parentId] * local;
+            }
+        }
+
+        float minY = 0.0f, maxY = 0.0f;
+        for (size_t i = 0; i < skeleton.bones.size(); ++i) {
+            float y = globalTransforms[i][3][1];
+            if (i == 0) { minY = maxY = y; }
+            else { minY = std::min(minY, y); maxY = std::max(maxY, y); }
+        }
+
+        float characterHeight = (maxY - minY) + 0.3f;
+        if (characterHeight < 0.5f) characterHeight = 1.0f;
+
+        // skeletonFootOffset_ = how far below model origin (Y=0) the feet actually are.
+        // For an unscaled Mixamo character this is ~0 (origin at feet).
+        // For a dwarf with shorter legs, minY is higher (less negative / closer to 0),
+        // meaning feet don't reach as far down, so the visual model needs to be shifted
+        // down to keep feet on the ground.
+        skeletonFootOffset_ = minY;
+
+        // Get current feet position from existing controller
+        btTransform trans;
+        controllerBody->getMotionState()->getWorldTransform(trans);
+        float oldHalfHeight = 0.9f;
+        if (controllerBody->getCollisionShape()->getShapeType() == BOX_SHAPE_PROXYTYPE) {
+            const btBoxShape* box = static_cast<const btBoxShape*>(controllerBody->getCollisionShape());
+            oldHalfHeight = box->getHalfExtentsWithMargin().y();
+        }
+        float feetY = trans.getOrigin().y() - oldHalfHeight;
+        float feetX = trans.getOrigin().x();
+        float feetZ = trans.getOrigin().z();
+
+        // Remove old controller body
+        physicsWorld->removeCube(controllerBody);
+        controllerBody = nullptr;
+
+        // Create new controller with correct height.
+        // createCube applies 0.95 shrink for dynamic objects, so request slightly larger.
+        float requestHeight = characterHeight / 0.95f;
+        glm::vec3 size(0.85f, requestHeight, 0.85f);
+        float newHalfHeight = characterHeight / 2.0f;
+        glm::vec3 center(feetX, feetY + newHalfHeight, feetZ);
+
+        controllerBody = physicsWorld->createCube(center, size, 60.0f);
+        controllerBody->setUserPointer(this);
+        controllerBody->setAngularFactor(btVector3(0, 0, 0));
+        controllerBody->setFriction(0.0f);
+        controllerBody->setRestitution(0.0f);
+        controllerBody->setActivationState(DISABLE_DEACTIVATION);
+
+        LOG_INFO_FMT("Character", "resizeController: height=" << characterHeight 
+                      << " footOffset=" << skeletonFootOffset_
+                      << " minY=" << minY << " maxY=" << maxY);
     }
 
     void AnimatedVoxelCharacter::buildBodiesFromModel() {
@@ -442,6 +625,7 @@ namespace Scene {
         // Re-apply proportions and rebuild
         configureAnimationFixes();
         applySkeletonProportions();
+        resizeController();
         buildBodiesFromModel();
     }
 
@@ -515,6 +699,85 @@ namespace Scene {
         currentState = AnimatedCharacterState::Preview;
         playAnimation(clips[nextIndex].name);
         std::cout << "Preview Animation: " << clips[nextIndex].name << std::endl;
+    }
+
+    std::string AnimatedVoxelCharacter::getCurrentClipName() const {
+        if (currentClipIndex >= 0 && currentClipIndex < (int)clips.size()) {
+            return clips[currentClipIndex].name;
+        }
+        return "";
+    }
+
+    float AnimatedVoxelCharacter::getAnimationProgress() const {
+        if (currentClipIndex >= 0 && currentClipIndex < (int)clips.size()) {
+            float duration = clips[currentClipIndex].duration;
+            if (duration > 0.0f) return animTime / duration;
+        }
+        return 0.0f;
+    }
+
+    float AnimatedVoxelCharacter::getAnimationDuration() const {
+        if (currentClipIndex >= 0 && currentClipIndex < (int)clips.size()) {
+            return clips[currentClipIndex].duration;
+        }
+        return 0.0f;
+    }
+
+    void AnimatedVoxelCharacter::setAnimationState(AnimatedCharacterState state) {
+        if (state == currentState) return;
+        currentState = state;
+        stateTimer = 0.0f;
+    }
+
+    bool AnimatedVoxelCharacter::reloadAnimations(const std::string& animFile) {
+        Phyxel::Skeleton tempSkel;
+        std::vector<Phyxel::AnimationClip> tempClips;
+        Phyxel::VoxelModel tempModel;
+
+        if (!animSystem.loadFromFile(animFile, tempSkel, tempClips, tempModel)) {
+            return false;
+        }
+
+        // Replace only the animation clips, keep skeleton/model/bodies intact
+        clips = std::move(tempClips);
+        originalClips_ = clips;
+
+        LOG_INFO_FMT("Character", "Reloaded {} animations from {}", clips.size(), animFile);
+
+        // Reset to idle if current clip index is out of range
+        if (currentClipIndex >= (int)clips.size()) {
+            currentClipIndex = -1;
+            currentState = AnimatedCharacterState::Idle;
+        }
+        // Reset blending state
+        previousClipIndex = -1;
+        isBlending = false;
+        blendFactor = 0.0f;
+
+        return true;
+    }
+
+    AnimatedCharacterState AnimatedVoxelCharacter::stringToState(const std::string& str) {
+        if (str == "Idle") return AnimatedCharacterState::Idle;
+        if (str == "StartWalk") return AnimatedCharacterState::StartWalk;
+        if (str == "Walk") return AnimatedCharacterState::Walk;
+        if (str == "Run") return AnimatedCharacterState::Run;
+        if (str == "Jump") return AnimatedCharacterState::Jump;
+        if (str == "Fall") return AnimatedCharacterState::Fall;
+        if (str == "Land") return AnimatedCharacterState::Land;
+        if (str == "Crouch") return AnimatedCharacterState::Crouch;
+        if (str == "CrouchIdle") return AnimatedCharacterState::CrouchIdle;
+        if (str == "CrouchWalk") return AnimatedCharacterState::CrouchWalk;
+        if (str == "StandUp") return AnimatedCharacterState::StandUp;
+        if (str == "Attack") return AnimatedCharacterState::Attack;
+        if (str == "TurnLeft") return AnimatedCharacterState::TurnLeft;
+        if (str == "TurnRight") return AnimatedCharacterState::TurnRight;
+        if (str == "StrafeLeft") return AnimatedCharacterState::StrafeLeft;
+        if (str == "StrafeRight") return AnimatedCharacterState::StrafeRight;
+        if (str == "WalkStrafeLeft") return AnimatedCharacterState::WalkStrafeLeft;
+        if (str == "WalkStrafeRight") return AnimatedCharacterState::WalkStrafeRight;
+        if (str == "Preview") return AnimatedCharacterState::Preview;
+        return AnimatedCharacterState::Idle;
     }
 
     // Helper to configure animation fixes
@@ -601,7 +864,7 @@ namespace Scene {
     }
 
     // Helper for debug logging
-    std::string AnimatedVoxelCharacter::stateToString(AnimatedCharacterState state) {
+    std::string AnimatedVoxelCharacter::stateToString(AnimatedCharacterState state) const {
         switch (state) {
             case AnimatedCharacterState::Idle: return "Idle";
             case AnimatedCharacterState::StartWalk: return "StartWalk";
@@ -1186,8 +1449,9 @@ namespace Scene {
             
             // Calculate world transform
             // Bone global transform is in model space. We need to apply model->world transform.
-            
-            glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), worldPosition);
+            // skeletonFootOffset_ compensates for scaled proportions so feet stay on the ground.
+            glm::vec3 visualOrigin = worldPosition - glm::vec3(0.0f, skeletonFootOffset_, 0.0f);
+            glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), visualOrigin);
             modelMatrix = glm::rotate(modelMatrix, currentYaw, glm::vec3(0, 1, 0)); // Apply Yaw
             
             // Apply Animation Rotation Offset

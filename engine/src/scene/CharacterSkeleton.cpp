@@ -220,10 +220,10 @@ void CharacterSkeleton::generateJointDefs() {
             parentLower.find("neck") != std::string::npos) {
             // Neck joint → cone-twist with moderate range
             joint.type = JointType::ConeTwist;
-            joint.swingSpan1 = 1.0f;   // ~57° pitch
-            joint.swingSpan2 = 0.35f;  // ~20° roll
-            joint.twistSpan  = 1.6f;   // ~90° yaw
-            joint.motorStrength = 30.0f;
+            joint.swingSpan1 = 0.6f;   // ~34° pitch
+            joint.swingSpan2 = 0.3f;   // ~17° roll
+            joint.twistSpan  = 0.8f;   // ~46° yaw
+            joint.motorStrength = 150.0f;
         }
         else if (lower.find("knee") != std::string::npos ||
                  lower.find("shin") != std::string::npos ||
@@ -231,20 +231,20 @@ void CharacterSkeleton::generateJointDefs() {
                  (lower.find("leg") != std::string::npos && lower.find("lower") != std::string::npos)) {
             // Knee → hinge, bends backward only
             joint.type = JointType::Hinge;
-            joint.hingeLimitLow = -1.5f;
-            joint.hingeLimitHigh = 0.0f;
+            joint.hingeLimitLow = -2.0f;
+            joint.hingeLimitHigh = 0.05f;
             joint.hingeAxis = glm::vec3(0.0f, 0.0f, 1.0f); // lateral axis
-            joint.motorStrength = 80.0f;
+            joint.motorStrength = 400.0f;
         }
         else if (lower.find("elbow") != std::string::npos ||
                  lower.find("forearm") != std::string::npos ||
                  (lower.find("arm") != std::string::npos && lower.find("lower") != std::string::npos)) {
             // Elbow → hinge, bends forward only
             joint.type = JointType::Hinge;
-            joint.hingeLimitLow = 0.0f;
-            joint.hingeLimitHigh = 1.5f;
+            joint.hingeLimitLow = -0.05f;
+            joint.hingeLimitHigh = 2.0f;
             joint.hingeAxis = glm::vec3(0.0f, 0.0f, 1.0f);
-            joint.motorStrength = 40.0f;
+            joint.motorStrength = 200.0f;
         }
         else if (lower.find("hip") != std::string::npos ||
                  lower.find("thigh") != std::string::npos ||
@@ -253,10 +253,10 @@ void CharacterSkeleton::generateJointDefs() {
                   lower.find("shin") == std::string::npos)) {
             // Hip → hinge (simplified; could be cone-twist for full range)
             joint.type = JointType::Hinge;
-            joint.hingeLimitLow = -0.8f;
-            joint.hingeLimitHigh = 0.8f;
+            joint.hingeLimitLow = -1.2f;
+            joint.hingeLimitHigh = 1.2f;
             joint.hingeAxis = glm::vec3(0.0f, 0.0f, 1.0f);
-            joint.motorStrength = 80.0f;
+            joint.motorStrength = 400.0f;
         }
         else if (lower.find("shoulder") != std::string::npos ||
                  (lower.find("arm") != std::string::npos && lower.find("upper") != std::string::npos) ||
@@ -264,37 +264,37 @@ void CharacterSkeleton::generateJointDefs() {
                   lower.find("forearm") == std::string::npos)) {
             // Shoulder → cone-twist with moderate range
             joint.type = JointType::ConeTwist;
-            joint.swingSpan1 = 0.5f;
-            joint.swingSpan2 = 0.5f;
-            joint.twistSpan  = 0.0f;
-            joint.motorStrength = 40.0f;
+            joint.swingSpan1 = 0.8f;
+            joint.swingSpan2 = 0.6f;
+            joint.twistSpan  = 0.3f;
+            joint.motorStrength = 200.0f;
         }
         else if (lower.find("spine") != std::string::npos ||
                  lower.find("chest") != std::string::npos) {
-            // Spine → cone-twist with limited range
+            // Spine → cone-twist with limited range (stiff to support upper body)
             joint.type = JointType::ConeTwist;
-            joint.swingSpan1 = 0.3f;
-            joint.swingSpan2 = 0.3f;
-            joint.twistSpan  = 0.2f;
-            joint.motorStrength = 100.0f;
+            joint.swingSpan1 = 0.25f;
+            joint.swingSpan2 = 0.25f;
+            joint.twistSpan  = 0.15f;
+            joint.motorStrength = 500.0f;
         }
         else if (lower.find("foot") != std::string::npos ||
                  lower.find("ankle") != std::string::npos) {
             // Ankle → hinge with limited range
             joint.type = JointType::Hinge;
-            joint.hingeLimitLow = -0.5f;
-            joint.hingeLimitHigh = 0.5f;
+            joint.hingeLimitLow = -0.4f;
+            joint.hingeLimitHigh = 0.4f;
             joint.hingeAxis = glm::vec3(0.0f, 0.0f, 1.0f);
-            joint.motorStrength = 30.0f;
+            joint.motorStrength = 150.0f;
         }
         else if (lower.find("hand") != std::string::npos ||
                  lower.find("wrist") != std::string::npos) {
             // Wrist → hinge with limited range
             joint.type = JointType::Hinge;
-            joint.hingeLimitLow = -0.5f;
-            joint.hingeLimitHigh = 0.5f;
+            joint.hingeLimitLow = -0.4f;
+            joint.hingeLimitHigh = 0.4f;
             joint.hingeAxis = glm::vec3(0.0f, 0.0f, 1.0f);
-            joint.motorStrength = 20.0f;
+            joint.motorStrength = 100.0f;
         }
         else {
             // Default: cone-twist with moderate range
@@ -302,7 +302,7 @@ void CharacterSkeleton::generateJointDefs() {
             joint.swingSpan1 = 0.3f;
             joint.swingSpan2 = 0.3f;
             joint.twistSpan  = 0.2f;
-            joint.motorStrength = 50.0f;
+            joint.motorStrength = 250.0f;
         }
 
         jointDefs[boneId] = joint;

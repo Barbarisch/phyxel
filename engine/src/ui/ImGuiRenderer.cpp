@@ -981,7 +981,7 @@ void ImGuiRenderer::renderSpeechBubbles(SpeechBubbleManager* bubbleManager,
 
         glm::vec3 ndc = glm::vec3(clipPos) / clipPos.w;
         float screenX = (ndc.x * 0.5f + 0.5f) * screenWidth;
-        float screenY = (1.0f - (ndc.y * 0.5f + 0.5f)) * screenHeight; // Flip Y for Vulkan
+        float screenY = (ndc.y * 0.5f + 0.5f) * screenHeight; // Vulkan projection already has Y flipped
 
         // Skip if off-screen
         if (screenX < -100 || screenX > screenWidth + 100 ||
@@ -1024,13 +1024,13 @@ void ImGuiRenderer::renderInteractionPrompt(bool show, const glm::vec3& npcWorld
                                               float screenWidth, float screenHeight) {
     if (!show) return;
 
-    // Project NPC position to screen
-    glm::vec4 clipPos = projectionMatrix * viewMatrix * glm::vec4(npcWorldPos + glm::vec3(0, 3.0f, 0), 1.0f);
+    // Project NPC position to screen (offset above head)
+    glm::vec4 clipPos = projectionMatrix * viewMatrix * glm::vec4(npcWorldPos + glm::vec3(0, 2.0f, 0), 1.0f);
     if (clipPos.w <= 0.0f) return;
 
     glm::vec3 ndc = glm::vec3(clipPos) / clipPos.w;
     float screenX = (ndc.x * 0.5f + 0.5f) * screenWidth;
-    float screenY = (1.0f - (ndc.y * 0.5f + 0.5f)) * screenHeight;
+    float screenY = (ndc.y * 0.5f + 0.5f) * screenHeight; // Vulkan projection already has Y flipped
 
     const char* promptText = "[E] Interact";
     ImVec2 textSize = ImGui::CalcTextSize(promptText);

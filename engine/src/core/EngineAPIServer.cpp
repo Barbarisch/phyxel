@@ -131,6 +131,84 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // Animation Control Endpoints
+    // ====================================================================
+
+    // GET /api/animation/list — List animation clips for an entity
+    // Query: ?id=npc_Alpha_Wolf
+    srv.Get("/api/animation/list", [this](const httplib::Request& req, httplib::Response& res) {
+        json params;
+        params["id"] = req.get_param_value("id");
+        json result = queueAndWait("list_animations", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/animation/state — Get current animation state for an entity
+    // Query: ?id=npc_Alpha_Wolf
+    srv.Get("/api/animation/state", [this](const httplib::Request& req, httplib::Response& res) {
+        json params;
+        params["id"] = req.get_param_value("id");
+        json result = queueAndWait("get_animation_state", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/animation/play — Play a named animation clip
+    // Body: { "id": "npc_01", "animation": "walk", "loop": true }
+    srv.Post("/api/animation/play", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("play_animation", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/animation/state — Force a state machine state
+    // Body: { "id": "npc_01", "state": "Walk" }
+    srv.Post("/api/animation/state", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_animation_state", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/animation/blend — Set blend duration
+    // Body: { "id": "npc_01", "duration": 0.3 }
+    srv.Post("/api/animation/blend", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_blend_duration", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/animation/reload — Hot-reload animation clips from file
+    // Body: { "id": "npc_01", "animFile": "path/to/file.anim" }
+    srv.Post("/api/animation/reload", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("reload_animation", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // GET /api/entity/:id — Get entity details
     // ====================================================================
     srv.Get("/api/entity/(.*)", [this](const httplib::Request& req, httplib::Response& res) {

@@ -5,8 +5,16 @@
   "world": {
     "type": "Perlin",
     "seed": 12345,
-    "from": {"x": -1, "y": 0, "z": -1},
-    "to": {"x": 1, "y": 0, "z": 1},
+    "from": {
+      "x": -1,
+      "y": 0,
+      "z": -1
+    },
+    "to": {
+      "x": 1,
+      "y": 0,
+      "z": 1
+    },
     "params": {
       "heightScale": 4.0,
       "frequency": 0.04,
@@ -15,34 +23,66 @@
     }
   },
   "camera": {
-    "position": {"x": 30, "y": 35, "z": 30},
+    "position": {
+      "x": 30,
+      "y": 35,
+      "z": 30
+    },
     "yaw": -135,
     "pitch": -25
   },
   "player": {
-    "type": "physics",
-    "position": {"x": 16, "y": 25, "z": 16}
+    "type": "animated",
+    "position": {
+      "x": 16,
+      "y": 25,
+      "z": 16
+    }
   },
   "structures": [
     {
       "type": "fill",
-      "from": {"x": 10, "y": 17, "z": 10},
-      "to": {"x": 22, "y": 17, "z": 22},
+      "from": {
+        "x": 10,
+        "y": 17,
+        "z": 10
+      },
+      "to": {
+        "x": 22,
+        "y": 17,
+        "z": 22
+      },
       "material": "Stone",
-      "_comment": "Stone platform — confirms structure placement on gentle terrain"
+      "_comment": "Stone platform \u2014 confirms structure placement on gentle terrain"
     },
     {
       "type": "fill",
-      "from": {"x": 12, "y": 18, "z": 12},
-      "to": {"x": 20, "y": 22, "z": 20},
+      "from": {
+        "x": 12,
+        "y": 18,
+        "z": 12
+      },
+      "to": {
+        "x": 20,
+        "y": 22,
+        "z": 20
+      },
       "material": "Wood",
       "hollow": true,
-      "_comment": "Hollow wooden hut — walkable interior"
+      "_comment": "Hollow wooden hut \u2014 walkable interior"
     },
     {
       "type": "fill",
-      "from": {"x": 15, "y": 18, "z": 12},
-      "to": {"x": 17, "y": 20, "z": 12},
+      "from": {
+        "x": 15,
+        "y": 18,
+        "z": 12
+      },
+      "to": {
+        "x": 17,
+        "y": 20,
+        "z": 12
+      },
       "material": "Glass",
       "_comment": "Doorway cutout (glass so it's visible)"
     }
@@ -50,18 +90,42 @@
   "npcs": [
     {
       "name": "Guard",
-      "position": {"x": 14, "y": 25, "z": 14},
+      "position": {
+        "x": 14,
+        "y": 25,
+        "z": 14
+      },
       "animFile": "character.anim",
       "behavior": "patrol",
       "walkSpeed": 2.0,
       "waitTime": 2.0,
       "waypoints": [
-        {"x": 14, "y": 25, "z": 14},
-        {"x": 22, "y": 25, "z": 14},
-        {"x": 22, "y": 25, "z": 22},
-        {"x": 14, "y": 25, "z": 22}
+        {
+          "x": 14,
+          "y": 25,
+          "z": 14
+        },
+        {
+          "x": 22,
+          "y": 25,
+          "z": 14
+        },
+        {
+          "x": 22,
+          "y": 25,
+          "z": 22
+        },
+        {
+          "x": 14,
+          "y": 25,
+          "z": 22
+        }
       ],
-      "arrivalPhrases": ["All clear.", "Perimeter secure.", "Nothing to report."],
+      "arrivalPhrases": [
+        "All clear.",
+        "Perimeter secure.",
+        "Nothing to report."
+      ],
       "speechChance": 0.5,
       "dialogue": {
         "id": "guard_talk",
@@ -72,8 +136,14 @@
             "speaker": "Guard",
             "text": "Halt! State your business.",
             "choices": [
-              {"text": "Just passing through.", "nextNodeId": "pass"},
-              {"text": "What are you guarding?", "nextNodeId": "guarding"}
+              {
+                "text": "Just passing through.",
+                "nextNodeId": "pass"
+              },
+              {
+                "text": "What are you guarding?",
+                "nextNodeId": "guarding"
+              }
             ]
           },
           {
@@ -86,7 +156,10 @@
             "speaker": "Guard",
             "text": "This hut. The merchant inside has valuable wares.",
             "choices": [
-              {"text": "Thanks.", "nextNodeId": "pass"}
+              {
+                "text": "Thanks.",
+                "nextNodeId": "pass"
+              }
             ]
           }
         ]
@@ -95,13 +168,27 @@
         "id": "guard",
         "faction": "town_guard",
         "agencyLevel": 1,
-        "traits": {"openness": 0.3, "conscientiousness": 0.8, "extraversion": 0.5},
-        "goals": [{"id": "protect", "description": "Protect the merchant", "priority": 0.9}]
+        "traits": {
+          "openness": 0.3,
+          "conscientiousness": 0.8,
+          "extraversion": 0.5
+        },
+        "goals": [
+          {
+            "id": "protect",
+            "description": "Protect the merchant",
+            "priority": 0.9
+          }
+        ]
       }
     },
     {
       "name": "Merchant",
-      "position": {"x": 16, "y": 25, "z": 16},
+      "position": {
+        "x": 16,
+        "y": 25,
+        "z": 16
+      },
       "animFile": "character.anim",
       "behavior": "idle",
       "dialogue": {
@@ -113,8 +200,14 @@
             "speaker": "Merchant",
             "text": "Welcome! Care to see my wares?",
             "choices": [
-              {"text": "What do you have?", "nextNodeId": "wares"},
-              {"text": "No thanks.", "nextNodeId": "bye"}
+              {
+                "text": "What do you have?",
+                "nextNodeId": "wares"
+              },
+              {
+                "text": "No thanks.",
+                "nextNodeId": "bye"
+              }
             ]
           },
           {
@@ -133,8 +226,18 @@
         "id": "merchant",
         "faction": "traders",
         "agencyLevel": 0,
-        "traits": {"openness": 0.7, "conscientiousness": 0.6, "extraversion": 0.9},
-        "goals": [{"id": "sell", "description": "Sell goods to travelers", "priority": 0.7}]
+        "traits": {
+          "openness": 0.7,
+          "conscientiousness": 0.6,
+          "extraversion": 0.9
+        },
+        "goals": [
+          {
+            "id": "sell",
+            "description": "Sell goods to travelers",
+            "priority": 0.7
+          }
+        ]
       }
     }
   ],

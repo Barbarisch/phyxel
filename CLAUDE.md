@@ -235,6 +235,12 @@ Server: `scripts/mcp/phyxel_mcp_server.py` — connects to engine HTTP API at `l
 | `project_info` | Get info about the game project loaded via --project (dir, exe, game.json) |
 | `build_game` | Build the game project from within the running engine (cmake) |
 | `run_game` | Launch the built game executable from within the running engine |
+| `list_entity_animations` | List all animation clips on an animated entity |
+| `play_entity_animation` | Play a named animation clip (puts entity in Preview mode) |
+| `get_animation_state` | Get FSM state, current clip, progress, duration, blend duration |
+| `set_animation_state` | Set FSM state (Idle, Walk, Run, Jump, Attack, Preview, etc.) |
+| `set_blend_duration` | Set crossfade blend duration (seconds) for transitions |
+| `reload_entity_animation` | Hot-reload animation clips from .anim file (preserves skeleton/model) |
 
 ### AI Game Development Workflow
 
@@ -244,7 +250,7 @@ The `load_game_definition` tool enables creating entire games from a single JSON
 {
   "name": "My Game",
   "world": {"type": "Perlin", "from": {"x":-1,"y":0,"z":-1}, "to": {"x":1,"y":0,"z":1}},
-  "player": {"type": "physics", "position": {"x":16,"y":20,"z":16}},
+  "player": {"type": "animated", "position": {"x":16,"y":20,"z":16}},
   "camera": {"position": {"x":50,"y":50,"z":50}, "yaw": -135, "pitch": -30},
   "npcs": [
     {
@@ -331,6 +337,7 @@ tests/           # Unit tests (Google Test)
 tools/           # Development tools
   create_project.py  # Scaffold new game projects
   package_game.py    # Package games into distributable directories
+  anim_editor.py     # .anim file editor (list, add, remove, merge, export, generate, mirror, scale)
 scripts/         # Python scripts (world_gen.py, startup.py, audio_demo.py)
   mcp/           # MCP server for AI agents
 resources/       # Templates, animations, textures, sounds, recipes

@@ -200,7 +200,7 @@ async def list_tools() -> list[Tool]:
                     "y": {"type": "number", "description": "Spawn Y coordinate"},
                     "z": {"type": "number", "description": "Spawn Z coordinate"},
                     "id": {"type": "string", "description": "Optional ID to assign (auto-generated if omitted)"},
-                    "animFile": {"type": "string", "description": "Animation file for 'animated' type (default: character.anim)"}
+                    "animFile": {"type": "string", "description": "Animation file for 'animated' type (default: resources/animated_characters/humanoid.anim)"}
                 },
                 "required": ["type", "x", "y", "z"]
             }
@@ -675,7 +675,7 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "name": {"type": "string", "description": "Unique NPC name/identifier"},
-                    "animFile": {"type": "string", "description": "Animation file (default: character.anim)", "default": "character.anim"},
+                    "animFile": {"type": "string", "description": "Animation file (default: resources/animated_characters/humanoid.anim)", "default": "resources/animated_characters/humanoid.anim"},
                     "position": {"type": "object", "description": "Spawn position {x,y,z}", "properties": {
                         "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}
                     }},
@@ -1124,7 +1124,7 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "name": {"type": "string", "description": "NPC name (unique identifier)"},
-                    "animFile": {"type": "string", "description": "Animation file (default: character.anim)"},
+                    "animFile": {"type": "string", "description": "Animation file (default: resources/animated_characters/humanoid.anim)"},
                     "position": {"type": "object", "description": "{x, y, z} world coordinates",
                                  "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}},
                     "behavior": {"type": "string", "enum": ["idle", "patrol"], "description": "NPC behavior type"},
@@ -1854,6 +1854,80 @@ async def list_tools() -> list[Tool]:
                 "required": ["x", "z"]
             }
         ),
+
+        # ================================================================
+        # Animation Control
+        # ================================================================
+        Tool(
+            name="list_entity_animations",
+            description="List all animation clips available on an animated entity. Returns clip names, durations, and speeds.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Entity ID (e.g. 'npc_Guard', 'player')"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="play_entity_animation",
+            description="Play a named animation clip on an animated entity. Puts the entity into Preview mode and plays the clip.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Entity ID"},
+                    "animation": {"type": "string", "description": "Animation clip name (e.g. 'walk', 'run', 'idle')"}
+                },
+                "required": ["id", "animation"]
+            }
+        ),
+        Tool(
+            name="get_animation_state",
+            description="Get the current animation state of an entity: FSM state, current clip, progress, duration, and blend duration.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Entity ID"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="set_animation_state",
+            description="Set the FSM state of an animated entity (e.g. 'Idle', 'Walk', 'Run', 'Jump', 'Attack', 'Crouch', 'Preview').",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Entity ID"},
+                    "state": {"type": "string", "description": "State name: Idle, Walk, Run, Jump, Fall, Land, Crouch, CrouchIdle, CrouchWalk, StandUp, Attack, TurnLeft, TurnRight, StrafeLeft, StrafeRight, Preview, etc."}
+                },
+                "required": ["id", "state"]
+            }
+        ),
+        Tool(
+            name="set_blend_duration",
+            description="Set the crossfade blend duration (seconds) for animation transitions on an entity.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Entity ID"},
+                    "duration": {"type": "number", "description": "Blend duration in seconds (default is 0.2)"}
+                },
+                "required": ["id", "duration"]
+            }
+        ),
+        Tool(
+            name="reload_entity_animation",
+            description="Hot-reload animation clips from a .anim file on an entity. Preserves skeleton and model, replaces all animation data.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Entity ID"},
+                    "animFile": {"type": "string", "description": "Path to .anim file (relative to engine root or absolute)"}
+                },
+                "required": ["id", "animFile"]
+            }
+        ),
     ]
 
 
@@ -2471,6 +2545,37 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         if "min_y" in args:
             params["min_y"] = str(args["min_y"])
         return await api_get("/api/world/terrain_height", params)
+
+    # --- Animation Control ---
+    elif name == "list_entity_animations":
+        return await api_get("/api/animation/list", {"id": args["id"]})
+
+    elif name == "play_entity_animation":
+        return await api_post("/api/animation/play", {
+            "id": args["id"],
+            "animation": args["animation"]
+        })
+
+    elif name == "get_animation_state":
+        return await api_get("/api/animation/state", {"id": args["id"]})
+
+    elif name == "set_animation_state":
+        return await api_post("/api/animation/state", {
+            "id": args["id"],
+            "state": args["state"]
+        })
+
+    elif name == "set_blend_duration":
+        return await api_post("/api/animation/blend", {
+            "id": args["id"],
+            "duration": args["duration"]
+        })
+
+    elif name == "reload_entity_animation":
+        return await api_post("/api/animation/reload", {
+            "id": args["id"],
+            "animFile": args["animFile"]
+        })
 
     else:
         return {"error": f"Unknown tool: {name}"}

@@ -2,46 +2,77 @@
   "name": "Village Chat",
   "description": "A simple conversation game. Walk up to the Blacksmith or the Herbalist and press E to talk.",
   "version": "1.0",
-
   "world": {
     "type": "Flat",
     "seed": 42,
-    "from": {"x": 0, "y": 0, "z": 0},
-    "to":   {"x": 0, "y": 0, "z": 0}
+    "from": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "to": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    }
   },
-
   "camera": {
-    "position": {"x": 16, "y": 25, "z": 28},
+    "position": {
+      "x": 16,
+      "y": 25,
+      "z": 28
+    },
     "yaw": -90,
     "pitch": -25
   },
-
   "player": {
-    "type": "physics",
-    "position": {"x": 16, "y": 20, "z": 20}
+    "type": "animated",
+    "position": {
+      "x": 16,
+      "y": 20,
+      "z": 20
+    }
   },
-
   "structures": [
     {
       "type": "fill",
-      "from": {"x": 8, "y": 16, "z": 8},
-      "to":   {"x": 24, "y": 16, "z": 24},
+      "from": {
+        "x": 8,
+        "y": 16,
+        "z": 8
+      },
+      "to": {
+        "x": 24,
+        "y": 16,
+        "z": 24
+      },
       "material": "Stone",
       "_comment": "Stone plaza floor on top of flat terrain"
     },
     {
       "type": "fill",
-      "from": {"x": 15, "y": 17, "z": 15},
-      "to":   {"x": 17, "y": 17, "z": 15},
+      "from": {
+        "x": 15,
+        "y": 17,
+        "z": 15
+      },
+      "to": {
+        "x": 17,
+        "y": 17,
+        "z": 15
+      },
       "material": "glow",
       "_comment": "Glowing marker between the two NPCs"
     }
   ],
-
   "npcs": [
     {
       "name": "Blacksmith",
-      "position": {"x": 12, "y": 17, "z": 15},
+      "position": {
+        "x": 12,
+        "y": 17,
+        "z": 15
+      },
       "animFile": "character.anim",
       "behavior": "idle",
       "dialogue": {
@@ -54,19 +85,34 @@
             "text": "Hey there! Name's Tormund. I run the forge around here.",
             "emotion": "friendly",
             "choices": [
-              {"text": "What do you make?", "nextNodeId": "wares"},
-              {"text": "Know anything interesting?", "nextNodeId": "rumor"},
-              {"text": "See you around.", "nextNodeId": "bye"}
+              {
+                "text": "What do you make?",
+                "nextNodeId": "wares"
+              },
+              {
+                "text": "Know anything interesting?",
+                "nextNodeId": "rumor"
+              },
+              {
+                "text": "See you around.",
+                "nextNodeId": "bye"
+              }
             ]
           },
           {
             "id": "wares",
             "speaker": "Blacksmith",
-            "text": "Swords, shields, plows — you name it. Metal and fire, that's my trade.",
+            "text": "Swords, shields, plows \u2014 you name it. Metal and fire, that's my trade.",
             "emotion": "proud",
             "choices": [
-              {"text": "Impressive! Anything else?", "nextNodeId": "rumor"},
-              {"text": "Thanks, Tormund.", "nextNodeId": "bye"}
+              {
+                "text": "Impressive! Anything else?",
+                "nextNodeId": "rumor"
+              },
+              {
+                "text": "Thanks, Tormund.",
+                "nextNodeId": "bye"
+              }
             ]
           },
           {
@@ -75,8 +121,14 @@
             "text": "Well... the Herbalist next door has been acting strange. Muttering about some rare flower in the caves. You might want to ask her about it.",
             "emotion": "curious",
             "choices": [
-              {"text": "I'll talk to her.", "nextNodeId": "bye"},
-              {"text": "Caves? Sounds dangerous.", "nextNodeId": "caves"}
+              {
+                "text": "I'll talk to her.",
+                "nextNodeId": "bye"
+              },
+              {
+                "text": "Caves? Sounds dangerous.",
+                "nextNodeId": "caves"
+              }
             ]
           },
           {
@@ -85,7 +137,10 @@
             "text": "Dangerous? Maybe. But the Herbalist swears that flower can cure anything. Worth a look if you ask me.",
             "emotion": "thoughtful",
             "choices": [
-              {"text": "I'll check it out. Thanks!", "nextNodeId": "bye"}
+              {
+                "text": "I'll check it out. Thanks!",
+                "nextNodeId": "bye"
+              }
             ]
           },
           {
@@ -100,13 +155,27 @@
         "id": "blacksmith",
         "faction": "village",
         "agencyLevel": 0,
-        "traits": {"openness": 0.5, "conscientiousness": 0.8, "extraversion": 0.7},
-        "goals": [{"id": "forge", "description": "Keep the forge running", "priority": 0.8}]
+        "traits": {
+          "openness": 0.5,
+          "conscientiousness": 0.8,
+          "extraversion": 0.7
+        },
+        "goals": [
+          {
+            "id": "forge",
+            "description": "Keep the forge running",
+            "priority": 0.8
+          }
+        ]
       }
     },
     {
       "name": "Herbalist",
-      "position": {"x": 20, "y": 17, "z": 15},
+      "position": {
+        "x": 20,
+        "y": 17,
+        "z": 15
+      },
       "animFile": "character.anim",
       "behavior": "idle",
       "dialogue": {
@@ -119,19 +188,34 @@
             "text": "Oh! A visitor. I'm Elara. I tend the herbs and remedies for the village.",
             "emotion": "neutral",
             "choices": [
-              {"text": "What kind of remedies?", "nextNodeId": "remedies"},
-              {"text": "The Blacksmith mentioned a rare flower.", "nextNodeId": "flower"},
-              {"text": "Just saying hello. Bye!", "nextNodeId": "bye"}
+              {
+                "text": "What kind of remedies?",
+                "nextNodeId": "remedies"
+              },
+              {
+                "text": "The Blacksmith mentioned a rare flower.",
+                "nextNodeId": "flower"
+              },
+              {
+                "text": "Just saying hello. Bye!",
+                "nextNodeId": "bye"
+              }
             ]
           },
           {
             "id": "remedies",
             "speaker": "Herbalist",
-            "text": "Healing salves, antidotes, tonics for fatigue. Nothing too fancy — but they work!",
+            "text": "Healing salves, antidotes, tonics for fatigue. Nothing too fancy \u2014 but they work!",
             "emotion": "proud",
             "choices": [
-              {"text": "Tell me about that rare flower.", "nextNodeId": "flower"},
-              {"text": "Good to know. Thanks!", "nextNodeId": "bye"}
+              {
+                "text": "Tell me about that rare flower.",
+                "nextNodeId": "flower"
+              },
+              {
+                "text": "Good to know. Thanks!",
+                "nextNodeId": "bye"
+              }
             ]
           },
           {
@@ -140,17 +224,26 @@
             "text": "The Moonpetal! It only blooms deep in the caves to the north. They say it can cure any ailment. I've been trying to find one for months...",
             "emotion": "worried",
             "choices": [
-              {"text": "I could look for it.", "nextNodeId": "quest_accept"},
-              {"text": "Sounds risky. Good luck.", "nextNodeId": "quest_decline"}
+              {
+                "text": "I could look for it.",
+                "nextNodeId": "quest_accept"
+              },
+              {
+                "text": "Sounds risky. Good luck.",
+                "nextNodeId": "quest_decline"
+              }
             ]
           },
           {
             "id": "quest_accept",
             "speaker": "Herbalist",
-            "text": "You would? That would mean the world to me! Head north past the plaza — the cave entrance should be visible. Be careful in there!",
+            "text": "You would? That would mean the world to me! Head north past the plaza \u2014 the cave entrance should be visible. Be careful in there!",
             "emotion": "grateful",
             "choices": [
-              {"text": "I'll find it. Count on me!", "nextNodeId": "bye"}
+              {
+                "text": "I'll find it. Count on me!",
+                "nextNodeId": "bye"
+              }
             ]
           },
           {
@@ -159,7 +252,10 @@
             "text": "I understand. It's not an easy ask. If you change your mind, I'll be here.",
             "emotion": "sad",
             "choices": [
-              {"text": "Maybe later. Goodbye.", "nextNodeId": "bye"}
+              {
+                "text": "Maybe later. Goodbye.",
+                "nextNodeId": "bye"
+              }
             ]
           },
           {
@@ -174,12 +270,21 @@
         "id": "herbalist",
         "faction": "village",
         "agencyLevel": 0,
-        "traits": {"openness": 0.9, "conscientiousness": 0.7, "extraversion": 0.4},
-        "goals": [{"id": "moonpetal", "description": "Find the Moonpetal flower", "priority": 0.9}]
+        "traits": {
+          "openness": 0.9,
+          "conscientiousness": 0.7,
+          "extraversion": 0.4
+        },
+        "goals": [
+          {
+            "id": "moonpetal",
+            "description": "Find the Moonpetal flower",
+            "priority": 0.9
+          }
+        ]
       }
     }
   ],
-
   "story": {
     "arcs": [
       {
