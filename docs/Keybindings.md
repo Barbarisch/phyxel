@@ -1,7 +1,7 @@
 # Phyxel Keybindings
 
 ## General
-- **ESC**: Exit application
+- **ESC**: Toggle Pause Menu (freeze world, show resume/settings/quit)
 - **F1**: Toggle Performance Overlay
 - **F2**: Save World (Not implemented)
 - **F3**: Toggle Force Debug Visualization

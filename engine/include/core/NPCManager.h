@@ -2,6 +2,8 @@
 
 #include "scene/NPCEntity.h"
 #include "scene/CharacterAppearance.h"
+#include "ai/RelationshipManager.h"
+#include "ai/SocialInteraction.h"
 #include "graphics/Animation.h"
 #include <string>
 #include <vector>
@@ -12,9 +14,9 @@
 namespace Phyxel {
 
 namespace Physics { class PhysicsWorld; }
-namespace Graphics { class LightManager; }
+namespace Graphics { class LightManager; class DayNightCycle; }
 namespace UI { class SpeechBubbleManager; }
-namespace Core { class EntityRegistry; }
+namespace Core { class EntityRegistry; class LocationRegistry; }
 
 namespace Scene {
 class NPCBehavior;
@@ -25,7 +27,9 @@ namespace Core {
 /// Behavior type enum for NPC creation.
 enum class NPCBehaviorType {
     Idle,
-    Patrol
+    Patrol,
+    BehaviorTree,    ///< AI-driven via BehaviorTree / UtilityAI
+    Scheduled        ///< Schedule-driven: time-aware behavior tree
 };
 
 /// NPCManager owns NPC entities and manages their lifecycle.
@@ -42,6 +46,10 @@ public:
     void setLightManager(Graphics::LightManager* lightManager) { m_lightManager = lightManager; }
     /// Set the speech bubble manager for NPC ambient chatter.
     void setSpeechBubbleManager(UI::SpeechBubbleManager* mgr) { m_speechBubbleManager = mgr; }
+    /// Set the day/night cycle for schedule-aware behaviors.
+    void setDayNightCycle(Graphics::DayNightCycle* cycle) { m_dayNightCycle = cycle; }
+    /// Set the location registry for NPC navigation.
+    void setLocationRegistry(LocationRegistry* registry) { m_locationRegistry = registry; }
 
     /// Spawn an NPC with the given behavior type.
     /// @param name       Unique name for this NPC.
@@ -106,11 +114,23 @@ public:
     /// Update all NPCs (called from main update loop).
     void update(float deltaTime);
 
+    // --- Social Simulation Subsystems (shared across all NPCs) ---
+
+    /// Pairwise NPC-NPC relationship manager.
+    AI::RelationshipManager& getRelationships() { return m_relationships; }
+    const AI::RelationshipManager& getRelationships() const { return m_relationships; }
+
+    /// Social interaction system (detects & runs NPC encounters).
+    AI::SocialInteractionSystem& getSocialSystem() { return m_socialSystem; }
+    const AI::SocialInteractionSystem& getSocialSystem() const { return m_socialSystem; }
+
 private:
     Physics::PhysicsWorld* m_physicsWorld = nullptr;
     EntityRegistry* m_entityRegistry = nullptr;
     Graphics::LightManager* m_lightManager = nullptr;
     UI::SpeechBubbleManager* m_speechBubbleManager = nullptr;
+    Graphics::DayNightCycle* m_dayNightCycle = nullptr;
+    LocationRegistry* m_locationRegistry = nullptr;
 
     /// Owns all NPC entities. Key = NPC name.
     std::unordered_map<std::string, std::unique_ptr<Scene::NPCEntity>> m_npcs;
@@ -125,6 +145,12 @@ private:
 
     /// Load or retrieve a cached anim template.
     const AnimTemplate* getOrLoadTemplate(const std::string& animFile);
+
+    // Social simulation (shared)
+    AI::RelationshipManager m_relationships;
+    AI::SocialInteractionSystem m_socialSystem;
+    float m_socialTickTimer = 0.0f;
+    static constexpr float SOCIAL_TICK_INTERVAL = 1.0f; // Check social interactions every 1s
 };
 
 } // namespace Core

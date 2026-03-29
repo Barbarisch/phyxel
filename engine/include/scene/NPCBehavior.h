@@ -8,8 +8,8 @@
 namespace Phyxel {
 
 // Forward declarations
-namespace Core { class EntityRegistry; }
-namespace Graphics { class LightManager; }
+namespace Core { class EntityRegistry; class LocationRegistry; }
+namespace Graphics { class LightManager; class DayNightCycle; }
 namespace UI { class SpeechBubbleManager; }
 
 namespace Scene {
@@ -23,6 +23,8 @@ struct NPCContext {
     Core::EntityRegistry* entityRegistry = nullptr;
     Graphics::LightManager* lightManager = nullptr;
     UI::SpeechBubbleManager* speechBubbleManager = nullptr;
+    Graphics::DayNightCycle* dayNightCycle = nullptr;       ///< World time (may be null)
+    Core::LocationRegistry* locationRegistry = nullptr;     ///< Named locations (may be null)
 
     /// Lookup position of another entity by ID (may be null if registry unavailable).
     std::function<glm::vec3(const std::string&)> getEntityPosition;

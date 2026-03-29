@@ -34,10 +34,16 @@
 #include "core/JobSystem.h"
 #include "core/Inventory.h"
 #include "core/HealthComponent.h"
+#include "core/RespawnSystem.h"
+#include "core/MusicPlaylist.h"
+#include "core/PlayerProfile.h"
+#include "core/ObjectiveTracker.h"
 #include "core/GameEventLog.h"
 #include "core/SnapshotManager.h"
+#include "core/CombatSystem.h"
 #include "core/NPCManager.h"
 #include "core/InteractionManager.h"
+#include "core/LocationRegistry.h"
 #include "ui/DialogueSystem.h"
 #include "ui/SpeechBubbleManager.h"
 #include "story/StoryEngine.h"
@@ -76,6 +82,11 @@ public:
     void setTitle(const std::string& title);
     void setProjectDir(const std::string& dir) { projectDir_ = dir; }
     
+    // Pause control
+    void togglePause();
+    bool isPaused() const { return gamePaused; }
+    void setPaused(bool paused);
+
     // Performance overlay methods
     void togglePerformanceOverlay();
     void toggleScriptingConsole();
@@ -156,6 +167,7 @@ private:
     PerformanceProfiler* performanceProfiler = nullptr;
     Utils::PerformanceMonitor* performanceMonitor = nullptr;
     Core::AudioSystem* audioSystem = nullptr;
+    Core::LocationRegistry* locationRegistry = nullptr;
 
     // Game-specific subsystems (still owned by Application)
     std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;    // Coordinates all rendering
@@ -181,6 +193,9 @@ private:
     std::unique_ptr<Core::GameEventLog> gameEventLog;
     std::unique_ptr<Core::SnapshotManager> snapshotManager;
 
+    // Combat
+    std::unique_ptr<Core::CombatSystem> combatSystem;
+
     // NPC System
     std::unique_ptr<Core::NPCManager> npcManager;
     std::unique_ptr<Core::InteractionManager> interactionManager;
@@ -199,6 +214,13 @@ private:
     Scene::PhysicsCharacter* physicsCharacter = nullptr;
     Scene::SpiderCharacter* spiderCharacter = nullptr;
     Scene::AnimatedVoxelCharacter* animatedCharacter = nullptr;
+
+    // Player health & respawn
+    Core::HealthComponent playerHealth{100.0f};
+    Core::RespawnSystem respawnSystem;
+    Core::MusicPlaylist musicPlaylist;
+    Core::PlayerProfile playerProfile;
+    Core::ObjectiveTracker objectiveTracker;
     
     enum class ControlTarget {
         Spider,
@@ -231,6 +253,9 @@ private:
     std::chrono::high_resolution_clock::time_point cpuStartTime;
     double lastFrameTime;
     double fpsTimer;
+
+    // Game state
+    bool gamePaused = false;
 
     // Performance overlay
     bool showPerformanceOverlay = false;

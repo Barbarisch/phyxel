@@ -1,0 +1,126 @@
+{
+  "items": [
+    {
+      "id": "iron_sword",
+      "name": "Iron Sword",
+      "type": 2,
+      "toolType": 3,
+      "equipSlot": 1,
+      "description": "A sturdy iron blade.",
+      "stackable": false,
+      "maxStack": 1,
+      "damage": 8.0,
+      "speed": 1.2,
+      "maxDurability": 250,
+      "reach": 2.0,
+      "templateFile": "weapons/sword.txt",
+      "attackAnimation": "melee_attack_horizontal"
+    },
+    {
+      "id": "iron_pickaxe",
+      "name": "Iron Pickaxe",
+      "type": 1,
+      "toolType": 1,
+      "equipSlot": 1,
+      "description": "An iron pickaxe for mining.",
+      "stackable": false,
+      "maxStack": 1,
+      "damage": 4.0,
+      "speed": 0.8,
+      "maxDurability": 200,
+      "reach": 2.5,
+      "templateFile": "weapons/pickaxe.txt",
+      "attackAnimation": "melee_attack_down"
+    },
+    {
+      "id": "iron_axe",
+      "name": "Iron Axe",
+      "type": 1,
+      "toolType": 2,
+      "equipSlot": 1,
+      "description": "An iron axe for chopping.",
+      "stackable": false,
+      "maxStack": 1,
+      "damage": 6.0,
+      "speed": 1.0,
+      "maxDurability": 200,
+      "reach": 2.0,
+      "templateFile": "weapons/axe.txt",
+      "attackAnimation": "melee_attack_horizontal"
+    },
+    {
+      "id": "wooden_sword",
+      "name": "Wooden Sword",
+      "type": 2,
+      "toolType": 3,
+      "equipSlot": 1,
+      "description": "A basic wooden blade.",
+      "stackable": false,
+      "maxStack": 1,
+      "damage": 4.0,
+      "speed": 1.4,
+      "maxDurability": 60,
+      "reach": 1.8,
+      "attackAnimation": "melee_attack_horizontal"
+    },
+    {
+      "id": "wooden_pickaxe",
+      "name": "Wooden Pickaxe",
+      "type": 1,
+      "toolType": 1,
+      "equipSlot": 1,
+      "description": "A basic wooden pickaxe.",
+      "stackable": false,
+      "maxStack": 1,
+      "damage": 2.0,
+      "speed": 0.7,
+      "maxDurability": 60,
+      "reach": 2.5,
+      "attackAnimation": "melee_attack_down"
+    },
+    {
+      "id": "bread",
+      "name": "Bread",
+      "type": 3,
+      "description": "Restores hunger.",
+      "stackable": true,
+      "maxStack": 16
+    },
+    {
+      "id": "health_potion",
+      "name": "Health Potion",
+      "type": 3,
+      "description": "Restores 20 HP.",
+      "stackable": true,
+      "maxStack": 8
+    },
+    {
+      "id": "iron_helmet",
+      "name": "Iron Helmet",
+      "type": 5,
+      "equipSlot": 3,
+      "description": "Iron head protection.",
+      "stackable": false,
+      "maxStack": 1,
+      "maxDurability": 150
+    },
+    {
+      "id": "iron_chestplate",
+      "name": "Iron Chestplate",
+      "type": 5,
+      "equipSlot": 4,
+      "description": "Iron chest protection.",
+      "stackable": false,
+      "maxStack": 1,
+      "maxDurability": 200
+    },
+    {
+      "id": "quest_key",
+      "name": "Mysterious Key",
+      "type": 4,
+      "description": "An old key that opens something somewhere.",
+      "stackable": false,
+      "maxStack": 1
+    }
+  ]
+}

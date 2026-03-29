@@ -1,0 +1,22 @@
+{
+  "type": "Selector",
+  "name": "FarmerRoot",
+  "children": [
+    {
+      "type": "Sequence",
+      "name": "FarmWork",
+      "children": [
+        { "type": "BBCheck", "key": "atTaskLocation", "expected": true },
+        { "type": "Action", "action": "Wait", "duration": 3.0 },
+        { "type": "Action", "action": "Speak", "message": "Tending the crops...", "duration": 2.0 },
+        { "type": "Action", "action": "Wait", "duration": 3.0 }
+      ]
+    },
+    {
+      "type": "Action",
+      "name": "IdleDefault",
+      "action": "Wait",
+      "duration": 3.0
+    }
+  ]
+}

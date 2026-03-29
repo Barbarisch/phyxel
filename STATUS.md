@@ -1,6 +1,6 @@
 # Phyxel — Project Status & Next Steps
 
-*Last updated: March 25, 2026*
+*Last updated: March 28, 2026*
 
 ## What's Been Built
 
@@ -122,7 +122,8 @@
 ## Current State of the Build
 
 - **Build**: Clean, all targets compile (`phyxel_core`, `phyxel_editor`, `phyxel`)
-- **Tests**: All 1033 tests pass (0 failures). 98 test suites. 36 integration tests.
+- **Tests**: 1510 unit tests (1506 pass, 3 AI E2E skipped, 1 pre-existing skeleton failure). 155 test suites. 36 integration tests.
+- **MCP Tools**: 166 total
 - **Executable**: `phyxel.exe` at project root (copied post-build) or `build/editor/Debug/phyxel.exe`
 - **Example**: `phyxel_minimal_game.exe` at `build/examples/minimal_game/Debug/`
 - **Game projects**: Scaffolded via `python tools/create_project.py <Name>`, built via in-engine API or cmake directly
@@ -259,8 +260,88 @@ Full design: `docs/StoryEngineDesign.md` | Progress: `docs/StoryEngineProgress.m
 ### Open Gaps
 - **Subcube/microcube material persistence**: SQLite schema only stores material for full cubes. Subcube/microcube material defaults to "Default" on save/load. Need to add `material` column to subcube/microcube tables.
 - **ScriptingSystem tests**: Skipped — requires Python/pybind11 runtime which isn't available in unit test context.
-- **`project_build` now uses JobSystem**: Build subprocess runs on the worker thread; game loop stays responsive.
-- **`fs::current_path()` in project_build is not thread-safe**: The background build uses `_popen()` which inherits CWD. Could be an issue if anything else changes CWD concurrently.
+
+### NPC Character Systems — Phase 1: Item Definition & World Time (1221 tests)
+
+#### Completed (March 28, 2026)
+- **ItemDefinition** (`engine/include/core/ItemDefinition.h`): Item type system with 6 types (Material, Tool, Weapon, Consumable, Quest, Equippable), tool sub-types (Pickaxe, Axe, Sword, Hoe, Shovel), equipment slots (MainHand, OffHand, Head, Chest, Legs, Feet). Full JSON serialization.
+- **ItemRegistry** (`engine/include/core/ItemRegistry.h`, `engine/src/core/ItemRegistry.cpp`): Singleton registry for item definitions. `registerItem()`, `getItem()`, `hasItem()`, `getItemsByType()`, `loadFromFile()`, `loadFromJson()`, `registerMaterialItems()` (auto-registers all engine materials). Loaded from `resources/items.json`.
+- **Inventory refactored**: `ItemStack.material` → `ItemStack.itemId` (backward-compat `material()` alias retained). Added `ItemStack.durability` field (-1 = N/A). `canMerge()` respects durability. All callers updated (GameMenus.cpp, Inventory.cpp, tests).
+- **DayNightCycle extended**: Added `m_dayNumber` (auto-increments on midnight wrap), `getHour()`, `getMinute()`, `getDayNumber()`, `setDayNumber()`, `isNight()` (18:00-06:00), `isDay()`. Day counter + helpers serialized in toJson/fromJson.
+- **resources/items.json**: 10 starter items — iron/wooden sword, iron/wooden pickaxe, iron axe, bread, health potion, iron helmet, iron chestplate, quest key.
+- **API endpoints**: `GET /api/items` (list all), `GET /api/items/:id` (single item detail).
+- **MCP tools**: `list_items`, `get_item`, `dayNumber` parameter in `set_day_night`.
+- **24 new tests**: ItemDefinition (4), ItemRegistry (8), ItemStack (4), DayNightCycle day counter (8). Total: 1221 tests (1217 pass + 3 AI E2E skipped + 1 GLFW skip).
+
+#### Phase 2: Equipment, Weapons & Combat (COMPLETE)
+**33 new tests** (20 EquipmentSystem + 13 CombatSystem). Total: **1254 tests** (1250 pass + 3 AI E2E skipped + 1 pre-existing skeleton test).
+
+**Files created:**
+- **engine/include/core/EquipmentSystem.h + .cpp**: `EquipmentSlots` class — slot-based equip/unequip with type+slot validation, stat aggregation (totalDamage/reach/speed), OnEquipmentChanged callback, JSON serialization.
+- **engine/include/core/CombatSystem.h + .cpp**: `CombatSystem` with `AttackParams` struct — sphere+cone spatial query via EntityRegistry, damage delivery through HealthComponent, knockback via setMoveVelocity(), invulnerability timers (0.5s default), DamageEvent structs with toJson(), OnDamage callback.
+- **resources/templates/weapons/**: `sword.txt` (5 cubes), `pickaxe.txt` (6 cubes), `axe.txt` (6 cubes) — Wood handle + Metal blade voxel models.
+- **tests/core/EquipmentSystemTest.cpp**: 20 tests — equip/unequip/clear, type validation, slot mismatch, stats, callback, JSON, string roundtrip.
+- **tests/core/CombatSystemTest.cpp**: 13 tests — hit/miss, cone check, range, invulnerability, kill, knockback, callback, multi-target, DamageEvent JSON.
+
+**Files modified:**
+- **AnimatedVoxelCharacter.h/.cpp**: `attachToBone(name, size, offset, color, label)` / `detachFromBone(id)` / `detachAll()` for weapon visuals. Hit frame system: `setHitFrameFraction()`, `setOnHitFrame()` — fires callback once per Attack animation at configurable fraction (default 0.4).
+- **NPCEntity.h**: `EquipmentSlots m_equipment` member + `getEquipment()` accessor.
+- **EngineAPIServer.h/.cpp**: `EquipmentGetHandler` + 4 routes: `GET /api/entity/:id/equipment`, `POST /api/entity/:id/equip`, `POST /api/entity/:id/unequip`, `POST /api/combat/attack`.
+- **Application.cpp**: Equipment handler, command handlers for `equip_item`/`unequip_item`/`combat_attack`, CombatSystem instance + update in game loop, weapon bone attachment on equip.
+- **ItemDefinition.h**: Added `equipSlotFromString()` inverse of `equipSlotToString()`.
+- **MCP server**: 5 new tools — `get_equipment`, `equip_item`, `unequip_item`, `attack`.
+
+#### Phase 3: NPC Intelligence Architecture (COMPLETE)
+**49 new tests** (50 AI tests, 1 removed from adjustments). Total: **1303 tests** (1299 pass + 3 AI E2E skipped + 1 pre-existing skeleton test).
+
+Behavior tree + utility AI system for NPC decision-making. NPCs can now use perception-driven, blackboard-mediated behavior trees with utility-based action selection.
+
+**Files created:**
+- **engine/include/ai/Blackboard.h**: Header-only per-NPC typed key-value store (`variant<bool, int, float, string, vec3>`). Typed getters with defaults, overloaded `set()`, `toJson()` serialization.
+- **engine/include/ai/PerceptionSystem.h + .cpp**: `SenseResult` struct + `PerceptionComponent` class — vision cone (dot product), hearing radius (omnidirectional), memory decay, configurable ranges/angles/update intervals.
+- **engine/include/ai/ActionSystem.h + .cpp**: `NPCAction` base class + 7 concrete actions: `MoveToAction`, `LookAtAction`, `WaitAction`, `SpeakAction`, `SetBlackboardAction`, `MoveToEntityAction`, `FleeAction`. Actions follow PatrolBehavior movement patterns (XZ-plane setMoveVelocity + yaw setRotation).
+- **engine/include/ai/BehaviorTree.h**: Header-only behavior tree framework. `BTNode` base, composites (`SequenceNode`, `SelectorNode`, `ParallelNode`), decorators (`InverterNode`, `RepeaterNode`, `CooldownNode`, `SucceederNode`), leaves (`ActionNode` wrapping NPCAction, `ConditionNode`, `BBConditionNode`, `BBHasKeyNode`). Builder helpers in `BT::` namespace. `BehaviorTree` root container.
+- **engine/include/ai/UtilityAI.h**: Header-only utility AI layer. `Consideration` (scorer + weight), `UtilityAction` (behavior tree + multiplicative scoring), `UtilityBrain` (evaluates all actions, selects highest, runs BT).
+- **engine/include/scene/behaviors/BehaviorTreeBehavior.h + .cpp**: `NPCBehavior` adapter — bridges engine's NPCBehavior interface to BT/UtilityAI. Owns `Blackboard`, `PerceptionComponent`, optional `UtilityBrain` or `BehaviorTree`. Updates perception → writes to blackboard → ticks brain/tree. Handles `onInteract`/`onEvent` by setting blackboard keys.
+- **tests/ai/BehaviorTreeTest.cpp**: 50 tests — Blackboard (12), Perception (6), BT composites/decorators/leaves (25), UtilityAI (5), integration (2).
+
+**Files modified:**
+- **NPCManager.h**: Added `NPCBehaviorType::BehaviorTree` to enum.
+- **NPCManager.cpp**: Added `BehaviorTreeBehavior` include + case in all 5 switch statements.
+- **Application.cpp**: Added `BehaviorTreeBehavior` include, `"behavior_tree"` behavior string parsing for spawn + set_behavior, 3 new command handlers: `get_npc_blackboard`, `get_npc_perception`, `set_npc_blackboard`.
+- **EngineAPIServer.cpp**: 3 new routes: `GET /api/npc/:name/blackboard`, `GET /api/npc/:name/perception`, `POST /api/npc/:name/blackboard`.
+- **MCP server**: 3 new tools — `get_npc_blackboard`, `get_npc_perception`, `set_npc_blackboard`.
+
+### Texture / Visual Polish
+
+### Playability Polish (PP1–PP5, 1510 tests / 155 suites)
+
+**42 new tests** (HealthComponentCallback: 4, RespawnSystem: 10, MusicPlaylist: 9, ObjectiveTracker: 12, PlayerProfile: 7).
+
+#### PP1: Pause Menu
+- **ESC key** now toggles pause instead of exiting. Pause freezes DayNightCycle and skips update/handleInput.
+- Pause menu overlay with Resume/Settings/Quit buttons rendered via GameMenus.
+- `toggle_pause` / `get_pause_state` MCP tools + API endpoints.
+
+#### PP2: Death & Respawn
+- **HealthComponent** extended with `setOnDeathCallback()` — fires on `kill()` and fatal `takeDamage()`.
+- **RespawnSystem** (`engine/include/core/RespawnSystem.h`): Header-only. Death sequence timer (default 3s), spawn point management, death counter, auto-respawn with `setOnRespawnCallback()`.
+- Death overlay (full-screen dark red, "YOU DIED", countdown timer, death count) via GameMenus.
+- MCP tools: `get_player_health`, `damage_player`, `heal_player`, `kill_player`, `revive_player`, `get_respawn_state`, `set_spawn_point`, `force_respawn`.
+
+#### PP3: Background Music
+- **AudioSystem** extended with `playMusic()` (looping via miniaudio), `stopMusic()`, `isMusicPlaying()`, `getMusicTrack()`.
+- **MusicPlaylist** (`engine/include/core/MusicPlaylist.h`): Header-only. Sequential/Shuffle modes, track add/remove/clear, volume control (0–1), auto-advance on track end.
+- MCP tools: `get_music_state`, `control_music` (play/stop/next/add_track/remove_track/clear/set_volume/set_mode).
+
+#### PP4: Player Save/Load
+- **PlayerProfile** (`engine/include/core/PlayerProfile.h`): Header-only. Persists camera pos/yaw/pitch, health/maxHealth, spawn point, death count, inventory (JSON). SQLite persistence via `saveToDb()`/`loadFromDb()` with `CREATE TABLE IF NOT EXISTS player_state` + UPSERT.
+- MCP tools: `save_player`, `load_player`.
+
+#### PP5: Objective/Progression System
+- **ObjectiveTracker** (`engine/include/core/ObjectiveTracker.h`): Header-only. Objective struct with id/title/description/Status (Active/Completed/Failed)/hidden/priority/category. Active objectives sorted by priority, JSON round-trip.
+- **Objective HUD**: Top-right panel in GameMenus (260px, max 5 objectives, "+N more..." overflow).
+- MCP tools: `get_objectives`, `add_objective`, `complete_objective`, `fail_objective`, `remove_objective`.
 
 ### Texture / Visual Polish
 - **Subcube/microcube textures**: ✅ Per-material rendering implemented. Material inherited on subdivision, passed through from templates.
@@ -296,6 +377,10 @@ Full design: `docs/StoryEngineDesign.md` | Progress: `docs/StoryEngineProgress.m
 | Context Manager | `engine/include/ai/ContextManager.h`, `engine/src/ai/ContextManager.cpp` |
 | Conversation Memory | `engine/include/ai/ConversationMemory.h`, `engine/src/ai/ConversationMemory.cpp` |
 | AI Conversation Service | `engine/include/ai/AIConversationService.h`, `engine/src/ai/AIConversationService.cpp` |
+| Respawn System | `engine/include/core/RespawnSystem.h` |
+| Music Playlist | `engine/include/core/MusicPlaylist.h` |
+| Player Profile | `engine/include/core/PlayerProfile.h` |
+| Objective Tracker | `engine/include/core/ObjectiveTracker.h` |
 | Goose Bridge (editor only) | `engine/include/ai/GooseBridge.h`, `scripts/goose_bridge.py` |
 
 ## MCP Setup (for Claude Code on new machine)

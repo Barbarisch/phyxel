@@ -1,4 +1,5 @@
 #include "ai/AIConversationService.h"
+#include "ai/LLMActionParser.h"
 #include "ui/DialogueSystem.h"
 #include "core/EntityRegistry.h"
 #include "scene/NPCEntity.h"
@@ -82,7 +83,11 @@ bool AIConversationService::startConversation(Scene::NPCEntity* npc,
             auto response = m_llmClient->complete(ctx.messages);
 
             if (response.ok()) {
-                // Record NPC's response
+                // Parse action tags from response
+                auto parsed = LLMActionParser::parse(response.content);
+                LLMActionParser::execute(parsed, m_actionHandler);
+
+                // Record full response (with tags) for context continuity
                 if (m_memory && m_memory->isInitialized()) {
                     m_memory->recordTurn(npcId, npcId, response.content);
 
@@ -90,9 +95,9 @@ bool AIConversationService::startConversation(Scene::NPCEntity* npc,
                     m_memory->autoSummarizeIfNeeded(npcId, m_llmClient.get());
                 }
 
-                // Deliver to DialogueSystem (thread-safe)
+                // Deliver clean text (tags stripped) to DialogueSystem
                 if (m_dialogue) {
-                    m_dialogue->receiveAIResponse(response.content);
+                    m_dialogue->receiveAIResponse(parsed.dialogueText);
                 }
 
                 LOG_DEBUG("AI", "LLM response for '{}': {} tokens in, {} tokens out",
@@ -129,11 +134,15 @@ bool AIConversationService::startConversation(Scene::NPCEntity* npc,
         auto response = m_llmClient->complete(ctx.messages);
 
         if (response.ok()) {
+            // Parse action tags from greeting
+            auto parsed = LLMActionParser::parse(response.content);
+            LLMActionParser::execute(parsed, m_actionHandler);
+
             if (m_memory && m_memory->isInitialized()) {
                 m_memory->recordTurn(npcId, npcId, response.content);
             }
             if (m_dialogue) {
-                m_dialogue->receiveAIResponse(response.content);
+                m_dialogue->receiveAIResponse(parsed.dialogueText);
             }
             LOG_DEBUG("AI", "Greeting from '{}': {} tokens in, {} tokens out",
                       npcName, response.inputTokens, response.outputTokens);
@@ -151,6 +160,12 @@ bool AIConversationService::startConversation(Scene::NPCEntity* npc,
 void AIConversationService::setLLMConfig(const LLMConfig& config) {
     if (m_llmClient) {
         m_llmClient->setConfig(config);
+    }
+}
+
+void AIConversationService::setNPCManager(Core::NPCManager* npcManager) {
+    if (m_contextManager) {
+        m_contextManager->setNPCManager(npcManager);
     }
 }
 

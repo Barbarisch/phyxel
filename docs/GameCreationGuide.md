@@ -124,13 +124,54 @@ Constraint modes:
 3. Screenshot: `screenshot` lets you see the result
 4. Iterate: use individual tools to refine
 
-### Step 8: Save
+### Step 8: Add Game Mechanics
+
+After your world, NPCs, and story are in place, layer on gameplay systems:
+
+**Player Health & Respawn:**
+- Player has a health system. When health reaches 0, a death overlay appears and a respawn timer starts.
+- `set_spawn_point` — Set where the player respawns after death
+- `damage_player` / `heal_player` / `kill_player` / `revive_player` — Manage player health
+- `get_player_health` / `get_respawn_state` — Inspect current state
+
+**Objectives & Progression:**
+- `add_objective` — Track quests with title, description, priority, category
+- `complete_objective` / `fail_objective` — Update objective status
+- Active objectives appear in a HUD panel (top-right corner, up to 5 shown)
+- Use priorities to control display order (higher priority = shown first)
+
+**Background Music:**
+- `control_music` with `action: "add_track"` — Add music files to the playlist
+- `control_music` with `action: "play"` — Start playback (loops automatically)
+- Supports Sequential and Shuffle modes, volume control (0.0–1.0)
+- Music persists across game sessions via `save_player` / `load_player`
+
+**Day/Night Cycle:**
+- `set_day_night` — Configure time of day, day length, time speed
+- Dawn (6:00), Day (8:00), Dusk (18:00), Night (20:00)
+- Ambient and sun colors animate automatically
+
+**Combat & Equipment:**
+- `equip_item` / `unequip_item` — Manage NPC/player equipment (6 slots)
+- `attack` — Sphere+cone hit detection with knockback
+- `damage_entity` / `heal_entity` — Apply damage/healing to any entity
+
+**Crafting:**
+- `add_recipe` — Define crafting recipes with ingredients and outputs
+- `craft_item` — Craft from player inventory
+
+**Pause System:**
+- ESC key toggles pause (freezes world simulation, shows pause menu)
+- `toggle_pause` / `get_pause_state` — Control via MCP
+
+### Step 9: Save
 
 - `save_world` persists to `worlds/default.db`
+- `save_player` persists player state (camera, health, spawn point, inventory) to SQLite
 - `export_game_definition` exports as reusable JSON
 - `save_template` saves structures as reusable templates
 
-### Step 9: Package for Distribution
+### Step 10: Package for Distribution
 
 There are two paths: **editor preview** (quick iteration) and **standalone game** (distributable).
 

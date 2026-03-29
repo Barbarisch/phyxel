@@ -1,6 +1,7 @@
 #include "ui/GameMenus.h"
 #include "core/Inventory.h"
 #include "core/HealthComponent.h"
+#include "core/ObjectiveTracker.h"
 #include "core/GameSettings.h"
 #include <imgui.h>
 #include <GLFW/glfw3.h>
@@ -281,15 +282,15 @@ void renderGameHUD(const Core::HealthComponent* health,
                 auto slot = inventory->getSlot(i);
                 if (slot.has_value()) {
                     // Material color swatch
-                    ImVec4 matColor = getMaterialColor(slot->material);
+                    ImVec4 matColor = getMaterialColor(slot->itemId);
                     float inset = 6.0f;
                     dl->AddRectFilled(
                         ImVec2(p0.x + inset, p0.y + inset),
                         ImVec2(p1.x - inset, p1.y - inset),
                         ImGui::ColorConvertFloat4ToU32(matColor), 3.0f);
 
-                    // Material name (abbreviated)
-                    const char* name = slot->material.c_str();
+                    // Item name (abbreviated)
+                    const char* name = slot->itemId.c_str();
                     char abbr[5];
                     snprintf(abbr, sizeof(abbr), "%.3s", name);
                     ImVec2 ts = ImGui::CalcTextSize(abbr);
@@ -392,15 +393,15 @@ void renderInventoryScreen(Core::Inventory* inventory,
                 // Slot content
                 auto slot = inventory->getSlot(idx);
                 if (slot.has_value()) {
-                    ImVec4 matColor = getMaterialColor(slot->material);
+                    ImVec4 matColor = getMaterialColor(slot->itemId);
                     float inset = 6.0f;
                     dl->AddRectFilled(
                         ImVec2(p0.x + inset, p0.y + inset),
                         ImVec2(p1.x - inset, p1.y - inset),
                         ImGui::ColorConvertFloat4ToU32(matColor), 3.0f);
 
-                    // Material name
-                    const char* name = slot->material.c_str();
+                    // Item name
+                    const char* name = slot->itemId.c_str();
                     ImVec2 ts = ImGui::CalcTextSize(name);
                     if (ts.x > slotSize - 4.0f) {
                         char abbr[6];
@@ -797,6 +798,105 @@ int renderKeybindingScreen(std::vector<Core::Keybinding>& bindings,
     ImGui::PopStyleVar();
 
     return capturedKey;
+}
+
+void renderDeathOverlay(float respawnTimer, float respawnDelay, int deathCount) {
+    ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+
+    // Full-screen dark red overlay
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::SetNextWindowSize(displaySize);
+    ImGui::SetNextWindowBgAlpha(0.70f);
+    ImGui::Begin("##DeathOverlay", nullptr,
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoBringToFrontOnFocus);
+
+    float centerX = displaySize.x * 0.5f;
+    float centerY = displaySize.y * 0.4f;
+
+    // "YOU DIED" title
+    const char* title = "YOU DIED";
+    ImVec2 titleSize = ImGui::CalcTextSize(title);
+    ImGui::SetCursorPos(ImVec2(centerX - titleSize.x * 0.5f, centerY - 40.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.15f, 0.15f, 1.0f));
+    ImGui::TextUnformatted(title);
+    ImGui::PopStyleColor();
+
+    // Respawn countdown
+    float remaining = respawnDelay - respawnTimer;
+    if (remaining > 0.0f) {
+        char buf[64];
+        snprintf(buf, sizeof(buf), "Respawning in %.1f...", remaining);
+        ImVec2 countSize = ImGui::CalcTextSize(buf);
+        ImGui::SetCursorPos(ImVec2(centerX - countSize.x * 0.5f, centerY + 10.0f));
+        ImGui::TextUnformatted(buf);
+    } else {
+        const char* msg = "Respawning...";
+        ImVec2 msgSize = ImGui::CalcTextSize(msg);
+        ImGui::SetCursorPos(ImVec2(centerX - msgSize.x * 0.5f, centerY + 10.0f));
+        ImGui::TextUnformatted(msg);
+    }
+
+    // Death count
+    if (deathCount > 1) {
+        char deathBuf[64];
+        snprintf(deathBuf, sizeof(deathBuf), "Deaths: %d", deathCount);
+        ImVec2 deathSize = ImGui::CalcTextSize(deathBuf);
+        ImGui::SetCursorPos(ImVec2(centerX - deathSize.x * 0.5f, centerY + 40.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+        ImGui::TextUnformatted(deathBuf);
+        ImGui::PopStyleColor();
+    }
+
+    ImGui::End();
+}
+
+void renderObjectiveHUD(const Core::ObjectiveTracker* tracker) {
+    if (!tracker) return;
+    auto objectives = tracker->getActiveObjectives();
+    if (objectives.empty()) return;
+
+    ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+    float panelWidth = 260.0f;
+    float panelX = displaySize.x - panelWidth - 15.0f;
+
+    ImGui::SetNextWindowPos(ImVec2(panelX, 60.0f));
+    ImGui::SetNextWindowSize(ImVec2(panelWidth, 0));  // Auto-height
+    ImGui::SetNextWindowBgAlpha(0.55f);
+    ImGui::Begin("##ObjectiveHUD", nullptr,
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoBringToFrontOnFocus |
+        ImGuiWindowFlags_AlwaysAutoResize);
+
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.3f, 1.0f));
+    ImGui::TextUnformatted("OBJECTIVES");
+    ImGui::PopStyleColor();
+    ImGui::Separator();
+
+    int shown = 0;
+    for (auto* obj : objectives) {
+        if (shown >= 5) break;  // Max 5 visible objectives
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 0.95f));
+        ImGui::BulletText("%s", obj->title.c_str());
+        ImGui::PopStyleColor();
+        if (!obj->description.empty()) {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 0.8f));
+            ImGui::Indent(20.0f);
+            ImGui::TextWrapped("%s", obj->description.c_str());
+            ImGui::Unindent(20.0f);
+            ImGui::PopStyleColor();
+        }
+        shown++;
+    }
+
+    int remaining = static_cast<int>(objectives.size()) - shown;
+    if (remaining > 0) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 0.7f));
+        ImGui::Text("  +%d more...", remaining);
+        ImGui::PopStyleColor();
+    }
+
+    ImGui::End();
 }
 
 } // namespace UI

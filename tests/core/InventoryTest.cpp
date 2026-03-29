@@ -168,7 +168,7 @@ TEST(InventoryTest, SetSlot) {
     EXPECT_TRUE(inv.setSlot(0, stack));
     auto s = inv.getSlot(0);
     ASSERT_TRUE(s.has_value());
-    EXPECT_EQ(s->material, "Metal");
+    EXPECT_EQ(s->itemId, "Metal");
     EXPECT_EQ(s->count, 32);
 }
 

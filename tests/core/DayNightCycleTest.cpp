@@ -166,3 +166,77 @@ TEST(DayNightCycleTest, FullDayCycleMonotonic) {
     float noon = cycle.getAmbientStrength();
     EXPECT_GT(noon, midnight);
 }
+
+// ============================================================================
+// Day counter and world time helpers
+// ============================================================================
+
+TEST(DayNightCycleTest, DefaultDayNumber) {
+    DayNightCycle cycle;
+    EXPECT_EQ(cycle.getDayNumber(), 1);
+}
+
+TEST(DayNightCycleTest, DayNumberIncrements) {
+    DayNightCycle cycle;
+    cycle.setEnabled(true);
+    cycle.setTimeOfDay(23.5f);
+    cycle.setDayLengthSeconds(24.0f); // 1 real second = 1 game hour
+    EXPECT_EQ(cycle.getDayNumber(), 1);
+    cycle.update(1.0f); // advance 1 hour -> wraps past midnight
+    EXPECT_NEAR(cycle.getTimeOfDay(), 0.5f, 0.01f);
+    EXPECT_EQ(cycle.getDayNumber(), 2);
+}
+
+TEST(DayNightCycleTest, DayNumberMultipleWraps) {
+    DayNightCycle cycle;
+    cycle.setEnabled(true);
+    cycle.setTimeOfDay(0.0f);
+    cycle.setDayLengthSeconds(24.0f); // 1 sec = 1 hour
+    cycle.update(48.0f); // advance 48 hours = 2 full days
+    EXPECT_EQ(cycle.getDayNumber(), 3); // started at day 1, +2 wraps
+}
+
+TEST(DayNightCycleTest, SetDayNumber) {
+    DayNightCycle cycle;
+    cycle.setDayNumber(10);
+    EXPECT_EQ(cycle.getDayNumber(), 10);
+}
+
+TEST(DayNightCycleTest, GetHourAndMinute) {
+    DayNightCycle cycle;
+    cycle.setTimeOfDay(14.5f); // 2:30 PM
+    EXPECT_EQ(cycle.getHour(), 14);
+    EXPECT_EQ(cycle.getMinute(), 30);
+}
+
+TEST(DayNightCycleTest, IsNight) {
+    DayNightCycle cycle;
+    cycle.setTimeOfDay(2.0f); // 2 AM
+    EXPECT_TRUE(cycle.isNight());
+    EXPECT_FALSE(cycle.isDay());
+
+    cycle.setTimeOfDay(12.0f); // noon
+    EXPECT_FALSE(cycle.isNight());
+    EXPECT_TRUE(cycle.isDay());
+
+    cycle.setTimeOfDay(20.0f); // 8 PM
+    EXPECT_TRUE(cycle.isNight());
+}
+
+TEST(DayNightCycleTest, DayNumberSerializesRoundTrip) {
+    DayNightCycle cycle;
+    cycle.setTimeOfDay(8.5f);
+    cycle.setDayNumber(5);
+    cycle.setEnabled(true);
+
+    auto j = cycle.toJson();
+    EXPECT_TRUE(j.contains("dayNumber"));
+    EXPECT_TRUE(j.contains("hour"));
+    EXPECT_TRUE(j.contains("minute"));
+    EXPECT_TRUE(j.contains("isNight"));
+    EXPECT_EQ(j["dayNumber"].get<int>(), 5);
+
+    DayNightCycle cycle2;
+    cycle2.fromJson(j);
+    EXPECT_EQ(cycle2.getDayNumber(), 5);
+}

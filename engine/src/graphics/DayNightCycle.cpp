@@ -8,6 +8,7 @@ namespace Graphics {
 
 DayNightCycle::DayNightCycle()
     : m_timeOfDay(12.0f)       // Start at noon
+    , m_dayNumber(1)           // Day 1
     , m_dayLengthSeconds(600.0f) // 10-minute full day
     , m_timeScale(1.0f)
     , m_enabled(false)         // Off by default
@@ -24,9 +25,15 @@ void DayNightCycle::update(float deltaTime) {
     float hoursPerSecond = 24.0f / m_dayLengthSeconds;
     m_timeOfDay += deltaTime * hoursPerSecond * m_timeScale;
 
-    // Wrap around
-    while (m_timeOfDay >= 24.0f) m_timeOfDay -= 24.0f;
-    while (m_timeOfDay < 0.0f) m_timeOfDay += 24.0f;
+    // Wrap around and increment day counter
+    while (m_timeOfDay >= 24.0f) {
+        m_timeOfDay -= 24.0f;
+        m_dayNumber++;
+    }
+    while (m_timeOfDay < 0.0f) {
+        m_timeOfDay += 24.0f;
+        m_dayNumber = std::max(1, m_dayNumber - 1);
+    }
 
     recalculate();
 }
@@ -84,6 +91,10 @@ void DayNightCycle::recalculate() {
 nlohmann::json DayNightCycle::toJson() const {
     return {
         {"timeOfDay", m_timeOfDay},
+        {"hour", getHour()},
+        {"minute", getMinute()},
+        {"dayNumber", m_dayNumber},
+        {"isNight", isNight()},
         {"dayLengthSeconds", m_dayLengthSeconds},
         {"timeScale", m_timeScale},
         {"enabled", m_enabled},
@@ -96,6 +107,7 @@ nlohmann::json DayNightCycle::toJson() const {
 
 void DayNightCycle::fromJson(const nlohmann::json& j) {
     if (j.contains("timeOfDay")) setTimeOfDay(j["timeOfDay"].get<float>());
+    if (j.contains("dayNumber")) m_dayNumber = j["dayNumber"].get<int>();
     if (j.contains("dayLengthSeconds")) setDayLengthSeconds(j["dayLengthSeconds"].get<float>());
     if (j.contains("timeScale")) m_timeScale = j["timeScale"].get<float>();
     if (j.contains("enabled")) m_enabled = j["enabled"].get<bool>();

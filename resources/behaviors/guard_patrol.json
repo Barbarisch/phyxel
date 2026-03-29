@@ -1,0 +1,30 @@
+{
+  "type": "Selector",
+  "name": "GuardRoot",
+  "children": [
+    {
+      "type": "Sequence",
+      "name": "RespondToThreat",
+      "children": [
+        { "type": "BBCheck", "key": "hasThreat", "expected": true },
+        { "type": "Action", "action": "Speak", "message": "Halt! Who goes there?", "duration": 2.0 },
+        { "type": "Action", "action": "Flee", "fromKey": "threat", "speed": 3.0, "fleeDistance": 10.0 }
+      ]
+    },
+    {
+      "type": "Sequence",
+      "name": "StandGuard",
+      "children": [
+        { "type": "BBCheck", "key": "atTaskLocation", "expected": true },
+        { "type": "Action", "action": "Wait", "duration": 5.0 },
+        { "type": "Action", "action": "Speak", "message": "All clear.", "duration": 2.0 }
+      ]
+    },
+    {
+      "type": "Action",
+      "name": "WanderDefault",
+      "action": "Wait",
+      "duration": 3.0
+    }
+  ]
+}

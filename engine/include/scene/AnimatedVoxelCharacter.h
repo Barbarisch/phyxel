@@ -37,6 +37,9 @@ namespace Scene {
         StrafeRight,
         WalkStrafeLeft,
         WalkStrafeRight,
+        BackwardWalk,
+        StopWalk,
+        StopRun,
         Preview
     };
 
@@ -92,6 +95,23 @@ namespace Scene {
         // Hot-reload animation clips from file (skeleton/model unchanged)
         bool reloadAnimations(const std::string& animFile);
 
+        // ---- Bone Attachments (weapons, equipment visuals) ----
+
+        /// Attach an extravoxel shape to a named bone (e.g. right_hand).
+        /// Returns an attachment ID for later removal.
+        int attachToBone(const std::string& boneName, const glm::vec3& size,
+                         const glm::vec3& offset, const glm::vec4& color,
+                         const std::string& label = "");
+
+        /// Remove a bone attachment by ID.
+        void detachFromBone(int attachmentId);
+
+        /// Remove all bone attachments.
+        void detachAll();
+
+        /// Check if any attachments exist.
+        bool hasAttachments() const { return !m_attachments.empty(); }
+
         // State string conversion (public)
         static AnimatedCharacterState stringToState(const std::string& str);
         std::string stateToString(AnimatedCharacterState state) const;
@@ -105,6 +125,16 @@ namespace Scene {
         void jump();
         void attack();
         void setCrouch(bool crouch);
+
+        // ---- Hit Frame Callback (for combat integration) ----
+
+        /// Set the fraction (0.0-1.0) of the attack animation at which the hit triggers.
+        void setHitFrameFraction(float fraction) { m_hitFrameFraction = fraction; }
+        float getHitFrameFraction() const { return m_hitFrameFraction; }
+
+        /// Set callback fired once per attack when the hit frame is reached.
+        using OnHitFrameCallback = std::function<void()>;
+        void setOnHitFrame(OnHitFrameCallback cb) { m_onHitFrame = std::move(cb); }
 
         // Animation Mapping
         void setAnimationMapping(const std::string& stateName, const std::string& animName);
@@ -159,6 +189,9 @@ namespace Scene {
         bool jumpRequested = false;
         bool attackRequested = false;
         float stateTimer = 0.0f;
+        bool m_hitFrameFired = false;       // Has the hit frame triggered for current attack?
+        float m_hitFrameFraction = 0.4f;    // Default: 40% through attack animation
+        OnHitFrameCallback m_onHitFrame;
 
         // Physics Controller
         btRigidBody* controllerBody = nullptr;
@@ -192,6 +225,19 @@ namespace Scene {
         Phyxel::VoxelModel originalVoxelModel_;
         std::vector<Phyxel::AnimationClip> originalClips_;
         bool hasOriginalTemplate_ = false;
+
+        // ---- Bone Attachments ----
+        struct BoneAttachment {
+            int id;
+            int boneId;              // skeleton bone ID to follow
+            btRigidBody* body;       // kinematic physics body
+            glm::vec3 size;
+            glm::vec3 offset;        // offset from bone pivot
+            glm::vec4 color;
+            std::string label;
+        };
+        std::vector<BoneAttachment> m_attachments;
+        int m_nextAttachmentId = 1;
     };
 }
 }

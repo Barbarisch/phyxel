@@ -1145,6 +1145,176 @@ async def list_tools() -> list[Tool]:
         ),
 
         # ================================================================
+        # GAME STATE (Pause, Health, Respawn, Music, Save/Load, Objectives)
+        # ================================================================
+
+        Tool(
+            name="toggle_pause",
+            description="Toggle or set the game pause state. When paused, simulation freezes but API commands still work.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "paused": {"type": "boolean", "description": "Set pause state explicitly (omit to toggle)"}
+                }
+            }
+        ),
+        Tool(
+            name="get_pause_state",
+            description="Get the current pause state of the game.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="get_player_health",
+            description="Get the player's current health, max health, and respawn state.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="damage_player",
+            description="Deal damage to the player. If health reaches 0, triggers death sequence.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "amount": {"type": "number", "description": "Damage amount (default: 10)"}
+                }
+            }
+        ),
+        Tool(
+            name="heal_player",
+            description="Heal the player by a specified amount.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "amount": {"type": "number", "description": "Heal amount (default: 10)"}
+                }
+            }
+        ),
+        Tool(
+            name="kill_player",
+            description="Instantly kill the player, triggering death sequence and respawn timer.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="revive_player",
+            description="Revive the player from death and respawn at spawn point.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "healthPercent": {"type": "number", "description": "Health percentage to revive with (0.0-1.0, default: 1.0)"}
+                }
+            }
+        ),
+        Tool(
+            name="get_respawn_state",
+            description="Get respawn system state: spawn point, respawn delay, death count, death timer.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="set_spawn_point",
+            description="Set the player's respawn point.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "x": {"type": "number", "description": "Spawn X coordinate"},
+                    "y": {"type": "number", "description": "Spawn Y coordinate"},
+                    "z": {"type": "number", "description": "Spawn Z coordinate"}
+                },
+                "required": ["x", "y", "z"]
+            }
+        ),
+        Tool(
+            name="force_respawn",
+            description="Force an immediate respawn, reviving the player at full health at the spawn point.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="get_music_state",
+            description="Get the current music playlist state: tracks, current track, playing status, volume, mode.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="control_music",
+            description="Control the background music playlist.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["play", "stop", "next", "add_track", "remove_track", "clear", "set_volume", "set_mode"],
+                        "description": "Music control action"
+                    },
+                    "path": {"type": "string", "description": "Track file path (for add_track/remove_track)"},
+                    "volume": {"type": "number", "description": "Volume 0.0-1.0 (for set_volume)"},
+                    "mode": {"type": "string", "enum": ["sequential", "shuffle"], "description": "Playlist mode (for set_mode)"}
+                },
+                "required": ["action"]
+            }
+        ),
+        Tool(
+            name="save_player",
+            description="Save the player's state (camera, health, spawn point, inventory) to the world database.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="load_player",
+            description="Load the player's saved state from the world database.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="get_objectives",
+            description="Get all objectives (quests/tasks) with their status.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="add_objective",
+            description="Add a new objective/quest to the tracker. Shows in the HUD.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Unique objective ID"},
+                    "title": {"type": "string", "description": "Short title displayed in HUD"},
+                    "description": {"type": "string", "description": "Longer description"},
+                    "category": {"type": "string", "description": "Category: main, side, exploration (default: main)"},
+                    "priority": {"type": "integer", "description": "Priority (higher = more important, default: 0)"},
+                    "hidden": {"type": "boolean", "description": "If true, not shown in HUD (default: false)"}
+                },
+                "required": ["id", "title"]
+            }
+        ),
+        Tool(
+            name="complete_objective",
+            description="Mark an objective as completed.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Objective ID to complete"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="fail_objective",
+            description="Mark an objective as failed.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Objective ID to fail"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="remove_objective",
+            description="Remove an objective from the tracker entirely.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Objective ID to remove"}
+                },
+                "required": ["id"]
+            }
+        ),
+
+        # ================================================================
         # PROJECT LIFECYCLE
         # ================================================================
 
@@ -1514,18 +1684,103 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="set_day_night",
             description=(
-                "Configure the day/night cycle. Can set time of day, enable/disable the cycle, "
+                "Configure the day/night cycle. Can set time of day, day number, enable/disable the cycle, "
                 "pause it, adjust day length and time scale."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "timeOfDay": {"type": "number", "description": "Time of day in hours (0-24). 0=midnight, 6=dawn, 12=noon, 18=dusk"},
+                    "dayNumber": {"type": "integer", "description": "Set the day counter (starts at 1)"},
                     "enabled": {"type": "boolean", "description": "Enable/disable the day/night cycle"},
                     "paused": {"type": "boolean", "description": "Pause/unpause the cycle"},
                     "dayLengthSeconds": {"type": "number", "description": "Real seconds for a full day cycle (default 600)"},
                     "timeScale": {"type": "number", "description": "Time speed multiplier (1.0 = normal)"}
                 }
+            }
+        ),
+
+        # ================================================================
+        # ITEM REGISTRY
+        # ================================================================
+
+        Tool(
+            name="list_items",
+            description=(
+                "List all registered item definitions. Returns items with their type, stats, "
+                "equipment slot, damage, durability, and other properties."
+            ),
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="get_item",
+            description="Get detailed information about a specific item by its ID.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Item ID (e.g. 'iron_sword', 'Stone')"}
+                },
+                "required": ["id"]
+            }
+        ),
+
+        # ================================================================
+        # EQUIPMENT & COMBAT
+        # ================================================================
+
+        Tool(
+            name="get_equipment",
+            description="Get the equipment loadout of an NPC entity. Shows all equipped slots, total damage, and reach.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "entityId": {"type": "string", "description": "Entity ID of the NPC"}
+                },
+                "required": ["entityId"]
+            }
+        ),
+        Tool(
+            name="equip_item",
+            description="Equip an item on an NPC entity. The item must be a Weapon, Tool, or Equippable type with a valid equipment slot. Automatically attaches weapon visual to the character's hand.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "entityId": {"type": "string", "description": "Entity ID of the NPC"},
+                    "itemId": {"type": "string", "description": "Item ID to equip (e.g. 'iron_sword')"}
+                },
+                "required": ["entityId", "itemId"]
+            }
+        ),
+        Tool(
+            name="unequip_item",
+            description="Unequip an item from a specific slot on an NPC entity. Removes the weapon visual attachment.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "entityId": {"type": "string", "description": "Entity ID of the NPC"},
+                    "slot": {"type": "string", "description": "Equipment slot to unequip (MainHand, OffHand, Head, Chest, Legs, Feet)"}
+                },
+                "required": ["entityId", "slot"]
+            }
+        ),
+        Tool(
+            name="attack",
+            description="Make an entity perform a combat attack. Uses equipped weapon stats for damage/reach. Returns list of hit entities with damage dealt.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "attackerId": {"type": "string", "description": "Entity ID of the attacker"},
+                    "forward": {
+                        "type": "object",
+                        "description": "Attack direction vector (default: entity forward)",
+                        "properties": {
+                            "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}
+                        }
+                    },
+                    "coneAngle": {"type": "number", "description": "Attack cone angle in degrees (default 90)"},
+                    "knockback": {"type": "number", "description": "Knockback force (default 2.0)"}
+                },
+                "required": ["attackerId"]
             }
         ),
 
@@ -1928,6 +2183,255 @@ async def list_tools() -> list[Tool]:
                 "required": ["id", "animFile"]
             }
         ),
+        Tool(
+            name="get_npc_blackboard",
+            description="Get the AI blackboard state of a BehaviorTree-driven NPC. Shows all key-value pairs used by the behavior tree for decision-making.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "NPC name"}
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="get_npc_perception",
+            description="Get the perception state of a BehaviorTree-driven NPC. Shows visible entities, heard entities, threats, and memory entries.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "NPC name"}
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="set_npc_blackboard",
+            description="Set a key-value pair on a BehaviorTree-driven NPC's blackboard. Supports bool, int, float, string, and vec3 ({x,y,z}) values.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "NPC name"},
+                    "key": {"type": "string", "description": "Blackboard key"},
+                    "value": {"description": "Value to set (bool, number, string, or {x,y,z} object)"}
+                },
+                "required": ["name", "key", "value"]
+            }
+        ),
+        Tool(
+            name="get_locations",
+            description="Get all registered world locations (taverns, guard posts, homes, etc.). Each location has an id, name, position, radius, and type.",
+            inputSchema={
+                "type": "object",
+                "properties": {}
+            }
+        ),
+        Tool(
+            name="add_location",
+            description="Register a named world location for NPC navigation. Types: Home, Work, Tavern, Market, Temple, Farm, GuardPost, Wilderness, Custom.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Unique location ID"},
+                    "name": {"type": "string", "description": "Display name"},
+                    "x": {"type": "number", "description": "World X position"},
+                    "y": {"type": "number", "description": "World Y position"},
+                    "z": {"type": "number", "description": "World Z position"},
+                    "radius": {"type": "number", "description": "Arrival radius (default 3.0)"},
+                    "type": {"type": "string", "description": "Location type (Home, Work, Tavern, Market, Temple, Farm, GuardPost, Wilderness, Custom)"}
+                },
+                "required": ["id", "name", "x", "y", "z"]
+            }
+        ),
+        Tool(
+            name="remove_location",
+            description="Remove a registered world location by its ID.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Location ID to remove"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="get_npc_schedule",
+            description="Get the daily schedule of a Scheduled-behavior NPC. Shows time slots, activities, and target locations.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "NPC name"}
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="set_npc_schedule",
+            description="Set or replace the daily schedule of a Scheduled-behavior NPC. Provide a schedule JSON with entries, or a role name to use a built-in default (guard, merchant, farmer, innkeeper).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "NPC name"},
+                    "role": {"type": "string", "description": "Use a built-in schedule (guard, merchant, farmer, innkeeper)"},
+                    "schedule": {"type": "object", "description": "Custom schedule JSON with 'entries' array"}
+                },
+                "required": ["name"]
+            }
+        ),
+        # --- Social Simulation ---
+        Tool(
+            name="get_npc_needs",
+            description="Get an NPC's current needs (Hunger, Rest, Social, Safety, Entertainment, Comfort). Each need has a value (0-100), decay rate, and urgency threshold.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "NPC name"}
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="set_npc_needs",
+            description="Set an NPC's needs. Provide either a full needs JSON or a single type+value pair.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "NPC name"},
+                    "type": {"type": "string", "description": "Need type: Hunger, Rest, Social, Safety, Entertainment, Comfort"},
+                    "value": {"type": "number", "description": "Need value (0-100)"},
+                    "needs": {"type": "array", "description": "Full needs array to replace all needs"}
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="get_npc_relationships",
+            description="Get an NPC's relationships with other NPCs (trust, affection, respect, fear, disposition). If no name given, returns all relationships.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "NPC name (omit for all relationships)"}
+                }
+            }
+        ),
+        Tool(
+            name="set_npc_relationship",
+            description="Set a directed relationship from one NPC to another. Trust/affection/respect range -1 to 1, fear 0 to 1.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "from": {"type": "string", "description": "Source NPC name"},
+                    "to": {"type": "string", "description": "Target NPC name"},
+                    "trust": {"type": "number", "description": "Trust level (-1 to 1)"},
+                    "affection": {"type": "number", "description": "Affection level (-1 to 1)"},
+                    "respect": {"type": "number", "description": "Respect level (-1 to 1)"},
+                    "fear": {"type": "number", "description": "Fear level (0 to 1)"},
+                    "label": {"type": "string", "description": "Label (friend, rival, mentor, etc.)"}
+                },
+                "required": ["from", "to"]
+            }
+        ),
+        Tool(
+            name="apply_npc_interaction",
+            description="Apply a social interaction between two NPCs. Modifies their relationship based on interaction type and intensity. Types: Greeting, Conversation, Trade, Gift, Insult, Attack, Help, Betray, Gossip, Witnessed.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "from": {"type": "string", "description": "Initiating NPC name"},
+                    "to": {"type": "string", "description": "Target NPC name"},
+                    "type": {"type": "string", "description": "Interaction type"},
+                    "intensity": {"type": "number", "description": "Intensity multiplier (default 1.0, max 2.0)"}
+                },
+                "required": ["from", "to", "type"]
+            }
+        ),
+        Tool(
+            name="get_npc_worldview",
+            description="Get an NPC's subjective worldview: beliefs, opinions, and observations. Also returns a context summary string useful for LLM prompts.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "NPC name"}
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="set_npc_belief",
+            description="Set a belief in an NPC's worldview. Beliefs are key-value pairs with confidence levels. Different NPCs can hold contradictory beliefs.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "NPC name"},
+                    "key": {"type": "string", "description": "Belief key (e.g. 'blacksmith_location', 'king_is_alive')"},
+                    "value": {"type": "string", "description": "Belief value"},
+                    "confidence": {"type": "number", "description": "Confidence 0.0-1.0 (default 1.0)"}
+                },
+                "required": ["name", "key", "value"]
+            }
+        ),
+        Tool(
+            name="set_npc_opinion",
+            description="Set an NPC's opinion about a subject (entity, faction, concept). Sentiment ranges from -1 (hate) to 1 (love).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "NPC name"},
+                    "subject": {"type": "string", "description": "What the opinion is about"},
+                    "sentiment": {"type": "number", "description": "Sentiment -1.0 to 1.0"},
+                    "reason": {"type": "string", "description": "Why the NPC holds this opinion"}
+                },
+                "required": ["name", "subject", "sentiment"]
+            }
+        ),
+
+        # --- AI / LLM ---
+        Tool(
+            name="get_ai_status",
+            description="Get AI/LLM configuration status, provider, model, and token usage statistics.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+        Tool(
+            name="configure_ai",
+            description="Update AI/LLM configuration (provider, model, API key). Changes take effect immediately.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "provider": {"type": "string", "description": "LLM provider: anthropic, openai, or ollama"},
+                    "model": {"type": "string", "description": "Model name (empty for provider default)"},
+                    "api_key": {"type": "string", "description": "API key for cloud providers"},
+                    "max_tokens": {"type": "integer", "description": "Max response tokens (default 1024)"},
+                    "temperature": {"type": "number", "description": "Temperature 0.0-2.0 (default 0.8)"}
+                },
+                "required": []
+            }
+        ),
+        Tool(
+            name="start_ai_conversation",
+            description="Start an AI-driven conversation with an NPC using the LLM. The NPC will greet the player automatically.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "NPC name to start conversation with"}
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="send_ai_message",
+            description="Send a player message to the active AI conversation. The NPC will respond via LLM.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "message": {"type": "string", "description": "Player's message text"}
+                },
+                "required": ["message"]
+            }
+        ),
     ]
 
 
@@ -2317,6 +2821,99 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     elif name == "create_game_npc":
         return await api_post("/api/game/create_npc", args)
 
+    # --- Game State (Pause, Health, Respawn, Music, Save/Load, Objectives) ---
+
+    elif name == "toggle_pause":
+        body = {}
+        if "paused" in args:
+            body["paused"] = args["paused"]
+        return await api_post("/api/game/pause", body)
+
+    elif name == "get_pause_state":
+        return await api_get("/api/game/pause")
+
+    elif name == "get_player_health":
+        return await api_get("/api/game/health")
+
+    elif name == "damage_player":
+        return await api_post("/api/game/health", {
+            "action": "damage", "amount": args.get("amount", 10)
+        })
+
+    elif name == "heal_player":
+        return await api_post("/api/game/health", {
+            "action": "heal", "amount": args.get("amount", 10)
+        })
+
+    elif name == "kill_player":
+        return await api_post("/api/game/health", {"action": "kill"})
+
+    elif name == "revive_player":
+        body: dict[str, Any] = {"action": "revive"}
+        if "healthPercent" in args:
+            body["healthPercent"] = args["healthPercent"]
+        return await api_post("/api/game/health", body)
+
+    elif name == "get_respawn_state":
+        return await api_get("/api/game/respawn")
+
+    elif name == "set_spawn_point":
+        return await api_post("/api/game/respawn", {
+            "spawn_point": {"x": args["x"], "y": args["y"], "z": args["z"]}
+        })
+
+    elif name == "force_respawn":
+        return await api_post("/api/game/respawn", {"force_respawn": True})
+
+    elif name == "get_music_state":
+        return await api_get("/api/game/music")
+
+    elif name == "control_music":
+        body = {"action": args["action"]}
+        if "path" in args:
+            body["path"] = args["path"]
+        if "volume" in args:
+            body["volume"] = args["volume"]
+        if "mode" in args:
+            body["mode"] = args["mode"]
+        return await api_post("/api/game/music", body)
+
+    elif name == "save_player":
+        return await api_post("/api/game/save", {})
+
+    elif name == "load_player":
+        return await api_post("/api/game/load", {})
+
+    elif name == "get_objectives":
+        return await api_get("/api/game/objectives")
+
+    elif name == "add_objective":
+        body = {"action": "add", "id": args["id"], "title": args["title"]}
+        if "description" in args:
+            body["description"] = args["description"]
+        if "category" in args:
+            body["category"] = args["category"]
+        if "priority" in args:
+            body["priority"] = args["priority"]
+        if "hidden" in args:
+            body["hidden"] = args["hidden"]
+        return await api_post("/api/game/objectives", body)
+
+    elif name == "complete_objective":
+        return await api_post("/api/game/objectives", {
+            "action": "complete", "id": args["id"]
+        })
+
+    elif name == "fail_objective":
+        return await api_post("/api/game/objectives", {
+            "action": "fail", "id": args["id"]
+        })
+
+    elif name == "remove_objective":
+        return await api_post("/api/game/objectives", {
+            "action": "remove", "id": args["id"]
+        })
+
     # --- Project Lifecycle ---
 
     elif name == "build_project":
@@ -2435,10 +3032,41 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     elif name == "set_day_night":
         body: dict[str, Any] = {}
-        for key in ("timeOfDay", "enabled", "paused", "dayLengthSeconds", "timeScale"):
+        for key in ("timeOfDay", "dayNumber", "enabled", "paused", "dayLengthSeconds", "timeScale"):
             if key in args:
                 body[key] = args[key]
         return await api_post("/api/daynight/set", body)
+
+    # --- Item Registry ---
+    elif name == "list_items":
+        return await api_get("/api/items")
+
+    elif name == "get_item":
+        item_id = args["id"]
+        return await api_get(f"/api/items/{item_id}")
+
+    # --- Equipment & Combat ---
+    elif name == "get_equipment":
+        entity_id = args["entityId"]
+        return await api_get(f"/api/entity/{entity_id}/equipment")
+
+    elif name == "equip_item":
+        entity_id = args["entityId"]
+        return await api_post(f"/api/entity/{entity_id}/equip", {"itemId": args["itemId"]})
+
+    elif name == "unequip_item":
+        entity_id = args["entityId"]
+        return await api_post(f"/api/entity/{entity_id}/unequip", {"slot": args["slot"]})
+
+    elif name == "attack":
+        body: dict[str, Any] = {"attackerId": args["attackerId"]}
+        if "forward" in args:
+            body["forward"] = args["forward"]
+        if "coneAngle" in args:
+            body["coneAngle"] = args["coneAngle"]
+        if "knockback" in args:
+            body["knockback"] = args["knockback"]
+        return await api_post("/api/combat/attack", body)
 
     # --- Lighting ---
     elif name == "list_lights":
@@ -2576,6 +3204,93 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             "id": args["id"],
             "animFile": args["animFile"]
         })
+
+    elif name == "get_npc_blackboard":
+        return await api_get(f"/api/npc/{args['name']}/blackboard")
+
+    elif name == "get_npc_perception":
+        return await api_get(f"/api/npc/{args['name']}/perception")
+
+    elif name == "set_npc_blackboard":
+        return await api_post(f"/api/npc/{args['name']}/blackboard", {
+            "key": args["key"],
+            "value": args["value"]
+        })
+
+    elif name == "get_locations":
+        return await api_get("/api/locations")
+
+    elif name == "add_location":
+        return await api_post("/api/locations", args)
+
+    elif name == "remove_location":
+        return await api_post("/api/locations/remove", args)
+
+    elif name == "get_npc_schedule":
+        return await api_get(f"/api/npc/{args['name']}/schedule")
+
+    elif name == "set_npc_schedule":
+        payload = {}
+        if "role" in args:
+            payload["role"] = args["role"]
+        if "schedule" in args:
+            payload["schedule"] = args["schedule"]
+        return await api_post(f"/api/npc/{args['name']}/schedule", payload)
+
+    # --- Social Simulation ---
+    elif name == "get_npc_needs":
+        return await api_get(f"/api/npc/{args['name']}/needs")
+
+    elif name == "set_npc_needs":
+        payload = {}
+        if "type" in args:
+            payload["type"] = args["type"]
+        if "value" in args:
+            payload["value"] = args["value"]
+        if "needs" in args:
+            payload["needs"] = args["needs"]
+        return await api_post(f"/api/npc/{args['name']}/needs", payload)
+
+    elif name == "get_npc_relationships":
+        npc_name = args.get("name", "")
+        if npc_name:
+            return await api_get(f"/api/npc/{npc_name}/relationships")
+        else:
+            return await api_get("/api/relationships")
+
+    elif name == "set_npc_relationship":
+        return await api_post("/api/npc/relationship", args)
+
+    elif name == "apply_npc_interaction":
+        return await api_post("/api/npc/interaction", args)
+
+    elif name == "get_npc_worldview":
+        return await api_get(f"/api/npc/{args['name']}/worldview")
+
+    elif name == "set_npc_belief":
+        payload = {"key": args["key"], "value": args["value"]}
+        if "confidence" in args:
+            payload["confidence"] = args["confidence"]
+        return await api_post(f"/api/npc/{args['name']}/belief", payload)
+
+    elif name == "set_npc_opinion":
+        payload = {"subject": args["subject"], "sentiment": args["sentiment"]}
+        if "reason" in args:
+            payload["reason"] = args["reason"]
+        return await api_post(f"/api/npc/{args['name']}/opinion", payload)
+
+    # --- AI / LLM ---
+    elif name == "get_ai_status":
+        return await api_get("/api/ai/status")
+
+    elif name == "configure_ai":
+        return await api_post("/api/ai/configure", args)
+
+    elif name == "start_ai_conversation":
+        return await api_post("/api/ai/conversation/start", args)
+
+    elif name == "send_ai_message":
+        return await api_post("/api/ai/conversation/send", args)
 
     else:
         return {"error": f"Unknown tool: {name}"}

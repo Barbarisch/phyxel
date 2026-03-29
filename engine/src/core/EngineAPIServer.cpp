@@ -1509,6 +1509,433 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // ITEM REGISTRY ENDPOINTS
+    // ====================================================================
+
+    // GET /api/items — List all registered item definitions
+    srv.Get("/api/items", [this](const httplib::Request&, httplib::Response& res) {
+        if (m_itemListHandler) {
+            json result = m_itemListHandler();
+            res.set_content(result.dump(), "application/json");
+        } else {
+            res.status = 503;
+            res.set_content(json{{"error", "Item registry handler not configured"}}.dump(), "application/json");
+        }
+    });
+
+    // GET /api/items/:id — Get a single item definition
+    srv.Get(R"(/api/items/([^/]+))", [this](const httplib::Request& req, httplib::Response& res) {
+        if (m_itemDetailHandler) {
+            std::string itemId = req.matches[1];
+            json result = m_itemDetailHandler(itemId);
+            if (result.contains("error")) {
+                res.status = 404;
+            }
+            res.set_content(result.dump(), "application/json");
+        } else {
+            res.status = 503;
+            res.set_content(json{{"error", "Item registry handler not configured"}}.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // EQUIPMENT ENDPOINTS
+    // ====================================================================
+
+    // GET /api/entity/:id/equipment — Get entity's equipped items
+    srv.Get(R"(/api/entity/([^/]+)/equipment)", [this](const httplib::Request& req, httplib::Response& res) {
+        if (m_equipmentGetHandler) {
+            std::string entityId = req.matches[1];
+            json result = m_equipmentGetHandler(entityId);
+            if (result.contains("error")) {
+                res.status = 404;
+            }
+            res.set_content(result.dump(), "application/json");
+        } else {
+            res.status = 503;
+            res.set_content(json{{"error", "Equipment handler not configured"}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/entity/:id/equip — Equip item (via command queue)
+    srv.Post(R"(/api/entity/([^/]+)/equip)", [this](const httplib::Request& req, httplib::Response& res) {
+        std::string entityId = req.matches[1];
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded() || !body.contains("itemId")) {
+            res.status = 400;
+            res.set_content(json{{"error", "Missing 'itemId' in body"}}.dump(), "application/json");
+            return;
+        }
+        json params = {{"entityId", entityId}, {"itemId", body["itemId"]}};
+        json result = queueAndWait("equip_item", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/entity/:id/unequip — Unequip slot (via command queue)
+    srv.Post(R"(/api/entity/([^/]+)/unequip)", [this](const httplib::Request& req, httplib::Response& res) {
+        std::string entityId = req.matches[1];
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded() || !body.contains("slot")) {
+            res.status = 400;
+            res.set_content(json{{"error", "Missing 'slot' in body"}}.dump(), "application/json");
+            return;
+        }
+        json params = {{"entityId", entityId}, {"slot", body["slot"]}};
+        json result = queueAndWait("unequip_item", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/combat/attack — Perform an attack (via command queue)
+    srv.Post("/api/combat/attack", [this](const httplib::Request& req, httplib::Response& res) {
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded() || !body.contains("attackerId")) {
+            res.status = 400;
+            res.set_content(json{{"error", "Missing 'attackerId'"}}.dump(), "application/json");
+            return;
+        }
+        json result = queueAndWait("combat_attack", body);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // NPC AI INSPECTION ENDPOINTS
+    // ====================================================================
+
+    // GET /api/npc/:name/blackboard — Get NPC's blackboard state
+    srv.Get(R"(/api/npc/([^/]+)/blackboard)", [this](const httplib::Request& req, httplib::Response& res) {
+        std::string name = req.matches[1];
+        json result = queueAndWait("get_npc_blackboard", {{"name", name}});
+        if (result.contains("error")) res.status = 404;
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/npc/:name/perception — Get NPC's perception state
+    srv.Get(R"(/api/npc/([^/]+)/perception)", [this](const httplib::Request& req, httplib::Response& res) {
+        std::string name = req.matches[1];
+        json result = queueAndWait("get_npc_perception", {{"name", name}});
+        if (result.contains("error")) res.status = 404;
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/npc/:name/blackboard — Set a blackboard key
+    srv.Post(R"(/api/npc/([^/]+)/blackboard)", [this](const httplib::Request& req, httplib::Response& res) {
+        std::string name = req.matches[1];
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded() || !body.contains("key")) {
+            res.status = 400;
+            res.set_content(json{{"error", "Missing 'key' in body"}}.dump(), "application/json");
+            return;
+        }
+        body["name"] = name;
+        json result = queueAndWait("set_npc_blackboard", body);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // LOCATION & SCHEDULE ENDPOINTS
+    // ====================================================================
+
+    // GET /api/locations — List all registered locations
+    srv.Get("/api/locations", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("get_locations", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/locations — Add a location
+    srv.Post("/api/locations", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("add_location", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/locations/remove — Remove a location
+    srv.Post("/api/locations/remove", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("remove_location", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // DELETE /api/locations — Remove a location (alternative)
+    srv.Delete("/api/locations", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("remove_location", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // GET /api/npc/:name/schedule — Get NPC's schedule
+    srv.Get(R"(/api/npc/([^/]+)/schedule)", [this](const httplib::Request& req, httplib::Response& res) {
+        std::string name = req.matches[1];
+        json result = queueAndWait("get_npc_schedule", {{"name", name}});
+        if (result.contains("error")) res.status = 404;
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/npc/:name/schedule — Set NPC's schedule
+    srv.Post(R"(/api/npc/([^/]+)/schedule)", [this](const httplib::Request& req, httplib::Response& res) {
+        std::string name = req.matches[1];
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded()) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}}.dump(), "application/json");
+            return;
+        }
+        body["name"] = name;
+        json result = queueAndWait("set_npc_schedule", body);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // SOCIAL SIMULATION ENDPOINTS
+    // ====================================================================
+
+    // GET /api/npc/:name/needs — Get NPC's needs
+    srv.Get(R"(/api/npc/([^/]+)/needs)", [this](const httplib::Request& req, httplib::Response& res) {
+        std::string name = req.matches[1];
+        json result = queueAndWait("get_npc_needs", {{"name", name}});
+        if (result.contains("error")) res.status = 404;
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/npc/:name/needs — Set NPC's needs
+    srv.Post(R"(/api/npc/([^/]+)/needs)", [this](const httplib::Request& req, httplib::Response& res) {
+        std::string name = req.matches[1];
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded()) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}}.dump(), "application/json");
+            return;
+        }
+        body["name"] = name;
+        json result = queueAndWait("set_npc_needs", body);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/npc/:name/relationships — Get NPC's relationships
+    srv.Get(R"(/api/npc/([^/]+)/relationships)", [this](const httplib::Request& req, httplib::Response& res) {
+        std::string name = req.matches[1];
+        json result = queueAndWait("get_npc_relationships", {{"name", name}});
+        if (result.contains("error")) res.status = 404;
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/relationships — Get all relationships
+    srv.Get("/api/relationships", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("get_npc_relationships", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/npc/relationship — Set a relationship
+    srv.Post("/api/npc/relationship", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_npc_relationship", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/npc/interaction — Apply a social interaction
+    srv.Post("/api/npc/interaction", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("apply_npc_interaction", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // GET /api/npc/:name/worldview — Get NPC's worldview
+    srv.Get(R"(/api/npc/([^/]+)/worldview)", [this](const httplib::Request& req, httplib::Response& res) {
+        std::string name = req.matches[1];
+        json result = queueAndWait("get_npc_worldview", {{"name", name}});
+        if (result.contains("error")) res.status = 404;
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/npc/:name/belief — Set a belief
+    srv.Post(R"(/api/npc/([^/]+)/belief)", [this](const httplib::Request& req, httplib::Response& res) {
+        std::string name = req.matches[1];
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded()) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}}.dump(), "application/json");
+            return;
+        }
+        body["name"] = name;
+        json result = queueAndWait("set_npc_belief", body);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/npc/:name/opinion — Set an opinion
+    srv.Post(R"(/api/npc/([^/]+)/opinion)", [this](const httplib::Request& req, httplib::Response& res) {
+        std::string name = req.matches[1];
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded()) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}}.dump(), "application/json");
+            return;
+        }
+        body["name"] = name;
+        json result = queueAndWait("set_npc_opinion", body);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // GAME STATE ENDPOINTS
+    // ====================================================================
+
+    // GET /api/game/pause — Get pause state
+    srv.Get("/api/game/pause", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("get_pause_state", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/game/pause — Set pause state
+    srv.Post("/api/game/pause", [this](const httplib::Request& req, httplib::Response& res) {
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded()) { res.status = 400; res.set_content(R"({"error":"Invalid JSON"})", "application/json"); return; }
+        json result = queueAndWait("set_pause_state", body);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/game/health — Get player health state
+    srv.Get("/api/game/health", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("get_player_health", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/game/health — Modify player health (damage/heal/kill/revive)
+    srv.Post("/api/game/health", [this](const httplib::Request& req, httplib::Response& res) {
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded()) { res.status = 400; res.set_content(R"({"error":"Invalid JSON"})", "application/json"); return; }
+        json result = queueAndWait("modify_player_health", body);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/game/respawn — Get respawn system state
+    srv.Get("/api/game/respawn", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("get_respawn_state", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/game/respawn — Force respawn or set spawn point
+    srv.Post("/api/game/respawn", [this](const httplib::Request& req, httplib::Response& res) {
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded()) { res.status = 400; res.set_content(R"({"error":"Invalid JSON"})", "application/json"); return; }
+        json result = queueAndWait("modify_respawn", body);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/game/music — Get music playlist state
+    srv.Get("/api/game/music", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("get_music_state", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+    // POST /api/game/music — Control music playlist
+    srv.Post("/api/game/music", [this](const httplib::Request& req, httplib::Response& res) {
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded()) { res.status = 400; res.set_content(R"({"error":"Invalid JSON"})", "application/json"); return; }
+        json result = queueAndWait("control_music", body);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/game/save — Save player state to world database
+    srv.Post("/api/game/save", [this](const httplib::Request& req, httplib::Response& res) {
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded()) body = json::object();
+        json result = queueAndWait("save_player_state", body);
+        res.set_content(result.dump(), "application/json");
+    });
+    // POST /api/game/load — Load player state from world database
+    srv.Post("/api/game/load", [this](const httplib::Request& req, httplib::Response& res) {
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded()) body = json::object();
+        json result = queueAndWait("load_player_state", body);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/game/objectives — List all objectives
+    srv.Get("/api/game/objectives", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("get_objectives", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+    // POST /api/game/objectives — Add/complete/fail/remove objectives
+    srv.Post("/api/game/objectives", [this](const httplib::Request& req, httplib::Response& res) {
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded()) { res.status = 400; res.set_content(R"({"error":"Invalid JSON"})", "application/json"); return; }
+        json result = queueAndWait("manage_objectives", body);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // AI / LLM ENDPOINTS
+    // ====================================================================
+
+    // GET /api/ai/status — AI configuration and token usage
+    srv.Get("/api/ai/status", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("get_ai_status", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/ai/configure — Update LLM configuration
+    srv.Post("/api/ai/configure", [this](const httplib::Request& req, httplib::Response& res) {
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded()) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}}.dump(), "application/json");
+            return;
+        }
+        json result = queueAndWait("configure_ai", body);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/ai/conversation/start — Start AI conversation with NPC
+    srv.Post("/api/ai/conversation/start", [this](const httplib::Request& req, httplib::Response& res) {
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded()) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}}.dump(), "application/json");
+            return;
+        }
+        json result = queueAndWait("start_ai_conversation", body);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/ai/conversation/send — Send message to active AI conversation
+    srv.Post("/api/ai/conversation/send", [this](const httplib::Request& req, httplib::Response& res) {
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded()) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}}.dump(), "application/json");
+            return;
+        }
+        json result = queueAndWait("send_ai_message", body);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
     // LIGHTING ENDPOINTS
     // ====================================================================
 

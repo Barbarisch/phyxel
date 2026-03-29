@@ -8,6 +8,7 @@ namespace Phyxel {
 namespace Core {
     class Inventory;
     class HealthComponent;
+    class ObjectiveTracker;
     struct GameSettings;
     struct Keybinding;
 }
@@ -75,6 +76,12 @@ void renderSettingsScreen(Core::GameSettings& settings,
 int renderKeybindingScreen(std::vector<Core::Keybinding>& bindings,
                             KeybindRebindState& state,
                             std::function<void()> onBack = nullptr);
+
+/// Render the death/game-over overlay with respawn countdown.
+void renderDeathOverlay(float respawnTimer, float respawnDelay, int deathCount);
+
+/// Render objective tracker overlay (top-right corner).
+void renderObjectiveHUD(const Core::ObjectiveTracker* tracker);
 
 } // namespace UI
 } // namespace Phyxel

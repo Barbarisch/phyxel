@@ -27,6 +27,14 @@ public:
     void setTimeScale(float scale) { m_timeScale = scale; }
     float getTimeScale() const { return m_timeScale; }
 
+    // World time helpers
+    int getHour() const { return static_cast<int>(m_timeOfDay); }
+    int getMinute() const { return static_cast<int>((m_timeOfDay - static_cast<int>(m_timeOfDay)) * 60.0f); }
+    int getDayNumber() const { return m_dayNumber; }
+    void setDayNumber(int day) { m_dayNumber = day; }
+    bool isNight() const { return m_timeOfDay >= 18.0f || m_timeOfDay < 6.0f; }
+    bool isDay() const { return !isNight(); }
+
     // Current computed lighting values
     glm::vec3 getSunDirection() const { return m_sunDirection; }
     glm::vec3 getSunColor() const { return m_sunColor; }
@@ -40,6 +48,7 @@ private:
     void recalculate();
 
     float m_timeOfDay;         // 0.0–24.0 hours
+    int m_dayNumber;           // Day counter (increments on midnight wrap)
     float m_dayLengthSeconds;  // Real seconds for one full day
     float m_timeScale;         // Speed multiplier
     bool m_enabled;            // Whether cycle updates at all

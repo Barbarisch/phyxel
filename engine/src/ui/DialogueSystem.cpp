@@ -238,8 +238,14 @@ bool DialogueSystem::startAIConversation(Scene::NPCEntity* npc, const std::strin
 
 void DialogueSystem::submitPlayerMessage() {
     if (m_state != DialogueState::AITextInput) return;
+    submitAIInput(std::string(m_inputBuffer));
+    m_inputBuffer[0] = '\0';
+}
 
-    std::string message(m_inputBuffer);
+void DialogueSystem::submitAIInput(const std::string& input) {
+    if (m_state != DialogueState::AITextInput && m_state != DialogueState::AIWaitingForResponse) return;
+
+    std::string message = input;
     // Trim whitespace
     size_t start = message.find_first_not_of(" \t\n\r");
     size_t end = message.find_last_not_of(" \t\n\r");
@@ -250,9 +256,6 @@ void DialogueSystem::submitPlayerMessage() {
 
     // Add player message to history
     m_conversationHistory.push_back({"Player", message, ""});
-
-    // Clear input buffer
-    m_inputBuffer[0] = '\0';
 
     // Show "waiting" state
     m_currentSpeaker = m_npcName;

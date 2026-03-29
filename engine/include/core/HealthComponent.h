@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <functional>
 #include <nlohmann/json.hpp>
 
 namespace Phyxel {
@@ -28,6 +29,9 @@ public:
     // Invulnerability
     void setInvulnerable(bool invulnerable) { m_invulnerable = invulnerable; }
 
+    // Death callback (fired once when health reaches 0)
+    void setOnDeathCallback(std::function<void()> callback) { m_onDeath = std::move(callback); }
+
     // Serialization
     nlohmann::json toJson() const;
     void fromJson(const nlohmann::json& j);
@@ -37,6 +41,7 @@ private:
     float m_maxHealth;
     bool m_alive;
     bool m_invulnerable;
+    std::function<void()> m_onDeath;
 };
 
 } // namespace Core

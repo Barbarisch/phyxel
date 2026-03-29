@@ -19,6 +19,7 @@ namespace Scene {
 }
 namespace Core {
     class EntityRegistry;
+    class NPCManager;
 }
 
 namespace AI {
@@ -59,6 +60,9 @@ public:
     void setMaxContextTokens(int tokens) { m_maxContextTokens = tokens; }
     int getMaxContextTokens() const { return m_maxContextTokens; }
 
+    /// Optional: set NPCManager for social context (needs, relationships, worldview)
+    void setNPCManager(Core::NPCManager* npcManager) { m_npcManager = npcManager; }
+
 private:
     // Context assembly (in priority order — highest priority survives trimming)
     std::string buildSystemPrompt(const Story::CharacterProfile& npc);
@@ -69,6 +73,9 @@ private:
     std::string buildConversationSummary(const std::string& npcId);
     std::string buildQuestContext(const std::string& npcId);
     std::string buildActionInstructions(const std::string& npcName);
+    std::string buildWorldViewContext(const std::string& npcId);
+    std::string buildNeedsContext(const std::string& npcId);
+    std::string buildSocialRelationshipContext(const std::string& npcId);
 
     // Rough token estimator (~4 chars per token)
     static int estimateTokens(const std::string& text);
@@ -79,6 +86,7 @@ private:
     Story::StoryEngine* m_story;
     ConversationMemory* m_memory;
     Core::EntityRegistry* m_registry;
+    Core::NPCManager* m_npcManager = nullptr;
     int m_maxContextTokens = 4000;
 };
 

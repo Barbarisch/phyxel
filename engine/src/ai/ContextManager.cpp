@@ -1,5 +1,8 @@
 #include "ai/ContextManager.h"
 #include "ai/ConversationMemory.h"
+#include "ai/NeedsSystem.h"
+#include "ai/WorldView.h"
+#include "ai/RelationshipManager.h"
 #include "story/StoryEngine.h"
 #include "story/CharacterProfile.h"
 #include "story/CharacterMemory.h"
@@ -7,7 +10,9 @@
 #include "story/StoryDirectorTypes.h"
 #include "story/StoryTypes.h"
 #include "core/EntityRegistry.h"
+#include "core/NPCManager.h"
 #include "scene/Entity.h"
+#include "scene/NPCEntity.h"
 #include "utils/Logger.h"
 
 #include <sstream>
@@ -66,6 +71,9 @@ ConversationContext ContextManager::buildContext(
     std::string memCtx = buildMemoryContext(npcId);
     std::string summaryCtx = buildConversationSummary(npcId);
     std::string questCtx = buildQuestContext(npcId);
+    std::string worldViewCtx = buildWorldViewContext(npcId);
+    std::string needsCtx = buildNeedsContext(npcId);
+    std::string socialRelCtx = buildSocialRelationshipContext(npcId);
     std::string actionCtx = buildActionInstructions(profile->name);
 
     // Assemble system message with all context sections
@@ -73,8 +81,11 @@ ConversationContext ContextManager::buildContext(
     sys << systemPrompt;
     if (!worldCtx.empty())   sys << "\n\n" << worldCtx;
     if (!relCtx.empty())     sys << "\n\n" << relCtx;
+    if (!socialRelCtx.empty()) sys << "\n\n" << socialRelCtx;
     if (!nearbyCtx.empty())  sys << "\n\n" << nearbyCtx;
     if (!memCtx.empty())     sys << "\n\n" << memCtx;
+    if (!worldViewCtx.empty()) sys << "\n\n" << worldViewCtx;
+    if (!needsCtx.empty())   sys << "\n\n" << needsCtx;
     if (!summaryCtx.empty()) sys << "\n\n" << summaryCtx;
     if (!questCtx.empty())   sys << "\n\n" << questCtx;
     if (!actionCtx.empty())  sys << "\n\n" << actionCtx;
@@ -416,6 +427,80 @@ void ContextManager::trimToTokenBudget(ConversationContext& ctx) {
             ctx.estimatedTokens = total;
         }
     }
+}
+
+// ============================================================================
+// WorldView Context — NPC's subjective beliefs, opinions, observations
+// ============================================================================
+
+std::string ContextManager::buildWorldViewContext(const std::string& npcId) {
+    if (!m_registry) return "";
+
+    auto* entity = m_registry->getEntity(npcId);
+    if (!entity) return "";
+
+    auto* npc = dynamic_cast<Scene::NPCEntity*>(entity);
+    if (!npc) return "";
+
+    std::string summary = npc->getWorldView().buildContextSummary();
+    if (summary.empty()) return "";
+
+    return "Your worldview:\n" + summary;
+}
+
+// ============================================================================
+// Needs Context — NPC's current needs and urgencies
+// ============================================================================
+
+std::string ContextManager::buildNeedsContext(const std::string& npcId) {
+    if (!m_registry) return "";
+
+    auto* entity = m_registry->getEntity(npcId);
+    if (!entity) return "";
+
+    auto* npc = dynamic_cast<Scene::NPCEntity*>(entity);
+    if (!npc) return "";
+
+    const auto& needs = npc->getNeeds();
+    auto urgent = needs.getUrgentNeeds();
+    if (urgent.empty()) return "";
+
+    std::ostringstream ss;
+    ss << "Your current needs (urgent):";
+    for (const auto* need : urgent) {
+        ss << "\n- " << needTypeToString(need->type)
+           << ": " << static_cast<int>(need->value) << "/100"
+           << " (urgency: " << static_cast<int>(need->getUrgency() * 100) << "%)";
+    }
+    return ss.str();
+}
+
+// ============================================================================
+// Social Relationship Context (from RelationshipManager, richer than story)
+// ============================================================================
+
+std::string ContextManager::buildSocialRelationshipContext(const std::string& npcId) {
+    if (!m_npcManager) return "";
+
+    auto& relMgr = m_npcManager->getRelationships();
+    auto rels = relMgr.getRelationshipsFor(npcId);
+    if (rels.empty()) return "";
+
+    std::ostringstream ss;
+    ss << "Your social relationships:";
+    for (const auto& [targetId, rel] : rels) {
+        float disp = relMgr.getDisposition(npcId, targetId);
+        ss << "\n- " << targetId;
+        if (!rel.label.empty()) ss << " (" << rel.label << ")";
+        ss << ": ";
+        if (disp > 1.0f) ss << "very friendly";
+        else if (disp > 0.3f) ss << "friendly";
+        else if (disp > -0.3f) ss << "neutral";
+        else if (disp > -1.0f) ss << "unfriendly";
+        else ss << "hostile";
+        if (rel.fear > 0.5f) ss << ", feared";
+    }
+    return ss.str();
 }
 
 } // namespace AI

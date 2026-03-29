@@ -25,6 +25,7 @@ NPCEntity::NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& posit
         m_character->playAnimation("idle");
     }
     this->position = position;
+    m_needs.initDefaults();
 }
 
 NPCEntity::NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& position,
@@ -41,6 +42,7 @@ NPCEntity::NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& posit
         m_character->playAnimation("idle");
     }
     this->position = position;
+    m_needs.initDefaults();
 }
 
 NPCEntity::NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& position,
@@ -57,6 +59,7 @@ NPCEntity::NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& posit
         m_voxelCharacter->playAnimation("idle");
     }
     this->position = position;
+    m_needs.initDefaults();
 }
 
 NPCEntity::NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& position,
@@ -74,6 +77,7 @@ NPCEntity::NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& posit
         m_voxelCharacter->playAnimation("idle");
     }
     this->position = position;
+    m_needs.initDefaults();
 }
 
 NPCEntity::~NPCEntity() = default;
@@ -146,12 +150,16 @@ void NPCEntity::setBehavior(std::unique_ptr<NPCBehavior> behavior) {
 }
 
 void NPCEntity::setContext(Core::EntityRegistry* registry, Graphics::LightManager* lightManager,
-                           UI::SpeechBubbleManager* speechBubbleManager, const std::string& entityId) {
+                           UI::SpeechBubbleManager* speechBubbleManager, const std::string& entityId,
+                           Graphics::DayNightCycle* dayNightCycle,
+                           Core::LocationRegistry* locationRegistry) {
     m_context.entityRegistry = registry;
     m_context.lightManager = lightManager;
     m_context.speechBubbleManager = speechBubbleManager;
     m_context.selfId = entityId;
     m_context.self = this;
+    m_context.dayNightCycle = dayNightCycle;
+    m_context.locationRegistry = locationRegistry;
 
     if (registry) {
         m_context.getEntityPosition = [registry](const std::string& id) -> glm::vec3 {

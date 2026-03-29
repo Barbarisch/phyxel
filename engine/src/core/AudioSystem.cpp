@@ -32,6 +32,10 @@ struct AudioSystem::Impl {
     // Sounds ready to be reused, keyed by file path
     std::unordered_map<std::string, std::vector<std::shared_ptr<PooledSound>>> availableSounds;
 
+    // Background music (one track at a time, looping)
+    std::shared_ptr<PooledSound> currentMusic;
+    std::string currentMusicPath;
+
     ma_sound_group* getGroup(AudioChannel channel) {
         switch (channel) {
             case AudioChannel::Music: return &groupMusic;
@@ -67,6 +71,9 @@ bool AudioSystem::initialize() {
 
 void AudioSystem::shutdown() {
     if (impl->isInitialized) {
+        // Stop music first
+        stopMusic();
+
         // Clean up all sounds
         impl->activeSounds.clear();
         for (auto& pair : impl->availableSounds) {
@@ -177,6 +184,50 @@ void AudioSystem::playSound3D(const std::string& filePath, const glm::vec3& posi
     
     ma_sound_start(&soundPtr->sound);
     impl->activeSounds.push_back(soundPtr);
+}
+
+void AudioSystem::playMusic(const std::string& filePath, float volume) {
+    if (!impl->isInitialized) return;
+
+    // Stop current music if playing
+    stopMusic();
+
+    auto soundPtr = std::make_shared<Impl::PooledSound>();
+    soundPtr->filePath = filePath;
+    soundPtr->channel = AudioChannel::Music;
+    ma_result result = ma_sound_init_from_file(&impl->engine, filePath.c_str(), 0, impl->getGroup(AudioChannel::Music), NULL, &soundPtr->sound);
+    if (result != MA_SUCCESS) {
+        LOG_ERROR("Audio", "Failed to load music: " + filePath);
+        return;
+    }
+
+    ma_sound_set_looping(&soundPtr->sound, MA_TRUE);
+    ma_sound_set_spatialization_enabled(&soundPtr->sound, MA_FALSE);
+    ma_sound_set_volume(&soundPtr->sound, volume);
+    ma_sound_start(&soundPtr->sound);
+
+    impl->currentMusic = soundPtr;
+    impl->currentMusicPath = filePath;
+    LOG_INFO("Audio", "Playing music: " + filePath);
+}
+
+void AudioSystem::stopMusic() {
+    if (!impl->isInitialized) return;
+    if (impl->currentMusic) {
+        ma_sound_stop(&impl->currentMusic->sound);
+        ma_sound_uninit(&impl->currentMusic->sound);
+        impl->currentMusic.reset();
+        impl->currentMusicPath.clear();
+    }
+}
+
+bool AudioSystem::isMusicPlaying() const {
+    if (!impl->isInitialized || !impl->currentMusic) return false;
+    return ma_sound_is_playing(&impl->currentMusic->sound) == MA_TRUE;
+}
+
+std::string AudioSystem::getMusicTrack() const {
+    return impl->currentMusicPath;
 }
 
 void AudioSystem::setChannelVolume(AudioChannel channel, float volume) {

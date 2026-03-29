@@ -3,8 +3,12 @@
 #include "scene/AnimatedVoxelCharacter.h"
 #include "scene/behaviors/IdleBehavior.h"
 #include "scene/behaviors/PatrolBehavior.h"
+#include "scene/behaviors/BehaviorTreeBehavior.h"
+#include "scene/behaviors/ScheduledBehavior.h"
+#include "ai/Schedule.h"
 #include "core/EntityRegistry.h"
 #include "graphics/LightManager.h"
+#include "graphics/DayNightCycle.h"
 #include "graphics/AnimationSystem.h"
 #include "utils/Logger.h"
 
@@ -21,6 +25,12 @@ Scene::NPCEntity* NPCManager::spawnNPC(const std::string& name, const std::strin
     switch (behaviorType) {
         case NPCBehaviorType::Patrol:
             behavior = std::make_unique<Scene::PatrolBehavior>(waypoints, walkSpeed, waitTime);
+            break;
+        case NPCBehaviorType::BehaviorTree:
+            behavior = std::make_unique<Scene::BehaviorTreeBehavior>();
+            break;
+        case NPCBehaviorType::Scheduled:
+            behavior = std::make_unique<Scene::ScheduledBehavior>(AI::Schedule::defaultSchedule());
             break;
         case NPCBehaviorType::Idle:
         default:
@@ -55,7 +65,7 @@ Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, cons
     }
 
     // Wire context
-    npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId);
+    npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry);
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
@@ -101,6 +111,48 @@ std::vector<std::string> NPCManager::getAllNPCNames() const {
 void NPCManager::update(float deltaTime) {
     for (auto& [name, npc] : m_npcs) {
         npc->update(deltaTime);
+    }
+
+    // Social simulation tick (runs at reduced frequency)
+    m_socialTickTimer -= deltaTime;
+    if (m_socialTickTimer <= 0.0f) {
+        m_socialTickTimer = SOCIAL_TICK_INTERVAL;
+
+        // Convert real seconds to game hours for social system update
+        float deltaHours = 0.0f;
+        if (m_dayNightCycle) {
+            float dayLen = m_dayNightCycle->getDayLengthSeconds();
+            if (dayLen > 0.0f) {
+                deltaHours = SOCIAL_TICK_INTERVAL * (24.0f / dayLen) * m_dayNightCycle->getTimeScale();
+            }
+        }
+
+        if (deltaHours > 0.0f) {
+            // Update per-NPC needs and worldview decay
+            for (auto& [name, npc] : m_npcs) {
+                npc->getNeeds().update(deltaHours);
+                npc->getWorldView().update(deltaHours);
+            }
+
+            // Decay relationships toward neutral
+            m_relationships.update(deltaHours);
+
+            // Build participant list and run social interactions
+            std::vector<AI::SocialParticipant> participants;
+            for (auto& [name, npc] : m_npcs) {
+                AI::SocialParticipant p;
+                p.id = name;
+                p.position = npc->getPosition();
+                p.needs = &npc->getNeeds();
+                p.worldView = &npc->getWorldView();
+                // Read currentActivity from behavior blackboard if available
+                if (auto* btBehavior = dynamic_cast<Scene::BehaviorTreeBehavior*>(npc->getBehavior())) {
+                    p.currentActivity = btBehavior->getBlackboard().getString("currentActivity", "Wander");
+                }
+                participants.push_back(p);
+            }
+            m_socialSystem.update(deltaHours, participants, m_relationships);
+        }
     }
 }
 
@@ -162,6 +214,12 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
         case NPCBehaviorType::Patrol:
             behavior = std::make_unique<Scene::PatrolBehavior>(waypoints, walkSpeed, waitTime);
             break;
+        case NPCBehaviorType::BehaviorTree:
+            behavior = std::make_unique<Scene::BehaviorTreeBehavior>();
+            break;
+        case NPCBehaviorType::Scheduled:
+            behavior = std::make_unique<Scene::ScheduledBehavior>(AI::Schedule::defaultSchedule());
+            break;
         case NPCBehaviorType::Idle:
         default:
             behavior = std::make_unique<Scene::IdleBehavior>();
@@ -174,7 +232,7 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
     if (m_entityRegistry) {
         m_entityRegistry->registerEntity(npc.get(), entityId, "npc");
     }
-    npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId);
+    npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry);
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
@@ -205,6 +263,12 @@ Scene::NPCEntity* NPCManager::spawnPhysicsNPC(const std::string& name, const std
         case NPCBehaviorType::Patrol:
             behavior = std::make_unique<Scene::PatrolBehavior>(waypoints, walkSpeed, waitTime);
             break;
+        case NPCBehaviorType::BehaviorTree:
+            behavior = std::make_unique<Scene::BehaviorTreeBehavior>();
+            break;
+        case NPCBehaviorType::Scheduled:
+            behavior = std::make_unique<Scene::ScheduledBehavior>(AI::Schedule::defaultSchedule());
+            break;
         case NPCBehaviorType::Idle:
         default:
             behavior = std::make_unique<Scene::IdleBehavior>();
@@ -216,7 +280,7 @@ Scene::NPCEntity* NPCManager::spawnPhysicsNPC(const std::string& name, const std
     if (m_entityRegistry) {
         m_entityRegistry->registerEntity(npc.get(), entityId, "npc");
     }
-    npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId);
+    npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry);
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
@@ -259,6 +323,12 @@ Scene::NPCEntity* NPCManager::spawnPhysicsProceduralNPC(const std::string& name,
         case NPCBehaviorType::Patrol:
             behavior = std::make_unique<Scene::PatrolBehavior>(waypoints, walkSpeed, waitTime);
             break;
+        case NPCBehaviorType::BehaviorTree:
+            behavior = std::make_unique<Scene::BehaviorTreeBehavior>();
+            break;
+        case NPCBehaviorType::Scheduled:
+            behavior = std::make_unique<Scene::ScheduledBehavior>(AI::Schedule::defaultSchedule());
+            break;
         case NPCBehaviorType::Idle:
         default:
             behavior = std::make_unique<Scene::IdleBehavior>();
@@ -270,7 +340,7 @@ Scene::NPCEntity* NPCManager::spawnPhysicsProceduralNPC(const std::string& name,
     if (m_entityRegistry) {
         m_entityRegistry->registerEntity(npc.get(), entityId, "npc");
     }
-    npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId);
+    npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry);
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);

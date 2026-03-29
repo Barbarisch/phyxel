@@ -26,10 +26,10 @@ int Inventory::addItem(const std::string& material, int count) {
     if (count <= 0) return 0;
     int remaining = count;
 
-    // First pass: merge into existing stacks of the same material
+    // First pass: merge into existing stacks of the same item
     for (auto& slot : m_slots) {
         if (remaining <= 0) break;
-        if (slot && slot->material == material && slot->count < slot->maxStack) {
+        if (slot && slot->itemId == material && slot->count < slot->maxStack) {
             int toAdd = std::min(remaining, slot->spaceLeft());
             slot->count += toAdd;
             remaining -= toAdd;
@@ -56,7 +56,7 @@ int Inventory::removeItem(const std::string& material, int count) {
     // Remove from last slots first (preserve hotbar)
     for (int i = static_cast<int>(m_slots.size()) - 1; i >= 0; --i) {
         if (toRemove <= 0) break;
-        if (m_slots[i] && m_slots[i]->material == material) {
+        if (m_slots[i] && m_slots[i]->itemId == material) {
             int take = std::min(toRemove, m_slots[i]->count);
             m_slots[i]->count -= take;
             toRemove -= take;
@@ -72,7 +72,7 @@ int Inventory::removeItem(const std::string& material, int count) {
 int Inventory::countItem(const std::string& material) const {
     int total = 0;
     for (const auto& slot : m_slots) {
-        if (slot && slot->material == material) {
+        if (slot && slot->itemId == material) {
             total += slot->count;
         }
     }
@@ -98,7 +98,7 @@ bool Inventory::setSelectedSlot(int slot) {
 std::string Inventory::getSelectedMaterial() const {
     if (m_selectedSlot < 0 || m_selectedSlot >= static_cast<int>(m_slots.size())) return "";
     const auto& slot = m_slots[m_selectedSlot];
-    return slot ? slot->material : "";
+    return slot ? slot->itemId : "";
 }
 
 bool Inventory::consumeSelected() {
@@ -159,9 +159,12 @@ void Inventory::fromJson(const nlohmann::json& j) {
             int idx = slotJ.value("slot", -1);
             if (idx >= 0 && idx < static_cast<int>(m_slots.size())) {
                 ItemStack stack;
-                stack.material = slotJ.value("material", "Default");
+                stack.itemId = slotJ.value("material", "Default");
                 stack.count = slotJ.value("count", 1);
                 stack.maxStack = slotJ.value("max_stack", 64);
+                if (slotJ.contains("durability")) {
+                    stack.durability = slotJ.value("durability", -1);
+                }
                 m_slots[idx] = stack;
             }
         }

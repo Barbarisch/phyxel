@@ -1,0 +1,30 @@
+{
+  "type": "Selector",
+  "name": "MerchantRoot",
+  "children": [
+    {
+      "type": "Sequence",
+      "name": "ServeCustomer",
+      "children": [
+        { "type": "BBCheck", "key": "interacted", "expected": true },
+        { "type": "Action", "action": "Speak", "message": "Welcome! Browse my wares.", "duration": 3.0 },
+        { "type": "Action", "action": "SetBlackboard", "key": "interacted", "value": "false" }
+      ]
+    },
+    {
+      "type": "Sequence",
+      "name": "WorkAtShop",
+      "children": [
+        { "type": "BBCheck", "key": "atTaskLocation", "expected": true },
+        { "type": "Action", "action": "Wait", "duration": 4.0 },
+        { "type": "Action", "action": "Speak", "message": "Organizing the shelves...", "duration": 2.0 }
+      ]
+    },
+    {
+      "type": "Action",
+      "name": "IdleDefault",
+      "action": "Wait",
+      "duration": 3.0
+    }
+  ]
+}

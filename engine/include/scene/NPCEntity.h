@@ -5,6 +5,9 @@
 #include "scene/CharacterAppearance.h"
 #include "graphics/Animation.h"
 #include "core/HealthComponent.h"
+#include "core/EquipmentSystem.h"
+#include "ai/NeedsSystem.h"
+#include "ai/WorldView.h"
 #include "ui/DialogueData.h"
 #include <string>
 #include <memory>
@@ -71,7 +74,9 @@ public:
 
     // Context wiring (set by NPCManager after construction)
     void setContext(Core::EntityRegistry* registry, Graphics::LightManager* lightManager,
-                    UI::SpeechBubbleManager* speechBubbleManager, const std::string& entityId);
+                    UI::SpeechBubbleManager* speechBubbleManager, const std::string& entityId,
+                    Graphics::DayNightCycle* dayNightCycle = nullptr,
+                    Core::LocationRegistry* locationRegistry = nullptr);
 
     // Attached light (e.g. NPC carrying a lantern)
     void setAttachedLightId(int lightId) { m_attachedLightId = lightId; }
@@ -93,9 +98,19 @@ public:
     Core::HealthComponent* getHealthComponent() override { return m_health.get(); }
     const Core::HealthComponent* getHealthComponent() const override { return m_health.get(); }
 
+    // Equipment
+    Core::EquipmentSlots& getEquipment() { return m_equipment; }
+    const Core::EquipmentSlots& getEquipment() const { return m_equipment; }
+
     // Dialogue
     void setDialogueProvider(std::unique_ptr<UI::DialogueProvider> provider) { m_dialogueProvider = std::move(provider); }
     UI::DialogueProvider* getDialogueProvider() const { return m_dialogueProvider.get(); }
+
+    // Social simulation subsystems (owned per-NPC)
+    AI::NeedsSystem& getNeeds() { return m_needs; }
+    const AI::NeedsSystem& getNeeds() const { return m_needs; }
+    AI::WorldView& getWorldView() { return m_worldView; }
+    const AI::WorldView& getWorldView() const { return m_worldView; }
 
 private:
     std::string m_name;
@@ -107,6 +122,9 @@ private:
     float m_interactionRadius = 3.0f;
     int m_attachedLightId = -1;
     std::unique_ptr<Core::HealthComponent> m_health = std::make_unique<Core::HealthComponent>(100.0f);
+    Core::EquipmentSlots m_equipment;
+    AI::NeedsSystem m_needs;
+    AI::WorldView m_worldView;
 };
 
 } // namespace Scene

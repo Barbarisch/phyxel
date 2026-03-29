@@ -77,7 +77,14 @@ See [docs/GameCreationGuide.md](docs/GameCreationGuide.md) for the full workflow
 - **Story Engine** — Story arcs, character agents, event bus, LLM integration
 - **Direct LLM Client** — WinHTTP-based API client for Claude/OpenAI/Ollama, context-aware NPC conversations, SQLite conversation memory
 - **UI System** — Custom menu screens (main menu, pause, HUD, inventory, settings) + ImGui overlays
-- **Audio** — Spatial audio via miniaudio
+- **Audio** — Spatial audio via miniaudio, background music playlist (Sequential/Shuffle)
+- **Health & Respawn** — Per-entity health, death callbacks, automatic respawn with configurable delay
+- **Player Profile** — Camera, health, spawn point, inventory persistence to SQLite
+- **Objectives** — Priority-sorted quest/objective tracking with HUD rendering
+- **Inventory & Crafting** — 36-slot inventory, hotbar, creative mode, JSON recipes
+- **Equipment & Combat** — 6-slot equipment, sphere+cone attack, knockback, invulnerability
+- **Day/Night Cycle** — Sun/ambient animation, time phases, day counter
+- **Behavior Trees** — Composable BT framework, utility AI, perception, blackboard
 - **Python Scripting** — Embedded interpreter via pybind11
 - **HTTP API** — REST API on port 8090 for external tool integration
 
@@ -85,7 +92,7 @@ See [docs/GameCreationGuide.md](docs/GameCreationGuide.md) for the full workflow
 - **World Editing** — Place/break voxels, fill regions, spawn templates
 - **Entity Spawning** — Physics characters, animated characters, NPCs
 - **Python Console** — In-app scripting console (backtick key)
-- **MCP Server** — AI agent bridge (50+ tools) for Copilot, Claude Code, etc.
+- **MCP Server** — AI agent bridge (166 tools) for Copilot, Claude Code, etc.
 - **Debug Visualization** — Wireframe, normals, physics, raycast, force system overlays
 - **Performance Profiling** — Real-time FPS, frame timing, memory, draw call stats
 - **Template System** — Import/spawn voxel objects (trees, castles, spheres)
@@ -125,7 +132,7 @@ See [docs/GameCreationGuide.md](docs/GameCreationGuide.md) for the full workflow
 | F7 | Profiler |
 | F10 | Game menu |
 | ` (backtick) | Python scripting console |
-| ESC | Exit |
+| ESC | Toggle Pause Menu (freeze world, resume/settings/quit) |
 
 ## Building
 

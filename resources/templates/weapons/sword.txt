@@ -1,0 +1,12 @@
+# Sword weapon template — slim blade on metal handle
+# Origin at handle base, extends upward (Y+)
+# Approx 1x5x0.3 voxels
+
+# Handle (bottom 2 units)
+C 0 0 0 Wood
+C 0 1 0 Wood
+
+# Blade (3 units long above handle)
+C 0 2 0 Metal
+C 0 3 0 Metal
+C 0 4 0 Metal

@@ -26,6 +26,7 @@ namespace Phyxel {
     class ForceSystem;
     class MouseVelocityTracker;
     class PerformanceProfiler;
+    namespace Core { class LocationRegistry; }
 }
 
 namespace Phyxel {
@@ -121,6 +122,7 @@ public:
     Utils::PerformanceMonitor*  getPerformanceMonitor()     const;
     Graphics::Camera*           getCamera()                 const;
     Graphics::CameraManager*    getCameraManager()          const;
+    Core::LocationRegistry*     getLocationRegistry()       const;
 
     /// Access the active configuration (read-only).
     const EngineConfig& getConfig() const { return config_; }
@@ -179,6 +181,9 @@ private:
     // Camera
     std::unique_ptr<Graphics::Camera>        camera_;
     std::unique_ptr<Graphics::CameraManager> cameraManager_;
+
+    // Locations
+    std::unique_ptr<Core::LocationRegistry>  locationRegistry_;
 
     // Initialization orchestrator (kept alive for potential re-init)
     std::unique_ptr<WorldInitializer>        worldInitializer_;

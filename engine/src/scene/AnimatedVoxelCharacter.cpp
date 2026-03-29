@@ -607,6 +607,68 @@ namespace Scene {
         boneBodies.clear();
         boneOffsets.clear();
         parts.clear();
+
+        // Also clear attachments
+        detachAll();
+    }
+
+    int AnimatedVoxelCharacter::attachToBone(const std::string& boneName, const glm::vec3& size,
+                                              const glm::vec3& offset, const glm::vec4& color,
+                                              const std::string& label) {
+        auto it = skeleton.boneMap.find(boneName);
+        if (it == skeleton.boneMap.end()) {
+            LOG_WARN("AnimatedVoxelCharacter", "Cannot attach to bone '{}' — not found", boneName);
+            return -1;
+        }
+
+        int boneId = it->second;
+        btRigidBody* body = physicsWorld->createStaticCube(worldPosition, size);
+        body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT);
+        body->setActivationState(DISABLE_DEACTIVATION);
+
+        // Ignore collision with controller and all bone bodies
+        if (controllerBody) {
+            body->setIgnoreCollisionCheck(controllerBody, true);
+            controllerBody->setIgnoreCollisionCheck(body, true);
+        }
+        for (auto& pair : boneBodies) {
+            body->setIgnoreCollisionCheck(pair.second, true);
+            pair.second->setIgnoreCollisionCheck(body, true);
+        }
+
+        int attachId = m_nextAttachmentId++;
+        m_attachments.push_back({attachId, boneId, body, size, offset, color, label});
+        parts.push_back({body, size, color, label.empty() ? "attachment" : label});
+
+        LOG_INFO("AnimatedVoxelCharacter", "Attached '{}' to bone '{}' (id {})", label, boneName, attachId);
+        return attachId;
+    }
+
+    void AnimatedVoxelCharacter::detachFromBone(int attachmentId) {
+        auto it = std::find_if(m_attachments.begin(), m_attachments.end(),
+                               [attachmentId](const BoneAttachment& a) { return a.id == attachmentId; });
+        if (it == m_attachments.end()) return;
+
+        // Remove from parts
+        btRigidBody* body = it->body;
+        parts.erase(std::remove_if(parts.begin(), parts.end(),
+                    [body](const RagdollPart& p) { return p.rigidBody == body; }),
+                    parts.end());
+
+        // Remove from physics
+        physicsWorld->removeCube(body);
+        m_attachments.erase(it);
+    }
+
+    void AnimatedVoxelCharacter::detachAll() {
+        for (auto& att : m_attachments) {
+            // Remove from parts
+            parts.erase(std::remove_if(parts.begin(), parts.end(),
+                        [&att](const RagdollPart& p) { return p.rigidBody == att.body; }),
+                        parts.end());
+            physicsWorld->removeCube(att.body);
+        }
+        m_attachments.clear();
     }
 
     void AnimatedVoxelCharacter::rebuildWithAppearance(const CharacterAppearance& appearance) {
@@ -884,6 +946,9 @@ namespace Scene {
             case AnimatedCharacterState::StrafeRight: return "StrafeRight";
             case AnimatedCharacterState::WalkStrafeLeft: return "WalkStrafeLeft";
             case AnimatedCharacterState::WalkStrafeRight: return "WalkStrafeRight";
+            case AnimatedCharacterState::BackwardWalk: return "BackwardWalk";
+            case AnimatedCharacterState::StopWalk: return "StopWalk";
+            case AnimatedCharacterState::StopRun: return "StopRun";
             case AnimatedCharacterState::Preview: return "Preview";
             default: return "Unknown";
         }
@@ -934,6 +999,7 @@ namespace Scene {
                     currentState = AnimatedCharacterState::Attack;
                     stateTimer = 0.0f;
                     attackRequested = false;
+                    m_hitFrameFired = false;
                 } else if (verticalVel < -5.0f) {
                     // Falling detection (increased threshold to prevent jitter)
                     currentState = AnimatedCharacterState::Fall;
@@ -967,11 +1033,16 @@ namespace Scene {
                     }
 
                     // Movement Logic
-                    bool isMovingForward = glm::abs(currentForwardInput) > 0.01f;
+                    bool isMovingForward = currentForwardInput > 0.01f;
+                    bool isMovingBackward = currentForwardInput < -0.01f;
+                    bool isMoving = isMovingForward || isMovingBackward;
                     bool isStrafing = glm::abs(currentStrafeInput) > 0.1f;
                     
-                    if (glm::abs(currentForwardInput) > 0.6f) {
+                    if (currentForwardInput > 0.6f) {
                         currentState = AnimatedCharacterState::Run;
+                    } else if (currentForwardInput < -0.6f) {
+                        // Fast backward defaults to backward walk (no backward run)
+                        currentState = AnimatedCharacterState::BackwardWalk;
                     } else if (isMovingForward && isStrafing) {
                         // Diagonal Movement
                         if (currentStrafeInput > 0) currentState = AnimatedCharacterState::WalkStrafeRight;
@@ -992,6 +1063,8 @@ namespace Scene {
                         else if (currentState != AnimatedCharacterState::StartWalk) {
                             currentState = AnimatedCharacterState::Walk;
                         }
+                    } else if (isMovingBackward) {
+                        currentState = AnimatedCharacterState::BackwardWalk;
                     } else if (isStrafing) {
                         if (currentStrafeInput > 0) currentState = AnimatedCharacterState::StrafeRight;
                         else currentState = AnimatedCharacterState::StrafeLeft;
@@ -1000,7 +1073,17 @@ namespace Scene {
                         if (currentTurnInput > 0) currentState = AnimatedCharacterState::TurnRight;
                         else currentState = AnimatedCharacterState::TurnLeft;
                     } else {
-                        currentState = AnimatedCharacterState::Idle;
+                        // No input — transition to stop animations or idle
+                        if (currentState == AnimatedCharacterState::Run) {
+                            currentState = AnimatedCharacterState::StopRun;
+                            stateTimer = 0.0f;
+                        } else if (currentState == AnimatedCharacterState::Walk || 
+                                   currentState == AnimatedCharacterState::BackwardWalk) {
+                            currentState = AnimatedCharacterState::StopWalk;
+                            stateTimer = 0.0f;
+                        } else {
+                            currentState = AnimatedCharacterState::Idle;
+                        }
                     }
                 }
                 break;
@@ -1031,6 +1114,41 @@ namespace Scene {
                 // If animation finished
                 else if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
                     currentState = AnimatedCharacterState::Walk;
+                }
+                break;
+
+            case AnimatedCharacterState::BackwardWalk:
+                // If stopped moving backward
+                if (currentForwardInput >= -0.01f) {
+                    if (currentForwardInput > 0.01f) {
+                        currentState = AnimatedCharacterState::Walk;
+                    } else {
+                        currentState = AnimatedCharacterState::StopWalk;
+                        stateTimer = 0.0f;
+                    }
+                }
+                break;
+
+            case AnimatedCharacterState::StopWalk:
+                // One-shot deceleration from walk
+                if (glm::abs(currentForwardInput) > 0.01f) {
+                    // Player started moving again — cancel stop
+                    if (currentForwardInput > 0.01f) currentState = AnimatedCharacterState::Walk;
+                    else currentState = AnimatedCharacterState::BackwardWalk;
+                } else if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
+                    currentState = AnimatedCharacterState::Idle;
+                }
+                break;
+
+            case AnimatedCharacterState::StopRun:
+                // One-shot deceleration from run
+                if (glm::abs(currentForwardInput) > 0.1f) {
+                    // Player started moving again — cancel stop
+                    if (currentForwardInput > 0.6f) currentState = AnimatedCharacterState::Run;
+                    else if (currentForwardInput > 0.01f) currentState = AnimatedCharacterState::Walk;
+                    else currentState = AnimatedCharacterState::BackwardWalk;
+                } else if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
+                    currentState = AnimatedCharacterState::Idle;
                 }
                 break;
 
@@ -1072,9 +1190,16 @@ namespace Scene {
                 break;
 
             case AnimatedCharacterState::Attack:
+                // Check hit frame trigger
+                if (!m_hitFrameFired && currentAnimDuration > 0.0f &&
+                    stateTimer / currentAnimDuration >= m_hitFrameFraction) {
+                    m_hitFrameFired = true;
+                    if (m_onHitFrame) m_onHitFrame();
+                }
                 // Attack is a one-shot animation
                 if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
                     currentState = AnimatedCharacterState::Idle;
+                    m_hitFrameFired = false;
                 }
                 break;
 
@@ -1183,6 +1308,8 @@ namespace Scene {
                  if (glm::abs(currentStrafeInput) > 0.6f) moveSpeed = 4.0f;
             }
             if (currentState == AnimatedCharacterState::CrouchWalk) moveSpeed = 1.5f;
+            if (currentState == AnimatedCharacterState::BackwardWalk) moveSpeed = 1.5f;
+            if (currentState == AnimatedCharacterState::StopWalk || currentState == AnimatedCharacterState::StopRun) moveSpeed = 0.5f;
             if (currentState == AnimatedCharacterState::Idle || currentState == AnimatedCharacterState::Attack || 
                 currentState == AnimatedCharacterState::Crouch || currentState == AnimatedCharacterState::CrouchIdle ||
                 currentState == AnimatedCharacterState::TurnLeft || currentState == AnimatedCharacterState::TurnRight) moveSpeed = 0.0f;
@@ -1263,7 +1390,7 @@ namespace Scene {
                     case AnimatedCharacterState::Fall: targetAnim = "jump_down"; break;
                     case AnimatedCharacterState::Land: targetAnim = "landing"; break;
                     case AnimatedCharacterState::Crouch: targetAnim = "standing_to_crouched"; break;
-                    case AnimatedCharacterState::CrouchIdle: targetAnim = "standing_to_crouched"; break;
+                    case AnimatedCharacterState::CrouchIdle: targetAnim = "crouch_idle"; break;
                     case AnimatedCharacterState::CrouchWalk: targetAnim = "crouched_walking"; break;
                     case AnimatedCharacterState::StandUp: targetAnim = "crouch_to_stand"; break;
                     case AnimatedCharacterState::Attack: targetAnim = "attack"; break;
@@ -1287,6 +1414,9 @@ namespace Scene {
                         if (isSprinting) targetAnim = "right_strafe"; 
                         else targetAnim = "right_strafe_walk"; 
                         break;
+                    case AnimatedCharacterState::BackwardWalk: targetAnim = "walking_backward"; break;
+                    case AnimatedCharacterState::StopWalk: targetAnim = "female_stop_walking"; break;
+                    case AnimatedCharacterState::StopRun: targetAnim = "run_to_stop"; break;
                     case AnimatedCharacterState::Preview: targetAnim = ""; break;
                     default: targetAnim = "idle"; break;
                 }
@@ -1520,6 +1650,38 @@ namespace Scene {
             trans.setRotation(btQuaternion(rot.x, rot.y, rot.z, rot.w));
             
             body->getMotionState()->setWorldTransform(trans);
+        }
+
+        // Position bone attachments (weapons, equipment visuals)
+        for (auto& att : m_attachments) {
+            if (att.boneId < 0 || att.boneId >= static_cast<int>(skeleton.bones.size())) continue;
+
+            const Phyxel::Bone& bone = skeleton.bones[att.boneId];
+
+            glm::vec3 visualOrigin = worldPosition - glm::vec3(0.0f, skeletonFootOffset_, 0.0f);
+            glm::mat4 attModelMatrix = glm::translate(glm::mat4(1.0f), visualOrigin);
+            attModelMatrix = glm::rotate(attModelMatrix, currentYaw, glm::vec3(0, 1, 0));
+
+            // Apply animation rotation offset (same as bone loop)
+            float animRot = 0.0f;
+            if (currentClipIndex >= 0 && currentClipIndex < static_cast<int>(clips.size())) {
+                auto rit = animationRotationOffsets.find(clips[currentClipIndex].name);
+                if (rit != animationRotationOffsets.end()) animRot = rit->second;
+            }
+            if (animRot != 0.0f) {
+                attModelMatrix = glm::rotate(attModelMatrix, glm::radians(animRot), glm::vec3(0, 1, 0));
+            }
+
+            glm::mat4 attFinal = attModelMatrix * bone.globalTransform;
+            attFinal = glm::translate(attFinal, att.offset);
+
+            glm::vec3 attPos = glm::vec3(attFinal[3]);
+            glm::quat attRot = glm::quat_cast(attFinal);
+
+            btTransform attTrans;
+            attTrans.setOrigin(btVector3(attPos.x, attPos.y, attPos.z));
+            attTrans.setRotation(btQuaternion(attRot.x, attRot.y, attRot.z, attRot.w));
+            att.body->getMotionState()->setWorldTransform(attTrans);
         }
     }
 

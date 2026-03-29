@@ -3,6 +3,7 @@
 #include "ai/LLMClient.h"
 #include "ai/ContextManager.h"
 #include "ai/ConversationMemory.h"
+#include "ai/LLMActionParser.h"
 
 #include <memory>
 #include <string>
@@ -52,6 +53,12 @@ public:
     /// Check if LLM is properly configured (has API key)
     bool isConfigured() const;
 
+    /// Set NPCManager for social context (needs, worldview, relationships)
+    void setNPCManager(Core::NPCManager* npcManager);
+
+    /// Set handler for LLM action tags ([EMOTE:x], [GIVE_ITEM:x], etc.)
+    void setActionHandler(const LLMActionHandler& handler) { m_actionHandler = handler; }
+
     /// Access internals for advanced usage
     LLMClient* getLLMClient() { return m_llmClient.get(); }
     ContextManager* getContextManager() { return m_contextManager.get(); }
@@ -66,6 +73,7 @@ private:
     std::unique_ptr<ContextManager> m_contextManager;
     std::unique_ptr<ConversationMemory> m_memory;
 
+    LLMActionHandler m_actionHandler;
     bool m_initialized = false;
 };
 

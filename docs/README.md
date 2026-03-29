@@ -11,13 +11,15 @@ Phyxel is a voxel game engine and development application. The engine (`phyxel_c
 1. **Building a game** — Read the [GameCreationGuide.md](GameCreationGuide.md) for the AI-driven workflow, or scaffold a project with `python tools/create_project.py MyGame`
 2. **Engine architecture** — [ArchitectureOverview.md](ArchitectureOverview.md) and [SubsystemArchitecture.md](SubsystemArchitecture.md)
 3. **Core systems** — [CoordinateSystem.md](CoordinateSystem.md) → [MultiChunkSystem.md](MultiChunkSystem.md) → [DynamicSubcubeRenderPipeline.md](DynamicSubcubeRenderPipeline.md)
-4. **AI integration** — [MCPIntegration.md](MCPIntegration.md) for the MCP server and 50+ tools
+4. **AI integration** — [MCPIntegration.md](MCPIntegration.md) for the MCP server and 166 tools
+5. **Prompt catalog** — [GameDevPromptCatalog.md](GameDevPromptCatalog.md) for ready-to-use game creation and feature testing prompts
 
 ---
 
 ## Game Development
 
 - **[GameCreationGuide.md](GameCreationGuide.md)** — AI-driven game creation workflow (MCP / Copilot / Claude Code)
+- **[GameDevPromptCatalog.md](GameDevPromptCatalog.md)** — 40 ready-to-use prompts for game creation and engine feature testing
 - **[GameMechanicsRoadmap.md](GameMechanicsRoadmap.md)** — Gameplay systems roadmap (lights, cameras, NPCs, dialogue)
 - **[StoryEngineDesign.md](StoryEngineDesign.md)** — Story arc, character agent, and narrative system design
 - **[StoryEngineProgress.md](StoryEngineProgress.md)** — Story engine implementation progress

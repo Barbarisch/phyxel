@@ -200,6 +200,22 @@ public:
     void setDayNightHandler(DayNightHandler handler) { m_dayNightHandler = std::move(handler); }
 
     // ========================================================================
+    // Item registry handler (read-only, called on HTTP thread)
+    // ========================================================================
+
+    /// Handler that returns all registered item definitions.
+    using ItemListHandler = std::function<json()>;
+    void setItemListHandler(ItemListHandler handler) { m_itemListHandler = std::move(handler); }
+
+    /// Handler that returns a single item definition by ID.
+    using ItemDetailHandler = std::function<json(const std::string&)>;
+    void setItemDetailHandler(ItemDetailHandler handler) { m_itemDetailHandler = std::move(handler); }
+
+    /// Handler that returns equipped items for an entity.
+    using EquipmentGetHandler = std::function<json(const std::string&)>;
+    void setEquipmentGetHandler(EquipmentGetHandler handler) { m_equipmentGetHandler = std::move(handler); }
+
+    // ========================================================================
     // Custom UI Menu handler (read-only, called on HTTP thread)
     // ========================================================================
 
@@ -260,6 +276,9 @@ private:
     SoundListHandler m_soundListHandler;
     InventoryHandler m_inventoryHandler;
     DayNightHandler m_dayNightHandler;
+    ItemListHandler m_itemListHandler;
+    ItemDetailHandler m_itemDetailHandler;
+    EquipmentGetHandler m_equipmentGetHandler;
     MenuListHandler m_menuListHandler;
 
     // Forward-declared impl to keep httplib out of the header

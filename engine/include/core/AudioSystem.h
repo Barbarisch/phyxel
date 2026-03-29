@@ -32,6 +32,12 @@ public:
     // Play a 3D sound at a specific position
     void playSound3D(const std::string& filePath, const glm::vec3& position, AudioChannel channel = AudioChannel::SFX, float volume = 1.0f, const glm::vec3& velocity = glm::vec3(0.0f));
 
+    // Background music (looping, one track at a time)
+    void playMusic(const std::string& filePath, float volume = 1.0f);
+    void stopMusic();
+    bool isMusicPlaying() const;
+    std::string getMusicTrack() const;
+
     // Set volume for a specific channel (0.0 to 1.0)
     void setChannelVolume(AudioChannel channel, float volume);
 

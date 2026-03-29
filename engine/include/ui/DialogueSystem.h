@@ -71,6 +71,9 @@ public:
     /// Called by the player to submit their typed message (Enter key in AITextInput state).
     void submitPlayerMessage();
 
+    /// Submit a message programmatically (for API/MCP use).
+    void submitAIInput(const std::string& message);
+
     /// Called from the AI system when the NPC's response arrives.
     /// Thread-safe: can be called from the Goose SSE callback thread.
     void receiveAIResponse(const std::string& text, const std::string& emotion = "");

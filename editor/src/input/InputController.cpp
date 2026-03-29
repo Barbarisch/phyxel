@@ -78,15 +78,14 @@ void InputController::initializeBindings() {
 }
 
 void InputController::setupKeyboardBindings() {
-    // ESC - Exit application (or end dialogue if active)
-    m_inputManager->registerAction(GLFW_KEY_ESCAPE, "Exit", [this]() {
+    // ESC - Toggle pause (or end dialogue if active)
+    m_inputManager->registerAction(GLFW_KEY_ESCAPE, "Pause", [this]() {
         auto* ds = m_app->getDialogueSystem();
         if (ds && ds->isActive()) {
             ds->endConversation();
             return;
         }
-        LOG_INFO("InputController", "ESC pressed - requesting shutdown");
-        m_app->quit(); 
+        m_app->togglePause();
     });
     
     // F1 - Toggle performance overlay

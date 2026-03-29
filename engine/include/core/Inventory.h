@@ -13,18 +13,24 @@ namespace Core {
 // ItemStack — a stack of items in a single inventory slot
 // ============================================================================
 struct ItemStack {
-    std::string material;   // Material name (e.g. "Stone", "Wood", "Metal")
-    int count = 1;          // Quantity in the stack
-    int maxStack = 64;      // Maximum stack size
+    std::string itemId;         // Item identifier (material name or item definition ID)
+    int count = 1;              // Quantity in the stack
+    int maxStack = 64;          // Maximum stack size
+    int durability = -1;        // Current durability (-1 = not applicable / indestructible)
+
+    /// Backward-compat alias: treat itemId as material name.
+    const std::string& material() const { return itemId; }
 
     bool canMerge(const ItemStack& other) const {
-        return material == other.material && count < maxStack;
+        return itemId == other.itemId && count < maxStack && durability < 0 && other.durability < 0;
     }
 
     int spaceLeft() const { return maxStack - count; }
 
     nlohmann::json toJson() const {
-        return {{"material", material}, {"count", count}, {"max_stack", maxStack}};
+        nlohmann::json j = {{"material", itemId}, {"count", count}, {"max_stack", maxStack}};
+        if (durability >= 0) j["durability"] = durability;
+        return j;
     }
 };
 

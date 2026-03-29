@@ -20,6 +20,7 @@ namespace Core {
 class NPCManager;
 class EntityRegistry;
 class GameEventLog;
+class LocationRegistry;
 }
 
 namespace Graphics {
@@ -110,6 +111,7 @@ struct GameDefinitionResult {
     int chunksGenerated = 0;
     int structuresPlaced = 0;
     int npcsSpawned = 0;
+    int locationsRegistered = 0;
     bool playerSpawned = false;
     bool cameraSet = false;
     bool storyLoaded = false;
@@ -124,6 +126,7 @@ struct GameSubsystems {
     Core::EntityRegistry* entityRegistry = nullptr;
     ObjectTemplateManager* templateManager = nullptr;
     Core::GameEventLog* gameEventLog = nullptr;
+    Core::LocationRegistry* locationRegistry = nullptr;
     Graphics::Camera* camera = nullptr;
     UI::DialogueSystem* dialogueSystem = nullptr;
     Story::StoryEngine* storyEngine = nullptr;
@@ -157,6 +160,7 @@ private:
     static void loadPlayer(const json& playerDef, GameSubsystems& sub, GameDefinitionResult& result);
     static void loadCamera(const json& cameraDef, GameSubsystems& sub, GameDefinitionResult& result);
     static void loadNPCs(const json& npcsDef, GameSubsystems& sub, GameDefinitionResult& result);
+    static void loadLocations(const json& locationsDef, GameSubsystems& sub, GameDefinitionResult& result);
     static void loadStory(const json& storyDef, GameSubsystems& sub, GameDefinitionResult& result);
 };
 

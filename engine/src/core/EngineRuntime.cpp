@@ -3,6 +3,7 @@
 #include "core/AssetManager.h"
 #include "core/WorldInitializer.h"
 #include "core/AudioSystem.h"
+#include "core/LocationRegistry.h"
 #include "ui/WindowManager.h"
 #include "ui/ImGuiRenderer.h"
 #include "input/InputManager.h"
@@ -104,6 +105,9 @@ bool EngineRuntime::initialize(const EngineConfig& config) {
         camPos, glm::vec3(0.0f, 1.0f, 0.0f), yaw, pitch);
     camera_->setMode(Graphics::CameraMode::Free);
     cameraManager_ = std::make_unique<Graphics::CameraManager>(camera_.get());
+
+    // Location registry for named world locations
+    locationRegistry_ = std::make_unique<Core::LocationRegistry>();
 
     // Sync InputManager with Camera state
     inputManager_->setCameraPosition(camera_->getPosition());
@@ -260,6 +264,7 @@ PerformanceProfiler*        EngineRuntime::getPerformanceProfiler()    const { r
 Utils::PerformanceMonitor*  EngineRuntime::getPerformanceMonitor()     const { return performanceMonitor_.get(); }
 Graphics::Camera*           EngineRuntime::getCamera()                 const { return camera_.get(); }
 Graphics::CameraManager*    EngineRuntime::getCameraManager()          const { return cameraManager_.get(); }
+Core::LocationRegistry*     EngineRuntime::getLocationRegistry()       const { return locationRegistry_.get(); }
 
 } // namespace Core
 } // namespace Phyxel

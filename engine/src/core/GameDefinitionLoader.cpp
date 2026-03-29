@@ -6,8 +6,12 @@
 #include "core/ObjectTemplateManager.h"
 #include "core/GameEventLog.h"
 #include "core/HealthComponent.h"
+#include "core/LocationRegistry.h"
 #include "scene/NPCEntity.h"
 #include "scene/AnimatedVoxelCharacter.h"
+#include "scene/behaviors/ScheduledBehavior.h"
+#include "ai/Schedule.h"
+#include "ai/BTLoader.h"
 #include "graphics/Camera.h"
 #include "ui/DialogueSystem.h"
 #include "ui/DialogueData.h"
@@ -34,6 +38,7 @@ json GameDefinitionResult::toJson() const {
     j["chunks_generated"] = chunksGenerated;
     j["structures_placed"] = structuresPlaced;
     j["npcs_spawned"] = npcsSpawned;
+    j["locations_registered"] = locationsRegistered;
     j["player_spawned"] = playerSpawned;
     j["camera_set"] = cameraSet;
     j["story_loaded"] = storyLoaded;
@@ -133,6 +138,11 @@ GameDefinitionResult GameDefinitionLoader::load(const json& definition, GameSubs
         loadCamera(definition["camera"], subsystems, result);
     }
 
+    if (definition.contains("locations")) {
+        loadLocations(definition["locations"], subsystems, result);
+        if (!result.error.empty()) return result;
+    }
+
     if (definition.contains("npcs")) {
         loadNPCs(definition["npcs"], subsystems, result);
         if (!result.error.empty()) return result;
@@ -147,6 +157,7 @@ GameDefinitionResult GameDefinitionLoader::load(const json& definition, GameSubs
     LOG_INFO("GameDefinitionLoader", "Game definition loaded: " + gameName +
              " (chunks=" + std::to_string(result.chunksGenerated) +
              ", structures=" + std::to_string(result.structuresPlaced) +
+             ", locations=" + std::to_string(result.locationsRegistered) +
              ", npcs=" + std::to_string(result.npcsSpawned) + ")");
 
     return result;
@@ -384,6 +395,29 @@ void GameDefinitionLoader::loadCamera(const json& cameraDef, GameSubsystems& sub
 }
 
 // ============================================================================
+// Locations
+// ============================================================================
+
+void GameDefinitionLoader::loadLocations(const json& locationsDef, GameSubsystems& sub, GameDefinitionResult& result) {
+    if (!sub.locationRegistry) {
+        LOG_WARN("GameDefinitionLoader", "Skipping locations: LocationRegistry not available");
+        return;
+    }
+
+    for (const auto& locDef : locationsDef) {
+        auto loc = Location::fromJson(locDef);
+        if (loc.id.empty()) {
+            LOG_WARN("GameDefinitionLoader", "Skipping location with empty ID");
+            continue;
+        }
+        sub.locationRegistry->addLocation(loc);
+        result.locationsRegistered++;
+        LOG_DEBUG("GameDefinitionLoader", "Registered location '{}' ({}) at ({}, {}, {})",
+                  loc.id, loc.name, loc.position.x, loc.position.y, loc.position.z);
+    }
+}
+
+// ============================================================================
 // NPCs
 // ============================================================================
 
@@ -417,6 +451,10 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
                     waypoints.emplace_back(wp.value("x", 0.0f), wp.value("y", 0.0f), wp.value("z", 0.0f));
                 }
             }
+        } else if (behaviorStr == "behavior_tree") {
+            behaviorType = NPCBehaviorType::BehaviorTree;
+        } else if (behaviorStr == "scheduled") {
+            behaviorType = NPCBehaviorType::Scheduled;
         }
 
         // Parse or generate appearance
@@ -446,6 +484,29 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
             continue;
         }
         result.npcsSpawned++;
+
+        // Configure schedule if this is a scheduled NPC
+        if (behaviorType == NPCBehaviorType::Scheduled) {
+            auto* sb = dynamic_cast<Scene::ScheduledBehavior*>(npc->getBehavior());
+            if (sb) {
+                // Use explicit schedule from JSON, or role-based default
+                if (npcDef.contains("schedule")) {
+                    sb->setSchedule(AI::Schedule::fromJson(npcDef["schedule"]));
+                } else if (!npcRole.empty()) {
+                    sb->setSchedule(AI::Schedule::forRole(npcRole));
+                }
+
+                // Load behavior tree from JSON file if specified
+                if (npcDef.contains("behaviorTree")) {
+                    std::string btFile = npcDef["behaviorTree"].get<std::string>();
+                    auto btRoot = AI::BTLoader::fromFile(btFile);
+                    if (btRoot) {
+                        sb->setTree(std::move(btRoot));
+                        LOG_DEBUG("GameDefinitionLoader", "NPC " + name + ": loaded BT from " + btFile);
+                    }
+                }
+            }
+        }
 
         // Configure health if provided
         if (npcDef.contains("health") || npcDef.contains("maxHealth")) {
@@ -554,6 +615,32 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
 
             sub.storyEngine->addCharacter(std::move(profile));
             LOG_DEBUG("GameDefinitionLoader", "NPC " + name + ": story character registered");
+        }
+
+        // Load per-NPC needs if provided (overrides defaults)
+        if (npcDef.contains("needs")) {
+            npc->getNeeds().fromJson(npcDef["needs"]);
+        }
+
+        // Load per-NPC worldview if provided
+        if (npcDef.contains("worldView")) {
+            npc->getWorldView().fromJson(npcDef["worldView"]);
+        }
+
+        // Load initial relationships (stored on the shared RelationshipManager)
+        if (npcDef.contains("relationships")) {
+            for (const auto& relDef : npcDef["relationships"]) {
+                std::string targetId = relDef.value("target", "");
+                if (targetId.empty()) continue;
+                Story::Relationship rel;
+                rel.targetCharacterId = targetId;
+                rel.trust = relDef.value("trust", 0.0f);
+                rel.affection = relDef.value("affection", 0.0f);
+                rel.respect = relDef.value("respect", 0.0f);
+                rel.fear = relDef.value("fear", 0.0f);
+                rel.label = relDef.value("label", "");
+                sub.npcManager->getRelationships().setRelationship(name, targetId, rel);
+            }
         }
 
         if (sub.gameEventLog) {

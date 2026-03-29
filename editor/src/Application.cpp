@@ -6,6 +6,12 @@
 #include "scene/NPCEntity.h"
 #include "scene/behaviors/IdleBehavior.h"
 #include "scene/behaviors/PatrolBehavior.h"
+#include "scene/behaviors/BehaviorTreeBehavior.h"
+#include "scene/behaviors/ScheduledBehavior.h"
+#include "ai/Schedule.h"
+#include "ai/NeedsSystem.h"
+#include "ai/RelationshipManager.h"
+#include "ai/WorldView.h"
 #include "core/EntityRegistry.h"
 #include "core/APICommandQueue.h"
 #include "core/EngineAPIServer.h"
@@ -20,6 +26,7 @@
 #include "ai/AISystem.h"
 #include "ai/AIEnhancer.h"
 #include "ai/AIConversationService.h"
+#include "ai/LLMClient.h"
 #include "core/WorldStorage.h"
 #include "core/Chunk.h"
 #include "core/WorldGenerator.h"
@@ -32,8 +39,12 @@
 #include "core/GameDefinitionLoader.h"
 #include "core/ProjectInfo.h"
 #include "core/LauncherState.h"
+#include "core/ItemRegistry.h"
+#include "core/EquipmentSystem.h"
+#include "core/CombatSystem.h"
 #include "ui/MenuDefinition.h"
 #include "ui/UISystem.h"
+#include "ui/GameMenus.h"
 #include <imgui.h>
 #include <iostream>
 #include <iomanip>
@@ -147,6 +158,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     performanceProfiler = runtime->getPerformanceProfiler();
     performanceMonitor  = runtime->getPerformanceMonitor();
     audioSystem         = runtime->getAudioSystem();
+    locationRegistry    = runtime->getLocationRegistry();
 
     auto& assets = Core::AssetManager::instance();
 
@@ -209,6 +221,23 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // See Application::createPhysicsCharacter etc.
     
     LOG_INFO("Application", "Entities initialized successfully!");
+
+    // Setup player death/respawn
+    playerHealth.setOnDeathCallback([this]() {
+        LOG_WARN("Application", "Player died!");
+        respawnSystem.startDeathSequence();
+    });
+    respawnSystem.setSpawnPoint(camera->getPosition());
+    respawnSystem.setOnRespawnCallback([this](const glm::vec3& spawnPos) {
+        LOG_INFO("Application", "Respawning player...");
+        playerHealth.revive(1.0f);
+        if (physicsCharacter)
+            physicsCharacter->reset(spawnPos);
+        else if (animatedCharacter)
+            animatedCharacter->setPosition(spawnPos);
+        else
+            camera->setPosition(spawnPos);
+    });
 
     // Create ScriptingSystem (initialized later, but created here for dependency injection)
     scriptingSystem = std::make_unique<ScriptingSystem>(this);
@@ -611,8 +640,13 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     });
 
     // ========================================================================
-    // Inventory System
+    // Item Registry & Inventory System
     // ========================================================================
+    // Register all engine materials as material-type items
+    Core::ItemRegistry::instance().registerMaterialItems();
+    // Load item definitions from items.json (if available)
+    Core::ItemRegistry::instance().loadFromFile("resources/items.json");
+
     inventory = std::make_unique<Core::Inventory>();
     // Start in creative mode with all materials in hotbar
     {
@@ -634,6 +668,44 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         return renderCoordinator->getDayNightCycle().toJson();
     });
 
+    apiServer->setItemListHandler([]() -> nlohmann::json {
+        auto& registry = Core::ItemRegistry::instance();
+        auto ids = registry.getAllItemIds();
+        nlohmann::json items = nlohmann::json::array();
+        for (const auto& id : ids) {
+            if (auto* def = registry.getItem(id)) {
+                items.push_back(def->toJson());
+            }
+        }
+        return nlohmann::json{{"items", items}, {"count", items.size()}};
+    });
+
+    apiServer->setItemDetailHandler([](const std::string& id) -> nlohmann::json {
+        auto& registry = Core::ItemRegistry::instance();
+        if (auto* def = registry.getItem(id)) {
+            return def->toJson();
+        }
+        return nlohmann::json{{"error", "Item not found"}, {"id", id}};
+    });
+
+    apiServer->setEquipmentGetHandler([this](const std::string& entityId) -> nlohmann::json {
+        auto* entity = entityRegistry->getEntity(entityId);
+        if (!entity) return nlohmann::json{{"error", "Entity not found"}, {"id", entityId}};
+        auto* npc = dynamic_cast<Scene::NPCEntity*>(entity);
+        if (!npc) return nlohmann::json{{"error", "Entity is not an NPC"}, {"id", entityId}};
+        auto equipped = npc->getEquipment().getAllEquipped();
+        nlohmann::json slots = nlohmann::json::object();
+        for (const auto& [slot, itemId] : equipped) {
+            slots[Core::equipSlotToString(slot)] = itemId;
+        }
+        return nlohmann::json{
+            {"entityId", entityId},
+            {"equipment", slots},
+            {"totalDamage", npc->getEquipment().getTotalDamage()},
+            {"totalReach", npc->getEquipment().getTotalReach()}
+        };
+    });
+
     apiServer->setMenuListHandler([this]() -> nlohmann::json {
         if (!renderCoordinator) return nlohmann::json{{"error", "RenderCoordinator not available"}};
         auto* uiSystem = renderCoordinator->getUISystem();
@@ -652,12 +724,19 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     npcManager->setEntityRegistry(entityRegistry.get());
     if (renderCoordinator) {
         npcManager->setLightManager(&renderCoordinator->getLightManager());
+        npcManager->setDayNightCycle(&renderCoordinator->getDayNightCycle());
         renderCoordinator->setNPCManager(npcManager.get());
+    }
+    if (locationRegistry) {
+        npcManager->setLocationRegistry(locationRegistry);
     }
 
     // Initialize Interaction Manager
     interactionManager = std::make_unique<Core::InteractionManager>();
     interactionManager->setEntityRegistry(entityRegistry.get());
+
+    // Initialize Combat System
+    combatSystem = std::make_unique<Core::CombatSystem>();
 
     // Initialize Dialogue System
     dialogueSystem = std::make_unique<UI::DialogueSystem>();
@@ -699,6 +778,11 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             if (aiConversationService->initialize(worldDb, llmConfig)) {
                 LOG_INFO("Application", "AI Conversation Service initialized (provider={}, configured={})",
                          llmConfig.provider, aiConversationService->isConfigured() ? "yes" : "no");
+
+                // Wire NPCManager for social context (needs, worldview, relationships)
+                if (npcManager) {
+                    aiConversationService->setNPCManager(npcManager.get());
+                }
             } else {
                 LOG_WARN("Application", "AI Conversation Service initialization failed (non-critical)");
             }
@@ -970,6 +1054,31 @@ void Application::run() {
             flags.manualForceValue
         );
         
+        // Render AI Stats overlay (inside performance overlay toggle)
+        if (showPerformanceOverlay && aiConversationService) {
+            if (auto* client = aiConversationService->getLLMClient()) {
+                auto usage = client->getTokenUsage();
+                const auto& cfg = client->getConfig();
+                ImGui::SetNextWindowPos(ImVec2(10, 420), ImGuiCond_FirstUseEver);
+                ImGui::SetNextWindowSize(ImVec2(260, 0), ImGuiCond_FirstUseEver);
+                if (ImGui::Begin("AI Stats", nullptr, ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_AlwaysAutoResize)) {
+                    ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "LLM STATUS");
+                    ImGui::Separator();
+                    ImGui::Text("Configured: %s", client->isConfigured() ? "Yes" : "No");
+                    ImGui::Text("Provider:   %s", cfg.provider.c_str());
+                    if (!cfg.model.empty())
+                        ImGui::Text("Model:      %s", cfg.model.c_str());
+                    ImGui::Separator();
+                    ImGui::TextColored(ImVec4(1.0f, 0.9f, 0.4f, 1.0f), "TOKEN USAGE");
+                    ImGui::Text("API Calls:   %lld", static_cast<long long>(usage.totalCalls));
+                    ImGui::Text("Input Tokens: %lld", static_cast<long long>(usage.totalInput));
+                    ImGui::Text("Output Tokens: %lld", static_cast<long long>(usage.totalOutput));
+                    ImGui::Text("Total Tokens: %lld", static_cast<long long>(usage.totalInput + usage.totalOutput));
+                }
+                ImGui::End();
+            }
+        }
+        
         // Check if distances were changed by UI
         if (currentRenderDistance != maxChunkRenderDistance) {
             setRenderDistance(currentRenderDistance);
@@ -1016,6 +1125,26 @@ void Application::run() {
         // Render Lighting Controls
         if (renderCoordinator) {
             renderCoordinator->renderUI();
+        }
+
+        // Render Death overlay
+        if (respawnSystem.isPlayerDead()) {
+            UI::renderDeathOverlay(respawnSystem.getDeathTimer(),
+                                   respawnSystem.getRespawnDelay(),
+                                   respawnSystem.getDeathCount());
+        }
+
+        // Render Objective HUD (top-right corner)
+        UI::renderObjectiveHUD(&objectiveTracker);
+
+        // Render Pause Menu overlay
+        if (gamePaused) {
+            UI::PauseMenuActions pauseActions;
+            pauseActions.onResume = [this]() { setPaused(false); };
+            pauseActions.onSettings = [this]() { toggleGameMenu("settings"); };
+            pauseActions.onMainMenu = nullptr;
+            pauseActions.onQuit = [this]() { quit(); };
+            UI::renderPauseMenu(pauseActions);
         }
         } // end else (game UI)
         
@@ -1189,6 +1318,15 @@ void Application::update(float deltaTime) {
         jobSystem->processCompletedJobs();
     }
 
+    // Skip simulation when paused (API commands and jobs still process)
+    if (gamePaused) return;
+
+    // Update respawn system (handles death timer and auto-respawn)
+    respawnSystem.update(deltaTime);
+
+    // Advance music playlist (plays next track when current finishes)
+    musicPlaylist.update(audioSystem);
+
     // Update scripting system
     if (scriptingSystem) {
         PROFILE_SCOPE(*performanceProfiler, "Scripting");
@@ -1205,6 +1343,11 @@ void Application::update(float deltaTime) {
     if (npcManager) {
         PROFILE_SCOPE(*performanceProfiler, "NPCs");
         npcManager->update(deltaTime);
+    }
+
+    // Update combat system (invulnerability timers)
+    if (combatSystem) {
+        combatSystem->update(deltaTime);
     }
 
     // Update interaction detection (use actual player position, not camera)
@@ -1431,6 +1574,11 @@ void Application::handleInput() {
     // Process keyboard and mouse input through InputManager
     inputManager->processInput(deltaTime);
 
+    // Suppress all game input while paused (ESC toggle still works via registerAction)
+    if (gamePaused) {
+        return;
+    }
+
     // Suppress movement/camera input while dialogue is active
     if (dialogueSystem && dialogueSystem->isActive()) {
         return;
@@ -1509,6 +1657,19 @@ void Application::handleInput() {
 void Application::togglePerformanceOverlay() {
     showPerformanceOverlay = !showPerformanceOverlay;
     LOG_INFO_FMT("Application", "Performance Overlay: " << (showPerformanceOverlay ? "ENABLED" : "DISABLED"));
+}
+
+void Application::togglePause() {
+    setPaused(!gamePaused);
+}
+
+void Application::setPaused(bool paused) {
+    gamePaused = paused;
+    // Freeze/unfreeze day-night cycle
+    if (renderCoordinator) {
+        renderCoordinator->getDayNightCycle().setPaused(paused);
+    }
+    LOG_INFO_FMT("Application", "Game " << (paused ? "PAUSED" : "RESUMED"));
 }
 
 void Application::toggleCharacterCustomizer() {
@@ -2101,6 +2262,7 @@ void Application::autoLoadGameDefinition() {
         subsystems.entityRegistry   = entityRegistry.get();
         subsystems.templateManager  = objectTemplateManager.get();
         subsystems.gameEventLog     = gameEventLog.get();
+        subsystems.locationRegistry = locationRegistry;
         subsystems.camera           = camera;
         subsystems.dialogueSystem   = dialogueSystem.get();
         subsystems.storyEngine      = storyEngine.get();
@@ -2166,6 +2328,383 @@ void Application::autoLoadGameDefinition() {
     } catch (const std::exception& e) {
         LOG_ERROR("Application", "Error loading game definition '{}': {}", defPath, e.what());
     }
+}
+
+// ============================================================================
+// Social Simulation Command Handler (extracted to reduce nesting depth)
+// ============================================================================
+static nlohmann::json handleSocialSimulationCommand(
+    const std::string& action,
+    const nlohmann::json& params,
+    Core::NPCManager* npcManager)
+{
+    if (!npcManager) {
+        return {{"error", "NPCManager not available"}};
+    }
+
+    // --- Needs ---
+    if (action == "get_npc_needs") {
+        std::string name = params.value("name", "");
+        if (name.empty()) return {{"error", "NPC name required"}};
+        auto* npc = npcManager->getNPC(name);
+        if (!npc) return {{"error", "NPC not found: " + name}};
+        return {{"success", true}, {"name", name}, {"needs", npc->getNeeds().toJson()}};
+    }
+    if (action == "set_npc_needs") {
+        std::string name = params.value("name", "");
+        if (name.empty()) return {{"error", "NPC name required"}};
+        auto* npc = npcManager->getNPC(name);
+        if (!npc) return {{"error", "NPC not found: " + name}};
+        if (params.contains("needs")) {
+            npc->getNeeds().fromJson(params["needs"]);
+        }
+        if (params.contains("type") && params.contains("value")) {
+            auto type = AI::needTypeFromString(params["type"]);
+            float value = params["value"];
+            npc->getNeeds().fulfill(type, value - (npc->getNeeds().getNeed(type) ? npc->getNeeds().getNeed(type)->value : 0.0f));
+        }
+        return {{"success", true}, {"name", name}};
+    }
+
+    // --- Relationships ---
+    if (action == "get_npc_relationships") {
+        std::string name = params.value("name", "");
+        if (name.empty()) {
+            return {{"success", true}, {"relationships", npcManager->getRelationships().toJson()}};
+        }
+        auto rels = npcManager->getRelationships().getRelationshipsFor(name);
+        nlohmann::json arr = nlohmann::json::array();
+        for (const auto& [targetId, rel] : rels) {
+            arr.push_back({{"target", targetId}, {"trust", rel.trust},
+                          {"affection", rel.affection}, {"respect", rel.respect},
+                          {"fear", rel.fear}, {"label", rel.label},
+                          {"disposition", npcManager->getRelationships().getDisposition(name, targetId)}});
+        }
+        return {{"success", true}, {"name", name}, {"relationships", arr}};
+    }
+    if (action == "set_npc_relationship") {
+        std::string from = params.value("from", "");
+        std::string to = params.value("to", "");
+        if (from.empty() || to.empty()) return {{"error", "Both 'from' and 'to' NPC names required"}};
+        Story::Relationship rel;
+        rel.targetCharacterId = to;
+        rel.trust = params.value("trust", 0.0f);
+        rel.affection = params.value("affection", 0.0f);
+        rel.respect = params.value("respect", 0.0f);
+        rel.fear = params.value("fear", 0.0f);
+        rel.label = params.value("label", "");
+        npcManager->getRelationships().setRelationship(from, to, rel);
+        return {{"success", true}, {"from", from}, {"to", to}};
+    }
+    if (action == "apply_npc_interaction") {
+        std::string from = params.value("from", "");
+        std::string to = params.value("to", "");
+        std::string typeStr = params.value("type", "Greeting");
+        float intensity = params.value("intensity", 1.0f);
+        if (from.empty() || to.empty()) return {{"error", "Both 'from' and 'to' NPC names required"}};
+        auto type = AI::interactionTypeFromString(typeStr);
+        npcManager->getRelationships().applyInteraction(from, to, type, intensity);
+        float disposition = npcManager->getRelationships().getDisposition(from, to);
+        return {{"success", true}, {"from", from}, {"to", to},
+                {"interaction", typeStr}, {"newDisposition", disposition}};
+    }
+
+    // --- WorldView ---
+    if (action == "get_npc_worldview") {
+        std::string name = params.value("name", "");
+        if (name.empty()) return {{"error", "NPC name required"}};
+        auto* npc = npcManager->getNPC(name);
+        if (!npc) return {{"error", "NPC not found: " + name}};
+        return {{"success", true}, {"name", name},
+                {"worldView", npc->getWorldView().toJson()},
+                {"contextSummary", npc->getWorldView().buildContextSummary()}};
+    }
+    if (action == "set_npc_belief") {
+        std::string name = params.value("name", "");
+        std::string key = params.value("key", "");
+        std::string value = params.value("value", "");
+        if (name.empty() || key.empty()) return {{"error", "NPC name and belief key required"}};
+        auto* npc = npcManager->getNPC(name);
+        if (!npc) return {{"error", "NPC not found: " + name}};
+        float confidence = params.value("confidence", 1.0f);
+        npc->getWorldView().setBelief(key, value, confidence);
+        return {{"success", true}, {"name", name}, {"key", key}};
+    }
+    if (action == "set_npc_opinion") {
+        std::string name = params.value("name", "");
+        std::string subject = params.value("subject", "");
+        if (name.empty() || subject.empty()) return {{"error", "NPC name and opinion subject required"}};
+        auto* npc = npcManager->getNPC(name);
+        if (!npc) return {{"error", "NPC not found: " + name}};
+        float sentiment = params.value("sentiment", 0.0f);
+        std::string reason = params.value("reason", "");
+        npc->getWorldView().setOpinion(subject, sentiment, reason);
+        return {{"success", true}, {"name", name}, {"subject", subject}};
+    }
+
+    return {{"error", "Unknown social action: " + action}};
+}
+
+// ============================================================================
+// Game State Command Handler (extracted to reduce nesting depth - C1061)
+// ============================================================================
+struct GameStateContext {
+    bool& gamePaused;
+    std::function<void(bool)> setPaused;
+    Core::HealthComponent& playerHealth;
+    Core::RespawnSystem& respawnSystem;
+    Core::MusicPlaylist& musicPlaylist;
+    Core::PlayerProfile& playerProfile;
+    Core::ObjectiveTracker& objectiveTracker;
+    Core::AudioSystem* audioSystem;
+    Graphics::Camera* camera;
+    Core::Inventory* inventory;
+    ChunkManager* chunkManager;
+};
+
+static nlohmann::json handleGameStateCommand(
+    const std::string& action,
+    const nlohmann::json& params,
+    GameStateContext& ctx)
+{
+    using json = nlohmann::json;
+
+    if (action == "get_pause_state") {
+        return {{"paused", ctx.gamePaused}};
+    } else if (action == "set_pause_state") {
+        bool paused = params.value("paused", !ctx.gamePaused);
+        ctx.setPaused(paused);
+        return {{"paused", ctx.gamePaused}};
+    } else if (action == "get_player_health") {
+        json r = ctx.playerHealth.toJson();
+        r["respawn"] = ctx.respawnSystem.toJson();
+        return r;
+    } else if (action == "modify_player_health") {
+        std::string act = params.value("action", "");
+        if (act == "damage") {
+            float amount = params.value("amount", 10.0f);
+            float actual = ctx.playerHealth.takeDamage(amount);
+            return {{"damaged", actual}, {"health", ctx.playerHealth.toJson()}};
+        } else if (act == "heal") {
+            float amount = params.value("amount", 10.0f);
+            float actual = ctx.playerHealth.heal(amount);
+            return {{"healed", actual}, {"health", ctx.playerHealth.toJson()}};
+        } else if (act == "kill") {
+            ctx.playerHealth.kill();
+            return {{"killed", true}, {"health", ctx.playerHealth.toJson()}};
+        } else if (act == "revive") {
+            float pct = params.value("healthPercent", 1.0f);
+            ctx.playerHealth.revive(pct);
+            ctx.respawnSystem.respawn();
+            return {{"revived", true}, {"health", ctx.playerHealth.toJson()}};
+        } else if (act == "set") {
+            float hp = params.value("health", ctx.playerHealth.getMaxHealth());
+            ctx.playerHealth.setHealth(hp);
+            return {{"health", ctx.playerHealth.toJson()}};
+        }
+        return {{"error", "Unknown health action. Use: damage, heal, kill, revive, set"}};
+    } else if (action == "get_respawn_state") {
+        return ctx.respawnSystem.toJson();
+    } else if (action == "modify_respawn") {
+        if (params.contains("force_respawn") && params["force_respawn"].get<bool>()) {
+            ctx.respawnSystem.respawn();
+            ctx.playerHealth.revive(1.0f);
+            return {{"respawned", true}};
+        } else if (params.contains("spawn_point")) {
+            auto& sp = params["spawn_point"];
+            glm::vec3 pos(sp.value("x", 16.0f), sp.value("y", 25.0f), sp.value("z", 16.0f));
+            ctx.respawnSystem.setSpawnPoint(pos);
+            return {{"spawnPoint", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}}};
+        } else if (params.contains("respawn_delay")) {
+            ctx.respawnSystem.setRespawnDelay(params["respawn_delay"].get<float>());
+            return {{"respawnDelay", ctx.respawnSystem.getRespawnDelay()}};
+        }
+        return ctx.respawnSystem.toJson();
+    } else if (action == "get_music_state") {
+        return ctx.musicPlaylist.toJson();
+    } else if (action == "control_music") {
+        std::string act = params.value("action", "");
+        if (act == "play") {
+            ctx.musicPlaylist.play(ctx.audioSystem);
+            return {{"playing", true}, {"music", ctx.musicPlaylist.toJson()}};
+        } else if (act == "stop") {
+            ctx.musicPlaylist.stop(ctx.audioSystem);
+            return {{"playing", false}};
+        } else if (act == "next") {
+            ctx.musicPlaylist.next(ctx.audioSystem);
+            return ctx.musicPlaylist.toJson();
+        } else if (act == "add_track") {
+            std::string path = params.value("path", "");
+            if (!path.empty()) {
+                ctx.musicPlaylist.addTrack(path);
+                return {{"added", path}, {"music", ctx.musicPlaylist.toJson()}};
+            }
+            return {{"error", "Missing 'path' for add_track"}};
+        } else if (act == "remove_track") {
+            std::string path = params.value("path", "");
+            ctx.musicPlaylist.removeTrack(path);
+            return ctx.musicPlaylist.toJson();
+        } else if (act == "clear") {
+            ctx.musicPlaylist.clear();
+            if (ctx.audioSystem) ctx.audioSystem->stopMusic();
+            return {{"cleared", true}};
+        } else if (act == "set_volume") {
+            float vol = params.value("volume", 0.5f);
+            ctx.musicPlaylist.setVolume(vol);
+            if (ctx.audioSystem) ctx.audioSystem->setChannelVolume(Core::AudioChannel::Music, vol);
+            return {{"volume", vol}};
+        } else if (act == "set_mode") {
+            std::string mode = params.value("mode", "sequential");
+            ctx.musicPlaylist.setMode(mode == "shuffle" ? Core::MusicPlaylist::Mode::Shuffle : Core::MusicPlaylist::Mode::Sequential);
+            return {{"mode", mode}};
+        }
+        return {{"error", "Unknown music action. Use: play, stop, next, add_track, remove_track, clear, set_volume, set_mode"}};
+    } else if (action == "save_player_state") {
+        if (ctx.camera) {
+            ctx.playerProfile.cameraPosition = ctx.camera->getPosition();
+            ctx.playerProfile.cameraYaw = ctx.camera->getYaw();
+            ctx.playerProfile.cameraPitch = ctx.camera->getPitch();
+        }
+        ctx.playerProfile.health = ctx.playerHealth.getHealth();
+        ctx.playerProfile.maxHealth = ctx.playerHealth.getMaxHealth();
+        ctx.playerProfile.spawnPoint = ctx.respawnSystem.getSpawnPoint();
+        ctx.playerProfile.deathCount = ctx.respawnSystem.getDeathCount();
+        if (ctx.inventory) {
+            ctx.playerProfile.inventoryData = ctx.inventory->toJson();
+        }
+        auto* worldStorage = ctx.chunkManager->m_streamingManager.getWorldStorage();
+        if (worldStorage && worldStorage->getDb()) {
+            bool ok = ctx.playerProfile.saveToDb(worldStorage->getDb());
+            return {{"saved", ok}, {"profile", ctx.playerProfile.toJson()}};
+        }
+        return {{"error", "No world database available"}};
+    } else if (action == "load_player_state") {
+        auto* worldStorage = ctx.chunkManager->m_streamingManager.getWorldStorage();
+        if (worldStorage && worldStorage->getDb()) {
+            bool ok = ctx.playerProfile.loadFromDb(worldStorage->getDb());
+            if (ok) {
+                if (ctx.camera) {
+                    ctx.camera->setPosition(ctx.playerProfile.cameraPosition);
+                    ctx.camera->setYaw(ctx.playerProfile.cameraYaw);
+                    ctx.camera->setPitch(ctx.playerProfile.cameraPitch);
+                }
+                ctx.playerHealth.setHealth(ctx.playerProfile.health);
+                ctx.respawnSystem.setSpawnPoint(ctx.playerProfile.spawnPoint);
+                if (ctx.inventory && !ctx.playerProfile.inventoryData.empty()) {
+                    ctx.inventory->fromJson(ctx.playerProfile.inventoryData);
+                }
+                return {{"loaded", true}, {"profile", ctx.playerProfile.toJson()}};
+            }
+            return {{"loaded", false}, {"reason", "No saved profile found"}};
+        }
+        return {{"error", "No world database available"}};
+    } else if (action == "get_objectives") {
+        return ctx.objectiveTracker.toJson();
+    } else if (action == "manage_objectives") {
+        std::string act = params.value("action", "");
+        if (act == "add") {
+            std::string id = params.value("id", "");
+            std::string title = params.value("title", "");
+            if (id.empty() || title.empty()) {
+                return {{"error", "Missing 'id' and 'title' for add"}};
+            }
+            bool ok = ctx.objectiveTracker.addObjective(id, title,
+                params.value("description", ""),
+                params.value("category", "main"),
+                params.value("priority", 0),
+                params.value("hidden", false));
+            return {{"added", ok}, {"objectives", ctx.objectiveTracker.toJson()}};
+        } else if (act == "complete") {
+            std::string id = params.value("id", "");
+            bool ok = ctx.objectiveTracker.completeObjective(id);
+            return {{"completed", ok}, {"objectives", ctx.objectiveTracker.toJson()}};
+        } else if (act == "fail") {
+            std::string id = params.value("id", "");
+            bool ok = ctx.objectiveTracker.failObjective(id);
+            return {{"failed", ok}, {"objectives", ctx.objectiveTracker.toJson()}};
+        } else if (act == "remove") {
+            std::string id = params.value("id", "");
+            bool ok = ctx.objectiveTracker.removeObjective(id);
+            return {{"removed", ok}, {"objectives", ctx.objectiveTracker.toJson()}};
+        } else if (act == "clear") {
+            ctx.objectiveTracker.clear();
+            return {{"cleared", true}};
+        }
+        return {{"error", "Unknown objective action. Use: add, complete, fail, remove, clear"}};
+    }
+    return {{"error", "Unknown game state action: " + action}};
+}
+
+// AI / LLM Command Handler (extracted to reduce nesting depth)
+// ============================================================================
+static nlohmann::json handleAICommand(
+    const std::string& action,
+    const nlohmann::json& params,
+    AI::AIConversationService* aiService,
+    Core::NPCManager* npcManager,
+    Core::EntityRegistry* entityRegistry,
+    UI::DialogueSystem* dialogueSystem)
+{
+    if (action == "get_ai_status") {
+        nlohmann::json result = {{"success", true}};
+        if (aiService) {
+            result["configured"] = aiService->isConfigured();
+            auto* client = aiService->getLLMClient();
+            if (client) {
+                const auto& cfg = client->getConfig();
+                result["provider"] = cfg.provider;
+                result["model"] = cfg.model.empty() ? AI::LLMConfig::getDefaultModel(cfg.provider) : cfg.model;
+                auto usage = client->getTokenUsage();
+                result["tokenUsage"] = {
+                    {"totalInput", usage.totalInput},
+                    {"totalOutput", usage.totalOutput},
+                    {"totalCalls", usage.totalCalls}
+                };
+            }
+        } else {
+            result["configured"] = false;
+            result["error"] = "AIConversationService not available";
+        }
+        return result;
+    }
+
+    if (action == "configure_ai") {
+        if (!aiService) return {{"error", "AIConversationService not available"}};
+        AI::LLMConfig config;
+        config.provider = params.value("provider", "anthropic");
+        config.model = params.value("model", "");
+        config.apiKey = params.value("api_key", "");
+        if (params.contains("max_tokens")) config.maxTokens = params["max_tokens"];
+        if (params.contains("temperature")) config.temperature = params["temperature"];
+        aiService->setLLMConfig(config);
+        return {{"success", true}, {"provider", config.provider},
+                {"configured", aiService->isConfigured()}};
+    }
+
+    if (action == "start_ai_conversation") {
+        if (!aiService) return {{"error", "AIConversationService not available"}};
+        if (!aiService->isConfigured()) return {{"error", "AI not configured (no API key)"}};
+        if (!npcManager) return {{"error", "NPCManager not available"}};
+        std::string name = params.value("name", "");
+        if (name.empty()) return {{"error", "NPC name required"}};
+        auto* npc = npcManager->getNPC(name);
+        if (!npc) return {{"error", "NPC not found: " + name}};
+        std::string npcId = entityRegistry ? entityRegistry->getEntityId(npc) : name;
+        if (aiService->startConversation(npc, npcId, name)) {
+            return {{"success", true}, {"name", name}, {"npcId", npcId}};
+        }
+        return {{"error", "Failed to start AI conversation with " + name}};
+    }
+
+    if (action == "send_ai_message") {
+        if (!dialogueSystem) return {{"error", "DialogueSystem not available"}};
+        std::string message = params.value("message", "");
+        if (message.empty()) return {{"error", "Message text required"}};
+        dialogueSystem->submitAIInput(message);
+        return {{"success", true}, {"message", message}};
+    }
+
+    return {{"error", "Unknown AI action: " + action}};
 }
 
 // ============================================================================
@@ -2595,6 +3134,7 @@ void Application::processAPICommands() {
                             subsystems.entityRegistry = entityRegistry.get();
                             subsystems.templateManager = objectTemplateManager.get();
                             subsystems.gameEventLog = gameEventLog.get();
+                            subsystems.locationRegistry = locationRegistry;
                             subsystems.camera = camera;
                             subsystems.dialogueSystem = dialogueSystem.get();
                             subsystems.storyEngine = storyEngine.get();
@@ -2845,6 +3385,143 @@ void Application::processAPICommands() {
                                 gameEventLog->emit("entity_revived", {{"id", id}});
                             }
                         }
+                    }
+                }
+
+            } else if (cmd.action == "equip_item") {
+                std::string entityId = cmd.params.value("entityId", "");
+                std::string itemId = cmd.params.value("itemId", "");
+                if (entityId.empty() || itemId.empty()) {
+                    response = {{"error", "entityId and itemId required"}};
+                } else if (!entityRegistry) {
+                    response = {{"error", "No entity registry"}};
+                } else {
+                    auto* entity = entityRegistry->getEntity(entityId);
+                    if (!entity) {
+                        response = {{"error", "Entity not found: " + entityId}};
+                    } else {
+                        auto* npc = dynamic_cast<Scene::NPCEntity*>(entity);
+                        if (!npc) {
+                            response = {{"error", "Entity is not an NPC: " + entityId}};
+                        } else {
+                            auto* def = Core::ItemRegistry::instance().getItem(itemId);
+                            if (!def) {
+                                response = {{"error", "Item not found: " + itemId}};
+                            } else {
+                                bool ok = npc->getEquipment().equip(*def);
+                                if (ok) {
+                                    // Attach weapon visual to right_hand bone
+                                    auto* animChar = npc->getAnimatedCharacter();
+                                    if (animChar && def->equipSlot == Core::EquipSlot::MainHand) {
+                                        animChar->attachToBone("right_hand",
+                                            glm::vec3(0.15f, 0.4f, 0.15f),
+                                            glm::vec3(0.0f, 0.2f, 0.0f),
+                                            glm::vec4(0.7f, 0.7f, 0.8f, 1.0f),
+                                            itemId);
+                                    }
+                                    response = {{"success", true}, {"entityId", entityId}, {"itemId", itemId},
+                                                {"slot", Core::equipSlotToString(def->equipSlot)}};
+                                    if (gameEventLog) {
+                                        gameEventLog->emit("item_equipped", {
+                                            {"entityId", entityId}, {"itemId", itemId},
+                                            {"slot", Core::equipSlotToString(def->equipSlot)}
+                                        });
+                                    }
+                                } else {
+                                    response = {{"error", "Cannot equip item (wrong type or slot)"}};
+                                }
+                            }
+                        }
+                    }
+                }
+
+            } else if (cmd.action == "unequip_item") {
+                std::string entityId = cmd.params.value("entityId", "");
+                std::string slotStr = cmd.params.value("slot", "");
+                if (entityId.empty() || slotStr.empty()) {
+                    response = {{"error", "entityId and slot required"}};
+                } else if (!entityRegistry) {
+                    response = {{"error", "No entity registry"}};
+                } else {
+                    auto* entity = entityRegistry->getEntity(entityId);
+                    if (!entity) {
+                        response = {{"error", "Entity not found: " + entityId}};
+                    } else {
+                        auto* npc = dynamic_cast<Scene::NPCEntity*>(entity);
+                        if (!npc) {
+                            response = {{"error", "Entity is not an NPC: " + entityId}};
+                        } else {
+                            Core::EquipSlot slot = Core::equipSlotFromString(slotStr);
+                            if (slot == Core::EquipSlot::None) {
+                                response = {{"error", "Invalid slot: " + slotStr}};
+                            } else {
+                                auto removedItem = npc->getEquipment().unequip(slot);
+                                if (removedItem) {
+                                    // Remove weapon visual
+                                    auto* animChar = npc->getAnimatedCharacter();
+                                    if (animChar && slot == Core::EquipSlot::MainHand) {
+                                        animChar->detachAll();
+                                    }
+                                    response = {{"success", true}, {"entityId", entityId},
+                                                {"slot", slotStr}, {"removedItemId", *removedItem}};
+                                    if (gameEventLog) {
+                                        gameEventLog->emit("item_unequipped", {
+                                            {"entityId", entityId}, {"slot", slotStr},
+                                            {"itemId", *removedItem}
+                                        });
+                                    }
+                                } else {
+                                    response = {{"error", "No item in slot: " + slotStr}};
+                                }
+                            }
+                        }
+                    }
+                }
+
+            } else if (cmd.action == "combat_attack") {
+                std::string attackerId = cmd.params.value("attackerId", "");
+                if (attackerId.empty() || !entityRegistry) {
+                    response = {{"error", "attackerId required"}};
+                } else {
+                    auto* entity = entityRegistry->getEntity(attackerId);
+                    if (!entity) {
+                        response = {{"error", "Entity not found: " + attackerId}};
+                    } else {
+                        Core::CombatSystem::AttackParams params;
+                        params.attackerId = attackerId;
+                        params.attackerPos = entity->getPosition();
+                        // Use entity forward direction if available, else use params
+                        if (cmd.params.contains("forward")) {
+                            params.attackerForward = glm::vec3(
+                                cmd.params["forward"].value("x", 0.0f),
+                                cmd.params["forward"].value("y", 0.0f),
+                                cmd.params["forward"].value("z", -1.0f));
+                        } else {
+                            params.attackerForward = glm::vec3(0, 0, -1);
+                        }
+
+                        // Get weapon stats from equipment if NPC
+                        auto* npc = dynamic_cast<Scene::NPCEntity*>(entity);
+                        if (npc) {
+                            params.damage = npc->getEquipment().getTotalDamage();
+                            params.reach = npc->getEquipment().getTotalReach();
+                        } else {
+                            params.damage = cmd.params.value("damage", 10.0f);
+                            params.reach = cmd.params.value("reach", 1.5f);
+                        }
+                        params.coneAngleDeg = cmd.params.value("coneAngle", 90.0f);
+                        params.knockbackForce = cmd.params.value("knockback", 2.0f);
+
+                        auto events = combatSystem->performAttack(params, *entityRegistry);
+                        nlohmann::json hits = nlohmann::json::array();
+                        for (const auto& e : events) {
+                            hits.push_back(e.toJson());
+                            if (gameEventLog) {
+                                gameEventLog->emit("combat_damage", e.toJson());
+                            }
+                        }
+                        response = {{"success", true}, {"attackerId", attackerId},
+                                    {"hitCount", events.size()}, {"hits", hits}};
                     }
                 }
 
@@ -3446,6 +4123,10 @@ void Application::processAPICommands() {
                                         wp.value("z", 0.0f));
                                 }
                             }
+                        } else if (behaviorStr == "behavior_tree") {
+                            behaviorType = Core::NPCBehaviorType::BehaviorTree;
+                        } else if (behaviorStr == "scheduled") {
+                            behaviorType = Core::NPCBehaviorType::Scheduled;
                         }
 
                         // Parse optional appearance
@@ -3575,6 +4256,12 @@ void Application::processAPICommands() {
                                 float waitTime = cmd.params.value("waitTime", 2.0f);
                                 behavior = std::make_unique<Scene::PatrolBehavior>(
                                     waypoints, walkSpeed, waitTime);
+                            } else if (behaviorStr == "behavior_tree") {
+                                behavior = std::make_unique<Scene::BehaviorTreeBehavior>();
+                            } else if (behaviorStr == "scheduled") {
+                                std::string role = cmd.params.value("role", "");
+                                auto schedule = role.empty() ? AI::Schedule::defaultSchedule() : AI::Schedule::forRole(role);
+                                behavior = std::make_unique<Scene::ScheduledBehavior>(schedule);
                             } else {
                                 response = {{"error", "Unknown behavior: " + behaviorStr}};
                                 if (cmd.onComplete) cmd.onComplete(response);
@@ -3968,6 +4655,7 @@ void Application::processAPICommands() {
                 subsystems.entityRegistry = entityRegistry.get();
                 subsystems.templateManager = objectTemplateManager.get();
                 subsystems.gameEventLog = gameEventLog.get();
+                subsystems.locationRegistry = locationRegistry;
                 subsystems.camera = camera;
                 subsystems.dialogueSystem = dialogueSystem.get();
                 subsystems.storyEngine = storyEngine.get();
@@ -4032,6 +4720,7 @@ void Application::processAPICommands() {
                     subsystems.gameEventLog = gameEventLog.get();
                     subsystems.dialogueSystem = dialogueSystem.get();
                     subsystems.storyEngine = storyEngine.get();
+                    subsystems.locationRegistry = locationRegistry;
                     subsystems.aiRegister = [this](Scene::Entity* entity, const std::string& entityId,
                                                     const std::string& npcName, const std::string& personality) {
                         if (!aiSystem) return;
@@ -4276,6 +4965,9 @@ void Application::processAPICommands() {
                     }
                     if (cmd.params.contains("timeScale")) {
                         cycle.setTimeScale(cmd.params["timeScale"].get<float>());
+                    }
+                    if (cmd.params.contains("dayNumber")) {
+                        cycle.setDayNumber(cmd.params["dayNumber"].get<int>());
                     }
                     if (cmd.params.contains("enabled")) {
                         cycle.setEnabled(cmd.params["enabled"].get<bool>());
@@ -5061,6 +5753,208 @@ void Application::processAPICommands() {
                         }
                     }
                 }
+
+            // ================================================================
+            // AI INSPECTION COMMANDS
+            // ================================================================
+            } else if (cmd.action == "get_npc_blackboard") {
+                if (!npcManager) {
+                    response = {{"error", "NPCManager not available"}};
+                } else {
+                    std::string name = cmd.params.value("name", "");
+                    if (name.empty()) {
+                        response = {{"error", "NPC name required"}};
+                    } else {
+                        auto* npc = npcManager->getNPC(name);
+                        if (!npc) {
+                            response = {{"error", "NPC not found: " + name}};
+                        } else {
+                            auto* btBehavior = dynamic_cast<Scene::BehaviorTreeBehavior*>(npc->getBehavior());
+                            if (!btBehavior) {
+                                response = {{"error", "NPC does not have a BehaviorTree behavior"}};
+                            } else {
+                                response = {{"success", true}, {"name", name},
+                                            {"blackboard", btBehavior->getBlackboard().toJson()}};
+                            }
+                        }
+                    }
+                }
+
+            } else if (cmd.action == "get_npc_perception") {
+                if (!npcManager) {
+                    response = {{"error", "NPCManager not available"}};
+                } else {
+                    std::string name = cmd.params.value("name", "");
+                    if (name.empty()) {
+                        response = {{"error", "NPC name required"}};
+                    } else {
+                        auto* npc = npcManager->getNPC(name);
+                        if (!npc) {
+                            response = {{"error", "NPC not found: " + name}};
+                        } else {
+                            auto* btBehavior = dynamic_cast<Scene::BehaviorTreeBehavior*>(npc->getBehavior());
+                            if (!btBehavior) {
+                                response = {{"error", "NPC does not have a BehaviorTree behavior"}};
+                            } else {
+                                response = {{"success", true}, {"name", name},
+                                            {"perception", btBehavior->getPerception().toJson()}};
+                            }
+                        }
+                    }
+                }
+
+            } else if (cmd.action == "set_npc_blackboard") {
+                if (!npcManager) {
+                    response = {{"error", "NPCManager not available"}};
+                } else {
+                    std::string name = cmd.params.value("name", "");
+                    std::string key = cmd.params.value("key", "");
+                    if (name.empty() || key.empty()) {
+                        response = {{"error", "NPC name and key required"}};
+                    } else {
+                        auto* npc = npcManager->getNPC(name);
+                        if (!npc) {
+                            response = {{"error", "NPC not found: " + name}};
+                        } else {
+                            auto* btBehavior = dynamic_cast<Scene::BehaviorTreeBehavior*>(npc->getBehavior());
+                            if (!btBehavior) {
+                                response = {{"error", "NPC does not have a BehaviorTree behavior"}};
+                            } else {
+                                auto& bb = btBehavior->getBlackboard();
+                                if (cmd.params.contains("value")) {
+                                    auto& val = cmd.params["value"];
+                                    if (val.is_boolean()) bb.set(key, val.get<bool>());
+                                    else if (val.is_number_integer()) bb.set(key, val.get<int>());
+                                    else if (val.is_number_float()) bb.set(key, val.get<float>());
+                                    else if (val.is_string()) bb.set(key, val.get<std::string>());
+                                    else if (val.is_object() && val.contains("x")) {
+                                        bb.set(key, glm::vec3(val.value("x", 0.0f), val.value("y", 0.0f), val.value("z", 0.0f)));
+                                    }
+                                }
+                                response = {{"success", true}, {"name", name}, {"key", key}};
+                            }
+                        }
+                    }
+                }
+
+            // ================================================================
+            // LOCATION & SCHEDULE COMMANDS
+            // ================================================================
+            } else if (cmd.action == "get_locations") {
+                if (!locationRegistry) {
+                    response = {{"error", "LocationRegistry not available"}};
+                } else {
+                    response = locationRegistry->toJson();
+                }
+
+            } else if (cmd.action == "add_location") {
+                if (!locationRegistry) {
+                    response = {{"error", "LocationRegistry not available"}};
+                } else {
+                    auto loc = Core::Location::fromJson(cmd.params);
+                    locationRegistry->addLocation(loc);
+                    response = {{"success", true}, {"id", loc.id}, {"name", loc.name}};
+                }
+
+            } else if (cmd.action == "remove_location") {
+                if (!locationRegistry) {
+                    response = {{"error", "LocationRegistry not available"}};
+                } else {
+                    std::string id = cmd.params.value("id", "");
+                    if (id.empty()) {
+                        response = {{"error", "Location id required"}};
+                    } else {
+                        locationRegistry->removeLocation(id);
+                        response = {{"success", true}, {"id", id}};
+                    }
+                }
+
+            } else if (cmd.action == "get_npc_schedule") {
+                if (!npcManager) {
+                    response = {{"error", "NPCManager not available"}};
+                } else {
+                    std::string name = cmd.params.value("name", "");
+                    if (name.empty()) {
+                        response = {{"error", "NPC name required"}};
+                    } else {
+                        auto* npc = npcManager->getNPC(name);
+                        if (!npc) {
+                            response = {{"error", "NPC not found: " + name}};
+                        } else {
+                            auto* scheduled = dynamic_cast<Scene::ScheduledBehavior*>(npc->getBehavior());
+                            if (!scheduled) {
+                                response = {{"error", "NPC does not have a Scheduled behavior"}};
+                            } else {
+                                response = {{"name", name}, {"schedule", scheduled->getSchedule().toJson()}};
+                            }
+                        }
+                    }
+                }
+
+            } else if (cmd.action == "set_npc_schedule") {
+                if (!npcManager) {
+                    response = {{"error", "NPCManager not available"}};
+                } else {
+                    std::string name = cmd.params.value("name", "");
+                    if (name.empty()) {
+                        response = {{"error", "NPC name required"}};
+                    } else {
+                        auto* npc = npcManager->getNPC(name);
+                        if (!npc) {
+                            response = {{"error", "NPC not found: " + name}};
+                        } else {
+                            auto* scheduled = dynamic_cast<Scene::ScheduledBehavior*>(npc->getBehavior());
+                            if (!scheduled) {
+                                response = {{"error", "NPC does not have a Scheduled behavior"}};
+                            } else {
+                                if (cmd.params.contains("schedule")) {
+                                    AI::Schedule sched = AI::Schedule::fromJson(cmd.params["schedule"]);
+                                    scheduled->setSchedule(sched);
+                                } else if (cmd.params.contains("role")) {
+                                    std::string role = cmd.params["role"];
+                                    scheduled->setSchedule(AI::Schedule::forRole(role));
+                                }
+                                response = {{"success", true}, {"name", name}};
+                            }
+                        }
+                    }
+                }
+
+            // ================================================================
+            // Social Simulation (Needs, Relationships, WorldView)
+            // ================================================================
+            } else if (cmd.action == "get_npc_needs" || cmd.action == "set_npc_needs" ||
+                       cmd.action == "get_npc_relationships" || cmd.action == "set_npc_relationship" ||
+                       cmd.action == "apply_npc_interaction" || cmd.action == "get_npc_worldview" ||
+                       cmd.action == "set_npc_belief" || cmd.action == "set_npc_opinion") {
+                response = handleSocialSimulationCommand(cmd.action, cmd.params, npcManager.get());
+
+            // ================================================================
+            // GAME STATE (extracted — handleGameStateCommand)
+            // ================================================================
+            } else if (cmd.action == "get_pause_state" || cmd.action == "set_pause_state" ||
+                       cmd.action == "get_player_health" || cmd.action == "modify_player_health" ||
+                       cmd.action == "get_respawn_state" || cmd.action == "modify_respawn" ||
+                       cmd.action == "get_music_state" || cmd.action == "control_music" ||
+                       cmd.action == "save_player_state" || cmd.action == "load_player_state" ||
+                       cmd.action == "get_objectives" || cmd.action == "manage_objectives") {
+                GameStateContext gsCtx{
+                    gamePaused,
+                    [this](bool p) { setPaused(p); },
+                    playerHealth, respawnSystem, musicPlaylist,
+                    playerProfile, objectiveTracker,
+                    audioSystem, camera, inventory.get(), chunkManager
+                };
+                response = handleGameStateCommand(cmd.action, cmd.params, gsCtx);
+
+            // ================================================================
+            // AI / LLM
+            // ================================================================
+            } else if (cmd.action == "get_ai_status" || cmd.action == "configure_ai" ||
+                       cmd.action == "start_ai_conversation" || cmd.action == "send_ai_message") {
+                response = handleAICommand(cmd.action, cmd.params,
+                    aiConversationService.get(), npcManager.get(),
+                    entityRegistry.get(), dialogueSystem.get());
 
             } else {
                 response = {{"error", "Unknown action: " + cmd.action}};

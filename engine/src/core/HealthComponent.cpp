@@ -24,6 +24,7 @@ float HealthComponent::takeDamage(float amount, const std::string& /*sourceId*/)
     if (m_health <= 0.0f) {
         m_health = 0.0f;
         m_alive = false;
+        if (m_onDeath) m_onDeath();
     }
 
     return actual;
@@ -53,6 +54,7 @@ void HealthComponent::setMaxHealth(float maxHealth) {
 void HealthComponent::kill() {
     m_health = 0.0f;
     m_alive = false;
+    if (m_onDeath) m_onDeath();
 }
 
 void HealthComponent::revive(float healthPercent) {
