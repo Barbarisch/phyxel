@@ -65,7 +65,7 @@ Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, cons
     }
 
     // Wire context
-    npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry);
+    npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry, m_chunkManager, m_raycastVisualizer);
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
@@ -232,7 +232,7 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
     if (m_entityRegistry) {
         m_entityRegistry->registerEntity(npc.get(), entityId, "npc");
     }
-    npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry);
+    npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry, m_chunkManager, m_raycastVisualizer);
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
@@ -280,7 +280,7 @@ Scene::NPCEntity* NPCManager::spawnPhysicsNPC(const std::string& name, const std
     if (m_entityRegistry) {
         m_entityRegistry->registerEntity(npc.get(), entityId, "npc");
     }
-    npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry);
+    npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry, m_chunkManager, m_raycastVisualizer);
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
@@ -340,7 +340,7 @@ Scene::NPCEntity* NPCManager::spawnPhysicsProceduralNPC(const std::string& name,
     if (m_entityRegistry) {
         m_entityRegistry->registerEntity(npc.get(), entityId, "npc");
     }
-    npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry);
+    npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry, m_chunkManager, m_raycastVisualizer);
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);

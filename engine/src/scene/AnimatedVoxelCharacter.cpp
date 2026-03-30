@@ -1032,15 +1032,15 @@ namespace Scene {
                         break; 
                     }
 
-                    // Movement Logic
-                    bool isMovingForward = currentForwardInput > 0.01f;
-                    bool isMovingBackward = currentForwardInput < -0.01f;
+                    // Movement Logic (W key gives negative forward, S gives positive)
+                    bool isMovingForward = currentForwardInput < -0.01f;
+                    bool isMovingBackward = currentForwardInput > 0.01f;
                     bool isMoving = isMovingForward || isMovingBackward;
                     bool isStrafing = glm::abs(currentStrafeInput) > 0.1f;
                     
-                    if (currentForwardInput > 0.6f) {
+                    if (currentForwardInput < -0.6f) {
                         currentState = AnimatedCharacterState::Run;
-                    } else if (currentForwardInput < -0.6f) {
+                    } else if (currentForwardInput > 0.6f) {
                         // Fast backward defaults to backward walk (no backward run)
                         currentState = AnimatedCharacterState::BackwardWalk;
                     } else if (isMovingForward && isStrafing) {
@@ -1048,19 +1048,8 @@ namespace Scene {
                         if (currentStrafeInput > 0) currentState = AnimatedCharacterState::WalkStrafeRight;
                         else currentState = AnimatedCharacterState::WalkStrafeLeft;
                     } else if (isMovingForward) {
-                        // If we were Idle, go to StartWalk
-                        if (currentState == AnimatedCharacterState::Idle) {
-                            currentState = AnimatedCharacterState::StartWalk;
-                            stateTimer = 0.0f;
-                        } 
-                        // If we were StartWalk and it finished, go to Walk
-                        else if (currentState == AnimatedCharacterState::StartWalk) {
-                            if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
-                                currentState = AnimatedCharacterState::Walk;
-                            }
-                        }
-                        // If we were already Walking or Running (and slowed down), stay/switch to Walk
-                        else if (currentState != AnimatedCharacterState::StartWalk) {
+                        // Go straight to Walk (crossfade blend handles the transition)
+                        if (currentState != AnimatedCharacterState::Walk) {
                             currentState = AnimatedCharacterState::Walk;
                         }
                     } else if (isMovingBackward) {
@@ -1073,17 +1062,8 @@ namespace Scene {
                         if (currentTurnInput > 0) currentState = AnimatedCharacterState::TurnRight;
                         else currentState = AnimatedCharacterState::TurnLeft;
                     } else {
-                        // No input — transition to stop animations or idle
-                        if (currentState == AnimatedCharacterState::Run) {
-                            currentState = AnimatedCharacterState::StopRun;
-                            stateTimer = 0.0f;
-                        } else if (currentState == AnimatedCharacterState::Walk || 
-                                   currentState == AnimatedCharacterState::BackwardWalk) {
-                            currentState = AnimatedCharacterState::StopWalk;
-                            stateTimer = 0.0f;
-                        } else {
-                            currentState = AnimatedCharacterState::Idle;
-                        }
+                        // No input — go straight to Idle (crossfade blend handles smoothing)
+                        currentState = AnimatedCharacterState::Idle;
                     }
                 }
                 break;
@@ -1103,8 +1083,18 @@ namespace Scene {
                 break;
 
             case AnimatedCharacterState::StartWalk:
+                // Jump can interrupt start-walk
+                if (jumpRequested) {
+                    currentState = AnimatedCharacterState::Jump;
+                    stateTimer = 0.0f;
+                    jumpRequested = false;
+                    if (controllerBody) {
+                        btVector3 vel = controllerBody->getLinearVelocity();
+                        controllerBody->setLinearVelocity(btVector3(vel.x(), 7.0f, vel.z()));
+                    }
+                }
                 // If stopped moving
-                if (glm::abs(currentForwardInput) < 0.01f) {
+                else if (glm::abs(currentForwardInput) < 0.01f) {
                     currentState = AnimatedCharacterState::Idle;
                 } 
                 // If started running
@@ -1118,9 +1108,19 @@ namespace Scene {
                 break;
 
             case AnimatedCharacterState::BackwardWalk:
+                // Jump can interrupt backward walk
+                if (jumpRequested) {
+                    currentState = AnimatedCharacterState::Jump;
+                    stateTimer = 0.0f;
+                    jumpRequested = false;
+                    if (controllerBody) {
+                        btVector3 vel = controllerBody->getLinearVelocity();
+                        controllerBody->setLinearVelocity(btVector3(vel.x(), 7.0f, vel.z()));
+                    }
+                }
                 // If stopped moving backward
-                if (currentForwardInput >= -0.01f) {
-                    if (currentForwardInput > 0.01f) {
+                else if (currentForwardInput <= 0.01f) {
+                    if (currentForwardInput < -0.01f) {
                         currentState = AnimatedCharacterState::Walk;
                     } else {
                         currentState = AnimatedCharacterState::StopWalk;
@@ -1130,10 +1130,20 @@ namespace Scene {
                 break;
 
             case AnimatedCharacterState::StopWalk:
+                // Jump can interrupt stop-walk
+                if (jumpRequested) {
+                    currentState = AnimatedCharacterState::Jump;
+                    stateTimer = 0.0f;
+                    jumpRequested = false;
+                    if (controllerBody) {
+                        btVector3 vel = controllerBody->getLinearVelocity();
+                        controllerBody->setLinearVelocity(btVector3(vel.x(), 7.0f, vel.z()));
+                    }
+                }
                 // One-shot deceleration from walk
-                if (glm::abs(currentForwardInput) > 0.01f) {
+                else if (glm::abs(currentForwardInput) > 0.01f) {
                     // Player started moving again — cancel stop
-                    if (currentForwardInput > 0.01f) currentState = AnimatedCharacterState::Walk;
+                    if (currentForwardInput < -0.01f) currentState = AnimatedCharacterState::Walk;
                     else currentState = AnimatedCharacterState::BackwardWalk;
                 } else if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
                     currentState = AnimatedCharacterState::Idle;
@@ -1141,11 +1151,21 @@ namespace Scene {
                 break;
 
             case AnimatedCharacterState::StopRun:
+                // Jump can interrupt stop-run
+                if (jumpRequested) {
+                    currentState = AnimatedCharacterState::Jump;
+                    stateTimer = 0.0f;
+                    jumpRequested = false;
+                    if (controllerBody) {
+                        btVector3 vel = controllerBody->getLinearVelocity();
+                        controllerBody->setLinearVelocity(btVector3(vel.x(), 7.0f, vel.z()));
+                    }
+                }
                 // One-shot deceleration from run
-                if (glm::abs(currentForwardInput) > 0.1f) {
+                else if (glm::abs(currentForwardInput) > 0.1f) {
                     // Player started moving again — cancel stop
-                    if (currentForwardInput > 0.6f) currentState = AnimatedCharacterState::Run;
-                    else if (currentForwardInput > 0.01f) currentState = AnimatedCharacterState::Walk;
+                    if (currentForwardInput < -0.6f) currentState = AnimatedCharacterState::Run;
+                    else if (currentForwardInput < -0.01f) currentState = AnimatedCharacterState::Walk;
                     else currentState = AnimatedCharacterState::BackwardWalk;
                 } else if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
                     currentState = AnimatedCharacterState::Idle;
@@ -1175,11 +1195,21 @@ namespace Scene {
                 break;
 
             case AnimatedCharacterState::Land:
-                if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
+                // Jump can interrupt landing (bunny hop)
+                if (jumpRequested) {
+                    currentState = AnimatedCharacterState::Jump;
+                    stateTimer = 0.0f;
+                    jumpRequested = false;
+                    if (controllerBody) {
+                        btVector3 vel = controllerBody->getLinearVelocity();
+                        controllerBody->setLinearVelocity(btVector3(vel.x(), 7.0f, vel.z()));
+                    }
+                }
+                else if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
                     currentState = AnimatedCharacterState::Idle;
                 }
                 // Allow moving to interrupt landing
-                if (glm::abs(currentForwardInput) > 0.1f) {
+                else if (glm::abs(currentForwardInput) > 0.1f) {
                     currentState = AnimatedCharacterState::Walk;
                 }
                 // Allow strafing to interrupt landing

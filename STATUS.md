@@ -81,7 +81,7 @@
 #### NPCEntity & NPCManager
 - **NPCEntity**: Wraps `AnimatedVoxelCharacter`, delegates to a pluggable `NPCBehavior` strategy. Supports `IdleBehavior` and `PatrolBehavior` (waypoints, walk speed, wait time).
 - **NPCManager**: Owns all NPC entities, registers them with `EntityRegistry` as type `"npc"`. Handles spawn/remove lifecycle and wires NPC context (physics, registry, light manager).
-- **Behaviors**: `IdleBehavior` (stationary), `PatrolBehavior` (ordered waypoints with configurable speed/wait)
+- **Behaviors**: `IdleBehavior` (stationary), `PatrolBehavior` (ordered waypoints with configurable speed/wait, includes `PerceptionComponent` for FOV/LOS and look-around sweep), `BehaviorTreeBehavior` (composable BT with perception, blackboard), `WanderBehavior` (random movement)
 - **Dialogue**: `DialogueSystem`, `SpeechBubbleManager`, `InteractionManager` for NPC interaction
 - **API endpoints**: `POST /api/npc/spawn`, `POST /api/npc/remove`, `GET /api/npcs`, `POST /api/npc/behavior`, `POST /api/npc/dialogue`
 
@@ -298,7 +298,7 @@ Behavior tree + utility AI system for NPC decision-making. NPCs can now use perc
 
 **Files created:**
 - **engine/include/ai/Blackboard.h**: Header-only per-NPC typed key-value store (`variant<bool, int, float, string, vec3>`). Typed getters with defaults, overloaded `set()`, `toJson()` serialization.
-- **engine/include/ai/PerceptionSystem.h + .cpp**: `SenseResult` struct + `PerceptionComponent` class — vision cone (dot product), hearing radius (omnidirectional), memory decay, configurable ranges/angles/update intervals.
+- **engine/include/ai/PerceptionSystem.h + .cpp**: `SenseResult` struct + `PerceptionComponent` class — vision cone (dot product + voxel line-of-sight raycasting), hearing radius (omnidirectional), memory decay, configurable ranges/angles/update intervals. Debug FOV cone visualization via `debugConeDraw` callback (toggle with F5). LOS targets entity body center (+1.0 Y offset) to avoid floor collisions.
 - **engine/include/ai/ActionSystem.h + .cpp**: `NPCAction` base class + 7 concrete actions: `MoveToAction`, `LookAtAction`, `WaitAction`, `SpeakAction`, `SetBlackboardAction`, `MoveToEntityAction`, `FleeAction`. Actions follow PatrolBehavior movement patterns (XZ-plane setMoveVelocity + yaw setRotation).
 - **engine/include/ai/BehaviorTree.h**: Header-only behavior tree framework. `BTNode` base, composites (`SequenceNode`, `SelectorNode`, `ParallelNode`), decorators (`InverterNode`, `RepeaterNode`, `CooldownNode`, `SucceederNode`), leaves (`ActionNode` wrapping NPCAction, `ConditionNode`, `BBConditionNode`, `BBHasKeyNode`). Builder helpers in `BT::` namespace. `BehaviorTree` root container.
 - **engine/include/ai/UtilityAI.h**: Header-only utility AI layer. `Consideration` (scorer + weight), `UtilityAction` (behavior tree + multiplicative scoring), `UtilityBrain` (evaluates all actions, selects highest, runs BT).

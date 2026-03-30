@@ -17,6 +17,8 @@ namespace Physics { class PhysicsWorld; }
 namespace Graphics { class LightManager; class DayNightCycle; }
 namespace UI { class SpeechBubbleManager; }
 namespace Core { class EntityRegistry; class LocationRegistry; }
+class ChunkManager;
+class RaycastVisualizer;
 
 namespace Scene {
 class NPCBehavior;
@@ -50,6 +52,10 @@ public:
     void setDayNightCycle(Graphics::DayNightCycle* cycle) { m_dayNightCycle = cycle; }
     /// Set the location registry for NPC navigation.
     void setLocationRegistry(LocationRegistry* registry) { m_locationRegistry = registry; }
+    /// Set the chunk manager for NPC line-of-sight raycasting.
+    void setChunkManager(ChunkManager* mgr) { m_chunkManager = mgr; }
+    /// Set the raycast visualizer for NPC FOV debug cone rendering.
+    void setRaycastVisualizer(RaycastVisualizer* viz) { m_raycastVisualizer = viz; }
 
     /// Spawn an NPC with the given behavior type.
     /// @param name       Unique name for this NPC.
@@ -131,6 +137,8 @@ private:
     UI::SpeechBubbleManager* m_speechBubbleManager = nullptr;
     Graphics::DayNightCycle* m_dayNightCycle = nullptr;
     LocationRegistry* m_locationRegistry = nullptr;
+    ChunkManager* m_chunkManager = nullptr;
+    RaycastVisualizer* m_raycastVisualizer = nullptr;
 
     /// Owns all NPC entities. Key = NPC name.
     std::unordered_map<std::string, std::unique_ptr<Scene::NPCEntity>> m_npcs;

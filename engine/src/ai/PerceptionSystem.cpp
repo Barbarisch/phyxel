@@ -37,10 +37,19 @@ void PerceptionComponent::update(float dt,
 {
     decayMemory(dt);
 
+    // Draw debug cone every frame so it doesn't flash (beginFrame clears lines)
+    if (debugConeDraw) {
+        glm::vec3 fwd = m_lastForward;
+        if (glm::length(fwd) < 0.001f) fwd = npcForward;
+        bool hasThreat = !getThreats(0.5f).empty();
+        debugConeDraw(npcPos, fwd, visionRange, visionAngle * 0.5f, hasThreat);
+    }
+
     m_timer += dt;
     if (m_timer < updateInterval) return;
     m_timer = 0.0f;
 
+    m_lastForward = npcForward;
     perceive(npcPos, npcForward, selfId, registry);
 }
 
@@ -49,6 +58,12 @@ void PerceptionComponent::perceive(const glm::vec3& npcPos,
                                     const std::string& selfId,
                                     Core::EntityRegistry& registry)
 {
+    // Reset visibility for all known entities at start of perception tick.
+    // Entities that are currently visible will be re-set below.
+    for (auto& [id, sr] : m_known) {
+        sr.isVisible = false;
+    }
+
     // Use the larger of vision/hearing range for the spatial query
     float queryRadius = std::max(visionRange, hearingRange);
     auto nearby = registry.getEntitiesNear(npcPos, queryRadius);
@@ -81,6 +96,15 @@ void PerceptionComponent::perceive(const glm::vec3& npcPos,
 
         bool visible = (dist <= visionRange) && (dot >= coneThreshold);
         bool heard = (dist <= hearingRange);
+
+        // If in vision cone and LOS checker is available, verify line-of-sight
+        if (visible && losCheck) {
+            glm::vec3 eyePos = npcPos + glm::vec3(0.0f, 1.5f, 0.0f); // eye height offset
+            glm::vec3 targetPos = entity->getPosition() + glm::vec3(0.0f, 1.0f, 0.0f); // target body center
+            if (!losCheck(eyePos, targetPos)) {
+                visible = false;
+            }
+        }
 
         if (!visible && !heard) continue;
 
@@ -118,8 +142,6 @@ void PerceptionComponent::decayMemory(float dt) {
         if (it->second.lastSeen > memoryDuration) {
             it = m_known.erase(it);
         } else {
-            // Mark not currently visible (will be re-set in perceive if still seen)
-            it->second.isVisible = false;
             ++it;
         }
     }

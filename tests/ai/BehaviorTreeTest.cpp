@@ -176,6 +176,39 @@ TEST(SenseResultTest, ToJson) {
     EXPECT_FLOAT_EQ(j["threatLevel"].get<float>(), 0.5f);
 }
 
+TEST(PerceptionComponentTest, LOSCallbackBlocksVisibility) {
+    PerceptionComponent pc;
+    // Set a LOS check that always blocks
+    pc.losCheck = [](const glm::vec3&, const glm::vec3&) { return false; };
+    EXPECT_TRUE(pc.losCheck != nullptr);
+    // Verify the callback returns false
+    EXPECT_FALSE(pc.losCheck(glm::vec3(0), glm::vec3(10, 0, 0)));
+}
+
+TEST(PerceptionComponentTest, LOSCallbackAllowsVisibility) {
+    PerceptionComponent pc;
+    // Set a LOS check that always allows
+    pc.losCheck = [](const glm::vec3&, const glm::vec3&) { return true; };
+    EXPECT_TRUE(pc.losCheck(glm::vec3(0), glm::vec3(10, 0, 0)));
+}
+
+TEST(PerceptionComponentTest, DebugConeDrawCallback) {
+    PerceptionComponent pc;
+    bool called = false;
+    pc.debugConeDraw = [&called](const glm::vec3&, const glm::vec3&, float, float, bool) {
+        called = true;
+    };
+    EXPECT_TRUE(pc.debugConeDraw != nullptr);
+    pc.debugConeDraw(glm::vec3(0), glm::vec3(0, 0, -1), 15.0f, 60.0f, false);
+    EXPECT_TRUE(called);
+}
+
+TEST(PerceptionComponentTest, NullCallbacksByDefault) {
+    PerceptionComponent pc;
+    EXPECT_FALSE(pc.losCheck);
+    EXPECT_FALSE(pc.debugConeDraw);
+}
+
 // ============================================================================
 // BehaviorTree Tests
 // ============================================================================

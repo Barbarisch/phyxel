@@ -16,8 +16,10 @@
 namespace Phyxel {
 
 namespace Physics { class PhysicsWorld; }
-namespace Graphics { class RenderCoordinator; class LightManager; }
-namespace Core { class EntityRegistry; }
+namespace Graphics { class RenderCoordinator; class LightManager; class DayNightCycle; }
+namespace Core { class EntityRegistry; class LocationRegistry; }
+class ChunkManager;
+class RaycastVisualizer;
 
 namespace Scene {
 
@@ -76,7 +78,9 @@ public:
     void setContext(Core::EntityRegistry* registry, Graphics::LightManager* lightManager,
                     UI::SpeechBubbleManager* speechBubbleManager, const std::string& entityId,
                     Graphics::DayNightCycle* dayNightCycle = nullptr,
-                    Core::LocationRegistry* locationRegistry = nullptr);
+                    Core::LocationRegistry* locationRegistry = nullptr,
+                    ChunkManager* chunkManager = nullptr,
+                    RaycastVisualizer* raycastVisualizer = nullptr);
 
     // Attached light (e.g. NPC carrying a lantern)
     void setAttachedLightId(int lightId) { m_attachedLightId = lightId; }

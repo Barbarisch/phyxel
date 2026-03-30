@@ -98,7 +98,7 @@ A voxel character loaded from `.anim` files with a skeleton, box-based geometry,
 ### NPCEntity
 A non-player character that wraps an `AnimatedVoxelCharacter` and delegates logic to a pluggable `NPCBehavior`.
 - **Ownership**: Owned by `NPCManager`, registered in `EntityRegistry` with type tag `"npc"`.
-- **Behaviors**: `IdleBehavior` (stationary), `PatrolBehavior` (waypoint patrol with configurable speed/wait time).
+- **Behaviors**: `IdleBehavior` (stationary), `PatrolBehavior` (waypoint patrol with configurable speed/wait time, includes `PerceptionComponent` for FOV/LOS detection and look-around sweep at waypoints), `BehaviorTreeBehavior` (composable behavior tree with perception, blackboard, utility scoring), `WanderBehavior` (random movement).
 - **Rendering**: `RenderCoordinator` pulls the inner `AnimatedVoxelCharacter*` via `getAnimatedCharacter()` and renders it alongside regular entities in the instanced batch.
 - **Dialogue**: Supports an attached `DialogueProvider` for NPC conversations.
 - **Lights**: Optional attached point light via `setAttachedLightId()`.

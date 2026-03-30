@@ -29,7 +29,7 @@ The `AnimatedVoxelCharacter` uses a finite state machine (FSM) to manage its beh
 The state machine is updated every frame in `AnimatedVoxelCharacter::updateStateMachine`.
 
 ### Priority Actions
-1.  **Jump**: Triggered by `jumpRequested`. Transitions to `Jump`.
+1.  **Jump**: Triggered by `jumpRequested`. Transitions to `Jump`. Can interrupt **any** state including Walk, Run, StartWalk, StopWalk, StopRun, BackwardWalk, and Land.
 2.  **Attack**: Triggered by `attackRequested`. Transitions to `Attack`.
 3.  **Fall**: Triggered if vertical velocity < -5.0f. Transitions to `Fall`.
 
@@ -44,14 +44,23 @@ If no priority action is active, the state is determined by input:
 
 *   **Standing Movement**:
     *   **Forward Input**:
-        *   High input (> 0.6) -> `Run`
-        *   Low input -> `Walk` (via `StartWalk` transition from Idle)
+        *   High input (sprint) -> `Run`
+        *   Low input -> `Walk` (directly from Idle, crossfade blend handles smoothing)
+    *   **Backward Input** -> `BackwardWalk`
     *   **Strafe Input**:
         *   If also moving forward -> `WalkStrafeLeft/Right`
         *   If only strafing -> `StrafeLeft/Right`
     *   **Turn Input**:
         *   If stationary -> `TurnLeft/Right`
-    *   **No Input** -> `Idle`
+    *   **No Input** -> `Idle` (directly, crossfade blend handles smoothing)
+
+### Input Sign Convention
+The Application layer uses **W = negative forward** (`forward -= moveMagnitude`), **S = positive forward**. The FSM checks use this convention:
+- `currentForwardInput < -0.01` = moving forward (Walk)
+- `currentForwardInput < -0.6` = sprinting forward (Run)
+- `currentForwardInput > 0.01` = moving backward (BackwardWalk)
+
+The physics movement code uses the same raw values to compute world-space velocity.
 
 ### Common Issues & Debugging
 

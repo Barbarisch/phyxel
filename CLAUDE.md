@@ -136,7 +136,7 @@ In `resources/animated_characters/`:
 | F3 | Toggle Force Debug Vis |
 | F4 | Toggle Debug Rendering |
 | Ctrl+F4 | Cycle Debug Vis Mode |
-| F5 | Toggle Raycast Vis |
+| F5 | Toggle Raycast Vis (also shows NPC FOV cones) |
 | F6 | Toggle Lighting Controls |
 | F7 | Toggle Profiler |
 | ` (backtick) | Toggle Scripting Console |

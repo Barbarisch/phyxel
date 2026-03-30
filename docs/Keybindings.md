@@ -7,7 +7,7 @@
 - **F3**: Toggle Force Debug Visualization
 - **F4**: Toggle Debug Rendering
 - **Ctrl + F4**: Cycle Debug Visualization Mode
-- **F5**: Toggle Raycast Visualization
+- **F5**: Toggle Raycast Visualization (also shows NPC FOV cones when perception is active)
 - **Shift + F5**: Cycle Raycast Target Mode
 - **F6**: Toggle Lighting Controls
 - **F7**: Toggle Profiler

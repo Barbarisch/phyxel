@@ -730,6 +730,10 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     if (locationRegistry) {
         npcManager->setLocationRegistry(locationRegistry);
     }
+    npcManager->setChunkManager(chunkManager);
+    if (raycastVisualizer) {
+        npcManager->setRaycastVisualizer(raycastVisualizer.get());
+    }
 
     // Initialize Interaction Manager
     interactionManager = std::make_unique<Core::InteractionManager>();

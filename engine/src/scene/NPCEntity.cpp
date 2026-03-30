@@ -152,7 +152,9 @@ void NPCEntity::setBehavior(std::unique_ptr<NPCBehavior> behavior) {
 void NPCEntity::setContext(Core::EntityRegistry* registry, Graphics::LightManager* lightManager,
                            UI::SpeechBubbleManager* speechBubbleManager, const std::string& entityId,
                            Graphics::DayNightCycle* dayNightCycle,
-                           Core::LocationRegistry* locationRegistry) {
+                           Core::LocationRegistry* locationRegistry,
+                           ChunkManager* chunkManager,
+                           RaycastVisualizer* raycastVisualizer) {
     m_context.entityRegistry = registry;
     m_context.lightManager = lightManager;
     m_context.speechBubbleManager = speechBubbleManager;
@@ -160,6 +162,8 @@ void NPCEntity::setContext(Core::EntityRegistry* registry, Graphics::LightManage
     m_context.self = this;
     m_context.dayNightCycle = dayNightCycle;
     m_context.locationRegistry = locationRegistry;
+    m_context.chunkManager = chunkManager;
+    m_context.raycastVisualizer = raycastVisualizer;
 
     if (registry) {
         m_context.getEntityPosition = [registry](const std::string& id) -> glm::vec3 {
