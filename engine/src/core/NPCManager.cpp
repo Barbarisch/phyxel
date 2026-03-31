@@ -1,4 +1,7 @@
 #include "core/NPCManager.h"
+#include "core/NavGrid.h"
+#include "core/AStarPathfinder.h"
+#include "core/ChunkManager.h"
 #include "scene/NPCEntity.h"
 #include "scene/AnimatedVoxelCharacter.h"
 #include "scene/behaviors/IdleBehavior.h"
@@ -11,9 +14,12 @@
 #include "graphics/DayNightCycle.h"
 #include "graphics/AnimationSystem.h"
 #include "utils/Logger.h"
+#include <limits>
 
 namespace Phyxel {
 namespace Core {
+
+NPCManager::~NPCManager() = default;
 
 Scene::NPCEntity* NPCManager::spawnNPC(const std::string& name, const std::string& animFile,
                                         const glm::vec3& position, NPCBehaviorType behaviorType,
@@ -57,6 +63,13 @@ Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, cons
 
     auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, position, name, animFile, appearance);
     npc->setBehavior(std::move(behavior));
+
+    // Wire pathfinder to PatrolBehavior if available
+    if (m_pathfinder) {
+        if (auto* patrol = dynamic_cast<Scene::PatrolBehavior*>(npc->getBehavior())) {
+            patrol->setPathfinder(m_pathfinder.get());
+        }
+    }
 
     // Register with EntityRegistry
     std::string entityId = "npc_" + name;
@@ -156,6 +169,71 @@ void NPCManager::update(float deltaTime) {
     }
 }
 
+void NPCManager::buildNavGrid() {
+    if (!m_chunkManager) {
+        LOG_WARN("NPCManager", "Cannot build NavGrid: ChunkManager not set");
+        return;
+    }
+
+    // Determine XZ bounds from all loaded chunk origins
+    if (m_chunkManager->chunkMap.empty()) {
+        LOG_WARN("NPCManager", "Cannot build NavGrid: no chunks loaded");
+        return;
+    }
+
+    glm::ivec2 minXZ(std::numeric_limits<int>::max());
+    glm::ivec2 maxXZ(std::numeric_limits<int>::min());
+    for (const auto& [coord, chunk] : m_chunkManager->chunkMap) {
+        glm::ivec3 origin = ChunkManager::chunkCoordToOrigin(coord);
+        minXZ.x = std::min(minXZ.x, origin.x);
+        minXZ.y = std::min(minXZ.y, origin.z);
+        maxXZ.x = std::max(maxXZ.x, origin.x + 31);
+        maxXZ.y = std::max(maxXZ.y, origin.z + 31);
+    }
+
+    m_navGrid = std::make_unique<NavGrid>(m_chunkManager);
+    m_navGrid->buildFromRegion(minXZ, maxXZ);
+    m_pathfinder = std::make_unique<AStarPathfinder>(m_navGrid.get());
+
+    // Re-wire all PatrolBehaviors to the new pathfinder and invalidate stale paths.
+    // If an NPC is on a nearWall cell (physics body would clip the wall), 
+    // relocate it to the nearest safe cell center.
+    for (auto& [name, npc] : m_npcs) {
+        if (auto* patrol = dynamic_cast<Scene::PatrolBehavior*>(npc->getBehavior())) {
+            patrol->setPathfinder(m_pathfinder.get());
+            patrol->invalidatePath();
+        }
+
+        // Check if NPC is stuck on a nearWall cell and relocate
+        glm::vec3 pos = npc->getPosition();
+        const NavCell* cell = m_navGrid->getCell(
+            static_cast<int>(std::floor(pos.x)),
+            static_cast<int>(std::floor(pos.z)));
+        if (cell && cell->nearWall) {
+            const NavCell* safe = m_navGrid->findNearestNonWall(pos);
+            if (safe) {
+                glm::vec3 safePos(
+                    static_cast<float>(safe->x) + 0.5f,
+                    static_cast<float>(safe->surfaceY) + 1.0f,
+                    static_cast<float>(safe->z) + 0.5f);
+                npc->setPosition(safePos);
+                LOG_INFO("NPCManager", "Relocated NPC '{}' from nearWall ({},{}) to ({},{},{})",
+                         name, cell->x, cell->z, safePos.x, safePos.y, safePos.z);
+            }
+        }
+    }
+
+    LOG_INFO("NPCManager", "Built NavGrid: XZ [{},{}] to [{},{}], {} cells ({} walkable)",
+             minXZ.x, minXZ.y, maxXZ.x, maxXZ.y,
+             m_navGrid->cellCount(), m_navGrid->walkableCellCount());
+}
+
+void NPCManager::onVoxelChanged(const glm::ivec3& worldPos) {
+    if (m_navGrid) {
+        m_navGrid->rebuildCell(worldPos.x, worldPos.z);
+    }
+}
+
 const NPCManager::AnimTemplate* NPCManager::getOrLoadTemplate(const std::string& animFile) {
     auto it = m_templateCache.find(animFile);
     if (it != m_templateCache.end()) {
@@ -227,6 +305,13 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
     }
     npc->setBehavior(std::move(behavior));
 
+    // Wire pathfinder to PatrolBehavior if available
+    if (m_pathfinder) {
+        if (auto* patrol = dynamic_cast<Scene::PatrolBehavior*>(npc->getBehavior())) {
+            patrol->setPathfinder(m_pathfinder.get());
+        }
+    }
+
     // Register with EntityRegistry
     std::string entityId = "npc_" + name;
     if (m_entityRegistry) {
@@ -275,6 +360,13 @@ Scene::NPCEntity* NPCManager::spawnPhysicsNPC(const std::string& name, const std
             break;
     }
     npc->setBehavior(std::move(behavior));
+
+    // Wire pathfinder to PatrolBehavior if available
+    if (m_pathfinder) {
+        if (auto* patrol = dynamic_cast<Scene::PatrolBehavior*>(npc->getBehavior())) {
+            patrol->setPathfinder(m_pathfinder.get());
+        }
+    }
 
     std::string entityId = "npc_" + name;
     if (m_entityRegistry) {
@@ -335,6 +427,13 @@ Scene::NPCEntity* NPCManager::spawnPhysicsProceduralNPC(const std::string& name,
             break;
     }
     npc->setBehavior(std::move(behavior));
+
+    // Wire pathfinder to PatrolBehavior if available
+    if (m_pathfinder) {
+        if (auto* patrol = dynamic_cast<Scene::PatrolBehavior*>(npc->getBehavior())) {
+            patrol->setPathfinder(m_pathfinder.get());
+        }
+    }
 
     std::string entityId = "npc_" + name;
     if (m_entityRegistry) {

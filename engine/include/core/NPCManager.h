@@ -5,6 +5,8 @@
 #include "ai/RelationshipManager.h"
 #include "ai/SocialInteraction.h"
 #include "graphics/Animation.h"
+#include "core/NavGrid.h"
+#include "core/AStarPathfinder.h"
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -39,6 +41,7 @@ enum class NPCBehaviorType {
 class NPCManager {
 public:
     NPCManager() = default;
+    ~NPCManager();
 
     /// Set the physics world for creating NPC physics bodies.
     void setPhysicsWorld(Physics::PhysicsWorld* world) { m_physicsWorld = world; }
@@ -130,6 +133,19 @@ public:
     AI::SocialInteractionSystem& getSocialSystem() { return m_socialSystem; }
     const AI::SocialInteractionSystem& getSocialSystem() const { return m_socialSystem; }
 
+    /// Build (or rebuild) the navigation grid from all loaded chunks.
+    /// Call after world generation or significant terrain changes.
+    void buildNavGrid();
+
+    /// Get the navigation grid (may be null if not built yet).
+    NavGrid* getNavGrid() const { return m_navGrid.get(); }
+
+    /// Get the A* pathfinder (may be null if not built yet).
+    AStarPathfinder* getPathfinder() const { return m_pathfinder.get(); }
+
+    /// Notify the nav grid that a voxel changed at the given world position.
+    void onVoxelChanged(const glm::ivec3& worldPos);
+
 private:
     Physics::PhysicsWorld* m_physicsWorld = nullptr;
     EntityRegistry* m_entityRegistry = nullptr;
@@ -153,6 +169,10 @@ private:
 
     /// Load or retrieve a cached anim template.
     const AnimTemplate* getOrLoadTemplate(const std::string& animFile);
+
+    // Navigation / pathfinding
+    std::unique_ptr<NavGrid> m_navGrid;
+    std::unique_ptr<AStarPathfinder> m_pathfinder;
 
     // Social simulation (shared)
     AI::RelationshipManager m_relationships;

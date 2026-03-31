@@ -2,6 +2,8 @@
 #include "scene/Entity.h"
 #include "core/EntityRegistry.h"
 #include "core/ChunkManager.h"
+#include "core/AStarPathfinder.h"
+#include "core/NavGrid.h"
 #include "graphics/RaycastVisualizer.h"
 #include "ui/SpeechBubbleManager.h"
 #include "utils/Logger.h"
@@ -40,23 +42,63 @@ void PatrolBehavior::update(float dt, NPCContext& ctx) {
             m_waiting = false;
             m_waitTimer = 0.0f;
             m_currentWaypoint = (m_currentWaypoint + 1) % m_waypoints.size();
+            m_pathComputed = false; // Need new path for next waypoint
         }
         return;
     }
 
-    // Move toward current waypoint
+    // Path retry cooldown
+    if (m_pathRetryTimer > 0.0f) {
+        m_pathRetryTimer -= dt;
+        ctx.self->setMoveVelocity(glm::vec3(0.0f));
+        return;
+    }
+
+    // Compute path to current waypoint if needed
     glm::vec3 pos = ctx.self->getPosition();
     glm::vec3 target = m_waypoints[m_currentWaypoint];
-    glm::vec3 diff = target - pos;
-    // Only consider XZ plane distance (ignore height difference for arrival)
+
+    if (!m_pathComputed) {
+        computePath(pos, target);
+    }
+
+    // Determine immediate movement target
+    glm::vec3 moveTarget;
+    float arrivalThreshold;
+
+    if (!m_pathNodes.empty() && m_currentPathNode < m_pathNodes.size()) {
+        // Following computed path
+        moveTarget = m_pathNodes[m_currentPathNode];
+        arrivalThreshold = PATH_NODE_THRESHOLD;
+    } else {
+        // Direct-line fallback (no pathfinder or path failed)
+        moveTarget = target;
+        arrivalThreshold = ARRIVAL_THRESHOLD;
+    }
+
+    glm::vec3 diff = moveTarget - pos;
     float distXZ = glm::length(glm::vec2(diff.x, diff.z));
 
-    if (distXZ < ARRIVAL_THRESHOLD) {
+    if (distXZ < arrivalThreshold) {
+        if (!m_pathNodes.empty() && m_currentPathNode < m_pathNodes.size()) {
+            // Advance to next path node
+            ++m_currentPathNode;
+            if (m_currentPathNode >= m_pathNodes.size()) {
+                // Reached end of path = arrived at waypoint
+                goto arrived;
+            }
+            return; // Continue to next node next frame
+        }
+
+arrived:
         // Arrived at waypoint — stop moving
         ctx.self->setMoveVelocity(glm::vec3(0.0f));
         m_waiting = true;
         m_waitTimer = 0.0f;
         m_lookAroundPhase = 0.0f;
+        m_pathComputed = false;
+        m_pathNodes.clear();
+        m_currentPathNode = 0;
 
         // Capture base yaw for look-around sweep (face toward next waypoint)
         size_t nextWP = (m_currentWaypoint + 1) % m_waypoints.size();
@@ -77,9 +119,44 @@ void PatrolBehavior::update(float dt, NPCContext& ctx) {
         return;
     }
 
-    // Compute XZ direction toward waypoint and set velocity (gravity handles Y)
+    // Compute XZ direction toward current movement target and set velocity (gravity handles Y).
+    // The NPC's capsule collider naturally slides over subcube-height steps (~0.333 blocks).
     glm::vec3 direction = glm::normalize(glm::vec3(diff.x, 0.0f, diff.z));
     ctx.self->setMoveVelocity(direction * m_walkSpeed);
+
+    // Stuck detection: log if NPC hasn't moved significantly in 3 seconds
+    // After 5 seconds stuck, teleport to nearest safe cell and recompute path
+    float distFromLast = glm::length(pos - m_lastLoggedPos);
+    if (distFromLast < 0.1f) {
+        m_stuckTimer += dt;
+        if (m_stuckTimer > 5.0f && m_pathfinder) {
+            // Recovery: teleport to nearest non-nearWall cell
+            auto* grid = m_pathfinder->getGrid();
+            if (grid) {
+                const Core::NavCell* safe = grid->findNearestNonWall(pos);
+                if (safe) {
+                    glm::vec3 safePos(safe->x + 0.5f, safe->surfaceY + 1.0f, safe->z + 0.5f);
+                    LOG_WARN("PatrolBehavior", "STUCK RECOVERY: teleport ({},{},{}) -> ({},{},{})",
+                             pos.x, pos.y, pos.z, safePos.x, safePos.y, safePos.z);
+                    ctx.self->setPosition(safePos);
+                    m_pathComputed = false;
+                    m_pathNodes.clear();
+                    m_currentPathNode = 0;
+                }
+            }
+            m_stuckTimer = 0.0f;
+            m_lastLoggedPos = pos;
+        } else if (m_stuckTimer > 3.0f) {
+            LOG_WARN("PatrolBehavior", "STUCK: pos=({},{},{}), target=({},{},{}), pathNode={}/{}, distXZ={}, wp={}",
+                     pos.x, pos.y, pos.z,
+                     moveTarget.x, moveTarget.y, moveTarget.z,
+                     m_currentPathNode, m_pathNodes.size(), distXZ, m_currentWaypoint);
+            m_stuckTimer = 3.01f; // Don't reset to 0 — let it accumulate to 5s for recovery
+        }
+    } else {
+        m_stuckTimer = 0.0f;
+        m_lastLoggedPos = pos;
+    }
 
     // Face movement direction
     if (glm::length(glm::vec2(direction.x, direction.z)) > 0.01f) {
@@ -104,6 +181,40 @@ void PatrolBehavior::setWaypoints(const std::vector<glm::vec3>& waypoints) {
     m_currentWaypoint = 0;
     m_waiting = false;
     m_waitTimer = 0.0f;
+    m_pathComputed = false;
+    m_pathNodes.clear();
+    m_currentPathNode = 0;
+}
+
+void PatrolBehavior::computePath(const glm::vec3& from, const glm::vec3& to) {
+    m_pathComputed = true;
+    m_pathNodes.clear();
+    m_currentPathNode = 0;
+
+    if (!m_pathfinder) {
+        LOG_WARN("PatrolBehavior", "No pathfinder set — direct-line fallback from ({},{},{}) to ({},{},{})",
+                 from.x, from.y, from.z, to.x, to.y, to.z);
+        return; // No pathfinder = direct-line fallback
+    }
+
+    auto result = m_pathfinder->findPath(from, to);
+    if (result.found && !result.waypoints.empty()) {
+        m_pathNodes = std::move(result.waypoints);
+        LOG_INFO("PatrolBehavior", "Path found: ({},{},{}) -> ({},{},{}), {} waypoints, {} nodes expanded",
+                 from.x, from.y, from.z, to.x, to.y, to.z,
+                 m_pathNodes.size(), result.nodesExpanded);
+        // Log each waypoint for diagnosis
+        for (size_t wi = 0; wi < m_pathNodes.size(); ++wi) {
+            LOG_DEBUG("PatrolBehavior", "  wp[{}]: ({},{},{})", wi,
+                      m_pathNodes[wi].x, m_pathNodes[wi].y, m_pathNodes[wi].z);
+        }
+    } else {
+        // Path not found — wait and retry
+        m_pathRetryTimer = PATH_RETRY_DELAY;
+        m_pathComputed = false;
+        LOG_WARN("PatrolBehavior", "Path NOT found: ({},{},{}) -> ({},{},{}), {} nodes expanded",
+                 from.x, from.y, from.z, to.x, to.y, to.z, result.nodesExpanded);
+    }
 }
 
 void PatrolBehavior::updatePerception(float dt, NPCContext& ctx, const glm::vec3& forward) {

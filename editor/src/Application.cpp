@@ -1,3 +1,9 @@
+#ifdef _WIN32
+// Must define NOMINMAX before any Windows header to avoid min/max macro conflicts
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#endif
 #include "Application.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "scene/PhysicsCharacter.h"
@@ -37,6 +43,7 @@
 #include "core/EngineConfig.h"
 #include "core/AssetManager.h"
 #include "core/GameDefinitionLoader.h"
+#include "core/StructureGenerator.h"
 #include "core/ProjectInfo.h"
 #include "core/LauncherState.h"
 #include "core/ItemRegistry.h"
@@ -63,6 +70,13 @@
 #include "stb_image_write.h"
 #ifdef _WIN32
 #include <direct.h>  // _mkdir
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h> // MessageBoxA
 #else
 #include <sys/stat.h> // mkdir
 #endif
@@ -846,7 +860,14 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     if (apiServer->start()) {
         LOG_INFO("Application", "Engine HTTP API available at http://localhost:{}/api/status", engineConfig.apiPort);
     } else {
-        LOG_WARN("Application", "Failed to start HTTP API server (non-critical)");
+        LOG_ERROR("Application", "Failed to start HTTP API server on port {} — another engine instance may already be running.", engineConfig.apiPort);
+#ifdef _WIN32
+        std::string msg = "Cannot start the engine API server on port " + std::to_string(engineConfig.apiPort)
+            + ".\n\nAnother instance of the Phyxel engine is likely already running.\n"
+            "Please close the other instance and try again.";
+        MessageBoxA(nullptr, msg.c_str(), "Phyxel — Port Conflict", MB_OK | MB_ICONERROR);
+#endif
+        return false;
     }
 
     m_initialized = true;
@@ -2305,6 +2326,11 @@ void Application::autoLoadGameDefinition() {
         if (result.success) {
             LOG_INFO("Application", "Game definition loaded: {} chunks, {} structures, {} NPCs", result.chunksGenerated, result.structuresPlaced, result.npcsSpawned);
 
+            // Build navigation grid for NPC pathfinding
+            if (npcManager) {
+                npcManager->buildNavGrid();
+            }
+
             // Sync InputManager with camera set by game definition
             if (inputManager && camera) {
                 inputManager->setCameraPosition(camera->getPosition());
@@ -2843,6 +2869,30 @@ void Application::processAPICommands() {
                             {"material", material.empty() ? "Default" : material}
                         });
                     }
+                    if (ok && npcManager) {
+                        npcManager->onVoxelChanged(glm::ivec3(x, y, z));
+                    }
+                } else {
+                    response = {{"error", "ChunkManager not available"}};
+                }
+
+            } else if (cmd.action == "place_subcube") {
+                int x = cmd.params.value("x", 0);
+                int y = cmd.params.value("y", 0);
+                int z = cmd.params.value("z", 0);
+                int sx = cmd.params.value("sx", 0);
+                int sy = cmd.params.value("sy", 0);
+                int sz = cmd.params.value("sz", 0);
+                if (chunkManager) {
+                    std::string material = cmd.params.value("material", "Default");
+                    bool ok = chunkManager->m_voxelModificationSystem.addSubcubeWithMaterial(
+                        glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz), material);
+                    response = {{"success", ok},
+                                {"position", {{"x", x}, {"y", y}, {"z", z}}},
+                                {"subcube", {{"sx", sx}, {"sy", sy}, {"sz", sz}}}};
+                    if (ok && npcManager) {
+                        npcManager->onVoxelChanged(glm::ivec3(x, y, z));
+                    }
                 } else {
                     response = {{"error", "ChunkManager not available"}};
                 }
@@ -2917,6 +2967,9 @@ void Application::processAPICommands() {
                                 {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
                                 {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}
                             });
+                        }
+                        if (placed > 0 && npcManager) {
+                            npcManager->buildNavGrid();
                         }
                     }
                 }
@@ -3036,6 +3089,9 @@ void Application::processAPICommands() {
                                 {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
                                 {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}
                             });
+                        }
+                        if (removed > 0 && npcManager) {
+                            npcManager->buildNavGrid();
                         }
                     }
                 }
@@ -3539,6 +3595,9 @@ void Application::processAPICommands() {
                     if (ok && gameEventLog) {
                         gameEventLog->emit("voxel_removed", {{"x", x}, {"y", y}, {"z", z}});
                     }
+                    if (ok && npcManager) {
+                        npcManager->onVoxelChanged(glm::ivec3(x, y, z));
+                    }
                 } else {
                     response = {{"error", "ChunkManager not available"}};
                 }
@@ -3594,6 +3653,51 @@ void Application::processAPICommands() {
                 } else {
                     response = {{"templates", nlohmann::json::array()}};
                 }
+
+            } else if (cmd.action == "build_structure") {
+                if (!chunkManager) {
+                    response = {{"error", "ChunkManager not available"}};
+                } else if (!cmd.params.contains("type")) {
+                    response = {{"error", "Missing 'type' parameter"}};
+                } else {
+                    auto structure = Core::StructureGenerator::generateFromJson(cmd.params);
+                    if (structure.voxels.empty()) {
+                        response = {{"error", "Failed to generate structure (unknown type or invalid params)"}};
+                    } else {
+                        auto placement = Core::StructureGenerator::place(chunkManager, structure);
+
+                        // Auto-register locations
+                        nlohmann::json locationsJson = nlohmann::json::array();
+                        if (locationRegistry) {
+                            for (auto& loc : placement.locations) {
+                                if (loc.id.empty()) {
+                                    std::string stype = cmd.params.value("type", "structure");
+                                    loc.id = stype + "_" + std::to_string(static_cast<int>(loc.position.x)) +
+                                             "_" + std::to_string(static_cast<int>(loc.position.z));
+                                }
+                                Core::Location regLoc;
+                                regLoc.id = loc.id;
+                                regLoc.name = loc.name;
+                                regLoc.position = loc.position;
+                                regLoc.radius = loc.radius;
+                                regLoc.type = loc.type;
+                                locationRegistry->addLocation(regLoc);
+                                locationsJson.push_back({
+                                    {"id", loc.id}, {"name", loc.name},
+                                    {"position", {{"x", loc.position.x}, {"y", loc.position.y}, {"z", loc.position.z}}},
+                                    {"radius", loc.radius}, {"type", Core::Location::typeToString(loc.type)}
+                                });
+                            }
+                        }
+
+                        response = {{"success", true}, {"placed", placement.placed},
+                                    {"failed", placement.failed}, {"voxels_generated", structure.voxels.size()},
+                                    {"locations", locationsJson}};
+                    }
+                }
+
+            } else if (cmd.action == "list_structure_types") {
+                response = {{"types", Core::StructureGenerator::getStructureTypes()}};
 
             } else if (cmd.action == "set_camera") {
                 if (cmd.params.contains("position") && inputManager) {
@@ -4010,6 +4114,9 @@ void Application::processAPICommands() {
                         if (gameEventLog) {
                             gameEventLog->emit("world_generated", {
                                 {"type", typeStr}, {"seed", seed}, {"chunks", generated}});
+                        }
+                        if (generated > 0 && npcManager) {
+                            npcManager->buildNavGrid();
                         }
                     }
                 }

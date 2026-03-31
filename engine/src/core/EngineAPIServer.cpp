@@ -1,3 +1,16 @@
+// Socket includes BEFORE windows.h (which httplib pulls in)
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#pragma comment(lib, "ws2_32.lib")
+#endif
+
 #include "core/EngineAPIServer.h"
 
 // cpp-httplib for the HTTP server
@@ -6,6 +19,13 @@
 #include <iostream>
 #include <chrono>
 #include "utils/Logger.h"
+
+// Socket includes for non-Windows
+#ifndef _WIN32
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
+#endif
 
 namespace Phyxel {
 namespace Core {
@@ -35,12 +55,54 @@ EngineAPIServer::~EngineAPIServer() {
 }
 
 // ============================================================================
+// Port Availability Check
+// ============================================================================
+
+bool EngineAPIServer::isPortAvailable(int port) {
+#ifdef _WIN32
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        return false;
+    }
+    SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == INVALID_SOCKET) {
+        WSACleanup();
+        return false;
+    }
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port = htons(static_cast<u_short>(port));
+    int result = bind(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+    closesocket(sock);
+    WSACleanup();
+    return result == 0;
+#else
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) return false;
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port = htons(static_cast<uint16_t>(port));
+    int result = ::bind(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+    close(sock);
+    return result == 0;
+#endif
+}
+
+// ============================================================================
 // Lifecycle
 // ============================================================================
 
 bool EngineAPIServer::start() {
     if (m_running.load()) {
         LOG_WARN("EngineAPIServer", "Server already running on port {}", m_port);
+        return false;
+    }
+
+    // Pre-flight check: is the port already in use?
+    if (!isPortAvailable(m_port)) {
+        LOG_ERROR("EngineAPIServer", "Port {} is already in use — another engine instance may be running", m_port);
         return false;
     }
 
@@ -52,6 +114,7 @@ bool EngineAPIServer::start() {
     // Wait briefly for the server to start listening
     for (int i = 0; i < 50; ++i) {
         if (m_running.load()) break;
+        if (m_listenFailed.load()) break;
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
 
@@ -79,7 +142,11 @@ void EngineAPIServer::stop() {
 
 void EngineAPIServer::serverThread() {
     m_running.store(true);
-    m_impl->server.listen("0.0.0.0", m_port);
+    bool ok = m_impl->server.listen("0.0.0.0", m_port);
+    if (!ok && !m_shouldStop.load()) {
+        LOG_ERROR("EngineAPIServer", "listen() failed on port {} — port may be in use", m_port);
+        m_listenFailed.store(true);
+    }
     m_running.store(false);
 }
 
@@ -396,6 +463,23 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/world/subcube — Place a subcube
+    // Body: { "x": 0, "y": 0, "z": 0, "sx": 0, "sy": 0, "sz": 0, "material": "Stone" (optional) }
+    // (x,y,z) = parent cube world position, (sx,sy,sz) = subcube position within cube (0-2 each)
+    // ====================================================================
+    srv.Post("/api/world/subcube", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("place_subcube", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // POST /api/world/voxel/remove — Remove a voxel
     // Body: { "x": 0, "y": 0, "z": 0 }
     // ====================================================================
@@ -521,6 +605,30 @@ void EngineAPIServer::setupRoutes() {
     srv.Get("/api/templates", [this](const httplib::Request&, httplib::Response& res) {
         // This is a read-only query that gets processed on game loop
         json result = queueAndWait("list_templates", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // POST /api/structure/build — Build a procedural structure
+    // Body: { "type":"house", "position":{...}, "width":8, ... }
+    // ====================================================================
+    srv.Post("/api/structure/build", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("build_structure", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // GET /api/structure/types — List available structure types
+    // ====================================================================
+    srv.Get("/api/structure/types", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("list_structure_types", json::object());
         res.set_content(result.dump(), "application/json");
     });
 

@@ -32,6 +32,7 @@ public:
     btRigidBody* createBreakawayCube(const glm::vec3& position, const glm::vec3& size, const std::string& materialName); // Special cube with shrunk collision
     btRigidBody* createBreakawayCube(const glm::vec3& position, const glm::vec3& size, float mass); // Special cube with shrunk collision and custom mass
     btRigidBody* createStaticCube(const glm::vec3& position, const glm::vec3& size = glm::vec3(1.0f));
+    btRigidBody* createCapsuleBody(const glm::vec3& position, float radius, float height, float mass);
     
     // Character management
     btPairCachingGhostObject* createCharacterGhostObject(const glm::vec3& position, float radius, float height);

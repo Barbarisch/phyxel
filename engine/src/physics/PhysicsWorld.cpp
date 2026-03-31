@@ -275,6 +275,35 @@ btRigidBody* PhysicsWorld::createStaticCube(const glm::vec3& position, const glm
     return createCube(position, size, 0.0f); // Mass 0 = static
 }
 
+btRigidBody* PhysicsWorld::createCapsuleBody(const glm::vec3& position, float radius, float height, float mass) {
+    if (!dynamicsWorld) return nullptr;
+
+    // btCapsuleShape: radius of hemisphere caps, height of cylindrical section
+    // Total height = height + 2*radius
+    btCapsuleShape* shape = new btCapsuleShape(radius, height);
+    collisionShapes.push_back(shape);
+
+    btTransform startTransform;
+    startTransform.setIdentity();
+    startTransform.setOrigin(btVector3(position.x, position.y, position.z));
+
+    btDefaultMotionState* motionState = new btDefaultMotionState(startTransform);
+    motionStates.push_back(motionState);
+
+    btVector3 localInertia(0, 0, 0);
+    if (mass != 0.0f) {
+        shape->calculateLocalInertia(mass, localInertia);
+    }
+
+    btRigidBody::btRigidBodyConstructionInfo rbInfo(mass, motionState, shape, localInertia);
+    btRigidBody* body = new btRigidBody(rbInfo);
+
+    dynamicsWorld->addRigidBody(body);
+    rigidBodies.push_back(body);
+
+    return body;
+}
+
 btPairCachingGhostObject* PhysicsWorld::createCharacterGhostObject(const glm::vec3& position, float radius, float height) {
     btTransform startTransform;
     startTransform.setIdentity();

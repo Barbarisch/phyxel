@@ -2,6 +2,7 @@
 #include "utils/Logger.h"
 #include <iostream>
 #include <algorithm>
+#include <cmath>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
@@ -25,24 +26,25 @@ namespace Scene {
     }
     
     void AnimatedVoxelCharacter::createController(const glm::vec3& position) {
-        // Create a box for the controller (invisible physics representation)
-        // Note: createCube takes FULL extents, not half-extents
-        // We increase size slightly because dynamic objects are scaled down by 5% in PhysicsWorld
-        // Target: 0.8 x 1.8 x 0.8. Request: 0.85 x 1.9 x 0.85
-        glm::vec3 size(0.85f, 1.9f, 0.85f); 
-        
-        // Create dynamic body
-        // Center is at +0.9 (half height) so feet are at 'position'
-        // We'll let the update() logic handle the exact visual offset
-        controllerBody = physicsWorld->createCube(position + glm::vec3(0, 0.9f, 0), size, 60.0f); // 60kg mass
+        // Create a box for the controller (invisible physics representation).
+        // Step-up over subcube-height obstacles (≈0.333 blocks) is handled via
+        // raycast detection + position correction in update(), not via shape geometry.
+        constexpr float halfWidth = 0.425f;
+        constexpr float halfHeight = 0.95f;
+        constexpr float npcMass = 60.0f;
+
+        // Center is at +halfHeight so feet are at 'position'
+        controllerBody = physicsWorld->createCube(
+            position + glm::vec3(0, halfHeight, 0),
+            glm::vec3(halfWidth * 2.0f, halfHeight * 2.0f, halfWidth * 2.0f),
+            npcMass);
         controllerBody->setUserPointer(this); // Mark as character part to prevent auto-cleanup
         
-        // Prevent tipping over (lock rotation on X and Z)
-        controllerBody->setAngularFactor(btVector3(0, 1, 0)); // Allow Y rotation? No, we handle rotation manually
+        // Prevent tipping over (lock rotation on all axes — we handle rotation manually)
         controllerBody->setAngularFactor(btVector3(0, 0, 0));
         
-        // Friction
-        controllerBody->setFriction(0.0f); // Low friction for movement, we handle stopping manually
+        // Low friction for smooth movement, we handle stopping manually
+        controllerBody->setFriction(0.0f);
         controllerBody->setRestitution(0.0f);
         
         // Disable sleeping
@@ -333,7 +335,7 @@ namespace Scene {
         // Get current feet position from existing controller
         btTransform trans;
         controllerBody->getMotionState()->getWorldTransform(trans);
-        float oldHalfHeight = 0.9f;
+        float oldHalfHeight = 0.95f;
         if (controllerBody->getCollisionShape()->getShapeType() == BOX_SHAPE_PROXYTYPE) {
             const btBoxShape* box = static_cast<const btBoxShape*>(controllerBody->getCollisionShape());
             oldHalfHeight = box->getHalfExtentsWithMargin().y();
@@ -838,6 +840,8 @@ namespace Scene {
         if (str == "StrafeRight") return AnimatedCharacterState::StrafeRight;
         if (str == "WalkStrafeLeft") return AnimatedCharacterState::WalkStrafeLeft;
         if (str == "WalkStrafeRight") return AnimatedCharacterState::WalkStrafeRight;
+        if (str == "ClimbStairs") return AnimatedCharacterState::ClimbStairs;
+        if (str == "DescendStairs") return AnimatedCharacterState::DescendStairs;
         if (str == "Preview") return AnimatedCharacterState::Preview;
         return AnimatedCharacterState::Idle;
     }
@@ -868,7 +872,7 @@ namespace Scene {
         worldPosition = pos;
         if (controllerBody) {
             // Get actual half-height from collision shape to account for dynamic scaling
-            float halfHeight = 0.9f; // Default fallback
+            float halfHeight = 0.95f; // Default fallback
             if (controllerBody->getCollisionShape()->getShapeType() == BOX_SHAPE_PROXYTYPE) {
                 const btBoxShape* box = static_cast<const btBoxShape*>(controllerBody->getCollisionShape());
                 halfHeight = box->getHalfExtentsWithMargin().y();
@@ -949,6 +953,8 @@ namespace Scene {
             case AnimatedCharacterState::BackwardWalk: return "BackwardWalk";
             case AnimatedCharacterState::StopWalk: return "StopWalk";
             case AnimatedCharacterState::StopRun: return "StopRun";
+            case AnimatedCharacterState::ClimbStairs: return "ClimbStairs";
+            case AnimatedCharacterState::DescendStairs: return "DescendStairs";
             case AnimatedCharacterState::Preview: return "Preview";
             default: return "Unknown";
         }
@@ -984,6 +990,8 @@ namespace Scene {
             case AnimatedCharacterState::StrafeRight:
             case AnimatedCharacterState::WalkStrafeLeft:
             case AnimatedCharacterState::WalkStrafeRight:
+            case AnimatedCharacterState::ClimbStairs:
+            case AnimatedCharacterState::DescendStairs:
                 // Handle Actions (High Priority)
                 if (jumpRequested) {
                     std::cout << "DEBUG: Jump requested, switching state." << std::endl;
@@ -1048,8 +1056,12 @@ namespace Scene {
                         if (currentStrafeInput > 0) currentState = AnimatedCharacterState::WalkStrafeRight;
                         else currentState = AnimatedCharacterState::WalkStrafeLeft;
                     } else if (isMovingForward) {
-                        // Go straight to Walk (crossfade blend handles the transition)
-                        if (currentState != AnimatedCharacterState::Walk) {
+                        // Stair detection: gentle vertical movement while walking forward
+                        if (verticalVel > 0.5f && verticalVel < 5.0f) {
+                            currentState = AnimatedCharacterState::ClimbStairs;
+                        } else if (verticalVel < -0.5f && verticalVel > -5.0f) {
+                            currentState = AnimatedCharacterState::DescendStairs;
+                        } else if (currentState != AnimatedCharacterState::Walk) {
                             currentState = AnimatedCharacterState::Walk;
                         }
                     } else if (isMovingBackward) {
@@ -1266,6 +1278,67 @@ namespace Scene {
                 controllerBody->activate(true);
                 hasExternalVelocity = false;
 
+                // Step-up detection: if NPC is blocked by a subcube-height obstacle, step over it.
+                // We detect "blocked" by comparing actual position change vs desired speed.
+                {
+                    btTransform bodyTrans = controllerBody->getWorldTransform();
+                    btVector3 bodyPos = bodyTrans.getOrigin();
+                    glm::vec3 curPos(bodyPos.x(), bodyPos.y(), bodyPos.z());
+                    
+                    float desiredXZ = std::sqrt(externalVelocity.x * externalVelocity.x + externalVelocity.z * externalVelocity.z);
+                    float actualDeltaXZ = glm::length(glm::vec2(curPos.x - m_lastStepCheckPos.x, curPos.z - m_lastStepCheckPos.z));
+                    m_lastStepCheckPos = curPos;
+
+                    // If desired speed is significant but we barely moved, we're blocked
+                    if (desiredXZ > 0.5f && actualDeltaXZ < 0.01f) {
+                        m_blockedFrames++;
+                    } else {
+                        m_blockedFrames = 0;
+                    }
+
+                    constexpr float MAX_STEP_HEIGHT = 1.0f / 3.0f + 0.05f; // subcube + margin
+                    if (m_blockedFrames > 5 && physicsWorld) {
+                        float halfH = 0.95f;
+                        if (controllerBody->getCollisionShape()->getShapeType() == BOX_SHAPE_PROXYTYPE) {
+                            const btBoxShape* b = static_cast<const btBoxShape*>(controllerBody->getCollisionShape());
+                            halfH = b->getHalfExtentsWithMargin().y();
+                        }
+                        float feetY = bodyPos.y() - halfH;
+                        glm::vec3 moveDir = glm::normalize(glm::vec3(externalVelocity.x, 0, externalVelocity.z));
+
+                        // Probe ahead at the obstacle to find its height
+                        float probeAhead = 0.6f;
+                        btVector3 from(bodyPos.x() + moveDir.x * probeAhead,
+                                       feetY + MAX_STEP_HEIGHT + 0.1f,
+                                       bodyPos.z() + moveDir.z * probeAhead);
+                        btVector3 to(bodyPos.x() + moveDir.x * probeAhead,
+                                     feetY - 0.05f,
+                                     bodyPos.z() + moveDir.z * probeAhead);
+                        btCollisionWorld::ClosestRayResultCallback ray(from, to);
+                        ray.m_collisionFilterGroup = btBroadphaseProxy::AllFilter;
+                        ray.m_collisionFilterMask = btBroadphaseProxy::AllFilter;
+                        physicsWorld->getWorld()->rayTest(from, to, ray);
+
+                        if (ray.hasHit()) {
+                            float hitY = from.y() + (to.y() - from.y()) * ray.m_closestHitFraction;
+                            float stepHeight = hitY - feetY;
+                            if (stepHeight > 0.05f && stepHeight <= MAX_STEP_HEIGHT) {
+                                // Step up: teleport above the step + nudge forward
+                                btTransform newTrans = bodyTrans;
+                                newTrans.getOrigin().setY(bodyPos.y() + stepHeight + 0.05f);
+                                newTrans.getOrigin() += btVector3(moveDir.x * 0.1f, 0.0f, moveDir.z * 0.1f);
+                                controllerBody->setWorldTransform(newTrans);
+                                controllerBody->getMotionState()->setWorldTransform(newTrans);
+                                // Zero vertical velocity so gravity doesn't fight the teleport
+                                btVector3 v = controllerBody->getLinearVelocity();
+                                controllerBody->setLinearVelocity(btVector3(v.x(), 0.0f, v.z()));
+                                m_blockedFrames = 0;
+                                m_lastStepCheckPos = glm::vec3(newTrans.getOrigin().x(), newTrans.getOrigin().y(), newTrans.getOrigin().z());
+                            }
+                        }
+                    }
+                }
+
                 // Face movement direction
                 float speed = glm::length(glm::vec2(externalVelocity.x, externalVelocity.z));
                 if (speed > 0.01f) {
@@ -1276,7 +1349,7 @@ namespace Scene {
                 btTransform trans;
                 controllerBody->getMotionState()->getWorldTransform(trans);
                 btVector3 pos = trans.getOrigin();
-                float halfHeight = 0.9f;
+                float halfHeight = 0.95f;
                 if (controllerBody->getCollisionShape()->getShapeType() == BOX_SHAPE_PROXYTYPE) {
                     const btBoxShape* box = static_cast<const btBoxShape*>(controllerBody->getCollisionShape());
                     halfHeight = box->getHalfExtentsWithMargin().y();
@@ -1284,8 +1357,14 @@ namespace Scene {
                 worldPosition = glm::vec3(pos.x(), pos.y() - halfHeight, pos.z());
 
                 // Play walk or idle animation based on speed (case-insensitive, try variants)
+                // Also detect stair climbing via vertical velocity
+                float npcVertVel = controllerBody->getLinearVelocity().y();
                 std::vector<std::string> candidates;
-                if (speed > 0.1f) {
+                if (speed > 0.1f && npcVertVel > 0.5f && npcVertVel < 5.0f) {
+                    candidates = {"stair_up", "walk", "Walk"};
+                } else if (speed > 0.1f && npcVertVel < -0.5f && npcVertVel > -5.0f) {
+                    candidates = {"stair_down", "walk", "Walk"};
+                } else if (speed > 0.1f) {
                     candidates = {"walk", "walking", "Walk", "Walking", "unarmed_walk"};
                 } else {
                     candidates = {"idle", "Idle", "Standing", "standing"};
@@ -1339,6 +1418,8 @@ namespace Scene {
             }
             if (currentState == AnimatedCharacterState::CrouchWalk) moveSpeed = 1.5f;
             if (currentState == AnimatedCharacterState::BackwardWalk) moveSpeed = 1.5f;
+            if (currentState == AnimatedCharacterState::ClimbStairs) moveSpeed = 1.5f;
+            if (currentState == AnimatedCharacterState::DescendStairs) moveSpeed = 1.5f;
             if (currentState == AnimatedCharacterState::StopWalk || currentState == AnimatedCharacterState::StopRun) moveSpeed = 0.5f;
             if (currentState == AnimatedCharacterState::Idle || currentState == AnimatedCharacterState::Attack || 
                 currentState == AnimatedCharacterState::Crouch || currentState == AnimatedCharacterState::CrouchIdle ||
@@ -1384,7 +1465,7 @@ namespace Scene {
             btVector3 pos = trans.getOrigin();
             
             // Get actual half-height from collision shape to account for dynamic scaling
-            float halfHeight = 0.9f; // Default fallback
+            float halfHeight = 0.95f; // Default fallback
             if (controllerBody->getCollisionShape()->getShapeType() == BOX_SHAPE_PROXYTYPE) {
                 const btBoxShape* box = static_cast<const btBoxShape*>(controllerBody->getCollisionShape());
                 halfHeight = box->getHalfExtentsWithMargin().y();
@@ -1447,6 +1528,8 @@ namespace Scene {
                     case AnimatedCharacterState::BackwardWalk: targetAnim = "walking_backward"; break;
                     case AnimatedCharacterState::StopWalk: targetAnim = "female_stop_walking"; break;
                     case AnimatedCharacterState::StopRun: targetAnim = "run_to_stop"; break;
+                    case AnimatedCharacterState::ClimbStairs: targetAnim = "stair_up"; break;
+                    case AnimatedCharacterState::DescendStairs: targetAnim = "stair_down"; break;
                     case AnimatedCharacterState::Preview: targetAnim = ""; break;
                     default: targetAnim = "idle"; break;
                 }

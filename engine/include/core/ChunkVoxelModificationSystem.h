@@ -48,6 +48,26 @@ public:
     bool addCubeWithMaterial(const glm::ivec3& worldPos, const std::string& material);
 
     // ========================================================================
+    // SUBCUBE / MICROCUBE MODIFICATION METHODS
+    // ========================================================================
+
+    // Add a subcube at (worldPos, subcubePos) with material
+    // worldPos: world-space cube position, subcubePos: 0-2 local offset within cube
+    bool addSubcubeWithMaterial(const glm::ivec3& worldPos, const glm::ivec3& subcubePos, const std::string& material = "Default");
+
+    // Remove a subcube at (worldPos, subcubePos)
+    bool removeSubcube(const glm::ivec3& worldPos, const glm::ivec3& subcubePos);
+
+    // Add a microcube at (worldPos, subcubePos, microcubePos) with material
+    // microcubePos: 0-2 local offset within subcube
+    bool addMicrocubeWithMaterial(const glm::ivec3& worldPos, const glm::ivec3& subcubePos,
+                                  const glm::ivec3& microcubePos, const std::string& material = "Default");
+
+    // Remove a microcube at (worldPos, subcubePos, microcubePos)
+    bool removeMicrocube(const glm::ivec3& worldPos, const glm::ivec3& subcubePos,
+                         const glm::ivec3& microcubePos);
+
+    // ========================================================================
     // LEGACY CUBE MODIFICATION METHODS (Backward compatibility)
     // ========================================================================
     

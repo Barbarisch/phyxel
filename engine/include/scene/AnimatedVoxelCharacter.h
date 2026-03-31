@@ -40,6 +40,8 @@ namespace Scene {
         BackwardWalk,
         StopWalk,
         StopRun,
+        ClimbStairs,
+        DescendStairs,
         Preview
     };
 
@@ -203,6 +205,10 @@ namespace Scene {
         // External velocity override (used by NPC patrol behavior)
         glm::vec3 externalVelocity{0.0f};
         bool hasExternalVelocity = false;
+
+        // Step-up detection for subcube-height obstacles
+        int m_blockedFrames = 0;
+        glm::vec3 m_lastStepCheckPos{0.0f};
         
         void createController(const glm::vec3& position);
         void resizeController();  // Resize controller body to match scaled skeleton height

@@ -1,6 +1,7 @@
 #include "ai/ActionSystem.h"
 #include "ai/Blackboard.h"
 #include "core/EntityRegistry.h"
+#include "core/AStarPathfinder.h"
 #include "scene/Entity.h"
 #include "ui/SpeechBubbleManager.h"
 
@@ -15,17 +16,49 @@ namespace AI {
 // ============================================================================
 
 void MoveToAction::start(ActionContext& ctx) {
-    // Nothing special — will start moving in update
+    m_pathComputed = false;
+    m_pathNodes.clear();
+    m_currentPathNode = 0;
+
+    if (m_pathfinder && ctx.self) {
+        auto result = m_pathfinder->findPath(ctx.self->getPosition(), m_target);
+        if (result.found && !result.waypoints.empty()) {
+            m_pathNodes = std::move(result.waypoints);
+        }
+    }
+    m_pathComputed = true;
 }
 
 ActionStatus MoveToAction::update(float dt, ActionContext& ctx) {
     if (!ctx.self) return ActionStatus::Failure;
 
     glm::vec3 pos = ctx.self->getPosition();
-    glm::vec3 diff = m_target - pos;
+
+    // Determine immediate movement target
+    glm::vec3 moveTarget;
+    float threshold;
+
+    if (!m_pathNodes.empty() && m_currentPathNode < m_pathNodes.size()) {
+        moveTarget = m_pathNodes[m_currentPathNode];
+        threshold = 0.3f; // Tighter threshold for path sub-waypoints
+    } else {
+        moveTarget = m_target;
+        threshold = m_threshold;
+    }
+
+    glm::vec3 diff = moveTarget - pos;
     float distXZ = glm::length(glm::vec2(diff.x, diff.z));
 
-    if (distXZ < m_threshold) {
+    if (distXZ < threshold) {
+        if (!m_pathNodes.empty() && m_currentPathNode < m_pathNodes.size()) {
+            ++m_currentPathNode;
+            if (m_currentPathNode >= m_pathNodes.size()) {
+                // Reached end of path
+                ctx.self->setMoveVelocity(glm::vec3(0.0f));
+                return ActionStatus::Success;
+            }
+            return ActionStatus::Running;
+        }
         ctx.self->setMoveVelocity(glm::vec3(0.0f));
         return ActionStatus::Success;
     }

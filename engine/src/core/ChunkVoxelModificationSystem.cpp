@@ -103,4 +103,58 @@ bool ChunkVoxelModificationSystem::addCubeWithMaterial(const glm::ivec3& worldPo
     return result;
 }
 
+bool ChunkVoxelModificationSystem::addSubcubeWithMaterial(const glm::ivec3& worldPos, const glm::ivec3& subcubePos, const std::string& material) {
+    Chunk* chunk = m_getChunk(worldPos);
+    if (!chunk) return false;
+
+    glm::ivec3 localPos = worldToLocalCoord(worldPos);
+    bool result = chunk->addSubcube(localPos, subcubePos, material);
+
+    if (result) {
+        m_updateAfterCubePlace(worldPos);
+    }
+    return result;
+}
+
+bool ChunkVoxelModificationSystem::removeSubcube(const glm::ivec3& worldPos, const glm::ivec3& subcubePos) {
+    Chunk* chunk = m_getChunk(worldPos);
+    if (!chunk) return false;
+
+    glm::ivec3 localPos = worldToLocalCoord(worldPos);
+    bool result = chunk->removeSubcube(localPos, subcubePos);
+
+    if (result) {
+        m_updateAfterCubeBreak(worldPos);
+    }
+    return result;
+}
+
+bool ChunkVoxelModificationSystem::addMicrocubeWithMaterial(const glm::ivec3& worldPos, const glm::ivec3& subcubePos,
+                                                             const glm::ivec3& microcubePos, const std::string& material) {
+    Chunk* chunk = m_getChunk(worldPos);
+    if (!chunk) return false;
+
+    glm::ivec3 localPos = worldToLocalCoord(worldPos);
+    bool result = chunk->addMicrocube(localPos, subcubePos, microcubePos, material);
+
+    if (result) {
+        m_updateAfterCubePlace(worldPos);
+    }
+    return result;
+}
+
+bool ChunkVoxelModificationSystem::removeMicrocube(const glm::ivec3& worldPos, const glm::ivec3& subcubePos,
+                                                    const glm::ivec3& microcubePos) {
+    Chunk* chunk = m_getChunk(worldPos);
+    if (!chunk) return false;
+
+    glm::ivec3 localPos = worldToLocalCoord(worldPos);
+    bool result = chunk->removeMicrocube(localPos, subcubePos, microcubePos);
+
+    if (result) {
+        m_updateAfterCubeBreak(worldPos);
+    }
+    return result;
+}
+
 } // namespace Phyxel

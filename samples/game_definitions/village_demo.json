@@ -1,0 +1,217 @@
+{
+  "name": "VillageDemo",
+  "description": "Demo village with procedural structures: tavern, houses, guard tower, walls, and NPCs with schedules.",
+  "version": "1.0",
+  "world": {
+    "type": "Perlin",
+    "seed": 42,
+    "from": { "x": -1, "y": 0, "z": -1 },
+    "to": { "x": 1, "y": 0, "z": 1 },
+    "params": {
+      "heightScale": 3.0,
+      "frequency": 0.03,
+      "octaves": 2,
+      "persistence": 0.3
+    }
+  },
+  "camera": {
+    "position": { "x": 40, "y": 40, "z": 40 },
+    "yaw": -135,
+    "pitch": -25
+  },
+  "player": {
+    "type": "animated",
+    "position": { "x": 16, "y": 20, "z": 10 }
+  },
+  "structures": [
+    {
+      "type": "fill",
+      "from": { "x": 4, "y": 16, "z": 4 },
+      "to": { "x": 42, "y": 16, "z": 42 },
+      "material": "Stone",
+      "_comment": "Village ground platform"
+    },
+    {
+      "type": "tavern",
+      "position": { "x": 8, "y": 17, "z": 24 },
+      "width": 14,
+      "depth": 16,
+      "stories": 2,
+      "facing": "south",
+      "materials": {
+        "wall": "Stone",
+        "floor": "Wood",
+        "roof": "Wood",
+        "stairs": "Stone",
+        "furniture": "Wood"
+      },
+      "furnished": true
+    },
+    {
+      "type": "house",
+      "position": { "x": 26, "y": 17, "z": 24 },
+      "width": 8,
+      "depth": 10,
+      "height": 5,
+      "facing": "south",
+      "materials": {
+        "wall": "Stone",
+        "floor": "Wood",
+        "roof": "Wood",
+        "furniture": "Wood"
+      },
+      "windows": 2,
+      "furnished": true
+    },
+    {
+      "type": "house",
+      "position": { "x": 36, "y": 17, "z": 24 },
+      "width": 7,
+      "depth": 8,
+      "height": 4,
+      "facing": "west",
+      "materials": {
+        "wall": "Wood",
+        "floor": "Wood",
+        "roof": "Wood",
+        "furniture": "Wood"
+      },
+      "windows": 1,
+      "furnished": true
+    },
+    {
+      "type": "tower",
+      "position": { "x": 4, "y": 17, "z": 4 },
+      "radius": 3,
+      "height": 10,
+      "material": "Stone",
+      "facing": "east"
+    },
+    {
+      "type": "wall",
+      "position": { "x": 4, "y": 17, "z": 4 },
+      "end": { "x": 42, "y": 17, "z": 4 },
+      "height": 3,
+      "material": "Stone",
+      "thickness": 1
+    },
+    {
+      "type": "staircase",
+      "position": { "x": 14, "y": 17, "z": 5 },
+      "facing": "south",
+      "height": 3,
+      "width": 2,
+      "material": "Stone"
+    }
+  ],
+  "locations": [
+    {
+      "id": "village_center",
+      "name": "Village Square",
+      "position": { "x": 22, "y": 17, "z": 18 },
+      "type": "Market",
+      "radius": 8.0
+    },
+    {
+      "id": "gate",
+      "name": "Village Gate",
+      "position": { "x": 15, "y": 17, "z": 5 },
+      "type": "GuardPost",
+      "radius": 4.0
+    }
+  ],
+  "npcs": [
+    {
+      "name": "Innkeeper",
+      "position": { "x": 15, "y": 18, "z": 32 },
+      "behavior": "idle",
+      "animFile": "resources/animated_characters/humanoid.anim",
+      "dialogue": {
+        "id": "innkeeper_talk",
+        "startNodeId": "start",
+        "nodes": [
+          {
+            "id": "start",
+            "speaker": "Innkeeper",
+            "text": "Welcome to the Rusty Nail! Care for a drink or a room upstairs?",
+            "choices": [
+              { "text": "Tell me about the village.", "nextNodeId": "village_info" },
+              { "text": "Just passing through.", "nextNodeId": "farewell" }
+            ]
+          },
+          {
+            "id": "village_info",
+            "speaker": "Innkeeper",
+            "text": "Small place, but we get by. The guard keeps us safe, and the blacksmith keeps our tools sharp.",
+            "nextNodeId": "farewell"
+          },
+          {
+            "id": "farewell",
+            "speaker": "Innkeeper",
+            "text": "Safe travels, friend!"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Guard",
+      "position": { "x": 15, "y": 18, "z": 6 },
+      "behavior": "patrol",
+      "waypoints": [
+        { "x": 15, "y": 18, "z": 6 },
+        { "x": 40, "y": 18, "z": 6 },
+        { "x": 40, "y": 18, "z": 18 },
+        { "x": 15, "y": 18, "z": 18 }
+      ],
+      "walkSpeed": 2.5,
+      "waitTime": 2.0,
+      "animFile": "resources/animated_characters/humanoid.anim",
+      "dialogue": {
+        "id": "guard_talk",
+        "startNodeId": "start",
+        "nodes": [
+          {
+            "id": "start",
+            "speaker": "Guard",
+            "text": "Halt! State your business in the village.",
+            "choices": [
+              { "text": "I'm just a traveler.", "nextNodeId": "ok" },
+              { "text": "What do you guard against?", "nextNodeId": "threats" }
+            ]
+          },
+          {
+            "id": "threats",
+            "speaker": "Guard",
+            "text": "Wolves, bandits, the occasional spider. Nothing I can't handle.",
+            "nextNodeId": "ok"
+          },
+          {
+            "id": "ok",
+            "speaker": "Guard",
+            "text": "Move along then. And stay out of trouble."
+          }
+        ]
+      }
+    },
+    {
+      "name": "Blacksmith",
+      "position": { "x": 30, "y": 18, "z": 26 },
+      "behavior": "idle",
+      "animFile": "resources/animated_characters/humanoid.anim"
+    }
+  ],
+  "story": {
+    "arcs": [
+      {
+        "id": "village_life",
+        "name": "Village Life",
+        "constraintMode": "Guided",
+        "beats": [
+          { "id": "arrive", "description": "Arrive at the village and talk to the guard", "type": "Hard" },
+          { "id": "tavern", "description": "Visit the tavern and meet the innkeeper", "type": "Soft" },
+          { "id": "explore", "description": "Explore the village buildings", "type": "Soft" }
+        ]
+      }
+    ]
+  }
+}

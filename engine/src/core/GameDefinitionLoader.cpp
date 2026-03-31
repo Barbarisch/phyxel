@@ -1,6 +1,7 @@
 #include "core/GameDefinitionLoader.h"
 #include "core/ChunkManager.h"
 #include "core/WorldGenerator.h"
+#include "core/StructureGenerator.h"
 #include "core/NPCManager.h"
 #include "core/EntityRegistry.h"
 #include "core/ObjectTemplateManager.h"
@@ -316,6 +317,44 @@ void GameDefinitionLoader::loadStructures(const json& structures, GameSubsystems
             } else {
                 LOG_WARN("GameDefinitionLoader", "Failed to spawn template: " + templateName);
             }
+
+        } else if (stype == "house" || stype == "tavern" || stype == "tower" ||
+                   stype == "wall" || stype == "room" || stype == "box" ||
+                   stype == "staircase" || stype == "table" || stype == "chair" ||
+                   stype == "counter" || stype == "bed") {
+            // Procedural structure types — delegate to StructureGenerator
+            auto structure = StructureGenerator::generateFromJson(s);
+            auto placement = StructureGenerator::place(sub.chunkManager, structure);
+
+            if (placement.placed > 0) {
+                result.structuresPlaced++;
+                LOG_DEBUG("GameDefinitionLoader", stype + ": placed " + std::to_string(placement.placed) +
+                          " voxels (" + std::to_string(placement.failed) + " failed)");
+            } else {
+                LOG_WARN("GameDefinitionLoader", "Failed to place " + stype + " structure");
+            }
+
+            // Auto-register location markers
+            if (sub.locationRegistry) {
+                for (auto& loc : placement.locations) {
+                    if (loc.id.empty()) {
+                        // Generate an ID from the structure type and position
+                        loc.id = stype + "_" + std::to_string(static_cast<int>(loc.position.x)) +
+                                 "_" + std::to_string(static_cast<int>(loc.position.z));
+                    }
+                    Location regLoc;
+                    regLoc.id = loc.id;
+                    regLoc.name = loc.name;
+                    regLoc.position = loc.position;
+                    regLoc.radius = loc.radius;
+                    regLoc.type = loc.type;
+                    sub.locationRegistry->addLocation(regLoc);
+                    result.locationsRegistered++;
+                    LOG_DEBUG("GameDefinitionLoader", "Auto-registered location '" + loc.id + "' from " + stype);
+                }
+            }
+        } else {
+            LOG_WARN("GameDefinitionLoader", "Unknown structure type: " + stype);
         }
     }
 }

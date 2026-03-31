@@ -331,6 +331,45 @@ async def list_tools() -> list[Tool]:
         # Camera Control
         # ================================================================
         Tool(
+            name="build_structure",
+            description="Build a procedural structure (house, tavern, tower, wall, staircase, furniture). Returns placed voxel count and auto-registered locations.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "type": {"type": "string", "description": "Structure type: house, tavern, tower, wall, room, box, staircase, subcube_staircase, table, chair, counter, bed, window_frame, door_frame, railing, half_wall, pitched_roof"},
+                    "position": {"type": "object", "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}, "z": {"type": "integer"}}, "required": ["x", "y", "z"]},
+                    "width": {"type": "integer", "description": "Width (X axis)"},
+                    "depth": {"type": "integer", "description": "Depth (Z axis)"},
+                    "height": {"type": "integer", "description": "Height (Y axis)"},
+                    "stories": {"type": "integer", "description": "Number of stories (tavern)"},
+                    "radius": {"type": "integer", "description": "Radius (tower)"},
+                    "length": {"type": "integer", "description": "Length (counter, railing, half_wall)"},
+                    "material": {"type": "string", "description": "Single material name"},
+                    "materials": {"type": "object", "description": "Material palette: {wall, floor, roof, stairs, furniture}", "properties": {
+                        "wall": {"type": "string"}, "floor": {"type": "string"}, "roof": {"type": "string"},
+                        "stairs": {"type": "string"}, "furniture": {"type": "string"}
+                    }},
+                    "facing": {"type": "string", "description": "Door direction: north, east, south, west", "default": "south"},
+                    "windows": {"type": "integer", "description": "Number of windows per wall (house)"},
+                    "furnished": {"type": "boolean", "description": "Include furniture (house/tavern)", "default": True},
+                    "hollow": {"type": "boolean", "description": "Hollow box", "default": False},
+                    "end": {"type": "object", "description": "End point for wall segment", "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}, "z": {"type": "integer"}}},
+                    "thickness": {"type": "integer", "description": "Wall thickness"},
+                    "detail_level": {"type": "string", "description": "Detail level: rough (cube-only), detailed (cube+subcube trim), fine (future). Default: detailed", "default": "detailed", "enum": ["rough", "detailed", "fine"]}
+                },
+                "required": ["type", "position"]
+            }
+        ),
+        Tool(
+            name="list_structure_types",
+            description="List all available procedural structure types with their parameters and defaults.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+        Tool(
             name="set_camera",
             description="Move the camera to a specific position and/or orientation.",
             inputSchema={
@@ -2445,12 +2484,61 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
 
+# Tools that are safe to call without a project loaded
+_NO_PROJECT_TOOLS = {
+    "engine_status", "engine_running", "build_project", "launch_engine",
+    "project_info", "list_projects", "create_project", "open_project",
+    "package_game",
+}
+
+
+async def _check_project_loaded() -> dict | None:
+    """Check if a game project is loaded. Returns None if OK, or an error dict."""
+    try:
+        result = await api_get("/api/project/info")
+        if "error" in result:
+            return {
+                "error": "No game project is loaded.",
+                "hint": (
+                    "The engine is running but no project is open. "
+                    "You must either:\n"
+                    "  1. Launch the engine with --project flag: "
+                    "phyxel.exe --project C:\\Users\\jack\\Documents\\PhyxelProjects\\YourProject\n"
+                    "  2. Use the 'open_project' tool to open an existing project\n"
+                    "  3. Use the 'create_project' tool to create a new project, then open it\n\n"
+                    "Without a project loaded, most tools will not work (no world, no entities, no chunks)."
+                ),
+                "available_projects": "Use the 'list_projects' tool to see available projects."
+            }
+        return None
+    except Exception:
+        return None  # Can't reach engine — other errors will surface naturally
+
+
 async def _dispatch_tool(name: str, args: dict) -> dict:
     """Dispatch a tool call to the appropriate API endpoint."""
 
+    # Check that a project is loaded for tools that need one
+    if name not in _NO_PROJECT_TOOLS:
+        project_err = await _check_project_loaded()
+        if project_err is not None:
+            return project_err
+
     # --- Status & State ---
     if name == "engine_status":
-        return await api_get("/api/status")
+        status = await api_get("/api/status")
+        # Enrich with project info so the caller knows the full state
+        project = await api_get("/api/project/info")
+        if "error" not in project:
+            status["project"] = project
+        else:
+            status["project"] = None
+            status["project_warning"] = (
+                "No game project is loaded. The engine is in project-selector mode. "
+                "Use 'launch_engine' with args: [\"--project\", \"<path>\"] "
+                "or call 'open_project' to load a project before using other tools."
+            )
+        return status
 
     elif name == "get_world_state":
         return await api_get("/api/state")
@@ -2515,6 +2603,13 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             "position": {"x": args["x"], "y": args["y"], "z": args["z"]},
             "static": args.get("static", True)
         })
+
+    # --- Structures ---
+    elif name == "build_structure":
+        return await api_post("/api/structure/build", args)
+
+    elif name == "list_structure_types":
+        return await api_get("/api/structure/types")
 
     # --- Camera ---
     elif name == "set_camera":
@@ -3409,11 +3504,30 @@ async def _check_engine_running() -> dict:
     except Exception:
         api_ok = False
 
-    return {
+    info: dict[str, Any] = {
         "process_alive": process_alive,
         "api_responsive": api_ok,
-        "pid": _engine_process.pid if process_alive else None
+        "pid": _engine_process.pid if process_alive else None,
     }
+
+    # Check if a project is loaded
+    if api_ok:
+        try:
+            project = await api_get("/api/project/info")
+            if "error" not in project:
+                info["project_loaded"] = True
+                info["project_dir"] = project.get("project_dir", "")
+            else:
+                info["project_loaded"] = False
+                info["project_warning"] = (
+                    "Engine is running but NO PROJECT is loaded. "
+                    "The engine is showing the project-selector screen. "
+                    "Launch with --project <dir> or use 'open_project' to load a project."
+                )
+        except Exception:
+            pass
+
+    return info
 
 
 # ============================================================================

@@ -3,12 +3,13 @@
 #include <string>
 #include <memory>
 #include <functional>
+#include <vector>
 #include <glm/glm.hpp>
 
 namespace Phyxel {
 
 namespace Scene { class Entity; }
-namespace Core { class EntityRegistry; }
+namespace Core { class EntityRegistry; class AStarPathfinder; }
 namespace UI { class SpeechBubbleManager; }
 
 namespace AI {
@@ -57,10 +58,14 @@ protected:
 // ============================================================================
 
 /// Walk toward a position. Succeeds when within threshold.
+/// Uses A* pathfinding when a pathfinder is set, otherwise direct-line movement.
 class MoveToAction : public NPCAction {
 public:
     MoveToAction(const glm::vec3& target, float speed = 2.0f, float threshold = 0.5f)
         : m_target(target), m_speed(speed), m_threshold(threshold) { m_name = "MoveTo"; }
+
+    /// Set pathfinder for obstacle-aware navigation (may be null for direct-line fallback).
+    void setPathfinder(Core::AStarPathfinder* pathfinder) { m_pathfinder = pathfinder; }
 
     void start(ActionContext& ctx) override;
     ActionStatus update(float dt, ActionContext& ctx) override;
@@ -70,6 +75,10 @@ private:
     glm::vec3 m_target;
     float m_speed;
     float m_threshold;
+    Core::AStarPathfinder* m_pathfinder = nullptr;
+    std::vector<glm::vec3> m_pathNodes;
+    size_t m_currentPathNode = 0;
+    bool m_pathComputed = false;
 };
 
 /// Face a target position. Succeeds immediately after rotating.

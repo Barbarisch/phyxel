@@ -219,6 +219,21 @@ test_screenshot.png
 
 # Temp files
 body.json
+cam.json
+cam_r.json
+chunks.json
+entities.json
+house.json
+types.json
+result.json
+response.txt
+npc_*.txt
+npc_*.json
+stuck_count.txt
+debug_stderr.txt
+debug_stdout.txt
+*_results.txt
+*_output.txt
 
 # ImGui runtime state
 imgui.ini

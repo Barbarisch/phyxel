@@ -122,7 +122,7 @@
 ## Current State of the Build
 
 - **Build**: Clean, all targets compile (`phyxel_core`, `phyxel_editor`, `phyxel`)
-- **Tests**: 1510 unit tests (1506 pass, 3 AI E2E skipped, 1 pre-existing skeleton failure). 155 test suites. 36 integration tests.
+- **Tests**: 1614 unit tests (1610 pass, 3 AI E2E skipped, 1 pre-existing skeleton failure). 36 integration tests.
 - **MCP Tools**: 166 total
 - **Executable**: `phyxel.exe` at project root (copied post-build) or `build/editor/Debug/phyxel.exe`
 - **Example**: `phyxel_minimal_game.exe` at `build/examples/minimal_game/Debug/`
@@ -312,7 +312,72 @@ Behavior tree + utility AI system for NPC decision-making. NPCs can now use perc
 - **EngineAPIServer.cpp**: 3 new routes: `GET /api/npc/:name/blackboard`, `GET /api/npc/:name/perception`, `POST /api/npc/:name/blackboard`.
 - **MCP server**: 3 new tools — `get_npc_blackboard`, `get_npc_perception`, `set_npc_blackboard`.
 
+### NPC Pathfinding & Movement (1614 tests)
+
+**69 new tests** (AStarPathfinder: 18, NavGrid: 12, StructureGenerator subcube stairs: 26, StructureGenerator detail: 13). Total: **1614 tests** (1610 pass + 3 AI E2E skipped + 1 pre-existing skeleton test).
+
+Three interconnected features for NPC terrain navigation: A* grid pathfinding, wall avoidance in patrol behavior, and subcube-height step-up detection.
+
+#### A* Pathfinding (NavGrid + AStarPathfinder)
+- **NavGrid** (`engine/include/core/NavGrid.h`, `engine/src/core/NavGrid.cpp`): 2D navigation grid built from ChunkManager voxel data. Marks cells as walkable (solid below + open above), blocked (solid at NPC height), or near-wall (8-neighbor adjacency check + height-barrier detection for tall walls). Configurable world bounds and Y-level scanning.
+- **AStarPathfinder** (`engine/include/core/AStarPathfinder.h`, `engine/src/core/AStarPathfinder.cpp`): Classic A* over NavGrid with 8-directional movement. Diagonal cost √2, cardinal cost 1. Near-wall cells incur 3× penalty to keep NPCs away from walls. Returns ordered waypoint list.
+- **Integration**: `NPCManager::setPathfinder()` assigns a shared `AStarPathfinder` to an NPC. `PatrolBehavior` uses it to compute paths between waypoints, falling back to direct-line movement if no pathfinder is set.
+
+#### Wall Avoidance & Stuck Recovery (PatrolBehavior)
+- **8-neighbor nearWall detection**: NavGrid flags cells adjacent to blocked cells. Pathfinder penalizes these to route NPCs away from walls.
+- **Height-barrier detection**: Columns of 2+ stacked voxels mark adjacent cells as nearWall, preventing NPCs from squeezing along tall walls.
+- **Stuck recovery**: If NPC position barely changes for 5+ seconds, teleports to the nearest non-nearWall NavGrid cell (searches in expanding rings). Prevents permanent stuck states.
+- **XZ-only velocity**: PatrolBehavior sets only horizontal velocity (`glm::vec3(diff.x, 0.0f, diff.z)`), letting physics handle Y (gravity/stepping).
+
+#### Subcube Step-Up Detection (AnimatedVoxelCharacter)
+- **Position-delta tracking**: Each frame compares current position to `m_lastStepCheckPos`. If delta < 0.01 while desired speed > 0.5, increments `m_blockedFrames`.
+- **Raycast step detection**: After 5 blocked frames, fires a Bullet raycast 0.6 blocks ahead at ground level. If hit point is 0.05–0.383 units above NPC base (≈ 1 subcube height + tolerance), teleports NPC up to step height + nudges forward 0.3 units.
+- **MAX_STEP_HEIGHT**: `1.0f/3.0f + 0.05f ≈ 0.383` — one subcube (0.333) plus tolerance. Full blocks (1.0 unit) are NOT steppable — NPCs must path around or jump.
+- **Box collider**: halfWidth=0.425, halfHeight=0.95, mass=60kg, friction=0.0.
+
+#### Subcube API Endpoint
+- **`POST /api/world/subcube`**: Places a subcube at world coordinates with optional material. Queues `place_subcube` action for main-thread execution.
+- **`addSubcubeWithMaterial()`**: Wired through Application command handler.
+
+**Files created:**
+- `engine/include/core/AStarPathfinder.h` + `engine/src/core/AStarPathfinder.cpp`
+- `engine/include/core/NavGrid.h` + `engine/src/core/NavGrid.cpp`
+- `tests/core/AStarPathfinderTest.cpp` (18 tests)
+- `tests/core/NavGridTest.cpp` (12 tests)
+
+**Files modified:**
+- `engine/src/scene/AnimatedVoxelCharacter.cpp`: Step-up detection, box shape, position delta tracking
+- `engine/include/scene/AnimatedVoxelCharacter.h`: `m_blockedFrames`, `m_lastStepCheckPos`
+- `engine/src/scene/behaviors/PatrolBehavior.cpp`: Wall avoidance, stuck recovery, XZ velocity, pathfinder integration
+- `engine/include/scene/behaviors/PatrolBehavior.h`: New member variables for stuck tracking
+- `engine/src/physics/PhysicsWorld.cpp` + `.h`: `createCapsuleBody()` (implemented but currently unused — box preferred)
+- `engine/src/core/EngineAPIServer.cpp`: `/api/world/subcube` endpoint
+- `editor/src/Application.cpp`: `place_subcube` command handler
+- `engine/src/core/NPCManager.cpp` + `.h`: `setPathfinder()`, pathfinder wiring
+- `engine/src/core/GameDefinitionLoader.cpp`: NPC loading improvements
+
+**Test scripts:**
+- `scripts/inspect_world.py`: World state inspection (NPCs + voxel scan + screenshot)
+- `scripts/npc_obstacle_demo.py`: Wall avoidance testing
+- `scripts/npc_subcube_step_test.py`: Multi-test subcube stepping
+- `samples/game_definitions/step_test.json`: Flat world test definition
+
 ### Texture / Visual Polish
+
+### Procedural Structure System (1545 tests / 156 suites)
+
+**35 new tests** (StructureGeneratorTest: primitives, composites, JSON-driven, rotation, furniture, placement).
+
+- **StructureGenerator**: New `engine/include/core/StructureGenerator.h` / `engine/src/core/StructureGenerator.cpp` — procedural building generator with composable primitives. All structures support `facing` rotation (north/east/south/west).
+  - **Building primitives**: `generateBox`, `generateWalls`, `generateFloor`, `generateRoom`, `generateDoorOpening`, `generateWindowOpening`, `generateStaircase`
+  - **Furniture primitives**: `generateTable` (3x2 with legs), `generateChair` (seat + back), `generateCounter` (bar/shop), `generateBed` (2x3 with headboard)
+  - **Composite generators**: `generateHouse` (walls/floor/roof/door/windows/furniture), `generateTavern` (multi-story with bar area, tables, upper rooms with stairs), `generateTower` (cylindrical, spiral staircase, door), `generateWallSegment` (freestanding wall between two points)
+  - **Location markers**: Composites auto-register LocationMarker structs (id, position, type) for NPC schedule integration
+  - **JSON-driven**: `generateFromJson(json)` parses any structure type from JSON definition
+  - **Placement**: `place(ChunkManager*, StructureResult)` batches voxel placement (100k limit)
+- **GameDefinitionLoader extended**: `loadStructures()` now handles 11 structure types: fill, template, house, tavern, tower, wall, room, box, staircase, table, chair, counter, bed. Auto-registers location markers into LocationRegistry.
+- **MCP tools**: `build_structure` (procedural build at position), `list_structure_types` (available types with params)
+- **Village demo**: `samples/game_definitions/village_demo.json` — Perlin terrain + tavern + 2 houses + guard tower + wall + staircase + 3 NPCs (Innkeeper, Guard with patrol, Blacksmith) + dialogue + story arc
 
 ### Playability Polish (PP1–PP5, 1510 tests / 155 suites)
 
@@ -364,6 +429,7 @@ Behavior tree + utility AI system for NPC decision-making. NPCs can now use perc
 | Texture Constants | `engine/include/core/Types.h` (TextureConstants namespace) |
 | Material Manager | `engine/src/physics/Material.cpp` |
 | World Generator | `engine/src/core/WorldGenerator.cpp` |
+| Structure Generator | `engine/src/core/StructureGenerator.cpp` |
 | Texture Generator | `tools/generate_material_textures.py` |
 | Atlas Builder | `tools/texture_atlas_builder.py` |
 | Project Instructions | `CLAUDE.md` |

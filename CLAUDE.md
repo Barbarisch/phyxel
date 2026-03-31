@@ -208,6 +208,8 @@ Server: `scripts/mcp/phyxel_mcp_server.py` — connects to engine HTTP API at `l
 | `scan_region` | Read all voxels in 3D box |
 | `list_templates` | List available object templates |
 | `spawn_template` | Place template at position (static or dynamic) |
+| `build_structure` | Build procedural structure (house/tavern/tower/wall/furniture) at position |
+| `list_structure_types` | List available structure types with parameters |
 | `list_materials` | List all materials with properties |
 | `get_chunk_info` | Loaded chunk count, origins, stats |
 | `set_camera` | Move/orient camera |
@@ -361,6 +363,9 @@ Server: `scripts/mcp/phyxel_mcp_server.py` — connects to engine HTTP API at `l
 | `get_locations` | List named world locations |
 | `add_location` | Register named location |
 | `remove_location` | Remove named location |
+| **Structures** | |
+| `build_structure` | Build procedural structure (house, tavern, tower, wall, staircase, table, chair, counter, bed) |
+| `list_structure_types` | List all structure types with parameters and defaults |
 | **Terrain** | |
 | `get_terrain_height` | Get terrain height at (x,z) |
 | `clear_chunk` | Clear all voxels in a chunk |
@@ -403,7 +408,12 @@ The `load_game_definition` tool enables creating entire games from a single JSON
     }
   ],
   "structures": [
-    {"type": "fill", "from": {"x":0,"y":0,"z":0}, "to": {"x":31,"y":15,"z":31}, "material": "Stone"}
+    {"type": "fill", "from": {"x":0,"y":0,"z":0}, "to": {"x":31,"y":15,"z":31}, "material": "Stone"},
+    {"type": "tavern", "position": {"x":8,"y":16,"z":20}, "width": 14, "depth": 18, "stories": 2,
+     "facing": "south", "materials": {"wall":"Stone","floor":"Wood","roof":"Wood"}, "furnished": true},
+    {"type": "house", "position": {"x":26,"y":16,"z":20}, "width": 8, "depth": 10, "height": 5,
+     "facing": "south", "materials": {"wall":"Stone","floor":"Wood"}, "windows": 2},
+    {"type": "tower", "position": {"x":4,"y":16,"z":4}, "radius": 3, "height": 10, "material": "Stone"}
   ],
   "story": {
     "arcs": [{"id":"main","name":"Main Quest","constraintMode":"Guided",
@@ -504,6 +514,8 @@ docs/            # Documentation
 - **HazardSystem**: 6 environmental hazard types with DOT, slow, stun effects
 - **AchievementSystem**: Counter/Threshold/OneShot/Composite types, JSON persistence
 - **NPCManager**: NPC lifecycle, behavior strategies, patrol/idle/BT behaviors
+- **NavGrid**: 2D navigation grid from voxel data, walkable/blocked/nearWall cell classification
+- **AStarPathfinder**: A* pathfinding over NavGrid with wall-avoidance penalties
 - **DialogueSystem**: Branching conversation trees, typewriter effect, speech bubbles
 - **StoryEngine**: Story arcs, beats, character agents, LLM-powered narrative
 - **AIConversationService**: Direct LLM client (Claude/OpenAI/Ollama) for NPC conversations
@@ -520,7 +532,7 @@ docs/            # Documentation
 
 ### Automated Tests
 ```powershell
-# All unit tests (1510, 3 AI E2E auto-skip without API key)
+# All unit tests (1614, 3 AI E2E auto-skip without API key)
 .\build\tests\Debug\phyxel_tests.exe --gtest_brief=1
 
 # Integration tests (36)

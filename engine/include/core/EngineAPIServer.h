@@ -72,6 +72,9 @@ public:
     /// Set the job system (can be set after construction)
     void setJobSystem(JobSystem* jobSystem) { m_jobSystem = jobSystem; }
 
+    /// Check if a port is available for binding (no other process using it).
+    static bool isPortAvailable(int port);
+
     /// Start the HTTP server on a background thread.
     /// Returns false if already running or port is unavailable.
     bool start();
@@ -250,6 +253,7 @@ private:
     int m_port;
     std::atomic<bool> m_running{false};
     std::atomic<bool> m_shouldStop{false};
+    std::atomic<bool> m_listenFailed{false};
     std::thread m_thread;
     std::atomic<uint64_t> m_nextRequestId{1};
 
