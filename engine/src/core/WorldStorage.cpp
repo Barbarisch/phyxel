@@ -150,6 +150,7 @@ bool WorldStorage::createTables() {
             sub_y INTEGER NOT NULL CHECK(sub_y >= 0 AND sub_y < 3),
             sub_z INTEGER NOT NULL CHECK(sub_z >= 0 AND sub_z < 3),
             is_dynamic INTEGER DEFAULT 0,
+            material TEXT DEFAULT 'Default',
             PRIMARY KEY (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z, sub_x, sub_y, sub_z),
             FOREIGN KEY (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z) 
                 REFERENCES cubes(chunk_x, chunk_y, chunk_z, local_x, local_y, local_z)
@@ -169,6 +170,7 @@ bool WorldStorage::createTables() {
             micro_x INTEGER NOT NULL CHECK(micro_x >= 0 AND micro_x < 3),
             micro_y INTEGER NOT NULL CHECK(micro_y >= 0 AND micro_y < 3),
             micro_z INTEGER NOT NULL CHECK(micro_z >= 0 AND micro_z < 3),
+            material TEXT DEFAULT 'Default',
             PRIMARY KEY (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z, sub_x, sub_y, sub_z, micro_x, micro_y, micro_z),
             FOREIGN KEY (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z) 
                 REFERENCES cubes(chunk_x, chunk_y, chunk_z, local_x, local_y, local_z)
@@ -204,6 +206,26 @@ bool WorldStorage::createTables() {
         } else {
             LOG_INFO("WorldStorage", "[WORLD_STORAGE] Migrated cubes table: added material column");
         }
+
+        // Migrate subcubes table
+        char* subErr = nullptr;
+        sqlite3_exec(db, "ALTER TABLE subcubes ADD COLUMN material TEXT DEFAULT 'Default';", nullptr, nullptr, &subErr);
+        if (subErr) {
+            std::string errStr(subErr);
+            if (errStr.find("duplicate column") == std::string::npos)
+                LOG_WARN_FMT("WorldStorage", "[WORLD_STORAGE] Migration warning (subcubes): " << subErr);
+            sqlite3_free(subErr);
+        }
+
+        // Migrate microcubes table
+        char* microErr = nullptr;
+        sqlite3_exec(db, "ALTER TABLE microcubes ADD COLUMN material TEXT DEFAULT 'Default';", nullptr, nullptr, &microErr);
+        if (microErr) {
+            std::string errStr(microErr);
+            if (errStr.find("duplicate column") == std::string::npos)
+                LOG_WARN_FMT("WorldStorage", "[WORLD_STORAGE] Migration warning (microcubes): " << microErr);
+            sqlite3_free(microErr);
+        }
     }
     
     return success;
@@ -224,14 +246,14 @@ bool WorldStorage::prepareStatements() {
     
     const char* insertSubcubeSQL = R"(
         INSERT OR REPLACE INTO subcubes 
-        (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z, sub_x, sub_y, sub_z, is_dynamic) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z, sub_x, sub_y, sub_z, is_dynamic, material) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     )";
     
     const char* insertMicrocubeSQL = R"(
         INSERT OR REPLACE INTO microcubes 
-        (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z, sub_x, sub_y, sub_z, micro_x, micro_y, micro_z) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z, sub_x, sub_y, sub_z, micro_x, micro_y, micro_z, material) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     )";
     
     // Select statements  
@@ -245,12 +267,12 @@ bool WorldStorage::prepareStatements() {
     )";
     
     const char* selectSubcubesSQL = R"(
-        SELECT local_x, local_y, local_z, sub_x, sub_y, sub_z, is_dynamic 
+        SELECT local_x, local_y, local_z, sub_x, sub_y, sub_z, is_dynamic, material 
         FROM subcubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;
     )";
     
     const char* selectMicrocubesSQL = R"(
-        SELECT local_x, local_y, local_z, sub_x, sub_y, sub_z, micro_x, micro_y, micro_z 
+        SELECT local_x, local_y, local_z, sub_x, sub_y, sub_z, micro_x, micro_y, micro_z, material 
         FROM microcubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;
     )";
     
@@ -450,6 +472,7 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
                     sqlite3_bind_int(insertSubcubeStmt, 8, subcube->getLocalPosition().y);
                     sqlite3_bind_int(insertSubcubeStmt, 9, subcube->getLocalPosition().z);
                     sqlite3_bind_int(insertSubcubeStmt, 10, subcube->isDynamic() ? 1 : 0);
+                    sqlite3_bind_text(insertSubcubeStmt, 11, subcube->getMaterialName().c_str(), -1, SQLITE_TRANSIENT);
                     
                     if (sqlite3_step(insertSubcubeStmt) != SQLITE_DONE) {
                         LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert static subcube at (" 
@@ -516,6 +539,7 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
                     sqlite3_bind_int(insertMicrocubeStmt, 10, microcube->getMicrocubeLocalPosition().x);
                     sqlite3_bind_int(insertMicrocubeStmt, 11, microcube->getMicrocubeLocalPosition().y);
                     sqlite3_bind_int(insertMicrocubeStmt, 12, microcube->getMicrocubeLocalPosition().z);
+                    sqlite3_bind_text(insertMicrocubeStmt, 13, microcube->getMaterialName().c_str(), -1, SQLITE_TRANSIENT);
                     
                     if (sqlite3_step(insertMicrocubeStmt) != SQLITE_DONE) {
                         LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert microcube: " << sqlite3_errmsg(db));
@@ -906,9 +930,11 @@ bool WorldStorage::loadSubcubesForChunk(const glm::ivec3& chunkCoord, Chunk& chu
         int subZ = sqlite3_column_int(selectSubcubesStmt, 5);
         
         bool isDynamic = sqlite3_column_int(selectSubcubesStmt, 6) != 0;
+        const char* matText = reinterpret_cast<const char*>(sqlite3_column_text(selectSubcubesStmt, 7));
+        std::string material = matText ? matText : "Default";
         
         // Add subcube to chunk
-        if (chunk.addSubcube(glm::ivec3(x, y, z), glm::ivec3(subX, subY, subZ))) {
+        if (chunk.addSubcube(glm::ivec3(x, y, z), glm::ivec3(subX, subY, subZ), material)) {
             loadedSubcubes++;
         }
     }
@@ -944,10 +970,12 @@ bool WorldStorage::loadMicrocubesForChunk(const glm::ivec3& chunkCoord, Chunk& c
         int microX = sqlite3_column_int(selectMicrocubesStmt, 6);
         int microY = sqlite3_column_int(selectMicrocubesStmt, 7);
         int microZ = sqlite3_column_int(selectMicrocubesStmt, 8);
+        const char* matText = reinterpret_cast<const char*>(sqlite3_column_text(selectMicrocubesStmt, 9));
+        std::string material = matText ? matText : "Default";
         
         // Add microcube to chunk
         if (chunk.addMicrocube(glm::ivec3(x, y, z), glm::ivec3(subX, subY, subZ), 
-                               glm::ivec3(microX, microY, microZ))) {
+                               glm::ivec3(microX, microY, microZ), material)) {
             loadedMicrocubes++;
         }
     }

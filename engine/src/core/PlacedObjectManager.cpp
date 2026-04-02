@@ -534,5 +534,93 @@ nlohmann::json PlacedObjectManager::getTree(const std::string& rootId) const {
     return buildTree(rootId);
 }
 
+// ============================================================================
+// SQLite persistence
+// ============================================================================
+
+bool PlacedObjectManager::saveToDb(sqlite3* db) const {
+    if (!db) return false;
+
+    const char* createSql = R"(
+        CREATE TABLE IF NOT EXISTS placed_objects (
+            id TEXT PRIMARY KEY,
+            objects_json TEXT NOT NULL,
+            modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    )";
+    char* err = nullptr;
+    sqlite3_exec(db, createSql, nullptr, nullptr, &err);
+    if (err) {
+        LOG_ERROR("PlacedObjectManager", "Failed to create placed_objects table: {}", err);
+        sqlite3_free(err);
+        return false;
+    }
+
+    const char* upsertSql = R"(
+        INSERT OR REPLACE INTO placed_objects (id, objects_json, modified_at)
+        VALUES ('registry', ?, datetime('now'));
+    )";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, upsertSql, -1, &stmt, nullptr) != SQLITE_OK) {
+        LOG_ERROR("PlacedObjectManager", "Failed to prepare save statement: {}", sqlite3_errmsg(db));
+        return false;
+    }
+
+    std::string jsonStr = toJson().dump();
+    sqlite3_bind_text(stmt, 1, jsonStr.c_str(), -1, SQLITE_TRANSIENT);
+
+    bool ok = (sqlite3_step(stmt) == SQLITE_DONE);
+    sqlite3_finalize(stmt);
+
+    if (ok) {
+        LOG_INFO("PlacedObjectManager", "Saved {} placed objects to database", count());
+    } else {
+        LOG_ERROR("PlacedObjectManager", "Failed to save placed objects: {}", sqlite3_errmsg(db));
+    }
+    return ok;
+}
+
+bool PlacedObjectManager::loadFromDb(sqlite3* db) {
+    if (!db) return false;
+
+    // Ensure table exists
+    const char* createSql = R"(
+        CREATE TABLE IF NOT EXISTS placed_objects (
+            id TEXT PRIMARY KEY,
+            objects_json TEXT NOT NULL,
+            modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    )";
+    sqlite3_exec(db, createSql, nullptr, nullptr, nullptr);
+
+    const char* selectSql = "SELECT objects_json FROM placed_objects WHERE id = 'registry';";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, selectSql, -1, &stmt, nullptr) != SQLITE_OK) {
+        LOG_ERROR("PlacedObjectManager", "Failed to prepare load statement: {}", sqlite3_errmsg(db));
+        return false;
+    }
+
+    bool ok = false;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char* text = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        if (text) {
+            auto j = nlohmann::json::parse(text, nullptr, false);
+            if (!j.is_discarded()) {
+                fromJson(j);
+                ok = true;
+                LOG_INFO("PlacedObjectManager", "Loaded {} placed objects from database", count());
+            } else {
+                LOG_ERROR("PlacedObjectManager", "Failed to parse placed objects JSON from database");
+            }
+        }
+    } else {
+        LOG_INFO("PlacedObjectManager", "No placed objects found in database");
+        ok = true; // Not an error — just no data yet
+    }
+
+    sqlite3_finalize(stmt);
+    return ok;
+}
+
 } // namespace Core
 } // namespace Phyxel

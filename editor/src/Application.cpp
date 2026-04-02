@@ -486,6 +486,198 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         };
     });
 
+    // Subcube query: returns all subcubes at a parent cube world position
+    apiServer->setSubcubeQueryHandler([this](int x, int y, int z) -> nlohmann::json {
+        if (!chunkManager) return nlohmann::json{{"error", "ChunkManager not available"}};
+        glm::ivec3 worldPos(x, y, z);
+        auto* chunk = chunkManager->getChunkAt(worldPos);
+        if (!chunk) {
+            return nlohmann::json{{"position", {{"x", x}, {"y", y}, {"z", z}}}, {"subcubes", nlohmann::json::array()}, {"microcubes", nlohmann::json::array()}, {"subcube_count", 0}, {"microcube_count", 0}, {"has_full_cube", false}};
+        }
+        glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+        auto* cube = chunk->getCubeAt(localPos);
+        auto subcubes = chunk->getSubcubesAt(localPos);
+        nlohmann::json subArr = nlohmann::json::array();
+        nlohmann::json microArr = nlohmann::json::array();
+        for (auto* sub : subcubes) {
+            if (!sub) continue;
+            auto lp = sub->getLocalPosition();
+            float scale = sub->getScale();
+            float worldMinX = static_cast<float>(x) + lp.x * scale;
+            float worldMinY = static_cast<float>(y) + lp.y * scale;
+            float worldMinZ = static_cast<float>(z) + lp.z * scale;
+            subArr.push_back({
+                {"local", {{"sx", lp.x}, {"sy", lp.y}, {"sz", lp.z}}},
+                {"world_min", {{"x", worldMinX}, {"y", worldMinY}, {"z", worldMinZ}}},
+                {"world_max", {{"x", worldMinX + scale}, {"y", worldMinY + scale}, {"z", worldMinZ + scale}}},
+                {"scale", scale},
+                {"material", sub->getMaterialName()},
+                {"type", "subcube"},
+                {"visible", sub->isVisible()}
+            });
+        }
+        // Enumerate microcubes: iterate all 27 subcube slots
+        for (int sx = 0; sx < 3; ++sx) {
+            for (int sy = 0; sy < 3; ++sy) {
+                for (int sz = 0; sz < 3; ++sz) {
+                    auto micros = chunk->getMicrocubesAt(localPos, glm::ivec3(sx, sy, sz));
+                    for (auto* mic : micros) {
+                        if (!mic) continue;
+                        auto mp = mic->getMicrocubeLocalPosition();
+                        float microScale = mic->getScale(); // 1/9
+                        float subScale = 1.0f / 3.0f;
+                        float wmx = static_cast<float>(x) + sx * subScale + mp.x * microScale;
+                        float wmy = static_cast<float>(y) + sy * subScale + mp.y * microScale;
+                        float wmz = static_cast<float>(z) + sz * subScale + mp.z * microScale;
+                        microArr.push_back({
+                            {"subcube_local", {{"sx", sx}, {"sy", sy}, {"sz", sz}}},
+                            {"micro_local", {{"mx", mp.x}, {"my", mp.y}, {"mz", mp.z}}},
+                            {"world_min", {{"x", wmx}, {"y", wmy}, {"z", wmz}}},
+                            {"world_max", {{"x", wmx + microScale}, {"y", wmy + microScale}, {"z", wmz + microScale}}},
+                            {"scale", microScale},
+                            {"material", mic->getMaterialName()},
+                            {"type", "microcube"},
+                            {"visible", mic->isVisible()}
+                        });
+                    }
+                }
+            }
+        }
+        return nlohmann::json{
+            {"position", {{"x", x}, {"y", y}, {"z", z}}},
+            {"has_full_cube", cube != nullptr},
+            {"subcube_count", subArr.size()},
+            {"microcube_count", microArr.size()},
+            {"subcubes", subArr},
+            {"microcubes", microArr}
+        };
+    });
+
+    // Detailed region scan: full cubes + subcubes in a region
+    apiServer->setDetailedRegionScanHandler([this](int x1, int y1, int z1, int x2, int y2, int z2) -> nlohmann::json {
+        if (!chunkManager) return nlohmann::json{{"error", "ChunkManager not available"}};
+
+        int minX = std::min(x1, x2), maxX = std::max(x1, x2);
+        int minY = std::min(y1, y2), maxY = std::max(y1, y2);
+        int minZ = std::min(z1, z2), maxZ = std::max(z1, z2);
+
+        int64_t volume = (int64_t)(maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
+        if (volume > 10000) {
+            return nlohmann::json{{"error", "Region too large for detailed scan"}, {"volume", volume}, {"max_volume", 10000}};
+        }
+
+        nlohmann::json cubes = nlohmann::json::array();
+        nlohmann::json subcubesList = nlohmann::json::array();
+        nlohmann::json microcubesList = nlohmann::json::array();
+        int cubeCount = 0, subcubeCount = 0, microcubeCount = 0;
+
+        for (int ix = minX; ix <= maxX; ++ix) {
+            for (int iy = minY; iy <= maxY; ++iy) {
+                for (int iz = minZ; iz <= maxZ; ++iz) {
+                    glm::ivec3 worldPos(ix, iy, iz);
+                    auto* chunk = chunkManager->getChunkAt(worldPos);
+                    if (!chunk) continue;
+                    glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+
+                    auto* cube = chunk->getCubeAt(localPos);
+                    if (cube) {
+                        cubes.push_back({
+                            {"x", ix}, {"y", iy}, {"z", iz},
+                            {"material", cube->getMaterialName()},
+                            {"type", "cube"}
+                        });
+                        ++cubeCount;
+                    }
+
+                    auto subs = chunk->getSubcubesAt(localPos);
+                    for (auto* sub : subs) {
+                        if (!sub) continue;
+                        auto lp = sub->getLocalPosition();
+                        float scale = sub->getScale();
+                        float wmx = static_cast<float>(ix) + lp.x * scale;
+                        float wmy = static_cast<float>(iy) + lp.y * scale;
+                        float wmz = static_cast<float>(iz) + lp.z * scale;
+                        subcubesList.push_back({
+                            {"parent", {{"x", ix}, {"y", iy}, {"z", iz}}},
+                            {"local", {{"sx", lp.x}, {"sy", lp.y}, {"sz", lp.z}}},
+                            {"world_min", {{"x", wmx}, {"y", wmy}, {"z", wmz}}},
+                            {"world_max", {{"x", wmx + scale}, {"y", wmy + scale}, {"z", wmz + scale}}},
+                            {"scale", scale},
+                            {"material", sub->getMaterialName()},
+                            {"type", "subcube"}
+                        });
+                        ++subcubeCount;
+                    }
+                    // Enumerate microcubes at all 27 subcube slots
+                    for (int msx = 0; msx < 3; ++msx) {
+                        for (int msy = 0; msy < 3; ++msy) {
+                            for (int msz = 0; msz < 3; ++msz) {
+                                auto micros = chunk->getMicrocubesAt(localPos, glm::ivec3(msx, msy, msz));
+                                for (auto* mic : micros) {
+                                    if (!mic) continue;
+                                    auto mp = mic->getMicrocubeLocalPosition();
+                                    float microScale = mic->getScale();
+                                    float subScale = 1.0f / 3.0f;
+                                    float mwx = static_cast<float>(ix) + msx * subScale + mp.x * microScale;
+                                    float mwy = static_cast<float>(iy) + msy * subScale + mp.y * microScale;
+                                    float mwz = static_cast<float>(iz) + msz * subScale + mp.z * microScale;
+                                    microcubesList.push_back({
+                                        {"parent", {{"x", ix}, {"y", iy}, {"z", iz}}},
+                                        {"subcube_local", {{"sx", msx}, {"sy", msy}, {"sz", msz}}},
+                                        {"micro_local", {{"mx", mp.x}, {"my", mp.y}, {"mz", mp.z}}},
+                                        {"world_min", {{"x", mwx}, {"y", mwy}, {"z", mwz}}},
+                                        {"world_max", {{"x", mwx + microScale}, {"y", mwy + microScale}, {"z", mwz + microScale}}},
+                                        {"scale", microScale},
+                                        {"material", mic->getMaterialName()},
+                                        {"type", "microcube"}
+                                    });
+                                    ++microcubeCount;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return nlohmann::json{
+            {"cube_count", cubeCount},
+            {"subcube_count", subcubeCount},
+            {"microcube_count", microcubeCount},
+            {"volume", volume},
+            {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
+            {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}},
+            {"cubes", cubes},
+            {"subcubes", subcubesList},
+            {"microcubes", microcubesList}
+        };
+    });
+
+    // Step-up debug log: returns ring buffer of recent step-up events
+    apiServer->setStepDebugLogHandler([this]() -> nlohmann::json {
+        nlohmann::json entries = nlohmann::json::array();
+        // Collect from all animated characters
+        if (entityRegistry) {
+            auto animatedEntities = entityRegistry->getEntitiesByType("animated");
+            for (const auto& [entityId, entity] : animatedEntities) {
+                auto* animChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity);
+                if (!animChar) continue;
+                const auto& log = animChar->getStepDebugLog();
+                for (const auto& entry : log) {
+                    entries.push_back({
+                        {"entity", entityId},
+                        {"timestamp", entry.timestamp},
+                        {"char_pos", {{"x", entry.charX}, {"y", entry.charY}, {"z", entry.charZ}}},
+                        {"obstacle_height", entry.obstacleHeight},
+                        {"step_height", entry.stepHeight},
+                        {"result", entry.result},
+                        {"blocked_frames", entry.blockedFrames}
+                    });
+                }
+            }
+        }
+        return nlohmann::json{{"entries", entries}, {"count", entries.size()}};
+    });
+
     apiServer->setEventPollHandler([this](uint64_t sinceId) -> nlohmann::json {
         if (!gameEventLog) return nlohmann::json{{"error", "GameEventLog not available"}};
         auto result = gameEventLog->pollSince(sinceId);
@@ -502,6 +694,10 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
     // Initialize Snapshot Manager
     snapshotManager = std::make_unique<Core::SnapshotManager>();
+
+    // Initialize Placed Object Manager
+    placedObjectManager = std::make_unique<Core::PlacedObjectManager>(
+        chunkManager, objectTemplateManager.get(), snapshotManager.get());
 
     apiServer->setSnapshotListHandler([this]() -> nlohmann::json {
         if (!snapshotManager) return nlohmann::json{{"error", "SnapshotManager not available"}};
@@ -806,6 +1002,14 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             }
         } else {
             LOG_INFO("Application", "AI Conversation Service skipped (no world database available)");
+        }
+    }
+
+    // Load placed objects from database
+    if (placedObjectManager && chunkManager) {
+        auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+        if (ws && ws->getDb()) {
+            placedObjectManager->loadFromDb(ws->getDb());
         }
     }
 
@@ -2738,9 +2942,349 @@ static nlohmann::json handleAICommand(
 }
 
 // ============================================================================
+// Region capture/place helpers for multi-level voxel operations
+// Used by snapshot, clipboard, save_template, and move_region commands
+// ============================================================================
+
+/// Capture all cubes, subcubes, and microcubes in a region into VoxelEntry list.
+static std::vector<Core::VoxelEntry> captureRegionAllLevels(
+    ChunkManager* chunkManager,
+    const glm::ivec3& minCorner,
+    const glm::ivec3& maxCorner)
+{
+    std::vector<Core::VoxelEntry> voxels;
+    for (int ix = minCorner.x; ix <= maxCorner.x; ++ix) {
+        for (int iy = minCorner.y; iy <= maxCorner.y; ++iy) {
+            for (int iz = minCorner.z; iz <= maxCorner.z; ++iz) {
+                glm::ivec3 worldPos(ix, iy, iz);
+                auto* chunk = chunkManager->getChunkAt(worldPos);
+                if (!chunk) continue;
+                glm::ivec3 localPos = ChunkManager::worldToLocalCoord(worldPos);
+                glm::ivec3 relOffset(ix - minCorner.x, iy - minCorner.y, iz - minCorner.z);
+
+                // Cubes
+                auto* cube = chunk->getCubeAt(localPos);
+                if (cube && cube->isVisible()) {
+                    Core::VoxelEntry entry;
+                    entry.offset = relOffset;
+                    entry.material = cube->getMaterialName();
+                    entry.level = Core::SnapshotVoxelLevel::Cube;
+                    voxels.push_back(entry);
+                }
+
+                // Subcubes
+                auto subs = chunk->getSubcubesAt(localPos);
+                for (auto* sub : subs) {
+                    if (!sub) continue;
+                    Core::VoxelEntry entry;
+                    entry.offset = relOffset;
+                    entry.material = sub->getMaterialName();
+                    entry.level = Core::SnapshotVoxelLevel::Subcube;
+                    entry.subcubePos = glm::ivec3(sub->getLocalPosition());
+                    voxels.push_back(entry);
+                }
+
+                // Microcubes (iterate all 27 subcube slots)
+                for (int msx = 0; msx < 3; ++msx) {
+                    for (int msy = 0; msy < 3; ++msy) {
+                        for (int msz = 0; msz < 3; ++msz) {
+                            auto micros = chunk->getMicrocubesAt(localPos, glm::ivec3(msx, msy, msz));
+                            for (auto* mic : micros) {
+                                if (!mic) continue;
+                                Core::VoxelEntry entry;
+                                entry.offset = relOffset;
+                                entry.material = mic->getMaterialName();
+                                entry.level = Core::SnapshotVoxelLevel::Microcube;
+                                entry.subcubePos = glm::ivec3(msx, msy, msz);
+                                entry.microcubePos = glm::ivec3(mic->getMicrocubeLocalPosition());
+                                voxels.push_back(entry);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return voxels;
+}
+
+/// Place voxels from VoxelEntry list into the world at a given origin.
+/// Returns {placed, failed} counts.
+static std::pair<int, int> placeVoxelEntries(
+    ChunkManager* chunkManager,
+    const std::vector<Core::VoxelEntry>& voxels,
+    const glm::ivec3& origin)
+{
+    int placed = 0, failed = 0;
+    for (const auto& v : voxels) {
+        glm::ivec3 worldPos = origin + v.offset;
+        bool ok = false;
+        switch (v.level) {
+            case Core::SnapshotVoxelLevel::Cube:
+                ok = chunkManager->m_voxelModificationSystem.addCubeWithMaterial(worldPos, v.material);
+                break;
+            case Core::SnapshotVoxelLevel::Subcube:
+                ok = chunkManager->m_voxelModificationSystem.addSubcubeWithMaterial(worldPos, v.subcubePos, v.material);
+                break;
+            case Core::SnapshotVoxelLevel::Microcube:
+                ok = chunkManager->m_voxelModificationSystem.addMicrocubeWithMaterial(worldPos, v.subcubePos, v.microcubePos, v.material);
+                break;
+        }
+        if (ok) ++placed; else ++failed;
+    }
+    return {placed, failed};
+}
+
+/// Push an undo snapshot for a region before a destructive operation.
+/// label describes the operation (e.g. "fill_region", "clear_region").
+/// Silently skips if region exceeds MAX_VOLUME or managers are null.
+static void pushUndoSnapshot(
+    ChunkManager* chunkManager,
+    Core::SnapshotManager* snapshotManager,
+    const glm::ivec3& minCorner,
+    const glm::ivec3& maxCorner,
+    const std::string& label)
+{
+    if (!chunkManager || !snapshotManager) return;
+    int64_t volume = (int64_t)(maxCorner.x - minCorner.x + 1) *
+                     (maxCorner.y - minCorner.y + 1) *
+                     (maxCorner.z - minCorner.z + 1);
+    if (volume <= 0 || volume > Core::SnapshotManager::MAX_VOLUME) return;
+
+    Core::RegionSnapshot snap;
+    snap.name = label;
+    snap.min = minCorner;
+    snap.max = maxCorner;
+    snap.size = maxCorner - minCorner + glm::ivec3(1);
+    snap.totalVolume = volume;
+    snap.createdAt = std::chrono::system_clock::now();
+    snap.voxels = captureRegionAllLevels(chunkManager, minCorner, maxCorner);
+    snapshotManager->pushUndo(std::move(snap));
+}
+
+// ============================================================================
 // HTTP API Command Processor
 // Called once per frame from update() to handle commands from the API server.
 // ============================================================================
+
+// Helper: handle AI inspection, location & schedule commands (extracted to avoid nesting depth limit)
+static bool handlePlacedObjectHierarchyCommands(
+    const Core::APICommand& cmd,
+    nlohmann::json& response,
+    Core::PlacedObjectManager* placedObjectManager)
+{
+    if (cmd.action == "set_parent_object") {
+        if (!placedObjectManager) { response = {{"error", "PlacedObjectManager not available"}}; return true; }
+        std::string id = cmd.params.value("id", "");
+        if (id.empty()) { response = {{"error", "Missing 'id' parameter"}}; return true; }
+        std::string parentId = cmd.params.value("parent_id", "");
+        bool ok = placedObjectManager->setParent(id, parentId);
+        response = {{"success", ok}, {"id", id}, {"parent_id", parentId}};
+        return true;
+    }
+    if (cmd.action == "get_children_objects") {
+        if (!placedObjectManager) { response = {{"error", "PlacedObjectManager not available"}}; return true; }
+        std::string id = cmd.params.value("id", "");
+        auto children = placedObjectManager->getChildren(id);
+        nlohmann::json arr = nlohmann::json::array();
+        for (const auto& child : children) arr.push_back(child.toJson());
+        response = {{"children", arr}, {"count", children.size()}, {"parent_id", id}};
+        return true;
+    }
+    if (cmd.action == "get_object_tree") {
+        if (!placedObjectManager) { response = {{"error", "PlacedObjectManager not available"}}; return true; }
+        std::string id = cmd.params.value("id", "");
+        if (id.empty()) { response = {{"error", "Missing 'id' parameter"}}; return true; }
+        auto tree = placedObjectManager->getTree(id);
+        response = tree.is_null() ? nlohmann::json({{"error", "Object not found"}}) : tree;
+        return true;
+    }
+    return false;
+}
+
+static bool handleAIInspectionCommands(
+    const Core::APICommand& cmd,
+    nlohmann::json& response,
+    Core::NPCManager* npcManager,
+    Core::LocationRegistry* locationRegistry)
+{
+    if (cmd.action == "get_npc_blackboard") {
+        if (!npcManager) { response = {{"error", "NPCManager not available"}}; return true; }
+        std::string name = cmd.params.value("name", "");
+        if (name.empty()) { response = {{"error", "NPC name required"}}; return true; }
+        auto* npc = npcManager->getNPC(name);
+        if (!npc) { response = {{"error", "NPC not found: " + name}}; return true; }
+        auto* btBehavior = dynamic_cast<Scene::BehaviorTreeBehavior*>(npc->getBehavior());
+        if (!btBehavior) { response = {{"error", "NPC does not have a BehaviorTree behavior"}}; return true; }
+        response = {{"success", true}, {"name", name}, {"blackboard", btBehavior->getBlackboard().toJson()}};
+        return true;
+    }
+    if (cmd.action == "get_npc_perception") {
+        if (!npcManager) { response = {{"error", "NPCManager not available"}}; return true; }
+        std::string name = cmd.params.value("name", "");
+        if (name.empty()) { response = {{"error", "NPC name required"}}; return true; }
+        auto* npc = npcManager->getNPC(name);
+        if (!npc) { response = {{"error", "NPC not found: " + name}}; return true; }
+        auto* btBehavior = dynamic_cast<Scene::BehaviorTreeBehavior*>(npc->getBehavior());
+        if (!btBehavior) { response = {{"error", "NPC does not have a BehaviorTree behavior"}}; return true; }
+        response = {{"success", true}, {"name", name}, {"perception", btBehavior->getPerception().toJson()}};
+        return true;
+    }
+    if (cmd.action == "set_npc_blackboard") {
+        if (!npcManager) { response = {{"error", "NPCManager not available"}}; return true; }
+        std::string name = cmd.params.value("name", "");
+        std::string key = cmd.params.value("key", "");
+        if (name.empty() || key.empty()) { response = {{"error", "NPC name and key required"}}; return true; }
+        auto* npc = npcManager->getNPC(name);
+        if (!npc) { response = {{"error", "NPC not found: " + name}}; return true; }
+        auto* btBehavior = dynamic_cast<Scene::BehaviorTreeBehavior*>(npc->getBehavior());
+        if (!btBehavior) { response = {{"error", "NPC does not have a BehaviorTree behavior"}}; return true; }
+        auto& bb = btBehavior->getBlackboard();
+        if (cmd.params.contains("value")) {
+            auto& val = cmd.params["value"];
+            if (val.is_boolean()) bb.set(key, val.get<bool>());
+            else if (val.is_number_integer()) bb.set(key, val.get<int>());
+            else if (val.is_number_float()) bb.set(key, val.get<float>());
+            else if (val.is_string()) bb.set(key, val.get<std::string>());
+            else if (val.is_object() && val.contains("x")) {
+                bb.set(key, glm::vec3(val.value("x", 0.0f), val.value("y", 0.0f), val.value("z", 0.0f)));
+            }
+        }
+        response = {{"success", true}, {"name", name}, {"key", key}};
+        return true;
+    }
+    if (cmd.action == "get_locations") {
+        if (!locationRegistry) { response = {{"error", "LocationRegistry not available"}}; return true; }
+        response = locationRegistry->toJson();
+        return true;
+    }
+    if (cmd.action == "add_location") {
+        if (!locationRegistry) { response = {{"error", "LocationRegistry not available"}}; return true; }
+        auto loc = Core::Location::fromJson(cmd.params);
+        locationRegistry->addLocation(loc);
+        response = {{"success", true}, {"id", loc.id}, {"name", loc.name}};
+        return true;
+    }
+    if (cmd.action == "remove_location") {
+        if (!locationRegistry) { response = {{"error", "LocationRegistry not available"}}; return true; }
+        std::string id = cmd.params.value("id", "");
+        if (id.empty()) { response = {{"error", "Location id required"}}; return true; }
+        locationRegistry->removeLocation(id);
+        response = {{"success", true}, {"id", id}};
+        return true;
+    }
+    if (cmd.action == "get_npc_schedule") {
+        if (!npcManager) { response = {{"error", "NPCManager not available"}}; return true; }
+        std::string name = cmd.params.value("name", "");
+        if (name.empty()) { response = {{"error", "NPC name required"}}; return true; }
+        auto* npc = npcManager->getNPC(name);
+        if (!npc) { response = {{"error", "NPC not found: " + name}}; return true; }
+        auto* scheduled = dynamic_cast<Scene::ScheduledBehavior*>(npc->getBehavior());
+        if (!scheduled) { response = {{"error", "NPC does not have a Scheduled behavior"}}; return true; }
+        response = {{"name", name}, {"schedule", scheduled->getSchedule().toJson()}};
+        return true;
+    }
+    if (cmd.action == "set_npc_schedule") {
+        if (!npcManager) { response = {{"error", "NPCManager not available"}}; return true; }
+        std::string name = cmd.params.value("name", "");
+        if (name.empty()) { response = {{"error", "NPC name required"}}; return true; }
+        auto* npc = npcManager->getNPC(name);
+        if (!npc) { response = {{"error", "NPC not found: " + name}}; return true; }
+        auto* scheduled = dynamic_cast<Scene::ScheduledBehavior*>(npc->getBehavior());
+        if (!scheduled) { response = {{"error", "NPC does not have a Scheduled behavior"}}; return true; }
+        if (cmd.params.contains("schedule")) {
+            AI::Schedule sched = AI::Schedule::fromJson(cmd.params["schedule"]);
+            scheduled->setSchedule(sched);
+        } else if (cmd.params.contains("role")) {
+            std::string role = cmd.params["role"];
+            scheduled->setSchedule(AI::Schedule::forRole(role));
+        }
+        response = {{"success", true}, {"name", name}};
+        return true;
+    }
+    return false;
+}
+
+// Helper: handle subcube/microcube API commands (extracted to avoid nesting depth limit)
+static bool handleSubcubeMicrocubeCommand(
+    const Core::APICommand& cmd,
+    nlohmann::json& response,
+    ChunkManager* chunkManager)
+{
+    if (cmd.action == "remove_subcube") {
+        int x = cmd.params.value("x", 0), y = cmd.params.value("y", 0), z = cmd.params.value("z", 0);
+        int sx = cmd.params.value("sx", 0), sy = cmd.params.value("sy", 0), sz = cmd.params.value("sz", 0);
+        if (!chunkManager) { response = {{"error", "ChunkManager not available"}}; return true; }
+        bool ok = chunkManager->m_voxelModificationSystem.removeSubcube(
+            glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz));
+        response = {{"success", ok}, {"position", {{"x", x}, {"y", y}, {"z", z}}},
+                    {"subcube", {{"sx", sx}, {"sy", sy}, {"sz", sz}}}};
+        return true;
+    }
+    if (cmd.action == "place_microcube") {
+        int x = cmd.params.value("x", 0), y = cmd.params.value("y", 0), z = cmd.params.value("z", 0);
+        int sx = cmd.params.value("sx", 0), sy = cmd.params.value("sy", 0), sz = cmd.params.value("sz", 0);
+        int mx = cmd.params.value("mx", 0), my = cmd.params.value("my", 0), mz = cmd.params.value("mz", 0);
+        if (!chunkManager) { response = {{"error", "ChunkManager not available"}}; return true; }
+        std::string material = cmd.params.value("material", "Default");
+        bool ok = chunkManager->m_voxelModificationSystem.addMicrocubeWithMaterial(
+            glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz), glm::ivec3(mx, my, mz), material);
+        response = {{"success", ok}, {"position", {{"x", x}, {"y", y}, {"z", z}}},
+                    {"subcube", {{"sx", sx}, {"sy", sy}, {"sz", sz}}},
+                    {"microcube", {{"mx", mx}, {"my", my}, {"mz", mz}}}};
+        return true;
+    }
+    if (cmd.action == "remove_microcube") {
+        int x = cmd.params.value("x", 0), y = cmd.params.value("y", 0), z = cmd.params.value("z", 0);
+        int sx = cmd.params.value("sx", 0), sy = cmd.params.value("sy", 0), sz = cmd.params.value("sz", 0);
+        int mx = cmd.params.value("mx", 0), my = cmd.params.value("my", 0), mz = cmd.params.value("mz", 0);
+        if (!chunkManager) { response = {{"error", "ChunkManager not available"}}; return true; }
+        bool ok = chunkManager->m_voxelModificationSystem.removeMicrocube(
+            glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz), glm::ivec3(mx, my, mz));
+        response = {{"success", ok}, {"position", {{"x", x}, {"y", y}, {"z", z}}},
+                    {"subcube", {{"sx", sx}, {"sy", sy}, {"sz", sz}}},
+                    {"microcube", {{"mx", mx}, {"my", my}, {"mz", mz}}}};
+        return true;
+    }
+    if (cmd.action == "place_subcubes_batch") {
+        if (!chunkManager) { response = {{"error", "ChunkManager not available"}}; return true; }
+        if (!cmd.params.contains("subcubes") || !cmd.params["subcubes"].is_array()) {
+            response = {{"error", "Missing 'subcubes' array"}}; return true;
+        }
+        auto& items = cmd.params["subcubes"];
+        int placed = 0, failed = 0;
+        for (auto& item : items) {
+            int x = item.value("x", 0), y = item.value("y", 0), z = item.value("z", 0);
+            int sx = item.value("sx", 0), sy = item.value("sy", 0), sz = item.value("sz", 0);
+            std::string mat = item.value("material", "Default");
+            bool ok = chunkManager->m_voxelModificationSystem.addSubcubeWithMaterial(
+                glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz), mat);
+            if (ok) ++placed; else ++failed;
+        }
+        response = {{"success", true}, {"placed", placed}, {"failed", failed}, {"total", items.size()}};
+        return true;
+    }
+    if (cmd.action == "place_microcubes_batch") {
+        if (!chunkManager) { response = {{"error", "ChunkManager not available"}}; return true; }
+        if (!cmd.params.contains("microcubes") || !cmd.params["microcubes"].is_array()) {
+            response = {{"error", "Missing 'microcubes' array"}}; return true;
+        }
+        auto& items = cmd.params["microcubes"];
+        int placed = 0, failed = 0;
+        for (auto& item : items) {
+            int x = item.value("x", 0), y = item.value("y", 0), z = item.value("z", 0);
+            int sx = item.value("sx", 0), sy = item.value("sy", 0), sz = item.value("sz", 0);
+            int mx = item.value("mx", 0), my = item.value("my", 0), mz = item.value("mz", 0);
+            std::string mat = item.value("material", "Default");
+            bool ok = chunkManager->m_voxelModificationSystem.addMicrocubeWithMaterial(
+                glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz), glm::ivec3(mx, my, mz), mat);
+            if (ok) ++placed; else ++failed;
+        }
+        response = {{"success", true}, {"placed", placed}, {"failed", failed}, {"total", items.size()}};
+        return true;
+    }
+    return false; // not handled
+}
 
 void Application::processAPICommands() {
     if (!apiCommandQueue || !apiCommandQueue->hasPending()) return;
@@ -2751,7 +3295,10 @@ void Application::processAPICommands() {
     for (auto& cmd : commands) {
         nlohmann::json response;
         try {
-            if (cmd.action == "spawn_entity") {
+            // Handle subcube/microcube commands via helper (avoids nesting depth limit)
+            if (handleSubcubeMicrocubeCommand(cmd, response, chunkManager)) {
+                // handled — skip to promise fulfillment below
+            } else if (cmd.action == "spawn_entity") {
                 // Required: "type" (physics/spider/animated), "position" {x,y,z}
                 // Optional: "id", "animFile"
                 std::string type = cmd.params.value("type", "physics");
@@ -2885,8 +3432,11 @@ void Application::processAPICommands() {
                 int sz = cmd.params.value("sz", 0);
                 if (chunkManager) {
                     std::string material = cmd.params.value("material", "Default");
+                    LOG_DEBUG("API", "place_subcube: world(%d,%d,%d) sub(%d,%d,%d) mat=%s",
+                              x, y, z, sx, sy, sz, material.c_str());
                     bool ok = chunkManager->m_voxelModificationSystem.addSubcubeWithMaterial(
                         glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz), material);
+                    LOG_DEBUG("API", "place_subcube result: %s", ok ? "true" : "false");
                     response = {{"success", ok},
                                 {"position", {{"x", x}, {"y", y}, {"z", z}}},
                                 {"subcube", {{"sx", sx}, {"sy", sy}, {"sz", sz}}}};
@@ -2894,6 +3444,7 @@ void Application::processAPICommands() {
                         npcManager->onVoxelChanged(glm::ivec3(x, y, z));
                     }
                 } else {
+                    LOG_ERROR("API", "place_subcube: ChunkManager not available!");
                     response = {{"error", "ChunkManager not available"}};
                 }
 
@@ -2922,6 +3473,10 @@ void Application::processAPICommands() {
                         response = {{"error", "Region too large"},
                                     {"volume", volume}, {"max_volume", 100000}};
                     } else {
+                        // Auto-snapshot for undo
+                        pushUndoSnapshot(chunkManager, snapshotManager.get(),
+                                         glm::ivec3(minX, minY, minZ), glm::ivec3(maxX, maxY, maxZ),
+                                         "fill_region");
                         int placed = 0, failed = 0;
 
                         // Group positions by chunk for batch placement
@@ -3044,6 +3599,10 @@ void Application::processAPICommands() {
                         response = {{"error", "Region too large"},
                                     {"volume", volume}, {"max_volume", 100000}};
                     } else {
+                        // Auto-snapshot for undo
+                        pushUndoSnapshot(chunkManager, snapshotManager.get(),
+                                         glm::ivec3(minX, minY, minZ), glm::ivec3(maxX, maxY, maxZ),
+                                         "clear_region");
                         int removed = 0, skipped = 0;
 
                         // Group positions by chunk for batch removal
@@ -3076,7 +3635,13 @@ void Application::processAPICommands() {
                             } else {
                                 int batchRemoved = chunk->removeCubesBatch(positions);
                                 removed += batchRemoved;
-                                skipped += static_cast<int>(positions.size()) - batchRemoved;
+                                // Also clear subcubes/microcubes at each position
+                                int subRemoved = 0;
+                                for (const auto& p : positions) {
+                                    if (chunk->clearSubdivisionAt(p)) ++subRemoved;
+                                }
+                                removed += subRemoved;
+                                skipped += static_cast<int>(positions.size()) - batchRemoved - subRemoved;
                             }
                         }
                         response = {{"success", true}, {"removed", removed}, {"skipped", skipped},
@@ -3277,6 +3842,13 @@ void Application::processAPICommands() {
                     response = {{"success", ok},
                                 {"mode", saveAll ? "all" : "dirty"}};
                     if (ok) {
+                        // Also persist placed objects
+                        if (placedObjectManager) {
+                            auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+                            if (ws) {
+                                placedObjectManager->saveToDb(ws->getDb());
+                            }
+                        }
                         LOG_INFO("Application", "World saved via API (mode: {})", saveAll ? "all" : "dirty");
                         if (gameEventLog) {
                             gameEventLog->emit("world_saved", {{"mode", saveAll ? "all" : "dirty"}});
@@ -3608,6 +4180,18 @@ void Application::processAPICommands() {
                 } else if (!cmd.params.contains("voxels")) {
                     response = {{"error", "Missing 'voxels' array"}};
                 } else {
+                    // Auto-snapshot: compute bounding box of all voxels
+                    if (snapshotManager) {
+                        glm::ivec3 bmin(INT_MAX), bmax(INT_MIN);
+                        for (const auto& v : cmd.params["voxels"]) {
+                            glm::ivec3 p(v.value("x", 0), v.value("y", 0), v.value("z", 0));
+                            bmin = glm::min(bmin, p);
+                            bmax = glm::max(bmax, p);
+                        }
+                        if (bmin.x <= bmax.x) {
+                            pushUndoSnapshot(chunkManager, snapshotManager.get(), bmin, bmax, "place_voxels_batch");
+                        }
+                    }
                     int placed = 0;
                     int failed = 0;
                     for (const auto& v : cmd.params["voxels"]) {
@@ -3641,9 +4225,48 @@ void Application::processAPICommands() {
                         z = cmd.params["position"].value("z", 0.0f);
                     }
                     bool isStatic = cmd.params.value("static", true);
-                    bool ok = objectTemplateManager->spawnTemplate(name, glm::vec3(x, y, z), isStatic);
-                    response = {{"success", ok}, {"template", name},
-                                {"position", {{"x", x}, {"y", y}, {"z", z}}}};
+                    int rotation = cmd.params.value("rotation", 0);
+
+                    // Auto-snapshot the affected region before spawning
+                    if (isStatic && chunkManager && snapshotManager) {
+                        const auto* tmpl = objectTemplateManager->getTemplate(name);
+                        if (tmpl && !tmpl->cubes.empty()) {
+                            glm::ivec3 tmin(INT_MAX), tmax(INT_MIN);
+                            for (const auto& c : tmpl->cubes) {
+                                tmin = glm::min(tmin, c.relativePos);
+                                tmax = glm::max(tmax, c.relativePos);
+                            }
+                            for (const auto& s : tmpl->subcubes) {
+                                tmin = glm::min(tmin, s.parentRelativePos);
+                                tmax = glm::max(tmax, s.parentRelativePos);
+                            }
+                            for (const auto& m : tmpl->microcubes) {
+                                tmin = glm::min(tmin, m.parentRelativePos);
+                                tmax = glm::max(tmax, m.parentRelativePos);
+                            }
+                            glm::ivec3 origin(static_cast<int>(x), static_cast<int>(y), static_cast<int>(z));
+                            pushUndoSnapshot(chunkManager, snapshotManager.get(),
+                                             origin + tmin, origin + tmax,
+                                             "spawn_template:" + name);
+                        }
+                    }
+
+                    // Route static placements through PlacedObjectManager for tracking
+                    if (isStatic && placedObjectManager) {
+                        glm::ivec3 pos(static_cast<int>(x), static_cast<int>(y), static_cast<int>(z));
+                        std::string parentId = cmd.params.value("parent_id", "");
+                        std::string objectId = placedObjectManager->placeTemplate(name, pos, rotation, parentId);
+                        bool ok = !objectId.empty();
+                        response = {{"success", ok}, {"template", name},
+                                    {"object_id", objectId},
+                                    {"position", {{"x", x}, {"y", y}, {"z", z}}},
+                                    {"rotation", rotation}};
+                    } else {
+                        bool ok = objectTemplateManager->spawnTemplate(name, glm::vec3(x, y, z), isStatic, rotation);
+                        response = {{"success", ok}, {"template", name},
+                                    {"position", {{"x", x}, {"y", y}, {"z", z}}},
+                                    {"rotation", rotation}};
+                    }
                 }
 
             } else if (cmd.action == "list_templates") {
@@ -3664,6 +4287,16 @@ void Application::processAPICommands() {
                     if (structure.voxels.empty()) {
                         response = {{"error", "Failed to generate structure (unknown type or invalid params)"}};
                     } else {
+                        // Auto-snapshot for undo: compute bounding box from generated voxels
+                        if (snapshotManager) {
+                            glm::ivec3 smin(INT_MAX), smax(INT_MIN);
+                            for (const auto& v : structure.voxels) {
+                                smin = glm::min(smin, v.position);
+                                smax = glm::max(smax, v.position);
+                            }
+                            pushUndoSnapshot(chunkManager, snapshotManager.get(), smin, smax,
+                                             "build_structure:" + cmd.params.value("type", "unknown"));
+                        }
                         auto placement = Core::StructureGenerator::place(chunkManager, structure);
 
                         // Auto-register locations
@@ -3693,6 +4326,23 @@ void Application::processAPICommands() {
                         response = {{"success", true}, {"placed", placement.placed},
                                     {"failed", placement.failed}, {"voxels_generated", structure.voxels.size()},
                                     {"locations", locationsJson}};
+
+                        // Register with PlacedObjectManager for tracking
+                        if (placedObjectManager) {
+                            glm::ivec3 smin(INT_MAX), smax(INT_MIN);
+                            for (const auto& v : structure.voxels) {
+                                smin = glm::min(smin, v.position);
+                                smax = glm::max(smax, v.position);
+                            }
+                            int posX = cmd.params.contains("position") ? cmd.params["position"].value("x", smin.x) : smin.x;
+                            int posY = cmd.params.contains("position") ? cmd.params["position"].value("y", smin.y) : smin.y;
+                            int posZ = cmd.params.contains("position") ? cmd.params["position"].value("z", smin.z) : smin.z;
+                            std::string parentId = cmd.params.value("parent_id", "");
+                            std::string objectId = placedObjectManager->registerStructure(
+                                cmd.params.value("type", "structure"),
+                                glm::ivec3(posX, posY, posZ), 0, smin, smax, parentId);
+                            response["object_id"] = objectId;
+                        }
                     }
                 }
 
@@ -3850,19 +4500,7 @@ void Application::processAPICommands() {
                             snap.size = snap.max - snap.min + glm::ivec3(1);
                             snap.totalVolume = volume;
                             snap.createdAt = std::chrono::system_clock::now();
-                            for (int ix = minX; ix <= maxX; ++ix) {
-                                for (int iy = minY; iy <= maxY; ++iy) {
-                                    for (int iz = minZ; iz <= maxZ; ++iz) {
-                                        auto* cube = chunkManager->getCubeAt(glm::ivec3(ix, iy, iz));
-                                        if (cube && cube->isVisible()) {
-                                            Core::VoxelEntry entry;
-                                            entry.offset = glm::ivec3(ix - minX, iy - minY, iz - minZ);
-                                            entry.material = cube->getMaterialName();
-                                            snap.voxels.push_back(entry);
-                                        }
-                                    }
-                                }
-                            }
+                            snap.voxels = captureRegionAllLevels(chunkManager, snap.min, snap.max);
                             bool ok = snapshotManager->addSnapshot(snap);
                             if (ok) {
                                 response = {{"success", true}, {"name", name},
@@ -3892,24 +4530,27 @@ void Application::processAPICommands() {
                         if (!snap) {
                             response = {{"error", "Snapshot not found"}, {"name", name}};
                         } else {
-                            // Clear the original region first
+                            // Clear the original region first (cubes + subcubes/microcubes)
                             int cleared = 0;
-                            for (int ix = snap->min.x; ix <= snap->max.x; ++ix) {
-                                for (int iy = snap->min.y; iy <= snap->max.y; ++iy) {
-                                    for (int iz = snap->min.z; iz <= snap->max.z; ++iz) {
-                                        if (chunkManager->removeCube(glm::ivec3(ix, iy, iz)))
-                                            ++cleared;
-                                    }
+                            {
+                                std::unordered_map<glm::ivec3, std::vector<glm::ivec3>, ChunkCoordHash> chunkBatches;
+                                for (int ix = snap->min.x; ix <= snap->max.x; ++ix)
+                                    for (int iy = snap->min.y; iy <= snap->max.y; ++iy)
+                                        for (int iz = snap->min.z; iz <= snap->max.z; ++iz) {
+                                            glm::ivec3 wp(ix, iy, iz);
+                                            chunkBatches[ChunkManager::worldToChunkCoord(wp)]
+                                                .push_back(ChunkManager::worldToLocalCoord(wp));
+                                        }
+                                for (auto& [cc, positions] : chunkBatches) {
+                                    Chunk* chunk = chunkManager->getChunkAtCoord(cc);
+                                    if (!chunk) continue;
+                                    cleared += chunk->removeCubesBatch(positions);
+                                    for (const auto& p : positions)
+                                        if (chunk->clearSubdivisionAt(p)) ++cleared;
                                 }
                             }
                             // Restore voxels from snapshot
-                            int placed = 0, failed = 0;
-                            for (const auto& v : snap->voxels) {
-                                glm::ivec3 worldPos = snap->min + v.offset;
-                                bool ok = chunkManager->m_voxelModificationSystem.addCubeWithMaterial(
-                                    worldPos, v.material);
-                                if (ok) ++placed; else ++failed;
-                            }
+                            auto [placed, failed] = placeVoxelEntries(chunkManager, snap->voxels, snap->min);
                             response = {{"success", true}, {"name", name},
                                         {"cleared", cleared}, {"placed", placed}, {"failed", failed}};
                             if (gameEventLog) {
@@ -3932,6 +4573,256 @@ void Application::processAPICommands() {
                         response = {{"success", ok}, {"name", name}};
                     }
                 }
+
+            // ================================================================
+            // UNDO / REDO
+            // ================================================================
+            } else if (cmd.action == "undo") {
+                if (!chunkManager || !snapshotManager) {
+                    response = {{"error", "ChunkManager or SnapshotManager not available"}};
+                } else if (!snapshotManager->canUndo()) {
+                    response = {{"error", "Nothing to undo"}, {"undo_depth", 0}};
+                } else {
+                    // 1. Pop the "before" snapshot from the undo stack
+                    Core::RegionSnapshot before = snapshotManager->popUndo();
+
+                    // 2. Capture current state of that region for redo
+                    Core::RegionSnapshot current;
+                    current.name = before.name;
+                    current.min = before.min;
+                    current.max = before.max;
+                    current.size = before.size;
+                    current.totalVolume = before.totalVolume;
+                    current.createdAt = std::chrono::system_clock::now();
+                    current.voxels = captureRegionAllLevels(chunkManager, current.min, current.max);
+
+                    // 3. Clear the region
+                    {
+                        std::unordered_map<glm::ivec3, std::vector<glm::ivec3>, ChunkCoordHash> chunkBatches;
+                        for (int ix = before.min.x; ix <= before.max.x; ++ix)
+                            for (int iy = before.min.y; iy <= before.max.y; ++iy)
+                                for (int iz = before.min.z; iz <= before.max.z; ++iz) {
+                                    glm::ivec3 wp(ix, iy, iz);
+                                    chunkBatches[ChunkManager::worldToChunkCoord(wp)]
+                                        .push_back(ChunkManager::worldToLocalCoord(wp));
+                                }
+                        for (auto& [cc, positions] : chunkBatches) {
+                            Chunk* chunk = chunkManager->getChunkAtCoord(cc);
+                            if (!chunk) continue;
+                            chunk->removeCubesBatch(positions);
+                            for (const auto& p : positions)
+                                chunk->clearSubdivisionAt(p);
+                        }
+                    }
+
+                    // 4. Restore the "before" state
+                    auto [placed, failed] = placeVoxelEntries(chunkManager, before.voxels, before.min);
+
+                    // 5. Push current state to redo (manual push since popUndo already locked/unlocked)
+                    snapshotManager->pushRedo(std::move(current));
+
+                    response = {{"success", true}, {"operation", before.name},
+                                {"restored_voxels", placed}, {"failed", failed},
+                                {"undo_depth", snapshotManager->undoDepth()},
+                                {"redo_depth", snapshotManager->redoDepth()}};
+                    if (gameEventLog) {
+                        gameEventLog->emit("undo", {{"operation", before.name}, {"restored", placed}});
+                    }
+                }
+
+            } else if (cmd.action == "redo") {
+                if (!chunkManager || !snapshotManager) {
+                    response = {{"error", "ChunkManager or SnapshotManager not available"}};
+                } else if (!snapshotManager->canRedo()) {
+                    response = {{"error", "Nothing to redo"}, {"redo_depth", 0}};
+                } else {
+                    Core::RegionSnapshot redoSnap = snapshotManager->popRedo();
+
+                    // Capture current state for undo
+                    Core::RegionSnapshot current;
+                    current.name = redoSnap.name;
+                    current.min = redoSnap.min;
+                    current.max = redoSnap.max;
+                    current.size = redoSnap.size;
+                    current.totalVolume = redoSnap.totalVolume;
+                    current.createdAt = std::chrono::system_clock::now();
+                    current.voxels = captureRegionAllLevels(chunkManager, current.min, current.max);
+
+                    // Clear the region
+                    {
+                        std::unordered_map<glm::ivec3, std::vector<glm::ivec3>, ChunkCoordHash> chunkBatches;
+                        for (int ix = redoSnap.min.x; ix <= redoSnap.max.x; ++ix)
+                            for (int iy = redoSnap.min.y; iy <= redoSnap.max.y; ++iy)
+                                for (int iz = redoSnap.min.z; iz <= redoSnap.max.z; ++iz) {
+                                    glm::ivec3 wp(ix, iy, iz);
+                                    chunkBatches[ChunkManager::worldToChunkCoord(wp)]
+                                        .push_back(ChunkManager::worldToLocalCoord(wp));
+                                }
+                        for (auto& [cc, positions] : chunkBatches) {
+                            Chunk* chunk = chunkManager->getChunkAtCoord(cc);
+                            if (!chunk) continue;
+                            chunk->removeCubesBatch(positions);
+                            for (const auto& p : positions)
+                                chunk->clearSubdivisionAt(p);
+                        }
+                    }
+
+                    // Restore the redo state
+                    auto [placed, failed] = placeVoxelEntries(chunkManager, redoSnap.voxels, redoSnap.min);
+
+                    // Push current to undo (without clearing redo — special push)
+                    snapshotManager->pushUndoOnly(std::move(current));
+
+                    response = {{"success", true}, {"operation", redoSnap.name},
+                                {"restored_voxels", placed}, {"failed", failed},
+                                {"undo_depth", snapshotManager->undoDepth()},
+                                {"redo_depth", snapshotManager->redoDepth()}};
+                    if (gameEventLog) {
+                        gameEventLog->emit("redo", {{"operation", redoSnap.name}, {"restored", placed}});
+                    }
+                }
+
+            } else if (cmd.action == "get_undo_status") {
+                if (!snapshotManager) {
+                    response = {{"error", "SnapshotManager not available"}};
+                } else {
+                    auto undoEntries = snapshotManager->listUndoStack();
+                    auto redoEntries = snapshotManager->listRedoStack();
+                    nlohmann::json undoArr = nlohmann::json::array();
+                    for (const auto& e : undoEntries) {
+                        undoArr.push_back({{"label", e.label},
+                                           {"min", {{"x", e.min.x}, {"y", e.min.y}, {"z", e.min.z}}},
+                                           {"max", {{"x", e.max.x}, {"y", e.max.y}, {"z", e.max.z}}},
+                                           {"voxel_count", e.voxelCount}});
+                    }
+                    nlohmann::json redoArr = nlohmann::json::array();
+                    for (const auto& e : redoEntries) {
+                        redoArr.push_back({{"label", e.label},
+                                           {"min", {{"x", e.min.x}, {"y", e.min.y}, {"z", e.min.z}}},
+                                           {"max", {{"x", e.max.x}, {"y", e.max.y}, {"z", e.max.z}}},
+                                           {"voxel_count", e.voxelCount}});
+                    }
+                    response = {{"can_undo", snapshotManager->canUndo()},
+                                {"can_redo", snapshotManager->canRedo()},
+                                {"undo_depth", snapshotManager->undoDepth()},
+                                {"redo_depth", snapshotManager->redoDepth()},
+                                {"undo_stack", undoArr},
+                                {"redo_stack", redoArr}};
+                }
+
+            // ================================================================
+            // PLACED OBJECT COMMANDS
+            // ================================================================
+            } else if (cmd.action == "list_placed_objects") {
+                if (!placedObjectManager) {
+                    response = {{"error", "PlacedObjectManager not available"}};
+                } else {
+                    auto objects = placedObjectManager->list();
+                    nlohmann::json arr = nlohmann::json::array();
+                    for (const auto& obj : objects) {
+                        arr.push_back(obj.toJson());
+                    }
+                    response = {{"objects", arr}, {"count", objects.size()}};
+                }
+
+            } else if (cmd.action == "get_placed_object") {
+                if (!placedObjectManager) {
+                    response = {{"error", "PlacedObjectManager not available"}};
+                } else {
+                    std::string id = cmd.params.value("id", "");
+                    if (id.empty()) {
+                        response = {{"error", "Missing 'id' parameter"}};
+                    } else {
+                        const auto* obj = placedObjectManager->get(id);
+                        if (!obj) {
+                            response = {{"error", "Object not found"}, {"id", id}};
+                        } else {
+                            response = obj->toJson();
+                        }
+                    }
+                }
+
+            } else if (cmd.action == "remove_placed_object") {
+                if (!placedObjectManager) {
+                    response = {{"error", "PlacedObjectManager not available"}};
+                } else {
+                    std::string id = cmd.params.value("id", "");
+                    if (id.empty()) {
+                        response = {{"error", "Missing 'id' parameter"}};
+                    } else {
+                        // Push undo snapshot before removing
+                        const auto* obj = placedObjectManager->get(id);
+                        if (obj && chunkManager && snapshotManager) {
+                            pushUndoSnapshot(chunkManager, snapshotManager.get(),
+                                             obj->boundingMin, obj->boundingMax,
+                                             "remove_placed_object:" + id);
+                        }
+                        bool ok = placedObjectManager->remove(id);
+                        response = {{"success", ok}, {"id", id}};
+                    }
+                }
+
+            } else if (cmd.action == "move_placed_object") {
+                if (!placedObjectManager) {
+                    response = {{"error", "PlacedObjectManager not available"}};
+                } else {
+                    std::string id = cmd.params.value("id", "");
+                    if (id.empty() || !cmd.params.contains("position")) {
+                        response = {{"error", "Missing 'id' or 'position' parameter"}};
+                    } else {
+                        int nx = cmd.params["position"].value("x", 0);
+                        int ny = cmd.params["position"].value("y", 0);
+                        int nz = cmd.params["position"].value("z", 0);
+
+                        // Push undo snapshot of both old and new regions
+                        const auto* obj = placedObjectManager->get(id);
+                        if (obj && chunkManager && snapshotManager) {
+                            // Snapshot old location
+                            pushUndoSnapshot(chunkManager, snapshotManager.get(),
+                                             obj->boundingMin, obj->boundingMax,
+                                             "move_placed_object:" + id);
+                        }
+
+                        bool ok = placedObjectManager->move(id, glm::ivec3(nx, ny, nz));
+                        response = {{"success", ok}, {"id", id},
+                                    {"position", {{"x", nx}, {"y", ny}, {"z", nz}}}};
+                    }
+                }
+
+            } else if (cmd.action == "rotate_placed_object") {
+                if (!placedObjectManager) {
+                    response = {{"error", "PlacedObjectManager not available"}};
+                } else {
+                    std::string id = cmd.params.value("id", "");
+                    int newRotation = cmd.params.value("rotation", -1);
+                    if (id.empty() || newRotation < 0) {
+                        response = {{"error", "Missing 'id' or 'rotation' parameter"}};
+                    } else {
+                        // Push undo snapshot before rotating
+                        const auto* obj = placedObjectManager->get(id);
+                        if (obj && chunkManager && snapshotManager) {
+                            pushUndoSnapshot(chunkManager, snapshotManager.get(),
+                                             obj->boundingMin, obj->boundingMax,
+                                             "rotate_placed_object:" + id);
+                        }
+                        bool ok = placedObjectManager->rotate(id, newRotation);
+                        response = {{"success", ok}, {"id", id}, {"rotation", newRotation}};
+                    }
+                }
+
+            } else if (cmd.action == "get_objects_at") {
+                if (!placedObjectManager) {
+                    response = {{"error", "PlacedObjectManager not available"}};
+                } else {
+                    int x = cmd.params.value("x", 0);
+                    int y = cmd.params.value("y", 0);
+                    int z = cmd.params.value("z", 0);
+                    auto ids = placedObjectManager->getAt(glm::ivec3(x, y, z));
+                    response = {{"object_ids", ids}, {"count", ids.size()}};
+                }
+
+            } else if (handlePlacedObjectHierarchyCommands(cmd, response, placedObjectManager.get())) {
+                // handled
 
             // ================================================================
             // CLIPBOARD COMMANDS (copy / paste)
@@ -3957,19 +4848,7 @@ void Application::processAPICommands() {
                         clip.size = clip.max - clip.min + glm::ivec3(1);
                         clip.totalVolume = volume;
                         clip.createdAt = std::chrono::system_clock::now();
-                        for (int ix = minX; ix <= maxX; ++ix) {
-                            for (int iy = minY; iy <= maxY; ++iy) {
-                                for (int iz = minZ; iz <= maxZ; ++iz) {
-                                    auto* cube = chunkManager->getCubeAt(glm::ivec3(ix, iy, iz));
-                                    if (cube && cube->isVisible()) {
-                                        Core::VoxelEntry entry;
-                                        entry.offset = glm::ivec3(ix - minX, iy - minY, iz - minZ);
-                                        entry.material = cube->getMaterialName();
-                                        clip.voxels.push_back(entry);
-                                    }
-                                }
-                            }
-                        }
+                        clip.voxels = captureRegionAllLevels(chunkManager, clip.min, clip.max);
                         snapshotManager->setClipboard(clip);
                         response = {{"success", true}, {"voxel_count", clip.voxels.size()},
                                     {"size", {{"x", clip.size.x}, {"y", clip.size.y}, {"z", clip.size.z}}},
@@ -3997,13 +4876,7 @@ void Application::processAPICommands() {
                         Core::SnapshotManager::rotateY90(clip);
                     }
 
-                    int placed = 0, failed = 0;
-                    for (const auto& v : clip.voxels) {
-                        glm::ivec3 worldPos = glm::ivec3(px, py, pz) + v.offset;
-                        bool ok = chunkManager->m_voxelModificationSystem.addCubeWithMaterial(
-                            worldPos, v.material);
-                        if (ok) ++placed; else ++failed;
-                    }
+                    auto [placed, failed] = placeVoxelEntries(chunkManager, clip.voxels, glm::ivec3(px, py, pz));
                     response = {{"success", true}, {"placed", placed}, {"failed", failed},
                                 {"position", {{"x", px}, {"y", py}, {"z", pz}}},
                                 {"rotation", rotate},
@@ -4013,6 +4886,85 @@ void Application::processAPICommands() {
                             {"placed", placed}, {"failed", failed},
                             {"position", {{"x", px}, {"y", py}, {"z", pz}}},
                             {"rotation", rotate}});
+                    }
+                }
+
+            // ================================================================
+            // MOVE REGION (capture + clear + rotate + paste at new position)
+            // ================================================================
+            } else if (cmd.action == "move_region") {
+                if (!chunkManager) {
+                    response = {{"error", "ChunkManager not available"}};
+                } else {
+                    // Source region
+                    int x1 = cmd.params.value("x1", 0), y1 = cmd.params.value("y1", 0), z1 = cmd.params.value("z1", 0);
+                    int x2 = cmd.params.value("x2", 0), y2 = cmd.params.value("y2", 0), z2 = cmd.params.value("z2", 0);
+                    int minX = std::min(x1, x2), maxX = std::max(x1, x2);
+                    int minY = std::min(y1, y2), maxY = std::max(y1, y2);
+                    int minZ = std::min(z1, z2), maxZ = std::max(z1, z2);
+
+                    // Destination and rotation
+                    int dx = cmd.params.value("dx", minX), dy = cmd.params.value("dy", minY), dz = cmd.params.value("dz", minZ);
+                    int rotate = cmd.params.value("rotate", 0);
+
+                    int64_t volume = (int64_t)(maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
+                    if (volume > 100000) {
+                        response = {{"error", "Region too large"}, {"volume", volume}, {"max_volume", 100000}};
+                    } else {
+                        glm::ivec3 minCorner(minX, minY, minZ), maxCorner(maxX, maxY, maxZ);
+
+                        // 1. Capture all voxels
+                        auto voxels = captureRegionAllLevels(chunkManager, minCorner, maxCorner);
+
+                        // 2. Clear source region (all levels)
+                        int cleared = 0;
+                        {
+                            std::unordered_map<glm::ivec3, std::vector<glm::ivec3>, ChunkCoordHash> chunkBatches;
+                            for (int ix = minX; ix <= maxX; ++ix)
+                                for (int iy = minY; iy <= maxY; ++iy)
+                                    for (int iz = minZ; iz <= maxZ; ++iz) {
+                                        glm::ivec3 wp(ix, iy, iz);
+                                        chunkBatches[ChunkManager::worldToChunkCoord(wp)]
+                                            .push_back(ChunkManager::worldToLocalCoord(wp));
+                                    }
+                            for (auto& [cc, positions] : chunkBatches) {
+                                Chunk* chunk = chunkManager->getChunkAtCoord(cc);
+                                if (!chunk) continue;
+                                cleared += chunk->removeCubesBatch(positions);
+                                for (const auto& p : positions)
+                                    if (chunk->clearSubdivisionAt(p)) ++cleared;
+                            }
+                        }
+
+                        // 3. Apply rotation
+                        int rotSteps = ((rotate % 360) + 360) % 360 / 90;
+                        if (rotSteps > 0) {
+                            Core::RegionSnapshot snap;
+                            snap.min = minCorner;
+                            snap.size = maxCorner - minCorner + glm::ivec3(1);
+                            snap.voxels = std::move(voxels);
+                            for (int r = 0; r < rotSteps; ++r) {
+                                Core::SnapshotManager::rotateY90(snap);
+                            }
+                            voxels = std::move(snap.voxels);
+                        }
+
+                        // 4. Place at destination
+                        auto [placed, failed] = placeVoxelEntries(chunkManager, voxels, glm::ivec3(dx, dy, dz));
+
+                        response = {{"success", true}, {"captured", (int)voxels.size()},
+                                    {"cleared", cleared}, {"placed", placed}, {"failed", failed},
+                                    {"from", {{"x", minX}, {"y", minY}, {"z", minZ}}},
+                                    {"to", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}},
+                                    {"destination", {{"x", dx}, {"y", dy}, {"z", dz}}},
+                                    {"rotation", rotate}};
+                        if (gameEventLog) {
+                            gameEventLog->emit("region_moved", {
+                                {"placed", placed}, {"cleared", cleared},
+                                {"from", {{"x", minX}, {"y", minY}, {"z", minZ}}},
+                                {"destination", {{"x", dx}, {"y", dy}, {"z", dz}}},
+                                {"rotation", rotate}});
+                        }
                     }
                 }
 
@@ -4143,27 +5095,42 @@ void Application::processAPICommands() {
                         if (volume > 100000) {
                             response = {{"error", "Region too large"}, {"volume", volume}, {"max_volume", 100000}};
                         } else {
-                            // Scan region and build template lines
+                            // Capture all voxel levels
+                            glm::ivec3 minCorner(minX, minY, minZ), maxCorner(maxX, maxY, maxZ);
+                            auto voxels = captureRegionAllLevels(chunkManager, minCorner, maxCorner);
+
+                            // Build template lines
                             std::vector<std::string> lines;
                             lines.push_back("# Template: " + name);
                             lines.push_back("# Generated from region (" +
                                 std::to_string(minX) + "," + std::to_string(minY) + "," + std::to_string(minZ) + ") to (" +
                                 std::to_string(maxX) + "," + std::to_string(maxY) + "," + std::to_string(maxZ) + ")");
 
-                            int cubeCount = 0;
-                            for (int ix = minX; ix <= maxX; ++ix) {
-                                for (int iy = minY; iy <= maxY; ++iy) {
-                                    for (int iz = minZ; iz <= maxZ; ++iz) {
-                                        auto* cube = chunkManager->getCubeAt(glm::ivec3(ix, iy, iz));
-                                        if (cube && cube->isVisible()) {
-                                            int rx = ix - minX, ry = iy - minY, rz = iz - minZ;
-                                            std::string mat = cube->getMaterialName();
-                                            if (mat.empty()) mat = "Default";
-                                            lines.push_back("C " + std::to_string(rx) + " " +
-                                                std::to_string(ry) + " " + std::to_string(rz) + " " + mat);
-                                            ++cubeCount;
-                                        }
-                                    }
+                            int cubeCount = 0, subcubeCount = 0, microcubeCount = 0;
+                            for (const auto& v : voxels) {
+                                std::string mat = v.material.empty() ? "Default" : v.material;
+                                switch (v.level) {
+                                    case Core::SnapshotVoxelLevel::Cube:
+                                        lines.push_back("C " + std::to_string(v.offset.x) + " " +
+                                            std::to_string(v.offset.y) + " " + std::to_string(v.offset.z) + " " + mat);
+                                        ++cubeCount;
+                                        break;
+                                    case Core::SnapshotVoxelLevel::Subcube:
+                                        lines.push_back("S " + std::to_string(v.offset.x) + " " +
+                                            std::to_string(v.offset.y) + " " + std::to_string(v.offset.z) + " " +
+                                            std::to_string(v.subcubePos.x) + " " + std::to_string(v.subcubePos.y) + " " +
+                                            std::to_string(v.subcubePos.z) + " " + mat);
+                                        ++subcubeCount;
+                                        break;
+                                    case Core::SnapshotVoxelLevel::Microcube:
+                                        lines.push_back("M " + std::to_string(v.offset.x) + " " +
+                                            std::to_string(v.offset.y) + " " + std::to_string(v.offset.z) + " " +
+                                            std::to_string(v.subcubePos.x) + " " + std::to_string(v.subcubePos.y) + " " +
+                                            std::to_string(v.subcubePos.z) + " " +
+                                            std::to_string(v.microcubePos.x) + " " + std::to_string(v.microcubePos.y) + " " +
+                                            std::to_string(v.microcubePos.z) + " " + mat);
+                                        ++microcubeCount;
+                                        break;
                                 }
                             }
 
@@ -4182,12 +5149,15 @@ void Application::processAPICommands() {
                                     objectTemplateManager->loadTemplate(filepath);
                                 }
 
+                                int totalCount = cubeCount + subcubeCount + microcubeCount;
                                 response = {{"success", true}, {"name", name}, {"path", filepath},
-                                            {"voxel_count", cubeCount}};
-                                LOG_INFO("Application", "Template saved: {} ({} cubes)", name, cubeCount);
+                                            {"voxel_count", totalCount}, {"cubes", cubeCount},
+                                            {"subcubes", subcubeCount}, {"microcubes", microcubeCount}};
+                                LOG_INFO("Application", "Template saved: {} ({} cubes, {} subcubes, {} microcubes)",
+                                         name, cubeCount, subcubeCount, microcubeCount);
                                 if (gameEventLog) {
                                     gameEventLog->emit("template_saved", {
-                                        {"name", name}, {"voxel_count", cubeCount}, {"path", filepath}});
+                                        {"name", name}, {"voxel_count", totalCount}, {"path", filepath}});
                                 }
                             } else {
                                 response = {{"error", "Failed to write file: " + filepath}};
@@ -5405,7 +6375,14 @@ void Application::processAPICommands() {
                                         if (ctx.cancelled.load()) {
                                             return {{"success", false}, {"cancelled", true}, {"removed", removed}};
                                         }
-                                        if (cmClear->removeCubeFast(glm::ivec3(ix, iy, iz))) ++removed;
+                                        glm::ivec3 worldPos(ix, iy, iz);
+                                        if (cmClear->removeCubeFast(worldPos)) ++removed;
+                                        // Also clear subcubes/microcubes at this position
+                                        Chunk* chunk = cmClear->getChunkAtFast(worldPos);
+                                        if (chunk) {
+                                            glm::ivec3 lp = ChunkManager::worldToLocalCoord(worldPos);
+                                            if (chunk->clearSubdivisionAt(lp)) ++removed;
+                                        }
                                         ++count;
                                         if (count % 1000 == 0) {
                                             ctx.setProgress(static_cast<float>(count) / volume, "Removing voxels...");
@@ -5838,198 +6815,28 @@ void Application::processAPICommands() {
             } else if (cmd.action == "reload_animation") {
                 std::string id = cmd.params.value("id", "");
                 std::string animFile = cmd.params.value("animFile", "");
-                if (animFile.empty()) {
-                    response = {{"error", "animFile path required"}};
-                } else {
-                    Scene::AnimatedVoxelCharacter* character = nullptr;
+                Scene::AnimatedVoxelCharacter* character = nullptr;
+                if (animFile.empty()) { response = {{"error", "animFile path required"}}; }
+                else {
                     if (npcManager) {
-                        std::string npcName = id;
-                        if (npcName.substr(0, 4) == "npc_") npcName = npcName.substr(4);
+                        std::string npcName = (id.substr(0, 4) == "npc_") ? id.substr(4) : id;
                         auto* npc = npcManager->getNPC(npcName);
                         if (npc) character = npc->getAnimatedCharacter();
                     }
-                    if (!character && (id.empty() || id == "player") && animatedCharacter) {
+                    if (!character && (id.empty() || id == "player") && animatedCharacter)
                         character = animatedCharacter;
-                    }
-
-                    if (!character) {
-                        response = {{"error", "No animated character found for: " + id}};
-                    } else {
+                    if (!character) { response = {{"error", "No animated character found for: " + id}}; }
+                    else {
                         bool ok = character->reloadAnimations(animFile);
-                        if (ok) {
-                            response = {{"success", true}, {"id", id}, {"animFile", animFile},
-                                        {"clipCount", (int)character->getAnimationNames().size()}};
-                        } else {
-                            response = {{"error", "Failed to reload animations from: " + animFile}};
-                        }
+                        response = ok ? nlohmann::json({{"success", true}, {"id", id}, {"animFile", animFile},
+                                        {"clipCount", (int)character->getAnimationNames().size()}})
+                                      : nlohmann::json({{"error", "Failed to reload animations from: " + animFile}});
                     }
                 }
 
-            // ================================================================
-            // AI INSPECTION COMMANDS
-            // ================================================================
-            } else if (cmd.action == "get_npc_blackboard") {
-                if (!npcManager) {
-                    response = {{"error", "NPCManager not available"}};
-                } else {
-                    std::string name = cmd.params.value("name", "");
-                    if (name.empty()) {
-                        response = {{"error", "NPC name required"}};
-                    } else {
-                        auto* npc = npcManager->getNPC(name);
-                        if (!npc) {
-                            response = {{"error", "NPC not found: " + name}};
-                        } else {
-                            auto* btBehavior = dynamic_cast<Scene::BehaviorTreeBehavior*>(npc->getBehavior());
-                            if (!btBehavior) {
-                                response = {{"error", "NPC does not have a BehaviorTree behavior"}};
-                            } else {
-                                response = {{"success", true}, {"name", name},
-                                            {"blackboard", btBehavior->getBlackboard().toJson()}};
-                            }
-                        }
-                    }
-                }
-
-            } else if (cmd.action == "get_npc_perception") {
-                if (!npcManager) {
-                    response = {{"error", "NPCManager not available"}};
-                } else {
-                    std::string name = cmd.params.value("name", "");
-                    if (name.empty()) {
-                        response = {{"error", "NPC name required"}};
-                    } else {
-                        auto* npc = npcManager->getNPC(name);
-                        if (!npc) {
-                            response = {{"error", "NPC not found: " + name}};
-                        } else {
-                            auto* btBehavior = dynamic_cast<Scene::BehaviorTreeBehavior*>(npc->getBehavior());
-                            if (!btBehavior) {
-                                response = {{"error", "NPC does not have a BehaviorTree behavior"}};
-                            } else {
-                                response = {{"success", true}, {"name", name},
-                                            {"perception", btBehavior->getPerception().toJson()}};
-                            }
-                        }
-                    }
-                }
-
-            } else if (cmd.action == "set_npc_blackboard") {
-                if (!npcManager) {
-                    response = {{"error", "NPCManager not available"}};
-                } else {
-                    std::string name = cmd.params.value("name", "");
-                    std::string key = cmd.params.value("key", "");
-                    if (name.empty() || key.empty()) {
-                        response = {{"error", "NPC name and key required"}};
-                    } else {
-                        auto* npc = npcManager->getNPC(name);
-                        if (!npc) {
-                            response = {{"error", "NPC not found: " + name}};
-                        } else {
-                            auto* btBehavior = dynamic_cast<Scene::BehaviorTreeBehavior*>(npc->getBehavior());
-                            if (!btBehavior) {
-                                response = {{"error", "NPC does not have a BehaviorTree behavior"}};
-                            } else {
-                                auto& bb = btBehavior->getBlackboard();
-                                if (cmd.params.contains("value")) {
-                                    auto& val = cmd.params["value"];
-                                    if (val.is_boolean()) bb.set(key, val.get<bool>());
-                                    else if (val.is_number_integer()) bb.set(key, val.get<int>());
-                                    else if (val.is_number_float()) bb.set(key, val.get<float>());
-                                    else if (val.is_string()) bb.set(key, val.get<std::string>());
-                                    else if (val.is_object() && val.contains("x")) {
-                                        bb.set(key, glm::vec3(val.value("x", 0.0f), val.value("y", 0.0f), val.value("z", 0.0f)));
-                                    }
-                                }
-                                response = {{"success", true}, {"name", name}, {"key", key}};
-                            }
-                        }
-                    }
-                }
-
-            // ================================================================
-            // LOCATION & SCHEDULE COMMANDS
-            // ================================================================
-            } else if (cmd.action == "get_locations") {
-                if (!locationRegistry) {
-                    response = {{"error", "LocationRegistry not available"}};
-                } else {
-                    response = locationRegistry->toJson();
-                }
-
-            } else if (cmd.action == "add_location") {
-                if (!locationRegistry) {
-                    response = {{"error", "LocationRegistry not available"}};
-                } else {
-                    auto loc = Core::Location::fromJson(cmd.params);
-                    locationRegistry->addLocation(loc);
-                    response = {{"success", true}, {"id", loc.id}, {"name", loc.name}};
-                }
-
-            } else if (cmd.action == "remove_location") {
-                if (!locationRegistry) {
-                    response = {{"error", "LocationRegistry not available"}};
-                } else {
-                    std::string id = cmd.params.value("id", "");
-                    if (id.empty()) {
-                        response = {{"error", "Location id required"}};
-                    } else {
-                        locationRegistry->removeLocation(id);
-                        response = {{"success", true}, {"id", id}};
-                    }
-                }
-
-            } else if (cmd.action == "get_npc_schedule") {
-                if (!npcManager) {
-                    response = {{"error", "NPCManager not available"}};
-                } else {
-                    std::string name = cmd.params.value("name", "");
-                    if (name.empty()) {
-                        response = {{"error", "NPC name required"}};
-                    } else {
-                        auto* npc = npcManager->getNPC(name);
-                        if (!npc) {
-                            response = {{"error", "NPC not found: " + name}};
-                        } else {
-                            auto* scheduled = dynamic_cast<Scene::ScheduledBehavior*>(npc->getBehavior());
-                            if (!scheduled) {
-                                response = {{"error", "NPC does not have a Scheduled behavior"}};
-                            } else {
-                                response = {{"name", name}, {"schedule", scheduled->getSchedule().toJson()}};
-                            }
-                        }
-                    }
-                }
-
-            } else if (cmd.action == "set_npc_schedule") {
-                if (!npcManager) {
-                    response = {{"error", "NPCManager not available"}};
-                } else {
-                    std::string name = cmd.params.value("name", "");
-                    if (name.empty()) {
-                        response = {{"error", "NPC name required"}};
-                    } else {
-                        auto* npc = npcManager->getNPC(name);
-                        if (!npc) {
-                            response = {{"error", "NPC not found: " + name}};
-                        } else {
-                            auto* scheduled = dynamic_cast<Scene::ScheduledBehavior*>(npc->getBehavior());
-                            if (!scheduled) {
-                                response = {{"error", "NPC does not have a Scheduled behavior"}};
-                            } else {
-                                if (cmd.params.contains("schedule")) {
-                                    AI::Schedule sched = AI::Schedule::fromJson(cmd.params["schedule"]);
-                                    scheduled->setSchedule(sched);
-                                } else if (cmd.params.contains("role")) {
-                                    std::string role = cmd.params["role"];
-                                    scheduled->setSchedule(AI::Schedule::forRole(role));
-                                }
-                                response = {{"success", true}, {"name", name}};
-                            }
-                        }
-                    }
-                }
+            // AI Inspection, Location & Schedule commands (extracted to reduce nesting)
+            } else if (handleAIInspectionCommands(cmd, response, npcManager.get(), locationRegistry)) {
+                // handled
 
             // ================================================================
             // Social Simulation (Needs, Relationships, WorldView)
