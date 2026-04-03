@@ -686,7 +686,10 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
         for (const auto& entity : *entities) {
             auto animatedChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity.get());
             if (animatedChar) {
-                instancedCharacters.push_back(animatedChar);
+                // Hide player character when F5 debug overlay is active so segment boxes are visible
+                if (!raycastVisualizationEnabled) {
+                    instancedCharacters.push_back(animatedChar);
+                }
             } else {
                 standardEntities.push_back(entity.get());
             }

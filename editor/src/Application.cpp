@@ -387,6 +387,27 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         return cam;
     });
 
+    apiServer->setSegmentDebugHandler([this](const std::string& id) -> nlohmann::json {
+        Scene::AnimatedVoxelCharacter* ch = animatedCharacter;
+        if (!id.empty() && npcManager) {
+            std::string n = (id.size() > 4 && id.substr(0,4) == "npc_") ? id.substr(4) : id;
+            auto* npc = npcManager->getNPC(n);
+            if (npc) ch = npc->getAnimatedCharacter();
+        }
+        nlohmann::json arr = nlohmann::json::array();
+        if (ch) {
+            for (const auto& b : ch->getSegmentBoxInfo()) {
+                arr.push_back({
+                    {"bone", b.boneName},
+                    {"he", {{"x",b.halfExtents.x},{"y",b.halfExtents.y},{"z",b.halfExtents.z}}},
+                    {"pos", {{"x",b.position.x},{"y",b.position.y},{"z",b.position.z}}},
+                    {"arm", b.isArm}, {"hit", b.colliding}
+                });
+            }
+        }
+        return {{"count", static_cast<int>(arr.size())}, {"boxes", arr}};
+    });
+
     apiServer->setVoxelQueryHandler([this](int x, int y, int z) -> nlohmann::json {
         nlohmann::json result;
         result["position"] = {{"x", x}, {"y", y}, {"z", z}};
@@ -1693,6 +1714,46 @@ void Application::update(float deltaTime) {
             vizData.hasTarget = raycastDebugData.hasTarget;
             
             raycastVisualizer->setRaycastData(vizData);
+
+            // Draw character controller box only (segment boxes drawn by AnimatedVoxelCharacter itself)
+            auto drawCharacterHitbox = [&](Scene::AnimatedVoxelCharacter* ch, const glm::vec3& controllerColor) {
+                if (!ch) return;
+                glm::vec3 feet = ch->getPosition();
+                float hh = ch->getControllerHalfHeight();
+                float hw = ch->getControllerHalfWidth();
+                glm::vec3 cMin = feet - glm::vec3(hw, 0.0f, hw);
+                glm::vec3 cMax = feet + glm::vec3(hw, 2.0f * hh, hw);
+                auto addWireBox = [&](const glm::vec3& mn, const glm::vec3& mx, const glm::vec3& col) {
+                    raycastVisualizer->addLine({mn.x,mn.y,mn.z},{mx.x,mn.y,mn.z},col);
+                    raycastVisualizer->addLine({mx.x,mn.y,mn.z},{mx.x,mn.y,mx.z},col);
+                    raycastVisualizer->addLine({mx.x,mn.y,mx.z},{mn.x,mn.y,mx.z},col);
+                    raycastVisualizer->addLine({mn.x,mn.y,mx.z},{mn.x,mn.y,mn.z},col);
+                    raycastVisualizer->addLine({mn.x,mx.y,mn.z},{mx.x,mx.y,mn.z},col);
+                    raycastVisualizer->addLine({mx.x,mx.y,mn.z},{mx.x,mx.y,mx.z},col);
+                    raycastVisualizer->addLine({mx.x,mx.y,mx.z},{mn.x,mx.y,mx.z},col);
+                    raycastVisualizer->addLine({mn.x,mx.y,mx.z},{mn.x,mx.y,mn.z},col);
+                    raycastVisualizer->addLine({mn.x,mn.y,mn.z},{mn.x,mx.y,mn.z},col);
+                    raycastVisualizer->addLine({mx.x,mn.y,mn.z},{mx.x,mx.y,mn.z},col);
+                    raycastVisualizer->addLine({mx.x,mn.y,mx.z},{mx.x,mx.y,mx.z},col);
+                    raycastVisualizer->addLine({mn.x,mn.y,mx.z},{mn.x,mx.y,mx.z},col);
+                };
+                addWireBox(cMin, cMax, controllerColor);
+            };
+
+            // Player character controller box (green)
+            if (animatedCharacter) {
+                drawCharacterHitbox(animatedCharacter, {0.0f, 1.0f, 0.0f});
+            }
+            // NPC character controller boxes (cyan)
+            if (npcManager) {
+                for (const auto& name : npcManager->getAllNPCNames()) {
+                    auto* npc = npcManager->getNPC(name);
+                    if (npc) {
+                        drawCharacterHitbox(npc->getAnimatedCharacter(), {0.0f, 1.0f, 1.0f});
+                    }
+                }
+            }
+
             raycastVisualizer->updateBuffers(renderCoordinator->getCurrentFrame());
         }
 
@@ -2297,6 +2358,14 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
         LOG_INFO("Application", "Loaded animated character model: " + animFile);
     } else {
         LOG_ERROR("Application", "Failed to load animated character model: " + animFile);
+    }
+    // Wire voxel collision queries
+    if (chunkManager) {
+        animatedCharacter->setChunkManager(chunkManager);
+    }
+    // Wire F5 debug visualizer for segment box display
+    if (raycastVisualizer) {
+        animatedCharacter->setRaycastVisualizer(raycastVisualizer.get());
     }
     entities.push_back(std::move(animatedCharPtr));
     if (entityRegistry) {
@@ -3205,11 +3274,88 @@ static bool handleAIInspectionCommands(
     return false;
 }
 
+// Helper: handle navgrid/movement query commands (extracted to avoid nesting depth limit)
+static bool handleNavGridQueryCommand(
+    const Core::APICommand& cmd,
+    nlohmann::json& response,
+    Core::NPCManager* npcManager,
+    Core::EntityRegistry* entityRegistry)
+{
+    if (cmd.action == "navgrid_cell") {
+        if (!npcManager || !npcManager->getNavGrid()) {
+            response = {{"error", "NavGrid not available"}};
+        } else {
+            int x = cmd.params.value("x", 0);
+            int z = cmd.params.value("z", 0);
+            const auto* cell = npcManager->getNavGrid()->getCell(x, z);
+            if (cell) {
+                response = {{"x", cell->x}, {"z", cell->z},
+                            {"walkable", cell->walkable},
+                            {"surfaceY", cell->surfaceY},
+                            {"nearWall", cell->nearWall}};
+            } else {
+                response = {{"x", x}, {"z", z}, {"walkable", false},
+                            {"message", "Cell not in grid"}};
+            }
+        }
+        return true;
+
+    } else if (cmd.action == "navgrid_path") {
+        if (!npcManager || !npcManager->getPathfinder()) {
+            response = {{"error", "Pathfinder not available"}};
+        } else {
+            int x1 = cmd.params.value("x1", 0);
+            int z1 = cmd.params.value("z1", 0);
+            int x2 = cmd.params.value("x2", 0);
+            int z2 = cmd.params.value("z2", 0);
+            auto result = npcManager->getPathfinder()->findPath(
+                glm::vec3(x1 + 0.5f, 0.0f, z1 + 0.5f),
+                glm::vec3(x2 + 0.5f, 0.0f, z2 + 0.5f));
+            nlohmann::json waypoints = nlohmann::json::array();
+            for (const auto& wp : result.waypoints) {
+                waypoints.push_back({{"x", wp.x}, {"y", wp.y}, {"z", wp.z}});
+            }
+            response = {{"found", result.found},
+                        {"waypoints", waypoints},
+                        {"nodesExpanded", result.nodesExpanded}};
+        }
+        return true;
+
+    } else if (cmd.action == "entity_movement_state") {
+        std::string id = cmd.params.value("id", "");
+        if (id.empty() || !entityRegistry) {
+            response = {{"error", "Entity ID required"}};
+        } else {
+            auto* entity = entityRegistry->getEntity(id);
+            if (!entity) {
+                response = {{"error", "Entity not found: " + id}};
+            } else {
+                glm::vec3 pos = entity->getPosition();
+                response = {{"id", id},
+                            {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}}};
+
+                auto* animChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity);
+                if (animChar) {
+                    response["animationState"] = animChar->stateToString(animChar->getAnimationState());
+                    response["clipName"] = animChar->getCurrentClipName();
+                    response["yaw"] = animChar->getYaw();
+                    glm::vec3 forward = animChar->getForwardDirection();
+                    response["forward"] = {{"x", forward.x}, {"y", forward.y}, {"z", forward.z}};
+                }
+            }
+        }
+        return true;
+    }
+
+    return false;
+}
+
 // Helper: handle subcube/microcube API commands (extracted to avoid nesting depth limit)
 static bool handleSubcubeMicrocubeCommand(
     const Core::APICommand& cmd,
     nlohmann::json& response,
-    ChunkManager* chunkManager)
+    ChunkManager* chunkManager,
+    Core::NPCManager* npcManager)
 {
     if (cmd.action == "remove_subcube") {
         int x = cmd.params.value("x", 0), y = cmd.params.value("y", 0), z = cmd.params.value("z", 0);
@@ -3219,6 +3365,7 @@ static bool handleSubcubeMicrocubeCommand(
             glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz));
         response = {{"success", ok}, {"position", {{"x", x}, {"y", y}, {"z", z}}},
                     {"subcube", {{"sx", sx}, {"sy", sy}, {"sz", sz}}}};
+        if (ok && npcManager) npcManager->onVoxelChanged(glm::ivec3(x, y, z));
         return true;
     }
     if (cmd.action == "place_microcube") {
@@ -3232,6 +3379,7 @@ static bool handleSubcubeMicrocubeCommand(
         response = {{"success", ok}, {"position", {{"x", x}, {"y", y}, {"z", z}}},
                     {"subcube", {{"sx", sx}, {"sy", sy}, {"sz", sz}}},
                     {"microcube", {{"mx", mx}, {"my", my}, {"mz", mz}}}};
+        if (ok && npcManager) npcManager->onVoxelChanged(glm::ivec3(x, y, z));
         return true;
     }
     if (cmd.action == "remove_microcube") {
@@ -3244,6 +3392,7 @@ static bool handleSubcubeMicrocubeCommand(
         response = {{"success", ok}, {"position", {{"x", x}, {"y", y}, {"z", z}}},
                     {"subcube", {{"sx", sx}, {"sy", sy}, {"sz", sz}}},
                     {"microcube", {{"mx", mx}, {"my", my}, {"mz", mz}}}};
+        if (ok && npcManager) npcManager->onVoxelChanged(glm::ivec3(x, y, z));
         return true;
     }
     if (cmd.action == "place_subcubes_batch") {
@@ -3253,14 +3402,17 @@ static bool handleSubcubeMicrocubeCommand(
         }
         auto& items = cmd.params["subcubes"];
         int placed = 0, failed = 0;
+        glm::ivec3 bmin(INT_MAX), bmax(INT_MIN);
         for (auto& item : items) {
             int x = item.value("x", 0), y = item.value("y", 0), z = item.value("z", 0);
             int sx = item.value("sx", 0), sy = item.value("sy", 0), sz = item.value("sz", 0);
             std::string mat = item.value("material", "Default");
             bool ok = chunkManager->m_voxelModificationSystem.addSubcubeWithMaterial(
                 glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz), mat);
-            if (ok) ++placed; else ++failed;
+            if (ok) { ++placed; bmin = glm::min(bmin, glm::ivec3(x,y,z)); bmax = glm::max(bmax, glm::ivec3(x,y,z)); }
+            else ++failed;
         }
+        if (npcManager && placed > 0) npcManager->onRegionChanged(bmin, bmax);
         response = {{"success", true}, {"placed", placed}, {"failed", failed}, {"total", items.size()}};
         return true;
     }
@@ -3271,6 +3423,7 @@ static bool handleSubcubeMicrocubeCommand(
         }
         auto& items = cmd.params["microcubes"];
         int placed = 0, failed = 0;
+        glm::ivec3 bmin(INT_MAX), bmax(INT_MIN);
         for (auto& item : items) {
             int x = item.value("x", 0), y = item.value("y", 0), z = item.value("z", 0);
             int sx = item.value("sx", 0), sy = item.value("sy", 0), sz = item.value("sz", 0);
@@ -3278,8 +3431,10 @@ static bool handleSubcubeMicrocubeCommand(
             std::string mat = item.value("material", "Default");
             bool ok = chunkManager->m_voxelModificationSystem.addMicrocubeWithMaterial(
                 glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz), glm::ivec3(mx, my, mz), mat);
-            if (ok) ++placed; else ++failed;
+            if (ok) { ++placed; bmin = glm::min(bmin, glm::ivec3(x,y,z)); bmax = glm::max(bmax, glm::ivec3(x,y,z)); }
+            else ++failed;
         }
+        if (npcManager && placed > 0) npcManager->onRegionChanged(bmin, bmax);
         response = {{"success", true}, {"placed", placed}, {"failed", failed}, {"total", items.size()}};
         return true;
     }
@@ -3296,7 +3451,7 @@ void Application::processAPICommands() {
         nlohmann::json response;
         try {
             // Handle subcube/microcube commands via helper (avoids nesting depth limit)
-            if (handleSubcubeMicrocubeCommand(cmd, response, chunkManager)) {
+            if (handleSubcubeMicrocubeCommand(cmd, response, chunkManager, npcManager.get())) {
                 // handled — skip to promise fulfillment below
             } else if (cmd.action == "spawn_entity") {
                 // Required: "type" (physics/spider/animated), "position" {x,y,z}
@@ -4194,6 +4349,7 @@ void Application::processAPICommands() {
                     }
                     int placed = 0;
                     int failed = 0;
+                    glm::ivec3 batchMin(INT_MAX), batchMax(INT_MIN);
                     for (const auto& v : cmd.params["voxels"]) {
                         int x = v.value("x", 0);
                         int y = v.value("y", 0);
@@ -4206,7 +4362,14 @@ void Application::processAPICommands() {
                         } else {
                             ok = chunkManager->addCube(glm::ivec3(x, y, z));
                         }
-                        if (ok) ++placed; else ++failed;
+                        if (ok) {
+                            ++placed;
+                            batchMin = glm::min(batchMin, glm::ivec3(x, y, z));
+                            batchMax = glm::max(batchMax, glm::ivec3(x, y, z));
+                        } else ++failed;
+                    }
+                    if (npcManager && placed > 0) {
+                        npcManager->onRegionChanged(batchMin, batchMax);
                     }
                     response = {{"success", true}, {"placed", placed}, {"failed", failed}};
                 }
@@ -4266,6 +4429,28 @@ void Application::processAPICommands() {
                         response = {{"success", ok}, {"template", name},
                                     {"position", {{"x", x}, {"y", y}, {"z", z}}},
                                     {"rotation", rotation}};
+                    }
+
+                    // Rebuild NavGrid for the affected region
+                    if (npcManager && isStatic) {
+                        const auto* tmpl = objectTemplateManager->getTemplate(name);
+                        if (tmpl) {
+                            glm::ivec3 tmin(INT_MAX), tmax(INT_MIN);
+                            for (const auto& c : tmpl->cubes) {
+                                tmin = glm::min(tmin, c.relativePos);
+                                tmax = glm::max(tmax, c.relativePos);
+                            }
+                            for (const auto& s : tmpl->subcubes) {
+                                tmin = glm::min(tmin, s.parentRelativePos);
+                                tmax = glm::max(tmax, s.parentRelativePos);
+                            }
+                            for (const auto& m : tmpl->microcubes) {
+                                tmin = glm::min(tmin, m.parentRelativePos);
+                                tmax = glm::max(tmax, m.parentRelativePos);
+                            }
+                            glm::ivec3 origin(static_cast<int>(x), static_cast<int>(y), static_cast<int>(z));
+                            npcManager->onRegionChanged(origin + tmin, origin + tmax);
+                        }
                     }
                 }
 
@@ -4342,6 +4527,11 @@ void Application::processAPICommands() {
                                 cmd.params.value("type", "structure"),
                                 glm::ivec3(posX, posY, posZ), 0, smin, smax, parentId);
                             response["object_id"] = objectId;
+
+                            // Rebuild NavGrid for the affected region
+                            if (npcManager) {
+                                npcManager->onRegionChanged(smin, smax);
+                            }
                         }
                     }
                 }
@@ -6684,6 +6874,9 @@ void Application::processAPICommands() {
                 }
 
             // ================================================================
+            // SEGMENT BOX DEBUG
+            // ================================================================
+            // ================================================================
             // ANIMATION CONTROL COMMANDS
             // ================================================================
             } else if (cmd.action == "list_animations") {
@@ -6864,6 +7057,12 @@ void Application::processAPICommands() {
                     audioSystem, camera, inventory.get(), chunkManager
                 };
                 response = handleGameStateCommand(cmd.action, cmd.params, gsCtx);
+
+            // ================================================================
+            // NavGrid / Movement state queries (extracted to avoid nesting depth)
+            // ================================================================
+            } else if (handleNavGridQueryCommand(cmd, response, npcManager.get(), entityRegistry.get())) {
+                // handled
 
             // ================================================================
             // AI / LLM

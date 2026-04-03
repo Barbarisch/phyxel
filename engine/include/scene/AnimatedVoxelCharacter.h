@@ -9,6 +9,11 @@
 #include <vector>
 
 namespace Phyxel {
+    class ChunkManager;       // Forward declaration for voxel collision queries
+    class RaycastVisualizer;  // Forward declaration for F5 debug visualization
+}
+
+namespace Phyxel {
 namespace Scene {
 
     struct VoxelBoneMapping {
@@ -80,12 +85,32 @@ namespace Scene {
         void cycleAnimation(bool next);
         void setPosition(const glm::vec3& pos);
         glm::vec3 getPosition() const;
+        float getControllerHalfHeight() const;
+        float getControllerHalfWidth() const;
+
+        // Voxel collision: set the chunk manager for per-limb voxel collision queries
+        void setChunkManager(Phyxel::ChunkManager* cm) { m_chunkManager = cm; }
+
+        // Debug visualization: wire up the F5 RaycastVisualizer to see segment boxes
+        void setRaycastVisualizer(Phyxel::RaycastVisualizer* viz) { m_raycastVisualizer = viz; }
+
+        // Debug query: returns per-segment box info (count, sizes, positions, collision state)
+        struct SegmentBoxInfo {
+            std::string boneName;
+            glm::vec3 halfExtents;
+            glm::vec3 position;
+            bool isArm;
+            bool colliding;
+        };
+        std::vector<SegmentBoxInfo> getSegmentBoxInfo() const;
 
         // Animation state queries
         AnimatedCharacterState getAnimationState() const { return currentState; }
         std::string getCurrentClipName() const;
         float getAnimationProgress() const;
         float getAnimationDuration() const;
+        float getYaw() const { return currentYaw; }
+        glm::vec3 getForwardDirection() const;
 
         // Configurable blend duration
         void setBlendDuration(float duration) { blendDuration = duration; }
@@ -118,6 +143,10 @@ namespace Scene {
         static AnimatedCharacterState stringToState(const std::string& str);
         std::string stateToString(AnimatedCharacterState state) const;
 
+        // Configurable step-up height
+        void setMaxStepHeight(float height) { m_maxStepHeight = height; }
+        float getMaxStepHeight() const { return m_maxStepHeight; }
+
         /// Set horizontal movement velocity (XZ), preserving vertical velocity (gravity).
         void setMoveVelocity(const glm::vec3& velocity);
         
@@ -147,6 +176,15 @@ namespace Scene {
         // Build a CharacterSkeleton from the currently loaded model.
         // Includes skeleton hierarchy, voxel model, appearance, bone sizes, and auto-generated joint defs.
         CharacterSkeleton buildCharacterSkeleton() const;
+
+        // Get world-space AABBs for each visible bone (for voxel-accurate hit detection).
+        struct BoneAABB {
+            int boneId;
+            std::string boneName;
+            glm::vec3 center;
+            glm::vec3 halfExtents;
+        };
+        std::vector<BoneAABB> getBoneAABBs() const;
 
         // Access the loaded animation clips (for use as motor targets in physics mode)
         const std::vector<Phyxel::AnimationClip>& getAnimationClips() const { return clips; }
@@ -206,18 +244,42 @@ namespace Scene {
         glm::vec3 externalVelocity{0.0f};
         bool hasExternalVelocity = false;
 
-        // Step-up detection for subcube-height obstacles
-        int m_blockedFrames = 0;
-        glm::vec3 m_lastStepCheckPos{0.0f};
+        // Step-up detection (blocked-frame gated + velocity impulse)
+        float m_maxStepHeight = 1.0f;  // Max obstacle height character can step over (in world units)
+        float m_stepCooldown = 0.0f;   // cooldown timer to prevent re-triggering
+        glm::vec3 m_prevStepCheckPos{0.0f};  // position from previous frame for blocked detection
+        int m_blockedFrames = 0;              // consecutive frames where movement is blocked
+
+        // Step-up debug ring buffer
+        struct StepDebugEntry {
+            float timestamp = 0.0f;
+            float charX = 0.0f, charY = 0.0f, charZ = 0.0f;
+            float obstacleHeight = 0.0f;
+            float stepHeight = 0.0f;
+            std::string result;  // "stepped", "blocked", "cooldown", "no_obstacle"
+            int blockedFrames = 0;
+        };
+        static constexpr size_t STEP_LOG_MAX = 50;
+        std::vector<StepDebugEntry> m_stepDebugLog;
+        float m_totalTime = 0.0f;  // running clock for timestamps
+
+    public:
+        const std::vector<StepDebugEntry>& getStepDebugLog() const { return m_stepDebugLog; }
+        void clearStepDebugLog() { m_stepDebugLog.clear(); }
+    private:
         
         void createController(const glm::vec3& position);
         void resizeController();  // Resize controller body to match scaled skeleton height
         float computeSkeletonHeight() const;  // Compute Y-extent of scaled skeleton
+        void rebuildCompoundShape();  // Build/rebuild compound controller shape from bones
+        void updateCompoundTransforms();  // Update compound child transforms from bone positions
         void updateStateMachine(float deltaTime);
+        void detectAndApplyStepUp(const glm::vec3& desiredVelocity, float deltaTime, btDynamicsWorld* physicsWorld);
         void configureAnimationFixes();
         void applySkeletonProportions();  // Scale skeleton joints + anim keyframes per appearance
         void buildBodiesFromModel();  // Builds physics + visual bodies from skeleton/voxelModel
         void clearBodies();  // Remove all physics bodies for rebuild
+        void resolveBodyPartCollisions();  // Per-limb voxel collision push-out
 
         // Appearance (colors + proportions)
         CharacterAppearance appearance_;
@@ -244,6 +306,37 @@ namespace Scene {
         };
         std::vector<BoneAttachment> m_attachments;
         int m_nextAttachmentId = 1;
+
+        // Compound shape for voxel-accurate controller collision
+        btCompoundShape* m_compoundShape = nullptr;
+        std::vector<btBoxShape*> m_compoundChildShapes;  // Owned child shapes
+        std::map<int, int> m_boneToCompoundChild;        // boneId → compound child index
+        float m_originalHalfHeight = 0.95f;              // Original box half-height (for movement)
+        float m_originalHalfWidth = 0.425f;              // Original box half-width (for movement)
+
+        // Per-limb voxel collision
+        Phyxel::ChunkManager* m_chunkManager = nullptr;
+
+        // 8-segment collision boxes — one per major body segment, follow animation pose
+        struct SegmentBox {
+            std::string boneName;
+            int boneId = -1;              // cached skeleton bone ID
+            btRigidBody* body = nullptr;
+            glm::vec3 halfExtents{0.0f};  // 80% of source bone box half-extents
+            bool isArm = false;           // arm segments trigger LimbBlocked FSM interrupt
+            bool colliding = false;       // set each frame by checkSegmentVoxelOverlap()
+        };
+        std::vector<SegmentBox> m_segmentBoxes;
+        bool m_limbBlocked = false;  // true this frame if any arm segment overlaps a voxel
+
+        // F5 debug visualization
+        Phyxel::RaycastVisualizer* m_raycastVisualizer = nullptr;
+
+        void buildSegmentBoxes();          // called once after buildBodiesFromModel()
+        void clearSegmentBoxes();          // called in clearBodies() and destructor
+        void updateSegmentBoxes();         // sync segment box transforms to animated pose each frame
+        void checkSegmentVoxelOverlap();   // detect arm/limb overlapping world voxels
+        void drawSegmentBoxDebug();        // draw wireframe boxes via RaycastVisualizer when F5 on
     };
 }
 }

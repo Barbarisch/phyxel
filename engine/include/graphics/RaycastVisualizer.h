@@ -110,6 +110,7 @@ private:
     std::vector<DebugLine> m_lines;
     bool m_dataValid = false;
     bool m_dataChanged = false;
+    uint32_t m_uploadedVertexCount = 0;  // Vertex count actually in the GPU buffer
 
     // Visualization options
     bool m_enabled = false;

@@ -52,46 +52,44 @@ void RaycastVisualizer::cycleTargetMode() {
 void RaycastVisualizer::setRaycastData(const RaycastDebugData& data) {
     m_data = data;
     m_dataValid = true;
-    m_dataChanged = true;  // Mark that data has changed
-    generateDebugGeometry();
+    m_dataChanged = true;
 }
 
 void RaycastVisualizer::clearData() {
     m_dataValid = false;
-    m_dataChanged = false;
-    m_vertices.clear();
-    // Note: We don't clear preview boxes here, they are managed separately
+    m_dataChanged = true;
+    m_uploadedVertexCount = 0;
 }
 
 void RaycastVisualizer::addPreviewBox(const glm::vec3& pos, const glm::vec3& size, const glm::vec3& color) {
     m_previewBoxes.push_back({pos, size, color});
     m_dataChanged = true;
-    generateDebugGeometry();
 }
 
 void RaycastVisualizer::clearPreviewBoxes() {
     m_previewBoxes.clear();
     m_dataChanged = true;
-    generateDebugGeometry();
 }
 
 void RaycastVisualizer::addLine(const glm::vec3& start, const glm::vec3& end, const glm::vec3& color) {
     m_lines.push_back({start, end, color});
     m_dataChanged = true;
-    generateDebugGeometry();
+    // NOTE: Do NOT call generateDebugGeometry() here — it would rebuild all vertices
+    // for every single line added. generateDebugGeometry() is called once in updateBuffers().
 }
 
 void RaycastVisualizer::clearLines() {
     m_lines.clear();
     m_dataChanged = true;
-    generateDebugGeometry();
 }
 
 void RaycastVisualizer::beginFrame() {
     if (!m_lines.empty()) {
         m_lines.clear();
         m_dataChanged = true;
-        generateDebugGeometry();
+        // Do NOT call generateDebugGeometry() here — that would shrink m_vertices
+        // and cause render() to under-draw the GPU buffer. The GPU buffer retains
+        // its full data until the next updateBuffers() call.
     }
 }
 
@@ -319,11 +317,19 @@ void RaycastVisualizer::generateDebugGeometry() {
 }
 
 void RaycastVisualizer::updateBuffers(uint32_t currentFrame) {
-    if (!m_enabled || m_vertices.empty() || !m_dataChanged) {
-        return;  // Only update if data has changed
+    if (!m_enabled || !m_dataChanged) {
+        return;
     }
 
-    // Wait for device to be idle before recreating buffers
+    // Rebuild vertex list from current lines + raycast data (done once per frame here)
+    generateDebugGeometry();
+
+    if (m_vertices.empty()) {
+        m_dataChanged = false;
+        return;
+    }
+
+    // Wait for device idle only when we need to resize the buffer
     vkDeviceWaitIdle(m_device->getDevice());
 
     VkDeviceSize bufferSize = sizeof(DebugVertex) * m_vertices.size();
@@ -348,19 +354,22 @@ void RaycastVisualizer::updateBuffers(uint32_t currentFrame) {
     vkMapMemory(m_device->getDevice(), m_vertexBufferMemory, 0, bufferSize, 0, &data);
     memcpy(data, m_vertices.data(), (size_t)bufferSize);
     vkUnmapMemory(m_device->getDevice(), m_vertexBufferMemory);
-    
-    m_dataChanged = false;  // Reset changed flag
+
+    m_uploadedVertexCount = static_cast<uint32_t>(m_vertices.size());
+    m_dataChanged = false;
 }
 
 void RaycastVisualizer::render(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
-    if (!m_enabled || m_vertices.empty() || m_vertexBuffer == VK_NULL_HANDLE) {
+    if (!m_enabled || m_uploadedVertexCount == 0 || m_vertexBuffer == VK_NULL_HANDLE) {
         return;
     }
 
     VkBuffer vertexBuffers[] = {m_vertexBuffer};
     VkDeviceSize offsets[] = {0};
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-    vkCmdDraw(commandBuffer, static_cast<uint32_t>(m_vertices.size()), 1, 0, 0);
+    // Use m_uploadedVertexCount — NOT m_vertices.size() which may have been
+    // cleared by beginFrame() after the GPU upload.
+    vkCmdDraw(commandBuffer, m_uploadedVertexCount, 1, 0, 0);
 }
 
 } // namespace Phyxel

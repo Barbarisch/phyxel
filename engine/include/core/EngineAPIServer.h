@@ -121,6 +121,11 @@ public:
     using ScreenshotHandler = std::function<json()>;
     void setScreenshotHandler(ScreenshotHandler handler) { m_screenshotHandler = std::move(handler); }
 
+    /// Handler that returns segment collision box debug info for an animated character.
+    /// Called on HTTP thread — must be thread-safe (read-only).
+    using SegmentDebugHandler = std::function<json(const std::string& id)>;
+    void setSegmentDebugHandler(SegmentDebugHandler handler) { m_segmentDebugHandler = std::move(handler); }
+
     /// Handler that returns available material names.
     using MaterialListHandler = std::function<json()>;
     void setMaterialListHandler(MaterialListHandler handler) { m_materialListHandler = std::move(handler); }
@@ -226,6 +231,18 @@ public:
     using MenuListHandler = std::function<json()>;
     void setMenuListHandler(MenuListHandler handler) { m_menuListHandler = std::move(handler); }
 
+    /// Handler that returns all subcubes at a given parent world position.
+    using SubcubeQueryHandler = std::function<json(int x, int y, int z)>;
+    void setSubcubeQueryHandler(SubcubeQueryHandler handler) { m_subcubeQueryHandler = std::move(handler); }
+
+    /// Handler that scans a region and returns all voxels + subcubes within it.
+    using DetailedRegionScanHandler = std::function<json(int x1, int y1, int z1, int x2, int y2, int z2)>;
+    void setDetailedRegionScanHandler(DetailedRegionScanHandler handler) { m_detailedRegionScanHandler = std::move(handler); }
+
+    /// Handler that returns step-up debug log entries from animated characters.
+    using StepDebugLogHandler = std::function<json()>;
+    void setStepDebugLogHandler(StepDebugLogHandler handler) { m_stepDebugLogHandler = std::move(handler); }
+
 private:
     void serverThread();
     void setupRoutes();
@@ -263,6 +280,7 @@ private:
     CameraHandler m_cameraHandler;
     VoxelQueryHandler m_voxelQueryHandler;
     WorldStateHandler m_worldStateHandler;
+    SegmentDebugHandler m_segmentDebugHandler;
     ScreenshotHandler m_screenshotHandler;
     MaterialListHandler m_materialListHandler;
     ChunkInfoHandler m_chunkInfoHandler;
@@ -284,6 +302,9 @@ private:
     ItemDetailHandler m_itemDetailHandler;
     EquipmentGetHandler m_equipmentGetHandler;
     MenuListHandler m_menuListHandler;
+    SubcubeQueryHandler m_subcubeQueryHandler;
+    DetailedRegionScanHandler m_detailedRegionScanHandler;
+    StepDebugLogHandler m_stepDebugLogHandler;
 
     // Forward-declared impl to keep httplib out of the header
     struct Impl;

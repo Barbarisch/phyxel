@@ -201,6 +201,17 @@ void EngineAPIServer::setupRoutes() {
     // Animation Control Endpoints
     // ====================================================================
 
+    // GET /api/segment_debug — Segment collision box debug info
+    // Query: ?id=player  (optional, defaults to player character)
+    srv.Get("/api/segment_debug", [this](const httplib::Request& req, httplib::Response& res) {
+        std::string id = req.get_param_value("id");
+        if (m_segmentDebugHandler) {
+            res.set_content(m_segmentDebugHandler(id).dump(), "application/json");
+        } else {
+            res.set_content("{\"error\":\"handler not set\"}", "application/json");
+        }
+    });
+
     // GET /api/animation/list — List animation clips for an entity
     // Query: ?id=npc_Alpha_Wolf
     srv.Get("/api/animation/list", [this](const httplib::Request& req, httplib::Response& res) {
@@ -273,6 +284,17 @@ void EngineAPIServer::setupRoutes() {
             res.status = 400;
             res.set_content(err.dump(), "application/json");
         }
+    });
+
+    // ====================================================================
+    // GET /api/entity/:id/movement — Entity movement state
+    // Must be registered BEFORE /api/entity/(.*) to avoid greedy matching
+    // ====================================================================
+    srv.Get(R"(/api/entity/([^/]+)/movement)", [this](const httplib::Request& req, httplib::Response& res) {
+        std::string entityId = req.matches[1].str();
+        json params = {{"id", entityId}};
+        json result = queueAndWait("entity_movement_state", params);
+        res.set_content(result.dump(), "application/json");
     });
 
     // ====================================================================
@@ -471,6 +493,87 @@ void EngineAPIServer::setupRoutes() {
         try {
             json params = json::parse(req.body);
             json result = queueAndWait("place_subcube", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/world/subcube/remove — Remove a subcube
+    // Body: { "x": 0, "y": 0, "z": 0, "sx": 0, "sy": 0, "sz": 0 }
+    // ====================================================================
+    srv.Post("/api/world/subcube/remove", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("remove_subcube", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/world/microcube — Place a microcube
+    // Body: { "x":0,"y":0,"z":0, "sx":0,"sy":0,"sz":0, "mx":0,"my":0,"mz":0, "material":"Stone" }
+    // (x,y,z) = parent cube, (sx,sy,sz) = subcube pos, (mx,my,mz) = microcube pos (each 0-2)
+    // ====================================================================
+    srv.Post("/api/world/microcube", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("place_microcube", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/world/microcube/remove — Remove a microcube
+    // Body: { "x":0,"y":0,"z":0, "sx":0,"sy":0,"sz":0, "mx":0,"my":0,"mz":0 }
+    // ====================================================================
+    srv.Post("/api/world/microcube/remove", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("remove_microcube", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/world/subcubes/batch — Place multiple subcubes
+    // Body: { "subcubes": [{"x":0,"y":0,"z":0,"sx":0,"sy":0,"sz":0,"material":"Stone"}, ...] }
+    // ====================================================================
+    srv.Post("/api/world/subcubes/batch", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("place_subcubes_batch", params, 15000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/world/microcubes/batch — Place multiple microcubes
+    // Body: { "microcubes": [{"x":0,"y":0,"z":0,"sx":0,"sy":0,"sz":0,"mx":0,"my":0,"mz":0,"material":"Stone"}, ...] }
+    // ====================================================================
+    srv.Post("/api/world/microcubes/batch", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("place_microcubes_batch", params, 15000);
             res.set_content(result.dump(), "application/json");
         } catch (const json::exception& e) {
             json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
@@ -700,6 +803,61 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // GET /api/world/subcubes — Query all subcubes at a parent cube position
+    // Query: ?x=16&y=17&z=8
+    // ====================================================================
+    srv.Get("/api/world/subcubes", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!m_subcubeQueryHandler) {
+            json err = {{"error", "Subcube query handler not configured"}};
+            res.status = 503;
+            res.set_content(err.dump(), "application/json");
+            return;
+        }
+        int x = 0, y = 0, z = 0;
+        if (req.has_param("x")) x = std::stoi(req.get_param_value("x"));
+        if (req.has_param("y")) y = std::stoi(req.get_param_value("y"));
+        if (req.has_param("z")) z = std::stoi(req.get_param_value("z"));
+        json result = m_subcubeQueryHandler(x, y, z);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // GET /api/world/scan_detail — Scan region including subcubes
+    // Query: ?x1=14&y1=16&z1=6&x2=18&y2=18&z2=12
+    // ====================================================================
+    srv.Get("/api/world/scan_detail", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!m_detailedRegionScanHandler) {
+            json err = {{"error", "Detailed scan handler not configured"}};
+            res.status = 503;
+            res.set_content(err.dump(), "application/json");
+            return;
+        }
+        int x1 = 0, y1 = 0, z1 = 0, x2 = 0, y2 = 0, z2 = 0;
+        if (req.has_param("x1")) x1 = std::stoi(req.get_param_value("x1"));
+        if (req.has_param("y1")) y1 = std::stoi(req.get_param_value("y1"));
+        if (req.has_param("z1")) z1 = std::stoi(req.get_param_value("z1"));
+        if (req.has_param("x2")) x2 = std::stoi(req.get_param_value("x2"));
+        if (req.has_param("y2")) y2 = std::stoi(req.get_param_value("y2"));
+        if (req.has_param("z2")) z2 = std::stoi(req.get_param_value("z2"));
+        json result = m_detailedRegionScanHandler(x1, y1, z1, x2, y2, z2);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // GET /api/debug/step_log — Step-up debug log from animated characters
+    // ====================================================================
+    srv.Get("/api/debug/step_log", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!m_stepDebugLogHandler) {
+            json err = {{"error", "Step debug log handler not configured"}};
+            res.status = 503;
+            res.set_content(err.dump(), "application/json");
+            return;
+        }
+        json result = m_stepDebugLogHandler();
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
     // POST /api/world/clear — Clear all voxels in a region
     // Body: { "x1":0,"y1":0,"z1":0, "x2":10,"y2":5,"z2":10 }
     // ====================================================================
@@ -914,6 +1072,150 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/undo — Undo the last destructive operation
+    // ====================================================================
+    srv.Post("/api/undo", [this](const httplib::Request&, httplib::Response& res) {
+        json params = json::object();
+        json result = queueAndWait("undo", params, 60000);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // POST /api/redo — Redo the last undone operation
+    // ====================================================================
+    srv.Post("/api/redo", [this](const httplib::Request&, httplib::Response& res) {
+        json params = json::object();
+        json result = queueAndWait("redo", params, 60000);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // GET /api/undo/status — Get undo/redo stack status
+    // ====================================================================
+    srv.Get("/api/undo/status", [this](const httplib::Request&, httplib::Response& res) {
+        json params = json::object();
+        json result = queueAndWait("get_undo_status", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // GET /api/placed_objects — List all placed objects
+    // ====================================================================
+    srv.Get("/api/placed_objects", [this](const httplib::Request&, httplib::Response& res) {
+        json params = json::object();
+        json result = queueAndWait("list_placed_objects", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // GET /api/placed_object — Get a placed object by ID
+    // Query: ?id=test_chair_1
+    // ====================================================================
+    srv.Get("/api/placed_object", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("id")) params["id"] = req.get_param_value("id");
+        json result = queueAndWait("get_placed_object", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // POST /api/placed_object/remove — Remove a placed object
+    // Body: { "id": "test_chair_1" }
+    // ====================================================================
+    srv.Post("/api/placed_object/remove", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("remove_placed_object", params, 30000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/placed_object/move — Move a placed object to a new position
+    // Body: { "id": "test_chair_1", "position": {"x":10,"y":17,"z":20} }
+    // ====================================================================
+    srv.Post("/api/placed_object/move", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("move_placed_object", params, 30000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/placed_object/rotate — Rotate a placed object
+    // Body: { "id": "test_chair_1", "rotation": 90 }
+    // ====================================================================
+    srv.Post("/api/placed_object/rotate", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("rotate_placed_object", params, 30000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // GET /api/placed_objects/at — Find objects at a world position
+    // Query: ?x=10&y=17&z=20
+    // ====================================================================
+    srv.Get("/api/placed_objects/at", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("x")) params["x"] = std::stoi(req.get_param_value("x"));
+        if (req.has_param("y")) params["y"] = std::stoi(req.get_param_value("y"));
+        if (req.has_param("z")) params["z"] = std::stoi(req.get_param_value("z"));
+        json result = queueAndWait("get_objects_at", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // POST /api/placed_object/set_parent — Set parent of a placed object
+    // Body: { "id": "chair_1", "parent_id": "tavern_1" }
+    // ====================================================================
+    srv.Post("/api/placed_object/set_parent", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_parent_object", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const std::exception& e) {
+            res.set_content(json({{"error", e.what()}}).dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // GET /api/placed_object/children — Get direct children of an object
+    // Query: ?id=tavern_1
+    // ====================================================================
+    srv.Get("/api/placed_object/children", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("id")) params["id"] = req.get_param_value("id");
+        json result = queueAndWait("get_children_objects", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // GET /api/placed_object/tree — Get full tree rooted at an object
+    // Query: ?id=tavern_1
+    // ====================================================================
+    srv.Get("/api/placed_object/tree", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("id")) params["id"] = req.get_param_value("id");
+        json result = queueAndWait("get_object_tree", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
     // POST /api/clipboard/copy — Copy a region into the clipboard
     // Body: { "x1":0,"y1":0,"z1":0, "x2":15,"y2":15,"z2":15 }
     // ====================================================================
@@ -976,6 +1278,23 @@ void EngineAPIServer::setupRoutes() {
             std::string asyncId = queueAsync("generate_world", params);
             json response = {{"status", "accepted"}, {"async_id", asyncId}, {"action", "generate_world"}};
             res.set_content(response.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/world/move_region — Move a region to a new position
+    // Body: { "x1":0,"y1":0,"z1":0, "x2":5,"y2":5,"z2":5,
+    //         "dx":10,"dy":0,"dz":10, "rotate":90 }
+    // ====================================================================
+    srv.Post("/api/world/move_region", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("move_region", params, 60000);
+            res.set_content(result.dump(), "application/json");
         } catch (const json::exception& e) {
             json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
             res.status = 400;
@@ -2330,6 +2649,39 @@ void EngineAPIServer::setupRoutes() {
     // ====================================================================
     // ASYNC RESULT POLLING
     // ====================================================================
+
+    // ====================================================================
+    // GET /api/navgrid/cell?x=&z= — Query NavGrid cell walkability
+    // ====================================================================
+    srv.Get("/api/navgrid/cell", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!req.has_param("x") || !req.has_param("z")) {
+            res.status = 400;
+            res.set_content(json{{"error", "x and z parameters required"}}.dump(), "application/json");
+            return;
+        }
+        json params = {{"x", std::stoi(req.get_param_value("x"))},
+                       {"z", std::stoi(req.get_param_value("z"))}};
+        json result = queueAndWait("navgrid_cell", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // GET /api/navgrid/path?x1=&z1=&x2=&z2= — Compute A* path
+    // ====================================================================
+    srv.Get("/api/navgrid/path", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!req.has_param("x1") || !req.has_param("z1") ||
+            !req.has_param("x2") || !req.has_param("z2")) {
+            res.status = 400;
+            res.set_content(json{{"error", "x1, z1, x2, z2 parameters required"}}.dump(), "application/json");
+            return;
+        }
+        json params = {{"x1", std::stoi(req.get_param_value("x1"))},
+                       {"z1", std::stoi(req.get_param_value("z1"))},
+                       {"x2", std::stoi(req.get_param_value("x2"))},
+                       {"z2", std::stoi(req.get_param_value("z2"))}};
+        json result = queueAndWait("navgrid_path", params);
+        res.set_content(result.dump(), "application/json");
+    });
 
     // GET /api/async/:id — Poll for async command result
     srv.Get(R"(/api/async/(\d+))", [this](const httplib::Request& req, httplib::Response& res) {
