@@ -256,18 +256,22 @@ void VoxelInteractionSystem::breakHoveredCube(const glm::vec3& cameraPos) {
 }
 
 void VoxelInteractionSystem::breakHoveredSubcube() {
+    glm::ivec3 removedPos = m_currentHoveredLocation.worldPos;
     if (m_destructionTool->breakSubcube(createContext())) {
         m_hasHoveredCube = false;
         m_currentHoveredLocation = CubeLocation();
         m_lastHoveredCube = -1;
+        if (m_onVoxelChanged) m_onVoxelChanged(removedPos);
     }
 }
 
 void VoxelInteractionSystem::breakHoveredMicrocube() {
+    glm::ivec3 removedPos = m_currentHoveredLocation.worldPos;
     if (m_destructionTool->breakMicrocube(createContext())) {
         m_hasHoveredCube = false;
         m_currentHoveredLocation = CubeLocation();
         m_lastHoveredCube = -1;
+        if (m_onVoxelChanged) m_onVoxelChanged(removedPos);
     }
 }
 
@@ -300,14 +304,20 @@ void VoxelInteractionSystem::placeVoxelAtHover() {
 }
 
 void VoxelInteractionSystem::placeSubcubeAtHover() {
+    bool hadHover = m_hasHoveredCube && m_currentHoveredLocation.isValid();
+    glm::ivec3 placedPos = hadHover ? m_currentHoveredLocation.getAdjacentPlacementPosition() : glm::ivec3(0);
     if (m_placementTool->placeSubcube(createContext())) {
         if (m_audioSystem) m_audioSystem->playSound(Core::AssetManager::instance().resolveSound("place.wav"));
+        if (m_onVoxelChanged && hadHover) m_onVoxelChanged(placedPos);
     }
 }
 
 void VoxelInteractionSystem::placeMicrocubeAtHover() {
+    bool hadHover = m_hasHoveredCube && m_currentHoveredLocation.isValid();
+    glm::ivec3 placedPos = hadHover ? m_currentHoveredLocation.getAdjacentPlacementPosition() : glm::ivec3(0);
     if (m_placementTool->placeMicrocube(createContext())) {
         if (m_audioSystem) m_audioSystem->playSound(Core::AssetManager::instance().resolveSound("place.wav"));
+        if (m_onVoxelChanged && hadHover) m_onVoxelChanged(placedPos);
     }
 }
 
