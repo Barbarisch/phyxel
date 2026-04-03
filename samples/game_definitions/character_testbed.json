@@ -1,0 +1,38 @@
+{
+  "name": "CharacterTestbed",
+  "description": "Test bed for character/NPC movement and pathfinding. One NPC patrols N-S between two waypoints with an obstacle block in the middle of the path (place/remove with C key to test dynamic replanning).",
+  "version": "1.0",
+  "world": {
+    "type": "Flat",
+    "from": { "x": 0, "y": 0, "z": 0 },
+    "to":   { "x": 0, "y": 0, "z": 0 }
+  },
+  "camera": {
+    "position": { "x": 24, "y": 22, "z": 16 },
+    "yaw": -180,
+    "pitch": -25
+  },
+  "player": {
+    "type": "animated",
+    "position": { "x": 20, "y": 17, "z": 16 }
+  },
+  "structures": [
+    {
+      "type": "fill",
+      "from": { "x": 16, "y": 16, "z": 16 },
+      "to":   { "x": 16, "y": 17, "z": 16 },
+      "material": "Stone"
+    }
+  ],
+  "npcs": [
+    {
+      "name": "Patrol",
+      "position": { "x": 16, "y": 17, "z": 8 },
+      "behavior": "patrol",
+      "waypoints": [
+        { "x": 16, "y": 17, "z": 8 },
+        { "x": 16, "y": 17, "z": 24 }
+      ]
+    }
+  ]
+}

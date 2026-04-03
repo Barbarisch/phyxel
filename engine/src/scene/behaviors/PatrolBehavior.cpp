@@ -124,34 +124,34 @@ arrived:
     glm::vec3 direction = glm::normalize(glm::vec3(diff.x, 0.0f, diff.z));
     ctx.self->setMoveVelocity(direction * m_walkSpeed);
 
-    // Stuck detection: log if NPC hasn't moved significantly in 3 seconds
-    // After 5 seconds stuck, teleport to nearest safe cell and recompute path
+    // Stuck detection: if NPC hasn't moved significantly in 1.5s, invalidate path and recompute.
+    // After 5s still stuck (e.g. NavGrid has not yet updated), teleport to nearest safe cell.
     float distFromLast = glm::length(pos - m_lastLoggedPos);
     if (distFromLast < 0.1f) {
         m_stuckTimer += dt;
         if (m_stuckTimer > 5.0f && m_pathfinder) {
-            // Recovery: teleport to nearest non-nearWall cell
+            // Last-resort: teleport to nearest non-nearWall cell
             auto* grid = m_pathfinder->getGrid();
             if (grid) {
                 const Core::NavCell* safe = grid->findNearestNonWall(pos);
                 if (safe) {
                     glm::vec3 safePos(safe->x + 0.5f, safe->surfaceY + 1.0f, safe->z + 0.5f);
-                    LOG_WARN("PatrolBehavior", "STUCK RECOVERY: teleport ({},{},{}) -> ({},{},{})",
+                    LOG_WARN("PatrolBehavior", "STUCK RECOVERY (teleport): ({},{},{}) -> ({},{},{})",
                              pos.x, pos.y, pos.z, safePos.x, safePos.y, safePos.z);
                     ctx.self->setPosition(safePos);
-                    m_pathComputed = false;
-                    m_pathNodes.clear();
-                    m_currentPathNode = 0;
                 }
             }
+            invalidatePath();
             m_stuckTimer = 0.0f;
             m_lastLoggedPos = pos;
-        } else if (m_stuckTimer > 3.0f) {
-            LOG_WARN("PatrolBehavior", "STUCK: pos=({},{},{}), target=({},{},{}), pathNode={}/{}, distXZ={}, wp={}",
+        } else if (m_stuckTimer > 1.5f) {
+            // Dynamic replan: obstacle may have appeared; recompute path
+            LOG_WARN("PatrolBehavior", "STUCK (replan): pos=({},{},{}), pathNode={}/{}, wp={}",
                      pos.x, pos.y, pos.z,
-                     moveTarget.x, moveTarget.y, moveTarget.z,
-                     m_currentPathNode, m_pathNodes.size(), distXZ, m_currentWaypoint);
-            m_stuckTimer = 3.01f; // Don't reset to 0 — let it accumulate to 5s for recovery
+                     m_currentPathNode, m_pathNodes.size(), m_currentWaypoint);
+            invalidatePath();
+            m_stuckTimer = 0.0f;
+            m_lastLoggedPos = pos;
         }
     } else {
         m_stuckTimer = 0.0f;
@@ -162,6 +162,22 @@ arrived:
     if (glm::length(glm::vec2(direction.x, direction.z)) > 0.01f) {
         float yaw = glm::degrees(atan2(direction.x, direction.z));
         ctx.self->setRotation(glm::angleAxis(glm::radians(yaw), glm::vec3(0, 1, 0)));
+    }
+
+    // Draw active path as cyan lines in F5 debug overlay
+    if (ctx.raycastVisualizer && ctx.raycastVisualizer->isEnabled() && !m_pathNodes.empty()) {
+        const glm::vec3 pathColor(0.0f, 0.9f, 0.9f);   // Cyan
+        const glm::vec3 nodeColor(1.0f, 1.0f, 0.0f);   // Yellow node markers
+        const float nodeHalf = 0.1f;
+        glm::vec3 prev = pos + glm::vec3(0.0f, 0.5f, 0.0f);
+        for (size_t i = m_currentPathNode; i < m_pathNodes.size(); ++i) {
+            glm::vec3 node = m_pathNodes[i] + glm::vec3(0.0f, 0.5f, 0.0f);
+            ctx.raycastVisualizer->addLine(prev, node, pathColor);
+            // Small cross at each node
+            ctx.raycastVisualizer->addLine(node - glm::vec3(nodeHalf, 0, 0), node + glm::vec3(nodeHalf, 0, 0), nodeColor);
+            ctx.raycastVisualizer->addLine(node - glm::vec3(0, 0, nodeHalf), node + glm::vec3(0, 0, nodeHalf), nodeColor);
+            prev = node;
+        }
     }
 }
 

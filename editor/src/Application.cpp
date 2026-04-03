@@ -986,6 +986,13 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         npcManager->setSpeechBubbleManager(speechBubbleManager.get());
     }
 
+    // Wire interactive voxel changes to NavGrid so NPCs replan around placed/removed blocks
+    if (voxelInteractionSystem && npcManager) {
+        voxelInteractionSystem->setVoxelChangeCallback([this](const glm::ivec3& pos) {
+            npcManager->onVoxelChanged(pos);
+        });
+    }
+
     // INITIALIZE AI CONVERSATION SERVICE (direct LLM client for shipped games)
     {
         aiConversationService = std::make_unique<AI::AIConversationService>(

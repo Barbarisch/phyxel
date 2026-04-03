@@ -9,6 +9,7 @@
 #include "scene/interaction/DestructionTool.h"
 #include "core/AudioSystem.h"
 #include <glm/glm.hpp>
+#include <functional>
 #include <memory>
 
 namespace Phyxel {
@@ -119,6 +120,11 @@ public:
         m_raycaster.setDebugCaptureEnabled(enabled);
     }
 
+    /// Called after any interactive voxel add/remove with the affected world position.
+    void setVoxelChangeCallback(std::function<void(const glm::ivec3&)> cb) {
+        m_onVoxelChanged = std::move(cb);
+    }
+
 private:
     // Dependencies
     ChunkManager* m_chunkManager;
@@ -163,6 +169,9 @@ private:
 
     // Audio System
     Core::AudioSystem* m_audioSystem;
+
+    // NavGrid / NPC callback — fired after any interactive voxel add/remove
+    std::function<void(const glm::ivec3&)> m_onVoxelChanged;
 
     // Helper to create interaction context
     InteractionContext createContext() const;
