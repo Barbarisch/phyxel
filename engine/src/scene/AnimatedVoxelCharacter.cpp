@@ -2194,15 +2194,19 @@ namespace Scene {
     void AnimatedVoxelCharacter::buildSegmentBoxes() {
         clearSegmentBoxes();
 
-        static const struct { const char* name; bool isArm; } kSegments[8] = {
+        static const struct { const char* name; bool isArm; } kSegments[12] = {
             { "mixamorig:Head",         false },
-            { "mixamorig:Spine2",       false },
+            { "mixamorig:Spine2",       false },  // Upper chest / shoulders
+            { "mixamorig:Spine1",       false },  // Mid torso / abdomen
+            { "mixamorig:Hips",         false },  // Pelvis / lower torso
             { "mixamorig:LeftArm",      true  },
             { "mixamorig:RightArm",     true  },
             { "mixamorig:LeftForeArm",  true  },
             { "mixamorig:RightForeArm", true  },
             { "mixamorig:LeftUpLeg",    false },
             { "mixamorig:RightUpLeg",   false },
+            { "mixamorig:LeftLeg",      false },
+            { "mixamorig:RightLeg",     false },
         };
 
         // Build children map for skeleton-based size fallback
@@ -2234,11 +2238,12 @@ namespace Scene {
                     // Enforce minimum thickness per segment type so boxes are visible
                     std::string nameLow = seg.name;
                     std::transform(nameLow.begin(), nameLow.end(), nameLow.begin(), ::tolower);
-                    float minThk = 0.08f;
-                    if (nameLow.find("spine") != std::string::npos) minThk = 0.16f;
+                    float minThk = 0.05f;
+                    if (nameLow.find("spine") != std::string::npos ||
+                        nameLow.find("hip")   != std::string::npos) minThk = 0.10f;
                     if (nameLow.find("upleg") != std::string::npos ||
-                        nameLow.find("leg")   != std::string::npos) minThk = 0.14f;
-                    if (nameLow.find("arm")   != std::string::npos) minThk = 0.12f;
+                        nameLow.find("leg")   != std::string::npos) minThk = 0.08f;
+                    if (nameLow.find("arm")   != std::string::npos) minThk = 0.07f;
                     // Keep the longest axis (bone length), clamp the two shorter axes
                     int maxAxis = (halfExtents.y >= halfExtents.x && halfExtents.y >= halfExtents.z) ? 1
                                 : (halfExtents.x >= halfExtents.z) ? 0 : 2;
@@ -2274,11 +2279,12 @@ namespace Scene {
                 float halfLen = len * limbLength * 0.5f;
 
                 // Minimum HALF-extents per segment type — ensures boxes are visible
-                float minHalfThk = 0.08f;
-                if (nameLower.find("spine") != std::string::npos)  minHalfThk = 0.16f;
+                float minHalfThk = 0.05f;
+                if (nameLower.find("spine") != std::string::npos ||
+                    nameLower.find("hip")   != std::string::npos)  minHalfThk = 0.10f;
                 if (nameLower.find("upleg") != std::string::npos ||
-                    nameLower.find("leg")   != std::string::npos)  minHalfThk = 0.14f;
-                if (nameLower.find("arm")   != std::string::npos)  minHalfThk = 0.12f;
+                    nameLower.find("leg")   != std::string::npos)  minHalfThk = 0.08f;
+                if (nameLower.find("arm")   != std::string::npos)  minHalfThk = 0.07f;
                 float thk = glm::max(len * 0.15f * limbThickness, minHalfThk);
 
                 if (nameLower.find("head") != std::string::npos) {
@@ -2455,8 +2461,7 @@ namespace Scene {
                 color = glm::vec3(1.0f, 1.0f, 0.0f);   // YELLOW — legs (not green, avoids controller color)
             }
 
-            // Draw at 1.5x scale so segments are visible even when inside the controller box
-            glm::vec3 he = seg.halfExtents * 1.5f;
+            glm::vec3 he = seg.halfExtents;
             glm::vec3 mn = center - he;
             glm::vec3 mx = center + he;
             addWireBox(mn, mx, color);
