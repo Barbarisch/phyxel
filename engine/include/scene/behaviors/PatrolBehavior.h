@@ -77,9 +77,12 @@ private:
     float m_baseYaw = 0.0f;        // yaw when arriving at waypoint
     float m_lookAroundPhase = 0.0f; // sweep oscillator
 
-    // Stuck detection (debug)
+    // Stuck detection and retreat
     glm::vec3 m_lastLoggedPos{0.0f};
     float m_stuckTimer = 0.0f;
+    int m_consecutiveFailedPaths = 0;         ///< How many times in a row A* returned no path
+    static constexpr int PATH_FAILURE_RETREAT = 3; ///< Retreat to prev waypoint after this many consecutive failures
+    static constexpr float RETREAT_RETRY_DELAY = 5.0f; ///< Pause at retreat waypoint before trying again
 };
 
 } // namespace Scene

@@ -34,7 +34,9 @@ public:
     /// Minimum headroom (empty voxels above surface) for a cell to be walkable.
     static constexpr int MIN_HEADROOM = 2;
     /// Maximum step-up height (blocks) between adjacent walkable cells.
-    static constexpr int MAX_STEP_UP = 1;
+    /// Set to 0 because there is no climbing mechanic — NPCs route around raised
+    /// surfaces rather than stepping onto them. Increase if stair traversal is added.
+    static constexpr int MAX_STEP_UP = 0;
     /// Maximum step-down height (blocks) between adjacent walkable cells.
     static constexpr int MAX_STEP_DOWN = 2;
 
@@ -49,6 +51,9 @@ public:
 
     /// Rebuild a single cell after a voxel change.
     void rebuildCell(int x, int z);
+
+    /// Rebuild all cells in an XZ region after bulk voxel changes (e.g. template spawn).
+    void rebuildRegion(int minX, int minZ, int maxX, int maxZ);
 
     /// Get cell at world XZ. Returns nullptr if not in grid.
     const NavCell* getCell(int x, int z) const;

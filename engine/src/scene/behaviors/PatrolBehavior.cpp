@@ -99,6 +99,7 @@ arrived:
         m_pathComputed = false;
         m_pathNodes.clear();
         m_currentPathNode = 0;
+        m_consecutiveFailedPaths = 0; // Reached destination — reset failure count
 
         // Capture base yaw for look-around sweep (face toward next waypoint)
         size_t nextWP = (m_currentWaypoint + 1) % m_waypoints.size();
@@ -216,20 +217,33 @@ void PatrolBehavior::computePath(const glm::vec3& from, const glm::vec3& to) {
     auto result = m_pathfinder->findPath(from, to);
     if (result.found && !result.waypoints.empty()) {
         m_pathNodes = std::move(result.waypoints);
+        m_consecutiveFailedPaths = 0; // Reset failure counter on success
         LOG_INFO("PatrolBehavior", "Path found: ({},{},{}) -> ({},{},{}), {} waypoints, {} nodes expanded",
                  from.x, from.y, from.z, to.x, to.y, to.z,
                  m_pathNodes.size(), result.nodesExpanded);
-        // Log each waypoint for diagnosis
         for (size_t wi = 0; wi < m_pathNodes.size(); ++wi) {
             LOG_DEBUG("PatrolBehavior", "  wp[{}]: ({},{},{})", wi,
                       m_pathNodes[wi].x, m_pathNodes[wi].y, m_pathNodes[wi].z);
         }
     } else {
-        // Path not found — wait and retry
-        m_pathRetryTimer = PATH_RETRY_DELAY;
+        ++m_consecutiveFailedPaths;
         m_pathComputed = false;
-        LOG_WARN("PatrolBehavior", "Path NOT found: ({},{},{}) -> ({},{},{}), {} nodes expanded",
-                 from.x, from.y, from.z, to.x, to.y, to.z, result.nodesExpanded);
+
+        if (m_consecutiveFailedPaths >= PATH_FAILURE_RETREAT && m_waypoints.size() > 1) {
+            // Path is blocked — retreat to previous waypoint and wait before retrying
+            size_t prevWP = (m_currentWaypoint + m_waypoints.size() - 1) % m_waypoints.size();
+            LOG_WARN("PatrolBehavior",
+                     "Path blocked {} times — retreating from wp {} to wp {}",
+                     m_consecutiveFailedPaths, m_currentWaypoint, prevWP);
+            m_currentWaypoint = prevWP;
+            m_consecutiveFailedPaths = 0;
+            m_pathRetryTimer = RETREAT_RETRY_DELAY; // Longer pause at retreat point
+        } else {
+            m_pathRetryTimer = PATH_RETRY_DELAY;
+            LOG_WARN("PatrolBehavior", "Path NOT found ({}/{}): ({},{},{}) -> ({},{},{}), {} nodes expanded",
+                     m_consecutiveFailedPaths, PATH_FAILURE_RETREAT,
+                     from.x, from.y, from.z, to.x, to.y, to.z, result.nodesExpanded);
+        }
     }
 }
 
