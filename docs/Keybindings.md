@@ -44,3 +44,17 @@
 - **X**: Derez Character (Explode into physics objects)
 - **N**: Next Animation (Preview Mode)
 - **B**: Previous Animation (Preview Mode)
+
+## Asset Editor Mode (`--asset-editor <file.txt>`)
+- **C / Ctrl+C / Alt+C**: Place cube / subcube / microcube
+- **Left Click**: Break voxel (floor at Y=15 is protected)
+- **H**: Toggle humanoid reference character
+- **Ctrl+S**: Save template back to file
+- **Right Mouse**: Hold to enter free-look camera mode
+- *(ImGui panel hover blocks all voxel interaction)*
+
+## Anim Editor Mode (`--anim-editor <file.anim>`)
+- **Ctrl+S**: Save modified bone sizes back to `.anim` file
+- **Right Mouse**: Hold to enter free-look camera mode
+- *(All voxel interaction disabled in this mode)*
+- *(Use the ImGui panel for animation preview and bone scale sliders)*

@@ -98,6 +98,31 @@ See [docs/GameCreationGuide.md](docs/GameCreationGuide.md) for the full workflow
 - **Template System** — Import/spawn voxel objects (trees, castles, spheres)
 - **Camera Modes** — Free, first-person, third-person with named slots and transitions
 - **Project Mode** — `phyxel.exe --project <dir>` to develop a game project in the editor
+- **Asset Editor** — `phyxel.exe --asset-editor <file.txt>` to edit a voxel template on a clean flat scene; Ctrl+S saves back to the file
+- **Anim Editor** — `phyxel.exe --anim-editor <file.anim>` to inspect and resize character bones with live preview; Ctrl+S writes changes back to the `.anim` file
+
+## CLI Flags
+
+```powershell
+# Normal editor (shows project launcher)
+.\phyxel.exe
+
+# Open a game project for development
+.\phyxel.exe --project <path-to-project-dir>
+.\phyxel.exe -p <path-to-project-dir>
+
+# Open a specific game definition directly
+.\phyxel.exe --game <path-to-game.json>
+.\phyxel.exe -g <path-to-game.json>
+
+# Asset editor — edit a voxel template (.txt) on a clean flat scene
+.\phyxel.exe --asset-editor <path-to-template.txt>
+.\phyxel.exe -ae <path-to-template.txt>
+
+# Anim editor — inspect and resize character bones in a .anim file
+.\phyxel.exe --anim-editor <path-to-character.anim>
+.\phyxel.exe -ame <path-to-character.anim>
+```
 
 ## Controls
 

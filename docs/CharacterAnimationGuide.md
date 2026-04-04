@@ -65,6 +65,25 @@ To create a compatible character asset:
     python tools/asset_pipeline/batch_import_anims.py "path/to/fbx/folder" --out "resources/my_character.anim" --skin "path/to/t_pose.fbx"
     ```
 
+## In-Engine Anim Editor
+
+For visual bone resizing without touching code, use the built-in anim editor:
+
+```powershell
+phyxel.exe --anim-editor resources/animated_characters/humanoid.anim
+```
+
+The editor opens a flat scene with the character loaded. An ImGui panel on the right provides:
+
+- **Preview Animation** — a dropdown + Prev/Next buttons to cycle through all clips.
+- **Bone Scales** — a slider (0.1× – 3.0×) per body bone; drag to resize the bone's voxel boxes live.
+- **Reset All Scales** — reloads the original sizes from the file.
+- **Save Model (Ctrl+S)** — rewrites the `MODEL` section of the `.anim` file with the new box sizes while leaving the skeleton hierarchy and all animation data untouched.
+
+Only body-relevant bones (Hips, Spine, Neck, Head, Shoulder, Arm, ForeArm, Hand, UpLeg, Leg, Foot) appear in the list; finger, toe, and end-effector bones are filtered out.
+
+---
+
 ## Fine-Tuning
 
 If animations look incorrect in-game (e.g., character floating during a jump, or rotated 90 degrees), you can apply offsets in `src/scene/AnimatedVoxelCharacter.cpp` inside the `configureAnimationFixes()` function.

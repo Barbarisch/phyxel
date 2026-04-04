@@ -116,6 +116,49 @@ Files in `resources/templates/` (spawnable via **T** / **Shift+T** or MCP `spawn
 
 **T** = spawn static (merged into terrain), **Shift+T** = spawn dynamic (physics objects).
 
+### BlockSmith AI Model Generation
+
+Generate furniture, props, buildings, and decorations from text prompts using [BlockSmith](https://github.com/Barbarisch/blocksmith) (fork at `external/blocksmith/`).
+
+**Pipeline**: Text prompt → LLM (Claude/Gemini/OpenAI) → .bbmodel → voxelize → .txt template → `spawn_template`
+
+**Usage**:
+```bash
+# Generate a furniture template (cached for reuse)
+python tools/blocksmith_generate.py "a wooden chair" --name chair --size 2 --material Wood
+
+# Generate a building (multi-material, with door/window openings)
+python tools/blocksmith_generate.py --building --name tavern_medieval \
+  --building-type tavern --style medieval \
+  --width 14 --depth 18 --stories 2 --height 5 \
+  --materials '{"wall":"Stone","floor":"Wood","roof":"Wood"}'
+
+# Batch-generate furniture library
+python tools/generate_furniture_library.py             # Generate all missing
+python tools/generate_furniture_library.py --list      # Show library status
+python tools/generate_furniture_library.py --tier 1    # Essential furniture only
+
+# List / search generated templates
+python tools/blocksmith_generate.py --list
+python tools/blocksmith_generate.py --search table
+```
+
+**MCP tools**: `generate_template`, `build_building`, `search_templates`, `list_generated_templates`
+
+**Building mode** (`--building`): Uses a specialized system prompt that produces architecturally correct structures with exact block dimensions, door/window openings, floor slabs, and multi-material support. Direct conversion bypasses the mesh voxelizer — cuboid coordinates map 1:1 to voxels. Material is inferred from element names (wall_ → mat-wall → Stone, floor → mat-floor → Wood, etc.).
+
+**Key parameters**:
+- `--size`: Target size in world cubes (1.0 = one block). Furniture: 2-3, buildings: 8-15
+- `--material`: Wood, Stone, Metal, Glass, etc. (for furniture/props)
+- `--model`: LLM provider (`anthropic/claude-sonnet-4-20250514`, `gemini/gemini-2.5-pro`, `openai/gpt-4o`)
+- Building-specific: `--width`, `--depth`, `--height`, `--stories`, `--building-type`, `--style`, `--door-facing`, `--windows`, `--materials`
+
+**Templates are saved permanently** in `resources/templates/`. Duplicate requests reuse the cached template without API calls. Catalog at `resources/templates/template_catalog.json` (includes `category`, `tags`, and optional `building` metadata).
+
+**Furniture library** (`tools/generate_furniture_library.py`): Defines ~25 furniture/prop pieces across 2 tiers (essential + themed). Each item has category and tags for programmatic selection.
+
+**Env vars**: `PHYXEL_AI_API_KEY` or `ANTHROPIC_API_KEY` for Claude models.
+
 ## Animation Files
 
 Root-level: `character.anim`, `character_box.anim`, `character_complete.anim`
@@ -208,6 +251,10 @@ Server: `scripts/mcp/phyxel_mcp_server.py` — connects to engine HTTP API at `l
 | `scan_region` | Read all voxels in 3D box |
 | `list_templates` | List available object templates |
 | `spawn_template` | Place template at position (static or dynamic) |
+| `generate_template` | Generate a voxel template from text prompt using BlockSmith AI (cached) |
+| `search_templates` | Search generated template catalog by name or prompt |
+| `list_generated_templates` | List all AI-generated templates with metadata |
+| `build_building` | Generate + spawn an LLM-designed building (multi-material, doors/windows) |
 | `build_structure` | Build procedural structure (house/tavern/tower/wall/furniture) at position |
 | `list_structure_types` | List available structure types with parameters |
 | `list_materials` | List all materials with properties |
@@ -443,6 +490,29 @@ phyxel.exe --project C:\Users\jack\Documents\PhyxelProjects\FrozenHighlands
 - Window title set from project's `engine.json`
 - `save_world` writes back to the project's database
 - `build_game` / `run_game` API endpoints build and launch the standalone game
+
+**Asset Editor (--asset-editor mode):**
+Launch with `--asset-editor <file.txt>` to edit a voxel template on a clean flat scene:
+```
+phyxel.exe --asset-editor resources/templates/my_prop.txt
+```
+- Spawns the template at a fixed origin on a Stone floor platform
+- Right-side ImGui panel: material palette, reference character toggle (H), save button
+- **H**: toggle humanoid reference character for scale
+- **Ctrl+S**: save current voxel region back to the `.txt` file
+- Floor at Y=15 is unbreakable; template voxels above are fully editable
+- Hovering over ImGui panels blocks voxel hover/break
+
+**Anim Editor (--anim-editor mode):**
+Launch with `--anim-editor <file.anim>` to inspect and resize character bones:
+```
+phyxel.exe --anim-editor resources/animated_characters/humanoid.anim
+```
+- Character spawns on a flat Stone floor in Preview animation state
+- Right-side ImGui panel: animation clip selector, per-bone scale sliders (0.1×–3.0×)
+- Scale sliders update the character model live; Reset All Scales restores originals
+- **Ctrl+S**: writes modified `MODEL` section back to the `.anim` file (skeleton and animations unchanged)
+- All voxel interaction disabled in this mode
 
 **Game Project Scaffolding:**
 Each game gets its own C++ source that links against `phyxel_core`. Games are
