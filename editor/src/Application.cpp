@@ -7487,24 +7487,63 @@ void Application::renderAnimEditorUI() {
                  ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
 
     // Animation preview selector
-    ImGui::Text("Preview Animation:");
+    // ---- Animation list with preview + rename ----
+    ImGui::Text("Animations (%d):", (int)m_animEditorChar->getAnimationNames().size());
+    ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1.0f), "Click=preview  Dbl-click=rename");
+
     const auto& animNames = m_animEditorChar->getAnimationNames();
     if (!animNames.empty()) {
         if (m_animEditorAnimIdx < 0) m_animEditorAnimIdx = 0;
         if (m_animEditorAnimIdx >= (int)animNames.size())
             m_animEditorAnimIdx = (int)animNames.size() - 1;
 
-        if (ImGui::BeginCombo("##animsel", animNames[m_animEditorAnimIdx].c_str())) {
-            for (int i = 0; i < (int)animNames.size(); ++i) {
+        ImGui::BeginChild("AnimList", ImVec2(0, 160), true);
+        for (int i = 0; i < (int)animNames.size(); ++i) {
+            ImGui::PushID(i);
+
+            if (m_animEditorRenamingIdx == i) {
+                // Inline rename text field
+                ImGui::SetNextItemWidth(-1);
+                bool commit = ImGui::InputText("##rename", m_animEditorRenameBuffer,
+                                               sizeof(m_animEditorRenameBuffer),
+                                               ImGuiInputTextFlags_EnterReturnsTrue |
+                                               ImGuiInputTextFlags_AutoSelectAll);
+                if (ImGui::IsItemDeactivated()) {
+                    // Enter or focus lost — commit if non-empty and changed
+                    std::string newName(m_animEditorRenameBuffer);
+                    if (!newName.empty() && newName != animNames[i]) {
+                        renameAnimationInFile(animNames[i], newName);
+                    }
+                    m_animEditorRenamingIdx = -1;
+                }
+                if (commit && ImGui::IsItemActive()) {
+                    // Already handled by IsItemDeactivated
+                }
+                // ESC cancels
+                if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+                    m_animEditorRenamingIdx = -1;
+                }
+            } else {
                 bool selected = (i == m_animEditorAnimIdx);
-                if (ImGui::Selectable(animNames[i].c_str(), selected)) {
+                if (ImGui::Selectable(animNames[i].c_str(), selected,
+                                      ImGuiSelectableFlags_AllowDoubleClick)) {
                     m_animEditorAnimIdx = i;
                     m_animEditorChar->playAnimation(animNames[i]);
+
+                    if (ImGui::IsMouseDoubleClicked(0)) {
+                        // Start rename
+                        m_animEditorRenamingIdx = i;
+                        strncpy(m_animEditorRenameBuffer, animNames[i].c_str(),
+                                sizeof(m_animEditorRenameBuffer) - 1);
+                        m_animEditorRenameBuffer[sizeof(m_animEditorRenameBuffer) - 1] = '\0';
+                        ImGui::SetKeyboardFocusHere(-1);
+                    }
                 }
-                if (selected) ImGui::SetItemDefaultFocus();
             }
-            ImGui::EndCombo();
+            ImGui::PopID();
         }
+        ImGui::EndChild();
+
         if (ImGui::Button("< Prev")) {
             m_animEditorAnimIdx = (m_animEditorAnimIdx - 1 + (int)animNames.size()) % (int)animNames.size();
             m_animEditorChar->playAnimation(animNames[m_animEditorAnimIdx]);
@@ -7740,6 +7779,64 @@ void Application::saveAnimModel() {
 
     LOG_INFO("Application", "Anim Editor: saved {} shapes to '{}'",
              modifiedModel.shapes.size(), m_animEditorFile);
+}
+
+void Application::renameAnimationInFile(const std::string& oldName, const std::string& newName) {
+    if (oldName.empty() || newName.empty() || oldName == newName) return;
+
+    // Read file
+    std::ifstream inFile(m_animEditorFile);
+    if (!inFile.is_open()) {
+        LOG_ERROR("Application", "Anim Editor: cannot open '{}' for rename", m_animEditorFile);
+        return;
+    }
+    std::vector<std::string> lines;
+    std::string line;
+    while (std::getline(inFile, line)) lines.push_back(line);
+    inFile.close();
+
+    // Replace "ANIMATION <oldName>" lines (exact match after trimming)
+    int replacements = 0;
+    for (auto& fl : lines) {
+        std::string trimmed = fl;
+        size_t start = trimmed.find_first_not_of(" \t");
+        if (start == std::string::npos) continue;
+        trimmed = trimmed.substr(start);
+        if (trimmed == "ANIMATION " + oldName) {
+            fl = "ANIMATION " + newName;
+            ++replacements;
+        }
+    }
+
+    if (replacements == 0) {
+        LOG_WARN("Application", "Anim Editor: rename found no match for '{}'", oldName);
+        return;
+    }
+
+    // Write back
+    std::ofstream outFile(m_animEditorFile);
+    if (!outFile.is_open()) {
+        LOG_ERROR("Application", "Anim Editor: cannot write '{}' for rename", m_animEditorFile);
+        return;
+    }
+    for (const auto& fl : lines) outFile << fl << "\n";
+    outFile.close();
+
+    LOG_INFO("Application", "Anim Editor: renamed '{}' -> '{}' ({} occurrence(s))",
+             oldName, newName, replacements);
+
+    // Hot-reload so the in-memory clip name updates immediately
+    if (m_animEditorChar) {
+        m_animEditorChar->reloadAnimations(m_animEditorFile);
+        // Keep previewing the renamed clip
+        m_animEditorChar->playAnimation(newName);
+        // Re-clamp index in case vector size changed (it won't, but be safe)
+        const auto& names = m_animEditorChar->getAnimationNames();
+        m_animEditorAnimIdx = 0;
+        for (int i = 0; i < (int)names.size(); ++i) {
+            if (names[i] == newName) { m_animEditorAnimIdx = i; break; }
+        }
+    }
 }
 
 } // namespace Phyxel

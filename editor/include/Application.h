@@ -357,10 +357,13 @@ private:
     std::vector<std::pair<int,std::string>> m_animEditorBodyBones; // {boneId, boneName}
     int m_animEditorAnimIdx = 0;                           // Currently previewing animation index
     bool m_animEditorCtrlSPrev = false;                    // Edge-detect Ctrl+S
+    int m_animEditorRenamingIdx = -1;                      // Index of clip being renamed (-1 = none)
+    char m_animEditorRenameBuffer[128] = {};               // ImGui InputText buffer for rename
 
     void initAnimEditorScene();
     void renderAnimEditorUI();
     void saveAnimModel();
+    void renameAnimationInFile(const std::string& oldName, const std::string& newName);
 };
 
 } // namespace Phyxel
