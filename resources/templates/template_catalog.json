@@ -1,0 +1,75 @@
+{
+  "simple_table": {
+    "prompt": "a simple wooden dining table",
+    "model": "anthropic/claude-sonnet-4-20250514",
+    "material": "Wood",
+    "size": 2.0,
+    "cubes": 0,
+    "subcubes": 0,
+    "microcubes": 263,
+    "total": 263,
+    "cost": null,
+    "created": "2026-04-01T02:28:52.486557+00:00",
+    "category": "table",
+    "tags": [
+      "tavern",
+      "house",
+      "common"
+    ]
+  },
+  "tavern_table": {
+    "prompt": "a small rectangular wooden tavern table with four legs",
+    "model": "anthropic/claude-sonnet-4-20250514",
+    "material": "Wood",
+    "size": 2.0,
+    "cubes": 0,
+    "subcubes": 0,
+    "microcubes": 159,
+    "total": 159,
+    "cost": null,
+    "created": "2026-04-01T02:38:53.256860+00:00",
+    "category": "table",
+    "tags": [
+      "tavern",
+      "common"
+    ]
+  },
+  "tavern_bar": {
+    "prompt": "a long wooden bar counter for a tavern, rectangular and waist height",
+    "model": "anthropic/claude-sonnet-4-20250514",
+    "material": "Wood",
+    "size": 4.0,
+    "cubes": 3,
+    "subcubes": 18,
+    "microcubes": 1562,
+    "total": 1583,
+    "cost": null,
+    "created": "2026-04-01T02:39:18.642804+00:00",
+    "category": "counter",
+    "tags": [
+      "tavern"
+    ]
+  },
+  "tavern_test": {
+    "prompt": "Generate a medieval tavern building.\n\nEXACT DIMENSIONS (in game blocks, 1 block = 1 unit):\n- Width (X axis): 14 blocks\n- Depth (Z axis): 18 blocks\n- Interior height per story (Y axis): 5 blocks (wall height above each floor)\n- Number of stories: 1\n- Total building height: ~6 blocks (including floor slabs + roof)\n\nDOOR:\n- Position: Centered on the front wall (Z=0 side)\n- Size: 2 blocks wide \u00d7 3 blocks tall\n- The door is a GAP \u2014 do not place a cuboid there. Split the wall around it.\n\n\nWINDOW OPENINGS:\n- Place 2 window(s) per side wall per story.\n- Each window is 2 blocks wide \u00d7 2 blocks tall.\n- Windows start at Y=2 above each floor level (leave 1 block of wall below).\n- Space windows evenly along the wall length.\n- Windows are GAPS \u2014 split the wall into segments around each opening.\n\n\n\nSTRUCTURE REQUIREMENTS:\n- Ground floor slab at Y=0, 1 block thick, spanning full 14\u00d718\n- All walls are 1 block thick\n- Interior is EMPTY (no furniture, tables, etc. \u2014 added separately)\n- Roof on top \u2014 be creative with the roof style (flat, peaked, etc.)\n- Origin (0,0,0) is at the front-left corner at ground level\n\nBUILDING CHARACTER:\nThis is a tavern/pub. Consider: a large open main hall on the ground floor, a prominent entrance, thick sturdy walls. The upper floor (if multi-story) has smaller rooms for sleeping quarters.\n\n\nSTYLE: medieval\n- Add architectural character appropriate to the style\n- Use mat-wall for walls, mat-floor for floors, mat-roof for roof\n- Use mat-trim or mat-accent for decorative elements\n- Keep total cuboid count under 80\n\nMaterial mapping (use these mat- prefixes):\n  - mat-wall \u2192 Stone\n  - mat-floor \u2192 Wood\n  - mat-roof \u2192 Wood\n  - mat-trim \u2192 Wood\n",
+    "model": "anthropic/claude-sonnet-4-20250514",
+    "material": "Wood",
+    "size": 18.0,
+    "cubes": 1168,
+    "subcubes": 0,
+    "microcubes": 0,
+    "total": 1168,
+    "cost": null,
+    "created": "2026-04-01T15:36:35.268770+00:00",
+    "building": {
+      "type": "tavern",
+      "style": "medieval",
+      "width": 14,
+      "depth": 18,
+      "height": 5,
+      "stories": 1,
+      "door_facing": "front",
+      "windows": 2
+    }
+  }
+}
