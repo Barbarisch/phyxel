@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <deque>
 #include <unordered_map>
 #include <mutex>
 #include <chrono>
@@ -25,10 +26,16 @@ namespace Core {
 //   paste_region(position, [rot])    — paste clipboard at new origin
 // ============================================================================
 
+/// Voxel resolution level (matches StructureGenerator::VoxelLevel).
+enum class SnapshotVoxelLevel { Cube, Subcube, Microcube };
+
 /// Single voxel entry in a snapshot (position is relative to the region origin).
 struct VoxelEntry {
-    glm::ivec3 offset;       // relative to region min corner
+    glm::ivec3 offset;       // relative to region min corner (cube coordinate)
     std::string material;    // material name (case-sensitive)
+    SnapshotVoxelLevel level = SnapshotVoxelLevel::Cube;
+    glm::ivec3 subcubePos{0};   // subcube offset within cube (0-2 each axis), used when level >= Subcube
+    glm::ivec3 microcubePos{0}; // microcube offset within subcube (0-2 each axis), used when level == Microcube
 };
 
 /// Snapshot of a voxel region.
@@ -86,6 +93,49 @@ public:
     bool hasClipboard() const;
 
     // ------------------------------------------------------------------
+    // Undo / Redo Stack
+    // ------------------------------------------------------------------
+
+    /// Maximum undo depth.
+    static constexpr size_t MAX_UNDO_DEPTH = 20;
+
+    /// Push a snapshot onto the undo stack (clears redo stack).
+    void pushUndo(RegionSnapshot&& snapshot);
+
+    /// Push onto undo WITHOUT clearing redo (used by redo operation).
+    void pushUndoOnly(RegionSnapshot&& snapshot);
+
+    /// Push onto the redo stack (used by undo operation).
+    void pushRedo(RegionSnapshot&& snapshot);
+
+    /// Pop the most recent undo snapshot (moves it to redo stack).
+    /// Returns nullptr if stack is empty.
+    const RegionSnapshot* peekUndo() const;
+
+    /// Pop undo, move to redo.  Returns the snapshot to restore.
+    /// Caller must capture current state and push it onto redo before restoring.
+    RegionSnapshot popUndo();
+
+    /// Pop redo, move to undo.  Returns the snapshot to restore.
+    RegionSnapshot popRedo();
+
+    /// Check if undo/redo is available.
+    bool canUndo() const;
+    bool canRedo() const;
+
+    /// Get undo/redo stack sizes.
+    size_t undoDepth() const;
+    size_t redoDepth() const;
+
+    /// Clear both stacks.
+    void clearUndoRedo();
+
+    /// Describe the undo stack (operation labels, no voxel data).
+    struct UndoEntry { std::string label; glm::ivec3 min; glm::ivec3 max; size_t voxelCount; };
+    std::vector<UndoEntry> listUndoStack() const;
+    std::vector<UndoEntry> listRedoStack() const;
+
+    // ------------------------------------------------------------------
     // Utility
     // ------------------------------------------------------------------
 
@@ -99,6 +149,9 @@ private:
 
     RegionSnapshot m_clipboard;
     bool m_hasClipboard = false;
+
+    std::deque<RegionSnapshot> m_undoStack;
+    std::deque<RegionSnapshot> m_redoStack;
 };
 
 } // namespace Core

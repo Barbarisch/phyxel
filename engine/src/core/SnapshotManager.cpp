@@ -114,8 +114,118 @@ void SnapshotManager::rotateY90(RegionSnapshot& snapshot) {
         v.offset.x = newX;
         v.offset.z = newZ;
         // y unchanged
+
+        // Rotate subcube local position within 3x3 grid (90° CW around Y)
+        if (v.level >= SnapshotVoxelLevel::Subcube) {
+            int newSX = (2) - v.subcubePos.z;
+            int newSZ = v.subcubePos.x;
+            v.subcubePos.x = newSX;
+            v.subcubePos.z = newSZ;
+        }
+        // Rotate microcube local position within 3x3 grid (90° CW around Y)
+        if (v.level == SnapshotVoxelLevel::Microcube) {
+            int newMX = (2) - v.microcubePos.z;
+            int newMZ = v.microcubePos.x;
+            v.microcubePos.x = newMX;
+            v.microcubePos.z = newMZ;
+        }
     }
     snapshot.size = glm::ivec3(oldSize.z, oldSize.y, oldSize.x);
+}
+
+// ============================================================================
+// Undo / Redo Stack
+// ============================================================================
+
+void SnapshotManager::pushUndo(RegionSnapshot&& snapshot) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_redoStack.clear();  // any new action invalidates redo history
+    m_undoStack.push_back(std::move(snapshot));
+    while (m_undoStack.size() > MAX_UNDO_DEPTH) {
+        m_undoStack.pop_front();
+    }
+}
+
+void SnapshotManager::pushUndoOnly(RegionSnapshot&& snapshot) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_undoStack.push_back(std::move(snapshot));
+    while (m_undoStack.size() > MAX_UNDO_DEPTH) {
+        m_undoStack.pop_front();
+    }
+}
+
+void SnapshotManager::pushRedo(RegionSnapshot&& snapshot) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_redoStack.push_back(std::move(snapshot));
+    while (m_redoStack.size() > MAX_UNDO_DEPTH) {
+        m_redoStack.pop_front();
+    }
+}
+
+const RegionSnapshot* SnapshotManager::peekUndo() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (m_undoStack.empty()) return nullptr;
+    return &m_undoStack.back();
+}
+
+RegionSnapshot SnapshotManager::popUndo() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    RegionSnapshot snap = std::move(m_undoStack.back());
+    m_undoStack.pop_back();
+    return snap;
+}
+
+RegionSnapshot SnapshotManager::popRedo() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    RegionSnapshot snap = std::move(m_redoStack.back());
+    m_redoStack.pop_back();
+    return snap;
+}
+
+bool SnapshotManager::canUndo() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return !m_undoStack.empty();
+}
+
+bool SnapshotManager::canRedo() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return !m_redoStack.empty();
+}
+
+size_t SnapshotManager::undoDepth() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_undoStack.size();
+}
+
+size_t SnapshotManager::redoDepth() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_redoStack.size();
+}
+
+void SnapshotManager::clearUndoRedo() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_undoStack.clear();
+    m_redoStack.clear();
+}
+
+std::vector<SnapshotManager::UndoEntry> SnapshotManager::listUndoStack() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::vector<UndoEntry> result;
+    result.reserve(m_undoStack.size());
+    for (const auto& s : m_undoStack) {
+        result.push_back({s.name, s.min, s.max, s.voxels.size()});
+    }
+    return result;
+}
+
+std::vector<SnapshotManager::UndoEntry> SnapshotManager::listRedoStack() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::vector<UndoEntry> result;
+    result.reserve(m_redoStack.size());
+    for (const auto& s : m_redoStack) {
+        result.push_back({s.name, s.min, s.max, s.voxels.size()});
+    }
+    return result;
 }
 
 } // namespace Core
