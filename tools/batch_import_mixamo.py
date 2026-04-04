@@ -37,6 +37,11 @@ CLIP_NAME_MAP = {
     "Walking Up The Stairs": "stair_up",
     "Descending Stairs": "stair_down",
     "Idle Looking": "idle_looking",
+    "Sitting Idle": "sitting_idle",
+    "Stand To Sit": "stand_to_sit",
+    "Sit To Stand": "sit_to_stand",
+    "Climbing Down": "climbing_down",
+    "Climbing To Top": "climbing_top",
 }
 
 
@@ -118,7 +123,7 @@ def main():
         stem = fbx_path.stem  # Filename without extension
         clip_name = CLIP_NAME_MAP.get(stem, stem.lower().replace(" ", "_"))
         
-        print(f"--- {fbx_path.name} → '{clip_name}' ---")
+        print(f"--- {fbx_path.name} -> '{clip_name}' ---")
         
         # Step 1: Convert FBX → temp .anim
         temp_anim = import_dir / f"temp_{stem.lower().replace(' ', '_')}.anim"
