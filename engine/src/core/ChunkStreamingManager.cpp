@@ -25,6 +25,12 @@ void ChunkStreamingManager::setCallbacks(
 }
 
 bool ChunkStreamingManager::initializeWorldStorage(const std::string& worldPath) {
+    // Close any existing storage before opening a new one
+    if (worldStorage) {
+        worldStorage->close();
+        delete worldStorage;
+        worldStorage = nullptr;
+    }
     worldStorage = new WorldStorage(worldPath);
     if (!worldStorage->initialize()) {
         LOG_ERROR_FMT("ChunkStreaming", "Failed to initialize world storage at: " << worldPath);

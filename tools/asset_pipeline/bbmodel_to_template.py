@@ -144,12 +144,25 @@ def main():
     print(f"Voxelization complete. Pitch: {pitch:.4f}, Scale: {scale:.4f}")
     print(f"Final voxel count: {np.sum(matrix)}")
     
+    # Trim empty space — remove leading empty slices on all axes
+    # This grounds the model so its bottom-left-front corner starts at (0,0,0)
+    for axis in range(3):
+        while matrix.shape[axis] > 0 and not matrix.take(0, axis=axis).any():
+            matrix = np.delete(matrix, 0, axis=axis)
+    
     # Optimization step
     if args.optimize:
         print("Running grid alignment optimization...")
         offset, matrix, stats = optimize_alignment.find_optimal_offset(matrix, args.fill_threshold, verbose=False)
         print(f"Optimization applied. Offset: {offset}")
         print(f"Optimized Stats: {stats[0]} Cubes, {stats[1]} Subcubes, {stats[2]} Microcubes")
+        
+        # Re-ground Y axis: strip leading empty Y slices introduced by optimization
+        # X/Z padding is kept (improves primitive alignment) but Y padding causes
+        # furniture to float above the floor when spawned
+        y_axis = 1
+        while matrix.shape[y_axis] > 0 and not matrix.take(0, axis=y_axis).any():
+            matrix = np.delete(matrix, 0, axis=y_axis)
 
     print(f"Writing template to {args.output}...")
     template_writer.write_template(

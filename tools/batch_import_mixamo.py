@@ -34,6 +34,9 @@ CLIP_NAME_MAP = {
     "Talking": "talk",
     "Taunt": "taunt",
     "Waving": "wave",
+    "Walking Up The Stairs": "stair_up",
+    "Descending Stairs": "stair_down",
+    "Idle Looking": "idle_looking",
 }
 
 

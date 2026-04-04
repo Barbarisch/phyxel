@@ -40,6 +40,7 @@
 #include "core/ObjectiveTracker.h"
 #include "core/GameEventLog.h"
 #include "core/SnapshotManager.h"
+#include "core/PlacedObjectManager.h"
 #include "core/CombatSystem.h"
 #include "core/NPCManager.h"
 #include "core/InteractionManager.h"
@@ -192,6 +193,7 @@ private:
     std::unique_ptr<Core::Inventory> inventory;
     std::unique_ptr<Core::GameEventLog> gameEventLog;
     std::unique_ptr<Core::SnapshotManager> snapshotManager;
+    std::unique_ptr<Core::PlacedObjectManager> placedObjectManager;
 
     // Combat
     std::unique_ptr<Core::CombatSystem> combatSystem;
@@ -312,6 +314,29 @@ private:
     bool launcherActive_ = false;
     void onLauncherResult(const LauncherResult& result);
     void applyProjectSelection(const std::string& projectPath);
+
+    // ============================================================================
+    // ASSET EDITOR MODE  (--asset-editor <file>)
+    // ============================================================================
+    bool m_assetEditorMode = false;
+    std::string m_assetEditorFile;                          // Full path to the .txt template being edited
+    glm::ivec3 m_assetTemplateOrigin{13, 16, 13};          // World position where the template is placed
+    std::string m_assetEditorMaterial{"Wood"};              // Currently selected placement material
+    bool m_assetRefCharVisible = false;                     // Whether the humanoid reference char is spawned
+    Scene::AnimatedVoxelCharacter* m_assetRefChar = nullptr;// Non-owning pointer into entities list
+    bool m_assetEditorHPrev = false;                        // Edge-detect H key
+    bool m_assetEditorCtrlSPrev = false;                    // Edge-detect Ctrl+S
+
+public:
+    void setAssetEditorFile(const std::string& path) {
+        m_assetEditorMode = true;
+        m_assetEditorFile = path;
+    }
+
+private:
+    void initAssetEditorScene();
+    void renderAssetEditorUI();
+    void saveAssetTemplate();
 };
 
 } // namespace Phyxel

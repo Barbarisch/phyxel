@@ -1105,8 +1105,11 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     m_initialized = true;
 
     // STEP 10.5: PROJECT LAUNCHER (if no project specified via CLI)
+    // Skip launcher entirely when running in asset-editor mode.
     // Initialize the launcher so it can be rendered inside run()'s normal loop.
-    if (projectDir_.empty()) {
+    LOG_INFO("Application", "Asset editor mode: {}, projectDir: '{}'",
+             m_assetEditorMode ? "ON" : "OFF", projectDir_);
+    if (projectDir_.empty() && !m_assetEditorMode) {
         namespace fs = std::filesystem;
         std::string baseDir = Core::ProjectInfo::getDefaultProjectsDir();
         fs::create_directories(baseDir);
@@ -1121,7 +1124,11 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // STEP 11: AUTO-LOAD GAME DEFINITION (after all subsystems are ready)
     // Deferred until the launcher selects a project when launcherActive_ is true.
     if (!launcherActive_) {
-        autoLoadGameDefinition();
+        if (m_assetEditorMode) {
+            initAssetEditorScene();
+        } else {
+            autoLoadGameDefinition();
+        }
     }
 
     return true;
@@ -1204,6 +1211,35 @@ void Application::applyProjectSelection(const std::string& projectPath) {
     runtime->getConfigMutable().projectDir = projectPath;
     runtime->getConfigMutable().worldsDir = engineConfig.worldsDir;
     runtime->getConfigMutable().gameDefinitionFile = engineConfig.gameDefinitionFile;
+
+    // ----------------------------------------------------------------
+    // Switch the world: clear the chunks loaded from the default world,
+    // open the project's database, and reload from it.
+    // This must happen before autoLoadGameDefinition() which checks
+    // whether chunks are already loaded.
+    // ----------------------------------------------------------------
+    if (chunkManager && vulkanDevice) {
+        // Wait for any in-flight GPU work to finish before destroying chunk buffers
+        vkDeviceWaitIdle(vulkanDevice->getDevice());
+
+        // Drop all currently loaded chunks (clears the chunks + chunkMap vectors)
+        chunkManager->cleanup();
+
+        // Switch WorldStorage to the project's database
+        std::string newDbPath = engineConfig.worldsDir + "/default.db";
+        fs::create_directories(engineConfig.worldsDir);
+        chunkManager->initializeWorldStorage(newDbPath);
+
+        // Load whatever the project's DB already has (may be empty for new projects)
+        auto loaded = chunkManager->loadAllChunksFromDatabase();
+        if (!loaded.empty()) {
+            chunkManager->rebuildAllChunkFaces();
+            chunkManager->initializeAllChunkVoxelMaps();
+            LOG_INFO("Application", "Loaded {} chunk(s) from project world database", loaded.size());
+        } else {
+            LOG_INFO("Application", "Project world database is empty — world will be built from game.json");
+        }
+    }
 
     LOG_INFO("Application", "Project selected: {} (worlds: {})", projectPath, engineConfig.worldsDir);
 }
@@ -1349,7 +1385,10 @@ void Application::run() {
 
         // Render Character Customizer
         renderCharacterCustomizer();
-        
+
+        // Render Asset Editor panel (when launched with --asset-editor)
+        renderAssetEditorUI();
+
         // Render Dialogue Box
         if (dialogueSystem) {
             imguiRenderer->renderDialogueBox(dialogueSystem.get());
@@ -1861,6 +1900,43 @@ void Application::update(float deltaTime) {
     // Pass cached matrices to RenderCoordinator
     renderCoordinator->setCachedViewMatrix(cachedViewMatrix);
     renderCoordinator->setProjectionMatrixNeedsUpdate(projectionMatrixNeedsUpdate);
+
+    // ---- Asset Editor input ----
+    if (m_assetEditorMode && inputManager) {
+        // H: toggle reference character
+        bool hNow = inputManager->isKeyPressed(GLFW_KEY_H);
+        if (hNow && !m_assetEditorHPrev) {
+            if (m_assetRefCharVisible) {
+                entities.erase(
+                    std::remove_if(entities.begin(), entities.end(),
+                        [this](const std::unique_ptr<Scene::Entity>& e) {
+                            return e.get() == m_assetRefChar;
+                        }),
+                    entities.end());
+                m_assetRefChar = nullptr;
+                m_assetRefCharVisible = false;
+            } else {
+                auto& assets = Core::AssetManager::instance();
+                std::string animPath = assets.resolveAnimatedChar("humanoid.anim");
+                glm::vec3 refPos(m_assetTemplateOrigin.x + 4, m_assetTemplateOrigin.y, m_assetTemplateOrigin.z);
+                m_assetRefChar = createAnimatedCharacter(refPos, animPath);
+                if (m_assetRefChar) {
+                    m_assetRefChar->playAnimation("idle");
+                    m_assetRefCharVisible = true;
+                }
+            }
+        }
+        m_assetEditorHPrev = hNow;
+
+        // Ctrl+S: save template
+        bool ctrlDown = inputManager->isKeyPressed(GLFW_KEY_LEFT_CONTROL) ||
+                        inputManager->isKeyPressed(GLFW_KEY_RIGHT_CONTROL);
+        bool sNow = ctrlDown && inputManager->isKeyPressed(GLFW_KEY_S);
+        if (sNow && !m_assetEditorCtrlSPrev) {
+            saveAssetTemplate();
+        }
+        m_assetEditorCtrlSPrev = sNow;
+    }
 }
 
 void Application::render() {
@@ -7090,6 +7166,215 @@ void Application::processAPICommands() {
         if (cmd.onComplete) {
             cmd.onComplete(response);
         }
+    }
+}
+
+// ============================================================================
+// ASSET EDITOR MODE
+// ============================================================================
+
+void Application::initAssetEditorScene() {
+    if (!chunkManager) return;
+
+    LOG_INFO("Application", "Asset Editor: initializing scene for '{}'", m_assetEditorFile);
+
+    // Clear the default world that WorldInitializer loaded from worlds/default.db.
+    // initialize() runs before this function, so the default DB is already in memory.
+    // run() hasn't started yet so there are no in-flight GPU render operations.
+    chunkManager->cleanup();
+
+    // Create the chunk that will hold the floor (origin 0,0,0 covers Y=0..31)
+    chunkManager->createChunk(glm::ivec3(0, 0, 0), false);
+
+    // Build a clean flat platform: Y=15 floor, 32×32 slab of Stone
+    for (int x = 0; x < 32; ++x) {
+        for (int z = 0; z < 32; ++z) {
+            chunkManager->m_voxelModificationSystem.addCubeWithMaterial(
+                glm::ivec3(x, 15, z), "Stone");
+        }
+    }
+
+    // Rebuild faces and voxel maps now that the floor is placed
+    chunkManager->rebuildAllChunkFaces();
+    chunkManager->initializeAllChunkVoxelMaps();
+
+    // Spawn the template being edited at the asset origin
+    if (objectTemplateManager && !m_assetEditorFile.empty()) {
+        namespace fs = std::filesystem;
+        // Load the template file, then spawn by its stem name
+        objectTemplateManager->loadTemplate(m_assetEditorFile);
+        std::string stemName = fs::path(m_assetEditorFile).stem().string();
+        objectTemplateManager->spawnTemplate(stemName,
+            glm::vec3(m_assetTemplateOrigin), true /*static*/);
+    }
+
+    // Position camera with a clear view of the editing area
+    if (camera) {
+        camera->setPosition(glm::vec3(20.0f, 22.0f, 10.0f));
+        camera->setYaw(-135.0f);
+        camera->setPitch(-25.0f);
+        camera->setMode(Graphics::CameraMode::Free);
+    }
+    if (inputManager) {
+        inputManager->setCameraPosition(glm::vec3(20.0f, 22.0f, 10.0f));
+        inputManager->setYawPitch(-135.0f, -25.0f);
+    }
+
+    LOG_INFO("Application", "Asset Editor: scene ready. H = toggle reference char, Ctrl+S = save.");
+}
+
+void Application::renderAssetEditorUI() {
+    if (!m_assetEditorMode) return;
+
+    // Derive a display name from the file path
+    namespace fs = std::filesystem;
+    std::string displayName = fs::path(m_assetEditorFile).stem().string();
+
+    float screenW = static_cast<float>(windowManager ? windowManager->getWidth()  : 1280);
+    float screenH = static_cast<float>(windowManager ? windowManager->getHeight() : 720);
+
+    ImGui::SetNextWindowPos(ImVec2(screenW - 260.0f, 20.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(245.0f, 0.0f), ImGuiCond_Always);
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
+                             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize;
+
+    if (!ImGui::Begin("Asset Editor", nullptr, flags)) {
+        ImGui::End();
+        return;
+    }
+
+    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.2f, 1.0f), "ASSET EDITOR");
+    ImGui::Separator();
+    ImGui::TextWrapped("%s", displayName.c_str());
+    ImGui::Spacing();
+
+    // Material palette
+    ImGui::Text("Material:");
+    const char* materials[] = {
+        "Wood","Stone","Metal","Glass","Rubber","Ice","Cork","glow","Default"
+    };
+    for (int i = 0; i < 9; ++i) {
+        bool selected = (m_assetEditorMaterial == materials[i]);
+        if (selected) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 1.0f, 1.0f));
+        if (ImGui::SmallButton(materials[i])) {
+            m_assetEditorMaterial = materials[i];
+        }
+        if (selected) ImGui::PopStyleColor();
+        if (i % 3 != 2) ImGui::SameLine();
+    }
+    ImGui::Spacing();
+
+    // Reference character toggle
+    const char* refLabel = m_assetRefCharVisible ? "Hide Ref Char [H]" : "Show Ref Char [H]";
+    if (ImGui::Button(refLabel, ImVec2(-1, 0))) {
+        // Toggle via the same logic as the H-key path
+        if (m_assetRefCharVisible) {
+            // Remove from entities
+            entities.erase(
+                std::remove_if(entities.begin(), entities.end(),
+                    [this](const std::unique_ptr<Scene::Entity>& e) {
+                        return e.get() == m_assetRefChar;
+                    }),
+                entities.end());
+            m_assetRefChar = nullptr;
+            m_assetRefCharVisible = false;
+        } else {
+            auto& assets = Core::AssetManager::instance();
+            std::string animPath = assets.resolveAnimatedChar("humanoid.anim");
+            glm::vec3 refPos(m_assetTemplateOrigin.x + 4, m_assetTemplateOrigin.y, m_assetTemplateOrigin.z);
+            m_assetRefChar = createAnimatedCharacter(refPos, animPath);
+            if (m_assetRefChar) {
+                m_assetRefChar->playAnimation("idle");
+                m_assetRefCharVisible = true;
+            }
+        }
+    }
+    ImGui::Spacing();
+
+    // Save button
+    if (ImGui::Button("Save Template [Ctrl+S]", ImVec2(-1, 0))) {
+        saveAssetTemplate();
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "H: toggle ref char");
+    ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Ctrl+S: save template");
+    ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "C/Ctrl+C/Alt+C: place");
+    ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "LMB: break voxel");
+
+    ImGui::End();
+}
+
+void Application::saveAssetTemplate() {
+    if (!chunkManager) return;
+
+    // Determine bounding box: scan a generous area around the template origin
+    // Use a 16x16x16 region centred on the origin (excluding the floor at Y=15)
+    constexpr int HALF = 8;
+    glm::ivec3 minCorner(
+        m_assetTemplateOrigin.x - HALF,
+        m_assetTemplateOrigin.y,
+        m_assetTemplateOrigin.z - HALF);
+    glm::ivec3 maxCorner(
+        m_assetTemplateOrigin.x + HALF,
+        m_assetTemplateOrigin.y + 16,
+        m_assetTemplateOrigin.z + HALF);
+
+    auto voxels = captureRegionAllLevels(chunkManager, minCorner, maxCorner);
+
+    if (voxels.empty()) {
+        LOG_WARN("Application", "Asset Editor: nothing to save in region");
+        return;
+    }
+
+    namespace fs = std::filesystem;
+    std::string stemName = fs::path(m_assetEditorFile).stem().string();
+
+    std::vector<std::string> lines;
+    lines.push_back("# Template: " + stemName);
+    lines.push_back("# Saved by Asset Editor");
+
+    int cubeCount = 0, subcubeCount = 0, microcubeCount = 0;
+    for (const auto& v : voxels) {
+        std::string mat = v.material.empty() ? "Default" : v.material;
+        switch (v.level) {
+            case Core::SnapshotVoxelLevel::Cube:
+                lines.push_back("C " + std::to_string(v.offset.x) + " " +
+                    std::to_string(v.offset.y) + " " + std::to_string(v.offset.z) + " " + mat);
+                ++cubeCount;
+                break;
+            case Core::SnapshotVoxelLevel::Subcube:
+                lines.push_back("S " + std::to_string(v.offset.x) + " " +
+                    std::to_string(v.offset.y) + " " + std::to_string(v.offset.z) + " " +
+                    std::to_string(v.subcubePos.x) + " " + std::to_string(v.subcubePos.y) + " " +
+                    std::to_string(v.subcubePos.z) + " " + mat);
+                ++subcubeCount;
+                break;
+            case Core::SnapshotVoxelLevel::Microcube:
+                lines.push_back("M " + std::to_string(v.offset.x) + " " +
+                    std::to_string(v.offset.y) + " " + std::to_string(v.offset.z) + " " +
+                    std::to_string(v.subcubePos.x) + " " + std::to_string(v.subcubePos.y) + " " +
+                    std::to_string(v.subcubePos.z) + " " +
+                    std::to_string(v.microcubePos.x) + " " + std::to_string(v.microcubePos.y) + " " +
+                    std::to_string(v.microcubePos.z) + " " + mat);
+                ++microcubeCount;
+                break;
+        }
+    }
+
+    std::ofstream file(m_assetEditorFile);
+    if (file.is_open()) {
+        for (const auto& line : lines) file << line << "\n";
+        file.close();
+
+        // Hot-reload into ObjectTemplateManager
+        if (objectTemplateManager) objectTemplateManager->loadTemplate(m_assetEditorFile);
+
+        LOG_INFO("Application", "Asset Editor: saved '{}' ({} cubes, {} subcubes, {} microcubes)",
+                 m_assetEditorFile, cubeCount, subcubeCount, microcubeCount);
+    } else {
+        LOG_ERROR("Application", "Asset Editor: could not write to '{}'", m_assetEditorFile);
     }
 }
 

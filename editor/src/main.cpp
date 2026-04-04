@@ -11,12 +11,15 @@ int main(int argc, char* argv[]) {
     // Parse command-line arguments
     std::string gameDefPath;
     std::string projectDir;
+    std::string assetEditorFile;
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         if ((arg == "--game" || arg == "-g") && i + 1 < argc) {
             gameDefPath = argv[++i];
         } else if ((arg == "--project" || arg == "-p") && i + 1 < argc) {
             projectDir = argv[++i];
+        } else if ((arg == "--asset-editor" || arg == "-ae") && i + 1 < argc) {
+            assetEditorFile = argv[++i];
         }
     }
 
@@ -37,6 +40,10 @@ int main(int argc, char* argv[]) {
         }
         // Pass the project directory to Application so it can override worldsDir
         app.setProjectDir(projPath.string());
+    }
+
+    if (!assetEditorFile.empty()) {
+        app.setAssetEditorFile(assetEditorFile);
     }
 
     try {
