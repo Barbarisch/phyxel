@@ -111,6 +111,10 @@ public:
     void registerTemplateDefs(const std::string& templateName,
                               const std::vector<InteractionPointDef>& defs);
 
+    /// Recompute world-space interaction points for all loaded objects using registered defs.
+    /// Call this after loadFromDb() so that objects restored from save also have interaction points.
+    void recomputeAllInteractionPoints();
+
     /// Find the nearest free interaction point of a given type within radius.
     /// Returns {objectId, pointId} or {"", ""} if none found.
     std::pair<std::string, std::string> findNearestFreePoint(

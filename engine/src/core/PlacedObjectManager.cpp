@@ -121,6 +121,19 @@ void PlacedObjectManager::registerTemplateDefs(const std::string& templateName,
                  << " interaction defs for template '" << templateName << "'");
 }
 
+void PlacedObjectManager::recomputeAllInteractionPoints() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    int count = 0;
+    for (auto& [id, obj] : m_objects) {
+        auto defsIt = m_templateDefs.find(obj.templateName);
+        if (defsIt == m_templateDefs.end()) continue;
+        obj.interactionPoints = computeInteractionPoints(defsIt->second, obj.position, obj.rotation);
+        count += (int)obj.interactionPoints.size();
+    }
+    LOG_INFO_FMT("PlacedObjectManager", "Recomputed interaction points: "
+                 << count << " points across " << m_objects.size() << " objects");
+}
+
 std::pair<std::string, std::string> PlacedObjectManager::findNearestFreePoint(
     const glm::vec3& worldPos, float radius, const std::string& type) const
 {

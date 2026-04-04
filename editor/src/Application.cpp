@@ -1045,11 +1045,13 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         }
     }
 
-    // Load placed objects from database
+    // Load placed objects from database, then recompute interaction points so that
+    // chairs/seats restored from a save are immediately interactable.
     if (placedObjectManager && chunkManager) {
         auto* ws = chunkManager->m_streamingManager.getWorldStorage();
         if (ws && ws->getDb()) {
             placedObjectManager->loadFromDb(ws->getDb());
+            placedObjectManager->recomputeAllInteractionPoints();
         }
     }
 
