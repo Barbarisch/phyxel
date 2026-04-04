@@ -100,19 +100,56 @@ std::vector<std::string> ObjectTemplateManager::getTemplateNames() const {
     return names;
 }
 
-bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::vec3& worldPos, bool isStatic) {
+bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::vec3& worldPos, bool isStatic, int rotation) {
     const VoxelTemplate* tmpl = getTemplate(name);
     if (!tmpl) {
         LOG_ERROR_FMT("ObjectTemplateManager", "Template not found: " << name);
         return false;
     }
 
+    // Normalize rotation to number of 90° steps
+    int rotSteps = ((rotation % 360) + 360) % 360 / 90;
+
+    // Compute bounding box of template for rotation pivot
+    glm::ivec3 maxExtent(0);
+    if (rotSteps > 0) {
+        for (const auto& c : tmpl->cubes) {
+            maxExtent = glm::max(maxExtent, c.relativePos);
+        }
+        for (const auto& s : tmpl->subcubes) {
+            maxExtent = glm::max(maxExtent, s.parentRelativePos);
+        }
+        for (const auto& m : tmpl->microcubes) {
+            maxExtent = glm::max(maxExtent, m.parentRelativePos);
+        }
+    }
+
+    // Rotate a block-level offset around Y axis (keeps all offsets non-negative)
+    auto rotateOffset = [&](glm::ivec3 pos) -> glm::ivec3 {
+        switch (rotSteps) {
+            case 1: return glm::ivec3(maxExtent.z - pos.z, pos.y, pos.x);                           // 90° CW
+            case 2: return glm::ivec3(maxExtent.x - pos.x, pos.y, maxExtent.z - pos.z);             // 180°
+            case 3: return glm::ivec3(pos.z, pos.y, maxExtent.x - pos.x);                           // 270° CW
+            default: return pos;
+        }
+    };
+
+    // Rotate a sub-grid local position (0-2 range) around Y axis
+    auto rotateLocal = [&](glm::ivec3 lp) -> glm::ivec3 {
+        switch (rotSteps) {
+            case 1: return glm::ivec3(2 - lp.z, lp.y, lp.x);
+            case 2: return glm::ivec3(2 - lp.x, lp.y, 2 - lp.z);
+            case 3: return glm::ivec3(lp.z, lp.y, 2 - lp.x);
+            default: return lp;
+        }
+    };
+
     glm::ivec3 basePos = glm::round(worldPos);
     std::unordered_set<Chunk*> modifiedChunks;
 
     // Spawn Cubes
     for (const auto& tCube : tmpl->cubes) {
-        glm::ivec3 pos = basePos + tCube.relativePos;
+        glm::ivec3 pos = basePos + rotateOffset(tCube.relativePos);
         
         if (isStatic) {
             glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(pos);
@@ -159,7 +196,8 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
 
     // Spawn Subcubes
     for (const auto& tSub : tmpl->subcubes) {
-        glm::ivec3 parentPos = basePos + tSub.parentRelativePos;
+        glm::ivec3 parentPos = basePos + rotateOffset(tSub.parentRelativePos);
+        glm::ivec3 subPos = rotateLocal(tSub.subcubePos);
         
         if (isStatic) {
             glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(parentPos);
@@ -181,12 +219,12 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
             }
 
             if (chunk) {
-                if (chunk->addSubcube(localPos, tSub.subcubePos, tSub.material)) {
+                if (chunk->addSubcube(localPos, subPos, tSub.material)) {
                     modifiedChunks.insert(chunk);
                 }
             }
         } else {
-            auto subcube = std::make_unique<Subcube>(parentPos, tSub.subcubePos, tSub.material);
+            auto subcube = std::make_unique<Subcube>(parentPos, subPos, tSub.material);
             
             if (m_chunkManager->physicsWorld) {
                 glm::vec3 corner = subcube->getWorldPosition();
@@ -204,7 +242,9 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
 
     // Spawn Microcubes
     for (const auto& tMicro : tmpl->microcubes) {
-        glm::ivec3 parentPos = basePos + tMicro.parentRelativePos;
+        glm::ivec3 parentPos = basePos + rotateOffset(tMicro.parentRelativePos);
+        glm::ivec3 subPos = rotateLocal(tMicro.subcubePos);
+        glm::ivec3 microPos = rotateLocal(tMicro.microcubePos);
         
         if (isStatic) {
             glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(parentPos);
@@ -226,12 +266,12 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
             }
 
             if (chunk) {
-                if (chunk->addMicrocube(localPos, tMicro.subcubePos, tMicro.microcubePos, tMicro.material)) {
+                if (chunk->addMicrocube(localPos, subPos, microPos, tMicro.material)) {
                     modifiedChunks.insert(chunk);
                 }
             }
         } else {
-            auto microcube = std::make_unique<Microcube>(parentPos, tMicro.subcubePos, tMicro.microcubePos, tMicro.material);
+            auto microcube = std::make_unique<Microcube>(parentPos, subPos, microPos, tMicro.material);
             
             if (m_chunkManager->physicsWorld) {
                 glm::vec3 corner = microcube->getWorldPosition();

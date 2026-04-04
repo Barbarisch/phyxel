@@ -47,7 +47,8 @@ public:
 
     // Spawn a template at a specific world position
     // isStatic: if true, merges into chunks. if false, creates dynamic objects.
-    bool spawnTemplate(const std::string& name, const glm::vec3& worldPos, bool isStatic = true);
+    // rotation: 0, 90, 180, or 270 degrees clockwise around Y axis
+    bool spawnTemplate(const std::string& name, const glm::vec3& worldPos, bool isStatic = true, int rotation = 0);
 
     /**
      * @brief Spawns a template sequentially over multiple frames to avoid frame drops.
