@@ -1119,57 +1119,27 @@ namespace Scene {
         buildBodiesFromModel();
     }
 
-    void AnimatedVoxelCharacter::sitAt(const glm::vec3& seatSurfacePos, float facingYaw) {
+    void AnimatedVoxelCharacter::sitAt(const glm::vec3& approachPos, float facingYaw) {
         if (m_isSitting) return;
 
-        // Compute hip height above the character's root in T-pose using global transforms.
-        // This automatically accounts for skeleton scale (dwarfs, giants, etc.).
-        float hipHeight = 0.0f;
-        if (!skeleton.bones.empty()) {
-            // Build T-pose global transforms
-            std::vector<glm::mat4> globalT(skeleton.bones.size(), glm::mat4(1.0f));
-            for (size_t i = 0; i < skeleton.bones.size(); ++i) {
-                const auto& bone = skeleton.bones[i];
-                glm::mat4 local = glm::translate(glm::mat4(1.0f), bone.localPosition)
-                                * glm::mat4_cast(bone.localRotation);
-                if (bone.parentId == -1)
-                    globalT[i] = local;
-                else if (bone.parentId >= 0 && bone.parentId < (int)skeleton.bones.size())
-                    globalT[i] = globalT[bone.parentId] * local;
-            }
-            // Find the Hips bone (case-insensitive partial match)
-            for (size_t i = 0; i < skeleton.bones.size(); ++i) {
-                std::string nameLower = skeleton.bones[i].name;
-                std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
-                if (nameLower.find("hip") != std::string::npos) {
-                    hipHeight = globalT[i][3][1]; // model-space Y of hip bone
-                    break;
-                }
-            }
-            // Subtract the skeleton foot offset so hipHeight is relative to the root
-            hipHeight -= skeletonFootOffset_;
-            if (hipHeight < 0.1f) hipHeight = 0.8f; // fallback if bone not found
-        } else {
-            hipHeight = 0.8f;
-        }
-
-        // Solve for root Y: we want hipBoneWorldY == seatSurfacePos.y
-        m_seatRootPos = glm::vec3(seatSurfacePos.x, seatSurfacePos.y - hipHeight, seatSurfacePos.z);
+        // Teleport character to the approach position (in front of the chair),
+        // NOT to the seat surface center. The sit-down animation plays from here.
+        m_seatRootPos   = approachPos;
         m_seatFacingYaw = facingYaw;
-        m_isSitting = true;
+        m_isSitting     = true;
 
-        // Teleport controller to seat position and kill velocity
         currentYaw = facingYaw;
         setPosition(m_seatRootPos);
         if (controllerBody) {
             controllerBody->setLinearVelocity(btVector3(0, 0, 0));
-            // Disable gravity while seated so the character doesn't slide down
-            controllerBody->setGravity(btVector3(0, 0, 0));
+            controllerBody->setGravity(btVector3(0, 0, 0));  // No gravity while in sitting sequence
         }
 
         currentState = AnimatedCharacterState::SitDown;
-        stateTimer = 0.0f;
-        LOG_DEBUG("Character", "sitAt: hip={:.2f}, rootY={:.2f}", hipHeight, m_seatRootPos.y);
+        stateTimer   = 0.0f;
+        animTime     = 0.0f;  // Reset anim time so stand_to_sit starts from frame 0
+        LOG_DEBUG("Character", "sitAt: approachPos=({:.2f},{:.2f},{:.2f}) yaw={:.2f}",
+                  approachPos.x, approachPos.y, approachPos.z, facingYaw);
     }
 
     void AnimatedVoxelCharacter::standUp() {
@@ -1784,22 +1754,69 @@ namespace Scene {
     void AnimatedVoxelCharacter::update(float deltaTime) {
         m_totalTime += deltaTime;
 
-        // --- Seated: pin controller position and skip all movement logic ---
-        if (m_isSitting && controllerBody) {
-            float halfHeight = getControllerHalfHeight();
-            btTransform trans;
-            trans.setIdentity();
-            trans.setOrigin(btVector3(m_seatRootPos.x,
-                                      m_seatRootPos.y + halfHeight,
-                                      m_seatRootPos.z));
-            controllerBody->setWorldTransform(trans);
-            controllerBody->getMotionState()->setWorldTransform(trans);
-            controllerBody->setLinearVelocity(btVector3(0, 0, 0));
-            worldPosition = m_seatRootPos;
-            currentYaw = m_seatFacingYaw;
-            // Still need to run the FSM so SitDown→SittingIdle→SitStandUp transitions work
+        // --- Sitting sequence: bypass normal physics movement ---
+        if (m_isSitting) {
+            if (controllerBody) {
+                if (currentState == AnimatedCharacterState::SittingIdle) {
+                    // Fully seated: pin controller to seat root position every frame
+                    float halfHeight = getControllerHalfHeight();
+                    btTransform trans;
+                    trans.setIdentity();
+                    trans.setOrigin(btVector3(m_seatRootPos.x,
+                                             m_seatRootPos.y + halfHeight,
+                                             m_seatRootPos.z));
+                    controllerBody->setWorldTransform(trans);
+                    controllerBody->getMotionState()->setWorldTransform(trans);
+                    controllerBody->setLinearVelocity(btVector3(0, 0, 0));
+                    worldPosition = m_seatRootPos;
+                } else {
+                    // SitDown / SitStandUp: keep controller where it is (no XZ drift)
+                    btVector3 vel = controllerBody->getLinearVelocity();
+                    controllerBody->setLinearVelocity(btVector3(0, vel.y(), 0));
+                    btTransform trans;
+                    controllerBody->getMotionState()->getWorldTransform(trans);
+                    btVector3 pos = trans.getOrigin();
+                    worldPosition = glm::vec3(pos.x(), pos.y() - getControllerHalfHeight(), pos.z());
+                }
+                currentYaw = m_seatFacingYaw;
+            }
+
+            // Run FSM — transitions SitDown→SittingIdle→SitStandUp→Idle
             updateStateMachine(deltaTime);
-            // Fall through to animation update below (skip physics movement block)
+
+            // Animation selection for sitting states (this block is normally skipped by the
+            // movement path, so we must do it explicitly here for clips to actually switch)
+            {
+                std::string targetAnim;
+                switch (currentState) {
+                    case AnimatedCharacterState::SitDown:     targetAnim = "stand_to_sit"; break;
+                    case AnimatedCharacterState::SittingIdle: targetAnim = "sitting_idle"; break;
+                    case AnimatedCharacterState::SitStandUp:  targetAnim = "sit_to_stand"; break;
+                    default: targetAnim = "idle"; break;
+                }
+                // Respect user-defined mapping overrides
+                auto mapIt = animationMapping.find(stateToString(currentState));
+                if (mapIt != animationMapping.end()) targetAnim = mapIt->second;
+
+                // Find and switch clip (case-insensitive)
+                std::string targetLower = targetAnim;
+                std::transform(targetLower.begin(), targetLower.end(), targetLower.begin(), ::tolower);
+                int targetIndex = -1;
+                for (size_t i = 0; i < clips.size(); ++i) {
+                    std::string n = clips[i].name;
+                    std::transform(n.begin(), n.end(), n.begin(), ::tolower);
+                    if (n == targetLower) { targetIndex = (int)i; break; }
+                }
+                if (targetIndex >= 0 && targetIndex != currentClipIndex) {
+                    previousClipIndex = currentClipIndex;
+                    previousAnimTime  = animTime;
+                    currentClipIndex  = targetIndex;
+                    animTime          = 0.0f;
+                    isBlending        = (previousClipIndex != -1);
+                    blendFactor       = 0.0f;
+                }
+            }
+
             goto animate_and_render;
         }
 

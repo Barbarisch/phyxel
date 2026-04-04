@@ -15,10 +15,11 @@ namespace Core {
 class InteractionManager {
 public:
     using InteractCallback  = std::function<void(Scene::NPCEntity* npc)>;
-    /// Called when player interacts with a seat: (objectId, pointId, worldSeatPos, facingYaw)
+    /// Called when player interacts with a seat: (objectId, pointId, approachPos, facingYaw)
+    /// approachPos is the world position the character should stand at before/during sit-down.
     using SeatCallback = std::function<void(const std::string& objectId,
                                             const std::string& pointId,
-                                            const glm::vec3& seatSurfacePos,
+                                            const glm::vec3& approachPos,
                                             float facingYaw)>;
 
     InteractionManager() = default;
@@ -65,7 +66,7 @@ private:
     Scene::NPCEntity* m_nearestNPC = nullptr;
     std::string m_nearestSeatObjId;
     std::string m_nearestSeatPtId;
-    glm::vec3 m_nearestSeatPos{0.0f};
+    glm::vec3 m_nearestSeatApproachPos{0.0f};
     float m_nearestSeatFacingYaw = 0.0f;
     InteractCallback m_interactCallback;
     SeatCallback m_seatCallback;

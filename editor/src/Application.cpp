@@ -1103,16 +1103,10 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // Wire seat callback: player presses E near a seat → animated character sits
     interactionManager->setSeatCallback([this](const std::string& objectId,
                                                const std::string& pointId,
-                                               const glm::vec3& seatSurfacePos,
+                                               const glm::vec3& approachPos,
                                                float facingYaw) {
         if (!animatedCharacter) return;
-        if (animatedCharacter->isSitting()) {
-            // Already sitting — stand up and release old seat first
-            animatedCharacter->standUp();
-            if (interactionManager) interactionManager->releaseSeat("player");
-        } else {
-            animatedCharacter->sitAt(seatSurfacePos, facingYaw);
-        }
+        animatedCharacter->sitAt(approachPos, facingYaw);
     });
 
     // Start the API server

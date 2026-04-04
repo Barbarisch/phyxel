@@ -45,8 +45,8 @@ void InteractionManager::update(float dt, const glm::vec3& playerPos) {
             if (obj) {
                 for (const auto& pt : obj->interactionPoints) {
                     if (pt.pointId == ptId) {
-                        m_nearestSeatPos       = pt.worldPos;
-                        m_nearestSeatFacingYaw = pt.facingYaw;
+                        m_nearestSeatApproachPos = pt.worldApproachPos;
+                        m_nearestSeatFacingYaw   = pt.facingYaw;
                         break;
                     }
                 }
@@ -80,7 +80,7 @@ void InteractionManager::tryInteract(Scene::Entity* playerEntity) {
         }
         LOG_INFO("InteractionManager", "Player sitting at '{}':'{}'",
                  m_nearestSeatObjId, m_nearestSeatPtId);
-        m_seatCallback(m_nearestSeatObjId, m_nearestSeatPtId, m_nearestSeatPos, m_nearestSeatFacingYaw);
+        m_seatCallback(m_nearestSeatObjId, m_nearestSeatPtId, m_nearestSeatApproachPos, m_nearestSeatFacingYaw);
         m_nearestSeatObjId.clear();
         m_nearestSeatPtId.clear();
     }

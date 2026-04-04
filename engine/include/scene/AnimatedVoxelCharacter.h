@@ -130,9 +130,9 @@ namespace Scene {
         void setVoxelModel(const Phyxel::VoxelModel& model);
 
         // Sitting
-        /// Move character to sit on a seat whose surface is at seatSurfacePos,
-        /// facing facingYaw degrees. Scale-aware: aligns hip bone to seat surface.
-        void sitAt(const glm::vec3& seatSurfacePos, float facingYaw);
+        /// Teleport character to approachPos (in front of the seat), face facingYaw,
+        /// disable gravity, and begin the SitDown animation sequence.
+        void sitAt(const glm::vec3& approachPos, float facingYaw);
         /// Begin standing up from seated state.
         void standUp();
         bool isSitting() const { return m_isSitting; }
