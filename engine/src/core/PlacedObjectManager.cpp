@@ -76,6 +76,113 @@ std::string PlacedObjectManager::generateId(const std::string& baseName) {
     return baseName + "_" + std::to_string(counter);
 }
 
+// ============================================================================
+// Interaction point helpers
+// ============================================================================
+
+static glm::vec3 rotateLocalOffset(const glm::vec3& offset, int rotDegrees) {
+    // Rotate a template-local offset around the Y axis by rotDegrees (0/90/180/270).
+    int steps = ((rotDegrees % 360) + 360) % 360 / 90;
+    float x = offset.x, z = offset.z;
+    for (int i = 0; i < steps; ++i) {
+        float tmp = x;
+        x = z;
+        z = -tmp;
+    }
+    return {x, offset.y, z};
+}
+
+std::vector<InteractionPoint> PlacedObjectManager::computeInteractionPoints(
+    const std::vector<InteractionPointDef>& defs,
+    const glm::ivec3& position, int rotation)
+{
+    std::vector<InteractionPoint> result;
+    result.reserve(defs.size());
+    float rotRad = (rotation * 3.14159265f) / 180.0f;
+    for (const auto& def : defs) {
+        InteractionPoint pt;
+        pt.pointId = def.pointId;
+        pt.type    = def.type;
+        glm::vec3 rotOffset  = rotateLocalOffset(def.localOffset,  rotation);
+        glm::vec3 rotApproach = rotateLocalOffset(def.approachOffset, rotation);
+        pt.worldPos        = glm::vec3(position) + rotOffset;
+        pt.worldApproachPos = glm::vec3(position) + rotApproach;
+        pt.facingYaw       = def.facingYaw + rotRad;
+        result.push_back(std::move(pt));
+    }
+    return result;
+}
+
+void PlacedObjectManager::registerTemplateDefs(const std::string& templateName,
+                                                const std::vector<InteractionPointDef>& defs) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_templateDefs[templateName] = defs;
+    LOG_INFO_FMT("PlacedObjectManager", "Registered " << defs.size()
+                 << " interaction defs for template '" << templateName << "'");
+}
+
+std::pair<std::string, std::string> PlacedObjectManager::findNearestFreePoint(
+    const glm::vec3& worldPos, float radius, const std::string& type) const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    float bestDist2 = radius * radius;
+    std::string bestObj, bestPt;
+    for (const auto& [id, obj] : m_objects) {
+        for (const auto& pt : obj.interactionPoints) {
+            if (pt.type != type) continue;
+            if (!pt.isFree()) continue;
+            glm::vec3 diff = pt.worldPos - worldPos;
+            float d2 = glm::dot(diff, diff);
+            if (d2 < bestDist2) {
+                bestDist2 = d2;
+                bestObj = id;
+                bestPt  = pt.pointId;
+            }
+        }
+    }
+    return {bestObj, bestPt};
+}
+
+bool PlacedObjectManager::claimInteractionPoint(const std::string& objectId,
+                                                 const std::string& pointId,
+                                                 const std::string& occupantId) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto it = m_objects.find(objectId);
+    if (it == m_objects.end()) return false;
+    for (auto& pt : it->second.interactionPoints) {
+        if (pt.pointId == pointId) {
+            if (!pt.isFree()) return false;
+            pt.occupantId = occupantId;
+            return true;
+        }
+    }
+    return false;
+}
+
+void PlacedObjectManager::releaseInteractionPoint(const std::string& objectId,
+                                                   const std::string& pointId) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto it = m_objects.find(objectId);
+    if (it == m_objects.end()) return;
+    for (auto& pt : it->second.interactionPoints) {
+        if (pt.pointId == pointId) {
+            pt.occupantId.clear();
+            return;
+        }
+    }
+}
+
+void PlacedObjectManager::releaseAllByOccupant(const std::string& occupantId) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (auto& [id, obj] : m_objects) {
+        for (auto& pt : obj.interactionPoints) {
+            if (pt.occupantId == occupantId) {
+                pt.occupantId.clear();
+            }
+        }
+    }
+}
+
 std::pair<glm::ivec3, glm::ivec3> PlacedObjectManager::computeTemplateBounds(
     const std::string& templateName, const glm::ivec3& position, int rotation) const
 {
@@ -213,6 +320,12 @@ std::string PlacedObjectManager::placeTemplate(const std::string& templateName,
     obj.boundingMax = bmax;
     obj.createdAt = std::chrono::system_clock::now();
 
+    // Populate interaction points if defs are registered for this template
+    auto defsIt = m_templateDefs.find(templateName);
+    if (defsIt != m_templateDefs.end()) {
+        obj.interactionPoints = computeInteractionPoints(defsIt->second, position, rotation);
+    }
+
     m_objects[id] = std::move(obj);
 
     LOG_INFO_FMT("PlacedObjectManager", "Placed template '" << templateName
@@ -320,6 +433,19 @@ bool PlacedObjectManager::move(const std::string& id, const glm::ivec3& newPosit
     obj.boundingMin = bmin;
     obj.boundingMax = bmax;
 
+    // Recompute interaction point world positions
+    auto defsIt = m_templateDefs.find(obj.templateName);
+    if (defsIt != m_templateDefs.end()) {
+        auto newPts = computeInteractionPoints(defsIt->second, newPosition, obj.rotation);
+        // Preserve occupancy state
+        for (auto& newPt : newPts) {
+            for (const auto& oldPt : obj.interactionPoints) {
+                if (oldPt.pointId == newPt.pointId) { newPt.occupantId = oldPt.occupantId; break; }
+            }
+        }
+        obj.interactionPoints = std::move(newPts);
+    }
+
     // Recursively move all children by the same delta
     std::function<void(const std::string&)> moveChildren = [&](const std::string& parentId) {
         for (auto& [childId, childObj] : m_objects) {
@@ -377,6 +503,18 @@ bool PlacedObjectManager::rotate(const std::string& id, int newRotation) {
     obj.rotation = newRotation;
     obj.boundingMin = bmin;
     obj.boundingMax = bmax;
+
+    // Recompute interaction point world positions for new rotation
+    auto defsIt = m_templateDefs.find(obj.templateName);
+    if (defsIt != m_templateDefs.end()) {
+        auto newPts = computeInteractionPoints(defsIt->second, obj.position, newRotation);
+        for (auto& newPt : newPts) {
+            for (const auto& oldPt : obj.interactionPoints) {
+                if (oldPt.pointId == newPt.pointId) { newPt.occupantId = oldPt.occupantId; break; }
+            }
+        }
+        obj.interactionPoints = std::move(newPts);
+    }
 
     LOG_INFO_FMT("PlacedObjectManager", "Rotated '" << id << "' to " << newRotation << "°");
     return true;

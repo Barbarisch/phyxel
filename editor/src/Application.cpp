@@ -970,6 +970,17 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // Initialize Interaction Manager
     interactionManager = std::make_unique<Core::InteractionManager>();
     interactionManager->setEntityRegistry(entityRegistry.get());
+    interactionManager->setPlacedObjectManager(placedObjectManager.get());
+
+    // Register interaction point definitions for seated furniture
+    if (placedObjectManager) {
+        placedObjectManager->registerTemplateDefs("test_chair", {
+            {"seat_0", "seat",
+             glm::vec3(0.33f, 0.42f, 0.33f),  // local seat surface position
+             0.0f,                              // facing yaw at 0° object rotation
+             glm::vec3(0.33f, 0.0f, -0.7f)}    // approach offset (stand in front)
+        });
+    }
 
     // Initialize Combat System
     combatSystem = std::make_unique<Core::CombatSystem>();
@@ -1087,6 +1098,21 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         }
 
         dialogueSystem->startConversation(npc, tree);
+    });
+
+    // Wire seat callback: player presses E near a seat → animated character sits
+    interactionManager->setSeatCallback([this](const std::string& objectId,
+                                               const std::string& pointId,
+                                               const glm::vec3& seatSurfacePos,
+                                               float facingYaw) {
+        if (!animatedCharacter) return;
+        if (animatedCharacter->isSitting()) {
+            // Already sitting — stand up and release old seat first
+            animatedCharacter->standUp();
+            if (interactionManager) interactionManager->releaseSeat("player");
+        } else {
+            animatedCharacter->sitAt(seatSurfacePos, facingYaw);
+        }
     });
 
     // Start the API server
@@ -1412,7 +1438,7 @@ void Application::run() {
             }
 
             if (interactionManager && interactionManager->shouldShowPrompt()) {
-                // Show prompt above the nearest NPC
+                // NPC interaction prompt
                 auto* nearestNPC = interactionManager->getNearestInteractableNPC();
                 if (nearestNPC) {
                     bool showPrompt = !dialogueSystem || !dialogueSystem->isActive();
@@ -1420,6 +1446,20 @@ void Application::run() {
                         showPrompt,
                         nearestNPC->getPosition(),
                         cachedViewMatrix, cachedProjectionMatrix, sw, sh);
+                }
+                // Seat interaction prompt (shown when no NPC is closer)
+                if (!nearestNPC && interactionManager->isSeatInRange()) {
+                    bool showPrompt = animatedCharacter != nullptr;
+                    if (showPrompt) {
+                        ImGui::SetNextWindowPos(ImVec2(sw * 0.5f, sh * 0.75f),
+                                                ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+                        ImGui::SetNextWindowBgAlpha(0.65f);
+                        ImGui::Begin("##seat_prompt", nullptr,
+                            ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                            ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav);
+                        ImGui::Text("[E] Sit down");
+                        ImGui::End();
+                    }
                 }
             }
         }
@@ -1673,8 +1713,14 @@ void Application::update(float deltaTime) {
     // Update entities
     {
         PROFILE_SCOPE(*performanceProfiler, "Entities");
+        // Track animated character sitting state to release seat when stand-up completes
+        bool wasAnimCharSitting = animatedCharacter && animatedCharacter->isSitting();
         for (auto& entity : entities) {
             entity->update(deltaTime);
+        }
+        // If animated character just finished standing up, release its seat claim
+        if (wasAnimCharSitting && animatedCharacter && !animatedCharacter->isSitting()) {
+            if (interactionManager) interactionManager->releaseSeat("player");
         }
     }
 
@@ -2607,6 +2653,13 @@ void Application::interactWithNPC() {
     // If dialogue is already active, advance it instead of starting new interaction
     if (dialogueSystem && dialogueSystem->isActive()) {
         dialogueSystem->advanceDialogue();
+        return;
+    }
+
+    // If animated character is currently seated, E = stand up
+    if (animatedCharacter && animatedCharacter->isSitting()) {
+        animatedCharacter->standUp();
+        if (interactionManager) interactionManager->releaseSeat("player");
         return;
     }
 

@@ -18,6 +18,27 @@ namespace Core {
 
 class SnapshotManager;
 
+/// Template-local definition of an interaction point (loaded from catalog, rotation-independent).
+struct InteractionPointDef {
+    std::string pointId;             ///< e.g. "seat_0"
+    std::string type;                ///< "seat", "bed", "counter", etc.
+    glm::vec3 localOffset{0.0f};     ///< Position in template-local space (cube units, 0° rotation)
+    float facingYaw = 0.0f;          ///< Character facing direction (radians) at 0° object rotation
+    glm::vec3 approachOffset{0.0f};  ///< Approach position in template-local space (for NPC pathfinding)
+};
+
+/// A live interaction point on a specific placed object instance.
+struct InteractionPoint {
+    std::string pointId;             ///< Matches InteractionPointDef::pointId
+    std::string type;                ///< "seat", "bed", "counter", etc.
+    glm::vec3 worldPos{0.0f};        ///< World-space use position (updated when object moves/rotates)
+    float facingYaw = 0.0f;          ///< Facing direction after applying object rotation
+    glm::vec3 worldApproachPos{0.0f};///< World-space approach position (for NPC pathfinding)
+    std::string occupantId;          ///< Entity/NPC ID currently using this point ("" = free)
+
+    bool isFree() const { return occupantId.empty(); }
+};
+
 /// Metadata for a placed object (template or structure) in the world.
 struct PlacedObject {
     std::string id;                  ///< Unique ID, e.g. "test_chair_3"
@@ -29,6 +50,9 @@ struct PlacedObject {
     glm::ivec3 boundingMin{0};       ///< World-space AABB min corner
     glm::ivec3 boundingMax{0};       ///< World-space AABB max corner
     std::chrono::system_clock::time_point createdAt;
+
+    /// Live interaction points for this instance (seat surfaces, etc.)
+    std::vector<InteractionPoint> interactionPoints;
 
     nlohmann::json toJson() const;
     static PlacedObject fromJson(const nlohmann::json& j);
@@ -82,6 +106,26 @@ public:
     /// Get the full tree under a placed object as nested JSON.
     nlohmann::json getTree(const std::string& rootId) const;
 
+    /// Register interaction point definitions for a template (call at startup).
+    /// These are applied to every new instance when that template is placed.
+    void registerTemplateDefs(const std::string& templateName,
+                              const std::vector<InteractionPointDef>& defs);
+
+    /// Find the nearest free interaction point of a given type within radius.
+    /// Returns {objectId, pointId} or {"", ""} if none found.
+    std::pair<std::string, std::string> findNearestFreePoint(
+        const glm::vec3& worldPos, float radius, const std::string& type = "seat") const;
+
+    /// Claim an interaction point for an occupant. Returns false if already occupied.
+    bool claimInteractionPoint(const std::string& objectId, const std::string& pointId,
+                               const std::string& occupantId);
+
+    /// Release a specific interaction point.
+    void releaseInteractionPoint(const std::string& objectId, const std::string& pointId);
+
+    /// Release all interaction points held by an occupant.
+    void releaseAllByOccupant(const std::string& occupantId);
+
     /// Clear all registered objects (does NOT remove voxels).
     void clear();
 
@@ -114,6 +158,12 @@ private:
     mutable std::mutex m_mutex;
     std::unordered_map<std::string, PlacedObject> m_objects;
     std::unordered_map<std::string, int> m_idCounters;  ///< Per-template name counters for ID generation
+    std::unordered_map<std::string, std::vector<InteractionPointDef>> m_templateDefs; ///< Catalog interaction defs
+
+    /// Compute world-space interaction points for an object given its position and rotation.
+    static std::vector<InteractionPoint> computeInteractionPoints(
+        const std::vector<InteractionPointDef>& defs,
+        const glm::ivec3& position, int rotation);
 };
 
 } // namespace Core

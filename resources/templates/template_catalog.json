@@ -50,6 +50,22 @@
       "tavern"
     ]
   },
+  "test_chair": {
+    "prompt": "a simple wooden chair",
+    "material": "Wood",
+    "size": 1.2,
+    "category": "furniture",
+    "tags": ["chair", "seat", "house", "tavern", "common"],
+    "interactions": [
+      {
+        "id": "seat_0",
+        "type": "seat",
+        "local_offset": {"x": 0.33, "y": 0.42, "z": 0.33},
+        "facing_yaw": 0.0,
+        "approach_offset": {"x": 0.33, "y": 0.0, "z": -0.7}
+      }
+    ]
+  },
   "tavern_test": {
     "prompt": "Generate a medieval tavern building.\n\nEXACT DIMENSIONS (in game blocks, 1 block = 1 unit):\n- Width (X axis): 14 blocks\n- Depth (Z axis): 18 blocks\n- Interior height per story (Y axis): 5 blocks (wall height above each floor)\n- Number of stories: 1\n- Total building height: ~6 blocks (including floor slabs + roof)\n\nDOOR:\n- Position: Centered on the front wall (Z=0 side)\n- Size: 2 blocks wide \u00d7 3 blocks tall\n- The door is a GAP \u2014 do not place a cuboid there. Split the wall around it.\n\n\nWINDOW OPENINGS:\n- Place 2 window(s) per side wall per story.\n- Each window is 2 blocks wide \u00d7 2 blocks tall.\n- Windows start at Y=2 above each floor level (leave 1 block of wall below).\n- Space windows evenly along the wall length.\n- Windows are GAPS \u2014 split the wall into segments around each opening.\n\n\n\nSTRUCTURE REQUIREMENTS:\n- Ground floor slab at Y=0, 1 block thick, spanning full 14\u00d718\n- All walls are 1 block thick\n- Interior is EMPTY (no furniture, tables, etc. \u2014 added separately)\n- Roof on top \u2014 be creative with the roof style (flat, peaked, etc.)\n- Origin (0,0,0) is at the front-left corner at ground level\n\nBUILDING CHARACTER:\nThis is a tavern/pub. Consider: a large open main hall on the ground floor, a prominent entrance, thick sturdy walls. The upper floor (if multi-story) has smaller rooms for sleeping quarters.\n\n\nSTYLE: medieval\n- Add architectural character appropriate to the style\n- Use mat-wall for walls, mat-floor for floors, mat-roof for roof\n- Use mat-trim or mat-accent for decorative elements\n- Keep total cuboid count under 80\n\nMaterial mapping (use these mat- prefixes):\n  - mat-wall \u2192 Stone\n  - mat-floor \u2192 Wood\n  - mat-roof \u2192 Wood\n  - mat-trim \u2192 Wood\n",
     "model": "anthropic/claude-sonnet-4-20250514",
