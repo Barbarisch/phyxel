@@ -10,3 +10,6 @@
 [submodule "external/goose"]
 	path = external/goose
 	url = https://github.com/block/goose.git
+[submodule "external/blocksmith"]
+	path = external/blocksmith
+	url = https://github.com/Barbarisch/blocksmith.git
