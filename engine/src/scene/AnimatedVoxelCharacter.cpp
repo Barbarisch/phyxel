@@ -1112,6 +1112,13 @@ namespace Scene {
         return true;
     }
 
+    void AnimatedVoxelCharacter::setVoxelModel(const Phyxel::VoxelModel& model) {
+        voxelModel = model;
+        originalVoxelModel_ = model;
+        clearBodies();
+        buildBodiesFromModel();
+    }
+
     AnimatedCharacterState AnimatedVoxelCharacter::stringToState(const std::string& str) {
         if (str == "Idle") return AnimatedCharacterState::Idle;
         if (str == "StartWalk") return AnimatedCharacterState::StartWalk;

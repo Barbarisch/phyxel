@@ -58,6 +58,7 @@
 #include "scene/SpiderCharacter.h"
 #include "scene/AnimatedVoxelCharacter.h"
 #include "ProjectLauncher.h"
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -333,10 +334,33 @@ public:
         m_assetEditorFile = path;
     }
 
+    void setAnimEditorFile(const std::string& path) {
+        m_animEditorMode = true;
+        m_animEditorFile = path;
+    }
+
 private:
     void initAssetEditorScene();
     void renderAssetEditorUI();
     void saveAssetTemplate();
+
+    // ============================================================================
+    // ANIM EDITOR MODE  (--anim-editor <file>)
+    // ============================================================================
+    bool m_animEditorMode = false;
+    std::string m_animEditorFile;                           // Full path to the .anim file being edited
+    Scene::AnimatedVoxelCharacter* m_animEditorChar = nullptr; // Non-owning pointer into entities list
+    int m_animEditorSelectedBone = -1;                     // Currently selected bone index in MODEL list
+    // Per-bone scale overrides (boneId -> scale factor, default 1.0)
+    std::map<int, float> m_animEditorBoneScale;
+    // Body bones to show in the editor (filtered from full skeleton)
+    std::vector<std::pair<int,std::string>> m_animEditorBodyBones; // {boneId, boneName}
+    int m_animEditorAnimIdx = 0;                           // Currently previewing animation index
+    bool m_animEditorCtrlSPrev = false;                    // Edge-detect Ctrl+S
+
+    void initAnimEditorScene();
+    void renderAnimEditorUI();
+    void saveAnimModel();
 };
 
 } // namespace Phyxel

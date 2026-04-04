@@ -9,6 +9,7 @@
 #include "scene/PhysicsCharacter.h"
 #include "scene/SpiderCharacter.h"
 #include "scene/AnimatedVoxelCharacter.h"
+#include "graphics/AnimationSystem.h"
 #include "scene/NPCEntity.h"
 #include "scene/behaviors/IdleBehavior.h"
 #include "scene/behaviors/PatrolBehavior.h"
@@ -1107,9 +1108,9 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // STEP 10.5: PROJECT LAUNCHER (if no project specified via CLI)
     // Skip launcher entirely when running in asset-editor mode.
     // Initialize the launcher so it can be rendered inside run()'s normal loop.
-    LOG_INFO("Application", "Asset editor mode: {}, projectDir: '{}'",
-             m_assetEditorMode ? "ON" : "OFF", projectDir_);
-    if (projectDir_.empty() && !m_assetEditorMode) {
+    LOG_INFO("Application", "Asset editor mode: {}, Anim editor mode: {}, projectDir: '{}'",
+             m_assetEditorMode ? "ON" : "OFF", m_animEditorMode ? "ON" : "OFF", projectDir_);
+    if (projectDir_.empty() && !m_assetEditorMode && !m_animEditorMode) {
         namespace fs = std::filesystem;
         std::string baseDir = Core::ProjectInfo::getDefaultProjectsDir();
         fs::create_directories(baseDir);
@@ -1126,6 +1127,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     if (!launcherActive_) {
         if (m_assetEditorMode) {
             initAssetEditorScene();
+        } else if (m_animEditorMode) {
+            initAnimEditorScene();
         } else {
             autoLoadGameDefinition();
         }
@@ -1388,6 +1391,9 @@ void Application::run() {
 
         // Render Asset Editor panel (when launched with --asset-editor)
         renderAssetEditorUI();
+
+        // Render Anim Editor panel (when launched with --anim-editor)
+        renderAnimEditorUI();
 
         // Render Dialogue Box
         if (dialogueSystem) {
@@ -1936,6 +1942,16 @@ void Application::update(float deltaTime) {
             saveAssetTemplate();
         }
         m_assetEditorCtrlSPrev = sNow;
+    }
+
+    if (m_animEditorMode) {
+        bool ctrlDown = inputManager->isKeyPressed(GLFW_KEY_LEFT_CONTROL) ||
+                        inputManager->isKeyPressed(GLFW_KEY_RIGHT_CONTROL);
+        bool sNow = ctrlDown && inputManager->isKeyPressed(GLFW_KEY_S);
+        if (sNow && !m_animEditorCtrlSPrev) {
+            saveAnimModel();
+        }
+        m_animEditorCtrlSPrev = sNow;
     }
 }
 
@@ -7376,6 +7392,344 @@ void Application::saveAssetTemplate() {
     } else {
         LOG_ERROR("Application", "Asset Editor: could not write to '{}'", m_assetEditorFile);
     }
+}
+
+// ============================================================================
+// ANIM EDITOR MODE
+// ============================================================================
+
+void Application::initAnimEditorScene() {
+    if (!chunkManager) return;
+
+    LOG_INFO("Application", "Anim Editor: initializing scene for '{}'", m_animEditorFile);
+
+    // Clear any world loaded by EngineRuntime startup
+    chunkManager->cleanup();
+
+    // Create one chunk and lay a Stone floor at Y=15
+    chunkManager->createChunk(glm::ivec3(0, 0, 0), false);
+    for (int x = 0; x < 32; ++x) {
+        for (int z = 0; z < 32; ++z) {
+            chunkManager->m_voxelModificationSystem.addCubeWithMaterial(glm::ivec3(x, 15, z), "Stone");
+        }
+    }
+    chunkManager->rebuildAllChunkFaces();
+    chunkManager->initializeAllChunkVoxelMaps();
+
+    // Spawn the animated character from the .anim file
+    glm::vec3 spawnPos(16.0f, 16.0f, 16.0f);
+    auto* ch = createAnimatedCharacter(spawnPos, m_animEditorFile);
+    if (ch) {
+        m_animEditorChar = ch;
+        ch->setAnimationState(Scene::AnimatedCharacterState::Preview);
+
+        // Build the list of "body" bones for the editor panel (skip finger/toe bones)
+        m_animEditorBodyBones.clear();
+        const auto& skel = ch->getSkeleton();
+        // Keywords that indicate a body-relevant bone
+        auto isBodyBone = [](const std::string& name) -> bool {
+            static const std::vector<std::string> include_kw = {
+                "Hips","Spine","Neck","Head","Shoulder","Arm","ForeArm","Hand",
+                "UpLeg","Leg","Foot"
+            };
+            static const std::vector<std::string> exclude_kw = {
+                "Thumb","Index","Middle","Ring","Pinky","Toe","Top_End","top_end","_end","_End"
+            };
+            for (const auto& kw : exclude_kw) {
+                if (name.find(kw) != std::string::npos) return false;
+            }
+            for (const auto& kw : include_kw) {
+                if (name.find(kw) != std::string::npos) return true;
+            }
+            return false;
+        };
+        for (const auto& bone : skel.bones) {
+            if (isBodyBone(bone.name)) {
+                m_animEditorBodyBones.push_back({bone.id, bone.name});
+            }
+        }
+
+        LOG_INFO("Application", "Anim Editor: loaded {} body bones from skeleton",
+                 m_animEditorBodyBones.size());
+    } else {
+        LOG_WARN("Application", "Anim Editor: failed to load character from '{}'", m_animEditorFile);
+    }
+
+    // Position camera for a good view
+    if (camera) {
+        camera->setPosition(glm::vec3(20.0f, 22.0f, 25.0f));
+        camera->setYaw(-135.0f);
+        camera->setPitch(-20.0f);
+    }
+    LOG_INFO("Application", "Anim Editor: scene ready. Ctrl+S = save model changes.");
+}
+
+void Application::renderAnimEditorUI() {
+    if (!m_animEditorMode || !m_animEditorChar) return;
+
+    namespace fs = std::filesystem;
+    std::string displayName = fs::path(m_animEditorFile).filename().string();
+
+    ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - 280.0f, 50.0f),
+                            ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(270.0f, 600.0f), ImGuiCond_Always);
+    ImGui::Begin(("Anim Editor: " + displayName).c_str(), nullptr,
+                 ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
+
+    // Animation preview selector
+    ImGui::Text("Preview Animation:");
+    const auto& animNames = m_animEditorChar->getAnimationNames();
+    if (!animNames.empty()) {
+        if (m_animEditorAnimIdx < 0) m_animEditorAnimIdx = 0;
+        if (m_animEditorAnimIdx >= (int)animNames.size())
+            m_animEditorAnimIdx = (int)animNames.size() - 1;
+
+        if (ImGui::BeginCombo("##animsel", animNames[m_animEditorAnimIdx].c_str())) {
+            for (int i = 0; i < (int)animNames.size(); ++i) {
+                bool selected = (i == m_animEditorAnimIdx);
+                if (ImGui::Selectable(animNames[i].c_str(), selected)) {
+                    m_animEditorAnimIdx = i;
+                    m_animEditorChar->playAnimation(animNames[i]);
+                }
+                if (selected) ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+        if (ImGui::Button("< Prev")) {
+            m_animEditorAnimIdx = (m_animEditorAnimIdx - 1 + (int)animNames.size()) % (int)animNames.size();
+            m_animEditorChar->playAnimation(animNames[m_animEditorAnimIdx]);
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Next >")) {
+            m_animEditorAnimIdx = (m_animEditorAnimIdx + 1) % (int)animNames.size();
+            m_animEditorChar->playAnimation(animNames[m_animEditorAnimIdx]);
+        }
+    }
+
+    ImGui::Separator();
+    ImGui::Text("Bone Scales:");
+    ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1.0f), "(drag slider to resize bone)");
+    ImGui::Spacing();
+
+    // Bone list with scale sliders
+    const Phyxel::VoxelModel& model = m_animEditorChar->getVoxelModel();
+
+    // Build a quick lookup: boneId -> total box count for display
+    std::map<int,int> boneBoxCount;
+    for (const auto& shape : model.shapes) {
+        boneBoxCount[shape.boneId]++;
+    }
+
+    ImGui::BeginChild("BoneList", ImVec2(0, 350), true);
+    for (auto& [boneId, boneName] : m_animEditorBodyBones) {
+        bool selected = (m_animEditorSelectedBone == boneId);
+
+        // Get/init scale for this bone
+        if (m_animEditorBoneScale.find(boneId) == m_animEditorBoneScale.end()) {
+            m_animEditorBoneScale[boneId] = 1.0f;
+        }
+        float& scale = m_animEditorBoneScale[boneId];
+
+        // Short label
+        std::string label = boneName;
+        if (label.size() > 20) label = label.substr(0, 20);
+
+        ImGui::PushID(boneId);
+        if (ImGui::Selectable(label.c_str(), selected, 0, ImVec2(120, 0))) {
+            m_animEditorSelectedBone = boneId;
+        }
+        ImGui::SameLine(125);
+        ImGui::SetNextItemWidth(100.0f);
+        bool changed = ImGui::SliderFloat("##s", &scale, 0.1f, 3.0f, "%.2f");
+        if (changed) {
+            // Apply scale to all shapes for this bone
+            Phyxel::VoxelModel newModel = m_animEditorChar->getVoxelModel();
+            // We need to know the "base" size. We apply scale relative to original.
+            // Store original on first change by reading from character.
+            // Simple approach: track last applied scale and adjust incrementally.
+            // For now, apply absolute scale relative to stored original model shapes.
+            // Re-read original each time from the loaded file (via originalVoxelModel_
+            // which we exposed via getVoxelModel returning voxelModel - post-scale).
+            //
+            // The simplest correct approach: maintain our own copy of the original model.
+            // We'll use a lazy-initialized "original model" cache.
+            static std::map<int, Phyxel::VoxelModel> s_originalModels;
+            auto charKey = (intptr_t)m_animEditorChar;
+            if (s_originalModels.find(charKey) == s_originalModels.end()) {
+                s_originalModels[charKey] = m_animEditorChar->getVoxelModel();
+            }
+            const Phyxel::VoxelModel& origModel = s_originalModels[charKey];
+
+            for (auto& shape : newModel.shapes) {
+                if (shape.boneId == boneId) {
+                    // Find matching shape in original
+                    for (const auto& origShape : origModel.shapes) {
+                        if (origShape.boneId == boneId &&
+                            origShape.offset == shape.offset) {
+                            shape.size = origShape.size * scale;
+                            break;
+                        }
+                    }
+                }
+            }
+            m_animEditorChar->setVoxelModel(newModel);
+        }
+        ImGui::PopID();
+    }
+    ImGui::EndChild();
+
+    ImGui::Separator();
+    if (ImGui::Button("Reset All Scales")) {
+        m_animEditorBoneScale.clear();
+        // Re-load original model from file
+        Phyxel::AnimationSystem animSys;
+        Phyxel::Skeleton skel;
+        std::vector<Phyxel::AnimationClip> clips;
+        Phyxel::VoxelModel origModel;
+        if (animSys.loadFromFile(m_animEditorFile, skel, clips, origModel)) {
+            m_animEditorChar->setVoxelModel(origModel);
+        }
+    }
+
+    ImGui::Spacing();
+    if (ImGui::Button("Save Model [Ctrl+S]", ImVec2(-1, 0))) {
+        saveAnimModel();
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1.0f), "Ctrl+S: save");
+    ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1.0f), "V: toggle camera mode");
+
+    ImGui::End();
+}
+
+void Application::saveAnimModel() {
+    if (!m_animEditorChar) return;
+
+    // Load the full .anim file to get skeleton + animations
+    Phyxel::AnimationSystem animSys;
+    Phyxel::Skeleton skel;
+    std::vector<Phyxel::AnimationClip> clips;
+    Phyxel::VoxelModel originalModel;
+    if (!animSys.loadFromFile(m_animEditorFile, skel, clips, originalModel)) {
+        LOG_ERROR("Application", "Anim Editor: failed to read '{}' for save", m_animEditorFile);
+        return;
+    }
+
+    // Get the modified model from the character
+    const Phyxel::VoxelModel& modifiedModel = m_animEditorChar->getVoxelModel();
+
+    // Read the raw .anim file lines
+    std::ifstream inFile(m_animEditorFile);
+    if (!inFile.is_open()) {
+        LOG_ERROR("Application", "Anim Editor: cannot open '{}' for reading", m_animEditorFile);
+        return;
+    }
+    std::vector<std::string> fileLines;
+    std::string line;
+    while (std::getline(inFile, line)) {
+        fileLines.push_back(line);
+    }
+    inFile.close();
+
+    // Find and replace the MODEL section
+    // MODEL section format:
+    //   MODEL
+    //   BoxCount N
+    //   Box boneId sx sy sz ox oy oz
+    //   ...
+    std::vector<std::string> outLines;
+    bool inModel = false;
+    bool modelDone = false;
+    bool modelWritten = false;
+
+    for (size_t i = 0; i < fileLines.size(); ++i) {
+        const std::string& fl = fileLines[i];
+        std::string trimmed = fl;
+        // Trim leading whitespace
+        size_t start = trimmed.find_first_not_of(" \t");
+        if (start != std::string::npos) trimmed = trimmed.substr(start);
+
+        if (!inModel && !modelDone && trimmed == "MODEL") {
+            inModel = true;
+            outLines.push_back(fl); // Keep "MODEL" line
+            continue;
+        }
+
+        if (inModel && !modelWritten) {
+            // Skip BoxCount line and all Box lines
+            if (trimmed.rfind("BoxCount", 0) == 0) {
+                // Replace with updated count
+                outLines.push_back("BoxCount " + std::to_string(modifiedModel.shapes.size()));
+                continue;
+            }
+            if (trimmed.rfind("Box ", 0) == 0) {
+                // Skip original boxes; we'll write new ones after the last Box line
+                // Peek ahead: if next line is NOT a Box line, flush the new model
+                bool nextIsBox = false;
+                if (i + 1 < fileLines.size()) {
+                    std::string next = fileLines[i + 1];
+                    size_t ns = next.find_first_not_of(" \t");
+                    if (ns != std::string::npos) next = next.substr(ns);
+                    nextIsBox = (next.rfind("Box ", 0) == 0);
+                }
+                if (!nextIsBox) {
+                    // Write all modified shapes
+                    for (const auto& shape : modifiedModel.shapes) {
+                        outLines.push_back("Box " +
+                            std::to_string(shape.boneId) + " " +
+                            std::to_string(shape.size.x) + " " +
+                            std::to_string(shape.size.y) + " " +
+                            std::to_string(shape.size.z) + " " +
+                            std::to_string(shape.offset.x) + " " +
+                            std::to_string(shape.offset.y) + " " +
+                            std::to_string(shape.offset.z));
+                    }
+                    modelWritten = true;
+                    inModel = false;
+                    modelDone = true;
+                }
+                // Either way, don't copy the original Box line
+                continue;
+            }
+            // If we hit a non-Box/non-BoxCount line while in model section,
+            // we must have missed writing (empty model edge case)
+            if (!modelWritten) {
+                for (const auto& shape : modifiedModel.shapes) {
+                    outLines.push_back("Box " +
+                        std::to_string(shape.boneId) + " " +
+                        std::to_string(shape.size.x) + " " +
+                        std::to_string(shape.size.y) + " " +
+                        std::to_string(shape.size.z) + " " +
+                        std::to_string(shape.offset.x) + " " +
+                        std::to_string(shape.offset.y) + " " +
+                        std::to_string(shape.offset.z));
+                }
+                modelWritten = true;
+                inModel = false;
+                modelDone = true;
+            }
+            outLines.push_back(fl);
+            continue;
+        }
+
+        outLines.push_back(fl);
+    }
+
+    // Write back to file
+    std::ofstream outFile(m_animEditorFile);
+    if (!outFile.is_open()) {
+        LOG_ERROR("Application", "Anim Editor: cannot write to '{}'", m_animEditorFile);
+        return;
+    }
+    for (const auto& ol : outLines) {
+        outFile << ol << "\n";
+    }
+    outFile.close();
+
+    LOG_INFO("Application", "Anim Editor: saved {} shapes to '{}'",
+             modifiedModel.shapes.size(), m_animEditorFile);
 }
 
 } // namespace Phyxel

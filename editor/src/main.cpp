@@ -12,6 +12,7 @@ int main(int argc, char* argv[]) {
     std::string gameDefPath;
     std::string projectDir;
     std::string assetEditorFile;
+    std::string animEditorFile;
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         if ((arg == "--game" || arg == "-g") && i + 1 < argc) {
@@ -20,6 +21,8 @@ int main(int argc, char* argv[]) {
             projectDir = argv[++i];
         } else if ((arg == "--asset-editor" || arg == "-ae") && i + 1 < argc) {
             assetEditorFile = argv[++i];
+        } else if ((arg == "--anim-editor" || arg == "-ame") && i + 1 < argc) {
+            animEditorFile = argv[++i];
         }
     }
 
@@ -44,6 +47,9 @@ int main(int argc, char* argv[]) {
 
     if (!assetEditorFile.empty()) {
         app.setAssetEditorFile(assetEditorFile);
+    }
+    if (!animEditorFile.empty()) {
+        app.setAnimEditorFile(animEditorFile);
     }
 
     try {

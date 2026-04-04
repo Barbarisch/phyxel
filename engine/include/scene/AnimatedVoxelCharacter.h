@@ -122,6 +122,10 @@ namespace Scene {
         // Hot-reload animation clips from file (skeleton/model unchanged)
         bool reloadAnimations(const std::string& animFile);
 
+        // Voxel model access (for anim editor)
+        const Phyxel::VoxelModel& getVoxelModel() const { return voxelModel; }
+        void setVoxelModel(const Phyxel::VoxelModel& model);
+
         // ---- Bone Attachments (weapons, equipment visuals) ----
 
         /// Attach an extravoxel shape to a named bone (e.g. right_hand).
