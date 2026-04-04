@@ -728,16 +728,22 @@ bool ChunkVoxelManager::addSubcube(
     if (parentPos.x < 0 || parentPos.x >= 32 ||
         parentPos.y < 0 || parentPos.y >= 32 ||
         parentPos.z < 0 || parentPos.z >= 32) {
+        LOG_DEBUG("VoxelManager", "addSubcube FAIL: parentPos(%d,%d,%d) out of bounds",
+                  parentPos.x, parentPos.y, parentPos.z);
         return false;
     }
     if (subcubePos.x < 0 || subcubePos.x >= 3 || 
         subcubePos.y < 0 || subcubePos.y >= 3 || 
         subcubePos.z < 0 || subcubePos.z >= 3) {
+        LOG_DEBUG("VoxelManager", "addSubcube FAIL: subcubePos(%d,%d,%d) out of bounds",
+                  subcubePos.x, subcubePos.y, subcubePos.z);
         return false;
     }
     
     // Check if subcube already exists
     if (getSubcubeHelper(parentPos, subcubePos)) {
+        LOG_DEBUG("VoxelManager", "addSubcube FAIL: subcube already exists at parent(%d,%d,%d) sub(%d,%d,%d)",
+                  parentPos.x, parentPos.y, parentPos.z, subcubePos.x, subcubePos.y, subcubePos.z);
         return false;
     }
     
@@ -846,14 +852,30 @@ bool ChunkVoxelManager::clearSubdivisionAt(
         }
     }
     
+    // Remove all static microcubes at this cube position
+    auto& staticMicrocubes = m_getStaticMicrocubes();
+    auto mit = staticMicrocubes.begin();
+    while (mit != staticMicrocubes.end()) {
+        auto& microcube = *mit;
+        if (microcube && microcube->getParentCubePosition() == parentWorldPos) {
+            mit = staticMicrocubes.erase(mit);
+            removedAny = true;
+        } else {
+            ++mit;
+        }
+    }
+    
     // Clear the subdivision state from data structures
     subcubeMap.erase(localPos);
+    microcubeMap.erase(localPos);
     voxelTypeMap.erase(localPos);
     
     if (removedAny) {
+        m_removeCollision(localPos);
         LOG_DEBUG_FMT("ChunkVoxelManager", "Cleared subdivision at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
                   << ") - position now empty");
         m_setNeedsUpdate(true);
+        m_setDirty(true);
     }
     
     return removedAny;
@@ -998,6 +1020,10 @@ bool ChunkVoxelManager::addMicrocube(
     
     // Update hash maps
     addMicrocubeToMaps(parentCubePos, subcubePos, microcubePos, rawPtr);
+    
+    // Update collision shape for this parent cube position
+    m_removeCollision(parentCubePos);
+    m_addCollision(parentCubePos);
     
     // Mark for update and as dirty
     m_setNeedsUpdate(true);
