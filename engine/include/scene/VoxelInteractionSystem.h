@@ -9,6 +9,7 @@
 #include "scene/interaction/DestructionTool.h"
 #include "core/AudioSystem.h"
 #include <glm/glm.hpp>
+#include <climits>
 #include <functional>
 #include <memory>
 
@@ -125,6 +126,11 @@ public:
         m_onVoxelChanged = std::move(cb);
     }
 
+    /// Set minimum Y coordinate that can be broken/hovered.
+    /// Voxels at or below this Y are invisible to hover detection.
+    /// Use -INT_MAX (default) to allow all Y values.
+    void setMinBreakableY(int y) { m_minBreakableY = y; }
+
 private:
     // Dependencies
     ChunkManager* m_chunkManager;
@@ -146,6 +152,7 @@ private:
     bool m_hasHoveredCube;
     CubeLocation m_currentHoveredLocation;
     int m_lastHoveredCube;
+    int m_minBreakableY = INT_MIN; // Voxels at or below this Y are not hoverable/breakable
     
     // Camera state (cached from updateMouseHover)
     glm::vec3 m_lastCameraPos;

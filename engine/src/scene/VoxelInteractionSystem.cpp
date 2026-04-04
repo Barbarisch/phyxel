@@ -139,7 +139,12 @@ void VoxelInteractionSystem::updateMouseHover(const glm::vec3& cameraPos, const 
     
     // Convert to CubeLocation for backward compatibility with existing hover system
     CubeLocation hoveredLocation = voxelLocationToCubeLocation(voxelLocation);
-    
+
+    // Suppress hover for voxels at or below the minimum breakable Y (e.g. editor floor)
+    if (hoveredLocation.isValid() && hoveredLocation.worldPos.y <= m_minBreakableY) {
+        hoveredLocation = CubeLocation{};
+    }
+
     // Performance timing
     auto endTime = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);

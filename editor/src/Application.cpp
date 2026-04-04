@@ -1729,13 +1729,18 @@ void Application::update(float deltaTime) {
         PROFILE_SCOPE(*performanceProfiler, "Voxel Interaction");
         double mouseX, mouseY;
         inputManager->getCurrentMousePosition(mouseX, mouseY);
+        // Block voxel hover when ImGui wants the mouse (e.g. hovering any panel),
+        // or entirely in anim-editor mode (no voxel editing there).
+        bool blockHover = inputManager->isMouseCaptured()
+                       || ImGui::GetIO().WantCaptureMouse
+                       || m_animEditorMode;
         voxelInteractionSystem->updateMouseHover(
             inputManager->getCameraPosition(),
             inputManager->getCameraFront(),
             inputManager->getCameraUp(),
             mouseX,
             mouseY,
-            inputManager->isMouseCaptured()
+            blockHover
         );
         
         // Sync debug flags
@@ -7215,6 +7220,11 @@ void Application::initAssetEditorScene() {
     chunkManager->initializeAllChunkVoxelMaps();
 
     // Spawn the template being edited at the asset origin
+    // Protect the floor from being broken
+    if (voxelInteractionSystem) {
+        voxelInteractionSystem->setMinBreakableY(15);
+    }
+
     if (objectTemplateManager && !m_assetEditorFile.empty()) {
         namespace fs = std::filesystem;
         // Load the template file, then spawn by its stem name
