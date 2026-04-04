@@ -216,6 +216,48 @@ TEST(StructureGeneratorTest, GenerateHouseFacing) {
     EXPECT_EQ(south.voxels.size(), east.voxels.size());
 }
 
+TEST(StructureGeneratorTest, GenerateHouseMultiStory) {
+    MaterialPalette mat;
+    auto single = StructureGenerator::generateHouse({0, 0, 0}, 10, 12, 5, mat, Facing::South, 2, true,
+                                                     DetailLevel::Rough, 1);
+    auto multi  = StructureGenerator::generateHouse({0, 0, 0}, 10, 12, 5, mat, Facing::South, 2, true,
+                                                     DetailLevel::Rough, 2);
+    EXPECT_GT(multi.voxels.size(), single.voxels.size());
+}
+
+TEST(StructureGeneratorTest, GenerateHouseWithBedrooms) {
+    MaterialPalette mat;
+    auto noBedrooms = StructureGenerator::generateHouse({0, 0, 0}, 10, 14, 5, mat, Facing::South, 2, true,
+                                                         DetailLevel::Rough, 1, 0);
+    auto withBedrooms = StructureGenerator::generateHouse({0, 0, 0}, 10, 14, 5, mat, Facing::South, 2, true,
+                                                           DetailLevel::Rough, 1, 2);
+    // Bedrooms add internal walls and beds
+    EXPECT_GT(withBedrooms.voxels.size(), noBedrooms.voxels.size());
+    // Should have bedroom location markers
+    int bedroomMarkers = 0;
+    for (const auto& loc : withBedrooms.locations) {
+        if (loc.name == "Bedroom") bedroomMarkers++;
+    }
+    EXPECT_GE(bedroomMarkers, 1);
+}
+
+TEST(StructureGeneratorTest, GenerateTavernConfigurableTables) {
+    MaterialPalette mat;
+    auto defaultTavern = StructureGenerator::generateTavern({0, 0, 0}, 14, 18, 1, mat, Facing::South, true,
+                                                             DetailLevel::Rough, -1, -1);
+    auto manyTables = StructureGenerator::generateTavern({0, 0, 0}, 14, 18, 1, mat, Facing::South, true,
+                                                          DetailLevel::Rough, 5, -1);
+    // More tables = more furniture markers
+    int defaultTableMarkers = 0, manyTableMarkers = 0;
+    for (const auto& loc : defaultTavern.locations) {
+        if (loc.name == "Table") defaultTableMarkers++;
+    }
+    for (const auto& loc : manyTables.locations) {
+        if (loc.name == "Table") manyTableMarkers++;
+    }
+    EXPECT_GE(manyTableMarkers, defaultTableMarkers);
+}
+
 // ============================================================================
 // Composites: Tavern
 // ============================================================================
@@ -224,8 +266,13 @@ TEST(StructureGeneratorTest, GenerateTavernBasic) {
     MaterialPalette mat;
     auto result = StructureGenerator::generateTavern({0, 0, 0}, 14, 18, 2, mat, Facing::South, true);
     EXPECT_GT(result.voxels.size(), 500u); // large structure
-    EXPECT_EQ(result.locations.size(), 1u);
-    EXPECT_EQ(result.locations[0].type, LocationType::Tavern);
+    EXPECT_GE(result.locations.size(), 1u); // tavern + furniture markers
+    // Last marker is the overall tavern marker
+    bool hasTavern = false;
+    for (const auto& loc : result.locations) {
+        if (loc.type == LocationType::Tavern) { hasTavern = true; break; }
+    }
+    EXPECT_TRUE(hasTavern);
 }
 
 TEST(StructureGeneratorTest, GenerateTavernMultiStory) {

@@ -181,17 +181,20 @@ public:
     // Composites — high-level structure generators
     // =======================================================================
 
-    /// Simple house: 4 walls + floor + flat roof + door + optional windows + furniture.
+    /// House with optional multi-story support, stairwells, and bedroom partitions.
     static StructureResult generateHouse(const glm::ivec3& pos, int width, int depth, int height,
                                          const MaterialPalette& materials, Facing facing = Facing::South,
                                          int windows = 2, bool furnished = true,
-                                         DetailLevel detail = DetailLevel::Detailed);
+                                         DetailLevel detail = DetailLevel::Detailed,
+                                         int stories = 1, int bedrooms = 0);
 
     /// Multi-room tavern: main hall + bar + tables + optional upper floor.
+    /// tables/beds = -1 means auto-calculate from dimensions.
     static StructureResult generateTavern(const glm::ivec3& pos, int width, int depth, int stories,
                                           const MaterialPalette& materials, Facing facing = Facing::South,
                                           bool furnished = true,
-                                          DetailLevel detail = DetailLevel::Detailed);
+                                          DetailLevel detail = DetailLevel::Detailed,
+                                          int tables = -1, int beds = -1);
 
     /// Freestanding wall segment between two points.
     static StructureResult generateWallSegment(const glm::ivec3& start, const glm::ivec3& end,

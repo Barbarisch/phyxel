@@ -93,7 +93,13 @@ std::pair<bool, std::string> GameDefinitionLoader::validate(const json& definiti
                 return {false, "Structure at index " + std::to_string(i) + " missing 'type'"};
             }
             std::string stype = s["type"].get<std::string>();
-            if (stype != "fill" && stype != "template") {
+            // Allow fill, template, place_voxel, and procedural structure types
+            static const std::unordered_set<std::string> validTypes = {
+                "fill", "template", "place_voxel",
+                "house", "tavern", "tower", "wall", "room", "box",
+                "staircase", "table", "chair", "counter", "bed"
+            };
+            if (validTypes.find(stype) == validTypes.end()) {
                 return {false, "Invalid structure type '" + stype + "' at index " + std::to_string(i)};
             }
         }
@@ -353,6 +359,32 @@ void GameDefinitionLoader::loadStructures(const json& structures, GameSubsystems
                     LOG_DEBUG("GameDefinitionLoader", "Auto-registered location '" + loc.id + "' from " + stype);
                 }
             }
+        } else if (stype == "place_voxel") {
+            int x = s.value("x", 0);
+            int y = s.value("y", 0);
+            int z = s.value("z", 0);
+            std::string material = s.value("material", "Default");
+            std::string subcubeType = s.value("subcube", ""); // "sub", "micro", or empty for full cube
+
+            bool ok = false;
+            if (subcubeType == "sub") {
+                int sx = s.value("sx", 1), sy = s.value("sy", 1), sz = s.value("sz", 1);
+                ok = sub.chunkManager->m_voxelModificationSystem.addSubcubeWithMaterial(
+                    glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz), material);
+            } else if (subcubeType == "micro") {
+                int sx = s.value("sx", 1), sy = s.value("sy", 1), sz = s.value("sz", 1);
+                int mx = s.value("mx", 1), my = s.value("my", 1), mz = s.value("mz", 1);
+                ok = sub.chunkManager->m_voxelModificationSystem.addMicrocubeWithMaterial(
+                    glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz), glm::ivec3(mx, my, mz), material);
+            } else {
+                if (!material.empty() && material != "Default") {
+                    ok = sub.chunkManager->m_voxelModificationSystem.addCubeWithMaterial(
+                        glm::ivec3(x, y, z), material);
+                } else {
+                    ok = sub.chunkManager->addCube(glm::ivec3(x, y, z));
+                }
+            }
+            if (ok) result.structuresPlaced++;
         } else {
             LOG_WARN("GameDefinitionLoader", "Unknown structure type: " + stype);
         }

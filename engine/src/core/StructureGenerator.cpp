@@ -529,37 +529,72 @@ StructureResult StructureGenerator::generateBed(const glm::ivec3& pos, Facing fa
 StructureResult StructureGenerator::generateHouse(const glm::ivec3& pos, int width, int depth, int height,
                                                    const MaterialPalette& materials, Facing facing,
                                                    int windows, bool furnished,
-                                                   DetailLevel detail) {
+                                                   DetailLevel detail,
+                                                   int stories, int bedrooms) {
     // Build in local coords (door on -Z side = south when facing South)
     StructureResult result;
+    stories = std::max(1, stories);
+    int storyHeight = height;  // interior height per story (includes ceiling)
+    int totalHeight = stories * storyHeight;
 
-    // Floor
+    // -- Ground floor --
     for (int x = 0; x < width; ++x) {
         for (int z = 0; z < depth; ++z) {
             result.voxels.push_back({{x, 0, z}, materials.floor});
         }
     }
 
-    // Walls (Y=1 to Y=height-1, leaving interior hollow)
-    for (int y = 1; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            for (int z = 0; z < depth; ++z) {
-                bool isWall = (x == 0 || x == width - 1 || z == 0 || z == depth - 1);
-                if (isWall) {
-                    result.voxels.push_back({{x, y, z}, materials.wall});
+    // Stairwell dimensions (only if multi-story)
+    int swW = 3, swD = 3; // stairwell opening size
+    int swX = width - swW - 1; // back-right corner (inside walls)
+    int swZ = depth - swD - 1;
+    bool hasStairwell = (stories > 1 && width >= 8 && depth >= 8);
+
+    // -- All story walls + intermediate floors --
+    for (int story = 0; story < stories; ++story) {
+        int baseY = story * storyHeight;
+
+        // Walls for this story
+        for (int y = baseY + 1; y < baseY + storyHeight; ++y) {
+            for (int x = 0; x < width; ++x) {
+                for (int z = 0; z < depth; ++z) {
+                    bool isWall = (x == 0 || x == width - 1 || z == 0 || z == depth - 1);
+                    if (isWall) {
+                        result.voxels.push_back({{x, y, z}, materials.wall});
+                    }
                 }
+            }
+        }
+
+        // Intermediate floor (story > 0)
+        if (story > 0) {
+            for (int x = 0; x < width; ++x) {
+                for (int z = 0; z < depth; ++z) {
+                    result.voxels.push_back({{x, baseY, z}, materials.floor});
+                }
+            }
+            // Stairwell opening — remove floor voxels above stairwell
+            if (hasStairwell) {
+                result.voxels.erase(
+                    std::remove_if(result.voxels.begin(), result.voxels.end(),
+                        [baseY, swX, swZ, swW, swD](const VoxelPlacement& v) {
+                            return v.position.y == baseY &&
+                                   v.position.x >= swX && v.position.x < swX + swW &&
+                                   v.position.z >= swZ && v.position.z < swZ + swD;
+                        }),
+                    result.voxels.end());
             }
         }
     }
 
-    // Roof (flat)
+    // Final roof
     for (int x = 0; x < width; ++x) {
         for (int z = 0; z < depth; ++z) {
-            result.voxels.push_back({{x, height, z}, materials.roof});
+            result.voxels.push_back({{x, totalHeight, z}, materials.roof});
         }
     }
 
-    // Collect wall voxels to remove for door and windows (before rotation)
+    // -- Door + window removals --
     std::vector<glm::ivec3> removals;
 
     // Door: centered on -Z wall (z=0), Y=1..3
@@ -569,8 +604,7 @@ StructureResult StructureGenerator::generateHouse(const glm::ivec3& pos, int wid
         int doorH = 3;
         int startX = doorX - doorW / 2;
         for (int dx = 0; dx < doorW && startX + dx < width - 1; ++dx) {
-            for (int dy = 1; dy <= doorH && dy < height; ++dy) {
-                // Only remove actual wall voxels (z=0 face)
+            for (int dy = 1; dy <= doorH && dy < storyHeight; ++dy) {
                 if (startX + dx > 0) {
                     removals.push_back({startX + dx, dy, 0});
                 }
@@ -578,32 +612,29 @@ StructureResult StructureGenerator::generateHouse(const glm::ivec3& pos, int wid
         }
     }
 
-    // Windows: evenly spaced on side walls (+X and -X)
-    if (windows > 0 && depth >= 4 && height >= 4) {
-        int winY = 2; // window sill height
-        int winW = 2, winH = 2;
-        int spacing = std::max(1, (depth - 2) / (windows + 1));
+    // Windows: on each story, on side walls
+    for (int story = 0; story < stories; ++story) {
+        int baseY = story * storyHeight;
+        if (windows > 0 && depth >= 4 && storyHeight >= 4) {
+            int winY = baseY + 2;
+            int winW = 2, winH = 2;
+            int spacing = std::max(1, (depth - 2) / (windows + 1));
 
-        for (int i = 0; i < windows; ++i) {
-            int winZ = spacing * (i + 1);
-            if (winZ + winW > depth - 1) break;
+            for (int i = 0; i < windows; ++i) {
+                int winZ = spacing * (i + 1);
+                if (winZ + winW > depth - 1) break;
 
-            // +X wall (x = width-1)
-            for (int dz = 0; dz < winW; ++dz) {
-                for (int dy = 0; dy < winH; ++dy) {
-                    removals.push_back({width - 1, winY + dy, winZ + dz});
-                }
-            }
-            // -X wall (x = 0)
-            for (int dz = 0; dz < winW; ++dz) {
-                for (int dy = 0; dy < winH; ++dy) {
-                    removals.push_back({0, winY + dy, winZ + dz});
+                for (int dz = 0; dz < winW; ++dz) {
+                    for (int dy = 0; dy < winH; ++dy) {
+                        removals.push_back({width - 1, winY + dy, winZ + dz});
+                        removals.push_back({0, winY + dy, winZ + dz});
+                    }
                 }
             }
         }
     }
 
-    // Remove door/window voxels from the result
+    // Remove door/window voxels
     for (const auto& rem : removals) {
         result.voxels.erase(
             std::remove_if(result.voxels.begin(), result.voxels.end(),
@@ -611,26 +642,111 @@ StructureResult StructureGenerator::generateHouse(const glm::ivec3& pos, int wid
             result.voxels.end());
     }
 
-    // Furniture
-    if (furnished && width >= 6 && depth >= 6) {
-        // Table + chairs in the center area
-        auto table = generateTable({width / 2 - 1, 1, depth / 2}, Facing::North, materials.furniture);
+    // -- Stairs between floors --
+    if (hasStairwell) {
+        for (int story = 0; story < stories - 1; ++story) {
+            int baseY = story * storyHeight + 1;
+            auto stairs = generateSubcubeStaircase({swX, baseY, swZ}, Facing::North,
+                                                    storyHeight - 1, 2, materials.stairs);
+            result.voxels.insert(result.voxels.end(), stairs.voxels.begin(), stairs.voxels.end());
+        }
+    }
+
+    // -- Bedroom partitions (internal walls with door openings) --
+    // bedrooms=0 means no partitions, bedrooms>0 divides upper floors (or ground floor if single-story)
+    if (bedrooms > 0 && width >= 6 && depth >= 8) {
+        // Determine which stories get bedrooms
+        int bedroomFloorStart = (stories > 1) ? 1 : 0; // upper floors if multi-story, ground if single
+        int bedroomsPerFloor = std::max(1, bedrooms / std::max(1, stories - bedroomFloorStart));
+        int roomsPlaced = 0;
+
+        for (int story = bedroomFloorStart; story < stories && roomsPlaced < bedrooms; ++story) {
+            int baseY = story * storyHeight;
+            // Available interior width for partitions (exclude stairwell on upper floors)
+            int availWidth = hasStairwell && story > 0 ? swX - 1 : width - 2;
+            int availDepth = depth - 2;
+
+            // Divide the available space along Z axis
+            int roomsThisFloor = std::min(bedroomsPerFloor, bedrooms - roomsPlaced);
+            roomsThisFloor = std::min(roomsThisFloor, availDepth / 4); // min 4 deep per room
+            if (roomsThisFloor <= 0) continue;
+
+            int roomDepth = availDepth / roomsThisFloor;
+
+            for (int r = 0; r < roomsThisFloor && roomsPlaced < bedrooms; ++r) {
+                int wallZ = 1 + (r + 1) * roomDepth;
+                if (wallZ >= depth - 1) break;
+
+                // Internal partition wall
+                for (int y = baseY + 1; y < baseY + storyHeight; ++y) {
+                    for (int x = 1; x < 1 + availWidth; ++x) {
+                        result.voxels.push_back({{x, y, wallZ}, materials.wall});
+                    }
+                }
+
+                // Door opening in partition (2 wide, 3 tall)
+                int doorStartX = 1 + availWidth / 2 - 1;
+                for (int dx = 0; dx < 2 && doorStartX + dx < 1 + availWidth; ++dx) {
+                    for (int dy = baseY + 1; dy <= baseY + 3 && dy < baseY + storyHeight; ++dy) {
+                        result.voxels.erase(
+                            std::remove_if(result.voxels.begin(), result.voxels.end(),
+                                [doorStartX, dx, dy, wallZ](const VoxelPlacement& v) {
+                                    return v.position == glm::ivec3(doorStartX + dx, dy, wallZ);
+                                }),
+                            result.voxels.end());
+                    }
+                }
+
+                // Bed in each bedroom
+                if (furnished) {
+                    int bedY = baseY + 1;
+                    int bedZ = wallZ - roomDepth + 1;
+                    if (bedZ < 1) bedZ = 1;
+                    auto bed = generateBed({1, bedY, bedZ}, Facing::South, materials.furniture);
+                    result.voxels.insert(result.voxels.end(), bed.voxels.begin(), bed.voxels.end());
+
+                    // Bedroom location marker
+                    result.locations.push_back({
+                        "", "Bedroom",
+                        glm::vec3(availWidth / 2.0f, static_cast<float>(bedY), static_cast<float>(bedZ + 2)),
+                        3.0f,
+                        LocationType::Home
+                    });
+                }
+
+                roomsPlaced++;
+            }
+        }
+    }
+
+    // -- Ground floor furniture (if no bedrooms on ground floor) --
+    if (furnished && width >= 6 && depth >= 6 && (bedrooms <= 0 || stories > 1)) {
+        int baseY = 1;
+        auto table = generateTable({width / 2 - 1, baseY, depth / 2}, Facing::North, materials.furniture);
         result.voxels.insert(result.voxels.end(), table.voxels.begin(), table.voxels.end());
 
-        // Chair on one side
+        result.locations.push_back({
+            "", "Table",
+            glm::vec3(width / 2.0f, static_cast<float>(baseY), depth / 2.0f),
+            2.0f,
+            LocationType::Custom
+        });
+
         if (width >= 7) {
-            auto chair = generateChair({width / 2 - 2, 1, depth / 2}, Facing::East, materials.furniture);
+            auto chair = generateChair({width / 2 - 2, baseY, depth / 2}, Facing::East, materials.furniture);
             result.voxels.insert(result.voxels.end(), chair.voxels.begin(), chair.voxels.end());
         }
 
-        // Bed in back corner
-        auto bed = generateBed({1, 1, depth - 4}, Facing::North, materials.furniture);
-        result.voxels.insert(result.voxels.end(), bed.voxels.begin(), bed.voxels.end());
+        // Bed in back corner (if bedrooms=0)
+        if (bedrooms <= 0) {
+            auto bed = generateBed({1, baseY, depth - 4}, Facing::North, materials.furniture);
+            result.voxels.insert(result.voxels.end(), bed.voxels.begin(), bed.voxels.end());
+        }
     }
 
     // -- Detail pass (subcube trim) --
     if (detail >= DetailLevel::Detailed) {
-        std::string trimMat = materials.furniture; // Use furniture material for trim
+        std::string trimMat = materials.furniture;
 
         // Door frame on -Z wall
         {
@@ -643,29 +759,18 @@ StructureResult StructureGenerator::generateHouse(const glm::ivec3& pos, int wid
             }
         }
 
-        // Window frames on side walls
-        if (windows > 0 && depth >= 4 && height >= 4) {
-            int winY = 2;
-            int winW = 2, winH = 2;
-            int spacing = std::max(1, (depth - 2) / (windows + 1));
-
-            for (int i = 0; i < windows; ++i) {
-                int winZ = spacing * (i + 1);
-                if (winZ + winW > depth - 1) break;
-
-                // +X wall window frame
-                auto frameR = generateWindowFrame({0, winY, winZ}, Facing::East, winW, winH, trimMat);
-                result.voxels.insert(result.voxels.end(), frameR.voxels.begin(), frameR.voxels.end());
-
-                // -X wall window frame
-                auto frameL = generateWindowFrame({0, winY, winZ}, Facing::West, winW, winH, trimMat);
-                result.voxels.insert(result.voxels.end(), frameL.voxels.begin(), frameL.voxels.end());
+        // Stairwell railing on upper floors
+        if (hasStairwell) {
+            for (int story = 1; story < stories; ++story) {
+                int baseY = story * storyHeight;
+                auto rail = generateRailing({swX, baseY + 1, swZ - 1}, Facing::North, swW, trimMat);
+                result.voxels.insert(result.voxels.end(), rail.voxels.begin(), rail.voxels.end());
             }
         }
 
         // Pitched roof over flat roof
         if (width >= 4 && depth >= 4) {
-            auto roof = generatePitchedRoof({0, height + 1, 0}, Facing::North, width, depth, materials.roof);
+            auto roof = generatePitchedRoof({0, totalHeight + 1, 0}, Facing::North, width, depth, materials.roof);
             result.voxels.insert(result.voxels.end(), roof.voxels.begin(), roof.voxels.end());
         }
     }
@@ -686,10 +791,15 @@ StructureResult StructureGenerator::generateHouse(const glm::ivec3& pos, int wid
 StructureResult StructureGenerator::generateTavern(const glm::ivec3& pos, int width, int depth, int stories,
                                                     const MaterialPalette& materials, Facing facing,
                                                     bool furnished,
-                                                    DetailLevel detail) {
+                                                    DetailLevel detail,
+                                                    int tables, int beds) {
     StructureResult result;
     int storyHeight = 5; // 4 interior + 1 ceiling/floor
     int totalHeight = stories * storyHeight + 1; // +1 for final roof
+
+    // Auto-calculate table/bed counts if not specified
+    int numTables = (tables >= 0) ? tables : std::min(3, (width - 4) / 4);
+    int numBeds = (beds >= 0) ? beds : ((width >= 10) ? 2 : 1);
 
     // -- Ground floor shell --
     // Floor
@@ -797,10 +907,18 @@ StructureResult StructureGenerator::generateTavern(const glm::ivec3& pos, int wi
         auto counter = generateCounter({2, 1, depth - 3}, Facing::North, counterLen, materials.furniture);
         result.voxels.insert(result.voxels.end(), counter.voxels.begin(), counter.voxels.end());
 
-        // Tables in the main hall (2-3 tables depending on size)
-        int numTables = std::min(3, (width - 4) / 4);
-        for (int t = 0; t < numTables; ++t) {
+        result.locations.push_back({
+            "", "Bar Counter",
+            glm::vec3(2.0f + counterLen / 2.0f, 1.0f, static_cast<float>(depth - 3)),
+            static_cast<float>(counterLen) / 2.0f,
+            LocationType::Tavern
+        });
+
+        // Tables in the main hall
+        int actualTables = std::min(numTables, (width - 4) / 4); // cap to fit
+        for (int t = 0; t < actualTables; ++t) {
             int tx = 2 + t * 4;
+            if (tx + 3 >= width - 1) break; // don't overflow into wall
             auto table = generateTable({tx, 1, depth / 3}, Facing::North, materials.furniture);
             result.voxels.insert(result.voxels.end(), table.voxels.begin(), table.voxels.end());
 
@@ -809,6 +927,14 @@ StructureResult StructureGenerator::generateTavern(const glm::ivec3& pos, int wi
             result.voxels.insert(result.voxels.end(), chair1.voxels.begin(), chair1.voxels.end());
             auto chair2 = generateChair({tx + 2, 1, depth / 3 + 2}, Facing::North, materials.furniture);
             result.voxels.insert(result.voxels.end(), chair2.voxels.begin(), chair2.voxels.end());
+
+            // Table location marker
+            result.locations.push_back({
+                "", "Table",
+                glm::vec3(static_cast<float>(tx + 1), 1.0f, static_cast<float>(depth / 3)),
+                2.0f,
+                LocationType::Custom
+            });
         }
     }
 
@@ -826,13 +952,22 @@ StructureResult StructureGenerator::generateTavern(const glm::ivec3& pos, int wi
         if (furnished && width >= 8 && depth >= 8) {
             for (int story = 1; story < stories; ++story) {
                 int baseY = story * storyHeight + 1;
-                // Bed in left corner
-                auto bed1 = generateBed({1, baseY, 1}, Facing::South, materials.furniture);
-                result.voxels.insert(result.voxels.end(), bed1.voxels.begin(), bed1.voxels.end());
-                // Bed in right area (away from stairwell)
-                if (width >= 10) {
-                    auto bed2 = generateBed({1, baseY, depth / 2}, Facing::South, materials.furniture);
-                    result.voxels.insert(result.voxels.end(), bed2.voxels.begin(), bed2.voxels.end());
+                int bedsThisFloor = numBeds;
+                int availZ = depth - 4 - 2; // exclude stairwell and walls
+                int bedSpacing = (bedsThisFloor > 1) ? std::max(4, availZ / bedsThisFloor) : 0;
+
+                for (int b = 0; b < bedsThisFloor; ++b) {
+                    int bedZ = 1 + b * bedSpacing;
+                    if (bedZ + 3 >= depth - 4) break; // don't overlap stairwell
+                    auto bed = generateBed({1, baseY, bedZ}, Facing::South, materials.furniture);
+                    result.voxels.insert(result.voxels.end(), bed.voxels.begin(), bed.voxels.end());
+
+                    result.locations.push_back({
+                        "", "Bed",
+                        glm::vec3(2.0f, static_cast<float>(baseY), static_cast<float>(bedZ + 1)),
+                        2.0f,
+                        LocationType::Home
+                    });
                 }
             }
         }
@@ -850,19 +985,6 @@ StructureResult StructureGenerator::generateTavern(const glm::ivec3& pos, int wi
             if (startX > 0 && startX < width - 1) {
                 auto frame = generateDoorFrame({startX, 1, 0}, Facing::North, doorW, 3, trimMat);
                 result.voxels.insert(result.voxels.end(), frame.voxels.begin(), frame.voxels.end());
-            }
-        }
-
-        // Window frames on ground-floor side walls
-        if (depth >= 6) {
-            int winY = 2, winW = 2, winH = 2;
-            int positions[] = {depth / 4, 3 * depth / 4 - 1};
-            for (int winZ : positions) {
-                if (winZ < 1 || winZ + winW > depth - 1) continue;
-                auto frameR = generateWindowFrame({0, winY, winZ}, Facing::East, winW, winH, trimMat);
-                result.voxels.insert(result.voxels.end(), frameR.voxels.begin(), frameR.voxels.end());
-                auto frameL = generateWindowFrame({0, winY, winZ}, Facing::West, winW, winH, trimMat);
-                result.voxels.insert(result.voxels.end(), frameL.voxels.begin(), frameL.voxels.end());
             }
         }
 
@@ -1066,13 +1188,19 @@ StructureResult StructureGenerator::generateFromJson(const nlohmann::json& def) 
         int d = def.value("depth", 10);
         int h = def.value("height", 5);
         int windows = def.value("windows", 2);
-        return generateHouse(pos, w, d, h, materials, facing, windows, furnished, detail);
+        int houseStories = def.value("stories", 1);
+        int bedroomCount = def.value("bedrooms", 0);
+        return generateHouse(pos, w, d, h, materials, facing, windows, furnished, detail,
+                             houseStories, bedroomCount);
 
     } else if (type == "tavern") {
         int w = def.value("width", 14);
         int d = def.value("depth", 18);
         int stories = def.value("stories", 2);
-        return generateTavern(pos, w, d, stories, materials, facing, furnished, detail);
+        int tavernTables = def.value("tables", -1);
+        int tavernBeds = def.value("beds", -1);
+        return generateTavern(pos, w, d, stories, materials, facing, furnished, detail,
+                              tavernTables, tavernBeds);
 
     } else if (type == "tower") {
         int r = def.value("radius", 4);
@@ -1156,18 +1284,22 @@ nlohmann::json StructureGenerator::getStructureTypes() {
                     {"depth", "int(6)"}, {"materials", "MaterialPalette"}}}
     });
     types.push_back({
-        {"type", "house"}, {"description", "Simple house with door, windows, and optional furniture"},
+        {"type", "house"}, {"description", "House with optional multi-story, stairwells, and bedrooms"},
         {"params", {{"position", "ivec3"}, {"width", "int(8)"}, {"depth", "int(10)"},
                     {"height", "int(5)"}, {"materials", "MaterialPalette"},
                     {"facing", "north|east|south|west"}, {"windows", "int(2)"}, {"furnished", "bool(true)"},
-                    {"detail_level", "rough|detailed|fine (default: detailed)"}}}
+                    {"detail_level", "rough|detailed|fine (default: detailed)"},
+                    {"stories", "int(1) — multi-story with stairwells when >1"},
+                    {"bedrooms", "int(0) — adds internal room partitions with beds"}}}
     });
     types.push_back({
-        {"type", "tavern"}, {"description", "Multi-story tavern with bar, tables, and upstairs rooms"},
+        {"type", "tavern"}, {"description", "Multi-story tavern with bar, configurable tables, and upstairs beds"},
         {"params", {{"position", "ivec3"}, {"width", "int(14)"}, {"depth", "int(18)"},
                     {"stories", "int(2)"}, {"materials", "MaterialPalette"},
                     {"facing", "north|east|south|west"}, {"furnished", "bool(true)"},
-                    {"detail_level", "rough|detailed|fine (default: detailed)"}}}
+                    {"detail_level", "rough|detailed|fine (default: detailed)"},
+                    {"tables", "int(-1) — number of tables (-1 = auto)"},
+                    {"beds", "int(-1) — beds per upper floor (-1 = auto)"}}}
     });
     types.push_back({
         {"type", "tower"}, {"description", "Cylindrical tower with door and spiral staircase"},
