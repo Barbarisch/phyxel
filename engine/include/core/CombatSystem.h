@@ -44,9 +44,10 @@ struct DamageEvent {
     DamageType type = DamageType::Physical;
     glm::vec3 knockback{0.0f};
     bool killed = false;
+    std::string hitBone;  // Name of the bone AABB that was hit (empty if not bone-tested)
 
     nlohmann::json toJson() const {
-        return {
+        nlohmann::json j = {
             {"attackerId", attackerId},
             {"targetId", targetId},
             {"amount", amount},
@@ -54,6 +55,8 @@ struct DamageEvent {
             {"type", damageTypeToString(type)},
             {"killed", killed}
         };
+        if (!hitBone.empty()) j["hitBone"] = hitBone;
+        return j;
     }
 };
 

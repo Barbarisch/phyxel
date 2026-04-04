@@ -2,6 +2,7 @@
 #include "core/EntityRegistry.h"
 #include "core/HealthComponent.h"
 #include "scene/Entity.h"
+#include "scene/AnimatedVoxelCharacter.h"
 #include "utils/Logger.h"
 
 #include <glm/gtc/constants.hpp>
@@ -41,6 +42,27 @@ std::vector<DamageEvent> CombatSystem::performAttack(
 
         if (dot < coneThreshold) continue; // Outside cone
 
+        // Bone AABB refinement: if target is an animated character,
+        // check if the attack sphere actually overlaps any bone AABB
+        std::string hitBoneName;
+        if (auto* animChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity)) {
+            auto boneAABBs = animChar->getBoneAABBs();
+            bool boneHit = false;
+            for (const auto& bone : boneAABBs) {
+                // Sphere-AABB overlap: closest point on AABB to sphere center
+                glm::vec3 bmin = bone.center - bone.halfExtents;
+                glm::vec3 bmax = bone.center + bone.halfExtents;
+                glm::vec3 closest = glm::clamp(params.attackerPos, bmin, bmax);
+                float d2 = glm::dot(closest - params.attackerPos, closest - params.attackerPos);
+                if (d2 <= params.reach * params.reach) {
+                    boneHit = true;
+                    hitBoneName = bone.boneName;
+                    break;
+                }
+            }
+            if (!boneHit) continue; // Attack didn't reach any bone
+        }
+
         // Get health component
         auto* health = entity->getHealthComponent();
         if (!health || !health->isAlive()) continue;
@@ -60,6 +82,7 @@ std::vector<DamageEvent> CombatSystem::performAttack(
         event.type = params.damageType;
         event.knockback = knockback;
         event.killed = !health->isAlive();
+        event.hitBone = hitBoneName;
 
         // Apply invulnerability frames
         m_invulnTimers[entityId] = m_invulnDuration;
