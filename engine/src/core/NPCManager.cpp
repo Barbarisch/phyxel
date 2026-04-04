@@ -234,6 +234,12 @@ void NPCManager::onVoxelChanged(const glm::ivec3& worldPos) {
     }
 }
 
+void NPCManager::onRegionChanged(const glm::ivec3& minPos, const glm::ivec3& maxPos) {
+    if (m_navGrid) {
+        m_navGrid->rebuildRegion(minPos.x, minPos.z, maxPos.x, maxPos.z);
+    }
+}
+
 const NPCManager::AnimTemplate* NPCManager::getOrLoadTemplate(const std::string& animFile) {
     auto it = m_templateCache.find(animFile);
     if (it != m_templateCache.end()) {

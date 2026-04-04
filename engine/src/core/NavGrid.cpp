@@ -69,6 +69,44 @@ void NavGrid::rebuildCell(int x, int z) {
     }
 }
 
+void NavGrid::rebuildRegion(int minX, int minZ, int maxX, int maxZ) {
+    // Rebuild all cells in the region (only those already in the grid)
+    for (int x = minX; x <= maxX; ++x) {
+        for (int z = minZ; z <= maxZ; ++z) {
+            int64_t key = packKey(x, z);
+            auto it = m_cells.find(key);
+            if (it != m_cells.end()) {
+                it->second = buildCell(x, z);
+            }
+        }
+    }
+
+    // Recompute nearWall for the region + 1-cell border
+    static const int dx[] = { 0, 1, 1, 1, 0, -1, -1, -1 };
+    static const int dz[] = { 1, 1, 0, -1, -1, -1, 0, 1 };
+    for (int x = minX - 1; x <= maxX + 1; ++x) {
+        for (int z = minZ - 1; z <= maxZ + 1; ++z) {
+            auto cit = m_cells.find(packKey(x, z));
+            if (cit == m_cells.end() || !cit->second.walkable) continue;
+
+            bool near = false;
+            for (int i = 0; i < 8 && !near; ++i) {
+                auto nit = m_cells.find(packKey(x + dx[i], z + dz[i]));
+                if (nit == m_cells.end()) continue;
+                if (!nit->second.walkable) {
+                    near = true;
+                } else {
+                    int heightDiff = nit->second.surfaceY - cit->second.surfaceY;
+                    if (heightDiff > MAX_STEP_DOWN) {
+                        near = true;
+                    }
+                }
+            }
+            cit->second.nearWall = near;
+        }
+    }
+}
+
 const NavCell* NavGrid::getCell(int x, int z) const {
     auto it = m_cells.find(packKey(x, z));
     return (it != m_cells.end()) ? &it->second : nullptr;

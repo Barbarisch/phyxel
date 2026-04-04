@@ -165,6 +165,11 @@ void NPCEntity::setContext(Core::EntityRegistry* registry, Graphics::LightManage
     m_context.chunkManager = chunkManager;
     m_context.raycastVisualizer = raycastVisualizer;
 
+    // Wire voxel collision queries to the animated character
+    if (m_character && chunkManager) {
+        m_character->setChunkManager(chunkManager);
+    }
+
     if (registry) {
         m_context.getEntityPosition = [registry](const std::string& id) -> glm::vec3 {
             auto* entity = registry->getEntity(id);

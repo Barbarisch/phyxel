@@ -146,6 +146,9 @@ public:
     /// Notify the nav grid that a voxel changed at the given world position.
     void onVoxelChanged(const glm::ivec3& worldPos);
 
+    /// Notify the nav grid that a region of voxels changed (e.g. template spawn, batch placement).
+    void onRegionChanged(const glm::ivec3& minPos, const glm::ivec3& maxPos);
+
 private:
     Physics::PhysicsWorld* m_physicsWorld = nullptr;
     EntityRegistry* m_entityRegistry = nullptr;
