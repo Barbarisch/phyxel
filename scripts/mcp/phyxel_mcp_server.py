@@ -313,7 +313,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="spawn_template",
-            description="Spawn a pre-built voxel object template at a world position. Use list_templates first to see available templates.",
+            description="Spawn a pre-built voxel object template at a world position. Use list_templates first to see available templates. Optionally rotate 0/90/180/270 degrees clockwise around Y axis.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -321,7 +321,9 @@ async def list_tools() -> list[Tool]:
                     "x": {"type": "number", "description": "X position"},
                     "y": {"type": "number", "description": "Y position"},
                     "z": {"type": "number", "description": "Z position"},
-                    "static": {"type": "boolean", "description": "If true, merges into terrain. If false, creates physics objects.", "default": True}
+                    "static": {"type": "boolean", "description": "If true, merges into terrain. If false, creates physics objects.", "default": True},
+                    "rotation": {"type": "integer", "description": "Rotation in degrees: 0, 90, 180, or 270 (clockwise around Y)", "default": 0},
+                    "parent_id": {"type": "string", "description": "Optional parent placed object ID (e.g. 'tavern_1') to establish ownership hierarchy"}
                 },
                 "required": ["name", "x", "y", "z"]
             }
@@ -355,7 +357,8 @@ async def list_tools() -> list[Tool]:
                     "hollow": {"type": "boolean", "description": "Hollow box", "default": False},
                     "end": {"type": "object", "description": "End point for wall segment", "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}, "z": {"type": "integer"}}},
                     "thickness": {"type": "integer", "description": "Wall thickness"},
-                    "detail_level": {"type": "string", "description": "Detail level: rough (cube-only), detailed (cube+subcube trim), fine (future). Default: detailed", "default": "detailed", "enum": ["rough", "detailed", "fine"]}
+                    "detail_level": {"type": "string", "description": "Detail level: rough (cube-only), detailed (cube+subcube trim), fine (future). Default: detailed", "default": "detailed", "enum": ["rough", "detailed", "fine"]},
+                    "parent_id": {"type": "string", "description": "Optional parent placed object ID to establish ownership hierarchy"}
                 },
                 "required": ["type", "position"]
             }
@@ -613,6 +616,147 @@ async def list_tools() -> list[Tool]:
         ),
 
         # ================================================================
+        # Undo / Redo
+        # ================================================================
+        Tool(
+            name="undo",
+            description="Undo the last destructive voxel operation (fill_region, clear_region, spawn_template, build_structure, place_voxels_batch). Automatically captures state before each operation. Supports up to 20 levels of undo. Each undo pushes the current state to the redo stack.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+            }
+        ),
+        Tool(
+            name="redo",
+            description="Redo the last undone operation. Only available after an undo. Any new destructive operation clears the redo stack.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+            }
+        ),
+        Tool(
+            name="get_undo_status",
+            description="Get the current undo/redo stack status: depth, whether undo/redo is available, and a list of operations in each stack.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+            }
+        ),
+
+        # ================================================================
+        # Placed Objects (furniture / structure tracking)
+        # ================================================================
+        Tool(
+            name="list_placed_objects",
+            description="List all placed objects (furniture, structures) tracked by the PlacedObjectManager. Returns id, template name, category, position, rotation, and bounding box for each.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+            }
+        ),
+        Tool(
+            name="get_placed_object",
+            description="Get detailed info about a specific placed object by its ID.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Placed object ID (e.g. 'test_chair_3')"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="remove_placed_object",
+            description="Remove a placed object from the world. Clears all voxels in its bounding box and deletes the registry entry. Supports undo.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Placed object ID to remove"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="move_placed_object",
+            description="Move a placed object to a new position. Clears voxels at old location and re-places the template at the new position. Only works for template-based objects (not structures).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Placed object ID to move"},
+                    "position": {
+                        "type": "object",
+                        "description": "New world position",
+                        "properties": {
+                            "x": {"type": "integer"},
+                            "y": {"type": "integer"},
+                            "z": {"type": "integer"}
+                        },
+                        "required": ["x", "y", "z"]
+                    }
+                },
+                "required": ["id", "position"]
+            }
+        ),
+        Tool(
+            name="rotate_placed_object",
+            description="Rotate a placed object to a new rotation. Clears voxels and re-places with new rotation. Only works for template-based objects. Rotation: 0, 90, 180, 270 degrees.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Placed object ID to rotate"},
+                    "rotation": {"type": "integer", "description": "New rotation in degrees (0, 90, 180, 270)"}
+                },
+                "required": ["id", "rotation"]
+            }
+        ),
+        Tool(
+            name="get_objects_at",
+            description="Find all placed objects whose bounding box contains a given world position.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "x": {"type": "integer", "description": "World X coordinate"},
+                    "y": {"type": "integer", "description": "World Y coordinate"},
+                    "z": {"type": "integer", "description": "World Z coordinate"}
+                },
+                "required": ["x", "y", "z"]
+            }
+        ),
+        Tool(
+            name="set_object_parent",
+            description="Set or change the parent of a placed object, establishing an ownership hierarchy (e.g. chair belongs to tavern). Set parent_id to empty string to make it a root object. Prevents circular references.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Placed object ID to re-parent"},
+                    "parent_id": {"type": "string", "description": "New parent object ID, or empty string to make root-level"}
+                },
+                "required": ["id", "parent_id"]
+            }
+        ),
+        Tool(
+            name="get_object_children",
+            description="Get all direct children of a placed object. Pass empty id to get all root-level objects (objects with no parent).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Parent object ID (empty string for root-level objects)", "default": ""}
+                },
+            }
+        ),
+        Tool(
+            name="get_object_tree",
+            description="Get the full ownership tree rooted at an object, including all nested descendants. Returns a JSON tree with 'children' arrays at each level.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Root object ID for the tree"}
+                },
+                "required": ["id"]
+            }
+        ),
+
+        # ================================================================
         # Clipboard (copy / paste regions)
         # ================================================================
         Tool(
@@ -654,6 +798,26 @@ async def list_tools() -> list[Tool]:
                 "required": []
             }
         ),
+        Tool(
+            name="move_region",
+            description="Move a voxel region to a new position. Captures all cubes/subcubes/microcubes, clears the source, optionally rotates, then places at the destination. Max 100k voxels. Great for moving furniture or objects.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "x1": {"type": "integer", "description": "Source region first corner X"},
+                    "y1": {"type": "integer", "description": "Source region first corner Y"},
+                    "z1": {"type": "integer", "description": "Source region first corner Z"},
+                    "x2": {"type": "integer", "description": "Source region opposite corner X"},
+                    "y2": {"type": "integer", "description": "Source region opposite corner Y"},
+                    "z2": {"type": "integer", "description": "Source region opposite corner Z"},
+                    "dx": {"type": "integer", "description": "Destination X (new min corner)"},
+                    "dy": {"type": "integer", "description": "Destination Y (new min corner)"},
+                    "dz": {"type": "integer", "description": "Destination Z (new min corner)"},
+                    "rotate": {"type": "integer", "description": "Rotation in degrees: 0, 90, 180, or 270 (clockwise around Y)", "default": 0}
+                },
+                "required": ["x1", "y1", "z1", "x2", "y2", "z2", "dx", "dy", "dz"]
+            }
+        ),
 
         # ================================================================
         # World Generation
@@ -680,6 +844,87 @@ async def list_tools() -> list[Tool]:
                     }}
                 },
                 "required": ["type"]
+            }
+        ),
+
+        # ================================================================
+        # Template Generation (BlockSmith AI)
+        # ================================================================
+        Tool(
+            name="generate_template",
+            description="Generate a voxel template from a text description using BlockSmith (LLM-powered). Creates a .txt template file that can be spawned with spawn_template. If the template already exists, returns the cached version (use force=true to regenerate). Requires ANTHROPIC_API_KEY or PHYXEL_AI_API_KEY.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "prompt": {"type": "string", "description": "Text description of the object to generate (e.g., 'a wooden chair', 'medieval torch', 'tavern bar counter')"},
+                    "name": {"type": "string", "description": "Template name (used as filename, no extension)"},
+                    "material": {"type": "string", "description": "Default material for the model", "default": "Wood"},
+                    "size": {"type": "number", "description": "Target size in world cubes (1.0 = one block)", "default": 3.0},
+                    "force": {"type": "boolean", "description": "Force regeneration even if template already exists", "default": False}
+                },
+                "required": ["prompt", "name"]
+            }
+        ),
+        Tool(
+            name="search_templates",
+            description="Search the generated template catalog by name or prompt keyword. Returns matching templates with their metadata (prompt, material, size, primitive counts). Only searches AI-generated templates, not hand-crafted ones.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search term to match against template names and generation prompts"}
+                },
+                "required": ["query"]
+            }
+        ),
+        Tool(
+            name="list_generated_templates",
+            description="List all AI-generated templates from the catalog with their prompts, materials, sizes, and primitive counts.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+
+        Tool(
+            name="build_building",
+            description="Generate an LLM-designed building using BlockSmith and spawn it in the world. "
+                        "Produces multi-material structures (different materials for walls, floor, roof) with "
+                        "door/window openings. Much higher visual quality than build_structure for buildings. "
+                        "Buildings are cached — identical parameters return the cached template instantly. "
+                        "Requires ANTHROPIC_API_KEY or PHYXEL_AI_API_KEY.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Template name for caching (e.g. 'tavern_medieval')"},
+                    "position": {
+                        "type": "object",
+                        "description": "World position to place the building",
+                        "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}, "z": {"type": "integer"}},
+                        "required": ["x", "y", "z"]
+                    },
+                    "building_type": {"type": "string", "description": "Building type: house, tavern, tower, shop, temple, barn", "default": "house"},
+                    "style": {"type": "string", "description": "Architectural style (medieval, elven, dwarven, gothic, rustic)", "default": "medieval"},
+                    "width": {"type": "integer", "description": "Width in blocks (X axis)", "default": 10},
+                    "depth": {"type": "integer", "description": "Depth in blocks (Z axis)", "default": 12},
+                    "height": {"type": "integer", "description": "Interior height per story in blocks", "default": 4},
+                    "stories": {"type": "integer", "description": "Number of stories", "default": 1},
+                    "door_facing": {"type": "string", "description": "Which wall has the door: front, back, left, right", "default": "front"},
+                    "windows": {"type": "integer", "description": "Windows per side wall per story", "default": 2},
+                    "materials": {
+                        "type": "object",
+                        "description": "Material palette: {wall, floor, roof, trim, accent}",
+                        "properties": {
+                            "wall": {"type": "string"}, "floor": {"type": "string"},
+                            "roof": {"type": "string"}, "trim": {"type": "string"},
+                            "accent": {"type": "string"}
+                        }
+                    },
+                    "rotation": {"type": "integer", "description": "Y-axis rotation: 0, 90, 180, 270", "default": 0, "enum": [0, 90, 180, 270]},
+                    "extra_notes": {"type": "string", "description": "Additional creative direction for the LLM"},
+                    "force": {"type": "boolean", "description": "Force regeneration of cached template", "default": False},
+                },
+                "required": ["name", "position"]
             }
         ),
 
@@ -2598,11 +2843,16 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         return await api_get("/api/templates")
 
     elif name == "spawn_template":
-        return await api_post("/api/world/template", {
+        body = {
             "name": args["name"],
             "position": {"x": args["x"], "y": args["y"], "z": args["z"]},
             "static": args.get("static", True)
-        })
+        }
+        if "rotation" in args:
+            body["rotation"] = args["rotation"]
+        if "parent_id" in args:
+            body["parent_id"] = args["parent_id"]
+        return await api_post("/api/world/template", body)
 
     # --- Structures ---
     elif name == "build_structure":
@@ -2726,6 +2976,59 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     elif name == "delete_snapshot":
         return await api_post("/api/snapshot/delete", {"name": args["name"]})
 
+    # --- Undo / Redo ---
+    elif name == "undo":
+        return await api_post("/api/undo", {})
+
+    elif name == "redo":
+        return await api_post("/api/redo", {})
+
+    elif name == "get_undo_status":
+        return await api_get("/api/undo/status")
+
+    # --- Placed Objects ---
+    elif name == "list_placed_objects":
+        return await api_get("/api/placed_objects")
+
+    elif name == "get_placed_object":
+        return await api_get("/api/placed_object", {"id": args["id"]})
+
+    elif name == "remove_placed_object":
+        return await api_post("/api/placed_object/remove", {"id": args["id"]})
+
+    elif name == "move_placed_object":
+        return await api_post("/api/placed_object/move", {
+            "id": args["id"],
+            "position": args["position"]
+        })
+
+    elif name == "rotate_placed_object":
+        return await api_post("/api/placed_object/rotate", {
+            "id": args["id"],
+            "rotation": args["rotation"]
+        })
+
+    elif name == "get_objects_at":
+        return await api_get("/api/placed_objects/at", {
+            "x": str(args["x"]), "y": str(args["y"]), "z": str(args["z"])
+        })
+
+    elif name == "set_object_parent":
+        return await api_post("/api/placed_object/set_parent", {
+            "id": args["id"],
+            "parent_id": args["parent_id"]
+        })
+
+    elif name == "get_object_children":
+        return await api_get("/api/placed_object/children", {
+            "id": args.get("id", "")
+        })
+
+    elif name == "get_object_tree":
+        return await api_get("/api/placed_object/tree", {
+            "id": args["id"]
+        })
+
     # --- Clipboard ---
     elif name == "copy_region":
         return await api_post("/api/clipboard/copy", {
@@ -2742,6 +3045,16 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     elif name == "get_clipboard":
         return await api_get("/api/clipboard")
 
+    elif name == "move_region":
+        body = {
+            "x1": args["x1"], "y1": args["y1"], "z1": args["z1"],
+            "x2": args["x2"], "y2": args["y2"], "z2": args["z2"],
+            "dx": args["dx"], "dy": args["dy"], "dz": args["dz"]
+        }
+        if "rotate" in args:
+            body["rotate"] = args["rotate"]
+        return await api_post("/api/world/move_region", body)
+
     # --- World Generation ---
     elif name == "generate_world":
         body: dict[str, Any] = {"type": args["type"]}
@@ -2756,6 +3069,110 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         if "params" in args:
             body["params"] = args["params"]
         return await api_post_async("/api/world/generate", body)
+
+    # --- Template Generation (BlockSmith) ---
+    elif name == "generate_template":
+        import subprocess as _sp
+        cmd = [
+            sys.executable,
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "tools", "blocksmith_generate.py"),
+            args["prompt"],
+            "--name", args["name"],
+            "--material", args.get("material", "Wood"),
+            "--size", str(args.get("size", 3.0)),
+            "--json",
+        ]
+        if args.get("force", False):
+            cmd.append("--force")
+        result = _sp.run(cmd, capture_output=True, text=True, timeout=120)
+        if result.returncode != 0:
+            return {"success": False, "error": result.stderr.strip() or "Generation failed"}
+        try:
+            return json.loads(result.stdout.strip().split("\n")[-1])
+        except json.JSONDecodeError:
+            return {"success": False, "error": f"Failed to parse output: {result.stdout}"}
+
+    elif name == "search_templates":
+        catalog_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "resources", "templates", "template_catalog.json")
+        if not os.path.exists(catalog_path):
+            return {"results": [], "message": "No catalog found"}
+        with open(catalog_path, "r", encoding="utf-8") as f:
+            catalog = json.load(f)
+        query = args["query"].lower()
+        results = []
+        for name_key, info in catalog.items():
+            if query in name_key.lower() or query in info.get("prompt", "").lower():
+                results.append({"name": name_key, **info})
+        return {"results": results, "count": len(results)}
+
+    elif name == "list_generated_templates":
+        catalog_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "resources", "templates", "template_catalog.json")
+        if not os.path.exists(catalog_path):
+            return {"templates": [], "count": 0}
+        with open(catalog_path, "r", encoding="utf-8") as f:
+            catalog = json.load(f)
+        templates = [{"name": k, **v} for k, v in catalog.items()]
+        return {"templates": templates, "count": len(templates)}
+
+    elif name == "build_building":
+        import subprocess as _sp
+        # Step 1: Generate building template via blocksmith_generate.py --building
+        tools_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "tools")
+        cmd = [
+            sys.executable,
+            os.path.join(tools_dir, "blocksmith_generate.py"),
+            args.get("extra_notes", ""),
+            "--name", args["name"],
+            "--building",
+            "--building-type", args.get("building_type", "house"),
+            "--style", args.get("style", "medieval"),
+            "--width", str(args.get("width", 10)),
+            "--depth", str(args.get("depth", 12)),
+            "--height", str(args.get("height", 4)),
+            "--stories", str(args.get("stories", 1)),
+            "--door-facing", args.get("door_facing", "front"),
+            "--windows", str(args.get("windows", 2)),
+            "--json",
+        ]
+        if args.get("materials"):
+            cmd.extend(["--materials", json.dumps(args["materials"])])
+        if args.get("force", False):
+            cmd.append("--force")
+
+        gen_result = _sp.run(cmd, capture_output=True, text=True, timeout=180)
+        if gen_result.returncode != 0:
+            return {"success": False, "error": gen_result.stderr.strip() or "Building generation failed"}
+        try:
+            gen_info = json.loads(gen_result.stdout.strip().split("\n")[-1])
+        except json.JSONDecodeError:
+            return {"success": False, "error": f"Failed to parse output: {gen_result.stdout}"}
+        if not gen_info.get("success"):
+            return gen_info
+
+        # Step 2: Spawn the template in the world
+        pos = args["position"]
+        rotation = args.get("rotation", 0)
+        spawn_body = {
+            "name": args["name"],
+            "x": pos["x"],
+            "y": pos["y"],
+            "z": pos["z"],
+            "dynamic": False,
+        }
+        if rotation:
+            spawn_body["rotation"] = rotation
+        spawn_result = await api_post("/api/world/template", spawn_body)
+
+        return {
+            "success": True,
+            "template": gen_info,
+            "spawn": spawn_result,
+            "building_type": args.get("building_type", "house"),
+            "style": args.get("style", "medieval"),
+            "position": pos,
+            "rotation": rotation,
+            "cached": gen_info.get("cached", False),
+        }
 
     # --- Template Save ---
     elif name == "save_template":
