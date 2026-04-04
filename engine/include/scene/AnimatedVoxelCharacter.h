@@ -47,6 +47,9 @@ namespace Scene {
         StopRun,
         ClimbStairs,
         DescendStairs,
+        SitDown,      // playing sit-down transition animation
+        SittingIdle,  // looping seated idle
+        SitStandUp,   // playing stand-up-from-seat animation
         Preview
     };
 
@@ -125,6 +128,14 @@ namespace Scene {
         // Voxel model access (for anim editor)
         const Phyxel::VoxelModel& getVoxelModel() const { return voxelModel; }
         void setVoxelModel(const Phyxel::VoxelModel& model);
+
+        // Sitting
+        /// Move character to sit on a seat whose surface is at seatSurfacePos,
+        /// facing facingYaw degrees. Scale-aware: aligns hip bone to seat surface.
+        void sitAt(const glm::vec3& seatSurfacePos, float facingYaw);
+        /// Begin standing up from seated state.
+        void standUp();
+        bool isSitting() const { return m_isSitting; }
 
         // ---- Bone Attachments (weapons, equipment visuals) ----
 
@@ -317,6 +328,11 @@ namespace Scene {
         std::map<int, int> m_boneToCompoundChild;        // boneId → compound child index
         float m_originalHalfHeight = 0.95f;              // Original box half-height (for movement)
         float m_originalHalfWidth = 0.425f;              // Original box half-width (for movement)
+
+        // Sitting state
+        bool m_isSitting = false;
+        glm::vec3 m_seatRootPos{0.0f};  // pinned world root position while seated
+        float m_seatFacingYaw = 0.0f;
 
         // Per-limb voxel collision
         Phyxel::ChunkManager* m_chunkManager = nullptr;

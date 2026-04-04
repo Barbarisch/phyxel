@@ -1119,6 +1119,65 @@ namespace Scene {
         buildBodiesFromModel();
     }
 
+    void AnimatedVoxelCharacter::sitAt(const glm::vec3& seatSurfacePos, float facingYaw) {
+        if (m_isSitting) return;
+
+        // Compute hip height above the character's root in T-pose using global transforms.
+        // This automatically accounts for skeleton scale (dwarfs, giants, etc.).
+        float hipHeight = 0.0f;
+        if (!skeleton.bones.empty()) {
+            // Build T-pose global transforms
+            std::vector<glm::mat4> globalT(skeleton.bones.size(), glm::mat4(1.0f));
+            for (size_t i = 0; i < skeleton.bones.size(); ++i) {
+                const auto& bone = skeleton.bones[i];
+                glm::mat4 local = glm::translate(glm::mat4(1.0f), bone.localPosition)
+                                * glm::mat4_cast(bone.localRotation);
+                if (bone.parentId == -1)
+                    globalT[i] = local;
+                else if (bone.parentId >= 0 && bone.parentId < (int)skeleton.bones.size())
+                    globalT[i] = globalT[bone.parentId] * local;
+            }
+            // Find the Hips bone (case-insensitive partial match)
+            for (size_t i = 0; i < skeleton.bones.size(); ++i) {
+                std::string nameLower = skeleton.bones[i].name;
+                std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+                if (nameLower.find("hip") != std::string::npos) {
+                    hipHeight = globalT[i][3][1]; // model-space Y of hip bone
+                    break;
+                }
+            }
+            // Subtract the skeleton foot offset so hipHeight is relative to the root
+            hipHeight -= skeletonFootOffset_;
+            if (hipHeight < 0.1f) hipHeight = 0.8f; // fallback if bone not found
+        } else {
+            hipHeight = 0.8f;
+        }
+
+        // Solve for root Y: we want hipBoneWorldY == seatSurfacePos.y
+        m_seatRootPos = glm::vec3(seatSurfacePos.x, seatSurfacePos.y - hipHeight, seatSurfacePos.z);
+        m_seatFacingYaw = facingYaw;
+        m_isSitting = true;
+
+        // Teleport controller to seat position and kill velocity
+        currentYaw = facingYaw;
+        setPosition(m_seatRootPos);
+        if (controllerBody) {
+            controllerBody->setLinearVelocity(btVector3(0, 0, 0));
+            // Disable gravity while seated so the character doesn't slide down
+            controllerBody->setGravity(btVector3(0, 0, 0));
+        }
+
+        currentState = AnimatedCharacterState::SitDown;
+        stateTimer = 0.0f;
+        LOG_DEBUG("Character", "sitAt: hip={:.2f}, rootY={:.2f}", hipHeight, m_seatRootPos.y);
+    }
+
+    void AnimatedVoxelCharacter::standUp() {
+        if (!m_isSitting) return;
+        currentState = AnimatedCharacterState::SitStandUp;
+        stateTimer = 0.0f;
+    }
+
     AnimatedCharacterState AnimatedVoxelCharacter::stringToState(const std::string& str) {
         if (str == "Idle") return AnimatedCharacterState::Idle;
         if (str == "StartWalk") return AnimatedCharacterState::StartWalk;
@@ -1140,6 +1199,9 @@ namespace Scene {
         if (str == "WalkStrafeRight") return AnimatedCharacterState::WalkStrafeRight;
         if (str == "ClimbStairs") return AnimatedCharacterState::ClimbStairs;
         if (str == "DescendStairs") return AnimatedCharacterState::DescendStairs;
+        if (str == "SitDown") return AnimatedCharacterState::SitDown;
+        if (str == "SittingIdle") return AnimatedCharacterState::SittingIdle;
+        if (str == "SitStandUp") return AnimatedCharacterState::SitStandUp;
         if (str == "Preview") return AnimatedCharacterState::Preview;
         return AnimatedCharacterState::Idle;
     }
@@ -1248,6 +1310,9 @@ namespace Scene {
             case AnimatedCharacterState::StopRun: return "StopRun";
             case AnimatedCharacterState::ClimbStairs: return "ClimbStairs";
             case AnimatedCharacterState::DescendStairs: return "DescendStairs";
+            case AnimatedCharacterState::SitDown: return "SitDown";
+            case AnimatedCharacterState::SittingIdle: return "SittingIdle";
+            case AnimatedCharacterState::SitStandUp: return "SitStandUp";
             case AnimatedCharacterState::Preview: return "Preview";
             default: return "Unknown";
         }
@@ -1538,16 +1603,46 @@ namespace Scene {
                 }
                 break;
 
+            case AnimatedCharacterState::SitDown:
+                // One-shot: wait for sit-down animation to finish, then hold seated idle
+                if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
+                    currentState = AnimatedCharacterState::SittingIdle;
+                    stateTimer = 0.0f;
+                }
+                break;
+
+            case AnimatedCharacterState::SittingIdle:
+                // Stay seated. Jump or explicit standUp() call releases.
+                if (jumpRequested) {
+                    jumpRequested = false;
+                    standUp();
+                }
+                break;
+
+            case AnimatedCharacterState::SitStandUp:
+                // One-shot: wait for stand-up animation, then restore gravity and go Idle
+                if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
+                    m_isSitting = false;
+                    if (controllerBody) {
+                        // Restore normal gravity
+                        controllerBody->setGravity(
+                            physicsWorld->getWorld()->getGravity());
+                    }
+                    currentState = AnimatedCharacterState::Idle;
+                    stateTimer = 0.0f;
+                }
+                break;
+
             case AnimatedCharacterState::Preview:
                 // Exit preview if any input is detected
-                if (glm::abs(currentForwardInput) > 0.01f || 
-                    glm::abs(currentStrafeInput) > 0.01f || 
-                    glm::abs(currentTurnInput) > 0.01f || 
+                if (glm::abs(currentForwardInput) > 0.01f ||
+                    glm::abs(currentStrafeInput) > 0.01f ||
+                    glm::abs(currentTurnInput) > 0.01f ||
                     jumpRequested || attackRequested || isCrouching) {
                     currentState = AnimatedCharacterState::Idle;
                 }
                 break;
-                
+
             default:
                 currentState = AnimatedCharacterState::Idle;
                 break;
@@ -1688,7 +1783,28 @@ namespace Scene {
 
     void AnimatedVoxelCharacter::update(float deltaTime) {
         m_totalTime += deltaTime;
+
+        // --- Seated: pin controller position and skip all movement logic ---
+        if (m_isSitting && controllerBody) {
+            float halfHeight = getControllerHalfHeight();
+            btTransform trans;
+            trans.setIdentity();
+            trans.setOrigin(btVector3(m_seatRootPos.x,
+                                      m_seatRootPos.y + halfHeight,
+                                      m_seatRootPos.z));
+            controllerBody->setWorldTransform(trans);
+            controllerBody->getMotionState()->setWorldTransform(trans);
+            controllerBody->setLinearVelocity(btVector3(0, 0, 0));
+            worldPosition = m_seatRootPos;
+            currentYaw = m_seatFacingYaw;
+            // Still need to run the FSM so SitDown→SittingIdle→SitStandUp transitions work
+            updateStateMachine(deltaTime);
+            // Fall through to animation update below (skip physics movement block)
+            goto animate_and_render;
+        }
+
         // 1. Update Physics Controller
+        {
         bool usedExternalVelocity = false;
         if (controllerBody) {
             // External velocity mode (used by NPC patrol behavior)
@@ -1895,6 +2011,9 @@ namespace Scene {
                     case AnimatedCharacterState::StopRun: targetAnim = "run_to_stop"; break;
                     case AnimatedCharacterState::ClimbStairs: targetAnim = "stair_up"; break;
                     case AnimatedCharacterState::DescendStairs: targetAnim = "stair_down"; break;
+                    case AnimatedCharacterState::SitDown: targetAnim = "stand_to_sit"; break;
+                    case AnimatedCharacterState::SittingIdle: targetAnim = "sitting_idle"; break;
+                    case AnimatedCharacterState::SitStandUp: targetAnim = "sit_to_stand"; break;
                     case AnimatedCharacterState::Preview: targetAnim = ""; break;
                     default: targetAnim = "idle"; break;
                 }
@@ -1979,15 +2098,19 @@ namespace Scene {
             }
             } // end !usedExternalVelocity
         }
+        } // end movement block
 
+        animate_and_render:
         if (currentClipIndex >= 0 && currentClipIndex < clips.size()) {
             animTime += deltaTime;
             
             // Determine looping for current animation
-            bool loop = (currentState != AnimatedCharacterState::Attack && 
-                         currentState != AnimatedCharacterState::Jump && 
+            bool loop = (currentState != AnimatedCharacterState::Attack &&
+                         currentState != AnimatedCharacterState::Jump &&
                          currentState != AnimatedCharacterState::Crouch &&
-                         currentState != AnimatedCharacterState::CrouchIdle);
+                         currentState != AnimatedCharacterState::CrouchIdle &&
+                         currentState != AnimatedCharacterState::SitDown &&
+                         currentState != AnimatedCharacterState::SitStandUp);
             
             // Manual clamp for non-looping animations
             if (!loop && animTime > clips[currentClipIndex].duration) {
