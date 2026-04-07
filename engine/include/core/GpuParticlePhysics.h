@@ -160,8 +160,8 @@ private:
     static constexpr int OCC_TOTAL_WORDS = OCC_TOTAL_BITS / 32;          // 2,097,152 uint32s
 
     // Physics constants
-    static constexpr float GRAVITY         = -9.81f;
-    static constexpr float SLEEP_THRESH_SQ = 1e-5f; // per-frame velocity²
+    static constexpr float GRAVITY         = -18.0f;  // stronger pull for chunky voxel feel
+    static constexpr float SLEEP_THRESH_SQ = 5e-4f;   // settle faster
 
     // Material names in index order (index 0 = Default)
     static const std::vector<std::string> MATERIAL_NAMES;

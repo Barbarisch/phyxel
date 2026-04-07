@@ -323,10 +323,10 @@ void main() {
                     int cell = nx + ny * GRID_SIZE + nz * GRID_SIZE * GRID_SIZE;
 
                     uint j = gridCellHead[cell];
-                    int maxIter = 8; // cap iterations per cell to prevent infinite loops
+                    int maxIter = 8;
                     while (j != 0xFFFFFFFFu && maxIter > 0) {
                         maxIter--;
-                        if (j > i) { // only process each pair once
+                        if (j != i) { // skip self
                             GpuParticle q = particles[j];
                             if ((q.flags & PARTICLE_ACTIVE) != 0u) {
                                 float qhx = q.scale.x * 0.5;
@@ -343,41 +343,39 @@ void main() {
                                     pMin.y < qMax.y && pMax.y > qMin.y &&
                                     pMin.z < qMax.z && pMax.z > qMin.z)
                                 {
-                                    // Compute penetration on each axis
                                     float overlapX = min(pMax.x - qMin.x, qMax.x - pMin.x);
                                     float overlapY = min(pMax.y - qMin.y, qMax.y - pMin.y);
                                     float overlapZ = min(pMax.z - qMin.z, qMax.z - pMin.z);
 
-                                    // Push apart on shortest overlap axis
                                     vec3 velJ = q.position - q.prevPosition;
                                     MaterialPhysics matJ = materials[q.materialIndex];
-                                    float massI = mat.mass;
-                                    float massJ = matJ.mass;
-                                    float totalMass = massI + massJ;
-                                    float ratioI = massJ / totalMass; // heavier j → i moves more
-                                    float ratioJ = massI / totalMass;
+                                    float totalMass = mat.mass + matJ.mass;
+                                    float ratioI = matJ.mass / totalMass;
 
-                                    // Average restitution for the pair
-                                    float pairRest = (mat.restitution + matJ.restitution) * 0.5;
+                                    // Low restitution for inter-particle — solid, not bouncy
+                                    float pairRest = min(mat.restitution, matJ.restitution) * 0.25;
 
+                                    // Push THIS particle away from q along shortest overlap axis
+                                    // dir points from q toward p (the escape direction for p)
                                     if (overlapX <= overlapY && overlapX <= overlapZ) {
-                                        float sign = (p.position.x < q.position.x) ? -1.0 : 1.0;
-                                        p.position.x -= sign * overlapX * ratioI;
-                                        // Velocity exchange on X axis
+                                        float dir = (p.position.x > q.position.x) ? 1.0 : -1.0;
+                                        p.position.x += dir * (overlapX * 0.5 + 0.005) * ratioI;
                                         float relVel = vel.x - velJ.x;
                                         vel.x -= relVel * (1.0 + pairRest) * ratioI;
                                     } else if (overlapY <= overlapZ) {
-                                        float sign = (p.position.y < q.position.y) ? -1.0 : 1.0;
-                                        p.position.y -= sign * overlapY * ratioI;
+                                        float dir = (p.position.y > q.position.y) ? 1.0 : -1.0;
+                                        p.position.y += dir * (overlapY * 0.5 + 0.005) * ratioI;
                                         float relVel = vel.y - velJ.y;
                                         vel.y -= relVel * (1.0 + pairRest) * ratioI;
                                     } else {
-                                        float sign = (p.position.z < q.position.z) ? -1.0 : 1.0;
-                                        p.position.z -= sign * overlapZ * ratioI;
+                                        float dir = (p.position.z > q.position.z) ? 1.0 : -1.0;
+                                        p.position.z += dir * (overlapZ * 0.5 + 0.005) * ratioI;
                                         float relVel = vel.z - velJ.z;
                                         vel.z -= relVel * (1.0 + pairRest) * ratioI;
                                     }
 
+                                    // Contact damping — particles lose energy on collision
+                                    vel *= 0.85;
                                     hitAnything = true;
                                 }
                             }

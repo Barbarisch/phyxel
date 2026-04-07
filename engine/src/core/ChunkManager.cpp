@@ -529,8 +529,9 @@ static GpuParticlePhysics::SpawnParams makeSpawnParams(
         btVector3 v  = rb->getLinearVelocity();
         btVector3 av = rb->getAngularVelocity();
         btQuaternion q = rb->getWorldTransform().getRotation();
-        sp.velocity    = glm::vec3(v.x(),  v.y(),  v.z());
-        sp.angularVel  = glm::vec3(av.x(), av.y(), av.z());
+        // Scale down Bullet velocities — full impulse feels too explosive/snappy
+        sp.velocity    = glm::vec3(v.x(),  v.y(),  v.z()) * 0.3f;
+        sp.angularVel  = glm::vec3(av.x(), av.y(), av.z()) * 0.25f;
         sp.rotation    = glm::quat(q.w(),  q.x(),  q.y(),  q.z());
     }
     return sp;
