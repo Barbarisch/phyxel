@@ -1,6 +1,23 @@
 #version 450
+//
+// dynamic_voxel.vert — Procedural face-quad vertex shader for dynamic voxels.
+//
+// Rendering method:
+//   Pipeline topology:  VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
+//   Draw call:          vkCmdDrawIndirect (non-indexed) — vertexCount=6, instanceCount=N
+//   Cull/winding:       cullMode=CULL_FRONT, frontFace=CCW → CW triangles survive
+//
+// Each instance represents ONE face of a cube. The expand compute shader
+// emits 6 face instances per active particle. This shader generates two
+// triangles (6 vertices) per invocation using a corner remap table.
+//
+// Binding 0 (per-vertex):   vertexID 0-5 from indirect draw's vertexCount
+// Binding 1 (per-instance): DynamicSubcubeInstanceData (64 bytes) from GPU face buffer
+//
+// See docs/DynamicSubcubeRenderPipeline.md for the full rendering architecture.
+//
 
-layout(location = 0) in uint vertexID;          // Face corner ID (0–3 for quad corners)
+layout(location = 0) in uint vertexID;          // Face vertex ID (0–5 for two triangles)
 layout(location = 1) in vec3 inWorldPosition;   // per-instance: world position of subcube
 layout(location = 2) in uint inTextureIndex;    // per-instance texture atlas index
 layout(location = 3) in uint inFaceID;          // per-instance: face ID (0-5)
@@ -41,44 +58,54 @@ void main() {
     // Use per-instance scale to maintain correct subcube size
     const vec3 SUBCUBE_SCALE = inScale;
     
-    // Generate face vertices based on faceID and vertexID
+    // Remap 6-vertex triangle-list IDs (0-5) to 4 quad corner IDs (0-3)
+    // Winding must be CW when viewed from outside the cube face (since
+    // frontFace=CCW and cullMode=CULL_FRONT, CW faces survive).
+    // Corner bit layout: bit0 = first axis, bit1 = second axis
+    //   corner 0 = (0,0), corner 1 = (1,0), corner 2 = (0,1), corner 3 = (1,1)
+    // Triangle 1: corners 0,2,1  → CW from outside
+    // Triangle 2: corners 1,2,3  → CW from outside
+    const uint cornerRemap[6] = uint[6](0u, 2u, 1u, 1u, 2u, 3u);
+    uint cornerID = cornerRemap[vertexID];
+    
+    // Generate face vertices based on faceID and cornerID
     vec3 faceOffset = vec3(0.0);
     
     if (inFaceID == 0u) {        // Front face (+Z)
         faceOffset = vec3(
-            float((vertexID >> 0) & 1u),  // x: 0 or 1
-            float((vertexID >> 1) & 1u),  // y: 0 or 1
+            float((cornerID >> 0) & 1u),  // x: 0 or 1
+            float((cornerID >> 1) & 1u),  // y: 0 or 1
             1.0                           // z: always 1
         );
     } else if (inFaceID == 1u) { // Back face (-Z)
         faceOffset = vec3(
-            1.0 - float((vertexID >> 0) & 1u),
-            float((vertexID >> 1) & 1u),
+            1.0 - float((cornerID >> 0) & 1u),
+            float((cornerID >> 1) & 1u),
             0.0
         );
     } else if (inFaceID == 2u) { // Right face (+X)
         faceOffset = vec3(
             1.0,
-            float((vertexID >> 1) & 1u),
-            1.0 - float((vertexID >> 0) & 1u)
+            float((cornerID >> 1) & 1u),
+            1.0 - float((cornerID >> 0) & 1u)
         );
     } else if (inFaceID == 3u) { // Left face (-X)
         faceOffset = vec3(
             0.0,
-            float((vertexID >> 1) & 1u),
-            float((vertexID >> 0) & 1u)
+            float((cornerID >> 1) & 1u),
+            float((cornerID >> 0) & 1u)
         );
     } else if (inFaceID == 4u) { // Top face (+Y)
         faceOffset = vec3(
-            float((vertexID >> 0) & 1u),
+            float((cornerID >> 0) & 1u),
             1.0,
-            1.0 - float((vertexID >> 1) & 1u)
+            1.0 - float((cornerID >> 1) & 1u)
         );
     } else if (inFaceID == 5u) { // Bottom face (-Y)
         faceOffset = vec3(
-            float((vertexID >> 0) & 1u),
+            float((cornerID >> 0) & 1u),
             0.0,
-            float((vertexID >> 1) & 1u)
+            float((cornerID >> 1) & 1u)
         );
     }
     
@@ -98,22 +125,22 @@ void main() {
     
     if (inFaceID == 0u) {        // Front face (+Z) - North - looks good with flip
         // Vertices: (0,0,1), (1,0,1), (1,1,1), (0,1,1)
-        uv = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
+        uv = vec2(float((cornerID >> 0) & 1u), 1.0 - float((cornerID >> 1) & 1u));
     } else if (inFaceID == 1u) { // Back face (-Z) - South - looks good
         // Vertices: (1,0,0), (0,0,0), (0,1,0), (1,1,0) - x flipped
-        uv = vec2(1.0 - float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
+        uv = vec2(1.0 - float((cornerID >> 0) & 1u), float((cornerID >> 1) & 1u));
     } else if (inFaceID == 2u) { // Right face (+X) - East - 180 degree rotation
         // Vertices: (1,0,1), (1,0,0), (1,1,0), (1,1,1) - z flipped
-        uv = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
+        uv = vec2(float((cornerID >> 0) & 1u), 1.0 - float((cornerID >> 1) & 1u));
     } else if (inFaceID == 3u) { // Left face (-X) - West - looks good
         // Vertices: (0,0,0), (0,0,1), (0,1,1), (0,1,0)
-        uv = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
+        uv = vec2(float((cornerID >> 0) & 1u), 1.0 - float((cornerID >> 1) & 1u));
     } else if (inFaceID == 4u) { // Top face (+Y) - horizontal mirror
         // Vertices: (0,1,1), (1,1,1), (1,1,0), (0,1,0) - z flipped
-        uv = vec2(1.0 - float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
+        uv = vec2(1.0 - float((cornerID >> 0) & 1u), float((cornerID >> 1) & 1u));
     } else if (inFaceID == 5u) { // Bottom face (-Y) - looks good
         // Vertices: (0,0,0), (1,0,0), (1,0,1), (0,0,1)
-        uv = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
+        uv = vec2(float((cornerID >> 0) & 1u), 1.0 - float((cornerID >> 1) & 1u));
     }
     
     // Apply texture coordinate scaling based on object scale

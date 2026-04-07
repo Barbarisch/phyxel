@@ -13,6 +13,8 @@ int main(int argc, char* argv[]) {
     std::string projectDir;
     std::string assetEditorFile;
     std::string animEditorFile;
+    std::string interactionEditorFile;
+    std::string interactionEditorChar;
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         if ((arg == "--game" || arg == "-g") && i + 1 < argc) {
@@ -23,6 +25,10 @@ int main(int argc, char* argv[]) {
             assetEditorFile = argv[++i];
         } else if ((arg == "--anim-editor" || arg == "-ame") && i + 1 < argc) {
             animEditorFile = argv[++i];
+        } else if ((arg == "--interaction-editor" || arg == "-ie") && i + 1 < argc) {
+            interactionEditorFile = argv[++i];
+        } else if ((arg == "--character") && i + 1 < argc) {
+            interactionEditorChar = argv[++i];
         }
     }
 
@@ -50,6 +56,9 @@ int main(int argc, char* argv[]) {
     }
     if (!animEditorFile.empty()) {
         app.setAnimEditorFile(animEditorFile);
+    }
+    if (!interactionEditorFile.empty()) {
+        app.setInteractionEditorFile(interactionEditorFile, interactionEditorChar);
     }
 
     try {

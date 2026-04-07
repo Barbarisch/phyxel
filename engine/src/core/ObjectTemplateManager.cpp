@@ -1,6 +1,7 @@
 #include "core/ObjectTemplateManager.h"
 #include "core/ChunkManager.h"
 #include "core/DynamicObjectManager.h"
+#include "core/PlacedObjectManager.h"
 #include "core/Cube.h"
 #include "core/Subcube.h"
 #include "core/Microcube.h"
@@ -43,6 +44,7 @@ bool ObjectTemplateManager::loadTemplate(const std::string& filePath) {
 
     auto tmpl = std::make_unique<VoxelTemplate>();
     tmpl->name = fs::path(filePath).stem().string();
+    tmpl->sourceFilePath = fs::absolute(filePath).string();
 
     std::string line;
     while (std::getline(file, line)) {
@@ -52,14 +54,81 @@ bool ObjectTemplateManager::loadTemplate(const std::string& filePath) {
     LOG_INFO_FMT("ObjectTemplateManager", "Loaded template: " << tmpl->name << " with " 
                  << tmpl->cubes.size() << " cubes, " 
                  << tmpl->subcubes.size() << " subcubes, " 
-                 << tmpl->microcubes.size() << " microcubes");
+                 << tmpl->microcubes.size() << " microcubes, "
+                 << tmpl->interactionPoints.size() << " interaction points");
 
     m_templates[tmpl->name] = std::move(tmpl);
     return true;
 }
 
+float ObjectTemplateManager::getTemplateFacingYaw(const std::string& name) const {
+    auto it = m_templates.find(name);
+    if (it == m_templates.end()) return 0.0f;
+    return it->second->facingYaw;
+}
+
 void ObjectTemplateManager::parseLine(const std::string& line, VoxelTemplate& tmpl) {
-    if (line.empty() || line[0] == '#') return;
+    if (line.empty()) return;
+
+    // Parse metadata headers
+    if (line[0] == '#') {
+        // Check for "# facing_yaw: X.XXX"
+        const std::string facingKey = "# facing_yaw:";
+        if (line.compare(0, facingKey.size(), facingKey) == 0) {
+            try {
+                tmpl.facingYaw = std::stof(line.substr(facingKey.size()));
+            } catch (...) {}
+            return;
+        }
+
+        // New format: "# interaction_point: pointId type localX localY localZ facingYaw group1,group2,..."
+        // Only asset-level data; per-archetype offsets live in JSON profiles.
+        const std::string interactionPointKey = "# interaction_point:";
+        if (line.compare(0, interactionPointKey.size(), interactionPointKey) == 0) {
+            std::istringstream iss(line.substr(interactionPointKey.size()));
+            Core::InteractionPointDef def;
+            std::string groupsStr;
+            iss >> def.pointId >> def.type
+                >> def.localOffset.x >> def.localOffset.y >> def.localOffset.z
+                >> def.facingYaw >> groupsStr;
+            if (!iss.fail()) {
+                // Parse comma-separated supported groups
+                if (!groupsStr.empty() && groupsStr != "*") {
+                    std::istringstream groupStream(groupsStr);
+                    std::string group;
+                    while (std::getline(groupStream, group, ',')) {
+                        if (!group.empty()) def.supportedGroups.push_back(group);
+                    }
+                }
+                tmpl.interactionPoints.push_back(def);
+            } else {
+                LOG_WARN_FMT("ObjectTemplateManager", "Failed to parse interaction_point line: " << line);
+            }
+            return;
+        }
+
+        // Legacy format: "# interaction: pointId type localX localY localZ facingYaw sitDownXYZ sittingIdleXYZ sitStandUpXYZ blendDuration seatHeightOffset"
+        const std::string interactionKey = "# interaction:";
+        if (line.compare(0, interactionKey.size(), interactionKey) == 0) {
+            std::istringstream iss(line.substr(interactionKey.size()));
+            Core::InteractionPointDef def;
+            iss >> def.pointId >> def.type
+                >> def.localOffset.x >> def.localOffset.y >> def.localOffset.z
+                >> def.facingYaw
+                >> def.sitDownOffset.x >> def.sitDownOffset.y >> def.sitDownOffset.z
+                >> def.sittingIdleOffset.x >> def.sittingIdleOffset.y >> def.sittingIdleOffset.z
+                >> def.sitStandUpOffset.x >> def.sitStandUpOffset.y >> def.sitStandUpOffset.z
+                >> def.sitBlendDuration >> def.seatHeightOffset;
+            if (!iss.fail()) {
+                tmpl.interactionPoints.push_back(def);
+            } else {
+                LOG_WARN_FMT("ObjectTemplateManager", "Failed to parse interaction line: " << line);
+            }
+            return;
+        }
+
+        return;
+    }
 
     std::stringstream ss(line);
     char type;
@@ -489,6 +558,95 @@ void ObjectTemplateManager::update(float deltaTime) {
         m_pendingSpawns.pop_front();
         LOG_INFO("ObjectTemplateManager", "Finished sequential spawn");
     }
+}
+
+std::string ObjectTemplateManager::getTemplatePath(const std::string& name) const {
+    auto it = m_templates.find(name);
+    if (it == m_templates.end()) return "";
+    return it->second->sourceFilePath;
+}
+
+bool ObjectTemplateManager::saveInteractionDefs(const std::string& templateName,
+                                                 const std::vector<Core::InteractionPointDef>& defs) {
+    std::string filePath = getTemplatePath(templateName);
+    if (filePath.empty()) {
+        LOG_ERROR_FMT("ObjectTemplateManager", "Cannot save interaction defs: template '" << templateName << "' not found or has no source path");
+        return false;
+    }
+
+    // Read the existing file
+    std::ifstream inFile(filePath);
+    if (!inFile.is_open()) {
+        LOG_ERROR_FMT("ObjectTemplateManager", "Cannot open template file for reading: " << filePath);
+        return false;
+    }
+
+    std::vector<std::string> lines;
+    std::string line;
+    while (std::getline(inFile, line)) {
+        // Skip existing interaction lines (both legacy and new format) — we'll rewrite them
+        if (line.compare(0, 14, "# interaction:") == 0)
+            continue;
+        if (line.compare(0, 20, "# interaction_point:") == 0)
+            continue;
+        lines.push_back(line);
+    }
+    inFile.close();
+
+    // Find insertion point: after other "# " metadata lines, before voxel data
+    size_t insertIdx = 0;
+    for (size_t i = 0; i < lines.size(); ++i) {
+        if (!lines[i].empty() && lines[i][0] == '#') {
+            insertIdx = i + 1;
+        } else if (!lines[i].empty()) {
+            break; // Hit voxel data
+        }
+    }
+
+    // Build interaction_point lines (new format: asset-level only)
+    std::vector<std::string> interactionLines;
+    for (const auto& def : defs) {
+        // Build supported groups string
+        std::string groupsStr = "*";
+        if (!def.supportedGroups.empty()) {
+            groupsStr.clear();
+            for (size_t i = 0; i < def.supportedGroups.size(); ++i) {
+                if (i > 0) groupsStr += ",";
+                groupsStr += def.supportedGroups[i];
+            }
+        }
+        char buf[512];
+        std::snprintf(buf, sizeof(buf),
+            "# interaction_point: %s %s %.4f %.4f %.4f %.6f %s",
+            def.pointId.c_str(), def.type.c_str(),
+            def.localOffset.x, def.localOffset.y, def.localOffset.z,
+            def.facingYaw, groupsStr.c_str());
+        interactionLines.push_back(buf);
+    }
+
+    // Insert interaction lines
+    lines.insert(lines.begin() + static_cast<int>(insertIdx),
+                 interactionLines.begin(), interactionLines.end());
+
+    // Write back
+    std::ofstream outFile(filePath);
+    if (!outFile.is_open()) {
+        LOG_ERROR_FMT("ObjectTemplateManager", "Cannot open template file for writing: " << filePath);
+        return false;
+    }
+    for (const auto& l : lines) {
+        outFile << l << "\n";
+    }
+    outFile.close();
+
+    // Update the in-memory template's interaction points
+    auto it = m_templates.find(templateName);
+    if (it != m_templates.end()) {
+        it->second->interactionPoints = defs;
+    }
+
+    LOG_INFO_FMT("ObjectTemplateManager", "Saved " << defs.size() << " interaction defs to " << filePath);
+    return true;
 }
 
 } // namespace Phyxel

@@ -1,0 +1,271 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "particle_types.glsl"
+
+layout(local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, set = 0, binding = 0) buffer ParticleBuffer {
+    GpuParticle particles[];
+};
+
+// 3D voxel occupancy bitfield.
+// Linear index: (worldX + OCC_HALF_X) + (worldY + OCC_Y_OFFSET) * OCC_X
+//                                      + (worldZ + OCC_HALF_Z)   * OCC_X * OCC_Y
+// Bit is set if the voxel at (worldX, worldY, worldZ) is solid.
+layout(std430, set = 0, binding = 1) readonly buffer OccupancyBuffer {
+    uint occupancy[];
+};
+
+// Player character AABB — updated each frame from CPU.
+// Particles bounce off this box and receive the character's velocity on hit.
+layout(std430, set = 0, binding = 2) readonly buffer CharacterBuffer {
+    vec3  charCenter;      // AABB center (world space)
+    float charPad0;
+    vec3  charHalfExtents; // Half-size per axis
+    float charPad1;
+    vec3  charVelocity;    // Character velocity (imparted to particles)
+    float charActive;      // 1.0 = enabled, 0.0 = disabled
+};
+
+// Occupancy grid dimensions (must match GpuParticlePhysics C++ constants)
+const int OCC_X        = 512;
+const int OCC_Y        = 256;
+const int OCC_Z        = 512;
+const int OCC_HALF_X   = 256;
+const int OCC_Y_OFFSET = 64;
+const int OCC_HALF_Z   = 256;
+
+layout(push_constant) uniform PC {
+    uint  count;
+    float restitution;
+    float friction;
+    float dt;
+    float sleepThreshSq;
+} pc;
+
+// Returns true if the voxel at world position (wx, wy, wz) is solid.
+bool isOccupied(int wx, int wy, int wz) {
+    int lx = wx + OCC_HALF_X;
+    int ly = wy + OCC_Y_OFFSET;
+    int lz = wz + OCC_HALF_Z;
+    if (lx < 0 || lx >= OCC_X) return false;
+    if (ly < 0 || ly >= OCC_Y) return false;
+    if (lz < 0 || lz >= OCC_Z) return false;
+    int linearIdx = lx + ly * OCC_X + lz * OCC_X * OCC_Y;
+    uint wordIdx  = uint(linearIdx) >> 5u;   // / 32
+    uint bitIdx   = uint(linearIdx) & 31u;   // % 32
+    return (occupancy[wordIdx] & (1u << bitIdx)) != 0u;
+}
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= pc.count) return;
+
+    GpuParticle p = particles[i];
+    if ((p.flags & PARTICLE_ACTIVE) == 0u) return;
+    // Wake sleeping particles if the character AABB overlaps them.
+    // Without this, sleeping debris is invisible to the character and walked through.
+    if ((p.flags & PARTICLE_SLEEPING) != 0u) {
+        if (charActive > 0.5) {
+            float hx = p.scale.x * 0.5;
+            float hy = p.scale.y * 0.5;
+            float hz = p.scale.z * 0.5;
+            vec3 pMin = p.position - vec3(hx, hy, hz);
+            vec3 pMax = p.position + vec3(hx, hy, hz);
+            vec3 cMin = charCenter - charHalfExtents;
+            vec3 cMax = charCenter + charHalfExtents;
+            if (pMin.x < cMax.x && pMax.x > cMin.x &&
+                pMin.y < cMax.y && pMax.y > cMin.y &&
+                pMin.z < cMax.z && pMax.z > cMin.z) {
+                // Wake up — full collision handled below
+                p.flags &= ~PARTICLE_SLEEPING;
+                p.prevPosition = p.position;  // zero velocity on wake
+            } else {
+                particles[i] = p;
+                return;
+            }
+        } else {
+            return;
+        }
+    }
+
+    float halfX = p.scale.x * 0.5;
+    float halfY = p.scale.y * 0.5;
+    float halfZ = p.scale.z * 0.5;
+
+    // Derive implicit velocity before any corrections
+    vec3 vel = p.position - p.prevPosition;
+
+    bool hitAnything = false;
+
+    // ---- Floor (-Y) ----
+    {
+        int vy = int(floor(p.position.y - halfY));
+        int vx = int(floor(p.position.x));
+        int vz = int(floor(p.position.z));
+        if (isOccupied(vx, vy, vz)) {
+            float surface    = float(vy + 1);
+            float penetration = surface - (p.position.y - halfY);
+            if (penetration > 0.0) {
+                p.position.y += penetration;
+                if (vel.y < 0.0) vel.y = -vel.y * pc.restitution;
+                vel.x *= pc.friction;
+                vel.z *= pc.friction;
+                p.angularVel *= 0.6;
+                hitAnything = true;
+            }
+        }
+    }
+
+    // ---- Ceiling (+Y) ----
+    {
+        int vy = int(floor(p.position.y + halfY));
+        int vx = int(floor(p.position.x));
+        int vz = int(floor(p.position.z));
+        if (isOccupied(vx, vy, vz)) {
+            float bottom     = float(vy);
+            float penetration = (p.position.y + halfY) - bottom;
+            if (penetration > 0.0) {
+                p.position.y -= penetration;
+                if (vel.y > 0.0) vel.y = -vel.y * pc.restitution;
+                hitAnything = true;
+            }
+        }
+    }
+
+    // ---- Right (+X) ----
+    {
+        int vx = int(floor(p.position.x + halfX));
+        int vy = int(floor(p.position.y));
+        int vz = int(floor(p.position.z));
+        if (isOccupied(vx, vy, vz)) {
+            float wall       = float(vx);
+            float penetration = (p.position.x + halfX) - wall;
+            if (penetration > 0.0) {
+                p.position.x -= penetration;
+                if (vel.x > 0.0) vel.x = -vel.x * pc.restitution;
+                vel.y *= pc.friction;
+                vel.z *= pc.friction;
+                hitAnything = true;
+            }
+        }
+    }
+
+    // ---- Left (-X) ----
+    {
+        int vx = int(floor(p.position.x - halfX));
+        int vy = int(floor(p.position.y));
+        int vz = int(floor(p.position.z));
+        if (isOccupied(vx, vy, vz)) {
+            float wall       = float(vx + 1);
+            float penetration = wall - (p.position.x - halfX);
+            if (penetration > 0.0) {
+                p.position.x += penetration;
+                if (vel.x < 0.0) vel.x = -vel.x * pc.restitution;
+                vel.y *= pc.friction;
+                vel.z *= pc.friction;
+                hitAnything = true;
+            }
+        }
+    }
+
+    // ---- Front (+Z) ----
+    {
+        int vz = int(floor(p.position.z + halfZ));
+        int vx = int(floor(p.position.x));
+        int vy = int(floor(p.position.y));
+        if (isOccupied(vx, vy, vz)) {
+            float wall       = float(vz);
+            float penetration = (p.position.z + halfZ) - wall;
+            if (penetration > 0.0) {
+                p.position.z -= penetration;
+                if (vel.z > 0.0) vel.z = -vel.z * pc.restitution;
+                vel.x *= pc.friction;
+                vel.y *= pc.friction;
+                hitAnything = true;
+            }
+        }
+    }
+
+    // ---- Back (-Z) ----
+    {
+        int vz = int(floor(p.position.z - halfZ));
+        int vx = int(floor(p.position.x));
+        int vy = int(floor(p.position.y));
+        if (isOccupied(vx, vy, vz)) {
+            float wall       = float(vz + 1);
+            float penetration = wall - (p.position.z - halfZ);
+            if (penetration > 0.0) {
+                p.position.z += penetration;
+                if (vel.z < 0.0) vel.z = -vel.z * pc.restitution;
+                vel.x *= pc.friction;
+                vel.y *= pc.friction;
+                hitAnything = true;
+            }
+        }
+    }
+
+    // ---- Character AABB collision ----
+    // Particles bounce off the player character and receive its velocity.
+    if (charActive > 0.5) {
+        vec3 pMin = p.position - vec3(halfX, halfY, halfZ);
+        vec3 pMax = p.position + vec3(halfX, halfY, halfZ);
+        vec3 cMin = charCenter - charHalfExtents;
+        vec3 cMax = charCenter + charHalfExtents;
+
+        // Check AABB overlap
+        if (pMin.x < cMax.x && pMax.x > cMin.x &&
+            pMin.y < cMax.y && pMax.y > cMin.y &&
+            pMin.z < cMax.z && pMax.z > cMin.z)
+        {
+            // Find shortest penetration axis to push particle out
+            float penPX = cMax.x - pMin.x;  // push +X
+            float penNX = pMax.x - cMin.x;  // push -X
+            float penPY = cMax.y - pMin.y;  // push +Y
+            float penNY = pMax.y - cMin.y;  // push -Y
+            float penPZ = cMax.z - pMin.z;  // push +Z
+            float penNZ = pMax.z - cMin.z;  // push -Z
+
+            float minPen = penPX;
+            int   axis   = 0;  // 0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z
+
+            if (penNX < minPen) { minPen = penNX; axis = 1; }
+            if (penPY < minPen) { minPen = penPY; axis = 2; }
+            if (penNY < minPen) { minPen = penNY; axis = 3; }
+            if (penPZ < minPen) { minPen = penPZ; axis = 4; }
+            if (penNZ < minPen) { minPen = penNZ; axis = 5; }
+
+            // Push out along shortest axis
+            if      (axis == 0) { p.position.x += minPen; if (vel.x < 0.0) vel.x = -vel.x * pc.restitution; }
+            else if (axis == 1) { p.position.x -= minPen; if (vel.x > 0.0) vel.x = -vel.x * pc.restitution; }
+            else if (axis == 2) { p.position.y += minPen; if (vel.y < 0.0) vel.y = -vel.y * pc.restitution; }
+            else if (axis == 3) { p.position.y -= minPen; if (vel.y > 0.0) vel.y = -vel.y * pc.restitution; }
+            else if (axis == 4) { p.position.z += minPen; if (vel.z < 0.0) vel.z = -vel.z * pc.restitution; }
+            else                { p.position.z -= minPen; if (vel.z > 0.0) vel.z = -vel.z * pc.restitution; }
+
+            // Transfer character velocity to particle (scaled by dt for impulse feel)
+            vel += charVelocity * pc.dt * 0.5;
+
+            // Wake particle
+            p.flags &= ~PARTICLE_SLEEPING;
+            hitAnything = true;
+        }
+    }
+
+    // Rebuild prevPosition from (possibly modified) velocity
+    p.prevPosition = p.position - vel;
+
+    // Sleep check
+    if (hitAnything) {
+        p.flags &= ~PARTICLE_SLEEPING;
+        float speedSq    = dot(vel, vel);
+        float angSpeedSq = dot(p.angularVel, p.angularVel);
+        if (speedSq < pc.sleepThreshSq && angSpeedSq < 0.01) {
+            p.flags |= PARTICLE_SLEEPING;
+            p.prevPosition = p.position;
+            p.angularVel   = vec3(0.0);
+        }
+    }
+
+    particles[i] = p;
+}

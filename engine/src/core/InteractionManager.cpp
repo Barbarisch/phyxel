@@ -1,16 +1,28 @@
 #include "core/InteractionManager.h"
 #include "core/EntityRegistry.h"
 #include "core/PlacedObjectManager.h"
+#include "core/InteractionProfileManager.h"
 #include "scene/NPCEntity.h"
 #include "utils/Logger.h"
 
 namespace Phyxel {
 namespace Core {
 
+/// Rotate a template-local offset by object rotation (0/90/180/270 degrees around Y).
+static glm::vec3 rotateOffsetByDegrees(const glm::vec3& offset, int rotationDegrees) {
+    switch (rotationDegrees % 360) {
+        case 90:  return { -offset.z, offset.y,  offset.x };
+        case 180: return { -offset.x, offset.y, -offset.z };
+        case 270: return {  offset.z, offset.y, -offset.x };
+        default:  return offset;
+    }
+}
+
 void InteractionManager::update(float dt, const glm::vec3& playerPos) {
     m_nearestNPC = nullptr;
     m_nearestSeatObjId.clear();
     m_nearestSeatPtId.clear();
+    m_nearestSeatTemplateName.clear();
 
     if (m_cooldownTimer > 0.0f) {
         m_cooldownTimer -= dt;
@@ -33,20 +45,42 @@ void InteractionManager::update(float dt, const glm::vec3& playerPos) {
         }
     }
 
-    // --- Seat detection ---
+    // --- Seat detection (with archetype filtering) ---
     if (m_placedObjects) {
         auto [objId, ptId] = m_placedObjects->findNearestFreePoint(
             playerPos, SEAT_INTERACT_RADIUS, "seat");
         if (!objId.empty()) {
-            m_nearestSeatObjId = objId;
-            m_nearestSeatPtId  = ptId;
-            // Retrieve world pos and facing for the prompt/callback
             const PlacedObject* obj = m_placedObjects->get(objId);
             if (obj) {
                 for (const auto& pt : obj->interactionPoints) {
                     if (pt.pointId == ptId) {
-                        m_nearestSeatApproachPos = pt.worldApproachPos;
-                        m_nearestSeatFacingYaw   = pt.facingYaw;
+                        // Archetype gating: skip if player's archetype is not supported
+                        if (!pt.supportsArchetype(m_playerArchetype)) {
+                            break;
+                        }
+
+                        bool wasEmpty = m_nearestSeatObjId.empty();
+                        m_nearestSeatObjId          = objId;
+                        m_nearestSeatPtId           = ptId;
+                        m_nearestSeatTemplateName   = obj->templateName;
+                        m_nearestSeatAnchorPos      = pt.worldPos;
+                        m_nearestSeatFacingYaw      = pt.facingYaw;
+                        m_nearestSeatObjectRotation = pt.objectRotation;
+                        // Store default offsets from asset def (may be overridden by profile at interact time)
+                        m_nearestSeatSitDownOffset      = pt.worldSitDownOffset;
+                        m_nearestSeatSittingIdleOffset  = pt.worldSittingIdleOffset;
+                        m_nearestSeatSitStandUpOffset   = pt.worldSitStandUpOffset;
+                        m_nearestSeatSitBlendDuration   = pt.sitBlendDuration;
+                        m_nearestSeatHeightOffset       = pt.seatHeightOffset;
+                        if (wasEmpty) {
+                            LOG_INFO("InteractionManager",
+                                "Seat in range: obj='{}' pt='{}' anchorPos=({:.1f},{:.1f},{:.1f}) "
+                                "playerPos=({:.1f},{:.1f},{:.1f}) archetype='{}'",
+                                objId, ptId,
+                                pt.worldPos.x, pt.worldPos.y, pt.worldPos.z,
+                                playerPos.x, playerPos.y, playerPos.z,
+                                m_playerArchetype);
+                        }
                         break;
                     }
                 }
@@ -78,9 +112,34 @@ void InteractionManager::tryInteract(Scene::Entity* playerEntity) {
         if (m_placedObjects) {
             m_placedObjects->claimInteractionPoint(m_nearestSeatObjId, m_nearestSeatPtId, occupantId);
         }
+
+        // Resolve per-archetype profile offsets (override asset defaults if profile exists)
+        glm::vec3 sitDown = m_nearestSeatSitDownOffset;
+        glm::vec3 sittingIdle = m_nearestSeatSittingIdleOffset;
+        glm::vec3 sitStandUp = m_nearestSeatSitStandUpOffset;
+        float blendDur = m_nearestSeatSitBlendDuration;
+        float heightOff = m_nearestSeatHeightOffset;
+
+        if (m_profileManager) {
+            const auto* profile = m_profileManager->getProfile(
+                m_playerArchetype, m_nearestSeatTemplateName, m_nearestSeatPtId);
+            if (profile) {
+                // Profile offsets are in template-local space — rotate to world space
+                sitDown     = rotateOffsetByDegrees(profile->sitDownOffset,      m_nearestSeatObjectRotation);
+                sittingIdle = rotateOffsetByDegrees(profile->sittingIdleOffset,   m_nearestSeatObjectRotation);
+                sitStandUp  = rotateOffsetByDegrees(profile->sitStandUpOffset,    m_nearestSeatObjectRotation);
+                blendDur    = profile->sitBlendDuration;
+                heightOff   = profile->seatHeightOffset;
+                LOG_INFO("InteractionManager", "Using profile for archetype '{}' template '{}' point '{}'",
+                         m_playerArchetype, m_nearestSeatTemplateName, m_nearestSeatPtId);
+            }
+        }
+
         LOG_INFO("InteractionManager", "Player sitting at '{}':'{}'",
                  m_nearestSeatObjId, m_nearestSeatPtId);
-        m_seatCallback(m_nearestSeatObjId, m_nearestSeatPtId, m_nearestSeatApproachPos, m_nearestSeatFacingYaw);
+        m_seatCallback(m_nearestSeatObjId, m_nearestSeatPtId,
+                       m_nearestSeatAnchorPos, m_nearestSeatFacingYaw,
+                       sitDown, sittingIdle, sitStandUp, blendDur, heightOff);
         m_nearestSeatObjId.clear();
         m_nearestSeatPtId.clear();
     }

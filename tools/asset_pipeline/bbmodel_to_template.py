@@ -112,7 +112,9 @@ def main():
     parser.add_argument("--shell", action="store_true", help="Force generation of a hollow shell from the outer surface (void interior)")
     parser.add_argument("--shell-thickness", type=int, default=1, help="Wall thickness for shell generation (default: 1)")
     parser.add_argument("--optimize", action="store_true", help="Enable grid alignment optimization to reduce primitive count")
-    
+    parser.add_argument("--facing-yaw", type=float, default=None,
+                        help="Canonical facing yaw in radians (0=+Z, π≈3.14159=-Z). Written as '# facing_yaw' header.")
+
     args = parser.parse_args()
     
     if not os.path.exists(args.input):
@@ -166,12 +168,13 @@ def main():
 
     print(f"Writing template to {args.output}...")
     template_writer.write_template(
-        matrix, 
-        args.output, 
-        args.material, 
-        args.size, 
+        matrix,
+        args.output,
+        args.material,
+        args.size,
         args.resolution,
-        args.fill_threshold
+        args.fill_threshold,
+        facing_yaw=args.facing_yaw
     )
     print("Done.")
 

@@ -242,12 +242,12 @@ void InputManager::handleMouseButton(int button, int action, int mods) {
         }
     }
     
-    // Process registered mouse actions
-    if (action == GLFW_PRESS) {
+    // Process registered mouse actions — skip when ImGui is consuming the mouse
+    if (action == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse) {
         // Look for exact match with button and modifiers
         MouseButtonKey key{button, mods};
         auto it = mouseActions.find(key);
-        
+
         if (it != mouseActions.end()) {
             const MouseAction& mouseAction = it->second;
             if (mouseAction.callback) {

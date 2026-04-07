@@ -125,6 +125,9 @@ void VulkanDevice::cleanup() {
         }
     }
 
+    // Cleanup compute resources
+    cleanupComputeResources();
+
     // Cleanup command pool
     if (commandPool != VK_NULL_HANDLE) {
         vkDestroyCommandPool(device, commandPool, nullptr);
@@ -312,6 +315,10 @@ QueueFamilyIndices VulkanDevice::findQueueFamilies(VkPhysicalDevice device) cons
     for (const auto& queueFamily : queueFamilies) {
         if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
             indices.graphicsFamily = i;
+            // On desktop GPUs the graphics family almost always supports compute too
+            if (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
+                indices.computeFamily = i;
+            }
         }
 
         VkBool32 presentSupport = false;
@@ -321,11 +328,20 @@ QueueFamilyIndices VulkanDevice::findQueueFamilies(VkPhysicalDevice device) cons
             indices.presentFamily = i;
         }
 
-        if (indices.isComplete()) {
-            break;
-        }
-
         i++;
+    }
+
+    // If graphics family didn't support compute, search for a dedicated compute family
+    if (!indices.computeFamily.has_value()) {
+        i = 0;
+        for (const auto& queueFamily : queueFamilies) {
+            if ((queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) &&
+                !(queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
+                indices.computeFamily = i;
+                break;
+            }
+            i++;
+        }
     }
 
     return indices;
@@ -374,8 +390,18 @@ SwapChainSupportDetails VulkanDevice::querySwapChainSupport(VkPhysicalDevice dev
 bool VulkanDevice::createLogicalDevice() {
     QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
+    // Cache queue family indices
+    graphicsQueueFamily = indices.graphicsFamily.value();
+    computeQueueFamily  = indices.computeFamily.has_value()
+                            ? indices.computeFamily.value()
+                            : indices.graphicsFamily.value(); // fallback
+
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-    std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value()};
+    std::set<uint32_t> uniqueQueueFamilies = {
+        indices.graphicsFamily.value(),
+        indices.presentFamily.value(),
+        computeQueueFamily
+    };
 
     float queuePriority = 1.0f;
     for (uint32_t queueFamily : uniqueQueueFamilies) {
@@ -417,6 +443,10 @@ bool VulkanDevice::createLogicalDevice() {
 
     vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
     vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
+    vkGetDeviceQueue(device, computeQueueFamily, 0, &computeQueue);
+
+    LOG_INFO_FMT("Vulkan", "Compute queue family: " << computeQueueFamily
+        << (computeSharesGraphicsQueue() ? " (shared with graphics)" : " (dedicated)"));
 
     return true;
 }
@@ -648,6 +678,81 @@ bool VulkanDevice::createCommandBuffers() {
     LOG_INFO("Vulkan", "Command buffers created successfully");
     return true;
 }
+
+// ============================================================
+// COMPUTE INFRASTRUCTURE
+// ============================================================
+
+bool VulkanDevice::initComputeResources() {
+    // Create a command pool for the compute queue family.
+    // If compute shares the graphics family, we still create a separate pool
+    // so compute command buffers can be reset independently.
+    VkCommandPoolCreateInfo poolInfo{};
+    poolInfo.sType  = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.flags  = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    poolInfo.queueFamilyIndex = computeQueueFamily;
+
+    if (vkCreateCommandPool(device, &poolInfo, nullptr, &computeCommandPool) != VK_SUCCESS) {
+        LOG_ERROR("Vulkan", "Failed to create compute command pool!");
+        return false;
+    }
+
+    computeCommandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool        = computeCommandPool;
+    allocInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = static_cast<uint32_t>(computeCommandBuffers.size());
+
+    if (vkAllocateCommandBuffers(device, &allocInfo, computeCommandBuffers.data()) != VK_SUCCESS) {
+        LOG_ERROR("Vulkan", "Failed to allocate compute command buffers!");
+        return false;
+    }
+
+    LOG_INFO_FMT("Vulkan", "Compute resources initialized (" << MAX_FRAMES_IN_FLIGHT << " command buffers)");
+    return true;
+}
+
+void VulkanDevice::cleanupComputeResources() {
+    if (computeCommandPool != VK_NULL_HANDLE) {
+        vkDestroyCommandPool(device, computeCommandPool, nullptr);
+        computeCommandPool = VK_NULL_HANDLE;
+    }
+    computeCommandBuffers.clear();
+}
+
+VkCommandBuffer VulkanDevice::getComputeCommandBuffer(uint32_t frameIndex) const {
+    if (frameIndex < computeCommandBuffers.size()) {
+        return computeCommandBuffers[frameIndex];
+    }
+    return VK_NULL_HANDLE;
+}
+
+void VulkanDevice::createStorageBuffer(VkDeviceSize size, VkBuffer& buffer, VkDeviceMemory& memory,
+                                        VkBufferUsageFlags extraUsage) {
+    createBuffer(
+        size,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | extraUsage,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        buffer, memory
+    );
+}
+
+void VulkanDevice::createPersistentStagingBuffer(VkDeviceSize size, VkBuffer& buffer,
+                                                   VkDeviceMemory& memory, void** mappedPtr) {
+    createBuffer(
+        size,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        buffer, memory
+    );
+    if (vkMapMemory(device, memory, 0, size, 0, mappedPtr) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to map persistent staging buffer memory!");
+    }
+}
+
+// ============================================================
 
 bool VulkanDevice::createSyncObjects() {
     imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);

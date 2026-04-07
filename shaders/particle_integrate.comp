@@ -1,0 +1,71 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "particle_types.glsl"
+
+layout(local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, set = 0, binding = 0) buffer ParticleBuffer {
+    GpuParticle particles[];
+};
+
+layout(push_constant) uniform PC {
+    float dt;
+    float gravity;      // e.g. -9.81 (negative = downward)
+    uint  count;
+    float linearDamp;   // per-frame damping on implicit velocity, e.g. 0.995
+    float angularDamp;  // per-frame damping on angular velocity, e.g. 0.97
+    float sleepThreshSq;// velocity^2 below which sleep is triggered (per frame unit)
+} pc;
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= pc.count) return;
+
+    GpuParticle p = particles[i];
+
+    // Skip inactive particles
+    if ((p.flags & PARTICLE_ACTIVE) == 0u) return;
+
+    // Decrement lifetime first — sleeping particles still age
+    p.lifetime -= pc.dt;
+    if (p.lifetime <= 0.0) {
+        p.flags &= ~PARTICLE_ACTIVE;
+        particles[i] = p;
+        return;
+    }
+
+    // Skip sleeping particles (position frozen, only lifetime ticks)
+    if ((p.flags & PARTICLE_SLEEPING) != 0u) {
+        particles[i] = p;
+        return;
+    }
+
+    // ---------- XPBD position integration ----------
+    // Implicit velocity = current - prev (in world-units per frame, not per second)
+    vec3 vel = (p.position - p.prevPosition) * pc.linearDamp;
+
+    p.prevPosition = p.position;
+    // Gravity: a * dt^2 (XPBD adds gravity as a displacement, not a velocity)
+    p.position += vel + vec3(0.0, pc.gravity * pc.dt * pc.dt, 0.0);
+
+    // ---------- Angular integration ----------
+    // Simple first-order quaternion integration: dq/dt = 0.5 * (w,0) * q
+    p.angularVel *= pc.angularDamp;
+    vec3 w = p.angularVel * pc.dt * 0.5;
+    // Quaternion multiplication: (w,0) * q  (treating w as a pure quaternion)
+    vec4 q = p.rotation;
+    vec4 dq;
+    dq.x =  w.x * q.w + w.y * q.z - w.z * q.y;
+    dq.y = -w.x * q.z + w.y * q.w + w.z * q.x;
+    dq.z =  w.x * q.y - w.y * q.x + w.z * q.w;
+    dq.w = -w.x * q.x - w.y * q.y - w.z * q.z;
+    p.rotation = normalize(q + dq);
+
+    // ---------- Sleep check ----------
+    float speedSq = dot(vel, vel);
+    if (speedSq < pc.sleepThreshSq) {
+        p.flags |= PARTICLE_SLEEPING;
+    }
+
+    particles[i] = p;
+}

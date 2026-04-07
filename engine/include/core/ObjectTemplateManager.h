@@ -1,6 +1,7 @@
 #pragma once
 
 #include "VoxelTemplate.h"
+#include "PlacedObjectManager.h"
 #include <string>
 #include <unordered_map>
 #include <memory>
@@ -45,6 +46,10 @@ public:
     // Get all loaded template names
     std::vector<std::string> getTemplateNames() const;
 
+    /// Get the canonical facing yaw (radians) for a template.
+    /// Returns 0.0f if the template is not loaded or has no facing_yaw header.
+    float getTemplateFacingYaw(const std::string& name) const;
+
     // Spawn a template at a specific world position
     // isStatic: if true, merges into chunks. if false, creates dynamic objects.
     // rotation: 0, 90, 180, or 270 degrees clockwise around Y axis
@@ -74,6 +79,14 @@ public:
     // Configuration
     void setSpawnSpeed(int voxelsPerFrame) { m_voxelsPerFrame = voxelsPerFrame; }
     int getSpawnSpeed() const { return m_voxelsPerFrame; }
+
+    /// Get the absolute file path for a loaded template (empty if not found).
+    std::string getTemplatePath(const std::string& name) const;
+
+    /// Save interaction point definitions back to the template's .txt file.
+    /// Replaces or appends "# interaction:" metadata lines.
+    bool saveInteractionDefs(const std::string& templateName,
+                             const std::vector<Core::InteractionPointDef>& defs);
 
 private:
     ChunkManager* m_chunkManager;

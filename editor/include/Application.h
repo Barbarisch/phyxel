@@ -44,12 +44,14 @@
 #include "core/CombatSystem.h"
 #include "core/NPCManager.h"
 #include "core/InteractionManager.h"
+#include "core/InteractionProfileManager.h"
 #include "core/LocationRegistry.h"
 #include "ui/DialogueSystem.h"
 #include "ui/SpeechBubbleManager.h"
 #include "story/StoryEngine.h"
 #include "core/EngineConfig.h"
 #include "core/EngineRuntime.h"
+#include "core/GpuParticlePhysics.h"
 #include "scene/NPCEntity.h"
 #include "scene/Entity.h"
 #include "scene/Player.h"
@@ -100,6 +102,7 @@ public:
     void toggleLightingControls();
     void toggleProfiler();
     void toggleCharacterCustomizer();
+    void toggleInteractionTuner();
     void toggleCameraMode();
     void toggleCharacterControl();
     void cycleCameraSlot();
@@ -172,6 +175,7 @@ private:
     Core::LocationRegistry* locationRegistry = nullptr;
 
     // Game-specific subsystems (still owned by Application)
+    std::unique_ptr<GpuParticlePhysics> gpuParticlePhysics;            // GPU-accelerated debris physics
     std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;    // Coordinates all rendering
     std::unique_ptr<RaycastVisualizer> raycastVisualizer;              // Raycast debug visualization
     std::unique_ptr<VoxelInteractionSystem> voxelInteractionSystem;    // Cube/subcube interaction
@@ -202,6 +206,7 @@ private:
     // NPC System
     std::unique_ptr<Core::NPCManager> npcManager;
     std::unique_ptr<Core::InteractionManager> interactionManager;
+    std::unique_ptr<Core::InteractionProfileManager> interactionProfileManager;
 
     // Story Engine
     std::unique_ptr<Story::StoryEngine> storyEngine;
@@ -266,6 +271,10 @@ private:
     bool showCharacterCustomizer = false;
     std::string customizerSelectedNPC;
     void renderCharacterCustomizer();
+
+    bool showInteractionTuner = false;
+    std::string tunerSelectedTemplate;
+    void renderInteractionTuner();
     
     // Debug system
     // Debug flags moved to InputController
@@ -339,6 +348,12 @@ public:
         m_animEditorFile = path;
     }
 
+    void setInteractionEditorFile(const std::string& assetPath, const std::string& charPath = "") {
+        m_interactionEditorMode = true;
+        m_interactionEditorFile = assetPath;
+        m_interactionEditorCharFile = charPath;
+    }
+
 private:
     void initAssetEditorScene();
     void renderAssetEditorUI();
@@ -364,6 +379,50 @@ private:
     void renderAnimEditorUI();
     void saveAnimModel();
     void renameAnimationInFile(const std::string& oldName, const std::string& newName);
+
+    // ============================================================================
+    // INTERACTION EDITOR MODE  (--interaction-editor <file> [--character <file>])
+    // ============================================================================
+    enum class InteractionPreviewState {
+        None,           // Character standing idle
+        SittingDown,    // sitAt() called, playing sit-down anim
+        SittingIdle,    // Seated idle loop (manual or auto-wait)
+        StandingUp,     // standUp() called, playing stand-up anim
+        AutoIdle        // Auto-preview: waiting in seated idle before auto stand-up
+    };
+
+    bool m_interactionEditorMode = false;
+    std::string m_interactionEditorFile;                   // Full path to the .txt template
+    std::string m_interactionEditorCharFile;               // Optional .anim path (default: humanoid.anim)
+    glm::ivec3 m_ieAssetOrigin{13, 16, 13};               // Where the asset is placed
+    Scene::AnimatedVoxelCharacter* m_ieChar = nullptr;     // Non-owning pointer into entities list
+    int m_ieSelectedPoint = 0;                             // Currently selected interaction point index
+    InteractionPreviewState m_iePreviewState = InteractionPreviewState::None;
+    bool m_ieAutoPreview = false;                          // True when auto-preview (sit→wait→stand)
+    float m_ieAutoTimer = 0.0f;                            // Timer for auto-preview idle wait
+    bool m_ieCtrlSPrev = false;                            // Edge-detect Ctrl+S
+    glm::vec3 m_ieCharRestPos{17.0f, 16.0f, 13.0f};       // Stand position for character when not previewing
+
+    // Material palette (same as asset editor)
+    std::string m_ieMaterial{"Wood"};                      // Currently selected placement material
+
+    // Interaction point editing
+    char m_ieNewPointId[64] = {};                          // Buffer for new point ID input
+    char m_ieNewGroupBuf[64] = {};                         // Buffer for adding new supported group
+
+    // Character modification (bone scales + archetype)
+    std::vector<std::pair<int,std::string>> m_ieBodyBones; // {boneId, boneName} for bone scale sliders
+    std::map<int, float> m_ieBoneScale;                    // Per-bone scale overrides
+    int m_ieSelectedBone = -1;                             // Currently selected bone index
+    char m_ieArchetypeBuf[64] = {};                        // ImGui InputText buffer for archetype rename
+    std::string m_ieProfileArchetype;                      // Currently loaded profile archetype (may differ from character's)
+
+    void initInteractionEditorScene();
+    void renderInteractionEditorUI();
+    void ieStartPreview(bool autoPlay);
+    void ieStopPreview();
+    void ieSaveAnimModel();                                // Save modified bone scales to .anim file
+    void ieSaveAssetTemplate();                            // Save full .txt (voxels + interaction defs)
 };
 
 } // namespace Phyxel

@@ -18,25 +18,118 @@ namespace Core {
 
 class SnapshotManager;
 
-/// Template-local definition of an interaction point (loaded from catalog, rotation-independent).
+/// Types of object interactions. Each type has its own required animations and profile schema.
+enum class ObjectInteractionType {
+    Seat,        ///< Chair, bench, stool — requires sit/idle/stand animations
+    Bed,         ///< Sleeping surface — requires lie-down/sleeping/wake-up animations
+    DoorHandle,  ///< Door interaction — requires reach/push/pull animations
+    Pickup,      ///< Item to pick up — requires reach/grab animations
+    Ledge,       ///< Climbable edge — requires grab/hang/climb animations
+    Window,      ///< Lookout point — requires lean animation
+    Switch,      ///< Toggle lever/button — requires reach/flip animation
+    Counter,     ///< Counter/table surface — requires lean/place animation
+    Unknown      ///< Fallback for unrecognized types
+};
+
+/// Convert string type to enum (case-insensitive for common ones).
+inline ObjectInteractionType objectInteractionTypeFromString(const std::string& s) {
+    if (s == "seat")        return ObjectInteractionType::Seat;
+    if (s == "bed")         return ObjectInteractionType::Bed;
+    if (s == "door_handle") return ObjectInteractionType::DoorHandle;
+    if (s == "pickup")      return ObjectInteractionType::Pickup;
+    if (s == "ledge")       return ObjectInteractionType::Ledge;
+    if (s == "window")      return ObjectInteractionType::Window;
+    if (s == "switch")      return ObjectInteractionType::Switch;
+    if (s == "counter")     return ObjectInteractionType::Counter;
+    return ObjectInteractionType::Unknown;
+}
+
+/// Convert enum to string.
+inline const char* objectInteractionTypeToString(ObjectInteractionType t) {
+    switch (t) {
+        case ObjectInteractionType::Seat:       return "seat";
+        case ObjectInteractionType::Bed:        return "bed";
+        case ObjectInteractionType::DoorHandle: return "door_handle";
+        case ObjectInteractionType::Pickup:     return "pickup";
+        case ObjectInteractionType::Ledge:      return "ledge";
+        case ObjectInteractionType::Window:     return "window";
+        case ObjectInteractionType::Switch:     return "switch";
+        case ObjectInteractionType::Counter:    return "counter";
+        default:                                return "unknown";
+    }
+}
+
+/// Get required animation clip names for an interaction type.
+inline std::vector<std::string> requiredAnimationsForType(ObjectInteractionType t) {
+    switch (t) {
+        case ObjectInteractionType::Seat:
+            return {"stand_to_sit", "sitting_idle", "sit_to_stand"};
+        case ObjectInteractionType::Bed:
+            return {"lie_down", "sleeping_idle", "wake_up"};
+        case ObjectInteractionType::DoorHandle:
+            return {"reach_forward", "push_door"};
+        case ObjectInteractionType::Pickup:
+            return {"reach_down", "grab"};
+        case ObjectInteractionType::Ledge:
+            return {"grab_ledge", "hang_idle", "climb_up"};
+        default:
+            return {};
+    }
+}
+
+/// Template-local definition of an interaction point (loaded from template .txt file, rotation-independent).
 struct InteractionPointDef {
     std::string pointId;             ///< e.g. "seat_0"
     std::string type;                ///< "seat", "bed", "counter", etc.
-    glm::vec3 localOffset{0.0f};     ///< Position in template-local space (cube units, 0° rotation)
+    glm::vec3 localOffset{0.0f};     ///< Seat anchor in template-local space (cube units, 0° rotation)
     float facingYaw = 0.0f;          ///< Character facing direction (radians) at 0° object rotation
-    glm::vec3 approachOffset{0.0f};  ///< Approach position in template-local space (for NPC pathfinding)
+
+    /// Which interaction groups/archetypes can use this point.
+    /// Empty = all archetypes supported (backward compatible default).
+    std::vector<std::string> supportedGroups;
+
+    // Per-sit-state foot snap offsets (template-local, rotated at placement time)
+    // These are default/fallback values; per-archetype profiles override them.
+    glm::vec3 sitDownOffset{0.0f};   ///< Feet position during SitDown animation
+    glm::vec3 sittingIdleOffset{0.0f};///< Feet position during SittingIdle loop
+    glm::vec3 sitStandUpOffset{0.0f};///< Feet position during StandUp animation
+    float sitBlendDuration = 0.0f;   ///< Animation crossfade duration (0 = instant clip switch)
+    float seatHeightOffset = 0.0f;   ///< Direct Y offset on seat anchor position
+
+    /// Get the typed interaction type enum.
+    ObjectInteractionType interactionType() const { return objectInteractionTypeFromString(type); }
 };
 
 /// A live interaction point on a specific placed object instance.
 struct InteractionPoint {
     std::string pointId;             ///< Matches InteractionPointDef::pointId
     std::string type;                ///< "seat", "bed", "counter", etc.
-    glm::vec3 worldPos{0.0f};        ///< World-space use position (updated when object moves/rotates)
+    glm::vec3 worldPos{0.0f};        ///< World-space seat anchor (updated when object moves/rotates)
     float facingYaw = 0.0f;          ///< Facing direction after applying object rotation
-    glm::vec3 worldApproachPos{0.0f};///< World-space approach position (for NPC pathfinding)
     std::string occupantId;          ///< Entity/NPC ID currently using this point ("" = free)
 
+    /// Which interaction groups/archetypes can use this point (copied from def).
+    std::vector<std::string> supportedGroups;
+
+    /// Object rotation in degrees (stashed for on-the-fly profile offset rotation).
+    int objectRotation = 0;
+
+    // Per-sit-state foot snap offsets (world-space, rotated from template-local defaults)
+    glm::vec3 worldSitDownOffset{0.0f};
+    glm::vec3 worldSittingIdleOffset{0.0f};
+    glm::vec3 worldSitStandUpOffset{0.0f};
+    float sitBlendDuration = 0.0f;
+    float seatHeightOffset = 0.0f;
+
     bool isFree() const { return occupantId.empty(); }
+
+    /// Check if this point supports a given archetype. Empty supportedGroups = all supported.
+    bool supportsArchetype(const std::string& archetype) const {
+        if (supportedGroups.empty()) return true;
+        for (const auto& g : supportedGroups)
+            if (g == archetype) return true;
+        return false;
+    }
 };
 
 /// Metadata for a placed object (template or structure) in the world.
@@ -110,6 +203,12 @@ public:
     /// These are applied to every new instance when that template is placed.
     void registerTemplateDefs(const std::string& templateName,
                               const std::vector<InteractionPointDef>& defs);
+
+    /// Direct access to the template def catalog for runtime tuning (e.g. ImGui sliders).
+    /// After editing, call recomputeAllInteractionPoints() to apply changes.
+    std::unordered_map<std::string, std::vector<InteractionPointDef>>& getMutableTemplateDefs() {
+        return m_templateDefs;
+    }
 
     /// Recompute world-space interaction points for all loaded objects using registered defs.
     /// Call this after loadFromDb() so that objects restored from save also have interaction points.

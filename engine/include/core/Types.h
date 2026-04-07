@@ -485,9 +485,14 @@ struct MemoryBandwidthTracker {
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
     std::optional<uint32_t> presentFamily;
+    std::optional<uint32_t> computeFamily;  // Usually == graphicsFamily on desktop GPUs
 
     bool isComplete() const {
         return graphicsFamily.has_value() && presentFamily.has_value();
+    }
+
+    bool hasCompute() const {
+        return computeFamily.has_value();
     }
 };
 

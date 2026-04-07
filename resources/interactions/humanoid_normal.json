@@ -1,0 +1,26 @@
+{
+  "archetype": "humanoid_normal",
+  "profiles": {
+    "test_chair": {
+      "seat_0": {
+        "blendDuration": 0.0,
+        "heightOffset": 0.0,
+        "sitDownOffset": [
+          0.0,
+          0.0,
+          -0.6000000238418579
+        ],
+        "sitStandUpOffset": [
+          0.0,
+          0.0,
+          -0.10000000149011612
+        ],
+        "sittingIdleOffset": [
+          0.0,
+          0.0,
+          -0.10000000149011612
+        ]
+      }
+    }
+  }
+}

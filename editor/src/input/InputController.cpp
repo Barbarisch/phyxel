@@ -185,6 +185,11 @@ void InputController::setupKeyboardBindings() {
         m_app->toggleCharacterCustomizer();
     });
 
+    // F12 - Toggle Interaction Point Tuner
+    m_inputManager->registerAction(GLFW_KEY_F12, "Toggle Interaction Tuner", [this]() {
+        m_app->toggleInteractionTuner();
+    });
+
     // E - Interact with NPC
     m_inputManager->registerAction(GLFW_KEY_E, "Interact with NPC", [this]() {
         m_app->interactWithNPC();

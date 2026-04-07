@@ -42,7 +42,7 @@ def analyze_voxel_data(matrix, fill_threshold=1.0):
         'padded_matrix': padded_matrix
     }
 
-def write_template(matrix, output_path, material_name, target_size, resolution_mode, fill_threshold=1.0):
+def write_template(matrix, output_path, material_name, target_size, resolution_mode, fill_threshold=1.0, facing_yaw=None):
     """
     Writes a voxel matrix to a Phyxel template file (.txt).
 
@@ -68,6 +68,8 @@ def write_template(matrix, output_path, material_name, target_size, resolution_m
         f.write(f"# Target Size: {target_size}\n")
         f.write(f"# Resolution: {resolution_mode}\n")
         f.write(f"# Material: {material_name}\n")
+        if facing_yaw is not None:
+            f.write(f"# facing_yaw: {facing_yaw}\n")
         
         if resolution_mode == 'auto':
             f.write(f"# Format: [Type] [Coords...] {material_name}\n")

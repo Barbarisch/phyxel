@@ -3,6 +3,7 @@
 #include "graphics/RaycastVisualizer.h"
 #include "utils/Logger.h"
 #include <iostream>
+#include <fstream>
 #include <algorithm>
 #include <cmath>
 #include <glm/glm.hpp>
@@ -89,6 +90,30 @@ namespace Scene {
     }
 
     bool AnimatedVoxelCharacter::loadModel(const std::string& animFile) {
+        // Parse archetype from .anim file header (e.g. "# archetype: humanoid_normal")
+        {
+            std::ifstream animIn(animFile);
+            if (animIn.is_open()) {
+                std::string headerLine;
+                while (std::getline(animIn, headerLine)) {
+                    if (headerLine.empty()) continue;
+                    if (headerLine[0] != '#') break; // stop at first non-comment line
+                    const std::string key = "# archetype:";
+                    if (headerLine.compare(0, key.size(), key) == 0) {
+                        std::string val = headerLine.substr(key.size());
+                        // trim whitespace
+                        size_t start = val.find_first_not_of(" \t");
+                        size_t end = val.find_last_not_of(" \t\r\n");
+                        if (start != std::string::npos && end != std::string::npos) {
+                            m_archetype = val.substr(start, end - start + 1);
+                            LOG_INFO("Character", "Parsed archetype '{}' from {}", m_archetype, animFile);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
         if (animSystem.loadFromFile(animFile, skeleton, clips, voxelModel)) {
             // Store original unscaled template for later rebuilds
             originalSkeleton_ = skeleton;
@@ -659,6 +684,12 @@ namespace Scene {
         return m_originalHalfWidth;
     }
 
+    glm::vec3 AnimatedVoxelCharacter::getControllerVelocity() const {
+        if (!controllerBody) return glm::vec3(0.0f);
+        auto bv = controllerBody->getLinearVelocity();
+        return glm::vec3(bv.x(), bv.y(), bv.z());
+    }
+
     void AnimatedVoxelCharacter::resolveBodyPartCollisions() {
         if (!m_chunkManager || !controllerBody || boneBodies.empty()) return;
 
@@ -1119,27 +1150,65 @@ namespace Scene {
         buildBodiesFromModel();
     }
 
-    void AnimatedVoxelCharacter::sitAt(const glm::vec3& approachPos, float facingYaw) {
+    void AnimatedVoxelCharacter::sitAt(const glm::vec3& seatAnchorPos, float facingYaw,
+                                       const glm::vec3& sitDownOffset,
+                                       const glm::vec3& sittingIdleOffset,
+                                       const glm::vec3& sitStandUpOffset,
+                                       float sitBlendDur,
+                                       float seatHeightOffset) {
         if (m_isSitting) return;
 
-        // Teleport character to the approach position (in front of the chair),
-        // NOT to the seat surface center. The sit-down animation plays from here.
-        m_seatRootPos   = approachPos;
-        m_seatFacingYaw = facingYaw;
-        m_isSitting     = true;
+        // --- Cache hip bone index for per-frame tracking ---
+        m_hipBoneIndex = -1;
+        m_bindPoseHipHeight = 0.8f;  // sensible fallback
+        if (!skeleton.bones.empty()) {
+            std::vector<glm::mat4> globalT(skeleton.bones.size(), glm::mat4(1.0f));
+            for (size_t i = 0; i < skeleton.bones.size(); ++i) {
+                const auto& bone = skeleton.bones[i];
+                glm::mat4 local = glm::translate(glm::mat4(1.0f), bone.localPosition)
+                                * glm::mat4_cast(bone.localRotation);
+                globalT[i] = (bone.parentId < 0) ? local : globalT[bone.parentId] * local;
+            }
+            for (size_t i = 0; i < skeleton.bones.size(); ++i) {
+                std::string n = skeleton.bones[i].name;
+                std::transform(n.begin(), n.end(), n.begin(), ::tolower);
+                if (n.find("hip") != std::string::npos) {
+                    m_hipBoneIndex = static_cast<int>(i);
+                    float h = globalT[i][3][1] - skeletonFootOffset_;
+                    if (h >= 0.1f) m_bindPoseHipHeight = h;
+                    break;
+                }
+            }
+        }
 
+        // Store seat anchor and apply height offset
+        m_seatSurfacePos = seatAnchorPos;
+        m_seatSurfacePos.y += seatHeightOffset;
+        m_seatFacingYaw   = facingYaw;
+        m_isSitting       = true;
+
+        // Store per-state foot snap offsets
+        m_sitDownOffset      = sitDownOffset;
+        m_sittingIdleOffset  = sittingIdleOffset;
+        m_sitStandUpOffset   = sitStandUpOffset;
+        m_sitBlendDuration   = sitBlendDur;
+
+        // Snap feet to the SitDown position immediately (no separate approach)
+        glm::vec3 initialPos = m_seatSurfacePos + m_sitDownOffset;
         currentYaw = facingYaw;
-        setPosition(m_seatRootPos);
+        setPosition(initialPos);
         if (controllerBody) {
             controllerBody->setLinearVelocity(btVector3(0, 0, 0));
-            controllerBody->setGravity(btVector3(0, 0, 0));  // No gravity while in sitting sequence
+            controllerBody->setGravity(btVector3(0, 0, 0));
         }
 
         currentState = AnimatedCharacterState::SitDown;
         stateTimer   = 0.0f;
-        animTime     = 0.0f;  // Reset anim time so stand_to_sit starts from frame 0
-        LOG_DEBUG("Character", "sitAt: approachPos=({:.2f},{:.2f},{:.2f}) yaw={:.2f}",
-                  approachPos.x, approachPos.y, approachPos.z, facingYaw);
+        animTime     = 0.0f;
+        LOG_DEBUG("Character", "sitAt: anchor=({:.2f},{:.2f},{:.2f}) feetSnap=({:.2f},{:.2f},{:.2f}) hipBone={}",
+                  m_seatSurfacePos.x, m_seatSurfacePos.y, m_seatSurfacePos.z,
+                  initialPos.x, initialPos.y, initialPos.z,
+                  m_hipBoneIndex);
     }
 
     void AnimatedVoxelCharacter::standUp() {
@@ -1755,29 +1824,31 @@ namespace Scene {
         m_totalTime += deltaTime;
 
         // --- Sitting sequence: bypass normal physics movement ---
+        // Foot-anchored model: each state snaps worldPosition (= feet) to a fixed point.
+        // The animation itself moves the hips/torso — we never lerp worldPosition.
         if (m_isSitting) {
             if (controllerBody) {
-                if (currentState == AnimatedCharacterState::SittingIdle) {
-                    // Fully seated: pin controller to seat root position every frame
-                    float halfHeight = getControllerHalfHeight();
-                    btTransform trans;
-                    trans.setIdentity();
-                    trans.setOrigin(btVector3(m_seatRootPos.x,
-                                             m_seatRootPos.y + halfHeight,
-                                             m_seatRootPos.z));
-                    controllerBody->setWorldTransform(trans);
-                    controllerBody->getMotionState()->setWorldTransform(trans);
-                    controllerBody->setLinearVelocity(btVector3(0, 0, 0));
-                    worldPosition = m_seatRootPos;
+                float halfHeight = getControllerHalfHeight();
+                btTransform trans;
+                trans.setIdentity();
+
+                glm::vec3 snapPos;
+                if (currentState == AnimatedCharacterState::SitDown) {
+                    snapPos = m_seatSurfacePos + m_sitDownOffset;
+                } else if (currentState == AnimatedCharacterState::SittingIdle) {
+                    snapPos = m_seatSurfacePos + m_sittingIdleOffset;
                 } else {
-                    // SitDown / SitStandUp: keep controller where it is (no XZ drift)
-                    btVector3 vel = controllerBody->getLinearVelocity();
-                    controllerBody->setLinearVelocity(btVector3(0, vel.y(), 0));
-                    btTransform trans;
-                    controllerBody->getMotionState()->getWorldTransform(trans);
-                    btVector3 pos = trans.getOrigin();
-                    worldPosition = glm::vec3(pos.x(), pos.y() - getControllerHalfHeight(), pos.z());
+                    // SitStandUp
+                    snapPos = m_seatSurfacePos + m_sitStandUpOffset;
                 }
+
+                trans.setOrigin(btVector3(snapPos.x,
+                                         snapPos.y + halfHeight,
+                                         snapPos.z));
+                controllerBody->setWorldTransform(trans);
+                controllerBody->getMotionState()->setWorldTransform(trans);
+                controllerBody->setLinearVelocity(btVector3(0, 0, 0));
+                worldPosition = snapPos;
                 currentYaw = m_seatFacingYaw;
             }
 
@@ -1814,6 +1885,10 @@ namespace Scene {
                     animTime          = 0.0f;
                     isBlending        = (previousClipIndex != -1);
                     blendFactor       = 0.0f;
+                    // Use the per-seat blend duration for sit transitions
+                    if (isBlending) {
+                        blendDuration = m_sitBlendDuration;
+                    }
                 }
             }
 

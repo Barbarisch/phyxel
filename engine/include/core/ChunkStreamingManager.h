@@ -71,6 +71,8 @@ public:
     using ChunkMapAccessFunc = std::function<std::unordered_map<glm::ivec3, Chunk*, ChunkCoordHash>&()>;
     using ChunkVectorAccessFunc = std::function<std::vector<std::unique_ptr<Chunk>>&()>;
     using DeviceAccessFunc = std::function<std::pair<VkDevice, VkPhysicalDevice>()>;
+    /// Called after each chunk is added (loaded or generated). Argument is the chunk's world origin.
+    using OnChunkLoadedFunc = std::function<void(const glm::ivec3& chunkOrigin)>;
 
     ChunkStreamingManager() = default;
     ~ChunkStreamingManager();
@@ -82,6 +84,8 @@ public:
         ChunkVectorAccessFunc getChunksFunc,
         DeviceAccessFunc getDevicesFunc
     );
+    /// Optional: called after every chunk load/generate (for height map, etc.)
+    void setOnChunkLoaded(OnChunkLoadedFunc cb) { m_onChunkLoaded = std::move(cb); }
 
     // World storage management
     bool initializeWorldStorage(const std::string& worldPath);
@@ -110,6 +114,7 @@ private:
     ChunkMapAccessFunc m_getChunkMap;
     ChunkVectorAccessFunc m_getChunks;
     DeviceAccessFunc m_getDevices;
+    OnChunkLoadedFunc m_onChunkLoaded;
 
     // World storage
     WorldStorage* worldStorage = nullptr;

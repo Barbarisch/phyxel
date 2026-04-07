@@ -103,11 +103,16 @@ std::vector<InteractionPoint> PlacedObjectManager::computeInteractionPoints(
         InteractionPoint pt;
         pt.pointId = def.pointId;
         pt.type    = def.type;
+        pt.supportedGroups = def.supportedGroups;
+        pt.objectRotation  = rotation;
         glm::vec3 rotOffset  = rotateLocalOffset(def.localOffset,  rotation);
-        glm::vec3 rotApproach = rotateLocalOffset(def.approachOffset, rotation);
         pt.worldPos        = glm::vec3(position) + rotOffset;
-        pt.worldApproachPos = glm::vec3(position) + rotApproach;
         pt.facingYaw       = def.facingYaw + rotRad;
+        pt.worldSitDownOffset     = rotateLocalOffset(def.sitDownOffset,     rotation);
+        pt.worldSittingIdleOffset = rotateLocalOffset(def.sittingIdleOffset, rotation);
+        pt.worldSitStandUpOffset  = rotateLocalOffset(def.sitStandUpOffset,  rotation);
+        pt.sitBlendDuration       = def.sitBlendDuration;
+        pt.seatHeightOffset       = def.seatHeightOffset;
         result.push_back(std::move(pt));
     }
     return result;
@@ -128,6 +133,12 @@ void PlacedObjectManager::recomputeAllInteractionPoints() {
         auto defsIt = m_templateDefs.find(obj.templateName);
         if (defsIt == m_templateDefs.end()) continue;
         obj.interactionPoints = computeInteractionPoints(defsIt->second, obj.position, obj.rotation);
+        for (const auto& pt : obj.interactionPoints) {
+            LOG_INFO_FMT("PlacedObjectManager", "  [" << id << "] '" << pt.pointId
+                << "' type=" << pt.type
+                << " objPos=(" << obj.position.x << "," << obj.position.y << "," << obj.position.z << ")"
+                << " worldPos=(" << pt.worldPos.x << "," << pt.worldPos.y << "," << pt.worldPos.z << ")");
+        }
         count += (int)obj.interactionPoints.size();
     }
     LOG_INFO_FMT("PlacedObjectManager", "Recomputed interaction points: "
@@ -146,7 +157,7 @@ std::pair<std::string, std::string> PlacedObjectManager::findNearestFreePoint(
             if (!pt.isFree()) continue;
             glm::vec3 diff = pt.worldPos - worldPos;
             float d2 = glm::dot(diff, diff);
-            if (d2 < bestDist2) {
+if (d2 < bestDist2) {
                 bestDist2 = d2;
                 bestObj = id;
                 bestPt  = pt.pointId;
@@ -282,7 +293,7 @@ void PlacedObjectManager::clearRegion(const glm::ivec3& min, const glm::ivec3& m
         }
     }
 
-    std::vector<Chunk*> modifiedChunks;
+    bool anyModified = false;
     for (auto& [cc, positions] : chunkBatches) {
         Chunk* chunk = m_chunkManager->getChunkAtCoord(cc);
         if (!chunk) continue;
@@ -291,13 +302,14 @@ void PlacedObjectManager::clearRegion(const glm::ivec3& min, const glm::ivec3& m
         for (const auto& p : positions) {
             chunk->clearSubdivisionAt(p);
         }
-        modifiedChunks.push_back(chunk);
+        // Mark dirty so updateDirtyChunks() rebuilds with proper cross-chunk culling
+        m_chunkManager->markChunkDirty(chunk);
+        anyModified = true;
     }
 
-    // Rebuild meshes so cleared subdivisions are reflected visually
-    for (Chunk* chunk : modifiedChunks) {
-        chunk->rebuildFaces();
-        chunk->updateVulkanBuffer();
+    // Flush dirty chunks immediately so the visual update is applied this frame
+    if (anyModified) {
+        m_chunkManager->updateDirtyChunks();
     }
 }
 

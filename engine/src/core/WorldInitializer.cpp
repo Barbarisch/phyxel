@@ -348,6 +348,12 @@ bool WorldInitializer::initializeVulkan() {
         return false;
     }
 
+    // Initialize compute infrastructure (queue, command pool, staging helpers)
+    if (!vulkanDevice->initComputeResources()) {
+        LOG_ERROR("WorldInitializer", "Failed to initialize compute resources!");
+        return false;
+    }
+
     // Create rendering buffers
     if (!vulkanDevice->createVertexBuffer()) {
         LOG_ERROR("WorldInitializer", "Failed to create vertex buffer!");

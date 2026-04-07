@@ -131,6 +131,30 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
+    echo Compiling particle integrate compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\particle_integrate.comp -o shaders\particle_integrate.comp.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile particle_integrate.comp
+        pause
+        exit /b 1
+    )
+
+    echo Compiling particle collide compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\particle_collide.comp -o shaders\particle_collide.comp.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile particle_collide.comp
+        pause
+        exit /b 1
+    )
+
+    echo Compiling particle expand compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\particle_expand.comp -o shaders\particle_expand.comp.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile particle_expand.comp
+        pause
+        exit /b 1
+    )
+
     echo Compiling debris vertex shader...
     %GLSLANG% -fshader-stage=vert -I. shaders\debris.vert -o shaders\debris.vert.spv
     if %errorlevel% neq 0 (
@@ -283,6 +307,30 @@ if defined USE_GLSLC (
         pause
         exit /b 1
     )
+    echo Compiling particle integrate compute shader...
+    %GLSLANG% -V -Ishaders shaders\particle_integrate.comp -o shaders\particle_integrate.comp.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile particle_integrate.comp
+        pause
+        exit /b 1
+    )
+
+    echo Compiling particle collide compute shader...
+    %GLSLANG% -V -Ishaders shaders\particle_collide.comp -o shaders\particle_collide.comp.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile particle_collide.comp
+        pause
+        exit /b 1
+    )
+
+    echo Compiling particle expand compute shader...
+    %GLSLANG% -V -Ishaders shaders\particle_expand.comp -o shaders\particle_expand.comp.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile particle_expand.comp
+        pause
+        exit /b 1
+    )
+
     echo Compiling debris vertex shader...
     %GLSLANG% -V -I. shaders\debris.vert -o shaders\debris.vert.spv
     if %errorlevel% neq 0 (

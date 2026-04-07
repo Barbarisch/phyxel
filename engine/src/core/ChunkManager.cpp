@@ -1,6 +1,9 @@
 #include "core/ChunkManager.h"
 #include "core/Chunk.h"
 #include "core/WorldStorage.h"
+#include "core/GpuParticlePhysics.h"
+#include "core/Subcube.h"
+#include "core/Microcube.h"
 #include "physics/PhysicsWorld.h"
 #include "utils/Logger.h"
 #include "utils/CoordinateUtils.h"
@@ -36,6 +39,25 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
         // DeviceAccessFunc: Get Vulkan device handles
         [this]() { return std::make_pair(device, physicalDevice); }
     );
+    // Occupancy grid: update all voxels in a 32³ chunk whenever it is streamed in at runtime
+    m_streamingManager.setOnChunkLoaded([this](const glm::ivec3& origin) {
+        if (!m_gpuParticles) return;
+        // Find the chunk at this origin and upload all solid voxels
+        for (const auto& chunkPtr : chunks) {
+            if (chunkPtr->getWorldOrigin() != origin) continue;
+            const Chunk* chunk = chunkPtr.get();
+            for (int lx = 0; lx < 32; ++lx) {
+                for (int ly = 0; ly < 32; ++ly) {
+                    for (int lz = 0; lz < 32; ++lz) {
+                        glm::ivec3 world(origin.x + lx, origin.y + ly, origin.z + lz);
+                        if (hasVoxelAt(world))
+                            m_gpuParticles->setOccupied(world.x, world.y, world.z, true);
+                    }
+                }
+            }
+            break;
+        }
+    });
     
     // Setup dynamic object manager callbacks
     m_dynamicObjectManager.setCallbacks(
@@ -490,7 +512,46 @@ void ChunkManager::clearDirtyChunkList() {
     m_dirtyChunkTracker.clearDirtyChunkList();
 }
 
+// Helper: extract SpawnParams from a Bullet rigid body (may be null)
+static GpuParticlePhysics::SpawnParams makeSpawnParams(
+    const glm::vec3& pos,
+    const std::string& materialName,
+    float scale,
+    float lifetime,
+    btRigidBody* rb)
+{
+    GpuParticlePhysics::SpawnParams sp;
+    sp.position     = pos;
+    sp.materialName = materialName;
+    sp.scale        = glm::vec3(scale);
+    sp.lifetime     = lifetime;
+    if (rb) {
+        btVector3 v  = rb->getLinearVelocity();
+        btVector3 av = rb->getAngularVelocity();
+        btQuaternion q = rb->getWorldTransform().getRotation();
+        sp.velocity    = glm::vec3(v.x(),  v.y(),  v.z());
+        sp.angularVel  = glm::vec3(av.x(), av.y(), av.z());
+        sp.rotation    = glm::quat(q.w(),  q.x(),  q.y(),  q.z());
+    }
+    return sp;
+}
+
 void ChunkManager::addGlobalDynamicSubcube(std::unique_ptr<Subcube> subcube) {
+    if (!subcube) return;
+    if (m_gpuParticles && m_gpuParticles->isInitialized()) {
+        auto sp = makeSpawnParams(
+            subcube->getPhysicsPosition(),
+            subcube->getMaterialName(),
+            1.0f / 3.0f,
+            subcube->getLifetime(),
+            subcube->getRigidBody());
+        // Remove the Bullet body before we discard the subcube
+        if (auto* rb = subcube->getRigidBody()) {
+            if (physicsWorld) physicsWorld->removeCube(rb);
+        }
+        m_gpuParticles->queueSpawn(sp);
+        return;
+    }
     m_dynamicObjectManager.addGlobalDynamicSubcube(std::move(subcube));
 }
 
@@ -516,6 +577,22 @@ void ChunkManager::clearAllGlobalDynamicSubcubes() {
 // ===============================================================
 
 void ChunkManager::addGlobalDynamicCube(std::unique_ptr<Cube> cube) {
+    if (!cube) return;
+    if (m_gpuParticles && m_gpuParticles->isInitialized()) {
+        // Get center-of-mass position: Cube stores corner, so add 0.5 to each axis
+        glm::vec3 pos = glm::vec3(cube->getPosition()) + glm::vec3(0.5f);
+        auto sp = makeSpawnParams(
+            pos,
+            cube->getMaterialName(),
+            1.0f,
+            30.0f,  // cubes use default lifetime
+            cube->getRigidBody());
+        if (auto* rb = cube->getRigidBody()) {
+            if (physicsWorld) physicsWorld->removeCube(rb);
+        }
+        m_gpuParticles->queueSpawn(sp);
+        return;
+    }
     m_dynamicObjectManager.addGlobalDynamicCube(std::move(cube));
 }
 
@@ -537,12 +614,24 @@ void ChunkManager::clearAllGlobalDynamicCubes() {
 // ===============================================================
 
 void ChunkManager::addGlobalDynamicMicrocube(std::unique_ptr<Microcube> microcube) {
-    if (microcube) {
-        LOG_DEBUG_FMT("ChunkManager", "[MICROCUBE] Adding global dynamic microcube at world position: ("
-                  << microcube->getWorldPosition().x << "," << microcube->getWorldPosition().y << "," << microcube->getWorldPosition().z << ")");
-        globalDynamicMicrocubes.push_back(std::move(microcube));
-        rebuildGlobalDynamicFaces();  // Rebuild faces after adding new microcube
+    if (!microcube) return;
+    if (m_gpuParticles && m_gpuParticles->isInitialized()) {
+        auto sp = makeSpawnParams(
+            microcube->getPhysicsPosition(),
+            microcube->getMaterialName(),
+            1.0f / 9.0f,
+            microcube->getLifetime(),
+            microcube->getRigidBody());
+        if (auto* rb = microcube->getRigidBody()) {
+            if (physicsWorld) physicsWorld->removeCube(rb);
+        }
+        m_gpuParticles->queueSpawn(sp);
+        return;
     }
+    LOG_DEBUG_FMT("ChunkManager", "[MICROCUBE] Adding global dynamic microcube at world position: ("
+              << microcube->getWorldPosition().x << "," << microcube->getWorldPosition().y << "," << microcube->getWorldPosition().z << ")");
+    globalDynamicMicrocubes.push_back(std::move(microcube));
+    rebuildGlobalDynamicFaces();
 }
 
 void ChunkManager::updateGlobalDynamicMicrocubes(float deltaTime) {
@@ -656,10 +745,34 @@ size_t ChunkManager::getChunkIndex(const Chunk* chunk) const {
 
 void ChunkManager::updateAfterCubeBreak(const glm::ivec3& worldPos) {
     m_faceUpdateCoordinator.updateAfterCubeBreak(worldPos);
+    if (m_gpuParticles) m_gpuParticles->setOccupied(worldPos.x, worldPos.y, worldPos.z, false);
 }
 
 void ChunkManager::updateAfterCubePlace(const glm::ivec3& worldPos) {
     m_faceUpdateCoordinator.updateAfterCubePlace(worldPos);
+    if (m_gpuParticles) m_gpuParticles->setOccupied(worldPos.x, worldPos.y, worldPos.z, true);
+}
+
+void ChunkManager::rebuildOccupancyFromChunks() {
+    if (!m_gpuParticles) return;
+    m_gpuParticles->clearOccupancy();
+    for (const auto& chunkPtr : chunks) {
+        const glm::ivec3 origin = chunkPtr->getWorldOrigin();
+        for (int lx = 0; lx < 32; ++lx) {
+            for (int ly = 0; ly < 32; ++ly) {
+                for (int lz = 0; lz < 32; ++lz) {
+                    glm::ivec3 world(origin.x + lx, origin.y + ly, origin.z + lz);
+                    if (hasVoxelAt(world))
+                        m_gpuParticles->setOccupied(world.x, world.y, world.z, true);
+                }
+            }
+        }
+    }
+    LOG_INFO_FMT("ChunkManager", "Occupancy grid rebuilt from " << chunks.size() << " chunks");
+}
+
+void ChunkManager::updateOccupancyVoxel(int worldX, int worldY, int worldZ, bool solid) {
+    if (m_gpuParticles) m_gpuParticles->setOccupied(worldX, worldY, worldZ, solid);
 }
 
 void ChunkManager::updateAfterCubeSubdivision(const glm::ivec3& worldPos) {

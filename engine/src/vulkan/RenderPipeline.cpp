@@ -173,6 +173,20 @@ bool RenderPipeline::createGraphicsPipeline() {
 }
 
 bool RenderPipeline::createGraphicsPipelineForDynamicSubcubes() {
+    // Creates the Vulkan graphics pipeline for dynamic voxel rendering.
+    //
+    // Topology: TRIANGLE_LIST (6 vertices per face = 2 triangles)
+    // Culling:  CULL_FRONT + FRONT_FACE_CCW → CW-wound triangles survive
+    //
+    // Used by both the GPU compute path (vkCmdDrawIndirect, non-indexed)
+    // and the CPU fallback path (vkCmdDrawIndexed, 6 indices per face).
+    //
+    // Vertex input:
+    //   Binding 0 (per-vertex):   Vertex { uint32_t vertexID } — 8 vertices
+    //   Binding 1 (per-instance): DynamicSubcubeInstanceData (64 bytes)
+    //
+    // See docs/DynamicSubcubeRenderPipeline.md for rendering architecture.
+    //
     if (renderPass == VK_NULL_HANDLE) {
         if (!createRenderPass()) {
             return false;

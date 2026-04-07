@@ -80,7 +80,7 @@ def generate_bbmodel(prompt, model, output_path, system_prompt=None):
     return result
 
 
-def convert_bbmodel_to_template(bbmodel_path, template_path, material, size, optimize, resolution="auto"):
+def convert_bbmodel_to_template(bbmodel_path, template_path, material, size, optimize, resolution="auto", facing_yaw=None):
     """Convert a .bbmodel file to a Phyxel voxel template using the existing pipeline."""
     pipeline_dir = os.path.join(os.path.dirname(__file__), "asset_pipeline")
     converter = os.path.join(pipeline_dir, "bbmodel_to_template.py")
@@ -94,6 +94,8 @@ def convert_bbmodel_to_template(bbmodel_path, template_path, material, size, opt
     ]
     if optimize:
         cmd.append("--optimize")
+    if facing_yaw is not None:
+        cmd += ["--facing-yaw", str(facing_yaw)]
 
     print(f"Converting to Phyxel template (size={size}, material={material})...")
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -306,6 +308,8 @@ def main():
     )
     parser.add_argument("--optimize", action="store_true", default=True, help="Optimize grid alignment (default: True)")
     parser.add_argument("--no-optimize", dest="optimize", action="store_false", help="Disable grid alignment optimization")
+    parser.add_argument("--facing-yaw", type=float, default=None,
+                        help="Canonical facing yaw in radians (0=+Z, π≈3.14159=-Z). Stored in template header.")
     parser.add_argument(
         "--output-dir",
         default=None,
@@ -461,7 +465,7 @@ def main():
         resolution = building_resolution or "auto"
         success = convert_bbmodel_to_template(
             bbmodel_path, template_path, args.material, args.size, args.optimize,
-            resolution=resolution
+            resolution=resolution, facing_yaw=args.facing_yaw
         )
 
     if not success:

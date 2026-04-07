@@ -286,6 +286,21 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
     LOG_INFO("Application", "RenderCoordinator initialized successfully!");
 
+    // STEP 6b: INITIALIZE GPU PARTICLE PHYSICS
+    gpuParticlePhysics = std::make_unique<GpuParticlePhysics>();
+    if (gpuParticlePhysics->initialize(vulkanDevice, "")) {
+        // Wire to RenderCoordinator (for compute dispatch + GPU draw)
+        renderCoordinator->setGpuParticlePhysics(gpuParticlePhysics.get());
+        // Wire to ChunkManager (for occupancy grid updates on voxel change + streaming)
+        chunkManager->setGpuParticlePhysics(gpuParticlePhysics.get());
+        // Populate 3D occupancy grid from chunks already loaded at startup
+        chunkManager->rebuildOccupancyFromChunks();
+        LOG_INFO("Application", "GpuParticlePhysics initialized successfully!");
+    } else {
+        LOG_WARN("Application", "GpuParticlePhysics initialization failed — falling back to CPU physics");
+        gpuParticlePhysics.reset();
+    }
+
     // STEP 7: REGISTER INPUT ACTIONS
     // Create InputController to handle input bindings
     inputController = std::make_unique<InputController>(
@@ -972,14 +987,33 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     interactionManager->setEntityRegistry(entityRegistry.get());
     interactionManager->setPlacedObjectManager(placedObjectManager.get());
 
-    // Register interaction point definitions for seated furniture
-    if (placedObjectManager) {
-        placedObjectManager->registerTemplateDefs("test_chair", {
-            {"seat_0", "seat",
-             glm::vec3(0.33f, 0.42f, 0.33f),  // local seat surface position
-             0.0f,                              // facing yaw at 0° object rotation
-             glm::vec3(0.33f, 0.0f, -0.7f)}    // approach offset (stand in front)
-        });
+    // Initialize Interaction Profile Manager (per-archetype tuning data)
+    interactionProfileManager = std::make_unique<Core::InteractionProfileManager>();
+    if (!projectDir_.empty()) {
+        interactionProfileManager->setBasePath(projectDir_ + "/resources/interactions/");
+    }
+    interactionProfileManager->loadArchetype("humanoid_normal");
+    interactionManager->setInteractionProfileManager(interactionProfileManager.get());
+
+    // Auto-register interaction point defs from template .txt file metadata.
+    if (placedObjectManager && objectTemplateManager) {
+        for (const auto& name : objectTemplateManager->getTemplateNames()) {
+            const auto* tmpl = objectTemplateManager->getTemplate(name);
+            if (tmpl && !tmpl->interactionPoints.empty()) {
+                placedObjectManager->registerTemplateDefs(name, tmpl->interactionPoints);
+                LOG_INFO("Application", "Auto-registered {} interaction point(s) for '{}'",
+                         tmpl->interactionPoints.size(), name);
+            }
+        }
+        // Fallback: if test_chair has no metadata yet, register a minimal default
+        if (placedObjectManager->getMutableTemplateDefs().find("test_chair") ==
+            placedObjectManager->getMutableTemplateDefs().end()) {
+            placedObjectManager->registerTemplateDefs("test_chair", {
+                {"seat_0", "seat",
+                 glm::vec3(0.33f, 1.0f, 0.33f),
+                 objectTemplateManager->getTemplateFacingYaw("test_chair")}
+            });
+        }
     }
 
     // Initialize Combat System
@@ -1105,10 +1139,17 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // Wire seat callback: player presses E near a seat → animated character sits
     interactionManager->setSeatCallback([this](const std::string& objectId,
                                                const std::string& pointId,
-                                               const glm::vec3& approachPos,
-                                               float facingYaw) {
+                                               const glm::vec3& seatAnchorPos,
+                                               float facingYaw,
+                                               const glm::vec3& sitDownOffset,
+                                               const glm::vec3& sittingIdleOffset,
+                                               const glm::vec3& sitStandUpOffset,
+                                               float sitBlendDuration,
+                                               float seatHeightOffset) {
         if (!animatedCharacter) return;
-        animatedCharacter->sitAt(approachPos, facingYaw);
+        animatedCharacter->sitAt(seatAnchorPos, facingYaw,
+                                 sitDownOffset, sittingIdleOffset, sitStandUpOffset,
+                                 sitBlendDuration, seatHeightOffset);
     });
 
     // Start the API server
@@ -1130,9 +1171,10 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // STEP 10.5: PROJECT LAUNCHER (if no project specified via CLI)
     // Skip launcher entirely when running in asset-editor mode.
     // Initialize the launcher so it can be rendered inside run()'s normal loop.
-    LOG_INFO("Application", "Asset editor mode: {}, Anim editor mode: {}, projectDir: '{}'",
-             m_assetEditorMode ? "ON" : "OFF", m_animEditorMode ? "ON" : "OFF", projectDir_);
-    if (projectDir_.empty() && !m_assetEditorMode && !m_animEditorMode) {
+    LOG_INFO("Application", "Asset editor mode: {}, Anim editor mode: {}, Interaction editor mode: {}, projectDir: '{}'",
+             m_assetEditorMode ? "ON" : "OFF", m_animEditorMode ? "ON" : "OFF",
+             m_interactionEditorMode ? "ON" : "OFF", projectDir_);
+    if (projectDir_.empty() && !m_assetEditorMode && !m_animEditorMode && !m_interactionEditorMode) {
         namespace fs = std::filesystem;
         std::string baseDir = Core::ProjectInfo::getDefaultProjectsDir();
         fs::create_directories(baseDir);
@@ -1151,6 +1193,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             initAssetEditorScene();
         } else if (m_animEditorMode) {
             initAnimEditorScene();
+        } else if (m_interactionEditorMode) {
+            initInteractionEditorScene();
         } else {
             autoLoadGameDefinition();
         }
@@ -1411,11 +1455,17 @@ void Application::run() {
         // Render Character Customizer
         renderCharacterCustomizer();
 
+        // Render Interaction Point Tuner
+        renderInteractionTuner();
+
         // Render Asset Editor panel (when launched with --asset-editor)
         renderAssetEditorUI();
 
         // Render Anim Editor panel (when launched with --anim-editor)
         renderAnimEditorUI();
+
+        // Render Interaction Editor panel (when launched with --interaction-editor)
+        renderInteractionEditorUI();
 
         // Render Dialogue Box
         if (dialogueSystem) {
@@ -1659,6 +1709,23 @@ void Application::update(float deltaTime) {
     // Skip simulation when paused (API commands and jobs still process)
     if (gamePaused) return;
 
+    // Update GPU particle physics (CPU-side slot tracking + staging upload)
+    if (gpuParticlePhysics) {
+        // Feed character AABB to GPU so particles collide with the player
+        if (animatedCharacter) {
+            auto pos = animatedCharacter->getPosition(); // feet position
+            float halfH = animatedCharacter->getControllerHalfHeight();
+            float halfW = animatedCharacter->getControllerHalfWidth();
+            glm::vec3 center = pos + glm::vec3(0.0f, halfH, 0.0f);
+            glm::vec3 halfExt(halfW, halfH, halfW);
+            glm::vec3 vel = animatedCharacter->getControllerVelocity();
+            gpuParticlePhysics->setCharacterAABB(center, halfExt, vel);
+        } else {
+            gpuParticlePhysics->clearCharacterAABB();
+        }
+        gpuParticlePhysics->update(deltaTime);
+    }
+
     // Update respawn system (handles death timer and auto-respawn)
     respawnSystem.update(deltaTime);
 
@@ -1873,8 +1940,11 @@ void Application::update(float deltaTime) {
     // OPTIMIZED: Only update chunks that have actually changed
     if (chunkManager) {
         chunkManager->updateDirtyChunks();
-        // Use the combined update method which also updates the DebrisSystem
-        chunkManager->m_dynamicObjectManager.updateAllDynamicObjects(deltaTime);
+        // CPU dynamic object update — skipped when GPU particle system is active
+        // (all dynamic debris is handled by GpuParticlePhysics::update() called above)
+        if (!gpuParticlePhysics || !gpuParticlePhysics->isInitialized()) {
+            chunkManager->m_dynamicObjectManager.updateAllDynamicObjects(deltaTime);
+        }
     }
     
     // Update physics with FIXED timestep for smooth, jitter-free simulation
@@ -1903,7 +1973,8 @@ void Application::update(float deltaTime) {
     }
 
     // Update dynamic subcube positions from physics bodies (batched + throttled)
-    if (chunkManager) {
+    // Skipped when GPU particle system is active — positions live on the GPU
+    if (chunkManager && (!gpuParticlePhysics || !gpuParticlePhysics->isInitialized())) {
         chunkManager->m_dynamicObjectManager.updateAllDynamicObjectPositions();
     }
     
@@ -1999,6 +2070,55 @@ void Application::update(float deltaTime) {
             saveAnimModel();
         }
         m_animEditorCtrlSPrev = sNow;
+    }
+
+    // ---- Interaction Editor input + preview state machine ----
+    if (m_interactionEditorMode && inputManager) {
+        bool ctrlDown = inputManager->isKeyPressed(GLFW_KEY_LEFT_CONTROL) ||
+                        inputManager->isKeyPressed(GLFW_KEY_RIGHT_CONTROL);
+        bool sNow = ctrlDown && inputManager->isKeyPressed(GLFW_KEY_S);
+        if (sNow && !m_ieCtrlSPrev) {
+            if (interactionProfileManager && !m_ieProfileArchetype.empty()) {
+                interactionProfileManager->saveArchetype(m_ieProfileArchetype);
+                LOG_INFO("Application", "Interaction Editor: saved profile (Ctrl+S)");
+            }
+        }
+        m_ieCtrlSPrev = sNow;
+
+        // Preview state machine
+        if (m_ieChar && m_iePreviewState != InteractionPreviewState::None) {
+            switch (m_iePreviewState) {
+                case InteractionPreviewState::SittingDown:
+                    // Wait for sit-down to finish → auto-transitions to SittingIdle
+                    if (m_ieChar->isSitting() &&
+                        m_ieChar->getAnimationState() == Scene::AnimatedCharacterState::SittingIdle) {
+                        m_iePreviewState = m_ieAutoPreview
+                            ? InteractionPreviewState::AutoIdle
+                            : InteractionPreviewState::SittingIdle;
+                        m_ieAutoTimer = 0.0f;
+                    }
+                    break;
+                case InteractionPreviewState::SittingIdle:
+                    // Manual mode: stay until user clicks Stand Up
+                    break;
+                case InteractionPreviewState::AutoIdle:
+                    // Auto-preview: wait 2 seconds then stand up
+                    m_ieAutoTimer += deltaTime;
+                    if (m_ieAutoTimer >= 2.0f) {
+                        m_ieChar->standUp();
+                        m_iePreviewState = InteractionPreviewState::StandingUp;
+                    }
+                    break;
+                case InteractionPreviewState::StandingUp:
+                    // Wait for stand-up to finish
+                    if (!m_ieChar->isSitting()) {
+                        m_iePreviewState = InteractionPreviewState::None;
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
     }
 }
 
@@ -2111,6 +2231,173 @@ void Application::setPaused(bool paused) {
 void Application::toggleCharacterCustomizer() {
     showCharacterCustomizer = !showCharacterCustomizer;
     LOG_INFO_FMT("Application", "Character Customizer: " << (showCharacterCustomizer ? "ENABLED" : "DISABLED"));
+}
+
+void Application::toggleInteractionTuner() {
+    showInteractionTuner = !showInteractionTuner;
+    LOG_INFO_FMT("Application", "Interaction Tuner: " << (showInteractionTuner ? "ENABLED" : "DISABLED"));
+}
+
+void Application::renderInteractionTuner() {
+    if (!showInteractionTuner || !placedObjectManager) return;
+
+    auto& allDefs = placedObjectManager->getMutableTemplateDefs();
+    if (allDefs.empty()) {
+        ImGui::SetNextWindowSize(ImVec2(340, 80), ImGuiCond_Always);
+        if (ImGui::Begin("Interaction Tuner [F12]", &showInteractionTuner)) {
+            ImGui::TextDisabled("No interaction point defs registered.");
+        }
+        ImGui::End();
+        return;
+    }
+
+    if (tunerSelectedTemplate.empty() || !allDefs.count(tunerSelectedTemplate))
+        tunerSelectedTemplate = allDefs.begin()->first;
+
+    // Determine current archetype
+    std::string archetype = "humanoid_normal";
+    if (animatedCharacter) archetype = animatedCharacter->getArchetype();
+
+    ImGui::SetNextWindowSize(ImVec2(440, 480), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Interaction Tuner [F12]", &showInteractionTuner)) {
+        ImGui::End();
+        return;
+    }
+
+    // Archetype display
+    ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "Archetype: %s", archetype.c_str());
+    ImGui::Separator();
+
+    // Template selector
+    if (ImGui::BeginCombo("Template", tunerSelectedTemplate.c_str())) {
+        for (auto& [name, defs] : allDefs) {
+            bool selected = (name == tunerSelectedTemplate);
+            if (ImGui::Selectable(name.c_str(), selected))
+                tunerSelectedTemplate = name;
+            if (selected) ImGui::SetItemDefaultFocus();
+        }
+        ImGui::EndCombo();
+    }
+
+    auto& defs = allDefs[tunerSelectedTemplate];
+    bool assetChanged = false;
+
+    for (int i = 0; i < (int)defs.size(); ++i) {
+        auto& def = defs[i];
+        ImGui::PushID(i);
+
+        ImGui::Spacing();
+        // Show supported groups
+        std::string groupsLabel = def.supportedGroups.empty() ? "all" : "";
+        for (size_t g = 0; g < def.supportedGroups.size(); ++g) {
+            if (g > 0) groupsLabel += ", ";
+            groupsLabel += def.supportedGroups[g];
+        }
+        ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.4f, 1.0f), "[ %s ]  type: %s  groups: %s",
+                           def.pointId.c_str(), def.type.c_str(), groupsLabel.c_str());
+        ImGui::Separator();
+
+        // === Asset-level settings (saved to .txt) ===
+        if (ImGui::TreeNodeEx("Asset Point (saved to .txt)", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::TextDisabled("Seat Anchor: base reference point on the seat");
+            assetChanged |= ImGui::InputFloat3("Seat Anchor##end", &def.localOffset.x, "%.4f");
+            ImGui::Spacing();
+            ImGui::TextDisabled("Facing direction in radians (0=+Z, pi=-Z, pi/2=+X)");
+            assetChanged |= ImGui::InputFloat("Facing Yaw##yaw", &def.facingYaw, 0.0f, 0.0f, "%.4f");
+            ImGui::TreePop();
+        }
+
+        // === Profile-level settings (per-archetype, saved to JSON) ===
+        ImGui::Spacing();
+        if (ImGui::TreeNodeEx("Profile Offsets (per-archetype, saved to JSON)", ImGuiTreeNodeFlags_DefaultOpen)) {
+            // Get or create the profile for this archetype+template+point
+            Core::InteractionProfile profile;
+            if (interactionProfileManager) {
+                const auto* existing = interactionProfileManager->getProfile(archetype, tunerSelectedTemplate, def.pointId);
+                if (existing) {
+                    profile = *existing;
+                }
+            }
+
+            bool profileChanged = false;
+            ImGui::TextDisabled("Foot-anchored: character's FEET snap here. Animation moves the hips.");
+            ImGui::TextDisabled("Each offset is relative to Seat Anchor.");
+            ImGui::Spacing();
+            ImGui::TextDisabled("Feet pos during sit-down animation:");
+            profileChanged |= ImGui::InputFloat3("SitDown Feet##sd", &profile.sitDownOffset.x, "%.4f");
+            ImGui::TextDisabled("Feet pos during sitting-idle loop:");
+            profileChanged |= ImGui::InputFloat3("SittingIdle Feet##si", &profile.sittingIdleOffset.x, "%.4f");
+            ImGui::TextDisabled("Feet pos during stand-up animation:");
+            profileChanged |= ImGui::InputFloat3("StandUp Feet##su", &profile.sitStandUpOffset.x, "%.4f");
+            ImGui::Spacing();
+            if (ImGui::Button("Copy SitDown -> All##copysitdown")) {
+                profile.sittingIdleOffset = profile.sitDownOffset;
+                profile.sitStandUpOffset = profile.sitDownOffset;
+                profileChanged = true;
+            }
+            ImGui::SameLine();
+            ImGui::TextDisabled("(Sets all three to the same value)");
+            ImGui::Spacing();
+            profileChanged |= ImGui::SliderFloat("Blend Duration##bd", &profile.sitBlendDuration, 0.0f, 1.0f, "%.2f s");
+            ImGui::TextDisabled("Animation crossfade time. Set to 0 for instant clip switch.");
+            ImGui::Spacing();
+            ImGui::TextDisabled("Quick Y adjust on the Seat Anchor (shifts all states vertically):");
+            profileChanged |= ImGui::InputFloat("Seat Height Offset##sh", &profile.seatHeightOffset, 0.0f, 0.0f, "%.4f");
+
+            if (profileChanged && interactionProfileManager) {
+                interactionProfileManager->setProfile(archetype, tunerSelectedTemplate, def.pointId, profile);
+            }
+            ImGui::TreePop();
+        }
+
+        ImGui::PopID();
+    }
+
+    if (assetChanged)
+        placedObjectManager->recomputeAllInteractionPoints();
+
+    ImGui::Spacing();
+    ImGui::Separator();
+
+    // Save buttons
+    if (ImGui::Button("Save Asset (.txt)")) {
+        if (objectTemplateManager &&
+            objectTemplateManager->saveInteractionDefs(tunerSelectedTemplate, defs)) {
+            LOG_INFO("Application", "Saved asset interaction points for '{}' to template file.", tunerSelectedTemplate);
+        } else {
+            LOG_ERROR("Application", "Failed to save asset interaction points for '{}'.", tunerSelectedTemplate);
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Save Profile (.json)")) {
+        if (interactionProfileManager &&
+            interactionProfileManager->saveArchetype(archetype)) {
+            LOG_INFO("Application", "Saved interaction profiles for archetype '{}'.", archetype);
+        } else {
+            LOG_ERROR("Application", "Failed to save interaction profiles for archetype '{}'.", archetype);
+        }
+    }
+
+    // --- Debug visualization: draw markers when character is sitting ---
+    if (animatedCharacter && animatedCharacter->isSitting() && raycastVisualizer) {
+        auto drawCross = [this](const glm::vec3& pos, const glm::vec3& color, float size = 0.15f) {
+            raycastVisualizer->addLine(pos - glm::vec3(size, 0, 0), pos + glm::vec3(size, 0, 0), color);
+            raycastVisualizer->addLine(pos - glm::vec3(0, size, 0), pos + glm::vec3(0, size, 0), color);
+            raycastVisualizer->addLine(pos - glm::vec3(0, 0, size), pos + glm::vec3(0, 0, size), color);
+        };
+
+        // Green: seat anchor position
+        drawCross(animatedCharacter->getSeatSurfacePos(), glm::vec3(0.0f, 1.0f, 0.0f), 0.2f);
+        // Yellow: current worldPosition (feet)
+        drawCross(animatedCharacter->getPosition(), glm::vec3(1.0f, 1.0f, 0.0f), 0.15f);
+
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Green cross = seat anchor");
+        ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "Yellow cross = character feet (worldPosition)");
+    }
+
+    ImGui::End();
 }
 
 void Application::renderCharacterCustomizer() {
@@ -2502,6 +2789,16 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
         // Play default animation if available
         animatedCharacter->playAnimation("idle"); 
         LOG_INFO("Application", "Loaded animated character model: " + animFile);
+
+        // Propagate character archetype to interaction system
+        if (interactionManager) {
+            interactionManager->setPlayerArchetype(animatedCharacter->getArchetype());
+            LOG_INFO("Application", "Set player interaction archetype to '{}'", animatedCharacter->getArchetype());
+        }
+        // Load interaction profiles for this archetype if not already loaded
+        if (interactionProfileManager) {
+            interactionProfileManager->loadArchetype(animatedCharacter->getArchetype());
+        }
     } else {
         LOG_ERROR("Application", "Failed to load animated character model: " + animFile);
     }
@@ -2557,9 +2854,43 @@ void Application::setControlTarget(const std::string& targetName) {
 void Application::derezCharacter(float explosionStrength) {
     if (animatedCharacter && chunkManager) {
         LOG_INFO("Application", "Triggering derez on animated character");
-        
-        // 1. Spawn debris
-        chunkManager->m_dynamicObjectManager.derezCharacter(animatedCharacter, explosionStrength);
+
+        // 1. Spawn debris — GPU path preferred, CPU Verlet/Bullet path as fallback
+        if (gpuParticlePhysics && gpuParticlePhysics->isInitialized()) {
+            const auto& parts = animatedCharacter->getParts();
+            int spawnedCount = 0;
+            for (const auto& part : parts) {
+                if (!part.rigidBody) continue;
+                btTransform trans;
+                if (part.rigidBody->getMotionState())
+                    part.rigidBody->getMotionState()->getWorldTransform(trans);
+                else
+                    trans = part.rigidBody->getWorldTransform();
+                btVector3 worldPos = trans * btVector3(part.offset.x, part.offset.y, part.offset.z);
+                btVector3 vel      = part.rigidBody->getLinearVelocity();
+                btVector3 angVel   = part.rigidBody->getAngularVelocity();
+                btQuaternion rot   = trans.getRotation();
+
+                float randX = ((rand() % 100) / 100.0f - 0.5f) * 4.0f * explosionStrength;
+                float randY = (((rand() % 100) / 100.0f) * 4.0f + 2.0f) * explosionStrength;
+                float randZ = ((rand() % 100) / 100.0f - 0.5f) * 4.0f * explosionStrength;
+
+                GpuParticlePhysics::SpawnParams sp;
+                sp.position    = glm::vec3(worldPos.x(), worldPos.y(), worldPos.z());
+                sp.velocity    = glm::vec3(vel.x() + randX, vel.y() + randY, vel.z() + randZ);
+                sp.angularVel  = glm::vec3(angVel.x(), angVel.y(), angVel.z());
+                sp.rotation    = glm::quat(rot.w(), rot.x(), rot.y(), rot.z());
+                sp.scale       = part.scale;
+                sp.color       = part.color;
+                sp.materialName = "Default";
+                sp.lifetime    = 5.0f + (rand() % 50) / 10.0f;
+                gpuParticlePhysics->queueSpawn(sp);
+                ++spawnedCount;
+            }
+            LOG_INFO_FMT("Application", "Derez spawned " << spawnedCount << " GPU particles");
+        } else {
+            chunkManager->m_dynamicObjectManager.derezCharacter(animatedCharacter, explosionStrength);
+        }
         
         // 2. Remove character from entities list
         // Find and remove the unique_ptr that matches animatedCharacter
@@ -3834,6 +4165,22 @@ void Application::processAPICommands() {
                         if (placed > 0 && npcManager) {
                             npcManager->buildNavGrid();
                         }
+                        // Update GPU occupancy grid for filled region
+                        if (placed > 0 && gpuParticlePhysics) {
+                            for (int ix = minX; ix <= maxX; ++ix) {
+                                for (int iy = minY; iy <= maxY; ++iy) {
+                                    for (int iz = minZ; iz <= maxZ; ++iz) {
+                                        if (hollow &&
+                                            ix > minX && ix < maxX &&
+                                            iy > minY && iy < maxY &&
+                                            iz > minZ && iz < maxZ) {
+                                            continue;
+                                        }
+                                        gpuParticlePhysics->setOccupied(ix, iy, iz, true);
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -3966,6 +4313,13 @@ void Application::processAPICommands() {
                         if (removed > 0 && npcManager) {
                             npcManager->buildNavGrid();
                         }
+                        // Update GPU occupancy grid for cleared region
+                        if (removed > 0 && gpuParticlePhysics) {
+                            for (int ix = minX; ix <= maxX; ++ix)
+                                for (int iy = minY; iy <= maxY; ++iy)
+                                    for (int iz = minZ; iz <= maxZ; ++iz)
+                                        gpuParticlePhysics->setOccupied(ix, iy, iz, false);
+                        }
                     }
                 }
 
@@ -3983,6 +4337,14 @@ void Application::processAPICommands() {
                         response = {{"success", true}, {"chunk", {{"x", cx}, {"y", cy}, {"z", cz}}}};
                         if (gameEventLog) {
                             gameEventLog->emit("chunk_cleared", {{"chunk", {{"x", cx}, {"y", cy}, {"z", cz}}}});
+                        }
+                        // Update GPU occupancy grid for entire cleared chunk
+                        if (gpuParticlePhysics) {
+                            glm::ivec3 origin = cc * 32;
+                            for (int lx = 0; lx < 32; ++lx)
+                                for (int ly = 0; ly < 32; ++ly)
+                                    for (int lz = 0; lz < 32; ++lz)
+                                        gpuParticlePhysics->setOccupied(origin.x + lx, origin.y + ly, origin.z + lz, false);
                         }
                     } else {
                         response = {{"error", "Chunk not found"}, {"chunk", {{"x", cx}, {"y", cy}, {"z", cz}}}};
@@ -4573,6 +4935,12 @@ void Application::processAPICommands() {
                         std::string parentId = cmd.params.value("parent_id", "");
                         std::string objectId = placedObjectManager->placeTemplate(name, pos, rotation, parentId);
                         bool ok = !objectId.empty();
+                        // Immediately persist placed_objects so the record survives engine restarts
+                        // without requiring a separate save_world call
+                        if (ok && chunkManager) {
+                            auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+                            if (ws) placedObjectManager->saveToDb(ws->getDb());
+                        }
                         response = {{"success", ok}, {"template", name},
                                     {"object_id", objectId},
                                     {"position", {{"x", x}, {"y", y}, {"z", z}}},
@@ -4680,6 +5048,11 @@ void Application::processAPICommands() {
                                 cmd.params.value("type", "structure"),
                                 glm::ivec3(posX, posY, posZ), 0, smin, smax, parentId);
                             response["object_id"] = objectId;
+                            // Immediately persist so the structure record survives restarts
+                            if (!objectId.empty() && chunkManager) {
+                                auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+                                if (ws) placedObjectManager->saveToDb(ws->getDb());
+                            }
 
                             // Rebuild NavGrid for the affected region
                             if (npcManager) {
@@ -5101,6 +5474,11 @@ void Application::processAPICommands() {
                                              "remove_placed_object:" + id);
                         }
                         bool ok = placedObjectManager->remove(id);
+                        // Immediately persist so removed record doesn't resurrect on restart
+                        if (ok && chunkManager) {
+                            auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+                            if (ws) placedObjectManager->saveToDb(ws->getDb());
+                        }
                         response = {{"success", ok}, {"id", id}};
                     }
                 }
@@ -5127,6 +5505,10 @@ void Application::processAPICommands() {
                         }
 
                         bool ok = placedObjectManager->move(id, glm::ivec3(nx, ny, nz));
+                        if (ok && chunkManager) {
+                            auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+                            if (ws) placedObjectManager->saveToDb(ws->getDb());
+                        }
                         response = {{"success", ok}, {"id", id},
                                     {"position", {{"x", nx}, {"y", ny}, {"z", nz}}}};
                     }
@@ -5149,6 +5531,10 @@ void Application::processAPICommands() {
                                              "rotate_placed_object:" + id);
                         }
                         bool ok = placedObjectManager->rotate(id, newRotation);
+                        if (ok && chunkManager) {
+                            auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+                            if (ws) placedObjectManager->saveToDb(ws->getDb());
+                        }
                         response = {{"success", ok}, {"id", id}, {"rotation", newRotation}};
                     }
                 }
@@ -5412,6 +5798,10 @@ void Application::processAPICommands() {
                         }
                         if (generated > 0 && npcManager) {
                             npcManager->buildNavGrid();
+                        }
+                        // Rebuild entire GPU occupancy grid after world generation
+                        if (generated > 0) {
+                            chunkManager->rebuildOccupancyFromChunks();
                         }
                     }
                 }
@@ -6105,6 +6495,11 @@ void Application::processAPICommands() {
                 auto loadResult = Core::GameDefinitionLoader::load(cmd.params, subsystems);
                 response = loadResult.toJson();
 
+                // Rebuild GPU occupancy grid after world generation/placement
+                if (loadResult.chunksGenerated > 0 || loadResult.structuresPlaced > 0) {
+                    chunkManager->rebuildOccupancyFromChunks();
+                }
+
                 // Switch to third-person if player was spawned
                 if (loadResult.playerSpawned && camera) {
                     camera->setMode(Graphics::CameraMode::ThirdPerson);
@@ -6683,6 +7078,7 @@ void Application::processAPICommands() {
                                     {"hollow", hollow}, {"async", true}
                                 });
                             }
+                            if (placed > 0) cmFill->rebuildOccupancyFromChunks();
                         };
                         
                     } else if (jobType == "clear_region") {
@@ -6743,6 +7139,7 @@ void Application::processAPICommands() {
                             if (removed > 0 && evClear) {
                                 evClear->emit("region_cleared", {{"removed", removed}, {"async", true}});
                             }
+                            if (removed > 0) cmClear->rebuildOccupancyFromChunks();
                         };
                         
                     } else if (jobType == "generate_world") {
@@ -6822,6 +7219,7 @@ void Application::processAPICommands() {
                                     {"async", true}
                                 });
                             }
+                            cmGen->rebuildOccupancyFromChunks();
                         };
                         
                     } else if (jobType == "save_world") {
@@ -7886,6 +8284,885 @@ void Application::renameAnimationInFile(const std::string& oldName, const std::s
             if (names[i] == newName) { m_animEditorAnimIdx = i; break; }
         }
     }
+}
+
+// ============================================================================
+// INTERACTION EDITOR MODE  (--interaction-editor <file> [--character <file>])
+// ============================================================================
+
+void Application::initInteractionEditorScene() {
+    if (!chunkManager) return;
+
+    LOG_INFO("Application", "Interaction Editor: initializing scene for '{}'", m_interactionEditorFile);
+
+    // Clear the default world
+    chunkManager->cleanup();
+
+    // Create one chunk with a Stone floor at Y=15
+    chunkManager->createChunk(glm::ivec3(0, 0, 0), false);
+    for (int x = 0; x < 32; ++x) {
+        for (int z = 0; z < 32; ++z) {
+            chunkManager->m_voxelModificationSystem.addCubeWithMaterial(
+                glm::ivec3(x, 15, z), "Stone");
+        }
+    }
+    chunkManager->rebuildAllChunkFaces();
+    chunkManager->initializeAllChunkVoxelMaps();
+
+    // Protect floor from breaking
+    if (voxelInteractionSystem) {
+        voxelInteractionSystem->setMinBreakableY(15);
+    }
+
+    // Spawn the asset template at the origin
+    if (objectTemplateManager && !m_interactionEditorFile.empty()) {
+        namespace fs = std::filesystem;
+        objectTemplateManager->loadTemplate(m_interactionEditorFile);
+        std::string stemName = fs::path(m_interactionEditorFile).stem().string();
+        objectTemplateManager->spawnTemplate(stemName,
+            glm::vec3(m_ieAssetOrigin), true /*static*/);
+    }
+
+    // Spawn the character next to the asset
+    std::string charFile = m_interactionEditorCharFile;
+    if (charFile.empty()) {
+        auto& assets = Core::AssetManager::instance();
+        charFile = assets.resolveAnimatedChar("humanoid.anim");
+    }
+    m_ieCharRestPos = glm::vec3(m_ieAssetOrigin.x + 4, m_ieAssetOrigin.y, m_ieAssetOrigin.z);
+    m_ieChar = createAnimatedCharacter(m_ieCharRestPos, charFile);
+    if (m_ieChar) {
+        m_ieChar->playAnimation("idle");
+
+        // Build body bones list for bone scale sliders (same filter as anim editor)
+        m_ieBodyBones.clear();
+        const auto& skel = m_ieChar->getSkeleton();
+        auto isBodyBone = [](const std::string& name) -> bool {
+            static const std::vector<std::string> include_kw = {
+                "Hips","Spine","Neck","Head","Shoulder","Arm","ForeArm","Hand",
+                "UpLeg","Leg","Foot"
+            };
+            static const std::vector<std::string> exclude_kw = {
+                "Thumb","Index","Middle","Ring","Pinky","Toe","Top_End","top_end","_end","_End"
+            };
+            for (const auto& kw : exclude_kw)
+                if (name.find(kw) != std::string::npos) return false;
+            for (const auto& kw : include_kw)
+                if (name.find(kw) != std::string::npos) return true;
+            return false;
+        };
+        for (const auto& bone : skel.bones) {
+            if (isBodyBone(bone.name))
+                m_ieBodyBones.push_back({bone.id, bone.name});
+        }
+
+        // Initialize archetype buffer for editing
+        std::string arch = m_ieChar->getArchetype();
+        strncpy(m_ieArchetypeBuf, arch.c_str(), sizeof(m_ieArchetypeBuf) - 1);
+        m_ieArchetypeBuf[sizeof(m_ieArchetypeBuf) - 1] = '\0';
+    }
+
+    // Set up interaction profiles
+    if (interactionProfileManager && m_ieChar) {
+        std::string basePath = "resources/interactions/";
+        interactionProfileManager->setBasePath(basePath);
+        m_ieProfileArchetype = m_ieChar->getArchetype();
+        interactionProfileManager->loadArchetype(m_ieProfileArchetype);
+    }
+
+    // Position camera with an elevated overview of the editing area
+    if (camera) {
+        camera->setPosition(glm::vec3(20.0f, 24.0f, 8.0f));
+        camera->setYaw(-135.0f);
+        camera->setPitch(-30.0f);
+        camera->setMode(Graphics::CameraMode::Free);
+    }
+    if (inputManager) {
+        inputManager->setCameraPosition(glm::vec3(20.0f, 24.0f, 8.0f));
+        inputManager->setYawPitch(-135.0f, -30.0f);
+    }
+
+    LOG_INFO("Application", "Interaction Editor: scene ready. Ctrl+S = save profile.");
+}
+
+void Application::ieStartPreview(bool autoPlay) {
+    if (!m_ieChar || !placedObjectManager) return;
+
+    auto& allDefs = placedObjectManager->getMutableTemplateDefs();
+    namespace fs = std::filesystem;
+    std::string stemName = fs::path(m_interactionEditorFile).stem().string();
+    auto it = allDefs.find(stemName);
+    if (it == allDefs.end() || m_ieSelectedPoint >= (int)it->second.size()) return;
+
+    auto& def = it->second[m_ieSelectedPoint];
+
+    // Compute world-space seat anchor from asset origin + local offset
+    glm::vec3 seatAnchor = glm::vec3(m_ieAssetOrigin) + def.localOffset;
+
+    // Get profile offsets
+    std::string archetype = m_ieChar->getArchetype();
+    glm::vec3 sitDown{0.0f}, sittingIdle{0.0f}, sitStandUp{0.0f};
+    float blendDur = 0.0f, heightOff = 0.0f;
+
+    if (interactionProfileManager) {
+        const auto* profile = interactionProfileManager->getProfile(
+            archetype, stemName, def.pointId);
+        if (profile) {
+            sitDown     = profile->sitDownOffset;
+            sittingIdle = profile->sittingIdleOffset;
+            sitStandUp  = profile->sitStandUpOffset;
+            blendDur    = profile->sitBlendDuration;
+            heightOff   = profile->seatHeightOffset;
+        }
+    }
+
+    m_ieChar->sitAt(seatAnchor, def.facingYaw,
+                    sitDown, sittingIdle, sitStandUp, blendDur, heightOff);
+
+    m_iePreviewState = InteractionPreviewState::SittingDown;
+    m_ieAutoPreview = autoPlay;
+    m_ieAutoTimer = 0.0f;
+
+    LOG_INFO("Application", "Interaction Editor: preview started (auto={})", autoPlay);
+}
+
+void Application::ieStopPreview() {
+    if (!m_ieChar) return;
+
+    // Force reset: if sitting, stand up immediately by resetting state
+    if (m_ieChar->isSitting()) {
+        m_ieChar->standUp();
+    }
+
+    m_iePreviewState = InteractionPreviewState::None;
+    m_ieAutoPreview = false;
+    m_ieAutoTimer = 0.0f;
+
+    LOG_INFO("Application", "Interaction Editor: preview reset");
+}
+
+void Application::ieSaveAnimModel() {
+    if (!m_ieChar) return;
+
+    // Resolve .anim file path
+    std::string animFile = m_interactionEditorCharFile;
+    if (animFile.empty())
+        animFile = Core::AssetManager::instance().resolveAnimatedChar("humanoid.anim");
+
+    // Load the full .anim file
+    Phyxel::AnimationSystem animSys;
+    Phyxel::Skeleton skel;
+    std::vector<Phyxel::AnimationClip> clips;
+    Phyxel::VoxelModel originalModel;
+    if (!animSys.loadFromFile(animFile, skel, clips, originalModel)) {
+        LOG_ERROR("Application", "IE: failed to read '{}' for save", animFile);
+        return;
+    }
+
+    const Phyxel::VoxelModel& modifiedModel = m_ieChar->getVoxelModel();
+
+    // Read the raw .anim file lines
+    std::ifstream inFile(animFile);
+    if (!inFile.is_open()) {
+        LOG_ERROR("Application", "IE: cannot open '{}' for reading", animFile);
+        return;
+    }
+    std::vector<std::string> fileLines;
+    std::string line;
+    while (std::getline(inFile, line))
+        fileLines.push_back(line);
+    inFile.close();
+
+    // Update archetype header if present
+    std::string newArchetype(m_ieArchetypeBuf);
+    bool archetypeUpdated = false;
+
+    // Find MODEL section and replace boxes; also update archetype header
+    std::vector<std::string> outLines;
+    bool inModel = false;
+    bool modelDone = false;
+    bool modelWritten = false;
+
+    for (size_t i = 0; i < fileLines.size(); ++i) {
+        const std::string& fl = fileLines[i];
+        std::string trimmed = fl;
+        size_t start = trimmed.find_first_not_of(" \t");
+        if (start != std::string::npos) trimmed = trimmed.substr(start);
+
+        // Update archetype comment line
+        if (!archetypeUpdated && trimmed.rfind("# archetype:", 0) == 0) {
+            outLines.push_back("# archetype: " + newArchetype);
+            archetypeUpdated = true;
+            continue;
+        }
+
+        if (!inModel && !modelDone && trimmed == "MODEL") {
+            inModel = true;
+            outLines.push_back(fl);
+            continue;
+        }
+
+        if (inModel && !modelWritten) {
+            if (trimmed.rfind("BoxCount", 0) == 0) {
+                outLines.push_back("BoxCount " + std::to_string(modifiedModel.shapes.size()));
+                continue;
+            }
+            if (trimmed.rfind("Box ", 0) == 0) {
+                bool nextIsBox = false;
+                if (i + 1 < fileLines.size()) {
+                    std::string next = fileLines[i + 1];
+                    size_t ns = next.find_first_not_of(" \t");
+                    if (ns != std::string::npos) next = next.substr(ns);
+                    nextIsBox = (next.rfind("Box ", 0) == 0);
+                }
+                if (!nextIsBox) {
+                    for (const auto& shape : modifiedModel.shapes) {
+                        outLines.push_back("Box " +
+                            std::to_string(shape.boneId) + " " +
+                            std::to_string(shape.size.x) + " " +
+                            std::to_string(shape.size.y) + " " +
+                            std::to_string(shape.size.z) + " " +
+                            std::to_string(shape.offset.x) + " " +
+                            std::to_string(shape.offset.y) + " " +
+                            std::to_string(shape.offset.z));
+                    }
+                    modelWritten = true;
+                    inModel = false;
+                    modelDone = true;
+                }
+                continue;
+            }
+            if (!modelWritten) {
+                for (const auto& shape : modifiedModel.shapes) {
+                    outLines.push_back("Box " +
+                        std::to_string(shape.boneId) + " " +
+                        std::to_string(shape.size.x) + " " +
+                        std::to_string(shape.size.y) + " " +
+                        std::to_string(shape.size.z) + " " +
+                        std::to_string(shape.offset.x) + " " +
+                        std::to_string(shape.offset.y) + " " +
+                        std::to_string(shape.offset.z));
+                }
+                modelWritten = true;
+                inModel = false;
+                modelDone = true;
+            }
+            outLines.push_back(fl);
+            continue;
+        }
+
+        outLines.push_back(fl);
+    }
+
+    // Write back
+    std::ofstream outFile(animFile);
+    if (!outFile.is_open()) {
+        LOG_ERROR("Application", "IE: cannot write to '{}'", animFile);
+        return;
+    }
+    for (const auto& ol : outLines)
+        outFile << ol << "\n";
+    outFile.close();
+
+    LOG_INFO("Application", "IE: saved {} shapes to '{}'",
+             modifiedModel.shapes.size(), animFile);
+}
+
+void Application::ieSaveAssetTemplate() {
+    if (!chunkManager) return;
+
+    namespace fs = std::filesystem;
+    std::string assetName = fs::path(m_interactionEditorFile).stem().string();
+
+    // Scan region around asset origin (same as asset editor: 16×16×16 above floor)
+    constexpr int HALF = 8;
+    glm::ivec3 minCorner(
+        m_ieAssetOrigin.x - HALF,
+        m_ieAssetOrigin.y,
+        m_ieAssetOrigin.z - HALF);
+    glm::ivec3 maxCorner(
+        m_ieAssetOrigin.x + HALF,
+        m_ieAssetOrigin.y + 16,
+        m_ieAssetOrigin.z + HALF);
+
+    auto voxels = captureRegionAllLevels(chunkManager, minCorner, maxCorner);
+    if (voxels.empty()) {
+        LOG_WARN("Application", "IE: nothing to save in region");
+        return;
+    }
+
+    std::vector<std::string> lines;
+    lines.push_back("# Template: " + assetName);
+    lines.push_back("# Saved by Interaction Editor");
+
+    // Write interaction point defs as metadata
+    auto& allDefs = placedObjectManager->getMutableTemplateDefs();
+    auto defIt = allDefs.find(assetName);
+    if (defIt != allDefs.end()) {
+        for (const auto& def : defIt->second) {
+            std::string groupsStr = "*";
+            if (!def.supportedGroups.empty()) {
+                groupsStr.clear();
+                for (size_t i = 0; i < def.supportedGroups.size(); ++i) {
+                    if (i > 0) groupsStr += ",";
+                    groupsStr += def.supportedGroups[i];
+                }
+            }
+            char buf[512];
+            std::snprintf(buf, sizeof(buf),
+                "# interaction_point: %s %s %.4f %.4f %.4f %.6f %s",
+                def.pointId.c_str(), def.type.c_str(),
+                def.localOffset.x, def.localOffset.y, def.localOffset.z,
+                def.facingYaw, groupsStr.c_str());
+            lines.push_back(buf);
+        }
+    }
+
+    int cubeCount = 0, subcubeCount = 0, microcubeCount = 0;
+    for (const auto& v : voxels) {
+        std::string mat = v.material.empty() ? "Default" : v.material;
+        switch (v.level) {
+            case Core::SnapshotVoxelLevel::Cube:
+                lines.push_back("C " + std::to_string(v.offset.x) + " " +
+                    std::to_string(v.offset.y) + " " + std::to_string(v.offset.z) + " " + mat);
+                ++cubeCount;
+                break;
+            case Core::SnapshotVoxelLevel::Subcube:
+                lines.push_back("S " + std::to_string(v.offset.x) + " " +
+                    std::to_string(v.offset.y) + " " + std::to_string(v.offset.z) + " " +
+                    std::to_string(v.subcubePos.x) + " " + std::to_string(v.subcubePos.y) + " " +
+                    std::to_string(v.subcubePos.z) + " " + mat);
+                ++subcubeCount;
+                break;
+            case Core::SnapshotVoxelLevel::Microcube:
+                lines.push_back("M " + std::to_string(v.offset.x) + " " +
+                    std::to_string(v.offset.y) + " " + std::to_string(v.offset.z) + " " +
+                    std::to_string(v.subcubePos.x) + " " + std::to_string(v.subcubePos.y) + " " +
+                    std::to_string(v.subcubePos.z) + " " +
+                    std::to_string(v.microcubePos.x) + " " + std::to_string(v.microcubePos.y) + " " +
+                    std::to_string(v.microcubePos.z) + " " + mat);
+                ++microcubeCount;
+                break;
+        }
+    }
+
+    std::ofstream file(m_interactionEditorFile);
+    if (file.is_open()) {
+        for (const auto& line : lines) file << line << "\n";
+        file.close();
+        if (objectTemplateManager) objectTemplateManager->loadTemplate(m_interactionEditorFile);
+        LOG_INFO("Application", "IE: saved full template '{}' ({} cubes, {} subcubes, {} microcubes)",
+                 m_interactionEditorFile, cubeCount, subcubeCount, microcubeCount);
+    } else {
+        LOG_ERROR("Application", "IE: could not write to '{}'", m_interactionEditorFile);
+    }
+}
+
+void Application::renderInteractionEditorUI() {
+    if (!m_interactionEditorMode || !m_ieChar) return;
+
+    namespace fs = std::filesystem;
+    std::string assetName = fs::path(m_interactionEditorFile).stem().string();
+    std::string charName = m_interactionEditorCharFile.empty()
+        ? "humanoid.anim"
+        : fs::path(m_interactionEditorCharFile).filename().string();
+    std::string archetype = m_ieProfileArchetype;
+
+    float screenW = static_cast<float>(windowManager ? windowManager->getWidth()  : 1280);
+
+    ImGui::SetNextWindowPos(ImVec2(screenW - 310.0f, 20.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(295.0f, 0.0f), ImGuiCond_Always);
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
+                             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize;
+
+    if (!ImGui::Begin("Interaction Editor", nullptr, flags)) {
+        ImGui::End();
+        return;
+    }
+
+    ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.2f, 1.0f), "INTERACTION EDITOR");
+    ImGui::Separator();
+    ImGui::Text("Asset: %s", assetName.c_str());
+    ImGui::Text("Character: %s", charName.c_str());
+    ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "Char Archetype: %s", m_ieChar->getArchetype().c_str());
+
+    // === Profile selector: load any archetype JSON ===
+    {
+        namespace fs = std::filesystem;
+        std::vector<std::string> profileNames;
+        std::string interactionsDir = "resources/interactions/";
+        if (fs::is_directory(interactionsDir)) {
+            for (auto& entry : fs::directory_iterator(interactionsDir)) {
+                if (entry.path().extension() == ".json") {
+                    profileNames.push_back(entry.path().stem().string());
+                }
+            }
+        }
+        // Ensure current archetype is in the list
+        bool found = false;
+        for (const auto& n : profileNames) {
+            if (n == archetype) { found = true; break; }
+        }
+        if (!found) profileNames.insert(profileNames.begin(), archetype);
+        std::sort(profileNames.begin(), profileNames.end());
+
+        ImGui::Text("Profile:");
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(-1);
+        if (ImGui::BeginCombo("##ieProfileSelect", archetype.c_str())) {
+            for (const auto& name : profileNames) {
+                bool selected = (name == archetype);
+                if (ImGui::Selectable(name.c_str(), selected)) {
+                    if (name != archetype) {
+                        m_ieProfileArchetype = name;
+                        archetype = name;
+                        if (interactionProfileManager)
+                            interactionProfileManager->loadArchetype(name);
+                        LOG_INFO("Application", "Interaction Editor: loaded profile '{}'", name);
+                    }
+                }
+                if (selected) ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+    }
+    ImGui::Spacing();
+
+    // === Material palette ===
+    ImGui::Text("Material:");
+    const char* ieMaterials[] = {
+        "Wood","Stone","Metal","Glass","Rubber","Ice","Cork","glow","Default"
+    };
+    for (int i = 0; i < 9; ++i) {
+        bool selected = (m_ieMaterial == ieMaterials[i]);
+        if (selected) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 1.0f, 1.0f));
+        if (ImGui::SmallButton(ieMaterials[i])) {
+            m_ieMaterial = ieMaterials[i];
+        }
+        if (selected) ImGui::PopStyleColor();
+        if (i % 3 != 2) ImGui::SameLine();
+    }
+    ImGui::Spacing();
+
+    // Get interaction point defs for this asset
+    auto& allDefs = placedObjectManager->getMutableTemplateDefs();
+    auto defIt = allDefs.find(assetName);
+    bool hasDefs = (defIt != allDefs.end() && !defIt->second.empty());
+
+    // === Add Point UI (always visible) ===
+    ImGui::Separator();
+    if (ImGui::TreeNode("Add Interaction Point")) {
+        ImGui::SetNextItemWidth(120);
+        ImGui::InputText("Point ID##newpt", m_ieNewPointId, sizeof(m_ieNewPointId));
+        ImGui::SameLine();
+        if (ImGui::Button("Add##addpt")) {
+            std::string newId(m_ieNewPointId);
+            if (!newId.empty()) {
+                Core::InteractionPointDef newDef;
+                newDef.pointId = newId;
+                newDef.type = "seat";
+                newDef.localOffset = glm::vec3(0.5f, 1.0f, 0.5f);
+                newDef.facingYaw = 3.14159265f;
+                allDefs[assetName].push_back(newDef);
+                m_ieSelectedPoint = (int)allDefs[assetName].size() - 1;
+                m_ieNewPointId[0] = '\0';
+                placedObjectManager->recomputeAllInteractionPoints();
+                hasDefs = true;
+                defIt = allDefs.find(assetName);
+                LOG_INFO("Application", "IE: added interaction point '{}'", newId);
+            }
+        }
+        ImGui::TreePop();
+    }
+
+    if (!hasDefs) {
+        ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "No interaction points defined.");
+        ImGui::End();
+        return;
+    }
+
+    auto& defs = defIt->second;
+    if (m_ieSelectedPoint >= (int)defs.size()) m_ieSelectedPoint = 0;
+
+    // Point selector
+    ImGui::Separator();
+    if (ImGui::BeginCombo("Point", defs[m_ieSelectedPoint].pointId.c_str())) {
+        for (int i = 0; i < (int)defs.size(); ++i) {
+            bool selected = (i == m_ieSelectedPoint);
+            std::string label = defs[i].pointId + " (" + defs[i].type + ")";
+            if (ImGui::Selectable(label.c_str(), selected)) {
+                m_ieSelectedPoint = i;
+                // Reset preview when switching points
+                if (m_iePreviewState != InteractionPreviewState::None)
+                    ieStopPreview();
+            }
+            if (selected) ImGui::SetItemDefaultFocus();
+        }
+        ImGui::EndCombo();
+    }
+
+    // Remove point button
+    if (defs.size() > 1) {
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Remove")) {
+            std::string removedId = defs[m_ieSelectedPoint].pointId;
+            defs.erase(defs.begin() + m_ieSelectedPoint);
+            if (m_ieSelectedPoint >= (int)defs.size())
+                m_ieSelectedPoint = (int)defs.size() - 1;
+            placedObjectManager->recomputeAllInteractionPoints();
+            LOG_INFO("Application", "IE: removed interaction point '{}'", removedId);
+        }
+    }
+
+    auto& def = defs[m_ieSelectedPoint];
+
+    // === Supported groups editor ===
+    if (ImGui::TreeNode("Supported Groups")) {
+        if (def.supportedGroups.empty()) {
+            ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.4f, 1.0f), "(all archetypes)");
+        }
+        int removeIdx = -1;
+        for (int g = 0; g < (int)def.supportedGroups.size(); ++g) {
+            ImGui::PushID(g);
+            ImGui::BulletText("%s", def.supportedGroups[g].c_str());
+            ImGui::SameLine();
+            if (ImGui::SmallButton("X##rmg")) {
+                removeIdx = g;
+            }
+            ImGui::PopID();
+        }
+        if (removeIdx >= 0) {
+            def.supportedGroups.erase(def.supportedGroups.begin() + removeIdx);
+        }
+        // Add group
+        ImGui::SetNextItemWidth(120);
+        ImGui::InputText("##newgrp", m_ieNewGroupBuf, sizeof(m_ieNewGroupBuf));
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Add Group")) {
+            std::string grp(m_ieNewGroupBuf);
+            if (!grp.empty()) {
+                // Avoid duplicates
+                bool exists = false;
+                for (const auto& g : def.supportedGroups)
+                    if (g == grp) { exists = true; break; }
+                if (!exists) {
+                    def.supportedGroups.push_back(grp);
+                    m_ieNewGroupBuf[0] = '\0';
+                }
+            }
+        }
+        ImGui::TreePop();
+    } else {
+        // Show compact groups summary when closed
+        std::string groupsLabel = def.supportedGroups.empty() ? "all" : "";
+        for (size_t g = 0; g < def.supportedGroups.size(); ++g) {
+            if (g > 0) groupsLabel += ", ";
+            groupsLabel += def.supportedGroups[g];
+        }
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.4f, 1.0f), "[%s]", groupsLabel.c_str());
+    }
+
+    // === Asset-level settings ===
+    ImGui::Spacing();
+    bool assetChanged = false;
+    if (ImGui::TreeNodeEx("Asset Point (saved to .txt)", ImGuiTreeNodeFlags_DefaultOpen)) {
+        // Type selector
+        const char* types[] = {"seat", "bed", "counter", "door_handle", "pickup", "ledge", "switch"};
+        int typeIdx = 0;
+        for (int t = 0; t < 7; ++t) {
+            if (def.type == types[t]) { typeIdx = t; break; }
+        }
+        if (ImGui::Combo("Type##pttype", &typeIdx, types, 7)) {
+            def.type = types[typeIdx];
+            assetChanged = true;
+        }
+
+        assetChanged |= ImGui::InputFloat3("Seat Anchor", &def.localOffset.x, "%.4f");
+        assetChanged |= ImGui::InputFloat("Facing Yaw", &def.facingYaw, 0.0f, 0.0f, "%.4f");
+        ImGui::TreePop();
+    }
+
+    if (assetChanged)
+        placedObjectManager->recomputeAllInteractionPoints();
+
+    // === Animation validation ===
+    auto iType = def.interactionType();
+    auto requiredAnims = Core::requiredAnimationsForType(iType);
+    if (!requiredAnims.empty() && m_ieChar) {
+        std::vector<std::string> charAnims = m_ieChar->getAnimationNames();
+        std::vector<std::string> missing;
+        for (const auto& req : requiredAnims) {
+            bool found = false;
+            for (const auto& ca : charAnims)
+                if (ca == req) { found = true; break; }
+            if (!found) missing.push_back(req);
+        }
+        if (!missing.empty()) {
+            ImGui::Spacing();
+            ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "Missing animations:");
+            for (const auto& m : missing)
+                ImGui::BulletText("%s", m.c_str());
+        } else {
+            ImGui::Spacing();
+            ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.3f, 1.0f), "All required animations present.");
+        }
+    }
+
+    // === Profile-level settings (type-appropriate) ===
+    ImGui::Spacing();
+    if (ImGui::TreeNodeEx("Profile Offsets (per-archetype)", ImGuiTreeNodeFlags_DefaultOpen)) {
+        Core::InteractionProfile profile;
+        if (interactionProfileManager) {
+            const auto* existing = interactionProfileManager->getProfile(archetype, assetName, def.pointId);
+            if (existing) profile = *existing;
+        }
+
+        bool profileChanged = false;
+
+        switch (iType) {
+            case Core::ObjectInteractionType::Seat:
+            case Core::ObjectInteractionType::Counter:
+                ImGui::TextDisabled("Feet snap pos relative to Seat Anchor:");
+                profileChanged |= ImGui::InputFloat3("SitDown##sd", &profile.sitDownOffset.x, "%.4f");
+                profileChanged |= ImGui::InputFloat3("SittingIdle##si", &profile.sittingIdleOffset.x, "%.4f");
+                profileChanged |= ImGui::InputFloat3("StandUp##su", &profile.sitStandUpOffset.x, "%.4f");
+                ImGui::Spacing();
+                if (ImGui::Button("Copy SitDown -> All")) {
+                    profile.sittingIdleOffset = profile.sitDownOffset;
+                    profile.sitStandUpOffset = profile.sitDownOffset;
+                    profileChanged = true;
+                }
+                ImGui::Spacing();
+                profileChanged |= ImGui::SliderFloat("Blend##bd", &profile.sitBlendDuration, 0.0f, 1.0f, "%.2f s");
+                profileChanged |= ImGui::InputFloat("Height Offset##sh", &profile.seatHeightOffset, 0.0f, 0.0f, "%.4f");
+                break;
+
+            case Core::ObjectInteractionType::Bed:
+                ImGui::TextDisabled("Lying position offsets:");
+                profileChanged |= ImGui::InputFloat3("LieDown##ld", &profile.sitDownOffset.x, "%.4f");
+                profileChanged |= ImGui::InputFloat3("Sleeping##sl", &profile.sittingIdleOffset.x, "%.4f");
+                profileChanged |= ImGui::InputFloat3("WakeUp##wu", &profile.sitStandUpOffset.x, "%.4f");
+                ImGui::Spacing();
+                profileChanged |= ImGui::SliderFloat("Blend##bd", &profile.sitBlendDuration, 0.0f, 1.0f, "%.2f s");
+                profileChanged |= ImGui::InputFloat("Height Offset##sh", &profile.seatHeightOffset, 0.0f, 0.0f, "%.4f");
+                break;
+
+            case Core::ObjectInteractionType::DoorHandle:
+            case Core::ObjectInteractionType::Switch:
+                ImGui::TextDisabled("Hand position offset:");
+                profileChanged |= ImGui::InputFloat3("Reach##reach", &profile.sitDownOffset.x, "%.4f");
+                ImGui::Spacing();
+                profileChanged |= ImGui::SliderFloat("Blend##bd", &profile.sitBlendDuration, 0.0f, 1.0f, "%.2f s");
+                break;
+
+            case Core::ObjectInteractionType::Pickup:
+                ImGui::TextDisabled("Grab position offset:");
+                profileChanged |= ImGui::InputFloat3("Grab##grab", &profile.sitDownOffset.x, "%.4f");
+                ImGui::Spacing();
+                profileChanged |= ImGui::SliderFloat("Blend##bd", &profile.sitBlendDuration, 0.0f, 1.0f, "%.2f s");
+                break;
+
+            case Core::ObjectInteractionType::Ledge:
+                ImGui::TextDisabled("Grab/hang/climb offsets:");
+                profileChanged |= ImGui::InputFloat3("Grab##lgr", &profile.sitDownOffset.x, "%.4f");
+                profileChanged |= ImGui::InputFloat3("Hang##lhg", &profile.sittingIdleOffset.x, "%.4f");
+                profileChanged |= ImGui::InputFloat3("Climb##lcl", &profile.sitStandUpOffset.x, "%.4f");
+                ImGui::Spacing();
+                profileChanged |= ImGui::SliderFloat("Blend##bd", &profile.sitBlendDuration, 0.0f, 1.0f, "%.2f s");
+                break;
+
+            default:
+                ImGui::TextDisabled("Generic offsets (no type-specific schema):");
+                profileChanged |= ImGui::InputFloat3("Offset A##oa", &profile.sitDownOffset.x, "%.4f");
+                profileChanged |= ImGui::InputFloat3("Offset B##ob", &profile.sittingIdleOffset.x, "%.4f");
+                profileChanged |= ImGui::InputFloat3("Offset C##oc", &profile.sitStandUpOffset.x, "%.4f");
+                ImGui::Spacing();
+                profileChanged |= ImGui::SliderFloat("Blend##bd", &profile.sitBlendDuration, 0.0f, 1.0f, "%.2f s");
+                profileChanged |= ImGui::InputFloat("Height Offset##sh", &profile.seatHeightOffset, 0.0f, 0.0f, "%.4f");
+                break;
+        }
+
+        if (profileChanged && interactionProfileManager) {
+            interactionProfileManager->setProfile(archetype, assetName, def.pointId, profile);
+        }
+        ImGui::TreePop();
+    }
+
+    // === Preview controls ===
+    ImGui::Spacing();
+    ImGui::Separator();
+    if (ImGui::TreeNodeEx("Preview", ImGuiTreeNodeFlags_DefaultOpen)) {
+        // State display
+        const char* stateStr = "Idle";
+        switch (m_iePreviewState) {
+            case InteractionPreviewState::SittingDown: stateStr = "Sitting Down..."; break;
+            case InteractionPreviewState::SittingIdle: stateStr = "Seated Idle"; break;
+            case InteractionPreviewState::AutoIdle:    stateStr = "Seated (auto)..."; break;
+            case InteractionPreviewState::StandingUp:  stateStr = "Standing Up..."; break;
+            default: stateStr = "Standing"; break;
+        }
+        ImGui::Text("State: %s", stateStr);
+        ImGui::Spacing();
+
+        // Auto preview button
+        bool previewing = (m_iePreviewState != InteractionPreviewState::None);
+        if (!previewing) {
+            if (ImGui::Button("Auto Preview", ImVec2(-1, 0))) {
+                ieStartPreview(true);
+            }
+        } else {
+            if (ImGui::Button("Reset", ImVec2(-1, 0))) {
+                ieStopPreview();
+            }
+        }
+
+        ImGui::Spacing();
+        ImGui::TextDisabled("Manual:");
+        // Manual step buttons
+        bool canSit = (m_iePreviewState == InteractionPreviewState::None);
+        bool canStand = (m_iePreviewState == InteractionPreviewState::SittingIdle ||
+                         m_iePreviewState == InteractionPreviewState::AutoIdle);
+        if (!canSit) ImGui::BeginDisabled();
+        if (ImGui::Button("Sit Down", ImVec2(135, 0))) {
+            ieStartPreview(false);
+        }
+        if (!canSit) ImGui::EndDisabled();
+        ImGui::SameLine();
+        if (!canStand) ImGui::BeginDisabled();
+        if (ImGui::Button("Stand Up", ImVec2(135, 0))) {
+            if (m_ieChar) m_ieChar->standUp();
+            m_iePreviewState = InteractionPreviewState::StandingUp;
+        }
+        if (!canStand) ImGui::EndDisabled();
+
+        ImGui::TreePop();
+    }
+
+    // === Character modification ===
+    ImGui::Spacing();
+    ImGui::Separator();
+    if (ImGui::TreeNode("Character")) {
+        // Archetype name editor
+        ImGui::Text("Archetype:");
+        ImGui::SetNextItemWidth(-1);
+        if (ImGui::InputText("##archetype", m_ieArchetypeBuf, sizeof(m_ieArchetypeBuf),
+                             ImGuiInputTextFlags_EnterReturnsTrue)) {
+            std::string newArch(m_ieArchetypeBuf);
+            if (!newArch.empty() && newArch != m_ieChar->getArchetype()) {
+                // Save current profiles under old archetype first
+                if (interactionProfileManager)
+                    interactionProfileManager->saveArchetype(archetype);
+                // Update character archetype
+                m_ieChar->setArchetype(newArch);
+                if (interactionManager)
+                    interactionManager->setPlayerArchetype(newArch);
+                // Update profile archetype to match
+                m_ieProfileArchetype = newArch;
+                archetype = newArch;
+                // Load profiles for new archetype (or create empty)
+                if (interactionProfileManager)
+                    interactionProfileManager->loadArchetype(newArch);
+                LOG_INFO("Application", "Interaction Editor: archetype changed to '{}'", newArch);
+            }
+        }
+        ImGui::TextDisabled("Press Enter to apply.");
+
+        // Bone scale sliders
+        ImGui::Spacing();
+        ImGui::Text("Bone Scales:");
+        ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1.0f), "(drag slider to resize bone)");
+
+        const Phyxel::VoxelModel& model = m_ieChar->getVoxelModel();
+
+        ImGui::BeginChild("IEBoneList", ImVec2(0, 250), true);
+        for (auto& [boneId, boneName] : m_ieBodyBones) {
+            bool selected = (m_ieSelectedBone == boneId);
+
+            if (m_ieBoneScale.find(boneId) == m_ieBoneScale.end())
+                m_ieBoneScale[boneId] = 1.0f;
+            float& scale = m_ieBoneScale[boneId];
+
+            std::string label = boneName;
+            if (label.size() > 18) label = label.substr(0, 18);
+
+            ImGui::PushID(boneId);
+            if (ImGui::Selectable(label.c_str(), selected, 0, ImVec2(110, 0)))
+                m_ieSelectedBone = boneId;
+            ImGui::SameLine(115);
+            ImGui::SetNextItemWidth(90.0f);
+            bool changed = ImGui::SliderFloat("##s", &scale, 0.1f, 3.0f, "%.2f");
+            if (changed) {
+                Phyxel::VoxelModel newModel = m_ieChar->getVoxelModel();
+                static std::map<intptr_t, Phyxel::VoxelModel> s_ieOrigModels;
+                auto charKey = (intptr_t)m_ieChar;
+                if (s_ieOrigModels.find(charKey) == s_ieOrigModels.end())
+                    s_ieOrigModels[charKey] = m_ieChar->getVoxelModel();
+                const Phyxel::VoxelModel& origModel = s_ieOrigModels[charKey];
+
+                for (auto& shape : newModel.shapes) {
+                    if (shape.boneId == boneId) {
+                        for (const auto& origShape : origModel.shapes) {
+                            if (origShape.boneId == boneId && origShape.offset == shape.offset) {
+                                shape.size = origShape.size * scale;
+                                break;
+                            }
+                        }
+                    }
+                }
+                m_ieChar->setVoxelModel(newModel);
+            }
+            ImGui::PopID();
+        }
+        ImGui::EndChild();
+
+        if (ImGui::Button("Reset Scales")) {
+            m_ieBoneScale.clear();
+            Phyxel::AnimationSystem animSys;
+            Phyxel::Skeleton skel;
+            std::vector<Phyxel::AnimationClip> clips;
+            Phyxel::VoxelModel origModel;
+            std::string animFile = m_interactionEditorCharFile.empty()
+                ? Core::AssetManager::instance().resolveAnimatedChar("humanoid.anim")
+                : m_interactionEditorCharFile;
+            if (animSys.loadFromFile(animFile, skel, clips, origModel))
+                m_ieChar->setVoxelModel(origModel);
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Save .anim")) {
+            ieSaveAnimModel();
+        }
+
+        ImGui::TreePop();
+    }
+
+    // === Save buttons ===
+    ImGui::Spacing();
+    ImGui::Separator();
+    if (ImGui::Button("Save Profile (.json) [Ctrl+S]", ImVec2(-1, 0))) {
+        if (interactionProfileManager) {
+            interactionProfileManager->saveArchetype(m_ieProfileArchetype);
+            LOG_INFO("Application", "Interaction Editor: saved profile for '{}'", m_ieProfileArchetype);
+        }
+    }
+    if (ImGui::Button("Save Interaction Defs (.txt)", ImVec2(-1, 0))) {
+        if (objectTemplateManager) {
+            objectTemplateManager->saveInteractionDefs(assetName, defs);
+            LOG_INFO("Application", "Interaction Editor: saved asset defs for '{}'", assetName);
+        }
+    }
+    if (ImGui::Button("Save Full Template (.txt)", ImVec2(-1, 0))) {
+        ieSaveAssetTemplate();
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Ctrl+S: save profile");
+    ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "C/Ctrl+C/Alt+C: place voxel");
+    ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "LMB: break voxel");
+    ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "V: toggle camera mode");
+
+    ImGui::End();
 }
 
 } // namespace Phyxel

@@ -142,6 +142,20 @@ public:
     // Buffer creation helpers
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+
+    // Compute infrastructure
+    bool initComputeResources();
+    void cleanupComputeResources();
+    // Device-local storage buffer (SSBO). extraUsage: e.g. VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
+    void createStorageBuffer(VkDeviceSize size, VkBuffer& buffer, VkDeviceMemory& memory, VkBufferUsageFlags extraUsage = 0);
+    // Host-coherent staging buffer, persistently mapped. Call vkUnmapMemory before destroying.
+    void createPersistentStagingBuffer(VkDeviceSize size, VkBuffer& buffer, VkDeviceMemory& memory, void** mappedPtr);
+
+    VkQueue          getComputeQueue()  const { return computeQueue; }
+    VkCommandPool    getComputeCommandPool() const { return computeCommandPool; }
+    VkCommandBuffer  getComputeCommandBuffer(uint32_t frameIndex) const;
+    uint32_t         getComputeQueueFamily() const { return computeQueueFamily; }
+    bool             computeSharesGraphicsQueue() const { return computeQueueFamily == graphicsQueueFamily; }
     
     // Depth buffer management
         bool createDepthResources();
@@ -242,6 +256,13 @@ private:
     VkDevice device = VK_NULL_HANDLE;
     VkQueue graphicsQueue = VK_NULL_HANDLE;
     VkQueue presentQueue = VK_NULL_HANDLE;
+    VkQueue computeQueue = VK_NULL_HANDLE;
+
+    // Compute resources
+    uint32_t         computeQueueFamily = 0;
+    uint32_t         graphicsQueueFamily = 0;
+    VkCommandPool    computeCommandPool = VK_NULL_HANDLE;
+    std::vector<VkCommandBuffer> computeCommandBuffers;
 
     // Swapchain
     VkSwapchainKHR swapChain = VK_NULL_HANDLE;

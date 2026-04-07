@@ -23,6 +23,7 @@ namespace Physics {
 
 namespace Phyxel {
     class WorldStorage; // Forward declaration
+    class GpuParticlePhysics; // Forward declaration for height map updates
 }
 
 namespace Phyxel {
@@ -62,6 +63,9 @@ public:
     
     // Physics world for proper cleanup of dynamic objects
     Physics::PhysicsWorld* physicsWorld = nullptr;
+
+    // GPU particle physics — receives height map updates when voxels change
+    GpuParticlePhysics* m_gpuParticles = nullptr;
     
     // Chunk streaming manager (handles chunk loading/unloading/saving)
     ChunkStreamingManager m_streamingManager;
@@ -99,6 +103,16 @@ public:
     
     // Set physics world for proper cleanup of dynamic objects
     void setPhysicsWorld(Physics::PhysicsWorld* physics);
+
+    // Set GPU particle system for occupancy grid updates
+    void setGpuParticlePhysics(GpuParticlePhysics* gpp) { m_gpuParticles = gpp; }
+
+    // Update a single voxel's occupancy bit in the GPU grid.
+    void updateOccupancyVoxel(int worldX, int worldY, int worldZ, bool solid);
+
+    // Bulk-populate the GPU 3D occupancy grid from all currently loaded chunks.
+    // Call once after GpuParticlePhysics is initialized and all startup chunks are loaded.
+    void rebuildOccupancyFromChunks();
     
     // World storage management
     bool initializeWorldStorage(const std::string& worldPath);

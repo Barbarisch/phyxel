@@ -179,12 +179,14 @@ bool ChunkStreamingManager::loadChunk(const glm::ivec3& chunkCoord) {
         auto& chunkMap = m_getChunkMap();
         auto& chunks = m_getChunks();
         chunkMap[chunkCoord] = chunk.get();
+        glm::ivec3 origin = chunk->getWorldOrigin();
         chunks.push_back(std::move(chunk));
-        
+        if (m_onChunkLoaded) m_onChunkLoaded(origin);
+
         LOG_DEBUG_FMT("ChunkStreaming", "Loaded chunk from storage: " << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z);
         return true;
     }
-    
+
     return false;
 }
 
@@ -250,8 +252,10 @@ bool ChunkStreamingManager::generateOrLoadChunk(const glm::ivec3& chunkCoord) {
     auto& chunkMap = m_getChunkMap();
     auto& chunks = m_getChunks();
     chunkMap[chunkCoord] = chunk.get();
+    glm::ivec3 genOrigin = Utils::CoordinateUtils::chunkCoordToOrigin(chunkCoord);
     chunks.push_back(std::move(chunk));
-    
+    if (m_onChunkLoaded) m_onChunkLoaded(genOrigin);
+
     // Save to storage immediately
     saveChunk(chunks.back().get());
     

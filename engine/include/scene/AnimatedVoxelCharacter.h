@@ -130,12 +130,23 @@ namespace Scene {
         void setVoxelModel(const Phyxel::VoxelModel& model);
 
         // Sitting
-        /// Teleport character to approachPos (in front of the seat), face facingYaw,
-        /// disable gravity, and begin the SitDown animation sequence.
-        void sitAt(const glm::vec3& approachPos, float facingYaw);
+        /// Begin the sit-down sequence.
+        /// seatAnchorPos  – world-space seat anchor; per-state foot offsets are relative to this.
+        /// facingYaw      – facing direction (radians) for the whole sitting sequence.
+        void sitAt(const glm::vec3& seatAnchorPos, float facingYaw,
+                   const glm::vec3& sitDownOffset = glm::vec3(0.0f),
+                   const glm::vec3& sittingIdleOffset = glm::vec3(0.0f),
+                   const glm::vec3& sitStandUpOffset = glm::vec3(0.0f),
+                   float sitBlendDuration = 0.0f,
+                   float seatHeightOffset = 0.0f);
         /// Begin standing up from seated state.
         void standUp();
         bool isSitting() const { return m_isSitting; }
+        glm::vec3 getSeatSurfacePos() const { return m_seatSurfacePos; }
+
+        /// Interaction archetype (e.g. "humanoid_normal"). Parsed from .anim "# archetype:" header.
+        const std::string& getArchetype() const { return m_archetype; }
+        void setArchetype(const std::string& archetype) { m_archetype = archetype; }
 
         // ---- Bone Attachments (weapons, equipment visuals) ----
 
@@ -204,6 +215,9 @@ namespace Scene {
         // Access the loaded animation clips (for use as motor targets in physics mode)
         const std::vector<Phyxel::AnimationClip>& getAnimationClips() const { return clips; }
         const Phyxel::Skeleton& getSkeleton() const { return skeleton; }
+
+        // Get the physics controller body's linear velocity (for GPU particle collision)
+        glm::vec3 getControllerVelocity() const;
 
     private:
         Phyxel::Skeleton skeleton;
@@ -329,10 +343,21 @@ namespace Scene {
         float m_originalHalfHeight = 0.95f;              // Original box half-height (for movement)
         float m_originalHalfWidth = 0.425f;              // Original box half-width (for movement)
 
+        // Interaction archetype (parsed from .anim "# archetype:" header, default "humanoid_normal")
+        std::string m_archetype = "humanoid_normal";
+
         // Sitting state
         bool m_isSitting = false;
-        glm::vec3 m_seatRootPos{0.0f};  // pinned world root position while seated
+        glm::vec3 m_seatSurfacePos{0.0f};  // seat anchor position (with height offset applied)
         float m_seatFacingYaw = 0.0f;
+        int m_hipBoneIndex = -1;            // cached index of the hip bone
+        float m_bindPoseHipHeight = 0.8f;   // bind-pose hip height (fallback)
+
+        // Per-sit-state foot snap offsets (world-space, from InteractionPoint)
+        glm::vec3 m_sitDownOffset{0.0f};
+        glm::vec3 m_sittingIdleOffset{0.0f};
+        glm::vec3 m_sitStandUpOffset{0.0f};
+        float m_sitBlendDuration = 0.0f;    // crossfade duration for sit transitions
 
         // Per-limb voxel collision
         Phyxel::ChunkManager* m_chunkManager = nullptr;

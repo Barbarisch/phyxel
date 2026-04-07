@@ -2,6 +2,8 @@
 # Target Size: 1.2
 # Resolution: microcube
 # Material: Wood
+# facing_yaw: 3.14159265
+# interaction_point: seat_0 seat 0.3300 1.0000 0.3300 3.141593 humanoid_normal
 # Format: M CubeX CubeY CubeZ SubX SubY SubZ MicroX MicroY MicroZ Material
 
 M 0 0 0 0 0 0 0 0 0 Wood

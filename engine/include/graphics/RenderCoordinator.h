@@ -38,6 +38,7 @@ namespace Phyxel {
     namespace Core {
         class NPCManager;
     }
+    class GpuParticlePhysics;
 }
 
 namespace Phyxel {
@@ -130,6 +131,9 @@ public:
     // Entity rendering
     void setEntities(const std::vector<std::unique_ptr<Scene::Entity>>* entities) { this->entities = entities; }
     void setNPCManager(Core::NPCManager* npcManager) { m_npcManager = npcManager; }
+
+    // GPU particle physics — must be set before the first drawFrame()
+    void setGpuParticlePhysics(GpuParticlePhysics* gpp) { m_gpuParticles = gpp; }
 
     // Custom UI system (non-ImGui menus)
     /// Create and initialize the UISystem. Must be called after construction.
@@ -225,6 +229,9 @@ private:
 
     // Debris Rendering
     std::unique_ptr<DebrisRenderPipeline> debrisPipeline;
+
+    // GPU particle physics (non-owning — owned by Application)
+    GpuParticlePhysics* m_gpuParticles = nullptr;
 };
 
 } // namespace Graphics

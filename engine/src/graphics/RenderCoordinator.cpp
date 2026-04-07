@@ -1,4 +1,5 @@
 #include "graphics/RenderCoordinator.h"
+#include "core/GpuParticlePhysics.h"
 #include "graphics/LightManager.h"
 #include "graphics/RaycastVisualizer.h"
 #include "graphics/ShadowMap.h"
@@ -216,39 +217,59 @@ size_t RenderCoordinator::renderStaticGeometry() {
 }
 
 void RenderCoordinator::renderDynamicSubcubes() {
-    // Get all global dynamic subcube faces from ChunkManager
-    // All dynamic subcubes (both G key spawned and broken from chunks) are now global
-    const auto& allDynamicSubcubeFaces = chunkManager->getGlobalDynamicSubcubeFaces();
-    
-    // Debug output for dynamic object count
-    static int debugFrameCount = 0;
-    if (debugFrameCount % 60 == 0) { // Every 60 frames
-        size_t subcubeCount = chunkManager->getGlobalDynamicSubcubeCount();
-        size_t cubeCount = chunkManager->getGlobalDynamicCubeCount();
-        // std::cout << "[DEBUG] Dynamic objects: " << subcubeCount << " subcubes, " << cubeCount 
-        //           << " cubes, " << allDynamicSubcubeFaces.size() << " total faces" << std::endl;
+    // ---------------------------------------------------------------------------
+    // GPU path (preferred): face buffer written by particle_expand.comp
+    //
+    // Rendering method:  vkCmdDrawIndirect (NON-INDEXED)
+    //   vertexCount  = 6     (set once at init, never changes)
+    //   instanceCount = N    (written by expand shader each frame via atomicAdd)
+    //
+    // The vertex shader (dynamic_voxel.vert) generates two triangles per face
+    // from vertexID 0-5 using a corner remap table. CW winding for front-face
+    // culling compatibility (cullMode=CULL_FRONT, frontFace=CCW).
+    //
+    // Binding 0: shared 8-vertex cube buffer (bound for pipeline compatibility,
+    //            but the shader uses vertexID from the indirect draw count)
+    // Binding 1: GPU face buffer (DynamicSubcubeInstanceData, 64 bytes/face)
+    //
+    // The index buffer IS bound but IGNORED by vkCmdDrawIndirect.
+    // See docs/DynamicSubcubeRenderPipeline.md for full details.
+    // ---------------------------------------------------------------------------
+    if (m_gpuParticles && m_gpuParticles->isInitialized() && m_gpuParticles->getActiveParticleCount() > 0) {
+        VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(currentFrame);
+
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          dynamicRenderPipeline->getGraphicsPipeline());
+
+        vulkanDevice->bindVertexBuffers(currentFrame);       // binding 0: vertex IDs
+        VkBuffer faceBuffer    = m_gpuParticles->getFaceBuffer();
+        VkDeviceSize faceOffset = 0;
+        vkCmdBindVertexBuffers(cmd, 1, 1, &faceBuffer, &faceOffset);  // binding 1: face instances
+        vulkanDevice->bindIndexBuffer(currentFrame);         // bound but unused by indirect draw
+
+        vulkanDevice->bindDescriptorSets(currentFrame, dynamicRenderPipeline->getGraphicsLayout());
+
+        vkCmdDrawIndirect(cmd, m_gpuParticles->getIndirectDrawBuffer(), 0, 1, 16);
+        return;
     }
-    debugFrameCount++;
-    
-    // Only render if we have dynamic subcube faces
+
+    // ---------------------------------------------------------------------------
+    // CPU fallback path: legacy Bullet-driven dynamic subcubes
+    //
+    // Uses drawIndexed with 6 indices per face (indexed draw, unlike GPU path).
+    // Same pipeline and shaders — vertexID 0-5 comes from the index buffer here.
+    // ---------------------------------------------------------------------------
+    const auto& allDynamicSubcubeFaces = chunkManager->getGlobalDynamicSubcubeFaces();
     if (!allDynamicSubcubeFaces.empty()) {
-        // Update dynamic subcube buffer
         vulkanDevice->updateDynamicSubcubeBuffer(allDynamicSubcubeFaces);
-        
-        // Bind dynamic render pipeline
-        vkCmdBindPipeline(vulkanDevice->getCommandBuffer(currentFrame), 
-                         VK_PIPELINE_BIND_POINT_GRAPHICS, 
+
+        vkCmdBindPipeline(vulkanDevice->getCommandBuffer(currentFrame),
+                         VK_PIPELINE_BIND_POINT_GRAPHICS,
                          dynamicRenderPipeline->getGraphicsPipeline());
-        
-        // Bind vertex and dynamic instance buffers
+
         vulkanDevice->bindDynamicSubcubeBuffer(currentFrame);
         vulkanDevice->bindIndexBuffer(currentFrame);
-        
-        // Bind descriptor sets for dynamic pipeline
         vulkanDevice->bindDescriptorSets(currentFrame, dynamicRenderPipeline->getGraphicsLayout());
-        
-        // No push constants needed for dynamic subcubes (world position is in instance data)
-        // Draw all dynamic subcubes (6 indices per quad face)
         vulkanDevice->drawIndexed(currentFrame, 6, static_cast<uint32_t>(allDynamicSubcubeFaces.size()));
     }
 }
@@ -438,7 +459,14 @@ void RenderCoordinator::drawFrame() {
         // Render Shadow Pass
         renderShadowPass(cmd, lightSpaceMatrix);
     }
-    
+
+    // GPU particle physics compute (integrate → collide → expand)
+    // Must run before the render pass because it writes the face vertex buffer
+    if (m_gpuParticles && m_gpuParticles->isInitialized()) {
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "GPU Particles");
+        m_gpuParticles->recordComputeCommands(cmd, currentFrame);
+    }
+
     // Record occlusion culling statistics from chunk manager
     if (chunkManager && !chunkManager->chunks.empty()) {
         // Reuse chunkStats cached at top of drawFrame()

@@ -1,0 +1,121 @@
+#version 450
+//
+// particle_expand.comp — Expands active particles into renderable face instances.
+//
+// Each active particle produces 6 face instances (one per cube face), written
+// to the FaceBuffer as DynamicSubcubeInstanceData (64 bytes each). The indirect
+// draw command's instanceCount is atomically incremented by 6 per particle.
+//
+// Output is consumed by dynamic_voxel.vert via binding 1 (per-instance input).
+// The vertex shader draws 6 vertices per instance (vertexCount=6 in indirect cmd).
+//
+// Buffer bindings:
+//   0: ParticleBuffer (read)   — active particles with position/rotation/scale/material
+//   1: MatTexTable (read)      — materialIndex*6+faceID → textureIndex
+//   2: FaceBuffer (write)      — raw uint[] matching DynamicSubcubeInstanceData layout
+//   3: IndirectCmd (read/write) — atomicAdd on instanceCount field
+//
+#extension GL_GOOGLE_include_directive : require
+#include "particle_types.glsl"
+
+layout(local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, set = 0, binding = 0) readonly buffer ParticleBuffer {
+    GpuParticle particles[];
+};
+
+// Material→texture lookup table.
+// matTextures[materialIndex * 6 + faceID] = textureIndex (uint16 stored as uint32)
+layout(std430, set = 0, binding = 1) readonly buffer MatTexTable {
+    uint matTextures[];
+};
+
+// Face instance output buffer.
+// Written as raw uint[] to match C++ DynamicSubcubeInstanceData layout exactly:
+//   offset  0: vec3 worldPosition  (3 × uint32 via floatBitsToUint)
+//   offset 12: uint16 textureIndex, uint16 reserved1  (1 × uint32, low 16 = tex)
+//   offset 16: uint32 faceID
+//   offset 20: vec3 scale          (3 × uint32)
+//   offset 32: vec4 rotation       (4 × uint32)
+//   offset 48: ivec3 localPosition (3 × uint32)
+//   offset 60: uint32 reserved2
+//   stride:    64 bytes = 16 × uint32
+layout(std430, set = 0, binding = 2) buffer FaceBuffer {
+    uint faceData[];
+};
+
+// Indirect draw command — instanceCount is atomically incremented.
+// Layout matches VkDrawIndirectCommand:
+//   [0] vertexCount   (stays 4, set at init)
+//   [1] instanceCount (atomic counter)
+//   [2] firstVertex   (stays 0)
+//   [3] firstInstance (stays 0)
+layout(std430, set = 0, binding = 3) buffer IndirectCmd {
+    uint vertexCount;
+    uint instanceCount;
+    uint firstVertex;
+    uint firstInstance;
+};
+
+layout(push_constant) uniform PC {
+    uint count;
+    uint maxFaceSlots; // safety cap = MAX_PARTICLES * 6
+} pc;
+
+// Write one face instance at faceSlot (in face units, not uint units).
+// Each face instance = 16 uint32s = 64 bytes.
+void writeFace(uint faceSlot, vec3 worldPos, uint texIdx, uint faceID,
+               vec3 scale, vec4 rot, ivec3 localPos) {
+    uint base = faceSlot * 16u;
+    // worldPosition (vec3, offset 0)
+    faceData[base + 0u] = floatBitsToUint(worldPos.x);
+    faceData[base + 1u] = floatBitsToUint(worldPos.y);
+    faceData[base + 2u] = floatBitsToUint(worldPos.z);
+    // textureIndex (uint16) + reserved1 (uint16), offset 12
+    faceData[base + 3u] = texIdx & 0xFFFFu;
+    // faceID (uint32), offset 16
+    faceData[base + 4u] = faceID;
+    // scale (vec3), offset 20
+    faceData[base + 5u] = floatBitsToUint(scale.x);
+    faceData[base + 6u] = floatBitsToUint(scale.y);
+    faceData[base + 7u] = floatBitsToUint(scale.z);
+    // rotation (vec4), offset 32
+    faceData[base + 8u]  = floatBitsToUint(rot.x);
+    faceData[base + 9u]  = floatBitsToUint(rot.y);
+    faceData[base + 10u] = floatBitsToUint(rot.z);
+    faceData[base + 11u] = floatBitsToUint(rot.w);
+    // localPosition (ivec3), offset 48
+    faceData[base + 12u] = uint(localPos.x);
+    faceData[base + 13u] = uint(localPos.y);
+    faceData[base + 14u] = uint(localPos.z);
+    // reserved2, offset 60
+    faceData[base + 15u] = 0u;
+}
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= pc.count) return;
+
+    GpuParticle p = particles[i];
+    if ((p.flags & PARTICLE_ACTIVE) == 0u) return;
+
+    // Claim 6 consecutive face slots atomically
+    uint baseSlot = atomicAdd(instanceCount, 6u);
+    if (baseSlot + 6u > pc.maxFaceSlots) {
+        // Over capacity — undo and skip (rare, only at hard cap)
+        atomicAdd(instanceCount, uint(-6));
+        return;
+    }
+
+    uint matIdx  = p.materialIndex;
+    uint typeVal = (p.flags & PARTICLE_TYPE_MASK) >> 2u;
+
+    // localPosition encodes subcube grid position for UV texture selection.
+    // For full cubes: center (1,1,1). For subcubes/micro: also center (UV covers full face).
+    ivec3 localPos = ivec3(1, 1, 1);
+
+    for (uint f = 0u; f < 6u; ++f) {
+        uint texIdx = matTextures[matIdx * 6u + f];
+        writeFace(baseSlot + f, p.position, texIdx, f, p.scale, p.rotation, localPos);
+    }
+}
