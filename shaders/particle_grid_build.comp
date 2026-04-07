@@ -1,0 +1,71 @@
+#version 450
+//
+// particle_grid_build.comp — Build spatial hash grid for particle-particle collision.
+//
+// Each active particle hashes its position to a grid cell and atomically inserts
+// itself into a per-cell linked list. The grid is used by particle_collide.comp
+// to efficiently find nearby particles for collision checks.
+//
+// Grid layout:
+//   - GRID_SIZE³ cells (64³ = 262,144 cells)
+//   - Each cell covers 1×1×1 world units
+//   - Grid wraps (hash with modulo) — only nearby particles matter
+//   - Per-cell linked list: gridCellHead[cellIndex] = first particle index
+//   - gridNextParticle[particleIndex] = next particle in same cell (0xFFFFFFFF = end)
+//
+// Buffers:
+//   0: ParticleBuffer (read)  — positions + flags
+//   1: GridCellHead (rw)      — per-cell head pointer (uint, init to 0xFFFFFFFF)
+//   2: GridNextParticle (rw)  — per-particle next pointer for linked list
+//
+#extension GL_GOOGLE_include_directive : require
+#include "particle_types.glsl"
+
+layout(local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, set = 0, binding = 0) readonly buffer ParticleBuffer {
+    GpuParticle particles[];
+};
+
+layout(std430, set = 0, binding = 1) buffer GridCellHead {
+    uint gridCellHead[];  // GRID_SIZE³ entries, each = head particle index or 0xFFFFFFFF
+};
+
+layout(std430, set = 0, binding = 2) buffer GridNextParticle {
+    uint gridNext[];  // MAX_PARTICLES entries, each = next particle index or 0xFFFFFFFF
+};
+
+layout(push_constant) uniform PC {
+    uint count;
+} pc;
+
+const int GRID_SIZE = 64;
+const int GRID_CELLS = GRID_SIZE * GRID_SIZE * GRID_SIZE; // 262,144
+
+// Hash world position to grid cell index (wrapping)
+int cellIndex(vec3 pos) {
+    int cx = int(floor(pos.x)) & (GRID_SIZE - 1);
+    int cy = int(floor(pos.y)) & (GRID_SIZE - 1);
+    int cz = int(floor(pos.z)) & (GRID_SIZE - 1);
+    return cx + cy * GRID_SIZE + cz * GRID_SIZE * GRID_SIZE;
+}
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= pc.count) return;
+
+    GpuParticle p = particles[i];
+
+    // Initialize next pointer to end-of-list
+    gridNext[i] = 0xFFFFFFFFu;
+
+    // Only active, non-sleeping particles participate in collision
+    if ((p.flags & PARTICLE_ACTIVE) == 0u) return;
+    if ((p.flags & PARTICLE_SLEEPING) != 0u) return;
+
+    int cell = cellIndex(p.position);
+
+    // Atomically insert into cell's linked list (push to head)
+    uint oldHead = atomicExchange(gridCellHead[cell], i);
+    gridNext[i] = oldHead;
+}

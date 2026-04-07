@@ -155,6 +155,22 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
+    echo Compiling particle grid clear compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\particle_grid_clear.comp -o shaders\particle_grid_clear.comp.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile particle_grid_clear.comp
+        pause
+        exit /b 1
+    )
+
+    echo Compiling particle grid build compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\particle_grid_build.comp -o shaders\particle_grid_build.comp.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile particle_grid_build.comp
+        pause
+        exit /b 1
+    )
+
     echo Compiling debris vertex shader...
     %GLSLANG% -fshader-stage=vert -I. shaders\debris.vert -o shaders\debris.vert.spv
     if %errorlevel% neq 0 (
@@ -327,6 +343,22 @@ if defined USE_GLSLC (
     %GLSLANG% -V -Ishaders shaders\particle_expand.comp -o shaders\particle_expand.comp.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile particle_expand.comp
+        pause
+        exit /b 1
+    )
+
+    echo Compiling particle grid clear compute shader...
+    %GLSLANG% -V -Ishaders shaders\particle_grid_clear.comp -o shaders\particle_grid_clear.comp.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile particle_grid_clear.comp
+        pause
+        exit /b 1
+    )
+
+    echo Compiling particle grid build compute shader...
+    %GLSLANG% -V -Ishaders shaders\particle_grid_build.comp -o shaders\particle_grid_build.comp.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile particle_grid_build.comp
         pause
         exit /b 1
     )

@@ -27,6 +27,31 @@ layout(std430, set = 0, binding = 2) readonly buffer CharacterBuffer {
     float charActive;      // 1.0 = enabled, 0.0 = disabled
 };
 
+// Per-material physics properties (mass, restitution, friction, damping).
+layout(std430, set = 0, binding = 3) readonly buffer MaterialBuffer {
+    MaterialPhysics materials[];
+};
+
+// Spatial hash grid for inter-particle collision.
+// Built by particle_grid_build.comp each frame.
+layout(std430, set = 0, binding = 4) readonly buffer GridCellHead {
+    uint gridCellHead[];  // GRID_SIZE³ entries
+};
+
+layout(std430, set = 0, binding = 5) readonly buffer GridNextParticle {
+    uint gridNext[];  // MAX_PARTICLES entries
+};
+
+const int GRID_SIZE = 64;
+
+// Hash world position to grid cell index (wrapping, same as grid_build)
+int cellIndex(vec3 pos) {
+    int cx = int(floor(pos.x)) & (GRID_SIZE - 1);
+    int cy = int(floor(pos.y)) & (GRID_SIZE - 1);
+    int cz = int(floor(pos.z)) & (GRID_SIZE - 1);
+    return cx + cy * GRID_SIZE + cz * GRID_SIZE * GRID_SIZE;
+}
+
 // Occupancy grid dimensions (must match GpuParticlePhysics C++ constants)
 const int OCC_X        = 512;
 const int OCC_Y        = 256;
@@ -37,8 +62,6 @@ const int OCC_HALF_Z   = 256;
 
 layout(push_constant) uniform PC {
     uint  count;
-    float restitution;
-    float friction;
     float dt;
     float sleepThreshSq;
 } pc;
@@ -93,113 +116,144 @@ void main() {
     float halfY = p.scale.y * 0.5;
     float halfZ = p.scale.z * 0.5;
 
+    // Per-material physics properties
+    MaterialPhysics mat = materials[p.materialIndex];
+
     // Derive implicit velocity before any corrections
     vec3 vel = p.position - p.prevPosition;
 
     bool hitAnything = false;
 
-    // ---- Floor (-Y) ----
+    // Multi-point collision: for each face, sample center + 4 corners of that face.
+    // This prevents corners/edges clipping through surfaces that single-point checks miss.
+    // isOccupied() is a trivial bitfield lookup (~5 ALU), so 30 total calls is negligible.
+
+    // ---- Floor (-Y): 5 samples at bottom face ----
     {
-        int vy = int(floor(p.position.y - halfY));
-        int vx = int(floor(p.position.x));
-        int vz = int(floor(p.position.z));
-        if (isOccupied(vx, vy, vz)) {
+        float faceY = p.position.y - halfY;
+        int vy = int(floor(faceY));
+        bool hit = isOccupied(int(floor(p.position.x)),          vy, int(floor(p.position.z)))          // center
+                || isOccupied(int(floor(p.position.x - halfX)),  vy, int(floor(p.position.z - halfZ)))  // corner --
+                || isOccupied(int(floor(p.position.x + halfX)),  vy, int(floor(p.position.z - halfZ)))  // corner +-
+                || isOccupied(int(floor(p.position.x - halfX)),  vy, int(floor(p.position.z + halfZ)))  // corner -+
+                || isOccupied(int(floor(p.position.x + halfX)),  vy, int(floor(p.position.z + halfZ))); // corner ++
+        if (hit) {
             float surface    = float(vy + 1);
-            float penetration = surface - (p.position.y - halfY);
+            float penetration = surface - faceY;
             if (penetration > 0.0) {
                 p.position.y += penetration;
-                if (vel.y < 0.0) vel.y = -vel.y * pc.restitution;
-                vel.x *= pc.friction;
-                vel.z *= pc.friction;
+                if (vel.y < 0.0) vel.y = -vel.y * mat.restitution;
+                vel.x *= mat.friction;
+                vel.z *= mat.friction;
                 p.angularVel *= 0.6;
                 hitAnything = true;
             }
         }
     }
 
-    // ---- Ceiling (+Y) ----
+    // ---- Ceiling (+Y): 5 samples at top face ----
     {
-        int vy = int(floor(p.position.y + halfY));
-        int vx = int(floor(p.position.x));
-        int vz = int(floor(p.position.z));
-        if (isOccupied(vx, vy, vz)) {
+        float faceY = p.position.y + halfY;
+        int vy = int(floor(faceY));
+        bool hit = isOccupied(int(floor(p.position.x)),          vy, int(floor(p.position.z)))
+                || isOccupied(int(floor(p.position.x - halfX)),  vy, int(floor(p.position.z - halfZ)))
+                || isOccupied(int(floor(p.position.x + halfX)),  vy, int(floor(p.position.z - halfZ)))
+                || isOccupied(int(floor(p.position.x - halfX)),  vy, int(floor(p.position.z + halfZ)))
+                || isOccupied(int(floor(p.position.x + halfX)),  vy, int(floor(p.position.z + halfZ)));
+        if (hit) {
             float bottom     = float(vy);
-            float penetration = (p.position.y + halfY) - bottom;
+            float penetration = faceY - bottom;
             if (penetration > 0.0) {
                 p.position.y -= penetration;
-                if (vel.y > 0.0) vel.y = -vel.y * pc.restitution;
+                if (vel.y > 0.0) vel.y = -vel.y * mat.restitution;
                 hitAnything = true;
             }
         }
     }
 
-    // ---- Right (+X) ----
+    // ---- Right (+X): 5 samples at +X face ----
     {
-        int vx = int(floor(p.position.x + halfX));
-        int vy = int(floor(p.position.y));
-        int vz = int(floor(p.position.z));
-        if (isOccupied(vx, vy, vz)) {
+        float faceX = p.position.x + halfX;
+        int vx = int(floor(faceX));
+        bool hit = isOccupied(vx, int(floor(p.position.y)),          int(floor(p.position.z)))
+                || isOccupied(vx, int(floor(p.position.y - halfY)),  int(floor(p.position.z - halfZ)))
+                || isOccupied(vx, int(floor(p.position.y + halfY)),  int(floor(p.position.z - halfZ)))
+                || isOccupied(vx, int(floor(p.position.y - halfY)),  int(floor(p.position.z + halfZ)))
+                || isOccupied(vx, int(floor(p.position.y + halfY)),  int(floor(p.position.z + halfZ)));
+        if (hit) {
             float wall       = float(vx);
-            float penetration = (p.position.x + halfX) - wall;
+            float penetration = faceX - wall;
             if (penetration > 0.0) {
                 p.position.x -= penetration;
-                if (vel.x > 0.0) vel.x = -vel.x * pc.restitution;
-                vel.y *= pc.friction;
-                vel.z *= pc.friction;
+                if (vel.x > 0.0) vel.x = -vel.x * mat.restitution;
+                vel.y *= mat.friction;
+                vel.z *= mat.friction;
                 hitAnything = true;
             }
         }
     }
 
-    // ---- Left (-X) ----
+    // ---- Left (-X): 5 samples at -X face ----
     {
-        int vx = int(floor(p.position.x - halfX));
-        int vy = int(floor(p.position.y));
-        int vz = int(floor(p.position.z));
-        if (isOccupied(vx, vy, vz)) {
+        float faceX = p.position.x - halfX;
+        int vx = int(floor(faceX));
+        bool hit = isOccupied(vx, int(floor(p.position.y)),          int(floor(p.position.z)))
+                || isOccupied(vx, int(floor(p.position.y - halfY)),  int(floor(p.position.z - halfZ)))
+                || isOccupied(vx, int(floor(p.position.y + halfY)),  int(floor(p.position.z - halfZ)))
+                || isOccupied(vx, int(floor(p.position.y - halfY)),  int(floor(p.position.z + halfZ)))
+                || isOccupied(vx, int(floor(p.position.y + halfY)),  int(floor(p.position.z + halfZ)));
+        if (hit) {
             float wall       = float(vx + 1);
-            float penetration = wall - (p.position.x - halfX);
+            float penetration = wall - faceX;
             if (penetration > 0.0) {
                 p.position.x += penetration;
-                if (vel.x < 0.0) vel.x = -vel.x * pc.restitution;
-                vel.y *= pc.friction;
-                vel.z *= pc.friction;
+                if (vel.x < 0.0) vel.x = -vel.x * mat.restitution;
+                vel.y *= mat.friction;
+                vel.z *= mat.friction;
                 hitAnything = true;
             }
         }
     }
 
-    // ---- Front (+Z) ----
+    // ---- Front (+Z): 5 samples at +Z face ----
     {
-        int vz = int(floor(p.position.z + halfZ));
-        int vx = int(floor(p.position.x));
-        int vy = int(floor(p.position.y));
-        if (isOccupied(vx, vy, vz)) {
+        float faceZ = p.position.z + halfZ;
+        int vz = int(floor(faceZ));
+        bool hit = isOccupied(int(floor(p.position.x)),          int(floor(p.position.y)),          vz)
+                || isOccupied(int(floor(p.position.x - halfX)),  int(floor(p.position.y - halfY)),  vz)
+                || isOccupied(int(floor(p.position.x + halfX)),  int(floor(p.position.y - halfY)),  vz)
+                || isOccupied(int(floor(p.position.x - halfX)),  int(floor(p.position.y + halfY)),  vz)
+                || isOccupied(int(floor(p.position.x + halfX)),  int(floor(p.position.y + halfY)),  vz);
+        if (hit) {
             float wall       = float(vz);
-            float penetration = (p.position.z + halfZ) - wall;
+            float penetration = faceZ - wall;
             if (penetration > 0.0) {
                 p.position.z -= penetration;
-                if (vel.z > 0.0) vel.z = -vel.z * pc.restitution;
-                vel.x *= pc.friction;
-                vel.y *= pc.friction;
+                if (vel.z > 0.0) vel.z = -vel.z * mat.restitution;
+                vel.x *= mat.friction;
+                vel.y *= mat.friction;
                 hitAnything = true;
             }
         }
     }
 
-    // ---- Back (-Z) ----
+    // ---- Back (-Z): 5 samples at -Z face ----
     {
-        int vz = int(floor(p.position.z - halfZ));
-        int vx = int(floor(p.position.x));
-        int vy = int(floor(p.position.y));
-        if (isOccupied(vx, vy, vz)) {
+        float faceZ = p.position.z - halfZ;
+        int vz = int(floor(faceZ));
+        bool hit = isOccupied(int(floor(p.position.x)),          int(floor(p.position.y)),          vz)
+                || isOccupied(int(floor(p.position.x - halfX)),  int(floor(p.position.y - halfY)),  vz)
+                || isOccupied(int(floor(p.position.x + halfX)),  int(floor(p.position.y - halfY)),  vz)
+                || isOccupied(int(floor(p.position.x - halfX)),  int(floor(p.position.y + halfY)),  vz)
+                || isOccupied(int(floor(p.position.x + halfX)),  int(floor(p.position.y + halfY)),  vz);
+        if (hit) {
             float wall       = float(vz + 1);
-            float penetration = wall - (p.position.z - halfZ);
+            float penetration = wall - faceZ;
             if (penetration > 0.0) {
                 p.position.z += penetration;
-                if (vel.z < 0.0) vel.z = -vel.z * pc.restitution;
-                vel.x *= pc.friction;
-                vel.y *= pc.friction;
+                if (vel.z < 0.0) vel.z = -vel.z * mat.restitution;
+                vel.x *= mat.friction;
+                vel.y *= mat.friction;
                 hitAnything = true;
             }
         }
@@ -236,12 +290,12 @@ void main() {
             if (penNZ < minPen) { minPen = penNZ; axis = 5; }
 
             // Push out along shortest axis
-            if      (axis == 0) { p.position.x += minPen; if (vel.x < 0.0) vel.x = -vel.x * pc.restitution; }
-            else if (axis == 1) { p.position.x -= minPen; if (vel.x > 0.0) vel.x = -vel.x * pc.restitution; }
-            else if (axis == 2) { p.position.y += minPen; if (vel.y < 0.0) vel.y = -vel.y * pc.restitution; }
-            else if (axis == 3) { p.position.y -= minPen; if (vel.y > 0.0) vel.y = -vel.y * pc.restitution; }
-            else if (axis == 4) { p.position.z += minPen; if (vel.z < 0.0) vel.z = -vel.z * pc.restitution; }
-            else                { p.position.z -= minPen; if (vel.z > 0.0) vel.z = -vel.z * pc.restitution; }
+            if      (axis == 0) { p.position.x += minPen; if (vel.x < 0.0) vel.x = -vel.x * mat.restitution; }
+            else if (axis == 1) { p.position.x -= minPen; if (vel.x > 0.0) vel.x = -vel.x * mat.restitution; }
+            else if (axis == 2) { p.position.y += minPen; if (vel.y < 0.0) vel.y = -vel.y * mat.restitution; }
+            else if (axis == 3) { p.position.y -= minPen; if (vel.y > 0.0) vel.y = -vel.y * mat.restitution; }
+            else if (axis == 4) { p.position.z += minPen; if (vel.z < 0.0) vel.z = -vel.z * mat.restitution; }
+            else                { p.position.z -= minPen; if (vel.z > 0.0) vel.z = -vel.z * mat.restitution; }
 
             // Transfer character velocity to particle (scaled by dt for impulse feel)
             vel += charVelocity * pc.dt * 0.5;
@@ -249,6 +303,89 @@ void main() {
             // Wake particle
             p.flags &= ~PARTICLE_SLEEPING;
             hitAnything = true;
+        }
+    }
+
+    // ---- Particle-particle collision (spatial hash grid) ----
+    // Check own cell + 26 neighbors (3×3×3 neighborhood).
+    // Only process pairs where j > i to avoid double-processing.
+    {
+        int cx = int(floor(p.position.x)) & (GRID_SIZE - 1);
+        int cy = int(floor(p.position.y)) & (GRID_SIZE - 1);
+        int cz = int(floor(p.position.z)) & (GRID_SIZE - 1);
+
+        for (int dz = -1; dz <= 1; dz++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dx = -1; dx <= 1; dx++) {
+                    int nx = (cx + dx) & (GRID_SIZE - 1);
+                    int ny = (cy + dy) & (GRID_SIZE - 1);
+                    int nz = (cz + dz) & (GRID_SIZE - 1);
+                    int cell = nx + ny * GRID_SIZE + nz * GRID_SIZE * GRID_SIZE;
+
+                    uint j = gridCellHead[cell];
+                    int maxIter = 8; // cap iterations per cell to prevent infinite loops
+                    while (j != 0xFFFFFFFFu && maxIter > 0) {
+                        maxIter--;
+                        if (j > i) { // only process each pair once
+                            GpuParticle q = particles[j];
+                            if ((q.flags & PARTICLE_ACTIVE) != 0u) {
+                                float qhx = q.scale.x * 0.5;
+                                float qhy = q.scale.y * 0.5;
+                                float qhz = q.scale.z * 0.5;
+
+                                // AABB overlap test
+                                vec3 pMin = p.position - vec3(halfX, halfY, halfZ);
+                                vec3 pMax = p.position + vec3(halfX, halfY, halfZ);
+                                vec3 qMin = q.position - vec3(qhx, qhy, qhz);
+                                vec3 qMax = q.position + vec3(qhx, qhy, qhz);
+
+                                if (pMin.x < qMax.x && pMax.x > qMin.x &&
+                                    pMin.y < qMax.y && pMax.y > qMin.y &&
+                                    pMin.z < qMax.z && pMax.z > qMin.z)
+                                {
+                                    // Compute penetration on each axis
+                                    float overlapX = min(pMax.x - qMin.x, qMax.x - pMin.x);
+                                    float overlapY = min(pMax.y - qMin.y, qMax.y - pMin.y);
+                                    float overlapZ = min(pMax.z - qMin.z, qMax.z - pMin.z);
+
+                                    // Push apart on shortest overlap axis
+                                    vec3 velJ = q.position - q.prevPosition;
+                                    MaterialPhysics matJ = materials[q.materialIndex];
+                                    float massI = mat.mass;
+                                    float massJ = matJ.mass;
+                                    float totalMass = massI + massJ;
+                                    float ratioI = massJ / totalMass; // heavier j → i moves more
+                                    float ratioJ = massI / totalMass;
+
+                                    // Average restitution for the pair
+                                    float pairRest = (mat.restitution + matJ.restitution) * 0.5;
+
+                                    if (overlapX <= overlapY && overlapX <= overlapZ) {
+                                        float sign = (p.position.x < q.position.x) ? -1.0 : 1.0;
+                                        p.position.x -= sign * overlapX * ratioI;
+                                        // Velocity exchange on X axis
+                                        float relVel = vel.x - velJ.x;
+                                        vel.x -= relVel * (1.0 + pairRest) * ratioI;
+                                    } else if (overlapY <= overlapZ) {
+                                        float sign = (p.position.y < q.position.y) ? -1.0 : 1.0;
+                                        p.position.y -= sign * overlapY * ratioI;
+                                        float relVel = vel.y - velJ.y;
+                                        vel.y -= relVel * (1.0 + pairRest) * ratioI;
+                                    } else {
+                                        float sign = (p.position.z < q.position.z) ? -1.0 : 1.0;
+                                        p.position.z -= sign * overlapZ * ratioI;
+                                        float relVel = vel.z - velJ.z;
+                                        vel.z -= relVel * (1.0 + pairRest) * ratioI;
+                                    }
+
+                                    hitAnything = true;
+                                }
+                            }
+                        }
+                        j = gridNext[j];
+                    }
+                }
+            }
         }
     }
 

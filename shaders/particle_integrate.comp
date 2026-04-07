@@ -8,12 +8,14 @@ layout(std430, set = 0, binding = 0) buffer ParticleBuffer {
     GpuParticle particles[];
 };
 
+layout(std430, set = 0, binding = 1) readonly buffer MaterialBuffer {
+    MaterialPhysics materials[];
+};
+
 layout(push_constant) uniform PC {
     float dt;
     float gravity;      // e.g. -9.81 (negative = downward)
     uint  count;
-    float linearDamp;   // per-frame damping on implicit velocity, e.g. 0.995
-    float angularDamp;  // per-frame damping on angular velocity, e.g. 0.97
     float sleepThreshSq;// velocity^2 below which sleep is triggered (per frame unit)
 } pc;
 
@@ -42,15 +44,18 @@ void main() {
 
     // ---------- XPBD position integration ----------
     // Implicit velocity = current - prev (in world-units per frame, not per second)
-    vec3 vel = (p.position - p.prevPosition) * pc.linearDamp;
+    MaterialPhysics mat = materials[p.materialIndex];
+    vec3 vel = (p.position - p.prevPosition) * mat.linearDamp;
 
     p.prevPosition = p.position;
     // Gravity: a * dt^2 (XPBD adds gravity as a displacement, not a velocity)
-    p.position += vel + vec3(0.0, pc.gravity * pc.dt * pc.dt, 0.0);
+    // Mass scales gravity via sqrt: heavier materials fall faster (simple atmosphere model)
+    // sqrt keeps range reasonable: Cork(0.2)→0.45×, Default(1.0)→1.0×, Stone(6.0)→2.45×
+    p.position += vel + vec3(0.0, pc.gravity * pc.dt * pc.dt * sqrt(mat.mass), 0.0);
 
     // ---------- Angular integration ----------
     // Simple first-order quaternion integration: dq/dt = 0.5 * (w,0) * q
-    p.angularVel *= pc.angularDamp;
+    p.angularVel *= mat.angularDamp;
     vec3 w = p.angularVel * pc.dt * 0.5;
     // Quaternion multiplication: (w,0) * q  (treating w as a pure quaternion)
     vec4 q = p.rotation;

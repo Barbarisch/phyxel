@@ -1,6 +1,7 @@
 #include "core/GpuParticlePhysics.h"
 #include "vulkan/VulkanDevice.h"
 #include "core/AssetManager.h"
+#include "physics/Material.h"
 #include "utils/Logger.h"
 #include <glm/gtc/quaternion.hpp>
 #include <cstring>
@@ -54,6 +55,7 @@ bool GpuParticlePhysics::initialize(Vulkan::VulkanDevice* vulkanDevice, const st
 
     if (!createBuffers(vulkanDevice))             return false;
     if (!initMatTexTable(vulkanDevice))           return false;
+    if (!initMaterialPhysicsTable())              return false;
     if (!createPipelines(std::string()))          return false; // uses AssetManager internally
 
     // Initialize VkDrawIndirectCommand: {vertexCount=6, instanceCount=0, firstVertex=0, firstInstance=0}
@@ -245,6 +247,57 @@ bool GpuParticlePhysics::createBuffers(Vulkan::VulkanDevice* dev) {
         std::memset(m_characterMapped, 0, sizeof(CharacterCollider));
     }
 
+    // 7. Material physics properties (host-coherent SSBO, 32 bytes × material count)
+    {
+        VkDeviceSize matPhysSize = static_cast<VkDeviceSize>(MATERIAL_NAMES.size()) * sizeof(MaterialPhysicsGpu);
+        VkBufferCreateInfo bi{};
+        bi.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bi.size        = matPhysSize;
+        bi.usage       = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        if (vkCreateBuffer(m_device, &bi, nullptr, &m_materialPhysBuffer) != VK_SUCCESS) {
+            LOG_ERROR("GpuParticlePhysics", "Failed to create material physics buffer");
+            return false;
+        }
+        VkMemoryRequirements req;
+        vkGetBufferMemoryRequirements(m_device, m_materialPhysBuffer, &req);
+        VkMemoryAllocateInfo ai{};
+        ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        ai.allocationSize = req.size;
+        VkPhysicalDeviceMemoryProperties props;
+        vkGetPhysicalDeviceMemoryProperties(m_physDevice, &props);
+        uint32_t memType = UINT32_MAX;
+        for (uint32_t j = 0; j < props.memoryTypeCount; ++j) {
+            if ((req.memoryTypeBits & (1u << j)) &&
+                ((props.memoryTypes[j].propertyFlags &
+                  (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) ==
+                  (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))) {
+                memType = j; break;
+            }
+        }
+        if (memType == UINT32_MAX) {
+            LOG_ERROR("GpuParticlePhysics", "No host-coherent memory for material physics buffer");
+            return false;
+        }
+        ai.memoryTypeIndex = memType;
+        if (vkAllocateMemory(m_device, &ai, nullptr, &m_materialPhysMem) != VK_SUCCESS ||
+            vkBindBufferMemory(m_device, m_materialPhysBuffer, m_materialPhysMem, 0) != VK_SUCCESS ||
+            vkMapMemory(m_device, m_materialPhysMem, 0, matPhysSize, 0, &m_materialPhysMapped) != VK_SUCCESS) {
+            LOG_ERROR("GpuParticlePhysics", "Failed to create/map material physics buffer");
+            return false;
+        }
+    }
+
+    // 8. Spatial hash grid — cell head buffer (device-local)
+    dev->createStorageBuffer(
+        static_cast<VkDeviceSize>(GRID_CELLS) * sizeof(uint32_t),
+        m_gridCellHeadBuffer, m_gridCellHeadMem);
+
+    // 9. Spatial hash grid — particle next-link buffer (device-local)
+    dev->createStorageBuffer(
+        static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t),
+        m_gridNextBuffer, m_gridNextMem);
+
     return true;
 }
 
@@ -291,6 +344,52 @@ void GpuParticlePhysics::uploadMatTexTable(Vulkan::VulkanDevice* dev, const std:
 }
 
 // ============================================================
+// Material physics table (GPU SSBO from MaterialManager)
+// ============================================================
+
+bool GpuParticlePhysics::initMaterialPhysicsTable() {
+    Physics::MaterialManager matMgr;
+    auto* dst = static_cast<MaterialPhysicsGpu*>(m_materialPhysMapped);
+
+    for (uint32_t i = 0; i < static_cast<uint32_t>(MATERIAL_NAMES.size()); ++i) {
+        const auto& name = MATERIAL_NAMES[i];
+        MaterialPhysicsGpu gpu{};
+
+        if (matMgr.hasMaterial(name)) {
+            const auto& mp = matMgr.getMaterial(name);
+            gpu.mass            = mp.mass;
+            gpu.restitution     = mp.restitution;
+            // MaterialProperties friction is "grip" (0=slippery, 1=full grip).
+            // GPU friction is velocity retention after surface hit (0=dead stop, 1=no friction).
+            // Original hardcoded baseline: retention=0.82 for Default (mp.friction=0.5)
+            gpu.friction        = std::max(0.0f, 1.0f - mp.friction * 0.36f);
+            // MaterialProperties damping is a drag coefficient. GPU uses per-frame retention.
+            // Baseline: retention=0.995(linear)/0.97(angular) for Default (mp.damping=0.1)
+            gpu.linearDamp      = std::max(0.9f, 1.0f - mp.linearDamping * 0.05f);
+            gpu.angularDamp     = std::max(0.7f, 1.0f - mp.angularDamping * 0.3f);
+            gpu.breakForceScale = mp.breakForceMultiplier;
+        } else {
+            gpu.mass            = 1.0f;
+            gpu.restitution     = 0.3f;
+            gpu.friction        = 0.82f;
+            gpu.linearDamp      = 0.995f;
+            gpu.angularDamp     = 0.97f;
+            gpu.breakForceScale = 1.0f;
+        }
+        gpu.pad0 = 0.0f;
+        gpu.pad1 = 0.0f;
+        dst[i] = gpu;
+
+        LOG_DEBUG_FMT("GpuParticlePhysics", "Material[" << i << "] " << name
+            << ": mass=" << gpu.mass << " rest=" << gpu.restitution
+            << " fric=" << gpu.friction << " lDamp=" << gpu.linearDamp
+            << " aDamp=" << gpu.angularDamp);
+    }
+
+    return true;
+}
+
+// ============================================================
 // Pipeline creation
 // ============================================================
 
@@ -300,18 +399,32 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
     };
 
     // Push constant sizes (must match the shader PC blocks)
-    struct IntegratePC { float dt; float gravity; uint32_t count; float linearDamp; float angularDamp; float sleepThreshSq; };
-    struct CollidePC   { uint32_t count; float restitution; float friction; float dt; float sleepThreshSq; };
+    struct IntegratePC { float dt; float gravity; uint32_t count; float sleepThreshSq; };
+    struct CollidePC   { uint32_t count; float dt; float sleepThreshSq; };
     struct ExpandPC    { uint32_t count; uint32_t maxFaceSlots; };
+    struct GridClearPC { uint32_t cellCount; };
+    struct GridBuildPC { uint32_t count; };
 
-    // integrate: binding 0 = particles (rw)
-    if (!m_integratePass.create(m_device, shader("particle_integrate.comp.spv"),
-                                 1, sizeof(IntegratePC)))
+    // grid clear: binding 0 = gridCellHead (rw)
+    if (!m_gridClearPass.create(m_device, shader("particle_grid_clear.comp.spv"),
+                                 1, sizeof(GridClearPC)))
         return false;
 
-    // collide: binding 0 = particles (rw), binding 1 = occupancy grid (ro), binding 2 = character AABB (ro)
+    // grid build: binding 0 = particles (ro), binding 1 = gridCellHead (rw), binding 2 = gridNext (rw)
+    if (!m_gridBuildPass.create(m_device, shader("particle_grid_build.comp.spv"),
+                                 3, sizeof(GridBuildPC)))
+        return false;
+
+    // integrate: binding 0 = particles (rw), binding 1 = material physics (ro)
+    if (!m_integratePass.create(m_device, shader("particle_integrate.comp.spv"),
+                                 2, sizeof(IntegratePC)))
+        return false;
+
+    // collide: binding 0 = particles (rw), binding 1 = occupancy grid (ro),
+    //          binding 2 = character AABB (ro), binding 3 = material physics (ro),
+    //          binding 4 = gridCellHead (ro), binding 5 = gridNext (ro)
     if (!m_collidePass.create(m_device, shader("particle_collide.comp.spv"),
-                               3, sizeof(CollidePC)))
+                               6, sizeof(CollidePC)))
         return false;
 
     // expand: binding 0 = particles (ro), binding 1 = matTexTable (ro),
@@ -325,13 +438,28 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
     VkDeviceSize faceSize     = static_cast<VkDeviceSize>(MAX_FACE_SLOTS) * 64;
     VkDeviceSize occSize      = static_cast<VkDeviceSize>(OCC_TOTAL_WORDS) * sizeof(uint32_t);
     uint32_t     matTableSize = static_cast<uint32_t>(MATERIAL_NAMES.size()) * 6 * sizeof(uint32_t);
+    VkDeviceSize matPhysSize  = static_cast<VkDeviceSize>(MATERIAL_NAMES.size()) * sizeof(MaterialPhysicsGpu);
+    VkDeviceSize gridHeadSize = static_cast<VkDeviceSize>(GRID_CELLS) * sizeof(uint32_t);
+    VkDeviceSize gridNextSize = static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t);
+
+    m_gridClearPass.bindBuffer(0, m_gridCellHeadBuffer, gridHeadSize);
+    m_gridClearPass.updateDescriptors();
+
+    m_gridBuildPass.bindBuffer(0, m_particleBuffer, particleSize);
+    m_gridBuildPass.bindBuffer(1, m_gridCellHeadBuffer, gridHeadSize);
+    m_gridBuildPass.bindBuffer(2, m_gridNextBuffer, gridNextSize);
+    m_gridBuildPass.updateDescriptors();
 
     m_integratePass.bindBuffer(0, m_particleBuffer, particleSize);
+    m_integratePass.bindBuffer(1, m_materialPhysBuffer, matPhysSize);
     m_integratePass.updateDescriptors();
 
     m_collidePass.bindBuffer(0, m_particleBuffer, particleSize);
     m_collidePass.bindBuffer(1, m_occupancyBuffer, occSize);
     m_collidePass.bindBuffer(2, m_characterBuffer, static_cast<VkDeviceSize>(sizeof(CharacterCollider)));
+    m_collidePass.bindBuffer(3, m_materialPhysBuffer, matPhysSize);
+    m_collidePass.bindBuffer(4, m_gridCellHeadBuffer, gridHeadSize);
+    m_collidePass.bindBuffer(5, m_gridNextBuffer, gridNextSize);
     m_collidePass.updateDescriptors();
 
     m_expandPass.bindBuffer(0, m_particleBuffer, particleSize);
@@ -436,15 +564,11 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*f
         float    dt;
         float    gravity;
         uint32_t count;
-        float    linearDamp;
-        float    angularDamp;
         float    sleepThreshSq;
     } ipc;
-    ipc.dt           = 1.0f / 60.0f; // fixed physics step (TODO: pass real dt from caller)
+    ipc.dt           = 1.0f / 60.0f;
     ipc.gravity      = GRAVITY;
     ipc.count        = count;
-    ipc.linearDamp   = LINEAR_DAMP;
-    ipc.angularDamp  = ANGULAR_DAMP;
     ipc.sleepThreshSq= SLEEP_THRESH_SQ;
 
     m_integratePass.bind(cmd);
@@ -459,17 +583,54 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*f
         VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
         m_particleBuffer);
 
+    // ---- 2b. Grid clear — reset all cell heads to 0xFFFFFFFF ----
+    {
+        struct GridClearPC { uint32_t cellCount; } gcpc;
+        gcpc.cellCount = GRID_CELLS;
+        const uint32_t gridClearGroups = (GRID_CELLS + 255u) / 256u;
+        m_gridClearPass.bind(cmd);
+        m_gridClearPass.pushConstants(cmd, &gcpc, sizeof(gcpc));
+        m_gridClearPass.dispatch(cmd, gridClearGroups);
+    }
+
+    // Barrier: grid head COMPUTE_WRITE → COMPUTE_READ/WRITE
+    insertBarrier(cmd,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+        m_gridCellHeadBuffer);
+
+    // ---- 2c. Grid build — insert active particles into spatial hash ----
+    {
+        struct GridBuildPC { uint32_t count; } gbpc;
+        gbpc.count = count;
+        m_gridBuildPass.bind(cmd);
+        m_gridBuildPass.pushConstants(cmd, &gbpc, sizeof(gbpc));
+        m_gridBuildPass.dispatch(cmd, groups);
+    }
+
+    // Barriers: grid buffers COMPUTE_WRITE → COMPUTE_READ (for collide)
+    insertBarrier(cmd,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT,
+        m_gridCellHeadBuffer);
+    insertBarrier(cmd,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT,
+        m_gridNextBuffer);
+
     // ---- 3. Collide pass ----
     struct CollidePC {
         uint32_t count;
-        float    restitution;
-        float    friction;
         float    dt;
         float    sleepThreshSq;
     } cpc;
     cpc.count        = count;
-    cpc.restitution  = RESTITUTION;
-    cpc.friction     = FRICTION;
     cpc.dt           = 1.0f / 60.0f;
     cpc.sleepThreshSq= SLEEP_THRESH_SQ;
 
@@ -578,6 +739,8 @@ void GpuParticlePhysics::clearCharacterAABB() {
 void GpuParticlePhysics::cleanup() {
     if (m_device == VK_NULL_HANDLE) return;
 
+    m_gridClearPass.cleanup();
+    m_gridBuildPass.cleanup();
     m_integratePass.cleanup();
     m_collidePass.cleanup();
     m_expandPass.cleanup();
@@ -588,9 +751,10 @@ void GpuParticlePhysics::cleanup() {
     };
 
     // Unmap before freeing
-    if (m_stagingMapped)    { vkUnmapMemory(m_device, m_stagingMem);    m_stagingMapped   = nullptr; }
-    if (m_occupancyMapped)  { vkUnmapMemory(m_device, m_occupancyMem); m_occupancyMapped = nullptr; }
-    if (m_characterMapped)  { vkUnmapMemory(m_device, m_characterMem); m_characterMapped = nullptr; }
+    if (m_stagingMapped)       { vkUnmapMemory(m_device, m_stagingMem);       m_stagingMapped      = nullptr; }
+    if (m_occupancyMapped)     { vkUnmapMemory(m_device, m_occupancyMem);     m_occupancyMapped    = nullptr; }
+    if (m_characterMapped)     { vkUnmapMemory(m_device, m_characterMem);     m_characterMapped    = nullptr; }
+    if (m_materialPhysMapped)  { vkUnmapMemory(m_device, m_materialPhysMem);  m_materialPhysMapped = nullptr; }
 
     destroyBuf(m_particleBuffer,      m_particleMem);
     destroyBuf(m_faceBuffer,          m_faceMem);
@@ -598,6 +762,9 @@ void GpuParticlePhysics::cleanup() {
     destroyBuf(m_indirectDrawBuffer,  m_indirectDrawMem);
     destroyBuf(m_occupancyBuffer,     m_occupancyMem);
     destroyBuf(m_characterBuffer,     m_characterMem);
+    destroyBuf(m_materialPhysBuffer,  m_materialPhysMem);
+    destroyBuf(m_gridCellHeadBuffer,  m_gridCellHeadMem);
+    destroyBuf(m_gridNextBuffer,      m_gridNextMem);
     destroyBuf(m_matTexBuffer,        m_matTexMem);
 
     m_device     = VK_NULL_HANDLE;

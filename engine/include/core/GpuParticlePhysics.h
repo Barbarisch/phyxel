@@ -122,6 +122,20 @@ public:
     /** Disable character collision (no character active). */
     void clearCharacterAABB();
 
+    // GPU-side per-material physics (32 bytes, std430).
+    // Populated at init from MaterialManager, indexed by GpuParticle::materialIndex.
+    struct alignas(4) MaterialPhysicsGpu {
+        float mass;            // Gravity scaling
+        float restitution;     // Bounciness
+        float friction;        // Surface grip
+        float linearDamp;      // Per-frame velocity damping
+        float angularDamp;     // Per-frame spin damping
+        float breakForceScale; // Break impulse multiplier
+        float pad0;
+        float pad1;
+    };
+    static_assert(sizeof(MaterialPhysicsGpu) == 32, "MaterialPhysicsGpu must be 32 bytes");
+
     // ---- Render pipeline interface ----
 
     /** Bind this as vertex buffer binding 1 for the dynamic voxel pipeline. */
@@ -145,12 +159,8 @@ private:
     static constexpr int OCC_TOTAL_BITS  = OCC_X * OCC_Y * OCC_Z;        // 67,108,864 bits
     static constexpr int OCC_TOTAL_WORDS = OCC_TOTAL_BITS / 32;          // 2,097,152 uint32s
 
-    // Physics constants (could be made configurable later)
+    // Physics constants
     static constexpr float GRAVITY         = -9.81f;
-    static constexpr float LINEAR_DAMP     = 0.995f;
-    static constexpr float ANGULAR_DAMP    = 0.97f;
-    static constexpr float RESTITUTION     = 0.35f;
-    static constexpr float FRICTION        = 0.82f;
     static constexpr float SLEEP_THRESH_SQ = 1e-5f; // per-frame velocity²
 
     // Material names in index order (index 0 = Default)
@@ -191,7 +201,22 @@ private:
     VkDeviceMemory   m_characterMem    = VK_NULL_HANDLE;
     void*            m_characterMapped = nullptr;
 
+    // Per-material physics properties — host-coherent, persistently mapped
+    VkBuffer         m_materialPhysBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory   m_materialPhysMem    = VK_NULL_HANDLE;
+    void*            m_materialPhysMapped = nullptr;
+
+    // Spatial hash grid for inter-particle collision
+    static constexpr int    GRID_SIZE  = 64;
+    static constexpr int    GRID_CELLS = GRID_SIZE * GRID_SIZE * GRID_SIZE; // 262,144
+    VkBuffer         m_gridCellHeadBuffer  = VK_NULL_HANDLE;  // uint[GRID_CELLS] — per-cell head pointer
+    VkDeviceMemory   m_gridCellHeadMem     = VK_NULL_HANDLE;
+    VkBuffer         m_gridNextBuffer      = VK_NULL_HANDLE;  // uint[MAX_PARTICLES] — per-particle next link
+    VkDeviceMemory   m_gridNextMem         = VK_NULL_HANDLE;
+
     // ---- Compute pipelines ----
+    Vulkan::ComputePipeline m_gridClearPass;
+    Vulkan::ComputePipeline m_gridBuildPass;
     Vulkan::ComputePipeline m_integratePass;
     Vulkan::ComputePipeline m_collidePass;
     Vulkan::ComputePipeline m_expandPass;
@@ -217,6 +242,7 @@ private:
     // ---- Helpers ----
     bool createBuffers(Vulkan::VulkanDevice* vulkanDevice);
     bool initMatTexTable(Vulkan::VulkanDevice* vulkanDevice);
+    bool initMaterialPhysicsTable();
     bool createPipelines(const std::string& shaderDir);
     void uploadMatTexTable(Vulkan::VulkanDevice* vulkanDevice, const std::vector<uint32_t>& table);
 

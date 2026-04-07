@@ -36,5 +36,19 @@ const uint PARTICLE_TYPE_SUBCUBE = 1u << 2;
 const uint PARTICLE_TYPE_MICRO   = 2u << 2;
 const uint PARTICLE_TYPE_MASK    = 3u << 2;
 
+// Per-material physics properties (32 bytes, std430).
+// Uploaded once at init from C++ MaterialProperties table.
+// Index with materialIndex from GpuParticle.
+struct MaterialPhysics {
+    float mass;           // Gravity scaling (~0.2 cork .. 6.0 stone)
+    float restitution;    // Bounciness (0.0 = dead stop, 1.0 = perfect bounce)
+    float friction;       // Surface grip (0.0 = ice, 1.0 = rubber)
+    float linearDamp;     // Air drag on velocity per frame (~0.98–0.999)
+    float angularDamp;    // Air drag on spin per frame (~0.95–0.99)
+    float breakForceScale;// Impulse multiplier at spawn
+    float pad0;
+    float pad1;
+};
+
 // Workgroup size used by all particle compute shaders
 #define WORKGROUP_SIZE 256
