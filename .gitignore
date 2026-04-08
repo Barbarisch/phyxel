@@ -235,6 +235,11 @@ debug_stdout.txt
 *_results.txt
 *_output.txt
 
+# Perf/stress test output
+perf_results_*.csv
+perf_results_*.json
+particle_positions.csv
+
 # ImGui runtime state
 imgui.ini
 
