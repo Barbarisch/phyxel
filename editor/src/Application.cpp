@@ -778,6 +778,66 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         return nlohmann::json{{"error", "Unknown action. Use 'start', 'stop', or 'status'."}};
     });
 
+    // Engine-wide frame timing: FPS, cpu/gpu times, draw calls, active counts
+    apiServer->setEngineTimingHandler([this]() -> nlohmann::json {
+        auto ft = performanceMonitor->getCurrentFrameTiming();
+        const auto& detailed = performanceMonitor->getDetailedTimings();
+
+        nlohmann::json detail = nlohmann::json::object();
+        if (!detailed.empty()) {
+            const auto& d = detailed.back();
+            detail = {
+                {"totalFrameTime", d.totalFrameTime},
+                {"physicsTime", d.physicsTime},
+                {"instanceUpdateTime", d.instanceUpdateTime},
+                {"commandRecordTime", d.commandRecordTime},
+                {"gpuSubmitTime", d.gpuSubmitTime},
+                {"presentTime", d.presentTime},
+                {"frustumCullingTime", d.frustumCullingTime},
+                {"occlusionCullingTime", d.occlusionCullingTime},
+                {"faceCullingTime", d.faceCullingTime}
+            };
+        }
+
+        size_t bulletActive = chunkManager ? chunkManager->m_dynamicObjectManager.getActiveBulletCount() : 0;
+        uint32_t gpuActive = (gpuParticlePhysics && gpuParticlePhysics->isInitialized())
+            ? gpuParticlePhysics->getActiveParticleCount() : 0;
+
+        double fps = ft.cpuFrameTime > 0.0 ? 1000.0 / ft.cpuFrameTime : 0.0;
+        return nlohmann::json{
+            {"fps", fps},
+            {"cpuFrameTime", ft.cpuFrameTime},
+            {"gpuFrameTime", ft.gpuFrameTime},
+            {"drawCalls", ft.drawCalls},
+            {"vertexCount", ft.vertexCount},
+            {"visibleInstances", ft.visibleInstances},
+            {"culledInstances", ft.culledInstances},
+            {"frustumCulled", ft.frustumCulledInstances},
+            {"occlusionCulled", ft.occlusionCulledInstances},
+            {"faceCulledFaces", ft.faceCulledFaces},
+            {"bulletActive", bulletActive},
+            {"bulletCap", DynamicObjectManager::MAX_DYNAMIC_OBJECTS},
+            {"gpuActive", gpuActive},
+            {"gpuCap", GpuParticlePhysics::MAX_PARTICLES},
+            {"detailed", detail}
+        };
+    });
+
+    // Dynamic object stats: bullet and GPU counts/caps
+    apiServer->setDynamicStatsHandler([this]() -> nlohmann::json {
+        size_t bulletActive = chunkManager ? chunkManager->m_dynamicObjectManager.getActiveBulletCount() : 0;
+        size_t bulletTotal = chunkManager ? chunkManager->m_dynamicObjectManager.getTotalBulletCount() : 0;
+        uint32_t gpuActive = (gpuParticlePhysics && gpuParticlePhysics->isInitialized())
+            ? gpuParticlePhysics->getActiveParticleCount() : 0;
+        return nlohmann::json{
+            {"bullet_active", bulletActive},
+            {"bullet_total", bulletTotal},
+            {"bullet_cap", DynamicObjectManager::MAX_DYNAMIC_OBJECTS},
+            {"gpu_active", gpuActive},
+            {"gpu_cap", GpuParticlePhysics::MAX_PARTICLES}
+        };
+    });
+
     apiServer->setEventPollHandler([this](uint64_t sinceId) -> nlohmann::json {
         if (!gameEventLog) return nlohmann::json{{"error", "GameEventLog not available"}};
         auto result = gameEventLog->pollSince(sinceId);
@@ -3912,7 +3972,8 @@ static bool handleDebugDynamicSpawnCommand(
         float z = cmd.params.value("z", 0.0f);
         std::string material = cmd.params.value("material", "Stone");
         float scale = cmd.params.value("scale", 1.0f);
-        int count = std::clamp(cmd.params.value("count", 1), 1, 50);
+        float lifetime = cmd.params.value("lifetime", 30.0f);
+        int count = std::clamp(cmd.params.value("count", 1), 1, 300);
         glm::vec3 vel(0.0f);
         if (cmd.params.contains("velocity")) {
             vel.x = cmd.params["velocity"].value("x", 0.0f);
@@ -3925,9 +3986,13 @@ static bool handleDebugDynamicSpawnCommand(
         }
         glm::vec3 cubeSize(scale);
         float spacing = scale * 1.1f;
+        int gridSize = static_cast<int>(std::ceil(std::cbrt(static_cast<float>(count))));
         int spawned = 0;
         for (int i = 0; i < count; ++i) {
-            glm::vec3 pos(x + i * spacing, y, z);
+            int gx = i % gridSize;
+            int gy = (i / gridSize) % gridSize;
+            int gz = i / (gridSize * gridSize);
+            glm::vec3 pos(x + gx * spacing, y + gy * spacing, z + gz * spacing);
             glm::vec3 center = pos + glm::vec3(scale * 0.5f);
             auto cube = std::make_unique<Cube>(glm::ivec3(pos), material);
             btRigidBody* rb = chunkManager->physicsWorld->createBreakawayCube(
@@ -3939,6 +4004,7 @@ static bool handleDebugDynamicSpawnCommand(
             cube->setRigidBody(rb);
             cube->setPhysicsPosition(center);
             cube->setDynamicScale(cubeSize);
+            cube->setLifetime(lifetime);
             cube->breakApart();
             chunkManager->m_dynamicObjectManager.addGlobalDynamicCube(std::move(cube));
             ++spawned;
@@ -3954,7 +4020,7 @@ static bool handleDebugDynamicSpawnCommand(
         std::string material = cmd.params.value("material", "Stone");
         float scale = cmd.params.value("scale", 1.0f);
         float lifetime = cmd.params.value("lifetime", 30.0f);
-        int count = std::clamp(cmd.params.value("count", 1), 1, 200);
+        int count = std::clamp(cmd.params.value("count", 1), 1, 2000);
         glm::vec3 vel(0.0f);
         if (cmd.params.contains("velocity")) {
             vel.x = cmd.params["velocity"].value("x", 0.0f);
@@ -3965,10 +4031,15 @@ static bool handleDebugDynamicSpawnCommand(
             response = {{"error", "GPU particle physics not available"}};
             return true;
         }
+        float spacing = scale * 1.1f;
+        int gridSize = static_cast<int>(std::ceil(std::cbrt(static_cast<float>(count))));
         int spawned = 0;
         for (int i = 0; i < count; ++i) {
+            int gx = i % gridSize;
+            int gy = (i / gridSize) % gridSize;
+            int gz = i / (gridSize * gridSize);
             GpuParticlePhysics::SpawnParams sp;
-            sp.position = glm::vec3(x + i * 1.1f, y, z);
+            sp.position = glm::vec3(x + gx * spacing, y + gy * spacing, z + gz * spacing);
             sp.velocity = vel;
             sp.materialName = material;
             sp.scale = glm::vec3(scale);
@@ -3978,6 +4049,24 @@ static bool handleDebugDynamicSpawnCommand(
         }
         response = {{"success", true}, {"spawned", spawned}, {"system", "gpu"},
                     {"position", {{"x", x}, {"y", y}, {"z", z}}}};
+        return true;
+    }
+    if (cmd.action == "clear_dynamics") {
+        size_t bulletCleared = 0;
+        uint32_t gpuCleared = 0;
+        if (chunkManager) {
+            bulletCleared = chunkManager->m_dynamicObjectManager.getActiveBulletCount();
+            chunkManager->m_dynamicObjectManager.clearAllGlobalDynamicCubes();
+            chunkManager->m_dynamicObjectManager.clearAllGlobalDynamicSubcubes();
+            chunkManager->m_dynamicObjectManager.clearAllGlobalDynamicMicrocubes();
+        }
+        if (gpuParticles && gpuParticles->isInitialized()) {
+            gpuCleared = gpuParticles->getActiveParticleCount();
+            gpuParticles->despawnAll();
+        }
+        response = {{"success", true},
+                    {"bullet_cleared", bulletCleared},
+                    {"gpu_cleared", gpuCleared}};
         return true;
     }
     return false;

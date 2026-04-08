@@ -303,6 +303,7 @@ The occupancy grid and character AABB buffers both use this pattern.
 
 ## See Also
 
+- [DynamicVoxelPhysics.md](DynamicVoxelPhysics.md) — Hybrid Bullet+GPU physics system, routing logic, performance data
 - [CoordinateSystem.md](CoordinateSystem.md) — World vs local coordinates
 - [MultiChunkSystem.md](MultiChunkSystem.md) — Chunk management overview
 - [SubsystemArchitecture.md](SubsystemArchitecture.md) — Engine subsystem overview

@@ -933,6 +933,51 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // GET /api/debug/engine_timing — Full engine frame timing stats
+    // Returns: FPS, cpu/gpu frame time, physics time, draw calls,
+    //          culling stats, active Bullet/GPU counts
+    // ====================================================================
+    srv.Get("/api/debug/engine_timing", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!m_engineTimingHandler) {
+            json err = {{"error", "Engine timing handler not configured"}};
+            res.status = 503;
+            res.set_content(err.dump(), "application/json");
+            return;
+        }
+        json result = m_engineTimingHandler();
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // GET /api/debug/dynamic_stats — Bullet + GPU particle object counts
+    // Returns: bullet_active, bullet_cap, gpu_active, gpu_cap
+    // ====================================================================
+    srv.Get("/api/debug/dynamic_stats", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!m_dynamicStatsHandler) {
+            json err = {{"error", "Dynamic stats handler not configured"}};
+            res.status = 503;
+            res.set_content(err.dump(), "application/json");
+            return;
+        }
+        json result = m_dynamicStatsHandler();
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // POST /api/debug/clear_dynamics — Remove all Bullet + GPU particles
+    // ====================================================================
+    srv.Post("/api/debug/clear_dynamics", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json result = queueAndWait("clear_dynamics", json::object());
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // POST /api/world/clear — Clear all voxels in a region
     // Body: { "x1":0,"y1":0,"z1":0, "x2":10,"y2":5,"z2":10 }
     // ====================================================================

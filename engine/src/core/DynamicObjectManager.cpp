@@ -30,6 +30,14 @@ size_t DynamicObjectManager::getActiveBulletCount() const {
     return active;
 }
 
+size_t DynamicObjectManager::getTotalBulletCount() const {
+    size_t total = 0;
+    if (m_getCubes) total += m_getCubes().size();
+    if (m_getSubcubes) total += m_getSubcubes().size();
+    if (m_getMicrocubes) total += m_getMicrocubes().size();
+    return total;
+}
+
 void DynamicObjectManager::setCallbacks(
     PhysicsWorldAccessFunc getPhysicsWorldFunc,
     DynamicSubcubeVectorAccessFunc getSubcubesFunc,

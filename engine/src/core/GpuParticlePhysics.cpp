@@ -881,6 +881,20 @@ void GpuParticlePhysics::clearOccupancy() {
         memset(m_occupancyMapped, 0, static_cast<size_t>(OCC_TOTAL_WORDS) * sizeof(uint32_t));
 }
 
+void GpuParticlePhysics::despawnAll() {
+    for (uint32_t i = 0; i < m_highWaterSlot; ++i) {
+        if (m_slots[i].active) {
+            m_slots[i].active = false;
+            m_slots[i].lifetimeRemaining = 0.0f;
+            m_freeSlots.push_back(i);
+        }
+    }
+    m_activeCount = 0;
+    m_highWaterSlot = 0;
+    m_pendingSpawns.clear();
+    if (m_positionLogging) stopPositionLog();
+}
+
 // ============================================================
 // Character collider
 // ============================================================

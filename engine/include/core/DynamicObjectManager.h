@@ -130,6 +130,9 @@ public:
     /// Sleeping bodies don't count against the cap.
     size_t getActiveBulletCount() const;
 
+    /// Total count of all Bullet cubes + subcubes (including sleeping).
+    size_t getTotalBulletCount() const;
+
 private:
     // Callback functions
     PhysicsWorldAccessFunc m_getPhysicsWorld;

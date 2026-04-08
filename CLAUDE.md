@@ -590,6 +590,9 @@ docs/            # Documentation
 - **StoryEngine**: Story arcs, beats, character agents, LLM-powered narrative
 - **AIConversationService**: Direct LLM client (Claude/OpenAI/Ollama) for NPC conversations
 - **BehaviorTree / UtilityAI**: Composable BT framework with perception, blackboard, utility scoring
+- **DynamicObjectManager**: Bullet physics dynamic voxel lifecycle — spawn, update, expire, despawn. Manages full/sub/micro cubes with 300 object cap. Provides active + total count queries
+- **GpuParticlePhysics**: Vulkan compute XPBD particle physics — 5-pass pipeline (grid_clear → grid_build → integrate → collide → expand), 10000 particle cap, sleep/wake system, face-buffer rendering
+- **VoxelManipulationSystem**: Hybrid routing for broken voxels — routes to Bullet (close range, <300 cap) or GPU compute (far range or Bullet full). See `docs/DynamicVoxelPhysics.md`
 
 ## Common Patterns
 

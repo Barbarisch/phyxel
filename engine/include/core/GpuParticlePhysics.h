@@ -146,6 +146,9 @@ public:
     uint32_t getActiveParticleCount() const { return m_activeCount; }
     bool     isInitialized()          const { return m_initialized; }
 
+    /** Immediately mark all active particles as dead and reset tracking state. */
+    void despawnAll();
+
     // ---- Debug timing stats (ring buffer) ----
     struct FrameTimingEntry {
         float dt;             // raw delta time passed to update()
