@@ -59,9 +59,11 @@ void main() {
     // Initialize next pointer to end-of-list
     gridNext[i] = 0xFFFFFFFFu;
 
-    // Only active, non-sleeping particles participate in collision
+    // Only active particles participate in collision.
+    // Sleeping particles MUST be in the grid so awake neighbors can collide
+    // with them. Without this, a falling particle passes right through a
+    // sleeping one because it can't find it in the spatial hash.
     if ((p.flags & PARTICLE_ACTIVE) == 0u) return;
-    if ((p.flags & PARTICLE_SLEEPING) != 0u) return;
 
     int cell = cellIndex(p.position);
 

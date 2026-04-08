@@ -36,6 +36,32 @@ const uint PARTICLE_TYPE_SUBCUBE = 1u << 2;
 const uint PARTICLE_TYPE_MICRO   = 2u << 2;
 const uint PARTICLE_TYPE_MASK    = 3u << 2;
 
+// Spawn age: bits [23:16] — 8-bit counter (0–255) incremented each physics tick.
+// Used to implement a grace period: freshly spawned particles skip character
+// collision and sleep checks until they've had time to separate from the player
+// and build up gravity-based velocity.
+const uint SPAWN_AGE_SHIFT        = 16u;
+const uint SPAWN_AGE_MASK         = 0x00FF0000u;
+const uint CHAR_COLLISION_GRACE   = 5u;   // skip character push for 5 ticks (~0.08s)
+const uint SLEEP_GRACE            = 30u;  // skip sleep check for 30 ticks (~0.5s)
+
+// Character push grace: bits [31:24] — 8-bit countdown (0–255).
+// When the player character pushes a particle, this counter is set to
+// CHAR_PUSH_GRACE_TICKS. While > 0, surface friction is bypassed so the
+// particle slides smoothly instead of decelerating and getting re-pushed
+// every 2-3 ticks (which causes visible snapping/choppiness).
+const uint CHAR_PUSH_GRACE_SHIFT = 24u;
+const uint CHAR_PUSH_GRACE_MASK  = 0xFF000000u;
+const uint CHAR_PUSH_GRACE_TICKS = 10u;  // ~0.17s grace at 60Hz
+
+// Collision skin: small gap between particle surface and voxel boundary.
+// Prevents sample points from landing exactly on integer cell boundaries,
+// which caused adjacent ground cells to register as walls (pit problem).
+const float COLLISION_SKIN = 0.01;
+
+// Bounce velocity threshold: impacts with approach speed below this are
+// absorbed (velocity zeroed) instead of bounced. Prevents micro-bounce
+// jitter when particles rest on surfaces under gravity.
 // Per-material physics properties (32 bytes, std430).
 // Uploaded once at init from C++ MaterialProperties table.
 // Index with materialIndex from GpuParticle.

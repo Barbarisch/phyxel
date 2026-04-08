@@ -8,6 +8,7 @@
 #include <vector>
 #include <string>
 #include <cstdint>
+#include <fstream>
 
 namespace Phyxel {
 
@@ -55,7 +56,7 @@ public:
         glm::vec3   scale       = glm::vec3(1);
         std::string materialName= "Default";
         glm::vec4   color       = glm::vec4(1);
-        float       lifetime    = 8.0f;
+        float       lifetime    = 30.0f;
         uint32_t    typeFlags   = 0; // PARTICLE_TYPE_CUBE etc.
     };
 
@@ -145,6 +146,28 @@ public:
     uint32_t getActiveParticleCount() const { return m_activeCount; }
     bool     isInitialized()          const { return m_initialized; }
 
+    // ---- Debug timing stats (ring buffer) ----
+    struct FrameTimingEntry {
+        float dt;             // raw delta time passed to update()
+        float accumulator;    // timeAccumulator AFTER adding dt
+        float interpAlpha;    // accumulator / FIXED_DT sent to expand shader
+        uint32_t physicsTicks;// number of physics ticks this frame
+        uint32_t activeCount; // active particles
+        uint32_t frameNumber; // monotonic frame counter
+    };
+    static constexpr size_t TIMING_RING_SIZE = 300; // ~5 seconds at 60fps
+    const std::vector<FrameTimingEntry>& getTimingRing() const { return m_timingRing; }
+    size_t getTimingRingHead() const { return m_timingRingHead; }
+    uint32_t getTimingFrameCounter() const { return m_timingFrameCounter; }
+    float getFixedDt() const { return FIXED_DT; }
+
+    // ---- Position logging (GPU readback to CSV file) ----
+    /** Start logging particle positions to a file. Returns true if logging started. */
+    bool startPositionLog(const std::string& filePath);
+    /** Stop logging and close the file. */
+    void stopPositionLog();
+    bool isPositionLogging() const { return m_positionLogging; }
+
     // ---- Material name → index lookup ----
     static uint32_t materialNameToIndex(const std::string& name);
 
@@ -160,7 +183,7 @@ private:
     static constexpr int OCC_TOTAL_WORDS = OCC_TOTAL_BITS / 32;          // 2,097,152 uint32s
 
     // Physics constants
-    static constexpr float GRAVITY         = -18.0f;  // stronger pull for chunky voxel feel
+    static constexpr float GRAVITY         = -9.81f;  // match Bullet physics
     static constexpr float SLEEP_THRESH_SQ = 5e-4f;   // settle faster
 
     // Material names in index order (index 0 = Default)
@@ -229,6 +252,7 @@ private:
     std::vector<SlotInfo> m_slots;         // per-particle CPU tracking
     std::vector<uint32_t> m_freeSlots;     // freelist of inactive particle indices
     uint32_t              m_activeCount = 0;
+    uint32_t              m_highWaterSlot = 0; // highest active slot index + 1 (dispatch range)
 
     struct PendingCopy {
         uint32_t slotIndex;    // particle slot to overwrite
@@ -237,7 +261,28 @@ private:
     std::vector<PendingCopy> m_pendingSpawns;
     std::vector<PendingCopy> m_pendingThisFrame; // snapshot used during recordCompute
 
+    // Fixed-timestep accumulator: physics runs at exactly FIXED_DT intervals
+    // regardless of render frame rate. Prevents speed-up at high FPS.
+    static constexpr float FIXED_DT = 1.0f / 60.0f;
+    float    m_timeAccumulator = 0.0f;  // accumulated real time awaiting physics steps
+    uint32_t m_physicsTicks    = 0;     // number of physics steps to run this frame
+    float    m_lastRealDt      = 0.0f;  // real elapsed time for lifetime drain
+
     bool m_initialized = false;
+
+    // ---- Position logging (GPU readback) ----
+    VkBuffer         m_readbackBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory   m_readbackMem    = VK_NULL_HANDLE;
+    void*            m_readbackMapped = nullptr;
+    bool             m_positionLogging       = false;
+    bool             m_readbackPending       = false; // true after copy cmd recorded
+    std::ofstream    m_posLogFile;
+    uint32_t         m_posLogFrameCounter    = 0;
+
+    // ---- Debug timing ring buffer ----
+    std::vector<FrameTimingEntry> m_timingRing;
+    size_t   m_timingRingHead    = 0;
+    uint32_t m_timingFrameCounter = 0;
 
     // ---- Helpers ----
     bool createBuffers(Vulkan::VulkanDevice* vulkanDevice);

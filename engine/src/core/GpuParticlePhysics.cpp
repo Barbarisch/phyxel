@@ -298,6 +298,47 @@ bool GpuParticlePhysics::createBuffers(Vulkan::VulkanDevice* dev) {
         static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t),
         m_gridNextBuffer, m_gridNextMem);
 
+    // 10. Readback buffer for position logging (host-coherent, persistent map)
+    {
+        VkDeviceSize rbSize = static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(GpuParticle);
+        VkBufferCreateInfo bi{};
+        bi.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bi.size        = rbSize;
+        bi.usage       = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        if (vkCreateBuffer(m_device, &bi, nullptr, &m_readbackBuffer) != VK_SUCCESS) {
+            LOG_ERROR("GpuParticlePhysics", "Failed to create readback buffer");
+            return false;
+        }
+        VkMemoryRequirements req;
+        vkGetBufferMemoryRequirements(m_device, m_readbackBuffer, &req);
+        VkMemoryAllocateInfo ai{};
+        ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        ai.allocationSize = req.size;
+        VkPhysicalDeviceMemoryProperties props;
+        vkGetPhysicalDeviceMemoryProperties(m_physDevice, &props);
+        uint32_t memType = UINT32_MAX;
+        for (uint32_t j = 0; j < props.memoryTypeCount; ++j) {
+            if ((req.memoryTypeBits & (1u << j)) &&
+                ((props.memoryTypes[j].propertyFlags &
+                  (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) ==
+                  (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))) {
+                memType = j; break;
+            }
+        }
+        if (memType == UINT32_MAX) {
+            LOG_ERROR("GpuParticlePhysics", "No host-coherent memory for readback buffer");
+            return false;
+        }
+        ai.memoryTypeIndex = memType;
+        if (vkAllocateMemory(m_device, &ai, nullptr, &m_readbackMem) != VK_SUCCESS ||
+            vkBindBufferMemory(m_device, m_readbackBuffer, m_readbackMem, 0) != VK_SUCCESS ||
+            vkMapMemory(m_device, m_readbackMem, 0, rbSize, 0, &m_readbackMapped) != VK_SUCCESS) {
+            LOG_ERROR("GpuParticlePhysics", "Failed to create/map readback buffer");
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -399,9 +440,9 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
     };
 
     // Push constant sizes (must match the shader PC blocks)
-    struct IntegratePC { float dt; float gravity; uint32_t count; float sleepThreshSq; };
-    struct CollidePC   { uint32_t count; float dt; float sleepThreshSq; };
-    struct ExpandPC    { uint32_t count; uint32_t maxFaceSlots; };
+    struct IntegratePC { float dt; float gravity; uint32_t count; float sleepThreshSq; float lifetimeDt; };
+    struct CollidePC   { uint32_t count; float dt; float sleepThreshSq; float gravity; };
+    struct ExpandPC    { uint32_t count; uint32_t maxFaceSlots; float interpAlpha; };
     struct GridClearPC { uint32_t cellCount; };
     struct GridBuildPC { uint32_t count; };
 
@@ -481,12 +522,18 @@ void GpuParticlePhysics::queueSpawn(const SpawnParams& p) {
         return;
     }
 
+    // Auto-start position logging on first particle spawn
+    if (!m_positionLogging && m_activeCount == 0) {
+        startPositionLog("particle_positions.csv");
+    }
+
     uint32_t slot = m_freeSlots.back();
     m_freeSlots.pop_back();
 
     m_slots[slot].lifetimeRemaining = p.lifetime;
     m_slots[slot].active            = true;
     ++m_activeCount;
+    if (slot + 1 > m_highWaterSlot) m_highWaterSlot = slot + 1;
 
     // Build GPU particle. prevPosition = position - velocity*dt approximation.
     // We don't have dt here, so use a small fixed step (physics will correct quickly).
@@ -507,26 +554,108 @@ void GpuParticlePhysics::queueSpawn(const SpawnParams& p) {
 }
 
 void GpuParticlePhysics::update(float dt) {
-    // Age CPU-side slots; reclaim expired ones
-    for (uint32_t i = 0; i < MAX_PARTICLES; ++i) {
+    // ---- Position logging: read back previous frame's particle data ----
+    if (m_readbackPending && m_positionLogging && m_posLogFile.is_open()) {
+        m_readbackPending = false;
+        const GpuParticle* particles = static_cast<const GpuParticle*>(m_readbackMapped);
+        const CharacterCollider* cc = m_characterMapped ?
+            static_cast<const CharacterCollider*>(m_characterMapped) : nullptr;
+
+        // Frame header: F,frame,dt,ticks,alpha,activeCount,char_cx,char_cy,char_cz,char_vx,char_vy,char_vz,char_active
+        m_posLogFile << "F," << m_posLogFrameCounter
+                     << "," << m_lastRealDt
+                     << "," << m_physicsTicks
+                     << "," << (m_timeAccumulator / FIXED_DT)
+                     << "," << m_activeCount;
+        if (cc) {
+            m_posLogFile << "," << cc->center.x << "," << cc->center.y << "," << cc->center.z
+                         << "," << cc->velocity.x << "," << cc->velocity.y << "," << cc->velocity.z
+                         << "," << cc->active;
+        } else {
+            m_posLogFile << ",0,0,0,0,0,0,0";
+        }
+        m_posLogFile << "\n";
+
+        // Particle lines: P,frame,slot,pos_x,pos_y,pos_z,prev_x,prev_y,prev_z,flags,material
+        uint32_t logged = 0;
+        for (uint32_t i = 0; i < m_highWaterSlot && logged < 200; ++i) {
+            if (!(particles[i].flags & 1u)) continue; // not active
+            const auto& p = particles[i];
+            m_posLogFile << "P," << m_posLogFrameCounter
+                         << "," << i
+                         << "," << p.position.x << "," << p.position.y << "," << p.position.z
+                         << "," << p.prevPosition.x << "," << p.prevPosition.y << "," << p.prevPosition.z
+                         << "," << p.flags << "," << p.materialIndex << "\n";
+            ++logged;
+        }
+        m_posLogFile.flush();
+        ++m_posLogFrameCounter;
+    }
+
+    // Clamp dt to prevent spiral-of-death
+    float realDt = std::min(dt, 0.25f);
+    m_lastRealDt = realDt;
+
+    // Fixed-timestep accumulator: step physics only when enough real time has passed.
+    // This prevents the simulation from running too fast at high frame rates
+    // (e.g., 4x speed at 240 FPS) or too slow at low frame rates.
+    m_timeAccumulator += realDt;
+    m_physicsTicks = 0;
+    while (m_timeAccumulator >= FIXED_DT) {
+        m_timeAccumulator -= FIXED_DT;
+        ++m_physicsTicks;
+    }
+    // Cap to prevent spiral-of-death (e.g., after a long stall)
+    if (m_physicsTicks > 4) {
+        m_physicsTicks = 4;
+        m_timeAccumulator = 0.0f;
+    }
+
+    // Age CPU-side slots using real elapsed time (frame-rate independent).
+    // The GPU integrate shader does the same via lifetimeDt push constant.
+    uint32_t newHigh = 0;
+    for (uint32_t i = 0; i < m_highWaterSlot; ++i) {
         if (!m_slots[i].active) continue;
-        m_slots[i].lifetimeRemaining -= dt;
+        m_slots[i].lifetimeRemaining -= realDt;
         if (m_slots[i].lifetimeRemaining <= 0.0f) {
             m_slots[i].active = false;
             m_freeSlots.push_back(i);
             --m_activeCount;
+        } else {
+            newHigh = i + 1;
         }
+    }
+    m_highWaterSlot = newHigh;
+
+    // Auto-stop logging when all particles have died
+    if (m_positionLogging && m_activeCount == 0 && m_pendingSpawns.empty() && m_posLogFrameCounter > 0) {
+        stopPositionLog();
     }
 
     // Write pending spawns into the staging buffer
     for (const auto& pc : m_pendingSpawns) {
         GpuParticle* staging = static_cast<GpuParticle*>(m_stagingMapped);
         staging[pc.slotIndex] = pc.data;
+        if (pc.slotIndex + 1 > m_highWaterSlot)
+            m_highWaterSlot = pc.slotIndex + 1;
     }
 
     // Snapshot pending list for this frame, clear for next
     m_pendingThisFrame = std::move(m_pendingSpawns);
     m_pendingSpawns.clear();
+
+    // Record timing stats into ring buffer
+    if (m_timingRing.size() < TIMING_RING_SIZE)
+        m_timingRing.resize(TIMING_RING_SIZE);
+    FrameTimingEntry& te = m_timingRing[m_timingRingHead % TIMING_RING_SIZE];
+    te.dt           = realDt;
+    te.accumulator  = m_timeAccumulator;
+    te.interpAlpha  = m_timeAccumulator / FIXED_DT;
+    te.physicsTicks = m_physicsTicks;
+    te.activeCount  = m_activeCount;
+    te.frameNumber  = m_timingFrameCounter;
+    ++m_timingRingHead;
+    ++m_timingFrameCounter;
 }
 
 // ============================================================
@@ -556,98 +685,112 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*f
             m_particleBuffer);
     }
 
-    const uint32_t count  = MAX_PARTICLES; // always dispatch full range; inactive slots are skipped in shader
+    // Dispatch only up to the highest active slot, not the full 10K pool.
+    const uint32_t count  = m_highWaterSlot;
     const uint32_t groups = (count + 255u) / 256u;
+    if (groups == 0) return; // nothing to simulate
 
-    // ---- 2. Integrate pass ----
-    struct IntegratePC {
-        float    dt;
-        float    gravity;
-        uint32_t count;
-        float    sleepThreshSq;
-    } ipc;
-    ipc.dt           = 1.0f / 60.0f;
-    ipc.gravity      = GRAVITY;
-    ipc.count        = count;
-    ipc.sleepThreshSq= SLEEP_THRESH_SQ;
+    // ---- Fixed-timestep physics loop ----
+    // Run integrate → grid → collide for each accumulated physics tick.
+    // At high FPS (>60), some frames have 0 ticks (render-only).
+    // At low FPS (<60), multiple ticks per frame to catch up (max 4).
+    for (uint32_t tick = 0; tick < m_physicsTicks; ++tick) {
 
-    m_integratePass.bind(cmd);
-    m_integratePass.pushConstants(cmd, &ipc, sizeof(ipc));
-    m_integratePass.dispatch(cmd, groups);
+        // ---- 2. Integrate pass ----
+        struct IntegratePC {
+            float    dt;
+            float    gravity;
+            uint32_t count;
+            float    sleepThreshSq;
+            float    lifetimeDt;
+        } ipc;
+        ipc.dt           = FIXED_DT;
+        ipc.gravity      = GRAVITY;
+        ipc.count        = count;
+        ipc.sleepThreshSq= SLEEP_THRESH_SQ;
+        // Drain lifetime only on the first tick using real elapsed time.
+        // Subsequent ticks pass 0 to avoid double-counting.
+        ipc.lifetimeDt   = (tick == 0) ? m_lastRealDt : 0.0f;
 
-    // Barrier: COMPUTE_SHADER_WRITE → COMPUTE_SHADER_READ (particle buffer, between passes)
-    insertBarrier(cmd,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_ACCESS_SHADER_WRITE_BIT,
-        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-        m_particleBuffer);
+        m_integratePass.bind(cmd);
+        m_integratePass.pushConstants(cmd, &ipc, sizeof(ipc));
+        m_integratePass.dispatch(cmd, groups);
 
-    // ---- 2b. Grid clear — reset all cell heads to 0xFFFFFFFF ----
-    {
-        struct GridClearPC { uint32_t cellCount; } gcpc;
-        gcpc.cellCount = GRID_CELLS;
-        const uint32_t gridClearGroups = (GRID_CELLS + 255u) / 256u;
-        m_gridClearPass.bind(cmd);
-        m_gridClearPass.pushConstants(cmd, &gcpc, sizeof(gcpc));
-        m_gridClearPass.dispatch(cmd, gridClearGroups);
-    }
+        // Barrier: particles COMPUTE_WRITE → COMPUTE_READ/WRITE
+        insertBarrier(cmd,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+            m_particleBuffer);
 
-    // Barrier: grid head COMPUTE_WRITE → COMPUTE_READ/WRITE
-    insertBarrier(cmd,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_ACCESS_SHADER_WRITE_BIT,
-        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-        m_gridCellHeadBuffer);
+        // ---- 2b. Grid clear ----
+        {
+            struct GridClearPC { uint32_t cellCount; } gcpc;
+            gcpc.cellCount = GRID_CELLS;
+            const uint32_t gridClearGroups = (GRID_CELLS + 255u) / 256u;
+            m_gridClearPass.bind(cmd);
+            m_gridClearPass.pushConstants(cmd, &gcpc, sizeof(gcpc));
+            m_gridClearPass.dispatch(cmd, gridClearGroups);
+        }
 
-    // ---- 2c. Grid build — insert active particles into spatial hash ----
-    {
-        struct GridBuildPC { uint32_t count; } gbpc;
-        gbpc.count = count;
-        m_gridBuildPass.bind(cmd);
-        m_gridBuildPass.pushConstants(cmd, &gbpc, sizeof(gbpc));
-        m_gridBuildPass.dispatch(cmd, groups);
-    }
+        insertBarrier(cmd,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+            m_gridCellHeadBuffer);
 
-    // Barriers: grid buffers COMPUTE_WRITE → COMPUTE_READ (for collide)
-    insertBarrier(cmd,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_ACCESS_SHADER_WRITE_BIT,
-        VK_ACCESS_SHADER_READ_BIT,
-        m_gridCellHeadBuffer);
-    insertBarrier(cmd,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_ACCESS_SHADER_WRITE_BIT,
-        VK_ACCESS_SHADER_READ_BIT,
-        m_gridNextBuffer);
+        // ---- 2c. Grid build ----
+        {
+            struct GridBuildPC { uint32_t count; } gbpc;
+            gbpc.count = count;
+            m_gridBuildPass.bind(cmd);
+            m_gridBuildPass.pushConstants(cmd, &gbpc, sizeof(gbpc));
+            m_gridBuildPass.dispatch(cmd, groups);
+        }
 
-    // ---- 3. Collide pass ----
-    struct CollidePC {
-        uint32_t count;
-        float    dt;
-        float    sleepThreshSq;
-    } cpc;
-    cpc.count        = count;
-    cpc.dt           = 1.0f / 60.0f;
-    cpc.sleepThreshSq= SLEEP_THRESH_SQ;
+        insertBarrier(cmd,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_ACCESS_SHADER_READ_BIT,
+            m_gridCellHeadBuffer);
+        insertBarrier(cmd,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_ACCESS_SHADER_READ_BIT,
+            m_gridNextBuffer);
 
-    m_collidePass.bind(cmd);
-    m_collidePass.pushConstants(cmd, &cpc, sizeof(cpc));
-    m_collidePass.dispatch(cmd, groups);
+        // ---- 3. Collide pass ----
+        struct CollidePC {
+            uint32_t count;
+            float    dt;
+            float    sleepThreshSq;
+            float    gravity;
+        } cpc;
+        cpc.count        = count;
+        cpc.dt           = FIXED_DT;
+        cpc.sleepThreshSq= SLEEP_THRESH_SQ;
+        cpc.gravity      = GRAVITY;
 
-    // Barrier: particles COMPUTE_WRITE → COMPUTE_READ (for expand)
-    insertBarrier(cmd,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_ACCESS_SHADER_WRITE_BIT,
-        VK_ACCESS_SHADER_READ_BIT,
-        m_particleBuffer);
+        m_collidePass.bind(cmd);
+        m_collidePass.pushConstants(cmd, &cpc, sizeof(cpc));
+        m_collidePass.dispatch(cmd, groups);
+
+        // Barrier: particles ready for next tick or expand
+        insertBarrier(cmd,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+            m_particleBuffer);
+
+    } // end physics tick loop
 
     // ---- 4. Reset instanceCount in indirect draw buffer ----
-    // Zero only the instanceCount field (offset 4, size 4) so vertexCount stays 6
+    // Always expand for rendering (even if 0 physics ticks — new spawns need faces)
     vkCmdFillBuffer(cmd, m_indirectDrawBuffer, 4, 4, 0);
     insertBarrier(cmd,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -657,19 +800,23 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*f
         m_indirectDrawBuffer, 16);
 
     // ---- 5. Expand pass ----
+    // Smooth rendering between fixed-timestep physics ticks.
+    // interpAlpha = fraction of FIXED_DT elapsed since the last completed tick.
+    // The expand shader extrapolates: renderPos = position + velocity * alpha.
     struct ExpandPC {
         uint32_t count;
         uint32_t maxFaceSlots;
+        float    interpAlpha;
     } epc;
     epc.count        = count;
     epc.maxFaceSlots = MAX_FACE_SLOTS;
+    epc.interpAlpha  = m_timeAccumulator / FIXED_DT;
 
     m_expandPass.bind(cmd);
     m_expandPass.pushConstants(cmd, &epc, sizeof(epc));
     m_expandPass.dispatch(cmd, groups);
 
     // ---- 6. Final barriers: compute → vertex input ----
-    // Face buffer: COMPUTE_WRITE → VERTEX_INPUT
     insertBarrier(cmd,
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
@@ -684,6 +831,26 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*f
         VK_ACCESS_SHADER_WRITE_BIT,
         VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
         m_indirectDrawBuffer, 16);
+
+    // ---- 7. Position logging readback (if active) ----
+    if (m_positionLogging && m_readbackBuffer != VK_NULL_HANDLE) {
+        // Barrier: particle buffer COMPUTE_WRITE → TRANSFER_READ
+        insertBarrier(cmd,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_ACCESS_TRANSFER_READ_BIT,
+            m_particleBuffer);
+
+        VkBufferCopy region{};
+        region.srcOffset = 0;
+        region.dstOffset = 0;
+        region.size      = static_cast<VkDeviceSize>(m_highWaterSlot) * sizeof(GpuParticle);
+        if (region.size > 0) {
+            vkCmdCopyBuffer(cmd, m_particleBuffer, m_readbackBuffer, 1, &region);
+        }
+        m_readbackPending = true;
+    }
 }
 
 // ============================================================
@@ -736,7 +903,45 @@ void GpuParticlePhysics::clearCharacterAABB() {
 // Cleanup
 // ============================================================
 
+// ============================================================
+// Position logging
+// ============================================================
+
+bool GpuParticlePhysics::startPositionLog(const std::string& filePath) {
+    if (m_positionLogging) stopPositionLog();
+    m_posLogFile.open(filePath, std::ios::out | std::ios::trunc);
+    if (!m_posLogFile.is_open()) {
+        LOG_ERROR("GpuParticlePhysics", "Failed to open position log: %s", filePath.c_str());
+        return false;
+    }
+    // Write CSV header comment
+    m_posLogFile << "# Phyxel GPU Particle Position Log\n"
+                 << "# F,frame,dt,ticks,alpha,activeCount,char_cx,char_cy,char_cz,char_vx,char_vy,char_vz,char_active\n"
+                 << "# P,frame,slot,pos_x,pos_y,pos_z,prev_x,prev_y,prev_z,flags,material\n";
+    m_posLogFile.flush();
+    m_posLogFrameCounter = 0;
+    m_readbackPending = false;
+    m_positionLogging = true;
+    LOG_INFO("GpuParticlePhysics", "Position logging started: %s", filePath.c_str());
+    return true;
+}
+
+void GpuParticlePhysics::stopPositionLog() {
+    if (!m_positionLogging) return;
+    m_positionLogging = false;
+    m_readbackPending = false;
+    if (m_posLogFile.is_open()) {
+        m_posLogFile.close();
+    }
+    LOG_INFO("GpuParticlePhysics", "Position logging stopped (%u frames captured)", m_posLogFrameCounter);
+}
+
+// ============================================================
+// Cleanup
+// ============================================================
+
 void GpuParticlePhysics::cleanup() {
+    stopPositionLog();
     if (m_device == VK_NULL_HANDLE) return;
 
     m_gridClearPass.cleanup();
@@ -755,6 +960,7 @@ void GpuParticlePhysics::cleanup() {
     if (m_occupancyMapped)     { vkUnmapMemory(m_device, m_occupancyMem);     m_occupancyMapped    = nullptr; }
     if (m_characterMapped)     { vkUnmapMemory(m_device, m_characterMem);     m_characterMapped    = nullptr; }
     if (m_materialPhysMapped)  { vkUnmapMemory(m_device, m_materialPhysMem);  m_materialPhysMapped = nullptr; }
+    if (m_readbackMapped)      { vkUnmapMemory(m_device, m_readbackMem);      m_readbackMapped     = nullptr; }
 
     destroyBuf(m_particleBuffer,      m_particleMem);
     destroyBuf(m_faceBuffer,          m_faceMem);
@@ -766,6 +972,7 @@ void GpuParticlePhysics::cleanup() {
     destroyBuf(m_gridCellHeadBuffer,  m_gridCellHeadMem);
     destroyBuf(m_gridNextBuffer,      m_gridNextMem);
     destroyBuf(m_matTexBuffer,        m_matTexMem);
+    destroyBuf(m_readbackBuffer,      m_readbackMem);
 
     m_device     = VK_NULL_HANDLE;
     m_physDevice = VK_NULL_HANDLE;

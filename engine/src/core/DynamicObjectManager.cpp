@@ -13,6 +13,23 @@ namespace Phyxel {
 DynamicObjectManager::DynamicObjectManager() = default;
 DynamicObjectManager::~DynamicObjectManager() = default;
 
+size_t DynamicObjectManager::getActiveBulletCount() const {
+    size_t active = 0;
+    if (m_getCubes) {
+        for (auto& c : m_getCubes()) {
+            if (c && c->getRigidBody() && c->getRigidBody()->isActive())
+                ++active;
+        }
+    }
+    if (m_getSubcubes) {
+        for (auto& s : m_getSubcubes()) {
+            if (s && s->getRigidBody() && s->getRigidBody()->isActive())
+                ++active;
+        }
+    }
+    return active;
+}
+
 void DynamicObjectManager::setCallbacks(
     PhysicsWorldAccessFunc getPhysicsWorldFunc,
     DynamicSubcubeVectorAccessFunc getSubcubesFunc,

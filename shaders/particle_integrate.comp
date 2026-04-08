@@ -17,6 +17,7 @@ layout(push_constant) uniform PC {
     float gravity;      // e.g. -9.81 (negative = downward)
     uint  count;
     float sleepThreshSq;// velocity^2 below which sleep is triggered (per frame unit)
+    float lifetimeDt;   // real elapsed time for lifetime drain (frame-rate independent)
 } pc;
 
 void main() {
@@ -28,16 +29,11 @@ void main() {
     // Skip inactive particles
     if ((p.flags & PARTICLE_ACTIVE) == 0u) return;
 
-    // Decrement lifetime first — sleeping particles still age
-    p.lifetime -= pc.dt;
+    // Decrement lifetime using real elapsed time (not physics dt)
+    // so particle duration is frame-rate independent.
+    p.lifetime -= pc.lifetimeDt;
     if (p.lifetime <= 0.0) {
         p.flags &= ~PARTICLE_ACTIVE;
-        particles[i] = p;
-        return;
-    }
-
-    // Skip sleeping particles (position frozen, only lifetime ticks)
-    if ((p.flags & PARTICLE_SLEEPING) != 0u) {
         particles[i] = p;
         return;
     }
@@ -66,10 +62,19 @@ void main() {
     dq.w = -w.x * q.x - w.y * q.y - w.z * q.z;
     p.rotation = normalize(q + dq);
 
-    // ---------- Sleep check ----------
-    float speedSq = dot(vel, vel);
-    if (speedSq < pc.sleepThreshSq) {
-        p.flags |= PARTICLE_SLEEPING;
+    // NOTE: Sleep check is intentionally NOT here. It is handled in
+    // particle_collide.comp AFTER collision resolution. Putting it here
+    // caused particles to freeze inside geometry: integrate moves the
+    // particle, sleep triggers, then collide early-exits on the sleeping
+    // flag — leaving the particle embedded in a surface.
+
+    // Increment spawn age (saturate at 255). Used by collide shader to
+    // implement grace period — young particles skip character collision
+    // and sleep checks.
+    uint age = (p.flags >> SPAWN_AGE_SHIFT) & 0xFFu;
+    if (age < 255u) {
+        age++;
+        p.flags = (p.flags & ~SPAWN_AGE_MASK) | (age << SPAWN_AGE_SHIFT);
     }
 
     particles[i] = p;

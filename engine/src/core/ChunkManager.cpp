@@ -531,7 +531,7 @@ static GpuParticlePhysics::SpawnParams makeSpawnParams(
         btQuaternion q = rb->getWorldTransform().getRotation();
         // Scale down Bullet velocities — full impulse feels too explosive/snappy
         sp.velocity    = glm::vec3(v.x(),  v.y(),  v.z()) * 0.3f;
-        sp.angularVel  = glm::vec3(av.x(), av.y(), av.z()) * 0.25f;
+        sp.angularVel  = glm::vec3(av.x(), av.y(), av.z()) * 0.8f;
         sp.rotation    = glm::quat(q.w(),  q.x(),  q.y(),  q.z());
     }
     return sp;
@@ -539,21 +539,37 @@ static GpuParticlePhysics::SpawnParams makeSpawnParams(
 
 void ChunkManager::addGlobalDynamicSubcube(std::unique_ptr<Subcube> subcube) {
     if (!subcube) return;
+
+    // --- Hybrid routing: Bullet for nearby interactive, GPU for mass debris ---
+    bool useBullet = false;
     if (m_gpuParticles && m_gpuParticles->isInitialized()) {
+        float dist = glm::distance(subcube->getPhysicsPosition(), playerPosition);
+        size_t activeBullet = m_dynamicObjectManager.getActiveBulletCount();
+        if (dist <= BULLET_PROXIMITY_RADIUS
+            && activeBullet < DynamicObjectManager::MAX_DYNAMIC_OBJECTS
+            && m_frameBreakCount < MAX_BULLET_BREAKS_PER_FRAME) {
+            useBullet = true;
+        }
+    } else {
+        // No GPU system — always Bullet
+        useBullet = true;
+    }
+    ++m_frameBreakCount;
+
+    if (useBullet) {
+        m_dynamicObjectManager.addGlobalDynamicSubcube(std::move(subcube));
+    } else {
         auto sp = makeSpawnParams(
             subcube->getPhysicsPosition(),
             subcube->getMaterialName(),
             1.0f / 3.0f,
             subcube->getLifetime(),
             subcube->getRigidBody());
-        // Remove the Bullet body before we discard the subcube
         if (auto* rb = subcube->getRigidBody()) {
             if (physicsWorld) physicsWorld->removeCube(rb);
         }
         m_gpuParticles->queueSpawn(sp);
-        return;
     }
-    m_dynamicObjectManager.addGlobalDynamicSubcube(std::move(subcube));
 }
 
 void ChunkManager::rebuildGlobalDynamicSubcubeFaces() {
@@ -579,22 +595,37 @@ void ChunkManager::clearAllGlobalDynamicSubcubes() {
 
 void ChunkManager::addGlobalDynamicCube(std::unique_ptr<Cube> cube) {
     if (!cube) return;
+
+    // --- Hybrid routing: Bullet for nearby interactive, GPU for mass debris ---
+    glm::vec3 cubePos = glm::vec3(cube->getPosition()) + glm::vec3(0.5f);
+    bool useBullet = false;
     if (m_gpuParticles && m_gpuParticles->isInitialized()) {
-        // Get center-of-mass position: Cube stores corner, so add 0.5 to each axis
-        glm::vec3 pos = glm::vec3(cube->getPosition()) + glm::vec3(0.5f);
+        float dist = glm::distance(cubePos, playerPosition);
+        size_t activeBullet = m_dynamicObjectManager.getActiveBulletCount();
+        if (dist <= BULLET_PROXIMITY_RADIUS
+            && activeBullet < DynamicObjectManager::MAX_DYNAMIC_OBJECTS
+            && m_frameBreakCount < MAX_BULLET_BREAKS_PER_FRAME) {
+            useBullet = true;
+        }
+    } else {
+        useBullet = true;
+    }
+    ++m_frameBreakCount;
+
+    if (useBullet) {
+        m_dynamicObjectManager.addGlobalDynamicCube(std::move(cube));
+    } else {
         auto sp = makeSpawnParams(
-            pos,
+            cubePos,
             cube->getMaterialName(),
-            1.0f,
-            30.0f,  // cubes use default lifetime
+            0.95f,
+            30.0f,
             cube->getRigidBody());
         if (auto* rb = cube->getRigidBody()) {
             if (physicsWorld) physicsWorld->removeCube(rb);
         }
         m_gpuParticles->queueSpawn(sp);
-        return;
     }
-    m_dynamicObjectManager.addGlobalDynamicCube(std::move(cube));
 }
 
 void ChunkManager::updateGlobalDynamicCubes(float deltaTime) {

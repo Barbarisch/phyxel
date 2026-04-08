@@ -250,27 +250,28 @@ void RenderCoordinator::renderDynamicSubcubes() {
         vulkanDevice->bindDescriptorSets(currentFrame, dynamicRenderPipeline->getGraphicsLayout());
 
         vkCmdDrawIndirect(cmd, m_gpuParticles->getIndirectDrawBuffer(), 0, 1, 16);
-        return;
+        // Fall through to also render Bullet dynamic objects (hybrid mode)
     }
 
     // ---------------------------------------------------------------------------
-    // CPU fallback path: legacy Bullet-driven dynamic subcubes
-    //
-    // Uses drawIndexed with 6 indices per face (indexed draw, unlike GPU path).
-    // Same pipeline and shaders — vertexID 0-5 comes from the index buffer here.
+    // CPU Bullet path: dynamic cubes managed by DynamicObjectManager.
+    // In hybrid mode this renders alongside the GPU path above.
     // ---------------------------------------------------------------------------
     const auto& allDynamicSubcubeFaces = chunkManager->getGlobalDynamicSubcubeFaces();
     if (!allDynamicSubcubeFaces.empty()) {
         vulkanDevice->updateDynamicSubcubeBuffer(allDynamicSubcubeFaces);
 
-        vkCmdBindPipeline(vulkanDevice->getCommandBuffer(currentFrame),
-                         VK_PIPELINE_BIND_POINT_GRAPHICS,
+        VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(currentFrame);
+
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                          dynamicRenderPipeline->getGraphicsPipeline());
 
         vulkanDevice->bindDynamicSubcubeBuffer(currentFrame);
-        vulkanDevice->bindIndexBuffer(currentFrame);
         vulkanDevice->bindDescriptorSets(currentFrame, dynamicRenderPipeline->getGraphicsLayout());
-        vulkanDevice->drawIndexed(currentFrame, 6, static_cast<uint32_t>(allDynamicSubcubeFaces.size()));
+
+        // Non-indexed draw: vertexID 0-5 procedurally, matching GPU path and
+        // dynamic_voxel.vert's cornerRemap[6] expectations.
+        vkCmdDraw(cmd, 6, static_cast<uint32_t>(allDynamicSubcubeFaces.size()), 0, 0);
     }
 }
 

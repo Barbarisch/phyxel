@@ -58,8 +58,9 @@ layout(std430, set = 0, binding = 3) buffer IndirectCmd {
 };
 
 layout(push_constant) uniform PC {
-    uint count;
-    uint maxFaceSlots; // safety cap = MAX_PARTICLES * 6
+    uint  count;
+    uint  maxFaceSlots;  // safety cap = MAX_PARTICLES * 6
+    float interpAlpha;   // 0..1 — fraction of FIXED_DT elapsed since last physics tick
 } pc;
 
 // Write one face instance at faceSlot (in face units, not uint units).
@@ -110,12 +111,30 @@ void main() {
     uint matIdx  = p.materialIndex;
     uint typeVal = (p.flags & PARTICLE_TYPE_MASK) >> 2u;
 
+    // Smooth rendering between fixed-timestep physics ticks.
+    // Physics runs at 60Hz but rendering at display refresh (144-240Hz).
+    //
+    // EXTRAPOLATE forward from the current physics position using the
+    // post-collision velocity. In XPBD, prevPosition is set to
+    // (position - correctedVelocity) by the collide shader, so
+    // (position - prevPosition) = correctedVelocity. Extrapolation
+    // slides the particle forward by a fraction of one tick.
+    //
+    // Interpolation (mix(prev, pos, alpha)) can't work here because
+    // collision response overwrites prevPosition to encode velocity,
+    // destroying the "where was I last tick" baseline. That causes
+    // visible snapping/teleporting every time a particle is nudged.
+    //
+    // Extrapolation error is bounded by alpha × correctedVelocity,
+    // which is tiny after restitution/friction (~0.01 units at 120Hz).
+    vec3 renderPos = p.position + (p.position - p.prevPosition) * pc.interpAlpha;
+
     // localPosition encodes subcube grid position for UV texture selection.
     // For full cubes: center (1,1,1). For subcubes/micro: also center (UV covers full face).
     ivec3 localPos = ivec3(1, 1, 1);
 
     for (uint f = 0u; f < 6u; ++f) {
         uint texIdx = matTextures[matIdx * 6u + f];
-        writeFace(baseSlot + f, p.position, texIdx, f, p.scale, p.rotation, localPos);
+        writeFace(baseSlot + f, renderPos, texIdx, f, p.scale, p.rotation, localPos);
     }
 }

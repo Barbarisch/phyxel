@@ -246,22 +246,10 @@ bool VoxelManipulationSystem::breakCube(const CubeLocation& location, const glm:
         dynamicCube->setRigidBody(rigidBody);
         dynamicCube->setPhysicsPosition(physicsCenterPos);
         
-        // Calculate and apply impulse force
-        if (rigidBody && applyForce) {
-            glm::vec3 forceDirection = normalize(cubeWorldPos - cameraPos);
-            glm::vec3 impulseForce = forceDirection * 1.5f + glm::vec3(0.0f, 2.5f, 0.0f);
-            
-            btVector3 btImpulse(impulseForce.x, impulseForce.y, impulseForce.z);
-            rigidBody->applyCentralImpulse(btImpulse);
-            
-            // Add random angular velocity for tumbling effect
-            btVector3 angularVelocity(
-                (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 4.0f,
-                (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 4.0f,
-                (static_cast<float>(rand()) / RAND_MAX - 0.5f) * 4.0f
-            );
-            rigidBody->setAngularVelocity(angularVelocity);
-        }
+        // No break impulse — particle spawns in place and falls under gravity.
+        // Previous impulse (direction*1.5 + up*2.5) pushed particles into adjacent
+        // cells, causing displacement artifacts.
+        (void)applyForce;
         
         if (rigidBody) {
             rigidBody->setGravity(btVector3(0, -9.81f, 0));

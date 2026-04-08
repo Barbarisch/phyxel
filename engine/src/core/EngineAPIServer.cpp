@@ -858,6 +858,81 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // GET /api/debug/particle_timing — GPU particle physics timing stats
+    // ====================================================================
+    srv.Get("/api/debug/particle_timing", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!m_particleTimingHandler) {
+            json err = {{"error", "Particle timing handler not configured"}};
+            res.status = 503;
+            res.set_content(err.dump(), "application/json");
+            return;
+        }
+        json result = m_particleTimingHandler();
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // POST /api/debug/particle_log — Start/stop GPU particle position logging
+    // Body: { "action": "start" } or { "action": "stop" }
+    //   Optional for start: { "action": "start", "file": "particle_positions.csv" }
+    // ====================================================================
+    srv.Post("/api/debug/particle_log", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!m_particleLogHandler) {
+            json err = {{"error", "Particle log handler not configured"}};
+            res.status = 503;
+            res.set_content(err.dump(), "application/json");
+            return;
+        }
+        try {
+            json params = json::parse(req.body);
+            std::string action = params.value("action", "");
+            std::string filePath = params.value("file", "particle_positions.csv");
+            json result = m_particleLogHandler(action, filePath);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/debug/spawn_bullet_cube — Spawn a Bullet-physics dynamic cube
+    // Body: { "x":10, "y":20, "z":10, "material":"Stone",
+    //         "velocity":{"x":0,"y":0,"z":0}, "count":1, "scale":1.0 }
+    // scale: 1.0=full cube, 0.333=subcube, 0.111=microcube
+    // ====================================================================
+    srv.Post("/api/debug/spawn_bullet_cube", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("spawn_bullet_cube", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/debug/spawn_gpu_particle — Spawn a GPU-physics particle
+    // Body: { "x":10, "y":20, "z":10, "material":"Stone",
+    //         "velocity":{"x":0,"y":0,"z":0}, "count":1,
+    //         "scale":1.0, "lifetime":30.0 }
+    // ====================================================================
+    srv.Post("/api/debug/spawn_gpu_particle", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("spawn_gpu_particle", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // POST /api/world/clear — Clear all voxels in a region
     // Body: { "x1":0,"y1":0,"z1":0, "x2":10,"y2":5,"z2":10 }
     // ====================================================================

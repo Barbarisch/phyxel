@@ -715,6 +715,69 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         return nlohmann::json{{"entries", entries}, {"count", entries.size()}};
     });
 
+    // GPU particle physics timing debug stats
+    apiServer->setParticleTimingHandler([this]() -> nlohmann::json {
+        if (!gpuParticlePhysics || !gpuParticlePhysics->isInitialized()) {
+            return nlohmann::json{{"error", "GpuParticlePhysics not available"}};
+        }
+        const auto& ring = gpuParticlePhysics->getTimingRing();
+        size_t head = gpuParticlePhysics->getTimingRingHead();
+        size_t ringSize = ring.size();
+        if (ringSize == 0) return nlohmann::json{{"entries", nlohmann::json::array()}, {"count", 0}};
+
+        // Output in chronological order (oldest first)
+        nlohmann::json entries = nlohmann::json::array();
+        size_t count = std::min(head, ringSize);
+        size_t start = (head >= ringSize) ? head - ringSize : 0;
+        // Summary stats
+        uint32_t ticks0 = 0, ticks1 = 0, ticks2plus = 0;
+        float minDt = 1.0f, maxDt = 0.0f, sumDt = 0.0f;
+        float minAlpha = 1.0f, maxAlpha = 0.0f;
+        for (size_t i = start; i < head; ++i) {
+            const auto& e = ring[i % ringSize];
+            entries.push_back({
+                {"frame", e.frameNumber}, {"dt", e.dt}, {"accum", e.accumulator},
+                {"alpha", e.interpAlpha}, {"ticks", e.physicsTicks}, {"active", e.activeCount}
+            });
+            if (e.physicsTicks == 0) ++ticks0;
+            else if (e.physicsTicks == 1) ++ticks1;
+            else ++ticks2plus;
+            minDt = std::min(minDt, e.dt);
+            maxDt = std::max(maxDt, e.dt);
+            sumDt += e.dt;
+            minAlpha = std::min(minAlpha, e.interpAlpha);
+            maxAlpha = std::max(maxAlpha, e.interpAlpha);
+        }
+        float avgDt = count > 0 ? sumDt / count : 0.0f;
+        return nlohmann::json{
+            {"count", count},
+            {"fixed_dt", gpuParticlePhysics->getFixedDt()},
+            {"summary", {
+                {"avg_dt", avgDt}, {"min_dt", minDt}, {"max_dt", maxDt},
+                {"avg_fps", avgDt > 0 ? 1.0f / avgDt : 0.0f},
+                {"frames_0_ticks", ticks0}, {"frames_1_tick", ticks1}, {"frames_2plus_ticks", ticks2plus},
+                {"min_alpha", minAlpha}, {"max_alpha", maxAlpha}
+            }},
+            {"entries", entries}
+        };
+    });
+
+    apiServer->setParticleLogHandler([this](const std::string& action, const std::string& filePath) -> nlohmann::json {
+        if (!gpuParticlePhysics || !gpuParticlePhysics->isInitialized()) {
+            return nlohmann::json{{"error", "GpuParticlePhysics not available"}};
+        }
+        if (action == "start") {
+            bool ok = gpuParticlePhysics->startPositionLog(filePath);
+            return nlohmann::json{{"success", ok}, {"action", "start"}, {"file", filePath}};
+        } else if (action == "stop") {
+            gpuParticlePhysics->stopPositionLog();
+            return nlohmann::json{{"success", true}, {"action", "stop"}};
+        } else if (action == "status") {
+            return nlohmann::json{{"logging", gpuParticlePhysics->isPositionLogging()}};
+        }
+        return nlohmann::json{{"error", "Unknown action. Use 'start', 'stop', or 'status'."}};
+    });
+
     apiServer->setEventPollHandler([this](uint64_t sinceId) -> nlohmann::json {
         if (!gameEventLog) return nlohmann::json{{"error", "GameEventLog not available"}};
         auto result = gameEventLog->pollSince(sinceId);
@@ -1940,11 +2003,13 @@ void Application::update(float deltaTime) {
     // OPTIMIZED: Only update chunks that have actually changed
     if (chunkManager) {
         chunkManager->updateDirtyChunks();
-        // CPU dynamic object update — skipped when GPU particle system is active
-        // (all dynamic debris is handled by GpuParticlePhysics::update() called above)
-        if (!gpuParticlePhysics || !gpuParticlePhysics->isInitialized()) {
-            chunkManager->m_dynamicObjectManager.updateAllDynamicObjects(deltaTime);
-        }
+        // Reset per-frame break counter for hybrid physics routing
+        chunkManager->resetFrameBreakCounter();
+        // Update player position for hybrid Bullet/GPU proximity routing
+        if (camera) chunkManager->setPlayerPosition(camera->getPosition());
+        // Bullet dynamic object update — always runs in hybrid mode since
+        // nearby cubes use Bullet while mass debris uses GPU particles.
+        chunkManager->m_dynamicObjectManager.updateAllDynamicObjects(deltaTime);
     }
     
     // Update physics with FIXED timestep for smooth, jitter-free simulation
@@ -1973,8 +2038,8 @@ void Application::update(float deltaTime) {
     }
 
     // Update dynamic subcube positions from physics bodies (batched + throttled)
-    // Skipped when GPU particle system is active — positions live on the GPU
-    if (chunkManager && (!gpuParticlePhysics || !gpuParticlePhysics->isInitialized())) {
+    // In hybrid mode, Bullet objects need position sync alongside GPU particles.
+    if (chunkManager) {
         chunkManager->m_dynamicObjectManager.updateAllDynamicObjectPositions();
     }
     
@@ -2883,7 +2948,7 @@ void Application::derezCharacter(float explosionStrength) {
                 sp.scale       = part.scale;
                 sp.color       = part.color;
                 sp.materialName = "Default";
-                sp.lifetime    = 5.0f + (rand() % 50) / 10.0f;
+                sp.lifetime    = 25.0f + (rand() % 100) / 10.0f; // 25-35s
                 gpuParticlePhysics->queueSpawn(sp);
                 ++spawnedCount;
             }
@@ -3834,6 +3899,90 @@ static bool handleNavGridQueryCommand(
     return false;
 }
 
+// Helper: handle debug dynamic spawn commands (Bullet cubes / GPU particles)
+static bool handleDebugDynamicSpawnCommand(
+    const Core::APICommand& cmd,
+    nlohmann::json& response,
+    ChunkManager* chunkManager,
+    GpuParticlePhysics* gpuParticles)
+{
+    if (cmd.action == "spawn_bullet_cube") {
+        float x = cmd.params.value("x", 0.0f);
+        float y = cmd.params.value("y", 20.0f);
+        float z = cmd.params.value("z", 0.0f);
+        std::string material = cmd.params.value("material", "Stone");
+        float scale = cmd.params.value("scale", 1.0f);
+        int count = std::clamp(cmd.params.value("count", 1), 1, 50);
+        glm::vec3 vel(0.0f);
+        if (cmd.params.contains("velocity")) {
+            vel.x = cmd.params["velocity"].value("x", 0.0f);
+            vel.y = cmd.params["velocity"].value("y", 0.0f);
+            vel.z = cmd.params["velocity"].value("z", 0.0f);
+        }
+        if (!chunkManager || !chunkManager->physicsWorld) {
+            response = {{"error", "ChunkManager or PhysicsWorld not available"}};
+            return true;
+        }
+        glm::vec3 cubeSize(scale);
+        float spacing = scale * 1.1f;
+        int spawned = 0;
+        for (int i = 0; i < count; ++i) {
+            glm::vec3 pos(x + i * spacing, y, z);
+            glm::vec3 center = pos + glm::vec3(scale * 0.5f);
+            auto cube = std::make_unique<Cube>(glm::ivec3(pos), material);
+            btRigidBody* rb = chunkManager->physicsWorld->createBreakawayCube(
+                center, cubeSize, material);
+            if (rb) {
+                rb->setGravity(btVector3(0, -9.81f, 0));
+                rb->setLinearVelocity(btVector3(vel.x, vel.y, vel.z));
+            }
+            cube->setRigidBody(rb);
+            cube->setPhysicsPosition(center);
+            cube->setDynamicScale(cubeSize);
+            cube->breakApart();
+            chunkManager->m_dynamicObjectManager.addGlobalDynamicCube(std::move(cube));
+            ++spawned;
+        }
+        response = {{"success", true}, {"spawned", spawned}, {"system", "bullet"},
+                    {"scale", scale}, {"position", {{"x", x}, {"y", y}, {"z", z}}}};
+        return true;
+    }
+    if (cmd.action == "spawn_gpu_particle") {
+        float x = cmd.params.value("x", 0.0f);
+        float y = cmd.params.value("y", 20.0f);
+        float z = cmd.params.value("z", 0.0f);
+        std::string material = cmd.params.value("material", "Stone");
+        float scale = cmd.params.value("scale", 1.0f);
+        float lifetime = cmd.params.value("lifetime", 30.0f);
+        int count = std::clamp(cmd.params.value("count", 1), 1, 200);
+        glm::vec3 vel(0.0f);
+        if (cmd.params.contains("velocity")) {
+            vel.x = cmd.params["velocity"].value("x", 0.0f);
+            vel.y = cmd.params["velocity"].value("y", 0.0f);
+            vel.z = cmd.params["velocity"].value("z", 0.0f);
+        }
+        if (!gpuParticles || !gpuParticles->isInitialized()) {
+            response = {{"error", "GPU particle physics not available"}};
+            return true;
+        }
+        int spawned = 0;
+        for (int i = 0; i < count; ++i) {
+            GpuParticlePhysics::SpawnParams sp;
+            sp.position = glm::vec3(x + i * 1.1f, y, z);
+            sp.velocity = vel;
+            sp.materialName = material;
+            sp.scale = glm::vec3(scale);
+            sp.lifetime = lifetime;
+            gpuParticles->queueSpawn(sp);
+            ++spawned;
+        }
+        response = {{"success", true}, {"spawned", spawned}, {"system", "gpu"},
+                    {"position", {{"x", x}, {"y", y}, {"z", z}}}};
+        return true;
+    }
+    return false;
+}
+
 // Helper: handle subcube/microcube API commands (extracted to avoid nesting depth limit)
 static bool handleSubcubeMicrocubeCommand(
     const Core::APICommand& cmd,
@@ -3934,6 +4083,13 @@ void Application::processAPICommands() {
     for (auto& cmd : commands) {
         nlohmann::json response;
         try {
+            // Handle debug dynamic spawn commands early (avoids nesting depth limit)
+            if (handleDebugDynamicSpawnCommand(cmd, response, chunkManager,
+                    gpuParticlePhysics.get())) {
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
+
             // Handle subcube/microcube commands via helper (avoids nesting depth limit)
             if (handleSubcubeMicrocubeCommand(cmd, response, chunkManager, npcManager.get())) {
                 // handled — skip to promise fulfillment below

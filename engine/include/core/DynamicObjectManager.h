@@ -123,6 +123,13 @@ public:
     /// @param explosionStrength  Multiplier for random velocity (1.0 = normal, 0.0 = fall in place)
     void derezCharacter(Scene::AnimatedVoxelCharacter* character, float explosionStrength = 1.0f);
 
+    // Maximum number of active Bullet dynamic objects (cubes + subcubes)
+    static constexpr size_t MAX_DYNAMIC_OBJECTS = 300;
+
+    /// Count of active (non-sleeping) Bullet cubes + subcubes.
+    /// Sleeping bodies don't count against the cap.
+    size_t getActiveBulletCount() const;
+
 private:
     // Callback functions
     PhysicsWorldAccessFunc m_getPhysicsWorld;
@@ -142,9 +149,6 @@ private:
 
     // Throttle: time of last position-driven face rebuild
     std::chrono::steady_clock::time_point m_lastPositionRebuildTime{};
-    
-    // Maximum number of dynamic objects allowed before cleanup
-    static constexpr size_t MAX_DYNAMIC_OBJECTS = 500;
     
     // Enforce object limits to prevent performance degradation
     void enforceObjectLimits();

@@ -243,6 +243,14 @@ public:
     using StepDebugLogHandler = std::function<json()>;
     void setStepDebugLogHandler(StepDebugLogHandler handler) { m_stepDebugLogHandler = std::move(handler); }
 
+    /// Handler that returns GPU particle timing debug stats.
+    using ParticleTimingHandler = std::function<json()>;
+    void setParticleTimingHandler(ParticleTimingHandler handler) { m_particleTimingHandler = std::move(handler); }
+
+    /// Handler to start/stop GPU particle position logging. Takes action string ("start"/"stop") and optional file path.
+    using ParticleLogHandler = std::function<json(const std::string& action, const std::string& filePath)>;
+    void setParticleLogHandler(ParticleLogHandler handler) { m_particleLogHandler = std::move(handler); }
+
 private:
     void serverThread();
     void setupRoutes();
@@ -305,6 +313,8 @@ private:
     SubcubeQueryHandler m_subcubeQueryHandler;
     DetailedRegionScanHandler m_detailedRegionScanHandler;
     StepDebugLogHandler m_stepDebugLogHandler;
+    ParticleTimingHandler m_particleTimingHandler;
+    ParticleLogHandler m_particleLogHandler;
 
     // Forward-declared impl to keep httplib out of the header
     struct Impl;

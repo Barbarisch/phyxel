@@ -64,6 +64,7 @@ layout(push_constant) uniform PC {
     uint  count;
     float dt;
     float sleepThreshSq;
+    float gravity;  // e.g. -9.81 — needed to pre-compensate resting particles
 } pc;
 
 // Returns true if the voxel at world position (wx, wy, wz) is solid.
@@ -80,37 +81,14 @@ bool isOccupied(int wx, int wy, int wz) {
     return (occupancy[wordIdx] & (1u << bitIdx)) != 0u;
 }
 
+
+
 void main() {
     uint i = gl_GlobalInvocationID.x;
     if (i >= pc.count) return;
 
     GpuParticle p = particles[i];
     if ((p.flags & PARTICLE_ACTIVE) == 0u) return;
-    // Wake sleeping particles if the character AABB overlaps them.
-    // Without this, sleeping debris is invisible to the character and walked through.
-    if ((p.flags & PARTICLE_SLEEPING) != 0u) {
-        if (charActive > 0.5) {
-            float hx = p.scale.x * 0.5;
-            float hy = p.scale.y * 0.5;
-            float hz = p.scale.z * 0.5;
-            vec3 pMin = p.position - vec3(hx, hy, hz);
-            vec3 pMax = p.position + vec3(hx, hy, hz);
-            vec3 cMin = charCenter - charHalfExtents;
-            vec3 cMax = charCenter + charHalfExtents;
-            if (pMin.x < cMax.x && pMax.x > cMin.x &&
-                pMin.y < cMax.y && pMax.y > cMin.y &&
-                pMin.z < cMax.z && pMax.z > cMin.z) {
-                // Wake up — full collision handled below
-                p.flags &= ~PARTICLE_SLEEPING;
-                p.prevPosition = p.position;  // zero velocity on wake
-            } else {
-                particles[i] = p;
-                return;
-            }
-        } else {
-            return;
-        }
-    }
 
     float halfX = p.scale.x * 0.5;
     float halfY = p.scale.y * 0.5;
@@ -124,29 +102,130 @@ void main() {
 
     bool hitAnything = false;
 
+    // Character-push grace counter: when > 0, surface friction is bypassed.
+    // This prevents the push-stop-push cycle where friction kills velocity
+    // in 2-3 ticks, the character catches up, and re-pushes discretely.
+    uint charGrace = (p.flags >> CHAR_PUSH_GRACE_SHIFT) & 0xFFu;
+
+    // ---- Character AABB collision (resolved first) ----
+    // Only process on initial contact (charGrace == 0). During grace, the
+    // particle already has velocity from the first push; re-colliding would
+    // teleport it via AABB separation and reset its velocity every tick.
+    {
+        uint spawnAge = (p.flags >> SPAWN_AGE_SHIFT) & 0xFFu;
+        if (charActive > 0.5 && spawnAge >= CHAR_COLLISION_GRACE && charGrace == 0u) {
+            vec3 pMin = p.position - vec3(halfX, halfY, halfZ);
+            vec3 pMax = p.position + vec3(halfX, halfY, halfZ);
+            vec3 cMin = charCenter - charHalfExtents;
+            vec3 cMax = charCenter + charHalfExtents;
+
+            if (pMin.x < cMax.x && pMax.x > cMin.x &&
+                pMin.y < cMax.y && pMax.y > cMin.y &&
+                pMin.z < cMax.z && pMax.z > cMin.z)
+            {
+                float penPX = cMax.x - pMin.x;
+                float penNX = pMax.x - cMin.x;
+                float penPY = cMax.y - pMin.y;
+                float penNY = pMax.y - cMin.y;
+                float penPZ = cMax.z - pMin.z;
+                float penNZ = pMax.z - cMin.z;
+
+                float minPen = penPX;
+                int   axis   = 0;
+
+                if (penNX < minPen) { minPen = penNX; axis = 1; }
+                if (penPY < minPen) { minPen = penPY; axis = 2; }
+                if (penNY < minPen) { minPen = penNY; axis = 3; }
+                if (penPZ < minPen) { minPen = penPZ; axis = 4; }
+                if (penNZ < minPen) { minPen = penNZ; axis = 5; }
+
+                // Push out along shortest axis
+                if      (axis == 0) p.position.x += minPen;
+                else if (axis == 1) p.position.x -= minPen;
+                else if (axis == 2) p.position.y += minPen;
+                else if (axis == 3) p.position.y -= minPen;
+                else if (axis == 4) p.position.z += minPen;
+                else                p.position.z -= minPen;
+
+                // SET velocity to match character speed (1.5x boost for visibility)
+                vel = charVelocity * pc.dt * 1.5;
+
+                // Small upward kick for physical bump feel.
+                // With collision skin the particle won't get trapped in pits.
+                vel.y += 0.02;
+
+                charGrace = CHAR_PUSH_GRACE_TICKS;
+
+                p.flags &= ~PARTICLE_SLEEPING;
+                hitAnything = true;
+            }
+        }
+    }
+
     // Multi-point collision: for each face, sample center + 4 corners of that face.
     // This prevents corners/edges clipping through surfaces that single-point checks miss.
     // isOccupied() is a trivial bitfield lookup (~5 ALU), so 30 total calls is negligible.
+
+    // Gravity displacement per tick (used for floor resting compensation)
+    float gravDisp = pc.gravity * pc.dt * pc.dt * sqrt(mat.mass);
 
     // ---- Floor (-Y): 5 samples at bottom face ----
     {
         float faceY = p.position.y - halfY;
         int vy = int(floor(faceY));
-        bool hit = isOccupied(int(floor(p.position.x)),          vy, int(floor(p.position.z)))          // center
-                || isOccupied(int(floor(p.position.x - halfX)),  vy, int(floor(p.position.z - halfZ)))  // corner --
-                || isOccupied(int(floor(p.position.x + halfX)),  vy, int(floor(p.position.z - halfZ)))  // corner +-
-                || isOccupied(int(floor(p.position.x - halfX)),  vy, int(floor(p.position.z + halfZ)))  // corner -+
-                || isOccupied(int(floor(p.position.x + halfX)),  vy, int(floor(p.position.z + halfZ))); // corner ++
+        int vxC = int(floor(p.position.x));
+        int vzC = int(floor(p.position.z));
+        int vxN = int(floor(p.position.x - halfX));
+        int vxP = int(floor(p.position.x + halfX));
+        int vzN = int(floor(p.position.z - halfZ));
+        int vzP = int(floor(p.position.z + halfZ));
+
+        bool hit = isOccupied(vxC, vy, vzC)
+                || isOccupied(vxN, vy, vzN)
+                || isOccupied(vxP, vy, vzN)
+                || isOccupied(vxN, vy, vzP)
+                || isOccupied(vxP, vy, vzP);
+
         if (hit) {
+            // Penetrating the floor — push out and apply gravity cancel
             float surface    = float(vy + 1);
             float penetration = surface - faceY;
             if (penetration > 0.0) {
-                p.position.y += penetration;
-                if (vel.y < 0.0) vel.y = -vel.y * mat.restitution;
-                vel.x *= mat.friction;
-                vel.z *= mat.friction;
-                p.angularVel *= 0.6;
+                p.position.y += penetration + COLLISION_SKIN;
+                if (vel.y < 0.0) vel.y = 0.0;
+                // Pre-compensate for gravity: set upward velocity that exactly
+                // cancels next frame's gravity in the integrate shader.
+                // Without this, particles micro-bounce every frame (drop by
+                // gravity, get pushed back up by collision, repeat).
+                vel.y = -gravDisp / mat.linearDamp;
+                if (charGrace > 0u) { vel.x *= 0.95; vel.z *= 0.95; }
+                else { vel.x *= mat.friction; vel.z *= mat.friction; }
+                // Impact torque: horizontal velocity induces subtle rolling
+                p.angularVel += vec3(-vel.z, 0.0, vel.x) * 0.5;
+                p.angularVel *= 0.88;
                 hitAnything = true;
+            }
+        } else {
+            // Proximity check: particle hovering within COLLISION_SKIN above floor.
+            // Without this, the gravity cancel from last frame keeps the particle
+            // stationary for one tick, then it drifts because no collision fires.
+            bool floorBelow = isOccupied(vxC, vy - 1, vzC)
+                           || isOccupied(vxN, vy - 1, vzN)
+                           || isOccupied(vxP, vy - 1, vzN)
+                           || isOccupied(vxN, vy - 1, vzP)
+                           || isOccupied(vxP, vy - 1, vzP);
+            if (floorBelow) {
+                float surface = float(vy); // top of voxel at vy-1
+                float gap = faceY - surface;
+                if (gap >= 0.0 && gap <= COLLISION_SKIN * 2.0) {
+                    // Resting on floor — apply gravity cancel + friction
+                    if (vel.y < 0.0) vel.y = 0.0;
+                    vel.y = -gravDisp / mat.linearDamp;
+                    if (charGrace > 0u) { vel.x *= 0.95; vel.z *= 0.95; }
+                    else { vel.x *= mat.friction; vel.z *= mat.friction; }
+                    p.angularVel *= 0.88;
+                    hitAnything = true;
+                }
             }
         }
     }
@@ -164,12 +243,23 @@ void main() {
             float bottom     = float(vy);
             float penetration = faceY - bottom;
             if (penetration > 0.0) {
-                p.position.y -= penetration;
-                if (vel.y > 0.0) vel.y = -vel.y * mat.restitution;
+                p.position.y -= (penetration + COLLISION_SKIN);
+                // Absorb upward velocity
+                if (vel.y > 0.0) vel.y = 0.0;
+                if (charGrace > 0u) { vel.x *= 0.95; vel.z *= 0.95; }
+                else { vel.x *= mat.friction; vel.z *= mat.friction; }
+                p.angularVel += vec3(-vel.z, 0.0, vel.x) * 2.0;
+                p.angularVel *= 0.85;
                 hitAnything = true;
             }
         }
     }
+
+    // ---- X/Z wall collisions ----
+    // With collision skin, particles rest above integer boundaries so adjacent
+    // ground cells no longer false-trigger as walls. During grace, walls use
+    // velocity absorption (set to 0) instead of reversal to prevent push-snap
+    // choppiness while still blocking ghosting through static geometry.
 
     // ---- Right (+X): 5 samples at +X face ----
     {
@@ -184,10 +274,12 @@ void main() {
             float wall       = float(vx);
             float penetration = faceX - wall;
             if (penetration > 0.0) {
-                p.position.x -= penetration;
-                if (vel.x > 0.0) vel.x = -vel.x * mat.restitution;
-                vel.y *= mat.friction;
+                p.position.x -= (penetration + COLLISION_SKIN);
+                // Absorb — no bounce off voxel surfaces
+                if (vel.x > 0.0) vel.x = 0.0;
                 vel.z *= mat.friction;
+                p.angularVel += vec3(0.0, vel.z, -vel.y) * 2.0;
+                p.angularVel *= 0.85;
                 hitAnything = true;
             }
         }
@@ -206,10 +298,11 @@ void main() {
             float wall       = float(vx + 1);
             float penetration = wall - faceX;
             if (penetration > 0.0) {
-                p.position.x += penetration;
-                if (vel.x < 0.0) vel.x = -vel.x * mat.restitution;
-                vel.y *= mat.friction;
+                p.position.x += (penetration + COLLISION_SKIN);
+                if (vel.x < 0.0) vel.x = 0.0;
                 vel.z *= mat.friction;
+                p.angularVel += vec3(0.0, vel.z, -vel.y) * 2.0;
+                p.angularVel *= 0.85;
                 hitAnything = true;
             }
         }
@@ -228,10 +321,11 @@ void main() {
             float wall       = float(vz);
             float penetration = faceZ - wall;
             if (penetration > 0.0) {
-                p.position.z -= penetration;
-                if (vel.z > 0.0) vel.z = -vel.z * mat.restitution;
+                p.position.z -= (penetration + COLLISION_SKIN);
+                if (vel.z > 0.0) vel.z = 0.0;
                 vel.x *= mat.friction;
-                vel.y *= mat.friction;
+                p.angularVel += vec3(-vel.y, vel.x, 0.0) * 2.0;
+                p.angularVel *= 0.85;
                 hitAnything = true;
             }
         }
@@ -250,65 +344,20 @@ void main() {
             float wall       = float(vz + 1);
             float penetration = wall - faceZ;
             if (penetration > 0.0) {
-                p.position.z += penetration;
-                if (vel.z < 0.0) vel.z = -vel.z * mat.restitution;
+                p.position.z += (penetration + COLLISION_SKIN);
+                if (vel.z < 0.0) vel.z = 0.0;
                 vel.x *= mat.friction;
-                vel.y *= mat.friction;
+                p.angularVel += vec3(-vel.y, vel.x, 0.0) * 2.0;
+                p.angularVel *= 0.85;
                 hitAnything = true;
             }
-        }
-    }
-
-    // ---- Character AABB collision ----
-    // Particles bounce off the player character and receive its velocity.
-    if (charActive > 0.5) {
-        vec3 pMin = p.position - vec3(halfX, halfY, halfZ);
-        vec3 pMax = p.position + vec3(halfX, halfY, halfZ);
-        vec3 cMin = charCenter - charHalfExtents;
-        vec3 cMax = charCenter + charHalfExtents;
-
-        // Check AABB overlap
-        if (pMin.x < cMax.x && pMax.x > cMin.x &&
-            pMin.y < cMax.y && pMax.y > cMin.y &&
-            pMin.z < cMax.z && pMax.z > cMin.z)
-        {
-            // Find shortest penetration axis to push particle out
-            float penPX = cMax.x - pMin.x;  // push +X
-            float penNX = pMax.x - cMin.x;  // push -X
-            float penPY = cMax.y - pMin.y;  // push +Y
-            float penNY = pMax.y - cMin.y;  // push -Y
-            float penPZ = cMax.z - pMin.z;  // push +Z
-            float penNZ = pMax.z - cMin.z;  // push -Z
-
-            float minPen = penPX;
-            int   axis   = 0;  // 0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z
-
-            if (penNX < minPen) { minPen = penNX; axis = 1; }
-            if (penPY < minPen) { minPen = penPY; axis = 2; }
-            if (penNY < minPen) { minPen = penNY; axis = 3; }
-            if (penPZ < minPen) { minPen = penPZ; axis = 4; }
-            if (penNZ < minPen) { minPen = penNZ; axis = 5; }
-
-            // Push out along shortest axis
-            if      (axis == 0) { p.position.x += minPen; if (vel.x < 0.0) vel.x = -vel.x * mat.restitution; }
-            else if (axis == 1) { p.position.x -= minPen; if (vel.x > 0.0) vel.x = -vel.x * mat.restitution; }
-            else if (axis == 2) { p.position.y += minPen; if (vel.y < 0.0) vel.y = -vel.y * mat.restitution; }
-            else if (axis == 3) { p.position.y -= minPen; if (vel.y > 0.0) vel.y = -vel.y * mat.restitution; }
-            else if (axis == 4) { p.position.z += minPen; if (vel.z < 0.0) vel.z = -vel.z * mat.restitution; }
-            else                { p.position.z -= minPen; if (vel.z > 0.0) vel.z = -vel.z * mat.restitution; }
-
-            // Transfer character velocity to particle (scaled by dt for impulse feel)
-            vel += charVelocity * pc.dt * 0.5;
-
-            // Wake particle
-            p.flags &= ~PARTICLE_SLEEPING;
-            hitAnything = true;
         }
     }
 
     // ---- Particle-particle collision (spatial hash grid) ----
     // Check own cell + 26 neighbors (3×3×3 neighborhood).
     // Only process pairs where j > i to avoid double-processing.
+    int pairCollisionCount = 0;
     {
         int cx = int(floor(p.position.x)) & (GRID_SIZE - 1);
         int cy = int(floor(p.position.y)) & (GRID_SIZE - 1);
@@ -323,12 +372,21 @@ void main() {
                     int cell = nx + ny * GRID_SIZE + nz * GRID_SIZE * GRID_SIZE;
 
                     uint j = gridCellHead[cell];
-                    int maxIter = 8;
+                    int maxIter = 16;  // 16 handles dense piles (1000+ particles on flat surface)
                     while (j != 0xFFFFFFFFu && maxIter > 0) {
                         maxIter--;
                         if (j != i) { // skip self
                             GpuParticle q = particles[j];
                             if ((q.flags & PARTICLE_ACTIVE) != 0u) {
+                                // Distance guard: spatial hash wraps at GRID_SIZE, so
+                                // particles far apart can hash to adjacent cells.
+                                // Skip if center-to-center is > 2 world units.
+                                vec3 diff = p.position - q.position;
+                                if (dot(diff, diff) > 4.0) {
+                                    j = gridNext[j];
+                                    continue;
+                                }
+
                                 float qhx = q.scale.x * 0.5;
                                 float qhy = q.scale.y * 0.5;
                                 float qhz = q.scale.z * 0.5;
@@ -355,27 +413,32 @@ void main() {
                                     // Low restitution for inter-particle — solid, not bouncy
                                     float pairRest = min(mat.restitution, matJ.restitution) * 0.25;
 
-                                    // Push THIS particle away from q along shortest overlap axis
-                                    // dir points from q toward p (the escape direction for p)
+                                    // Push THIS particle away from q along shortest overlap axis.
+                                    // dir points from q toward p (the escape direction for p).
+                                    // Bias 0.02: must exceed one tick of gravity displacement (0.005)
+                                    // to prevent immediate re-overlap in vertical stacking.
+                                    const float PAIR_BIAS = 0.02;
                                     if (overlapX <= overlapY && overlapX <= overlapZ) {
                                         float dir = (p.position.x > q.position.x) ? 1.0 : -1.0;
-                                        p.position.x += dir * (overlapX * 0.5 + 0.005) * ratioI;
+                                        p.position.x += dir * (overlapX + PAIR_BIAS) * ratioI;
                                         float relVel = vel.x - velJ.x;
                                         vel.x -= relVel * (1.0 + pairRest) * ratioI;
                                     } else if (overlapY <= overlapZ) {
                                         float dir = (p.position.y > q.position.y) ? 1.0 : -1.0;
-                                        p.position.y += dir * (overlapY * 0.5 + 0.005) * ratioI;
+                                        p.position.y += dir * (overlapY + PAIR_BIAS) * ratioI;
                                         float relVel = vel.y - velJ.y;
-                                        vel.y -= relVel * (1.0 + pairRest) * ratioI;
+                                        // Fully kill approach velocity on Y to prevent gravity-driven
+                                        // re-overlap. Standard correction only removes ~54% for equal
+                                        // masses, leaving residual that gravity compounds each tick.
+                                        vel.y -= relVel * ratioI;
                                     } else {
                                         float dir = (p.position.z > q.position.z) ? 1.0 : -1.0;
-                                        p.position.z += dir * (overlapZ * 0.5 + 0.005) * ratioI;
+                                        p.position.z += dir * (overlapZ + PAIR_BIAS) * ratioI;
                                         float relVel = vel.z - velJ.z;
                                         vel.z -= relVel * (1.0 + pairRest) * ratioI;
                                     }
 
-                                    // Contact damping — particles lose energy on collision
-                                    vel *= 0.85;
+                                    pairCollisionCount++;
                                     hitAnything = true;
                                 }
                             }
@@ -387,20 +450,26 @@ void main() {
         }
     }
 
+    // Contact damping — apply once after all pair collisions.
+    // Previous per-pair application was stacking (0.85^N with N contacts),
+    // killing velocity so aggressively that particles couldn't push apart.
+    if (pairCollisionCount > 0) {
+        vel *= 0.85;
+    }
+
+    // Tick down the char-push grace counter and write it back to flags.
+    if (charGrace > 0u) charGrace--;
+    p.flags = (p.flags & ~CHAR_PUSH_GRACE_MASK) | (charGrace << CHAR_PUSH_GRACE_SHIFT);
+
     // Rebuild prevPosition from (possibly modified) velocity
     p.prevPosition = p.position - vel;
 
-    // Sleep check
-    if (hitAnything) {
-        p.flags &= ~PARTICLE_SLEEPING;
-        float speedSq    = dot(vel, vel);
-        float angSpeedSq = dot(p.angularVel, p.angularVel);
-        if (speedSq < pc.sleepThreshSq && angSpeedSq < 0.01) {
-            p.flags |= PARTICLE_SLEEPING;
-            p.prevPosition = p.position;
-            p.angularVel   = vec3(0.0);
-        }
-    }
+    // No sleep system — particles stay active until lifetime expires.
+    // Sleep was removed because it caused multiple artifacts:
+    // - Floating: wall friction reduced velocity below threshold mid-fall
+    // - Displacement: particles slept at wrong positions after collision push
+    // - Overlapping: stacked particles oscillated in/out of sleep
+    // The GPU cost of always-active particles is negligible (simple ALU per invocation).
 
     particles[i] = p;
 }

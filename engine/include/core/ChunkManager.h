@@ -92,6 +92,12 @@ public:
     float loadDistance = 160.0f;   // Distance to load chunks (5 chunks * 32 units)
     float unloadDistance = 224.0f; // Distance to unload chunks (7 chunks * 32 units)
     glm::vec3 playerPosition = glm::vec3(0.0f); // Player position for streaming
+
+    // Hybrid physics routing: per-frame break counter for Bullet vs GPU decision
+    uint32_t m_frameBreakCount = 0;
+    static constexpr uint32_t MAX_BULLET_BREAKS_PER_FRAME = 8;
+    static constexpr float    BULLET_PROXIMITY_RADIUS     = 10.0f;
+    void resetFrameBreakCounter() { m_frameBreakCount = 0; }
     
     ChunkManager() = default;
     ChunkManager(const ChunkManager&) = delete;
