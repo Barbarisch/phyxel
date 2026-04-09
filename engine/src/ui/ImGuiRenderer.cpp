@@ -1021,7 +1021,8 @@ void ImGuiRenderer::renderSpeechBubbles(SpeechBubbleManager* bubbleManager,
 void ImGuiRenderer::renderInteractionPrompt(bool show, const glm::vec3& npcWorldPos,
                                               const glm::mat4& viewMatrix,
                                               const glm::mat4& projectionMatrix,
-                                              float screenWidth, float screenHeight) {
+                                              float screenWidth, float screenHeight,
+                                              const char* customText) {
     if (!show) return;
 
     // Project NPC position to screen (offset above head)
@@ -1032,7 +1033,7 @@ void ImGuiRenderer::renderInteractionPrompt(bool show, const glm::vec3& npcWorld
     float screenX = (ndc.x * 0.5f + 0.5f) * screenWidth;
     float screenY = (ndc.y * 0.5f + 0.5f) * screenHeight; // Vulkan projection already has Y flipped
 
-    const char* promptText = "[E] Interact";
+    const char* promptText = customText ? customText : "[E] Interact";
     ImVec2 textSize = ImGui::CalcTextSize(promptText);
     float promptWidth = textSize.x + 20.0f;
     float promptHeight = textSize.y + 12.0f;

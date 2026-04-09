@@ -637,8 +637,7 @@ void ChunkManager::updateGlobalDynamicCubePositions() {
 }
 
 void ChunkManager::clearAllGlobalDynamicCubes() {
-    LOG_DEBUG_FMT("ChunkManager", "[CHUNK MANAGER] Clearing all " << globalDynamicCubes.size() << " global dynamic cubes");
-    globalDynamicCubes.clear();
+    m_dynamicObjectManager.clearAllGlobalDynamicCubes();
 }
 
 // ===============================================================

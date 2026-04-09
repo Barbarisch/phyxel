@@ -88,6 +88,15 @@ struct InteractionPointDef {
     /// Empty = all archetypes supported (backward compatible default).
     std::vector<std::string> supportedGroups;
 
+    /// Interaction radius override. 0 = use type default (seat: 1.5, door: 2.0, NPC: per-entity).
+    float interactionRadius = 0.0f;
+
+    /// UI prompt text shown when in range (e.g. "Open/Close", "Sit"). Empty = type default.
+    std::string promptText;
+
+    /// Half-angle (degrees) of the view cone required to interact. 0 = no angle check.
+    float viewAngleHalf = 0.0f;
+
     // Per-sit-state foot snap offsets (template-local, rotated at placement time)
     // These are default/fallback values; per-archetype profiles override them.
     glm::vec3 sitDownOffset{0.0f};   ///< Feet position during SitDown animation
@@ -113,6 +122,15 @@ struct InteractionPoint {
 
     /// Object rotation in degrees (stashed for on-the-fly profile offset rotation).
     int objectRotation = 0;
+
+    /// Interaction radius for this point. 0 = use type default.
+    float interactionRadius = 0.0f;
+
+    /// UI prompt text shown when in range. Empty = type default.
+    std::string promptText;
+
+    /// Half-angle (degrees) of the view cone required to interact. 0 = no angle check.
+    float viewAngleHalf = 0.0f;
 
     // Per-sit-state foot snap offsets (world-space, rotated from template-local defaults)
     glm::vec3 worldSitDownOffset{0.0f};
@@ -146,6 +164,11 @@ struct PlacedObject {
 
     /// Live interaction points for this instance (seat surfaces, etc.)
     std::vector<InteractionPoint> interactionPoints;
+
+    /// Extensible per-object state blob. Subsystems store their own keys here
+    /// (e.g. doors write {"door_state":"open","current_angle":90.0}).
+    /// Persisted to SQLite alongside the rest of the object.
+    nlohmann::json metadata = nlohmann::json::object();
 
     nlohmann::json toJson() const;
     static PlacedObject fromJson(const nlohmann::json& j);
@@ -219,6 +242,24 @@ public:
     std::pair<std::string, std::string> findNearestFreePoint(
         const glm::vec3& worldPos, float radius, const std::string& type = "seat") const;
 
+    /// Result structure for extended interaction point search.
+    struct NearestPointResult {
+        std::string objectId;
+        std::string pointId;
+        glm::vec3   worldPos{0.0f};
+        std::string promptText;     ///< Empty = use caller's default
+        float       interactionRadius = 0.0f; ///< 0 = was using defaultRadius
+        float       viewAngleHalf = 0.0f;
+        bool        found = false;
+    };
+
+    /// Find the nearest free interaction point with per-point radius and view angle filtering.
+    /// Points with interactionRadius > 0 use their own radius; otherwise defaultRadius is used.
+    /// If playerFront is non-zero, points with viewAngleHalf > 0 require the player to face them.
+    NearestPointResult findNearestFreePointEx(
+        const glm::vec3& worldPos, const glm::vec3& playerFront,
+        float defaultRadius, const std::string& type = "seat") const;
+
     /// Claim an interaction point for an occupant. Returns false if already occupied.
     bool claimInteractionPoint(const std::string& objectId, const std::string& pointId,
                                const std::string& occupantId);
@@ -228,6 +269,11 @@ public:
 
     /// Release all interaction points held by an occupant.
     void releaseAllByOccupant(const std::string& occupantId);
+
+    /// Clear only the voxels for an object without removing its registry entry.
+    /// Used by systems (e.g. DoorManager) that take over rendering of an object
+    /// and need to remove the static chunk voxels it was baked into.
+    bool clearVoxelsOnly(const std::string& id);
 
     /// Clear all registered objects (does NOT remove voxels).
     void clear();

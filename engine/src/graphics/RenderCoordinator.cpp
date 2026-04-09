@@ -6,6 +6,8 @@
 #include "graphics/PostProcessor.h"
 #include "graphics/Camera.h"
 #include "graphics/DebrisRenderPipeline.h"
+#include "graphics/KinematicVoxelPipeline.h"
+#include "core/KinematicVoxelManager.h"
 #include "vulkan/RenderPipeline.h"
 #include "ui/ImGuiRenderer.h"
 #include "ui/UISystem.h"
@@ -106,11 +108,24 @@ RenderCoordinator::RenderCoordinator(
     // Initialize Debris Pipeline
     debrisPipeline = std::make_unique<DebrisRenderPipeline>();
     debrisPipeline->initialize(
-        vulkanDevice->getDevice(), 
-        vulkanDevice->getPhysicalDevice(), 
-        postProcessor->getSceneRenderPass(), 
+        vulkanDevice->getDevice(),
+        vulkanDevice->getPhysicalDevice(),
+        postProcessor->getSceneRenderPass(),
         vulkanDevice->getSwapChainExtent()
     );
+
+    // Initialize Kinematic Voxel Pipeline (doors, rotating platforms, etc.)
+    kinematicPipeline = std::make_unique<KinematicVoxelPipeline>();
+    if (!kinematicPipeline->initialize(
+            vulkanDevice->getDevice(),
+            vulkanDevice->getPhysicalDevice(),
+            postProcessor->getSceneRenderPass(),
+            vulkanDevice->getSwapChainExtent(),
+            vulkanDevice->getDescriptorSetLayout(),
+            vulkanDevice->getDescriptorSet(0))) {
+        LOG_ERROR("RenderCoordinator", "Failed to initialize KinematicVoxelPipeline");
+        kinematicPipeline.reset();
+    }
 }
 
 RenderCoordinator::~RenderCoordinator() = default;
@@ -271,7 +286,14 @@ void RenderCoordinator::renderDynamicSubcubes() {
 
         // Non-indexed draw: vertexID 0-5 procedurally, matching GPU path and
         // dynamic_voxel.vert's cornerRemap[6] expectations.
-        vkCmdDraw(cmd, 6, static_cast<uint32_t>(allDynamicSubcubeFaces.size()), 0, 0);
+        // Clamp instance count to the buffer capacity: if face data exceeds the buffer,
+        // updateDynamicSubcubeBuffer silently truncates the write, and drawing more
+        // instances than were written causes the GPU to read stale buffer data,
+        // producing ghost voxels at expired cube positions.
+        uint32_t drawCount = static_cast<uint32_t>(
+            std::min(allDynamicSubcubeFaces.size(),
+                     static_cast<size_t>(vulkanDevice->getMaxDynamicSubcubes())));
+        vkCmdDraw(cmd, 6, drawCount, 0, 0);
     }
 }
 
@@ -600,6 +622,21 @@ void RenderCoordinator::drawFrame() {
         }
     }
     
+    // Render Kinematic Voxels (doors, rotating platforms, etc.)
+    if (kinematicPipeline && m_kinematicObjects) {
+        if (m_kinematicObjects->consumeBufferDirty()) {
+            kinematicPipeline->rebuildBuffer(m_kinematicObjects->getObjects());
+        }
+        if (!m_kinematicObjects->getObjects().empty()) {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "KinematicVoxels");
+            kinematicPipeline->render(
+                vulkanDevice->getCommandBuffer(currentFrame),
+                m_kinematicObjects->getObjects(),
+                vulkanDevice->getDescriptorSet(currentFrame)
+            );
+        }
+    }
+
     // End Scene Render Pass
     } // End Scene Pass Scope
     postProcessor->endSceneRenderPass(vulkanDevice->getCommandBuffer(currentFrame));

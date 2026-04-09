@@ -8,6 +8,8 @@
 #include "utils/Logger.h"
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 #include <sstream>
 #include <iomanip>
 
@@ -27,7 +29,8 @@ nlohmann::json PlacedObject::toJson() const {
         {"position", {{"x", position.x}, {"y", position.y}, {"z", position.z}}},
         {"rotation", rotation},
         {"bounding_min", {{"x", boundingMin.x}, {"y", boundingMin.y}, {"z", boundingMin.z}}},
-        {"bounding_max", {{"x", boundingMax.x}, {"y", boundingMax.y}, {"z", boundingMax.z}}}
+        {"bounding_max", {{"x", boundingMax.x}, {"y", boundingMax.y}, {"z", boundingMax.z}}},
+        {"metadata", metadata}
     };
 }
 
@@ -43,6 +46,9 @@ PlacedObject PlacedObject::fromJson(const nlohmann::json& j) {
         obj.position.z = j["position"].value("z", 0);
     }
     obj.rotation = j.value("rotation", 0);
+    if (j.contains("metadata") && j["metadata"].is_object()) {
+        obj.metadata = j["metadata"];
+    }
     if (j.contains("bounding_min")) {
         obj.boundingMin.x = j["bounding_min"].value("x", 0);
         obj.boundingMin.y = j["bounding_min"].value("y", 0);
@@ -113,6 +119,9 @@ std::vector<InteractionPoint> PlacedObjectManager::computeInteractionPoints(
         pt.worldSitStandUpOffset  = rotateLocalOffset(def.sitStandUpOffset,  rotation);
         pt.sitBlendDuration       = def.sitBlendDuration;
         pt.seatHeightOffset       = def.seatHeightOffset;
+        pt.interactionRadius      = def.interactionRadius;
+        pt.promptText             = def.promptText;
+        pt.viewAngleHalf          = def.viewAngleHalf;
         result.push_back(std::move(pt));
     }
     return result;
@@ -165,6 +174,51 @@ if (d2 < bestDist2) {
         }
     }
     return {bestObj, bestPt};
+}
+
+PlacedObjectManager::NearestPointResult PlacedObjectManager::findNearestFreePointEx(
+    const glm::vec3& worldPos, const glm::vec3& playerFront,
+    float defaultRadius, const std::string& type) const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    NearestPointResult result;
+    float bestDist2 = std::numeric_limits<float>::max();
+
+    bool hasFront = glm::dot(playerFront, playerFront) > 0.001f;
+    glm::vec3 frontNorm = hasFront ? glm::normalize(glm::vec3(playerFront.x, 0.0f, playerFront.z)) : glm::vec3(0);
+
+    for (const auto& [id, obj] : m_objects) {
+        for (const auto& pt : obj.interactionPoints) {
+            if (pt.type != type) continue;
+            if (!pt.isFree()) continue;
+
+            // Per-point radius or default
+            float r = pt.interactionRadius > 0.0f ? pt.interactionRadius : defaultRadius;
+            float r2 = r * r;
+
+            glm::vec3 diff = pt.worldPos - worldPos;
+            float d2 = glm::dot(diff, diff);
+            if (d2 >= r2 || d2 >= bestDist2) continue;
+
+            // View angle check (XZ plane only)
+            if (hasFront && pt.viewAngleHalf > 0.0f && d2 > 0.01f) {
+                glm::vec3 toPoint = glm::normalize(glm::vec3(diff.x, 0.0f, diff.z));
+                float cosAngle = glm::dot(frontNorm, toPoint);
+                float halfRad = glm::radians(pt.viewAngleHalf);
+                if (cosAngle < cosf(halfRad)) continue; // Outside view cone
+            }
+
+            bestDist2 = d2;
+            result.objectId = id;
+            result.pointId = pt.pointId;
+            result.worldPos = pt.worldPos;
+            result.promptText = pt.promptText;
+            result.interactionRadius = pt.interactionRadius;
+            result.viewAngleHalf = pt.viewAngleHalf;
+            result.found = true;
+        }
+    }
+    return result;
 }
 
 bool PlacedObjectManager::claimInteractionPoint(const std::string& objectId,
@@ -572,6 +626,14 @@ std::vector<std::string> PlacedObjectManager::getAt(const glm::ivec3& worldPos) 
         }
     }
     return result;
+}
+
+bool PlacedObjectManager::clearVoxelsOnly(const std::string& id) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto it = m_objects.find(id);
+    if (it == m_objects.end()) return false;
+    clearRegion(it->second.boundingMin, it->second.boundingMax);
+    return true;
 }
 
 void PlacedObjectManager::clear() {

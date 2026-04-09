@@ -95,11 +95,12 @@ public:
                              const glm::mat4& projectionMatrix,
                              float screenWidth, float screenHeight);
 
-    /// Render "Press E to interact" prompt above nearest NPC.
+    /// Render interaction prompt above a world position. Custom text overrides default.
     void renderInteractionPrompt(bool show, const glm::vec3& npcWorldPos,
                                   const glm::mat4& viewMatrix,
                                   const glm::mat4& projectionMatrix,
-                                  float screenWidth, float screenHeight);
+                                  float screenWidth, float screenHeight,
+                                  const char* customText = nullptr);
 
     // Helper for callbacks
     int handleInputTextCallback(struct ::ImGuiInputTextCallbackData* data);

@@ -1105,6 +1105,23 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         npcManager->setRaycastVisualizer(raycastVisualizer.get());
     }
 
+    // Initialize Kinematic Voxel Manager (doors, rotating platforms, etc.)
+    kinematicVoxelManager = std::make_unique<Core::KinematicVoxelManager>();
+    kinematicVoxelManager->setPhysicsWorld(physicsWorld);
+    if (renderCoordinator) {
+        renderCoordinator->setKinematicVoxelManager(kinematicVoxelManager.get());
+    }
+
+    // Initialize Door Manager
+    doorManager = std::make_unique<Core::DoorManager>();
+    doorManager->setKinematicVoxelManager(kinematicVoxelManager.get());
+    doorManager->setPlacedObjectManager(placedObjectManager.get());
+    doorManager->setObjectTemplateManager(objectTemplateManager.get());
+    if (npcManager) doorManager->setNavGrid(npcManager->getNavGrid());
+    doorManager->setSettleCallback([this](const std::string& /*objId*/, bool /*isOpen*/) {
+        // NavGrid rebuild is already done inside DoorManager::onSettle()
+    });
+
     // Initialize Interaction Manager
     interactionManager = std::make_unique<Core::InteractionManager>();
     interactionManager->setEntityRegistry(entityRegistry.get());
@@ -1273,6 +1290,12 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         animatedCharacter->sitAt(seatAnchorPos, facingYaw,
                                  sitDownOffset, sittingIdleOffset, sitStandUpOffset,
                                  sitBlendDuration, seatHeightOffset);
+    });
+
+    // Wire door callback: player presses E near a door handle → toggle door
+    interactionManager->setDoorCallback([this](const std::string& objectId,
+                                               const std::string& /*pointId*/) {
+        if (doorManager) doorManager->toggle(objectId);
     });
 
     // Start the API server
@@ -1607,26 +1630,28 @@ void Application::run() {
             }
 
             if (interactionManager && interactionManager->shouldShowPrompt()) {
-                // NPC interaction prompt
-                auto* nearestNPC = interactionManager->getNearestInteractableNPC();
-                if (nearestNPC) {
-                    bool showPrompt = !dialogueSystem || !dialogueSystem->isActive();
-                    imguiRenderer->renderInteractionPrompt(
-                        showPrompt,
-                        nearestNPC->getPosition(),
-                        cachedViewMatrix, cachedProjectionMatrix, sw, sh);
-                }
-                // Seat interaction prompt (shown when no NPC is closer)
-                if (!nearestNPC && interactionManager->isSeatInRange()) {
-                    bool showPrompt = animatedCharacter != nullptr;
-                    if (showPrompt) {
+                bool showPrompt = !dialogueSystem || !dialogueSystem->isActive();
+                if (showPrompt) {
+                    const std::string& promptLabel = interactionManager->getActivePromptText();
+                    glm::vec3 promptWorldPos = interactionManager->getActivePromptWorldPos();
+
+                    // NPC: render above head in world-space; seats/doors: bottom-center HUD
+                    auto* nearestNPC = interactionManager->getNearestInteractableNPC();
+                    if (nearestNPC) {
+                        imguiRenderer->renderInteractionPrompt(
+                            true,
+                            promptWorldPos,
+                            cachedViewMatrix, cachedProjectionMatrix, sw, sh,
+                            ("[E] " + promptLabel).c_str());
+                    } else {
+                        // Unified HUD prompt for seats, doors, and other interaction points
                         ImGui::SetNextWindowPos(ImVec2(sw * 0.5f, sh * 0.75f),
                                                 ImGuiCond_Always, ImVec2(0.5f, 0.5f));
                         ImGui::SetNextWindowBgAlpha(0.65f);
-                        ImGui::Begin("##seat_prompt", nullptr,
+                        ImGui::Begin("##interaction_prompt", nullptr,
                             ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
                             ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav);
-                        ImGui::Text("[E] Sit down");
+                        ImGui::Text("[E] %s", promptLabel.c_str());
                         ImGui::End();
                     }
                 }
@@ -1881,6 +1906,7 @@ void Application::update(float deltaTime) {
     // Update interaction detection (use actual player position, not camera)
     if (interactionManager) {
         glm::vec3 playerPos(0);
+        glm::vec3 playerFront(0, 0, 1);
         if (physicsCharacter && currentControlTarget == ControlTarget::PhysicsCharacter)
             playerPos = physicsCharacter->getPosition();
         else if (animatedCharacter && currentControlTarget == ControlTarget::AnimatedCharacter)
@@ -1889,7 +1915,14 @@ void Application::update(float deltaTime) {
             playerPos = spiderCharacter->getPosition();
         else if (camera)
             playerPos = camera->getPosition();
-        interactionManager->update(deltaTime, playerPos);
+        if (camera)
+            playerFront = camera->getFront();
+        interactionManager->update(deltaTime, playerPos, playerFront);
+    }
+
+    // Update door animations (drives kinematic voxel transforms)
+    if (doorManager) {
+        doorManager->update(deltaTime);
     }
 
     // Update dialogue & speech bubbles
@@ -2043,6 +2076,23 @@ void Application::update(float deltaTime) {
                 }
             }
 
+            // Door hinge pivot debug lines (yellow vertical + magenta cross)
+            if (doorManager) {
+                const glm::vec3 hingeColor{1.0f, 1.0f, 0.0f};  // yellow
+                const glm::vec3 axisColor{1.0f, 0.0f, 1.0f};   // magenta
+                for (const auto& [id, door] : doorManager->getDoors()) {
+                    const glm::vec3& h = door.worldHingePos;
+                    // Vertical line through hinge (Y-axis = rotation axis)
+                    raycastVisualizer->addLine(h - glm::vec3(0, 0.5f, 0), h + glm::vec3(0, 4.0f, 0), hingeColor);
+                    // X/Z cross at hinge base
+                    raycastVisualizer->addLine(h + glm::vec3(-0.5f, 0, 0), h + glm::vec3(0.5f, 0, 0), axisColor);
+                    raycastVisualizer->addLine(h + glm::vec3(0, 0, -0.5f), h + glm::vec3(0, 0, 0.5f), axisColor);
+                    // X/Z cross at hinge top
+                    raycastVisualizer->addLine(h + glm::vec3(-0.5f, 4.0f, 0), h + glm::vec3(0.5f, 4.0f, 0), axisColor);
+                    raycastVisualizer->addLine(h + glm::vec3(0, 4.0f, -0.5f), h + glm::vec3(0, 4.0f, 0.5f), axisColor);
+                }
+            }
+
             raycastVisualizer->updateBuffers(renderCoordinator->getCurrentFrame());
         }
 
@@ -2084,6 +2134,11 @@ void Application::update(float deltaTime) {
     float frameTime = std::min(deltaTime, MAX_DELTA);
     physicsDeltaAccumulator += frameTime;
     
+    // Sync kinematic door/platform colliders into Bullet before physics step
+    if (kinematicVoxelManager) {
+        kinematicVoxelManager->syncCollidersToPhysics();
+    }
+
     // Run physics in fixed timesteps
     while (physicsDeltaAccumulator >= FIXED_TIMESTEP) {
         physicsWorld->stepSimulation(FIXED_TIMESTEP, 1, FIXED_TIMESTEP); // Pure fixed timestep
@@ -3100,16 +3155,19 @@ void Application::toggleAISystem() {
 }
 
 void Application::interactWithNPC() {
-    if (!interactionManager) return;
+    LOG_WARN("Application", "interactWithNPC() called — E key pressed");
+    if (!interactionManager) { LOG_WARN("Application", "  -> no interactionManager"); return; }
 
     // If dialogue is already active, advance it instead of starting new interaction
     if (dialogueSystem && dialogueSystem->isActive()) {
+        LOG_WARN("Application", "  -> dialogue active, advancing");
         dialogueSystem->advanceDialogue();
         return;
     }
 
     // If animated character is currently seated, E = stand up
     if (animatedCharacter && animatedCharacter->isSitting()) {
+        LOG_WARN("Application", "  -> character sitting, standing up");
         animatedCharacter->standUp();
         if (interactionManager) interactionManager->releaseSeat("player");
         return;
@@ -3123,6 +3181,7 @@ void Application::interactWithNPC() {
         playerEntity = animatedCharacter;
     else if (currentControlTarget == ControlTarget::Spider && spiderCharacter)
         playerEntity = spiderCharacter;
+    LOG_WARN("Application", "  -> calling tryInteract, playerEntity={}", playerEntity ? "valid" : "null");
     interactionManager->tryInteract(playerEntity);
 }
 
@@ -4161,6 +4220,281 @@ static bool handleSubcubeMicrocubeCommand(
         return true;
     }
     return false; // not handled
+}
+
+// Helper: handle placed-object CRUD commands (extracted to reduce nesting depth)
+static bool handlePlacedObjectCommand(
+    const Core::APICommand& cmd,
+    nlohmann::json& response,
+    Core::PlacedObjectManager* placedObjectManager,
+    ChunkManager* chunkManager,
+    Core::SnapshotManager* snapshotManager)
+{
+    if (cmd.action == "list_placed_objects") {
+        if (!placedObjectManager) {
+            response = {{"error", "PlacedObjectManager not available"}};
+        } else {
+            auto objects = placedObjectManager->list();
+            nlohmann::json arr = nlohmann::json::array();
+            for (const auto& obj : objects) {
+                arr.push_back(obj.toJson());
+            }
+            response = {{"objects", arr}, {"count", objects.size()}};
+        }
+        return true;
+
+    } else if (cmd.action == "get_placed_object") {
+        if (!placedObjectManager) {
+            response = {{"error", "PlacedObjectManager not available"}};
+        } else {
+            std::string id = cmd.params.value("id", "");
+            if (id.empty()) {
+                response = {{"error", "Missing 'id' parameter"}};
+            } else {
+                const auto* obj = placedObjectManager->get(id);
+                if (!obj) {
+                    response = {{"error", "Object not found"}, {"id", id}};
+                } else {
+                    response = obj->toJson();
+                }
+            }
+        }
+        return true;
+
+    } else if (cmd.action == "remove_placed_object") {
+        if (!placedObjectManager) {
+            response = {{"error", "PlacedObjectManager not available"}};
+        } else {
+            std::string id = cmd.params.value("id", "");
+            if (id.empty()) {
+                response = {{"error", "Missing 'id' parameter"}};
+            } else {
+                const auto* obj = placedObjectManager->get(id);
+                if (obj && chunkManager && snapshotManager) {
+                    pushUndoSnapshot(chunkManager, snapshotManager,
+                                     obj->boundingMin, obj->boundingMax,
+                                     "remove_placed_object:" + id);
+                }
+                bool ok = placedObjectManager->remove(id);
+                if (ok && chunkManager) {
+                    auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+                    if (ws) placedObjectManager->saveToDb(ws->getDb());
+                }
+                response = {{"success", ok}, {"id", id}};
+            }
+        }
+        return true;
+
+    } else if (cmd.action == "move_placed_object") {
+        if (!placedObjectManager) {
+            response = {{"error", "PlacedObjectManager not available"}};
+        } else {
+            std::string id = cmd.params.value("id", "");
+            if (id.empty() || !cmd.params.contains("position")) {
+                response = {{"error", "Missing 'id' or 'position' parameter"}};
+            } else {
+                int nx = cmd.params["position"].value("x", 0);
+                int ny = cmd.params["position"].value("y", 0);
+                int nz = cmd.params["position"].value("z", 0);
+
+                const auto* obj = placedObjectManager->get(id);
+                if (obj && chunkManager && snapshotManager) {
+                    pushUndoSnapshot(chunkManager, snapshotManager,
+                                     obj->boundingMin, obj->boundingMax,
+                                     "move_placed_object:" + id);
+                }
+
+                bool ok = placedObjectManager->move(id, glm::ivec3(nx, ny, nz));
+                if (ok && chunkManager) {
+                    auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+                    if (ws) placedObjectManager->saveToDb(ws->getDb());
+                }
+                response = {{"success", ok}, {"id", id},
+                            {"position", {{"x", nx}, {"y", ny}, {"z", nz}}}};
+            }
+        }
+        return true;
+
+    } else if (cmd.action == "rotate_placed_object") {
+        if (!placedObjectManager) {
+            response = {{"error", "PlacedObjectManager not available"}};
+        } else {
+            std::string id = cmd.params.value("id", "");
+            int newRotation = cmd.params.value("rotation", -1);
+            if (id.empty() || newRotation < 0) {
+                response = {{"error", "Missing 'id' or 'rotation' parameter"}};
+            } else {
+                const auto* obj = placedObjectManager->get(id);
+                if (obj && chunkManager && snapshotManager) {
+                    pushUndoSnapshot(chunkManager, snapshotManager,
+                                     obj->boundingMin, obj->boundingMax,
+                                     "rotate_placed_object:" + id);
+                }
+                bool ok = placedObjectManager->rotate(id, newRotation);
+                if (ok && chunkManager) {
+                    auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+                    if (ws) placedObjectManager->saveToDb(ws->getDb());
+                }
+                response = {{"success", ok}, {"id", id}, {"rotation", newRotation}};
+            }
+        }
+        return true;
+
+    } else if (cmd.action == "get_objects_at") {
+        if (!placedObjectManager) {
+            response = {{"error", "PlacedObjectManager not available"}};
+        } else {
+            int x = cmd.params.value("x", 0);
+            int y = cmd.params.value("y", 0);
+            int z = cmd.params.value("z", 0);
+            auto ids = placedObjectManager->getAt(glm::ivec3(x, y, z));
+            response = {{"object_ids", ids}, {"count", ids.size()}};
+        }
+        return true;
+    }
+
+    return false; // not handled
+}
+
+// Helper: handle door management API commands (extracted to avoid nesting depth limit)
+static bool handleDoorCommand(
+    const Core::APICommand& cmd,
+    nlohmann::json& response,
+    Core::DoorManager* doorManager,
+    Core::PlacedObjectManager* placedObjectManager)
+{
+    if (cmd.action == "register_door") {
+        if (!doorManager) {
+            response = {{"error", "DoorManager not available"}};
+        } else if (!cmd.params.contains("placed_object_id") || !cmd.params.contains("template_name")) {
+            response = {{"error", "Missing 'placed_object_id' or 'template_name'"}};
+        } else {
+            std::string poId = cmd.params.value("placed_object_id", "");
+            std::string tmplName = cmd.params.value("template_name", "");
+            int baseRot = cmd.params.value("base_rotation", 0);
+            float openAngle = cmd.params.value("open_angle", 90.0f);
+            float swingSpeed = cmd.params.value("swing_speed", 120.0f);
+            int   thickness  = cmd.params.value("thickness", 2);
+
+            glm::vec3 hingePos(0.0f);
+            if (cmd.params.contains("hinge")) {
+                hingePos.x = cmd.params["hinge"].value("x", 0.0f);
+                hingePos.y = cmd.params["hinge"].value("y", 0.0f);
+                hingePos.z = cmd.params["hinge"].value("z", 0.0f);
+            } else if (placedObjectManager) {
+                const auto* obj = placedObjectManager->get(poId);
+                if (obj) {
+                    hingePos = glm::vec3(obj->position);
+                }
+            }
+
+            bool ok = doorManager->registerDoor(poId, tmplName, hingePos, baseRot, openAngle, swingSpeed, thickness);
+            response = {{"success", ok}, {"placed_object_id", poId}};
+        }
+        return true;
+    }
+
+    if (cmd.action == "toggle_door") {
+        if (!doorManager) {
+            response = {{"error", "DoorManager not available"}};
+        } else if (!cmd.params.contains("placed_object_id")) {
+            response = {{"error", "Missing 'placed_object_id'"}};
+        } else {
+            std::string poId = cmd.params.value("placed_object_id", "");
+            doorManager->toggle(poId);
+            const auto& doors = doorManager->getDoors();
+            auto it = doors.find(poId);
+            if (it != doors.end()) {
+                response = {{"success", true}, {"placed_object_id", poId},
+                            {"is_open", it->second.isOpen},
+                            {"current_angle", it->second.currentAngle},
+                            {"target_angle", it->second.targetAngle}};
+            } else {
+                response = {{"error", "Door not found: " + poId}};
+            }
+        }
+        return true;
+    }
+
+    if (cmd.action == "open_door") {
+        if (!doorManager) {
+            response = {{"error", "DoorManager not available"}};
+        } else if (!cmd.params.contains("placed_object_id")) {
+            response = {{"error", "Missing 'placed_object_id'"}};
+        } else {
+            std::string poId = cmd.params.value("placed_object_id", "");
+            doorManager->open(poId);
+            response = {{"success", true}, {"placed_object_id", poId}};
+        }
+        return true;
+    }
+
+    if (cmd.action == "close_door") {
+        if (!doorManager) {
+            response = {{"error", "DoorManager not available"}};
+        } else if (!cmd.params.contains("placed_object_id")) {
+            response = {{"error", "Missing 'placed_object_id'"}};
+        } else {
+            std::string poId = cmd.params.value("placed_object_id", "");
+            doorManager->close(poId);
+            response = {{"success", true}, {"placed_object_id", poId}};
+        }
+        return true;
+    }
+
+    if (cmd.action == "list_doors") {
+        if (!doorManager) {
+            response = {{"error", "DoorManager not available"}};
+        } else {
+            const auto& doors = doorManager->getDoors();
+            nlohmann::json doorList = nlohmann::json::array();
+            for (const auto& [id, state] : doors) {
+                doorList.push_back({
+                    {"placed_object_id", id},
+                    {"is_open", state.isOpen},
+                    {"locked", state.locked},
+                    {"current_angle", state.currentAngle},
+                    {"open_angle", state.openAngle},
+                    {"base_rotation", state.baseRotation},
+                    {"swing_speed", state.swingSpeed},
+                    {"settled", state.settled},
+                    {"hinge", {{"x", state.worldHingePos.x}, {"y", state.worldHingePos.y}, {"z", state.worldHingePos.z}}}
+                });
+            }
+            response = {{"doors", doorList}, {"count", doors.size()}};
+        }
+        return true;
+    }
+
+    if (cmd.action == "set_door_lock") {
+        if (!doorManager) {
+            response = {{"error", "DoorManager not available"}};
+        } else if (!cmd.params.contains("placed_object_id")) {
+            response = {{"error", "Missing 'placed_object_id'"}};
+        } else {
+            std::string poId = cmd.params.value("placed_object_id", "");
+            bool locked = cmd.params.value("locked", true);
+            std::string keyItemId = cmd.params.value("key_item_id", "");
+            doorManager->setLocked(poId, locked, keyItemId);
+            response = {{"success", true}, {"placed_object_id", poId}, {"locked", locked}};
+        }
+        return true;
+    }
+
+    if (cmd.action == "unregister_door") {
+        if (!doorManager) {
+            response = {{"error", "DoorManager not available"}};
+        } else if (!cmd.params.contains("placed_object_id")) {
+            response = {{"error", "Missing 'placed_object_id'"}};
+        } else {
+            std::string poId = cmd.params.value("placed_object_id", "");
+            doorManager->unregisterDoor(poId);
+            response = {{"success", true}, {"placed_object_id", poId}};
+        }
+        return true;
+    }
+
+    return false; // not a door command
 }
 
 void Application::processAPICommands() {
@@ -5310,6 +5644,46 @@ void Application::processAPICommands() {
             } else if (cmd.action == "list_structure_types") {
                 response = {{"types", Core::StructureGenerator::getStructureTypes()}};
 
+            } else if (handleDoorCommand(cmd, response, doorManager.get(), placedObjectManager.get())) {
+                // Handled by door helper
+
+            } else if (cmd.action == "query_interaction") {
+                // Debug: return current InteractionManager state
+                std::string doorObjId, doorPtId, promptText;
+                bool hasNPC = false;
+                float cooldown = 0.0f;
+                bool hasDoorCb = false;
+                bool imguiWantsKb = ImGui::GetIO().WantCaptureKeyboard;
+                if (interactionManager) {
+                    doorObjId = interactionManager->getNearestDoorObjId();
+                    doorPtId = interactionManager->getNearestDoorPtId();
+                    hasNPC = (interactionManager->getNearestInteractableNPC() != nullptr);
+                    hasDoorCb = interactionManager->hasDoorCallback();
+                    cooldown = interactionManager->getCooldownTimer();
+                    promptText = interactionManager->getActivePromptText();
+                }
+                response = {
+                    {"success", true},
+                    {"door_in_range", !doorObjId.empty()},
+                    {"door_obj_id", doorObjId},
+                    {"door_pt_id", doorPtId},
+                    {"door_callback_set", hasDoorCb},
+                    {"cooldown", cooldown},
+                    {"npc_in_range", hasNPC},
+                    {"seat_in_range", interactionManager && interactionManager->isSeatInRange()},
+                    {"prompt_text", promptText},
+                    {"imgui_wants_keyboard", imguiWantsKb},
+                    {"has_interaction_manager", interactionManager != nullptr},
+                    {"current_control_target", static_cast<int>(currentControlTarget)},
+                    {"has_animated_char", animatedCharacter != nullptr},
+                    {"game_paused", gamePaused}
+                };
+
+            } else if (cmd.action == "trigger_interact") {
+                // Debug: trigger interactWithNPC() from API (bypasses keyboard)
+                interactWithNPC();
+                response = {{"success", true}, {"triggered", true}};
+
             } else if (cmd.action == "set_camera") {
                 if (cmd.params.contains("position") && inputManager) {
                     float x = cmd.params["position"].value("x", 0.0f);
@@ -5672,128 +6046,11 @@ void Application::processAPICommands() {
                 }
 
             // ================================================================
-            // PLACED OBJECT COMMANDS
+            // PLACED OBJECT COMMANDS (extracted to reduce nesting depth)
             // ================================================================
-            } else if (cmd.action == "list_placed_objects") {
-                if (!placedObjectManager) {
-                    response = {{"error", "PlacedObjectManager not available"}};
-                } else {
-                    auto objects = placedObjectManager->list();
-                    nlohmann::json arr = nlohmann::json::array();
-                    for (const auto& obj : objects) {
-                        arr.push_back(obj.toJson());
-                    }
-                    response = {{"objects", arr}, {"count", objects.size()}};
-                }
-
-            } else if (cmd.action == "get_placed_object") {
-                if (!placedObjectManager) {
-                    response = {{"error", "PlacedObjectManager not available"}};
-                } else {
-                    std::string id = cmd.params.value("id", "");
-                    if (id.empty()) {
-                        response = {{"error", "Missing 'id' parameter"}};
-                    } else {
-                        const auto* obj = placedObjectManager->get(id);
-                        if (!obj) {
-                            response = {{"error", "Object not found"}, {"id", id}};
-                        } else {
-                            response = obj->toJson();
-                        }
-                    }
-                }
-
-            } else if (cmd.action == "remove_placed_object") {
-                if (!placedObjectManager) {
-                    response = {{"error", "PlacedObjectManager not available"}};
-                } else {
-                    std::string id = cmd.params.value("id", "");
-                    if (id.empty()) {
-                        response = {{"error", "Missing 'id' parameter"}};
-                    } else {
-                        // Push undo snapshot before removing
-                        const auto* obj = placedObjectManager->get(id);
-                        if (obj && chunkManager && snapshotManager) {
-                            pushUndoSnapshot(chunkManager, snapshotManager.get(),
-                                             obj->boundingMin, obj->boundingMax,
-                                             "remove_placed_object:" + id);
-                        }
-                        bool ok = placedObjectManager->remove(id);
-                        // Immediately persist so removed record doesn't resurrect on restart
-                        if (ok && chunkManager) {
-                            auto* ws = chunkManager->m_streamingManager.getWorldStorage();
-                            if (ws) placedObjectManager->saveToDb(ws->getDb());
-                        }
-                        response = {{"success", ok}, {"id", id}};
-                    }
-                }
-
-            } else if (cmd.action == "move_placed_object") {
-                if (!placedObjectManager) {
-                    response = {{"error", "PlacedObjectManager not available"}};
-                } else {
-                    std::string id = cmd.params.value("id", "");
-                    if (id.empty() || !cmd.params.contains("position")) {
-                        response = {{"error", "Missing 'id' or 'position' parameter"}};
-                    } else {
-                        int nx = cmd.params["position"].value("x", 0);
-                        int ny = cmd.params["position"].value("y", 0);
-                        int nz = cmd.params["position"].value("z", 0);
-
-                        // Push undo snapshot of both old and new regions
-                        const auto* obj = placedObjectManager->get(id);
-                        if (obj && chunkManager && snapshotManager) {
-                            // Snapshot old location
-                            pushUndoSnapshot(chunkManager, snapshotManager.get(),
-                                             obj->boundingMin, obj->boundingMax,
-                                             "move_placed_object:" + id);
-                        }
-
-                        bool ok = placedObjectManager->move(id, glm::ivec3(nx, ny, nz));
-                        if (ok && chunkManager) {
-                            auto* ws = chunkManager->m_streamingManager.getWorldStorage();
-                            if (ws) placedObjectManager->saveToDb(ws->getDb());
-                        }
-                        response = {{"success", ok}, {"id", id},
-                                    {"position", {{"x", nx}, {"y", ny}, {"z", nz}}}};
-                    }
-                }
-
-            } else if (cmd.action == "rotate_placed_object") {
-                if (!placedObjectManager) {
-                    response = {{"error", "PlacedObjectManager not available"}};
-                } else {
-                    std::string id = cmd.params.value("id", "");
-                    int newRotation = cmd.params.value("rotation", -1);
-                    if (id.empty() || newRotation < 0) {
-                        response = {{"error", "Missing 'id' or 'rotation' parameter"}};
-                    } else {
-                        // Push undo snapshot before rotating
-                        const auto* obj = placedObjectManager->get(id);
-                        if (obj && chunkManager && snapshotManager) {
-                            pushUndoSnapshot(chunkManager, snapshotManager.get(),
-                                             obj->boundingMin, obj->boundingMax,
-                                             "rotate_placed_object:" + id);
-                        }
-                        bool ok = placedObjectManager->rotate(id, newRotation);
-                        if (ok && chunkManager) {
-                            auto* ws = chunkManager->m_streamingManager.getWorldStorage();
-                            if (ws) placedObjectManager->saveToDb(ws->getDb());
-                        }
-                        response = {{"success", ok}, {"id", id}, {"rotation", newRotation}};
-                    }
-                }
-
-            } else if (cmd.action == "get_objects_at") {
-                if (!placedObjectManager) {
-                    response = {{"error", "PlacedObjectManager not available"}};
-                } else {
-                    int x = cmd.params.value("x", 0);
-                    int y = cmd.params.value("y", 0);
-                    int z = cmd.params.value("z", 0);
-                    auto ids = placedObjectManager->getAt(glm::ivec3(x, y, z));
-                    response = {{"object_ids", ids}, {"count", ids.size()}};
-                }
+            } else if (handlePlacedObjectCommand(cmd, response,
+                           placedObjectManager.get(), chunkManager, snapshotManager.get())) {
+                // handled
 
             } else if (handlePlacedObjectHierarchyCommands(cmd, response, placedObjectManager.get())) {
                 // handled

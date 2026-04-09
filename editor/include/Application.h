@@ -45,6 +45,8 @@
 #include "core/NPCManager.h"
 #include "core/InteractionManager.h"
 #include "core/InteractionProfileManager.h"
+#include "core/KinematicVoxelManager.h"
+#include "core/DoorManager.h"
 #include "core/LocationRegistry.h"
 #include "ui/DialogueSystem.h"
 #include "ui/SpeechBubbleManager.h"
@@ -207,6 +209,10 @@ private:
     std::unique_ptr<Core::NPCManager> npcManager;
     std::unique_ptr<Core::InteractionManager> interactionManager;
     std::unique_ptr<Core::InteractionProfileManager> interactionProfileManager;
+
+    // Door / Kinematic Voxel System
+    std::unique_ptr<Core::KinematicVoxelManager> kinematicVoxelManager;
+    std::unique_ptr<Core::DoorManager> doorManager;
 
     // Story Engine
     std::unique_ptr<Story::StoryEngine> storyEngine;

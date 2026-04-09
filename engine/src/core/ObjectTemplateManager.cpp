@@ -82,6 +82,7 @@ void ObjectTemplateManager::parseLine(const std::string& line, VoxelTemplate& tm
         }
 
         // New format: "# interaction_point: pointId type localX localY localZ facingYaw group1,group2,..."
+        // Optional trailing fields: radius promptText viewAngle
         // Only asset-level data; per-archetype offsets live in JSON profiles.
         const std::string interactionPointKey = "# interaction_point:";
         if (line.compare(0, interactionPointKey.size(), interactionPointKey) == 0) {
@@ -99,6 +100,23 @@ void ObjectTemplateManager::parseLine(const std::string& line, VoxelTemplate& tm
                     while (std::getline(groupStream, group, ',')) {
                         if (!group.empty()) def.supportedGroups.push_back(group);
                     }
+                }
+                // Optional: radius
+                float radius = 0.0f;
+                if (iss >> radius) {
+                    def.interactionRadius = radius;
+                }
+                // Optional: promptText (quoted string)
+                std::string prompt;
+                if (iss >> std::ws && iss.peek() == '"') {
+                    iss.get(); // consume opening quote
+                    std::getline(iss, prompt, '"');
+                    def.promptText = prompt;
+                }
+                // Optional: viewAngle
+                float viewAngle = 0.0f;
+                if (iss >> viewAngle) {
+                    def.viewAngleHalf = viewAngle;
                 }
                 tmpl.interactionPoints.push_back(def);
             } else {
@@ -616,11 +634,21 @@ bool ObjectTemplateManager::saveInteractionDefs(const std::string& templateName,
             }
         }
         char buf[512];
-        std::snprintf(buf, sizeof(buf),
+        int len = std::snprintf(buf, sizeof(buf),
             "# interaction_point: %s %s %.4f %.4f %.4f %.6f %s",
             def.pointId.c_str(), def.type.c_str(),
             def.localOffset.x, def.localOffset.y, def.localOffset.z,
             def.facingYaw, groupsStr.c_str());
+        // Append optional fields if non-default
+        if (def.interactionRadius > 0.0f || !def.promptText.empty() || def.viewAngleHalf > 0.0f) {
+            len += std::snprintf(buf + len, sizeof(buf) - len, " %.2f", def.interactionRadius);
+        }
+        if (!def.promptText.empty() || def.viewAngleHalf > 0.0f) {
+            len += std::snprintf(buf + len, sizeof(buf) - len, " \"%s\"", def.promptText.c_str());
+        }
+        if (def.viewAngleHalf > 0.0f) {
+            len += std::snprintf(buf + len, sizeof(buf) - len, " %.1f", def.viewAngleHalf);
+        }
         interactionLines.push_back(buf);
     }
 

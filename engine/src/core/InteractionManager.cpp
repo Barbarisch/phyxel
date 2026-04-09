@@ -4,6 +4,7 @@
 #include "core/InteractionProfileManager.h"
 #include "scene/NPCEntity.h"
 #include "utils/Logger.h"
+#include <cmath>
 
 namespace Phyxel {
 namespace Core {
@@ -18,20 +19,27 @@ static glm::vec3 rotateOffsetByDegrees(const glm::vec3& offset, int rotationDegr
     }
 }
 
-void InteractionManager::update(float dt, const glm::vec3& playerPos) {
+void InteractionManager::update(float dt, const glm::vec3& playerPos, const glm::vec3& playerFront) {
     m_nearestNPC = nullptr;
     m_nearestSeatObjId.clear();
     m_nearestSeatPtId.clear();
     m_nearestSeatTemplateName.clear();
+    m_nearestDoorObjId.clear();
+    m_nearestDoorPtId.clear();
+    m_activePromptText.clear();
+    m_activePromptWorldPos = glm::vec3(0.0f);
 
     if (m_cooldownTimer > 0.0f) {
         m_cooldownTimer -= dt;
     }
 
-    // --- NPC detection ---
+    // --- NPC detection (with view-angle check) ---
     if (m_registry) {
         auto npcs = m_registry->getEntitiesByType("npc");
         float bestDist2 = std::numeric_limits<float>::max();
+        bool hasFront = glm::dot(playerFront, playerFront) > 0.001f;
+        glm::vec3 frontXZ = hasFront ? glm::normalize(glm::vec3(playerFront.x, 0.0f, playerFront.z)) : glm::vec3(0);
+
         for (const auto& [id, entity] : npcs) {
             auto* npc = dynamic_cast<Scene::NPCEntity*>(entity);
             if (!npc) continue;
@@ -39,29 +47,45 @@ void InteractionManager::update(float dt, const glm::vec3& playerPos) {
             float dist2 = glm::dot(diff, diff);
             float radius = npc->getInteractionRadius();
             if (dist2 < radius * radius && dist2 < bestDist2) {
+                // View angle check for NPCs (use default cone)
+                if (hasFront && dist2 > 0.01f) {
+                    glm::vec3 toNPC = glm::normalize(glm::vec3(diff.x, 0.0f, diff.z));
+                    float cosAngle = glm::dot(frontXZ, toNPC);
+                    if (cosAngle < cosf(glm::radians(DEFAULT_VIEW_ANGLE_HALF))) continue;
+                }
                 bestDist2 = dist2;
                 m_nearestNPC = npc;
             }
         }
     }
 
-    // --- Seat detection (with archetype filtering) ---
+    // --- Door detection (with per-point radius and view angle) ---
     if (m_placedObjects) {
-        auto [objId, ptId] = m_placedObjects->findNearestFreePoint(
-            playerPos, SEAT_INTERACT_RADIUS, "seat");
-        if (!objId.empty()) {
-            const PlacedObject* obj = m_placedObjects->get(objId);
+        auto result = m_placedObjects->findNearestFreePointEx(
+            playerPos, playerFront, DOOR_INTERACT_RADIUS, "door_handle");
+        if (result.found) {
+            m_nearestDoorObjId = result.objectId;
+            m_nearestDoorPtId  = result.pointId;
+        }
+    }
+
+    // --- Seat detection (with per-point radius, view angle, and archetype filtering) ---
+    if (m_placedObjects) {
+        auto result = m_placedObjects->findNearestFreePointEx(
+            playerPos, playerFront, SEAT_INTERACT_RADIUS, "seat");
+        if (result.found) {
+            const PlacedObject* obj = m_placedObjects->get(result.objectId);
             if (obj) {
                 for (const auto& pt : obj->interactionPoints) {
-                    if (pt.pointId == ptId) {
+                    if (pt.pointId == result.pointId) {
                         // Archetype gating: skip if player's archetype is not supported
                         if (!pt.supportsArchetype(m_playerArchetype)) {
                             break;
                         }
 
                         bool wasEmpty = m_nearestSeatObjId.empty();
-                        m_nearestSeatObjId          = objId;
-                        m_nearestSeatPtId           = ptId;
+                        m_nearestSeatObjId          = result.objectId;
+                        m_nearestSeatPtId           = result.pointId;
                         m_nearestSeatTemplateName   = obj->templateName;
                         m_nearestSeatAnchorPos      = pt.worldPos;
                         m_nearestSeatFacingYaw      = pt.facingYaw;
@@ -76,7 +100,7 @@ void InteractionManager::update(float dt, const glm::vec3& playerPos) {
                             LOG_INFO("InteractionManager",
                                 "Seat in range: obj='{}' pt='{}' anchorPos=({:.1f},{:.1f},{:.1f}) "
                                 "playerPos=({:.1f},{:.1f},{:.1f}) archetype='{}'",
-                                objId, ptId,
+                                result.objectId, result.pointId,
                                 pt.worldPos.x, pt.worldPos.y, pt.worldPos.z,
                                 playerPos.x, playerPos.y, playerPos.z,
                                 m_playerArchetype);
@@ -87,10 +111,45 @@ void InteractionManager::update(float dt, const glm::vec3& playerPos) {
             }
         }
     }
+
+    // --- Resolve active prompt (priority: NPC > Door > Seat) ---
+    if (m_nearestNPC) {
+        m_activePromptText = "Interact";
+        m_activePromptWorldPos = m_nearestNPC->getPosition();
+    } else if (!m_nearestDoorObjId.empty()) {
+        // Resolve door prompt text from the interaction point
+        const PlacedObject* obj = m_placedObjects ? m_placedObjects->get(m_nearestDoorObjId) : nullptr;
+        if (obj) {
+            for (const auto& pt : obj->interactionPoints) {
+                if (pt.pointId == m_nearestDoorPtId) {
+                    m_activePromptText = pt.promptText.empty() ? "Open / Close" : pt.promptText;
+                    m_activePromptWorldPos = pt.worldPos;
+                    break;
+                }
+            }
+        }
+        if (m_activePromptText.empty()) m_activePromptText = "Open / Close";
+    } else if (!m_nearestSeatObjId.empty()) {
+        // Resolve seat prompt text from the interaction point
+        const PlacedObject* obj = m_placedObjects ? m_placedObjects->get(m_nearestSeatObjId) : nullptr;
+        if (obj) {
+            for (const auto& pt : obj->interactionPoints) {
+                if (pt.pointId == m_nearestSeatPtId) {
+                    m_activePromptText = pt.promptText.empty() ? "Sit down" : pt.promptText;
+                    m_activePromptWorldPos = pt.worldPos;
+                    break;
+                }
+            }
+        }
+        if (m_activePromptText.empty()) m_activePromptText = "Sit down";
+    }
 }
 
 void InteractionManager::tryInteract(Scene::Entity* playerEntity) {
-    if (m_cooldownTimer > 0.0f) return;
+    LOG_WARN("InteractionManager", "tryInteract: cooldown={:.3f} nearNPC={} nearDoor='{}' doorCb={} nearSeat='{}'",
+             m_cooldownTimer, (m_nearestNPC != nullptr), m_nearestDoorObjId,
+             (m_doorCallback != nullptr), m_nearestSeatObjId);
+    if (m_cooldownTimer > 0.0f) { LOG_WARN("InteractionManager", "  -> blocked by cooldown"); return; }
 
     // Prefer NPC if one is in range; fall back to seat.
     if (m_nearestNPC) {
@@ -102,6 +161,15 @@ void InteractionManager::tryInteract(Scene::Entity* playerEntity) {
         if (m_interactCallback) {
             m_interactCallback(m_nearestNPC);
         }
+        return;
+    }
+
+    if (!m_nearestDoorObjId.empty() && m_doorCallback) {
+        m_cooldownTimer = INTERACT_COOLDOWN;
+        LOG_INFO("InteractionManager", "Player interacting with door '{}'", m_nearestDoorObjId);
+        m_doorCallback(m_nearestDoorObjId, m_nearestDoorPtId);
+        m_nearestDoorObjId.clear();
+        m_nearestDoorPtId.clear();
         return;
     }
 

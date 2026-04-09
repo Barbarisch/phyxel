@@ -1336,6 +1336,129 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/door/register — Register a placed object as a door
+    // Body: { "placed_object_id": "door_wood_1", "template_name": "door_wood",
+    //         "base_rotation": 0, "open_angle": 90, "swing_speed": 120,
+    //         "hinge": { "x": 10, "y": 16, "z": 20 } }
+    // ====================================================================
+    srv.Post("/api/door/register", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("register_door", params, 30000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/door/toggle — Toggle a door open/closed
+    // Body: { "placed_object_id": "door_wood_1" }
+    // ====================================================================
+    srv.Post("/api/door/toggle", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("toggle_door", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/door/open — Open a door
+    // Body: { "placed_object_id": "door_wood_1" }
+    // ====================================================================
+    srv.Post("/api/door/open", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("open_door", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/door/close — Close a door
+    // Body: { "placed_object_id": "door_wood_1" }
+    // ====================================================================
+    srv.Post("/api/door/close", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("close_door", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // GET /api/doors — List all registered doors
+    // ====================================================================
+    srv.Get("/api/doors", [this](const httplib::Request&, httplib::Response& res) {
+        json params = json::object();
+        json result = queueAndWait("list_doors", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // POST /api/door/lock — Lock/unlock a door
+    // Body: { "placed_object_id": "door_wood_1", "locked": true, "key_item_id": "" }
+    // ====================================================================
+    srv.Post("/api/door/lock", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_door_lock", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/door/unregister — Remove door registration (re-bake as static)
+    // Body: { "placed_object_id": "door_wood_1" }
+    // ====================================================================
+    srv.Post("/api/door/unregister", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("unregister_door", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // GET /api/debug/interaction — Query current interaction manager state
+    // ====================================================================
+    srv.Get("/api/debug/interaction", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("query_interaction", {});
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // POST /api/interact — Trigger interactWithNPC() from API (bypasses keyboard)
+    // ====================================================================
+    srv.Post("/api/interact", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("trigger_interact", {});
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
     // POST /api/clipboard/copy — Copy a region into the clipboard
     // Body: { "x1":0,"y1":0,"z1":0, "x2":15,"y2":15,"z2":15 }
     // ====================================================================
