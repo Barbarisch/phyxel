@@ -244,6 +244,10 @@ public:
         VkCommandBuffer beginSingleTimeCommands();
         void endSingleTimeCommands(VkCommandBuffer commandBuffer);
         
+        // Synchronization / device idle
+        void deviceWaitIdle();
+        void recreateSyncObjects();
+
         // Window resize handling
         void setFramebufferResized(bool resized) { framebufferResized = resized; }
         bool getFramebufferResized() const { return framebufferResized; }

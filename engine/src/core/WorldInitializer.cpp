@@ -168,7 +168,8 @@ bool WorldInitializer::initialize() {
     }
 
     // Initialize ImGui after Vulkan is fully set up
-    if (!imguiRenderer->initialize(windowManager->getHandle(), vulkanDevice, renderPipeline->getRenderPass())) {
+    bool enableViewports = engineConfig && engineConfig->enableEditorViewports;
+    if (!imguiRenderer->initialize(windowManager->getHandle(), vulkanDevice, renderPipeline->getRenderPass(), enableViewports)) {
         LOG_ERROR("WorldInitializer", "Failed to initialize ImGui!");
         return false;
     }
@@ -370,8 +371,9 @@ bool WorldInitializer::initializeVulkan() {
         return false;
     }
 
-    // Create dynamic subcube buffer (support up to 1000 dynamic subcubes)
-    if (!vulkanDevice->createDynamicSubcubeBuffer(1000)) {
+    // Create dynamic subcube buffer. MAX_DYNAMIC_OBJECTS=300 Bullet objects (cubes+subcubes),
+    // each with 6 faces = 1800 face slots needed. Use 1800 to exactly match the cap.
+    if (!vulkanDevice->createDynamicSubcubeBuffer(1800)) {
         LOG_ERROR("WorldInitializer", "Failed to create dynamic subcube buffer!");
         return false;
     }
@@ -384,12 +386,6 @@ bool WorldInitializer::initializeVulkan() {
         return false;
     }
     */
-
-    // Create dynamic subcube buffer (support up to 1000 dynamic subcubes)
-    if (!vulkanDevice->createDynamicSubcubeBuffer(1000)) {
-        LOG_ERROR("WorldInitializer", "Failed to create dynamic subcube buffer!");
-        return false;
-    }
 
     if (!vulkanDevice->createUniformBuffers()) {
         LOG_ERROR("WorldInitializer", "Failed to create uniform buffers!");

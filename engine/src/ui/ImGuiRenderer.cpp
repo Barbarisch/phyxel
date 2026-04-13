@@ -34,7 +34,7 @@ ImGuiRenderer::~ImGuiRenderer() {
     cleanup();
 }
 
-bool ImGuiRenderer::initialize(GLFWwindow* window, Vulkan::VulkanDevice* vulkanDevice, VkRenderPass renderPass) {
+bool ImGuiRenderer::initialize(GLFWwindow* window, Vulkan::VulkanDevice* vulkanDevice, VkRenderPass renderPass, bool enableViewports) {
     m_window = window;
     m_vulkanDevice = vulkanDevice;
     // m_renderPipeline = renderPipeline; // Removed
@@ -46,9 +46,20 @@ bool ImGuiRenderer::initialize(GLFWwindow* window, Vulkan::VulkanDevice* vulkanD
     
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    if (enableViewports) {
+        io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+    }
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
+
+    // When viewports are enabled, tweak WindowRounding/WindowBg so platform windows look identical
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+        ImGuiStyle& style = ImGui::GetStyle();
+        style.WindowRounding = 0.0f;
+        style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+    }
 
     // Setup Platform/Renderer backends
     if (!ImGui_ImplGlfw_InitForVulkan(window, true)) {
@@ -93,16 +104,106 @@ bool ImGuiRenderer::initialize(GLFWwindow* window, Vulkan::VulkanDevice* vulkanD
     init_info.QueueFamily = vulkanDevice->getGraphicsQueueFamily();
     init_info.Queue = vulkanDevice->getGraphicsQueue();
     init_info.DescriptorPool = imguiPool;
-    init_info.RenderPass = renderPass;
+    init_info.PipelineInfoMain.RenderPass = renderPass;
+    init_info.PipelineInfoMain.Subpass = 0;
+    init_info.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
     init_info.MinImageCount = vulkanDevice->getSwapChainImageCount();
     init_info.ImageCount = vulkanDevice->getSwapChainImageCount();
-    init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
     init_info.PipelineCache = VK_NULL_HANDLE;
-    init_info.Subpass = 0;
 
     if (!ImGui_ImplVulkan_Init(&init_info)) {
         LOG_ERROR("UI", "Failed to initialize ImGui Vulkan backend!");
         return false;
+    }
+
+    // Load monospace font for terminal: prefer bundled JetBrains Mono Nerd Font (has all
+    // Powerline/Nerd Font symbols built-in as monospace glyphs), fallback to Consolas + Segoe merge
+    {
+        ImFontConfig fontCfg;
+        fontCfg.MergeMode = false;
+        // Glyph ranges covering Latin, symbols, box drawing, and Nerd Font Private Use Area
+        static const ImWchar terminalGlyphRanges[] = {
+            0x0020, 0x00FF, // Basic Latin + Latin Supplement
+            0x0100, 0x024F, // Latin Extended-A + B
+            0x0370, 0x03FF, // Greek and Coptic
+            0x2000, 0x206F, // General Punctuation
+            0x2100, 0x214F, // Letterlike Symbols
+            0x2190, 0x21FF, // Arrows
+            0x2200, 0x22FF, // Mathematical Operators
+            0x2300, 0x23FF, // Miscellaneous Technical
+            0x2500, 0x257F, // Box Drawing
+            0x2580, 0x259F, // Block Elements
+            0x25A0, 0x25FF, // Geometric Shapes
+            0x2600, 0x26FF, // Miscellaneous Symbols
+            0x2700, 0x27BF, // Dingbats
+            0x2800, 0x28FF, // Braille Patterns
+            0x2B00, 0x2BFF, // Miscellaneous Symbols and Arrows
+            0xE000, 0xF8FF, // Full Private Use Area (Powerline, Nerd Font, Devicons, etc.)
+            0xFB00, 0xFB06, // Alphabetic Presentation Forms (fi, fl ligatures)
+            0xFE00, 0xFE0F, // Variation Selectors
+            0xFFFD, 0xFFFD, // Replacement character
+            0,              // Terminator
+        };
+
+        // Try bundled Nerd Font first (all symbols built-in, guaranteed monospace)
+        const char* nerdFontPath = "resources/fonts/JetBrainsMonoNerdFontMono-Regular.ttf";
+        {
+            FILE* f = fopen(nerdFontPath, "rb");
+            if (f) {
+                fclose(f);
+                m_monoFont = io.Fonts->AddFontFromFileTTF(nerdFontPath, 16.0f, &fontCfg, terminalGlyphRanges);
+                if (m_monoFont) {
+                    LOG_INFO("UI", "Loaded terminal font: JetBrains Mono Nerd Font (bundled)");
+                }
+            }
+        }
+
+        // Fallback: Consolas + Segoe UI Symbol merge
+        if (!m_monoFont) {
+            const char* monoFontPaths[] = {
+                "C:\\Windows\\Fonts\\consola.ttf",
+                "C:\\Windows\\Fonts\\cour.ttf",
+                nullptr
+            };
+            for (int i = 0; monoFontPaths[i]; ++i) {
+                FILE* f = fopen(monoFontPaths[i], "rb");
+                if (f) {
+                    fclose(f);
+                    m_monoFont = io.Fonts->AddFontFromFileTTF(monoFontPaths[i], 16.0f, &fontCfg, terminalGlyphRanges);
+                    if (m_monoFont) {
+                        LOG_INFO("UI", std::string("Loaded monospace font: ") + monoFontPaths[i]);
+                        break;
+                    }
+                }
+            }
+            // Merge symbol font with forced monospace advance width
+            if (m_monoFont) {
+                float cellWidth = 16.0f * 0.55f; // approximate monospace cell width at 16px
+                ImFontConfig mergeCfg;
+                mergeCfg.MergeMode = true;
+                mergeCfg.GlyphMinAdvanceX = cellWidth;  // Force monospace grid alignment
+                mergeCfg.GlyphMaxAdvanceX = cellWidth;
+                const char* symbolFontPaths[] = {
+                    "C:\\Windows\\Fonts\\seguisym.ttf",
+                    "C:\\Windows\\Fonts\\segmdl2.ttf",
+                    nullptr
+                };
+                for (int i = 0; symbolFontPaths[i]; ++i) {
+                    FILE* f = fopen(symbolFontPaths[i], "rb");
+                    if (f) {
+                        fclose(f);
+                        ImFont* merged = io.Fonts->AddFontFromFileTTF(symbolFontPaths[i], 16.0f, &mergeCfg, terminalGlyphRanges);
+                        if (merged) {
+                            LOG_INFO("UI", std::string("Merged symbol font: ") + symbolFontPaths[i]);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if (!m_monoFont) {
+            LOG_WARN("UI", "No monospace font found, terminal will use default font");
+        }
     }
 
     // Note: Font upload will be handled automatically by ImGui
@@ -136,6 +237,16 @@ void ImGuiRenderer::endFrame() {
     if (!m_initialized) return;
     
     ImGui::Render();
+}
+
+void ImGuiRenderer::updatePlatformWindows() {
+    if (!m_initialized) return;
+    
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+        ImGui::UpdatePlatformWindows();
+        ImGui::RenderPlatformWindowsDefault();
+    }
 }
 
 void ImGuiRenderer::render(uint32_t currentFrame, uint32_t imageIndex) {

@@ -148,6 +148,10 @@ public:
     // Render UI elements (must be called between ImGui::NewFrame and ImGui::Render)
     void renderUI();
 
+    // Viewport texture for editor docking (offscreen scene image)
+    VkImageView getViewportImageView() const;
+    VkSampler getViewportSampler() const;
+
     // Frame state accessors
     void setFrameStartTime(std::chrono::high_resolution_clock::time_point time) { frameStartTime = time; }
     void setCachedViewMatrix(const glm::mat4& view) { cachedViewMatrix = view; }

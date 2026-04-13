@@ -10,6 +10,7 @@
 // Forward declarations
 struct ImGuiContext;
 struct ImGuiInputTextCallbackData;
+struct ImFont;
 namespace Phyxel {
     class Timer;
     class PerformanceProfiler;
@@ -33,13 +34,14 @@ public:
     ~ImGuiRenderer();
 
     // Initialization and cleanup
-    bool initialize(GLFWwindow* window, Vulkan::VulkanDevice* vulkanDevice, VkRenderPass renderPass);
+    bool initialize(GLFWwindow* window, Vulkan::VulkanDevice* vulkanDevice, VkRenderPass renderPass, bool enableViewports = false);
     void cleanup();
 
     // Frame lifecycle
     void newFrame();
     void endFrame();
     void render(uint32_t currentFrame, uint32_t imageIndex);
+    void updatePlatformWindows();  // Multi-viewport: update/render secondary OS windows
 
     // Scripting Console
     void renderScriptingConsole(bool showConsole, ScriptingSystem* scriptingSystem);
@@ -105,9 +107,13 @@ public:
     // Helper for callbacks
     int handleInputTextCallback(struct ::ImGuiInputTextCallbackData* data);
 
+    /// Get the monospace font loaded during initialization (may be nullptr).
+    ImFont* getMonospaceFont() const { return m_monoFont; }
+
 private:
     ImGuiContext* m_context;
     bool m_initialized;
+    ImFont* m_monoFont = nullptr;  // Monospace font for terminal rendering
     
     // Vulkan objects
     Vulkan::VulkanDevice* m_vulkanDevice;
