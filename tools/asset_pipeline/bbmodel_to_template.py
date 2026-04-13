@@ -101,7 +101,7 @@ def load_bbmodel_as_mesh(file_path):
 def main():
     parser = argparse.ArgumentParser(description="Convert Blockbench .bbmodel to Phyxel Voxel Template")
     parser.add_argument("input", help="Input .bbmodel file path")
-    parser.add_argument("output", help="Output .txt template file path")
+    parser.add_argument("output", help="Output .voxel template file path")
     parser.add_argument("--material", default="Stone", help="Material name to use (default: Stone)")
     parser.add_argument("--size", type=float, default=5.0, help="Target size in World Cubes (default: 5.0)")
     parser.add_argument("--resolution", choices=['auto', 'cube', 'subcube', 'microcube'], default='auto', 

@@ -269,7 +269,7 @@ def get_templates_dir():
 
 def template_exists(name, templates_dir):
     """Check if a template file already exists."""
-    return os.path.exists(os.path.join(templates_dir, f"{name}.txt"))
+    return os.path.exists(os.path.join(templates_dir, f"{name}.voxel"))
 
 
 def generate_item(item, model, templates_dir):

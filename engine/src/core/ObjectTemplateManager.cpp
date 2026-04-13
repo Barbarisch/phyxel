@@ -29,8 +29,17 @@ void ObjectTemplateManager::loadTemplates(const std::string& directoryPath) {
     }
 
     for (const auto& entry : fs::directory_iterator(directoryPath)) {
-        if (entry.is_regular_file() && entry.path().extension() == ".txt") {
-            loadTemplate(entry.path().string());
+        if (entry.is_regular_file()) {
+            auto ext = entry.path().extension().string();
+            if (ext == ".voxel") {
+                loadTemplate(entry.path().string());
+            } else if (ext == ".txt") {
+                // Backward compatibility: load legacy .txt templates with deprecation warning
+                LOG_WARN_FMT("ObjectTemplateManager",
+                    "Template '" << entry.path().filename().string()
+                    << "' uses legacy .txt extension — rename to .voxel");
+                loadTemplate(entry.path().string());
+            }
         }
     }
 }

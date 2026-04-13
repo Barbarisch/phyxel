@@ -86,10 +86,10 @@ Structures are placed after terrain generation. Two types:
 
 **Templates** — pre-built objects:
 ```json
-{"type": "template", "name": "tree.txt", "position": {"x":15,"y":17,"z":15}}
+{"type": "template", "name": "tree.voxel", "position": {"x":15,"y":17,"z":15}}
 ```
 
-Available templates: `tree.txt`, `tree2.txt`, `sphere.txt`, `test_castle_optimized.txt`
+Available templates: `tree.voxel`, `tree2.voxel`, `sphere.voxel`, `test_castle_optimized.voxel`
 
 ### Step 4: Create NPCs
 
@@ -285,7 +285,7 @@ MyGame/
   "structures": [
     {"type": "fill", "from": {"x":10,"y":20,"z":10}, "to": {"x":22,"y":20,"z":22}, "material": "Stone"},
     {"type": "fill", "from": {"x":12,"y":21,"z":12}, "to": {"x":20,"y":25,"z":20}, "material": "Wood", "hollow": true},
-    {"type": "template", "name": "tree.txt", "position": {"x":25,"y":21,"z":15}}
+    {"type": "template", "name": "tree.voxel", "position": {"x":25,"y":21,"z":15}}
   ],
   "player": {"type": "physics", "position": {"x":16,"y":28,"z":16}},
   "camera": {"position": {"x":50,"y":50,"z":50}, "yaw": -135, "pitch": -30},

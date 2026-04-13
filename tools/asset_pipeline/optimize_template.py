@@ -133,8 +133,8 @@ def optimize_template_file(input_path, output_path, fill_threshold=1.0):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Optimize existing Phyxel Voxel Template")
-    parser.add_argument("input", help="Input .txt template file path")
-    parser.add_argument("output", help="Output .txt template file path")
+    parser.add_argument("input", help="Input .voxel template file path")
+    parser.add_argument("output", help="Output .voxel template file path")
     parser.add_argument("--fill-threshold", type=float, default=1.0, help="Threshold (0.0-1.0) to treat a block as full (default: 1.0)")
     
     args = parser.parse_args()

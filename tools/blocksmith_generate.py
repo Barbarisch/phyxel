@@ -3,7 +3,7 @@
 BlockSmith → Phyxel Template Bridge
 
 Generates a block-based 3D model from a text prompt using BlockSmith (LLM-powered),
-converts it to a Phyxel voxel template (.txt), and optionally registers it with
+converts it to a Phyxel voxel template (.voxel), and optionally registers it with
 the running engine.
 
 Usage:
@@ -421,7 +421,7 @@ def main():
 
     os.makedirs(output_dir, exist_ok=True)
 
-    template_path = os.path.join(output_dir, f"{args.name}.txt")
+    template_path = os.path.join(output_dir, f"{args.name}.voxel")
     bbmodel_path = os.path.join(output_dir, f"{args.name}.bbmodel")
 
     # Check if template already exists
@@ -455,7 +455,7 @@ def main():
             print(f"ERROR: Generation failed: {e}")
         sys.exit(1)
 
-    # Step 2: Convert .bbmodel → Phyxel .txt template
+    # Step 2: Convert .bbmodel → Phyxel .voxel template
     if args.building and building_material_map:
         # Direct conversion for buildings: element names → materials, no mesh/voxelizer
         success = convert_bbmodel_building_direct(

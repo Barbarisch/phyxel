@@ -65,7 +65,7 @@ Each material has its own 6-face texture set in the atlas (72 textures total, 25
 
 ## Entity Types
 
-Spawnable via MCP `spawn_entity` or keybindings:
+Spawnable via MCP `spawn_entity` (POST `/api/entity/spawn`) or keybindings:
 
 | Type       | Class                    | Capabilities |
 |------------|--------------------------|--------------|
@@ -109,10 +109,10 @@ The Python script `scripts/world_gen.py` provides demo functions: `generate_pyra
 
 Files in `resources/templates/` (spawnable via **T** / **Shift+T** or MCP `spawn_template`):
 
-- `tree.txt`, `tree2.txt`, `tree2_hollow.txt`
-- `sphere.txt`, `sphere_hollow.txt`
-- `test_castle_optimized.txt`, `test_castle_optimized_lossy.txt`
-- `my_model.txt`
+- `tree.voxel`, `tree2.voxel`, `tree2_hollow.voxel`
+- `sphere.voxel`, `sphere_hollow.voxel`
+- `test_castle_optimized.voxel`, `test_castle_optimized_lossy.voxel`
+- `my_model.voxel`
 
 **T** = spawn static (merged into terrain), **Shift+T** = spawn dynamic (physics objects).
 
@@ -120,7 +120,7 @@ Files in `resources/templates/` (spawnable via **T** / **Shift+T** or MCP `spawn
 
 Generate furniture, props, buildings, and decorations from text prompts using [BlockSmith](https://github.com/Barbarisch/blocksmith) (fork at `external/blocksmith/`).
 
-**Pipeline**: Text prompt → LLM (Claude/Gemini/OpenAI) → .bbmodel → voxelize → .txt template → `spawn_template`
+**Pipeline**: Text prompt → LLM (Claude/Gemini/OpenAI) → .bbmodel → voxelize → .voxel template → `spawn_template`
 
 **Usage**:
 ```bash
@@ -272,7 +272,7 @@ Server: `scripts/mcp/phyxel_mcp_server.py` — connects to engine HTTP API at `l
 | `paste_region` | Paste clipboard at new position with optional Y-axis rotation (0/90/180/270) |
 | `get_clipboard` | Check clipboard status (has data, size, voxel count) |
 | `generate_world` | Generate procedural terrain (Random/Perlin/Flat/Mountains/Caves/City) for chunks. Max 64 chunks |
-| `save_template` | Save a region as a reusable .txt template file, immediately available for spawn_template |
+| `save_template` | Save a region as a reusable .voxel template file, immediately available for spawn_template |
 | `load_game_definition` | Load a complete game from a single JSON definition (world, structures, player, NPCs, story) |
 | `export_game_definition` | Export current game state as a game definition JSON |
 | `validate_game_definition` | Validate a game definition JSON without loading |
@@ -492,14 +492,14 @@ phyxel.exe --project C:\Users\jack\Documents\PhyxelProjects\FrozenHighlands
 - `build_game` / `run_game` API endpoints build and launch the standalone game
 
 **Asset Editor (--asset-editor mode):**
-Launch with `--asset-editor <file.txt>` to edit a voxel template on a clean flat scene:
+Launch with `--asset-editor <file.voxel>` to edit a voxel template on a clean flat scene:
 ```
-phyxel.exe --asset-editor resources/templates/my_prop.txt
+phyxel.exe --asset-editor resources/templates/my_prop.voxel
 ```
 - Spawns the template at a fixed origin on a Stone floor platform
 - Right-side ImGui panel: material palette, reference character toggle (H), save button
 - **H**: toggle humanoid reference character for scale
-- **Ctrl+S**: save current voxel region back to the `.txt` file
+- **Ctrl+S**: save current voxel region back to the `.voxel` file
 - Floor at Y=15 is unbreakable; template voxels above are fully editable
 - Hovering over ImGui panels blocks voxel hover/break
 
@@ -538,6 +538,7 @@ standalone executables — no Python scripting, MCP server, or dev tools include
 engine/          # phyxel_core static library
   include/       # Public headers (core/, graphics/, physics/, scene/, ui/, input/, utils/)
   src/           # Implementation
+  deprecated/    # Archived experimental code (ActiveCharacter, HybridCharacter) — not compiled
 editor/          # phyxel_editor lib + phyxel executable (dev tool / world editor)
   include/       # Editor-specific headers (Application, InputController, AI, scene entities)
   src/           # Application.cpp, scripting bindings, etc.
