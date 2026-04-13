@@ -1541,6 +1541,61 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     m_worldOutliner->setNPCManager(npcManager.get());
     m_worldOutliner->setPlacedObjectManager(placedObjectManager.get());
     m_worldOutliner->setChunkManager(chunkManager);
+    m_worldOutliner->setObjectTemplateManager(objectTemplateManager.get());
+
+    // Wire add/remove callbacks from the World Outliner panel
+    m_worldOutliner->onRemoveEntity = [this](const std::string& id) -> bool {
+        auto* entity = entityRegistry->getEntity(id);
+        if (!entity) return false;
+        auto it = std::remove_if(entities.begin(), entities.end(),
+            [entity](const std::unique_ptr<Scene::Entity>& e) { return e.get() == entity; });
+        if (it != entities.end()) entities.erase(it, entities.end());
+        if (entity == physicsCharacter) physicsCharacter = nullptr;
+        if (entity == spiderCharacter) spiderCharacter = nullptr;
+        if (entity == animatedCharacter) animatedCharacter = nullptr;
+        entityRegistry->unregisterEntity(id);
+        return true;
+    };
+
+    m_worldOutliner->onSpawnEntity = [this](const std::string& type, const glm::vec3& pos) -> std::string {
+        Scene::Entity* spawned = nullptr;
+        if (type == "animated")
+            spawned = createAnimatedCharacter(pos, "resources/animated_characters/humanoid.anim");
+        else if (type == "physics")
+            spawned = createPhysicsCharacter(pos);
+        else if (type == "spider")
+            spawned = createSpiderCharacter(pos);
+        if (!spawned || !entityRegistry) return "";
+        std::string id = entityRegistry->registerEntity(spawned);
+        return id;
+    };
+
+    m_worldOutliner->onRemoveNPC = [this](const std::string& name) -> bool {
+        if (!npcManager) return false;
+        return npcManager->removeNPC(name);
+    };
+
+    m_worldOutliner->onSpawnNPC = [this](const std::string& name, const glm::vec3& pos,
+                                          const std::string& behavior) -> bool {
+        if (!npcManager) return false;
+        Core::NPCBehaviorType bt = Core::NPCBehaviorType::Idle;
+        if (behavior == "patrol") bt = Core::NPCBehaviorType::Patrol;
+        else if (behavior == "wander") bt = Core::NPCBehaviorType::BehaviorTree;
+        auto* npc = npcManager->spawnNPC(name, "resources/animated_characters/humanoid.anim",
+                                          pos, bt, {}, 2.0f, 2.0f, {});
+        return npc != nullptr;
+    };
+
+    m_worldOutliner->onRemovePlacedObject = [this](const std::string& id) -> bool {
+        if (!placedObjectManager) return false;
+        return placedObjectManager->remove(id);
+    };
+
+    m_worldOutliner->onSpawnTemplate = [this](const std::string& name, const glm::ivec3& pos,
+                                               int rotation) -> std::string {
+        if (!placedObjectManager) return "";
+        return placedObjectManager->placeTemplate(name, pos, rotation, "");
+    };
 
 #ifdef _WIN32
     // Create the terminal panel and assign monospace font

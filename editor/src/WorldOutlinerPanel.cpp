@@ -7,6 +7,7 @@
 #include "core/EntityRegistry.h"
 #include "core/NPCManager.h"
 #include "core/PlacedObjectManager.h"
+#include "core/ObjectTemplateManager.h"
 #include "core/ChunkManager.h"
 #include "scene/Entity.h"
 #include "scene/NPCEntity.h"
@@ -44,10 +45,30 @@ void WorldOutlinerPanel::render(bool* open) {
     m_filterText = m_filterBuf;
     ImGui::Separator();
 
+    // Global Delete key — removes whatever is selected
+    if (!m_selectedId.empty() && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
+        && ImGui::IsKeyPressed(ImGuiKey_Delete)) {
+        if (m_selectedId.rfind("npc:", 0) == 0 && onRemoveNPC) {
+            onRemoveNPC(m_selectedId.substr(4));
+            m_selectedId.clear();
+        } else if (m_selectedId.rfind("po:", 0) == 0 && onRemovePlacedObject) {
+            onRemovePlacedObject(m_selectedId.substr(3));
+            m_selectedId.clear();
+        } else if (onRemoveEntity) {
+            onRemoveEntity(m_selectedId);
+            m_selectedId.clear();
+        }
+    }
+
     renderEntitiesSection();
     renderNPCsSection();
     renderPlacedObjectsSection();
     renderChunksSection();
+
+    // Popup modals for adding items
+    renderAddEntityPopup();
+    renderAddNPCPopup();
+    renderAddTemplatePopup();
 
     ImGui::End();
 }
@@ -64,8 +85,14 @@ void WorldOutlinerPanel::renderEntitiesSection() {
     char label[128];
     snprintf(label, sizeof(label), "Entities (%zu)###Entities", ids.size());
 
-    if (!ImGui::CollapsingHeader(label, ImGuiTreeNodeFlags_DefaultOpen))
-        return;
+    // Header with inline "+" button
+    bool headerOpen = ImGui::CollapsingHeader(label, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowOverlap);
+    if (onSpawnEntity) {
+        ImGui::SameLine(ImGui::GetContentRegionAvail().x + ImGui::GetCursorPosX() - 20);
+        if (ImGui::SmallButton("+###AddEntity"))
+            ImGui::OpenPopup("AddEntityPopup");
+    }
+    if (!headerOpen) return;
 
     // Group by type tag
     struct TypeGroup { std::string type; std::vector<std::pair<std::string, Scene::Entity*>> items; };
@@ -77,10 +104,6 @@ void WorldOutlinerPanel::renderEntitiesSection() {
         groups.push_back({type, {{id, e}}});
     };
 
-    // Use toJson to get types, but also need Entity* for position display
-    // More efficient: iterate via forEach + entityToJson for type
-    // Best: use getEntitiesByType for known types, but we don't know all types
-    // Simplest: iterate all, get json per entity for the type tag
     for (auto& id : ids) {
         auto j = m_entityRegistry->entityToJson(id);
         std::string type = j.value("type", "unknown");
@@ -92,6 +115,8 @@ void WorldOutlinerPanel::renderEntitiesSection() {
     std::sort(groups.begin(), groups.end(), [](const TypeGroup& a, const TypeGroup& b) {
         return a.type < b.type;
     });
+
+    std::string entityToRemove; // deferred removal
 
     for (auto& group : groups) {
         char groupLabel[128];
@@ -119,9 +144,23 @@ void WorldOutlinerPanel::renderEntitiesSection() {
 
                 if (ImGui::IsItemClicked())
                     m_selectedId = id;
+
+                // Right-click context menu
+                if (ImGui::BeginPopupContextItem()) {
+                    if (onRemoveEntity && ImGui::MenuItem("Remove")) {
+                        entityToRemove = id;
+                    }
+                    ImGui::EndPopup();
+                }
             }
             ImGui::TreePop();
         }
+    }
+
+    // Deferred removal (safe — not mid-iteration of registry)
+    if (!entityToRemove.empty() && onRemoveEntity) {
+        onRemoveEntity(entityToRemove);
+        if (m_selectedId == entityToRemove) m_selectedId.clear();
     }
 }
 
@@ -136,11 +175,18 @@ void WorldOutlinerPanel::renderNPCsSection() {
     char label[128];
     snprintf(label, sizeof(label), "NPCs (%zu)###NPCs", count);
 
-    if (!ImGui::CollapsingHeader(label, ImGuiTreeNodeFlags_DefaultOpen))
-        return;
+    bool headerOpen = ImGui::CollapsingHeader(label, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowOverlap);
+    if (onSpawnNPC) {
+        ImGui::SameLine(ImGui::GetContentRegionAvail().x + ImGui::GetCursorPosX() - 20);
+        if (ImGui::SmallButton("+###AddNPC"))
+            ImGui::OpenPopup("AddNPCPopup");
+    }
+    if (!headerOpen) return;
 
     auto names = m_npcManager->getAllNPCNames();
     std::sort(names.begin(), names.end());
+
+    std::string npcToRemove;
 
     for (auto& name : names) {
         if (!passesFilter(name, m_filterText)) continue;
@@ -162,6 +208,18 @@ void WorldOutlinerPanel::renderNPCsSection() {
 
         if (ImGui::IsItemClicked())
             m_selectedId = "npc:" + name;
+
+        if (ImGui::BeginPopupContextItem()) {
+            if (onRemoveNPC && ImGui::MenuItem("Remove")) {
+                npcToRemove = name;
+            }
+            ImGui::EndPopup();
+        }
+    }
+
+    if (!npcToRemove.empty() && onRemoveNPC) {
+        onRemoveNPC(npcToRemove);
+        if (m_selectedId == "npc:" + npcToRemove) m_selectedId.clear();
     }
 }
 
@@ -176,8 +234,13 @@ void WorldOutlinerPanel::renderPlacedObjectsSection() {
     char label[128];
     snprintf(label, sizeof(label), "Placed Objects (%zu)###PlacedObjects", objects.size());
 
-    if (!ImGui::CollapsingHeader(label, ImGuiTreeNodeFlags_DefaultOpen))
-        return;
+    bool headerOpen = ImGui::CollapsingHeader(label, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowOverlap);
+    if (onSpawnTemplate) {
+        ImGui::SameLine(ImGui::GetContentRegionAvail().x + ImGui::GetCursorPosX() - 20);
+        if (ImGui::SmallButton("+###AddTemplate"))
+            ImGui::OpenPopup("AddTemplatePopup");
+    }
+    if (!headerOpen) return;
 
     // Group by category (template vs structure)
     struct CatGroup { std::string category; std::vector<const Core::PlacedObject*> items; };
@@ -232,6 +295,15 @@ void WorldOutlinerPanel::renderPlacedObjectNode(const Core::PlacedObject& obj,
     if (ImGui::IsItemClicked())
         m_selectedId = "po:" + obj.id;
 
+    // Right-click context menu
+    std::string poToRemove;
+    if (ImGui::BeginPopupContextItem()) {
+        if (onRemovePlacedObject && ImGui::MenuItem("Remove")) {
+            poToRemove = obj.id;
+        }
+        ImGui::EndPopup();
+    }
+
     if (nodeOpen && hasChildren) {
         for (auto& other : allObjects) {
             if (other.parentId == obj.id) {
@@ -239,6 +311,12 @@ void WorldOutlinerPanel::renderPlacedObjectNode(const Core::PlacedObject& obj,
             }
         }
         ImGui::TreePop();
+    }
+
+    // Deferred removal
+    if (!poToRemove.empty() && onRemovePlacedObject) {
+        onRemovePlacedObject(poToRemove);
+        if (m_selectedId == "po:" + poToRemove) m_selectedId.clear();
     }
 }
 
@@ -284,6 +362,126 @@ void WorldOutlinerPanel::renderChunksSection() {
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
         ImGui::TreeNodeEx(chunkLabel, flags);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Add Entity popup
+// ---------------------------------------------------------------------------
+
+void WorldOutlinerPanel::renderAddEntityPopup() {
+    if (!ImGui::BeginPopup("AddEntityPopup")) return;
+
+    ImGui::Text("Spawn Entity");
+    ImGui::Separator();
+
+    const char* types[] = {"animated", "physics", "spider"};
+    ImGui::Combo("Type", &m_addEntityType, types, IM_ARRAYSIZE(types));
+    ImGui::DragFloat3("Position", m_addEntityPos, 0.5f);
+
+    if (ImGui::Button("Spawn", ImVec2(120, 0))) {
+        if (onSpawnEntity) {
+            std::string newId = onSpawnEntity(
+                types[m_addEntityType],
+                glm::vec3(m_addEntityPos[0], m_addEntityPos[1], m_addEntityPos[2]));
+            if (!newId.empty()) m_selectedId = newId;
+        }
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel", ImVec2(120, 0)))
+        ImGui::CloseCurrentPopup();
+
+    ImGui::EndPopup();
+}
+
+// ---------------------------------------------------------------------------
+// Add NPC popup
+// ---------------------------------------------------------------------------
+
+void WorldOutlinerPanel::renderAddNPCPopup() {
+    if (!ImGui::BeginPopup("AddNPCPopup")) return;
+
+    ImGui::Text("Spawn NPC");
+    ImGui::Separator();
+
+    ImGui::InputText("Name", m_addNPCName, sizeof(m_addNPCName));
+    ImGui::DragFloat3("Position##npc", m_addNPCPos, 0.5f);
+
+    const char* behaviors[] = {"idle", "patrol", "wander"};
+    ImGui::Combo("Behavior", &m_addNPCBehavior, behaviors, IM_ARRAYSIZE(behaviors));
+
+    bool nameEmpty = (m_addNPCName[0] == '\0');
+    if (nameEmpty) ImGui::BeginDisabled();
+    if (ImGui::Button("Spawn##npc", ImVec2(120, 0))) {
+        if (onSpawnNPC) {
+            onSpawnNPC(m_addNPCName,
+                       glm::vec3(m_addNPCPos[0], m_addNPCPos[1], m_addNPCPos[2]),
+                       behaviors[m_addNPCBehavior]);
+            m_selectedId = "npc:" + std::string(m_addNPCName);
+            m_addNPCName[0] = '\0'; // reset
+        }
+        ImGui::CloseCurrentPopup();
+    }
+    if (nameEmpty) ImGui::EndDisabled();
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel##npc", ImVec2(120, 0)))
+        ImGui::CloseCurrentPopup();
+
+    ImGui::EndPopup();
+}
+
+// ---------------------------------------------------------------------------
+// Add Template popup
+// ---------------------------------------------------------------------------
+
+void WorldOutlinerPanel::renderAddTemplatePopup() {
+    if (!ImGui::BeginPopup("AddTemplatePopup")) return;
+
+    ImGui::Text("Place Template");
+    ImGui::Separator();
+
+    // Build template name list from ObjectTemplateManager
+    static std::vector<std::string> templateNames;
+    static std::vector<const char*> templateNamesCStr;
+    if (m_templateManager) {
+        templateNames = m_templateManager->getTemplateNames();
+        std::sort(templateNames.begin(), templateNames.end());
+        templateNamesCStr.resize(templateNames.size());
+        for (size_t i = 0; i < templateNames.size(); i++)
+            templateNamesCStr[i] = templateNames[i].c_str();
+    }
+
+    if (templateNamesCStr.empty()) {
+        ImGui::TextDisabled("No templates available");
+    } else {
+        if (m_addTemplateIdx >= (int)templateNamesCStr.size())
+            m_addTemplateIdx = 0;
+        ImGui::Combo("Template", &m_addTemplateIdx, templateNamesCStr.data(), (int)templateNamesCStr.size());
+    }
+
+    ImGui::DragFloat3("Position##tmpl", m_addTemplatePos, 0.5f);
+    ImGui::SliderInt("Rotation", &m_addTemplateRot, 0, 270);
+    // Snap to 90-degree increments
+    m_addTemplateRot = (m_addTemplateRot / 90) * 90;
+
+    bool canPlace = !templateNamesCStr.empty() && onSpawnTemplate;
+    if (!canPlace) ImGui::BeginDisabled();
+    if (ImGui::Button("Place", ImVec2(120, 0))) {
+        if (onSpawnTemplate && !templateNames.empty()) {
+            std::string objId = onSpawnTemplate(
+                templateNames[m_addTemplateIdx],
+                glm::ivec3((int)m_addTemplatePos[0], (int)m_addTemplatePos[1], (int)m_addTemplatePos[2]),
+                m_addTemplateRot);
+            if (!objId.empty()) m_selectedId = "po:" + objId;
+        }
+        ImGui::CloseCurrentPopup();
+    }
+    if (!canPlace) ImGui::EndDisabled();
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel##tmpl", ImVec2(120, 0)))
+        ImGui::CloseCurrentPopup();
+
+    ImGui::EndPopup();
 }
 
 } // namespace Phyxel::Editor
