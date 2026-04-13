@@ -1,0 +1,117 @@
+[
+  {
+    "id": "troll",
+    "name": "Troll",
+    "type": "giant",
+    "size": "Large",
+    "alignment": "chaotic evil",
+    "armorClass": 15,
+    "armorSource": "natural armor",
+    "hitPointDice": "8d10+40",
+    "averageHP": 84,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        { "type": "Strength",     "base": 18, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Dexterity",    "base": 13, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Constitution", "base": 20, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Intelligence", "base": 7,  "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Wisdom",       "base": 9,  "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Charisma",     "base": 7,  "racial": 0, "equipment": 0, "temporary": 0 }
+      ]
+    },
+    "skillProficiencies": { "Perception": 1 },
+    "challengeRating": 5,
+    "xpValue": 1800,
+    "passivePerception": 11,
+    "darkvisionRange": 60,
+    "languages": ["Giant"],
+    "tags": ["giant"],
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "1d6+4",
+        "damageType": "piercing",
+        "reach": 5
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d6+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "description": "Used twice per turn as part of a Multiattack (two claws)."
+      }
+    ],
+    "traits": [
+      { "name": "Keen Smell", "description": "The troll has advantage on Wisdom (Perception) checks that rely on smell." },
+      { "name": "Regeneration", "description": "The troll regains 10 HP at the start of its turn. If the troll takes acid or fire damage, this trait doesn't function at the start of the troll's next turn. The troll dies only if it starts its turn with 0 HP and doesn't regenerate." }
+    ]
+  },
+  {
+    "id": "young_red_dragon",
+    "name": "Young Red Dragon",
+    "type": "dragon",
+    "size": "Large",
+    "alignment": "chaotic evil",
+    "armorClass": 18,
+    "armorSource": "natural armor",
+    "hitPointDice": "17d10+85",
+    "averageHP": 178,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        { "type": "Strength",     "base": 23, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Dexterity",    "base": 10, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Constitution", "base": 21, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Intelligence", "base": 14, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Wisdom",       "base": 11, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Charisma",     "base": 19, "racial": 0, "equipment": 0, "temporary": 0 }
+      ]
+    },
+    "savingThrowProficiencies": ["DEX", "CON", "WIS", "CHA"],
+    "skillProficiencies": { "Perception": 2, "Stealth": 1 },
+    "damageImmunities": ["fire"],
+    "challengeRating": 10,
+    "xpValue": 5900,
+    "passivePerception": 18,
+    "darkvisionRange": 120,
+    "blindsightRange": 30,
+    "languages": ["Common", "Draconic"],
+    "tags": ["dragon"],
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 10,
+        "damageDice": "2d10+6",
+        "damageType": "piercing",
+        "reach": 10,
+        "description": "Also deals 4 (1d8) fire damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 10,
+        "damageDice": "2d6+6",
+        "damageType": "slashing",
+        "reach": 5,
+        "description": "Used twice as part of Multiattack."
+      },
+      {
+        "name": "Fire Breath",
+        "isWeaponAttack": false,
+        "damageDice": "16d6",
+        "damageType": "fire",
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 17,
+        "effectOnFail": "",
+        "description": "30 ft. cone. DEX DC 17: 56 (16d6) fire on fail, half on save. Recharge 5-6."
+      }
+    ]
+  }
+]

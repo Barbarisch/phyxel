@@ -1,0 +1,117 @@
+[
+  {
+    "id": "wolf",
+    "name": "Wolf",
+    "type": "beast",
+    "size": "Medium",
+    "alignment": "unaligned",
+    "armorClass": 13,
+    "armorSource": "natural armor",
+    "hitPointDice": "2d8+2",
+    "averageHP": 11,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        { "type": "Strength",     "base": 12, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Dexterity",    "base": 15, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Constitution", "base": 12, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Intelligence", "base": 3,  "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Wisdom",       "base": 12, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Charisma",     "base": 6,  "racial": 0, "equipment": 0, "temporary": 0 }
+      ]
+    },
+    "skillProficiencies": { "Perception": 1, "Stealth": 1 },
+    "challengeRating": 0.25,
+    "xpValue": 50,
+    "passivePerception": 13,
+    "darkvisionRange": 0,
+    "languages": [],
+    "tags": ["beast"],
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "2d4+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "requiresSave": true,
+        "saveAbility": "STR",
+        "saveDC": 11,
+        "effectOnFail": "Prone",
+        "effectDuration": 0,
+        "description": "On a failed save, the target is knocked prone."
+      }
+    ],
+    "traits": [
+      { "name": "Pack Tactics", "description": "The wolf has advantage on attack rolls against a creature if at least one of the wolf's allies is adjacent to the creature and the ally isn't incapacitated." }
+    ]
+  },
+  {
+    "id": "giant_spider",
+    "name": "Giant Spider",
+    "type": "beast",
+    "size": "Large",
+    "alignment": "unaligned",
+    "armorClass": 14,
+    "armorSource": "natural armor",
+    "hitPointDice": "4d10+4",
+    "averageHP": 26,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        { "type": "Strength",     "base": 14, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Dexterity",    "base": 16, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Constitution", "base": 12, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Intelligence", "base": 2,  "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Wisdom",       "base": 11, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Charisma",     "base": 4,  "racial": 0, "equipment": 0, "temporary": 0 }
+      ]
+    },
+    "skillProficiencies": { "Stealth": 2 },
+    "challengeRating": 1,
+    "xpValue": 200,
+    "passivePerception": 10,
+    "darkvisionRange": 60,
+    "blindsightRange": 10,
+    "languages": [],
+    "tags": ["beast"],
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d8+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "requiresSave": true,
+        "saveAbility": "CON",
+        "saveDC": 11,
+        "effectOnFail": "Poisoned",
+        "effectDuration": 60.0,
+        "description": "Bite: 1d8+3 piercing + CON DC 11 or 2d8 poison damage (half on save). On failed save, also poisoned for 1 minute."
+      },
+      {
+        "name": "Web",
+        "isWeaponAttack": false,
+        "toHitBonus": 5,
+        "damageDice": "0",
+        "damageType": "",
+        "reach": 0,
+        "isRanged": true,
+        "rangeNormal": 30,
+        "rangeLong": 60,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 11,
+        "effectOnFail": "Restrained",
+        "effectDuration": -1,
+        "description": "Ranged: 30/60 ft. DEX DC 11 or Restrained. Recharge 5-6."
+      }
+    ],
+    "traits": [
+      { "name": "Spider Climb", "description": "The spider can climb difficult surfaces, including upside down on ceilings, without an ability check." },
+      { "name": "Web Sense", "description": "While in contact with a web, the spider knows the exact location of any other creature in contact with the same web." }
+    ]
+  }
+]
