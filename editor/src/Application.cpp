@@ -371,6 +371,11 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     entityRegistry = std::make_unique<Core::EntityRegistry>();
     apiCommandQueue = std::make_unique<Core::APICommandQueue>();
     gameEventLog = std::make_unique<Core::GameEventLog>(1000);
+
+    // Wire D&D combat AI (pointers are stable — members outlive all systems)
+    m_combatAI.setInitiativeTracker(&m_rpgInitiative);
+    m_combatAI.setParty(&m_rpgParty);
+    m_combatAI.setEntityRegistry(entityRegistry.get());
     jobSystem = std::make_unique<Core::JobSystem>();
     apiServer = std::make_unique<Core::EngineAPIServer>(apiCommandQueue.get(), engineConfig.apiPort, jobSystem.get());
 
@@ -2192,6 +2197,9 @@ void Application::update(float deltaTime) {
     if (combatSystem) {
         combatSystem->update(deltaTime);
     }
+
+    // Drive enemy turns in D&D initiative combat
+    m_combatAI.tick(deltaTime);
 
     // Update interaction detection (use actual player position, not camera)
     if (interactionManager) {

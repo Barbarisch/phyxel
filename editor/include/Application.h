@@ -50,6 +50,7 @@
 #include "core/CombatSystem.h"
 #include "core/Party.h"
 #include "core/InitiativeTracker.h"
+#include "core/CombatAISystem.h"
 #include "core/WorldClock.h"
 #include "core/CampaignJournal.h"
 #include "core/NPCManager.h"
@@ -220,10 +221,11 @@ private:
     std::unique_ptr<Core::CombatSystem> combatSystem;
 
     // D&D RPG Layer (Phase 8)
-    Core::Party           m_rpgParty;
+    Core::Party             m_rpgParty;
     Core::InitiativeTracker m_rpgInitiative;
-    Core::WorldClock      m_rpgWorldClock;
-    Core::CampaignJournal m_rpgJournal;
+    Core::CombatAISystem    m_combatAI;
+    Core::WorldClock        m_rpgWorldClock;
+    Core::CampaignJournal   m_rpgJournal;
 
     // NPC System
     std::unique_ptr<Core::NPCManager> npcManager;
