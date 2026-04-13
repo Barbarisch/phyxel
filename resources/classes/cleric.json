@@ -1,0 +1,31 @@
+{
+  "id": "cleric",
+  "name": "Cleric",
+  "hitDieFaces": 8,
+  "primaryAbility": "WIS",
+  "savingThrows": ["WIS", "CHA"],
+  "armorProficiencies": ["light", "medium", "heavy", "shields"],
+  "weaponProficiencies": ["simple"],
+  "toolProficiencies": [],
+  "skillChoices": 2,
+  "skillPool": ["History", "Insight", "Medicine", "Persuasion", "Religion"],
+  "spellcastingAbility": "WIS",
+  "spellcastingType": "full",
+  "asiLevels": [4, 8, 12, 16, 19],
+  "features": {
+    "1": [
+      {"id": "spellcasting_cleric", "name": "Spellcasting", "description": "Cast cleric spells using Wisdom. Prepare WIS mod + Cleric level spells per long rest from the entire cleric spell list."},
+      {"id": "divine_domain", "name": "Divine Domain", "description": "Choose a domain subclass: Life, Light, Trickery, War, Knowledge, Nature, Tempest, Death, Grave, Order, Peace, Twilight, or others."}
+    ],
+    "2": [
+      {"id": "channel_divinity", "name": "Channel Divinity", "description": "Once per short rest, channel divine energy for your domain's Channel Divinity option or Turn Undead."},
+      {"id": "turn_undead", "name": "Turn Undead", "description": "Channel Divinity: each undead within 30 ft must make a WIS save or be turned for 1 minute."}
+    ],
+    "5": [
+      {"id": "destroy_undead", "name": "Destroy Undead", "description": "Undead of CR 1/2 or lower instantly destroyed when turned. CR threshold increases at higher levels."}
+    ],
+    "10": [
+      {"id": "divine_intervention", "name": "Divine Intervention", "description": "Implore your deity for aid. Roll d100 ≤ Cleric level to succeed. Guaranteed success at level 20."}
+    ]
+  }
+}

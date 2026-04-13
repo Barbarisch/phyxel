@@ -1,0 +1,10 @@
+{
+  "id": "halfling_lightfoot",
+  "name": "Lightfoot Halfling",
+  "abilityBonuses": { "DEX": 2, "CHA": 1 },
+  "speed": 25,
+  "darkvisionRange": 0,
+  "traits": ["Lucky", "Brave", "Halfling Nimbleness", "Naturally Stealthy"],
+  "languages": ["Common", "Halfling"],
+  "proficiencies": []
+}

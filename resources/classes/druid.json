@@ -1,0 +1,32 @@
+{
+  "id": "druid",
+  "name": "Druid",
+  "hitDieFaces": 8,
+  "primaryAbility": "WIS",
+  "savingThrows": ["INT", "WIS"],
+  "armorProficiencies": ["light", "medium", "shields"],
+  "weaponProficiencies": ["clubs", "daggers", "darts", "javelins", "maces", "quarterstaffs", "scimitars", "sickles", "slings", "spears"],
+  "toolProficiencies": ["herbalism_kit"],
+  "skillChoices": 2,
+  "skillPool": ["Arcana", "Animal Handling", "Insight", "Medicine", "Nature", "Perception", "Religion", "Survival"],
+  "spellcastingAbility": "WIS",
+  "spellcastingType": "full",
+  "asiLevels": [4, 8, 12, 16, 19],
+  "features": {
+    "1": [
+      {"id": "druidic", "name": "Druidic", "description": "Know the secret Druidic language. Leave hidden messages understood only by druids."},
+      {"id": "spellcasting_druid", "name": "Spellcasting", "description": "Prepare WIS mod + Druid level spells per long rest. Cast using Wisdom. Can use a druidic focus."}
+    ],
+    "2": [
+      {"id": "wild_shape", "name": "Wild Shape", "description": "Action: transform into a beast you've seen with CR up to limits by level. 2 uses per short/long rest. Duration = half Druid level hours."},
+      {"id": "druid_circle", "name": "Druid Circle", "description": "Choose a subclass circle: Land, Moon, Dreams, Shepherd, Spores, Stars, Wildfire, or others."}
+    ],
+    "18": [
+      {"id": "timeless_body_druid", "name": "Timeless Body", "description": "Age ten times more slowly than normal for aging effects."},
+      {"id": "beast_spells", "name": "Beast Spells", "description": "Cast spells while in Wild Shape form, even those with Verbal and Somatic components."}
+    ],
+    "20": [
+      {"id": "archdruid", "name": "Archdruid", "description": "Unlimited uses of Wild Shape. Ignore Verbal and Somatic components of druid spells and ignore material components without gold or consumed values."}
+    ]
+  }
+}

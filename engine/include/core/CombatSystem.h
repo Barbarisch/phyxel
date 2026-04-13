@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/DamageTypes.h"
+
 #include <string>
 #include <vector>
 #include <functional>
@@ -12,26 +14,6 @@ namespace Scene { class Entity; }
 namespace Core { class EntityRegistry; }
 
 namespace Core {
-
-// ============================================================================
-// Damage types
-// ============================================================================
-enum class DamageType {
-    Physical,
-    Fire,
-    Ice,
-    Poison
-};
-
-inline const char* damageTypeToString(DamageType type) {
-    switch (type) {
-        case DamageType::Physical: return "Physical";
-        case DamageType::Fire:     return "Fire";
-        case DamageType::Ice:      return "Ice";
-        case DamageType::Poison:   return "Poison";
-        default:                   return "Unknown";
-    }
-}
 
 // ============================================================================
 // DamageEvent — dispatched when damage is dealt

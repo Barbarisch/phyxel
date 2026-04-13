@@ -2255,6 +2255,36 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(result.dump(), "application/json");
     });
 
+    // ====================================================================
+    // RPG SYSTEM ENDPOINTS  /api/rpg/...
+    // ====================================================================
+
+    // All RPG sub-paths are routed to the single m_rpgHandler.
+    // GET  /api/rpg/<action>          — read-only queries
+    // POST /api/rpg/<action>          — mutations (body = JSON params)
+
+    srv.Get(R"(/api/rpg/(.+))", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!m_rpgHandler) {
+            res.status = 503;
+            res.set_content(json{{"error", "RPG system not initialized"}}.dump(), "application/json");
+            return;
+        }
+        std::string action = req.matches[1];
+        res.set_content(m_rpgHandler(action, json::object()).dump(), "application/json");
+    });
+
+    srv.Post(R"(/api/rpg/(.+))", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!m_rpgHandler) {
+            res.status = 503;
+            res.set_content(json{{"error", "RPG system not initialized"}}.dump(), "application/json");
+            return;
+        }
+        std::string action = req.matches[1];
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded()) body = json::object();
+        res.set_content(m_rpgHandler(action, body).dump(), "application/json");
+    });
+
     // POST /api/combat/attack — Perform an attack (via command queue)
     srv.Post("/api/combat/attack", [this](const httplib::Request& req, httplib::Response& res) {
         json body = json::parse(req.body, nullptr, false);

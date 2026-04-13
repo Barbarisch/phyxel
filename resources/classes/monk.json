@@ -1,0 +1,52 @@
+{
+  "id": "monk",
+  "name": "Monk",
+  "hitDieFaces": 8,
+  "primaryAbility": "DEX",
+  "savingThrows": ["STR", "DEX"],
+  "armorProficiencies": [],
+  "weaponProficiencies": ["simple", "shortswords"],
+  "toolProficiencies": [],
+  "skillChoices": 2,
+  "skillPool": ["Acrobatics", "Athletics", "History", "Insight", "Religion", "Stealth"],
+  "spellcastingAbility": "",
+  "spellcastingType": "",
+  "asiLevels": [4, 8, 12, 16, 19],
+  "features": {
+    "1": [
+      {"id": "unarmored_defense_monk", "name": "Unarmored Defense", "description": "While not wearing armor or wielding a shield, AC = 10 + DEX mod + WIS mod."},
+      {"id": "martial_arts", "name": "Martial Arts", "description": "Use DEX instead of STR for unarmed/monk weapon attacks. Roll martial arts die (d4→d10 by level) instead of normal damage. Bonus unarmed strike after Attack action."}
+    ],
+    "2": [
+      {"id": "ki", "name": "Ki", "description": "Ki points = Monk level, restore on short or long rest. Spend to: Flurry of Blows (2 bonus unarmed strikes), Patient Defense (bonus Dodge), Step of the Wind (bonus Disengage/Dash, double jump distance)."},
+      {"id": "unarmored_movement", "name": "Unarmored Movement", "description": "Speed increases by 10 ft while not wearing armor. Increases further as you level. At level 9, move across vertical surfaces and liquids on your turn."}
+    ],
+    "3": [
+      {"id": "monastic_tradition", "name": "Monastic Tradition", "description": "Choose a subclass: Way of the Open Hand, Shadow, Four Elements, Kensei, Sun Soul, Mercy, Astral Self, Long Death, or others."},
+      {"id": "deflect_missiles", "name": "Deflect Missiles", "description": "Reaction when hit by a ranged weapon: reduce damage by 1d10 + DEX mod + Monk level. If reduced to 0, catch and throw it back (uses 1 ki)."}
+    ],
+    "4": [
+      {"id": "slow_fall", "name": "Slow Fall", "description": "Reaction: reduce falling damage by 5 × Monk level."}
+    ],
+    "5": [
+      {"id": "extra_attack_monk", "name": "Extra Attack", "description": "Attack twice when you take the Attack action."},
+      {"id": "stunning_strike", "name": "Stunning Strike", "description": "Spend 1 ki when you hit with a melee weapon. Target makes CON save (DC = 8 + prof + WIS mod) or is stunned until end of your next turn."}
+    ],
+    "6": [
+      {"id": "ki_empowered_strikes", "name": "Ki-Empowered Strikes", "description": "Unarmed strikes count as magical for overcoming resistance."}
+    ],
+    "7": [
+      {"id": "evasion_monk", "name": "Evasion", "description": "DEX saves vs area effects: success = no damage, failure = half damage."},
+      {"id": "stillness_of_mind", "name": "Stillness of Mind", "description": "Action: end one effect causing you to be charmed or frightened."}
+    ],
+    "14": [
+      {"id": "diamond_soul", "name": "Diamond Soul", "description": "Proficiency in all saving throws. Spend 1 ki to reroll a failed saving throw."}
+    ],
+    "18": [
+      {"id": "empty_body", "name": "Empty Body", "description": "Spend 4 ki: invisible for 1 minute, resistance to all damage except force. Spend 8 ki: cast Astral Projection without material components."}
+    ],
+    "20": [
+      {"id": "perfect_self", "name": "Perfect Self", "description": "When you roll initiative with no ki points remaining, regain 4 ki points."}
+    ]
+  }
+}

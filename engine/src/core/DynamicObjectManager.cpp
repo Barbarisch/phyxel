@@ -5,6 +5,7 @@
 #include "core/DebrisSystem.h"
 #include "physics/PhysicsWorld.h"
 #include "scene/AnimatedVoxelCharacter.h"
+#include "scene/RagdollCharacter.h"
 #include "utils/Logger.h"
 #include <btBulletDynamicsCommon.h>
 
@@ -170,6 +171,7 @@ void DynamicObjectManager::clearAllGlobalDynamicSubcubes() {
     
     LOG_DEBUG_FMT("DynamicObject", "Clearing all " << subcubes.size() << " global dynamic subcubes");
     subcubes.clear();
+    m_rebuildFaces();
 }
 
 // ===============================================================
@@ -281,6 +283,7 @@ void DynamicObjectManager::clearAllGlobalDynamicCubes() {
     
     LOG_DEBUG_FMT("DynamicObject", "Clearing all " << cubes.size() << " global dynamic cubes");
     cubes.clear();
+    m_rebuildFaces();
 }
 
 // ===============================================================
@@ -369,6 +372,7 @@ void DynamicObjectManager::clearAllGlobalDynamicMicrocubes() {
     
     LOG_DEBUG_FMT("DynamicObject", "[MICROCUBE] Clearing all " << microcubes.size() << " global dynamic microcubes");
     microcubes.clear();
+    m_rebuildFaces();
 }
 
 // ===============================================================
@@ -424,7 +428,7 @@ void DynamicObjectManager::enforceObjectLimits() {
     }
 }
 
-void DynamicObjectManager::derezCharacter(Scene::AnimatedVoxelCharacter* character, float explosionStrength) {
+void DynamicObjectManager::derezCharacter(Scene::RagdollCharacter* character, float explosionStrength) {
     if (!character) return;
     
     // OPTIMIZATION: Use DebrisSystem if available for lightweight particles

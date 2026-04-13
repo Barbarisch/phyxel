@@ -1,0 +1,41 @@
+{
+  "id": "bard",
+  "name": "Bard",
+  "hitDieFaces": 8,
+  "primaryAbility": "CHA",
+  "savingThrows": ["DEX", "CHA"],
+  "armorProficiencies": ["light"],
+  "weaponProficiencies": ["simple", "hand_crossbows", "longswords", "rapiers", "shortswords"],
+  "toolProficiencies": ["three_musical_instruments"],
+  "skillChoices": 3,
+  "skillPool": ["Acrobatics", "Animal Handling", "Arcana", "Athletics", "Deception", "History", "Insight", "Intimidation", "Investigation", "Medicine", "Nature", "Perception", "Performance", "Persuasion", "Religion", "Sleight of Hand", "Stealth", "Survival"],
+  "spellcastingAbility": "CHA",
+  "spellcastingType": "full",
+  "asiLevels": [4, 8, 12, 16, 19],
+  "features": {
+    "1": [
+      {"id": "spellcasting_bard", "name": "Spellcasting", "description": "Cast bard spells using Charisma. Know a fixed number of spells and cantrips based on level."},
+      {"id": "bardic_inspiration", "name": "Bardic Inspiration", "description": "Bonus action: give one creature within 60 ft a Bardic Inspiration die (d6, scales to d12). Spend it to add to one ability check, attack, or saving throw within 10 minutes. Uses = CHA mod per long rest (short rest at level 5)."}
+    ],
+    "2": [
+      {"id": "jack_of_all_trades", "name": "Jack of All Trades", "description": "Add half proficiency bonus (rounded down) to any ability check you're not already adding your proficiency bonus to."},
+      {"id": "song_of_rest", "name": "Song of Rest", "description": "During a short rest, friendly creatures who hear your performance regain extra HP when spending hit dice (1d6, scales to 1d12 at level 17)."}
+    ],
+    "3": [
+      {"id": "bard_college", "name": "Bard College", "description": "Choose a subclass: Lore, Valor, Glamour, Swords, Whispers, Creation, Eloquence, or others."},
+      {"id": "expertise_bard", "name": "Expertise", "description": "Double proficiency bonus for two chosen skill proficiencies."}
+    ],
+    "5": [
+      {"id": "font_of_inspiration", "name": "Font of Inspiration", "description": "Regain all Bardic Inspiration uses on a short or long rest."}
+    ],
+    "6": [
+      {"id": "countercharm", "name": "Countercharm", "description": "Action: start a performance. Until end of your next turn, you and friendly creatures within 30 ft have advantage on saves vs being frightened or charmed."}
+    ],
+    "10": [
+      {"id": "magical_secrets", "name": "Magical Secrets", "description": "Learn two spells from any class. They count as bard spells for you. Learn two more at levels 14 and 18."}
+    ],
+    "20": [
+      {"id": "superior_inspiration", "name": "Superior Inspiration", "description": "If you have no Bardic Inspiration uses left when you roll initiative, regain one use."}
+    ]
+  }
+}

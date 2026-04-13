@@ -259,6 +259,17 @@ public:
     using DynamicStatsHandler = std::function<json()>;
     void setDynamicStatsHandler(DynamicStatsHandler handler) { m_dynamicStatsHandler = std::move(handler); }
 
+    // ========================================================================
+    // RPG System handler — single entry point for all /api/rpg/... routes
+    // ========================================================================
+
+    /// Generic RPG handler. Receives the sub-path (e.g. "party", "combat/state")
+    /// and the request body (empty json object for GETs). Returns response json.
+    /// Read-only RPG queries are called on the HTTP thread; mutations go through
+    /// queueAndWait via the command queue.
+    using RpgHandler = std::function<json(const std::string& action, const json& params)>;
+    void setRpgHandler(RpgHandler handler) { m_rpgHandler = std::move(handler); }
+
 private:
     void serverThread();
     void setupRoutes();
@@ -325,6 +336,7 @@ private:
     ParticleLogHandler m_particleLogHandler;
     EngineTimingHandler m_engineTimingHandler;
     DynamicStatsHandler m_dynamicStatsHandler;
+    RpgHandler          m_rpgHandler;
 
     // Forward-declared impl to keep httplib out of the header
     struct Impl;

@@ -1,0 +1,163 @@
+[
+  {
+    "id": "padded_armor",
+    "name": "Padded Armor",
+    "type": "Armor",
+    "rarity": "Common",
+    "weightLbs": 8.0,
+    "valueCp": 500,
+    "description": "Quilted layers of cloth and batting.",
+    "armor": {
+      "armorType": "Light",
+      "baseAC": 11,
+      "maxDexBonus": -1,
+      "stealthDisadvantage": true,
+      "strengthRequirement": 0
+    }
+  },
+  {
+    "id": "leather_armor",
+    "name": "Leather Armor",
+    "type": "Armor",
+    "rarity": "Common",
+    "weightLbs": 10.0,
+    "valueCp": 1000,
+    "description": "The breastplate and shoulder protectors of this armor are made of leather that has been stiffened by being boiled in oil.",
+    "armor": {
+      "armorType": "Light",
+      "baseAC": 11,
+      "maxDexBonus": -1,
+      "stealthDisadvantage": false,
+      "strengthRequirement": 0
+    }
+  },
+  {
+    "id": "studded_leather",
+    "name": "Studded Leather Armor",
+    "type": "Armor",
+    "rarity": "Common",
+    "weightLbs": 13.0,
+    "valueCp": 4500,
+    "description": "Made from tough but flexible leather, studded with close-set rivets or spikes.",
+    "armor": {
+      "armorType": "Light",
+      "baseAC": 12,
+      "maxDexBonus": -1,
+      "stealthDisadvantage": false,
+      "strengthRequirement": 0
+    }
+  },
+  {
+    "id": "chain_shirt",
+    "name": "Chain Shirt",
+    "type": "Armor",
+    "rarity": "Common",
+    "weightLbs": 20.0,
+    "valueCp": 5000,
+    "description": "Made of interlocking metal rings, worn between layers of clothing.",
+    "armor": {
+      "armorType": "Medium",
+      "baseAC": 13,
+      "maxDexBonus": 2,
+      "stealthDisadvantage": false,
+      "strengthRequirement": 0
+    }
+  },
+  {
+    "id": "scale_mail",
+    "name": "Scale Mail",
+    "type": "Armor",
+    "rarity": "Common",
+    "weightLbs": 45.0,
+    "valueCp": 5000,
+    "description": "This armor consists of a coat and leggings of leather covered with overlapping pieces of metal.",
+    "armor": {
+      "armorType": "Medium",
+      "baseAC": 14,
+      "maxDexBonus": 2,
+      "stealthDisadvantage": true,
+      "strengthRequirement": 0
+    }
+  },
+  {
+    "id": "half_plate",
+    "name": "Half Plate Armor",
+    "type": "Armor",
+    "rarity": "Common",
+    "weightLbs": 40.0,
+    "valueCp": 75000,
+    "description": "Half plate consists of shaped metal plates that cover most of the wearer's body.",
+    "armor": {
+      "armorType": "Medium",
+      "baseAC": 15,
+      "maxDexBonus": 2,
+      "stealthDisadvantage": true,
+      "strengthRequirement": 0
+    }
+  },
+  {
+    "id": "chain_mail",
+    "name": "Chain Mail",
+    "type": "Armor",
+    "rarity": "Common",
+    "weightLbs": 55.0,
+    "valueCp": 7500,
+    "description": "Made of interlocking metal rings, chain mail includes a layer of quilted fabric worn underneath.",
+    "armor": {
+      "armorType": "Heavy",
+      "baseAC": 16,
+      "maxDexBonus": 0,
+      "stealthDisadvantage": true,
+      "strengthRequirement": 13
+    }
+  },
+  {
+    "id": "splint_armor",
+    "name": "Splint Armor",
+    "type": "Armor",
+    "rarity": "Common",
+    "weightLbs": 60.0,
+    "valueCp": 20000,
+    "description": "This armor is made of narrow vertical strips of metal riveted to a backing of leather that is worn over cloth padding.",
+    "armor": {
+      "armorType": "Heavy",
+      "baseAC": 17,
+      "maxDexBonus": 0,
+      "stealthDisadvantage": true,
+      "strengthRequirement": 15
+    }
+  },
+  {
+    "id": "plate_armor",
+    "name": "Plate Armor",
+    "type": "Armor",
+    "rarity": "Common",
+    "weightLbs": 65.0,
+    "valueCp": 150000,
+    "description": "Plate consists of shaped, interlocking metal plates to cover the entire body. It includes gauntlets, heavy leather boots, a visored helmet, and thick layers of padding.",
+    "armor": {
+      "armorType": "Heavy",
+      "baseAC": 18,
+      "maxDexBonus": 0,
+      "stealthDisadvantage": true,
+      "strengthRequirement": 15
+    }
+  },
+  {
+    "id": "shield",
+    "name": "Shield",
+    "type": "Shield",
+    "rarity": "Common",
+    "weightLbs": 6.0,
+    "valueCp": 1000,
+    "description": "A shield is made from wood or metal and is carried in one hand. +2 AC.",
+    "isArmor": true,
+    "armor": {
+      "armorType": "Shield",
+      "baseAC": 2,
+      "maxDexBonus": -1,
+      "stealthDisadvantage": false,
+      "strengthRequirement": 0
+    }
+  }
+]

@@ -1,0 +1,10 @@
+{
+  "id": "half_orc",
+  "name": "Half-Orc",
+  "abilityBonuses": { "STR": 2, "CON": 1 },
+  "speed": 30,
+  "darkvisionRange": 60,
+  "traits": ["Darkvision", "Menacing", "Relentless Endurance", "Savage Attacks"],
+  "languages": ["Common", "Orc"],
+  "proficiencies": []
+}
