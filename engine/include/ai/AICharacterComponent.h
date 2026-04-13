@@ -60,8 +60,8 @@ enum class AIState {
 //
 // Usage:
 //   auto controller = std::make_unique<AIController>(&bridge, entity, "guard_01");
-//   controller->setRecipe("resources/recipes/characters/guard.yaml");
-//   controller->addSkill({"combat", "resources/recipes/skills/combat.yaml"});
+//   controller->setRecipe("resources/ai/characters/guard.yaml");
+//   controller->addSkill({"combat", "resources/ai/skills/combat.yaml"});
 //   controller->start();
 //
 // In game loop:

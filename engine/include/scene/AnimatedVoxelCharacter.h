@@ -219,6 +219,21 @@ namespace Scene {
         // Get the physics controller body's linear velocity (for GPU particle collision)
         glm::vec3 getControllerVelocity() const;
 
+    protected:
+        /// Called after keyframe sampling + updateGlobalTransforms, before bone body sync.
+        /// Override in subclass to inject IK corrections on skeleton bones.
+        virtual void applyIKCorrections(float deltaTime) {}
+
+        // Protected accessors for subclasses (e.g. HybridCharacter IK)
+        Phyxel::Skeleton& getSkeletonMut() { return skeleton; }
+        Phyxel::AnimationSystem& getAnimSystemMut() { return animSystem; }
+        const std::map<int, btRigidBody*>& getBoneBodiesRef() const { return boneBodies; }
+        btRigidBody* getControllerBody() const { return controllerBody; }
+        const glm::vec3& getWorldPositionRef() const { return worldPosition; }
+        float getSkeletonFootOffset() const { return skeletonFootOffset_; }
+        float getCurrentYaw() const { return currentYaw; }
+        Phyxel::ChunkManager* getChunkManagerPtr() const { return m_chunkManager; }
+
     private:
         Phyxel::Skeleton skeleton;
         std::vector<Phyxel::AnimationClip> clips;

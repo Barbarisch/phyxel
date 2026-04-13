@@ -2237,6 +2237,9 @@ namespace Scene {
 
         animSystem.updateGlobalTransforms(skeleton);
 
+        // Hook for subclass IK corrections (e.g. HybridCharacter)
+        applyIKCorrections(deltaTime);
+
         // Update physics bodies
         static int debugFrame = 0;
         debugFrame++;
