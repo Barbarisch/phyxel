@@ -23,6 +23,7 @@ namespace Phyxel {
     namespace Graphics { class LightManager; }
     namespace Vulkan { class VulkanDevice; class RenderPipeline; }
     class ScriptingSystem;
+    namespace Core { class InitiativeTracker; class Party; class EntityRegistry; }
     namespace UI { class DialogueSystem; class SpeechBubbleManager; }
 }
 
@@ -103,6 +104,15 @@ public:
                                   const glm::mat4& projectionMatrix,
                                   float screenWidth, float screenHeight,
                                   const char* customText = nullptr);
+
+    /// Render D&D combat HUD: initiative order, HP bars, whose-turn indicator.
+    /// Only visible when combat is active (InitiativeTracker::isCombatActive()).
+    /// @param tracker        The initiative tracker (may be nullptr).
+    /// @param party          Party info for player/NPC labelling (may be nullptr).
+    /// @param entityRegistry Used to look up HealthComponent per entity (may be nullptr).
+    void renderCombatHUD(Core::InitiativeTracker* tracker,
+                         Core::Party*             party,
+                         Core::EntityRegistry*    entityRegistry);
 
     // Helper for callbacks
     int handleInputTextCallback(struct ::ImGuiInputTextCallbackData* data);

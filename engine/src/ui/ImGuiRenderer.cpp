@@ -3,6 +3,11 @@
 #include "ui/SpeechBubbleManager.h"
 #include "core/Types.h"
 #include "core/ForceSystem.h"
+#include "core/InitiativeTracker.h"
+#include "core/Party.h"
+#include "core/EntityRegistry.h"
+#include "core/HealthComponent.h"
+#include "scene/Entity.h"
 #include "graphics/LightManager.h"
 #include "scripting/ScriptingSystem.h"
 #include "utils/Timer.h"
@@ -1167,6 +1172,215 @@ void ImGuiRenderer::renderInteractionPrompt(bool show, const glm::vec3& npcWorld
     ImGui::End();
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
+}
+
+// ============================================================================
+// Combat HUD
+// ============================================================================
+
+void ImGuiRenderer::renderCombatHUD(
+    Core::InitiativeTracker* tracker,
+    Core::Party*             party,
+    Core::EntityRegistry*    entityRegistry)
+{
+    if (!tracker || !tracker->isCombatActive()) return;
+
+    const auto& order = tracker->turnOrder();
+    if (order.empty()) return;
+
+    ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+
+    // -----------------------------------------------------------------------
+    // "COMBAT" banner + round counter  (top-centre)
+    // -----------------------------------------------------------------------
+    {
+        const char* banner = "⚔  COMBAT";
+        float bannerW = 260.0f;
+        ImGui::SetNextWindowPos(ImVec2((displaySize.x - bannerW) * 0.5f, 8.0f),
+                                ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(bannerW, 32.0f), ImGuiCond_Always);
+        ImGui::SetNextWindowBgAlpha(0.75f);
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.55f, 0.05f, 0.05f, 1.0f));
+        ImGui::Begin("##CombatBanner", nullptr,
+            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_NoMove    | ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs |
+            ImGuiWindowFlags_NoNav);
+        ImGui::SetCursorPosX((bannerW - ImGui::CalcTextSize(banner).x) * 0.5f - 8.0f);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.2f, 1.0f));
+        ImGui::Text("%s   Round %d", banner, tracker->currentRound());
+        ImGui::PopStyleColor();
+        ImGui::End();
+        ImGui::PopStyleColor();
+    }
+
+    // -----------------------------------------------------------------------
+    // Initiative order panel (right side)
+    // -----------------------------------------------------------------------
+    const float panelW  = 230.0f;
+    const float rowH    = 54.0f;
+    const float panelH  = std::min(
+        static_cast<float>(order.size()) * rowH + 36.0f,
+        displaySize.y * 0.75f);
+
+    ImGui::SetNextWindowPos(ImVec2(displaySize.x - panelW - 8.0f, 50.0f),
+                            ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(panelW, panelH), ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.82f);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg,   ImVec4(0.08f, 0.08f, 0.12f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_TitleBgActive, ImVec4(0.18f, 0.18f, 0.28f, 1.0f));
+    ImGui::Begin("Initiative", nullptr,
+        ImGuiWindowFlags_NoResize  | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar |
+        ImGuiWindowFlags_NoInputs  | ImGuiWindowFlags_NoNav);
+
+    ImGui::BeginChild("##InitList", ImVec2(0, 0), false,
+                      ImGuiWindowFlags_NoScrollbar);
+
+    const std::string& currentId = tracker->currentEntityId();
+
+    for (size_t i = 0; i < order.size(); ++i) {
+        const auto& p = order[i];
+        bool isActive = (p.entityId == currentId);
+
+        ImGui::PushID(static_cast<int>(i));
+
+        // Active entry gets a coloured background strip
+        if (isActive) {
+            ImVec2 pos = ImGui::GetCursorScreenPos();
+            ImGui::GetWindowDrawList()->AddRectFilled(
+                pos,
+                ImVec2(pos.x + panelW - 8.0f, pos.y + rowH - 2.0f),
+                IM_COL32(60, 120, 60, 180), 4.0f);
+        }
+
+        // --- Name row ---
+        // Determine display name: prefer Party name, fall back to entityId
+        std::string displayName = p.entityId;
+        bool isPlayerPartyMember = false;
+        if (party) {
+            const auto* member = party->getMember(p.entityId);
+            if (member) {
+                displayName = member->name;
+                isPlayerPartyMember = true;
+            }
+        }
+
+        // Initiative roll badge
+        ImGui::SetCursorPosX(4.0f);
+        if (isActive) {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 0.3f, 1.0f));
+            ImGui::Text("▶ ");
+            ImGui::PopStyleColor();
+            ImGui::SameLine(0, 0);
+        } else {
+            ImGui::Text("  ");
+            ImGui::SameLine(0, 0);
+        }
+
+        // Colour: player party members are cyan, NPCs are orange-red
+        ImVec4 nameCol = isPlayerPartyMember
+            ? ImVec4(0.4f, 0.9f, 1.0f, 1.0f)
+            : ImVec4(1.0f, 0.55f, 0.25f, 1.0f);
+        ImGui::PushStyleColor(ImGuiCol_Text, nameCol);
+        ImGui::Text("%-16s", displayName.c_str());
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+        ImGui::Text("[%d]", p.initiativeRoll);
+        ImGui::PopStyleColor();
+
+        // --- HP bar ---
+        float hpFrac = 1.0f;
+        float hp = 0.0f, maxHp = 1.0f;
+        if (entityRegistry) {
+            auto* entity = entityRegistry->getEntity(p.entityId);
+            if (entity) {
+                auto* hc = entity->getHealthComponent();
+                if (hc) {
+                    hp    = hc->getHealth();
+                    maxHp = hc->getMaxHealth();
+                    hpFrac = (maxHp > 0.0f) ? hp / maxHp : 0.0f;
+                }
+            }
+        }
+
+        // Colour ramp: green → yellow → red
+        ImVec4 barCol;
+        if (hpFrac > 0.5f)
+            barCol = ImVec4(0.15f + (1.0f - hpFrac) * 1.4f, 0.75f, 0.15f, 1.0f);
+        else
+            barCol = ImVec4(0.85f, hpFrac * 1.5f, 0.05f, 1.0f);
+
+        ImGui::SetCursorPosX(4.0f);
+        ImGui::PushStyleColor(ImGuiCol_PlotHistogram, barCol);
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.18f, 0.05f, 0.05f, 1.0f));
+        char hpLabel[32];
+        snprintf(hpLabel, sizeof(hpLabel), "%.0f / %.0f##hp%zu", hp, maxHp, i);
+        ImGui::ProgressBar(hpFrac, ImVec2(panelW - 16.0f, 14.0f), hpLabel);
+        ImGui::PopStyleColor(2);
+
+        // Surprised indicator
+        if (p.isSurprised && !p.hasActedThisRound) {
+            ImGui::SameLine();
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.6f, 0.0f, 1.0f));
+            ImGui::Text(" [Surprised]");
+            ImGui::PopStyleColor();
+        }
+
+        ImGui::Spacing();
+        ImGui::PopID();
+    }
+
+    ImGui::EndChild();
+    ImGui::End();
+    ImGui::PopStyleColor(2);
+
+    // -----------------------------------------------------------------------
+    // Whose-turn indicator (bottom-centre, above dialogue box area)
+    // -----------------------------------------------------------------------
+    {
+        std::string turnName = currentId;
+        if (party) {
+            const auto* m = party->getMember(currentId);
+            if (m) turnName = m->name;
+        }
+        bool isPlayerTurn = party && party->hasMember(currentId);
+
+        char turnMsg[128];
+        if (isPlayerTurn)
+            snprintf(turnMsg, sizeof(turnMsg), "YOUR TURN  —  %s", turnName.c_str());
+        else
+            snprintf(turnMsg, sizeof(turnMsg), "%s's Turn", turnName.c_str());
+
+        float msgW = ImGui::CalcTextSize(turnMsg).x + 32.0f;
+        ImGui::SetNextWindowPos(
+            ImVec2((displaySize.x - msgW) * 0.5f, displaySize.y - 120.0f),
+            ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(msgW, 36.0f), ImGuiCond_Always);
+
+        float pulse = 0.65f + 0.35f * sinf(static_cast<float>(ImGui::GetTime()) * 2.8f);
+        ImVec4 bgCol = isPlayerTurn
+            ? ImVec4(0.1f, 0.35f, 0.1f, pulse)
+            : ImVec4(0.35f, 0.12f, 0.05f, pulse);
+        ImGui::SetNextWindowBgAlpha(bgCol.w);
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, bgCol);
+        ImGui::Begin("##TurnIndicator", nullptr,
+            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_NoMove    | ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs |
+            ImGuiWindowFlags_NoNav);
+
+        ImVec4 textCol = isPlayerTurn
+            ? ImVec4(0.5f, 1.0f, 0.5f, 1.0f)
+            : ImVec4(1.0f, 0.65f, 0.3f, 1.0f);
+        ImGui::PushStyleColor(ImGuiCol_Text, textCol);
+        ImGui::SetCursorPosX(16.0f);
+        ImGui::Text("%s", turnMsg);
+        ImGui::PopStyleColor();
+        ImGui::End();
+        ImGui::PopStyleColor();
+    }
 }
 
 } // namespace Phyxel::UI

@@ -1950,6 +1950,9 @@ void Application::run() {
             renderCoordinator->renderUI();
         }
 
+        // Render D&D Combat HUD (initiative order, HP bars, whose-turn indicator)
+        imguiRenderer->renderCombatHUD(&m_rpgInitiative, &m_rpgParty, entityRegistry.get());
+
         // Render Death overlay
         if (respawnSystem.isPlayerDead()) {
             UI::renderDeathOverlay(respawnSystem.getDeathTimer(),
