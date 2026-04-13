@@ -58,7 +58,7 @@ if configured as a generic MCP server.
 | `PHYXEL_API_URL` | `http://localhost:8090` | Engine HTTP API base URL |
 | `PHYXEL_API_TIMEOUT` | `10` | HTTP request timeout in seconds |
 
-## Available Tools (166 total)
+## Available Tools (182 total)
 
 ### Status & Observation
 
@@ -325,6 +325,51 @@ if configured as a generic MCP server.
 | `configure_ai` | Configure AI provider/model/key |
 | `send_ai_message` | Send message to AI system |
 
+### D&D RPG System
+
+These tools expose the full D&D 5e ruleset layer. See `docs/DnDRPGSystem.md` for architecture details.
+
+**Stateless tools** (no engine required — work even without `phyxel.exe` running):
+
+| Tool | Description |
+|---|---|
+| `roll_dice` | Roll dice using D&D notation (`2d6+3`, `1d20`, etc.). Supports advantage/disadvantage and multi-roll |
+| `check_dc` | Roll 1d20 + bonus vs a DC. Returns pass/fail, margin, natural 20/1 flags |
+
+**Party management**:
+
+| Tool | Description |
+|---|---|
+| `get_party` | Get D&D party state: members, levels, alive status, leader, total/average level |
+| `add_party_member` | Add an entity to the party (entity_id, name, level) |
+| `remove_party_member` | Remove an entity from the party |
+
+**Combat / Initiative**:
+
+| Tool | Description |
+|---|---|
+| `get_combat_state` | Get initiative tracker state: active, round, current entity, full turn order |
+| `start_combat` | Start D&D combat; rolls initiative for each participant using their `initiative_bonus` |
+| `next_combat_turn` | End current turn and advance to next entity in initiative order |
+| `end_combat` | End combat and reset the initiative tracker |
+| `set_initiative` | Manually override an entity's initiative value |
+
+**Fantasy calendar**:
+
+| Tool | Description |
+|---|---|
+| `get_world_date` | Get in-game date: day/month/year, season, moon phase, day of week, holiday info |
+| `advance_world_date` | Advance the calendar by N days |
+| `set_world_date` | Jump to a specific total day number (day 1 = 1st Deepwinter, Year 1) |
+
+**Campaign journal**:
+
+| Tool | Description |
+|---|---|
+| `add_journal_entry` | Add a journal entry (SessionNote / WorldEvent / CharacterEvent / QuestUpdate / Discovery) |
+| `get_journal_entries` | Query journal by type, tag, day number, or full-text search |
+| `remove_journal_entry` | Remove a journal entry by ID |
+
 ### Project Lifecycle
 
 | Tool | Description |
@@ -339,6 +384,38 @@ if configured as a generic MCP server.
 | `list_projects` | List scaffolded game projects |
 | `create_project` | Create new game project |
 | `open_project` | Open project in engine |
+
+### HTTP API: D&D RPG endpoints
+
+All RPG state is accessible directly via the `/api/rpg/<action>` endpoint:
+
+```bash
+# Party
+GET  /api/rpg/party
+POST /api/rpg/party/add       {"entity_id":"hero","name":"Aldric","level":5}
+POST /api/rpg/party/remove    {"entity_id":"hero"}
+POST /api/rpg/party/set_alive {"entity_id":"hero","alive":false}
+
+# Combat / Initiative
+GET  /api/rpg/combat/state
+POST /api/rpg/combat/start    {"participants":[{"entity_id":"hero","initiative_bonus":3},{"entity_id":"goblin","initiative_bonus":1}]}
+POST /api/rpg/combat/next_turn {}
+POST /api/rpg/combat/end      {}
+POST /api/rpg/combat/set_initiative {"entity_id":"hero","value":18}
+
+# Fantasy Calendar
+GET  /api/rpg/world/date
+POST /api/rpg/world/advance_date {"days":7}
+POST /api/rpg/world/set_date     {"total_days":365}
+
+# Campaign Journal
+POST /api/rpg/journal/entries {"type":"QuestUpdate"}        # filter by type
+POST /api/rpg/journal/entries {"tag":"dragon"}              # filter by tag
+POST /api/rpg/journal/entries {"search":"tavern"}           # full-text search
+POST /api/rpg/journal/entries {}                            # all entries
+POST /api/rpg/journal/add     {"title":"Dragon spotted","type":"WorldEvent","tags":["dragon","danger"],"content":"..."}
+POST /api/rpg/journal/remove  {"id":3}
+```
 
 ## Architecture
 

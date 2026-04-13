@@ -421,6 +421,23 @@ Server: `scripts/mcp/phyxel_mcp_server.py` — connects to engine HTTP API at `l
 | `get_ai_status` | Get AI system status |
 | `configure_ai` | Configure AI provider/model/key |
 | `send_ai_message` | Send message to AI system |
+| **D&D RPG System** | |
+| `roll_dice` | Roll dice using D&D notation (2d6+3, 1d20, etc.) with optional advantage/disadvantage. No engine required |
+| `check_dc` | Roll d20 + bonus vs a DC. Returns pass/fail, natural 20/1 detection. No engine required |
+| `get_party` | Get D&D party state: members, levels, alive status, leader, total/average level |
+| `add_party_member` | Add an entity to the D&D party |
+| `remove_party_member` | Remove an entity from the D&D party |
+| `get_combat_state` | Get initiative tracker state: active, round, current entity, full turn order |
+| `start_combat` | Start D&D combat and roll initiative for participants |
+| `next_combat_turn` | Advance to next turn in combat |
+| `end_combat` | End combat and reset initiative tracker |
+| `set_initiative` | Manually set an entity's initiative value |
+| `get_world_date` | Get in-game calendar date: day/month/year, season, moon phase, holidays |
+| `advance_world_date` | Advance the fantasy calendar by N days |
+| `set_world_date` | Set the calendar to a specific total day number |
+| `add_journal_entry` | Add a campaign journal entry (SessionNote, WorldEvent, QuestUpdate, etc.) |
+| `get_journal_entries` | Query journal by type, tag, day, or full-text search |
+| `remove_journal_entry` | Remove a journal entry by ID |
 | **Project Lifecycle** | |
 | `list_projects` | List scaffolded game projects |
 | `create_project` | Create new game project |
@@ -594,6 +611,21 @@ docs/            # Documentation
 - **DynamicObjectManager**: Bullet physics dynamic voxel lifecycle — spawn, update, expire, despawn. Manages full/sub/micro cubes with 300 object cap. Provides active + total count queries
 - **GpuParticlePhysics**: Vulkan compute XPBD particle physics — 5-pass pipeline (grid_clear → grid_build → integrate → collide → expand), 10000 particle cap, sleep/wake system, face-buffer rendering
 - **VoxelManipulationSystem**: Hybrid routing for broken voxels — routes to Bullet (close range, <300 cap) or GPU compute (far range or Bullet full). See `docs/DynamicVoxelPhysics.md`
+- **DiceSystem**: Static D&D dice roller — all standard die types (d4–d100), advantage/disadvantage, expression parsing ("2d6+3"), critical detection, DC checks, seeded RNG
+- **CharacterAttributes**: Six D&D ability scores (STR/DEX/CON/INT/WIS/CHA) with layered modifiers (base/racial/equipment/temporary), initiative/AC/carry helpers
+- **ProficiencySystem**: D&D 18-skill proficiency table, saving throws, passive checks, proficiency bonus by level, half/full/expertise tiers
+- **CharacterSheet / CharacterProgression**: Full character identity — class, race, background, XP, level-up, HP, hit dice, features, ASIs. Classes/races/backgrounds are data-driven JSON in `resources/rpg/`
+- **ActionEconomy / InitiativeTracker**: D&D action/bonus action/reaction economy per turn; initiative order with round tracking, surprise, reaction usage
+- **AttackResolver / ConditionSystem**: Attack rolls (to-hit vs AC), damage rolls with crits, 15 standard conditions (poisoned, stunned, grappled, etc.) with per-tick callbacks
+- **SpellDefinition / SpellcasterComponent / SpellResolver**: Data-driven spell library (JSON), slot-based casting (Warlock Pact included), concentration, area targeting, short/long rest slot recovery
+- **RpgItem / CurrencySystem / AttunementSystem / EncumbranceSystem**: Item stats/rarity/attunement, GP/SP/CP currency, encumbrance with carry limits
+- **ReputationSystem / DialogueSkillCheck / SocialInteractionResolver**: Per-faction reputation tiers (Hostile→Exalted), skill-check gated dialogue choices, social interaction DCs and reputation deltas
+- **RestSystem**: Short rest (spend hit dice, optional caster short-rest recovery) and long rest (full HP, half hit dice restored, spell slot recovery)
+- **WorldClock**: Fantasy calendar — 360-day year, 12 months, 4 seasons, 28-day lunar cycle, day-of-week, named holidays. Syncs with DayNightCycle
+- **Party**: D&D party roster — member add/remove/alive tracking, leader promotion, total/average level, budget calculation helper
+- **LootTable**: Weighted random loot — per-entry weight + independent chance, variable roll counts, registry loaded from JSON in `resources/loot_tables/`
+- **EncounterBuilder**: D&D 5e encounter design — XP budget by party level, monster multipliers, adjusted XP, difficulty evaluation (Easy/Medium/Hard/Deadly), fluent builder API
+- **CampaignJournal**: Session notes, world events, quest updates, discoveries — tag/type/day/full-text filtering, JSON persistence. See `docs/DnDRPGSystem.md`
 
 ## Common Patterns
 
