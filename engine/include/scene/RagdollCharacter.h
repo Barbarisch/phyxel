@@ -3,6 +3,7 @@
 #include "scene/Entity.h"
 #include "physics/PhysicsWorld.h"
 #include "core/HealthComponent.h"
+#include "utils/Logger.h"
 #include <vector>
 #include <string>
 #include <memory>
@@ -23,6 +24,7 @@ struct RagdollPart {
     glm::vec4 color;
     std::string name;
     glm::vec3 offset = glm::vec3(0.0f); // Offset from rigid body center
+    bool active = true;                 // false = derezed, skip rendering
 };
 
 class RagdollCharacter : public Entity {

@@ -386,6 +386,7 @@ bool VoxelManipulationSystem::breakMicrocube(const CubeLocation& location, bool 
     bool isVisible = microcube->isVisible();
     float lifetime = microcube->getLifetime();
     glm::ivec3 parentCubePos = microcube->getParentCubePosition();
+    std::string materialName = microcube->getMaterialName();
     
     // Remove the microcube from chunk
     bool removed = chunk->removeMicrocube(localPos, subcubePos, microcubePos);
@@ -395,7 +396,7 @@ bool VoxelManipulationSystem::breakMicrocube(const CubeLocation& location, bool 
     }
     
     // Create new dynamic microcube for physics
-    auto dynamicMicrocube = std::make_unique<Microcube>(parentCubePos, subcubePos, microcubePos);
+    auto dynamicMicrocube = std::make_unique<Microcube>(parentCubePos, subcubePos, microcubePos, materialName);
     dynamicMicrocube->setVisible(isVisible);
     dynamicMicrocube->setLifetime(lifetime);
     dynamicMicrocube->breakApart(); // Mark as broken

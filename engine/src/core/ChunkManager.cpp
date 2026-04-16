@@ -147,6 +147,10 @@ bool ChunkManager::initializeWorldStorage(const std::string& worldPath) {
     return m_streamingManager.initializeWorldStorage(worldPath);
 }
 
+void ChunkManager::disconnectWorldStorage() {
+    m_streamingManager.disconnectWorldStorage();
+}
+
 void ChunkManager::updateChunkStreaming() {
     m_streamingManager.updateStreaming(playerPosition, loadDistance, unloadDistance);
 }
@@ -537,15 +541,22 @@ static GpuParticlePhysics::SpawnParams makeSpawnParams(
     return sp;
 }
 
+void ChunkManager::updateSmoothedFps(float deltaTime) {
+    if (deltaTime > 0.0f) {
+        float instantFps = 1.0f / deltaTime;
+        // Exponential moving average (alpha ~0.05 = smooth over ~20 frames)
+        m_smoothedFps = m_smoothedFps * 0.95f + instantFps * 0.05f;
+    }
+}
+
 void ChunkManager::addGlobalDynamicSubcube(std::unique_ptr<Subcube> subcube) {
     if (!subcube) return;
 
-    // --- Hybrid routing: Bullet for nearby interactive, GPU for mass debris ---
+    // --- Hybrid routing: prefer Bullet, fall back to GPU when FPS is low ---
     bool useBullet = false;
     if (m_gpuParticles && m_gpuParticles->isInitialized()) {
-        float dist = glm::distance(subcube->getPhysicsPosition(), playerPosition);
         size_t activeBullet = m_dynamicObjectManager.getActiveBulletCount();
-        if (dist <= BULLET_PROXIMITY_RADIUS
+        if (m_smoothedFps >= GPU_FALLBACK_FPS_THRESHOLD
             && activeBullet < DynamicObjectManager::MAX_DYNAMIC_OBJECTS
             && m_frameBreakCount < MAX_BULLET_BREAKS_PER_FRAME) {
             useBullet = true;
@@ -596,13 +607,12 @@ void ChunkManager::clearAllGlobalDynamicSubcubes() {
 void ChunkManager::addGlobalDynamicCube(std::unique_ptr<Cube> cube) {
     if (!cube) return;
 
-    // --- Hybrid routing: Bullet for nearby interactive, GPU for mass debris ---
+    // --- Hybrid routing: prefer Bullet, fall back to GPU when FPS is low ---
     glm::vec3 cubePos = glm::vec3(cube->getPosition()) + glm::vec3(0.5f);
     bool useBullet = false;
     if (m_gpuParticles && m_gpuParticles->isInitialized()) {
-        float dist = glm::distance(cubePos, playerPosition);
         size_t activeBullet = m_dynamicObjectManager.getActiveBulletCount();
-        if (dist <= BULLET_PROXIMITY_RADIUS
+        if (m_smoothedFps >= GPU_FALLBACK_FPS_THRESHOLD
             && activeBullet < DynamicObjectManager::MAX_DYNAMIC_OBJECTS
             && m_frameBreakCount < MAX_BULLET_BREAKS_PER_FRAME) {
             useBullet = true;
@@ -646,7 +656,28 @@ void ChunkManager::clearAllGlobalDynamicCubes() {
 
 void ChunkManager::addGlobalDynamicMicrocube(std::unique_ptr<Microcube> microcube) {
     if (!microcube) return;
+
+    // --- Hybrid routing: prefer Bullet, fall back to GPU when FPS is low ---
+    bool useBullet = false;
     if (m_gpuParticles && m_gpuParticles->isInitialized()) {
+        size_t activeBullet = m_dynamicObjectManager.getActiveBulletCount();
+        if (m_smoothedFps >= GPU_FALLBACK_FPS_THRESHOLD
+            && activeBullet < DynamicObjectManager::MAX_DYNAMIC_OBJECTS
+            && m_frameBreakCount < MAX_BULLET_BREAKS_PER_FRAME) {
+            useBullet = true;
+        }
+    } else {
+        // No GPU system — always Bullet
+        useBullet = true;
+    }
+    ++m_frameBreakCount;
+
+    if (useBullet) {
+        LOG_DEBUG_FMT("ChunkManager", "[MICROCUBE] Adding global dynamic microcube (Bullet) at world position: ("
+                  << microcube->getWorldPosition().x << "," << microcube->getWorldPosition().y << "," << microcube->getWorldPosition().z << ")");
+        globalDynamicMicrocubes.push_back(std::move(microcube));
+        rebuildGlobalDynamicFaces();
+    } else {
         auto sp = makeSpawnParams(
             microcube->getPhysicsPosition(),
             microcube->getMaterialName(),
@@ -657,12 +688,7 @@ void ChunkManager::addGlobalDynamicMicrocube(std::unique_ptr<Microcube> microcub
             if (physicsWorld) physicsWorld->removeCube(rb);
         }
         m_gpuParticles->queueSpawn(sp);
-        return;
     }
-    LOG_DEBUG_FMT("ChunkManager", "[MICROCUBE] Adding global dynamic microcube at world position: ("
-              << microcube->getWorldPosition().x << "," << microcube->getWorldPosition().y << "," << microcube->getWorldPosition().z << ")");
-    globalDynamicMicrocubes.push_back(std::move(microcube));
-    rebuildGlobalDynamicFaces();
 }
 
 void ChunkManager::updateGlobalDynamicMicrocubes(float deltaTime) {

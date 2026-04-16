@@ -93,10 +93,12 @@ public:
     float unloadDistance = 224.0f; // Distance to unload chunks (7 chunks * 32 units)
     glm::vec3 playerPosition = glm::vec3(0.0f); // Player position for streaming
 
-    // Hybrid physics routing: per-frame break counter for Bullet vs GPU decision
+    // Hybrid physics routing: FPS-based Bullet vs GPU fallback
     uint32_t m_frameBreakCount = 0;
     static constexpr uint32_t MAX_BULLET_BREAKS_PER_FRAME = 8;
-    static constexpr float    BULLET_PROXIMITY_RADIUS     = 10.0f;
+    static constexpr float    GPU_FALLBACK_FPS_THRESHOLD  = 30.0f;
+    float m_smoothedFps = 60.0f;  // Exponentially smoothed FPS estimate
+    void updateSmoothedFps(float deltaTime);
     void resetFrameBreakCounter() { m_frameBreakCount = 0; }
     
     ChunkManager() = default;
@@ -122,6 +124,7 @@ public:
     
     // World storage management
     bool initializeWorldStorage(const std::string& worldPath);
+    void disconnectWorldStorage();
     void setPlayerPosition(const glm::vec3& position) { playerPosition = position; }
     
     // Chunk streaming for infinite worlds

@@ -93,7 +93,10 @@ public:
     // Target mode management
     void setTargetMode(TargetMode mode) { m_targetMode = mode; }
     TargetMode getTargetMode() const { return m_targetMode; }
-    void cycleTargetMode();
+    void cycleTargetMode(int direction = 1);  // +1 forward (Cube→Sub→Micro), -1 backward
+
+    /// Place a voxel using the current target mode (cube/subcube/microcube).
+    void placeActiveVoxelAtHover();
 
     // Hover state accessors
     bool hasHoveredCube() const { return m_hasHoveredCube; }

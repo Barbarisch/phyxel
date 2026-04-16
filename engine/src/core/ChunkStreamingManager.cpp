@@ -43,6 +43,15 @@ bool ChunkStreamingManager::initializeWorldStorage(const std::string& worldPath)
     return true;
 }
 
+void ChunkStreamingManager::disconnectWorldStorage() {
+    if (worldStorage) {
+        worldStorage->close();
+        delete worldStorage;
+        worldStorage = nullptr;
+        LOG_INFO("ChunkStreaming", "World storage disconnected");
+    }
+}
+
 void ChunkStreamingManager::updateStreaming(const glm::vec3& playerPosition, float loadDistance, float unloadDistance) {
     if (!worldStorage) return;
     

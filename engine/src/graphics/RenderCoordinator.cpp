@@ -839,6 +839,7 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
                 batch.instanceCount = 0;
 
                 for (const auto* part : parts) {
+                    if (!part->active) continue;
                     CharacterInstanceData data;
                     data.offset = part->offset;
                     data.scale  = part->scale;
@@ -889,7 +890,7 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
 
             const auto& parts = ragdollChar->getParts();
             for (const auto& part : parts) {
-                if (!part.rigidBody) continue;
+                if (!part.rigidBody || !part.active) continue;
 
                 btTransform trans;
                 part.rigidBody->getMotionState()->getWorldTransform(trans);

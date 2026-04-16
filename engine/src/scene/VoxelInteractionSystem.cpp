@@ -534,20 +534,20 @@ glm::ivec3 CubeLocation::getAdjacentPlacementPosition() const {
     return placementPos;
 }
 
-void VoxelInteractionSystem::cycleTargetMode() {
+void VoxelInteractionSystem::cycleTargetMode(int direction) {
+    int current = static_cast<int>(m_targetMode);
+    current = (current + direction % 3 + 3) % 3;
+    m_targetMode = static_cast<TargetMode>(current);
+
+    const char* names[] = {"Cube", "Subcube", "Microcube"};
+    LOG_INFO("VoxelInteractionSystem", "Switched to {} placement mode", names[current]);
+}
+
+void VoxelInteractionSystem::placeActiveVoxelAtHover() {
     switch (m_targetMode) {
-        case TargetMode::Cube:
-            m_targetMode = TargetMode::Subcube;
-            LOG_INFO("VoxelInteractionSystem", "Switched to Subcube placement mode");
-            break;
-        case TargetMode::Subcube:
-            m_targetMode = TargetMode::Microcube;
-            LOG_INFO("VoxelInteractionSystem", "Switched to Microcube placement mode");
-            break;
-        case TargetMode::Microcube:
-            m_targetMode = TargetMode::Cube;
-            LOG_INFO("VoxelInteractionSystem", "Switched to Cube placement mode");
-            break;
+        case TargetMode::Cube:      placeVoxelAtHover();     break;
+        case TargetMode::Subcube:   placeSubcubeAtHover();   break;
+        case TargetMode::Microcube: placeMicrocubeAtHover(); break;
     }
 }
 
