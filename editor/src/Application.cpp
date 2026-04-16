@@ -5731,6 +5731,10 @@ void Application::processAPICommands() {
                 }
 
             } else if (cmd.action == "save_world") {
+                // Re-staticize all dynamic furniture before saving
+                if (dynamicFurnitureManager) {
+                    dynamicFurnitureManager->deactivateAll();
+                }
                 // Save world chunks to SQLite database
                 if (!chunkManager) {
                     response = {{"error", "ChunkManager not available"}};
