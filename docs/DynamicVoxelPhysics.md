@@ -19,7 +19,7 @@ Both systems render through the same dynamic voxel pipeline (see [DynamicSubcube
     └───────────┬─────────────┘
                 │
         ┌───────┴───────┐
-        │ Hybrid Router │ (proximity + cap check)
+        │ Hybrid Router │ (FPS-based fallback)
         ├───────┬───────┤
         ▼       ▼       
    ┌────────┐  ┌──────────┐
@@ -42,13 +42,14 @@ Both systems render through the same dynamic voxel pipeline (see [DynamicSubcube
 
 ## Hybrid Routing
 
-When a voxel breaks, `VoxelManipulationSystem` decides which backend to use:
+When a voxel breaks, `VoxelManipulationSystem` decides which backend to use via **FPS-based fallback** — Bullet is always preferred for its realistic rigid body simulation, and GPU particles are only used when performance demands it:
 
-1. **Distance check**: If the break position is within 10 blocks of the player, prefer Bullet (better visual fidelity at close range).
-2. **Bullet cap check**: If `DynamicObjectManager::getActiveBulletCount() >= MAX_DYNAMIC_OBJECTS` (300), overflow to GPU regardless of distance.
-3. **Otherwise**: Route to GPU compute.
+1. **FPS check**: If the smoothed FPS is at or above the threshold (`GPU_FALLBACK_FPS_THRESHOLD`, default 30 FPS), use Bullet.
+2. **Bullet cap check**: If `DynamicObjectManager::getActiveBulletCount() >= MAX_DYNAMIC_OBJECTS` (300), overflow to GPU regardless of FPS.
+3. **Per-frame budget**: At most `MAX_BULLET_BREAKS_PER_FRAME` (8) new Bullet objects per frame to avoid spikes.
+4. **FPS below threshold**: Route to GPU compute to avoid further frame rate degradation.
 
-This ensures nearby debris has precise OBB collision while distant debris uses the scalable GPU path.
+The smoothed FPS uses an exponential moving average (~20-frame window) to avoid jitter from single-frame spikes. This ensures Bullet physics is used as much as possible for visual fidelity, with GPU particles as a graceful fallback under load.
 
 ## Bullet Physics Path
 

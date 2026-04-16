@@ -19,6 +19,7 @@ Environment variables:
 """
 
 import argparse
+import getpass
 import json
 import os
 import sys
@@ -35,11 +36,60 @@ _tools_path = os.path.join(_repo_root, "tools")
 if _tools_path not in sys.path:
     sys.path.insert(0, _tools_path)
 
-def setup_api_keys():
-    """Propagate PHYXEL_AI_API_KEY to ANTHROPIC_API_KEY if needed."""
+def setup_api_keys(model="anthropic/claude-sonnet-4-20250514", json_mode=False):
+    """Ensure the required API key is set for the chosen model provider.
+
+    Propagates PHYXEL_AI_API_KEY → ANTHROPIC_API_KEY as a convenience alias.
+    If the required key is still missing, prompts the user to enter it
+    interactively (or exits with a clear error in --json mode).
+    """
+    # Convenience alias
     phyxel_key = os.environ.get("PHYXEL_AI_API_KEY")
     if phyxel_key and not os.environ.get("ANTHROPIC_API_KEY"):
         os.environ["ANTHROPIC_API_KEY"] = phyxel_key
+
+    # Determine which env var is needed for the selected provider
+    model_lower = model.lower()
+    if model_lower.startswith("anthropic/"):
+        env_var = "ANTHROPIC_API_KEY"
+        provider = "Anthropic (Claude)"
+    elif model_lower.startswith("gemini/"):
+        env_var = "GEMINI_API_KEY"
+        provider = "Google (Gemini)"
+    elif model_lower.startswith("openai/"):
+        env_var = "OPENAI_API_KEY"
+        provider = "OpenAI"
+    else:
+        # Unknown provider — nothing we can prompt for
+        return
+
+    if os.environ.get(env_var):
+        return  # Key already present, nothing to do
+
+    if json_mode:
+        print(json.dumps({
+            "success": False,
+            "error": f"Missing API key: {env_var} is not set. "
+                     f"Set it in your environment before running in --json mode.",
+        }))
+        sys.exit(1)
+
+    print(f"\n{provider} API key not found (env var: {env_var}).")
+    try:
+        key = getpass.getpass(f"Enter your {provider} API key: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print("\nAborted.")
+        sys.exit(1)
+
+    if not key:
+        print("ERROR: No key entered. Aborting.")
+        sys.exit(1)
+
+    os.environ[env_var] = key
+    # Also set the Phyxel alias so the engine picks it up
+    if env_var == "ANTHROPIC_API_KEY":
+        os.environ["PHYXEL_AI_API_KEY"] = key
+    print(f"Key accepted (session only — set {env_var} in your environment to avoid this prompt).\n")
 
 
 def generate_bbmodel(prompt, model, output_path, system_prompt=None):
@@ -417,7 +467,7 @@ def main():
     else:
         building_resolution = None
 
-    setup_api_keys()
+    setup_api_keys(model=args.model, json_mode=args.json)
 
     os.makedirs(output_dir, exist_ok=True)
 
