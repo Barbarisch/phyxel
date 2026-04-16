@@ -66,6 +66,7 @@ public:
     static constexpr float  ACTIVATION_THRESHOLD   = 0.5f;  ///< Force multiplier threshold
     static constexpr float  BREAK_FORCE_SCALAR     = 50.0f; ///< Contact force to exceed bondStrength * this
     static constexpr int    MIN_FRAGMENT_VOXELS    = 4;     ///< Fragments below this become GPU debris
+    static constexpr float  GRAB_HOLD_DISTANCE    = 3.0f;  ///< Distance in front of camera when holding
 
     DynamicFurnitureManager() = default;
     ~DynamicFurnitureManager();
@@ -103,7 +104,27 @@ public:
                 float contactForce,
                 const glm::vec3& contactPoint);
 
-    /// Per-frame update: sync transforms from Bullet, check sleep for re-staticize.
+    /// Grab an active dynamic furniture object — switches to kinematic mode,
+    /// held in front of the player camera. Only one object can be grabbed at a time.
+    /// @return true if grab succeeded
+    bool grab(const std::string& placedObjectId);
+
+    /// Release the currently grabbed object back to dynamic mode.
+    /// If velocity is near zero, the object will re-staticize after SLEEP_RESTATICIZE_TIME.
+    void releaseGrab();
+
+    /// Throw the grabbed object with an impulse in the given direction.
+    void throwGrab(const glm::vec3& impulse);
+
+    /// Update the grabbed object's position to track the camera.
+    /// Call each frame while an object is grabbed.
+    void updateGrabPosition(const glm::vec3& cameraPos, const glm::vec3& cameraFront);
+
+    /// Is any object currently being grabbed?
+    bool isGrabbing() const { return !m_grabbedObjectId.empty(); }
+
+    /// Get the ID of the currently grabbed object.
+    const std::string& getGrabbedObjectId() const { return m_grabbedObjectId; }
     void update(float dt);
 
     /// Is a placed object currently active as dynamic furniture?
@@ -186,6 +207,7 @@ private:
     GpuParticlePhysics*     m_gpuParticles    = nullptr;
 
     std::unordered_map<std::string, DynamicFurnitureObject> m_active;
+    std::string m_grabbedObjectId;  ///< Currently grabbed object (empty = none)
 };
 
 } // namespace Core

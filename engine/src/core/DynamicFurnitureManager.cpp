@@ -886,5 +886,115 @@ void DynamicFurnitureManager::checkFractureContacts() {
     }
 }
 
+// ============================================================================
+// Grab system — pick up and carry furniture
+// ============================================================================
+
+bool DynamicFurnitureManager::grab(const std::string& placedObjectId) {
+    if (isGrabbing()) {
+        LOG_WARN("DynamicFurniture", "Already grabbing '%s', release first", m_grabbedObjectId.c_str());
+        return false;
+    }
+
+    auto it = m_active.find(placedObjectId);
+    if (it == m_active.end()) return false;
+
+    auto& obj = it->second;
+    if (!obj.rigidBody) return false;
+
+    // Switch to kinematic mode
+    obj.rigidBody->setCollisionFlags(
+        obj.rigidBody->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT);
+    obj.rigidBody->setActivationState(DISABLE_DEACTIVATION);
+    obj.rigidBody->setLinearVelocity(btVector3(0, 0, 0));
+    obj.rigidBody->setAngularVelocity(btVector3(0, 0, 0));
+
+    obj.isGrabbed = true;
+    obj.sleepTimer = 0.0f;
+    m_grabbedObjectId = placedObjectId;
+
+    LOG_INFO("DynamicFurniture", "Grabbed '%s'", placedObjectId.c_str());
+    return true;
+}
+
+void DynamicFurnitureManager::releaseGrab() {
+    if (m_grabbedObjectId.empty()) return;
+
+    auto it = m_active.find(m_grabbedObjectId);
+    if (it != m_active.end()) {
+        auto& obj = it->second;
+        if (obj.rigidBody) {
+            // Switch back to dynamic mode
+            obj.rigidBody->setCollisionFlags(
+                obj.rigidBody->getCollisionFlags() & ~btCollisionObject::CF_KINEMATIC_OBJECT);
+            obj.rigidBody->setActivationState(ACTIVE_TAG);
+            obj.rigidBody->activate(true);
+        }
+        obj.isGrabbed = false;
+        LOG_INFO("DynamicFurniture", "Released '%s'", m_grabbedObjectId.c_str());
+    }
+
+    m_grabbedObjectId.clear();
+}
+
+void DynamicFurnitureManager::throwGrab(const glm::vec3& impulse) {
+    if (m_grabbedObjectId.empty()) return;
+
+    auto it = m_active.find(m_grabbedObjectId);
+    if (it != m_active.end()) {
+        auto& obj = it->second;
+        if (obj.rigidBody) {
+            // Switch back to dynamic first
+            obj.rigidBody->setCollisionFlags(
+                obj.rigidBody->getCollisionFlags() & ~btCollisionObject::CF_KINEMATIC_OBJECT);
+            obj.rigidBody->setActivationState(ACTIVE_TAG);
+            obj.rigidBody->activate(true);
+
+            // Apply throw impulse
+            obj.rigidBody->applyCentralImpulse(btVector3(impulse.x, impulse.y, impulse.z));
+        }
+        obj.isGrabbed = false;
+        LOG_INFO("DynamicFurniture", "Threw '%s' with impulse (%.1f, %.1f, %.1f)",
+                 m_grabbedObjectId.c_str(), impulse.x, impulse.y, impulse.z);
+    }
+
+    m_grabbedObjectId.clear();
+}
+
+void DynamicFurnitureManager::updateGrabPosition(const glm::vec3& cameraPos,
+                                                   const glm::vec3& cameraFront) {
+    if (m_grabbedObjectId.empty()) return;
+
+    auto it = m_active.find(m_grabbedObjectId);
+    if (it == m_active.end()) {
+        m_grabbedObjectId.clear();
+        return;
+    }
+
+    auto& obj = it->second;
+    if (!obj.rigidBody) return;
+
+    // Position object in front of camera
+    glm::vec3 targetPos = cameraPos + cameraFront * GRAB_HOLD_DISTANCE;
+
+    // Update Bullet transform (kinematic mode — we set the motion state)
+    btTransform xform;
+    xform.setIdentity();
+    xform.setOrigin(btVector3(targetPos.x, targetPos.y, targetPos.z));
+
+    if (obj.motionState) {
+        obj.motionState->setWorldTransform(xform);
+    }
+    obj.rigidBody->getMotionState()->setWorldTransform(xform);
+
+    // Update our cached transform
+    obj.currentTransform = glm::translate(glm::mat4(1.0f), targetPos);
+
+    // Update rendering
+    if (m_kinematic) {
+        m_kinematic->setTransform(obj.kineticObjId, obj.currentTransform);
+    }
+}
+
 } // namespace Core
 } // namespace Phyxel

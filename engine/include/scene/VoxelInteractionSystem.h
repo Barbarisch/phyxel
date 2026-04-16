@@ -144,6 +144,9 @@ public:
     /// Set DynamicFurnitureManager for activating furniture on hit.
     void setDynamicFurnitureManager(Core::DynamicFurnitureManager* m) { m_dynamicFurniture = m; }
 
+    /// Get the placed object ID of active dynamic furniture at the crosshair, if any.
+    std::string getActiveFurnitureAtHover() const;
+
     /// Check if the hovered voxel belongs to a placed object and activate it as
     /// dynamic furniture instead of breaking the voxel. Returns true if furniture
     /// was activated (caller should skip normal break).

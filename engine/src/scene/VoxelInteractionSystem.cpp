@@ -575,6 +575,21 @@ bool VoxelInteractionSystem::tryActivateFurnitureAtHover(const glm::vec3& camera
     return activated;
 }
 
+std::string VoxelInteractionSystem::getActiveFurnitureAtHover() const {
+    if (!m_placedObjects || !m_dynamicFurniture) return "";
+    if (!m_hasHoveredCube || !m_currentHoveredLocation.isValid()) return "";
+
+    glm::ivec3 worldPos = m_currentHoveredLocation.worldPos;
+    auto objectIds = m_placedObjects->getAt(worldPos);
+
+    for (const auto& objId : objectIds) {
+        if (m_dynamicFurniture->isActive(objId)) {
+            return objId;
+        }
+    }
+    return "";
+}
+
 void VoxelInteractionSystem::cycleTargetMode(int direction) {
     int current = static_cast<int>(m_targetMode);
     current = (current + direction % 3 + 3) % 3;

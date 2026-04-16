@@ -169,6 +169,7 @@ public:
     Core::NPCManager* getNPCManager() const { return npcManager.get(); }
     Core::InteractionManager* getInteractionManager() const { return interactionManager.get(); }
     UI::DialogueSystem* getDialogueSystem() const { return dialogueSystem.get(); }
+    Core::DynamicFurnitureManager* getDynamicFurnitureManager() const { return dynamicFurnitureManager.get(); }
     UI::SpeechBubbleManager* getSpeechBubbleManager() const { return speechBubbleManager.get(); }
 
 private:

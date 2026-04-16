@@ -2339,6 +2339,12 @@ void Application::update(float deltaTime) {
     // Update dynamic furniture (sync physics transforms, re-staticize on rest)
     if (dynamicFurnitureManager) {
         dynamicFurnitureManager->update(deltaTime);
+        // Update grabbed furniture position to track camera
+        if (dynamicFurnitureManager->isGrabbing() && inputManager) {
+            dynamicFurnitureManager->updateGrabPosition(
+                inputManager->getCameraPosition(),
+                inputManager->getCameraFront());
+        }
     }
 
     // Update dialogue & speech bubbles

@@ -209,8 +209,24 @@ void InputController::setupKeyboardBindings() {
     });
 
     // E - Interact with NPC
-    m_inputManager->registerAction(GLFW_KEY_E, "Interact with NPC", [this]() {
+    m_inputManager->registerAction(GLFW_KEY_E, "Interact / Grab Furniture", [this]() {
+        // If grabbing furniture, release it
+        auto* furnitureMgr = m_app->getDynamicFurnitureManager();
+        if (furnitureMgr && furnitureMgr->isGrabbing()) {
+            furnitureMgr->releaseGrab();
+            return;
+        }
+
+        // Try NPC interaction first
         m_app->interactWithNPC();
+
+        // If no NPC interaction, try grabbing active furniture at crosshair
+        if (furnitureMgr) {
+            std::string furnitureId = m_interactionSystem->getActiveFurnitureAtHover();
+            if (!furnitureId.empty()) {
+                furnitureMgr->grab(furnitureId);
+            }
+        }
     });
 
     // Enter - Advance dialogue (when active, non-AI mode)
@@ -374,6 +390,15 @@ void InputController::setupKeyboardBindings() {
 void InputController::setupMouseBindings() {
     // Left click - Break cube/subcube/microcube (or activate furniture)
     m_inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_LEFT, 0, "Break Voxel", [this]() {
+        // If grabbing furniture, throw it on left click
+        auto* furnitureMgr = m_app->getDynamicFurnitureManager();
+        if (furnitureMgr && furnitureMgr->isGrabbing()) {
+            constexpr float THROW_FORCE = 10.0f;
+            glm::vec3 throwDir = m_inputManager->getCameraFront() * THROW_FORCE;
+            furnitureMgr->throwGrab(throwDir);
+            return;
+        }
+
         // Check if we're hovering over a microcube, subcube, or regular cube
         if (m_interactionSystem->hasHoveredCube()) {
             // Try furniture activation first — if the hovered voxel is part of a
