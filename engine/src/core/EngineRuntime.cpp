@@ -4,6 +4,7 @@
 #include "core/WorldInitializer.h"
 #include "core/AudioSystem.h"
 #include "core/LocationRegistry.h"
+#include "core/SceneManager.h"
 #include "ui/WindowManager.h"
 #include "ui/ImGuiRenderer.h"
 #include "input/InputManager.h"
@@ -108,6 +109,10 @@ bool EngineRuntime::initialize(const EngineConfig& config) {
 
     // Location registry for named world locations
     locationRegistry_ = std::make_unique<Core::LocationRegistry>();
+
+    // Scene manager for multi-scene games
+    sceneManager_ = std::make_unique<Core::SceneManager>();
+    sceneManager_->setWorldsDir(config_.worldsDir);
 
     // Sync InputManager with Camera state
     inputManager_->setCameraPosition(camera_->getPosition());
@@ -265,6 +270,7 @@ Utils::PerformanceMonitor*  EngineRuntime::getPerformanceMonitor()     const { r
 Graphics::Camera*           EngineRuntime::getCamera()                 const { return camera_.get(); }
 Graphics::CameraManager*    EngineRuntime::getCameraManager()          const { return cameraManager_.get(); }
 Core::LocationRegistry*     EngineRuntime::getLocationRegistry()       const { return locationRegistry_.get(); }
+Core::SceneManager*         EngineRuntime::getSceneManager()           const { return sceneManager_.get(); }
 
 } // namespace Core
 } // namespace Phyxel

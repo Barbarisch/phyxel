@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 namespace Phyxel {
 namespace Core {
 
@@ -43,6 +45,19 @@ public:
     /// Clean up game-specific resources here. Core engine subsystems
     /// are still alive at this point.
     virtual void onShutdown() {}
+
+    // ========================================================================
+    // Scene lifecycle (optional — only called for multi-scene games)
+    // ========================================================================
+
+    /// Called after the old scene has been unloaded but before the new one loads.
+    virtual void onSceneUnload(EngineRuntime& /*engine*/, const std::string& /*sceneId*/) {}
+
+    /// Called after a new scene has been loaded and is ready.
+    virtual void onSceneLoad(EngineRuntime& /*engine*/, const std::string& /*sceneId*/) {}
+
+    /// Called once the new scene is fully ready (after all loading + nav rebuild).
+    virtual void onSceneReady(EngineRuntime& /*engine*/, const std::string& /*sceneId*/) {}
 };
 
 } // namespace Core

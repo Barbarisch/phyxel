@@ -8,6 +8,7 @@ set(INTEGRATION_TEST_SOURCES
     IntegrationTestFixture.cpp
     ChunkManagerIntegrationTest.cpp
     PhysicsIntegrationTest.cpp
+    SceneIntegrationTest.cpp
     VulkanIntegrationTest.cpp
 )
 

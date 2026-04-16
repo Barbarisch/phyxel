@@ -1092,6 +1092,75 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // Scene Management API
+    // ====================================================================
+
+    // GET /api/scenes — List all scenes
+    srv.Get("/api/scenes", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("list_scenes", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/scene/active — Get active scene info
+    srv.Get("/api/scene/active", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("get_active_scene", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/scene/transition — Transition to a different scene
+    srv.Post("/api/scene/transition", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("transition_scene", params, 30000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/scene/add — Add a new scene definition
+    srv.Post("/api/scene/add", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("add_scene", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/scene/remove — Remove a scene definition
+    srv.Post("/api/scene/remove", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("remove_scene", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/scene/manifest/save — Save scene manifest to file
+    srv.Post("/api/scene/manifest/save", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::object();
+            if (!req.body.empty()) params = json::parse(req.body);
+            json result = queueAndWait("save_scene_manifest", params, 10000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // GET /api/events — Poll game events (cursor-based)
     // Query: ?since=42  (returns events with id > 42)
     // ====================================================================

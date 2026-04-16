@@ -8,6 +8,7 @@
 #include "core/GameEventLog.h"
 #include "core/HealthComponent.h"
 #include "core/LocationRegistry.h"
+#include "core/PlacedObjectManager.h"
 #include "scene/NPCEntity.h"
 #include "scene/AnimatedVoxelCharacter.h"
 #include "scene/behaviors/ScheduledBehavior.h"
@@ -317,7 +318,20 @@ void GameDefinitionLoader::loadStructures(const json& structures, GameSubsystems
             float z = s["position"].value("z", 0.0f);
             bool isStatic = !s.value("dynamic", false);
 
-            if (sub.templateManager->spawnTemplate(templateName, glm::vec3(x, y, z), isStatic)) {
+            // Use PlacedObjectManager if available for registry tracking
+            bool spawned = false;
+            if (sub.placedObjectManager) {
+                int rot = s.value("rotation", 0);
+                std::string parentId = s.value("parent_id", "");
+                std::string objId = sub.placedObjectManager->placeTemplate(
+                    templateName, glm::ivec3(static_cast<int>(x), static_cast<int>(y), static_cast<int>(z)),
+                    rot, parentId);
+                spawned = !objId.empty();
+            } else {
+                spawned = sub.templateManager->spawnTemplate(templateName, glm::vec3(x, y, z), isStatic);
+            }
+
+            if (spawned) {
                 result.structuresPlaced++;
                 LOG_DEBUG("GameDefinitionLoader", "Template: spawned " + templateName);
             } else {
@@ -336,6 +350,18 @@ void GameDefinitionLoader::loadStructures(const json& structures, GameSubsystems
                 result.structuresPlaced++;
                 LOG_DEBUG("GameDefinitionLoader", stype + ": placed " + std::to_string(placement.placed) +
                           " voxels (" + std::to_string(placement.failed) + " failed)");
+
+                // Register with PlacedObjectManager so it shows in World Outliner
+                if (sub.placedObjectManager && !structure.voxels.empty()) {
+                    glm::ivec3 bboxMin(INT_MAX), bboxMax(INT_MIN);
+                    for (const auto& v : structure.voxels) {
+                        bboxMin = glm::min(bboxMin, v.position);
+                        bboxMax = glm::max(bboxMax, v.position);
+                    }
+                    glm::ivec3 pos = structure.voxels[0].position;
+                    std::string parentId = s.value("parent_id", "");
+                    sub.placedObjectManager->registerStructure(stype, pos, 0, bboxMin, bboxMax, parentId);
+                }
             } else {
                 LOG_WARN("GameDefinitionLoader", "Failed to place " + stype + " structure");
             }
@@ -843,6 +869,44 @@ json GameDefinitionLoader::exportDefinition(const GameSubsystems& subsystems) {
     }
 
     return def;
+}
+
+// ============================================================================
+// Multi-Scene Support
+// ============================================================================
+
+json GameDefinitionLoader::exportMultiSceneDefinition(
+    const SceneManifest& manifest,
+    const std::string& activeSceneId,
+    const GameSubsystems& subsystems)
+{
+    // Start from the manifest's own serialization
+    json def = manifest.toJson();
+    def["name"] = def.value("name", "Exported Game");
+    def["version"] = "1.0";
+
+    // Patch the active scene's definition with live camera/NPC state
+    if (!activeSceneId.empty()) {
+        json liveState = exportDefinition(subsystems);
+        for (auto& sceneDef : def["scenes"]) {
+            if (sceneDef.value("id", "") == activeSceneId) {
+                auto& d = sceneDef["definition"];
+                if (liveState.contains("camera")) d["camera"] = liveState["camera"];
+                if (liveState.contains("npcs"))   d["npcs"]   = liveState["npcs"];
+                if (liveState.contains("story"))  d["story"]  = liveState["story"];
+                break;
+            }
+        }
+    }
+
+    return def;
+}
+
+SceneManifest GameDefinitionLoader::parseManifest(const json& definition) {
+    if (!SceneManifest::isMultiScene(definition)) {
+        return {};
+    }
+    return SceneManifest::fromJson(definition);
 }
 
 } // namespace Core

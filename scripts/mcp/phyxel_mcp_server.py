@@ -643,6 +643,79 @@ async def list_tools() -> list[Tool]:
         ),
 
         # ================================================================
+        # Scene Management
+        # ================================================================
+        Tool(
+            name="list_scenes",
+            description="List all scenes in the loaded scene manifest. Returns scene IDs, names, active status, and whether a transition is in progress.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+        Tool(
+            name="get_active_scene",
+            description="Get detailed information about the currently active scene including ID, name, world database, state, and re-entry data.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+        Tool(
+            name="transition_scene",
+            description="Transition to a different scene. Unloads the current scene (saving dirty chunks, clearing entities/NPCs) and loads the target scene. Player health/inventory/story persist across transitions.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "scene_id": {"type": "string", "description": "ID of the scene to transition to"}
+                },
+                "required": ["scene_id"]
+            }
+        ),
+        Tool(
+            name="add_scene",
+            description="Add a new scene definition to the manifest at runtime. Provide at minimum an 'id' and optionally name, worldDatabase, world generation config, structures, NPCs, etc.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Unique scene identifier"},
+                    "name": {"type": "string", "description": "Display name for the scene"},
+                    "worldDatabase": {"type": "string", "description": "SQLite database filename (e.g. 'dungeon.db')"},
+                    "world": {"type": "object", "description": "World generation config (type, seed, etc.)"},
+                    "structures": {"type": "array", "description": "Structure definitions to build"},
+                    "npcs": {"type": "array", "description": "NPC definitions to spawn"},
+                    "camera": {"type": "object", "description": "Camera position/orientation"},
+                    "player": {"type": "object", "description": "Player spawn config"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="remove_scene",
+            description="Remove a scene definition from the manifest. Cannot remove the currently active scene.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "scene_id": {"type": "string", "description": "ID of the scene to remove"}
+                },
+                "required": ["scene_id"]
+            }
+        ),
+        Tool(
+            name="save_scene_manifest",
+            description="Save the current scene manifest (all scene definitions) to a JSON file. Defaults to 'game.json'.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Output file path (default: 'game.json')"}
+                },
+                "required": []
+            }
+        ),
+
+        # ================================================================
         # Event Polling
         # ================================================================
         Tool(
@@ -3286,6 +3359,32 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         if "all" in args:
             body["all"] = args["all"]
         return await api_post("/api/world/save", body)
+
+    # --- Scene Management ---
+    elif name == "list_scenes":
+        return await api_get("/api/scenes")
+
+    elif name == "get_active_scene":
+        return await api_get("/api/scene/active")
+
+    elif name == "transition_scene":
+        return await api_post("/api/scene/transition", {
+            "scene_id": args["scene_id"]
+        })
+
+    elif name == "add_scene":
+        return await api_post("/api/scene/add", args)
+
+    elif name == "remove_scene":
+        return await api_post("/api/scene/remove", {
+            "scene_id": args["scene_id"]
+        })
+
+    elif name == "save_scene_manifest":
+        body: dict[str, Any] = {}
+        if "path" in args:
+            body["path"] = args["path"]
+        return await api_post("/api/scene/manifest/save", body)
 
     # --- Event Polling ---
     elif name == "poll_events":
