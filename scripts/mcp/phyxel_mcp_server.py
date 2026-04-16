@@ -963,6 +963,21 @@ async def list_tools() -> list[Tool]:
                 "properties": {},
             }
         ),
+        Tool(
+            name="shatter_furniture",
+            description="Shatter an active dynamic furniture object into fragments. Large fragments (>= 4 voxels) become new compound rigid bodies; small fragments become GPU particle debris. Requires the object to be active (use activate_furniture first).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Placed object ID of active dynamic furniture"},
+                    "force": {"type": "number", "description": "Impact force magnitude (default 100.0, must exceed bondStrength * 50)"},
+                    "contact_x": {"type": "number", "description": "Contact point X (world space)"},
+                    "contact_y": {"type": "number", "description": "Contact point Y (world space)"},
+                    "contact_z": {"type": "number", "description": "Contact point Z (world space)"}
+                },
+                "required": ["id"]
+            }
+        ),
 
         # ================================================================
         # Clipboard (copy / paste regions)
@@ -3521,6 +3536,18 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     elif name == "list_dynamic_furniture":
         return await api_get("/api/furniture/list")
+
+    elif name == "shatter_furniture":
+        body = {"id": args["id"]}
+        if "force" in args:
+            body["force"] = args["force"]
+        if "contact_x" in args:
+            body["contact_x"] = args["contact_x"]
+        if "contact_y" in args:
+            body["contact_y"] = args["contact_y"]
+        if "contact_z" in args:
+            body["contact_z"] = args["contact_z"]
+        return await api_post("/api/furniture/shatter", body)
 
     # --- Clipboard ---
     elif name == "copy_region":

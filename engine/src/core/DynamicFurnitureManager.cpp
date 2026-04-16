@@ -3,6 +3,7 @@
 #include "core/PlacedObjectManager.h"
 #include "core/ObjectTemplateManager.h"
 #include "core/VoxelTemplate.h"
+#include "core/GpuParticlePhysics.h"
 #include "physics/PhysicsWorld.h"
 #include "physics/Material.h"
 #include "core/ChunkManager.h"
@@ -12,6 +13,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <algorithm>
+#include <queue>
+#include <cmath>
 
 namespace Phyxel {
 namespace Core {
@@ -215,6 +218,9 @@ bool DynamicFurnitureManager::deactivate(const std::string& placedObjectId, bool
 // ============================================================================
 
 void DynamicFurnitureManager::update(float dt) {
+    // Check for fracture-triggering contacts
+    checkFractureContacts();
+
     std::vector<std::string> toRestaticize;
 
     for (auto& [id, obj] : m_active) {
@@ -570,6 +576,313 @@ void DynamicFurnitureManager::cleanupPhysics(DynamicFurnitureObject& obj) {
     if (obj.compoundShape) {
         delete obj.compoundShape;
         obj.compoundShape = nullptr;
+    }
+}
+
+// ============================================================================
+// Fracture — connected component splitting
+// ============================================================================
+
+std::vector<std::vector<KinematicVoxel>> DynamicFurnitureManager::findConnectedComponents(
+    const std::vector<KinematicVoxel>& voxels,
+    const glm::vec3& contactPoint,
+    float fractureRadius)
+{
+    if (voxels.empty()) return {};
+
+    const size_t n = voxels.size();
+
+    // Mark voxels near the contact point as "severed" (removed bonds)
+    std::vector<bool> severed(n, false);
+    for (size_t i = 0; i < n; ++i) {
+        float dist = glm::length(voxels[i].localPos - contactPoint);
+        if (dist <= fractureRadius) {
+            severed[i] = true;
+        }
+    }
+
+    // Build adjacency: two voxels are adjacent if their centers are within
+    // touching distance (sum of half-scales + small epsilon) and neither is severed.
+    // For efficiency, use spatial hashing.
+    constexpr float ADJ_EPSILON = 0.05f;
+
+    // Spatial hash: bucket by quantized position
+    float maxScale = 0.0f;
+    for (const auto& v : voxels) maxScale = std::max(maxScale, v.scale.x);
+    const float cellSize = maxScale + ADJ_EPSILON;
+    const float invCell = 1.0f / cellSize;
+
+    auto hashPos = [&](const glm::vec3& p) -> uint64_t {
+        int x = static_cast<int>(std::floor(p.x * invCell));
+        int y = static_cast<int>(std::floor(p.y * invCell));
+        int z = static_cast<int>(std::floor(p.z * invCell));
+        return (uint64_t(uint32_t(x)) << 40) ^ (uint64_t(uint32_t(y)) << 20) ^ uint64_t(uint32_t(z));
+    };
+
+    std::unordered_map<uint64_t, std::vector<size_t>> spatialMap;
+    for (size_t i = 0; i < n; ++i) {
+        if (!severed[i]) {
+            spatialMap[hashPos(voxels[i].localPos)].push_back(i);
+        }
+    }
+
+    // BFS to find connected components among non-severed voxels
+    std::vector<int> component(n, -1);
+    int numComponents = 0;
+
+    for (size_t i = 0; i < n; ++i) {
+        if (severed[i] || component[i] >= 0) continue;
+
+        // BFS from voxel i
+        std::queue<size_t> q;
+        q.push(i);
+        component[i] = numComponents;
+
+        while (!q.empty()) {
+            size_t cur = q.front();
+            q.pop();
+
+            const auto& pos = voxels[cur].localPos;
+            float touchDist = voxels[cur].scale.x * 0.5f + maxScale * 0.5f + ADJ_EPSILON;
+
+            // Check neighboring spatial cells
+            for (int dx = -1; dx <= 1; ++dx) {
+                for (int dy = -1; dy <= 1; ++dy) {
+                    for (int dz = -1; dz <= 1; ++dz) {
+                        glm::vec3 probe = pos + glm::vec3(dx, dy, dz) * cellSize;
+                        auto it = spatialMap.find(hashPos(probe));
+                        if (it == spatialMap.end()) continue;
+
+                        for (size_t j : it->second) {
+                            if (component[j] >= 0) continue;
+                            float dist = glm::length(voxels[j].localPos - pos);
+                            float adjDist = (voxels[cur].scale.x + voxels[j].scale.x) * 0.5f + ADJ_EPSILON;
+                            if (dist <= adjDist) {
+                                component[j] = numComponents;
+                                q.push(j);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        ++numComponents;
+    }
+
+    // Collect components + severed voxels as individual fragments
+    std::vector<std::vector<KinematicVoxel>> result(numComponents);
+    for (size_t i = 0; i < n; ++i) {
+        if (component[i] >= 0) {
+            result[component[i]].push_back(voxels[i]);
+        }
+    }
+
+    // Each severed voxel becomes its own 1-voxel fragment
+    for (size_t i = 0; i < n; ++i) {
+        if (severed[i]) {
+            result.push_back({voxels[i]});
+        }
+    }
+
+    return result;
+}
+
+int DynamicFurnitureManager::shatter(const std::string& placedObjectId,
+                                      float contactForce,
+                                      const glm::vec3& contactPoint)
+{
+    auto it = m_active.find(placedObjectId);
+    if (it == m_active.end()) return 0;
+
+    auto& obj = it->second;
+
+    // Check bond strength — use average of all voxel materials
+    Physics::MaterialManager matMgr;
+    const auto& kinObjects = m_kinematic->getObjects();
+    auto kinIt = kinObjects.find(obj.kineticObjId);
+    if (kinIt == kinObjects.end()) return 0;
+
+    const auto& voxels = kinIt->second.voxels;
+    if (voxels.size() < 2) return 0;  // Can't shatter a single voxel
+
+    // Average bond strength
+    float avgBondStrength = 0.0f;
+    for (const auto& v : voxels) {
+        avgBondStrength += matMgr.getMaterial(v.materialName).bondStrength;
+    }
+    avgBondStrength /= static_cast<float>(voxels.size());
+
+    // Check if force exceeds threshold
+    if (contactForce < avgBondStrength * BREAK_FORCE_SCALAR) {
+        return 0;
+    }
+
+    LOG_INFO("DynamicFurniture", "Shattering '%s': force=%.1f, bondStrength=%.2f, threshold=%.1f",
+             placedObjectId.c_str(), contactForce, avgBondStrength,
+             avgBondStrength * BREAK_FORCE_SCALAR);
+
+    // Compute fracture radius based on force vs bond strength
+    float fractureRadius = 0.5f + (contactForce / (avgBondStrength * BREAK_FORCE_SCALAR)) * 0.5f;
+
+    // Transform contact point to local space
+    glm::mat4 invTransform = glm::inverse(obj.currentTransform);
+    glm::vec3 localContact = glm::vec3(invTransform * glm::vec4(contactPoint, 1.0f));
+
+    // Find connected components after severing bonds near contact
+    auto fragments = findConnectedComponents(voxels, localContact, fractureRadius);
+
+    if (fragments.size() <= 1) {
+        LOG_DEBUG("DynamicFurniture", "Shatter produced %zu fragments, not enough to split",
+                  fragments.size());
+        return 0;
+    }
+
+    // Get velocity from current rigid body for fragment inheritance
+    glm::vec3 linearVel(0.0f), angularVel(0.0f);
+    if (obj.rigidBody) {
+        const auto& lv = obj.rigidBody->getLinearVelocity();
+        const auto& av = obj.rigidBody->getAngularVelocity();
+        linearVel = glm::vec3(lv.x(), lv.y(), lv.z());
+        angularVel = glm::vec3(av.x(), av.y(), av.z());
+    }
+
+    // Remove the original object (physics + rendering)
+    cleanupPhysics(obj);
+    m_kinematic->remove(obj.kineticObjId);
+
+    // Save IDs before erasing
+    std::string origId = placedObjectId;
+    glm::mat4 origTransform = obj.currentTransform;
+    m_active.erase(it);
+
+    int fragmentCount = 0;
+
+    for (size_t fi = 0; fi < fragments.size(); ++fi) {
+        auto& fragVoxels = fragments[fi];
+        if (fragVoxels.empty()) continue;
+
+        if (static_cast<int>(fragVoxels.size()) >= MIN_FRAGMENT_VOXELS) {
+            // Large fragment → new compound rigid body
+            if (m_active.size() >= MAX_DYNAMIC_FURNITURE) {
+                evictOldest();
+            }
+
+            std::string fragId = origId + "_frag" + std::to_string(fi);
+
+            DynamicFurnitureObject fragObj;
+            fragObj.placedObjectId = fragId;
+            fragObj.templateName = "";  // Fragment, not a template
+
+            // Build compound shape from fragment voxels
+            float fragMass = 0.0f;
+            fragObj.compoundShape = buildCompoundShape(fragVoxels, fragObj.childShapes, fragMass);
+            fragObj.totalMass = fragMass;
+
+            if (!fragObj.compoundShape) continue;
+
+            // Create dynamic body at the original transform
+            fragObj.rigidBody = createDynamicBody(fragObj.compoundShape, fragMass,
+                                                   origTransform, fragObj.motionState);
+            if (!fragObj.rigidBody) {
+                cleanupPhysics(fragObj);
+                continue;
+            }
+
+            // Inherit velocity + some scatter
+            glm::vec3 fragCenter(0.0f);
+            for (const auto& v : fragVoxels) fragCenter += v.localPos;
+            fragCenter /= static_cast<float>(fragVoxels.size());
+            glm::vec3 scatter = glm::normalize(fragCenter - localContact) * 2.0f;
+
+            fragObj.rigidBody->setLinearVelocity(btVector3(
+                linearVel.x + scatter.x, linearVel.y + scatter.y + 1.0f, linearVel.z + scatter.z));
+            fragObj.rigidBody->setAngularVelocity(btVector3(
+                angularVel.x, angularVel.y, angularVel.z));
+            fragObj.rigidBody->activate(true);
+
+            fragObj.currentTransform = origTransform;
+
+            // Register for rendering
+            fragObj.kineticObjId = m_kinematic->add(fragId, std::move(fragVoxels), origTransform, fragId);
+
+            m_active[fragId] = std::move(fragObj);
+            ++fragmentCount;
+
+        } else if (m_gpuParticles) {
+            // Small fragment → GPU particle debris
+            for (const auto& v : fragVoxels) {
+                glm::vec3 worldPos = glm::vec3(origTransform * glm::vec4(v.localPos, 1.0f));
+                glm::vec3 scatter = glm::normalize(v.localPos - localContact) * 3.0f;
+
+                Phyxel::GpuParticlePhysics::SpawnParams sp;
+                sp.position = worldPos;
+                sp.velocity = linearVel + scatter + glm::vec3(0.0f, 2.0f, 0.0f);
+                sp.scale = v.scale;
+                sp.materialName = v.materialName;
+                sp.lifetime = 5.0f;
+
+                m_gpuParticles->queueSpawn(sp);
+            }
+            ++fragmentCount;
+        }
+    }
+
+    LOG_INFO("DynamicFurniture", "Shatter complete: %zu voxels → %zu fragments → %d created",
+             voxels.size(), fragments.size(), fragmentCount);
+
+    return fragmentCount;
+}
+
+void DynamicFurnitureManager::checkFractureContacts() {
+    if (!m_physicsWorld || !m_physicsWorld->getWorld()) return;
+
+    auto* dispatcher = m_physicsWorld->getWorld()->getDispatcher();
+    int numManifolds = dispatcher->getNumManifolds();
+
+    // Collect shatter requests (can't modify m_active while iterating)
+    struct ShatterRequest {
+        std::string objectId;
+        float force;
+        glm::vec3 contactPoint;
+    };
+    std::vector<ShatterRequest> requests;
+
+    for (int i = 0; i < numManifolds; ++i) {
+        auto* manifold = dispatcher->getManifoldByIndexInternal(i);
+        if (manifold->getNumContacts() == 0) continue;
+
+        const auto* body0 = static_cast<const btRigidBody*>(manifold->getBody0());
+        const auto* body1 = static_cast<const btRigidBody*>(manifold->getBody1());
+
+        // Check if either body belongs to an active furniture object
+        for (auto& [objId, obj] : m_active) {
+            if (obj.rigidBody != body0 && obj.rigidBody != body1) continue;
+
+            // Find the strongest contact impulse
+            float maxImpulse = 0.0f;
+            btVector3 contactPt(0, 0, 0);
+
+            for (int j = 0; j < manifold->getNumContacts(); ++j) {
+                const auto& pt = manifold->getContactPoint(j);
+                float impulse = pt.getAppliedImpulse();
+                if (impulse > maxImpulse) {
+                    maxImpulse = impulse;
+                    contactPt = (obj.rigidBody == body0) ? pt.getPositionWorldOnA()
+                                                          : pt.getPositionWorldOnB();
+                }
+            }
+
+            if (maxImpulse > 0.0f) {
+                requests.push_back({objId, maxImpulse,
+                                     glm::vec3(contactPt.x(), contactPt.y(), contactPt.z())});
+            }
+            break;
+        }
+    }
+
+    // Process shatter requests
+    for (const auto& req : requests) {
+        shatter(req.objectId, req.force, req.contactPoint);
     }
 }
 

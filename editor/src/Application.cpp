@@ -1301,6 +1301,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     dynamicFurnitureManager->setKinematicVoxelManager(kinematicVoxelManager.get());
     dynamicFurnitureManager->setPhysicsWorld(physicsWorld);
     dynamicFurnitureManager->setChunkManager(chunkManager);
+    dynamicFurnitureManager->setGpuParticlePhysics(gpuParticlePhysics.get());
 
     // Wire furniture activation into the voxel interaction system
     voxelInteractionSystem->setPlacedObjectManager(placedObjectManager.get());
@@ -4975,6 +4976,26 @@ static bool handleDynamicFurnitureCommand(
                 arr.push_back(entry);
             }
             response = {{"objects", arr}, {"count", dynamicFurnitureManager->activeCount()}};
+        }
+        return true;
+
+    } else if (cmd.action == "shatter_furniture") {
+        if (!dynamicFurnitureManager) {
+            response = {{"error", "DynamicFurnitureManager not available"}};
+        } else {
+            std::string id = cmd.params.value("id", "");
+            if (id.empty()) {
+                response = {{"error", "Missing 'id' parameter"}};
+            } else {
+                float force = cmd.params.value("force", 100.0f);
+                glm::vec3 contact(
+                    cmd.params.value("contact_x", 0.0f),
+                    cmd.params.value("contact_y", 0.0f),
+                    cmd.params.value("contact_z", 0.0f)
+                );
+                int fragments = dynamicFurnitureManager->shatter(id, force, contact);
+                response = {{"success", fragments > 0}, {"id", id}, {"fragments", fragments}};
+            }
         }
         return true;
     }

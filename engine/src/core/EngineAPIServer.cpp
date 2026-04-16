@@ -1196,6 +1196,19 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(result.dump(), "application/json");
     });
 
+    // POST /api/furniture/shatter — Shatter dynamic furniture into fragments
+    srv.Post("/api/furniture/shatter", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("shatter_furniture", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
     // ====================================================================
     // GET /api/events — Poll game events (cursor-based)
     // Query: ?since=42  (returns events with id > 42)

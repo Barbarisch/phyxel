@@ -15,6 +15,7 @@ namespace Phyxel {
 
 class ObjectTemplateManager;
 class ChunkManager;
+class GpuParticlePhysics;
 
 namespace Physics {
     class PhysicsWorld;
@@ -63,6 +64,8 @@ public:
     static constexpr int    MAX_DYNAMIC_FURNITURE  = 16;
     static constexpr float  SLEEP_RESTATICIZE_TIME = 3.0f;  ///< Seconds at rest before re-staticize
     static constexpr float  ACTIVATION_THRESHOLD   = 0.5f;  ///< Force multiplier threshold
+    static constexpr float  BREAK_FORCE_SCALAR     = 50.0f; ///< Contact force to exceed bondStrength * this
+    static constexpr int    MIN_FRAGMENT_VOXELS    = 4;     ///< Fragments below this become GPU debris
 
     DynamicFurnitureManager() = default;
     ~DynamicFurnitureManager();
@@ -73,6 +76,7 @@ public:
     void setKinematicVoxelManager(KinematicVoxelManager* m)  { m_kinematic       = m; }
     void setPhysicsWorld(Physics::PhysicsWorld* m)           { m_physicsWorld    = m; }
     void setChunkManager(ChunkManager* m)                    { m_chunkManager    = m; }
+    void setGpuParticlePhysics(GpuParticlePhysics* m)        { m_gpuParticles    = m; }
 
     /// Activate a placed object: remove static voxels, create compound rigid body.
     /// @param placedObjectId  ID from PlacedObjectManager
@@ -87,6 +91,17 @@ public:
     /// @param placedObjectId  ID of the active dynamic furniture
     /// @param restoreOriginal If true, place at original position instead of current
     bool deactivate(const std::string& placedObjectId, bool restoreOriginal = false);
+
+    /// Shatter an active dynamic furniture into fragments based on contact force.
+    /// Large fragments (>= MIN_FRAGMENT_VOXELS) become new compound bodies;
+    /// small fragments are routed to GPU particle debris.
+    /// @param placedObjectId  ID of the active dynamic furniture
+    /// @param contactForce    Magnitude of impact force
+    /// @param contactPoint    World-space point of impact
+    /// @return number of fragments created (0 if shatter conditions not met)
+    int shatter(const std::string& placedObjectId,
+                float contactForce,
+                const glm::vec3& contactPoint);
 
     /// Per-frame update: sync transforms from Bullet, check sleep for re-staticize.
     void update(float dt);
@@ -149,6 +164,16 @@ private:
     /// Evict the oldest active object to make room (re-staticize it).
     void evictOldest();
 
+    /// Split voxels into connected components using flood fill.
+    /// Returns a vector of voxel groups (each group is a connected fragment).
+    static std::vector<std::vector<KinematicVoxel>> findConnectedComponents(
+        const std::vector<KinematicVoxel>& voxels,
+        const glm::vec3& contactPoint,
+        float fractureRadius);
+
+    /// Check Bullet contact manifolds for fracture-triggering impacts.
+    void checkFractureContacts();
+
     /// Destroy all Bullet objects for a DynamicFurnitureObject.
     void cleanupPhysics(DynamicFurnitureObject& obj);
 
@@ -158,6 +183,7 @@ private:
     KinematicVoxelManager*  m_kinematic       = nullptr;
     Physics::PhysicsWorld*  m_physicsWorld    = nullptr;
     ChunkManager*           m_chunkManager    = nullptr;
+    GpuParticlePhysics*     m_gpuParticles    = nullptr;
 
     std::unordered_map<std::string, DynamicFurnitureObject> m_active;
 };
