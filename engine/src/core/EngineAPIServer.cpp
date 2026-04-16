@@ -1161,6 +1161,42 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // Dynamic Furniture API
+    // ====================================================================
+
+    // POST /api/furniture/activate — Activate a placed object as dynamic furniture
+    srv.Post("/api/furniture/activate", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("activate_furniture", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/furniture/deactivate — Deactivate dynamic furniture back to static
+    srv.Post("/api/furniture/deactivate", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("deactivate_furniture", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // GET /api/furniture/list — List all active dynamic furniture
+    srv.Get("/api/furniture/list", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("list_dynamic_furniture", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
     // GET /api/events — Poll game events (cursor-based)
     // Query: ?since=42  (returns events with id > 42)
     // ====================================================================

@@ -924,6 +924,47 @@ async def list_tools() -> list[Tool]:
         ),
 
         # ================================================================
+        # Dynamic Furniture
+        # ================================================================
+        Tool(
+            name="activate_furniture",
+            description="Activate a placed object as dynamic furniture. Removes static voxels from chunks and creates a physics-driven compound rigid body that can slide, tumble, and be knocked around. Optionally apply an impulse.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Placed object ID to activate"},
+                    "impulse_x": {"type": "number", "description": "Impulse X component (default 0)"},
+                    "impulse_y": {"type": "number", "description": "Impulse Y component (default 0)"},
+                    "impulse_z": {"type": "number", "description": "Impulse Z component (default 0)"},
+                    "contact_x": {"type": "number", "description": "Contact point X (default 0)"},
+                    "contact_y": {"type": "number", "description": "Contact point Y (default 0)"},
+                    "contact_z": {"type": "number", "description": "Contact point Z (default 0)"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="deactivate_furniture",
+            description="Deactivate dynamic furniture back to static voxels. Places the template back into chunks at the current physics position (quantized to grid), or at the original position if restore_original is true.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Placed object ID to deactivate"},
+                    "restore_original": {"type": "boolean", "description": "If true, restore at original position instead of current (default false)"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="list_dynamic_furniture",
+            description="List all currently active dynamic furniture objects with their physics state (position, mass, sleep timer, grab state).",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+            }
+        ),
+
+        # ================================================================
         # Clipboard (copy / paste regions)
         # ================================================================
         Tool(
@@ -3462,6 +3503,24 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         return await api_get("/api/placed_object/tree", {
             "id": args["id"]
         })
+
+    # --- Dynamic Furniture ---
+    elif name == "activate_furniture":
+        body = {"id": args["id"]}
+        for key in ("impulse_x", "impulse_y", "impulse_z",
+                     "contact_x", "contact_y", "contact_z"):
+            if key in args:
+                body[key] = args[key]
+        return await api_post("/api/furniture/activate", body)
+
+    elif name == "deactivate_furniture":
+        body = {"id": args["id"]}
+        if "restore_original" in args:
+            body["restore_original"] = args["restore_original"]
+        return await api_post("/api/furniture/deactivate", body)
+
+    elif name == "list_dynamic_furniture":
+        return await api_get("/api/furniture/list")
 
     # --- Clipboard ---
     elif name == "copy_region":

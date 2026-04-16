@@ -25,6 +25,10 @@ namespace UI {
     class WindowManager;
 }
 class ForceSystem;
+namespace Core {
+    class PlacedObjectManager;
+    class DynamicFurnitureManager;
+}
 
 /**
  * VoxelInteractionSystem
@@ -134,6 +138,17 @@ public:
     /// Use -INT_MAX (default) to allow all Y values.
     void setMinBreakableY(int y) { m_minBreakableY = y; }
 
+    /// Set PlacedObjectManager for furniture activation detection.
+    void setPlacedObjectManager(Core::PlacedObjectManager* m) { m_placedObjects = m; }
+
+    /// Set DynamicFurnitureManager for activating furniture on hit.
+    void setDynamicFurnitureManager(Core::DynamicFurnitureManager* m) { m_dynamicFurniture = m; }
+
+    /// Check if the hovered voxel belongs to a placed object and activate it as
+    /// dynamic furniture instead of breaking the voxel. Returns true if furniture
+    /// was activated (caller should skip normal break).
+    bool tryActivateFurnitureAtHover(const glm::vec3& cameraPos, const glm::vec3& cameraFront);
+
 private:
     // Dependencies
     ChunkManager* m_chunkManager;
@@ -182,6 +197,10 @@ private:
 
     // NavGrid / NPC callback — fired after any interactive voxel add/remove
     std::function<void(const glm::ivec3&)> m_onVoxelChanged;
+
+    // Dynamic furniture activation
+    Core::PlacedObjectManager*    m_placedObjects   = nullptr;
+    Core::DynamicFurnitureManager* m_dynamicFurniture = nullptr;
 
     // Helper to create interaction context
     InteractionContext createContext() const;

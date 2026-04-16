@@ -1,6 +1,8 @@
 #include "scene/VoxelInteractionSystem.h"
 #include "core/ChunkManager.h"
 #include "core/AssetManager.h"
+#include "core/PlacedObjectManager.h"
+#include "core/DynamicFurnitureManager.h"
 #include "physics/PhysicsWorld.h"
 #include "ui/WindowManager.h"
 #include "core/ForceSystem.h"
@@ -532,6 +534,45 @@ glm::ivec3 CubeLocation::getAdjacentPlacementPosition() const {
               << "), placing at (" << placementPos.x << "," << placementPos.y << "," << placementPos.z << ")");
     
     return placementPos;
+}
+
+bool VoxelInteractionSystem::tryActivateFurnitureAtHover(const glm::vec3& cameraPos,
+                                                          const glm::vec3& cameraFront) {
+    if (!m_placedObjects || !m_dynamicFurniture) return false;
+    if (!m_hasHoveredCube || !m_currentHoveredLocation.isValid()) return false;
+
+    // Check if the hovered voxel belongs to a placed object
+    glm::ivec3 worldPos = m_currentHoveredLocation.worldPos;
+    auto objectIds = m_placedObjects->getAt(worldPos);
+    if (objectIds.empty()) return false;
+
+    // Pick the first placed object found at this position
+    const std::string& objId = objectIds[0];
+
+    // Skip if already active as dynamic furniture
+    if (m_dynamicFurniture->isActive(objId)) return false;
+
+    // Skip objects that aren't template-based (structures are not activatable)
+    const auto* placed = m_placedObjects->get(objId);
+    if (!placed || placed->category != "template") return false;
+
+    // Compute impulse: camera forward direction scaled by a base force
+    constexpr float BASE_HIT_FORCE = 5.0f;
+    glm::vec3 impulse = cameraFront * BASE_HIT_FORCE;
+
+    // Contact point is the ray hit point on the voxel
+    glm::vec3 contactPoint = m_currentHoveredLocation.hitPoint;
+
+    bool activated = m_dynamicFurniture->activate(objId, impulse, contactPoint);
+    if (activated) {
+        LOG_INFO_FMT("VoxelInteraction", "Activated furniture '" << objId
+                     << "' at hit point (" << contactPoint.x << "," << contactPoint.y
+                     << "," << contactPoint.z << ")");
+        if (m_audioSystem) {
+            m_audioSystem->playSound(Core::AssetManager::instance().resolveSound("hit.wav"));
+        }
+    }
+    return activated;
 }
 
 void VoxelInteractionSystem::cycleTargetMode(int direction) {

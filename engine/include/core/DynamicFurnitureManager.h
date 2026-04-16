@@ -114,7 +114,21 @@ private:
     /// Build KinematicVoxel list from a VoxelTemplate (cubes + subcubes + microcubes).
     std::vector<KinematicVoxel> buildVoxelsFromTemplate(const std::string& templateName) const;
 
+    /// A merged axis-aligned box used as a child shape in the compound.
+    struct MergedBox {
+        glm::vec3 center;       ///< Center position (local space)
+        glm::vec3 halfExtents;  ///< Half-extents of the merged box
+        float     mass;         ///< Accumulated mass from merged voxels
+    };
+
+    /// Greedy box merge: group adjacent voxels into larger axis-aligned boxes.
+    /// Reduces child shape count from O(voxels) to O(10-30) for typical furniture.
+    /// Uses a 3D occupancy grid at the finest voxel resolution and sweeps X→Y→Z.
+    static std::vector<MergedBox> mergeVoxelsGreedy(const std::vector<KinematicVoxel>& voxels,
+                                                     const Physics::MaterialManager& matMgr);
+
     /// Build a btCompoundShape from KinematicVoxel positions.
+    /// Uses greedy box merge to minimize child shape count.
     /// Returns the compound shape and populates childShapes vector.
     /// Also computes totalMass from per-voxel materials.
     btCompoundShape* buildCompoundShape(const std::vector<KinematicVoxel>& voxels,

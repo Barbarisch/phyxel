@@ -1302,6 +1302,10 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     dynamicFurnitureManager->setPhysicsWorld(physicsWorld);
     dynamicFurnitureManager->setChunkManager(chunkManager);
 
+    // Wire furniture activation into the voxel interaction system
+    voxelInteractionSystem->setPlacedObjectManager(placedObjectManager.get());
+    voxelInteractionSystem->setDynamicFurnitureManager(dynamicFurnitureManager.get());
+
     // Initialize Interaction Manager
     interactionManager = std::make_unique<Core::InteractionManager>();
     interactionManager->setEntityRegistry(entityRegistry.get());
@@ -4906,7 +4910,76 @@ static bool handlePlacedObjectCommand(
         return true;
     }
 
-    return false; // not handled
+    return false; // not a placed-object command
+}
+
+// Helper: handle dynamic furniture commands (extracted to reduce nesting depth)
+static bool handleDynamicFurnitureCommand(
+    const Core::APICommand& cmd,
+    nlohmann::json& response,
+    Core::DynamicFurnitureManager* dynamicFurnitureManager)
+{
+    if (cmd.action == "activate_furniture") {
+        if (!dynamicFurnitureManager) {
+            response = {{"error", "DynamicFurnitureManager not available"}};
+        } else {
+            std::string id = cmd.params.value("id", "");
+            if (id.empty()) {
+                response = {{"error", "Missing 'id' parameter"}};
+            } else {
+                glm::vec3 impulse(
+                    cmd.params.value("impulse_x", 0.0f),
+                    cmd.params.value("impulse_y", 0.0f),
+                    cmd.params.value("impulse_z", 0.0f)
+                );
+                glm::vec3 contact(
+                    cmd.params.value("contact_x", 0.0f),
+                    cmd.params.value("contact_y", 0.0f),
+                    cmd.params.value("contact_z", 0.0f)
+                );
+                bool ok = dynamicFurnitureManager->activate(id, impulse, contact);
+                response = {{"success", ok}, {"id", id}};
+            }
+        }
+        return true;
+
+    } else if (cmd.action == "deactivate_furniture") {
+        if (!dynamicFurnitureManager) {
+            response = {{"error", "DynamicFurnitureManager not available"}};
+        } else {
+            std::string id = cmd.params.value("id", "");
+            bool restoreOriginal = cmd.params.value("restore_original", false);
+            if (id.empty()) {
+                response = {{"error", "Missing 'id' parameter"}};
+            } else {
+                bool ok = dynamicFurnitureManager->deactivate(id, restoreOriginal);
+                response = {{"success", ok}, {"id", id}};
+            }
+        }
+        return true;
+
+    } else if (cmd.action == "list_dynamic_furniture") {
+        if (!dynamicFurnitureManager) {
+            response = {{"error", "DynamicFurnitureManager not available"}};
+        } else {
+            nlohmann::json arr = nlohmann::json::array();
+            for (const auto& [id, obj] : dynamicFurnitureManager->getActiveObjects()) {
+                nlohmann::json entry;
+                entry["id"] = id;
+                entry["template"] = obj.templateName;
+                entry["mass"] = obj.totalMass;
+                entry["sleep_timer"] = obj.sleepTimer;
+                entry["is_grabbed"] = obj.isGrabbed;
+                glm::vec3 pos(obj.currentTransform[3]);
+                entry["position"] = {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}};
+                arr.push_back(entry);
+            }
+            response = {{"objects", arr}, {"count", dynamicFurnitureManager->activeCount()}};
+        }
+        return true;
+    }
+
+    return false; // not a furniture command
 }
 
 // Helper: handle door management API commands (extracted to avoid nesting depth limit)
@@ -6607,6 +6680,12 @@ void Application::processAPICommands() {
                 // handled
 
             } else if (handlePlacedObjectHierarchyCommands(cmd, response, placedObjectManager.get())) {
+                // handled
+
+            // ================================================================
+            // DYNAMIC FURNITURE COMMANDS (extracted to reduce nesting depth)
+            // ================================================================
+            } else if (handleDynamicFurnitureCommand(cmd, response, dynamicFurnitureManager.get())) {
                 // handled
 
             // ================================================================

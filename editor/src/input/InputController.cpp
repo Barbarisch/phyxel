@@ -372,10 +372,18 @@ void InputController::setupKeyboardBindings() {
 }
 
 void InputController::setupMouseBindings() {
-    // Left click - Break cube/subcube/microcube
+    // Left click - Break cube/subcube/microcube (or activate furniture)
     m_inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_LEFT, 0, "Break Voxel", [this]() {
         // Check if we're hovering over a microcube, subcube, or regular cube
         if (m_interactionSystem->hasHoveredCube()) {
+            // Try furniture activation first — if the hovered voxel is part of a
+            // placed object, convert it to a dynamic physics body instead of breaking.
+            if (m_interactionSystem->tryActivateFurnitureAtHover(
+                    m_inputManager->getCameraPosition(),
+                    m_inputManager->getCameraFront())) {
+                return; // Furniture was activated, skip normal break
+            }
+
             const auto& loc = m_interactionSystem->getCurrentHoveredLocation();
             if (loc.isMicrocube) {
                 // Break microcube
