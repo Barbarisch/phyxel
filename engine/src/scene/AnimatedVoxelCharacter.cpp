@@ -1,11 +1,14 @@
 #include "scene/AnimatedVoxelCharacter.h"
 #include "core/ChunkManager.h"
+#include "core/GpuParticlePhysics.h"
 #include "graphics/RaycastVisualizer.h"
 #include "utils/Logger.h"
 #include <iostream>
 #include <fstream>
 #include <algorithm>
 #include <cmath>
+#include <numeric>
+#include <random>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
@@ -24,7 +27,7 @@ namespace Scene {
 
         // Base class handles cleanup of rigid bodies in 'parts'
         boneBodies.clear();
-        
+
         if (controllerBody) {
             physicsWorld->removeCube(controllerBody);
             controllerBody = nullptr;
@@ -1823,6 +1826,42 @@ namespace Scene {
     void AnimatedVoxelCharacter::update(float deltaTime) {
         m_totalTime += deltaTime;
 
+        // --- Derez drain: spawn voxels whose detach time has arrived ---
+        if (m_derezState && m_derezState->active && m_gpuPhysics) {
+            m_derezState->elapsed += deltaTime;
+            while (m_derezState->nextIdx < m_derezState->queue.size()) {
+                const DerezEntry& entry = m_derezState->queue[m_derezState->nextIdx];
+                if (entry.detachTime > m_derezState->elapsed) break;
+
+                GpuParticlePhysics::SpawnParams sp;
+                sp.position = entry.worldPos;
+                // Small random lateral drift — gravity does the real work
+                float rx = ((rand() % 1000) / 1000.f - 0.5f) * 0.8f;
+                float ry = ((rand() % 1000) / 1000.f - 0.5f) * 0.3f;
+                float rz = ((rand() % 1000) / 1000.f - 0.5f) * 0.8f;
+                sp.velocity    = glm::vec3(rx, ry, rz);
+                sp.scale       = entry.scale;
+                sp.color       = entry.color;
+                sp.lifetime    = 18.0f + (rand() % 120) / 10.f; // 18–30 s
+                m_gpuPhysics->queueSpawn(sp);
+
+                // Mask the voxel from rendering
+                if (entry.partIndex < parts.size()) {
+                    parts[entry.partIndex].active = false;
+                }
+
+                ++m_derezState->nextIdx;
+            }
+            // Freeze controller once all voxels are gone
+            if (m_derezState->nextIdx >= m_derezState->queue.size()) {
+                if (controllerBody) {
+                    controllerBody->setLinearVelocity(btVector3(0, 0, 0));
+                    controllerBody->setAngularVelocity(btVector3(0, 0, 0));
+                }
+            }
+            return; // skip normal animation/physics while derezzing
+        }
+
         // --- Sitting sequence: bypass normal physics movement ---
         // Foot-anchored model: each state snaps worldPosition (= feet) to a fixed point.
         // The animation itself moves the hips/torso — we never lerp worldPosition.
@@ -2697,6 +2736,123 @@ namespace Scene {
             m_raycastVisualizer->addLine(center - glm::vec3(0,r,0), center + glm::vec3(0,r,0), color);
             m_raycastVisualizer->addLine(center - glm::vec3(0,0,r), center + glm::vec3(0,0,r), color);
         }
+    }
+
+    // ---- Derez implementation ----
+
+    void AnimatedVoxelCharacter::beginDerez(Phyxel::GpuParticlePhysics* gpu, float duration,
+                                            DerezPattern pattern) {
+        if (!gpu || parts.empty()) return;
+        if (m_derezState && m_derezState->active) return; // already in progress
+
+        m_gpuPhysics = gpu;
+
+        DerezState state;
+        state.duration = duration;
+        state.active   = true;
+
+        // --- Snapshot world positions for every active voxel ---
+        // Parts share bone bodies; world position = bone_transform * voxel_offset.
+        // Store original partIndex so we can set active=false when the voxel detaches.
+        state.queue.reserve(parts.size());
+
+        glm::vec3 characterCenter = getPosition();
+
+        for (size_t i = 0; i < parts.size(); ++i) {
+            const RagdollPart& part = parts[i];
+            if (!part.active || !part.rigidBody) continue;
+
+            btTransform trans;
+            if (part.rigidBody->getMotionState())
+                part.rigidBody->getMotionState()->getWorldTransform(trans);
+            else
+                trans = part.rigidBody->getWorldTransform();
+
+            btVector3 wp = trans * btVector3(part.offset.x, part.offset.y, part.offset.z);
+
+            DerezEntry entry;
+            entry.worldPos   = glm::vec3(wp.x(), wp.y(), wp.z());
+            entry.scale      = part.scale;
+            entry.color      = part.color;
+            entry.partIndex  = i;
+            entry.detachTime = 0.0f; // assigned below
+            state.queue.push_back(entry);
+        }
+
+        if (state.queue.empty()) return;
+
+        // --- Assign detachTime based on pattern ---
+        const size_t n = state.queue.size();
+        std::vector<size_t> order(n);
+        std::iota(order.begin(), order.end(), 0);
+
+        if (pattern == DerezPattern::Wave) {
+            // Sort by world-Y ascending: lowest voxels (feet) fall first
+            std::sort(order.begin(), order.end(), [&](size_t a, size_t b) {
+                return state.queue[a].worldPos.y < state.queue[b].worldPos.y;
+            });
+        } else if (pattern == DerezPattern::Periphery) {
+            // Sort by distance from character center descending: tips fall first
+            std::sort(order.begin(), order.end(), [&](size_t a, size_t b) {
+                float da = glm::distance(state.queue[a].worldPos, characterCenter);
+                float db = glm::distance(state.queue[b].worldPos, characterCenter);
+                return da > db;
+            });
+        } else {
+            // Random order
+            std::mt19937 rng(static_cast<unsigned>(rand()));
+            std::shuffle(order.begin(), order.end(), rng);
+        }
+
+        // Assign times linearly with ±5% jitter
+        for (size_t rank = 0; rank < n; ++rank) {
+            float base  = (static_cast<float>(rank) / static_cast<float>(n)) * duration;
+            float jitter = ((rand() % 100) / 100.f - 0.5f) * (duration / n) * 0.5f;
+            state.queue[order[rank]].detachTime = glm::max(0.0f, base + jitter);
+        }
+
+        // Sort queue by detachTime so the drain loop is a simple sequential walk
+        std::sort(state.queue.begin(), state.queue.end(), [](const DerezEntry& a, const DerezEntry& b) {
+            return a.detachTime < b.detachTime;
+        });
+
+        // Freeze movement input immediately
+        currentForwardInput = 0.0f;
+        currentTurnInput    = 0.0f;
+        currentStrafeInput  = 0.0f;
+
+        m_derezState = std::move(state);
+
+        LOG_INFO_FMT("AnimatedCharacter", "beginDerez: " << n << " voxels over "
+                     << duration << "s, pattern=" << static_cast<int>(pattern));
+
+        // Freeze all physics bodies so they don't fall under gravity during the effect.
+        // Bodies remain in the physics world so RenderCoordinator can still read their transforms.
+        // Without this, the controller/bone bodies fall ~20m over 2 seconds and accumulate
+        // contact manifolds that can cause a crash when the entity is destroyed.
+        clearSegmentBoxes();
+        for (auto& [boneId, body] : boneBodies) {
+            if (body) {
+                body->setGravity(btVector3(0.0f, 0.0f, 0.0f));
+                body->setLinearVelocity(btVector3(0.0f, 0.0f, 0.0f));
+                body->setAngularVelocity(btVector3(0.0f, 0.0f, 0.0f));
+            }
+        }
+        if (controllerBody) {
+            controllerBody->setGravity(btVector3(0.0f, 0.0f, 0.0f));
+            controllerBody->setLinearVelocity(btVector3(0.0f, 0.0f, 0.0f));
+            controllerBody->setAngularVelocity(btVector3(0.0f, 0.0f, 0.0f));
+        }
+    }
+
+    bool AnimatedVoxelCharacter::isDerezzing() const {
+        return m_derezState.has_value() && m_derezState->active;
+    }
+
+    bool AnimatedVoxelCharacter::isFullyDerezed() const {
+        return m_derezState.has_value()
+            && m_derezState->active
+            && m_derezState->nextIdx >= m_derezState->queue.size();
     }
 
 }
