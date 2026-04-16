@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/Types.h"
 #include <memory>
 #include <vulkan/vulkan.h>
 #include <vector>
@@ -113,6 +114,14 @@ public:
     void renderCombatHUD(Core::InitiativeTracker* tracker,
                          Core::Party*             party,
                          Core::EntityRegistry*    entityRegistry);
+
+    /// Render the always-visible voxel size mode selector (Cube / Subcube / Microcube).
+    /// @param activeMode      Currently selected TargetMode.
+    /// @param modeChangeTimer Seconds since last mode change — drives pop-up label fade (0 = no pop-up).
+    /// @param vpX, vpY        Top-left of viewport area in screen coords (0,0 = use full display).
+    /// @param vpW, vpH        Size of viewport area (0,0 = use full display).
+    void renderVoxelSizeHUD(TargetMode activeMode, float modeChangeTimer = 0.0f,
+                            float vpX = 0, float vpY = 0, float vpW = 0, float vpH = 0);
 
     // Helper for callbacks
     int handleInputTextCallback(struct ::ImGuiInputTextCallbackData* data);

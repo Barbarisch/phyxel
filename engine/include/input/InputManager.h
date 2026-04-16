@@ -70,6 +70,11 @@ public:
     // Scripting Console Mode
     void setScriptingConsoleMode(bool enabled);
     bool isScriptingConsoleMode() const { return scriptingConsoleMode; }
+
+    // Viewport hover state — set by editor each frame so input gating can
+    // distinguish "mouse over the 3D viewport" from "mouse over an ImGui panel".
+    void setViewportHovered(bool hovered) { m_viewportHovered = hovered; }
+    bool isViewportHovered() const { return m_viewportHovered; }
     
     // Instance callback handlers (public for WindowManager delegation)
     void handleMouseMove(double xpos, double ypos);
@@ -101,6 +106,7 @@ private:
     bool firstMouse;
     bool mouseCaptured;
     float mouseSensitivity;
+    bool m_viewportHovered = false;
     
     // Camera movement
     float cameraSpeed;

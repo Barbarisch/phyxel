@@ -1175,6 +1175,138 @@ void ImGuiRenderer::renderInteractionPrompt(bool show, const glm::vec3& npcWorld
 }
 
 // ============================================================================
+// Voxel Size Mode HUD
+// ============================================================================
+
+void ImGuiRenderer::renderVoxelSizeHUD(TargetMode activeMode, float modeChangeTimer,
+                                       float vpX, float vpY, float vpW, float vpH) {
+    if (!m_initialized) return;
+
+    // Use viewport bounds if provided, otherwise fall back to full display
+    ImVec2 areaPos(vpX, vpY);
+    ImVec2 areaSize(vpW, vpH);
+    if (areaSize.x <= 0 || areaSize.y <= 0) {
+        areaPos = ImVec2(0, 0);
+        areaSize = ImGui::GetIO().DisplaySize;
+    }
+
+    // -------------------------------------------------------------------
+    // Persistent 3-slot selector bar — always visible, bottom-centre
+    // -------------------------------------------------------------------
+    struct ModeEntry { TargetMode mode; const char* label; const char* shortLabel; };
+    constexpr ModeEntry modes[3] = {
+        { TargetMode::Cube,      "CUBE",     "C" },
+        { TargetMode::Subcube,   "SUBCUBE",  "S" },
+        { TargetMode::Microcube, "MICROCUBE","M" },
+    };
+
+    const float slotW  = 90.0f;
+    const float slotH  = 28.0f;
+    const float padX   = 6.0f;
+    const float barW   = slotW * 3 + padX * 4;
+    const float barH   = slotH + 10.0f;
+    const float barX   = areaPos.x + (areaSize.x - barW) * 0.5f;
+    const float barY   = areaPos.y + areaSize.y - barH - 8.0f;
+
+    ImGui::SetNextWindowPos(ImVec2(barX, barY), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(barW, barH), ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.72f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padX, 5.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,   ImVec2(padX, 0.0f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.06f, 0.06f, 0.10f, 1.0f));
+
+    ImGui::Begin("##VoxelSizeBar", nullptr,
+        ImGuiWindowFlags_NoTitleBar    | ImGuiWindowFlags_NoResize     |
+        ImGuiWindowFlags_NoMove        | ImGuiWindowFlags_NoCollapse   |
+        ImGuiWindowFlags_NoScrollbar   | ImGuiWindowFlags_NoInputs     |
+        ImGuiWindowFlags_NoNav         | ImGuiWindowFlags_NoSavedSettings);
+
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+
+    for (int i = 0; i < 3; ++i) {
+        bool active = (modes[i].mode == activeMode);
+
+        ImVec2 cursor = ImGui::GetCursorScreenPos();
+        ImVec2 slotMin = cursor;
+        ImVec2 slotMax = ImVec2(cursor.x + slotW, cursor.y + slotH);
+
+        // Active slot: bright filled background; inactive: dim border only
+        if (active) {
+            dl->AddRectFilled(slotMin, slotMax,
+                IM_COL32(50, 160, 255, 200), 4.0f);
+            dl->AddRect(slotMin, slotMax,
+                IM_COL32(140, 210, 255, 255), 4.0f, 0, 1.5f);
+        } else {
+            dl->AddRectFilled(slotMin, slotMax,
+                IM_COL32(30, 30, 45, 160), 4.0f);
+            dl->AddRect(slotMin, slotMax,
+                IM_COL32(80, 80, 100, 180), 4.0f, 0, 1.0f);
+        }
+
+        // Label — centred in slot
+        ImVec4 textCol = active
+            ? ImVec4(1.0f, 1.0f, 1.0f, 1.0f)
+            : ImVec4(0.5f, 0.5f, 0.6f, 1.0f);
+        ImGui::PushStyleColor(ImGuiCol_Text, textCol);
+
+        float textW = ImGui::CalcTextSize(modes[i].label).x;
+        ImGui::SetCursorScreenPos(ImVec2(
+            cursor.x + (slotW - textW) * 0.5f,
+            cursor.y + (slotH - ImGui::GetTextLineHeight()) * 0.5f));
+        ImGui::TextUnformatted(modes[i].label);
+        ImGui::PopStyleColor();
+
+        // Advance cursor manually for next slot (skip on last to avoid extending bounds)
+        if (i < 2) {
+            ImGui::SetCursorScreenPos(ImVec2(slotMax.x + padX, cursor.y));
+        }
+    }
+
+    ImGui::End();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(2);
+
+    // -------------------------------------------------------------------
+    // Mode-change pop-up label — fades over modeChangeTimer seconds
+    // -------------------------------------------------------------------
+    if (modeChangeTimer > 0.0f) {
+        const float popDuration = 1.2f;
+        float alpha = modeChangeTimer / popDuration;  // 1.0 → 0.0 as timer counts down
+
+        const char* modeName = "CUBE";
+        if      (activeMode == TargetMode::Subcube)   modeName = "SUBCUBE";
+        else if (activeMode == TargetMode::Microcube)  modeName = "MICROCUBE";
+
+        char popText[32];
+        snprintf(popText, sizeof(popText), "[ %s ]", modeName);
+
+        float popW = ImGui::CalcTextSize(popText).x * 1.6f + 24.0f;
+        float popH = 36.0f;
+        ImGui::SetNextWindowPos(
+            ImVec2(areaPos.x + (areaSize.x - popW) * 0.5f, barY - popH - 8.0f),
+            ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(popW, popH), ImGuiCond_Always);
+        ImGui::SetNextWindowBgAlpha(0.82f * alpha);
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.1f, 0.25f, 0.55f, 1.0f));
+        ImGui::Begin("##VoxelSizePop", nullptr,
+            ImGuiWindowFlags_NoTitleBar  | ImGuiWindowFlags_NoResize  |
+            ImGuiWindowFlags_NoMove      | ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs  |
+            ImGuiWindowFlags_NoNav       | ImGuiWindowFlags_NoSavedSettings);
+
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, alpha));
+        float tw = ImGui::CalcTextSize(popText).x;
+        ImGui::SetCursorPosX((popW - tw) * 0.5f);
+        ImGui::SetCursorPosY((popH - ImGui::GetTextLineHeight()) * 0.5f);
+        ImGui::TextUnformatted(popText);
+        ImGui::PopStyleColor();
+
+        ImGui::End();
+        ImGui::PopStyleColor();
+    }
+}
+
+// ============================================================================
 // Combat HUD
 // ============================================================================
 
