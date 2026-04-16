@@ -120,7 +120,7 @@ Application::~Application() {
 bool Application::initialize(const std::string& gameDefinitionPath) {
     // STEP 0: LOAD ENGINE CONFIGURATION
     if (!Core::EngineConfig::loadFromFile("engine.json", engineConfig)) {
-        LOG_WARN("Application", "Failed to parse engine.json â€” using defaults");
+        LOG_WARN("Application", "Failed to parse engine.json  --  using defaults");
         engineConfig = Core::EngineConfig{};
     }
 
@@ -306,7 +306,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         chunkManager->rebuildOccupancyFromChunks();
         LOG_INFO("Application", "GpuParticlePhysics initialized successfully!");
     } else {
-        LOG_WARN("Application", "GpuParticlePhysics initialization failed â€” falling back to CPU physics");
+        LOG_WARN("Application", "GpuParticlePhysics initialization failed  --  falling back to CPU physics");
         gpuParticlePhysics.reset();
     }
 
@@ -345,7 +345,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
     // STEP 9.5: INITIALIZE LIGHTWEIGHT AI ENHANCER (bypasses Goose, calls Claude API directly)
     {
-        // Resolve path to ai_enhance.py â€” try engine source tree first, then project scripts dir
+        // Resolve path to ai_enhance.py  --  try engine source tree first, then project scripts dir
         std::string scriptPath;
         for (const auto& candidate : {
             std::string("scripts/ai_enhance.py"),
@@ -379,7 +379,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     jobSystem = std::make_unique<Core::JobSystem>();
     apiServer = std::make_unique<Core::EngineAPIServer>(apiCommandQueue.get(), engineConfig.apiPort, jobSystem.get());
 
-    // Wire up read-only handlers (called directly on HTTP thread â€” must be thread-safe)
+    // Wire up read-only handlers (called directly on HTTP thread  --  must be thread-safe)
     apiServer->setEntityListHandler([this]() -> nlohmann::json {
         return entityRegistry->toJson();
     });
@@ -853,7 +853,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     });
 
     // -----------------------------------------------------------------------
-    // RPG System handler â€” routes /api/rpg/<action> to D&D subsystems
+    // RPG System handler  --  routes /api/rpg/<action> to D&D subsystems
     // -----------------------------------------------------------------------
     apiServer->setRpgHandler([this](const std::string& action, const nlohmann::json& params) -> nlohmann::json {
         using json = nlohmann::json;
@@ -1294,6 +1294,14 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         // NavGrid rebuild is already done inside DoorManager::onSettle()
     });
 
+    // Initialize Dynamic Furniture Manager
+    dynamicFurnitureManager = std::make_unique<Core::DynamicFurnitureManager>();
+    dynamicFurnitureManager->setPlacedObjectManager(placedObjectManager.get());
+    dynamicFurnitureManager->setObjectTemplateManager(objectTemplateManager.get());
+    dynamicFurnitureManager->setKinematicVoxelManager(kinematicVoxelManager.get());
+    dynamicFurnitureManager->setPhysicsWorld(physicsWorld);
+    dynamicFurnitureManager->setChunkManager(chunkManager);
+
     // Initialize Interaction Manager
     interactionManager = std::make_unique<Core::InteractionManager>();
     interactionManager->setEntityRegistry(entityRegistry.get());
@@ -1485,12 +1493,12 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     if (apiServer->start()) {
         LOG_INFO("Application", "Engine HTTP API available at http://localhost:{}/api/status", engineConfig.apiPort);
     } else {
-        LOG_ERROR("Application", "Failed to start HTTP API server on port {} â€” another engine instance may already be running.", engineConfig.apiPort);
+        LOG_ERROR("Application", "Failed to start HTTP API server on port {}  --  another engine instance may already be running.", engineConfig.apiPort);
 #ifdef _WIN32
         std::string msg = "Cannot start the engine API server on port " + std::to_string(engineConfig.apiPort)
             + ".\n\nAnother instance of the Phyxel engine is likely already running.\n"
             "Please close the other instance and try again.";
-        MessageBoxA(nullptr, msg.c_str(), "Phyxel â€” Port Conflict", MB_OK | MB_ICONERROR);
+        MessageBoxA(nullptr, msg.c_str(), "Phyxel  --  Port Conflict", MB_OK | MB_ICONERROR);
 #endif
         return false;
     }
@@ -1534,9 +1542,18 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     m_propertiesPanel->setVoxelInteraction(voxelInteractionSystem.get());
     m_propertiesPanel->setEntityRegistry(entityRegistry.get());
     m_propertiesPanel->setPlacedObjectManager(placedObjectManager.get());
+    m_propertiesPanel->setNPCManager(npcManager.get());
 
     // Create the world outliner panel
     m_worldOutliner = std::make_unique<Editor::WorldOutlinerPanel>();
+
+    // Create the camera management panel
+    m_cameraPanel = std::make_unique<Editor::CameraPanel>();
+    m_cameraPanel->setCameraManager(cameraManager);
+    m_cameraPanel->setCamera(camera);
+    m_cameraPanel->setEntityRegistry(entityRegistry.get());
+    m_cameraPanel->setInputManager(inputManager);
+
     m_worldOutliner->setEntityRegistry(entityRegistry.get());
     m_worldOutliner->setNPCManager(npcManager.get());
     m_worldOutliner->setPlacedObjectManager(placedObjectManager.get());
@@ -1711,7 +1728,7 @@ void Application::applyProjectSelection(const std::string& projectPath) {
             chunkManager->initializeAllChunkVoxelMaps();
             LOG_INFO("Application", "Loaded {} chunk(s) from project world database", loaded.size());
         } else {
-            LOG_INFO("Application", "Project world database is empty â€” world will be built from game.json");
+            LOG_INFO("Application", "Project world database is empty  --  world will be built from game.json");
         }
     }
 
@@ -1755,7 +1772,7 @@ void Application::run() {
 
         timer->update();
         
-        // Always process API commands (even during launcher â€” enables MCP project management)
+        // Always process API commands (even during launcher  --  enables MCP project management)
         processAPICommands();
 
         // Process deferred file open (set by File > Open menu, must run before rendering)
@@ -1804,6 +1821,9 @@ void Application::run() {
 
         {
             ScopedTimer inputTimer(*performanceProfiler, "input");
+            // Feed viewport hover state to InputManager so it can gate mouse/keyboard
+            inputManager->setViewportHovered(m_viewportHovered);
+
             if (!uiConsumedInput) {
                 handleInput();
             } else {
@@ -1843,23 +1863,51 @@ void Application::run() {
             ImGuiID dockSpaceId = ImGui::GetID("EditorDockSpace");
             ImGui::DockSpace(dockSpaceId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
             
+            // Handle layout reset request from View menu
+            if (m_needsLayoutReset) {
+                m_dockLayoutInitialized = false;
+                m_needsLayoutReset = false;
+            }
+
             // Set up default layout on first run
             setupDefaultDockLayout(dockSpaceId);
             
             ImGui::End();
-            
+
+            // Status bar at bottom of window
+            renderStatusBar();
+
             // Render 3D viewport as a dockable window
             renderDockableViewport();
             
+            // Render world outliner panel (before Properties so selection is fresh)
+            if (m_worldOutliner && m_showWorldOutliner) {
+                m_worldOutliner->render(&m_showWorldOutliner);
+            }
+
+            // Pipe World Outliner selection into Properties panel
+            if (m_propertiesPanel && m_worldOutliner) {
+                const auto& sel = m_worldOutliner->selectedId();
+                if (sel.empty()) {
+                    m_propertiesPanel->clearSelection();
+                } else if (sel.rfind("npc:", 0) == 0) {
+                    m_propertiesPanel->setSelection(Editor::SelectionType::NPC, sel.substr(4));
+                } else if (sel.rfind("po:", 0) == 0) {
+                    m_propertiesPanel->setSelection(Editor::SelectionType::PlacedObject, sel.substr(3));
+                } else {
+                    m_propertiesPanel->setSelection(Editor::SelectionType::Entity, sel);
+                }
+            }
+
             // Render properties inspector panel
             if (m_propertiesPanel && m_showProperties) {
                 m_propertiesPanel->setCameraState(camera->getPosition(), camera->getFront());
                 m_propertiesPanel->render(&m_showProperties);
             }
 
-            // Render world outliner panel
-            if (m_worldOutliner && m_showWorldOutliner) {
-                m_worldOutliner->render(&m_showWorldOutliner);
+            // Render camera management panel
+            if (m_cameraPanel && m_showCameraPanel) {
+                m_cameraPanel->render(&m_showCameraPanel);
             }
 
 #ifdef _WIN32
@@ -1914,7 +1962,15 @@ void Application::run() {
             voxelInteractionSystem->hasHoveredCube() ? glm::vec3(voxelInteractionSystem->getCurrentHoveredLocation().worldPos) : glm::vec3(0.0f),
             flags.manualForceValue
         );
-        
+
+        // Voxel size mode HUD (persistent indicator + fade label on change)
+        if (voxelInteractionSystem && inputController) {
+            imguiRenderer->renderVoxelSizeHUD(
+                voxelInteractionSystem->getTargetMode(),
+                inputController->getModeChangeTimer(),
+                m_viewportPosX, m_viewportPosY, m_viewportSizeW, m_viewportSizeH);
+        }
+
         // Render AI Stats overlay (inside performance overlay toggle)
         if (showPerformanceOverlay && aiConversationService) {
             if (auto* client = aiConversationService->getLLMClient()) {
@@ -1953,9 +2009,6 @@ void Application::run() {
 
         // Render Character Customizer
         renderCharacterCustomizer();
-
-        // Render Animated Character inspector
-        renderAnimatedCharPanel();
 
         // Render Interaction Point Tuner
         renderInteractionTuner();
@@ -2140,7 +2193,7 @@ void Application::cleanup() {
     objectTemplateManager.reset();
     inputController.reset();
     
-    // Clear entities BEFORE physics cleanup â€” they hold raw pointers to physics bodies
+    // Clear entities BEFORE physics cleanup  --  they hold raw pointers to physics bodies
     entities.clear();
     player = nullptr;
     physicsCharacter = nullptr;
@@ -2278,6 +2331,11 @@ void Application::update(float deltaTime) {
         doorManager->update(deltaTime);
     }
 
+    // Update dynamic furniture (sync physics transforms, re-staticize on rest)
+    if (dynamicFurnitureManager) {
+        dynamicFurnitureManager->update(deltaTime);
+    }
+
     // Update dialogue & speech bubbles
     if (dialogueSystem) dialogueSystem->update(deltaTime);
     if (speechBubbleManager) speechBubbleManager->update(deltaTime);
@@ -2293,6 +2351,23 @@ void Application::update(float deltaTime) {
         // If animated character just finished standing up, release its seat claim
         if (wasAnimCharSitting && animatedCharacter && !animatedCharacter->isSitting()) {
             if (interactionManager) interactionManager->releaseSeat("player");
+        }
+
+        // Remove character once all its voxels have been derezed
+        if (animatedCharacter && animatedCharacter->isFullyDerezed()) {
+            LOG_INFO("Application", "Derez complete - removing character from scene");
+            // Unregister from entity registry BEFORE erasing the entity, so nothing
+            // (e.g. WorldOutliner) can dereference the dangling pointer after deletion.
+            if (entityRegistry) {
+                std::string entityId = entityRegistry->getEntityId(animatedCharacter);
+                if (!entityId.empty()) entityRegistry->unregisterEntity(entityId);
+            }
+            auto it = std::remove_if(entities.begin(), entities.end(),
+                [this](const std::unique_ptr<Scene::Entity>& e) {
+                    return e.get() == animatedCharacter;
+                });
+            if (it != entities.end()) entities.erase(it, entities.end());
+            animatedCharacter = nullptr;
         }
     }
 
@@ -2474,7 +2549,7 @@ void Application::update(float deltaTime) {
         chunkManager->resetFrameBreakCounter();
         // Update player position for hybrid Bullet/GPU proximity routing
         if (camera) chunkManager->setPlayerPosition(camera->getPosition());
-        // Bullet dynamic object update â€” always runs in hybrid mode since
+        // Bullet dynamic object update  --  always runs in hybrid mode since
         // nearby cubes use Bullet while mass debris uses GPU particles.
         chunkManager->m_dynamicObjectManager.updateAllDynamicObjects(deltaTime);
     }
@@ -2689,20 +2764,20 @@ void Application::handleInput() {
         
         float moveMagnitude = isSprinting ? 1.0f : 0.5f;
 
-        if (inputManager->isKeyPressed(GLFW_KEY_W) || inputManager->isKeyPressed(GLFW_KEY_UP)) forward -= moveMagnitude;
-        if (inputManager->isKeyPressed(GLFW_KEY_S) || inputManager->isKeyPressed(GLFW_KEY_DOWN)) forward += moveMagnitude;
-        
+        if (inputManager->isKeyPressed(GLFW_KEY_W)) forward -= moveMagnitude;
+        if (inputManager->isKeyPressed(GLFW_KEY_S)) forward += moveMagnitude;
+
         // A/D for Turn (if controlling AnimatedCharacter)
         if (currentControlTarget == ControlTarget::AnimatedCharacter) {
-            if (inputManager->isKeyPressed(GLFW_KEY_A) || inputManager->isKeyPressed(GLFW_KEY_LEFT)) turn -= 1.0f;
-            if (inputManager->isKeyPressed(GLFW_KEY_D) || inputManager->isKeyPressed(GLFW_KEY_RIGHT)) turn += 1.0f;
-            
+            if (inputManager->isKeyPressed(GLFW_KEY_A)) turn -= 1.0f;
+            if (inputManager->isKeyPressed(GLFW_KEY_D)) turn += 1.0f;
+
             // Q for Strafe left (E reserved for NPC interaction)
             if (inputManager->isKeyPressed(GLFW_KEY_Q)) strafe -= moveMagnitude;
         } else {
             // Standard Tank Controls for others
-            if (inputManager->isKeyPressed(GLFW_KEY_A) || inputManager->isKeyPressed(GLFW_KEY_LEFT)) turn -= 1.0f;
-            if (inputManager->isKeyPressed(GLFW_KEY_D) || inputManager->isKeyPressed(GLFW_KEY_RIGHT)) turn += 1.0f;
+            if (inputManager->isKeyPressed(GLFW_KEY_A)) turn -= 1.0f;
+            if (inputManager->isKeyPressed(GLFW_KEY_D)) turn += 1.0f;
         }
 
         if (currentControlTarget == ControlTarget::Spider && spiderCharacter) {
@@ -3293,7 +3368,7 @@ void Application::toggleRaycastVisualization() {
     }
 }
 
-void Application::cycleRaycastTargetMode() {
+void Application::cycleRaycastTargetMode(int direction) {
     if (voxelInteractionSystem) {
         voxelInteractionSystem->cycleTargetMode();
         
@@ -3540,73 +3615,37 @@ void Application::setControlTarget(const std::string& targetName) {
     LOG_INFO("Application", "Control target set to: " + targetName);
 }
 
-void Application::derezCharacter(float explosionStrength) {
-    Scene::RagdollCharacter* derezTarget = nullptr;
-    if (animatedCharacter) {
-        derezTarget = animatedCharacter;
+void Application::derezCharacter(float duration) {
+    if (!animatedCharacter) {
+        LOG_WARN("Application", "Cannot derez: no animated character");
+        return;
     }
-    if (derezTarget && chunkManager) {
-        LOG_INFO("Application", "Triggering derez on animated character");
+    if (animatedCharacter->isDerezzing()) {
+        LOG_WARN("Application", "Cannot derez: character is already derezzing");
+        return;
+    }
 
-        // 1. Spawn debris â€” GPU path preferred, CPU Verlet/Bullet path as fallback
-        if (gpuParticlePhysics && gpuParticlePhysics->isInitialized()) {
-            const auto& parts = derezTarget->getParts();
-            int spawnedCount = 0;
-            for (const auto& part : parts) {
-                if (!part.rigidBody) continue;
-                btTransform trans;
-                if (part.rigidBody->getMotionState())
-                    part.rigidBody->getMotionState()->getWorldTransform(trans);
-                else
-                    trans = part.rigidBody->getWorldTransform();
-                btVector3 worldPos = trans * btVector3(part.offset.x, part.offset.y, part.offset.z);
-                btVector3 vel      = part.rigidBody->getLinearVelocity();
-                btVector3 angVel   = part.rigidBody->getAngularVelocity();
-                btQuaternion rot   = trans.getRotation();
+    LOG_INFO("Application", "Beginning derez on animated character");
 
-                float randX = ((rand() % 100) / 100.0f - 0.5f) * 4.0f * explosionStrength;
-                float randY = (((rand() % 100) / 100.0f) * 4.0f + 2.0f) * explosionStrength;
-                float randZ = ((rand() % 100) / 100.0f - 0.5f) * 4.0f * explosionStrength;
-
-                GpuParticlePhysics::SpawnParams sp;
-                sp.position    = glm::vec3(worldPos.x(), worldPos.y(), worldPos.z());
-                sp.velocity    = glm::vec3(vel.x() + randX, vel.y() + randY, vel.z() + randZ);
-                sp.angularVel  = glm::vec3(angVel.x(), angVel.y(), angVel.z());
-                sp.rotation    = glm::quat(rot.w(), rot.x(), rot.y(), rot.z());
-                sp.scale       = part.scale;
-                sp.color       = part.color;
-                sp.materialName = "Default";
-                sp.lifetime    = 25.0f + (rand() % 100) / 10.0f; // 25-35s
-                gpuParticlePhysics->queueSpawn(sp);
-                ++spawnedCount;
-            }
-            LOG_INFO_FMT("Application", "Derez spawned " << spawnedCount << " GPU particles");
-        } else {
-            chunkManager->m_dynamicObjectManager.derezCharacter(derezTarget, explosionStrength);
-        }
-        
-        // 2. Remove character from entities list
-        // Find and remove the unique_ptr that matches animatedCharacter
-        auto it = std::remove_if(entities.begin(), entities.end(), 
-            [derezTarget](const std::unique_ptr<Scene::Entity>& entity) {
-                return entity.get() == derezTarget;
-            });
-            
-        if (it != entities.end()) {
-            entities.erase(it, entities.end());
-            LOG_INFO("Application", "Character removed from scene");
-        }
-        
-        // 3. Clear the pointer
-        animatedCharacter = nullptr;
-        
-        // If we were controlling it, switch control
-        if (currentControlTarget == ControlTarget::AnimatedCharacter) {
-            toggleCharacterControl(); // Switch to next available
-        }
+    if (gpuParticlePhysics && gpuParticlePhysics->isInitialized()) {
+        // GPU path: staggered voxel-by-voxel falling apart
+        animatedCharacter->beginDerez(gpuParticlePhysics.get(), duration,
+                                      Scene::DerezPattern::Wave);
     } else {
-        LOG_WARN("Application", "Cannot derez: No animated character or chunk manager");
+        // Fallback: instant CPU debris if GPU physics not available
+        if (chunkManager)
+            chunkManager->m_dynamicObjectManager.derezCharacter(animatedCharacter, 1.0f);
+        auto it = std::remove_if(entities.begin(), entities.end(),
+            [this](const std::unique_ptr<Scene::Entity>& e) {
+                return e.get() == animatedCharacter;
+            });
+        if (it != entities.end()) entities.erase(it, entities.end());
+        animatedCharacter = nullptr;
     }
+
+    // Release player control immediately
+    if (currentControlTarget == ControlTarget::AnimatedCharacter)
+        toggleCharacterControl();
 }
 
 void Application::spawnTestAINPC() {
@@ -3668,7 +3707,7 @@ void Application::toggleAISystem() {
 }
 
 void Application::interactWithNPC() {
-    LOG_WARN("Application", "interactWithNPC() called â€” E key pressed");
+    LOG_WARN("Application", "interactWithNPC() called  --  E key pressed");
     if (!interactionManager) { LOG_WARN("Application", "  -> no interactionManager"); return; }
 
     // If dialogue is already active, advance it instead of starting new interaction
@@ -3728,7 +3767,7 @@ void Application::autoLoadGameDefinition() {
         nlohmann::json gameDef = nlohmann::json::parse(f);
 
         // If chunks were already loaded from the database (pre-baked world),
-        // skip world generation from the definition â€” it would overwrite the
+        // skip world generation from the definition  --  it would overwrite the
         // pre-existing terrain and is very slow.
         if (gameDef.contains("world") && chunkManager && !chunkManager->chunks.empty()) {
             LOG_INFO("Application", "Skipping world generation - {} chunks already loaded from database", chunkManager->chunks.size());
@@ -3740,6 +3779,7 @@ void Application::autoLoadGameDefinition() {
         subsystems.npcManager       = npcManager.get();
         subsystems.entityRegistry   = entityRegistry.get();
         subsystems.templateManager  = objectTemplateManager.get();
+        subsystems.placedObjectManager = placedObjectManager.get();
         subsystems.gameEventLog     = gameEventLog.get();
         subsystems.locationRegistry = locationRegistry;
         subsystems.camera           = camera;
@@ -3791,19 +3831,19 @@ void Application::autoLoadGameDefinition() {
                 inputManager->setYawPitch(camera->getYaw(), camera->getPitch());
             }
 
-            // If a player was spawned, switch to third-person camera and character control
-            if (result.playerSpawned && camera) {
-                camera->setMode(Graphics::CameraMode::ThirdPerson);
+            // If a player was spawned, set up character control but keep camera in Free mode
+            // (user can switch to ThirdPerson with V)
+            if (result.playerSpawned) {
                 if (animatedCharacter) {
                     currentControlTarget = ControlTarget::AnimatedCharacter;
                     isControllingPhysicsCharacter = false;
                     camera->setDistanceFromTarget(4.0f);
-                    LOG_INFO("Application", "Camera set to ThirdPerson following animated player");
+                    LOG_INFO("Application", "Player spawned (AnimatedCharacter) — camera stays Free, press V to follow");
                 } else if (physicsCharacter) {
                     currentControlTarget = ControlTarget::PhysicsCharacter;
                     isControllingPhysicsCharacter = true;
                     physicsCharacter->setControlActive(true);
-                    LOG_INFO("Application", "Camera set to ThirdPerson following physics player");
+                    LOG_INFO("Application", "Player spawned (PhysicsCharacter) — camera stays Free, press V to follow");
                 }
             }
         } else {
@@ -5028,7 +5068,7 @@ void Application::processAPICommands() {
 
             // Handle subcube/microcube commands via helper (avoids nesting depth limit)
             if (handleSubcubeMicrocubeCommand(cmd, response, chunkManager, npcManager.get())) {
-                // handled â€” skip to promise fulfillment below
+                // handled  --  skip to promise fulfillment below
             } else if (cmd.action == "spawn_entity") {
                 // Required: "type" (physics/spider/animated), "position" {x,y,z}
                 // Optional: "id", "animFile"
@@ -5180,7 +5220,7 @@ void Application::processAPICommands() {
                 }
 
             } else if (cmd.action == "fill_region") {
-                // Fill a 3D box with voxels â€” batched per-chunk for performance
+                // Fill a 3D box with voxels  --  batched per-chunk for performance
                 if (!chunkManager) {
                     response = {{"error", "ChunkManager not available"}};
                 } else {
@@ -5326,7 +5366,7 @@ void Application::processAPICommands() {
                 }
 
             } else if (cmd.action == "clear_region") {
-                // Clear (remove) all voxels in a 3D box â€” batched per-chunk for performance
+                // Clear (remove) all voxels in a 3D box  --  batched per-chunk for performance
                 if (!chunkManager) {
                     response = {{"error", "ChunkManager not available"}};
                 } else {
@@ -5520,6 +5560,7 @@ void Application::processAPICommands() {
                             subsystems.npcManager = npcManager.get();
                             subsystems.entityRegistry = entityRegistry.get();
                             subsystems.templateManager = objectTemplateManager.get();
+                            subsystems.placedObjectManager = placedObjectManager.get();
                             subsystems.gameEventLog = gameEventLog.get();
                             subsystems.locationRegistry = locationRegistry;
                             subsystems.camera = camera;
@@ -6518,7 +6559,7 @@ void Application::processAPICommands() {
                     // Restore the redo state
                     auto [placed, failed] = placeVoxelEntries(chunkManager, redoSnap.voxels, redoSnap.min);
 
-                    // Push current to undo (without clearing redo â€” special push)
+                    // Push current to undo (without clearing redo  --  special push)
                     snapshotManager->pushUndoOnly(std::move(current));
 
                     response = {{"success", true}, {"operation", redoSnap.name},
@@ -6604,7 +6645,7 @@ void Application::processAPICommands() {
                 if (!chunkManager || !snapshotManager) {
                     response = {{"error", "ChunkManager or SnapshotManager not available"}};
                 } else if (!snapshotManager->hasClipboard()) {
-                    response = {{"error", "Clipboard is empty â€” use copy_region first"}};
+                    response = {{"error", "Clipboard is empty  --  use copy_region first"}};
                 } else {
                     int px = cmd.params.value("x", 0);
                     int py = cmd.params.value("y", 0);
@@ -7199,7 +7240,7 @@ void Application::processAPICommands() {
                             ok = dialogueSystem->startConversation(npc,
                                 npc->getDialogueProvider()->getDialogueTree());
                         } else {
-                            // No NPC entity â€” store tree in a member to keep it alive
+                            // No NPC entity  --  store tree in a member to keep it alive
                             m_apiDialogueTree = std::make_unique<UI::DialogueTree>(std::move(parsedTree));
                             ok = dialogueSystem->startConversation(npcName, m_apiDialogueTree.get());
                         }
@@ -7483,13 +7524,14 @@ void Application::processAPICommands() {
                 subsystems.npcManager = npcManager.get();
                 subsystems.entityRegistry = entityRegistry.get();
                 subsystems.templateManager = objectTemplateManager.get();
+                subsystems.placedObjectManager = placedObjectManager.get();
                 subsystems.gameEventLog = gameEventLog.get();
                 subsystems.locationRegistry = locationRegistry;
                 subsystems.camera = camera;
                 subsystems.dialogueSystem = dialogueSystem.get();
                 subsystems.storyEngine = storyEngine.get();
 
-                // Entity spawner callback â€” delegates to Application factory methods
+                // Entity spawner callback  --  delegates to Application factory methods
                 subsystems.entitySpawner = [this](const std::string& type, const glm::vec3& pos,
                                                    const std::string& animFile) -> Scene::Entity* {
                     if (type == "physics") return createPhysicsCharacter(pos);
@@ -7515,9 +7557,8 @@ void Application::processAPICommands() {
                     chunkManager->rebuildOccupancyFromChunks();
                 }
 
-                // Switch to third-person if player was spawned
-                if (loadResult.playerSpawned && camera) {
-                    camera->setMode(Graphics::CameraMode::ThirdPerson);
+                // Set up character control but keep camera Free (press V to follow)
+                if (loadResult.playerSpawned) {
                     if (animatedCharacter) {
                         currentControlTarget = ControlTarget::AnimatedCharacter;
                         isControllingPhysicsCharacter = false;
@@ -7615,7 +7656,7 @@ void Application::processAPICommands() {
                         std::string config = cmd.params.value("config", "Debug");
                         bool reconfigure = cmd.params.value("reconfigure", false);
 
-                        // Find cmake â€” check common VS 2022 location, then PATH
+                        // Find cmake  --  check common VS 2022 location, then PATH
                         std::string cmake = "cmake";
                         fs::path vsCmake("C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe");
                         if (fs::exists(vsCmake)) cmake = vsCmake.string();
@@ -8314,7 +8355,7 @@ void Application::processAPICommands() {
                     response = {{"success", true}, {"job_id", jobId}, {"status", "Pending"}, {"type", jobType}};
                 }
 
-            // â”€â”€ Custom UI Menu Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // â"€â"€ Custom UI Menu Management â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
             } else if (cmd.action == "create_menu") {
                 std::string name = cmd.params.value("name", "");
                 if (name.empty()) {
@@ -8607,7 +8648,7 @@ void Application::processAPICommands() {
                 response = handleSocialSimulationCommand(cmd.action, cmd.params, npcManager.get());
 
             // ================================================================
-            // GAME STATE (extracted â€” handleGameStateCommand)
+            // GAME STATE (extracted  --  handleGameStateCommand)
             // ================================================================
             } else if (cmd.action == "get_pause_state" || cmd.action == "set_pause_state" ||
                        cmd.action == "get_player_health" || cmd.action == "modify_player_health" ||
@@ -8691,15 +8732,102 @@ void Application::renderMainMenuBar() {
         }
 
         if (ImGui::BeginMenu("View")) {
+            // Dockable panels
             ImGui::MenuItem("Properties", nullptr, &m_showProperties);
             ImGui::MenuItem("World Outliner", nullptr, &m_showWorldOutliner);
+            ImGui::MenuItem("Camera", nullptr, &m_showCameraPanel);
 #ifdef _WIN32
             ImGui::MenuItem("Terminal", nullptr, &m_showTerminal);
 #endif
+            ImGui::Separator();
+
+            // Debug & diagnostic panels (toggled by hotkeys too)
+            ImGui::MenuItem("Performance Overlay", "F1", &showPerformanceOverlay);
+            if (ImGui::MenuItem("Profiler", "F7")) toggleProfiler();
+            if (ImGui::MenuItem("Debug Rendering", "F4")) toggleDebugRendering();
+            if (ImGui::MenuItem("Raycast Visualization", "F5")) toggleRaycastVisualization();
+            if (ImGui::MenuItem("Lighting Controls", "F6")) toggleLightingControls();
+            ImGui::Separator();
+
+            // Tool panels
+            ImGui::MenuItem("Character Customizer", "F11", &showCharacterCustomizer);
+            ImGui::MenuItem("Interaction Tuner", "F12", &showInteractionTuner);
+            ImGui::Separator();
+
+            if (ImGui::MenuItem("Reset Layout")) {
+                m_needsLayoutReset = true;
+            }
+
             ImGui::EndMenu();
         }
         ImGui::EndMenuBar();
     }
+}
+
+void Application::renderStatusBar() {
+    const float barHeight = 24.0f;
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x, viewport->WorkPos.y + viewport->WorkSize.y - barHeight));
+    ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x, barHeight));
+
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                             ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+                             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 3));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
+
+    if (ImGui::Begin("##StatusBar", nullptr, flags)) {
+        // Cursor position
+        if (voxelInteractionSystem && voxelInteractionSystem->hasHoveredCube()) {
+            const auto& loc = voxelInteractionSystem->getCurrentHoveredLocation();
+            ImGui::Text("Cursor: (%d, %d, %d)", loc.worldPos.x, loc.worldPos.y, loc.worldPos.z);
+        } else {
+            ImGui::TextDisabled("Cursor: --");
+        }
+
+        ImGui::SameLine(0, 20);
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+        ImGui::SameLine(0, 20);
+
+        // Voxel mode
+        if (voxelInteractionSystem) {
+            auto mode = voxelInteractionSystem->getTargetMode();
+            const char* modeName = (mode == TargetMode::Cube) ? "CUBE" :
+                                   (mode == TargetMode::Subcube) ? "SUBCUBE" : "MICROCUBE";
+            ImGui::Text("Mode: %s", modeName);
+        }
+
+        ImGui::SameLine(0, 20);
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+        ImGui::SameLine(0, 20);
+
+        // FPS
+        ImGui::Text("FPS: %.0f", ImGui::GetIO().Framerate);
+
+        ImGui::SameLine(0, 20);
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+        ImGui::SameLine(0, 20);
+
+        // Entity count
+        if (entityRegistry) {
+            ImGui::Text("Entities: %zu", entityRegistry->getAllIds().size());
+        }
+
+        ImGui::SameLine(0, 20);
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+        ImGui::SameLine(0, 20);
+
+        // Camera position
+        if (camera) {
+            auto pos = camera->getPosition();
+            ImGui::Text("Camera: (%.0f, %.0f, %.0f)", pos.x, pos.y, pos.z);
+        }
+    }
+    ImGui::End();
+
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
 }
 
 #ifdef _WIN32
@@ -9289,7 +9417,7 @@ void Application::renderAnimEditorUI() {
                                                ImGuiInputTextFlags_EnterReturnsTrue |
                                                ImGuiInputTextFlags_AutoSelectAll);
                 if (ImGui::IsItemDeactivated()) {
-                    // Enter or focus lost â€” commit if non-empty and changed
+                    // Enter or focus lost  --  commit if non-empty and changed
                     std::string newName(m_animEditorRenameBuffer);
                     if (!newName.empty() && newName != animNames[i]) {
                         renameAnimationInFile(animNames[i], newName);
@@ -10525,8 +10653,10 @@ void Application::renderDockableViewport() {
             ImGui::Image((ImTextureID)m_viewportTextureId, size);
         }
         m_viewportHovered = ImGui::IsWindowHovered();
+        m_viewportFocused = ImGui::IsWindowFocused();
     } else {
         m_viewportHovered = false;
+        m_viewportFocused = false;
     }
     ImGui::End();
     ImGui::PopStyleVar();
@@ -10554,6 +10684,7 @@ void Application::setupDefaultDockLayout(unsigned int dockSpaceId) {
     ImGui::DockBuilderDockWindow("Scripting Console", dockBottom);
     ImGui::DockBuilderDockWindow("Terminal", dockBottom);
     ImGui::DockBuilderDockWindow("Properties", dockRight);
+    ImGui::DockBuilderDockWindow("Camera", dockRight);
     ImGui::DockBuilderDockWindow("Asset Editor", dockRight);
     ImGui::DockBuilderDockWindow("###AnimEditor", dockRight);
     ImGui::DockBuilderDockWindow("Interaction Editor", dockRight);

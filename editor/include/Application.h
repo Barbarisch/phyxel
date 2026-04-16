@@ -32,6 +32,7 @@
 #ifdef _WIN32
 #include "TerminalPanel.h"
 #include "PropertiesPanel.h"
+#include "CameraPanel.h"
 #endif
 #include "WorldOutlinerPanel.h"
 #include "core/EntityRegistry.h"
@@ -62,12 +63,14 @@
 #include "core/interactions/NPCInteractionHandler.h"
 #include "core/KinematicVoxelManager.h"
 #include "core/DoorManager.h"
+#include "core/DynamicFurnitureManager.h"
 #include "core/LocationRegistry.h"
 #include "ui/DialogueSystem.h"
 #include "ui/SpeechBubbleManager.h"
 #include "story/StoryEngine.h"
 #include "core/EngineConfig.h"
 #include "core/EngineRuntime.h"
+#include "core/SceneManager.h"
 #include "core/GpuParticlePhysics.h"
 #include "scene/NPCEntity.h"
 #include "scene/Entity.h"
@@ -86,6 +89,12 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace Phyxel {
+
+/// Editor mode — Edit for development workflow, Play for game testing.
+enum class EditorMode {
+    Edit,   // Free camera, full panel access, simulation can be paused
+    Play    // Game-like behavior, simulation running (future)
+};
 
 class Application {
 public:
@@ -114,7 +123,9 @@ public:
     void toggleDebugRendering();
     void cycleDebugVisualizationMode();
     void toggleRaycastVisualization();
-    void cycleRaycastTargetMode();
+    void cycleRaycastTargetMode(int direction = 1);
+    bool isViewportHovered() const { return m_viewportHovered; }
+    bool isViewportFocused() const { return m_viewportFocused; }
     void adjustAmbientLight(float delta);
     void toggleLightingControls();
     void toggleProfiler();
@@ -130,7 +141,8 @@ public:
     Scene::SpiderCharacter* createSpiderCharacter(const glm::vec3& pos);
     Scene::AnimatedVoxelCharacter* createAnimatedCharacter(const glm::vec3& pos, const std::string& animFile);
     void setControlTarget(const std::string& targetName);
-    void derezCharacter(float explosionStrength = 1.0f);
+    void derezCharacter(float duration = 2.0f);
+    void renderAnimatedCharPanel();
 
     // AI NPC Management
     void spawnTestAINPC();
@@ -142,6 +154,7 @@ public:
     Graphics::RenderCoordinator* getRenderCoordinator() const { return renderCoordinator.get(); }
 
     // Accessors
+    UI::WindowManager* getWindowManager() const { return windowManager; }
     ObjectTemplateManager* getObjectTemplateManager() const { return objectTemplateManager.get(); }
     RaycastVisualizer* getRaycastVisualizer() const { return raycastVisualizer.get(); }
     VoxelInteractionSystem* getVoxelInteractionSystem() const { return voxelInteractionSystem.get(); }
@@ -236,6 +249,7 @@ private:
     // Door / Kinematic Voxel System
     std::unique_ptr<Core::KinematicVoxelManager> kinematicVoxelManager;
     std::unique_ptr<Core::DoorManager> doorManager;
+    std::unique_ptr<Core::DynamicFurnitureManager> dynamicFurnitureManager;
 
     // Story Engine
     std::unique_ptr<Story::StoryEngine> storyEngine;
@@ -295,6 +309,7 @@ private:
     double fpsTimer;
 
     // Game state
+    EditorMode m_editorMode = EditorMode::Edit;
     bool gamePaused = false;
 
     // Performance overlay
@@ -307,9 +322,6 @@ private:
     bool showInteractionTuner = false;
     std::string tunerSelectedTemplate;
     void renderInteractionTuner();
-
-    bool showAnimatedCharPanel = false;
-    void renderAnimatedCharPanel();
     
     // Debug system
     // Debug flags moved to InputController
@@ -338,6 +350,9 @@ private:
     void placeNewCube();            // Place a new cube adjacent to the hovered cube face
     void processAPICommands();       // Process pending HTTP API commands
     void autoLoadGameDefinition();   // Auto-load game.json if present
+    Core::GameSubsystems buildGameSubsystems(); // Build subsystems struct for GameDefinitionLoader
+    void initializeSceneManager();   // Wire SceneCallbacks and configure SceneManager
+    void renderScenePanel();         // Dockable ImGui panel for scene management
 
     // Ray-AABB intersection utility
     bool rayAABBIntersect(const glm::vec3& rayOrigin, const glm::vec3& rayDir, 
@@ -362,12 +377,23 @@ private:
 
     // Main menu bar
     void renderMainMenuBar();
+    void renderStatusBar();
     void openFileDialog();             // Show native file open dialog
     void openProjectDialog();          // Show native folder picker to open a project
     void switchToEditorMode(const std::string& filePath); // Detect type & switch mode
     void resetEditorScene();           // Clean up current editor scene state
     std::string m_pendingOpenFile;     // Deferred file open (processed at frame start, not mid-render)
     std::string m_pendingOpenProject;  // Deferred project open (processed at frame start)
+    bool m_projectCtrlSPrev = false;   // Edge-detect Ctrl+S for project-mode world save
+
+    // New creation dialogs
+    bool m_showNewProjectPopup = false;        // Show the "New Project" name popup
+    char m_newProjectNameBuf[256] = {};         // Name buffer for new project popup
+    std::string m_newProjectError;              // Validation error message
+    std::string m_pendingNewObject;             // Deferred: path for new .voxel to create
+    std::string m_pendingNewAnim;               // Deferred: path for new .anim to create
+    void newObjectDialog();                     // Show native save dialog for new .voxel
+    void newAnimDialog();                       // Show native save dialog for new .anim
 
     // ============================================================================
     // ASSET EDITOR MODE  (--asset-editor <file>)
@@ -475,6 +501,7 @@ private:
     VkImageView m_viewportLastImageView = VK_NULL_HANDLE;  // Track for reregistration on resize
     bool m_dockLayoutInitialized = false;                  // Whether default layout has been set up
     bool m_viewportHovered = false;                        // Whether mouse is over the Viewport window
+    bool m_viewportFocused = false;                        // Whether the Viewport window has input focus
     float m_viewportPosX = 0.0f, m_viewportPosY = 0.0f;   // Viewport content top-left in window coords
     float m_viewportSizeW = 1.0f, m_viewportSizeH = 1.0f; // Viewport content size in pixels
     void renderDockableViewport();                         // Render the 3D viewport as an ImGui window
@@ -485,6 +512,13 @@ private:
 
     std::unique_ptr<Editor::WorldOutlinerPanel> m_worldOutliner; // Dockable world outliner
     bool m_showWorldOutliner = true;
+
+    std::unique_ptr<Editor::CameraPanel> m_cameraPanel;        // Dockable camera management
+    bool m_showCameraPanel = false;
+    bool m_needsLayoutReset = false;
+
+    bool m_showScenePanel = true;          // Dockable scene management panel
+    bool showAnimatedCharPanel = false;    // Animated character inspector panel
 
 #ifdef _WIN32
     std::unique_ptr<Editor::TerminalPanel> m_terminalPanel; // Dockable terminal emulator

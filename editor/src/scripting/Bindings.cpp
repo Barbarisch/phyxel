@@ -170,7 +170,9 @@ PYBIND11_EMBEDDED_MODULE(phyxel, m) {
         .def("set_control_target", &Application::setControlTarget, "Set the character to control ('spider', 'animated', 'physics')")
         .def("toggle_character_control", &Application::toggleCharacterControl, "Cycle through controllable characters")
         .def("toggle_camera_mode", &Application::toggleCameraMode, "Toggle camera mode (First/Third/Free)")
-        .def("derez_character", &Application::derezCharacter, "Derez the current character", py::arg("explosion_strength") = 1.0f)
+        .def("derez_character", &Application::derezCharacter,
+             "Derez the current character (staggered voxel falling-apart effect)",
+             py::arg("duration") = 2.0f)
         // Entity Registry access
         .def("get_entity_registry", &Application::getEntityRegistry, py::return_value_policy::reference)
         // API Server access

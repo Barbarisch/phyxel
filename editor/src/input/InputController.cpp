@@ -8,6 +8,7 @@
 #include "ui/DialogueSystem.h"
 #include "utils/Logger.h"
 #include <GLFW/glfw3.h>
+#include <imgui.h>
 
 namespace Phyxel {
 
@@ -21,6 +22,23 @@ InputController::InputController(Input::InputManager* inputManager,
 }
 
 void InputController::update(float deltaTime) {
+    // Scroll wheel: zoom (dolly camera along front vector) — Unity Scene View style
+    {
+        auto* wm = m_app->getWindowManager();
+        float scrollY = wm ? wm->getScrollDelta() : 0.0f;
+        if (wm) wm->resetScrollDelta();
+        bool viewportActive = m_app->isViewportHovered() || m_app->isViewportFocused();
+        bool imguiWantsMouse = ImGui::GetIO().WantCaptureMouse && !viewportActive;
+        if (scrollY != 0.0f && !imguiWantsMouse) {
+            float zoomSpeed = 2.0f;
+            auto pos = m_inputManager->getCameraPosition();
+            auto front = m_inputManager->getCameraFront();
+            m_inputManager->setCameraPosition(pos + front * scrollY * zoomSpeed);
+        }
+    }
+    if (m_modeChangeTimer > 0.0f)
+        m_modeChangeTimer -= deltaTime;
+
     // Handle preview logic
     if (m_showTreePreview) {
         // Get visualizer from app (assuming we can access it, or add getter to App)
@@ -242,10 +260,9 @@ void InputController::setupKeyboardBindings() {
         m_app->adjustAmbientLight(0.1f);
     });
     
-    // C - Place cube
-    m_inputManager->registerAction(GLFW_KEY_C, "Place Cube", [this]() {
-        LOG_INFO("InputController", "C key pressed - attempting to place cube");
-        m_interactionSystem->placeVoxelAtHover();
+    // C - Place voxel using the active size mode (Cube / Subcube / Microcube)
+    m_inputManager->registerAction(GLFW_KEY_C, "Place Voxel", [this]() {
+        m_interactionSystem->placeActiveVoxelAtHover();
     });
 
     // K - Toggle Character Control
@@ -302,6 +319,20 @@ void InputController::setupKeyboardBindings() {
         m_app->getObjectTemplateManager()->spawnTemplate("my_model", pos, false);
     });
     
+    // B - Break hovered voxel (cube / subcube / microcube)
+    m_inputManager->registerAction(GLFW_KEY_B, "Break Voxel", [this]() {
+        if (m_interactionSystem->hasHoveredCube()) {
+            const auto& loc = m_interactionSystem->getCurrentHoveredLocation();
+            if (loc.isMicrocube) {
+                m_interactionSystem->breakHoveredMicrocube();
+            } else if (loc.isSubcube) {
+                m_interactionSystem->breakHoveredSubcube();
+            } else {
+                m_interactionSystem->breakHoveredCube(m_inputManager->getCameraPosition());
+            }
+        }
+    });
+
     // O - Toggle breaking forces
     m_inputManager->registerAction(GLFW_KEY_O, "Toggle Breaking Forces", [this]() {
         m_debugFlags.disableBreakingForces = !m_debugFlags.disableBreakingForces;
@@ -325,6 +356,18 @@ void InputController::setupKeyboardBindings() {
         int newSpeed = std::min(5000, currentSpeed + 50);
         tmplMgr->setSpawnSpeed(newSpeed);
         LOG_INFO_FMT("InputController", "Spawn Speed Increased: " << newSpeed << " voxels/frame");
+    });
+
+    // Up Arrow - Cycle voxel mode toward larger (Micro→Sub→Cube)
+    m_inputManager->registerAction(GLFW_KEY_UP, "Voxel Mode Larger", [this]() {
+        m_app->cycleRaycastTargetMode(-1);
+        m_modeChangeTimer = 1.2f;
+    });
+
+    // Down Arrow - Cycle voxel mode toward smaller (Cube→Sub→Micro)
+    m_inputManager->registerAction(GLFW_KEY_DOWN, "Voxel Mode Smaller", [this]() {
+        m_app->cycleRaycastTargetMode(1);
+        m_modeChangeTimer = 1.2f;
     });
 }
 
