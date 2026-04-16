@@ -556,8 +556,8 @@ bool VoxelInteractionSystem::tryActivateFurnitureAtHover(const glm::vec3& camera
     const auto* placed = m_placedObjects->get(objId);
     if (!placed || placed->category != "template") return false;
 
-    // Compute impulse: camera forward direction scaled by a base force
-    constexpr float BASE_HIT_FORCE = 5.0f;
+    // Compute impulse: gentle nudge from clicking (not a sledgehammer)
+    constexpr float BASE_HIT_FORCE = 1.5f;
     glm::vec3 impulse = cameraFront * BASE_HIT_FORCE;
 
     // Contact point is the ray hit point on the voxel

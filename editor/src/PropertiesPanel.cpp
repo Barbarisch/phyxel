@@ -4,6 +4,9 @@
 #include "core/EntityRegistry.h"
 #include "core/PlacedObjectManager.h"
 #include "core/NPCManager.h"
+#include "core/ObjectTemplateManager.h"
+#include "core/VoxelTemplate.h"
+#include "physics/Material.h"
 #include "core/Chunk.h"
 #include "core/HealthComponent.h"
 #include "scene/Entity.h"
@@ -318,6 +321,47 @@ void PropertiesPanel::renderPlacedObjectInspector(const std::string& id) {
     ImGui::Text("AABB: (%d,%d,%d) - (%d,%d,%d)",
         obj->boundingMin.x, obj->boundingMin.y, obj->boundingMin.z,
         obj->boundingMax.x, obj->boundingMax.y, obj->boundingMax.z);
+
+    // Weight and materials (from template voxels)
+    if (m_templateManager && obj->category == "template") {
+        const auto* tmpl = m_templateManager->getTemplate(obj->templateName);
+        if (tmpl) {
+            Physics::MaterialManager matMgr;
+            std::unordered_map<std::string, int> materialCounts;
+            float totalWeight = 0.0f;
+            int totalVoxels = 0;
+
+            for (const auto& c : tmpl->cubes) {
+                materialCounts[c.material]++;
+                totalWeight += matMgr.getMaterial(c.material).mass;
+                totalVoxels++;
+            }
+            constexpr float subVol = (1.0f/3.0f) * (1.0f/3.0f) * (1.0f/3.0f);
+            for (const auto& s : tmpl->subcubes) {
+                materialCounts[s.material]++;
+                totalWeight += matMgr.getMaterial(s.material).mass * subVol;
+                totalVoxels++;
+            }
+            constexpr float microVol = (1.0f/9.0f) * (1.0f/9.0f) * (1.0f/9.0f);
+            for (const auto& m : tmpl->microcubes) {
+                materialCounts[m.material]++;
+                totalWeight += matMgr.getMaterial(m.material).mass * microVol;
+                totalVoxels++;
+            }
+
+            ImGui::Separator();
+            ImGui::Text("Weight: %.1f kg", totalWeight);
+            ImGui::Text("Voxels: %d", totalVoxels);
+
+            if (ImGui::CollapsingHeader("Materials")) {
+                for (const auto& [matName, count] : materialCounts) {
+                    const auto& mat = matMgr.getMaterial(matName);
+                    ImGui::BulletText("%s: %d (mass=%.1f, bond=%.2f)",
+                        matName.c_str(), count, mat.mass, mat.bondStrength);
+                }
+            }
+        }
+    }
 
     if (!obj->parentId.empty()) {
         ImGui::Text("Parent: %s", obj->parentId.c_str());

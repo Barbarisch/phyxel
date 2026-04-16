@@ -490,6 +490,9 @@ btCompoundShape* DynamicFurnitureManager::buildCompoundShape(
         totalMass += mb.mass;
     }
 
+    // Enforce minimum mass so small furniture doesn't feel weightless
+    totalMass = std::max(totalMass, 5.0f);
+
     return compound;
 }
 
@@ -512,8 +515,8 @@ btRigidBody* DynamicFurnitureManager::createDynamicBody(
     btRigidBody::btRigidBodyConstructionInfo rbInfo(mass, outMotionState, shape, localInertia);
     rbInfo.m_friction    = 0.6f;
     rbInfo.m_restitution = 0.2f;
-    rbInfo.m_linearDamping  = 0.15f;
-    rbInfo.m_angularDamping = 0.25f;
+    rbInfo.m_linearDamping  = 0.4f;
+    rbInfo.m_angularDamping = 0.5f;
 
     auto* body = new btRigidBody(rbInfo);
     body->setActivationState(ACTIVE_TAG);
@@ -993,6 +996,49 @@ void DynamicFurnitureManager::updateGrabPosition(const glm::vec3& cameraPos,
     // Update rendering
     if (m_kinematic) {
         m_kinematic->setTransform(obj.kineticObjId, obj.currentTransform);
+    }
+}
+
+void DynamicFurnitureManager::checkPlayerFurnitureCollision(
+    const glm::vec3& playerPos,
+    const glm::vec3& playerVelocity,
+    bool isSprinting)
+{
+    if (!isSprinting || !m_placedObjects) return;
+
+    float speed = glm::length(playerVelocity);
+    if (speed < 2.0f) return;  // Need meaningful velocity
+
+    // Check all placed objects for AABB overlap with player
+    const float PLAYER_RADIUS = 0.5f;
+    for (const auto& [id, obj] : m_placedObjects->getAllObjects()) {
+        // Skip already-dynamic objects
+        if (isActive(id)) continue;
+
+        // Skip non-template objects (structures are too large)
+        if (obj.category != "template") continue;
+
+        // Simple AABB + radius overlap test
+        glm::vec3 bmin(obj.boundingMin);
+        glm::vec3 bmax(obj.boundingMax);
+        // Expand AABB by player radius
+        bmin -= glm::vec3(PLAYER_RADIUS);
+        bmax += glm::vec3(PLAYER_RADIUS);
+
+        if (playerPos.x >= bmin.x && playerPos.x <= bmax.x &&
+            playerPos.y >= bmin.y && playerPos.y <= bmax.y &&
+            playerPos.z >= bmin.z && playerPos.z <= bmax.z)
+        {
+            // Player is overlapping this furniture — activate with push impulse
+            glm::vec3 pushDir = glm::normalize(playerVelocity);
+            float pushForce = speed * 2.0f;  // Proportional to sprint speed
+            glm::vec3 impulse = pushDir * pushForce;
+
+            LOG_INFO("DynamicFurniture", "Sprint collision with '%s' — activating with push (%.1f)",
+                     id.c_str(), pushForce);
+            activate(id, impulse, playerPos);
+            return;  // One activation per frame
+        }
     }
 }
 

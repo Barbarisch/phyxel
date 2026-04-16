@@ -120,6 +120,12 @@ public:
     /// Call each frame while an object is grabbed.
     void updateGrabPosition(const glm::vec3& cameraPos, const glm::vec3& cameraFront);
 
+    /// Check if a sprinting player collides with any placed furniture, activating it.
+    /// Call each frame from the update loop.
+    void checkPlayerFurnitureCollision(const glm::vec3& playerPos,
+                                        const glm::vec3& playerVelocity,
+                                        bool isSprinting);
+
     /// Is any object currently being grabbed?
     bool isGrabbing() const { return !m_grabbedObjectId.empty(); }
 

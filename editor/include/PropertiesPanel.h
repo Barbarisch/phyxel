@@ -5,6 +5,7 @@
 
 namespace Phyxel {
     class VoxelInteractionSystem;
+    class ObjectTemplateManager;
     namespace Core {
         class EntityRegistry;
         class PlacedObjectManager;
@@ -34,6 +35,7 @@ public:
     void setEntityRegistry(Core::EntityRegistry* reg)     { m_entityRegistry = reg; }
     void setPlacedObjectManager(Core::PlacedObjectManager* pom) { m_placedObjects = pom; }
     void setNPCManager(Core::NPCManager* mgr)             { m_npcManager = mgr; }
+    void setObjectTemplateManager(ObjectTemplateManager* otm) { m_templateManager = otm; }
     void setCameraState(const glm::vec3& pos, const glm::vec3& front) { m_camPos = pos; m_camFront = front; }
 
     // --- Selection (set each frame by Application from WorldOutliner) ---
@@ -59,6 +61,7 @@ private:
     Core::EntityRegistry*      m_entityRegistry   = nullptr;
     Core::PlacedObjectManager* m_placedObjects     = nullptr;
     Core::NPCManager*          m_npcManager        = nullptr;
+    ObjectTemplateManager* m_templateManager  = nullptr;
     glm::vec3 m_camPos{0.0f};
     glm::vec3 m_camFront{0.0f, 0.0f, 1.0f};
 

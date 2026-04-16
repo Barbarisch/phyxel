@@ -288,6 +288,9 @@ public:
 
     size_t count() const;
 
+    /// Get read-only access to all placed objects.
+    const std::unordered_map<std::string, PlacedObject>& getAllObjects() const { return m_objects; }
+
 private:
     /// Generate a unique ID for a template/structure placement.
     std::string generateId(const std::string& baseName);

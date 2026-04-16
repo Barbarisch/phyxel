@@ -1548,6 +1548,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     m_propertiesPanel->setEntityRegistry(entityRegistry.get());
     m_propertiesPanel->setPlacedObjectManager(placedObjectManager.get());
     m_propertiesPanel->setNPCManager(npcManager.get());
+    m_propertiesPanel->setObjectTemplateManager(objectTemplateManager.get());
 
     // Create the world outliner panel
     m_worldOutliner = std::make_unique<Editor::WorldOutlinerPanel>();
@@ -2018,7 +2019,8 @@ void Application::run() {
         // Render Interaction Point Tuner
         renderInteractionTuner();
 
-        // Render Dialogue Box
+        // Render Template Spawner
+        renderTemplateSpawner();
         if (dialogueSystem) {
             imguiRenderer->renderDialogueBox(dialogueSystem.get());
         }
@@ -2345,6 +2347,14 @@ void Application::update(float deltaTime) {
                 inputManager->getCameraPosition(),
                 inputManager->getCameraFront());
         }
+        // Sprint-to-move: check player collision with furniture while sprinting
+        if (inputManager && deltaTime > 0.0f) {
+            bool sprinting = inputManager->isKeyPressed(GLFW_KEY_LEFT_SHIFT) ||
+                             inputManager->isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
+            glm::vec3 camPos = inputManager->getCameraPosition();
+            glm::vec3 camVel = (camPos - lastCameraPos) / deltaTime;
+            dynamicFurnitureManager->checkPlayerFurnitureCollision(camPos, camVel, sprinting);
+        }
     }
 
     // Update dialogue & speech bubbles
@@ -2480,6 +2490,22 @@ void Application::update(float deltaTime) {
             
             raycastVisualizer->setRaycastData(vizData);
 
+            // Shared wireframe box helper for debug visualization
+            auto addWireBox = [&](const glm::vec3& mn, const glm::vec3& mx, const glm::vec3& col) {
+                raycastVisualizer->addLine({mn.x,mn.y,mn.z},{mx.x,mn.y,mn.z},col);
+                raycastVisualizer->addLine({mx.x,mn.y,mn.z},{mx.x,mn.y,mx.z},col);
+                raycastVisualizer->addLine({mx.x,mn.y,mx.z},{mn.x,mn.y,mx.z},col);
+                raycastVisualizer->addLine({mn.x,mn.y,mx.z},{mn.x,mn.y,mn.z},col);
+                raycastVisualizer->addLine({mn.x,mx.y,mn.z},{mx.x,mx.y,mn.z},col);
+                raycastVisualizer->addLine({mx.x,mx.y,mn.z},{mx.x,mx.y,mx.z},col);
+                raycastVisualizer->addLine({mx.x,mx.y,mx.z},{mn.x,mx.y,mx.z},col);
+                raycastVisualizer->addLine({mn.x,mx.y,mx.z},{mn.x,mx.y,mn.z},col);
+                raycastVisualizer->addLine({mn.x,mn.y,mn.z},{mn.x,mx.y,mn.z},col);
+                raycastVisualizer->addLine({mx.x,mn.y,mn.z},{mx.x,mx.y,mn.z},col);
+                raycastVisualizer->addLine({mx.x,mn.y,mx.z},{mx.x,mx.y,mx.z},col);
+                raycastVisualizer->addLine({mn.x,mn.y,mx.z},{mn.x,mx.y,mx.z},col);
+            };
+
             // Draw character controller box only (segment boxes drawn by AnimatedVoxelCharacter itself)
             auto drawCharacterHitbox = [&](Scene::AnimatedVoxelCharacter* ch, const glm::vec3& controllerColor) {
                 if (!ch) return;
@@ -2488,20 +2514,6 @@ void Application::update(float deltaTime) {
                 float hw = ch->getControllerHalfWidth();
                 glm::vec3 cMin = feet - glm::vec3(hw, 0.0f, hw);
                 glm::vec3 cMax = feet + glm::vec3(hw, 2.0f * hh, hw);
-                auto addWireBox = [&](const glm::vec3& mn, const glm::vec3& mx, const glm::vec3& col) {
-                    raycastVisualizer->addLine({mn.x,mn.y,mn.z},{mx.x,mn.y,mn.z},col);
-                    raycastVisualizer->addLine({mx.x,mn.y,mn.z},{mx.x,mn.y,mx.z},col);
-                    raycastVisualizer->addLine({mx.x,mn.y,mx.z},{mn.x,mn.y,mx.z},col);
-                    raycastVisualizer->addLine({mn.x,mn.y,mx.z},{mn.x,mn.y,mn.z},col);
-                    raycastVisualizer->addLine({mn.x,mx.y,mn.z},{mx.x,mx.y,mn.z},col);
-                    raycastVisualizer->addLine({mx.x,mx.y,mn.z},{mx.x,mx.y,mx.z},col);
-                    raycastVisualizer->addLine({mx.x,mx.y,mx.z},{mn.x,mx.y,mx.z},col);
-                    raycastVisualizer->addLine({mn.x,mx.y,mx.z},{mn.x,mx.y,mn.z},col);
-                    raycastVisualizer->addLine({mn.x,mn.y,mn.z},{mn.x,mx.y,mn.z},col);
-                    raycastVisualizer->addLine({mx.x,mn.y,mn.z},{mx.x,mx.y,mn.z},col);
-                    raycastVisualizer->addLine({mx.x,mn.y,mx.z},{mx.x,mx.y,mx.z},col);
-                    raycastVisualizer->addLine({mn.x,mn.y,mx.z},{mn.x,mx.y,mx.z},col);
-                };
                 addWireBox(cMin, cMax, controllerColor);
             };
 
@@ -2533,6 +2545,33 @@ void Application::update(float deltaTime) {
                     // X/Z cross at hinge top
                     raycastVisualizer->addLine(h + glm::vec3(-0.5f, 4.0f, 0), h + glm::vec3(0.5f, 4.0f, 0), axisColor);
                     raycastVisualizer->addLine(h + glm::vec3(0, 4.0f, -0.5f), h + glm::vec3(0, 4.0f, 0.5f), axisColor);
+                }
+            }
+
+            // Dynamic furniture compound shape AABB (orange)
+            if (dynamicFurnitureManager) {
+                const glm::vec3 furnitureColor{1.0f, 0.6f, 0.1f};
+                for (const auto& [id, obj] : dynamicFurnitureManager->getActiveObjects()) {
+                    if (!obj.rigidBody) continue;
+                    btVector3 bMin, bMax;
+                    obj.rigidBody->getAabb(bMin, bMax);
+                    glm::vec3 mn(bMin.x(), bMin.y(), bMin.z());
+                    glm::vec3 mx(bMax.x(), bMax.y(), bMax.z());
+                    addWireBox(mn, mx, furnitureColor);
+                }
+            }
+
+            // Placed object bounding boxes (dim yellow, only for nearby objects)
+            if (placedObjectManager && camera) {
+                const glm::vec3 placedColor{0.8f, 0.8f, 0.2f};
+                glm::vec3 camPos = camera->getPosition();
+                for (const auto& [id, placed] : placedObjectManager->getAllObjects()) {
+                    // Only draw nearby objects (within 30 units)
+                    glm::vec3 center = glm::vec3(placed.boundingMin + placed.boundingMax) * 0.5f;
+                    if (glm::length(center - camPos) > 30.0f) continue;
+                    glm::vec3 mn(placed.boundingMin);
+                    glm::vec3 mx(placed.boundingMax);
+                    addWireBox(mn, mx, placedColor);
                 }
             }
 
@@ -3018,6 +3057,69 @@ void Application::renderInteractionTuner() {
         ImGui::Separator();
         ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Green cross = seat anchor");
         ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "Yellow cross = character feet (worldPosition)");
+    }
+
+    ImGui::End();
+}
+
+void Application::renderTemplateSpawner() {
+    if (!showTemplateSpawner || !objectTemplateManager) return;
+
+    ImGui::SetNextWindowSize(ImVec2(320, 260), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Template Spawner", &showTemplateSpawner)) {
+        ImGui::End();
+        return;
+    }
+
+    // Template selector combo
+    auto templateNames = objectTemplateManager->getTemplateNames();
+    if (!templateNames.empty()) {
+        if (spawnerTemplateIdx >= static_cast<int>(templateNames.size()))
+            spawnerTemplateIdx = 0;
+        if (ImGui::BeginCombo("Template", templateNames[spawnerTemplateIdx].c_str())) {
+            for (int i = 0; i < static_cast<int>(templateNames.size()); ++i) {
+                bool selected = (spawnerTemplateIdx == i);
+                if (ImGui::Selectable(templateNames[i].c_str(), selected))
+                    spawnerTemplateIdx = i;
+                if (selected) ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+    }
+
+    // Position inputs
+    ImGui::InputFloat3("Position", spawnerPos);
+
+    // Fill from crosshair button
+    if (ImGui::Button("From Crosshair")) {
+        if (voxelInteractionSystem && voxelInteractionSystem->hasHoveredCube()) {
+            const auto& loc = voxelInteractionSystem->getCurrentHoveredLocation();
+            glm::vec3 pos = glm::vec3(loc.worldPos) + loc.hitNormal;
+            spawnerPos[0] = pos.x;
+            spawnerPos[1] = pos.y;
+            spawnerPos[2] = pos.z;
+        } else if (camera) {
+            glm::vec3 pos = camera->getPosition() + camera->getFront() * 5.0f;
+            spawnerPos[0] = pos.x;
+            spawnerPos[1] = pos.y;
+            spawnerPos[2] = pos.z;
+        }
+    }
+
+    // Rotation
+    ImGui::SliderInt("Rotation", &spawnerRotation, 0, 270);
+    // Snap to nearest 90
+    spawnerRotation = (spawnerRotation / 90) * 90;
+
+    ImGui::Checkbox("Static", &spawnerStatic);
+
+    ImGui::Separator();
+    if (ImGui::Button("Spawn", ImVec2(-1, 30)) && !templateNames.empty()) {
+        glm::vec3 pos(spawnerPos[0], spawnerPos[1], spawnerPos[2]);
+        const std::string& name = templateNames[spawnerTemplateIdx];
+        objectTemplateManager->spawnTemplate(name, pos, spawnerStatic, spawnerRotation);
+        LOG_INFO_FMT("TemplateSpawner", "Spawned '" << name << "' at ("
+                     << pos.x << "," << pos.y << "," << pos.z << ") rot=" << spawnerRotation);
     }
 
     ImGui::End();
@@ -8862,6 +8964,7 @@ void Application::renderMainMenuBar() {
             // Tool panels
             ImGui::MenuItem("Character Customizer", "F11", &showCharacterCustomizer);
             ImGui::MenuItem("Interaction Tuner", "F12", &showInteractionTuner);
+            ImGui::MenuItem("Template Spawner", nullptr, &showTemplateSpawner);
             ImGui::Separator();
 
             if (ImGui::MenuItem("Reset Layout")) {
