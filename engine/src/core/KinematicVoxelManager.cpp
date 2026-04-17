@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <climits>
 #include <cfloat>
+#include <unordered_set>
 
 namespace Phyxel {
 namespace Core {
@@ -30,7 +31,8 @@ KinematicVoxelManager::~KinematicVoxelManager() {
 std::string KinematicVoxelManager::add(const std::string& idHint,
                                         std::vector<KinematicVoxel> voxels,
                                         const glm::mat4& initialTransform,
-                                        const std::string& placedObjectId)
+                                        const std::string& placedObjectId,
+                                        bool skipCollider)
 {
     std::string id = generateId(idHint);
 
@@ -41,7 +43,7 @@ std::string KinematicVoxelManager::add(const std::string& idHint,
     obj.faces          = buildFaces(obj.voxels);
     obj.currentTransform = initialTransform;
 
-    if (m_physicsWorld && !obj.voxels.empty()) {
+    if (m_physicsWorld && !obj.voxels.empty() && !skipCollider) {
         glm::vec3 halfExtents = computeHalfExtents(obj.voxels);
         createCollider(obj, halfExtents);
     }
@@ -104,11 +106,51 @@ void KinematicVoxelManager::clear() {
 std::vector<KinematicFaceData> KinematicVoxelManager::buildFaces(
     const std::vector<KinematicVoxel>& voxels)
 {
+    // Build spatial lookup for adjacency culling.
+    // Key: quantized position (scaled to integer grid), Value: true if occupied.
+    // This culls internal faces between touching voxels of the same scale.
+    auto quantize = [](const glm::vec3& pos, float scale) -> glm::ivec3 {
+        // Round to nearest grid position at this scale
+        return glm::ivec3(glm::round(pos / scale));
+    };
+
+    // Group voxels by scale for per-scale adjacency
+    float commonScale = voxels.empty() ? 1.0f : voxels[0].scale.x;
+    bool uniformScale = true;
+    for (const auto& v : voxels) {
+        if (v.scale.x != commonScale) { uniformScale = false; break; }
+    }
+
+    // Build occupied set (works best when all voxels have same scale)
+    std::unordered_set<int64_t> occupied;
+    auto posKey = [](glm::ivec3 p) -> int64_t {
+        return (int64_t(p.x) & 0xFFFFF) | ((int64_t(p.y) & 0xFFFFF) << 20) | ((int64_t(p.z) & 0xFFFFF) << 40);
+    };
+
+    if (uniformScale) {
+        for (const auto& v : voxels) {
+            occupied.insert(posKey(quantize(v.localPos, commonScale)));
+        }
+    }
+
+    // Face direction offsets: +Z, -Z, +X, -X, +Y, -Y
+    static const glm::ivec3 faceDir[6] = {
+        {0,0,1}, {0,0,-1}, {1,0,0}, {-1,0,0}, {0,1,0}, {0,-1,0}
+    };
+
     std::vector<KinematicFaceData> faces;
-    faces.reserve(voxels.size() * 6);
+    faces.reserve(voxels.size() * 3); // expect ~half culled
 
     for (const auto& v : voxels) {
+        glm::ivec3 qpos = uniformScale ? quantize(v.localPos, commonScale) : glm::ivec3(0);
+
         for (uint32_t faceId = 0; faceId < 6; ++faceId) {
+            // Cull face if neighbor exists in that direction
+            if (uniformScale) {
+                glm::ivec3 neighbor = qpos + faceDir[faceId];
+                if (occupied.count(posKey(neighbor))) continue;
+            }
+
             KinematicFaceData f{};
             f.localPosition = v.localPos;
             f.scale         = v.scale;

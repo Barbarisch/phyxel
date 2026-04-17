@@ -156,6 +156,7 @@ public:
     // Accessors
     UI::WindowManager* getWindowManager() const { return windowManager; }
     ObjectTemplateManager* getObjectTemplateManager() const { return objectTemplateManager.get(); }
+    Core::PlacedObjectManager* getPlacedObjectManager() const { return placedObjectManager.get(); }
     RaycastVisualizer* getRaycastVisualizer() const { return raycastVisualizer.get(); }
     VoxelInteractionSystem* getVoxelInteractionSystem() const { return voxelInteractionSystem.get(); }
     ChunkManager* getChunkManager() const { return chunkManager; }
@@ -331,7 +332,11 @@ private:
     int spawnerTemplateIdx = 0;
     bool spawnerStatic = true;
     void renderTemplateSpawner();
-    
+
+    // Click Actions panel
+    bool showClickActions = false;
+    void renderClickActions();
+
     // Debug system
     // Debug flags moved to InputController
     

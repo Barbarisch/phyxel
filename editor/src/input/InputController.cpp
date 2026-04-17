@@ -305,36 +305,7 @@ void InputController::setupKeyboardBindings() {
         LOG_INFO_FMT("InputController", "Template Preview: " << (m_showTreePreview ? "ENABLED" : "DISABLED"));
     });
 
-    // T - Spawn Template (Static)
-    m_inputManager->registerAction(GLFW_KEY_T, "Spawn Static Template", [this]() {
-        if (m_interactionSystem->hasHoveredCube()) {
-            const auto& loc = m_interactionSystem->getCurrentHoveredLocation();
-            // Use worldPos + hitNormal to get the adjacent integer coordinate
-            glm::vec3 pos = glm::vec3(loc.worldPos) + loc.hitNormal;
-            
-            LOG_INFO_FMT("InputController", "Spawning static tree at " << pos.x << ", " << pos.y << ", " << pos.z);
-            m_app->getObjectTemplateManager()->spawnTemplateSequentially("my_model", pos, true);
-        } else {
-            // Spawn in front of player if no hover
-            glm::vec3 pos = m_inputManager->getCameraPosition() + m_inputManager->getCameraFront() * 5.0f;
-            LOG_INFO_FMT("InputController", "Spawning static tree in front of player at " << pos.x << ", " << pos.y << ", " << pos.z);
-            m_app->getObjectTemplateManager()->spawnTemplateSequentially("my_model", pos, true);
-        }
-    });
 
-    // Shift + T - Spawn Template (Dynamic)
-    m_inputManager->registerActionWithModifier(GLFW_KEY_T, GLFW_MOD_SHIFT, "Spawn Dynamic Template", [this]() {
-        glm::vec3 pos;
-        if (m_interactionSystem->hasHoveredCube()) {
-            pos = m_interactionSystem->getCurrentHoveredLocation().hitPoint;
-            pos.y += 5.0f; // Drop from height
-        } else {
-            pos = m_inputManager->getCameraPosition() + m_inputManager->getCameraFront() * 5.0f;
-        }
-        LOG_INFO_FMT("InputController", "Spawning dynamic tree at " << pos.x << ", " << pos.y << ", " << pos.z);
-        m_app->getObjectTemplateManager()->spawnTemplate("my_model", pos, false);
-    });
-    
     // B - Break hovered voxel (cube / subcube / microcube)
     m_inputManager->registerAction(GLFW_KEY_B, "Break Voxel", [this]() {
         if (m_interactionSystem->hasHoveredCube()) {

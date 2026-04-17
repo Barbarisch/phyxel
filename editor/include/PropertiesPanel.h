@@ -10,6 +10,7 @@ namespace Phyxel {
         class EntityRegistry;
         class PlacedObjectManager;
         class NPCManager;
+        class DynamicFurnitureManager;
     }
     namespace Scene {
         class Entity;
@@ -36,6 +37,7 @@ public:
     void setPlacedObjectManager(Core::PlacedObjectManager* pom) { m_placedObjects = pom; }
     void setNPCManager(Core::NPCManager* mgr)             { m_npcManager = mgr; }
     void setObjectTemplateManager(ObjectTemplateManager* otm) { m_templateManager = otm; }
+    void setDynamicFurnitureManager(Core::DynamicFurnitureManager* dfm) { m_furnitureManager = dfm; }
     void setCameraState(const glm::vec3& pos, const glm::vec3& front) { m_camPos = pos; m_camFront = front; }
 
     // --- Selection (set each frame by Application from WorldOutliner) ---
@@ -62,6 +64,7 @@ private:
     Core::PlacedObjectManager* m_placedObjects     = nullptr;
     Core::NPCManager*          m_npcManager        = nullptr;
     ObjectTemplateManager* m_templateManager  = nullptr;
+    Core::DynamicFurnitureManager* m_furnitureManager = nullptr;
     glm::vec3 m_camPos{0.0f};
     glm::vec3 m_camFront{0.0f, 0.0f, 1.0f};
 

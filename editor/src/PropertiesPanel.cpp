@@ -13,6 +13,7 @@
 #include "scene/NPCEntity.h"
 #include "scene/AnimatedVoxelCharacter.h"
 #include "ai/NeedsSystem.h"
+#include "core/DynamicFurnitureManager.h"
 #include <imgui.h>
 #include <glm/gtc/quaternion.hpp>
 #include <cmath>
@@ -330,28 +331,26 @@ void PropertiesPanel::renderPlacedObjectInspector(const std::string& id) {
             std::unordered_map<std::string, int> materialCounts;
             float totalWeight = 0.0f;
             int totalVoxels = 0;
+            constexpr float PIECE_MASS = 0.05f;  // Same as DynamicFurnitureManager
 
             for (const auto& c : tmpl->cubes) {
                 materialCounts[c.material]++;
-                totalWeight += matMgr.getMaterial(c.material).mass;
+                totalWeight += matMgr.getMaterial(c.material).mass * PIECE_MASS;
                 totalVoxels++;
             }
-            constexpr float subVol = (1.0f/3.0f) * (1.0f/3.0f) * (1.0f/3.0f);
             for (const auto& s : tmpl->subcubes) {
                 materialCounts[s.material]++;
-                totalWeight += matMgr.getMaterial(s.material).mass * subVol;
+                totalWeight += matMgr.getMaterial(s.material).mass * PIECE_MASS;
                 totalVoxels++;
             }
-            constexpr float microVol = (1.0f/9.0f) * (1.0f/9.0f) * (1.0f/9.0f);
             for (const auto& m : tmpl->microcubes) {
                 materialCounts[m.material]++;
-                totalWeight += matMgr.getMaterial(m.material).mass * microVol;
+                totalWeight += matMgr.getMaterial(m.material).mass * PIECE_MASS;
                 totalVoxels++;
             }
 
             ImGui::Separator();
-            ImGui::Text("Weight: %.1f kg", totalWeight);
-            ImGui::Text("Voxels: %d", totalVoxels);
+            ImGui::Text("Weight: %.1f kg  (%d pieces)", totalWeight, totalVoxels);
 
             if (ImGui::CollapsingHeader("Materials")) {
                 for (const auto& [matName, count] : materialCounts) {
@@ -359,6 +358,56 @@ void PropertiesPanel::renderPlacedObjectInspector(const std::string& id) {
                     ImGui::BulletText("%s: %d (mass=%.1f, bond=%.2f)",
                         matName.c_str(), count, mat.mass, mat.bondStrength);
                 }
+            }
+        }
+    }
+
+    // Dynamic furniture state & weight control
+    if (m_furnitureManager) {
+        ImGui::Separator();
+        bool isDynamic = m_furnitureManager->isActive(id);
+        if (isDynamic) {
+            const auto& activeObjs = m_furnitureManager->getActiveObjects();
+            auto it = activeObjs.find(id);
+            if (it != activeObjs.end()) {
+                ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.2f, 1.0f), "State: DYNAMIC");
+                glm::vec3 pos = glm::vec3(it->second.currentTransform[3]);
+                ImGui::Text("Position: %.1f, %.1f, %.1f", pos.x, pos.y, pos.z);
+
+                // Editable weight slider (live updates Bullet rigid body)
+                float mass = it->second.totalMass;
+                if (ImGui::SliderFloat("Weight (kg)", &mass, 0.1f, 100.0f, "%.1f")) {
+                    m_furnitureManager->setObjectMass(id, mass);
+                }
+
+                if (it->second.isGrabbed)
+                    ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "GRABBED");
+            }
+        } else {
+            ImGui::TextColored(ImVec4(0.4f, 0.8f, 0.4f, 1.0f), "State: Static");
+
+            // Weight override slider for static objects (takes effect on activation)
+            auto* mutableObj = const_cast<Core::PlacedObject*>(obj);
+            float massOverride = 0.0f;
+            if (mutableObj->metadata.contains("mass_override")) {
+                massOverride = mutableObj->metadata["mass_override"].get<float>();
+            }
+            if (massOverride < 0.1f) massOverride = 5.0f;  // Default minimum mass
+            if (ImGui::SliderFloat("Weight (kg)", &massOverride, 0.1f, 100.0f, "%.1f")) {
+                mutableObj->metadata["mass_override"] = massOverride;
+            }
+            ImGui::TextDisabled("(Applied when object becomes dynamic)");
+        }
+
+        // Reset button — always visible
+        ImGui::Spacing();
+        if (ImGui::Button("Reset to Original Position", ImVec2(-1, 0))) {
+            if (isDynamic) {
+                m_furnitureManager->deactivate(id, true);
+            } else if (m_placedObjects && m_templateManager) {
+                // Static but possibly moved — re-place voxels at original registry position
+                m_templateManager->spawnTemplate(obj->templateName,
+                    glm::vec3(obj->position), true, obj->rotation);
             }
         }
     }

@@ -459,7 +459,7 @@ void WorldOutlinerPanel::renderAddTemplatePopup() {
         ImGui::Combo("Template", &m_addTemplateIdx, templateNamesCStr.data(), (int)templateNamesCStr.size());
     }
 
-    ImGui::DragFloat3("Position##tmpl", m_addTemplatePos, 0.5f);
+    ImGui::InputFloat3("Position##tmpl", m_addTemplatePos);
     ImGui::SliderInt("Rotation", &m_addTemplateRot, 0, 270);
     // Snap to 90-degree increments
     m_addTemplateRot = (m_addTemplateRot / 90) * 90;

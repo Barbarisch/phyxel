@@ -86,21 +86,45 @@ bool DynamicFurnitureManager::activate(const std::string& placedObjectId,
         return false;
     }
 
-    // 2. Build compound collision shape
+    // 2. Build compound collision shape (children recentered around COM)
     DynamicFurnitureObject obj;
     obj.placedObjectId   = placedObjectId;
     obj.templateName     = placed->templateName;
     obj.originalPosition = placed->position;
     obj.originalRotation = placed->rotation;
 
-    obj.compoundShape = buildCompoundShape(voxels, obj.childShapes, obj.totalMass);
+    glm::vec3 localCOM(0.0f);
+    obj.compoundShape = buildCompoundShape(voxels, obj.childShapes, obj.totalMass, localCOM);
     if (!obj.compoundShape) {
         LOG_ERROR_FMT("DynamicFurniture", "Failed to build compound shape for '" << placedObjectId << "'");
         return false;
     }
 
-    // 3. Compute initial transform from placed object position + rotation
-    glm::vec3 worldPos = glm::vec3(placed->position) + glm::vec3(0.5f); // Center of origin cube
+    // Scale mass to reasonable furniture range (default ~5kg for a chair).
+    // Raw voxel mass sums to huge values (e.g. 100 for 99 voxels) which causes
+    // Bullet to generate enormous penetration correction forces.
+    float defaultMass = std::clamp(obj.totalMass * 0.05f, 1.0f, 20.0f);
+    obj.totalMass = defaultMass;
+
+    // Check for per-object mass override from PlacedObject metadata
+    if (placed->metadata.contains("mass_override")) {
+        float overrideMass = placed->metadata["mass_override"].get<float>();
+        if (overrideMass > 0.0f) {
+            obj.totalMass = overrideMass;
+        }
+    }
+
+    // 3. Compute initial transform from placed object position + COM offset.
+    // The compound shape origin is at the center of mass, so we position
+    // the body at (template origin + rotated COM offset) in world space.
+    // The COM was computed in unrotated template space, so rotate it to match placement.
+    glm::vec3 rotatedCOM = localCOM;
+    if (placed->rotation != 0) {
+        float angle = glm::radians(static_cast<float>(placed->rotation));
+        glm::mat4 rot = glm::rotate(glm::mat4(1.0f), angle, glm::vec3(0.0f, 1.0f, 0.0f));
+        rotatedCOM = glm::vec3(rot * glm::vec4(localCOM, 1.0f));
+    }
+    glm::vec3 worldPos = glm::vec3(placed->position) + rotatedCOM;
     glm::mat4 initTransform = glm::translate(glm::mat4(1.0f), worldPos);
     if (placed->rotation != 0) {
         initTransform = glm::rotate(initTransform,
@@ -109,8 +133,25 @@ bool DynamicFurnitureManager::activate(const std::string& placedObjectId,
     }
     obj.currentTransform = initTransform;
 
-    // 4. Remove static voxels from chunks
+    // 4. Remove static voxels from chunks AND rebuild chunk physics collision.
+    //    Without rebuilding physics, the old static collision mesh remains in Bullet
+    //    and the dynamic body spawns inside it, causing violent ejection.
     m_placedObjects->clearVoxelsOnly(placedObjectId);
+    if (m_chunkManager) {
+        // Rebuild physics for all chunks the object spans
+        glm::ivec3 cMin = ChunkManager::worldToChunkCoord(placed->boundingMin);
+        glm::ivec3 cMax = ChunkManager::worldToChunkCoord(placed->boundingMax);
+        for (int cx = cMin.x; cx <= cMax.x; ++cx) {
+            for (int cy = cMin.y; cy <= cMax.y; ++cy) {
+                for (int cz = cMin.z; cz <= cMax.z; ++cz) {
+                    Chunk* chunk = m_chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz));
+                    if (chunk) {
+                        chunk->updateChunkPhysicsBody();
+                    }
+                }
+            }
+        }
+    }
 
     // 5. Create dynamic Bullet rigid body
     obj.rigidBody = createDynamicBody(obj.compoundShape, obj.totalMass,
@@ -122,17 +163,17 @@ bool DynamicFurnitureManager::activate(const std::string& placedObjectId,
         return false;
     }
 
-    // 6. Apply impulse at contact point
-    if (glm::length(impulse) > 0.001f) {
-        btVector3 btImpulse(impulse.x, impulse.y, impulse.z);
-        // Compute local contact point relative to body center
-        glm::vec3 localContact = contactPoint - glm::vec3(initTransform[3]);
-        btVector3 btLocalContact(localContact.x, localContact.y, localContact.z);
-        obj.rigidBody->applyImpulse(btImpulse, btLocalContact);
+    // 6. Ready for physics
+    obj.rigidBody->setActivationState(ACTIVE_TAG);
+
+    // 7. Shift voxel positions by -COM so rendering matches the recentered compound shape.
+    // The body origin is at the COM in world space; voxels must be relative to that.
+    for (auto& v : voxels) {
+        v.localPos -= localCOM;
     }
 
-    // 7. Register with KinematicVoxelManager for rendering
-    obj.kineticObjId = m_kinematic->add("dynfurn", std::move(voxels), initTransform, placedObjectId);
+    // 8. Register with KinematicVoxelManager for rendering
+    obj.kineticObjId = m_kinematic->add("dynfurn", std::move(voxels), initTransform, placedObjectId, true);
 
     // 8. Mark PlacedObject metadata
     auto* mutablePlaced = const_cast<PlacedObject*>(m_placedObjects->get(placedObjectId));
@@ -143,7 +184,47 @@ bool DynamicFurnitureManager::activate(const std::string& placedObjectId,
     LOG_INFO_FMT("DynamicFurniture", "Activated '" << placedObjectId
                  << "' (template=" << obj.templateName
                  << ", mass=" << obj.totalMass
-                 << ", voxels=" << obj.childShapes.size() << ")");
+                 << ", shapes=" << obj.childShapes.size()
+                 << ", COM=(" << localCOM.x << "," << localCOM.y << "," << localCOM.z << ")"
+                 << ", worldPos=(" << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")"
+                 << ", placedPos=(" << placed->position.x << "," << placed->position.y << "," << placed->position.z << ")"
+                 << ")");
+
+    // Log compound shape AABB to verify it's reasonable
+    if (obj.compoundShape) {
+        btVector3 aabbMin, aabbMax;
+        btTransform identity;
+        identity.setIdentity();
+        obj.compoundShape->getAabb(identity, aabbMin, aabbMax);
+        LOG_INFO_FMT("DynamicFurniture", "  Compound AABB: ("
+                     << aabbMin.x() << "," << aabbMin.y() << "," << aabbMin.z() << ")-("
+                     << aabbMax.x() << "," << aabbMax.y() << "," << aabbMax.z() << ") size=("
+                     << (aabbMax.x()-aabbMin.x()) << "," << (aabbMax.y()-aabbMin.y()) << "," << (aabbMax.z()-aabbMin.z()) << ")");
+    }
+
+    // Log each child shape for debugging
+    for (int i = 0; i < obj.compoundShape->getNumChildShapes(); ++i) {
+        const btTransform& childT = obj.compoundShape->getChildTransform(i);
+        const btVector3& origin = childT.getOrigin();
+        const btBoxShape* box = static_cast<const btBoxShape*>(obj.compoundShape->getChildShape(i));
+        btVector3 he = box->getHalfExtentsWithMargin();
+        LOG_INFO_FMT("DynamicFurniture", "  Child[" << i << "]: pos=(" << origin.x() << "," << origin.y() << "," << origin.z()
+                     << ") halfExt=(" << he.x() << "," << he.y() << "," << he.z() << ")");
+    }
+
+    // Log rigid body initial state
+    if (obj.rigidBody) {
+        btVector3 lv = obj.rigidBody->getLinearVelocity();
+        btVector3 av = obj.rigidBody->getAngularVelocity();
+        btVector3 grav = obj.rigidBody->getGravity();
+        LOG_INFO_FMT("DynamicFurniture", "  Initial vel=(" << lv.x() << "," << lv.y() << "," << lv.z()
+                     << ") angVel=(" << av.x() << "," << av.y() << "," << av.z()
+                     << ") gravity=(" << grav.x() << "," << grav.y() << "," << grav.z() << ")");
+        btVector3 inertia = obj.rigidBody->getLocalInertia();
+        LOG_INFO_FMT("DynamicFurniture", "  Inertia=(" << inertia.x() << "," << inertia.y() << "," << inertia.z()
+                     << ") friction=" << obj.rigidBody->getFriction()
+                     << " restitution=" << obj.rigidBody->getRestitution());
+    }
 
     m_active[placedObjectId] = std::move(obj);
     return true;
@@ -221,8 +302,6 @@ void DynamicFurnitureManager::update(float dt) {
     // Check for fracture-triggering contacts
     checkFractureContacts();
 
-    std::vector<std::string> toRestaticize;
-
     for (auto& [id, obj] : m_active) {
         if (!obj.rigidBody || obj.isGrabbed) continue;
 
@@ -233,22 +312,6 @@ void DynamicFurnitureManager::update(float dt) {
         if (m_kinematic && !obj.kineticObjId.empty()) {
             m_kinematic->setTransform(obj.kineticObjId, obj.currentTransform);
         }
-
-        // Check for sleep → re-staticize
-        if (!obj.rigidBody->isActive()) {
-            obj.sleepTimer += dt;
-            if (obj.sleepTimer >= SLEEP_RESTATICIZE_TIME) {
-                obj.markedForRestaticize = true;
-                toRestaticize.push_back(id);
-            }
-        } else {
-            obj.sleepTimer = 0.0f;
-        }
-    }
-
-    // Deactivate objects that have come to rest
-    for (const auto& id : toRestaticize) {
-        deactivate(id, false);
     }
 }
 
@@ -258,6 +321,22 @@ void DynamicFurnitureManager::update(float dt) {
 
 bool DynamicFurnitureManager::isActive(const std::string& placedObjectId) const {
     return m_active.count(placedObjectId) > 0;
+}
+
+void DynamicFurnitureManager::setObjectMass(const std::string& placedObjectId, float mass) {
+    auto it = m_active.find(placedObjectId);
+    if (it == m_active.end()) return;
+
+    auto& obj = it->second;
+    obj.totalMass = mass;
+
+    if (obj.rigidBody && obj.compoundShape) {
+        btVector3 localInertia(0, 0, 0);
+        obj.compoundShape->calculateLocalInertia(mass, localInertia);
+        obj.rigidBody->setMassProps(mass, localInertia);
+        obj.rigidBody->updateInertiaTensor();
+        obj.rigidBody->activate(true);
+    }
 }
 
 glm::mat4 DynamicFurnitureManager::getTransform(const std::string& placedObjectId) const {
@@ -384,9 +463,12 @@ std::vector<DynamicFurnitureManager::MergedBox> DynamicFurnitureManager::mergeVo
         gmax = glm::clamp(gmax, glm::ivec3(0), gridSize - glm::ivec3(1));
 
         const auto& mat = matMgr.getMaterial(v.materialName);
-        float totalVolume = v.scale.x * v.scale.y * v.scale.z;
+        // Use flat per-piece mass (not volumetric density) so microcube furniture has
+        // realistic weight. Each piece contributes 0.05 * materialMass kg regardless of
+        // voxel scale. A 99-piece Wood chair ≈ 99 * 0.05 * 0.7 ≈ 3.5 kg.
+        constexpr float PIECE_MASS = 0.05f;
         int cellCount = (gmax.x - gmin.x + 1) * (gmax.y - gmin.y + 1) * (gmax.z - gmin.z + 1);
-        float massPerCell = (cellCount > 0) ? (mat.mass * totalVolume) / cellCount : 0.0f;
+        float massPerCell = (cellCount > 0) ? (mat.mass * PIECE_MASS) / cellCount : 0.0f;
 
         for (int x = gmin.x; x <= gmax.x; ++x)
             for (int y = gmin.y; y <= gmax.y; ++y)
@@ -460,7 +542,8 @@ std::vector<DynamicFurnitureManager::MergedBox> DynamicFurnitureManager::mergeVo
 btCompoundShape* DynamicFurnitureManager::buildCompoundShape(
     const std::vector<KinematicVoxel>& voxels,
     std::vector<btBoxShape*>& childShapes,
-    float& totalMass) const
+    float& totalMass,
+    glm::vec3& centerOfMass) const
 {
     if (voxels.empty()) return nullptr;
 
@@ -469,29 +552,46 @@ btCompoundShape* DynamicFurnitureManager::buildCompoundShape(
     // Greedy merge: collapse adjacent voxels into larger boxes
     auto mergedBoxes = mergeVoxelsGreedy(voxels, matMgr);
 
-    LOG_INFO("DynamicFurniture", "Greedy merge: %zu voxels → %zu boxes (%.1fx reduction)",
-             voxels.size(), mergedBoxes.size(),
-             mergedBoxes.empty() ? 1.0f : static_cast<float>(voxels.size()) / mergedBoxes.size());
+    LOG_INFO_FMT("DynamicFurniture", "Greedy merge: " << voxels.size() << " voxels -> " << mergedBoxes.size()
+                 << " boxes (" << (mergedBoxes.empty() ? 1.0f : static_cast<float>(voxels.size()) / mergedBoxes.size()) << "x reduction)");
 
-    auto* compound = new btCompoundShape(true); // true = enable dynamic AABB tree
+    // 1. Compute total mass and mass-weighted center of mass
+    totalMass = 0.0f;
+    centerOfMass = glm::vec3(0.0f);
+    for (const auto& mb : mergedBoxes) {
+        totalMass += mb.mass;
+        centerOfMass += mb.center * mb.mass;
+    }
+    if (totalMass > 0.0f) {
+        centerOfMass /= totalMass;
+    }
+
+    // 2. Create compound shape with children SHIFTED so COM is at origin.
+    //    This is required by Bullet -- the compound origin is the center of mass.
+    //    Without this, inertia is wrong and the body spins wildly.
+    auto* compound = new btCompoundShape(true);
     childShapes.clear();
     childShapes.reserve(mergedBoxes.size());
-    totalMass = 0.0f;
 
     for (const auto& mb : mergedBoxes) {
         auto* box = new btBoxShape(btVector3(mb.halfExtents.x, mb.halfExtents.y, mb.halfExtents.z));
         childShapes.push_back(box);
 
+        // Child position relative to center of mass
+        glm::vec3 relPos = mb.center - centerOfMass;
+
         btTransform childXform;
         childXform.setIdentity();
-        childXform.setOrigin(btVector3(mb.center.x, mb.center.y, mb.center.z));
+        childXform.setOrigin(btVector3(relPos.x, relPos.y, relPos.z));
         compound->addChildShape(childXform, box);
-
-        totalMass += mb.mass;
     }
 
-    // Enforce minimum mass so small furniture doesn't feel weightless
-    totalMass = std::max(totalMass, 5.0f);
+    // Apply mass override or enforce minimum
+    if (massOverride > 0.0f) {
+        totalMass = massOverride;
+    } else {
+        totalMass = std::max(totalMass, 5.0f);
+    }
 
     return compound;
 }
@@ -520,11 +620,6 @@ btRigidBody* DynamicFurnitureManager::createDynamicBody(
 
     auto* body = new btRigidBody(rbInfo);
     body->setActivationState(ACTIVE_TAG);
-
-    // Enable CCD for fast-moving furniture (prevents tunneling)
-    float radius = 0.5f; // Approximate
-    body->setCcdMotionThreshold(radius);
-    body->setCcdSweptSphereRadius(radius * 0.5f);
 
     m_physicsWorld->getWorld()->addRigidBody(body);
     return body;
@@ -720,9 +815,9 @@ int DynamicFurnitureManager::shatter(const std::string& placedObjectId,
         return 0;
     }
 
-    LOG_INFO("DynamicFurniture", "Shattering '%s': force=%.1f, bondStrength=%.2f, threshold=%.1f",
-             placedObjectId.c_str(), contactForce, avgBondStrength,
-             avgBondStrength * BREAK_FORCE_SCALAR);
+    LOG_INFO_FMT("DynamicFurniture", "Shattering '" << placedObjectId
+                 << "': force=" << contactForce << ", bondStrength=" << avgBondStrength
+                 << ", threshold=" << avgBondStrength * BREAK_FORCE_SCALAR);
 
     // Compute fracture radius based on force vs bond strength
     float fractureRadius = 0.5f + (contactForce / (avgBondStrength * BREAK_FORCE_SCALAR)) * 0.5f;
@@ -778,14 +873,18 @@ int DynamicFurnitureManager::shatter(const std::string& placedObjectId,
 
             // Build compound shape from fragment voxels
             float fragMass = 0.0f;
-            fragObj.compoundShape = buildCompoundShape(fragVoxels, fragObj.childShapes, fragMass);
+            glm::vec3 fragCOM(0.0f);
+            fragObj.compoundShape = buildCompoundShape(fragVoxels, fragObj.childShapes, fragMass, fragCOM);
             fragObj.totalMass = fragMass;
 
             if (!fragObj.compoundShape) continue;
 
-            // Create dynamic body at the original transform
+            // Offset transform by fragment COM (children are recentered around COM)
+            glm::mat4 fragTransform = glm::translate(origTransform, fragCOM);
+
+            // Create dynamic body at the COM-offset transform
             fragObj.rigidBody = createDynamicBody(fragObj.compoundShape, fragMass,
-                                                   origTransform, fragObj.motionState);
+                                                   fragTransform, fragObj.motionState);
             if (!fragObj.rigidBody) {
                 cleanupPhysics(fragObj);
                 continue;
@@ -803,10 +902,15 @@ int DynamicFurnitureManager::shatter(const std::string& placedObjectId,
                 angularVel.x, angularVel.y, angularVel.z));
             fragObj.rigidBody->activate(true);
 
-            fragObj.currentTransform = origTransform;
+            fragObj.currentTransform = fragTransform;
+
+            // Shift voxel positions by -COM for rendering (same as activation)
+            for (auto& v : fragVoxels) {
+                v.localPos -= fragCOM;
+            }
 
             // Register for rendering
-            fragObj.kineticObjId = m_kinematic->add(fragId, std::move(fragVoxels), origTransform, fragId);
+            fragObj.kineticObjId = m_kinematic->add(fragId, std::move(fragVoxels), fragTransform, fragId, true);
 
             m_active[fragId] = std::move(fragObj);
             ++fragmentCount;
@@ -830,8 +934,8 @@ int DynamicFurnitureManager::shatter(const std::string& placedObjectId,
         }
     }
 
-    LOG_INFO("DynamicFurniture", "Shatter complete: %zu voxels → %zu fragments → %d created",
-             voxels.size(), fragments.size(), fragmentCount);
+    LOG_INFO_FMT("DynamicFurniture", "Shatter complete: " << voxels.size() << " voxels -> "
+                 << fragments.size() << " fragments -> " << fragmentCount << " created");
 
     return fragmentCount;
 }
@@ -876,6 +980,8 @@ void DynamicFurnitureManager::checkFractureContacts() {
             }
 
             if (maxImpulse > 0.0f) {
+                LOG_INFO_FMT("DynamicFurniture", "Fracture contact: '" << objId
+                             << "' impulse=" << maxImpulse);
                 requests.push_back({objId, maxImpulse,
                                      glm::vec3(contactPt.x(), contactPt.y(), contactPt.z())});
             }
@@ -916,7 +1022,7 @@ bool DynamicFurnitureManager::grab(const std::string& placedObjectId) {
     obj.sleepTimer = 0.0f;
     m_grabbedObjectId = placedObjectId;
 
-    LOG_INFO("DynamicFurniture", "Grabbed '%s'", placedObjectId.c_str());
+    LOG_INFO_FMT("DynamicFurniture", "Grabbed '" << placedObjectId << "'");
     return true;
 }
 
@@ -934,7 +1040,7 @@ void DynamicFurnitureManager::releaseGrab() {
             obj.rigidBody->activate(true);
         }
         obj.isGrabbed = false;
-        LOG_INFO("DynamicFurniture", "Released '%s'", m_grabbedObjectId.c_str());
+        LOG_INFO_FMT("DynamicFurniture", "Released '" << m_grabbedObjectId << "'");
     }
 
     m_grabbedObjectId.clear();
@@ -957,8 +1063,8 @@ void DynamicFurnitureManager::throwGrab(const glm::vec3& impulse) {
             obj.rigidBody->applyCentralImpulse(btVector3(impulse.x, impulse.y, impulse.z));
         }
         obj.isGrabbed = false;
-        LOG_INFO("DynamicFurniture", "Threw '%s' with impulse (%.1f, %.1f, %.1f)",
-                 m_grabbedObjectId.c_str(), impulse.x, impulse.y, impulse.z);
+        LOG_INFO_FMT("DynamicFurniture", "Threw '" << m_grabbedObjectId
+                     << "' with impulse (" << impulse.x << ", " << impulse.y << ", " << impulse.z << ")");
     }
 
     m_grabbedObjectId.clear();
@@ -1007,10 +1113,10 @@ void DynamicFurnitureManager::checkPlayerFurnitureCollision(
     if (!isSprinting || !m_placedObjects) return;
 
     float speed = glm::length(playerVelocity);
-    if (speed < 2.0f) return;  // Need meaningful velocity
+    if (speed < 1.0f) return;  // Need meaningful velocity
 
     // Check all placed objects for AABB overlap with player
-    const float PLAYER_RADIUS = 0.5f;
+    const float PLAYER_RADIUS = 0.8f;
     for (const auto& [id, obj] : m_placedObjects->getAllObjects()) {
         // Skip already-dynamic objects
         if (isActive(id)) continue;
@@ -1034,8 +1140,8 @@ void DynamicFurnitureManager::checkPlayerFurnitureCollision(
             float pushForce = speed * 2.0f;  // Proportional to sprint speed
             glm::vec3 impulse = pushDir * pushForce;
 
-            LOG_INFO("DynamicFurniture", "Sprint collision with '%s' — activating with push (%.1f)",
-                     id.c_str(), pushForce);
+            LOG_INFO_FMT("DynamicFurniture", "Sprint collision with '" << id
+                         << "' — activating with push (" << pushForce << ")");
             activate(id, impulse, playerPos);
             return;  // One activation per frame
         }

@@ -1549,6 +1549,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     m_propertiesPanel->setPlacedObjectManager(placedObjectManager.get());
     m_propertiesPanel->setNPCManager(npcManager.get());
     m_propertiesPanel->setObjectTemplateManager(objectTemplateManager.get());
+    m_propertiesPanel->setDynamicFurnitureManager(dynamicFurnitureManager.get());
 
     // Create the world outliner panel
     m_worldOutliner = std::make_unique<Editor::WorldOutlinerPanel>();
@@ -1617,7 +1618,13 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     m_worldOutliner->onSpawnTemplate = [this](const std::string& name, const glm::ivec3& pos,
                                                int rotation) -> std::string {
         if (!placedObjectManager) return "";
-        return placedObjectManager->placeTemplate(name, pos, rotation, "");
+        std::string objId = placedObjectManager->placeTemplate(name, pos, rotation, "");
+        // Persist to DB so objects survive engine restart
+        if (chunkManager) {
+            auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+            if (ws) placedObjectManager->saveToDb(ws->getDb());
+        }
+        return objId;
     };
 
 #ifdef _WIN32
@@ -2021,6 +2028,7 @@ void Application::run() {
 
         // Render Template Spawner
         renderTemplateSpawner();
+        renderClickActions();
         if (dialogueSystem) {
             imguiRenderer->renderDialogueBox(dialogueSystem.get());
         }
@@ -2348,12 +2356,32 @@ void Application::update(float deltaTime) {
                 inputManager->getCameraFront());
         }
         // Sprint-to-move: check player collision with furniture while sprinting
+        // Use character body position (feet), not camera, for accurate AABB overlap
         if (inputManager && deltaTime > 0.0f) {
             bool sprinting = inputManager->isKeyPressed(GLFW_KEY_LEFT_SHIFT) ||
                              inputManager->isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
-            glm::vec3 camPos = inputManager->getCameraPosition();
-            glm::vec3 camVel = (camPos - lastCameraPos) / deltaTime;
-            dynamicFurnitureManager->checkPlayerFurnitureCollision(camPos, camVel, sprinting);
+            glm::vec3 charPos(0.0f);
+            glm::vec3 charVel(0.0f);
+            bool hasChar = false;
+            if (animatedCharacter) {
+                charPos = animatedCharacter->getPosition(); // feet position
+                // Approximate body center (half height up)
+                charPos.y += animatedCharacter->getControllerHalfHeight();
+                // Velocity from camera delta (character doesn't expose velocity)
+                glm::vec3 camPos = inputManager->getCameraPosition();
+                charVel = (camPos - lastCameraPos) / deltaTime;
+                charVel.y = 0.0f; // Only horizontal movement matters
+                hasChar = true;
+            } else if (physicsCharacter) {
+                charPos = physicsCharacter->getPosition();
+                glm::vec3 camPos = inputManager->getCameraPosition();
+                charVel = (camPos - lastCameraPos) / deltaTime;
+                charVel.y = 0.0f;
+                hasChar = true;
+            }
+            if (hasChar) {
+                dynamicFurnitureManager->checkPlayerFurnitureCollision(charPos, charVel, sprinting);
+            }
         }
     }
 
@@ -3115,11 +3143,70 @@ void Application::renderTemplateSpawner() {
 
     ImGui::Separator();
     if (ImGui::Button("Spawn", ImVec2(-1, 30)) && !templateNames.empty()) {
-        glm::vec3 pos(spawnerPos[0], spawnerPos[1], spawnerPos[2]);
         const std::string& name = templateNames[spawnerTemplateIdx];
-        objectTemplateManager->spawnTemplate(name, pos, spawnerStatic, spawnerRotation);
-        LOG_INFO_FMT("TemplateSpawner", "Spawned '" << name << "' at ("
-                     << pos.x << "," << pos.y << "," << pos.z << ") rot=" << spawnerRotation);
+        glm::ivec3 pos((int)spawnerPos[0], (int)spawnerPos[1], (int)spawnerPos[2]);
+        if (placedObjectManager && spawnerStatic) {
+            // Route through PlacedObjectManager so the object is tracked, shows in World Outliner, and persists
+            std::string objId = placedObjectManager->placeTemplate(name, pos, spawnerRotation);
+            LOG_INFO_FMT("TemplateSpawner", "Placed '" << name << "' as '" << objId << "' at ("
+                         << pos.x << "," << pos.y << "," << pos.z << ") rot=" << spawnerRotation);
+            // Persist to DB so objects survive engine restart
+            if (chunkManager) {
+                auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+                if (ws) placedObjectManager->saveToDb(ws->getDb());
+            }
+        } else {
+            // Fallback for dynamic or if PlacedObjectManager unavailable
+            objectTemplateManager->spawnTemplate(name, glm::vec3(pos), spawnerStatic, spawnerRotation);
+            LOG_INFO_FMT("TemplateSpawner", "Spawned '" << name << "' (untracked) at ("
+                         << pos.x << "," << pos.y << "," << pos.z << ") rot=" << spawnerRotation);
+        }
+    }
+
+    ImGui::End();
+}
+
+void Application::renderClickActions() {
+    if (!showClickActions) return;
+
+    ImGui::SetNextWindowSize(ImVec2(300, 280), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Click Actions", &showClickActions)) {
+        ImGui::End();
+        return;
+    }
+
+    // Target mode selector (redundant with arrow keys)
+    if (voxelInteractionSystem) {
+        int mode = static_cast<int>(voxelInteractionSystem->getTargetMode());
+        const char* modeNames[] = {"Cube", "Subcube", "Microcube"};
+        if (ImGui::Combo("Target Mode", &mode, modeNames, 3)) {
+            voxelInteractionSystem->setTargetMode(static_cast<TargetMode>(mode));
+        }
+    }
+
+    ImGui::Separator();
+    ImGui::Text("Furniture Physics");
+
+    // Furniture hit force
+    if (voxelInteractionSystem) {
+        ImGui::SliderFloat("Hit Force", &voxelInteractionSystem->furnitureHitForce, 0.0f, 20.0f, "%.1f");
+        ImGui::SetItemTooltip("Impulse applied when clicking furniture (0 = activate only, no push)");
+    }
+
+    if (dynamicFurnitureManager) {
+        int active = static_cast<int>(dynamicFurnitureManager->activeCount());
+        ImGui::Text("Active: %d / %d", active, Core::DynamicFurnitureManager::MAX_DYNAMIC_FURNITURE);
+
+        // Reset all active furniture to original positions
+        if (active > 0) {
+            if (ImGui::Button("Reset All to Original", ImVec2(-1, 0))) {
+                std::vector<std::string> ids;
+                for (const auto& [id, _] : dynamicFurnitureManager->getActiveObjects())
+                    ids.push_back(id);
+                for (const auto& id : ids)
+                    dynamicFurnitureManager->deactivate(id, true);
+            }
+        }
     }
 
     ImGui::End();
@@ -8965,6 +9052,7 @@ void Application::renderMainMenuBar() {
             ImGui::MenuItem("Character Customizer", "F11", &showCharacterCustomizer);
             ImGui::MenuItem("Interaction Tuner", "F12", &showInteractionTuner);
             ImGui::MenuItem("Template Spawner", nullptr, &showTemplateSpawner);
+            ImGui::MenuItem("Click Actions", nullptr, &showClickActions);
             ImGui::Separator();
 
             if (ImGui::MenuItem("Reset Layout")) {

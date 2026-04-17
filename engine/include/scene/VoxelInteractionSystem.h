@@ -204,6 +204,9 @@ private:
     // Dynamic furniture activation
     Core::PlacedObjectManager*    m_placedObjects   = nullptr;
     Core::DynamicFurnitureManager* m_dynamicFurniture = nullptr;
+public:
+    float furnitureHitForce = 1.5f;  ///< Tunable: impulse applied when left-clicking furniture
+private:
 
     // Helper to create interaction context
     InteractionContext createContext() const;

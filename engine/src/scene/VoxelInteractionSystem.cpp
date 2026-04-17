@@ -3,6 +3,7 @@
 #include "core/AssetManager.h"
 #include "core/PlacedObjectManager.h"
 #include "core/DynamicFurnitureManager.h"
+#include <btBulletDynamicsCommon.h>
 #include "physics/PhysicsWorld.h"
 #include "ui/WindowManager.h"
 #include "core/ForceSystem.h"
@@ -549,25 +550,19 @@ bool VoxelInteractionSystem::tryActivateFurnitureAtHover(const glm::vec3& camera
     // Pick the first placed object found at this position
     const std::string& objId = objectIds[0];
 
-    // Skip if already active as dynamic furniture
-    if (m_dynamicFurniture->isActive(objId)) return false;
+    // If already active, just consume the click (no impulse)
+    if (m_dynamicFurniture->isActive(objId)) {
+        return true;  // Consumed the click — don't break voxels
+    }
 
     // Skip objects that aren't template-based (structures are not activatable)
     const auto* placed = m_placedObjects->get(objId);
     if (!placed || placed->category != "template") return false;
 
-    // Compute impulse: gentle nudge from clicking (not a sledgehammer)
-    constexpr float BASE_HIT_FORCE = 1.5f;
-    glm::vec3 impulse = cameraFront * BASE_HIT_FORCE;
-
-    // Contact point is the ray hit point on the voxel
-    glm::vec3 contactPoint = m_currentHoveredLocation.hitPoint;
-
-    bool activated = m_dynamicFurniture->activate(objId, impulse, contactPoint);
+    // Activate with zero impulse — just convert static to dynamic
+    bool activated = m_dynamicFurniture->activate(objId);
     if (activated) {
-        LOG_INFO_FMT("VoxelInteraction", "Activated furniture '" << objId
-                     << "' at hit point (" << contactPoint.x << "," << contactPoint.y
-                     << "," << contactPoint.z << ")");
+        LOG_INFO_FMT("VoxelInteraction", "Activated furniture '" << objId << "'");
         if (m_audioSystem) {
             m_audioSystem->playSound(Core::AssetManager::instance().resolveSound("hit.wav"));
         }

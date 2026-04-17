@@ -59,12 +59,18 @@ public:
 
     void setPhysicsWorld(Physics::PhysicsWorld* pw) { m_physicsWorld = pw; }
 
-    /// Register a new object. Builds the face buffer and creates a kinematic Bullet
-    /// box collider sized to the voxel AABB. Returns the assigned object ID.
+    /// Register a new object for rendering. Builds the face buffer and optionally
+    /// creates a kinematic Bullet box collider sized to the voxel AABB.
+    ///
+    /// IMPORTANT: Set skipCollider=true when the object already has its own physics
+    /// body (e.g. DynamicFurnitureManager creates a btRigidBody compound shape).
+    /// Creating a second collider at the same position causes Bullet to eject
+    /// the dynamic body violently.
     std::string add(const std::string& idHint,
                     std::vector<KinematicVoxel> voxels,
                     const glm::mat4& initialTransform = glm::mat4(1.0f),
-                    const std::string& placedObjectId = "");
+                    const std::string& placedObjectId = "",
+                    bool skipCollider = false);
 
     /// Remove an object, destroy its Bullet collider, and free all resources.
     void remove(const std::string& id);

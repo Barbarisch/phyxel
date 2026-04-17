@@ -68,6 +68,9 @@ public:
     static constexpr int    MIN_FRAGMENT_VOXELS    = 4;     ///< Fragments below this become GPU debris
     static constexpr float  GRAB_HOLD_DISTANCE    = 3.0f;  ///< Distance in front of camera when holding
 
+    /// Override mass for all newly activated furniture (0 = use calculated mass)
+    float massOverride = 0.0f;
+
     DynamicFurnitureManager() = default;
     ~DynamicFurnitureManager();
 
@@ -133,6 +136,10 @@ public:
     const std::string& getGrabbedObjectId() const { return m_grabbedObjectId; }
     void update(float dt);
 
+    /// Set the mass of an active dynamic furniture object at runtime.
+    /// Updates the Bullet rigid body inertia immediately.
+    void setObjectMass(const std::string& placedObjectId, float mass);
+
     /// Is a placed object currently active as dynamic furniture?
     bool isActive(const std::string& placedObjectId) const;
 
@@ -171,11 +178,13 @@ private:
 
     /// Build a btCompoundShape from KinematicVoxel positions.
     /// Uses greedy box merge to minimize child shape count.
+    /// Child shapes are recentered so the compound origin = center of mass.
     /// Returns the compound shape and populates childShapes vector.
-    /// Also computes totalMass from per-voxel materials.
+    /// Also computes totalMass and centerOfMass (local-space offset from template origin).
     btCompoundShape* buildCompoundShape(const std::vector<KinematicVoxel>& voxels,
                                         std::vector<btBoxShape*>& childShapes,
-                                        float& totalMass) const;
+                                        float& totalMass,
+                                        glm::vec3& centerOfMass) const;
 
     /// Create a dynamic btRigidBody from a compound shape.
     btRigidBody* createDynamicBody(btCompoundShape* shape, float mass,
