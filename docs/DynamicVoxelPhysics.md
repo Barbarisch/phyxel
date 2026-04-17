@@ -7,7 +7,7 @@ When voxels are broken (left-click), they become physics-driven **dynamic voxels
 - **Bullet Physics** (CPU) — Traditional rigid body simulation via `DynamicObjectManager`. Higher fidelity OBB collision, but CPU-bound and costly above ~75 objects.
 - **GPU Compute** (Vulkan) — Massively parallel XPBD particle physics via `GpuParticlePhysics`. Lower per-particle cost, scales to 5000+ particles with minimal FPS impact.
 
-Both systems render through the same dynamic voxel pipeline (see [DynamicSubcubeRenderPipeline.md](DynamicSubcubeRenderPipeline.md)).
+Both systems render through the same dynamic voxel pipeline (see [VoxelRenderPipelines.md](VoxelRenderPipelines.md)).
 
 ```
           Player breaks voxel
@@ -326,6 +326,7 @@ Each test step:
 
 ## See Also
 
-- [DynamicSubcubeRenderPipeline.md](DynamicSubcubeRenderPipeline.md) — Rendering architecture for dynamic voxels
+- [VoxelRenderPipelines.md](VoxelRenderPipelines.md) — Rendering architecture for all three voxel pipelines (static, kinematic, GPU particle)
+- [VoxelSystem.md](VoxelSystem.md) — Conceptual model: voxel sizes, static/kinematic/dynamic states
 - [SubsystemArchitecture.md](SubsystemArchitecture.md) — Engine subsystem overview
 - [CoordinateSystem.md](CoordinateSystem.md) — World coordinate conventions

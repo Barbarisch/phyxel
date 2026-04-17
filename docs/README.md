@@ -10,7 +10,7 @@ Phyxel is a voxel game engine and development application. The engine (`phyxel_c
 
 1. **Building a game** — Read the [GameCreationGuide.md](GameCreationGuide.md) for the AI-driven workflow, or scaffold a project with `python tools/create_project.py MyGame`
 2. **Engine architecture** — [ArchitectureOverview.md](ArchitectureOverview.md) and [SubsystemArchitecture.md](SubsystemArchitecture.md)
-3. **Core systems** — [CoordinateSystem.md](CoordinateSystem.md) → [MultiChunkSystem.md](MultiChunkSystem.md) → [DynamicSubcubeRenderPipeline.md](DynamicSubcubeRenderPipeline.md)
+3. **Core systems** — [CoordinateSystem.md](CoordinateSystem.md) → [MultiChunkSystem.md](MultiChunkSystem.md) → [VoxelSystem.md](VoxelSystem.md) → [VoxelRenderPipelines.md](VoxelRenderPipelines.md)
 4. **AI integration** — [MCPIntegration.md](MCPIntegration.md) for the MCP server and 166 tools
 5. **Prompt catalog** — [GameDevPromptCatalog.md](GameDevPromptCatalog.md) for ready-to-use game creation and feature testing prompts
 
@@ -32,7 +32,8 @@ Phyxel is a voxel game engine and development application. The engine (`phyxel_c
 
 ## Rendering & World
 
-- **[DynamicSubcubeRenderPipeline.md](DynamicSubcubeRenderPipeline.md)** — Dual-pipeline Vulkan rendering (static + dynamic)
+- **[VoxelSystem.md](VoxelSystem.md)** — Voxel sizes (cube/subcube/microcube), static/kinematic/dynamic lifecycle states
+- **[VoxelRenderPipelines.md](VoxelRenderPipelines.md)** — Three-pipeline Vulkan rendering (static, kinematic, GPU particle)
 - **[MultiChunkSystem.md](MultiChunkSystem.md)** — 32³ chunk-based world architecture
 - **[ChunkUpdateOptimization.md](ChunkUpdateOptimization.md)** — Face culling, instance batching, GPU optimization
 - **[ObjectTemplateSystem.md](ObjectTemplateSystem.md)** — Voxel object import and spawning
