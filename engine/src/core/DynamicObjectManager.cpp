@@ -4,10 +4,12 @@
 #include "core/Microcube.h"
 #include "core/DebrisSystem.h"
 #include "physics/PhysicsWorld.h"
+#include "physics/VoxelRigidBody.h"
 #include "scene/AnimatedVoxelCharacter.h"
 #include "scene/RagdollCharacter.h"
 #include "utils/Logger.h"
 #include <btBulletDynamicsCommon.h>
+#include <glm/gtc/quaternion.hpp>
 
 namespace Phyxel {
 
@@ -15,16 +17,17 @@ DynamicObjectManager::DynamicObjectManager() = default;
 DynamicObjectManager::~DynamicObjectManager() = default;
 
 size_t DynamicObjectManager::getActiveBulletCount() const {
+    // Only count legacy Bullet bodies (VoxelRigidBody bodies are uncapped)
     size_t active = 0;
     if (m_getCubes) {
         for (auto& c : m_getCubes()) {
-            if (c && c->getRigidBody() && c->getRigidBody()->isActive())
+            if (c && c->getRigidBody() && !c->getVoxelBody() && c->getRigidBody()->isActive())
                 ++active;
         }
     }
     if (m_getSubcubes) {
         for (auto& s : m_getSubcubes()) {
-            if (s && s->getRigidBody() && s->getRigidBody()->isActive())
+            if (s && s->getRigidBody() && !s->getVoxelBody() && s->getRigidBody()->isActive())
                 ++active;
         }
     }
@@ -79,15 +82,29 @@ void DynamicObjectManager::updateGlobalDynamicSubcubes(float deltaTime) {
     size_t removedCount = 0;
     
     while (it != subcubes.end()) {
-        (*it)->updateLifetime(deltaTime);
-        
-        if ((*it)->hasExpired()) {
-            // Properly remove physics body from physics world
-            if (physicsWorld && (*it)->getRigidBody()) {
+        Subcube* sub = it->get();
+
+        // VoxelRigidBody marks itself isDead; we must call removeBody() before nulling.
+        if (auto* vb = sub->getVoxelBody(); vb && vb->isDead) {
+            if (physicsWorld && physicsWorld->getVoxelWorld())
+                physicsWorld->getVoxelWorld()->removeBody(vb);
+            sub->setVoxelBody(nullptr);
+            removedCount++;
+            it = subcubes.erase(it);
+            continue;
+        }
+
+        sub->updateLifetime(deltaTime);
+
+        if (sub->hasExpired()) {
+            // Remove from the appropriate physics world
+            if (sub->getRigidBody() && physicsWorld) {
                 LOG_TRACE("DynamicObject", "Removing expired dynamic subcube physics body");
-                physicsWorld->removeCube((*it)->getRigidBody());
+                physicsWorld->removeCube(sub->getRigidBody());
             }
-            
+            // VoxelRigidBody lifetime is managed by VoxelDynamicsWorld — just null the pointer
+            sub->setVoxelBody(nullptr);
+
             removedCount++;
             it = subcubes.erase(it);
         } else {
@@ -114,41 +131,36 @@ void DynamicObjectManager::updateGlobalDynamicSubcubePositions() {
     }
     
     for (auto& subcube : subcubes) {
-        if (subcube && subcube->getRigidBody()) {
-            btRigidBody* body = subcube->getRigidBody();
-            btTransform transform = body->getWorldTransform();
-            
-            glm::vec3 oldStoredPos = subcube->getPhysicsPosition();
-            
+        if (!subcube) continue;
+
+        glm::vec3 newWorldPos;
+        glm::vec4 newRotation;
+
+        if (auto* vb = subcube->getVoxelBody()) {
+            // Custom physics solver path
+            if (vb->isAsleep) continue;
+            newWorldPos = vb->position;
+            const glm::quat& q = vb->orientation;
+            newRotation = glm::vec4(q.x, q.y, q.z, q.w);
+
+        } else if (auto* rb = subcube->getRigidBody()) {
+            // Legacy Bullet path
+            btTransform transform = rb->getWorldTransform();
             btVector3 btPos = transform.getOrigin();
-            glm::vec3 newWorldPos(btPos.x(), btPos.y(), btPos.z());
-            
+            newWorldPos = glm::vec3(btPos.x(), btPos.y(), btPos.z());
             btQuaternion btRot = transform.getRotation();
-            glm::vec4 newRotation(btRot.x(), btRot.y(), btRot.z(), btRot.w());
-            
-            // Only update stored transform if it actually moved
-            glm::vec3 delta = newWorldPos - oldStoredPos;
-            float distSq = glm::dot(delta, delta);
-            if (distSq > MOVEMENT_THRESHOLD_SQ) {
-                subcube->setPhysicsPosition(newWorldPos);
-                subcube->setPhysicsRotation(newRotation);
-                m_positionsDirty = true;
-            }
-            
-            if (debugCounter % 60 == 0) {
-                glm::vec3 movement = newWorldPos - oldStoredPos;
-                float movementMag = glm::length(movement);
-                
-                LOG_TRACE("DynamicObject", "===== AFTER PHYSICS SIMULATION =====");
-                LOG_TRACE_FMT("DynamicObject", "Physics body final position: (" 
-                          << newWorldPos.x << ", " << newWorldPos.y << ", " << newWorldPos.z << ")");
-                LOG_TRACE_FMT("DynamicObject", "Movement from last update: (" 
-                          << movement.x << ", " << movement.y << ", " << movement.z << ") magnitude: " << movementMag);
-                LOG_TRACE_FMT("DynamicObject", "Rotation: (" 
-                          << newRotation.x << ", " << newRotation.y << ", " << newRotation.z << ", " << newRotation.w << ")");
-                LOG_TRACE("DynamicObject", "===== END SUBCUBE POSITION TRACKING =====");
-                break;
-            }
+            newRotation = glm::vec4(btRot.x(), btRot.y(), btRot.z(), btRot.w());
+
+        } else {
+            continue;
+        }
+
+        glm::vec3 delta = newWorldPos - subcube->getPhysicsPosition();
+        float distSq = glm::dot(delta, delta);
+        if (distSq > MOVEMENT_THRESHOLD_SQ) {
+            subcube->setPhysicsPosition(newWorldPos);
+            subcube->setPhysicsRotation(newRotation);
+            m_positionsDirty = true;
         }
     }
     
@@ -195,14 +207,23 @@ void DynamicObjectManager::updateGlobalDynamicCubes(float deltaTime) {
     size_t removedCount = 0;
     
     while (it != cubes.end()) {
+        if (auto* vb = (*it)->getVoxelBody(); vb && vb->isDead) {
+            if (physicsWorld && physicsWorld->getVoxelWorld())
+                physicsWorld->getVoxelWorld()->removeBody(vb);
+            (*it)->setVoxelBody(nullptr);
+            removedCount++;
+            it = cubes.erase(it);
+            continue;
+        }
+
         (*it)->updateLifetime(deltaTime);
-        
+
         if ((*it)->hasExpired()) {
             if (physicsWorld && (*it)->getRigidBody()) {
                 LOG_DEBUG("DynamicObject", "Removing expired dynamic cube physics body");
                 physicsWorld->removeCube((*it)->getRigidBody());
             }
-            
+
             removedCount++;
             it = cubes.erase(it);
         } else {
@@ -226,44 +247,37 @@ void DynamicObjectManager::updateGlobalDynamicCubePositions() {
     }
     
     for (auto& cube : cubes) {
-        if (cube && cube->getRigidBody()) {
-            btRigidBody* body = cube->getRigidBody();
-            btTransform transform = body->getWorldTransform();
-            
-            glm::vec3 oldStoredPos = cube->getPhysicsPosition();
-            
+        if (!cube) continue;
+
+        glm::vec3 newWorldPos;
+        glm::vec4 newRotation;
+
+        if (auto* vb = cube->getVoxelBody()) {
+            if (vb->isAsleep) continue;
+            newWorldPos = vb->position;
+            const glm::quat& q = vb->orientation;
+            newRotation = glm::vec4(q.x, q.y, q.z, q.w);
+
+        } else if (auto* rb = cube->getRigidBody()) {
+            btTransform transform = rb->getWorldTransform();
             btVector3 btPos = transform.getOrigin();
-            glm::vec3 newWorldPos(btPos.x(), btPos.y(), btPos.z());
-            
+            newWorldPos = glm::vec3(btPos.x(), btPos.y(), btPos.z());
             btQuaternion btRot = transform.getRotation();
-            glm::vec4 newRotation(btRot.x(), btRot.y(), btRot.z(), btRot.w());
-            
-            // Only update stored transform if it actually moved
-            glm::vec3 delta = newWorldPos - oldStoredPos;
-            float distSq = glm::dot(delta, delta);
-            if (distSq > MOVEMENT_THRESHOLD_SQ) {
-                cube->setPhysicsPosition(newWorldPos);
-                cube->setPhysicsRotation(newRotation);
-                m_positionsDirty = true;
-            }
-            
-            if (m_debugCounter % 60 == 0) {
-                glm::vec3 movement = newWorldPos - oldStoredPos;
-                float movementMag = glm::length(movement);
-                
-                LOG_DEBUG("DynamicObject", "[POSITION TRACK] ===== AFTER PHYSICS SIMULATION =====");
-                LOG_DEBUG_FMT("DynamicObject", "[POSITION TRACK] 6. Physics body final position: (" 
-                          << newWorldPos.x << ", " << newWorldPos.y << ", " << newWorldPos.z << ")");
-                LOG_DEBUG_FMT("DynamicObject", "[POSITION TRACK] 7. Movement from last update: (" 
-                          << movement.x << ", " << movement.y << ", " << movement.z << ") magnitude: " << movementMag);
-                LOG_DEBUG_FMT("DynamicObject", "[POSITION TRACK] 8. Rotation: (" 
-                          << newRotation.x << ", " << newRotation.y << ", " << newRotation.z << ", " << newRotation.w << ")");
-                LOG_DEBUG("DynamicObject", "[POSITION TRACK] ===== END POSITION TRACKING =====");
-                break;
-            }
+            newRotation = glm::vec4(btRot.x(), btRot.y(), btRot.z(), btRot.w());
+
+        } else {
+            continue;
+        }
+
+        glm::vec3 delta = newWorldPos - cube->getPhysicsPosition();
+        float distSq = glm::dot(delta, delta);
+        if (distSq > MOVEMENT_THRESHOLD_SQ) {
+            cube->setPhysicsPosition(newWorldPos);
+            cube->setPhysicsRotation(newRotation);
+            m_positionsDirty = true;
         }
     }
-    
+
     m_debugCounter++;
 }
 
@@ -307,14 +321,23 @@ void DynamicObjectManager::updateGlobalDynamicMicrocubes(float deltaTime) {
     size_t removedCount = 0;
     
     while (it != microcubes.end()) {
+        if (auto* vb = (*it)->getVoxelBody(); vb && vb->isDead) {
+            if (physicsWorld && physicsWorld->getVoxelWorld())
+                physicsWorld->getVoxelWorld()->removeBody(vb);
+            (*it)->setVoxelBody(nullptr);
+            removedCount++;
+            it = microcubes.erase(it);
+            continue;
+        }
+
         (*it)->updateLifetime(deltaTime);
-        
+
         if ((*it)->hasExpired()) {
             if (physicsWorld && (*it)->getRigidBody()) {
                 LOG_TRACE("DynamicObject", "[MICROCUBE] Removing expired dynamic microcube physics body");
                 physicsWorld->removeCube((*it)->getRigidBody());
             }
-            
+
             removedCount++;
             it = microcubes.erase(it);
         } else {
@@ -332,26 +355,34 @@ void DynamicObjectManager::updateGlobalDynamicMicrocubePositions() {
     auto& microcubes = m_getMicrocubes();
     
     for (auto& microcube : microcubes) {
-        if (microcube && microcube->getRigidBody()) {
-            btRigidBody* body = microcube->getRigidBody();
-            btTransform transform = body->getWorldTransform();
-            
-            glm::vec3 oldStoredPos = microcube->getPhysicsPosition();
-            
+        if (!microcube) continue;
+
+        glm::vec3 newWorldPos;
+        glm::vec4 newRotation;
+
+        if (auto* vb = microcube->getVoxelBody()) {
+            if (vb->isAsleep) continue;
+            newWorldPos = vb->position;
+            const glm::quat& q = vb->orientation;
+            newRotation = glm::vec4(q.x, q.y, q.z, q.w);
+
+        } else if (auto* rb = microcube->getRigidBody()) {
+            btTransform transform = rb->getWorldTransform();
             btVector3 btPos = transform.getOrigin();
-            glm::vec3 newWorldPos(btPos.x(), btPos.y(), btPos.z());
-            
+            newWorldPos = glm::vec3(btPos.x(), btPos.y(), btPos.z());
             btQuaternion btRot = transform.getRotation();
-            glm::vec4 newRotation(btRot.x(), btRot.y(), btRot.z(), btRot.w());
-            
-            // Only update stored transform if it actually moved
-            glm::vec3 delta = newWorldPos - oldStoredPos;
-            float distSq = glm::dot(delta, delta);
-            if (distSq > MOVEMENT_THRESHOLD_SQ) {
-                microcube->setPhysicsPosition(newWorldPos);
-                microcube->setPhysicsRotation(newRotation);
-                m_positionsDirty = true;
-            }
+            newRotation = glm::vec4(btRot.x(), btRot.y(), btRot.z(), btRot.w());
+
+        } else {
+            continue;
+        }
+
+        glm::vec3 delta = newWorldPos - microcube->getPhysicsPosition();
+        float distSq = glm::dot(delta, delta);
+        if (distSq > MOVEMENT_THRESHOLD_SQ) {
+            microcube->setPhysicsPosition(newWorldPos);
+            microcube->setPhysicsRotation(newRotation);
+            m_positionsDirty = true;
         }
     }
 }

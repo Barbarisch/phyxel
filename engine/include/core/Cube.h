@@ -9,6 +9,8 @@
 class btRigidBody;
 
 namespace Phyxel {
+namespace Physics { class VoxelRigidBody; }
+
 
 // Forward declaration
 class Subcube;
@@ -82,12 +84,13 @@ public:
     bool isBroken() const { return broken; }
     bool isVisible() const { return visible; }
     btRigidBody* getRigidBody() const { return rigidBody; }
-    
+    Physics::VoxelRigidBody* getVoxelBody() const { return voxelBody; }
+
     // Physics accessors (for dynamic cubes)
     const glm::vec3& getPhysicsPosition() const { return physicsPosition; }
     const glm::vec4& getPhysicsRotation() const { return physicsRotation; }
     const glm::vec3& getDynamicScale() const { return dynamicScale; }
-    bool isDynamic() const { return rigidBody != nullptr; }
+    bool isDynamic() const { return rigidBody != nullptr || voxelBody != nullptr; }
     
     // Lifetime accessors (for dynamic cubes)
     float getLifetime() const { return lifetime; }
@@ -108,6 +111,7 @@ public:
     void setBroken(bool isBroken) { broken = isBroken; }
     void setVisible(bool vis) { visible = vis; }
     void setRigidBody(btRigidBody* body) { rigidBody = body; }
+    void setVoxelBody(Physics::VoxelRigidBody* body) { voxelBody = body; }
     
     // Physics mutators (for dynamic cubes)
     void setPhysicsPosition(const glm::vec3& pos) { physicsPosition = pos; }
@@ -158,8 +162,9 @@ private:
     bool broken = false;        // Whether the cube is broken/damaged
     bool visible = true;        // Whether the cube should be rendered
     
-    // Physics body for dynamic cubes
+    // Physics bodies for dynamic cubes (rigidBody = Bullet legacy; voxelBody = custom solver)
     btRigidBody* rigidBody = nullptr;
+    Physics::VoxelRigidBody* voxelBody = nullptr;
     
     // Physics position/rotation (for dynamic cubes - bypasses integer grid)
     glm::vec3 physicsPosition = glm::vec3(0.0f);

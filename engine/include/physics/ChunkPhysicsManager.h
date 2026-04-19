@@ -2,6 +2,7 @@
 
 #include "core/Types.h"
 #include "physics/CollisionSpatialGrid.h"
+#include "physics/VoxelOccupancyGrid.h"
 #include <glm/glm.hpp>
 #include <functional>
 
@@ -146,6 +147,10 @@ public:
     // Spatial grid access
     const CollisionSpatialGrid& getCollisionGrid() const { return collisionGrid; }
     CollisionSpatialGrid& getCollisionGrid() { return collisionGrid; }
+
+    // Occupancy grid — queried by VoxelDynamicsWorld for terrain collision
+    VoxelOccupancyGrid& getOccupancyGrid() { return m_occupancyGrid; }
+    const VoxelOccupancyGrid& getOccupancyGrid() const { return m_occupancyGrid; }
     
     // TEMPORARY: Direct access to physics members for gradual migration
     // These will be removed once all physics logic is fully extracted
@@ -206,10 +211,13 @@ private:
     CollisionSpatialGrid collisionGrid;
     bool collisionNeedsUpdate = false;             // Flag for batch collision updates
     bool m_isInBulkOperation = false;              // Flag to prevent neighbor updates during bulk loading
-    
+
+    // Voxel occupancy grid for custom physics solver terrain queries
+    VoxelOccupancyGrid m_occupancyGrid;
+
     // Physics world reference
     PhysicsWorld* physicsWorld = nullptr;
-    
+
     // Chunk world origin (for physics body positioning)
     glm::ivec3 chunkOrigin = glm::ivec3(0);
     

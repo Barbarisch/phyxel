@@ -249,7 +249,7 @@ namespace Scene {
         Phyxel::Skeleton& getSkeletonMut() { return skeleton; }
         Phyxel::AnimationSystem& getAnimSystemMut() { return animSystem; }
         const std::map<int, btRigidBody*>& getBoneBodiesRef() const { return boneBodies; }
-        btRigidBody* getControllerBody() const { return controllerBody; }
+        btRigidBody* getControllerBody() const { return nullptr; }
         const glm::vec3& getWorldPositionRef() const { return worldPosition; }
         float getSkeletonFootOffset() const { return skeletonFootOffset_; }
         float getCurrentYaw() const { return currentYaw; }
@@ -298,8 +298,9 @@ namespace Scene {
         float m_hitFrameFraction = 0.4f;    // Default: 40% through attack animation
         OnHitFrameCallback m_onHitFrame;
 
-        // Physics Controller
-        btRigidBody* controllerBody = nullptr;
+        // Kinematic controller state (replaces Bullet controllerBody)
+        glm::vec3 m_kinVelocity{0.0f};
+        bool      m_kinGrounded = false;
         float currentForwardInput = 0.0f;
         float currentTurnInput = 0.0f;
         float currentStrafeInput = 0.0f;
@@ -334,12 +335,13 @@ namespace Scene {
     private:
         
         void createController(const glm::vec3& position);
-        void resizeController();  // Resize controller body to match scaled skeleton height
-        float computeSkeletonHeight() const;  // Compute Y-extent of scaled skeleton
-        void rebuildCompoundShape();  // Build/rebuild compound controller shape from bones
-        void updateCompoundTransforms();  // Update compound child transforms from bone positions
+        void resizeController();
+        float computeSkeletonHeight() const;
+        void rebuildCompoundShape();       // no-op: compound was for Bullet terrain, replaced by occupancy grid
+        void updateCompoundTransforms();   // no-op
+        void resolveKinematicMovement(float dt);
         void updateStateMachine(float deltaTime);
-        void detectAndApplyStepUp(const glm::vec3& desiredVelocity, float deltaTime, btDynamicsWorld* physicsWorld);
+        void detectAndApplyStepUp(const glm::vec3& desiredVelocity, float deltaTime);
         void configureAnimationFixes();
         void applySkeletonProportions();  // Scale skeleton joints + anim keyframes per appearance
         void buildBodiesFromModel();  // Builds physics + visual bodies from skeleton/voxelModel
@@ -372,12 +374,8 @@ namespace Scene {
         std::vector<BoneAttachment> m_attachments;
         int m_nextAttachmentId = 1;
 
-        // Compound shape for voxel-accurate controller collision
-        btCompoundShape* m_compoundShape = nullptr;
-        std::vector<btBoxShape*> m_compoundChildShapes;  // Owned child shapes
-        std::map<int, int> m_boneToCompoundChild;        // boneId → compound child index
-        float m_originalHalfHeight = 0.95f;              // Original box half-height (for movement)
-        float m_originalHalfWidth = 0.425f;              // Original box half-width (for movement)
+        float m_originalHalfHeight = 0.95f;  // controller half-height (kinematic)
+        float m_originalHalfWidth  = 0.25f;  // controller half-width  (kinematic)
 
         // Interaction archetype (parsed from .anim "# archetype:" header, default "humanoid_normal")
         std::string m_archetype = "humanoid_normal";
@@ -403,6 +401,7 @@ namespace Scene {
             std::string boneName;
             int boneId = -1;              // cached skeleton bone ID
             btRigidBody* body = nullptr;
+            glm::vec3 center{0.0f};       // world-space center, updated each frame
             glm::vec3 halfExtents{0.0f};  // 80% of source bone box half-extents
             bool isArm = false;           // arm segments trigger LimbBlocked FSM interrupt
             bool colliding = false;       // set each frame by checkSegmentVoxelOverlap()

@@ -5,6 +5,8 @@
 #include "core/Subcube.h"
 #include "core/Microcube.h"
 #include "physics/PhysicsWorld.h"
+#include "physics/VoxelDynamicsWorld.h"
+#include "physics/VoxelRigidBody.h"
 #include "utils/Logger.h"
 #include "utils/CoordinateUtils.h"
 #include <btBulletDynamicsCommon.h>
@@ -241,21 +243,21 @@ bool VoxelManipulationSystem::breakCube(const CubeLocation& location, const glm:
     // Create physics body
     Physics::PhysicsWorld* physicsWorld = getPhysicsWorld();
     if (physicsWorld) {
-        glm::vec3 cubeSize(1.0f);
-        btRigidBody* rigidBody = physicsWorld->createBreakawayCube(physicsCenterPos, cubeSize, selectedMaterial);
-        dynamicCube->setRigidBody(rigidBody);
-        dynamicCube->setPhysicsPosition(physicsCenterPos);
-        
-        // No break impulse — particle spawns in place and falls under gravity.
-        // Previous impulse (direction*1.5 + up*2.5) pushed particles into adjacent
-        // cells, causing displacement artifacts.
-        (void)applyForce;
-        
-        if (rigidBody) {
-            rigidBody->setGravity(btVector3(0, -9.81f, 0));
+        if (auto* voxelWorld = physicsWorld->getVoxelWorld()) {
+            Physics::VoxelRigidBody* voxelBody = voxelWorld->createVoxelBody(
+                physicsCenterPos, glm::vec3(0.5f), 1.0f);
+            dynamicCube->setVoxelBody(voxelBody);
+            dynamicCube->setPhysicsPosition(physicsCenterPos);
+        } else {
+            glm::vec3 cubeSize(1.0f);
+            btRigidBody* rigidBody = physicsWorld->createBreakawayCube(physicsCenterPos, cubeSize, selectedMaterial);
+            dynamicCube->setRigidBody(rigidBody);
+            dynamicCube->setPhysicsPosition(physicsCenterPos);
+            if (rigidBody) rigidBody->setGravity(btVector3(0, -9.81f, 0));
         }
+        (void)applyForce;
     }
-    
+
     // Mark as broken
     dynamicCube->breakApart();
     
@@ -413,16 +415,18 @@ bool VoxelManipulationSystem::breakMicrocube(const CubeLocation& location, bool 
         LOG_INFO_FMT("VoxelManipulation", "[MICROCUBE PHYSICS DEBUG] Center pos: (" << physicsCenterPos.x << "," << physicsCenterPos.y << "," << physicsCenterPos.z << ")");
         LOG_INFO_FMT("VoxelManipulation", "[MICROCUBE PHYSICS DEBUG] Size: " << microcubeSize.x);
         
-        // Create dynamic physics body at center position (very light mass for tiny microcube)
-        btRigidBody* rigidBody = physicsWorld->createBreakawayCube(physicsCenterPos, microcubeSize, 0.1f); // 0.1kg mass
-        dynamicMicrocube->setRigidBody(rigidBody);
-        dynamicMicrocube->setPhysicsPosition(physicsCenterPos);
-        
-        LOG_DEBUG("VoxelManipulation", "[MICROCUBE PHYSICS] Created physics body for microcube (no forces applied - gravity only)");
-        
-        // Enable gravity for natural falling behavior
-        if (rigidBody) {
-            rigidBody->setGravity(btVector3(0, -9.81f, 0));
+        if (auto* voxelWorld = physicsWorld->getVoxelWorld()) {
+            Physics::VoxelRigidBody* voxelBody = voxelWorld->createVoxelBody(
+                physicsCenterPos, microcubeSize * 0.5f, 0.1f);
+            dynamicMicrocube->setVoxelBody(voxelBody);
+            dynamicMicrocube->setPhysicsPosition(physicsCenterPos);
+            LOG_DEBUG("VoxelManipulation", "[MICROCUBE PHYSICS] Created VoxelRigidBody for microcube");
+        } else {
+            btRigidBody* rigidBody = physicsWorld->createBreakawayCube(physicsCenterPos, microcubeSize, 0.1f);
+            dynamicMicrocube->setRigidBody(rigidBody);
+            dynamicMicrocube->setPhysicsPosition(physicsCenterPos);
+            if (rigidBody) rigidBody->setGravity(btVector3(0, -9.81f, 0));
+            LOG_DEBUG("VoxelManipulation", "[MICROCUBE PHYSICS] Created Bullet btRigidBody for microcube (fallback)");
         }
     }
     
@@ -491,23 +495,23 @@ bool VoxelManipulationSystem::breakCubeAtPosition(const glm::ivec3& worldPos, bo
     Physics::PhysicsWorld* physicsWorld = getPhysicsWorld();
     if (physicsWorld) {
         glm::vec3 cubeSize(1.0f);
-        btRigidBody* rigidBody = physicsWorld->createBreakawayCube(physicsCenterPos, cubeSize, selectedMaterial);
-        dynamicCube->setRigidBody(rigidBody);
-        dynamicCube->setPhysicsPosition(physicsCenterPos);
-        
-        if (rigidBody && !disableForces) {
-            glm::vec3 forceDirection = glm::vec3(0.0f, 1.0f, 0.0f); // Default upward force
-            glm::vec3 impulseForce = forceDirection * 2.0f;
-            
-            btVector3 btImpulse(impulseForce.x, impulseForce.y, impulseForce.z);
-            rigidBody->applyCentralImpulse(btImpulse);
-        }
-        
-        if (rigidBody) {
-            rigidBody->setGravity(btVector3(0, -9.81f, 0));
+        if (auto* voxelWorld = physicsWorld->getVoxelWorld()) {
+            Physics::VoxelRigidBody* voxelBody = voxelWorld->createVoxelBody(
+                physicsCenterPos, glm::vec3(0.5f), 1.0f);
+            if (!disableForces)
+                voxelBody->applyCentralImpulse(glm::vec3(0.0f, 2.0f, 0.0f));
+            dynamicCube->setVoxelBody(voxelBody);
+            dynamicCube->setPhysicsPosition(physicsCenterPos);
+        } else {
+            btRigidBody* rigidBody = physicsWorld->createBreakawayCube(physicsCenterPos, cubeSize, selectedMaterial);
+            dynamicCube->setRigidBody(rigidBody);
+            dynamicCube->setPhysicsPosition(physicsCenterPos);
+            if (rigidBody && !disableForces)
+                rigidBody->applyCentralImpulse(btVector3(0.0f, 2.0f, 0.0f));
+            if (rigidBody) rigidBody->setGravity(btVector3(0, -9.81f, 0));
         }
     }
-    
+
     dynamicCube->breakApart();
     
     // Add to global system

@@ -1,4 +1,6 @@
 #include "scene/AnimatedVoxelCharacter.h"
+#include "physics/VoxelDynamicsWorld.h"
+#include "physics/VoxelOccupancyGrid.h"
 #include "core/ChunkManager.h"
 #include "core/GpuParticlePhysics.h"
 #include "graphics/RaycastVisualizer.h"
@@ -22,61 +24,66 @@ namespace Scene {
     }
 
     AnimatedVoxelCharacter::~AnimatedVoxelCharacter() {
-        // Clean up segment boxes before clearing bone bodies
         clearSegmentBoxes();
-
-        // Base class handles cleanup of rigid bodies in 'parts'
         boneBodies.clear();
-
-        if (controllerBody) {
-            physicsWorld->removeCube(controllerBody);
-            controllerBody = nullptr;
-        }
-
-        // Clean up compound shape and its children
-        if (m_compoundShape) {
-            while (m_compoundShape->getNumChildShapes() > 0) {
-                m_compoundShape->removeChildShapeByIndex(m_compoundShape->getNumChildShapes() - 1);
-            }
-            delete m_compoundShape;
-            m_compoundShape = nullptr;
-        }
-        for (auto* shape : m_compoundChildShapes) {
-            delete shape;
-        }
-        m_compoundChildShapes.clear();
+        // Base class handles cleanup of rigid bodies in 'parts'
     }
     
     void AnimatedVoxelCharacter::createController(const glm::vec3& position) {
-        // Create a box for the controller (invisible physics representation).
-        // Step-up over subcube-height obstacles (≈0.333 blocks) is handled via
-        // raycast detection + position correction in update(), not via shape geometry.
-        constexpr float halfWidth = 0.25f;
-        constexpr float halfHeight = 0.95f;
-        constexpr float npcMass = 60.0f;
+        m_originalHalfHeight = 0.95f;
+        m_originalHalfWidth  = 0.25f;
+        m_kinVelocity  = glm::vec3(0.0f);
+        m_kinGrounded  = false;
+        worldPosition  = position;
+    }
 
-        // Center is at +halfHeight so feet are at 'position'
-        // Use createCubeInternal with shrink=1.0 (no shrink) — the 0.95 shrink in
-        // createCube is for debris separation, not character controllers.
-        Physics::PhysicsWorld::CubeCreationParams params;
-        params.position = position + glm::vec3(0, halfHeight, 0);
-        params.size = glm::vec3(halfWidth * 2.0f, halfHeight * 2.0f, halfWidth * 2.0f);
-        params.mass = npcMass;
-        params.sizeShrinkFactor = 1.0f;
-        params.friction = 0.0f;
-        params.restitution = 0.0f;
-        controllerBody = physicsWorld->createCubeInternal(params);
-        controllerBody->setUserPointer(this); // Mark as character part to prevent auto-cleanup
-        
-        // Prevent tipping over (lock rotation on all axes — we handle rotation manually)
-        controllerBody->setAngularFactor(btVector3(0, 0, 0));
-        
-        // Low friction for smooth movement, we handle stopping manually
-        controllerBody->setFriction(0.0f);
-        controllerBody->setRestitution(0.0f);
-        
-        // Disable sleeping
-        controllerBody->setActivationState(DISABLE_DEACTIVATION);
+    void AnimatedVoxelCharacter::resolveKinematicMovement(float dt) {
+        auto* voxelWorld = physicsWorld ? physicsWorld->getVoxelWorld() : nullptr;
+        const float halfW = m_originalHalfWidth;
+        const float halfH = m_originalHalfHeight;
+
+        if (voxelWorld) {
+            // Gravity
+            if (!m_kinGrounded)
+                m_kinVelocity.y -= 9.81f * dt;
+
+            // --- Vertical ---
+            worldPosition.y += m_kinVelocity.y * dt;
+
+            // Ground resolution
+            glm::vec3 feetPos(worldPosition.x, worldPosition.y, worldPosition.z);
+            float groundY = voxelWorld->findGroundY(feetPos, halfW, halfH + 1.0f);
+
+            if (groundY > -1e8f && worldPosition.y < groundY) {
+                worldPosition.y = groundY;
+                if (m_kinVelocity.y < 0.0f)
+                    m_kinVelocity.y = 0.0f;
+                m_kinGrounded = true;
+            } else {
+                m_kinGrounded = false;
+            }
+
+            // --- Horizontal ---
+            const glm::vec3 charHE(halfW, halfH - 0.05f, halfW);
+
+            worldPosition.x += m_kinVelocity.x * dt;
+            {
+                glm::vec3 c(worldPosition.x, worldPosition.y + halfH, worldPosition.z);
+                if (voxelWorld->overlapsTerrain(c, charHE) || voxelWorld->overlapsAnyBody(c, charHE))
+                    worldPosition.x -= m_kinVelocity.x * dt;
+            }
+
+            worldPosition.z += m_kinVelocity.z * dt;
+            {
+                glm::vec3 c(worldPosition.x, worldPosition.y + halfH, worldPosition.z);
+                if (voxelWorld->overlapsTerrain(c, charHE) || voxelWorld->overlapsAnyBody(c, charHE))
+                    worldPosition.z -= m_kinVelocity.z * dt;
+            }
+        } else {
+            // No voxel world — integrate freely (fallback, should not happen in normal use)
+            m_kinVelocity.y -= 9.81f * dt;
+            worldPosition += m_kinVelocity * dt;
+        }
     }
 
     void AnimatedVoxelCharacter::setAppearance(const CharacterAppearance& appearance) {
@@ -351,20 +358,15 @@ namespace Scene {
     }
 
     void AnimatedVoxelCharacter::resizeController() {
-        if (!controllerBody) return;
-
-        // Compute proper model-space global transforms to find the lowest bone (feet)
         std::vector<glm::mat4> globalTransforms(skeleton.bones.size(), glm::mat4(1.0f));
         for (size_t i = 0; i < skeleton.bones.size(); ++i) {
             const auto& bone = skeleton.bones[i];
             glm::mat4 local = glm::translate(glm::mat4(1.0f), bone.localPosition);
             local = local * glm::mat4_cast(bone.localRotation);
-
-            if (bone.parentId == -1) {
+            if (bone.parentId == -1)
                 globalTransforms[i] = local;
-            } else if (bone.parentId >= 0 && bone.parentId < static_cast<int>(skeleton.bones.size())) {
+            else if (bone.parentId >= 0 && bone.parentId < static_cast<int>(skeleton.bones.size()))
                 globalTransforms[i] = globalTransforms[bone.parentId] * local;
-            }
         }
 
         float minY = 0.0f, maxY = 0.0f;
@@ -377,45 +379,11 @@ namespace Scene {
         float characterHeight = (maxY - minY) + 0.3f;
         if (characterHeight < 0.5f) characterHeight = 1.0f;
 
-        // skeletonFootOffset_ = how far below model origin (Y=0) the feet actually are.
-        // For an unscaled Mixamo character this is ~0 (origin at feet).
-        // For a dwarf with shorter legs, minY is higher (less negative / closer to 0),
-        // meaning feet don't reach as far down, so the visual model needs to be shifted
-        // down to keep feet on the ground.
         skeletonFootOffset_ = minY;
+        m_originalHalfHeight = characterHeight * 0.5f;
+        m_originalHalfWidth  = 0.25f;
 
-        // Get current feet position from existing controller
-        btTransform trans;
-        controllerBody->getMotionState()->getWorldTransform(trans);
-        float oldHalfHeight = getControllerHalfHeight();
-        float feetY = trans.getOrigin().y() - oldHalfHeight;
-        float feetX = trans.getOrigin().x();
-        float feetZ = trans.getOrigin().z();
-
-        // Remove old controller body
-        physicsWorld->removeCube(controllerBody);
-        controllerBody = nullptr;
-
-        // Create new controller with correct height.
-        // Use createCubeInternal with shrink=1.0 — no debris shrink for controllers.
-        float newHalfHeight = characterHeight / 2.0f;
-        glm::vec3 center(feetX, feetY + newHalfHeight, feetZ);
-
-        Physics::PhysicsWorld::CubeCreationParams params;
-        params.position = center;
-        params.size = glm::vec3(0.50f, characterHeight, 0.50f);
-        params.mass = 60.0f;
-        params.sizeShrinkFactor = 1.0f;
-        params.friction = 0.0f;
-        params.restitution = 0.0f;
-        controllerBody = physicsWorld->createCubeInternal(params);
-        controllerBody->setUserPointer(this);
-        controllerBody->setAngularFactor(btVector3(0, 0, 0));
-        controllerBody->setFriction(0.0f);
-        controllerBody->setRestitution(0.0f);
-        controllerBody->setActivationState(DISABLE_DEACTIVATION);
-
-        LOG_INFO_FMT("Character", "resizeController: height=" << characterHeight 
+        LOG_INFO_FMT("Character", "resizeController: height=" << characterHeight
                       << " footOffset=" << skeletonFootOffset_
                       << " minY=" << minY << " maxY=" << maxY);
     }
@@ -636,12 +604,6 @@ namespace Scene {
         boneBodies[boneId] = body;
         boneOffsets[boneId] = offset;
         
-        // Ignore collision with controller to prevent self-collision explosions
-        if (controllerBody) {
-            body->setIgnoreCollisionCheck(controllerBody, true);
-            controllerBody->setIgnoreCollisionCheck(body, true);
-        }
-        
         // Ignore collision with other bones to prevent internal jitter
         for (auto& pair : boneBodies) {
             btRigidBody* otherBody = pair.second;
@@ -673,7 +635,7 @@ namespace Scene {
         // by rebuildCompoundShape() (called after buildBodiesFromModel) or
         // freed in the destructor. PhysicsWorld::removeCube() doesn't delete
         // collision shapes, so the orphaned compound is safe.
-        m_boneToCompoundChild.clear();
+        // m_boneToCompoundChild removed (compound shape replaced by kinematic controller)
 
         // Also clear attachments
         detachAll();
@@ -688,13 +650,11 @@ namespace Scene {
     }
 
     glm::vec3 AnimatedVoxelCharacter::getControllerVelocity() const {
-        if (!controllerBody) return glm::vec3(0.0f);
-        auto bv = controllerBody->getLinearVelocity();
-        return glm::vec3(bv.x(), bv.y(), bv.z());
+        return m_kinVelocity;
     }
 
     void AnimatedVoxelCharacter::resolveBodyPartCollisions() {
-        if (!m_chunkManager || !controllerBody || boneBodies.empty()) return;
+        if (!m_chunkManager || boneBodies.empty()) return;
 
         glm::vec3 totalPush(0.0f);
 
@@ -777,139 +737,20 @@ namespace Scene {
             }
         }
 
-        // Apply accumulated push to controller body
         if (glm::length(totalPush) > 0.001f) {
-            // Clamp push magnitude to prevent teleporting
             float maxPush = 0.5f;
-            if (glm::length(totalPush) > maxPush) {
+            if (glm::length(totalPush) > maxPush)
                 totalPush = glm::normalize(totalPush) * maxPush;
-            }
-
-            btTransform trans;
-            controllerBody->getMotionState()->getWorldTransform(trans);
-            btVector3 pos = trans.getOrigin();
-            pos += btVector3(totalPush.x, totalPush.y, totalPush.z);
-            trans.setOrigin(pos);
-            controllerBody->getMotionState()->setWorldTransform(trans);
-            controllerBody->setWorldTransform(trans);
-
-            // Update worldPosition to match
-            float halfHeight = getControllerHalfHeight();
-            worldPosition = glm::vec3(pos.x(), pos.y() - halfHeight, pos.z());
+            worldPosition += totalPush;
         }
     }
 
     void AnimatedVoxelCharacter::rebuildCompoundShape() {
-        if (boneBodies.empty()) return;
-
-        // Clean up old compound
-        if (m_compoundShape) {
-            while (m_compoundShape->getNumChildShapes() > 0) {
-                m_compoundShape->removeChildShapeByIndex(m_compoundShape->getNumChildShapes() - 1);
-            }
-            delete m_compoundShape;
-            m_compoundShape = nullptr;
-        }
-        for (auto* shape : m_compoundChildShapes) {
-            delete shape;
-        }
-        m_compoundChildShapes.clear();
-        m_boneToCompoundChild.clear();
-
-        m_compoundShape = new btCompoundShape();
-
-        // Add each bone's box shape as a child of the compound
-        int childIdx = 0;
-        for (auto& [boneId, body] : boneBodies) {
-            btCollisionShape* boneShape = body->getCollisionShape();
-            if (boneShape->getShapeType() != BOX_SHAPE_PROXYTYPE) continue;
-
-            const btBoxShape* boneBox = static_cast<const btBoxShape*>(boneShape);
-            btVector3 halfExtents = boneBox->getHalfExtentsWithMargin();
-
-            // Create a copy of the bone's box shape for the compound
-            btBoxShape* childShape = new btBoxShape(halfExtents);
-            m_compoundChildShapes.push_back(childShape);
-
-            // Start with identity — will be updated each frame
-            btTransform childTransform;
-            childTransform.setIdentity();
-            m_compoundShape->addChildShape(childTransform, childShape);
-
-            m_boneToCompoundChild[boneId] = childIdx;
-            childIdx++;
-        }
-
-        if (childIdx == 0) {
-            delete m_compoundShape;
-            m_compoundShape = nullptr;
-            return;
-        }
-
-        // Save original box dimensions before replacing
-        if (controllerBody) {
-            btCollisionShape* oldShape = controllerBody->getCollisionShape();
-            if (oldShape && oldShape->getShapeType() == BOX_SHAPE_PROXYTYPE) {
-                const btBoxShape* box = static_cast<const btBoxShape*>(oldShape);
-                m_originalHalfHeight = box->getHalfExtentsWithMargin().y();
-                m_originalHalfWidth = box->getHalfExtentsWithMargin().x();
-            }
-            controllerBody->setCollisionShape(m_compoundShape);
-            // Old box shape is managed by PhysicsWorld (created via createCube), don't delete it here
-
-            // Update compound transforms immediately using bind pose
-            updateCompoundTransforms();
-        }
-
-        LOG_INFO("Character", "Built compound shape with {} bone children", childIdx);
+        // No-op: compound shape replaced by kinematic VoxelOccupancyGrid queries
     }
 
     void AnimatedVoxelCharacter::updateCompoundTransforms() {
-        if (!m_compoundShape || !controllerBody) return;
-
-        // Get controller body world transform
-        btTransform controllerWorldTrans;
-        controllerBody->getMotionState()->getWorldTransform(controllerWorldTrans);
-        btTransform controllerInverse = controllerWorldTrans.inverse();
-
-        for (auto& [boneId, childIdx] : m_boneToCompoundChild) {
-            if (boneId >= static_cast<int>(skeleton.bones.size())) continue;
-
-            const Phyxel::Bone& bone = skeleton.bones[boneId];
-
-            // Compute bone world transform (same as the bone body update loop)
-            glm::vec3 visualOrigin = worldPosition - glm::vec3(0.0f, skeletonFootOffset_, 0.0f);
-            glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), visualOrigin);
-            modelMatrix = glm::rotate(modelMatrix, currentYaw, glm::vec3(0, 1, 0));
-
-            // Apply animation rotation offset
-            float animRotation = 0.0f;
-            if (currentClipIndex >= 0 && currentClipIndex < static_cast<int>(clips.size())) {
-                auto rit = animationRotationOffsets.find(clips[currentClipIndex].name);
-                if (rit != animationRotationOffsets.end()) animRotation = rit->second;
-            }
-            if (animRotation != 0.0f) {
-                modelMatrix = glm::rotate(modelMatrix, glm::radians(animRotation), glm::vec3(0, 1, 0));
-            }
-
-            glm::mat4 finalTransform = modelMatrix * bone.globalTransform;
-            finalTransform = glm::translate(finalTransform, boneOffsets[boneId]);
-
-            // Convert to Bullet world transform
-            glm::vec3 boneWorldPos = glm::vec3(finalTransform[3]);
-            glm::quat boneWorldRot = glm::quat_cast(finalTransform);
-            btTransform boneWorldTrans;
-            boneWorldTrans.setOrigin(btVector3(boneWorldPos.x, boneWorldPos.y, boneWorldPos.z));
-            boneWorldTrans.setRotation(btQuaternion(boneWorldRot.x, boneWorldRot.y, boneWorldRot.z, boneWorldRot.w));
-
-            // Convert to controller-local frame
-            btTransform localTrans = controllerInverse * boneWorldTrans;
-
-            m_compoundShape->updateChildTransform(childIdx, localTrans, false);
-        }
-
-        // Recalculate AABB after all children updated
-        m_compoundShape->recalculateLocalAabb();
+        // No-op: compound shape replaced by kinematic VoxelOccupancyGrid queries
     }
 
     std::vector<AnimatedVoxelCharacter::BoneAABB> AnimatedVoxelCharacter::getBoneAABBs() const {
@@ -949,11 +790,7 @@ namespace Scene {
         body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT);
         body->setActivationState(DISABLE_DEACTIVATION);
 
-        // Ignore collision with controller and all bone bodies
-        if (controllerBody) {
-            body->setIgnoreCollisionCheck(controllerBody, true);
-            controllerBody->setIgnoreCollisionCheck(body, true);
-        }
+        // Ignore collision with all bone bodies
         for (auto& pair : boneBodies) {
             body->setIgnoreCollisionCheck(pair.second, true);
             pair.second->setIgnoreCollisionCheck(body, true);
@@ -1200,10 +1037,7 @@ namespace Scene {
         glm::vec3 initialPos = m_seatSurfacePos + m_sitDownOffset;
         currentYaw = facingYaw;
         setPosition(initialPos);
-        if (controllerBody) {
-            controllerBody->setLinearVelocity(btVector3(0, 0, 0));
-            controllerBody->setGravity(btVector3(0, 0, 0));
-        }
+        m_kinVelocity = glm::vec3(0.0f);
 
         currentState = AnimatedCharacterState::SitDown;
         stateTimer   = 0.0f;
@@ -1272,17 +1106,7 @@ namespace Scene {
 
     void AnimatedVoxelCharacter::setPosition(const glm::vec3& pos) {
         worldPosition = pos;
-        if (controllerBody) {
-            float halfHeight = getControllerHalfHeight();
-
-            btTransform trans;
-            trans.setIdentity();
-            trans.setOrigin(btVector3(pos.x, pos.y + halfHeight, pos.z));
-            controllerBody->setWorldTransform(trans);
-            controllerBody->getMotionState()->setWorldTransform(trans);
-            controllerBody->setLinearVelocity(btVector3(0,0,0));
-            controllerBody->setAngularVelocity(btVector3(0,0,0));
-        }
+        m_kinVelocity = glm::vec3(0.0f);
     }
 
     glm::vec3 AnimatedVoxelCharacter::getPosition() const {
@@ -1371,10 +1195,7 @@ namespace Scene {
         }
 
         // Check vertical velocity for falling
-        float verticalVel = 0.0f;
-        if (controllerBody) {
-            verticalVel = controllerBody->getLinearVelocity().y();
-        }
+        float verticalVel = m_kinVelocity.y;
 
         // State Transitions
         switch (currentState) {
@@ -1399,10 +1220,7 @@ namespace Scene {
                     stateTimer = 0.0f;
                     jumpRequested = false;
                     // Apply physics impulse
-                    if (controllerBody) {
-                        btVector3 vel = controllerBody->getLinearVelocity();
-                        controllerBody->setLinearVelocity(btVector3(vel.x(), 7.0f, vel.z())); 
-                    }
+                    m_kinVelocity.y = 7.0f;
                 } else if (attackRequested) {
                     currentState = AnimatedCharacterState::Attack;
                     stateTimer = 0.0f;
@@ -1500,10 +1318,7 @@ namespace Scene {
                     currentState = AnimatedCharacterState::Jump;
                     stateTimer = 0.0f;
                     jumpRequested = false;
-                    if (controllerBody) {
-                        btVector3 vel = controllerBody->getLinearVelocity();
-                        controllerBody->setLinearVelocity(btVector3(vel.x(), 7.0f, vel.z()));
-                    }
+                    m_kinVelocity.y = 7.0f;
                 }
                 // If stopped moving
                 else if (glm::abs(currentForwardInput) < 0.01f) {
@@ -1525,10 +1340,7 @@ namespace Scene {
                     currentState = AnimatedCharacterState::Jump;
                     stateTimer = 0.0f;
                     jumpRequested = false;
-                    if (controllerBody) {
-                        btVector3 vel = controllerBody->getLinearVelocity();
-                        controllerBody->setLinearVelocity(btVector3(vel.x(), 7.0f, vel.z()));
-                    }
+                    m_kinVelocity.y = 7.0f;
                 }
                 // If stopped moving backward
                 else if (currentForwardInput <= 0.01f) {
@@ -1547,10 +1359,7 @@ namespace Scene {
                     currentState = AnimatedCharacterState::Jump;
                     stateTimer = 0.0f;
                     jumpRequested = false;
-                    if (controllerBody) {
-                        btVector3 vel = controllerBody->getLinearVelocity();
-                        controllerBody->setLinearVelocity(btVector3(vel.x(), 7.0f, vel.z()));
-                    }
+                    m_kinVelocity.y = 7.0f;
                 }
                 // One-shot deceleration from walk
                 else if (glm::abs(currentForwardInput) > 0.01f) {
@@ -1568,10 +1377,7 @@ namespace Scene {
                     currentState = AnimatedCharacterState::Jump;
                     stateTimer = 0.0f;
                     jumpRequested = false;
-                    if (controllerBody) {
-                        btVector3 vel = controllerBody->getLinearVelocity();
-                        controllerBody->setLinearVelocity(btVector3(vel.x(), 7.0f, vel.z()));
-                    }
+                    m_kinVelocity.y = 7.0f;
                 }
                 // One-shot deceleration from run
                 else if (glm::abs(currentForwardInput) > 0.1f) {
@@ -1612,10 +1418,7 @@ namespace Scene {
                     currentState = AnimatedCharacterState::Jump;
                     stateTimer = 0.0f;
                     jumpRequested = false;
-                    if (controllerBody) {
-                        btVector3 vel = controllerBody->getLinearVelocity();
-                        controllerBody->setLinearVelocity(btVector3(vel.x(), 7.0f, vel.z()));
-                    }
+                    m_kinVelocity.y = 7.0f;
                 }
                 else if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
                     currentState = AnimatedCharacterState::Idle;
@@ -1665,11 +1468,6 @@ namespace Scene {
                 // One-shot: wait for stand-up animation, then restore gravity and go Idle
                 if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
                     m_isSitting = false;
-                    if (controllerBody) {
-                        // Restore normal gravity
-                        controllerBody->setGravity(
-                            physicsWorld->getWorld()->getGravity());
-                    }
                     currentState = AnimatedCharacterState::Idle;
                     stateTimer = 0.0f;
                 }
@@ -1696,131 +1494,8 @@ namespace Scene {
         }
     }
 
-    void AnimatedVoxelCharacter::detectAndApplyStepUp(const glm::vec3& desiredVelocity, float deltaTime, btDynamicsWorld* dynamicsWorld) {
-        if (!controllerBody || !dynamicsWorld) return;
-
-        // Tick cooldown
-        if (m_stepCooldown > 0.0f) {
-            m_stepCooldown -= deltaTime;
-            if (m_stepCooldown > 0.0f) {
-                return;
-            }
-        }
-
-        // Only consider step-up when actually trying to move horizontally
-        float desiredXZ = std::sqrt(desiredVelocity.x * desiredVelocity.x + desiredVelocity.z * desiredVelocity.z);
-        if (desiredXZ < 0.3f) {
-            m_blockedFrames = 0;
-            return;
-        }
-
-        btVector3 bodyPos = controllerBody->getWorldTransform().getOrigin();
-        glm::vec3 currentPos(bodyPos.x(), bodyPos.y(), bodyPos.z());
-
-        // --- Blocked detection: compare actual XZ displacement to desired ---
-        float actualDX = currentPos.x - m_prevStepCheckPos.x;
-        float actualDZ = currentPos.z - m_prevStepCheckPos.z;
-        float actualXZ = std::sqrt(actualDX * actualDX + actualDZ * actualDZ);
-        float expectedXZ = desiredXZ * deltaTime;
-
-        m_prevStepCheckPos = currentPos;
-
-        // If we moved more than 25% of what we wanted, we're not blocked
-        if (expectedXZ > 0.001f && actualXZ > expectedXZ * 0.25f) {
-            m_blockedFrames = 0;
-            return;
-        }
-
-        // Accumulate blocked frames — require 3 consecutive blocked frames to trigger
-        m_blockedFrames++;
-        if (m_blockedFrames < 3) return;
-
-        // --- We're genuinely blocked. Now probe for a steppable obstacle ahead. ---
-        float halfH = getControllerHalfHeight();
-        float halfW = getControllerHalfWidth();
-        float feetY = bodyPos.y() - halfH;
-        glm::vec3 moveDir = glm::normalize(glm::vec3(desiredVelocity.x, 0.0f, desiredVelocity.z));
-
-        // Cast a horizontal ray at shin height in the movement direction to find the obstacle
-        float shinHeight = feetY + 0.05f;
-        btVector3 hFrom(bodyPos.x(), shinHeight, bodyPos.z());
-        float hProbeLen = halfW + 0.6f;
-        btVector3 hTo(bodyPos.x() + moveDir.x * hProbeLen,
-                      shinHeight,
-                      bodyPos.z() + moveDir.z * hProbeLen);
-
-        btCollisionWorld::AllHitsRayResultCallback hRay(hFrom, hTo);
-        dynamicsWorld->rayTest(hFrom, hTo, hRay);
-
-        float bestStepHeight = -1.0f;
-
-        if (hRay.hasHit()) {
-            // Find closest non-self hit
-            float closestFraction = 2.0f;
-            for (int i = 0; i < hRay.m_collisionObjects.size(); ++i) {
-                if (hRay.m_collisionObjects[i] != controllerBody &&
-                    hRay.m_hitFractions[i] < closestFraction) {
-                    closestFraction = hRay.m_hitFractions[i];
-                }
-            }
-
-            if (closestFraction < 2.0f) {
-                // Found obstacle. Probe vertically just past it to find the top surface.
-                float hitX = hFrom.x() + (hTo.x() - hFrom.x()) * closestFraction;
-                float hitZ = hFrom.z() + (hTo.z() - hFrom.z()) * closestFraction;
-                float probeX = hitX + moveDir.x * 0.05f;
-                float probeZ = hitZ + moveDir.z * 0.05f;
-
-                btVector3 vFrom(probeX, feetY + m_maxStepHeight + 0.5f, probeZ);
-                btVector3 vTo(probeX, feetY - 0.1f, probeZ);
-
-                btCollisionWorld::AllHitsRayResultCallback vRay(vFrom, vTo);
-                dynamicsWorld->rayTest(vFrom, vTo, vRay);
-
-                if (vRay.hasHit()) {
-                    // Find the highest surface (smallest fraction in a downward ray)
-                    float topFraction = 2.0f;
-                    for (int i = 0; i < vRay.m_collisionObjects.size(); ++i) {
-                        if (vRay.m_collisionObjects[i] != controllerBody &&
-                            vRay.m_hitFractions[i] < topFraction) {
-                            topFraction = vRay.m_hitFractions[i];
-                        }
-                    }
-                    if (topFraction < 2.0f) {
-                        float surfaceY = vFrom.y() + (vTo.y() - vFrom.y()) * topFraction;
-                        float stepH = surfaceY - feetY;
-                        if (stepH > 0.05f && stepH <= m_maxStepHeight) {
-                            bestStepHeight = stepH;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (bestStepHeight <= 0.0f) {
-            // Log: blocked but no steppable obstacle
-            if (m_stepDebugLog.size() >= STEP_LOG_MAX) m_stepDebugLog.erase(m_stepDebugLog.begin());
-            m_stepDebugLog.push_back({m_totalTime, currentPos.x, currentPos.y, currentPos.z, 0.0f, 0.0f, "no_obstacle", m_blockedFrames});
-            m_blockedFrames = 0;
-            return;
-        }
-
-        // Apply upward velocity impulse to clear the obstacle
-        float liftVel = std::max(3.0f, bestStepHeight * 10.0f);
-        btVector3 vel = controllerBody->getLinearVelocity();
-        if (vel.y() < liftVel) {
-            controllerBody->setLinearVelocity(btVector3(vel.x(), liftVel, vel.z()));
-            controllerBody->activate(true);
-        }
-
-        // Log: successful step-up
-        if (m_stepDebugLog.size() >= STEP_LOG_MAX) m_stepDebugLog.erase(m_stepDebugLog.begin());
-        m_stepDebugLog.push_back({m_totalTime, currentPos.x, currentPos.y, currentPos.z, bestStepHeight, bestStepHeight, "stepped", m_blockedFrames});
-
-        m_stepCooldown = 0.3f;
-        m_blockedFrames = 0;
-
-        LOG_DEBUG_FMT("Character", "Step-up: height=" << bestStepHeight << " liftVel=" << liftVel);
+    void AnimatedVoxelCharacter::detectAndApplyStepUp(const glm::vec3&, float) {
+        // Disabled: will be re-implemented using VoxelOccupancyGrid queries
     }
 
     void AnimatedVoxelCharacter::update(float deltaTime) {
@@ -1854,10 +1529,7 @@ namespace Scene {
             }
             // Freeze controller once all voxels are gone
             if (m_derezState->nextIdx >= m_derezState->queue.size()) {
-                if (controllerBody) {
-                    controllerBody->setLinearVelocity(btVector3(0, 0, 0));
-                    controllerBody->setAngularVelocity(btVector3(0, 0, 0));
-                }
+                m_kinVelocity = glm::vec3(0.0f);
             }
             return; // skip normal animation/physics while derezzing
         }
@@ -1866,28 +1538,17 @@ namespace Scene {
         // Foot-anchored model: each state snaps worldPosition (= feet) to a fixed point.
         // The animation itself moves the hips/torso — we never lerp worldPosition.
         if (m_isSitting) {
-            if (controllerBody) {
-                float halfHeight = getControllerHalfHeight();
-                btTransform trans;
-                trans.setIdentity();
-
+            {
                 glm::vec3 snapPos;
-                if (currentState == AnimatedCharacterState::SitDown) {
+                if (currentState == AnimatedCharacterState::SitDown)
                     snapPos = m_seatSurfacePos + m_sitDownOffset;
-                } else if (currentState == AnimatedCharacterState::SittingIdle) {
+                else if (currentState == AnimatedCharacterState::SittingIdle)
                     snapPos = m_seatSurfacePos + m_sittingIdleOffset;
-                } else {
-                    // SitStandUp
+                else
                     snapPos = m_seatSurfacePos + m_sitStandUpOffset;
-                }
 
-                trans.setOrigin(btVector3(snapPos.x,
-                                         snapPos.y + halfHeight,
-                                         snapPos.z));
-                controllerBody->setWorldTransform(trans);
-                controllerBody->getMotionState()->setWorldTransform(trans);
-                controllerBody->setLinearVelocity(btVector3(0, 0, 0));
                 worldPosition = snapPos;
+                m_kinVelocity = glm::vec3(0.0f);
                 currentYaw = m_seatFacingYaw;
             }
 
@@ -1937,17 +1598,13 @@ namespace Scene {
         // 1. Update Physics Controller
         {
         bool usedExternalVelocity = false;
-        if (controllerBody) {
+        {
             // External velocity mode (used by NPC patrol behavior)
             if (hasExternalVelocity) {
                 usedExternalVelocity = true;
-                btVector3 currentVel = controllerBody->getLinearVelocity();
-                controllerBody->setLinearVelocity(btVector3(externalVelocity.x, currentVel.y(), externalVelocity.z));
-                controllerBody->activate(true);
+                m_kinVelocity.x = externalVelocity.x;
+                m_kinVelocity.z = externalVelocity.z;
                 hasExternalVelocity = false;
-
-                // Step-up detection (DISABLED: causes upward drift on flat ground, will revisit)
-                // detectAndApplyStepUp(externalVelocity, deltaTime, physicsWorld ? physicsWorld->getWorld() : nullptr);
 
                 // Face movement direction
                 float speed = glm::length(glm::vec2(externalVelocity.x, externalVelocity.z));
@@ -1955,12 +1612,7 @@ namespace Scene {
                     currentYaw = atan2(externalVelocity.x, externalVelocity.z);
                 }
 
-                // Update world position from physics
-                btTransform trans;
-                controllerBody->getMotionState()->getWorldTransform(trans);
-                btVector3 pos = trans.getOrigin();
-                float halfHeight = getControllerHalfHeight();
-                worldPosition = glm::vec3(pos.x(), pos.y() - halfHeight, pos.z());
+                resolveKinematicMovement(deltaTime);
 
                 // Play walk or idle animation based on speed
                 std::vector<std::string> candidates;
@@ -2067,24 +1719,12 @@ namespace Scene {
             if (glm::length(moveDir) > 0.001f) moveDir = glm::normalize(moveDir);
             
             glm::vec3 moveVel = moveDir * moveSpeed;
-            
-            btVector3 currentVel = controllerBody->getLinearVelocity();
-            // Preserve vertical velocity (gravity)
-            controllerBody->setLinearVelocity(btVector3(moveVel.x, currentVel.y(), moveVel.z));
 
-            // Step-up detection (DISABLED: causes upward drift on flat ground, will revisit)
-            // detectAndApplyStepUp(glm::vec3(moveVel.x, 0.0f, moveVel.z), deltaTime, physicsWorld ? physicsWorld->getWorld() : nullptr);
-            
-            // Update World Position from Physics
-            btTransform trans;
-            controllerBody->getMotionState()->getWorldTransform(trans);
-            btVector3 pos = trans.getOrigin();
-            
-            // Get actual half-height from collision shape to account for dynamic scaling
-            float halfHeight = getControllerHalfHeight();
-            
-            // Pivot is at feet, body center is at +halfHeight
-            worldPosition = glm::vec3(pos.x(), pos.y() - halfHeight, pos.z());
+            // Preserve vertical velocity (gravity handled by resolveKinematicMovement)
+            m_kinVelocity.x = moveVel.x;
+            m_kinVelocity.z = moveVel.z;
+
+            resolveKinematicMovement(deltaTime);
             } // end normal input-driven movement
             
             // Animation Selection Logic (only for input-driven mode; external velocity handles its own)
@@ -2578,10 +2218,6 @@ namespace Scene {
                 | btCollisionObject::CF_NO_CONTACT_RESPONSE);
             body->setActivationState(DISABLE_DEACTIVATION);
 
-            if (controllerBody) {
-                body->setIgnoreCollisionCheck(controllerBody, true);
-                controllerBody->setIgnoreCollisionCheck(body, true);
-            }
             for (auto& [id, boneBody] : boneBodies) {
                 body->setIgnoreCollisionCheck(boneBody, true);
                 boneBody->setIgnoreCollisionCheck(body, true);
@@ -2593,7 +2229,7 @@ namespace Scene {
                 }
             }
 
-            m_segmentBoxes.push_back({ seg.name, boneId, body, halfExtents, seg.isArm, false });
+            m_segmentBoxes.push_back({ seg.name, boneId, body, glm::vec3(0.0f), halfExtents, seg.isArm, false });
         }
 
         LOG_INFO_FMT("Character", "Built " << m_segmentBoxes.size() << "/8 segment collision boxes");
@@ -2640,10 +2276,25 @@ namespace Scene {
             glm::vec3 pos = glm::vec3(finalTransform[3]);
             glm::quat rot = glm::quat_cast(finalTransform);
 
+            seg.center = pos;
+
             btTransform trans;
             trans.setOrigin(btVector3(pos.x, pos.y, pos.z));
             trans.setRotation(btQuaternion(rot.x, rot.y, rot.z, rot.w));
             seg.body->getMotionState()->setWorldTransform(trans);
+        }
+
+        // Push updated segment boxes to voxel world as kinematic obstacles
+        if (auto* vw = physicsWorld ? physicsWorld->getVoxelWorld() : nullptr) {
+            std::vector<Physics::OccupiedBox> obstacles;
+            obstacles.reserve(m_segmentBoxes.size());
+            for (const auto& seg : m_segmentBoxes) {
+                Physics::OccupiedBox ob;
+                ob.center      = seg.center;
+                ob.halfExtents = seg.halfExtents;
+                obstacles.push_back(ob);
+            }
+            vw->setKinematicObstacles(std::move(obstacles));
         }
     }
 
@@ -2838,11 +2489,7 @@ namespace Scene {
                 body->setAngularVelocity(btVector3(0.0f, 0.0f, 0.0f));
             }
         }
-        if (controllerBody) {
-            controllerBody->setGravity(btVector3(0.0f, 0.0f, 0.0f));
-            controllerBody->setLinearVelocity(btVector3(0.0f, 0.0f, 0.0f));
-            controllerBody->setAngularVelocity(btVector3(0.0f, 0.0f, 0.0f));
-        }
+        m_kinVelocity = glm::vec3(0.0f);
     }
 
     bool AnimatedVoxelCharacter::isDerezzing() const {

@@ -69,28 +69,36 @@ ChunkPhysicsManager& ChunkPhysicsManager::operator=(ChunkPhysicsManager&& other)
 void ChunkPhysicsManager::initialize(PhysicsWorld* world, const glm::ivec3& origin) {
     physicsWorld = world;
     chunkOrigin = origin;
+    m_occupancyGrid.setChunkOrigin(origin);
     LOG_TRACE("ChunkPhysicsManager", "Initialized for chunk");
 }
 
 void ChunkPhysicsManager::cleanupPhysicsResources() {
+    // Unregister occupancy grid from custom dynamics world before destroying
+    if (physicsWorld) {
+        if (auto* vw = physicsWorld->getVoxelWorld())
+            vw->unregisterGrid(&m_occupancyGrid);
+    }
+    m_occupancyGrid.clear();
+
     // Remove physics body from world if it exists
     if (chunkPhysicsBody && physicsWorld) {
         physicsWorld->getWorld()->removeRigidBody(chunkPhysicsBody);
     }
-    
+
     // Delete physics body
     if (chunkPhysicsBody) {
         delete chunkPhysicsBody->getMotionState();
         delete chunkPhysicsBody;
         chunkPhysicsBody = nullptr;
     }
-    
+
     // Delete collision shape
     if (chunkCollisionShape) {
         delete chunkCollisionShape;
         chunkCollisionShape = nullptr;
     }
-    
+
     // Delete triangle mesh
     if (chunkTriangleMesh) {
         delete chunkTriangleMesh;
@@ -136,7 +144,11 @@ void ChunkPhysicsManager::createChunkPhysicsBody(const CubesArrayAccessFunc& get
     chunkPhysicsBody = new btRigidBody(rbInfo);
     
     physicsWorld->getWorld()->addRigidBody(chunkPhysicsBody);
-    
+
+    // Register the occupancy grid with the custom dynamics world for terrain queries
+    if (auto* vw = physicsWorld->getVoxelWorld())
+        vw->registerGrid(&m_occupancyGrid);
+
     LOG_TRACE("ChunkPhysicsManager", "Spatial collision system initialized");
 }
 
@@ -305,7 +317,11 @@ void ChunkPhysicsManager::removeCollisionEntities(const glm::ivec3& localPos) {
     
     // Remove all entities from spatial grid - O(1) operation
     collisionGrid.removeAllAt(localPos);
-    
+
+    // Sync occupancy grid — clear this cube position
+    m_occupancyGrid.setCube(localPos, false);
+    m_occupancyGrid.markSubdivided(localPos, false); // also clears subcube data
+
     // CRITICAL: Immediately update collision geometry after removal
     if (chunkPhysicsBody) {
         // Recalculate the compound shape's AABB after child removal
@@ -375,9 +391,11 @@ void ChunkPhysicsManager::buildInitialCollisionShapes(const CubesArrayAccessFunc
     btCompoundShape* compound = static_cast<btCompoundShape*>(chunkCollisionShape);
     if (!compound) return;
     
-    // Clear existing spatial grid - shapes auto-delete when entities are destroyed
+    // Clear existing spatial grid and occupancy grid
     collisionGrid.clear();
-    
+    m_occupancyGrid.clear();
+    m_occupancyGrid.setChunkOrigin(chunkOrigin);
+
     // Remove all existing children from compound shape
     while (compound->getNumChildShapes() > 0) {
         compound->removeChildShapeByIndex(0);
@@ -402,22 +420,25 @@ void ChunkPhysicsManager::buildInitialCollisionShapes(const CubesArrayAccessFunc
         // Get cube's local position within chunk
         glm::ivec3 localPos = indexToLocal(i);
         
+        // Always set the occupancy grid bit for any filled, visible cube
+        m_occupancyGrid.setCube(localPos, true);
+
         // Only create collision shape if cube has exposed faces (performance optimization)
         if (hasExposedFaces(localPos, getCube)) {
             glm::vec3 cubeCenter = glm::vec3(chunkOrigin) + glm::vec3(localPos) + glm::vec3(0.5f);
-            
+
             btBoxShape* boxShape = new btBoxShape(btVector3(0.5f, 0.5f, 0.5f));
             boxShape->setMargin(0.01f); // Tighter margin for better collision accuracy
             btTransform transform;
             transform.setIdentity();
             transform.setOrigin(btVector3(cubeCenter.x, cubeCenter.y, cubeCenter.z));
-            
+
             compound->addChildShape(transform, boxShape);
-            
+
             // Create collision entity with spatial tracking
             auto entity = std::make_shared<CollisionSpatialGrid::CollisionEntity>(boxShape, CollisionSpatialGrid::CollisionEntity::CUBE, cubeCenter);
             entity->isInCompound = true; // Shape is now owned by Bullet compound
-            
+
             // Add to spatial grid - O(1) operation
             collisionGrid.addEntity(localPos, entity);
         }
@@ -429,11 +450,11 @@ void ChunkPhysicsManager::buildInitialCollisionShapes(const CubesArrayAccessFunc
         if (!subcube || subcube->isBroken() || !subcube->isVisible()) {
             continue;
         }
-        
+
         // Get subcube properties
         glm::ivec3 parentPos = subcube->getPosition();     // Parent cube's world position
         glm::ivec3 localPos = subcube->getLocalPosition(); // 0-2 for each axis within parent
-        
+
         // Convert parent world position to chunk-relative position
         glm::ivec3 parentLocalPos = parentPos - chunkOrigin;
         
@@ -443,12 +464,17 @@ void ChunkPhysicsManager::buildInitialCollisionShapes(const CubesArrayAccessFunc
             parentLocalPos.z < 0 || parentLocalPos.z >= 32) {
             continue; // Skip subcubes with invalid parent positions
         }
-        
+
+        // Sync occupancy grid: mark parent as subdivided and this subcube as filled
+        m_occupancyGrid.setCube(parentLocalPos, true);
+        m_occupancyGrid.markSubdivided(parentLocalPos, true);
+        m_occupancyGrid.setSubcube(parentLocalPos, localPos, true);
+
         // Calculate subcube center
         glm::vec3 parentCenter = glm::vec3(chunkOrigin) + glm::vec3(parentLocalPos) + glm::vec3(0.5f);
         glm::vec3 subcubeOffset = (glm::vec3(localPos) - glm::vec3(1.0f)) * (1.0f/3.0f);
         glm::vec3 subcubeCenter = parentCenter + subcubeOffset;
-        
+
         btBoxShape* boxShape = new btBoxShape(btVector3(1.0f/6.0f, 1.0f/6.0f, 1.0f/6.0f));
         boxShape->setMargin(0.005f); // Tighter margin for subcubes
         btTransform transform;
@@ -489,7 +515,14 @@ void ChunkPhysicsManager::buildInitialCollisionShapes(const CubesArrayAccessFunc
             parentLocalPos.z < 0 || parentLocalPos.z >= 32) {
             continue;
         }
-        
+
+        // Sync occupancy grid for microcube hierarchy
+        m_occupancyGrid.setCube(parentLocalPos, true);
+        m_occupancyGrid.markSubdivided(parentLocalPos, true);
+        m_occupancyGrid.setSubcube(parentLocalPos, subcubePos, true);
+        m_occupancyGrid.markSubcubeSubdivided(parentLocalPos, subcubePos, true);
+        m_occupancyGrid.setMicrocube(parentLocalPos, subcubePos, microcubePos, true);
+
         // Calculate microcube center with two-level hierarchy
         constexpr float SUBCUBE_SCALE = 1.0f / 3.0f;
         constexpr float MICROCUBE_SCALE = 1.0f / 9.0f;
@@ -634,10 +667,14 @@ void ChunkPhysicsManager::createCubeCollisionShape(const glm::ivec3& localPos,
     // Create collision entity for tracking
     auto entity = std::make_shared<CollisionSpatialGrid::CollisionEntity>(boxShape, CollisionSpatialGrid::CollisionEntity::CUBE, shapeCenter);
     entity->isInCompound = true; // Shape is now owned by Bullet compound
-    
+
     // Add to spatial grid for O(1) lookups
     collisionGrid.addEntity(localPos, entity);
-    
+
+    // Sync occupancy grid for custom physics terrain queries
+    m_occupancyGrid.setCube(localPos, true);
+    m_occupancyGrid.markSubdivided(localPos, false);
+
     LOG_TRACE("ChunkPhysicsManager", "Created cube collision shape");
 }
 
@@ -667,10 +704,15 @@ void ChunkPhysicsManager::createSubcubeCollisionShape(const glm::ivec3& cubePos,
     entity->isInCompound = true;
     entity->parentChunkPos = cubePos;
     entity->subcubeLocalPos = subcubePos;
-    
+
     // Add to spatial grid
     collisionGrid.addEntity(cubePos, entity);
-    
+
+    // Sync occupancy grid
+    m_occupancyGrid.setCube(cubePos, true);
+    m_occupancyGrid.markSubdivided(cubePos, true);
+    m_occupancyGrid.setSubcube(cubePos, subcubePos, true);
+
     LOG_TRACE("ChunkPhysicsManager", "Created subcube collision shape");
 }
 
@@ -707,10 +749,18 @@ void ChunkPhysicsManager::createMicrocubeCollisionShape(const glm::ivec3& cubePo
     entity->isInCompound = true;
     entity->parentChunkPos = cubePos;
     entity->subcubeLocalPos = subcubePos;
-    
+
     // Add to spatial grid
     collisionGrid.addEntity(cubePos, entity);
-    
+
+    // Sync occupancy grid
+    glm::ivec3 mLocalPos = microcube->getMicrocubeLocalPosition();
+    m_occupancyGrid.setCube(cubePos, true);
+    m_occupancyGrid.markSubdivided(cubePos, true);
+    m_occupancyGrid.setSubcube(cubePos, subcubePos, true);
+    m_occupancyGrid.markSubcubeSubdivided(cubePos, subcubePos, true);
+    m_occupancyGrid.setMicrocube(cubePos, subcubePos, mLocalPos, true);
+
     LOG_TRACE("ChunkPhysicsManager", "Created microcube collision shape");
 }
 

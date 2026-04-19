@@ -43,11 +43,16 @@ bool PhysicsWorld::initialize() {
         
         // Set gravity
         dynamicsWorld->setGravity(btVector3(0, -9.81f, 0));
-        
+
         // Optimize collision settings for better interactions
         optimizeCollisionSettings();
-        
-        LOG_INFO_FMT("Physics", "Physics world initialized successfully (with automatic fallen cube cleanup at Y < " 
+
+        // Initialize custom voxel dynamics world alongside Bullet
+        m_voxelWorld = std::make_unique<VoxelDynamicsWorld>();
+        m_voxelWorld->setGravity(glm::vec3(0.0f, -9.81f, 0.0f));
+        m_voxelWorld->setFallThreshold(fallThreshold);
+
+        LOG_INFO_FMT("Physics", "Physics world initialized successfully (with automatic fallen cube cleanup at Y < "
                   << fallThreshold << ")");
         return true;
         
@@ -106,9 +111,14 @@ void PhysicsWorld::cleanup() {
 void PhysicsWorld::stepSimulation(float deltaTime, int maxSubSteps, float fixedTimeStep) {
     if (dynamicsWorld) {
         dynamicsWorld->stepSimulation(deltaTime, maxSubSteps, fixedTimeStep);
-        
+
         // Clean up cubes that have fallen below the world
         cleanupFallenCubes();
+    }
+
+    // Step custom voxel physics world
+    if (m_voxelWorld) {
+        m_voxelWorld->stepSimulation(deltaTime, maxSubSteps, fixedTimeStep);
     }
 }
 
