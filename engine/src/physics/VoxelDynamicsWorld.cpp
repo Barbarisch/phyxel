@@ -3,6 +3,8 @@
 #include <cmath>
 #include <future>
 #include <thread>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace Phyxel {
 namespace Physics {
@@ -186,122 +188,143 @@ void VoxelDynamicsWorld::integratePositions(float dt) {
 }
 
 void VoxelDynamicsWorld::generateContacts() {
-    size_t n = m_bodies.size();
+    size_t n  = m_bodies.size();
     int    tc = std::max(1, m_threadCount);
 
-    // ---- Body vs terrain (parallel with per-thread contact buffers) ----
-    {
+    // Build awake-body list and cache each AABB once — shared by terrain and body-body phases.
+    struct AwakeBody { VoxelRigidBody* body; glm::vec3 mn, mx; };
+    std::vector<AwakeBody> awake;
+    awake.reserve(n);
+    for (auto& b : m_bodies) {
+        if (b->isDead || b->isAsleep || b->invMass == 0.0f) continue;
+        AwakeBody ab;
+        ab.body = b.get();
+        b->getWorldAABB(ab.mn, ab.mx);
+        awake.push_back(ab);
+    }
+    size_t na = awake.size();
+
+    // ---- Body vs terrain (parallel, per-thread contact buffers) ----
+    if (!m_grids.empty() && na > 0) {
         std::vector<std::vector<ContactPoint>> threadBufs(tc);
-
-        // Capture grid list — read-only during this phase
         const auto& grids = m_grids;
+        const float expand = 0.01f;
 
-        parallelRange(n, tc, [&](size_t b, size_t e) {
-            // Determine which thread slot to use based on the range start
-            // Each range maps 1:1 to a thread index because parallelRange assigns
-            // chunk 0 to the calling thread and chunks 1..tc-1 to async tasks.
-            // We identify the slot by the starting body index.
-            size_t chunk = (n + static_cast<size_t>(tc) - 1) / static_cast<size_t>(tc);
+        parallelRange(na, tc, [&](size_t b, size_t e) {
+            size_t chunk = (na + static_cast<size_t>(tc) - 1) / static_cast<size_t>(tc);
             size_t slot  = (chunk > 0) ? (b / chunk) : 0;
             slot = std::min(slot, static_cast<size_t>(tc) - 1);
             auto& buf = threadBufs[slot];
 
             for (size_t i = b; i < e; ++i) {
-                auto& body = m_bodies[i];
-                if (body->isDead || body->isAsleep || body->invMass == 0.0f) continue;
-
-                glm::vec3 bMin, bMax;
-                body->getWorldAABB(bMin, bMax);
-                const float expand = 0.01f;
-                bMin -= glm::vec3(expand);
-                bMax += glm::vec3(expand);
+                const AwakeBody& ab = awake[i];
+                glm::vec3 bMin = ab.mn - glm::vec3(expand);
+                glm::vec3 bMax = ab.mx + glm::vec3(expand);
 
                 for (VoxelOccupancyGrid* grid : grids) {
                     std::vector<OccupiedBox> terrainBoxes;
                     grid->queryAABB(bMin, bMax, terrainBoxes);
                     for (const OccupiedBox& tb : terrainBoxes)
-                        for (size_t bi = 0; bi < body->getLocalBoxes().size(); ++bi)
-                            VoxelContactSolver::generateOBBvsAABB(body.get(), bi, tb, buf);
+                        for (size_t bi = 0; bi < ab.body->getLocalBoxes().size(); ++bi)
+                            VoxelContactSolver::generateOBBvsAABB(ab.body, bi, tb, buf);
                 }
             }
         });
 
-        // Merge per-thread contact buffers
         for (auto& buf : threadBufs)
             m_contacts.insert(m_contacts.end(), buf.begin(), buf.end());
     }
 
-    // ---- Body vs kinematic obstacles (sequential — has wake writes) ----
-    for (auto& body : m_bodies) {
-        if (body->isDead || body->invMass == 0.0f) continue;
+    // ---- Body vs kinematic obstacles (sequential — writes isAsleep) ----
+    if (!m_kinematicObstacles.empty()) {
+        for (auto& body : m_bodies) {
+            if (body->isDead || body->invMass == 0.0f) continue;
 
-        glm::vec3 bMin, bMax;
-        body->getWorldAABB(bMin, bMax);
+            glm::vec3 bMin, bMax;
+            body->getWorldAABB(bMin, bMax);
 
-        for (const KinematicObstacle& obs : m_kinematicObstacles) {
-            glm::vec3 oMin = obs.center - obs.halfExtents;
-            glm::vec3 oMax = obs.center + obs.halfExtents;
-            if (bMax.x < oMin.x || bMin.x > oMax.x ||
-                bMax.y < oMin.y || bMin.y > oMax.y ||
-                bMax.z < oMin.z || bMin.z > oMax.z) continue;
+            for (const KinematicObstacle& obs : m_kinematicObstacles) {
+                glm::vec3 oMin = obs.center - obs.halfExtents;
+                glm::vec3 oMax = obs.center + obs.halfExtents;
+                if (bMax.x < oMin.x || bMin.x > oMax.x ||
+                    bMax.y < oMin.y || bMin.y > oMax.y ||
+                    bMax.z < oMin.z || bMin.z > oMax.z) continue;
 
-            if (body->isAsleep) {
-                body->isAsleep   = false;
-                body->sleepTimer = 0.0f;
+                if (body->isAsleep) {
+                    body->isAsleep   = false;
+                    body->sleepTimer = 0.0f;
+                }
+
+                OccupiedBox box{obs.center, obs.halfExtents};
+                size_t before = m_contacts.size();
+                for (size_t bi = 0; bi < body->getLocalBoxes().size(); ++bi)
+                    VoxelContactSolver::generateOBBvsAABB(body.get(), bi, box, m_contacts);
+                for (size_t k = before; k < m_contacts.size(); ++k)
+                    m_contacts[k].obstacleVelocity = obs.velocity;
             }
-
-            OccupiedBox box{obs.center, obs.halfExtents};
-            size_t before = m_contacts.size();
-            for (size_t bi = 0; bi < body->getLocalBoxes().size(); ++bi)
-                VoxelContactSolver::generateOBBvsAABB(body.get(), bi, box, m_contacts);
-            for (size_t k = before; k < m_contacts.size(); ++k)
-                m_contacts[k].obstacleVelocity = obs.velocity;
         }
     }
 
-    // ---- Body vs body (parallel with per-thread contact buffers) ----
+    // ---- Body vs body: spatial hash broadphase ----
+    // Buckets bodies into 3-D cells of CELL_SIZE. Only pairs sharing a cell are
+    // tested, reducing average complexity from O(N²) to O(N) for sparse scenes.
+    if (na < 2) return;
     {
-        // Build flat awake-body list to get O(N²) pairs over a compact array
-        std::vector<VoxelRigidBody*> awake;
-        awake.reserve(m_bodies.size());
-        for (const auto& b : m_bodies)
-            if (!b->isDead && !b->isAsleep) awake.push_back(b.get());
+        static constexpr float CELL_SIZE = 2.0f;
+        static constexpr float INV_CELL  = 1.0f / CELL_SIZE;
 
-        size_t na = awake.size();
-        if (na < 2) return;
+        // Pack 3 signed cell coords into a uint64 key (21 bits each, offset to positive).
+        auto cellKey = [](int x, int y, int z) -> uint64_t {
+            uint64_t ux = static_cast<uint64_t>(static_cast<uint32_t>(x + (1 << 20)) & 0x1FFFFF);
+            uint64_t uy = static_cast<uint64_t>(static_cast<uint32_t>(y + (1 << 20)) & 0x1FFFFF);
+            uint64_t uz = static_cast<uint64_t>(static_cast<uint32_t>(z + (1 << 20)) & 0x1FFFFF);
+            return ux | (uy << 21) | (uz << 42);
+        };
 
-        // Total pairs: na*(na-1)/2 — distribute rows of the triangular matrix
-        std::vector<std::vector<ContactPoint>> threadBufs(tc);
+        // Insert each body into every cell its AABB overlaps (usually 1–8 cells).
+        std::unordered_map<uint64_t, std::vector<uint32_t>> spatialHash;
+        spatialHash.reserve(na * 4);
+        for (uint32_t i = 0; i < static_cast<uint32_t>(na); ++i) {
+            const AwakeBody& ab = awake[i];
+            int x0 = static_cast<int>(std::floor(ab.mn.x * INV_CELL));
+            int y0 = static_cast<int>(std::floor(ab.mn.y * INV_CELL));
+            int z0 = static_cast<int>(std::floor(ab.mn.z * INV_CELL));
+            int x1 = static_cast<int>(std::floor(ab.mx.x * INV_CELL));
+            int y1 = static_cast<int>(std::floor(ab.mx.y * INV_CELL));
+            int z1 = static_cast<int>(std::floor(ab.mx.z * INV_CELL));
+            for (int cx = x0; cx <= x1; ++cx)
+            for (int cy = y0; cy <= y1; ++cy)
+            for (int cz = z0; cz <= z1; ++cz)
+                spatialHash[cellKey(cx, cy, cz)].push_back(i);
+        }
 
-        parallelRange(na, tc, [&](size_t rb, size_t re) {
-            size_t chunk = (na + static_cast<size_t>(tc) - 1) / static_cast<size_t>(tc);
-            size_t slot  = (chunk > 0) ? (rb / chunk) : 0;
-            slot = std::min(slot, static_cast<size_t>(tc) - 1);
-            auto& buf = threadBufs[slot];
+        // Test each unique pair that shares at least one cell.
+        std::unordered_set<uint64_t> testedPairs;
+        testedPairs.reserve(na * 4);
 
-            for (size_t i = rb; i < re; ++i) {
-                VoxelRigidBody* A = awake[i];
-                glm::vec3 aMin, aMax;
-                A->getWorldAABB(aMin, aMax);
+        for (auto& [key, indices] : spatialHash) {
+            size_t nc = indices.size();
+            if (nc < 2) continue;
+            for (size_t a = 0; a < nc; ++a) {
+                for (size_t b = a + 1; b < nc; ++b) {
+                    uint32_t ia = indices[a], ib = indices[b];
+                    if (ia > ib) std::swap(ia, ib);
+                    uint64_t pairKey = (static_cast<uint64_t>(ia) << 32) | static_cast<uint64_t>(ib);
+                    if (!testedPairs.insert(pairKey).second) continue;
 
-                for (size_t j = i + 1; j < na; ++j) {
-                    VoxelRigidBody* B = awake[j];
-                    glm::vec3 bMin, bMax;
-                    B->getWorldAABB(bMin, bMax);
+                    const AwakeBody& A = awake[ia];
+                    const AwakeBody& B = awake[ib];
+                    // AABB overlap (quick reject using cached extents)
+                    if (A.mx.x < B.mn.x || A.mn.x > B.mx.x ||
+                        A.mx.y < B.mn.y || A.mn.y > B.mx.y ||
+                        A.mx.z < B.mn.z || A.mn.z > B.mx.z) continue;
 
-                    if (aMax.x < bMin.x || aMin.x > bMax.x ||
-                        aMax.y < bMin.y || aMin.y > bMax.y ||
-                        aMax.z < bMin.z || aMin.z > bMax.z) continue;
-
-                    for (size_t bi = 0; bi < A->getLocalBoxes().size(); ++bi)
-                        for (size_t bj = 0; bj < B->getLocalBoxes().size(); ++bj)
-                            VoxelContactSolver::generateOBBvsOBB(A, bi, B, bj, buf);
+                    for (size_t bi = 0; bi < A.body->getLocalBoxes().size(); ++bi)
+                        for (size_t bj = 0; bj < B.body->getLocalBoxes().size(); ++bj)
+                            VoxelContactSolver::generateOBBvsOBB(A.body, bi, B.body, bj, m_contacts);
                 }
             }
-        });
-
-        for (auto& buf : threadBufs)
-            m_contacts.insert(m_contacts.end(), buf.begin(), buf.end());
+        }
     }
 }
 
