@@ -81,7 +81,7 @@ void InputManager::processCameraMovement(float deltaTime) {
     if (ImGui::GetIO().WantCaptureKeyboard) return;
 
     float speed = cameraSpeed * deltaTime;
-    
+
     // Forward/Backward (W/S)
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
         cameraPos += speed * cameraFront;
@@ -89,7 +89,7 @@ void InputManager::processCameraMovement(float deltaTime) {
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
         cameraPos -= speed * cameraFront;
     }
-    
+
     // Left/Right (A/D)
     glm::vec3 right = glm::normalize(glm::cross(cameraFront, cameraUp));
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
@@ -98,7 +98,7 @@ void InputManager::processCameraMovement(float deltaTime) {
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
         cameraPos += right * speed;
     }
-    
+
     // Up/Down (Space/Z)
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
         cameraPos += cameraUp * speed;

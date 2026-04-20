@@ -330,7 +330,6 @@ private:
     float spawnerPos[3] = {0.0f, 20.0f, 0.0f};
     int spawnerRotation = 0;
     int spawnerTemplateIdx = 0;
-    bool spawnerStatic = true;
     void renderTemplateSpawner();
 
     // Click Actions panel

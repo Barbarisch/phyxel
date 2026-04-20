@@ -819,26 +819,27 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
 
         // Helper lambda to batch a parts list
         auto batchParts = [&](const std::vector<Scene::RagdollPart>& charParts) {
+            // --- Path 1: Bullet-backed parts (PhysicsCharacter) ---
             std::map<btRigidBody*, std::vector<const Scene::RagdollPart*>> partsByBody;
             for (const auto& part : charParts) {
-                if (part.rigidBody) partsByBody[part.rigidBody].push_back(&part);
+                if (!part.useDirectTransform && part.rigidBody)
+                    partsByBody[part.rigidBody].push_back(&part);
             }
-            for (const auto& [body, parts] : partsByBody) {
+            for (const auto& [body, bParts] : partsByBody) {
                 btTransform trans;
                 body->getMotionState()->getWorldTransform(trans);
                 btVector3 pos = trans.getOrigin();
                 btQuaternion rot = trans.getRotation();
 
-                glm::mat4 model = glm::mat4(1.0f);
-                model = glm::translate(model, glm::vec3(pos.x(), pos.y(), pos.z()));
-                model = model * glm::mat4_cast(glm::quat(rot.w(), rot.x(), rot.y(), rot.z()));
+                glm::mat4 model = glm::translate(glm::mat4(1.0f),
+                                      glm::vec3(pos.x(), pos.y(), pos.z()))
+                                * glm::mat4_cast(glm::quat(rot.w(), rot.x(), rot.y(), rot.z()));
 
                 Batch batch;
                 batch.model = model;
                 batch.firstInstance = static_cast<uint32_t>(instanceData.size());
                 batch.instanceCount = 0;
-
-                for (const auto* part : parts) {
+                for (const auto* part : bParts) {
                     if (!part->active) continue;
                     CharacterInstanceData data;
                     data.offset = part->offset;
@@ -847,7 +848,34 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
                     instanceData.push_back(data);
                     batch.instanceCount++;
                 }
-                batches.push_back(batch);
+                if (batch.instanceCount > 0) batches.push_back(batch);
+            }
+
+            // --- Path 2: Direct-transform parts (AnimatedVoxelCharacter bones) ---
+            std::map<int, std::vector<const Scene::RagdollPart*>> partsByGroup;
+            for (const auto& part : charParts) {
+                if (part.useDirectTransform)
+                    partsByGroup[part.boneGroupId].push_back(&part);
+            }
+            for (const auto& [groupId, gParts] : partsByGroup) {
+                if (gParts.empty()) continue;
+                const auto* first = gParts[0];
+                glm::mat4 model = glm::translate(glm::mat4(1.0f), first->worldPos)
+                                * glm::mat4_cast(first->worldRot);
+                Batch batch;
+                batch.model = model;
+                batch.firstInstance = static_cast<uint32_t>(instanceData.size());
+                batch.instanceCount = 0;
+                for (const auto* part : gParts) {
+                    if (!part->active) continue;
+                    CharacterInstanceData data;
+                    data.offset = part->offset;
+                    data.scale  = part->scale;
+                    data.color  = part->color;
+                    instanceData.push_back(data);
+                    batch.instanceCount++;
+                }
+                if (batch.instanceCount > 0) batches.push_back(batch);
             }
         };
 

@@ -15,10 +15,14 @@ struct ContactPoint {
     float     depth;        // penetration depth (positive = overlapping)
 
     VoxelRigidBody* bodyA = nullptr;   // always non-null
-    VoxelRigidBody* bodyB = nullptr;   // null for terrain contacts
+    VoxelRigidBody* bodyB = nullptr;   // null for terrain / kinematic obstacle contacts
 
     glm::vec3 rA{0.0f};    // worldPos - bodyA->position
     glm::vec3 rB{0.0f};    // worldPos - bodyB->position (zero if terrain)
+
+    // Velocity of the B-side surface when bodyB == nullptr (kinematic obstacle).
+    // Zero for static terrain, set to character velocity for segment box contacts.
+    glm::vec3 obstacleVelocity{0.0f};
 
     // Solver state (filled during warmup / solve)
     glm::vec3 tangent1{0.0f};

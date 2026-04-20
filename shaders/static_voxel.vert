@@ -1,4 +1,23 @@
 #version 450
+//
+// static_voxel.vert — Vertex shader for static chunk voxels (cubes, subcubes, microcubes).
+//
+// Renders voxels baked into 32x32x32 chunks. Each instance is ONE face of a voxel.
+// The CPU culls occluded faces and packs per-face data into 8-byte InstanceData.
+//
+// Voxel sizes:
+//   scaleLevel 0 = cube      (1.0  scale) — full texture tile
+//   scaleLevel 1 = subcube   (1/3  scale) — 1/3 of texture, offset by subcube grid pos (0-2)
+//   scaleLevel 2 = microcube (1/9  scale) — 1/9 of texture, offset by subcube + microcube grid pos
+//
+// Texture mapping: each voxel face shows only its portion of the parent cube's texture.
+// Subcube/microcube grid positions are packed into bits 20-31 of inPackedData
+// (6-bit encoded as x + y*3 + z*9 for each level). Per-face axis mapping and
+// Y-flips ensure UV continuity across adjacent voxels of the same parent cube.
+//
+// Binding 0 (per-vertex):   vertexID 0-3 for quad corners
+// Binding 1 (per-instance): InstanceData (8 bytes) — packed position, face, scale, grid positions
+//
 
 layout(location = 0) in uint vertexID;          // Face corner ID (0–3 for quad corners)
 layout(location = 1) in uint inPackedData;      // per-instance: packed position + face ID + future data

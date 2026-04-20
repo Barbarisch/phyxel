@@ -248,7 +248,7 @@ namespace Scene {
         // Protected accessors for subclasses (e.g. HybridCharacter IK)
         Phyxel::Skeleton& getSkeletonMut() { return skeleton; }
         Phyxel::AnimationSystem& getAnimSystemMut() { return animSystem; }
-        const std::map<int, btRigidBody*>& getBoneBodiesRef() const { return boneBodies; }
+
         btRigidBody* getControllerBody() const { return nullptr; }
         const glm::vec3& getWorldPositionRef() const { return worldPosition; }
         float getSkeletonFootOffset() const { return skeletonFootOffset_; }
@@ -261,11 +261,8 @@ namespace Scene {
         Phyxel::VoxelModel voxelModel;
         Phyxel::AnimationSystem animSystem;
         
-        // Map from Bone ID to the physics body representing it
-        // Note: The bodies are also stored in RagdollCharacter::parts for rendering/cleanup
-        std::map<int, btRigidBody*> boneBodies; 
         // Map from Bone ID to the visual offset from the bone pivot
-        std::map<int, glm::vec3> boneOffsets; 
+        std::map<int, glm::vec3> boneOffsets;
         
         // Per-animation rotation offsets (to fix bad imports)
         std::map<std::string, float> animationRotationOffsets;
@@ -364,12 +361,13 @@ namespace Scene {
         // ---- Bone Attachments ----
         struct BoneAttachment {
             int id;
-            int boneId;              // skeleton bone ID to follow
-            btRigidBody* body;       // kinematic physics body
+            int boneId;
             glm::vec3 size;
-            glm::vec3 offset;        // offset from bone pivot
+            glm::vec3 offset;
             glm::vec4 color;
             std::string label;
+            glm::vec3 worldPos{0.0f};
+            glm::quat worldRot{1, 0, 0, 0};
         };
         std::vector<BoneAttachment> m_attachments;
         int m_nextAttachmentId = 1;
@@ -399,12 +397,11 @@ namespace Scene {
         // 8-segment collision boxes — one per major body segment, follow animation pose
         struct SegmentBox {
             std::string boneName;
-            int boneId = -1;              // cached skeleton bone ID
-            btRigidBody* body = nullptr;
+            int boneId = -1;
             glm::vec3 center{0.0f};       // world-space center, updated each frame
-            glm::vec3 halfExtents{0.0f};  // 80% of source bone box half-extents
-            bool isArm = false;           // arm segments trigger LimbBlocked FSM interrupt
-            bool colliding = false;       // set each frame by checkSegmentVoxelOverlap()
+            glm::vec3 halfExtents{0.0f};
+            bool isArm = false;
+            bool colliding = false;
         };
         std::vector<SegmentBox> m_segmentBoxes;
         bool m_limbBlocked = false;  // true this frame if any arm segment overlaps a voxel

@@ -1,7 +1,6 @@
 #include "core/Chunk.h"
 #include "core/ChunkManager.h"
 #include "physics/PhysicsWorld.h"
-#include "physics/CollisionSpatialGrid.h"
 #include "utils/Logger.h"
 #include <iostream>
 #include <stdexcept>
@@ -9,11 +8,6 @@
 #include <random>
 #include <iomanip>
 #include <unordered_set>
-
-// Bullet Physics includes
-#include <btBulletDynamicsCommon.h>
-#include <BulletCollision/CollisionShapes/btTriangleMesh.h>
-#include <BulletCollision/CollisionShapes/btBvhTriangleMeshShape.h>
 
 namespace Phyxel {
 
@@ -169,9 +163,6 @@ void Chunk::clearAll() {
     // Clear all hash maps in one pass
     voxelManager.clearAllVoxels();
 
-    // Clear collision spatial grid
-    auto& grid = physicsManager.getCollisionGrid();
-    grid.clear();
     physicsManager.getCollisionNeedsUpdateRef() = false;
 
     // Single rebuild of faces (now empty), GPU buffer, and physics
@@ -517,10 +508,6 @@ void Chunk::setPhysicsWorld(Physics::PhysicsWorld* world) {
     physicsManager.setPhysicsWorld(world);
 }
 
-btRigidBody* Chunk::getChunkPhysicsBody() const {
-    return physicsManager.getChunkPhysicsBody();
-}
-
 void Chunk::validateCollisionSystem() const {
     physicsManager.validateCollisionSystem();
 }
@@ -600,27 +587,7 @@ void Chunk::forcePhysicsRebuild() {
 }
 
 void Chunk::cleanupPhysicsResources() {
-    // Clean up spatial collision grid - entities auto-delete when shared_ptrs are destroyed
-    auto& grid = physicsManager.getCollisionGrid();
-    LOG_DEBUG_FMT("Chunk", "[COLLISION CLEANUP] Before cleanup: " << grid.getTotalEntityCount() << " total entities ("
-              << grid.getCubeEntityCount() << " cubes, " << grid.getSubcubeEntityCount() << " subcubes)");
-    
-    // Clear spatial grid - O(1) operation that releases all entity references
-    grid.clear();
-    physicsManager.getCollisionNeedsUpdateRef() = false;
-    
-    LOG_DEBUG_FMT("Chunk", "[COLLISION CLEANUP] After cleanup: " << grid.getTotalEntityCount() << " total entities ("
-              << grid.getCubeEntityCount() << " cubes, " << grid.getSubcubeEntityCount() << " subcubes)");
-    
-    if (physicsManager.getChunkPhysicsBodyRef()) {
-        LOG_DEBUG("Chunk", "[CHUNK] Cleaning up chunk physics body");
-        physicsManager.getChunkPhysicsBodyRef() = nullptr;
-    }
-    
-    if (physicsManager.getChunkCollisionShapeRef()) {
-        LOG_DEBUG("Chunk", "[CHUNK] Cleaning up chunk collision shape");
-        physicsManager.getChunkCollisionShapeRef() = nullptr;
-    }
+    physicsManager.cleanupPhysicsResources();
 }
 
 // ============================================================================
@@ -628,26 +595,21 @@ void Chunk::cleanupPhysicsResources() {
 // ============================================================================
 // These wrappers provide cube access to the physics manager
 
-void Chunk::createCubeCollisionShape(const glm::ivec3& localPos, btCompoundShape* compound) {
-    // Delegate to physicsManager with cube access lambda
-    auto getCube = [this](const glm::ivec3& pos) -> Cube* {
-        return this->getCubeAt(pos);
-    };
-    physicsManager.createCubeCollisionShape(localPos, compound, getCube);
+void Chunk::createCubeCollisionShape(const glm::ivec3& localPos) {
+    auto getCube = [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); };
+    physicsManager.createCubeCollisionShape(localPos, getCube);
 }
 
-void Chunk::createSubcubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, btCompoundShape* compound) {
-    // Delegate to physicsManager with subcube access lambda
+void Chunk::createSubcubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos) {
     auto getSubcube = [this](const glm::ivec3& cPos, const glm::ivec3& sPos) -> Subcube* {
         return this->getSubcubeAt(cPos, sPos);
     };
-    physicsManager.createSubcubeCollisionShape(cubePos, subcubePos, compound, getSubcube);
+    physicsManager.createSubcubeCollisionShape(cubePos, subcubePos, getSubcube);
 }
 
-void Chunk::createMicrocubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, 
-                                         const Microcube* microcube, btCompoundShape* compound) {
-    // Delegate to physicsManager
-    physicsManager.createMicrocubeCollisionShape(cubePos, subcubePos, microcube, compound);
+void Chunk::createMicrocubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos,
+                                          const Microcube* microcube) {
+    physicsManager.createMicrocubeCollisionShape(cubePos, subcubePos, microcube);
 }
 
 // ============================================================================
@@ -680,6 +642,10 @@ void Chunk::batchUpdateCollisions() {
         [this](size_t index) { return indexToLocal(index); },
         [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); }
     );
+}
+
+void Chunk::setPhysicsBulkMode(bool bulk) {
+    physicsManager.setInBulkOperation(bulk);
 }
 
 // Helper method to check if a cube has exposed faces (for collision optimization)
@@ -718,111 +684,6 @@ void Chunk::endBulkOperation() {
         [this](size_t index) { return indexToLocal(index); },
         [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); }
     );
-}
-
-std::vector<Physics::ChunkPhysicsManager::CollisionBox> Chunk::generateMergedCollisionBoxes() {
-    std::vector<Physics::ChunkPhysicsManager::CollisionBox> boxes;
-    
-    // OPTIMIZED APPROACH: Only create collision shapes for cubes with exposed faces
-    // This dramatically reduces collision complexity from ~32K to typically <1K collision boxes
-    LOG_DEBUG("Chunk", "[COLLISION] Building collision shapes only for exposed cubes (huge optimization!)");
-    
-    // =========================================================================
-    // PHASE 1: Process regular cubes (only those with exposed faces)
-    // =========================================================================
-    for (size_t i = 0; i < cubes.size(); ++i) {
-        const Cube* cube = cubes[i].get();
-        
-        // Skip deleted cubes (nullptr) or hidden cubes (subdivided)
-        if (!cube || !cube->isVisible()) {
-            continue;
-        }
-        
-        // Get cube's local position within chunk
-        glm::ivec3 localPos = indexToLocal(i);
-        
-        // CRITICAL OPTIMIZATION: Only create collision shape if cube has exposed faces
-        bool hasExposedFace = false;
-        
-        // Check all 6 faces for exposure (same logic as rebuildFaces)
-        glm::ivec3 neighbors[6] = {
-            localPos + glm::ivec3(0, 0, 1),   // front (+Z)
-            localPos + glm::ivec3(0, 0, -1),  // back (-Z)
-            localPos + glm::ivec3(1, 0, 0),   // right (+X)
-            localPos + glm::ivec3(-1, 0, 0),  // left (-X)
-            localPos + glm::ivec3(0, 1, 0),   // top (+Y)
-            localPos + glm::ivec3(0, -1, 0)   // bottom (-Y)
-        };
-        
-        for (int faceID = 0; faceID < 6; ++faceID) {
-            glm::ivec3 neighborPos = neighbors[faceID];
-            
-            // Face is exposed if neighbor is outside chunk bounds OR if no visible cube at neighbor position
-            if (neighborPos.x < 0 || neighborPos.x >= 32 ||
-                neighborPos.y < 0 || neighborPos.y >= 32 ||
-                neighborPos.z < 0 || neighborPos.z >= 32) {
-                hasExposedFace = true; // Edge of chunk
-                break;
-            } else {
-                const Cube* neighborCube = getCubeAt(neighborPos);
-                if (!neighborCube || !neighborCube->isVisible()) {
-                    hasExposedFace = true; // No occluding neighbor
-                    break;
-                }
-            }
-        }
-        
-        // Only create collision box for cubes with at least one exposed face
-        if (hasExposedFace) {
-            glm::vec3 cubeCenter = glm::vec3(worldOrigin) + glm::vec3(localPos) + glm::vec3(0.5f);
-            glm::vec3 cubeHalfExtents(0.5f);
-            boxes.emplace_back(cubeCenter, cubeHalfExtents);
-        }
-    }
-    
-    // =========================================================================
-    // PHASE 2: Process static subcubes (only those with exposed faces)
-    // =========================================================================
-    for (const auto& subcube : staticSubcubes) {
-        // Skip broken or hidden subcubes
-        if (!subcube || subcube->isBroken() || !subcube->isVisible()) {
-            continue;
-        }
-        
-        // Get subcube properties
-        glm::ivec3 parentPos = subcube->getPosition();     // Parent cube's world position
-        glm::ivec3 localPos = subcube->getLocalPosition(); // 0-2 for each axis within parent
-        
-        // Convert parent world position to chunk-relative position
-        glm::ivec3 parentLocalPos = parentPos - worldOrigin;
-        
-        // Validate parent position is within chunk bounds
-        if (parentLocalPos.x < 0 || parentLocalPos.x >= 32 ||
-            parentLocalPos.y < 0 || parentLocalPos.y >= 32 ||
-            parentLocalPos.z < 0 || parentLocalPos.z >= 32) {
-            continue; // Skip subcubes with invalid parent positions
-        }
-        
-        // OPTIMIZATION: For subdivided cubes, we could also check for exposed faces,
-        // but since subcubes are typically created when a cube is broken/interacted with,
-        // they're more likely to need collision detection. Keep all subcubes for now.
-        
-        // Calculate subcube world center position
-        glm::vec3 parentCenter = glm::vec3(worldOrigin) + glm::vec3(parentLocalPos) + glm::vec3(0.5f);
-        glm::vec3 subcubeOffset = (glm::vec3(localPos) - glm::vec3(1.0f)) * (1.0f/3.0f);
-        glm::vec3 subcubeCenter = parentCenter + subcubeOffset;
-        glm::vec3 subcubeHalfExtents(1.0f/6.0f); // 1/3 cube size -> 1/6 half-extents
-        
-        boxes.emplace_back(subcubeCenter, subcubeHalfExtents);
-    }
-    
-    LOG_DEBUG_FMT("Chunk", "[COLLISION] MASSIVE OPTIMIZATION: Generated only " << boxes.size() 
-              << " collision boxes (was ~" << cubes.size() << " before)");
-    LOG_DEBUG_FMT("Chunk", "[COLLISION] Performance improvement: " 
-              << (cubes.size() > 0 ? (100.0f * (cubes.size() - boxes.size()) / cubes.size()) : 0.0f) 
-              << "% reduction in collision shapes!");
-    
-    return boxes;
 }
 
 // =============================================================================

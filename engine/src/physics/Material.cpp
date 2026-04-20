@@ -185,6 +185,21 @@ void MaterialManager::initializePredefinedMaterials() {
     cork.colorTint = glm::vec3(0.8f, 0.7f, 0.5f); // Cork color
     materials["Cork"] = cork;
     
+    // Leaf - Light foliage material for trees and bushes
+    MaterialProperties leaf;
+    leaf.name = "Leaf";
+    leaf.description = "Light foliage material for trees and bushes";
+    leaf.mass = 0.1f;
+    leaf.friction = 0.3f;
+    leaf.restitution = 0.1f;
+    leaf.linearDamping = 0.6f;
+    leaf.angularDamping = 0.6f;
+    leaf.breakForceMultiplier = 0.2f;
+    leaf.bondStrength = 0.2f;
+    leaf.angularVelocityScale = 3.0f;
+    leaf.colorTint = glm::vec3(0.3f, 0.7f, 0.2f); // Green tint
+    materials["Leaf"] = leaf;
+
     // Glow - Emissive material
     MaterialProperties glow;
     glow.name = "glow";

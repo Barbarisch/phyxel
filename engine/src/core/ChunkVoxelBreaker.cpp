@@ -1,6 +1,8 @@
 #include "core/ChunkVoxelBreaker.h"
 #include "core/ChunkManager.h"
 #include "physics/PhysicsWorld.h"
+#include "physics/VoxelDynamicsWorld.h"
+#include "physics/VoxelRigidBody.h"
 #include "utils/Logger.h"
 #include <btBulletDynamicsCommon.h>
 
@@ -150,39 +152,45 @@ bool ChunkVoxelBreaker::breakSubcube(
             dynamicSubcube->breakApart(); // Mark as broken
             
             // PHYSICS BODY CREATION:
-            // Create a Bullet Physics rigid body if physics world is available
+            // Use custom VoxelDynamicsWorld when available; fall back to Bullet otherwise.
             if (physicsWorld) {
-                // CRITICAL COORDINATE CONVERSION:
-                // Static rendering uses CORNER-based coordinates (bottom-left corner of voxel)
-                // Physics simulation uses CENTER-based coordinates (center of mass)
-                // Why? Physics engines calculate torque/forces from center of mass
-                // 
-                // Subcube visual size: 1/3 of parent cube (0.333... units)
-                // Conversion formula: center = corner + (size / 2)
-                // 
-                // Example: Corner at (1.0, 2.0, 3.0), size 0.333
-                //          Center at (1.167, 2.167, 3.167)
-                glm::vec3 subcubeCornerPos = worldPos;          // Corner (from static subcube)
-                glm::vec3 subcubeSize(1.0f / 3.0f);             // 0.333... units (1/3 scale)
-                glm::vec3 physicsCenterPos = subcubeCornerPos + (subcubeSize * 0.5f); // Center of mass
-                
-                // Create dynamic physics body:
-                // - physicsCenterPos: Initial position (center of mass)
-                // - subcubeSize: Collision box dimensions (0.333 x 0.333 x 0.333)
-                // - 0.5f: Mass in kg (lightweight for realistic tumbling)
-                btRigidBody* rigidBody = physicsWorld->createBreakawayCube(physicsCenterPos, subcubeSize, 0.5f);
-                dynamicSubcube->setRigidBody(rigidBody);
-                dynamicSubcube->setPhysicsPosition(physicsCenterPos);
-                
-                // GENTLE BREAKING BEHAVIOR:
-                // No explosive impulse force applied - subcube falls naturally under gravity
-                // This creates a "crumbling" effect rather than "exploding" effect
-                // Gravity: -9.81 m/s² (Earth standard)
-                LOG_DEBUG("ChunkVoxelBreaker", "[SUBCUBE PHYSICS] Created physics body for subcube (no forces applied - gravity only)");
-                
-                // Enable gravity for natural falling behavior
-                if (rigidBody) {
-                    rigidBody->setGravity(btVector3(0, -9.81f, 0));
+                // Static rendering uses CORNER-based coordinates; physics uses CENTER-based.
+                // Subcube size: 1/3 of parent cube (0.333... units)
+                constexpr float SUBCUBE_SIZE   = 1.0f / 3.0f;
+                constexpr float SUBCUBE_HALF   = SUBCUBE_SIZE * 0.5f;
+                glm::vec3 physicsCenterPos = worldPos + glm::vec3(SUBCUBE_HALF);
+
+                if (auto* voxelWorld = physicsWorld->getVoxelWorld()) {
+                    // Custom solver path: creates a VoxelRigidBody with full angular dynamics
+                    Physics::VoxelRigidBody* voxelBody = voxelWorld->createVoxelBody(
+                        physicsCenterPos,
+                        glm::vec3(SUBCUBE_HALF),  // half-extents
+                        0.5f                      // mass in kg
+                    );
+
+                    // Apply the impulse force as initial linear + slight angular perturbation
+                    if (glm::length(impulseForce) > 1e-5f) {
+                        voxelBody->applyCentralImpulse(impulseForce);
+                        // Spin it slightly off-axis for tumbling effect
+                        voxelBody->angularVelocity = glm::vec3(
+                            impulseForce.z * 2.0f,
+                           -impulseForce.x * 2.0f,
+                            impulseForce.y * 2.0f
+                        );
+                    }
+
+                    dynamicSubcube->setVoxelBody(voxelBody);
+                    dynamicSubcube->setPhysicsPosition(physicsCenterPos);
+                    LOG_DEBUG("ChunkVoxelBreaker", "[SUBCUBE PHYSICS] Created VoxelRigidBody for subcube");
+
+                } else {
+                    // Legacy Bullet fallback
+                    glm::vec3 subcubeSize(SUBCUBE_SIZE);
+                    btRigidBody* rigidBody = physicsWorld->createBreakawayCube(physicsCenterPos, subcubeSize, 0.5f);
+                    if (rigidBody) rigidBody->setGravity(btVector3(0, -9.81f, 0));
+                    dynamicSubcube->setRigidBody(rigidBody);
+                    dynamicSubcube->setPhysicsPosition(physicsCenterPos);
+                    LOG_DEBUG("ChunkVoxelBreaker", "[SUBCUBE PHYSICS] Created Bullet btRigidBody for subcube (fallback)");
                 }
             }
             

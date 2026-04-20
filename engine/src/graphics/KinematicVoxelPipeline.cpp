@@ -235,15 +235,17 @@ void KinematicVoxelPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D 
     binding.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 
     // Attribute layout must match kinematic_voxel.vert locations exactly
-    std::array<VkVertexInputAttributeDescription, 4> attrs{};
+    std::array<VkVertexInputAttributeDescription, 5> attrs{};
     // loc 0: localPosition  (vec3, 12 bytes at offset 0)
     attrs[0] = {0, 0, VK_FORMAT_R32G32B32_SFLOAT,    offsetof(Core::KinematicFaceData, localPosition)};
     // loc 1: scale          (vec3, 12 bytes at offset 12)
     attrs[1] = {1, 0, VK_FORMAT_R32G32B32_SFLOAT,    offsetof(Core::KinematicFaceData, scale)};
-    // loc 2: textureIndex   (uint, 4 bytes at offset 24)
-    attrs[2] = {2, 0, VK_FORMAT_R32_UINT,             offsetof(Core::KinematicFaceData, textureIndex)};
-    // loc 3: faceId         (uint, 4 bytes at offset 28)
-    attrs[3] = {3, 0, VK_FORMAT_R32_UINT,             offsetof(Core::KinematicFaceData, faceId)};
+    // loc 2: uvOffset       (vec2, 8 bytes at offset 24)
+    attrs[2] = {2, 0, VK_FORMAT_R32G32_SFLOAT,        offsetof(Core::KinematicFaceData, uvOffset)};
+    // loc 3: textureIndex   (uint, 4 bytes at offset 32)
+    attrs[3] = {3, 0, VK_FORMAT_R32_UINT,             offsetof(Core::KinematicFaceData, textureIndex)};
+    // loc 4: faceId         (uint, 4 bytes at offset 36)
+    attrs[4] = {4, 0, VK_FORMAT_R32_UINT,             offsetof(Core::KinematicFaceData, faceId)};
 
     VkPipelineVertexInputStateCreateInfo vertexInput{};
     vertexInput.sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;

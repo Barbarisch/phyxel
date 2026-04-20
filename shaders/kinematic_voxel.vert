@@ -7,7 +7,7 @@
 // gl_VertexIndex (0-5) selects the two triangles that form the quad.
 //
 // Push constant:  mat4 modelMatrix  (one per draw call = one KinematicVoxelObject)
-// Instance attrs: localPosition, scale, textureIndex, faceId
+// Instance attrs: localPosition, scale, uvOffset, textureIndex, faceId
 // UBO:            shared set-0 UBO (view, proj, lighting — same as voxel.frag)
 // Fragment:       voxel.frag (unchanged)
 //
@@ -18,8 +18,9 @@
 // Per-instance attributes (one per face)
 layout(location = 0) in vec3  inLocalPosition;  // voxel center in hinge-local space
 layout(location = 1) in vec3  inScale;           // per-axis scale: (1,1,1) = full cube, (1,1,0.125) = thin
-layout(location = 2) in uint  inTextureIndex;    // atlas texture index
-layout(location = 3) in uint  inFaceId;          // 0=+Z  1=-Z  2=+X  3=-X  4=+Y  5=-Y
+layout(location = 2) in vec2  inUvOffset;        // UV offset within parent cube for sub-tile mapping
+layout(location = 3) in uint  inTextureIndex;    // atlas texture index
+layout(location = 4) in uint  inFaceId;          // 0=+Z  1=-Z  2=+X  3=-X  4=+Y  5=-Y
 
 layout(push_constant) uniform PushConstants {
     mat4 modelMatrix;
@@ -65,14 +66,20 @@ void main() {
     // World position via pivot/object transform
     vec3 worldPos = (pc.modelMatrix * vec4(localPos, 1.0)).xyz;
 
-    // UV coordinates (matching dynamic_voxel.vert conventions per face)
-    vec2 uv = vec2(0.0);
-    if      (inFaceId == 0u) uv = vec2(float((cornerID >> 0) & 1u), 1.0 - float((cornerID >> 1) & 1u));
-    else if (inFaceId == 1u) uv = vec2(1.0 - float((cornerID >> 0) & 1u), float((cornerID >> 1) & 1u));
-    else if (inFaceId == 2u) uv = vec2(float((cornerID >> 0) & 1u), 1.0 - float((cornerID >> 1) & 1u));
-    else if (inFaceId == 3u) uv = vec2(float((cornerID >> 0) & 1u), 1.0 - float((cornerID >> 1) & 1u));
-    else if (inFaceId == 4u) uv = vec2(1.0 - float((cornerID >> 0) & 1u), float((cornerID >> 1) & 1u));
-    else                     uv = vec2(float((cornerID >> 0) & 1u), 1.0 - float((cornerID >> 1) & 1u));
+    // Base UV coordinates (0-1 range for a full face)
+    vec2 baseUV = vec2(0.0);
+    if      (inFaceId == 0u) baseUV = vec2(float((cornerID >> 0) & 1u), 1.0 - float((cornerID >> 1) & 1u));
+    else if (inFaceId == 1u) baseUV = vec2(1.0 - float((cornerID >> 0) & 1u), float((cornerID >> 1) & 1u));
+    else if (inFaceId == 2u) baseUV = vec2(float((cornerID >> 0) & 1u), 1.0 - float((cornerID >> 1) & 1u));
+    else if (inFaceId == 3u) baseUV = vec2(float((cornerID >> 0) & 1u), 1.0 - float((cornerID >> 1) & 1u));
+    else if (inFaceId == 4u) baseUV = vec2(1.0 - float((cornerID >> 0) & 1u), float((cornerID >> 1) & 1u));
+    else                     baseUV = vec2(float((cornerID >> 0) & 1u), 1.0 - float((cornerID >> 1) & 1u));
+
+    // Sub-tile texture mapping: scale UV to voxel's portion of parent cube
+    // and offset to the correct slice. For full cubes (scale=1), uvScale=1
+    // and uvOffset=(0,0) so this is a no-op.
+    float uvScale = inScale.x;  // Uniform scale: 1.0, 1/3, or 1/9
+    vec2 uv = baseUV * uvScale + inUvOffset;
 
     // Face normal in local space, rotated into world space by the model matrix
     // (mat3 upper-left is correct for uniform-scale rotations; doors only rotate)

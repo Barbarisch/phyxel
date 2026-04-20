@@ -543,44 +543,33 @@ void DynamicObjectManager::derezCharacter(Scene::RagdollCharacter* character, fl
         
         // 3. Create a new dynamic cube
         auto cube = std::make_unique<Cube>();
-        
-        // Set non-uniform scale based on the part size
         cube->setDynamicScale(part.scale);
-        
-        // Create physics body with matching size
-        // Explicitly cast to float to avoid ambiguity if btScalar is double
+
         glm::vec3 pos(static_cast<float>(worldPos.x()), static_cast<float>(worldPos.y()), static_cast<float>(worldPos.z()));
         float mass = 10.0f;
-        
-        btRigidBody* newBody = physicsWorld->createCube(pos, part.scale, mass);
-        
-        // Match rotation
-        newBody->setWorldTransform(trans); // Use bone rotation
-        
-        // Transfer velocity (add some randomness for explosion effect)
+
+        auto* vw = physicsWorld->getVoxelWorld();
+        Physics::VoxelRigidBody* newBody = vw
+            ? vw->createVoxelBody(pos, part.scale * 0.5f, mass, 0.3f, 0.8f)
+            : nullptr;
+
+        if (!newBody) { ++spawnedCount; continue; }
+
+        // Match bone rotation
+        btQuaternion btRot = trans.getRotation();
+        newBody->orientation = glm::quat(btRot.w(), btRot.x(), btRot.y(), btRot.z());
+
+        // Transfer velocity + random explosion scatter
         btVector3 currentVel = part.rigidBody->getLinearVelocity();
-        
-        // Random explosion velocity
-        float randomX = ((rand() % 100) / 100.0f - 0.5f) * 2.0f; // -1 to 1
-        float randomY = ((rand() % 100) / 100.0f) * 2.0f + 1.0f; // 1 to 3 (upward)
-        float randomZ = ((rand() % 100) / 100.0f - 0.5f) * 2.0f; // -1 to 1
-        
-        btVector3 explosionVel(randomX, randomY, randomZ);
-        newBody->setLinearVelocity(currentVel + explosionVel);
-        
-        // Add random torque for tumbling
-        newBody->setAngularVelocity(btVector3(randomX, randomY, randomZ));
-        
-        // Set physics properties
-        newBody->setFriction(0.8f);
-        newBody->setRestitution(0.3f);
-        
-        // Aggressive sleeping to save performance
-        newBody->setSleepingThresholds(0.5f, 0.5f);
-        
-        // Link body to cube
-        cube->setRigidBody(newBody);
-        cube->setPhysicsPosition(glm::vec3(worldPos.x(), worldPos.y(), worldPos.z()));
+        float randomX = ((rand() % 100) / 100.0f - 0.5f) * 2.0f;
+        float randomY = ((rand() % 100) / 100.0f) * 2.0f + 1.0f;
+        float randomZ = ((rand() % 100) / 100.0f - 0.5f) * 2.0f;
+
+        newBody->linearVelocity  = glm::vec3(currentVel.x() + randomX, currentVel.y() + randomY, currentVel.z() + randomZ);
+        newBody->angularVelocity = glm::vec3(randomX, randomY, randomZ);
+
+        cube->setVoxelBody(newBody);
+        cube->setPhysicsPosition(pos);
         
         // Set lifetime (5-10 seconds)
         cube->setLifetime(5.0f + (rand() % 50) / 10.0f);

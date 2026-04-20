@@ -335,7 +335,7 @@ void VoxelContactSolver::prepareContacts(std::vector<ContactPoint>& contacts, fl
         // Relative velocity at contact point
         glm::vec3 vA = A->linearVelocity + glm::cross(A->angularVelocity, cp.rA);
         glm::vec3 vB = B ? (B->linearVelocity + glm::cross(B->angularVelocity, cp.rB))
-                         : glm::vec3(0.0f);
+                         : cp.obstacleVelocity;
         float relVn = glm::dot(vA - vB, cp.normal);
 
         // Restitution only for fast impacts
@@ -359,7 +359,7 @@ void VoxelContactSolver::solveOneContact(ContactPoint& cp) {
 
     glm::vec3 vA = A->linearVelocity + glm::cross(A->angularVelocity, cp.rA);
     glm::vec3 vB = B ? (B->linearVelocity + glm::cross(B->angularVelocity, cp.rB))
-                     : glm::vec3(0.0f);
+                     : cp.obstacleVelocity;
     float relVn = glm::dot(vA - vB, cp.normal);
 
     float deltaLambda = cp.effectiveMassN * (cp.targetVelocityN - relVn);
@@ -383,7 +383,7 @@ void VoxelContactSolver::solveFriction(ContactPoint& cp) {
     auto solveTangent = [&](const glm::vec3& t, float& accLambda, float em) {
         glm::vec3 vA = A->linearVelocity + glm::cross(A->angularVelocity, cp.rA);
         glm::vec3 vB = B ? (B->linearVelocity + glm::cross(B->angularVelocity, cp.rB))
-                         : glm::vec3(0.0f);
+                         : cp.obstacleVelocity;
         float relVt = glm::dot(vA - vB, t);
 
         float delta = -em * relVt;

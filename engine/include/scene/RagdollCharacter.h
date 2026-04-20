@@ -8,6 +8,7 @@
 #include <string>
 #include <memory>
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 namespace Phyxel {
 namespace Scene {
@@ -19,12 +20,18 @@ enum class Faction {
 };
 
 struct RagdollPart {
-    btRigidBody* rigidBody;
+    btRigidBody* rigidBody = nullptr;
     glm::vec3 scale;
     glm::vec4 color;
     std::string name;
-    glm::vec3 offset = glm::vec3(0.0f); // Offset from rigid body center
-    bool active = true;                 // false = derezed, skip rendering
+    glm::vec3 offset = glm::vec3(0.0f);
+    bool active = true;
+    // Non-Bullet rendering path (AnimatedVoxelCharacter bones/attachments).
+    // When useDirectTransform is true, worldPos/worldRot are used instead of rigidBody.
+    bool      useDirectTransform = false;
+    int       boneGroupId = -1;
+    glm::vec3 worldPos = glm::vec3(0.0f);
+    glm::quat worldRot = glm::quat(1, 0, 0, 0);
 };
 
 class RagdollCharacter : public Entity {
@@ -40,9 +47,9 @@ public:
         }
         constraints.clear();
 
-        // Cleanup rigid bodies
+        // Cleanup rigid bodies (skip direct-transform parts — no Bullet body to remove)
         for (auto& part : parts) {
-            if (part.rigidBody) {
+            if (!part.useDirectTransform && part.rigidBody) {
                 physicsWorld->removeCube(part.rigidBody);
             }
         }

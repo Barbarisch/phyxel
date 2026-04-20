@@ -121,7 +121,7 @@ void VoxelDynamicsWorld::substep(float dt) {
 
 void VoxelDynamicsWorld::integrateVelocities(float dt) {
     for (auto& body : m_bodies) {
-        if (body->isAsleep || body->invMass == 0.0f) continue;
+        if (body->isDead || body->isAsleep || body->invMass == 0.0f) continue;
         body->updateInertiaTensorWorld();
 
         // Gravity
@@ -137,7 +137,7 @@ void VoxelDynamicsWorld::integrateVelocities(float dt) {
 
 void VoxelDynamicsWorld::integratePositions(float dt) {
     for (auto& body : m_bodies) {
-        if (body->isAsleep || body->invMass == 0.0f) continue;
+        if (body->isDead || body->isAsleep || body->invMass == 0.0f) continue;
 
         body->position += body->linearVelocity * dt;
 
@@ -155,7 +155,7 @@ void VoxelDynamicsWorld::integratePositions(float dt) {
 void VoxelDynamicsWorld::generateContacts() {
     // ---- Body vs terrain ----
     for (auto& body : m_bodies) {
-        if (body->isAsleep || body->invMass == 0.0f) continue;
+        if (body->isDead || body->isAsleep || body->invMass == 0.0f) continue;
 
         glm::vec3 bMin, bMax;
         body->getWorldAABB(bMin, bMax);
@@ -181,12 +181,12 @@ void VoxelDynamicsWorld::generateContacts() {
     // Sleeping bodies are included — a resting voxel is still solid.
     // Any contact wakes the body so the solver can apply the separating impulse.
     for (auto& body : m_bodies) {
-        if (body->invMass == 0.0f) continue;
+        if (body->isDead || body->invMass == 0.0f) continue;
 
         glm::vec3 bMin, bMax;
         body->getWorldAABB(bMin, bMax);
 
-        for (const OccupiedBox& obs : m_kinematicObstacles) {
+        for (const KinematicObstacle& obs : m_kinematicObstacles) {
             glm::vec3 oMin = obs.center - obs.halfExtents;
             glm::vec3 oMax = obs.center + obs.halfExtents;
             if (bMax.x < oMin.x || bMin.x > oMax.x ||
@@ -199,22 +199,29 @@ void VoxelDynamicsWorld::generateContacts() {
                 body->sleepTimer = 0.0f;
             }
 
+            OccupiedBox box{obs.center, obs.halfExtents};
+            size_t before = m_contacts.size();
             for (size_t bi = 0; bi < body->getLocalBoxes().size(); ++bi)
-                VoxelContactSolver::generateOBBvsAABB(body.get(), bi, obs, m_contacts);
+                VoxelContactSolver::generateOBBvsAABB(body.get(), bi, box, m_contacts);
+
+            // Stamp character velocity onto the new contacts so the solver
+            // produces speed-proportional push impulses
+            for (size_t k = before; k < m_contacts.size(); ++k)
+                m_contacts[k].obstacleVelocity = obs.velocity;
         }
     }
 
     // ---- Body vs body (all awake pairs) ----
     for (size_t i = 0; i < m_bodies.size(); ++i) {
         VoxelRigidBody* A = m_bodies[i].get();
-        if (A->isAsleep) continue;
+        if (A->isDead || A->isAsleep) continue;
 
         glm::vec3 aMin, aMax;
         A->getWorldAABB(aMin, aMax);
 
         for (size_t j = i + 1; j < m_bodies.size(); ++j) {
             VoxelRigidBody* B = m_bodies[j].get();
-            if (B->isAsleep) continue;
+            if (B->isDead || B->isAsleep) continue;
 
             glm::vec3 bMin, bMax;
             B->getWorldAABB(bMin, bMax);
@@ -288,7 +295,7 @@ bool VoxelDynamicsWorld::overlapsAnyBody(const glm::vec3& center, const glm::vec
     glm::vec3 qMin = center - halfExtents;
     glm::vec3 qMax = center + halfExtents;
     for (const auto& body : m_bodies) {
-        if (body->invMass == 0.0f) continue; // static bodies only — dynamic (including sleeping) are solid
+        if (body->isDead || body->invMass == 0.0f) continue;
         glm::vec3 bMin, bMax;
         body->getWorldAABB(bMin, bMax);
         if (qMax.x > bMin.x && qMin.x < bMax.x &&
@@ -299,7 +306,7 @@ bool VoxelDynamicsWorld::overlapsAnyBody(const glm::vec3& center, const glm::vec
     return false;
 }
 
-void VoxelDynamicsWorld::setKinematicObstacles(std::vector<OccupiedBox> obstacles) {
+void VoxelDynamicsWorld::setKinematicObstacles(std::vector<KinematicObstacle> obstacles) {
     m_kinematicObstacles = std::move(obstacles);
 }
 

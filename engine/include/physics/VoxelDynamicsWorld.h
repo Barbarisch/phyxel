@@ -81,14 +81,21 @@ public:
     bool overlapsAnyBody(const glm::vec3& center, const glm::vec3& halfExtents) const;
 
     // ---- Kinematic obstacles (character segment boxes) ----
+    struct KinematicObstacle {
+        glm::vec3 center;
+        glm::vec3 halfExtents;
+        glm::vec3 velocity{0.0f};  // world-space velocity of the obstacle this frame
+    };
+
     // Replaced every frame; voxels generate contacts against these and are deflected.
-    void setKinematicObstacles(std::vector<OccupiedBox> obstacles);
+    // velocity is used by the contact solver to produce speed-proportional push impulses.
+    void setKinematicObstacles(std::vector<KinematicObstacle> obstacles);
 
 private:
     std::vector<std::unique_ptr<VoxelRigidBody>> m_bodies;
     std::vector<VoxelOccupancyGrid*>             m_grids;
     std::vector<ContactPoint>                    m_contacts;
-    std::vector<OccupiedBox>                     m_kinematicObstacles;
+    std::vector<KinematicObstacle>               m_kinematicObstacles;
 
     glm::vec3 m_gravity{0.0f, -9.81f, 0.0f};
     float     m_fallThreshold = -20.0f;

@@ -25,8 +25,7 @@ namespace Scene {
 
     AnimatedVoxelCharacter::~AnimatedVoxelCharacter() {
         clearSegmentBoxes();
-        boneBodies.clear();
-        // Base class handles cleanup of rigid bodies in 'parts'
+        // Base class handles cleanup (skips useDirectTransform parts safely)
     }
     
     void AnimatedVoxelCharacter::createController(const glm::vec3& position) {
@@ -549,9 +548,7 @@ namespace Scene {
 
                 addVoxelBone(boneName, totalSize, centerOffset, glm::vec4(0,0,0,0));
 
-                if (boneBodies.find(boneId) != boneBodies.end()) {
-                    btRigidBody* body = boneBodies[boneId];
-
+                if (shapes.size() > 1) {
                     if (!parts.empty()) parts.pop_back();
 
                     for (const auto& shape : shapes) {
@@ -570,7 +567,10 @@ namespace Scene {
                         }
 
                         RagdollPart part;
-                        part.rigidBody = body;
+                        part.useDirectTransform = true;
+                        part.boneGroupId = boneId;
+                        part.worldPos = worldPosition;
+                        part.worldRot = glm::quat(1, 0, 0, 0);
                         part.scale = scaledSize;
                         part.color = color;
                         part.name = boneName;
@@ -592,52 +592,23 @@ namespace Scene {
         }
 
         int boneId = skeleton.boneMap[boneName];
-        
-        // Create a static cube initially
-        btRigidBody* body = physicsWorld->createStaticCube(worldPosition, size);
-        
-        // Make it kinematic
-        body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT);
-        body->setActivationState(DISABLE_DEACTIVATION);
-        
-        // Store it
-        boneBodies[boneId] = body;
         boneOffsets[boneId] = offset;
-        
-        // Ignore collision with other bones to prevent internal jitter
-        for (auto& pair : boneBodies) {
-            btRigidBody* otherBody = pair.second;
-            if (otherBody != body) {
-                body->setIgnoreCollisionCheck(otherBody, true);
-                otherBody->setIgnoreCollisionCheck(body, true);
-            }
-        }
-        
-        // Add to parts for rendering
-        parts.push_back({body, size, color, boneName});
+
+        RagdollPart part;
+        part.useDirectTransform = true;
+        part.boneGroupId        = boneId;
+        part.worldPos           = worldPosition;
+        part.worldRot           = glm::quat(1, 0, 0, 0);
+        part.scale              = size;
+        part.color              = color;
+        part.name               = boneName;
+        parts.push_back(part);
     }
 
     void AnimatedVoxelCharacter::clearBodies() {
-        // Remove segment boxes before bone bodies (they reference bone IDs)
         clearSegmentBoxes();
-
-        // Remove all bone bodies from the physics world
-        for (auto& pair : boneBodies) {
-            if (pair.second) {
-                physicsWorld->removeCube(pair.second);
-            }
-        }
-        boneBodies.clear();
         boneOffsets.clear();
         parts.clear();
-
-        // NOTE: Compound shape is NOT cleaned up here. It will be replaced
-        // by rebuildCompoundShape() (called after buildBodiesFromModel) or
-        // freed in the destructor. PhysicsWorld::removeCube() doesn't delete
-        // collision shapes, so the orphaned compound is safe.
-        // m_boneToCompoundChild removed (compound shape replaced by kinematic controller)
-
-        // Also clear attachments
         detachAll();
     }
 
@@ -654,22 +625,14 @@ namespace Scene {
     }
 
     void AnimatedVoxelCharacter::resolveBodyPartCollisions() {
-        if (!m_chunkManager || boneBodies.empty()) return;
+        if (!m_chunkManager || m_segmentBoxes.empty()) return;
 
         glm::vec3 totalPush(0.0f);
 
-        for (const auto& [boneId, body] : boneBodies) {
-            btCollisionShape* shape = body->getCollisionShape();
-            if (shape->getShapeType() != BOX_SHAPE_PROXYTYPE) continue;
-
-            const btBoxShape* box = static_cast<const btBoxShape*>(shape);
-            btVector3 he = box->getHalfExtentsWithMargin();
-            glm::vec3 halfExtents(he.x(), he.y(), he.z());
-
-            btTransform trans;
-            body->getMotionState()->getWorldTransform(trans);
-            btVector3 origin = trans.getOrigin();
-            glm::vec3 center(origin.x(), origin.y(), origin.z());
+        for (const auto& seg : m_segmentBoxes) {
+            glm::vec3 halfExtents = seg.halfExtents;
+            glm::vec3 center      = seg.center;
+            int       boneId      = seg.boneId;
 
             // Compute integer voxel range overlapping this bone AABB
             glm::vec3 bMin = center - halfExtents;
@@ -755,22 +718,12 @@ namespace Scene {
 
     std::vector<AnimatedVoxelCharacter::BoneAABB> AnimatedVoxelCharacter::getBoneAABBs() const {
         std::vector<BoneAABB> result;
-        for (const auto& [boneId, body] : boneBodies) {
-            btCollisionShape* shape = body->getCollisionShape();
-            if (shape->getShapeType() != BOX_SHAPE_PROXYTYPE) continue;
-
-            const btBoxShape* box = static_cast<const btBoxShape*>(shape);
-            btVector3 halfExtents = box->getHalfExtentsWithMargin();
-
-            btTransform trans;
-            body->getMotionState()->getWorldTransform(trans);
-            btVector3 pos = trans.getOrigin();
-
+        for (const auto& seg : m_segmentBoxes) {
             BoneAABB aabb;
-            aabb.boneId = boneId;
-            aabb.boneName = (boneId < static_cast<int>(skeleton.bones.size())) ? skeleton.bones[boneId].name : "";
-            aabb.center = glm::vec3(pos.x(), pos.y(), pos.z());
-            aabb.halfExtents = glm::vec3(halfExtents.x(), halfExtents.y(), halfExtents.z());
+            aabb.boneId      = seg.boneId;
+            aabb.boneName    = seg.boneName;
+            aabb.center      = seg.center;
+            aabb.halfExtents = seg.halfExtents;
             result.push_back(aabb);
         }
         return result;
@@ -785,20 +738,21 @@ namespace Scene {
             return -1;
         }
 
-        int boneId = it->second;
-        btRigidBody* body = physicsWorld->createStaticCube(worldPosition, size);
-        body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT);
-        body->setActivationState(DISABLE_DEACTIVATION);
-
-        // Ignore collision with all bone bodies
-        for (auto& pair : boneBodies) {
-            body->setIgnoreCollisionCheck(pair.second, true);
-            pair.second->setIgnoreCollisionCheck(body, true);
-        }
-
+        int boneId   = it->second;
         int attachId = m_nextAttachmentId++;
-        m_attachments.push_back({attachId, boneId, body, size, offset, color, label});
-        parts.push_back({body, size, color, label.empty() ? "attachment" : label});
+
+        m_attachments.push_back({attachId, boneId, size, offset, color, label,
+                                  worldPosition, glm::quat(1, 0, 0, 0)});
+
+        RagdollPart part;
+        part.useDirectTransform = true;
+        part.boneGroupId        = attachId + 1000;
+        part.worldPos           = worldPosition;
+        part.worldRot           = glm::quat(1, 0, 0, 0);
+        part.scale              = size;
+        part.color              = color;
+        part.name               = label.empty() ? "attachment" : label;
+        parts.push_back(part);
 
         LOG_INFO("AnimatedVoxelCharacter", "Attached '{}' to bone '{}' (id {})", label, boneName, attachId);
         return attachId;
@@ -809,24 +763,19 @@ namespace Scene {
                                [attachmentId](const BoneAttachment& a) { return a.id == attachmentId; });
         if (it == m_attachments.end()) return;
 
-        // Remove from parts
-        btRigidBody* body = it->body;
+        int groupId = it->id + 1000;
         parts.erase(std::remove_if(parts.begin(), parts.end(),
-                    [body](const RagdollPart& p) { return p.rigidBody == body; }),
+                    [groupId](const RagdollPart& p) { return p.boneGroupId == groupId; }),
                     parts.end());
-
-        // Remove from physics
-        physicsWorld->removeCube(body);
         m_attachments.erase(it);
     }
 
     void AnimatedVoxelCharacter::detachAll() {
         for (auto& att : m_attachments) {
-            // Remove from parts
+            int groupId = att.id + 1000;
             parts.erase(std::remove_if(parts.begin(), parts.end(),
-                        [&att](const RagdollPart& p) { return p.rigidBody == att.body; }),
+                        [groupId](const RagdollPart& p) { return p.boneGroupId == groupId; }),
                         parts.end());
-            physicsWorld->removeCube(att.body);
         }
         m_attachments.clear();
     }
@@ -1946,88 +1895,69 @@ namespace Scene {
             LOG_TRACE_FMT("Character", "=======================");
         }
 
-        for (auto& pair : boneBodies) {
-            int boneId = pair.first;
-            btRigidBody* body = pair.second;
-            
-            const Phyxel::Bone& bone = skeleton.bones[boneId];
-            
-            // Calculate world transform
-            // Bone global transform is in model space. We need to apply model->world transform.
-            // skeletonFootOffset_ compensates for scaled proportions so feet stay on the ground.
-            glm::vec3 visualOrigin = worldPosition - glm::vec3(0.0f, skeletonFootOffset_, 0.0f);
-            glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), visualOrigin);
-            modelMatrix = glm::rotate(modelMatrix, currentYaw, glm::vec3(0, 1, 0)); // Apply Yaw
-            
-            // Apply Animation Rotation Offset
-            float animRotation = 0.0f;
-            
-            // Try to find offset by specific animation name first
-            std::string currentAnimName = "";
-            if (currentClipIndex >= 0 && currentClipIndex < clips.size()) {
-                currentAnimName = clips[currentClipIndex].name;
-                if (animationRotationOffsets.find(currentAnimName) != animationRotationOffsets.end()) {
-                    animRotation = animationRotationOffsets[currentAnimName];
-                }
-            }
+        // Compute model-to-world base matrix (shared by all bones)
+        glm::vec3 visualOrigin = worldPosition - glm::vec3(0.0f, skeletonFootOffset_, 0.0f);
+        glm::mat4 modelMatrix  = glm::translate(glm::mat4(1.0f), visualOrigin);
+        modelMatrix = glm::rotate(modelMatrix, currentYaw, glm::vec3(0, 1, 0));
 
-            // Fallback to state-based lookup if no specific animation offset found
-            if (animRotation == 0.0f) {
-                std::string stateKey = "idle";
-                switch (currentState) {
-                    case AnimatedCharacterState::Idle: stateKey = "idle"; break;
-                    case AnimatedCharacterState::StartWalk: stateKey = "start_walking"; break;
-                    case AnimatedCharacterState::Walk: stateKey = "walk"; break;
-                    case AnimatedCharacterState::Run: stateKey = "run"; break;
-                    case AnimatedCharacterState::Jump: stateKey = "jump"; break;
-                    case AnimatedCharacterState::Fall: stateKey = "jump_down"; break;
-                    case AnimatedCharacterState::Land: stateKey = "landing"; break;
-                    case AnimatedCharacterState::Crouch: stateKey = "crouch"; break;
-                    case AnimatedCharacterState::CrouchIdle: stateKey = "crouch"; break;
-                    case AnimatedCharacterState::CrouchWalk: stateKey = "crouched_walking"; break;
-                    case AnimatedCharacterState::StandUp: stateKey = "crouch_to_stand"; break;
-                    case AnimatedCharacterState::Attack: stateKey = "attack"; break;
-                    case AnimatedCharacterState::TurnLeft: stateKey = "left_turn"; break;
-                    case AnimatedCharacterState::TurnRight: stateKey = "right_turn"; break;
-                    case AnimatedCharacterState::StrafeLeft: stateKey = "left_strafe"; break;
-                    case AnimatedCharacterState::StrafeRight: stateKey = "right_strafe"; break;
-                    case AnimatedCharacterState::WalkStrafeLeft: stateKey = "left_strafe_walk"; break;
-                    case AnimatedCharacterState::WalkStrafeRight: stateKey = "right_strafe_walk"; break;
-                    default: stateKey = "idle"; break;
-                }
-                
-                if (animationRotationOffsets.find(stateKey) != animationRotationOffsets.end()) {
-                    animRotation = animationRotationOffsets[stateKey];
-                }
+        float animRotation = 0.0f;
+        if (currentClipIndex >= 0 && currentClipIndex < static_cast<int>(clips.size())) {
+            const std::string& animName = clips[currentClipIndex].name;
+            auto rit = animationRotationOffsets.find(animName);
+            if (rit != animationRotationOffsets.end()) animRotation = rit->second;
+        }
+        if (animRotation == 0.0f) {
+            std::string stateKey = "idle";
+            switch (currentState) {
+                case AnimatedCharacterState::StartWalk:       stateKey = "start_walking";    break;
+                case AnimatedCharacterState::Walk:            stateKey = "walk";              break;
+                case AnimatedCharacterState::Run:             stateKey = "run";               break;
+                case AnimatedCharacterState::Jump:            stateKey = "jump";              break;
+                case AnimatedCharacterState::Fall:            stateKey = "jump_down";         break;
+                case AnimatedCharacterState::Land:            stateKey = "landing";           break;
+                case AnimatedCharacterState::Crouch:          stateKey = "crouch";            break;
+                case AnimatedCharacterState::CrouchIdle:      stateKey = "crouch";            break;
+                case AnimatedCharacterState::CrouchWalk:      stateKey = "crouched_walking";  break;
+                case AnimatedCharacterState::StandUp:         stateKey = "crouch_to_stand";   break;
+                case AnimatedCharacterState::Attack:          stateKey = "attack";            break;
+                case AnimatedCharacterState::TurnLeft:        stateKey = "left_turn";         break;
+                case AnimatedCharacterState::TurnRight:       stateKey = "right_turn";        break;
+                case AnimatedCharacterState::StrafeLeft:      stateKey = "left_strafe";       break;
+                case AnimatedCharacterState::StrafeRight:     stateKey = "right_strafe";      break;
+                case AnimatedCharacterState::WalkStrafeLeft:  stateKey = "left_strafe_walk";  break;
+                case AnimatedCharacterState::WalkStrafeRight: stateKey = "right_strafe_walk"; break;
+                default: break;
             }
-            
-            if (animRotation != 0.0f) {
-                 modelMatrix = glm::rotate(modelMatrix, glm::radians(animRotation), glm::vec3(0, 1, 0));
-            }
+            auto rit = animationRotationOffsets.find(stateKey);
+            if (rit != animationRotationOffsets.end()) animRotation = rit->second;
+        }
+        if (animRotation != 0.0f)
+            modelMatrix = glm::rotate(modelMatrix, glm::radians(animRotation), glm::vec3(0, 1, 0));
+
+        // Update worldPos/worldRot for every direct-transform part (one matrix lookup per bone group)
+        for (auto& [boneId, offset] : boneOffsets) {
+            if (boneId < 0 || boneId >= static_cast<int>(skeleton.bones.size())) continue;
+            const Phyxel::Bone& bone = skeleton.bones[boneId];
 
             glm::mat4 finalTransform = modelMatrix * bone.globalTransform;
-            
-            // Apply offset (local to bone)
-            finalTransform = glm::translate(finalTransform, boneOffsets[boneId]);
+            finalTransform = glm::translate(finalTransform, offset);
 
             if (doDebug && (bone.name == "Hips" || boneId == 0)) {
-                 glm::vec3 bonePos = glm::vec3(finalTransform[3]);
-                 std::cout << "Bone " << bone.name << " GlobalPos: " << bonePos.x << ", " << bonePos.y << ", " << bonePos.z << std::endl;
-                 std::cout << "Bone Local Matrix Col3: " << bone.globalTransform[3][0] << ", " << bone.globalTransform[3][1] << ", " << bone.globalTransform[3][2] << std::endl;
+                glm::vec3 bonePos = glm::vec3(finalTransform[3]);
+                std::cout << "Bone " << bone.name << " GlobalPos: "
+                          << bonePos.x << ", " << bonePos.y << ", " << bonePos.z << std::endl;
             }
 
-            // Convert to Bullet transform
             glm::vec3 pos = glm::vec3(finalTransform[3]);
             glm::quat rot = glm::quat_cast(finalTransform);
-            
-            btTransform trans;
-            trans.setOrigin(btVector3(pos.x, pos.y, pos.z));
-            trans.setRotation(btQuaternion(rot.x, rot.y, rot.z, rot.w));
-            
-            body->getMotionState()->setWorldTransform(trans);
-        }
 
-        // Compound shape disabled — individual bone bodies provide hit detection via getBoneAABBs()
+            for (auto& part : parts) {
+                if (part.useDirectTransform && part.boneGroupId == boneId) {
+                    part.worldPos = pos;
+                    part.worldRot = rot;
+                }
+            }
+        }
 
         // Sync 8 segment boxes to current animated pose, then draw debug if F5 is on
         updateSegmentBoxes();
@@ -2061,10 +1991,14 @@ namespace Scene {
             glm::vec3 attPos = glm::vec3(attFinal[3]);
             glm::quat attRot = glm::quat_cast(attFinal);
 
-            btTransform attTrans;
-            attTrans.setOrigin(btVector3(attPos.x, attPos.y, attPos.z));
-            attTrans.setRotation(btQuaternion(attRot.x, attRot.y, attRot.z, attRot.w));
-            att.body->getMotionState()->setWorldTransform(attTrans);
+            att.worldPos = attPos;
+            att.worldRot = attRot;
+            for (auto& part : parts) {
+                if (part.useDirectTransform && part.boneGroupId == att.id + 1000) {
+                    part.worldPos = attPos;
+                    part.worldRot = attRot;
+                }
+            }
         }
     }
 
@@ -2080,12 +2014,7 @@ namespace Scene {
             info.halfExtents = seg.halfExtents;
             info.isArm       = seg.isArm;
             info.colliding   = seg.colliding;
-            if (seg.body) {
-                btTransform trans;
-                seg.body->getMotionState()->getWorldTransform(trans);
-                btVector3 o = trans.getOrigin();
-                info.position = glm::vec3(o.x(), o.y(), o.z());
-            }
+            info.position    = seg.center;
             result.push_back(info);
         }
         return result;
@@ -2130,34 +2059,7 @@ namespace Scene {
             glm::vec3 halfExtents(0.0f);
             std::string source;
 
-            // --- Priority 1: derive from existing bone body (most accurate) ---
-            auto bodyIt = boneBodies.find(boneId);
-            if (bodyIt != boneBodies.end()) {
-                btCollisionShape* s = bodyIt->second->getCollisionShape();
-                if (s->getShapeType() == BOX_SHAPE_PROXYTYPE) {
-                    btVector3 he = static_cast<const btBoxShape*>(s)->getHalfExtentsWithMargin();
-                    halfExtents = glm::vec3(he.x(), he.y(), he.z()) * 0.8f;
-                    source = "bone body";
-
-                    // Enforce minimum thickness per segment type so boxes are visible
-                    std::string nameLow = seg.name;
-                    std::transform(nameLow.begin(), nameLow.end(), nameLow.begin(), ::tolower);
-                    float minThk = 0.05f;
-                    if (nameLow.find("spine") != std::string::npos ||
-                        nameLow.find("hip")   != std::string::npos) minThk = 0.10f;
-                    if (nameLow.find("upleg") != std::string::npos ||
-                        nameLow.find("leg")   != std::string::npos) minThk = 0.08f;
-                    if (nameLow.find("arm")   != std::string::npos) minThk = 0.07f;
-                    // Keep the longest axis (bone length), clamp the two shorter axes
-                    int maxAxis = (halfExtents.y >= halfExtents.x && halfExtents.y >= halfExtents.z) ? 1
-                                : (halfExtents.x >= halfExtents.z) ? 0 : 2;
-                    if (maxAxis != 0) halfExtents.x = glm::max(halfExtents.x, minThk);
-                    if (maxAxis != 1) halfExtents.y = glm::max(halfExtents.y, minThk);
-                    if (maxAxis != 2) halfExtents.z = glm::max(halfExtents.z, minThk);
-                }
-            }
-
-            // --- Priority 2: compute from skeleton child vectors ---
+            // --- Compute from skeleton child vectors ---
             if (halfExtents == glm::vec3(0.0f)) {
                 const Phyxel::Bone& bone = skeleton.bones[boneId];
                 std::string nameLower = bone.name;
@@ -2211,37 +2113,13 @@ namespace Scene {
             LOG_INFO_FMT("Character", "  Segment [" << seg.name << "] source=" << source
                 << " he=(" << halfExtents.x << "," << halfExtents.y << "," << halfExtents.z << ")");
 
-            // Create kinematic CF_NO_CONTACT_RESPONSE body — overlaps detected manually
-            btRigidBody* body = physicsWorld->createStaticCube(worldPosition, halfExtents * 2.0f);
-            body->setCollisionFlags(body->getCollisionFlags()
-                | btCollisionObject::CF_KINEMATIC_OBJECT
-                | btCollisionObject::CF_NO_CONTACT_RESPONSE);
-            body->setActivationState(DISABLE_DEACTIVATION);
-
-            for (auto& [id, boneBody] : boneBodies) {
-                body->setIgnoreCollisionCheck(boneBody, true);
-                boneBody->setIgnoreCollisionCheck(body, true);
-            }
-            for (auto& existing : m_segmentBoxes) {
-                if (existing.body) {
-                    body->setIgnoreCollisionCheck(existing.body, true);
-                    existing.body->setIgnoreCollisionCheck(body, true);
-                }
-            }
-
-            m_segmentBoxes.push_back({ seg.name, boneId, body, glm::vec3(0.0f), halfExtents, seg.isArm, false });
+            m_segmentBoxes.push_back({ seg.name, boneId, glm::vec3(0.0f), halfExtents, seg.isArm, false });
         }
 
         LOG_INFO_FMT("Character", "Built " << m_segmentBoxes.size() << "/8 segment collision boxes");
     }
 
     void AnimatedVoxelCharacter::clearSegmentBoxes() {
-        for (auto& seg : m_segmentBoxes) {
-            if (seg.body) {
-                physicsWorld->removeCube(seg.body);
-                seg.body = nullptr;
-            }
-        }
         m_segmentBoxes.clear();
         m_limbBlocked = false;
     }
@@ -2264,7 +2142,7 @@ namespace Scene {
         }
 
         for (auto& seg : m_segmentBoxes) {
-            if (!seg.body || seg.boneId < 0 ||
+            if (seg.boneId < 0 ||
                 seg.boneId >= static_cast<int>(skeleton.bones.size())) continue;
 
             const Phyxel::Bone& bone = skeleton.bones[seg.boneId];
@@ -2273,25 +2151,19 @@ namespace Scene {
             glm::mat4 finalTransform = modelMatrix * bone.globalTransform
                                      * glm::translate(glm::mat4(1.0f), offset);
 
-            glm::vec3 pos = glm::vec3(finalTransform[3]);
-            glm::quat rot = glm::quat_cast(finalTransform);
-
-            seg.center = pos;
-
-            btTransform trans;
-            trans.setOrigin(btVector3(pos.x, pos.y, pos.z));
-            trans.setRotation(btQuaternion(rot.x, rot.y, rot.z, rot.w));
-            seg.body->getMotionState()->setWorldTransform(trans);
+            seg.center = glm::vec3(finalTransform[3]);
         }
 
-        // Push updated segment boxes to voxel world as kinematic obstacles
+        // Push updated segment boxes to voxel world as kinematic obstacles.
+        // Pass m_kinVelocity so the solver generates speed-proportional push impulses.
         if (auto* vw = physicsWorld ? physicsWorld->getVoxelWorld() : nullptr) {
-            std::vector<Physics::OccupiedBox> obstacles;
+            std::vector<Physics::VoxelDynamicsWorld::KinematicObstacle> obstacles;
             obstacles.reserve(m_segmentBoxes.size());
             for (const auto& seg : m_segmentBoxes) {
-                Physics::OccupiedBox ob;
+                Physics::VoxelDynamicsWorld::KinematicObstacle ob;
                 ob.center      = seg.center;
                 ob.halfExtents = seg.halfExtents;
+                ob.velocity    = m_kinVelocity;
                 obstacles.push_back(ob);
             }
             vw->setKinematicObstacles(std::move(obstacles));
@@ -2303,12 +2175,7 @@ namespace Scene {
 
         for (auto& seg : m_segmentBoxes) {
             seg.colliding = false;
-            if (!seg.body) continue;
-
-            btTransform trans;
-            seg.body->getMotionState()->getWorldTransform(trans);
-            btVector3 origin = trans.getOrigin();
-            glm::vec3 center(origin.x(), origin.y(), origin.z());
+            const glm::vec3& center = seg.center;
             const glm::vec3& he = seg.halfExtents;
 
             int xMin = static_cast<int>(std::floor(center.x - he.x));
@@ -2356,12 +2223,7 @@ namespace Scene {
         };
 
         for (const auto& seg : m_segmentBoxes) {
-            if (!seg.body) continue;
-
-            btTransform trans;
-            seg.body->getMotionState()->getWorldTransform(trans);
-            btVector3 o = trans.getOrigin();
-            glm::vec3 center(o.x(), o.y(), o.z());
+            glm::vec3 center = seg.center;
 
             glm::vec3 color;
             if (seg.colliding) {
@@ -2411,18 +2273,13 @@ namespace Scene {
 
         for (size_t i = 0; i < parts.size(); ++i) {
             const RagdollPart& part = parts[i];
-            if (!part.active || !part.rigidBody) continue;
+            if (!part.active) continue;
 
-            btTransform trans;
-            if (part.rigidBody->getMotionState())
-                part.rigidBody->getMotionState()->getWorldTransform(trans);
-            else
-                trans = part.rigidBody->getWorldTransform();
-
-            btVector3 wp = trans * btVector3(part.offset.x, part.offset.y, part.offset.z);
+            glm::mat4 model = glm::translate(glm::mat4(1.0f), part.worldPos) * glm::mat4_cast(part.worldRot);
+            glm::vec3 wp = glm::vec3(model * glm::vec4(part.offset, 1.0f));
 
             DerezEntry entry;
-            entry.worldPos   = glm::vec3(wp.x(), wp.y(), wp.z());
+            entry.worldPos   = wp;
             entry.scale      = part.scale;
             entry.color      = part.color;
             entry.partIndex  = i;
@@ -2482,13 +2339,6 @@ namespace Scene {
         // Without this, the controller/bone bodies fall ~20m over 2 seconds and accumulate
         // contact manifolds that can cause a crash when the entity is destroyed.
         clearSegmentBoxes();
-        for (auto& [boneId, body] : boneBodies) {
-            if (body) {
-                body->setGravity(btVector3(0.0f, 0.0f, 0.0f));
-                body->setLinearVelocity(btVector3(0.0f, 0.0f, 0.0f));
-                body->setAngularVelocity(btVector3(0.0f, 0.0f, 0.0f));
-            }
-        }
         m_kinVelocity = glm::vec3(0.0f);
     }
 

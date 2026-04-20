@@ -209,20 +209,20 @@ public:
     void createChunkPhysicsBody();                    // Create compound shape physics body for static geometry
     void updateChunkPhysicsBody();                    // Rebuild physics body when static geometry changes
     void forcePhysicsRebuild();                       // Force immediate compound shape rebuild (bypasses performance optimization)
-    void cleanupPhysicsResources();                   // Clean up physics bodies
-    class btRigidBody* getChunkPhysicsBody() const;
-    
-    // UNIFIED SPATIAL COLLISION SYSTEM - O(1) operations with spatial grid optimization
-    void addCollisionEntity(const glm::ivec3& localPos);                       // Add collision entity with spatial tracking
-    void removeCollisionEntities(const glm::ivec3& localPos);          // Remove all collision entities at position (O(1))
-    void batchUpdateCollisions();                                       // Process collision changes in batch for performance
-    void buildInitialCollisionShapes();                               // Build initial collision shapes with spatial grid
-    bool hasExposedFaces(const glm::ivec3& localPos) const;           // Check if cube has exposed faces (optimization)
-    
-    // Collision shape creation helpers - focused single-purpose functions
-    void createCubeCollisionShape(const glm::ivec3& localPos, class btCompoundShape* compound);           // Create collision for full cube
-    void createSubcubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, class btCompoundShape* compound);  // Create collision for one subcube
-    void createMicrocubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const Microcube* microcube, class btCompoundShape* compound);  // Create collision for one microcube
+    void cleanupPhysicsResources();
+
+    // Collision entity management
+    void addCollisionEntity(const glm::ivec3& localPos);
+    void removeCollisionEntities(const glm::ivec3& localPos);
+    void batchUpdateCollisions();
+    void setPhysicsBulkMode(bool bulk);
+    void buildInitialCollisionShapes();
+    bool hasExposedFaces(const glm::ivec3& localPos) const;
+
+    // Collision shape creation helpers (occupancy grid only)
+    void createCubeCollisionShape(const glm::ivec3& localPos);
+    void createSubcubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);
+    void createMicrocubeCollisionShape(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const Microcube* microcube);
     
     // ENHANCED DEBUG: Spatial grid debugging and validation infrastructure
     void validateCollisionSystem() const;                             // Validate spatial grid consistency and detect issues
@@ -253,7 +253,6 @@ private:
     
     // Helper functions
     bool isValidLocalPosition(const glm::ivec3& localPos) const;
-    std::vector<Physics::ChunkPhysicsManager::CollisionBox> generateMergedCollisionBoxes();  // Generate optimized collision boxes for compound shape
 };
 
 } // namespace Phyxel

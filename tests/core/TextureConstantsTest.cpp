@@ -1,8 +1,8 @@
 /**
  * Unit tests for TextureConstants utilities
- * 
+ *
  * Tests texture index mapping functions for face-based texture selection.
- * Updated for multi-material atlas (72 textures, 12 materials).
+ * Updated for multi-material atlas (78 textures, 13 materials).
  */
 
 #include <gtest/gtest.h>
@@ -17,11 +17,11 @@ using namespace Phyxel::TextureConstants;
 // ============================================================================
 
 TEST(TextureConstantsTest, Constants_HaveValidValues) {
-    EXPECT_EQ(PLACEHOLDER_TEXTURE_INDEX, 5);
+    EXPECT_EQ(PLACEHOLDER_TEXTURE_INDEX, 54);
     EXPECT_EQ(INVALID_TEXTURE_INDEX, 0xFFFF);
     EXPECT_EQ(MAX_TEXTURE_INDEX, 0xFFFE);
-    EXPECT_EQ(TEXTURE_COUNT, 72);
-    EXPECT_EQ(MATERIAL_COUNT, 12);
+    EXPECT_EQ(TEXTURE_COUNT, 78);
+    EXPECT_EQ(MATERIAL_COUNT, 13);
 }
 
 TEST(TextureConstantsTest, Constants_InvalidIsGreaterThanMax) {
@@ -68,6 +68,7 @@ TEST(TextureConstantsTest, GetMaterialID_KnownMaterials) {
     EXPECT_EQ(getMaterialID("Rubber"), 9);
     EXPECT_EQ(getMaterialID("Stone"), 10);
     EXPECT_EQ(getMaterialID("Wood"), 11);
+    EXPECT_EQ(getMaterialID("Leaf"), 12);
 }
 
 TEST(TextureConstantsTest, GetMaterialID_UnknownFallsBackToDefault) {
@@ -91,18 +92,27 @@ TEST(TextureConstantsTest, GetMaterialID_CaseSensitive) {
 // ============================================================================
 
 TEST(TextureConstantsTest, GetTextureIndexForMaterial_Stone) {
-    EXPECT_EQ(getTextureIndexForMaterial("Stone", 0), 20);  // side_n
-    EXPECT_EQ(getTextureIndexForMaterial("Stone", 1), 30);  // side_s
-    EXPECT_EQ(getTextureIndexForMaterial("Stone", 2), 40);  // side_e
-    EXPECT_EQ(getTextureIndexForMaterial("Stone", 3), 50);  // side_w
-    EXPECT_EQ(getTextureIndexForMaterial("Stone", 4), 60);  // top
-    EXPECT_EQ(getTextureIndexForMaterial("Stone", 5), 70);  // bottom
+    EXPECT_EQ(getTextureIndexForMaterial("Stone", 0), 68);  // side_n
+    EXPECT_EQ(getTextureIndexForMaterial("Stone", 1), 69);  // side_s
+    EXPECT_EQ(getTextureIndexForMaterial("Stone", 2), 67);  // side_e
+    EXPECT_EQ(getTextureIndexForMaterial("Stone", 3), 70);  // side_w
+    EXPECT_EQ(getTextureIndexForMaterial("Stone", 4), 71);  // top
+    EXPECT_EQ(getTextureIndexForMaterial("Stone", 5), 66);  // bottom
 }
 
 TEST(TextureConstantsTest, GetTextureIndexForMaterial_Wood) {
-    EXPECT_EQ(getTextureIndexForMaterial("Wood", 0), 21);  // side_n
-    EXPECT_EQ(getTextureIndexForMaterial("Wood", 4), 61);  // top
-    EXPECT_EQ(getTextureIndexForMaterial("Wood", 5), 71);  // bottom
+    EXPECT_EQ(getTextureIndexForMaterial("Wood", 0), 74);  // side_n
+    EXPECT_EQ(getTextureIndexForMaterial("Wood", 4), 77);  // top
+    EXPECT_EQ(getTextureIndexForMaterial("Wood", 5), 72);  // bottom
+}
+
+TEST(TextureConstantsTest, GetTextureIndexForMaterial_Leaf) {
+    EXPECT_EQ(getTextureIndexForMaterial("Leaf", 0), 44);  // side_n
+    EXPECT_EQ(getTextureIndexForMaterial("Leaf", 1), 45);  // side_s
+    EXPECT_EQ(getTextureIndexForMaterial("Leaf", 2), 43);  // side_e
+    EXPECT_EQ(getTextureIndexForMaterial("Leaf", 3), 46);  // side_w
+    EXPECT_EQ(getTextureIndexForMaterial("Leaf", 4), 47);  // top
+    EXPECT_EQ(getTextureIndexForMaterial("Leaf", 5), 42);  // bottom
 }
 
 TEST(TextureConstantsTest, GetTextureIndexForMaterial_InvalidFace) {
@@ -111,10 +121,13 @@ TEST(TextureConstantsTest, GetTextureIndexForMaterial_InvalidFace) {
 }
 
 TEST(TextureConstantsTest, GetTextureIndexForMaterial_Placeholder) {
-    // Placeholder material should still map to indices 0-5
-    for (int faceID = 0; faceID < 6; ++faceID) {
-        EXPECT_EQ(getTextureIndexForMaterial("placeholder", faceID), faceID);
-    }
+    // placeholder: {side_n=56, side_s=57, side_e=55, side_w=58, top=59, bottom=54}
+    EXPECT_EQ(getTextureIndexForMaterial("placeholder", 0), 56);  // side_n
+    EXPECT_EQ(getTextureIndexForMaterial("placeholder", 1), 57);  // side_s
+    EXPECT_EQ(getTextureIndexForMaterial("placeholder", 2), 55);  // side_e
+    EXPECT_EQ(getTextureIndexForMaterial("placeholder", 3), 58);  // side_w
+    EXPECT_EQ(getTextureIndexForMaterial("placeholder", 4), 59);  // top
+    EXPECT_EQ(getTextureIndexForMaterial("placeholder", 5), 54);  // bottom
 }
 
 // ============================================================================
@@ -122,13 +135,13 @@ TEST(TextureConstantsTest, GetTextureIndexForMaterial_Placeholder) {
 // ============================================================================
 
 TEST(TextureConstantsTest, GetHoverTextureIndexForFace_ValidFaces) {
-    // Hover textures now at scattered indices in new atlas
-    EXPECT_EQ(getHoverTextureIndexForFace(0), 16);  // hover_side_n
-    EXPECT_EQ(getHoverTextureIndexForFace(1), 26);  // hover_side_s
-    EXPECT_EQ(getHoverTextureIndexForFace(2), 36);  // hover_side_e
-    EXPECT_EQ(getHoverTextureIndexForFace(3), 46);  // hover_side_w
-    EXPECT_EQ(getHoverTextureIndexForFace(4), 56);  // hover_top
-    EXPECT_EQ(getHoverTextureIndexForFace(5), 66);  // hover_bottom
+    // hover: {side_n=32, side_s=33, side_e=31, side_w=34, top=35, bottom=30}
+    EXPECT_EQ(getHoverTextureIndexForFace(0), 32);  // hover_side_n
+    EXPECT_EQ(getHoverTextureIndexForFace(1), 33);  // hover_side_s
+    EXPECT_EQ(getHoverTextureIndexForFace(2), 31);  // hover_side_e
+    EXPECT_EQ(getHoverTextureIndexForFace(3), 34);  // hover_side_w
+    EXPECT_EQ(getHoverTextureIndexForFace(4), 35);  // hover_top
+    EXPECT_EQ(getHoverTextureIndexForFace(5), 30);  // hover_bottom
 }
 
 TEST(TextureConstantsTest, GetHoverTextureIndexForFace_InvalidFaces) {
@@ -141,12 +154,13 @@ TEST(TextureConstantsTest, GetHoverTextureIndexForFace_InvalidFaces) {
 // ============================================================================
 
 TEST(TextureConstantsTest, GetGrassdirtTextureIndexForFace_ValidFaces) {
-    EXPECT_EQ(getGrassdirtTextureIndexForFace(0), 6);
-    EXPECT_EQ(getGrassdirtTextureIndexForFace(1), 7);
-    EXPECT_EQ(getGrassdirtTextureIndexForFace(2), 8);
-    EXPECT_EQ(getGrassdirtTextureIndexForFace(3), 9);
-    EXPECT_EQ(getGrassdirtTextureIndexForFace(4), 10);
-    EXPECT_EQ(getGrassdirtTextureIndexForFace(5), 11);
+    // grassdirt: {side_n=26, side_s=27, side_e=25, side_w=28, top=29, bottom=24}
+    EXPECT_EQ(getGrassdirtTextureIndexForFace(0), 26);
+    EXPECT_EQ(getGrassdirtTextureIndexForFace(1), 27);
+    EXPECT_EQ(getGrassdirtTextureIndexForFace(2), 25);
+    EXPECT_EQ(getGrassdirtTextureIndexForFace(3), 28);
+    EXPECT_EQ(getGrassdirtTextureIndexForFace(4), 29);
+    EXPECT_EQ(getGrassdirtTextureIndexForFace(5), 24);
 }
 
 TEST(TextureConstantsTest, GetGrassdirtTextureIndexForFace_InvalidFaces) {

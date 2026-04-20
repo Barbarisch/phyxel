@@ -1193,7 +1193,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // Start in creative mode with all materials in hotbar
     {
         static const std::vector<std::string> defaultHotbar = {
-            "Stone", "Wood", "Metal", "Glass", "Rubber", "Ice", "Cork", "glow", "Default"
+            "Stone", "Wood", "Metal", "Glass", "Rubber", "Ice", "Cork", "glow", "Leaf", "Default"
         };
         for (int i = 0; i < static_cast<int>(defaultHotbar.size()); ++i) {
             inventory->setSlot(i, Core::ItemStack{defaultHotbar[i], 64, 64});
@@ -2580,11 +2580,9 @@ void Application::update(float deltaTime) {
             if (dynamicFurnitureManager) {
                 const glm::vec3 furnitureColor{1.0f, 0.6f, 0.1f};
                 for (const auto& [id, obj] : dynamicFurnitureManager->getActiveObjects()) {
-                    if (!obj.rigidBody) continue;
-                    btVector3 bMin, bMax;
-                    obj.rigidBody->getAabb(bMin, bMax);
-                    glm::vec3 mn(bMin.x(), bMin.y(), bMin.z());
-                    glm::vec3 mx(bMax.x(), bMax.y(), bMax.z());
+                    if (!obj.voxelBody) continue;
+                    glm::vec3 mn, mx;
+                    obj.voxelBody->getWorldAABB(mn, mx);
                     addWireBox(mn, mx, furnitureColor);
                 }
             }
@@ -3139,13 +3137,11 @@ void Application::renderTemplateSpawner() {
     // Snap to nearest 90
     spawnerRotation = (spawnerRotation / 90) * 90;
 
-    ImGui::Checkbox("Static", &spawnerStatic);
-
     ImGui::Separator();
     if (ImGui::Button("Spawn", ImVec2(-1, 30)) && !templateNames.empty()) {
         const std::string& name = templateNames[spawnerTemplateIdx];
         glm::ivec3 pos((int)spawnerPos[0], (int)spawnerPos[1], (int)spawnerPos[2]);
-        if (placedObjectManager && spawnerStatic) {
+        if (placedObjectManager) {
             // Route through PlacedObjectManager so the object is tracked, shows in World Outliner, and persists
             std::string objId = placedObjectManager->placeTemplate(name, pos, spawnerRotation);
             LOG_INFO_FMT("TemplateSpawner", "Placed '" << name << "' as '" << objId << "' at ("
@@ -3156,8 +3152,7 @@ void Application::renderTemplateSpawner() {
                 if (ws) placedObjectManager->saveToDb(ws->getDb());
             }
         } else {
-            // Fallback for dynamic or if PlacedObjectManager unavailable
-            objectTemplateManager->spawnTemplate(name, glm::vec3(pos), spawnerStatic, spawnerRotation);
+            objectTemplateManager->spawnTemplate(name, glm::vec3(pos), true, spawnerRotation);
             LOG_INFO_FMT("TemplateSpawner", "Spawned '" << name << "' (untracked) at ("
                          << pos.x << "," << pos.y << "," << pos.z << ") rot=" << spawnerRotation);
         }
@@ -6328,7 +6323,7 @@ void Application::processAPICommands() {
                         y = cmd.params["position"].value("y", 0.0f);
                         z = cmd.params["position"].value("z", 0.0f);
                     }
-                    bool isStatic = cmd.params.value("static", true);
+                    const bool isStatic = true;
                     int rotation = cmd.params.value("rotation", 0);
 
                     // Auto-snapshot the affected region before spawning
@@ -9490,9 +9485,9 @@ void Application::renderAssetEditorUI() {
     // Material palette
     ImGui::Text("Material:");
     const char* materials[] = {
-        "Wood","Stone","Metal","Glass","Rubber","Ice","Cork","glow","Default"
+        "Wood","Stone","Metal","Glass","Rubber","Ice","Cork","glow","Leaf","Default"
     };
-    for (int i = 0; i < 9; ++i) {
+    for (int i = 0; i < 10; ++i) {
         bool selected = (m_assetEditorMaterial == materials[i]);
         if (selected) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 1.0f, 1.0f));
         if (ImGui::SmallButton(materials[i])) {
@@ -10486,9 +10481,9 @@ void Application::renderInteractionEditorUI() {
     // === Material palette ===
     ImGui::Text("Material:");
     const char* ieMaterials[] = {
-        "Wood","Stone","Metal","Glass","Rubber","Ice","Cork","glow","Default"
+        "Wood","Stone","Metal","Glass","Rubber","Ice","Cork","glow","Leaf","Default"
     };
-    for (int i = 0; i < 9; ++i) {
+    for (int i = 0; i < 10; ++i) {
         bool selected = (m_ieMaterial == ieMaterials[i]);
         if (selected) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 1.0f, 1.0f));
         if (ImGui::SmallButton(ieMaterials[i])) {
