@@ -6,6 +6,7 @@
 #include <vector>
 #include <memory>
 #include <cstdint>
+#include <thread>
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
@@ -29,6 +30,11 @@ public:
     glm::vec3 getGravity() const             { return m_gravity; }
     void setFallThreshold(float y)           { m_fallThreshold = y; }
     float getFallThreshold() const           { return m_fallThreshold; }
+
+    // Number of threads used for parallel physics phases (default = hardware_concurrency).
+    // Set to 1 to disable threading.
+    void setThreadCount(int n)   { m_threadCount = std::max(1, n); }
+    int  getThreadCount() const  { return m_threadCount; }
 
     // ---- Terrain ----
     // Register a chunk's occupancy grid. Does not take ownership.
@@ -101,6 +107,7 @@ private:
     float     m_fallThreshold = -20.0f;
     float     m_accumulator   = 0.0f;
     uint32_t  m_nextId        = 1;
+    int       m_threadCount   = 1;  // initialized to hardware_concurrency in constructor
 
     void substep(float dt);
     void integrateVelocities(float dt);

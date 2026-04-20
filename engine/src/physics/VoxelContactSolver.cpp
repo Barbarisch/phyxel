@@ -307,50 +307,48 @@ void VoxelContactSolver::clipFaceVsOBB(const WorldBox& wbA, const WorldBox& wbB,
 
 // ---- PGS Solver ----
 
+void VoxelContactSolver::prepareContact(ContactPoint& cp, float dt) {
+    buildTangents(cp.normal, cp.tangent1, cp.tangent2);
+
+    VoxelRigidBody* A = cp.bodyA;
+    VoxelRigidBody* B = cp.bodyB;
+
+    auto computeEffectiveMass = [&](const glm::vec3& axis,
+                                    const glm::vec3& rA_,
+                                    const glm::vec3& rB_) -> float {
+        float em = A->invMass;
+        glm::vec3 rAxN = glm::cross(rA_, axis);
+        em += glm::dot(rAxN, A->invInertiaTensorWorld * rAxN);
+        if (B) {
+            em += B->invMass;
+            glm::vec3 rBxN = glm::cross(rB_, axis);
+            em += glm::dot(rBxN, B->invInertiaTensorWorld * rBxN);
+        }
+        return em > 1e-8f ? 1.0f / em : 0.0f;
+    };
+
+    cp.effectiveMassN  = computeEffectiveMass(cp.normal,   cp.rA, cp.rB);
+    cp.effectiveMassT1 = computeEffectiveMass(cp.tangent1, cp.rA, cp.rB);
+    cp.effectiveMassT2 = computeEffectiveMass(cp.tangent2, cp.rA, cp.rB);
+
+    glm::vec3 vA = A->linearVelocity + glm::cross(A->angularVelocity, cp.rA);
+    glm::vec3 vB = B ? (B->linearVelocity + glm::cross(B->angularVelocity, cp.rB))
+                     : cp.obstacleVelocity;
+    float relVn = glm::dot(vA - vB, cp.normal);
+
+    float e = A->restitution;
+    if (B) e = (e + B->restitution) * 0.5f;
+    float bounce = (relVn < -1.0f) ? -e * relVn : 0.0f;
+
+    float bias = BAUMGARTE / dt * std::max(0.0f, cp.depth - SLOP);
+
+    cp.targetVelocityN = bounce + bias;
+    cp.lambdaN = cp.lambdaT1 = cp.lambdaT2 = 0.0f;
+}
+
 void VoxelContactSolver::prepareContacts(std::vector<ContactPoint>& contacts, float dt) {
-    for (auto& cp : contacts) {
-        buildTangents(cp.normal, cp.tangent1, cp.tangent2);
-
-        VoxelRigidBody* A = cp.bodyA;
-        VoxelRigidBody* B = cp.bodyB;
-
-        auto computeEffectiveMass = [&](const glm::vec3& axis,
-                                        const glm::vec3& rA_,
-                                        const glm::vec3& rB_) -> float {
-            float em = A->invMass;
-            glm::vec3 rAxN = glm::cross(rA_, axis);
-            em += glm::dot(rAxN, A->invInertiaTensorWorld * rAxN);
-            if (B) {
-                em += B->invMass;
-                glm::vec3 rBxN = glm::cross(rB_, axis);
-                em += glm::dot(rBxN, B->invInertiaTensorWorld * rBxN);
-            }
-            return em > 1e-8f ? 1.0f / em : 0.0f;
-        };
-
-        cp.effectiveMassN  = computeEffectiveMass(cp.normal,   cp.rA, cp.rB);
-        cp.effectiveMassT1 = computeEffectiveMass(cp.tangent1, cp.rA, cp.rB);
-        cp.effectiveMassT2 = computeEffectiveMass(cp.tangent2, cp.rA, cp.rB);
-
-        // Relative velocity at contact point
-        glm::vec3 vA = A->linearVelocity + glm::cross(A->angularVelocity, cp.rA);
-        glm::vec3 vB = B ? (B->linearVelocity + glm::cross(B->angularVelocity, cp.rB))
-                         : cp.obstacleVelocity;
-        float relVn = glm::dot(vA - vB, cp.normal);
-
-        // Restitution only for fast impacts
-        float e = A->restitution;
-        if (B) e = (e + B->restitution) * 0.5f;
-        float bounce = (relVn < -1.0f) ? -e * relVn : 0.0f;
-
-        // Baumgarte position correction bias
-        float bias = BAUMGARTE / dt * std::max(0.0f, cp.depth - SLOP);
-
-        cp.targetVelocityN = bounce + bias;
-
-        // Reset accumulated impulses
-        cp.lambdaN = cp.lambdaT1 = cp.lambdaT2 = 0.0f;
-    }
+    for (auto& cp : contacts)
+        prepareContact(cp, dt);
 }
 
 void VoxelContactSolver::solveOneContact(ContactPoint& cp) {

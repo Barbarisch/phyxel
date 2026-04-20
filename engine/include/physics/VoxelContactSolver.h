@@ -62,6 +62,9 @@ public:
     // Prepare cached constraint data (effective masses, tangents, bias).
     static void prepareContacts(std::vector<ContactPoint>& contacts, float dt);
 
+    // Prepare a single contact — called per-contact from the parallel prepare path.
+    static void prepareContact(ContactPoint& cp, float dt);
+
     // Run PGS iterations over all contacts.
     static void solveContacts(std::vector<ContactPoint>& contacts);
 

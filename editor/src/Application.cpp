@@ -4858,6 +4858,61 @@ static bool handleDebugDynamicSpawnCommand(
                     {"position", {{"x", x}, {"y", y}, {"z", z}}}};
         return true;
     }
+    if (cmd.action == "spawn_voxel_body") {
+        float x = cmd.params.value("x", 0.0f);
+        float y = cmd.params.value("y", 20.0f);
+        float z = cmd.params.value("z", 0.0f);
+        float scale = cmd.params.value("scale", 1.0f);
+        float mass = cmd.params.value("mass", 1.0f);
+        float restitution = cmd.params.value("restitution", 0.2f);
+        float friction = cmd.params.value("friction", 0.6f);
+        float lifetime = cmd.params.value("lifetime", std::numeric_limits<float>::max());
+        int count = std::clamp(cmd.params.value("count", 1), 1, 5000);
+        glm::vec3 vel(0.0f);
+        if (cmd.params.contains("velocity")) {
+            vel.x = cmd.params["velocity"].value("x", 0.0f);
+            vel.y = cmd.params["velocity"].value("y", 0.0f);
+            vel.z = cmd.params["velocity"].value("z", 0.0f);
+        }
+        if (!chunkManager || !chunkManager->physicsWorld ||
+            !chunkManager->physicsWorld->getVoxelWorld()) {
+            response = {{"error", "VoxelDynamicsWorld not available"}};
+            return true;
+        }
+        auto* voxelWorld = chunkManager->physicsWorld->getVoxelWorld();
+        glm::vec3 halfExtents(scale * 0.5f);
+        float spacing = scale * 1.1f;
+        int gridSize = static_cast<int>(std::ceil(std::cbrt(static_cast<float>(count))));
+        int spawned = 0;
+        for (int i = 0; i < count; ++i) {
+            int gx = i % gridSize;
+            int gy = (i / gridSize) % gridSize;
+            int gz = i / (gridSize * gridSize);
+            glm::vec3 pos(x + gx * spacing, y + gy * spacing, z + gz * spacing);
+            auto* body = voxelWorld->createVoxelBody(pos, halfExtents, mass, restitution, friction);
+            if (body) {
+                body->linearVelocity = vel;
+                body->lifetime = lifetime;
+                ++spawned;
+            }
+        }
+        response = {{"success", true}, {"spawned", spawned}, {"system", "voxel"},
+                    {"body_count", static_cast<int>(voxelWorld->getBodyCount())},
+                    {"position", {{"x", x}, {"y", y}, {"z", z}}}};
+        return true;
+    }
+    if (cmd.action == "clear_voxel_bodies") {
+        if (!chunkManager || !chunkManager->physicsWorld ||
+            !chunkManager->physicsWorld->getVoxelWorld()) {
+            response = {{"error", "VoxelDynamicsWorld not available"}};
+            return true;
+        }
+        auto* voxelWorld = chunkManager->physicsWorld->getVoxelWorld();
+        size_t cleared = voxelWorld->getBodyCount();
+        voxelWorld->removeAllBodies();
+        response = {{"success", true}, {"cleared", cleared}};
+        return true;
+    }
     if (cmd.action == "clear_dynamics") {
         size_t bulletCleared = 0;
         uint32_t gpuCleared = 0;

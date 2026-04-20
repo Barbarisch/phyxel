@@ -933,6 +933,32 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/debug/spawn_voxel_body — Spawn a VoxelDynamicsWorld body
+    // Body: { "x":10, "y":20, "z":10, "scale":1.0, "mass":1.0,
+    //         "restitution":0.2, "friction":0.6,
+    //         "velocity":{"x":0,"y":0,"z":0}, "count":1 }
+    // ====================================================================
+    srv.Post("/api/debug/spawn_voxel_body", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("spawn_voxel_body", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/debug/clear_voxel_bodies — Remove all VoxelDynamicsWorld bodies
+    // ====================================================================
+    srv.Post("/api/debug/clear_voxel_bodies", [this](const httplib::Request& req, httplib::Response& res) {
+        json result = queueAndWait("clear_voxel_bodies", {});
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
     // GET /api/debug/engine_timing — Full engine frame timing stats
     // Returns: FPS, cpu/gpu frame time, physics time, draw calls,
     //          culling stats, active Bullet/GPU counts

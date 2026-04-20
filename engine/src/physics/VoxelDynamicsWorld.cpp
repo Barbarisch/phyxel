@@ -1,11 +1,45 @@
 #include "physics/VoxelDynamicsWorld.h"
 #include <algorithm>
 #include <cmath>
+#include <future>
+#include <thread>
 
 namespace Phyxel {
 namespace Physics {
 
-VoxelDynamicsWorld::VoxelDynamicsWorld() = default;
+// ---- Parallel helper --------------------------------------------------------
+// Splits [0, count) into m_threadCount chunks.
+// Calls func(begin, end) on each chunk — chunk 0 runs on the calling thread,
+// the rest run as std::async tasks so MSVC's concrt thread pool is reused.
+namespace {
+template<typename F>
+void parallelRange(size_t count, int threadCount, F&& func) {
+    if (count == 0) return;
+    size_t tc = static_cast<size_t>(std::max(1, threadCount));
+    if (tc == 1 || count <= tc) {
+        func(0, count);
+        return;
+    }
+    size_t chunk = (count + tc - 1) / tc;
+    std::vector<std::future<void>> futures;
+    futures.reserve(tc - 1);
+    for (size_t t = 1; t < tc; ++t) {
+        size_t b = t * chunk;
+        size_t e = std::min(b + chunk, count);
+        if (b >= count) break;
+        futures.push_back(std::async(std::launch::async, [b, e, &func] { func(b, e); }));
+    }
+    func(0, std::min(chunk, count));  // main thread handles chunk 0
+    for (auto& f : futures) f.get();
+}
+} // namespace
+
+// ---- Construction -----------------------------------------------------------
+
+VoxelDynamicsWorld::VoxelDynamicsWorld() {
+    unsigned int hw = std::thread::hardware_concurrency();
+    m_threadCount = hw > 0 ? static_cast<int>(hw) : 4;
+}
 
 // ---- Terrain ----
 
@@ -20,7 +54,7 @@ void VoxelDynamicsWorld::unregisterGrid(VoxelOccupancyGrid* grid) {
     m_grids.erase(std::remove(m_grids.begin(), m_grids.end(), grid), m_grids.end());
 }
 
-// ---- Body management ----
+// ---- Body management --------------------------------------------------------
 
 VoxelRigidBody* VoxelDynamicsWorld::createBody(const std::vector<LocalBox>& boxes,
                                                 const glm::vec3& worldPos,
@@ -82,7 +116,7 @@ VoxelRigidBody* VoxelDynamicsWorld::getBodyById(uint32_t id) const {
     return nullptr;
 }
 
-// ---- Simulation ----
+// ---- Simulation -------------------------------------------------------------
 
 void VoxelDynamicsWorld::stepSimulation(float deltaTime, int maxSubsteps, float fixedStep) {
     m_accumulator += deltaTime;
@@ -92,94 +126,112 @@ void VoxelDynamicsWorld::stepSimulation(float deltaTime, int maxSubsteps, float 
         m_accumulator -= fixedStep;
         ++steps;
     }
-    // Drain accumulator if we hit the substep cap (prevents spiral of death)
     if (steps == maxSubsteps)
         m_accumulator = 0.0f;
 }
 
 void VoxelDynamicsWorld::substep(float dt) {
-    // 1. Rebuild world-space inertia tensors and apply gravity to awake bodies
     integrateVelocities(dt);
 
-    // 2. Detect contacts
     m_contacts.clear();
     generateContacts();
 
-    // 3. Prepare and solve
-    VoxelContactSolver::prepareContacts(m_contacts, dt);
-    VoxelContactSolver::solveContacts(m_contacts);
+    // Parallel prepareContacts — each contact is independent
+    parallelRange(m_contacts.size(), m_threadCount, [&](size_t b, size_t e) {
+        for (size_t i = b; i < e; ++i)
+            VoxelContactSolver::prepareContact(m_contacts[i], dt);
+    });
 
-    // 4. Integrate positions
+    VoxelContactSolver::solveContacts(m_contacts);  // sequential PGS — cannot parallelize
+
     integratePositions(dt);
-
-    // 5. Update sleep timers
     updateSleepState(dt);
-
-    // 6. Remove dead / fallen bodies
     cleanupDead();
 }
 
+// ---- Parallel physics phases ------------------------------------------------
+
 void VoxelDynamicsWorld::integrateVelocities(float dt) {
-    for (auto& body : m_bodies) {
-        if (body->isDead || body->isAsleep || body->invMass == 0.0f) continue;
-        body->updateInertiaTensorWorld();
-
-        // Gravity
-        body->linearVelocity += m_gravity * dt;
-
-        // Damping (exponential decay approximation)
-        float ld = std::pow(1.0f - body->linearDamping,  dt);
-        float ad = std::pow(1.0f - body->angularDamping, dt);
-        body->linearVelocity  *= ld;
-        body->angularVelocity *= ad;
-    }
+    size_t n = m_bodies.size();
+    parallelRange(n, m_threadCount, [&](size_t b, size_t e) {
+        for (size_t i = b; i < e; ++i) {
+            auto& body = m_bodies[i];
+            if (body->isDead || body->isAsleep || body->invMass == 0.0f) continue;
+            body->updateInertiaTensorWorld();
+            body->linearVelocity += m_gravity * dt;
+            float ld = std::pow(1.0f - body->linearDamping,  dt);
+            float ad = std::pow(1.0f - body->angularDamping, dt);
+            body->linearVelocity  *= ld;
+            body->angularVelocity *= ad;
+        }
+    });
 }
 
 void VoxelDynamicsWorld::integratePositions(float dt) {
-    for (auto& body : m_bodies) {
-        if (body->isDead || body->isAsleep || body->invMass == 0.0f) continue;
-
-        body->position += body->linearVelocity * dt;
-
-        // Integrate orientation via angular velocity
-        float omegaLen = glm::length(body->angularVelocity);
-        if (omegaLen > 1e-6f) {
-            float angle = omegaLen * dt;
-            glm::vec3 axis = body->angularVelocity / omegaLen;
-            glm::quat dq   = glm::angleAxis(angle, axis);
-            body->orientation = glm::normalize(dq * body->orientation);
+    size_t n = m_bodies.size();
+    parallelRange(n, m_threadCount, [&](size_t b, size_t e) {
+        for (size_t i = b; i < e; ++i) {
+            auto& body = m_bodies[i];
+            if (body->isDead || body->isAsleep || body->invMass == 0.0f) continue;
+            body->position += body->linearVelocity * dt;
+            float omegaLen = glm::length(body->angularVelocity);
+            if (omegaLen > 1e-6f) {
+                float angle = omegaLen * dt;
+                glm::vec3 axis = body->angularVelocity / omegaLen;
+                glm::quat dq   = glm::angleAxis(angle, axis);
+                body->orientation = glm::normalize(dq * body->orientation);
+            }
         }
-    }
+    });
 }
 
 void VoxelDynamicsWorld::generateContacts() {
-    // ---- Body vs terrain ----
-    for (auto& body : m_bodies) {
-        if (body->isDead || body->isAsleep || body->invMass == 0.0f) continue;
+    size_t n = m_bodies.size();
+    int    tc = std::max(1, m_threadCount);
 
-        glm::vec3 bMin, bMax;
-        body->getWorldAABB(bMin, bMax);
+    // ---- Body vs terrain (parallel with per-thread contact buffers) ----
+    {
+        std::vector<std::vector<ContactPoint>> threadBufs(tc);
 
-        // Expand slightly for contact generation stability
-        const float expand = 0.01f;
-        bMin -= glm::vec3(expand);
-        bMax += glm::vec3(expand);
+        // Capture grid list — read-only during this phase
+        const auto& grids = m_grids;
 
-        for (VoxelOccupancyGrid* grid : m_grids) {
-            std::vector<OccupiedBox> terrainBoxes;
-            grid->queryAABB(bMin, bMax, terrainBoxes);
+        parallelRange(n, tc, [&](size_t b, size_t e) {
+            // Determine which thread slot to use based on the range start
+            // Each range maps 1:1 to a thread index because parallelRange assigns
+            // chunk 0 to the calling thread and chunks 1..tc-1 to async tasks.
+            // We identify the slot by the starting body index.
+            size_t chunk = (n + static_cast<size_t>(tc) - 1) / static_cast<size_t>(tc);
+            size_t slot  = (chunk > 0) ? (b / chunk) : 0;
+            slot = std::min(slot, static_cast<size_t>(tc) - 1);
+            auto& buf = threadBufs[slot];
 
-            for (const OccupiedBox& tb : terrainBoxes) {
-                for (size_t bi = 0; bi < body->getLocalBoxes().size(); ++bi) {
-                    VoxelContactSolver::generateOBBvsAABB(body.get(), bi, tb, m_contacts);
+            for (size_t i = b; i < e; ++i) {
+                auto& body = m_bodies[i];
+                if (body->isDead || body->isAsleep || body->invMass == 0.0f) continue;
+
+                glm::vec3 bMin, bMax;
+                body->getWorldAABB(bMin, bMax);
+                const float expand = 0.01f;
+                bMin -= glm::vec3(expand);
+                bMax += glm::vec3(expand);
+
+                for (VoxelOccupancyGrid* grid : grids) {
+                    std::vector<OccupiedBox> terrainBoxes;
+                    grid->queryAABB(bMin, bMax, terrainBoxes);
+                    for (const OccupiedBox& tb : terrainBoxes)
+                        for (size_t bi = 0; bi < body->getLocalBoxes().size(); ++bi)
+                            VoxelContactSolver::generateOBBvsAABB(body.get(), bi, tb, buf);
                 }
             }
-        }
+        });
+
+        // Merge per-thread contact buffers
+        for (auto& buf : threadBufs)
+            m_contacts.insert(m_contacts.end(), buf.begin(), buf.end());
     }
 
-    // ---- Body vs kinematic obstacles (character segment boxes) ----
-    // Sleeping bodies are included — a resting voxel is still solid.
-    // Any contact wakes the body so the solver can apply the separating impulse.
+    // ---- Body vs kinematic obstacles (sequential — has wake writes) ----
     for (auto& body : m_bodies) {
         if (body->isDead || body->invMass == 0.0f) continue;
 
@@ -193,7 +245,6 @@ void VoxelDynamicsWorld::generateContacts() {
                 bMax.y < oMin.y || bMin.y > oMax.y ||
                 bMax.z < oMin.z || bMin.z > oMax.z) continue;
 
-            // Wake sleeping body so it responds to the impulse this substep
             if (body->isAsleep) {
                 body->isAsleep   = false;
                 body->sleepTimer = 0.0f;
@@ -203,65 +254,83 @@ void VoxelDynamicsWorld::generateContacts() {
             size_t before = m_contacts.size();
             for (size_t bi = 0; bi < body->getLocalBoxes().size(); ++bi)
                 VoxelContactSolver::generateOBBvsAABB(body.get(), bi, box, m_contacts);
-
-            // Stamp character velocity onto the new contacts so the solver
-            // produces speed-proportional push impulses
             for (size_t k = before; k < m_contacts.size(); ++k)
                 m_contacts[k].obstacleVelocity = obs.velocity;
         }
     }
 
-    // ---- Body vs body (all awake pairs) ----
-    for (size_t i = 0; i < m_bodies.size(); ++i) {
-        VoxelRigidBody* A = m_bodies[i].get();
-        if (A->isDead || A->isAsleep) continue;
+    // ---- Body vs body (parallel with per-thread contact buffers) ----
+    {
+        // Build flat awake-body list to get O(N²) pairs over a compact array
+        std::vector<VoxelRigidBody*> awake;
+        awake.reserve(m_bodies.size());
+        for (const auto& b : m_bodies)
+            if (!b->isDead && !b->isAsleep) awake.push_back(b.get());
 
-        glm::vec3 aMin, aMax;
-        A->getWorldAABB(aMin, aMax);
+        size_t na = awake.size();
+        if (na < 2) return;
 
-        for (size_t j = i + 1; j < m_bodies.size(); ++j) {
-            VoxelRigidBody* B = m_bodies[j].get();
-            if (B->isDead || B->isAsleep) continue;
+        // Total pairs: na*(na-1)/2 — distribute rows of the triangular matrix
+        std::vector<std::vector<ContactPoint>> threadBufs(tc);
 
-            glm::vec3 bMin, bMax;
-            B->getWorldAABB(bMin, bMax);
+        parallelRange(na, tc, [&](size_t rb, size_t re) {
+            size_t chunk = (na + static_cast<size_t>(tc) - 1) / static_cast<size_t>(tc);
+            size_t slot  = (chunk > 0) ? (rb / chunk) : 0;
+            slot = std::min(slot, static_cast<size_t>(tc) - 1);
+            auto& buf = threadBufs[slot];
 
-            // Broadphase AABB rejection
-            if (aMax.x < bMin.x || aMin.x > bMax.x ||
-                aMax.y < bMin.y || aMin.y > bMax.y ||
-                aMax.z < bMin.z || aMin.z > bMax.z) continue;
+            for (size_t i = rb; i < re; ++i) {
+                VoxelRigidBody* A = awake[i];
+                glm::vec3 aMin, aMax;
+                A->getWorldAABB(aMin, aMax);
 
-            for (size_t bi = 0; bi < A->getLocalBoxes().size(); ++bi) {
-                for (size_t bj = 0; bj < B->getLocalBoxes().size(); ++bj) {
-                    VoxelContactSolver::generateOBBvsOBB(A, bi, B, bj, m_contacts);
+                for (size_t j = i + 1; j < na; ++j) {
+                    VoxelRigidBody* B = awake[j];
+                    glm::vec3 bMin, bMax;
+                    B->getWorldAABB(bMin, bMax);
+
+                    if (aMax.x < bMin.x || aMin.x > bMax.x ||
+                        aMax.y < bMin.y || aMin.y > bMax.y ||
+                        aMax.z < bMin.z || aMin.z > bMax.z) continue;
+
+                    for (size_t bi = 0; bi < A->getLocalBoxes().size(); ++bi)
+                        for (size_t bj = 0; bj < B->getLocalBoxes().size(); ++bj)
+                            VoxelContactSolver::generateOBBvsOBB(A, bi, B, bj, buf);
                 }
             }
-        }
+        });
+
+        for (auto& buf : threadBufs)
+            m_contacts.insert(m_contacts.end(), buf.begin(), buf.end());
     }
 }
 
 void VoxelDynamicsWorld::updateSleepState(float dt) {
-    for (auto& body : m_bodies) {
-        if (body->invMass == 0.0f) continue;
-
-        float vSq  = glm::dot(body->linearVelocity, body->linearVelocity);
-        float wSq  = glm::dot(body->angularVelocity, body->angularVelocity);
-        bool  slow = vSq < VoxelRigidBody::SLEEP_VELOCITY_SQ
-                  && wSq < VoxelRigidBody::SLEEP_ANGULAR_SQ;
-
-        if (slow) {
-            body->sleepTimer += dt;
-            if (body->sleepTimer >= VoxelRigidBody::SLEEP_TIME && !body->isAsleep) {
-                body->isAsleep         = true;
-                body->linearVelocity   = glm::vec3(0.0f);
-                body->angularVelocity  = glm::vec3(0.0f);
+    size_t n = m_bodies.size();
+    parallelRange(n, m_threadCount, [&](size_t b, size_t e) {
+        for (size_t i = b; i < e; ++i) {
+            auto& body = m_bodies[i];
+            if (body->invMass == 0.0f) continue;
+            float vSq  = glm::dot(body->linearVelocity,  body->linearVelocity);
+            float wSq  = glm::dot(body->angularVelocity, body->angularVelocity);
+            bool  slow = vSq < VoxelRigidBody::SLEEP_VELOCITY_SQ
+                      && wSq < VoxelRigidBody::SLEEP_ANGULAR_SQ;
+            if (slow) {
+                body->sleepTimer += dt;
+                if (body->sleepTimer >= VoxelRigidBody::SLEEP_TIME && !body->isAsleep) {
+                    body->isAsleep        = true;
+                    body->linearVelocity  = glm::vec3(0.0f);
+                    body->angularVelocity = glm::vec3(0.0f);
+                }
+            } else {
+                body->sleepTimer = 0.0f;
+                body->isAsleep   = false;
             }
-        } else {
-            body->sleepTimer = 0.0f;
-            body->isAsleep   = false;
         }
-    }
+    });
 }
+
+// ---- Queries ----------------------------------------------------------------
 
 float VoxelDynamicsWorld::findGroundY(const glm::vec3& feetPos, float halfWidth, float maxSearchDown) const {
     glm::vec3 queryMin(feetPos.x - halfWidth, feetPos.y - maxSearchDown, feetPos.z - halfWidth);
@@ -311,13 +380,15 @@ void VoxelDynamicsWorld::setKinematicObstacles(std::vector<KinematicObstacle> ob
 }
 
 void VoxelDynamicsWorld::cleanupDead() {
-    // Mark expired / fallen bodies dead — DynamicObjectManager calls removeBody()
-    // before nulling its raw pointer, so we must NOT destroy the unique_ptr here.
-    for (auto& body : m_bodies) {
-        body->lifetime -= 1.0f / 60.0f;
-        if (body->lifetime <= 0.0f || body->position.y < m_fallThreshold)
-            body->isDead = true;
-    }
+    size_t n = m_bodies.size();
+    parallelRange(n, m_threadCount, [&](size_t b, size_t e) {
+        for (size_t i = b; i < e; ++i) {
+            auto& body = m_bodies[i];
+            body->lifetime -= 1.0f / 60.0f;
+            if (body->lifetime <= 0.0f || body->position.y < m_fallThreshold)
+                body->isDead = true;
+        }
+    });
 }
 
 } // namespace Physics

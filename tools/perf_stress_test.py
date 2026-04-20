@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Phyxel Engine — GPU & Bullet Dynamic Voxel Performance Stress Tester
+Phyxel Engine — GPU & Bullet & VoxelDynamicsWorld Performance Stress Tester
 
-Ramps up particle/object counts to find FPS breakpoints for both
-GPU compute and Bullet physics systems, individually and combined.
+Ramps up particle/object counts to find FPS breakpoints for GPU compute,
+Bullet physics, and the custom VoxelDynamicsWorld systems.
 
 Usage:
     python tools/perf_stress_test.py                    # Run all tests
     python tools/perf_stress_test.py --mode gpu         # GPU-only ramp
     python tools/perf_stress_test.py --mode bullet      # Bullet-only ramp
+    python tools/perf_stress_test.py --mode voxel       # VoxelDynamicsWorld ramp
     python tools/perf_stress_test.py --mode mixed       # Mixed ramp
     python tools/perf_stress_test.py --mode scale       # Scale comparison
     python tools/perf_stress_test.py --mode sustained   # Sustained max load
@@ -97,6 +98,37 @@ def spawn_bullet(count, scale=1.0, x=32.0, y=20.0, z=32.0):
         "count": count,
         "lifetime": 120.0,  # long lifetime so they don't expire during test
     })
+
+
+def get_camera_pos():
+    """Return (x, y, z) of the current camera position."""
+    try:
+        state = api_get("/api/world/state")
+        cam = state.get("camera", {}).get("position", {})
+        return cam.get("x", 32.0), cam.get("y", 20.0), cam.get("z", 32.0)
+    except Exception:
+        return 32.0, 20.0, 32.0
+
+
+def spawn_voxel(count, scale=1.0, x=None, y=None, z=None, lifetime=10.0):
+    """Spawn VoxelDynamicsWorld bodies near the camera."""
+    if x is None or y is None or z is None:
+        cx, cy, cz = get_camera_pos()
+        x = cx if x is None else x
+        y = (cy + 3.0) if y is None else y   # a few units above camera
+        z = cz if z is None else z
+    return api_post("/api/debug/spawn_voxel_body", {
+        "x": x, "y": y, "z": z,
+        "scale": scale,
+        "mass": 1.0,
+        "lifetime": lifetime,
+        "count": count,
+    })
+
+
+def clear_voxel_bodies():
+    """Remove all VoxelDynamicsWorld bodies."""
+    return api_post("/api/debug/clear_voxel_bodies", {})
 
 
 def measure(settle_time=SETTLE_TIME):
@@ -261,6 +293,57 @@ def test_bullet_ramp(quick=False, settle_time=SETTLE_TIME):
             print_row(i, "bullet", target, 1.0, m)
 
     clear_dynamics()
+    return rows
+
+
+def test_voxel_ramp(quick=False, settle_time=SETTLE_TIME):
+    """Ramp up VoxelDynamicsWorld body count and measure FPS at each level."""
+    if quick:
+        steps = [50, 100, 200, 500, 1000]
+    else:
+        steps = [50, 100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000]
+
+    print("\n=== VOXEL DYNAMICS WORLD RAMP TEST ===\n")
+    print_header()
+
+    clear_voxel_bodies()
+    time.sleep(1)
+
+    # Spawn near the player camera, a few units above to let them fall
+    cx, cy, cz = get_camera_pos()
+    spawn_x, spawn_y, spawn_z = cx, cy + 4.0, cz
+    print(f"  Spawning near camera at ({spawn_x:.1f}, {spawn_y:.1f}, {spawn_z:.1f})\n")
+
+    rows = []
+    total_spawned = 0
+
+    # Baseline
+    m = measure(settle_time)
+    if m:
+        row = {"step": 0, "system": "voxel", "count": 0, "scale": 1.0, **m}
+        rows.append(row)
+        print_row(0, "voxel", 0, 1.0, m)
+
+    for i, target in enumerate(steps, 1):
+        to_spawn = target - total_spawned
+        if to_spawn <= 0:
+            continue
+
+        # Spawn in batches of up to 500 to avoid HTTP timeout
+        remaining = to_spawn
+        while remaining > 0:
+            batch = min(remaining, 500)
+            spawn_voxel(batch, x=spawn_x, y=spawn_y, z=spawn_z, lifetime=10.0)
+            remaining -= batch
+            total_spawned += batch
+
+        m = measure(settle_time)
+        if m:
+            row = {"step": i, "system": "voxel", "count": target, "scale": 1.0, **m}
+            rows.append(row)
+            print_row(i, "voxel", target, 1.0, m)
+
+    clear_voxel_bodies()
     return rows
 
 
@@ -500,7 +583,7 @@ def print_breakpoint_summary(all_rows):
 
 def main():
     parser = argparse.ArgumentParser(description="Phyxel GPU/Bullet performance stress tester")
-    parser.add_argument("--mode", choices=["all", "gpu", "bullet", "mixed", "scale", "sustained"],
+    parser.add_argument("--mode", choices=["all", "gpu", "bullet", "voxel", "mixed", "scale", "sustained"],
                         default="all", help="Test mode (default: all)")
     parser.add_argument("--quick", action="store_true",
                         help="Fewer test steps for faster results")
@@ -538,13 +621,14 @@ def main():
     modes = {
         "gpu": lambda: test_gpu_ramp(args.quick, args.settle),
         "bullet": lambda: test_bullet_ramp(args.quick, args.settle),
+        "voxel": lambda: test_voxel_ramp(args.quick, args.settle),
         "mixed": lambda: test_mixed_ramp(args.quick, args.settle),
         "scale": lambda: test_scale_comparison(args.quick, args.settle),
         "sustained": lambda: test_sustained(args.settle),
     }
 
     if args.mode == "all":
-        for name in ["gpu", "bullet", "mixed", "scale", "sustained"]:
+        for name in ["gpu", "bullet", "voxel", "mixed", "scale", "sustained"]:
             try:
                 rows = modes[name]()
                 all_rows.extend(rows)
