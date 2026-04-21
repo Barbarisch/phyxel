@@ -222,19 +222,19 @@ bool VoxelManipulationSystem::breakCube(const CubeLocation& location, const glm:
     
     glm::vec3 cubeWorldPos = glm::vec3(location.worldPos);
     
+    // Save material before removal (pointer becomes dangling after removeCube)
+    std::string selectedMaterial = originalCube->getMaterialName();
+
     // Remove the cube from the chunk
     bool removed = chunk->removeCube(location.localPos);
     if (!removed) {
         LOG_WARN("VoxelManipulation", "[CUBE BREAKING] WARNING: Failed to remove cube from chunk");
         return false;
     }
-    
+
     // Create a dynamic cube at the position
     glm::vec3 cubeCornerPos = cubeWorldPos;
     glm::vec3 physicsCenterPos = cubeCornerPos + glm::vec3(0.5f);
-    
-    // Select material based on position
-    std::string selectedMaterial = selectMaterialForCube(cubeWorldPos);
     
     auto dynamicCube = std::make_unique<Cube>(cubeCornerPos, selectedMaterial);
     
@@ -473,6 +473,9 @@ bool VoxelManipulationSystem::breakCubeAtPosition(const glm::ivec3& worldPos, bo
     
     glm::vec3 cubeWorldPos = glm::vec3(worldPos);
     
+    // Save material before removal (pointer becomes dangling after removeCube)
+    std::string selectedMaterial = originalCube->getMaterialName();
+
     // Remove cube from chunk
     bool removed = chunk->removeCube(localPos);
     if (!removed) {
@@ -483,8 +486,7 @@ bool VoxelManipulationSystem::breakCubeAtPosition(const glm::ivec3& worldPos, bo
     // Create dynamic cube
     glm::vec3 cubeCornerPos = cubeWorldPos;
     glm::vec3 physicsCenterPos = cubeCornerPos + glm::vec3(0.5f);
-    
-    std::string selectedMaterial = selectMaterialForCube(cubeWorldPos);
+
     auto dynamicCube = std::make_unique<Cube>(cubeCornerPos, selectedMaterial);
     
     // Create physics body

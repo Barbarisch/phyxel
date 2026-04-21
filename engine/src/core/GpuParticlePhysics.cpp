@@ -16,18 +16,10 @@ namespace Phyxel {
 // Static data
 // ============================================================
 
-// Maps GPU materialIndex → MaterialRegistry material ID (same value — we reuse the ID directly)
-const std::vector<std::string> GpuParticlePhysics::MATERIAL_NAMES = {
-    "placeholder", "grassdirt", "Cork", "Default",
-    "Glass", "glow", "hover", "Ice",
-    "Metal", "Rubber", "Stone", "Wood"
-};
-
+// materialNameToIndex uses MaterialRegistry — no hardcoded list needed.
 uint32_t GpuParticlePhysics::materialNameToIndex(const std::string& name) {
-    for (uint32_t i = 0; i < static_cast<uint32_t>(MATERIAL_NAMES.size()); ++i) {
-        if (MATERIAL_NAMES[i] == name) return i;
-    }
-    return 3u; // "Default" fallback
+    int id = Core::MaterialRegistry::instance().getMaterialID(name);
+    return (id >= 0) ? static_cast<uint32_t>(id) : 3u; // 3 = Default fallback
 }
 
 // ============================================================
@@ -250,7 +242,7 @@ bool GpuParticlePhysics::createBuffers(Vulkan::VulkanDevice* dev) {
 
     // 7. Material physics properties (host-coherent SSBO, 32 bytes × material count)
     {
-        VkDeviceSize matPhysSize = static_cast<VkDeviceSize>(MATERIAL_NAMES.size()) * sizeof(MaterialPhysicsGpu);
+        VkDeviceSize matPhysSize = static_cast<VkDeviceSize>(Core::MaterialRegistry::instance().getMaterialCount()) * sizeof(MaterialPhysicsGpu);
         VkBufferCreateInfo bi{};
         bi.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         bi.size        = matPhysSize;
@@ -394,20 +386,15 @@ bool GpuParticlePhysics::initMaterialPhysicsTable() {
     auto& reg = Phyxel::Core::MaterialRegistry::instance();
     auto* dst = static_cast<MaterialPhysicsGpu*>(m_materialPhysMapped);
 
-    for (uint32_t i = 0; i < static_cast<uint32_t>(MATERIAL_NAMES.size()); ++i) {
-        const auto& name = MATERIAL_NAMES[i];
+    for (int i = 0; i < reg.getMaterialCount(); ++i) {
+        const std::string& name = reg.getAllMaterials()[i].name;
         MaterialPhysicsGpu gpu{};
 
         if (reg.hasMaterial(name)) {
             const auto& mp = reg.getPhysics(name);
             gpu.mass            = mp.mass;
             gpu.restitution     = mp.restitution;
-            // MaterialProperties friction is "grip" (0=slippery, 1=full grip).
-            // GPU friction is velocity retention after surface hit (0=dead stop, 1=no friction).
-            // Original hardcoded baseline: retention=0.82 for Default (mp.friction=0.5)
             gpu.friction        = std::max(0.0f, 1.0f - mp.friction * 0.36f);
-            // MaterialProperties damping is a drag coefficient. GPU uses per-frame retention.
-            // Baseline: retention=0.995(linear)/0.97(angular) for Default (mp.damping=0.1)
             gpu.linearDamp      = std::max(0.9f, 1.0f - mp.linearDamping * 0.05f);
             gpu.angularDamp     = std::max(0.7f, 1.0f - mp.angularDamping * 0.3f);
             gpu.breakForceScale = mp.breakForceMultiplier;
@@ -480,8 +467,9 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
     VkDeviceSize particleSize = static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(GpuParticle);
     VkDeviceSize faceSize     = static_cast<VkDeviceSize>(MAX_FACE_SLOTS) * 64;
     VkDeviceSize occSize      = static_cast<VkDeviceSize>(OCC_TOTAL_WORDS) * sizeof(uint32_t);
-    uint32_t     matTableSize = static_cast<uint32_t>(MATERIAL_NAMES.size()) * 6 * sizeof(uint32_t);
-    VkDeviceSize matPhysSize  = static_cast<VkDeviceSize>(MATERIAL_NAMES.size()) * sizeof(MaterialPhysicsGpu);
+    uint32_t     matCount     = static_cast<uint32_t>(Core::MaterialRegistry::instance().getMaterialCount());
+    uint32_t     matTableSize = matCount * 6 * sizeof(uint32_t);
+    VkDeviceSize matPhysSize  = static_cast<VkDeviceSize>(matCount) * sizeof(MaterialPhysicsGpu);
     VkDeviceSize gridHeadSize = static_cast<VkDeviceSize>(GRID_CELLS) * sizeof(uint32_t);
     VkDeviceSize gridNextSize = static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t);
 
