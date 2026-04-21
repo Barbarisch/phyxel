@@ -216,6 +216,7 @@ public:
     void addCollisionEntity(const glm::ivec3& localPos);                       // Add collision entity with spatial tracking
     void removeCollisionEntities(const glm::ivec3& localPos);          // Remove all collision entities at position (O(1))
     void batchUpdateCollisions();                                       // Process collision changes in batch for performance
+    void setPhysicsBulkMode(bool bulk);                               // Suppress per-voxel collision rebuilds; call batchUpdateCollisions when done
     void buildInitialCollisionShapes();                               // Build initial collision shapes with spatial grid
     bool hasExposedFaces(const glm::ivec3& localPos) const;           // Check if cube has exposed faces (optimization)
     

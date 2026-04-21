@@ -222,19 +222,19 @@ bool VoxelManipulationSystem::breakCube(const CubeLocation& location, const glm:
     
     glm::vec3 cubeWorldPos = glm::vec3(location.worldPos);
     
+    // Save material before removal (pointer becomes dangling after removeCube)
+    std::string selectedMaterial = originalCube->getMaterialName();
+
     // Remove the cube from the chunk
     bool removed = chunk->removeCube(location.localPos);
     if (!removed) {
         LOG_WARN("VoxelManipulation", "[CUBE BREAKING] WARNING: Failed to remove cube from chunk");
         return false;
     }
-    
+
     // Create a dynamic cube at the position
     glm::vec3 cubeCornerPos = cubeWorldPos;
     glm::vec3 physicsCenterPos = cubeCornerPos + glm::vec3(0.5f);
-    
-    // Select material based on position
-    std::string selectedMaterial = selectMaterialForCube(cubeWorldPos);
     
     auto dynamicCube = std::make_unique<Cube>(cubeCornerPos, selectedMaterial);
     
@@ -386,6 +386,7 @@ bool VoxelManipulationSystem::breakMicrocube(const CubeLocation& location, bool 
     bool isVisible = microcube->isVisible();
     float lifetime = microcube->getLifetime();
     glm::ivec3 parentCubePos = microcube->getParentCubePosition();
+    std::string materialName = microcube->getMaterialName();
     
     // Remove the microcube from chunk
     bool removed = chunk->removeMicrocube(localPos, subcubePos, microcubePos);
@@ -395,7 +396,7 @@ bool VoxelManipulationSystem::breakMicrocube(const CubeLocation& location, bool 
     }
     
     // Create new dynamic microcube for physics
-    auto dynamicMicrocube = std::make_unique<Microcube>(parentCubePos, subcubePos, microcubePos);
+    auto dynamicMicrocube = std::make_unique<Microcube>(parentCubePos, subcubePos, microcubePos, materialName);
     dynamicMicrocube->setVisible(isVisible);
     dynamicMicrocube->setLifetime(lifetime);
     dynamicMicrocube->breakApart(); // Mark as broken
@@ -472,6 +473,9 @@ bool VoxelManipulationSystem::breakCubeAtPosition(const glm::ivec3& worldPos, bo
     
     glm::vec3 cubeWorldPos = glm::vec3(worldPos);
     
+    // Save material before removal (pointer becomes dangling after removeCube)
+    std::string selectedMaterial = originalCube->getMaterialName();
+
     // Remove cube from chunk
     bool removed = chunk->removeCube(localPos);
     if (!removed) {
@@ -482,8 +486,7 @@ bool VoxelManipulationSystem::breakCubeAtPosition(const glm::ivec3& worldPos, bo
     // Create dynamic cube
     glm::vec3 cubeCornerPos = cubeWorldPos;
     glm::vec3 physicsCenterPos = cubeCornerPos + glm::vec3(0.5f);
-    
-    std::string selectedMaterial = selectMaterialForCube(cubeWorldPos);
+
     auto dynamicCube = std::make_unique<Cube>(cubeCornerPos, selectedMaterial);
     
     // Create physics body
@@ -555,7 +558,10 @@ bool VoxelManipulationSystem::placeCube(const glm::ivec3& worldPos, const glm::v
     LOG_INFO("VoxelManipulation", "[PLACE CUBE] Position empty, placing cube...");
     
     // Place the cube
-    bool success = chunkManager->addCube(worldPos);
+    std::string material = m_materialProvider ? m_materialProvider() : "";
+    bool success = material.empty()
+        ? chunkManager->addCube(worldPos)
+        : chunkManager->m_voxelModificationSystem.addCubeWithMaterial(worldPos, material);
     if (success) {
         LOG_INFO_FMT("VoxelManipulation", "[PLACE CUBE] Successfully placed cube at world pos (" 
                   << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")");
@@ -617,7 +623,10 @@ bool VoxelManipulationSystem::placeSubcube(const glm::ivec3& worldPos, const glm
     }
     
     // Place the subcube (this creates a standalone subcube without requiring parent cube)
-    bool success = chunk->addSubcube(localPos, subcubePos);
+    std::string material = m_materialProvider ? m_materialProvider() : "";
+    bool success = material.empty()
+        ? chunk->addSubcube(localPos, subcubePos)
+        : chunkManager->m_voxelModificationSystem.addSubcubeWithMaterial(worldPos, subcubePos, material);
     if (success) {
         LOG_INFO_FMT("VoxelManipulation", "[PLACE SUBCUBE] Successfully placed subcube at world pos (" 
                   << worldPos.x << "," << worldPos.y << "," << worldPos.z 
@@ -687,7 +696,10 @@ bool VoxelManipulationSystem::placeMicrocube(const glm::ivec3& parentCubePos, co
     }
     
     // Place the microcube (standalone, doesn't require parent subcube)
-    bool success = chunk->addMicrocube(localPos, subcubePos, microcubePos);
+    std::string material = m_materialProvider ? m_materialProvider() : "";
+    bool success = material.empty()
+        ? chunk->addMicrocube(localPos, subcubePos, microcubePos)
+        : chunkManager->m_voxelModificationSystem.addMicrocubeWithMaterial(parentCubePos, subcubePos, microcubePos, material);
     if (success) {
         LOG_INFO_FMT("VoxelManipulation", "[PLACE MICROCUBE] Successfully placed microcube at world pos (" 
                   << parentCubePos.x << "," << parentCubePos.y << "," << parentCubePos.z 

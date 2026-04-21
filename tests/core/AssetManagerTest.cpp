@@ -30,8 +30,8 @@ TEST_F(AssetManagerTest, ResolveShader) {
 }
 
 TEST_F(AssetManagerTest, ResolveTemplate) {
-    EXPECT_EQ(Core::AssetManager::instance().resolveTemplate("tree.txt"),
-              "resources/templates/tree.txt");
+    EXPECT_EQ(Core::AssetManager::instance().resolveTemplate("tree.voxel"),
+              "resources/templates/tree.voxel");
 }
 
 TEST_F(AssetManagerTest, ResolveTexture) {
@@ -56,7 +56,7 @@ TEST_F(AssetManagerTest, ResolveAnimatedChar) {
 
 TEST_F(AssetManagerTest, ResolveRecipe) {
     EXPECT_EQ(Core::AssetManager::instance().resolveRecipe("characters/guard.yaml"),
-              "resources/recipes/characters/guard.yaml");
+              "resources/ai/characters/guard.yaml");
 }
 
 TEST_F(AssetManagerTest, ResolveWorld) {
@@ -81,7 +81,7 @@ TEST_F(AssetManagerTest, DirectoryAccessors) {
     EXPECT_EQ(am.dialoguesDir(), "resources/dialogues");
     EXPECT_EQ(am.soundsDir(), "resources/sounds");
     EXPECT_EQ(am.animatedCharsDir(), "resources/animated_characters");
-    EXPECT_EQ(am.recipesDir(), "resources/recipes");
+    EXPECT_EQ(am.recipesDir(), "resources/ai");
     EXPECT_EQ(am.worldsDir(), "worlds");
     EXPECT_EQ(am.scriptsDir(), "scripts");
 }
@@ -117,7 +117,7 @@ TEST_F(AssetManagerTest, CustomConfig) {
     auto& am = Core::AssetManager::instance();
 
     EXPECT_EQ(am.resolveShader("test.spv"), "game_shaders/test.spv");
-    EXPECT_EQ(am.resolveTemplate("tree.txt"), "game_assets/objects/tree.txt");
+    EXPECT_EQ(am.resolveTemplate("tree.voxel"), "game_assets/objects/tree.voxel");
     EXPECT_EQ(am.resolveSound("boom.wav"), "game_assets/audio/boom.wav");
     EXPECT_EQ(am.resolveScript("init.lua"), "lua/init.lua");
     EXPECT_EQ(am.worldDatabasePath(), "saves/world1.db");

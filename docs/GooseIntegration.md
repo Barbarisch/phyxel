@@ -218,7 +218,7 @@ scripts/mcp/
     story_tools.py          # Story/quest MCP tools
     dev_tools.py            # Developer workflow MCP tools
 
-resources/recipes/
+resources/ai/
     characters/
         guard.yaml          # Guard archetype recipe
         merchant.yaml       # Merchant archetype recipe

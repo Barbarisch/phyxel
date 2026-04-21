@@ -6,11 +6,15 @@
 #include "graphics/Animation.h"
 #include "core/HealthComponent.h"
 #include "core/EquipmentSystem.h"
+#include "core/CharacterSheet.h"
+#include "core/AttackResolver.h"
+#include "core/DamageTypes.h"
 #include "ai/NeedsSystem.h"
 #include "ai/WorldView.h"
 #include "ui/DialogueData.h"
 #include <string>
 #include <memory>
+#include <optional>
 #include <glm/glm.hpp>
 
 namespace Phyxel {
@@ -116,6 +120,34 @@ public:
     AI::WorldView& getWorldView() { return m_worldView; }
     const AI::WorldView& getWorldView() const { return m_worldView; }
 
+    // -----------------------------------------------------------------------
+    // D&D Character Sheet (optional — absent for non-RPG NPCs)
+    // -----------------------------------------------------------------------
+
+    /// Attach a CharacterSheet. Syncs HealthComponent max HP from the sheet.
+    void setCharacterSheet(const Core::CharacterSheet& sheet);
+
+    /// Returns nullptr if no sheet has been assigned.
+    Core::CharacterSheet*       getCharacterSheet()       { return m_sheet ? &*m_sheet : nullptr; }
+    const Core::CharacterSheet* getCharacterSheet() const { return m_sheet ? &*m_sheet : nullptr; }
+    bool hasCharacterSheet() const { return m_sheet.has_value(); }
+
+    /// Resolve a weapon attack against this NPC using D&D rules.
+    /// Uses the sheet's AC if available, otherwise falls back to HealthComponent.
+    /// Calls HealthComponent::damage() with the final result.
+    /// @param attackBonus  attacker's total attack modifier (STR/DEX mod + prof + magic)
+    /// @param damageDice   e.g. "1d8+3"
+    /// @param damageType   DamageType enum value
+    /// @param hasAdvantage
+    /// @param hasDisadvantage
+    /// @returns the resolved attack result (hit, damage dealt, etc.)
+    Core::AttackRollResult receiveAttack(
+        int attackBonus,
+        const Core::DiceExpression& damageDice,
+        Core::DamageType damageType,
+        bool hasAdvantage    = false,
+        bool hasDisadvantage = false);
+
 private:
     std::string m_name;
     std::unique_ptr<AnimatedVoxelCharacter> m_character;       // Kinematic (animated) character
@@ -129,6 +161,7 @@ private:
     Core::EquipmentSlots m_equipment;
     AI::NeedsSystem m_needs;
     AI::WorldView m_worldView;
+    std::optional<Core::CharacterSheet> m_sheet;
 };
 
 } // namespace Scene

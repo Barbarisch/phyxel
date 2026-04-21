@@ -157,7 +157,31 @@ def scan_game_definition(definition: dict) -> dict:
         "has_player": False,
         "has_story": False,
         "has_audio": False,
+        "is_multi_scene": False,
+        "scene_databases": [],
     }
+
+    # Multi-scene: recurse into each scene's definition
+    if "scenes" in definition:
+        needs["is_multi_scene"] = True
+        for scene in definition["scenes"]:
+            db = scene.get("worldDatabase", f"worlds/{scene.get('id', 'unknown')}.db")
+            needs["scene_databases"].append(db)
+            scene_def = scene.get("definition", {})
+            sub = scan_game_definition(scene_def)
+            needs["templates"] |= sub["templates"]
+            needs["anim_files"] |= sub["anim_files"]
+            needs["dialogues"] |= sub["dialogues"]
+            needs["sounds"] |= sub["sounds"]
+            needs["has_npcs"] = needs["has_npcs"] or sub["has_npcs"]
+            needs["has_player"] = needs["has_player"] or sub["has_player"]
+            needs["has_story"] = needs["has_story"] or sub["has_story"]
+            needs["has_audio"] = needs["has_audio"] or sub["has_audio"]
+        if definition.get("playerDefaults"):
+            needs["has_player"] = True
+        if definition.get("globalStory"):
+            needs["has_story"] = True
+        return needs
 
     # Check structures for template references
     for struct in definition.get("structures", []):
@@ -374,7 +398,31 @@ def package_game(
     # ── 11. Pre-baked world database ───────────────────────────────────
     worlds_dir = output_dir / "worlds"
     worlds_dir.mkdir(exist_ok=True)
-    if world_db_path and world_db_path.exists():
+
+    if needs.get("is_multi_scene"):
+        # Multi-scene: copy each scene's database
+        for db_rel in needs.get("scene_databases", []):
+            db_name = Path(db_rel).name
+            # Try project dir first, then engine root
+            candidates = []
+            if is_game_project and project_dir:
+                candidates.append(project_dir / "worlds" / db_name)
+            candidates.append(PHYXEL_ROOT / "worlds" / db_name)
+            copied = False
+            for src in candidates:
+                if src.exists():
+                    dst = worlds_dir / db_name
+                    if not (dst.exists() and os.path.samefile(src, dst)):
+                        shutil.copy2(src, dst)
+                    files_copied += 1
+                    copied = True
+                    break
+            if not copied:
+                result["warnings"].append(
+                    f"Scene database '{db_name}' not found. "
+                    "Run the engine and save each scene, or use --prebake-world."
+                )
+    elif world_db_path and world_db_path.exists():
         shutil.copy2(world_db_path, worlds_dir / "default.db")
         files_copied += 1
     elif is_game_project and (project_dir / "worlds" / "default.db").exists():

@@ -30,7 +30,7 @@ namespace AI {
 //   // In game loop:
 //   aiSystem->update(deltaTime);
 //   // Creating AI NPCs:
-//   aiSystem->createAINPC(entity, "guard_01", "resources/recipes/characters/guard.yaml");
+//   aiSystem->createAINPC(entity, "guard_01", "resources/ai/characters/guard.yaml");
 // ============================================================================
 
 class AISystem {
@@ -100,7 +100,7 @@ public:
 
     /// Start the story director with a recipe.
     bool startStoryDirector(const std::string& recipePath =
-        "resources/recipes/stories/story_director.yaml");
+        "resources/ai/stories/story_director.yaml");
 
     /// Stop the story director.
     void stopStoryDirector();

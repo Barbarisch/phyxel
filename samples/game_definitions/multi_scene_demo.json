@@ -1,0 +1,124 @@
+{
+  "name": "Multi-Scene Demo",
+  "description": "Demonstrates the scene system with two levels: a village overworld and a cave dungeon.",
+  "version": "1.0",
+
+  "scenes": [
+    {
+      "id": "village",
+      "name": "Village Overworld",
+      "worldDatabase": "worlds/village.db",
+      "transitionStyle": "fade",
+      "definition": {
+        "world": {
+          "type": "Perlin",
+          "seed": 42,
+          "from": { "x": -1, "y": 0, "z": -1 },
+          "to":   { "x": 1,  "y": 0, "z": 1  },
+          "params": {
+            "heightScale": 4.0,
+            "frequency": 0.04,
+            "octaves": 3,
+            "persistence": 0.4
+          }
+        },
+        "camera": {
+          "position": { "x": 30, "y": 35, "z": 30 },
+          "yaw": -135,
+          "pitch": -25
+        },
+        "structures": [
+          {
+            "type": "house",
+            "position": { "x": 20, "y": 16, "z": 20 },
+            "width": 8, "depth": 10, "height": 5,
+            "facing": "south",
+            "materials": { "wall": "Stone", "floor": "Wood" },
+            "windows": 2
+          }
+        ],
+        "npcs": [
+          {
+            "name": "Village Elder",
+            "position": { "x": 18, "y": 20, "z": 18 },
+            "behavior": "idle",
+            "dialogue": {
+              "id": "elder_talk",
+              "startNodeId": "start",
+              "nodes": [
+                {
+                  "id": "start",
+                  "speaker": "Village Elder",
+                  "text": "Welcome, traveler. The cave entrance lies to the east. Be careful down there!"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "cave",
+      "name": "Cave Dungeon",
+      "worldDatabase": "worlds/cave.db",
+      "transitionStyle": "loading_screen",
+      "definition": {
+        "world": {
+          "type": "Caves",
+          "seed": 99,
+          "from": { "x": 0, "y": 0, "z": 0 },
+          "to":   { "x": 1, "y": 0, "z": 1 },
+          "params": {
+            "caveThreshold": 0.45,
+            "heightScale": 6.0
+          }
+        },
+        "camera": {
+          "position": { "x": 20, "y": 25, "z": 20 },
+          "yaw": -135,
+          "pitch": -20
+        },
+        "npcs": [
+          {
+            "name": "Lost Miner",
+            "position": { "x": 16, "y": 18, "z": 16 },
+            "behavior": "idle",
+            "dialogue": {
+              "id": "miner_talk",
+              "startNodeId": "start",
+              "nodes": [
+                {
+                  "id": "start",
+                  "speaker": "Lost Miner",
+                  "text": "Thank goodness! I've been trapped down here. Can you help me find the way out?"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+
+  "startScene": "village",
+
+  "playerDefaults": {
+    "type": "animated",
+    "position": { "x": 16, "y": 25, "z": 16 }
+  },
+
+  "globalStory": {
+    "arcs": [
+      {
+        "id": "main_quest",
+        "name": "The Lost Miner",
+        "constraintMode": "Guided",
+        "beats": [
+          { "id": "b1", "description": "Speak with the Village Elder", "type": "Hard" },
+          { "id": "b2", "description": "Enter the cave dungeon", "type": "Hard" },
+          { "id": "b3", "description": "Find the Lost Miner", "type": "Hard" }
+        ]
+      }
+    ]
+  }
+}

@@ -29,8 +29,17 @@ void ObjectTemplateManager::loadTemplates(const std::string& directoryPath) {
     }
 
     for (const auto& entry : fs::directory_iterator(directoryPath)) {
-        if (entry.is_regular_file() && entry.path().extension() == ".txt") {
-            loadTemplate(entry.path().string());
+        if (entry.is_regular_file()) {
+            auto ext = entry.path().extension().string();
+            if (ext == ".voxel") {
+                loadTemplate(entry.path().string());
+            } else if (ext == ".txt") {
+                // Backward compatibility: load legacy .txt templates with deprecation warning
+                LOG_WARN_FMT("ObjectTemplateManager",
+                    "Template '" << entry.path().filename().string()
+                    << "' uses legacy .txt extension — rename to .voxel");
+                loadTemplate(entry.path().string());
+            }
         }
     }
 }
@@ -82,6 +91,7 @@ void ObjectTemplateManager::parseLine(const std::string& line, VoxelTemplate& tm
         }
 
         // New format: "# interaction_point: pointId type localX localY localZ facingYaw group1,group2,..."
+        // Optional trailing fields: radius promptText viewAngle
         // Only asset-level data; per-archetype offsets live in JSON profiles.
         const std::string interactionPointKey = "# interaction_point:";
         if (line.compare(0, interactionPointKey.size(), interactionPointKey) == 0) {
@@ -99,6 +109,23 @@ void ObjectTemplateManager::parseLine(const std::string& line, VoxelTemplate& tm
                     while (std::getline(groupStream, group, ',')) {
                         if (!group.empty()) def.supportedGroups.push_back(group);
                     }
+                }
+                // Optional: radius
+                float radius = 0.0f;
+                if (iss >> radius) {
+                    def.interactionRadius = radius;
+                }
+                // Optional: promptText (quoted string)
+                std::string prompt;
+                if (iss >> std::ws && iss.peek() == '"') {
+                    iss.get(); // consume opening quote
+                    std::getline(iss, prompt, '"');
+                    def.promptText = prompt;
+                }
+                // Optional: viewAngle
+                float viewAngle = 0.0f;
+                if (iss >> viewAngle) {
+                    def.viewAngleHalf = viewAngle;
                 }
                 tmpl.interactionPoints.push_back(def);
             } else {
@@ -216,50 +243,29 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
     glm::ivec3 basePos = glm::round(worldPos);
     std::unordered_set<Chunk*> modifiedChunks;
 
+    // Helper: get-or-create chunk and enable bulk physics mode on first touch
+    auto getOrCreateChunk = [&](const glm::ivec3& worldBlockPos) -> Chunk* {
+        glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(worldBlockPos);
+        auto it = m_chunkManager->chunkMap.find(chunkCoord);
+        if (it == m_chunkManager->chunkMap.end()) {
+            glm::ivec3 origin = chunkCoord * 32;
+            m_chunkManager->createChunk(origin, false);
+            it = m_chunkManager->chunkMap.find(chunkCoord);
+        }
+        if (it == m_chunkManager->chunkMap.end()) return nullptr;
+        Chunk* chunk = it->second;
+        if (modifiedChunks.insert(chunk).second) {
+            chunk->setPhysicsBulkMode(true);
+        }
+        return chunk;
+    };
+
     // Spawn Cubes
     for (const auto& tCube : tmpl->cubes) {
         glm::ivec3 pos = basePos + rotateOffset(tCube.relativePos);
-        
-        if (isStatic) {
-            glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(pos);
-            glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(pos);
-            
-            Chunk* chunk = nullptr;
-            auto it = m_chunkManager->chunkMap.find(chunkCoord);
-            if (it != m_chunkManager->chunkMap.end()) {
-                chunk = it->second;
-            } else {
-                // Create new empty chunk if it doesn't exist
-                // This ensures templates can be spawned even in empty space/air
-                glm::ivec3 origin = chunkCoord * 32;
-                m_chunkManager->createChunk(origin, false); // false = empty (no noise generation)
-                
-                // Retrieve the newly created chunk
-                it = m_chunkManager->chunkMap.find(chunkCoord);
-                if (it != m_chunkManager->chunkMap.end()) {
-                    chunk = it->second;
-                }
-            }
-
-            // If chunk doesn't exist, we might need to create it or skip
-            if (chunk) {
-                if (chunk->addCube(localPos)) {
-                    modifiedChunks.insert(chunk);
-                }
-                // Note: Material setting not fully implemented in addCube yet, usually defaults
-                // If addCube supported material, we'd pass tCube.material
-            }
-        } else {
-            auto cube = std::make_unique<Cube>(pos, tCube.material);
-            
-            if (m_chunkManager->physicsWorld) {
-                glm::vec3 center = glm::vec3(pos) + glm::vec3(0.5f);
-                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawayCube(center, glm::vec3(1.0f), 1.0f);
-                cube->setRigidBody(body);
-                cube->setPhysicsPosition(center);
-            }
-            
-            m_dynamicObjectManager->addGlobalDynamicCube(std::move(cube));
+        glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(pos);
+        if (Chunk* chunk = getOrCreateChunk(pos)) {
+            chunk->addCube(localPos);
         }
     }
 
@@ -267,45 +273,9 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
     for (const auto& tSub : tmpl->subcubes) {
         glm::ivec3 parentPos = basePos + rotateOffset(tSub.parentRelativePos);
         glm::ivec3 subPos = rotateLocal(tSub.subcubePos);
-        
-        if (isStatic) {
-            glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(parentPos);
-            glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(parentPos);
-            
-            Chunk* chunk = nullptr;
-            auto it = m_chunkManager->chunkMap.find(chunkCoord);
-            if (it != m_chunkManager->chunkMap.end()) {
-                chunk = it->second;
-            } else {
-                // Create new empty chunk if it doesn't exist
-                glm::ivec3 origin = chunkCoord * 32;
-                m_chunkManager->createChunk(origin, false);
-                
-                it = m_chunkManager->chunkMap.find(chunkCoord);
-                if (it != m_chunkManager->chunkMap.end()) {
-                    chunk = it->second;
-                }
-            }
-
-            if (chunk) {
-                if (chunk->addSubcube(localPos, subPos, tSub.material)) {
-                    modifiedChunks.insert(chunk);
-                }
-            }
-        } else {
-            auto subcube = std::make_unique<Subcube>(parentPos, subPos, tSub.material);
-            
-            if (m_chunkManager->physicsWorld) {
-                glm::vec3 corner = subcube->getWorldPosition();
-                glm::vec3 size(1.0f/3.0f);
-                glm::vec3 center = corner + size * 0.5f;
-                
-                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawayCube(center, size, 0.5f);
-                subcube->setRigidBody(body);
-                subcube->setPhysicsPosition(center);
-            }
-            
-            m_dynamicObjectManager->addGlobalDynamicSubcube(std::move(subcube));
+        glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(parentPos);
+        if (Chunk* chunk = getOrCreateChunk(parentPos)) {
+            chunk->addSubcube(localPos, subPos, tSub.material);
         }
     }
 
@@ -314,54 +284,18 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
         glm::ivec3 parentPos = basePos + rotateOffset(tMicro.parentRelativePos);
         glm::ivec3 subPos = rotateLocal(tMicro.subcubePos);
         glm::ivec3 microPos = rotateLocal(tMicro.microcubePos);
-        
-        if (isStatic) {
-            glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(parentPos);
-            glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(parentPos);
-            
-            Chunk* chunk = nullptr;
-            auto it = m_chunkManager->chunkMap.find(chunkCoord);
-            if (it != m_chunkManager->chunkMap.end()) {
-                chunk = it->second;
-            } else {
-                // Create new empty chunk if it doesn't exist
-                glm::ivec3 origin = chunkCoord * 32;
-                m_chunkManager->createChunk(origin, false);
-                
-                it = m_chunkManager->chunkMap.find(chunkCoord);
-                if (it != m_chunkManager->chunkMap.end()) {
-                    chunk = it->second;
-                }
-            }
-
-            if (chunk) {
-                if (chunk->addMicrocube(localPos, subPos, microPos, tMicro.material)) {
-                    modifiedChunks.insert(chunk);
-                }
-            }
-        } else {
-            auto microcube = std::make_unique<Microcube>(parentPos, subPos, microPos, tMicro.material);
-            
-            if (m_chunkManager->physicsWorld) {
-                glm::vec3 corner = microcube->getWorldPosition();
-                glm::vec3 size(1.0f/9.0f);
-                glm::vec3 center = corner + size * 0.5f;
-                
-                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawayCube(center, size, 0.1f);
-                microcube->setRigidBody(body);
-                microcube->setPhysicsPosition(center);
-            }
-            
-            m_dynamicObjectManager->addGlobalDynamicMicrocube(std::move(microcube));
+        glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(parentPos);
+        if (Chunk* chunk = getOrCreateChunk(parentPos)) {
+            chunk->addMicrocube(localPos, subPos, microPos, tMicro.material);
         }
     }
 
-    // Update all modified chunks to reflect changes
-    if (isStatic) {
-        for (Chunk* chunk : modifiedChunks) {
-            chunk->rebuildFaces();
-            chunk->updateVulkanBuffer();
-        }
+    // Finalise all modified chunks: flush deferred collisions, rebuild faces
+    for (Chunk* chunk : modifiedChunks) {
+        chunk->batchUpdateCollisions();
+        chunk->setPhysicsBulkMode(false);
+        chunk->rebuildFaces();
+        chunk->updateVulkanBuffer();
     }
 
     return true;
@@ -411,7 +345,7 @@ void ObjectTemplateManager::update(float deltaTime) {
         if (spawn.isStatic) {
             glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(pos);
             glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(pos);
-            
+
             Chunk* chunk = nullptr;
             auto it = m_chunkManager->chunkMap.find(chunkCoord);
             if (it != m_chunkManager->chunkMap.end()) {
@@ -422,7 +356,7 @@ void ObjectTemplateManager::update(float deltaTime) {
                 // we must create it to avoid losing voxels.
                 glm::ivec3 origin = chunkCoord * 32;
                 m_chunkManager->createChunk(origin, false);
-                
+
                 it = m_chunkManager->chunkMap.find(chunkCoord);
                 if (it != m_chunkManager->chunkMap.end()) {
                     chunk = it->second;
@@ -434,18 +368,8 @@ void ObjectTemplateManager::update(float deltaTime) {
                     modifiedChunks.insert(chunk);
                 }
             }
-        } else {
-            // Dynamic logic (same as spawnTemplate)
-             auto cube = std::make_unique<Cube>(pos, tCube.material);
-            if (m_chunkManager->physicsWorld) {
-                glm::vec3 center = glm::vec3(pos) + glm::vec3(0.5f);
-                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawayCube(center, glm::vec3(1.0f), 1.0f);
-                cube->setRigidBody(body);
-                cube->setPhysicsPosition(center);
-            }
-            m_dynamicObjectManager->addGlobalDynamicCube(std::move(cube));
         }
-        
+
         spawn.currentCubeIndex++;
         processedVoxels++;
     }
@@ -479,19 +403,8 @@ void ObjectTemplateManager::update(float deltaTime) {
                     modifiedChunks.insert(chunk);
                 }
             }
-        } else {
-             auto subcube = std::make_unique<Subcube>(parentPos, tSub.subcubePos, tSub.material);
-            if (m_chunkManager->physicsWorld) {
-                glm::vec3 corner = subcube->getWorldPosition();
-                glm::vec3 size(1.0f/3.0f);
-                glm::vec3 center = corner + size * 0.5f;
-                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawayCube(center, size, 0.5f);
-                subcube->setRigidBody(body);
-                subcube->setPhysicsPosition(center);
-            }
-            m_dynamicObjectManager->addGlobalDynamicSubcube(std::move(subcube));
         }
-        
+
         spawn.currentSubcubeIndex++;
         processedVoxels++;
     }
@@ -525,29 +438,16 @@ void ObjectTemplateManager::update(float deltaTime) {
                     modifiedChunks.insert(chunk);
                 }
             }
-        } else {
-            auto microcube = std::make_unique<Microcube>(parentPos, tMicro.subcubePos, tMicro.microcubePos, tMicro.material);
-            if (m_chunkManager->physicsWorld) {
-                glm::vec3 corner = microcube->getWorldPosition();
-                glm::vec3 size(1.0f/9.0f);
-                glm::vec3 center = corner + size * 0.5f;
-                btRigidBody* body = m_chunkManager->physicsWorld->createBreakawayCube(center, size, 0.1f);
-                microcube->setRigidBody(body);
-                microcube->setPhysicsPosition(center);
-            }
-            m_dynamicObjectManager->addGlobalDynamicMicrocube(std::move(microcube));
         }
-        
+
         spawn.currentMicrocubeIndex++;
         processedVoxels++;
     }
 
     // Update modified chunks immediately so the user sees the progress
-    if (spawn.isStatic) {
-        for (Chunk* chunk : modifiedChunks) {
-            chunk->rebuildFaces();
-            chunk->updateVulkanBuffer();
-        }
+    for (Chunk* chunk : modifiedChunks) {
+        chunk->rebuildFaces();
+        chunk->updateVulkanBuffer();
     }
 
     // Check if done
@@ -616,11 +516,21 @@ bool ObjectTemplateManager::saveInteractionDefs(const std::string& templateName,
             }
         }
         char buf[512];
-        std::snprintf(buf, sizeof(buf),
+        int len = std::snprintf(buf, sizeof(buf),
             "# interaction_point: %s %s %.4f %.4f %.4f %.6f %s",
             def.pointId.c_str(), def.type.c_str(),
             def.localOffset.x, def.localOffset.y, def.localOffset.z,
             def.facingYaw, groupsStr.c_str());
+        // Append optional fields if non-default
+        if (def.interactionRadius > 0.0f || !def.promptText.empty() || def.viewAngleHalf > 0.0f) {
+            len += std::snprintf(buf + len, sizeof(buf) - len, " %.2f", def.interactionRadius);
+        }
+        if (!def.promptText.empty() || def.viewAngleHalf > 0.0f) {
+            len += std::snprintf(buf + len, sizeof(buf) - len, " \"%s\"", def.promptText.c_str());
+        }
+        if (def.viewAngleHalf > 0.0f) {
+            len += std::snprintf(buf + len, sizeof(buf) - len, " %.1f", def.viewAngleHalf);
+        }
         interactionLines.push_back(buf);
     }
 

@@ -1,0 +1,112 @@
+[
+  {
+    "id": "longsword",
+    "name": "Longsword",
+    "type": "Weapon",
+    "rarity": "Common",
+    "weightLbs": 3.0,
+    "valueCp": 1500,
+    "description": "A long, double-edged blade — the iconic weapon of knights and fighters.",
+    "weapon": {
+      "category": "Martial",
+      "damage": "1d8",
+      "damageType": "Slashing",
+      "properties": ["Versatile"],
+      "versatileDamage": "1d10"
+    }
+  },
+  {
+    "id": "shortsword",
+    "name": "Shortsword",
+    "type": "Weapon",
+    "rarity": "Common",
+    "weightLbs": 2.0,
+    "valueCp": 1000,
+    "description": "A short, single-edged blade favored by rogues and rangers.",
+    "weapon": {
+      "category": "Martial",
+      "damage": "1d6",
+      "damageType": "Piercing",
+      "properties": ["Finesse", "Light"]
+    }
+  },
+  {
+    "id": "rapier",
+    "name": "Rapier",
+    "type": "Weapon",
+    "rarity": "Common",
+    "weightLbs": 2.0,
+    "valueCp": 2500,
+    "description": "A slender, sharply pointed blade optimized for thrusting.",
+    "weapon": {
+      "category": "Martial",
+      "damage": "1d8",
+      "damageType": "Piercing",
+      "properties": ["Finesse"]
+    }
+  },
+  {
+    "id": "greatsword",
+    "name": "Greatsword",
+    "type": "Weapon",
+    "rarity": "Common",
+    "weightLbs": 6.0,
+    "valueCp": 5000,
+    "description": "A massive two-handed sword dealing devastating slashing damage.",
+    "weapon": {
+      "category": "Martial",
+      "damage": "2d6",
+      "damageType": "Slashing",
+      "properties": ["Heavy", "TwoHanded"]
+    }
+  },
+  {
+    "id": "battleaxe",
+    "name": "Battleaxe",
+    "type": "Weapon",
+    "rarity": "Common",
+    "weightLbs": 4.0,
+    "valueCp": 1000,
+    "description": "A single-bladed axe with a long haft, versatile and powerful.",
+    "weapon": {
+      "category": "Martial",
+      "damage": "1d8",
+      "damageType": "Slashing",
+      "properties": ["Versatile"],
+      "versatileDamage": "1d10"
+    }
+  },
+  {
+    "id": "longbow",
+    "name": "Longbow",
+    "type": "Weapon",
+    "rarity": "Common",
+    "weightLbs": 2.0,
+    "valueCp": 5000,
+    "description": "A tall bow with exceptional range, favored by elven archers.",
+    "weapon": {
+      "category": "Martial",
+      "damage": "1d8",
+      "damageType": "Piercing",
+      "properties": ["Ammunition", "Heavy", "TwoHanded"],
+      "rangeNormal": 150,
+      "rangeLong": 600
+    }
+  },
+  {
+    "id": "warhammer",
+    "name": "Warhammer",
+    "type": "Weapon",
+    "rarity": "Common",
+    "weightLbs": 2.0,
+    "valueCp": 1500,
+    "description": "A hammer designed for war, capable of crushing armor.",
+    "weapon": {
+      "category": "Martial",
+      "damage": "1d8",
+      "damageType": "Bludgeoning",
+      "properties": ["Versatile"],
+      "versatileDamage": "1d10"
+    }
+  }
+]

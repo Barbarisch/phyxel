@@ -1,5 +1,6 @@
 #include "ui/WindowManager.h"
 #include "utils/Logger.h"
+#include <imgui.h>
 
 namespace Phyxel {
 namespace UI {
@@ -42,6 +43,7 @@ bool WindowManager::initialize(int w, int h, const std::string& t) {
     glfwSetCursorPosCallback(window, cursorPosCallbackStatic);
     glfwSetMouseButtonCallback(window, mouseButtonCallbackStatic);
     glfwSetKeyCallback(window, keyCallbackStatic);
+    glfwSetScrollCallback(window, scrollCallbackStatic);
     
     return true;
 }
@@ -141,6 +143,24 @@ void WindowManager::keyCallbackStatic(GLFWwindow* window, int key, int scancode,
     auto* manager = reinterpret_cast<WindowManager*>(glfwGetWindowUserPointer(window));
     if (manager && manager->keyCallback) {
         manager->keyCallback(key, scancode, action, mods);
+    }
+}
+
+void WindowManager::reinstallScrollCallback() {
+    if (window) {
+        glfwSetScrollCallback(window, scrollCallbackStatic);
+    }
+}
+
+void WindowManager::scrollCallbackStatic(GLFWwindow* window, double xoffset, double yoffset) {
+    auto* manager = reinterpret_cast<WindowManager*>(glfwGetWindowUserPointer(window));
+    if (!manager) return;
+    manager->m_scrollDelta += static_cast<float>(yoffset);
+    // Forward to ImGui directly (avoid ImGui_ImplGlfw_ScrollCallback which chains back to us)
+    ImGuiIO& io = ImGui::GetIO();
+    io.AddMouseWheelEvent(static_cast<float>(xoffset), static_cast<float>(yoffset));
+    if (manager->scrollCallback) {
+        manager->scrollCallback(xoffset, yoffset);
     }
 }
 

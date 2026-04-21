@@ -25,6 +25,10 @@ namespace UI {
     class WindowManager;
 }
 class ForceSystem;
+namespace Core {
+    class PlacedObjectManager;
+    class DynamicFurnitureManager;
+}
 
 /**
  * VoxelInteractionSystem
@@ -93,7 +97,16 @@ public:
     // Target mode management
     void setTargetMode(TargetMode mode) { m_targetMode = mode; }
     TargetMode getTargetMode() const { return m_targetMode; }
-    void cycleTargetMode();
+    void cycleTargetMode(int direction = 1);  // +1 forward (Cube→Sub→Micro), -1 backward
+
+    /// Place a voxel using the current target mode (cube/subcube/microcube).
+    void placeActiveVoxelAtHover();
+
+    /// Set a callback that returns the material to use when placing voxels (C key).
+    /// Called at placement time so it always reflects the current selection.
+    void setMaterialProvider(std::function<std::string()> provider) {
+        m_manipulator.setMaterialProvider(std::move(provider));
+    }
 
     // Hover state accessors
     bool hasHoveredCube() const { return m_hasHoveredCube; }
@@ -130,6 +143,20 @@ public:
     /// Voxels at or below this Y are invisible to hover detection.
     /// Use -INT_MAX (default) to allow all Y values.
     void setMinBreakableY(int y) { m_minBreakableY = y; }
+
+    /// Set PlacedObjectManager for furniture activation detection.
+    void setPlacedObjectManager(Core::PlacedObjectManager* m) { m_placedObjects = m; }
+
+    /// Set DynamicFurnitureManager for activating furniture on hit.
+    void setDynamicFurnitureManager(Core::DynamicFurnitureManager* m) { m_dynamicFurniture = m; }
+
+    /// Get the placed object ID of active dynamic furniture at the crosshair, if any.
+    std::string getActiveFurnitureAtHover() const;
+
+    /// Check if the hovered voxel belongs to a placed object and activate it as
+    /// dynamic furniture instead of breaking the voxel. Returns true if furniture
+    /// was activated (caller should skip normal break).
+    bool tryActivateFurnitureAtHover(const glm::vec3& cameraPos, const glm::vec3& cameraFront);
 
 private:
     // Dependencies
@@ -179,6 +206,13 @@ private:
 
     // NavGrid / NPC callback — fired after any interactive voxel add/remove
     std::function<void(const glm::ivec3&)> m_onVoxelChanged;
+
+    // Dynamic furniture activation
+    Core::PlacedObjectManager*    m_placedObjects   = nullptr;
+    Core::DynamicFurnitureManager* m_dynamicFurniture = nullptr;
+public:
+    float furnitureHitForce = 1.5f;  ///< Tunable: impulse applied when left-clicking furniture
+private:
 
     // Helper to create interaction context
     InteractionContext createContext() const;

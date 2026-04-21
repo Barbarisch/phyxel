@@ -1,0 +1,30 @@
+{
+  "id": "wizard",
+  "name": "Wizard",
+  "hitDieFaces": 6,
+  "primaryAbility": "INT",
+  "savingThrows": ["INT", "WIS"],
+  "armorProficiencies": [],
+  "weaponProficiencies": ["daggers", "darts", "slings", "quarterstaffs", "light_crossbows"],
+  "toolProficiencies": [],
+  "skillChoices": 2,
+  "skillPool": ["Arcana", "History", "Insight", "Investigation", "Medicine", "Religion"],
+  "spellcastingAbility": "INT",
+  "spellcastingType": "full",
+  "asiLevels": [4, 8, 12, 16, 19],
+  "features": {
+    "1": [
+      {"id": "spellcasting_wizard", "name": "Spellcasting", "description": "Cast wizard spells using Intelligence. Spellbook holds known spells; prepare INT mod + Wizard level spells per long rest."},
+      {"id": "arcane_recovery", "name": "Arcane Recovery", "description": "Once per long rest after a short rest, recover spell slots totaling up to half your Wizard level (rounded up), none higher than 5th level."}
+    ],
+    "2": [
+      {"id": "arcane_tradition", "name": "Arcane Tradition", "description": "Choose a subclass school: Abjuration, Conjuration, Divination, Enchantment, Evocation, Illusion, Necromancy, or Transmutation."}
+    ],
+    "18": [
+      {"id": "spell_mastery", "name": "Spell Mastery", "description": "Choose a 1st- and 2nd-level spell from your spellbook. Cast each at its lowest level without expending a slot."}
+    ],
+    "20": [
+      {"id": "signature_spells", "name": "Signature Spells", "description": "Choose two 3rd-level spells from your spellbook as signature spells, always prepared and castable once each without a slot per short rest."}
+    ]
+  }
+}

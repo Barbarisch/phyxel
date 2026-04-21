@@ -121,6 +121,9 @@ public:
     bool createLightBuffers();
     void updateLightBuffer(uint32_t frameIndex, const Graphics::LightBufferGPU& lightData);
     void cleanupLightBuffers();
+    bool createAtlasUVBuffers();
+    void updateAtlasUVBuffer(const std::vector<glm::vec4>& uvs, uint32_t fallbackIndex);
+    void cleanupAtlasUVBuffers();
     bool createDescriptorSetLayout();
     bool createDescriptorPool();
     bool createDescriptorSets();
@@ -132,6 +135,7 @@ public:
     void updateDynamicSubcubeBuffer(const std::vector<DynamicSubcubeInstanceData>& dynamicSubcubes);
     void bindDynamicSubcubeBuffer(uint32_t frameIndex);
     void cleanupDynamicSubcubeBuffer();
+    uint32_t getMaxDynamicSubcubes() const { return maxDynamicSubcubes; }
 
     // Character instance buffer management
     bool createCharacterInstanceBuffer(uint32_t maxInstances);
@@ -168,6 +172,7 @@ public:
         
     // Texture atlas management
     bool loadTextureAtlas(const std::string& atlasPath);
+    bool uploadTextureAtlasPixels(const uint8_t* pixels, int width, int height);
     bool createTextureAtlasSampler();
     void updateDescriptorSetsWithTexture();
     void cleanupTextureAtlas();    
@@ -232,6 +237,7 @@ public:
         VkExtent2D getSwapChainExtent() const { return swapChainExtent; }
         VkFormat getSwapChainImageFormat() const { return swapChainImageFormat; }
         VkDescriptorSetLayout getDescriptorSetLayout() const { return descriptorSetLayout; }
+        VkDescriptorSet getDescriptorSet(uint32_t frameIndex) const { return descriptorSets[frameIndex]; }
         uint32_t getSwapChainImageCount() const { return static_cast<uint32_t>(swapChainImages.size()); }
         VkImage getSwapChainImage(uint32_t index) const { return swapChainImages[index]; }
         VkFramebuffer getSwapChainFramebuffer(uint32_t index) const { return swapChainFramebuffers[index]; }
@@ -242,6 +248,10 @@ public:
         VkCommandBuffer beginSingleTimeCommands();
         void endSingleTimeCommands(VkCommandBuffer commandBuffer);
         
+        // Synchronization / device idle
+        void deviceWaitIdle();
+        void recreateSyncObjects();
+
         // Window resize handling
         void setFramebufferResized(bool resized) { framebufferResized = resized; }
         bool getFramebufferResized() const { return framebufferResized; }
@@ -314,6 +324,10 @@ private:
     // Light SSBO resources
     std::vector<VkBuffer> lightBuffers;
     std::vector<VkDeviceMemory> lightBuffersMemory;
+
+    // Atlas UV SSBO resources
+    std::vector<VkBuffer> atlasUVBuffers;
+    std::vector<VkDeviceMemory> atlasUVBuffersMemory;
 
     // Command buffers
     VkCommandPool commandPool = VK_NULL_HANDLE;

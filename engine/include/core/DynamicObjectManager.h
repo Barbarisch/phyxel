@@ -15,6 +15,7 @@ namespace Physics {
 
 namespace Scene {
     class AnimatedVoxelCharacter;
+    class RagdollCharacter;
 }
 
 // Forward declarations
@@ -121,7 +122,7 @@ public:
     /// Derez a character into dynamic physics objects (debris particles or physics cubes).
     /// @param character  The animated voxel character to destroy
     /// @param explosionStrength  Multiplier for random velocity (1.0 = normal, 0.0 = fall in place)
-    void derezCharacter(Scene::AnimatedVoxelCharacter* character, float explosionStrength = 1.0f);
+    void derezCharacter(Scene::RagdollCharacter* character, float explosionStrength = 1.0f);
 
     // Maximum number of active Bullet dynamic objects (cubes + subcubes)
     static constexpr size_t MAX_DYNAMIC_OBJECTS = 300;

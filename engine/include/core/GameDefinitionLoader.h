@@ -5,6 +5,7 @@
 #include <functional>
 #include <nlohmann/json.hpp>
 #include <glm/glm.hpp>
+#include "core/SceneDefinition.h"
 
 namespace Phyxel {
 
@@ -21,6 +22,7 @@ class NPCManager;
 class EntityRegistry;
 class GameEventLog;
 class LocationRegistry;
+class PlacedObjectManager;
 }
 
 namespace Graphics {
@@ -125,6 +127,7 @@ struct GameSubsystems {
     Core::NPCManager* npcManager = nullptr;
     Core::EntityRegistry* entityRegistry = nullptr;
     ObjectTemplateManager* templateManager = nullptr;
+    Core::PlacedObjectManager* placedObjectManager = nullptr;
     Core::GameEventLog* gameEventLog = nullptr;
     Core::LocationRegistry* locationRegistry = nullptr;
     Graphics::Camera* camera = nullptr;
@@ -151,8 +154,24 @@ public:
     /// Export the current game state as a game definition JSON.
     static json exportDefinition(const GameSubsystems& subsystems);
 
+    /// Export a multi-scene game manifest as JSON.
+    /// Includes scene definitions from the manifest and live camera/NPC/story
+    /// for the active scene.
+    static json exportMultiSceneDefinition(const SceneManifest& manifest,
+                                           const std::string& activeSceneId,
+                                           const GameSubsystems& subsystems);
+
     /// Validate a game definition without loading it.
     static std::pair<bool, std::string> validate(const json& definition);
+
+    /// Check if a game definition JSON uses the multi-scene format.
+    static bool isMultiScene(const json& definition) {
+        return SceneManifest::isMultiScene(definition);
+    }
+
+    /// Parse a multi-scene game definition into a SceneManifest.
+    /// Returns empty manifest if the JSON is not multi-scene format.
+    static SceneManifest parseManifest(const json& definition);
 
 private:
     static void loadWorld(const json& worldDef, GameSubsystems& sub, GameDefinitionResult& result);

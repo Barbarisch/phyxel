@@ -1,4 +1,6 @@
 #include "core/WorldInitializer.h"
+#include "core/MaterialRegistry.h"
+#include "core/AtlasManager.h"
 #include "ui/WindowManager.h"
 #include "input/InputManager.h"
 #include "vulkan/VulkanDevice.h"
@@ -137,7 +139,7 @@ bool WorldInitializer::initialize() {
     windowManager->setMouseButtonCallback([this](int button, int action, int mods) {
         inputManager->handleMouseButton(button, action, mods);
     });
-    
+
     // Set up initial camera position and orientation
     inputManager->setCameraPosition(glm::vec3(50.0f, 50.0f, 50.0f));
     glm::vec3 lookAt = glm::normalize(glm::vec3(16.0f, 16.0f, 16.0f) - glm::vec3(50.0f, 50.0f, 50.0f));
@@ -168,10 +170,14 @@ bool WorldInitializer::initialize() {
     }
 
     // Initialize ImGui after Vulkan is fully set up
-    if (!imguiRenderer->initialize(windowManager->getHandle(), vulkanDevice, renderPipeline->getRenderPass())) {
+    bool enableViewports = engineConfig && engineConfig->enableEditorViewports;
+    if (!imguiRenderer->initialize(windowManager->getHandle(), vulkanDevice, renderPipeline->getRenderPass(), enableViewports)) {
         LOG_ERROR("WorldInitializer", "Failed to initialize ImGui!");
         return false;
     }
+
+    // ImGui's init overrides GLFW callbacks — re-register ours so scroll delta works
+    windowManager->reinstallScrollCallback();
 
     timer->start();
     LOG_INFO("WorldInitializer", "Application initialized successfully!");
@@ -370,8 +376,9 @@ bool WorldInitializer::initializeVulkan() {
         return false;
     }
 
-    // Create dynamic subcube buffer (support up to 1000 dynamic subcubes)
-    if (!vulkanDevice->createDynamicSubcubeBuffer(1000)) {
+    // Create dynamic subcube buffer. MAX_DYNAMIC_OBJECTS=300 Bullet objects (cubes+subcubes),
+    // each with 6 faces = 1800 face slots needed. Use 1800 to exactly match the cap.
+    if (!vulkanDevice->createDynamicSubcubeBuffer(1800)) {
         LOG_ERROR("WorldInitializer", "Failed to create dynamic subcube buffer!");
         return false;
     }
@@ -385,12 +392,6 @@ bool WorldInitializer::initializeVulkan() {
     }
     */
 
-    // Create dynamic subcube buffer (support up to 1000 dynamic subcubes)
-    if (!vulkanDevice->createDynamicSubcubeBuffer(1000)) {
-        LOG_ERROR("WorldInitializer", "Failed to create dynamic subcube buffer!");
-        return false;
-    }
-
     if (!vulkanDevice->createUniformBuffers()) {
         LOG_ERROR("WorldInitializer", "Failed to create uniform buffers!");
         return false;
@@ -398,6 +399,11 @@ bool WorldInitializer::initializeVulkan() {
 
     if (!vulkanDevice->createLightBuffers()) {
         LOG_ERROR("WorldInitializer", "Failed to create light SSBO buffers!");
+        return false;
+    }
+
+    if (!vulkanDevice->createAtlasUVBuffers()) {
+        LOG_ERROR("WorldInitializer", "Failed to create atlas UV SSBO buffers!");
         return false;
     }
 
@@ -430,24 +436,77 @@ bool WorldInitializer::initializeVulkan() {
 }
 
 bool WorldInitializer::initializeTextureAtlas() {
-    auto& assets = AssetManager::instance();
     LOG_INFO("WorldInitializer", "Initializing texture atlas system...");
-    
-    // Load the texture atlas
-    if (!vulkanDevice->loadTextureAtlas(assets.textureAtlasPath())) {
-        LOG_ERROR("WorldInitializer", "Failed to load texture atlas!");
-        return false;
+
+    // Load material registry from JSON
+    {
+        auto& registry = Core::MaterialRegistry::instance();
+        std::string materialsPath = "resources/materials.json";
+        if (!registry.loadFromJson(materialsPath)) {
+            LOG_WARN("WorldInitializer", "Failed to load materials.json, using defaults");
+        }
     }
-    
+
+    // Build atlas from source PNGs via AtlasManager
+    auto& atlas = Core::AtlasManager::instance();
+    atlas.setSourceDirectory("resources/textures/source");
+
+    if (atlas.buildAtlas()) {
+        // Upload the built atlas to the GPU
+        if (!atlas.uploadToGPU(vulkanDevice)) {
+            LOG_ERROR("WorldInitializer", "Failed to upload built atlas to GPU");
+            return false;
+        }
+    } else {
+        // Fallback: load pre-built atlas PNG
+        LOG_WARN("WorldInitializer", "AtlasManager build failed, falling back to pre-built atlas");
+        auto& assets = AssetManager::instance();
+        if (!vulkanDevice->loadTextureAtlas(assets.textureAtlasPath())) {
+            LOG_ERROR("WorldInitializer", "Failed to load texture atlas!");
+            return false;
+        }
+    }
+
     // Create the texture sampler
     if (!vulkanDevice->createTextureAtlasSampler()) {
         LOG_ERROR("WorldInitializer", "Failed to create texture atlas sampler!");
         return false;
     }
-    
+
+    // Populate atlas UV SSBO
+    {
+        const auto& info = atlas.getAtlasInfo();
+        if (!info.uvBounds.empty()) {
+            auto& registry = Core::MaterialRegistry::instance();
+            vulkanDevice->updateAtlasUVBuffer(info.uvBounds, registry.getPlaceholderIndex());
+            LOG_INFO("WorldInitializer", "Populated atlas UV SSBO with {} texture entries", info.textureCount);
+        } else {
+            // Fallback: compute UVs manually (same as before)
+            auto& registry = Core::MaterialRegistry::instance();
+            int textureCount = registry.getTextureCount();
+            int texturesPerRow = 6;
+            int textureSize = 18;
+            int padding = 1;
+            int cellSize = textureSize + 2 * padding;
+            float atlasSize = 512.0f;
+
+            std::vector<glm::vec4> uvs(textureCount);
+            for (int i = 0; i < textureCount; i++) {
+                int col = i % texturesPerRow;
+                int row = i / texturesPerRow;
+                float pixelX = static_cast<float>(col * cellSize + padding);
+                float pixelY = static_cast<float>(row * cellSize + padding);
+                uvs[i] = glm::vec4(pixelX / atlasSize, pixelY / atlasSize,
+                                   (pixelX + textureSize) / atlasSize, (pixelY + textureSize) / atlasSize);
+            }
+            vulkanDevice->updateAtlasUVBuffer(uvs, registry.getPlaceholderIndex());
+            LOG_INFO("WorldInitializer", "Populated atlas UV SSBO with {} texture entries (fallback)", textureCount);
+        }
+    }
+
     // Update descriptor sets with texture binding
     vulkanDevice->updateDescriptorSetsWithTexture();
-    
+
     LOG_INFO("WorldInitializer", "Texture atlas system initialized successfully");
     return true;
 }

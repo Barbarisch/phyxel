@@ -89,6 +89,7 @@ public:
 
     // World storage management
     bool initializeWorldStorage(const std::string& worldPath);
+    void disconnectWorldStorage();
 
     // Streaming update (call every frame)
     void updateStreaming(const glm::vec3& playerPosition, float loadDistance, float unloadDistance);

@@ -4,12 +4,12 @@ The Object Template System allows for importing 3D models (OBJ/STL/PLY) into the
 
 ## Tooling: `obj_to_template.py`
 
-Located in `tools/obj_to_template.py`, this script converts standard 3D mesh files into Phyxel's custom voxel template format (`.txt`).
+Located in `tools/obj_to_template.py`, this script converts standard 3D mesh files into Phyxel's custom voxel template format (`.voxel`).
 
 ### Usage
 
 ```bash
-python tools/obj_to_template.py input_model.obj output_template.txt [options]
+python tools/obj_to_template.py input_model.obj output_template.voxel [options]
 ```
 
 ### Options

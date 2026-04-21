@@ -44,11 +44,11 @@ def analyze_voxel_data(matrix, fill_threshold=1.0):
 
 def write_template(matrix, output_path, material_name, target_size, resolution_mode, fill_threshold=1.0, facing_yaw=None):
     """
-    Writes a voxel matrix to a Phyxel template file (.txt).
+    Writes a voxel matrix to a Phyxel template file (.voxel).
 
     Args:
         matrix (np.ndarray): 3D boolean numpy array representing the voxel data.
-        output_path (str): Path to save the output .txt file.
+        output_path (str): Path to save the output .voxel file.
         material_name (str): Name of the material to use for voxels.
         target_size (float): Target size of the object in World Cubes (for metadata).
         resolution_mode (str): 'auto', 'cube', 'subcube', or 'microcube'.

@@ -1,0 +1,45 @@
+{
+  "id": "paladin",
+  "name": "Paladin",
+  "hitDieFaces": 10,
+  "primaryAbility": "STR",
+  "savingThrows": ["WIS", "CHA"],
+  "armorProficiencies": ["light", "medium", "heavy", "shields"],
+  "weaponProficiencies": ["simple", "martial"],
+  "toolProficiencies": [],
+  "skillChoices": 2,
+  "skillPool": ["Athletics", "Insight", "Intimidation", "Medicine", "Persuasion", "Religion"],
+  "spellcastingAbility": "CHA",
+  "spellcastingType": "half",
+  "asiLevels": [4, 8, 12, 16, 19],
+  "features": {
+    "1": [
+      {"id": "divine_sense", "name": "Divine Sense", "description": "Action: detect celestials, fiends, and undead within 60 ft (not behind total cover). Also detects consecrated/desecrated ground. Uses = 1 + CHA mod per long rest."},
+      {"id": "lay_on_hands", "name": "Lay on Hands", "description": "Touch to restore HP from a pool of Paladin level × 5. Or spend 5 HP to cure one disease or neutralize one poison. Restores on long rest."}
+    ],
+    "2": [
+      {"id": "fighting_style_paladin", "name": "Fighting Style", "description": "Choose: Defense, Dueling, Great Weapon Fighting, or Protection."},
+      {"id": "spellcasting_paladin", "name": "Spellcasting", "description": "Prepare CHA mod + half Paladin level spells from the paladin list. Cast using Charisma."},
+      {"id": "divine_smite", "name": "Divine Smite", "description": "On a hit with a melee weapon, expend a spell slot to deal 2d8 + 1d8 per slot level above 1st radiant damage. Extra 1d8 vs undead/fiends. Double dice on a critical hit."}
+    ],
+    "3": [
+      {"id": "divine_health", "name": "Divine Health", "description": "Immune to disease."},
+      {"id": "sacred_oath", "name": "Sacred Oath", "description": "Choose a subclass oath: Devotion, Ancients, Vengeance, Conquest, Redemption, Glory, Watchers, or Oathbreaker."}
+    ],
+    "5": [
+      {"id": "extra_attack_paladin", "name": "Extra Attack", "description": "Attack twice when you take the Attack action."}
+    ],
+    "6": [
+      {"id": "aura_of_protection", "name": "Aura of Protection", "description": "You and friendly creatures within 10 ft add your CHA modifier (min +1) to saving throws while you are conscious. Range increases to 30 ft at level 18."}
+    ],
+    "10": [
+      {"id": "aura_of_courage", "name": "Aura of Courage", "description": "You and friendly creatures within 10 ft can't be frightened while you are conscious. Range increases to 30 ft at level 18."}
+    ],
+    "11": [
+      {"id": "improved_divine_smite", "name": "Improved Divine Smite", "description": "Whenever you hit with a melee weapon, deal an extra 1d8 radiant damage."}
+    ],
+    "14": [
+      {"id": "cleansing_touch", "name": "Cleansing Touch", "description": "Action: end one spell on yourself or a willing creature you touch. Uses = CHA mod (min 1) per long rest."}
+    ]
+  }
+}

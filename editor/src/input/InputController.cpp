@@ -8,6 +8,7 @@
 #include "ui/DialogueSystem.h"
 #include "utils/Logger.h"
 #include <GLFW/glfw3.h>
+#include <imgui.h>
 
 namespace Phyxel {
 
@@ -21,6 +22,23 @@ InputController::InputController(Input::InputManager* inputManager,
 }
 
 void InputController::update(float deltaTime) {
+    // Scroll wheel: zoom (dolly camera along front vector) — Unity Scene View style
+    {
+        auto* wm = m_app->getWindowManager();
+        float scrollY = wm ? wm->getScrollDelta() : 0.0f;
+        if (wm) wm->resetScrollDelta();
+        bool viewportActive = m_app->isViewportHovered() || m_app->isViewportFocused();
+        bool imguiWantsMouse = ImGui::GetIO().WantCaptureMouse && !viewportActive;
+        if (scrollY != 0.0f && !imguiWantsMouse) {
+            float zoomSpeed = 2.0f;
+            auto pos = m_inputManager->getCameraPosition();
+            auto front = m_inputManager->getCameraFront();
+            m_inputManager->setCameraPosition(pos + front * scrollY * zoomSpeed);
+        }
+    }
+    if (m_modeChangeTimer > 0.0f)
+        m_modeChangeTimer -= deltaTime;
+
     // Handle preview logic
     if (m_showTreePreview) {
         // Get visualizer from app (assuming we can access it, or add getter to App)
@@ -191,8 +209,24 @@ void InputController::setupKeyboardBindings() {
     });
 
     // E - Interact with NPC
-    m_inputManager->registerAction(GLFW_KEY_E, "Interact with NPC", [this]() {
+    m_inputManager->registerAction(GLFW_KEY_E, "Interact / Grab Furniture", [this]() {
+        // If grabbing furniture, release it
+        auto* furnitureMgr = m_app->getDynamicFurnitureManager();
+        if (furnitureMgr && furnitureMgr->isGrabbing()) {
+            furnitureMgr->releaseGrab();
+            return;
+        }
+
+        // Try NPC interaction first
         m_app->interactWithNPC();
+
+        // If no NPC interaction, try grabbing active furniture at crosshair
+        if (furnitureMgr) {
+            std::string furnitureId = m_interactionSystem->getActiveFurnitureAtHover();
+            if (!furnitureId.empty()) {
+                furnitureMgr->grab(furnitureId);
+            }
+        }
     });
 
     // Enter - Advance dialogue (when active, non-AI mode)
@@ -242,10 +276,9 @@ void InputController::setupKeyboardBindings() {
         m_app->adjustAmbientLight(0.1f);
     });
     
-    // C - Place cube
-    m_inputManager->registerAction(GLFW_KEY_C, "Place Cube", [this]() {
-        LOG_INFO("InputController", "C key pressed - attempting to place cube");
-        m_interactionSystem->placeVoxelAtHover();
+    // C - Place voxel using the active size mode (Cube / Subcube / Microcube)
+    m_inputManager->registerAction(GLFW_KEY_C, "Place Voxel", [this]() {
+        m_interactionSystem->placeActiveVoxelAtHover();
     });
 
     // K - Toggle Character Control
@@ -272,36 +305,21 @@ void InputController::setupKeyboardBindings() {
         LOG_INFO_FMT("InputController", "Template Preview: " << (m_showTreePreview ? "ENABLED" : "DISABLED"));
     });
 
-    // T - Spawn Template (Static)
-    m_inputManager->registerAction(GLFW_KEY_T, "Spawn Static Template", [this]() {
+
+    // B - Break hovered voxel (cube / subcube / microcube)
+    m_inputManager->registerAction(GLFW_KEY_B, "Break Voxel", [this]() {
         if (m_interactionSystem->hasHoveredCube()) {
             const auto& loc = m_interactionSystem->getCurrentHoveredLocation();
-            // Use worldPos + hitNormal to get the adjacent integer coordinate
-            glm::vec3 pos = glm::vec3(loc.worldPos) + loc.hitNormal;
-            
-            LOG_INFO_FMT("InputController", "Spawning static tree at " << pos.x << ", " << pos.y << ", " << pos.z);
-            m_app->getObjectTemplateManager()->spawnTemplateSequentially("my_model", pos, true);
-        } else {
-            // Spawn in front of player if no hover
-            glm::vec3 pos = m_inputManager->getCameraPosition() + m_inputManager->getCameraFront() * 5.0f;
-            LOG_INFO_FMT("InputController", "Spawning static tree in front of player at " << pos.x << ", " << pos.y << ", " << pos.z);
-            m_app->getObjectTemplateManager()->spawnTemplateSequentially("my_model", pos, true);
+            if (loc.isMicrocube) {
+                m_interactionSystem->breakHoveredMicrocube();
+            } else if (loc.isSubcube) {
+                m_interactionSystem->breakHoveredSubcube();
+            } else {
+                m_interactionSystem->breakHoveredCube(m_inputManager->getCameraPosition());
+            }
         }
     });
 
-    // Shift + T - Spawn Template (Dynamic)
-    m_inputManager->registerActionWithModifier(GLFW_KEY_T, GLFW_MOD_SHIFT, "Spawn Dynamic Template", [this]() {
-        glm::vec3 pos;
-        if (m_interactionSystem->hasHoveredCube()) {
-            pos = m_interactionSystem->getCurrentHoveredLocation().hitPoint;
-            pos.y += 5.0f; // Drop from height
-        } else {
-            pos = m_inputManager->getCameraPosition() + m_inputManager->getCameraFront() * 5.0f;
-        }
-        LOG_INFO_FMT("InputController", "Spawning dynamic tree at " << pos.x << ", " << pos.y << ", " << pos.z);
-        m_app->getObjectTemplateManager()->spawnTemplate("my_model", pos, false);
-    });
-    
     // O - Toggle breaking forces
     m_inputManager->registerAction(GLFW_KEY_O, "Toggle Breaking Forces", [this]() {
         m_debugFlags.disableBreakingForces = !m_debugFlags.disableBreakingForces;
@@ -326,13 +344,42 @@ void InputController::setupKeyboardBindings() {
         tmplMgr->setSpawnSpeed(newSpeed);
         LOG_INFO_FMT("InputController", "Spawn Speed Increased: " << newSpeed << " voxels/frame");
     });
+
+    // Up Arrow - Cycle voxel mode toward larger (Micro→Sub→Cube)
+    m_inputManager->registerAction(GLFW_KEY_UP, "Voxel Mode Larger", [this]() {
+        m_app->cycleRaycastTargetMode(-1);
+        m_modeChangeTimer = 1.2f;
+    });
+
+    // Down Arrow - Cycle voxel mode toward smaller (Cube→Sub→Micro)
+    m_inputManager->registerAction(GLFW_KEY_DOWN, "Voxel Mode Smaller", [this]() {
+        m_app->cycleRaycastTargetMode(1);
+        m_modeChangeTimer = 1.2f;
+    });
 }
 
 void InputController::setupMouseBindings() {
-    // Left click - Break cube/subcube/microcube
+    // Left click - Break cube/subcube/microcube (or activate furniture)
     m_inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_LEFT, 0, "Break Voxel", [this]() {
+        // If grabbing furniture, throw it on left click
+        auto* furnitureMgr = m_app->getDynamicFurnitureManager();
+        if (furnitureMgr && furnitureMgr->isGrabbing()) {
+            constexpr float THROW_FORCE = 10.0f;
+            glm::vec3 throwDir = m_inputManager->getCameraFront() * THROW_FORCE;
+            furnitureMgr->throwGrab(throwDir);
+            return;
+        }
+
         // Check if we're hovering over a microcube, subcube, or regular cube
         if (m_interactionSystem->hasHoveredCube()) {
+            // Try furniture activation first — if the hovered voxel is part of a
+            // placed object, convert it to a dynamic physics body instead of breaking.
+            if (m_interactionSystem->tryActivateFurnitureAtHover(
+                    m_inputManager->getCameraPosition(),
+                    m_inputManager->getCameraFront())) {
+                return; // Furniture was activated, skip normal break
+            }
+
             const auto& loc = m_interactionSystem->getCurrentHoveredLocation();
             if (loc.isMicrocube) {
                 // Break microcube

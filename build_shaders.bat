@@ -187,6 +187,14 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
+    echo Compiling kinematic voxel vertex shader...
+    %GLSLANG% -fshader-stage=vert -I. shaders\kinematic_voxel.vert -o shaders\kinematic_voxel.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile kinematic voxel vertex shader
+        pause
+        exit /b 1
+    )
+
     echo Compiling UI vertex shader...
     %GLSLANG% -fshader-stage=vert -I. shaders\ui.vert -o shaders\ui.vert.spv
     if %errorlevel% neq 0 (
@@ -375,6 +383,14 @@ if defined USE_GLSLC (
     %GLSLANG% -V -I. shaders\debris.frag -o shaders\debris.frag.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile debris fragment shader
+        pause
+        exit /b 1
+    )
+
+    echo Compiling kinematic voxel vertex shader...
+    %GLSLANG% -V -I. shaders\kinematic_voxel.vert -o shaders\kinematic_voxel.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile kinematic voxel vertex shader
         pause
         exit /b 1
     )

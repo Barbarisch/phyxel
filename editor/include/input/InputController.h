@@ -35,6 +35,9 @@ public:
 
     DebugFlags& getDebugFlags() { return m_debugFlags; }
 
+    /// Seconds since last voxel size mode change (used by HUD to show pop-up label).
+    float getModeChangeTimer() const { return m_modeChangeTimer; }
+
 private:
     Input::InputManager* m_inputManager;
     VoxelInteractionSystem* m_interactionSystem;
@@ -43,6 +46,9 @@ private:
     
     // Preview state
     bool m_showTreePreview = false;
+
+    // Timer for mode-change pop-up label (counts down from 1.2 s to 0)
+    float m_modeChangeTimer = 0.0f;
 
     void setupKeyboardBindings();
     void setupMouseBindings();

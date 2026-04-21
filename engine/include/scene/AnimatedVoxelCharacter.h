@@ -7,10 +7,12 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <optional>
 
 namespace Phyxel {
     class ChunkManager;       // Forward declaration for voxel collision queries
     class RaycastVisualizer;  // Forward declaration for F5 debug visualization
+    class GpuParticlePhysics; // Forward declaration for derez GPU particle spawning
 }
 
 namespace Phyxel {
@@ -21,6 +23,12 @@ namespace Scene {
         glm::vec3 size; // Size of the voxel box for this bone
         glm::vec3 offset; // Offset from bone pivot
         glm::vec4 color;
+    };
+
+    enum class DerezPattern {
+        Wave,       // voxels fall from feet upward
+        Periphery,  // extremities crumble inward toward center
+        Random,     // random staggered scatter
     };
 
     enum class AnimatedCharacterState {
@@ -183,6 +191,19 @@ namespace Scene {
         void attack();
         void setCrouch(bool crouch);
 
+        // ---- Derez (falling-apart disintegration) ----
+
+        /// Begin staggered voxel detachment. The character remains in the scene during the
+        /// effect; voxels fall off one by one until the character is fully derezed.
+        /// @param gpu       GPU particle system to spawn falling voxels into
+        /// @param duration  Total time (seconds) from first voxel to last
+        /// @param pattern   Detachment order (Wave=feet-up, Periphery=tips-in, Random)
+        void beginDerez(Phyxel::GpuParticlePhysics* gpu, float duration = 2.0f,
+                        DerezPattern pattern = DerezPattern::Wave);
+
+        bool isDerezzing()    const;
+        bool isFullyDerezed() const;
+
         // ---- Hit Frame Callback (for combat integration) ----
 
         /// Set the fraction (0.0-1.0) of the attack animation at which the hit triggers.
@@ -218,6 +239,21 @@ namespace Scene {
 
         // Get the physics controller body's linear velocity (for GPU particle collision)
         glm::vec3 getControllerVelocity() const;
+
+    protected:
+        /// Called after keyframe sampling + updateGlobalTransforms, before bone body sync.
+        /// Override in subclass to inject IK corrections on skeleton bones.
+        virtual void applyIKCorrections(float deltaTime) {}
+
+        // Protected accessors for subclasses (e.g. HybridCharacter IK)
+        Phyxel::Skeleton& getSkeletonMut() { return skeleton; }
+        Phyxel::AnimationSystem& getAnimSystemMut() { return animSystem; }
+        const std::map<int, btRigidBody*>& getBoneBodiesRef() const { return boneBodies; }
+        btRigidBody* getControllerBody() const { return controllerBody; }
+        const glm::vec3& getWorldPositionRef() const { return worldPosition; }
+        float getSkeletonFootOffset() const { return skeletonFootOffset_; }
+        float getCurrentYaw() const { return currentYaw; }
+        Phyxel::ChunkManager* getChunkManagerPtr() const { return m_chunkManager; }
 
     private:
         Phyxel::Skeleton skeleton;
@@ -376,6 +412,24 @@ namespace Scene {
 
         // F5 debug visualization
         Phyxel::RaycastVisualizer* m_raycastVisualizer = nullptr;
+
+        // ---- Derez state ----
+        struct DerezEntry {
+            glm::vec3 worldPos;
+            glm::vec3 scale;
+            glm::vec4 color;
+            float     detachTime;
+            size_t    partIndex;  // index into parts[] at snapshot time (used for active=false)
+        };
+        struct DerezState {
+            std::vector<DerezEntry> queue;   // sorted ascending by detachTime
+            size_t  nextIdx  = 0;
+            float   elapsed  = 0.0f;
+            float   duration = 2.0f;
+            bool    active   = false;
+        };
+        std::optional<DerezState>    m_derezState;
+        Phyxel::GpuParticlePhysics*  m_gpuPhysics = nullptr;
 
         void buildSegmentBoxes();          // called once after buildBodiesFromModel()
         void clearSegmentBoxes();          // called in clearBodies() and destructor

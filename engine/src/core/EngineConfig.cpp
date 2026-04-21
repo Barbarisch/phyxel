@@ -63,7 +63,9 @@ void EngineConfig::fromJson(const nlohmann::json& j, EngineConfig& cfg) {
         if (a.contains("dialogues"))       cfg.dialoguesSubdir     = a["dialogues"].get<std::string>();
         if (a.contains("sounds"))          cfg.soundsSubdir        = a["sounds"].get<std::string>();
         if (a.contains("animated_chars"))  cfg.animatedCharsSubdir = a["animated_chars"].get<std::string>();
-        if (a.contains("recipes"))         cfg.recipesSubdir       = a["recipes"].get<std::string>();
+        if (a.contains("ai"))              cfg.recipesSubdir       = a["ai"].get<std::string>();
+        // Backward compat: also check legacy "recipes" key
+        else if (a.contains("recipes"))     cfg.recipesSubdir       = a["recipes"].get<std::string>();
         if (a.contains("texture_atlas"))   cfg.textureAtlasFile    = a["texture_atlas"].get<std::string>();
         if (a.contains("default_world"))   cfg.defaultWorldFile    = a["default_world"].get<std::string>();
         if (a.contains("logging_config"))  cfg.loggingConfigFile   = a["logging_config"].get<std::string>();
@@ -144,7 +146,7 @@ nlohmann::json EngineConfig::toJson() const {
             {"dialogues",       dialoguesSubdir},
             {"sounds",          soundsSubdir},
             {"animated_chars",  animatedCharsSubdir},
-            {"recipes",         recipesSubdir},
+            {"ai",              recipesSubdir},
             {"texture_atlas",   textureAtlasFile},
             {"default_world",   defaultWorldFile},
             {"logging_config",  loggingConfigFile},

@@ -4,7 +4,7 @@ This guide explains how to convert 3D models and animations into formats support
 
 ## 1. Static Mesh Import (Voxel Templates)
 
-The engine uses a custom voxel template format (`.txt`) to define static objects and physics props. The asset pipeline includes tools to convert standard 3D formats (`.obj`, `.bbmodel`) into these templates.
+The engine uses a custom voxel template format (`.voxel`) to define static objects and physics props. The asset pipeline includes tools to convert standard 3D formats (`.obj`, `.bbmodel`) into these templates.
 
 ### Supported Formats
 *   **Wavefront OBJ (`.obj`)**: Standard 3D mesh format.
@@ -32,7 +32,7 @@ python tools/asset_pipeline/obj_to_template.py <input_file> <output_file> [optio
 
 **Example:**
 ```bash
-python tools/asset_pipeline/obj_to_template.py models/castle.obj resources/templates/castle.txt --size 20 --optimize --fill-threshold 0.95
+python tools/asset_pipeline/obj_to_template.py models/castle.obj resources/templates/castle.voxel --size 20 --optimize --fill-threshold 0.95
 ```
 
 #### `bbmodel_to_template.py`
@@ -45,7 +45,7 @@ python tools/asset_pipeline/bbmodel_to_template.py <input_file> <output_file> [o
 *Supports the same options as `obj_to_template.py`.*
 
 #### `optimize_template.py`
-Optimizes an **existing** template file (`.txt`) without needing the source model. Useful for legacy assets.
+Optimizes an **existing** template file (`.voxel`) without needing the source model. Useful for legacy assets.
 
 **Usage:**
 ```bash
@@ -113,7 +113,7 @@ To ensure the engine finds your assets, place them in the correct `resources/` s
 The asset editor opens a template file directly in the engine on a clean flat scene so you can sculpt it with live Vulkan rendering.
 
 ```powershell
-phyxel.exe --asset-editor resources/templates/my_prop.txt
+phyxel.exe --asset-editor resources/templates/my_prop.voxel
 ```
 
 - The template is spawned at a fixed origin on a Stone floor platform.
@@ -121,7 +121,7 @@ phyxel.exe --asset-editor resources/templates/my_prop.txt
 - Place voxels with **C** (cube), **Ctrl+C** (subcube), **Alt+C** (microcube). Break them with **Left Click**.
 - The Stone floor (Y=15) is protected — it cannot be broken.
 - Press **H** to toggle a humanoid reference character for scale.
-- Press **Ctrl+S** (or the *Save Template* button) to write the current region back to the `.txt` file and hot-reload it into the template manager.
+- Press **Ctrl+S** (or the *Save Template* button) to write the current region back to the `.voxel` file and hot-reload it into the template manager.
 
 ### Anim Editor (`--anim-editor`)
 

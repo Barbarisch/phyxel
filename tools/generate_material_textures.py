@@ -392,6 +392,19 @@ def generate_default():
     })
 
 
+def generate_dirt():
+    """Dirt: Dark brown earth, noisy with occasional pebble-like spots."""
+    print("Generating: dirt")
+    save_face_set("dirt", {
+        "side_n": noise_texture((120, 85, 55), variation=18, seed=1000),
+        "side_s": noise_texture((120, 85, 55), variation=18, seed=1001),
+        "side_e": noise_texture((120, 85, 55), variation=18, seed=1002),
+        "side_w": noise_texture((120, 85, 55), variation=18, seed=1003),
+        "top": noise_texture((130, 92, 58), variation=20, seed=1004),
+        "bottom": noise_texture((105, 75, 48), variation=15, seed=1005),
+    })
+
+
 if __name__ == "__main__":
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     print(f"Generating material textures in {OUTPUT_DIR}/")
@@ -407,6 +420,7 @@ if __name__ == "__main__":
     generate_cork()
     generate_glow()
     generate_default()
+    generate_dirt()
 
     print()
     print("Done! Now run:")

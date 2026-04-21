@@ -3,6 +3,11 @@
 #include "ui/SpeechBubbleManager.h"
 #include "core/Types.h"
 #include "core/ForceSystem.h"
+#include "core/InitiativeTracker.h"
+#include "core/Party.h"
+#include "core/EntityRegistry.h"
+#include "core/HealthComponent.h"
+#include "scene/Entity.h"
 #include "graphics/LightManager.h"
 #include "scripting/ScriptingSystem.h"
 #include "utils/Timer.h"
@@ -34,7 +39,7 @@ ImGuiRenderer::~ImGuiRenderer() {
     cleanup();
 }
 
-bool ImGuiRenderer::initialize(GLFWwindow* window, Vulkan::VulkanDevice* vulkanDevice, VkRenderPass renderPass) {
+bool ImGuiRenderer::initialize(GLFWwindow* window, Vulkan::VulkanDevice* vulkanDevice, VkRenderPass renderPass, bool enableViewports) {
     m_window = window;
     m_vulkanDevice = vulkanDevice;
     // m_renderPipeline = renderPipeline; // Removed
@@ -46,9 +51,20 @@ bool ImGuiRenderer::initialize(GLFWwindow* window, Vulkan::VulkanDevice* vulkanD
     
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    if (enableViewports) {
+        io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+    }
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
+
+    // When viewports are enabled, tweak WindowRounding/WindowBg so platform windows look identical
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+        ImGuiStyle& style = ImGui::GetStyle();
+        style.WindowRounding = 0.0f;
+        style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+    }
 
     // Setup Platform/Renderer backends
     if (!ImGui_ImplGlfw_InitForVulkan(window, true)) {
@@ -93,16 +109,106 @@ bool ImGuiRenderer::initialize(GLFWwindow* window, Vulkan::VulkanDevice* vulkanD
     init_info.QueueFamily = vulkanDevice->getGraphicsQueueFamily();
     init_info.Queue = vulkanDevice->getGraphicsQueue();
     init_info.DescriptorPool = imguiPool;
-    init_info.RenderPass = renderPass;
+    init_info.PipelineInfoMain.RenderPass = renderPass;
+    init_info.PipelineInfoMain.Subpass = 0;
+    init_info.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
     init_info.MinImageCount = vulkanDevice->getSwapChainImageCount();
     init_info.ImageCount = vulkanDevice->getSwapChainImageCount();
-    init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
     init_info.PipelineCache = VK_NULL_HANDLE;
-    init_info.Subpass = 0;
 
     if (!ImGui_ImplVulkan_Init(&init_info)) {
         LOG_ERROR("UI", "Failed to initialize ImGui Vulkan backend!");
         return false;
+    }
+
+    // Load monospace font for terminal: prefer bundled JetBrains Mono Nerd Font (has all
+    // Powerline/Nerd Font symbols built-in as monospace glyphs), fallback to Consolas + Segoe merge
+    {
+        ImFontConfig fontCfg;
+        fontCfg.MergeMode = false;
+        // Glyph ranges covering Latin, symbols, box drawing, and Nerd Font Private Use Area
+        static const ImWchar terminalGlyphRanges[] = {
+            0x0020, 0x00FF, // Basic Latin + Latin Supplement
+            0x0100, 0x024F, // Latin Extended-A + B
+            0x0370, 0x03FF, // Greek and Coptic
+            0x2000, 0x206F, // General Punctuation
+            0x2100, 0x214F, // Letterlike Symbols
+            0x2190, 0x21FF, // Arrows
+            0x2200, 0x22FF, // Mathematical Operators
+            0x2300, 0x23FF, // Miscellaneous Technical
+            0x2500, 0x257F, // Box Drawing
+            0x2580, 0x259F, // Block Elements
+            0x25A0, 0x25FF, // Geometric Shapes
+            0x2600, 0x26FF, // Miscellaneous Symbols
+            0x2700, 0x27BF, // Dingbats
+            0x2800, 0x28FF, // Braille Patterns
+            0x2B00, 0x2BFF, // Miscellaneous Symbols and Arrows
+            0xE000, 0xF8FF, // Full Private Use Area (Powerline, Nerd Font, Devicons, etc.)
+            0xFB00, 0xFB06, // Alphabetic Presentation Forms (fi, fl ligatures)
+            0xFE00, 0xFE0F, // Variation Selectors
+            0xFFFD, 0xFFFD, // Replacement character
+            0,              // Terminator
+        };
+
+        // Try bundled Nerd Font first (all symbols built-in, guaranteed monospace)
+        const char* nerdFontPath = "resources/fonts/JetBrainsMonoNerdFontMono-Regular.ttf";
+        {
+            FILE* f = fopen(nerdFontPath, "rb");
+            if (f) {
+                fclose(f);
+                m_monoFont = io.Fonts->AddFontFromFileTTF(nerdFontPath, 16.0f, &fontCfg, terminalGlyphRanges);
+                if (m_monoFont) {
+                    LOG_INFO("UI", "Loaded terminal font: JetBrains Mono Nerd Font (bundled)");
+                }
+            }
+        }
+
+        // Fallback: Consolas + Segoe UI Symbol merge
+        if (!m_monoFont) {
+            const char* monoFontPaths[] = {
+                "C:\\Windows\\Fonts\\consola.ttf",
+                "C:\\Windows\\Fonts\\cour.ttf",
+                nullptr
+            };
+            for (int i = 0; monoFontPaths[i]; ++i) {
+                FILE* f = fopen(monoFontPaths[i], "rb");
+                if (f) {
+                    fclose(f);
+                    m_monoFont = io.Fonts->AddFontFromFileTTF(monoFontPaths[i], 16.0f, &fontCfg, terminalGlyphRanges);
+                    if (m_monoFont) {
+                        LOG_INFO("UI", std::string("Loaded monospace font: ") + monoFontPaths[i]);
+                        break;
+                    }
+                }
+            }
+            // Merge symbol font with forced monospace advance width
+            if (m_monoFont) {
+                float cellWidth = 16.0f * 0.55f; // approximate monospace cell width at 16px
+                ImFontConfig mergeCfg;
+                mergeCfg.MergeMode = true;
+                mergeCfg.GlyphMinAdvanceX = cellWidth;  // Force monospace grid alignment
+                mergeCfg.GlyphMaxAdvanceX = cellWidth;
+                const char* symbolFontPaths[] = {
+                    "C:\\Windows\\Fonts\\seguisym.ttf",
+                    "C:\\Windows\\Fonts\\segmdl2.ttf",
+                    nullptr
+                };
+                for (int i = 0; symbolFontPaths[i]; ++i) {
+                    FILE* f = fopen(symbolFontPaths[i], "rb");
+                    if (f) {
+                        fclose(f);
+                        ImFont* merged = io.Fonts->AddFontFromFileTTF(symbolFontPaths[i], 16.0f, &mergeCfg, terminalGlyphRanges);
+                        if (merged) {
+                            LOG_INFO("UI", std::string("Merged symbol font: ") + symbolFontPaths[i]);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if (!m_monoFont) {
+            LOG_WARN("UI", "No monospace font found, terminal will use default font");
+        }
     }
 
     // Note: Font upload will be handled automatically by ImGui
@@ -136,6 +242,16 @@ void ImGuiRenderer::endFrame() {
     if (!m_initialized) return;
     
     ImGui::Render();
+}
+
+void ImGuiRenderer::updatePlatformWindows() {
+    if (!m_initialized) return;
+    
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+        ImGui::UpdatePlatformWindows();
+        ImGui::RenderPlatformWindowsDefault();
+    }
 }
 
 void ImGuiRenderer::render(uint32_t currentFrame, uint32_t imageIndex) {
@@ -1021,7 +1137,8 @@ void ImGuiRenderer::renderSpeechBubbles(SpeechBubbleManager* bubbleManager,
 void ImGuiRenderer::renderInteractionPrompt(bool show, const glm::vec3& npcWorldPos,
                                               const glm::mat4& viewMatrix,
                                               const glm::mat4& projectionMatrix,
-                                              float screenWidth, float screenHeight) {
+                                              float screenWidth, float screenHeight,
+                                              const char* customText) {
     if (!show) return;
 
     // Project NPC position to screen (offset above head)
@@ -1032,7 +1149,7 @@ void ImGuiRenderer::renderInteractionPrompt(bool show, const glm::vec3& npcWorld
     float screenX = (ndc.x * 0.5f + 0.5f) * screenWidth;
     float screenY = (ndc.y * 0.5f + 0.5f) * screenHeight; // Vulkan projection already has Y flipped
 
-    const char* promptText = "[E] Interact";
+    const char* promptText = customText ? customText : "[E] Interact";
     ImVec2 textSize = ImGui::CalcTextSize(promptText);
     float promptWidth = textSize.x + 20.0f;
     float promptHeight = textSize.y + 12.0f;
@@ -1055,6 +1172,347 @@ void ImGuiRenderer::renderInteractionPrompt(bool show, const glm::vec3& npcWorld
     ImGui::End();
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
+}
+
+// ============================================================================
+// Voxel Size Mode HUD
+// ============================================================================
+
+void ImGuiRenderer::renderVoxelSizeHUD(TargetMode activeMode, float modeChangeTimer,
+                                       float vpX, float vpY, float vpW, float vpH) {
+    if (!m_initialized) return;
+
+    // Use viewport bounds if provided, otherwise fall back to full display
+    ImVec2 areaPos(vpX, vpY);
+    ImVec2 areaSize(vpW, vpH);
+    if (areaSize.x <= 0 || areaSize.y <= 0) {
+        areaPos = ImVec2(0, 0);
+        areaSize = ImGui::GetIO().DisplaySize;
+    }
+
+    // -------------------------------------------------------------------
+    // Persistent 3-slot selector bar — always visible, bottom-centre
+    // -------------------------------------------------------------------
+    struct ModeEntry { TargetMode mode; const char* label; const char* shortLabel; };
+    constexpr ModeEntry modes[3] = {
+        { TargetMode::Cube,      "CUBE",     "C" },
+        { TargetMode::Subcube,   "SUBCUBE",  "S" },
+        { TargetMode::Microcube, "MICROCUBE","M" },
+    };
+
+    const float slotW  = 90.0f;
+    const float slotH  = 28.0f;
+    const float padX   = 6.0f;
+    const float barW   = slotW * 3 + padX * 4;
+    const float barH   = slotH + 10.0f;
+    const float barX   = areaPos.x + (areaSize.x - barW) * 0.5f;
+    const float barY   = areaPos.y + areaSize.y - barH - 8.0f;
+
+    ImGui::SetNextWindowPos(ImVec2(barX, barY), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(barW, barH), ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.72f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padX, 5.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,   ImVec2(padX, 0.0f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.06f, 0.06f, 0.10f, 1.0f));
+
+    ImGui::Begin("##VoxelSizeBar", nullptr,
+        ImGuiWindowFlags_NoTitleBar    | ImGuiWindowFlags_NoResize     |
+        ImGuiWindowFlags_NoMove        | ImGuiWindowFlags_NoCollapse   |
+        ImGuiWindowFlags_NoScrollbar   | ImGuiWindowFlags_NoInputs     |
+        ImGuiWindowFlags_NoNav         | ImGuiWindowFlags_NoSavedSettings);
+
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+
+    for (int i = 0; i < 3; ++i) {
+        bool active = (modes[i].mode == activeMode);
+
+        ImVec2 cursor = ImGui::GetCursorScreenPos();
+        ImVec2 slotMin = cursor;
+        ImVec2 slotMax = ImVec2(cursor.x + slotW, cursor.y + slotH);
+
+        // Active slot: bright filled background; inactive: dim border only
+        if (active) {
+            dl->AddRectFilled(slotMin, slotMax,
+                IM_COL32(50, 160, 255, 200), 4.0f);
+            dl->AddRect(slotMin, slotMax,
+                IM_COL32(140, 210, 255, 255), 4.0f, 0, 1.5f);
+        } else {
+            dl->AddRectFilled(slotMin, slotMax,
+                IM_COL32(30, 30, 45, 160), 4.0f);
+            dl->AddRect(slotMin, slotMax,
+                IM_COL32(80, 80, 100, 180), 4.0f, 0, 1.0f);
+        }
+
+        // Label — centred in slot
+        ImVec4 textCol = active
+            ? ImVec4(1.0f, 1.0f, 1.0f, 1.0f)
+            : ImVec4(0.5f, 0.5f, 0.6f, 1.0f);
+        ImGui::PushStyleColor(ImGuiCol_Text, textCol);
+
+        float textW = ImGui::CalcTextSize(modes[i].label).x;
+        ImGui::SetCursorScreenPos(ImVec2(
+            cursor.x + (slotW - textW) * 0.5f,
+            cursor.y + (slotH - ImGui::GetTextLineHeight()) * 0.5f));
+        ImGui::TextUnformatted(modes[i].label);
+        ImGui::PopStyleColor();
+
+        // Advance cursor manually for next slot (skip on last to avoid extending bounds)
+        if (i < 2) {
+            ImGui::SetCursorScreenPos(ImVec2(slotMax.x + padX, cursor.y));
+        }
+    }
+
+    ImGui::End();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(2);
+
+    // -------------------------------------------------------------------
+    // Mode-change pop-up label — fades over modeChangeTimer seconds
+    // -------------------------------------------------------------------
+    if (modeChangeTimer > 0.0f) {
+        const float popDuration = 1.2f;
+        float alpha = modeChangeTimer / popDuration;  // 1.0 → 0.0 as timer counts down
+
+        const char* modeName = "CUBE";
+        if      (activeMode == TargetMode::Subcube)   modeName = "SUBCUBE";
+        else if (activeMode == TargetMode::Microcube)  modeName = "MICROCUBE";
+
+        char popText[32];
+        snprintf(popText, sizeof(popText), "[ %s ]", modeName);
+
+        float popW = ImGui::CalcTextSize(popText).x * 1.6f + 24.0f;
+        float popH = 36.0f;
+        ImGui::SetNextWindowPos(
+            ImVec2(areaPos.x + (areaSize.x - popW) * 0.5f, barY - popH - 8.0f),
+            ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(popW, popH), ImGuiCond_Always);
+        ImGui::SetNextWindowBgAlpha(0.82f * alpha);
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.1f, 0.25f, 0.55f, 1.0f));
+        ImGui::Begin("##VoxelSizePop", nullptr,
+            ImGuiWindowFlags_NoTitleBar  | ImGuiWindowFlags_NoResize  |
+            ImGuiWindowFlags_NoMove      | ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs  |
+            ImGuiWindowFlags_NoNav       | ImGuiWindowFlags_NoSavedSettings);
+
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, alpha));
+        float tw = ImGui::CalcTextSize(popText).x;
+        ImGui::SetCursorPosX((popW - tw) * 0.5f);
+        ImGui::SetCursorPosY((popH - ImGui::GetTextLineHeight()) * 0.5f);
+        ImGui::TextUnformatted(popText);
+        ImGui::PopStyleColor();
+
+        ImGui::End();
+        ImGui::PopStyleColor();
+    }
+}
+
+// ============================================================================
+// Combat HUD
+// ============================================================================
+
+void ImGuiRenderer::renderCombatHUD(
+    Core::InitiativeTracker* tracker,
+    Core::Party*             party,
+    Core::EntityRegistry*    entityRegistry)
+{
+    if (!tracker || !tracker->isCombatActive()) return;
+
+    const auto& order = tracker->turnOrder();
+    if (order.empty()) return;
+
+    ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+
+    // -----------------------------------------------------------------------
+    // "COMBAT" banner + round counter  (top-centre)
+    // -----------------------------------------------------------------------
+    {
+        const char* banner = "⚔  COMBAT";
+        float bannerW = 260.0f;
+        ImGui::SetNextWindowPos(ImVec2((displaySize.x - bannerW) * 0.5f, 8.0f),
+                                ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(bannerW, 32.0f), ImGuiCond_Always);
+        ImGui::SetNextWindowBgAlpha(0.75f);
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.55f, 0.05f, 0.05f, 1.0f));
+        ImGui::Begin("##CombatBanner", nullptr,
+            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_NoMove    | ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs |
+            ImGuiWindowFlags_NoNav);
+        ImGui::SetCursorPosX((bannerW - ImGui::CalcTextSize(banner).x) * 0.5f - 8.0f);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.2f, 1.0f));
+        ImGui::Text("%s   Round %d", banner, tracker->currentRound());
+        ImGui::PopStyleColor();
+        ImGui::End();
+        ImGui::PopStyleColor();
+    }
+
+    // -----------------------------------------------------------------------
+    // Initiative order panel (right side)
+    // -----------------------------------------------------------------------
+    const float panelW  = 230.0f;
+    const float rowH    = 54.0f;
+    const float panelH  = std::min(
+        static_cast<float>(order.size()) * rowH + 36.0f,
+        displaySize.y * 0.75f);
+
+    ImGui::SetNextWindowPos(ImVec2(displaySize.x - panelW - 8.0f, 50.0f),
+                            ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(panelW, panelH), ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.82f);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg,   ImVec4(0.08f, 0.08f, 0.12f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_TitleBgActive, ImVec4(0.18f, 0.18f, 0.28f, 1.0f));
+    ImGui::Begin("Initiative", nullptr,
+        ImGuiWindowFlags_NoResize  | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar |
+        ImGuiWindowFlags_NoInputs  | ImGuiWindowFlags_NoNav);
+
+    ImGui::BeginChild("##InitList", ImVec2(0, 0), false,
+                      ImGuiWindowFlags_NoScrollbar);
+
+    const std::string& currentId = tracker->currentEntityId();
+
+    for (size_t i = 0; i < order.size(); ++i) {
+        const auto& p = order[i];
+        bool isActive = (p.entityId == currentId);
+
+        ImGui::PushID(static_cast<int>(i));
+
+        // Active entry gets a coloured background strip
+        if (isActive) {
+            ImVec2 pos = ImGui::GetCursorScreenPos();
+            ImGui::GetWindowDrawList()->AddRectFilled(
+                pos,
+                ImVec2(pos.x + panelW - 8.0f, pos.y + rowH - 2.0f),
+                IM_COL32(60, 120, 60, 180), 4.0f);
+        }
+
+        // --- Name row ---
+        // Determine display name: prefer Party name, fall back to entityId
+        std::string displayName = p.entityId;
+        bool isPlayerPartyMember = false;
+        if (party) {
+            const auto* member = party->getMember(p.entityId);
+            if (member) {
+                displayName = member->name;
+                isPlayerPartyMember = true;
+            }
+        }
+
+        // Initiative roll badge
+        ImGui::SetCursorPosX(4.0f);
+        if (isActive) {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 0.3f, 1.0f));
+            ImGui::Text("▶ ");
+            ImGui::PopStyleColor();
+            ImGui::SameLine(0, 0);
+        } else {
+            ImGui::Text("  ");
+            ImGui::SameLine(0, 0);
+        }
+
+        // Colour: player party members are cyan, NPCs are orange-red
+        ImVec4 nameCol = isPlayerPartyMember
+            ? ImVec4(0.4f, 0.9f, 1.0f, 1.0f)
+            : ImVec4(1.0f, 0.55f, 0.25f, 1.0f);
+        ImGui::PushStyleColor(ImGuiCol_Text, nameCol);
+        ImGui::Text("%-16s", displayName.c_str());
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+        ImGui::Text("[%d]", p.initiativeRoll);
+        ImGui::PopStyleColor();
+
+        // --- HP bar ---
+        float hpFrac = 1.0f;
+        float hp = 0.0f, maxHp = 1.0f;
+        if (entityRegistry) {
+            auto* entity = entityRegistry->getEntity(p.entityId);
+            if (entity) {
+                auto* hc = entity->getHealthComponent();
+                if (hc) {
+                    hp    = hc->getHealth();
+                    maxHp = hc->getMaxHealth();
+                    hpFrac = (maxHp > 0.0f) ? hp / maxHp : 0.0f;
+                }
+            }
+        }
+
+        // Colour ramp: green → yellow → red
+        ImVec4 barCol;
+        if (hpFrac > 0.5f)
+            barCol = ImVec4(0.15f + (1.0f - hpFrac) * 1.4f, 0.75f, 0.15f, 1.0f);
+        else
+            barCol = ImVec4(0.85f, hpFrac * 1.5f, 0.05f, 1.0f);
+
+        ImGui::SetCursorPosX(4.0f);
+        ImGui::PushStyleColor(ImGuiCol_PlotHistogram, barCol);
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.18f, 0.05f, 0.05f, 1.0f));
+        char hpLabel[32];
+        snprintf(hpLabel, sizeof(hpLabel), "%.0f / %.0f##hp%zu", hp, maxHp, i);
+        ImGui::ProgressBar(hpFrac, ImVec2(panelW - 16.0f, 14.0f), hpLabel);
+        ImGui::PopStyleColor(2);
+
+        // Surprised indicator
+        if (p.isSurprised && !p.hasActedThisRound) {
+            ImGui::SameLine();
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.6f, 0.0f, 1.0f));
+            ImGui::Text(" [Surprised]");
+            ImGui::PopStyleColor();
+        }
+
+        ImGui::Spacing();
+        ImGui::PopID();
+    }
+
+    ImGui::EndChild();
+    ImGui::End();
+    ImGui::PopStyleColor(2);
+
+    // -----------------------------------------------------------------------
+    // Whose-turn indicator (bottom-centre, above dialogue box area)
+    // -----------------------------------------------------------------------
+    {
+        std::string turnName = currentId;
+        if (party) {
+            const auto* m = party->getMember(currentId);
+            if (m) turnName = m->name;
+        }
+        bool isPlayerTurn = party && party->hasMember(currentId);
+
+        char turnMsg[128];
+        if (isPlayerTurn)
+            snprintf(turnMsg, sizeof(turnMsg), "YOUR TURN  —  %s", turnName.c_str());
+        else
+            snprintf(turnMsg, sizeof(turnMsg), "%s's Turn", turnName.c_str());
+
+        float msgW = ImGui::CalcTextSize(turnMsg).x + 32.0f;
+        ImGui::SetNextWindowPos(
+            ImVec2((displaySize.x - msgW) * 0.5f, displaySize.y - 120.0f),
+            ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(msgW, 36.0f), ImGuiCond_Always);
+
+        float pulse = 0.65f + 0.35f * sinf(static_cast<float>(ImGui::GetTime()) * 2.8f);
+        ImVec4 bgCol = isPlayerTurn
+            ? ImVec4(0.1f, 0.35f, 0.1f, pulse)
+            : ImVec4(0.35f, 0.12f, 0.05f, pulse);
+        ImGui::SetNextWindowBgAlpha(bgCol.w);
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, bgCol);
+        ImGui::Begin("##TurnIndicator", nullptr,
+            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_NoMove    | ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs |
+            ImGuiWindowFlags_NoNav);
+
+        ImVec4 textCol = isPlayerTurn
+            ? ImVec4(0.5f, 1.0f, 0.5f, 1.0f)
+            : ImVec4(1.0f, 0.65f, 0.3f, 1.0f);
+        ImGui::PushStyleColor(ImGuiCol_Text, textCol);
+        ImGui::SetCursorPosX(16.0f);
+        ImGui::Text("%s", turnMsg);
+        ImGui::PopStyleColor();
+        ImGui::End();
+        ImGui::PopStyleColor();
+    }
 }
 
 } // namespace Phyxel::UI

@@ -682,6 +682,10 @@ void Chunk::batchUpdateCollisions() {
     );
 }
 
+void Chunk::setPhysicsBulkMode(bool bulk) {
+    physicsManager.setInBulkOperation(bulk);
+}
+
 // Helper method to check if a cube has exposed faces (for collision optimization)
 bool Chunk::hasExposedFaces(const glm::ivec3& localPos) const {
     // Delegate to physics manager with callback for accessing cubes

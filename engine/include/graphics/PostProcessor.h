@@ -35,6 +35,7 @@ public:
     VkRenderPass getSceneRenderPass() const { return sceneRenderPass; }
     VkRenderPass getPostProcessRenderPass() const { return postProcessRenderPass; }
     VkImageView getOffscreenImageView() const { return offscreenImageView; }
+    VkSampler getOffscreenSampler() const { return offscreenSampler; }
 
 private:
     Vulkan::VulkanDevice* device;

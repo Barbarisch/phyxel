@@ -35,6 +35,7 @@ namespace Core {
 class WorldInitializer;
 class GameCallbacks;
 class AudioSystem;
+class SceneManager;
 
 /**
  * @brief Core engine runtime — owns and initializes all engine subsystems.
@@ -123,6 +124,7 @@ public:
     Graphics::Camera*           getCamera()                 const;
     Graphics::CameraManager*    getCameraManager()          const;
     Core::LocationRegistry*     getLocationRegistry()       const;
+    Core::SceneManager*         getSceneManager()           const;
 
     /// Access the active configuration (read-only).
     const EngineConfig& getConfig() const { return config_; }
@@ -184,6 +186,9 @@ private:
 
     // Locations
     std::unique_ptr<Core::LocationRegistry>  locationRegistry_;
+
+    // Scene management
+    std::unique_ptr<Core::SceneManager>      sceneManager_;
 
     // Initialization orchestrator (kept alive for potential re-init)
     std::unique_ptr<WorldInitializer>        worldInitializer_;

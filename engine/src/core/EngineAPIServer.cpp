@@ -767,6 +767,66 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/materials/add — Add a new material at runtime
+    // ====================================================================
+    srv.Post("/api/materials/add", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("add_material", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/materials/remove — Remove a material at runtime
+    // ====================================================================
+    srv.Post("/api/materials/remove", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("remove_material", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/materials/save — Save materials.json to disk
+    // ====================================================================
+    srv.Post("/api/materials/save", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("save_materials", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/atlas/reload — Hot-reload the texture atlas
+    // ====================================================================
+    srv.Post("/api/atlas/reload", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("reload_atlas", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // GET /api/world/chunks — Chunk information
     // ====================================================================
     srv.Get("/api/world/chunks", [this](const httplib::Request&, httplib::Response& res) {
@@ -1092,6 +1152,124 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // Scene Management API
+    // ====================================================================
+
+    // GET /api/scenes — List all scenes
+    srv.Get("/api/scenes", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("list_scenes", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/scene/active — Get active scene info
+    srv.Get("/api/scene/active", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("get_active_scene", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/scene/transition — Transition to a different scene
+    srv.Post("/api/scene/transition", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("transition_scene", params, 30000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/scene/add — Add a new scene definition
+    srv.Post("/api/scene/add", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("add_scene", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/scene/remove — Remove a scene definition
+    srv.Post("/api/scene/remove", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("remove_scene", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/scene/manifest/save — Save scene manifest to file
+    srv.Post("/api/scene/manifest/save", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::object();
+            if (!req.body.empty()) params = json::parse(req.body);
+            json result = queueAndWait("save_scene_manifest", params, 10000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // Dynamic Furniture API
+    // ====================================================================
+
+    // POST /api/furniture/activate — Activate a placed object as dynamic furniture
+    srv.Post("/api/furniture/activate", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("activate_furniture", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/furniture/deactivate — Deactivate dynamic furniture back to static
+    srv.Post("/api/furniture/deactivate", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("deactivate_furniture", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // GET /api/furniture/list — List all active dynamic furniture
+    srv.Get("/api/furniture/list", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("list_dynamic_furniture", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/furniture/shatter — Shatter dynamic furniture into fragments
+    srv.Post("/api/furniture/shatter", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("shatter_furniture", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // GET /api/events — Poll game events (cursor-based)
     // Query: ?since=42  (returns events with id > 42)
     // ====================================================================
@@ -1332,6 +1510,129 @@ void EngineAPIServer::setupRoutes() {
         json params = json::object();
         if (req.has_param("id")) params["id"] = req.get_param_value("id");
         json result = queueAndWait("get_object_tree", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // POST /api/door/register — Register a placed object as a door
+    // Body: { "placed_object_id": "door_wood_1", "template_name": "door_wood",
+    //         "base_rotation": 0, "open_angle": 90, "swing_speed": 120,
+    //         "hinge": { "x": 10, "y": 16, "z": 20 } }
+    // ====================================================================
+    srv.Post("/api/door/register", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("register_door", params, 30000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/door/toggle — Toggle a door open/closed
+    // Body: { "placed_object_id": "door_wood_1" }
+    // ====================================================================
+    srv.Post("/api/door/toggle", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("toggle_door", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/door/open — Open a door
+    // Body: { "placed_object_id": "door_wood_1" }
+    // ====================================================================
+    srv.Post("/api/door/open", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("open_door", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/door/close — Close a door
+    // Body: { "placed_object_id": "door_wood_1" }
+    // ====================================================================
+    srv.Post("/api/door/close", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("close_door", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // GET /api/doors — List all registered doors
+    // ====================================================================
+    srv.Get("/api/doors", [this](const httplib::Request&, httplib::Response& res) {
+        json params = json::object();
+        json result = queueAndWait("list_doors", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // POST /api/door/lock — Lock/unlock a door
+    // Body: { "placed_object_id": "door_wood_1", "locked": true, "key_item_id": "" }
+    // ====================================================================
+    srv.Post("/api/door/lock", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_door_lock", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/door/unregister — Remove door registration (re-bake as static)
+    // Body: { "placed_object_id": "door_wood_1" }
+    // ====================================================================
+    srv.Post("/api/door/unregister", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("unregister_door", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // GET /api/debug/interaction — Query current interaction manager state
+    // ====================================================================
+    srv.Get("/api/debug/interaction", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("query_interaction", {});
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // POST /api/interact — Trigger interactWithNPC() from API (bypasses keyboard)
+    // ====================================================================
+    srv.Post("/api/interact", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("trigger_interact", {});
         res.set_content(result.dump(), "application/json");
     });
 
@@ -2130,6 +2431,36 @@ void EngineAPIServer::setupRoutes() {
         json params = {{"entityId", entityId}, {"slot", body["slot"]}};
         json result = queueAndWait("unequip_item", params);
         res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // RPG SYSTEM ENDPOINTS  /api/rpg/...
+    // ====================================================================
+
+    // All RPG sub-paths are routed to the single m_rpgHandler.
+    // GET  /api/rpg/<action>          — read-only queries
+    // POST /api/rpg/<action>          — mutations (body = JSON params)
+
+    srv.Get(R"(/api/rpg/(.+))", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!m_rpgHandler) {
+            res.status = 503;
+            res.set_content(json{{"error", "RPG system not initialized"}}.dump(), "application/json");
+            return;
+        }
+        std::string action = req.matches[1];
+        res.set_content(m_rpgHandler(action, json::object()).dump(), "application/json");
+    });
+
+    srv.Post(R"(/api/rpg/(.+))", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!m_rpgHandler) {
+            res.status = 503;
+            res.set_content(json{{"error", "RPG system not initialized"}}.dump(), "application/json");
+            return;
+        }
+        std::string action = req.matches[1];
+        json body = json::parse(req.body, nullptr, false);
+        if (body.is_discarded()) body = json::object();
+        res.set_content(m_rpgHandler(action, body).dump(), "application/json");
     });
 
     // POST /api/combat/attack — Perform an attack (via command queue)

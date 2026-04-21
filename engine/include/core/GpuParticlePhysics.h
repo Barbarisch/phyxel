@@ -124,7 +124,7 @@ public:
     void clearCharacterAABB();
 
     // GPU-side per-material physics (32 bytes, std430).
-    // Populated at init from MaterialManager, indexed by GpuParticle::materialIndex.
+    // Populated at init from MaterialRegistry, indexed by GpuParticle::materialIndex.
     struct alignas(4) MaterialPhysicsGpu {
         float mass;            // Gravity scaling
         float restitution;     // Bounciness
@@ -188,9 +188,6 @@ private:
     // Physics constants
     static constexpr float GRAVITY         = -9.81f;  // match Bullet physics
     static constexpr float SLEEP_THRESH_SQ = 5e-4f;   // settle faster
-
-    // Material names in index order (index 0 = Default)
-    static const std::vector<std::string> MATERIAL_NAMES;
 
     // ---- Vulkan resources ----
     VkDevice         m_device         = VK_NULL_HANDLE;

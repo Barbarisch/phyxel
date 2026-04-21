@@ -1,0 +1,51 @@
+[
+  {
+    "id": "goblin_hoard",
+    "name": "Goblin Hoard",
+    "minRolls": 1,
+    "maxRolls": 3,
+    "entries": [
+      { "itemId": "gold_coins",       "weight": 3.0, "minCount": 5,  "maxCount": 20, "chance": 1.0 },
+      { "itemId": "dagger",           "weight": 2.0, "minCount": 1,  "maxCount": 1,  "chance": 0.5 },
+      { "itemId": "potion_healing",   "weight": 1.0, "minCount": 1,  "maxCount": 1,  "chance": 0.3 },
+      { "itemId": "torch",            "weight": 2.0, "minCount": 1,  "maxCount": 3,  "chance": 0.8 },
+      { "itemId": "crude_gem",        "weight": 0.5, "minCount": 1,  "maxCount": 1,  "chance": 0.2 }
+    ]
+  },
+  {
+    "id": "bandit_stash",
+    "name": "Bandit Stash",
+    "minRolls": 2,
+    "maxRolls": 4,
+    "entries": [
+      { "itemId": "gold_coins",       "weight": 3.0, "minCount": 10, "maxCount": 50, "chance": 1.0 },
+      { "itemId": "shortsword",       "weight": 1.5, "minCount": 1,  "maxCount": 1,  "chance": 0.4 },
+      { "itemId": "leather_armor",    "weight": 1.0, "minCount": 1,  "maxCount": 1,  "chance": 0.3 },
+      { "itemId": "potion_healing",   "weight": 1.5, "minCount": 1,  "maxCount": 2,  "chance": 0.5 },
+      { "itemId": "rope",             "weight": 1.0, "minCount": 1,  "maxCount": 1,  "chance": 0.6 },
+      { "itemId": "lockpick_set",     "weight": 0.5, "minCount": 1,  "maxCount": 1,  "chance": 0.25 }
+    ]
+  },
+  {
+    "id": "dragon_hoard",
+    "name": "Dragon Hoard",
+    "minRolls": 5,
+    "maxRolls": 8,
+    "entries": [
+      { "itemId": "gold_coins",           "weight": 2.0, "minCount": 500,  "maxCount": 2000, "chance": 1.0 },
+      { "itemId": "platinum_coins",       "weight": 1.5, "minCount": 50,   "maxCount": 200,  "chance": 1.0 },
+      { "itemId": "longsword_plus2",      "weight": 0.5, "minCount": 1,    "maxCount": 1,    "chance": 0.4 },
+      { "itemId": "ring_of_protection",   "weight": 0.5, "minCount": 1,    "maxCount": 1,    "chance": 0.3 },
+      { "itemId": "potion_greater_healing","weight": 1.0, "minCount": 1,   "maxCount": 3,    "chance": 0.8 },
+      { "itemId": "dragon_scale",         "weight": 1.5, "minCount": 3,    "maxCount": 10,   "chance": 1.0 },
+      { "itemId": "spell_scroll_fireball","weight": 0.5, "minCount": 1,    "maxCount": 1,    "chance": 0.25 }
+    ]
+  },
+  {
+    "id": "empty",
+    "name": "Empty",
+    "minRolls": 0,
+    "maxRolls": 0,
+    "entries": []
+  }
+]

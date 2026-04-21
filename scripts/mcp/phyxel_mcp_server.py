@@ -34,6 +34,7 @@ import os
 import logging
 import subprocess
 import asyncio
+import random
 import httpx
 from typing import Any
 from pathlib import Path
@@ -187,14 +188,14 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="spawn_entity",
-            description="Spawn a new game entity (character) in the world. Types: 'physics' (humanoid with physics), 'spider' (spider enemy), 'animated' (animated voxel character).",
+            description="Spawn a new game entity (character) in the world. Types: 'physics' (humanoid with physics), 'spider' (spider enemy), 'animated' (animated voxel character), 'active' (kinematic capsule + procedural skeleton), 'hybrid' (keyframed animation + procedural IK corrections).",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "type": {
                         "type": "string",
                         "description": "Entity type to spawn",
-                        "enum": ["physics", "spider", "animated"]
+                        "enum": ["physics", "spider", "animated", "active", "hybrid"]
                     },
                     "x": {"type": "number", "description": "Spawn X coordinate"},
                     "y": {"type": "number", "description": "Spawn Y coordinate"},
@@ -372,6 +373,99 @@ async def list_tools() -> list[Tool]:
                 "required": []
             }
         ),
+
+        # ================================================================
+        # Doors (Kinematic Voxel Objects)
+        # ================================================================
+        Tool(
+            name="register_door",
+            description="Register a placed template object as an animated door. The template's static voxels are removed and replaced by a kinematic object that can swing open/closed around a Y-axis hinge. Place the template first with spawn_template, then register it as a door.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "placed_object_id": {"type": "string", "description": "ID of the placed object (returned by spawn_template)"},
+                    "template_name": {"type": "string", "description": "Template name used for voxel data (e.g. 'door_wood')"},
+                    "base_rotation": {"type": "integer", "description": "Placement rotation 0/90/180/270 degrees", "default": 0},
+                    "open_angle": {"type": "number", "description": "Degrees of Y-axis rotation when fully open", "default": 90.0},
+                    "swing_speed": {"type": "number", "description": "Animation speed in degrees per second", "default": 120.0},
+                    "hinge": {"type": "object", "description": "World position of hinge (defaults to placed object origin)", "properties": {
+                        "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}
+                    }},
+                    "thickness": {"type": "integer", "description": "Door thickness in microcubes (1-16, default 16 = full cube). 2 = thin door.", "default": 16}
+                },
+                "required": ["placed_object_id", "template_name"]
+            }
+        ),
+        Tool(
+            name="toggle_door",
+            description="Toggle a registered door open or closed. The door will animate smoothly to the opposite state.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "placed_object_id": {"type": "string", "description": "ID of the door's placed object"}
+                },
+                "required": ["placed_object_id"]
+            }
+        ),
+        Tool(
+            name="open_door",
+            description="Open a registered door (no effect if already open).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "placed_object_id": {"type": "string", "description": "ID of the door's placed object"}
+                },
+                "required": ["placed_object_id"]
+            }
+        ),
+        Tool(
+            name="close_door",
+            description="Close a registered door (no effect if already closed).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "placed_object_id": {"type": "string", "description": "ID of the door's placed object"}
+                },
+                "required": ["placed_object_id"]
+            }
+        ),
+        Tool(
+            name="list_doors",
+            description="List all registered doors with their current state (open/closed, angle, locked, hinge position).",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+        Tool(
+            name="set_door_lock",
+            description="Lock or unlock a door. Locked doors cannot be opened until unlocked. Optionally require a specific item key.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "placed_object_id": {"type": "string", "description": "ID of the door's placed object"},
+                    "locked": {"type": "boolean", "description": "True to lock, false to unlock"},
+                    "key_item_id": {"type": "string", "description": "Item ID required to unlock (empty = no key needed)", "default": ""}
+                },
+                "required": ["placed_object_id", "locked"]
+            }
+        ),
+        Tool(
+            name="unregister_door",
+            description="Unregister a door, destroying its kinematic object. The voxels are NOT restored to the chunk.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "placed_object_id": {"type": "string", "description": "ID of the door's placed object"}
+                },
+                "required": ["placed_object_id"]
+            }
+        ),
+
+        # ================================================================
+        # Camera Control
+        # ================================================================
         Tool(
             name="set_camera",
             description="Move the camera to a specific position and/or orientation.",
@@ -431,6 +525,62 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="list_materials",
             description="List all available voxel materials with their physical properties (mass, friction, restitution, color tint, metallic, roughness).",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+
+        # ================================================================
+        # Material Management (runtime add/remove/save)
+        # ================================================================
+        Tool(
+            name="add_material",
+            description="Add a new material to the engine at runtime. Creates texture filename slots automatically. Use reload_atlas after adding to rebuild the texture atlas.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"description": "Unique material name (case-sensitive)", "type": "string"},
+                    "emissive": {"description": "Whether the material glows (default false)", "type": "boolean"},
+                    "physics": {
+                        "description": "Physics properties (omit for system-only materials)",
+                        "type": "object",
+                        "properties": {
+                            "mass": {"type": "number", "description": "Mass (default 1.0)"},
+                            "friction": {"type": "number", "description": "Friction (default 0.5)"},
+                            "restitution": {"type": "number", "description": "Bounciness (default 0.3)"}
+                        }
+                    }
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="remove_material",
+            description="Remove a material from the engine. Does not delete texture files. Use reload_atlas after removing.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"description": "Material name to remove", "type": "string"}
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="save_materials",
+            description="Save the current material definitions to materials.json on disk.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {"description": "Output path (default: resources/materials.json)", "type": "string"}
+                },
+                "required": []
+            }
+        ),
+        Tool(
+            name="reload_atlas",
+            description="Hot-reload the texture atlas from source PNGs. Rebuilds the atlas, uploads to GPU, and updates shader UV data. Call after modifying textures or adding/removing materials.",
             inputSchema={
                 "type": "object",
                 "properties": {},
@@ -543,6 +693,79 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "all": {"type": "boolean", "description": "Save all chunks (true) or only dirty chunks (false, default)", "default": False}
+                },
+                "required": []
+            }
+        ),
+
+        # ================================================================
+        # Scene Management
+        # ================================================================
+        Tool(
+            name="list_scenes",
+            description="List all scenes in the loaded scene manifest. Returns scene IDs, names, active status, and whether a transition is in progress.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+        Tool(
+            name="get_active_scene",
+            description="Get detailed information about the currently active scene including ID, name, world database, state, and re-entry data.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+        Tool(
+            name="transition_scene",
+            description="Transition to a different scene. Unloads the current scene (saving dirty chunks, clearing entities/NPCs) and loads the target scene. Player health/inventory/story persist across transitions.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "scene_id": {"type": "string", "description": "ID of the scene to transition to"}
+                },
+                "required": ["scene_id"]
+            }
+        ),
+        Tool(
+            name="add_scene",
+            description="Add a new scene definition to the manifest at runtime. Provide at minimum an 'id' and optionally name, worldDatabase, world generation config, structures, NPCs, etc.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Unique scene identifier"},
+                    "name": {"type": "string", "description": "Display name for the scene"},
+                    "worldDatabase": {"type": "string", "description": "SQLite database filename (e.g. 'dungeon.db')"},
+                    "world": {"type": "object", "description": "World generation config (type, seed, etc.)"},
+                    "structures": {"type": "array", "description": "Structure definitions to build"},
+                    "npcs": {"type": "array", "description": "NPC definitions to spawn"},
+                    "camera": {"type": "object", "description": "Camera position/orientation"},
+                    "player": {"type": "object", "description": "Player spawn config"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="remove_scene",
+            description="Remove a scene definition from the manifest. Cannot remove the currently active scene.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "scene_id": {"type": "string", "description": "ID of the scene to remove"}
+                },
+                "required": ["scene_id"]
+            }
+        ),
+        Tool(
+            name="save_scene_manifest",
+            description="Save the current scene manifest (all scene definitions) to a JSON file. Defaults to 'game.json'.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Output file path (default: 'game.json')"}
                 },
                 "required": []
             }
@@ -757,6 +980,62 @@ async def list_tools() -> list[Tool]:
         ),
 
         # ================================================================
+        # Dynamic Furniture
+        # ================================================================
+        Tool(
+            name="activate_furniture",
+            description="Activate a placed object as dynamic furniture. Removes static voxels from chunks and creates a physics-driven compound rigid body that can slide, tumble, and be knocked around. Optionally apply an impulse.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Placed object ID to activate"},
+                    "impulse_x": {"type": "number", "description": "Impulse X component (default 0)"},
+                    "impulse_y": {"type": "number", "description": "Impulse Y component (default 0)"},
+                    "impulse_z": {"type": "number", "description": "Impulse Z component (default 0)"},
+                    "contact_x": {"type": "number", "description": "Contact point X (default 0)"},
+                    "contact_y": {"type": "number", "description": "Contact point Y (default 0)"},
+                    "contact_z": {"type": "number", "description": "Contact point Z (default 0)"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="deactivate_furniture",
+            description="Deactivate dynamic furniture back to static voxels. Places the template back into chunks at the current physics position (quantized to grid), or at the original position if restore_original is true.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Placed object ID to deactivate"},
+                    "restore_original": {"type": "boolean", "description": "If true, restore at original position instead of current (default false)"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="list_dynamic_furniture",
+            description="List all currently active dynamic furniture objects with their physics state (position, mass, sleep timer, grab state).",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+            }
+        ),
+        Tool(
+            name="shatter_furniture",
+            description="Shatter an active dynamic furniture object into fragments. Large fragments (>= 4 voxels) become new compound rigid bodies; small fragments become GPU particle debris. Requires the object to be active (use activate_furniture first).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Placed object ID of active dynamic furniture"},
+                    "force": {"type": "number", "description": "Impact force magnitude (default 100.0, must exceed bondStrength * 50)"},
+                    "contact_x": {"type": "number", "description": "Contact point X (world space)"},
+                    "contact_y": {"type": "number", "description": "Contact point Y (world space)"},
+                    "contact_z": {"type": "number", "description": "Contact point Z (world space)"}
+                },
+                "required": ["id"]
+            }
+        ),
+
+        # ================================================================
         # Clipboard (copy / paste regions)
         # ================================================================
         Tool(
@@ -852,7 +1131,7 @@ async def list_tools() -> list[Tool]:
         # ================================================================
         Tool(
             name="generate_template",
-            description="Generate a voxel template from a text description using BlockSmith (LLM-powered). Creates a .txt template file that can be spawned with spawn_template. If the template already exists, returns the cached version (use force=true to regenerate). Requires ANTHROPIC_API_KEY or PHYXEL_AI_API_KEY.",
+            description="Generate a voxel template from a text description using BlockSmith (LLM-powered). Creates a .voxel template file that can be spawned with spawn_template. If the template already exists, returns the cached version (use force=true to regenerate). Requires ANTHROPIC_API_KEY or PHYXEL_AI_API_KEY.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -933,7 +1212,7 @@ async def list_tools() -> list[Tool]:
         # ================================================================
         Tool(
             name="save_template",
-            description="Save a voxel region as a reusable .txt template file. Scans all cubes in the bounding box, converts to relative coordinates, and writes to resources/templates/<name>.txt. The template is immediately available for spawn_template. Max 100k voxels.",
+            description="Save a voxel region as a reusable .voxel template file. Scans all cubes in the bounding box, converts to relative coordinates, and writes to resources/templates/<name>.voxel. The template is immediately available for spawn_template. Max 100k voxels.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -1350,9 +1629,9 @@ async def list_tools() -> list[Tool]:
                     },
                     "player": {
                         "type": "object",
-                        "description": "Player entity. type: physics|spider|animated. position: {x,y,z}. Optional: id, animFile.",
+                        "description": "Player entity. type: physics|spider|animated|active|hybrid. position: {x,y,z}. Optional: id, animFile.",
                         "properties": {
-                            "type": {"type": "string", "enum": ["physics", "spider", "animated"]},
+                            "type": {"type": "string", "enum": ["physics", "spider", "animated", "active", "hybrid"]},
                             "position": {"type": "object"},
                             "id": {"type": "string"},
                             "animFile": {"type": "string"}
@@ -2716,6 +2995,203 @@ async def list_tools() -> list[Tool]:
                 "required": ["message"]
             }
         ),
+
+        # ================================================================
+        # D&D RPG — Stateless dice / lookup tools (no engine required)
+        # ================================================================
+        Tool(
+            name="roll_dice",
+            description="Roll dice using D&D notation (e.g. '2d6+3', '1d20', '4d6kh3'). Supports advantage/disadvantage. Returns roll results with breakdown.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "expression": {"type": "string", "description": "Dice expression e.g. '2d6+3', '1d20', '1d8'"},
+                    "advantage": {"type": "boolean", "description": "Roll with advantage (roll twice, take higher)"},
+                    "disadvantage": {"type": "boolean", "description": "Roll with disadvantage (roll twice, take lower)"},
+                    "count": {"type": "integer", "description": "Number of independent rolls (default 1)"}
+                },
+                "required": ["expression"]
+            }
+        ),
+        Tool(
+            name="check_dc",
+            description="Check if a D20 roll meets a Difficulty Class (DC). Returns pass/fail with roll details.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "dc": {"type": "integer", "description": "Difficulty Class to beat"},
+                    "bonus": {"type": "integer", "description": "Bonus to add to the d20 roll (ability mod + proficiency, etc.)"},
+                    "advantage": {"type": "boolean", "description": "Roll with advantage"},
+                    "disadvantage": {"type": "boolean", "description": "Roll with disadvantage"}
+                },
+                "required": ["dc"]
+            }
+        ),
+
+        # ================================================================
+        # D&D RPG — Party management (engine required)
+        # ================================================================
+        Tool(
+            name="get_party",
+            description="Get the current D&D party state: members, levels, alive status, leader, total/average level.",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        Tool(
+            name="add_party_member",
+            description="Add an entity to the D&D party.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "entity_id": {"type": "string", "description": "Entity ID to add"},
+                    "name": {"type": "string", "description": "Display name (defaults to entity_id)"},
+                    "level": {"type": "integer", "description": "Character level 1-20 (default 1)"}
+                },
+                "required": ["entity_id"]
+            }
+        ),
+        Tool(
+            name="remove_party_member",
+            description="Remove an entity from the D&D party.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "entity_id": {"type": "string", "description": "Entity ID to remove"}
+                },
+                "required": ["entity_id"]
+            }
+        ),
+
+        # ================================================================
+        # D&D RPG — Combat / Initiative (engine required)
+        # ================================================================
+        Tool(
+            name="get_combat_state",
+            description="Get D&D initiative tracker state: whether combat is active, current round, whose turn it is, full turn order.",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        Tool(
+            name="start_combat",
+            description="Start D&D combat. Rolls initiative for all participants and sorts turn order.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "participants": {
+                        "type": "array",
+                        "description": "List of combatants with initiative bonuses",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "entity_id": {"type": "string"},
+                                "initiative_bonus": {"type": "integer"}
+                            },
+                            "required": ["entity_id"]
+                        }
+                    }
+                },
+                "required": []
+            }
+        ),
+        Tool(
+            name="next_combat_turn",
+            description="Advance to the next turn in D&D combat. Returns who goes next and the current round number.",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        Tool(
+            name="end_combat",
+            description="End D&D combat and reset the initiative tracker.",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        Tool(
+            name="set_initiative",
+            description="Manually set an entity's initiative value in the turn order.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "entity_id": {"type": "string", "description": "Entity ID"},
+                    "value": {"type": "integer", "description": "Initiative value"}
+                },
+                "required": ["entity_id", "value"]
+            }
+        ),
+
+        # ================================================================
+        # D&D RPG — World Calendar (engine required)
+        # ================================================================
+        Tool(
+            name="get_world_date",
+            description="Get the current in-game calendar date: day, month, year, season, moon phase, day of week, holidays.",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        Tool(
+            name="advance_world_date",
+            description="Advance the in-game calendar by a number of days.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "days": {"type": "integer", "description": "Number of days to advance (default 1)"}
+                },
+                "required": []
+            }
+        ),
+        Tool(
+            name="set_world_date",
+            description="Set the in-game calendar to a specific total day number (day 1 = 1st Deepwinter, Year 1).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "total_days": {"type": "integer", "description": "Total elapsed days from epoch"}
+                },
+                "required": ["total_days"]
+            }
+        ),
+
+        # ================================================================
+        # D&D RPG — Campaign Journal (engine required)
+        # ================================================================
+        Tool(
+            name="add_journal_entry",
+            description="Add an entry to the campaign journal. Useful for recording session notes, world events, quest updates, and discoveries.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Entry title"},
+                    "content": {"type": "string", "description": "Entry body text"},
+                    "type": {
+                        "type": "string",
+                        "description": "Entry type: SessionNote, WorldEvent, CharacterEvent, QuestUpdate, Discovery",
+                        "enum": ["SessionNote", "WorldEvent", "CharacterEvent", "QuestUpdate", "Discovery"]
+                    },
+                    "day": {"type": "integer", "description": "In-game day number (defaults to current world date)"},
+                    "tags": {"type": "array", "items": {"type": "string"}, "description": "Searchable tags"}
+                },
+                "required": ["title"]
+            }
+        ),
+        Tool(
+            name="get_journal_entries",
+            description="Query campaign journal entries. Filter by type, tag, day, or full-text search.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "type": {"type": "string", "description": "Filter by entry type: SessionNote, WorldEvent, CharacterEvent, QuestUpdate, Discovery"},
+                    "tag": {"type": "string", "description": "Filter by tag"},
+                    "day": {"type": "integer", "description": "Filter by in-game day number"},
+                    "search": {"type": "string", "description": "Full-text search across title and content"}
+                },
+                "required": []
+            }
+        ),
+        Tool(
+            name="remove_journal_entry",
+            description="Remove a campaign journal entry by ID.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer", "description": "Journal entry ID"}
+                },
+                "required": ["id"]
+            }
+        ),
     ]
 
 
@@ -2734,6 +3210,8 @@ _NO_PROJECT_TOOLS = {
     "engine_status", "engine_running", "build_project", "launch_engine",
     "project_info", "list_projects", "create_project", "open_project",
     "package_game",
+    # D&D stateless tools — no engine needed
+    "roll_dice", "check_dc",
 }
 
 
@@ -2861,6 +3339,48 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     elif name == "list_structure_types":
         return await api_get("/api/structure/types")
 
+    # --- Doors ---
+    elif name == "register_door":
+        body: dict[str, Any] = {
+            "placed_object_id": args["placed_object_id"],
+            "template_name": args["template_name"],
+        }
+        if "base_rotation" in args:
+            body["base_rotation"] = args["base_rotation"]
+        if "open_angle" in args:
+            body["open_angle"] = args["open_angle"]
+        if "swing_speed" in args:
+            body["swing_speed"] = args["swing_speed"]
+        if "hinge" in args:
+            body["hinge"] = args["hinge"]
+        if "thickness" in args:
+            body["thickness"] = args["thickness"]
+        return await api_post("/api/door/register", body)
+
+    elif name == "toggle_door":
+        return await api_post("/api/door/toggle", {"placed_object_id": args["placed_object_id"]})
+
+    elif name == "open_door":
+        return await api_post("/api/door/open", {"placed_object_id": args["placed_object_id"]})
+
+    elif name == "close_door":
+        return await api_post("/api/door/close", {"placed_object_id": args["placed_object_id"]})
+
+    elif name == "list_doors":
+        return await api_get("/api/doors")
+
+    elif name == "set_door_lock":
+        body = {
+            "placed_object_id": args["placed_object_id"],
+            "locked": args["locked"],
+        }
+        if "key_item_id" in args:
+            body["key_item_id"] = args["key_item_id"]
+        return await api_post("/api/door/lock", body)
+
+    elif name == "unregister_door":
+        return await api_post("/api/door/unregister", {"placed_object_id": args["placed_object_id"]})
+
     # --- Camera ---
     elif name == "set_camera":
         body: dict[str, Any] = {}
@@ -2895,6 +3415,26 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     # --- Materials ---
     elif name == "list_materials":
         return await api_get("/api/materials")
+
+    elif name == "add_material":
+        body = {"name": args["name"]}
+        if "emissive" in args:
+            body["emissive"] = args["emissive"]
+        if "physics" in args:
+            body["physics"] = args["physics"]
+        return await api_post("/api/materials/add", body)
+
+    elif name == "remove_material":
+        return await api_post("/api/materials/remove", {"name": args["name"]})
+
+    elif name == "save_materials":
+        body = {}
+        if "path" in args:
+            body["path"] = args["path"]
+        return await api_post("/api/materials/save", body)
+
+    elif name == "reload_atlas":
+        return await api_post("/api/atlas/reload", {})
 
     # --- Chunk Info ---
     elif name == "get_chunk_info":
@@ -2951,6 +3491,32 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         if "all" in args:
             body["all"] = args["all"]
         return await api_post("/api/world/save", body)
+
+    # --- Scene Management ---
+    elif name == "list_scenes":
+        return await api_get("/api/scenes")
+
+    elif name == "get_active_scene":
+        return await api_get("/api/scene/active")
+
+    elif name == "transition_scene":
+        return await api_post("/api/scene/transition", {
+            "scene_id": args["scene_id"]
+        })
+
+    elif name == "add_scene":
+        return await api_post("/api/scene/add", args)
+
+    elif name == "remove_scene":
+        return await api_post("/api/scene/remove", {
+            "scene_id": args["scene_id"]
+        })
+
+    elif name == "save_scene_manifest":
+        body: dict[str, Any] = {}
+        if "path" in args:
+            body["path"] = args["path"]
+        return await api_post("/api/scene/manifest/save", body)
 
     # --- Event Polling ---
     elif name == "poll_events":
@@ -3028,6 +3594,36 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         return await api_get("/api/placed_object/tree", {
             "id": args["id"]
         })
+
+    # --- Dynamic Furniture ---
+    elif name == "activate_furniture":
+        body = {"id": args["id"]}
+        for key in ("impulse_x", "impulse_y", "impulse_z",
+                     "contact_x", "contact_y", "contact_z"):
+            if key in args:
+                body[key] = args[key]
+        return await api_post("/api/furniture/activate", body)
+
+    elif name == "deactivate_furniture":
+        body = {"id": args["id"]}
+        if "restore_original" in args:
+            body["restore_original"] = args["restore_original"]
+        return await api_post("/api/furniture/deactivate", body)
+
+    elif name == "list_dynamic_furniture":
+        return await api_get("/api/furniture/list")
+
+    elif name == "shatter_furniture":
+        body = {"id": args["id"]}
+        if "force" in args:
+            body["force"] = args["force"]
+        if "contact_x" in args:
+            body["contact_x"] = args["contact_x"]
+        if "contact_y" in args:
+            body["contact_y"] = args["contact_y"]
+        if "contact_z" in args:
+            body["contact_z"] = args["contact_z"]
+        return await api_post("/api/furniture/shatter", body)
 
     # --- Clipboard ---
     elif name == "copy_region":
@@ -3804,8 +4400,203 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     elif name == "send_ai_message":
         return await api_post("/api/ai/conversation/send", args)
 
+    # -----------------------------------------------------------------------
+    # D&D RPG — Stateless dice tools (no engine required)
+    # -----------------------------------------------------------------------
+    elif name == "roll_dice":
+        return _rpg_roll_dice(args)
+
+    elif name == "check_dc":
+        return _rpg_check_dc(args)
+
+    # -----------------------------------------------------------------------
+    # D&D RPG — Party
+    # -----------------------------------------------------------------------
+    elif name == "get_party":
+        return await api_get("/api/rpg/party")
+
+    elif name == "add_party_member":
+        body: dict[str, Any] = {"entity_id": args["entity_id"]}
+        if "name" in args:
+            body["name"] = args["name"]
+        if "level" in args:
+            body["level"] = args["level"]
+        return await api_post("/api/rpg/party/add", body)
+
+    elif name == "remove_party_member":
+        return await api_post("/api/rpg/party/remove", {"entity_id": args["entity_id"]})
+
+    # -----------------------------------------------------------------------
+    # D&D RPG — Combat / Initiative
+    # -----------------------------------------------------------------------
+    elif name == "get_combat_state":
+        return await api_get("/api/rpg/combat/state")
+
+    elif name == "start_combat":
+        body = {}
+        if "participants" in args:
+            body["participants"] = args["participants"]
+        return await api_post("/api/rpg/combat/start", body)
+
+    elif name == "next_combat_turn":
+        return await api_post("/api/rpg/combat/next_turn", {})
+
+    elif name == "end_combat":
+        return await api_post("/api/rpg/combat/end", {})
+
+    elif name == "set_initiative":
+        return await api_post("/api/rpg/combat/set_initiative", {
+            "entity_id": args["entity_id"],
+            "value": args["value"]
+        })
+
+    # -----------------------------------------------------------------------
+    # D&D RPG — World Calendar
+    # -----------------------------------------------------------------------
+    elif name == "get_world_date":
+        return await api_get("/api/rpg/world/date")
+
+    elif name == "advance_world_date":
+        return await api_post("/api/rpg/world/advance_date", {"days": args.get("days", 1)})
+
+    elif name == "set_world_date":
+        return await api_post("/api/rpg/world/set_date", {"total_days": args["total_days"]})
+
+    # -----------------------------------------------------------------------
+    # D&D RPG — Campaign Journal
+    # -----------------------------------------------------------------------
+    elif name == "add_journal_entry":
+        body = {
+            "title":   args["title"],
+            "content": args.get("content", ""),
+            "type":    args.get("type", "WorldEvent"),
+        }
+        if "day" in args:
+            body["day"] = args["day"]
+        if "tags" in args:
+            body["tags"] = args["tags"]
+        return await api_post("/api/rpg/journal/add", body)
+
+    elif name == "get_journal_entries":
+        body: dict[str, Any] = {}
+        for key in ("type", "tag", "day", "search"):
+            if key in args:
+                body[key] = args[key]
+        return await api_post("/api/rpg/journal/entries", body)
+
+    elif name == "remove_journal_entry":
+        return await api_post("/api/rpg/journal/remove", {"id": args["id"]})
+
     else:
         return {"error": f"Unknown tool: {name}"}
+
+
+# ============================================================================
+# D&D RPG — Stateless Python helpers (no engine required)
+# ============================================================================
+
+def _roll_die(sides: int) -> int:
+    """Roll a single die with the given number of sides."""
+    return random.randint(1, sides)
+
+
+def _parse_and_roll(expression: str) -> dict:
+    """
+    Parse a dice expression like '2d6+3' or '1d20' and roll it.
+    Returns {"dice": [...], "modifier": int, "total": int, "expression": str}.
+    Supports basic NdS[+/-M] format only.
+    """
+    import re
+    expr = expression.strip().lower().replace(" ", "")
+    m = re.fullmatch(r"(\d+)d(\d+)([+-]\d+)?", expr)
+    if not m:
+        # Try bare die like 'd20'
+        m2 = re.fullmatch(r"d(\d+)([+-]\d+)?", expr)
+        if m2:
+            count, sides, mod_str = 1, int(m2.group(1)), m2.group(2) or "+0"
+        else:
+            return {"error": f"Cannot parse dice expression: {expression}"}
+    else:
+        count, sides, mod_str = int(m.group(1)), int(m.group(2)), m.group(3) or "+0"
+
+    if sides < 2 or count < 1 or count > 100:
+        return {"error": "Invalid dice parameters"}
+
+    modifier = int(mod_str)
+    rolls = [_roll_die(sides) for _ in range(count)]
+    total = sum(rolls) + modifier
+    return {
+        "expression": expression,
+        "dice":       rolls,
+        "modifier":   modifier,
+        "total":      total,
+        "die_type":   f"d{sides}",
+        "count":      count
+    }
+
+
+def _rpg_roll_dice(args: dict) -> dict:
+    """Stateless dice roller — implements the roll_dice MCP tool."""
+    expression  = args.get("expression", "1d20")
+    advantage   = args.get("advantage", False)
+    disadvantage = args.get("disadvantage", False)
+    count       = max(1, int(args.get("count", 1)))
+
+    if count > 1:
+        results = [_parse_and_roll(expression) for _ in range(count)]
+        if any("error" in r for r in results):
+            return results[0]  # return first error
+        return {"rolls": results, "expression": expression, "count": count}
+
+    if advantage and not disadvantage:
+        r1 = _parse_and_roll(expression)
+        r2 = _parse_and_roll(expression)
+        if "error" in r1:
+            return r1
+        chosen = r1 if r1["total"] >= r2["total"] else r2
+        return {**chosen, "advantage": True, "other_roll": r1["total"] if chosen is r2 else r2["total"]}
+
+    if disadvantage and not advantage:
+        r1 = _parse_and_roll(expression)
+        r2 = _parse_and_roll(expression)
+        if "error" in r1:
+            return r1
+        chosen = r1 if r1["total"] <= r2["total"] else r2
+        return {**chosen, "disadvantage": True, "other_roll": r1["total"] if chosen is r2 else r2["total"]}
+
+    return _parse_and_roll(expression)
+
+
+def _rpg_check_dc(args: dict) -> dict:
+    """Stateless DC check — implements the check_dc MCP tool."""
+    dc          = int(args.get("dc", 10))
+    bonus       = int(args.get("bonus", 0))
+    advantage   = args.get("advantage", False)
+    disadvantage = args.get("disadvantage", False)
+
+    roll_args = {"expression": "1d20", "advantage": advantage, "disadvantage": disadvantage}
+    roll = _rpg_roll_dice(roll_args)
+    if "error" in roll:
+        return roll
+
+    d20 = roll["dice"][0]
+    total = d20 + bonus
+    passed = total >= dc
+    is_nat20 = d20 == 20
+    is_nat1  = d20 == 1
+
+    return {
+        "passed":       passed,
+        "d20_roll":     d20,
+        "bonus":        bonus,
+        "total":        total,
+        "dc":           dc,
+        "margin":       total - dc,
+        "natural_20":   is_nat20,
+        "natural_1":    is_nat1,
+        "advantage":    advantage,
+        "disadvantage": disadvantage,
+    }
 
 
 # ============================================================================

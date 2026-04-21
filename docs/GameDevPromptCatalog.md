@@ -29,7 +29,7 @@ A curated list of prompts for building voxel games with the Phyxel engine using 
 **Features tested:** `fill_region`, materials (Stone, Metal), hollow structures
 
 ### 2. Mountain Village Terrain
-> Generate a mountain terrain with 3x3 chunks (from -1,0,-1 to 1,0,1) using seed 42. Then place 3 trees (use tree.txt template) on flat areas above the terrain. Take a screenshot so I can see the result.
+> Generate a mountain terrain with 3x3 chunks (from -1,0,-1 to 1,0,1) using seed 42. Then place 3 trees (use tree.voxel template) on flat areas above the terrain. Take a screenshot so I can see the result.
 
 **Features tested:** `generate_world` (Mountains), `spawn_template`, `screenshot`, `get_terrain_height`
 

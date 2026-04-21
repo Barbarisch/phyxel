@@ -326,17 +326,17 @@ std::string WorldGenerator::getMaterialForPosition(const glm::ivec3& worldPos, f
     
     // Natural terrain material assignment based on depth from surface
     float depthFromSurface = surfaceHeight - y;
-    
+
     if (depthFromSurface < 0.5f) {
-        // Surface layer: grass (use grassdirt texture set)
+        // Surface layer: grass-topped dirt
         // Mountains above 45 get snow (Ice)
         if (surfaceHeight > 45.0f && generationType == GenerationType::Mountains) {
             return "Ice";
         }
-        return "Default"; // Top grass layer
+        return "grassdirt";
     } else if (depthFromSurface < 4.0f) {
-        // Dirt layer (just under surface) - use Cork for earthy brown
-        return "Cork";
+        // Dirt layer (just under surface)
+        return "Dirt";
     } else if (depthFromSurface < terrainParams.stoneLevel) {
         // Mid layer - transition to stone
         return "Stone";

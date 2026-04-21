@@ -13,7 +13,8 @@ enum class ScreenState {
     Paused,         // Pause overlay — mouse free, game logic paused
     Inventory,      // Inventory screen — mouse free, game logic paused
     Settings,       // Settings screen — mouse free, game logic paused
-    KeybindingRebind // Keybinding rebind screen — mouse free, waiting for key press
+    KeybindingRebind, // Keybinding rebind screen — mouse free, waiting for key press
+    Loading         // Scene transition loading screen — mouse free, game logic paused
 };
 
 /// Returns true if the game world simulation should tick in this state.
