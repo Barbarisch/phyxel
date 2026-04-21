@@ -194,7 +194,7 @@ bool DynamicFurnitureManager::activate(const std::string& placedObjectId,
     obj.rigidBody->wake();
 
     // Apply initial impulse
-    if (glm::length2(impulse) > 1e-6f) {
+    if (glm::dot(impulse, impulse) > 1e-6f) {
         obj.rigidBody->applyCentralImpulse(impulse);
     }
 

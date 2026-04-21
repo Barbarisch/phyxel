@@ -2579,9 +2579,9 @@ void Application::update(float deltaTime) {
             if (dynamicFurnitureManager) {
                 const glm::vec3 furnitureColor{1.0f, 0.6f, 0.1f};
                 for (const auto& [id, obj] : dynamicFurnitureManager->getActiveObjects()) {
-                    if (!obj.voxelBody) continue;
+                    if (!obj.rigidBody) continue;
                     glm::vec3 mn, mx;
-                    obj.voxelBody->getWorldAABB(mn, mx);
+                    obj.rigidBody->getWorldAABB(mn, mx);
                     addWireBox(mn, mx, furnitureColor);
                 }
             }

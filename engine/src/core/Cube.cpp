@@ -1,26 +1,26 @@
 #include "core/Cube.h"
 #include "core/MaterialRegistry.h"
 #include "physics/Material.h"
+#include "physics/VoxelRigidBody.h"
 #include "utils/Logger.h"
-#include <btBulletDynamicsCommon.h>
 
 namespace Phyxel {
 
-Cube::Cube() 
-    : position(0), broken(false), visible(true), rigidBody(nullptr) {
+Cube::Cube()
+    : position(0), broken(false), visible(true) {
     initializeBonds();
 }
 
-Cube::Cube(const glm::ivec3& pos) 
-    : position(pos), broken(false), visible(true), rigidBody(nullptr) {
+Cube::Cube(const glm::ivec3& pos)
+    : position(pos), broken(false), visible(true) {
     initializeBonds();
 }
 
-Cube::Cube(const glm::ivec3& pos, const std::string& material) 
+Cube::Cube(const glm::ivec3& pos, const std::string& material)
     : position(pos), materialName(material),
-      broken(false), visible(true), rigidBody(nullptr) {
+      broken(false), visible(true) {
     initializeBonds();
-    physicsPosition = glm::vec3(pos); // Initialize physics position to grid position
+    physicsPosition = glm::vec3(pos);
 }
 
 void Cube::initializeBonds(float defaultStrength) {
@@ -100,26 +100,18 @@ void Cube::setMaterial(const std::string& newMaterialName) {
 }
 
 void Cube::applyMaterialProperties() {
-    if (!rigidBody) return;
-    
-    // Get material properties
+    if (!voxelBody) return;
+
     const auto& material = Phyxel::Core::MaterialRegistry::instance().getPhysics(materialName);
-    
-    // Apply mass
-    btVector3 localInertia(0, 0, 0);
+    voxelBody->friction       = material.friction;
+    voxelBody->restitution    = material.restitution;
+    voxelBody->linearDamping  = material.linearDamping;
+    voxelBody->angularDamping = material.angularDamping;
     if (material.mass > 0.0f) {
-        rigidBody->getCollisionShape()->calculateLocalInertia(material.mass, localInertia);
+        voxelBody->invMass = 1.0f / material.mass;
     }
-    rigidBody->setMassProps(material.mass, localInertia);
-    
-    // Apply friction and restitution
-    rigidBody->setFriction(material.friction);
-    rigidBody->setRestitution(material.restitution);
-    
-    // Apply damping
-    rigidBody->setDamping(material.linearDamping, material.angularDamping);
-    
-    LOG_DEBUG_FMT("Physics", "[MATERIAL] Applied '" << materialName << "' material properties to cube");
+
+    LOG_DEBUG_FMT("Physics", "[MATERIAL] Applied '" << materialName << "' to cube voxelBody");
 }
 
 void Cube::applyMaterialProperties(const std::string& newMaterialName) {

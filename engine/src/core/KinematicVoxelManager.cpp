@@ -4,7 +4,6 @@
 #include "physics/PhysicsWorld.h"
 #include "utils/Logger.h"
 
-#include <glm/gtc/type_ptr.hpp>
 #include <algorithm>
 #include <climits>
 #include <cfloat>
@@ -17,8 +16,7 @@ namespace Core {
 // Construction / destruction
 // ============================================================================
 
-KinematicVoxelManager::KinematicVoxelManager(Physics::PhysicsWorld* physicsWorld)
-    : m_physicsWorld(physicsWorld)
+KinematicVoxelManager::KinematicVoxelManager(Physics::PhysicsWorld* /*physicsWorld*/)
 {}
 
 KinematicVoxelManager::~KinematicVoxelManager() {
@@ -44,15 +42,9 @@ std::string KinematicVoxelManager::add(const std::string& idHint,
     obj.faces          = buildFaces(obj.voxels);
     obj.currentTransform = initialTransform;
 
-    if (m_physicsWorld && !obj.voxels.empty() && !skipCollider) {
-        glm::vec3 halfExtents = computeHalfExtents(obj.voxels);
-        createCollider(obj, halfExtents);
-    }
-
     LOG_INFO_FMT("KinematicVoxelManager", "Added '" << id << "': "
                  << obj.voxels.size() << " voxels, "
-                 << obj.faces.size() << " faces"
-                 << (obj.collider ? ", collider created" : ", no physics world"));
+                 << obj.faces.size() << " faces");
 
     m_objects[id] = std::move(obj);
     m_bufferDirty = true;
@@ -63,7 +55,6 @@ void KinematicVoxelManager::remove(const std::string& id) {
     auto it = m_objects.find(id);
     if (it == m_objects.end()) return;
 
-    destroyCollider(it->second);
     m_objects.erase(it);
     m_bufferDirty = true;
     LOG_INFO_FMT("KinematicVoxelManager", "Removed '" << id << "'");
@@ -81,21 +72,7 @@ glm::mat4 KinematicVoxelManager::getTransform(const std::string& id) const {
     return (it != m_objects.end()) ? it->second.currentTransform : glm::mat4(1.0f);
 }
 
-void KinematicVoxelManager::syncCollidersToPhysics() {
-    for (auto& [id, obj] : m_objects) {
-        if (!obj.collider || !obj.motionState) continue;
-
-        btTransform t = toBulletTransform(obj.currentTransform);
-        obj.motionState->setWorldTransform(t);
-        obj.collider->setWorldTransform(t);
-        obj.collider->activate(true);
-    }
-}
-
 void KinematicVoxelManager::clear() {
-    for (auto& [id, obj] : m_objects) {
-        destroyCollider(obj);
-    }
     m_objects.clear();
     m_bufferDirty = true;
 }
@@ -209,56 +186,6 @@ glm::vec3 KinematicVoxelManager::computeHalfExtents(const std::vector<KinematicV
         mx = glm::max(mx, v.localPos + h);
     }
     return (mx - mn) * 0.5f;
-}
-
-void KinematicVoxelManager::createCollider(KinematicVoxelObject& obj,
-                                            const glm::vec3& halfExtents) {
-    if (!m_physicsWorld) return;
-
-    auto* world = m_physicsWorld->getWorld();
-    if (!world) return;
-
-    obj.colliderShape = new btBoxShape(btVector3(halfExtents.x, halfExtents.y, halfExtents.z));
-
-    btTransform startTransform = toBulletTransform(obj.currentTransform);
-    obj.motionState = new btDefaultMotionState(startTransform);
-
-    btRigidBody::btRigidBodyConstructionInfo rbInfo(
-        0.0f,                   // mass = 0 → static by default
-        obj.motionState,
-        obj.colliderShape,
-        btVector3(0, 0, 0)      // zero inertia for static/kinematic
-    );
-    obj.collider = new btRigidBody(rbInfo);
-
-    // Mark as kinematic so Bullet moves it when we update the world transform
-    obj.collider->setCollisionFlags(
-        obj.collider->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT);
-    obj.collider->setActivationState(DISABLE_DEACTIVATION);
-
-    world->addRigidBody(obj.collider);
-}
-
-void KinematicVoxelManager::destroyCollider(KinematicVoxelObject& obj) {
-    if (!obj.collider) return;
-
-    if (m_physicsWorld && m_physicsWorld->getWorld()) {
-        m_physicsWorld->getWorld()->removeRigidBody(obj.collider);
-    }
-
-    delete obj.collider;
-    delete obj.colliderShape;
-    delete obj.motionState;
-
-    obj.collider      = nullptr;
-    obj.colliderShape = nullptr;
-    obj.motionState   = nullptr;
-}
-
-btTransform KinematicVoxelManager::toBulletTransform(const glm::mat4& m) {
-    btTransform t;
-    t.setFromOpenGLMatrix(glm::value_ptr(m));
-    return t;
 }
 
 std::string KinematicVoxelManager::generateId(const std::string& hint) {
