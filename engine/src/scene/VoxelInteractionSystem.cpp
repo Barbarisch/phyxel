@@ -3,7 +3,6 @@
 #include "core/AssetManager.h"
 #include "core/PlacedObjectManager.h"
 #include "core/DynamicFurnitureManager.h"
-#include <btBulletDynamicsCommon.h>
 #include "physics/PhysicsWorld.h"
 #include "ui/WindowManager.h"
 #include "core/ForceSystem.h"

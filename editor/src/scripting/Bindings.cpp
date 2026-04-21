@@ -158,12 +158,6 @@ PYBIND11_EMBEDDED_MODULE(phyxel, m) {
         .def("get_input_manager", &Application::getInputManager, py::return_value_policy::reference)
         .def("get_audio_system", &Application::getAudioSystem, py::return_value_policy::reference)
         // Character Management
-        .def("create_physics_character", [](Application& app, float x, float y, float z) {
-            return app.createPhysicsCharacter(glm::vec3(x, y, z));
-        }, py::return_value_policy::reference, "Create a physics character at (x,y,z)")
-        .def("create_spider_character", [](Application& app, float x, float y, float z) {
-            return app.createSpiderCharacter(glm::vec3(x, y, z));
-        }, py::return_value_policy::reference, "Create a spider character at (x,y,z)")
         .def("create_animated_character", [](Application& app, float x, float y, float z, const std::string& animFile) {
             return app.createAnimatedCharacter(glm::vec3(x, y, z), animFile);
         }, py::return_value_policy::reference, "Create an animated character at (x,y,z) with animation file")
@@ -201,8 +195,6 @@ PYBIND11_EMBEDDED_MODULE(phyxel, m) {
         .def("set_position", [](Scene::Entity& e, float x, float y, float z) {
             e.setPosition(glm::vec3(x, y, z));
         }, "Set entity position");
-    py::class_<Scene::PhysicsCharacter, Scene::Entity>(m, "PhysicsCharacter");
-    py::class_<Scene::SpiderCharacter, Scene::Entity>(m, "SpiderCharacter");
     py::class_<Scene::AnimatedVoxelCharacter, Scene::Entity>(m, "AnimatedVoxelCharacter")
         .def("play_animation", &Scene::AnimatedVoxelCharacter::playAnimation, "Play an animation by name")
         .def("get_animation_names", &Scene::AnimatedVoxelCharacter::getAnimationNames, "Get list of all available animation names")

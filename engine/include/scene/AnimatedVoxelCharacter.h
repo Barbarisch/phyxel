@@ -249,7 +249,6 @@ namespace Scene {
         Phyxel::Skeleton& getSkeletonMut() { return skeleton; }
         Phyxel::AnimationSystem& getAnimSystemMut() { return animSystem; }
 
-        btRigidBody* getControllerBody() const { return nullptr; }
         const glm::vec3& getWorldPositionRef() const { return worldPosition; }
         float getSkeletonFootOffset() const { return skeletonFootOffset_; }
         float getCurrentYaw() const { return currentYaw; }

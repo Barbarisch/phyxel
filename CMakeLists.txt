@@ -98,13 +98,8 @@ elseif(PLATFORM_LINUX)
     endif()
 endif()
 
-# Bullet Physics (build from submodule)
-if(PLATFORM_WINDOWS)
-    set(USE_MSVC_RUNTIME_LIBRARY_DLL ON CACHE BOOL "Use MSVC DLL runtime" FORCE)
-endif()
-set(BUILD_BULLET2_DEMOS OFF CACHE BOOL "Disable Bullet2 demos" FORCE)
-set(BUILD_UNIT_TESTS OFF CACHE BOOL "Disable Bullet unit tests" FORCE)
-add_subdirectory(external/bullet3)
+# Bullet Physics submodule kept as reference but NOT built or linked.
+# Bullet-dependent character classes have been moved to engine/deprecated/bullet/.
 
 # ==========================================================================
 # FetchContent Dependencies
@@ -157,16 +152,9 @@ message(STATUS "pybind11::embed libs: ${PYBIND11_EMBED_LIBS}")
 # Platform-specific link/search paths
 # ==========================================================================
 if(PLATFORM_WINDOWS)
-    set(BULLET_LIBS
-        $<$<CONFIG:Debug>:BulletDynamics_Debug>$<$<NOT:$<CONFIG:Debug>>:BulletDynamics>
-        $<$<CONFIG:Debug>:BulletCollision_Debug>$<$<NOT:$<CONFIG:Debug>>:BulletCollision>
-        $<$<CONFIG:Debug>:LinearMath_Debug>$<$<NOT:$<CONFIG:Debug>>:LinearMath>
-    )
-    # Store lib dirs for phyxel_core target_link_directories (propagates to consumers)
     set(PHYXEL_GLFW_LIB_DIR ${PHYXEL_ROOT_DIR}/external/glfw/lib-vc2022 CACHE INTERNAL "")
     set(PHYXEL_BUILD_LIB_DIR ${CMAKE_BINARY_DIR}/lib/$<CONFIG> CACHE INTERNAL "")
 elseif(PLATFORM_LINUX)
-    set(BULLET_LIBS BulletDynamics BulletCollision LinearMath)
     find_package(glfw3 REQUIRED)
 endif()
 

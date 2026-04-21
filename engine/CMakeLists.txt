@@ -24,7 +24,6 @@ target_include_directories(phyxel_core PUBLIC
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
     ${STB_IMAGE_DIR}
-    ${PHYXEL_ROOT_DIR}/external/bullet3/src
     ${PHYXEL_ROOT_DIR}/external/glm
     ${PHYXEL_ROOT_DIR}/external/miniaudio
 )
@@ -44,7 +43,6 @@ if(PLATFORM_WINDOWS)
     target_link_libraries(phyxel_core PUBLIC
         Vulkan::Vulkan
         glfw3
-        ${BULLET_LIBS}
         pybind11::embed
         nlohmann_json::nlohmann_json
         httplib::httplib
@@ -59,7 +57,6 @@ elseif(PLATFORM_LINUX)
     target_link_libraries(phyxel_core PUBLIC
         Vulkan::Vulkan
         glfw
-        ${BULLET_LIBS}
         pybind11::embed
         nlohmann_json::nlohmann_json
         httplib::httplib

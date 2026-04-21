@@ -6,7 +6,6 @@ option(PHYXEL_HEAVY_TESTS "Enable heavy stress tests" OFF)
 add_executable(phyxel_stress_tests
     StressTestFixture.h
     ChunkStressTests.cpp
-    PhysicsStressTests.cpp
 )
 
 # All include directories, link libraries, and compile definitions

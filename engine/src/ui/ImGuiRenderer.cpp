@@ -521,7 +521,8 @@ void ImGuiRenderer::renderPerformanceOverlay(
             ImGui::Text("Partial Occlusion Rate: 0.0%%");
         }
         
-        ImGui::Text("Physics Bodies: %d", physicsWorld->getRigidBodyCount());
+        int bodyCount = physicsWorld->getVoxelWorld() ? physicsWorld->getVoxelWorld()->getBodyCount() : 0;
+        ImGui::Text("Physics Bodies: %d", bodyCount);
         
         ImGui::Spacing();
         

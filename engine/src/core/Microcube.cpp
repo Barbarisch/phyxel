@@ -5,28 +5,28 @@ namespace Phyxel {
 Microcube::Microcube() 
     : parentCubePosition(0), 
       subcubeLocalPosition(0), microcubeLocalPosition(0), 
-      scale(MICROCUBE_SCALE), broken(false), visible(true), rigidBody(nullptr) {
+      scale(MICROCUBE_SCALE), broken(false), visible(true) {
 }
 
-Microcube::Microcube(const glm::ivec3& parentCubePos) 
-    : parentCubePosition(parentCubePos), 
-      subcubeLocalPosition(0), microcubeLocalPosition(0), 
-      scale(MICROCUBE_SCALE), broken(false), visible(true), rigidBody(nullptr) {
+Microcube::Microcube(const glm::ivec3& parentCubePos)
+    : parentCubePosition(parentCubePos),
+      subcubeLocalPosition(0), microcubeLocalPosition(0),
+      scale(MICROCUBE_SCALE), broken(false), visible(true) {
 }
 
-Microcube::Microcube(const glm::ivec3& parentCubePos, 
-                     const glm::ivec3& subcubeLocalPos, const glm::ivec3& microcubeLocalPos) 
-    : parentCubePosition(parentCubePos), 
-      subcubeLocalPosition(subcubeLocalPos), microcubeLocalPosition(microcubeLocalPos), 
-      scale(MICROCUBE_SCALE), broken(false), visible(true), rigidBody(nullptr) {
+Microcube::Microcube(const glm::ivec3& parentCubePos,
+                     const glm::ivec3& subcubeLocalPos, const glm::ivec3& microcubeLocalPos)
+    : parentCubePosition(parentCubePos),
+      subcubeLocalPosition(subcubeLocalPos), microcubeLocalPosition(microcubeLocalPos),
+      scale(MICROCUBE_SCALE), broken(false), visible(true) {
 }
 
-Microcube::Microcube(const glm::ivec3& parentCubePos, 
+Microcube::Microcube(const glm::ivec3& parentCubePos,
                      const glm::ivec3& subcubeLocalPos, const glm::ivec3& microcubeLocalPos,
-                     const std::string& material) 
-    : parentCubePosition(parentCubePos), 
-      subcubeLocalPosition(subcubeLocalPos), microcubeLocalPosition(microcubeLocalPos), 
-      scale(MICROCUBE_SCALE), materialName(material), broken(false), visible(true), rigidBody(nullptr) {
+                     const std::string& material)
+    : parentCubePosition(parentCubePos),
+      subcubeLocalPosition(subcubeLocalPos), microcubeLocalPosition(microcubeLocalPos),
+      scale(MICROCUBE_SCALE), materialName(material), broken(false), visible(true) {
 }
 
 glm::vec3 Microcube::getWorldPosition() const {

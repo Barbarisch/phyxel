@@ -3,9 +3,6 @@
 #include <glm/glm.hpp>
 #include <string>
 
-// Forward declarations
-class btRigidBody;
-
 namespace Phyxel {
 namespace Physics { class VoxelRigidBody; }
 
@@ -40,20 +37,18 @@ public:
     float getScale() const { return scale; }
     bool isBroken() const { return broken; }
     bool isVisible() const { return visible; }
-    btRigidBody* getRigidBody() const { return rigidBody; }
     Physics::VoxelRigidBody* getVoxelBody() const { return voxelBody; }
     const std::string& getMaterialName() const { return materialName; }
     float getLifetime() const { return lifetime; }
     bool hasExpired() const { return lifetime <= 0.0f; }
     const glm::vec3& getPhysicsPosition() const { return physicsPosition; }
-    bool isDynamic() const { return rigidBody != nullptr || voxelBody != nullptr; }
+    bool isDynamic() const { return voxelBody != nullptr; }
     
     // Mutators
     void setPosition(const glm::ivec3& pos) { position = pos; }
     void setLocalPosition(const glm::ivec3& localPos) { localPosition = localPos; }
     void setBroken(bool isBroken) { broken = isBroken; }
     void setVisible(bool vis) { visible = vis; }
-    void setRigidBody(btRigidBody* body) { rigidBody = body; }
     void setVoxelBody(Physics::VoxelRigidBody* body) { voxelBody = body; }
     void setPhysicsPosition(const glm::vec3& pos) { physicsPosition = pos; }
     void setPhysicsRotation(const glm::vec4& rot) { physicsRotation = rot; }
@@ -78,8 +73,6 @@ private:
     bool broken = false;
     bool visible = true;
     
-    // Physics bodies: rigidBody = Bullet legacy; voxelBody = custom solver
-    btRigidBody* rigidBody = nullptr;
     Physics::VoxelRigidBody* voxelBody = nullptr;
     
     // Smooth floating-point position and rotation for dynamic subcubes (bypasses integer grid)

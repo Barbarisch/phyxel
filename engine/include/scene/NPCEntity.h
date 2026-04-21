@@ -28,7 +28,6 @@ class RaycastVisualizer;
 namespace Scene {
 
 class AnimatedVoxelCharacter;
-class VoxelCharacter;
 class RagdollCharacter;
 
 /// An NPC entity that wraps an AnimatedVoxelCharacter and delegates
@@ -45,12 +44,12 @@ public:
               const Phyxel::Skeleton& skeleton, const Phyxel::VoxelModel& model,
               const std::vector<Phyxel::AnimationClip>& clips);
 
-    /// Construct a physics-driven NPC (active ragdoll via VoxelCharacter).
+    /// Construct with physicsDriven flag (falls back to AnimatedVoxelCharacter).
     NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& position,
               const std::string& name, const std::string& animFile,
               const CharacterAppearance& appearance, bool physicsDriven);
 
-    /// Construct a physics-driven NPC from cached template data.
+    /// Construct from cached template data with physicsDriven flag.
     NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& position,
               const std::string& name, const CharacterAppearance& appearance,
               const Phyxel::Skeleton& skeleton, const Phyxel::VoxelModel& model,
@@ -93,13 +92,9 @@ public:
     // Access inner animated character for animation control
     AnimatedVoxelCharacter* getAnimatedCharacter() const { return m_character.get(); }
 
-    // Access inner physics-driven character (VoxelCharacter)
-    VoxelCharacter* getVoxelCharacter() const { return m_voxelCharacter.get(); }
+    bool isPhysicsDriven() const { return false; }
 
-    /// Whether this NPC uses physics-driven (active ragdoll) mode.
-    bool isPhysicsDriven() const { return m_voxelCharacter != nullptr; }
-
-    /// Get the underlying RagdollCharacter for rendering (works for both character types).
+    /// Get the underlying RagdollCharacter for rendering.
     RagdollCharacter* getRenderableCharacter() const;
 
     // Health
@@ -124,23 +119,12 @@ public:
     // D&D Character Sheet (optional — absent for non-RPG NPCs)
     // -----------------------------------------------------------------------
 
-    /// Attach a CharacterSheet. Syncs HealthComponent max HP from the sheet.
     void setCharacterSheet(const Core::CharacterSheet& sheet);
 
-    /// Returns nullptr if no sheet has been assigned.
     Core::CharacterSheet*       getCharacterSheet()       { return m_sheet ? &*m_sheet : nullptr; }
     const Core::CharacterSheet* getCharacterSheet() const { return m_sheet ? &*m_sheet : nullptr; }
     bool hasCharacterSheet() const { return m_sheet.has_value(); }
 
-    /// Resolve a weapon attack against this NPC using D&D rules.
-    /// Uses the sheet's AC if available, otherwise falls back to HealthComponent.
-    /// Calls HealthComponent::damage() with the final result.
-    /// @param attackBonus  attacker's total attack modifier (STR/DEX mod + prof + magic)
-    /// @param damageDice   e.g. "1d8+3"
-    /// @param damageType   DamageType enum value
-    /// @param hasAdvantage
-    /// @param hasDisadvantage
-    /// @returns the resolved attack result (hit, damage dealt, etc.)
     Core::AttackRollResult receiveAttack(
         int attackBonus,
         const Core::DiceExpression& damageDice,
@@ -150,8 +134,7 @@ public:
 
 private:
     std::string m_name;
-    std::unique_ptr<AnimatedVoxelCharacter> m_character;       // Kinematic (animated) character
-    std::unique_ptr<VoxelCharacter> m_voxelCharacter;          // Physics-driven character (active ragdoll)
+    std::unique_ptr<AnimatedVoxelCharacter> m_character;
     std::unique_ptr<NPCBehavior> m_behavior;
     std::unique_ptr<UI::DialogueProvider> m_dialogueProvider;
     NPCContext m_context;

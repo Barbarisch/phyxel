@@ -6,8 +6,6 @@
 #endif
 #include "Application.h"
 #include "scene/VoxelInteractionSystem.h"
-#include "scene/PhysicsCharacter.h"
-#include "scene/SpiderCharacter.h"
 #include "scene/AnimatedVoxelCharacter.h"
 #include "graphics/AnimationSystem.h"
 #include "scene/NPCEntity.h"
@@ -242,7 +240,6 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     inputManager->setYawPitch(camera->getYaw(), camera->getPitch());
 
     // Entities are now created via scripting (scripts/startup.py)
-    // See Application::createPhysicsCharacter etc.
     
     LOG_INFO("Application", "Entities initialized successfully!");
 
@@ -255,9 +252,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     respawnSystem.setOnRespawnCallback([this](const glm::vec3& spawnPos) {
         LOG_INFO("Application", "Respawning player...");
         playerHealth.revive(1.0f);
-        if (physicsCharacter)
-            physicsCharacter->reset(spawnPos);
-        else if (animatedCharacter)
+        if (animatedCharacter)
             animatedCharacter->setPosition(spawnPos);
         else
             camera->setPosition(spawnPos);
@@ -1574,8 +1569,6 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         auto it = std::remove_if(entities.begin(), entities.end(),
             [entity](const std::unique_ptr<Scene::Entity>& e) { return e.get() == entity; });
         if (it != entities.end()) entities.erase(it, entities.end());
-        if (entity == physicsCharacter) physicsCharacter = nullptr;
-        if (entity == spiderCharacter) spiderCharacter = nullptr;
         if (entity == animatedCharacter) animatedCharacter = nullptr;
         entityRegistry->unregisterEntity(id);
         return true;
@@ -1583,12 +1576,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
     m_worldOutliner->onSpawnEntity = [this](const std::string& type, const glm::vec3& pos) -> std::string {
         Scene::Entity* spawned = nullptr;
-        if (type == "animated")
+        if (type == "animated" || type == "physics" || type == "spider")
             spawned = createAnimatedCharacter(pos, "resources/animated_characters/humanoid.anim");
-        else if (type == "physics")
-            spawned = createPhysicsCharacter(pos);
-        else if (type == "spider")
-            spawned = createSpiderCharacter(pos);
         if (!spawned || !entityRegistry) return "";
         std::string id = entityRegistry->registerEntity(spawned);
         return id;
@@ -2210,9 +2199,7 @@ void Application::cleanup() {
     
     // Clear entities BEFORE physics cleanup  --  they hold raw pointers to physics bodies
     entities.clear();
-    player = nullptr;
-    physicsCharacter = nullptr;
-    spiderCharacter = nullptr;
+
     animatedCharacter = nullptr;
 
     // Clear NPC / story / dialogue subsystems
@@ -2328,12 +2315,8 @@ void Application::update(float deltaTime) {
     if (interactionManager) {
         glm::vec3 playerPos(0);
         glm::vec3 playerFront(0, 0, 1);
-        if (physicsCharacter && currentControlTarget == ControlTarget::PhysicsCharacter)
-            playerPos = physicsCharacter->getPosition();
-        else if (animatedCharacter && currentControlTarget == ControlTarget::AnimatedCharacter)
+        if (animatedCharacter && currentControlTarget == ControlTarget::AnimatedCharacter)
             playerPos = animatedCharacter->getPosition();
-        else if (spiderCharacter && currentControlTarget == ControlTarget::Spider)
-            playerPos = spiderCharacter->getPosition();
         else if (camera)
             playerPos = camera->getPosition();
         if (camera)
@@ -2371,12 +2354,6 @@ void Application::update(float deltaTime) {
                 glm::vec3 camPos = inputManager->getCameraPosition();
                 charVel = (camPos - lastCameraPos) / deltaTime;
                 charVel.y = 0.0f; // Only horizontal movement matters
-                hasChar = true;
-            } else if (physicsCharacter) {
-                charPos = physicsCharacter->getPosition();
-                glm::vec3 camPos = inputManager->getCameraPosition();
-                charVel = (camPos - lastCameraPos) / deltaTime;
-                charVel.y = 0.0f;
                 hasChar = true;
             }
             if (hasChar) {
@@ -2435,15 +2412,11 @@ void Application::update(float deltaTime) {
             // Note: We do NOT sync setFront() because Camera calculates it from yaw/pitch
             camera->setYaw(inputManager->getYaw());
             camera->setPitch(inputManager->getPitch());
-        } else if (isControllingPhysicsCharacter && physicsCharacter) {
-            physicsCharacter->updateCamera();
-        } else if (!isControllingPhysicsCharacter) {
+        } else {
             camera->setYaw(inputManager->getYaw());
             camera->setPitch(inputManager->getPitch());
-            
-            if (currentControlTarget == ControlTarget::Spider && spiderCharacter) {
-                camera->updatePositionFromTarget(spiderCharacter->getPosition(), 0.5f);
-            } else if (currentControlTarget == ControlTarget::AnimatedCharacter && animatedCharacter) {
+
+            if (currentControlTarget == ControlTarget::AnimatedCharacter && animatedCharacter) {
                 camera->updatePositionFromTarget(animatedCharacter->getPosition(), 0.5f);
             }
         }
@@ -2604,17 +2577,6 @@ void Application::update(float deltaTime) {
             raycastVisualizer->updateBuffers(renderCoordinator->getCurrentFrame());
         }
 
-        // Update PhysicsCharacter look target
-        if (physicsCharacter) {
-            const auto& raycastDebugData = voxelInteractionSystem->getLastRaycastDebugData();
-            if (raycastDebugData.hasHit) {
-                physicsCharacter->setLookTarget(raycastDebugData.hitPoint);
-            } else {
-                // Look far away along ray
-                glm::vec3 farPoint = raycastDebugData.rayOrigin + raycastDebugData.rayDirection * 100.0f;
-                physicsCharacter->setLookTarget(farPoint);
-            }
-        }
     }
     
     // Update chunks that have been modified (for hover color changes, etc.)
@@ -2655,11 +2617,6 @@ void Application::update(float deltaTime) {
     
     auto physicsEnd = std::chrono::high_resolution_clock::now();
     
-    // Update Camera AFTER physics step to prevent jitter/lag
-    if (isControllingPhysicsCharacter && physicsCharacter) {
-        physicsCharacter->updateCamera();
-    }
-
     // Update dynamic subcube positions from physics bodies (batched + throttled)
     // In hybrid mode, Bullet objects need position sync alongside GPU particles.
     if (chunkManager) {
@@ -2830,7 +2787,7 @@ void Application::handleInput() {
 
     // Pass movement input to active character
     // Only if NOT in Free Camera mode
-    if (!isControllingPhysicsCharacter && camera && camera->getMode() != Graphics::CameraMode::Free) {
+    if (camera && camera->getMode() != Graphics::CameraMode::Free) {
         float forward = 0.0f;
         float turn = 0.0f;
         float strafe = 0.0f;
@@ -2843,22 +2800,14 @@ void Application::handleInput() {
         if (inputManager->isKeyPressed(GLFW_KEY_W)) forward -= moveMagnitude;
         if (inputManager->isKeyPressed(GLFW_KEY_S)) forward += moveMagnitude;
 
-        // A/D for Turn (if controlling AnimatedCharacter)
-        if (currentControlTarget == ControlTarget::AnimatedCharacter) {
-            if (inputManager->isKeyPressed(GLFW_KEY_A)) turn -= 1.0f;
-            if (inputManager->isKeyPressed(GLFW_KEY_D)) turn += 1.0f;
+        // A/D for Turn
+        if (inputManager->isKeyPressed(GLFW_KEY_A)) turn -= 1.0f;
+        if (inputManager->isKeyPressed(GLFW_KEY_D)) turn += 1.0f;
 
-            // Q for Strafe left (E reserved for NPC interaction)
-            if (inputManager->isKeyPressed(GLFW_KEY_Q)) strafe -= moveMagnitude;
-        } else {
-            // Standard Tank Controls for others
-            if (inputManager->isKeyPressed(GLFW_KEY_A)) turn -= 1.0f;
-            if (inputManager->isKeyPressed(GLFW_KEY_D)) turn += 1.0f;
-        }
+        // Q for Strafe left (E reserved for NPC interaction)
+        if (inputManager->isKeyPressed(GLFW_KEY_Q)) strafe -= moveMagnitude;
 
-        if (currentControlTarget == ControlTarget::Spider && spiderCharacter) {
-            spiderCharacter->setControlInput(forward, turn);
-        } else if (currentControlTarget == ControlTarget::AnimatedCharacter && animatedCharacter) {
+        if (currentControlTarget == ControlTarget::AnimatedCharacter && animatedCharacter) {
             animatedCharacter->setControlInput(forward, turn, strafe);
             animatedCharacter->setSprint(isSprinting);
 
@@ -3660,85 +3609,9 @@ void Application::cycleCameraSlotReverse() {
 }
 
 void Application::toggleCharacterControl() {
-    // Cycle through control targets: PhysicsCharacter -> Spider -> AnimatedCharacter -> PhysicsCharacter
-    
-    if (currentControlTarget == ControlTarget::PhysicsCharacter) {
-        currentControlTarget = ControlTarget::Spider;
-        LOG_INFO("Application", "Control switched to Spider");
-        
-        if (physicsCharacter) physicsCharacter->setControlActive(false);
-        if (camera) {
-            camera->setDistanceFromTarget(3.0f);
-            if (camera->getMode() == Graphics::CameraMode::Free) {
-                camera->setMode(Graphics::CameraMode::ThirdPerson);
-            }
-        }
-        // Spider control is handled in handleInput()
-        
-    } else if (currentControlTarget == ControlTarget::Spider) {
-        currentControlTarget = ControlTarget::AnimatedCharacter;
-        LOG_INFO("Application", "Control switched to Animated Character");
-        
-        if (spiderCharacter) spiderCharacter->setControlInput(0, 0);
-        if (camera) {
-            camera->setDistanceFromTarget(4.0f);
-            if (camera->getMode() == Graphics::CameraMode::Free) {
-                camera->setMode(Graphics::CameraMode::ThirdPerson);
-            }
-        }
-        // Animated character control logic will need to be added
-        
-    } else if (currentControlTarget == ControlTarget::AnimatedCharacter) {
-        currentControlTarget = ControlTarget::PhysicsCharacter;
-        LOG_INFO("Application", "Control switched to Physics Character");
-
-        if (animatedCharacter) animatedCharacter->setControlInput(0, 0, 0);
-        if (physicsCharacter) physicsCharacter->setControlActive(true);
-        if (camera) {
-            camera->setDistanceFromTarget(4.0f);
-            if (camera->getMode() == Graphics::CameraMode::Free) {
-                camera->setMode(Graphics::CameraMode::ThirdPerson);
-            }
-        }
-    } else {
-        currentControlTarget = ControlTarget::PhysicsCharacter;
-        LOG_INFO("Application", "Control switched to Physics Character");
-
-        if (physicsCharacter) physicsCharacter->setControlActive(true);
-        if (camera) {
-            camera->setDistanceFromTarget(4.0f);
-            if (camera->getMode() == Graphics::CameraMode::Free) {
-                camera->setMode(Graphics::CameraMode::ThirdPerson);
-            }
-        }
-    }
-
-    // Update flag for legacy checks (though we should migrate to using enum everywhere)
-    isControllingPhysicsCharacter = (currentControlTarget == ControlTarget::PhysicsCharacter);
-}
-
-Scene::PhysicsCharacter* Application::createPhysicsCharacter(const glm::vec3& pos) {
-    auto physicsCharPtr = std::make_unique<Scene::PhysicsCharacter>(physicsWorld, inputManager, camera, pos);
-    physicsCharacter = physicsCharPtr.get();
-    physicsCharacter->setFaction(Scene::Faction::Player);
-    entities.push_back(std::move(physicsCharPtr));
-    if (entityRegistry) {
-        entityRegistry->registerEntity(physicsCharacter, "physics_" + std::to_string(entities.size()), "physics");
-    }
-    LOG_INFO("Application", "Created PhysicsCharacter");
-    return physicsCharacter;
-}
-
-Scene::SpiderCharacter* Application::createSpiderCharacter(const glm::vec3& pos) {
-    auto spiderPtr = std::make_unique<Scene::SpiderCharacter>(physicsWorld, pos);
-    spiderCharacter = spiderPtr.get();
-    spiderCharacter->setFaction(Scene::Faction::Enemy);
-    entities.push_back(std::move(spiderPtr));
-    if (entityRegistry) {
-        entityRegistry->registerEntity(spiderCharacter, "spider_" + std::to_string(entities.size()), "spider");
-    }
-    LOG_INFO("Application", "Created SpiderCharacter");
-    return spiderCharacter;
+    // Only one control target exists: AnimatedCharacter
+    currentControlTarget = ControlTarget::AnimatedCharacter;
+    LOG_INFO("Application", "Control is AnimatedCharacter");
 }
 
 Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::vec3& pos, const std::string& animFile) {
@@ -3777,36 +3650,13 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
 }
 
 void Application::setControlTarget(const std::string& targetName) {
-    if (targetName == "spider") {
-        currentControlTarget = ControlTarget::Spider;
-        if (physicsCharacter) physicsCharacter->setControlActive(false);
-        if (camera) {
-            camera->setDistanceFromTarget(3.0f);
-            if (camera->getMode() == Graphics::CameraMode::Free) {
-                camera->setMode(Graphics::CameraMode::ThirdPerson);
-            }
-        }
-    } else if (targetName == "animated") {
-        currentControlTarget = ControlTarget::AnimatedCharacter;
-        if (physicsCharacter) physicsCharacter->setControlActive(false);
-        if (spiderCharacter) spiderCharacter->setControlInput(0, 0);
-        if (camera) {
-            camera->setDistanceFromTarget(4.0f);
-            if (camera->getMode() == Graphics::CameraMode::Free) {
-                camera->setMode(Graphics::CameraMode::ThirdPerson);
-            }
-        }
-    } else {
-        currentControlTarget = ControlTarget::PhysicsCharacter;
-        if (physicsCharacter) physicsCharacter->setControlActive(true);
-        if (camera) {
-            camera->setDistanceFromTarget(4.0f);
-            if (camera->getMode() == Graphics::CameraMode::Free) {
-                camera->setMode(Graphics::CameraMode::ThirdPerson);
-            }
+    currentControlTarget = ControlTarget::AnimatedCharacter;
+    if (camera) {
+        camera->setDistanceFromTarget(4.0f);
+        if (camera->getMode() == Graphics::CameraMode::Free) {
+            camera->setMode(Graphics::CameraMode::ThirdPerson);
         }
     }
-    isControllingPhysicsCharacter = (currentControlTarget == ControlTarget::PhysicsCharacter);
     LOG_INFO("Application", "Control target set to: " + targetName);
 }
 
@@ -3858,25 +3708,19 @@ void Application::spawnTestAINPC() {
         spawnPos = camPos + camFront * 5.0f + glm::vec3(0.0f, 2.0f, 0.0f);
     }
 
-    auto npc = std::make_unique<Scene::PhysicsCharacter>(physicsWorld, inputManager, camera, spawnPos);
-    npc->debugColor = glm::vec4(0.2f, 0.8f, 0.2f, 1.0f); // Green tint for AI NPCs
-    npc->setControlActive(false); // AI-controlled, not player-controlled
-
-    auto* rawPtr = npc.get();
+    auto* npcChar = createAnimatedCharacter(spawnPos, "resources/animated_characters/humanoid.anim");
 
     // Generate a unique ID for this NPC
     static int npcCounter = 0;
     std::string npcId = "ai_npc_" + std::to_string(npcCounter++);
 
     // Register with AI system using guard recipe as default
-    if (aiSystem->createAINPC(rawPtr, npcId, Core::AssetManager::instance().resolveRecipe("characters/guard.yaml"),
+    if (aiSystem->createAINPC(npcChar, npcId, Core::AssetManager::instance().resolveRecipe("characters/guard.yaml"),
                                "You are a guard NPC in a voxel world. Be helpful but cautious.")) {
         LOG_INFO("Application", "Spawned AI NPC '{}' at ({}, {}, {})", npcId, spawnPos.x, spawnPos.y, spawnPos.z);
     } else {
         LOG_WARN("Application", "AI NPC created but AI registration failed for: {}", npcId);
     }
-
-    entities.push_back(std::move(npc));
 }
 
 void Application::toggleAISystem() {
@@ -3921,13 +3765,7 @@ void Application::interactWithNPC() {
     }
 
     // Use the current active character as the "player" interactor
-    Scene::Entity* playerEntity = nullptr;
-    if (currentControlTarget == ControlTarget::PhysicsCharacter && physicsCharacter)
-        playerEntity = physicsCharacter;
-    else if (currentControlTarget == ControlTarget::AnimatedCharacter && animatedCharacter)
-        playerEntity = animatedCharacter;
-    else if (currentControlTarget == ControlTarget::Spider && spiderCharacter)
-        playerEntity = spiderCharacter;
+    Scene::Entity* playerEntity = animatedCharacter;
     LOG_WARN("Application", "  -> calling tryInteract, playerEntity={}", playerEntity ? "valid" : "null");
     interactionManager->tryInteract(playerEntity);
 }
@@ -3983,10 +3821,7 @@ void Application::autoLoadGameDefinition() {
 
         subsystems.entitySpawner = [this](const std::string& type, const glm::vec3& pos,
                                           const std::string& animFile) -> Scene::Entity* {
-            if (type == "physics")       return createPhysicsCharacter(pos);
-            else if (type == "spider")   return createSpiderCharacter(pos);
-            else if (type == "animated") return createAnimatedCharacter(pos, animFile);
-            return nullptr;
+            return createAnimatedCharacter(pos, animFile.empty() ? "resources/animated_characters/humanoid.anim" : animFile);
         };
 
         // AI NPC registration callback: creates AIController when agencyLevel >= 1
@@ -4031,14 +3866,8 @@ void Application::autoLoadGameDefinition() {
             if (result.playerSpawned) {
                 if (animatedCharacter) {
                     currentControlTarget = ControlTarget::AnimatedCharacter;
-                    isControllingPhysicsCharacter = false;
                     camera->setDistanceFromTarget(4.0f);
                     LOG_INFO("Application", "Player spawned (AnimatedCharacter) — camera stays Free, press V to follow");
-                } else if (physicsCharacter) {
-                    currentControlTarget = ControlTarget::PhysicsCharacter;
-                    isControllingPhysicsCharacter = true;
-                    physicsCharacter->setControlActive(true);
-                    LOG_INFO("Application", "Player spawned (PhysicsCharacter) — camera stays Free, press V to follow");
                 }
             }
         } else {
@@ -4802,13 +4631,11 @@ static bool handleDebugDynamicSpawnCommand(
             glm::vec3 pos(x + gx * spacing, y + gy * spacing, z + gz * spacing);
             glm::vec3 center = pos + glm::vec3(scale * 0.5f);
             auto cube = std::make_unique<Cube>(glm::ivec3(pos), material);
-            btRigidBody* rb = chunkManager->physicsWorld->createBreakawayCube(
-                center, cubeSize, material);
-            if (rb) {
-                rb->setGravity(btVector3(0, -9.81f, 0));
-                rb->setLinearVelocity(btVector3(vel.x, vel.y, vel.z));
+            if (auto* vw = chunkManager->physicsWorld->getVoxelWorld()) {
+                auto* body = vw->createVoxelBody(center, cubeSize * 0.5f, 1.0f);
+                if (body) body->linearVelocity = vel;
+                cube->setVoxelBody(body);
             }
-            cube->setRigidBody(rb);
             cube->setPhysicsPosition(center);
             cube->setDynamicScale(cubeSize);
             cube->setLifetime(lifetime);
@@ -4816,7 +4643,7 @@ static bool handleDebugDynamicSpawnCommand(
             chunkManager->m_dynamicObjectManager.addGlobalDynamicCube(std::move(cube));
             ++spawned;
         }
-        response = {{"success", true}, {"spawned", spawned}, {"system", "bullet"},
+        response = {{"success", true}, {"spawned", spawned}, {"system", "voxel"},
                     {"scale", scale}, {"position", {{"x", x}, {"y", y}, {"z", z}}}};
         return true;
     }
@@ -5422,13 +5249,10 @@ void Application::processAPICommands() {
                 Scene::Entity* spawned = nullptr;
                 std::string entityType = type;
 
-                if (type == "physics") {
-                    spawned = createPhysicsCharacter(glm::vec3(x, y, z));
-                } else if (type == "spider") {
-                    spawned = createSpiderCharacter(glm::vec3(x, y, z));
-                } else if (type == "animated") {
+                if (type == "physics" || type == "spider" || type == "animated") {
                     std::string animFile = cmd.params.value("animFile", "resources/animated_characters/humanoid.anim");
                     spawned = createAnimatedCharacter(glm::vec3(x, y, z), animFile);
+                    entityType = "animated";
                 } else {
                     response = {{"error", "Unknown entity type: " + type}};
                     if (cmd.onComplete) cmd.onComplete(response);
@@ -5495,8 +5319,6 @@ void Application::processAPICommands() {
                             entities.erase(it, entities.end());
                         }
                         // Clear named pointers if they match
-                        if (entity == physicsCharacter) physicsCharacter = nullptr;
-                        if (entity == spiderCharacter) spiderCharacter = nullptr;
                         if (entity == animatedCharacter) animatedCharacter = nullptr;
                         entityRegistry->unregisterEntity(id);
                         response = {{"success", true}, {"id", id}};
@@ -5850,9 +5672,7 @@ void Application::processAPICommands() {
                     int count = static_cast<int>(entityRegistry->getAllIds().size());
                     entityRegistry->clear();
                     entities.clear();
-                    player = nullptr;
-                    physicsCharacter = nullptr;
-                    spiderCharacter = nullptr;
+                
                     animatedCharacter = nullptr;
                     response = {{"success", true}, {"removed", count}};
                     if (gameEventLog) {
@@ -5870,9 +5690,7 @@ void Application::processAPICommands() {
                         entityRegistry->clear();
                     }
                     entities.clear();
-                    player = nullptr;
-                    physicsCharacter = nullptr;
-                    spiderCharacter = nullptr;
+                
                     animatedCharacter = nullptr;
 
                     // Clear NPC / dialogue / story subsystems
@@ -5907,10 +5725,7 @@ void Application::processAPICommands() {
                             subsystems.storyEngine = storyEngine.get();
                             subsystems.entitySpawner = [this](const std::string& type, const glm::vec3& pos,
                                                                const std::string& animFile) -> Scene::Entity* {
-                                if (type == "physics") return createPhysicsCharacter(pos);
-                                else if (type == "spider") return createSpiderCharacter(pos);
-                                else if (type == "animated") return createAnimatedCharacter(pos, animFile);
-                                return nullptr;
+                                return createAnimatedCharacter(pos, animFile.empty() ? "resources/animated_characters/humanoid.anim" : animFile);
                             };
                             subsystems.aiRegister = [this](Scene::Entity* entity, const std::string& entityId,
                                                             const std::string& npcName, const std::string& personality) {
@@ -5930,12 +5745,7 @@ void Application::processAPICommands() {
                                 camera->setMode(Graphics::CameraMode::ThirdPerson);
                                 if (animatedCharacter) {
                                     currentControlTarget = ControlTarget::AnimatedCharacter;
-                                    isControllingPhysicsCharacter = false;
                                     camera->setDistanceFromTarget(4.0f);
-                                } else if (physicsCharacter) {
-                                    currentControlTarget = ControlTarget::PhysicsCharacter;
-                                    isControllingPhysicsCharacter = true;
-                                    physicsCharacter->setControlActive(true);
                                 }
                             }
                         } catch (const std::exception& ex) {
@@ -7883,10 +7693,7 @@ void Application::processAPICommands() {
                 // Entity spawner callback  --  delegates to Application factory methods
                 subsystems.entitySpawner = [this](const std::string& type, const glm::vec3& pos,
                                                    const std::string& animFile) -> Scene::Entity* {
-                    if (type == "physics") return createPhysicsCharacter(pos);
-                    else if (type == "spider") return createSpiderCharacter(pos);
-                    else if (type == "animated") return createAnimatedCharacter(pos, animFile);
-                    return nullptr;
+                    return createAnimatedCharacter(pos, animFile.empty() ? "resources/animated_characters/humanoid.anim" : animFile);
                 };
 
                 subsystems.aiRegister = [this](Scene::Entity* entity, const std::string& entityId,
@@ -7910,12 +7717,7 @@ void Application::processAPICommands() {
                 if (loadResult.playerSpawned) {
                     if (animatedCharacter) {
                         currentControlTarget = ControlTarget::AnimatedCharacter;
-                        isControllingPhysicsCharacter = false;
                         camera->setDistanceFromTarget(4.0f);
-                    } else if (physicsCharacter) {
-                        currentControlTarget = ControlTarget::PhysicsCharacter;
-                        isControllingPhysicsCharacter = true;
-                        physicsCharacter->setControlActive(true);
                     }
                 }
 
@@ -9314,10 +9116,8 @@ void Application::resetEditorScene() {
     // Null out raw entity pointers BEFORE clearing the owning vector,
     // so nothing in the main loop dereferences dangling pointers.
     animatedCharacter = nullptr;
-    physicsCharacter = nullptr;
-    spiderCharacter = nullptr;
-    player = nullptr;
-    currentControlTarget = ControlTarget::PhysicsCharacter;
+
+    currentControlTarget = ControlTarget::AnimatedCharacter;
 
     // Clean up entities
     if (entityRegistry) entityRegistry->clear();

@@ -14,9 +14,6 @@
 #include <algorithm>  // for std::find
 #include <set>        // for std::set in selective updates
 
-// Bullet Physics includes
-#include <btBulletDynamicsCommon.h>
-
 namespace Phyxel {
 
 ChunkManager::~ChunkManager() {
@@ -516,31 +513,6 @@ void ChunkManager::clearDirtyChunkList() {
     m_dirtyChunkTracker.clearDirtyChunkList();
 }
 
-// Helper: extract SpawnParams from a Bullet rigid body (may be null)
-static GpuParticlePhysics::SpawnParams makeSpawnParams(
-    const glm::vec3& pos,
-    const std::string& materialName,
-    float scale,
-    float lifetime,
-    btRigidBody* rb)
-{
-    GpuParticlePhysics::SpawnParams sp;
-    sp.position     = pos;
-    sp.materialName = materialName;
-    sp.scale        = glm::vec3(scale);
-    sp.lifetime     = lifetime;
-    if (rb) {
-        btVector3 v  = rb->getLinearVelocity();
-        btVector3 av = rb->getAngularVelocity();
-        btQuaternion q = rb->getWorldTransform().getRotation();
-        // Scale down Bullet velocities — full impulse feels too explosive/snappy
-        sp.velocity    = glm::vec3(v.x(),  v.y(),  v.z()) * 0.3f;
-        sp.angularVel  = glm::vec3(av.x(), av.y(), av.z()) * 0.8f;
-        sp.rotation    = glm::quat(q.w(),  q.x(),  q.y(),  q.z());
-    }
-    return sp;
-}
-
 void ChunkManager::updateSmoothedFps(float deltaTime) {
     if (deltaTime > 0.0f) {
         float instantFps = 1.0f / deltaTime;
@@ -551,36 +523,7 @@ void ChunkManager::updateSmoothedFps(float deltaTime) {
 
 void ChunkManager::addGlobalDynamicSubcube(std::unique_ptr<Subcube> subcube) {
     if (!subcube) return;
-
-    // --- Hybrid routing: prefer Bullet, fall back to GPU when FPS is low ---
-    bool useBullet = false;
-    if (m_gpuParticles && m_gpuParticles->isInitialized()) {
-        size_t activeBullet = m_dynamicObjectManager.getActiveBulletCount();
-        if (m_smoothedFps >= GPU_FALLBACK_FPS_THRESHOLD
-            && activeBullet < DynamicObjectManager::MAX_DYNAMIC_OBJECTS
-            && m_frameBreakCount < MAX_BULLET_BREAKS_PER_FRAME) {
-            useBullet = true;
-        }
-    } else {
-        // No GPU system — always Bullet
-        useBullet = true;
-    }
-    ++m_frameBreakCount;
-
-    if (useBullet) {
-        m_dynamicObjectManager.addGlobalDynamicSubcube(std::move(subcube));
-    } else {
-        auto sp = makeSpawnParams(
-            subcube->getPhysicsPosition(),
-            subcube->getMaterialName(),
-            1.0f / 3.0f,
-            subcube->getLifetime(),
-            subcube->getRigidBody());
-        if (auto* rb = subcube->getRigidBody()) {
-            if (physicsWorld) physicsWorld->removeCube(rb);
-        }
-        m_gpuParticles->queueSpawn(sp);
-    }
+    m_dynamicObjectManager.addGlobalDynamicSubcube(std::move(subcube));
 }
 
 void ChunkManager::rebuildGlobalDynamicSubcubeFaces() {
@@ -606,36 +549,7 @@ void ChunkManager::clearAllGlobalDynamicSubcubes() {
 
 void ChunkManager::addGlobalDynamicCube(std::unique_ptr<Cube> cube) {
     if (!cube) return;
-
-    // --- Hybrid routing: prefer Bullet, fall back to GPU when FPS is low ---
-    glm::vec3 cubePos = glm::vec3(cube->getPosition()) + glm::vec3(0.5f);
-    bool useBullet = false;
-    if (m_gpuParticles && m_gpuParticles->isInitialized()) {
-        size_t activeBullet = m_dynamicObjectManager.getActiveBulletCount();
-        if (m_smoothedFps >= GPU_FALLBACK_FPS_THRESHOLD
-            && activeBullet < DynamicObjectManager::MAX_DYNAMIC_OBJECTS
-            && m_frameBreakCount < MAX_BULLET_BREAKS_PER_FRAME) {
-            useBullet = true;
-        }
-    } else {
-        useBullet = true;
-    }
-    ++m_frameBreakCount;
-
-    if (useBullet) {
-        m_dynamicObjectManager.addGlobalDynamicCube(std::move(cube));
-    } else {
-        auto sp = makeSpawnParams(
-            cubePos,
-            cube->getMaterialName(),
-            0.95f,
-            30.0f,
-            cube->getRigidBody());
-        if (auto* rb = cube->getRigidBody()) {
-            if (physicsWorld) physicsWorld->removeCube(rb);
-        }
-        m_gpuParticles->queueSpawn(sp);
-    }
+    m_dynamicObjectManager.addGlobalDynamicCube(std::move(cube));
 }
 
 void ChunkManager::updateGlobalDynamicCubes(float deltaTime) {
@@ -656,39 +570,8 @@ void ChunkManager::clearAllGlobalDynamicCubes() {
 
 void ChunkManager::addGlobalDynamicMicrocube(std::unique_ptr<Microcube> microcube) {
     if (!microcube) return;
-
-    // --- Hybrid routing: prefer Bullet, fall back to GPU when FPS is low ---
-    bool useBullet = false;
-    if (m_gpuParticles && m_gpuParticles->isInitialized()) {
-        size_t activeBullet = m_dynamicObjectManager.getActiveBulletCount();
-        if (m_smoothedFps >= GPU_FALLBACK_FPS_THRESHOLD
-            && activeBullet < DynamicObjectManager::MAX_DYNAMIC_OBJECTS
-            && m_frameBreakCount < MAX_BULLET_BREAKS_PER_FRAME) {
-            useBullet = true;
-        }
-    } else {
-        // No GPU system — always Bullet
-        useBullet = true;
-    }
-    ++m_frameBreakCount;
-
-    if (useBullet) {
-        LOG_DEBUG_FMT("ChunkManager", "[MICROCUBE] Adding global dynamic microcube (Bullet) at world position: ("
-                  << microcube->getWorldPosition().x << "," << microcube->getWorldPosition().y << "," << microcube->getWorldPosition().z << ")");
-        globalDynamicMicrocubes.push_back(std::move(microcube));
-        rebuildGlobalDynamicFaces();
-    } else {
-        auto sp = makeSpawnParams(
-            microcube->getPhysicsPosition(),
-            microcube->getMaterialName(),
-            1.0f / 9.0f,
-            microcube->getLifetime(),
-            microcube->getRigidBody());
-        if (auto* rb = microcube->getRigidBody()) {
-            if (physicsWorld) physicsWorld->removeCube(rb);
-        }
-        m_gpuParticles->queueSpawn(sp);
-    }
+    globalDynamicMicrocubes.push_back(std::move(microcube));
+    rebuildGlobalDynamicFaces();
 }
 
 void ChunkManager::updateGlobalDynamicMicrocubes(float deltaTime) {
@@ -700,12 +583,6 @@ void ChunkManager::updateGlobalDynamicMicrocubes(float deltaTime) {
         (*it)->updateLifetime(deltaTime);
         
         if ((*it)->hasExpired()) {
-            // Properly remove physics body from physics world
-            if (physicsWorld && (*it)->getRigidBody()) {
-                LOG_TRACE("ChunkManager", "[MICROCUBE] Removing expired dynamic microcube physics body");
-                physicsWorld->removeCube((*it)->getRigidBody());
-            }
-            
             removedCount++;
             // Note: The unique_ptr destructor will automatically clean up the microcube
             it = globalDynamicMicrocubes.erase(it);
@@ -722,58 +599,26 @@ void ChunkManager::updateGlobalDynamicMicrocubes(float deltaTime) {
 }
 
 void ChunkManager::updateGlobalDynamicMicrocubePositions() {
-    // Update positions and rotations of global dynamic microcubes from their physics bodies
     bool transformsChanged = false;
-    static int logCounter = 0;
-    
+
     for (auto& microcube : globalDynamicMicrocubes) {
-        if (microcube && microcube->getRigidBody()) {
-            btRigidBody* body = microcube->getRigidBody();
-            btTransform transform = body->getWorldTransform();
-            
-            // Get the physics world position
-            btVector3 btPos = transform.getOrigin();
-            glm::vec3 newWorldPos(btPos.x(), btPos.y(), btPos.z());
-            
-            // Get the physics rotation (quaternion)
-            btQuaternion btRot = transform.getRotation();
-            glm::vec4 newRotation(btRot.x(), btRot.y(), btRot.z(), btRot.w());
-            
-            // Log position every 60 frames (~1 second at 60fps) to track falling
-            if (logCounter % 60 == 0) {
-                btVector3 velocity = body->getLinearVelocity();
-                LOG_INFO_FMT("ChunkManager", "[DYNAMIC MICROCUBE] Y=" << newWorldPos.y 
-                          << " Active=" << body->isActive()
-                          << " VelY=" << velocity.y());
-            }
-            
-            // Store the smooth floating-point physics position and rotation
+        if (!microcube) continue;
+        if (auto* vb = microcube->getVoxelBody()) {
+            if (vb->isAsleep) continue;
+            glm::vec3 newWorldPos = vb->position;
+            const glm::quat& q = vb->orientation;
             microcube->setPhysicsPosition(newWorldPos);
-            microcube->setPhysicsRotation(newRotation);
+            microcube->setPhysicsRotation(glm::vec4(q.x, q.y, q.z, q.w));
             transformsChanged = true;
         }
     }
-    
-    logCounter++;
-    
-    // Rebuild face data if any transforms changed
+
     if (transformsChanged) {
         rebuildGlobalDynamicFaces();
     }
 }
 
 void ChunkManager::clearAllGlobalDynamicMicrocubes() {
-    // Properly clean up physics bodies before clearing the vector
-    if (physicsWorld) {
-        for (auto& microcube : globalDynamicMicrocubes) {
-            if (microcube && microcube->getRigidBody()) {
-                LOG_TRACE("ChunkManager", "[MICROCUBE] Cleaning up physics body for microcube during clear");
-                physicsWorld->removeCube(microcube->getRigidBody());
-                microcube->setRigidBody(nullptr); // Prevent double deletion
-            }
-        }
-    }
-    
     LOG_DEBUG_FMT("ChunkManager", "[MICROCUBE] Clearing all " << globalDynamicMicrocubes.size() << " global dynamic microcubes");
     globalDynamicMicrocubes.clear();
 }

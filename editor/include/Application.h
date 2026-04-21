@@ -74,10 +74,6 @@
 #include "core/GpuParticlePhysics.h"
 #include "scene/NPCEntity.h"
 #include "scene/Entity.h"
-#include "scene/Player.h"
-#include "scene/Enemy.h"
-#include "scene/PhysicsCharacter.h"
-#include "scene/SpiderCharacter.h"
 #include "scene/AnimatedVoxelCharacter.h"
 #include "ProjectLauncher.h"
 #include <map>
@@ -137,8 +133,6 @@ public:
     void cycleCameraSlotReverse();
 
     // Character Management
-    Scene::PhysicsCharacter* createPhysicsCharacter(const glm::vec3& pos);
-    Scene::SpiderCharacter* createSpiderCharacter(const glm::vec3& pos);
     Scene::AnimatedVoxelCharacter* createAnimatedCharacter(const glm::vec3& pos, const std::string& animFile);
     void setControlTarget(const std::string& targetName);
     void derezCharacter(float duration = 2.0f);
@@ -266,9 +260,6 @@ private:
     // null it in resetEditorScene() BEFORE entities.clear(), otherwise the
     // main loop will dereference a dangling pointer after a File > Open switch.
     std::vector<std::unique_ptr<Scene::Entity>> entities;
-    Scene::Player* player = nullptr;
-    Scene::PhysicsCharacter* physicsCharacter = nullptr;
-    Scene::SpiderCharacter* spiderCharacter = nullptr;
     Scene::AnimatedVoxelCharacter* animatedCharacter = nullptr;
 
     // Player health & respawn
@@ -279,13 +270,9 @@ private:
     Core::ObjectiveTracker objectiveTracker;
     
     enum class ControlTarget {
-        Spider,
-        PhysicsCharacter,
         AnimatedCharacter
     };
-    ControlTarget currentControlTarget = ControlTarget::PhysicsCharacter;
-    
-    bool isControllingPhysicsCharacter = false;
+    ControlTarget currentControlTarget = ControlTarget::AnimatedCharacter;
 
     // ============================================================================
     // APPLICATION STATE

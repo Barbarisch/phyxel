@@ -4,7 +4,6 @@
 #include "physics/VoxelDynamicsWorld.h"
 #include "physics/VoxelRigidBody.h"
 #include "utils/Logger.h"
-#include <btBulletDynamicsCommon.h>
 
 namespace Phyxel {
 
@@ -183,14 +182,6 @@ bool ChunkVoxelBreaker::breakSubcube(
                     dynamicSubcube->setPhysicsPosition(physicsCenterPos);
                     LOG_DEBUG("ChunkVoxelBreaker", "[SUBCUBE PHYSICS] Created VoxelRigidBody for subcube");
 
-                } else {
-                    // Legacy Bullet fallback
-                    glm::vec3 subcubeSize(SUBCUBE_SIZE);
-                    btRigidBody* rigidBody = physicsWorld->createBreakawayCube(physicsCenterPos, subcubeSize, 0.5f);
-                    if (rigidBody) rigidBody->setGravity(btVector3(0, -9.81f, 0));
-                    dynamicSubcube->setRigidBody(rigidBody);
-                    dynamicSubcube->setPhysicsPosition(physicsCenterPos);
-                    LOG_DEBUG("ChunkVoxelBreaker", "[SUBCUBE PHYSICS] Created Bullet btRigidBody for subcube (fallback)");
                 }
             }
             

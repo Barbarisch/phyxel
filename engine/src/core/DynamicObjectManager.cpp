@@ -8,7 +8,6 @@
 #include "scene/AnimatedVoxelCharacter.h"
 #include "scene/RagdollCharacter.h"
 #include "utils/Logger.h"
-#include <btBulletDynamicsCommon.h>
 #include <glm/gtc/quaternion.hpp>
 
 namespace Phyxel {
@@ -16,31 +15,8 @@ namespace Phyxel {
 DynamicObjectManager::DynamicObjectManager() = default;
 DynamicObjectManager::~DynamicObjectManager() = default;
 
-size_t DynamicObjectManager::getActiveBulletCount() const {
-    // Only count legacy Bullet bodies (VoxelRigidBody bodies are uncapped)
-    size_t active = 0;
-    if (m_getCubes) {
-        for (auto& c : m_getCubes()) {
-            if (c && c->getRigidBody() && !c->getVoxelBody() && c->getRigidBody()->isActive())
-                ++active;
-        }
-    }
-    if (m_getSubcubes) {
-        for (auto& s : m_getSubcubes()) {
-            if (s && s->getRigidBody() && !s->getVoxelBody() && s->getRigidBody()->isActive())
-                ++active;
-        }
-    }
-    return active;
-}
-
-size_t DynamicObjectManager::getTotalBulletCount() const {
-    size_t total = 0;
-    if (m_getCubes) total += m_getCubes().size();
-    if (m_getSubcubes) total += m_getSubcubes().size();
-    if (m_getMicrocubes) total += m_getMicrocubes().size();
-    return total;
-}
+size_t DynamicObjectManager::getActiveBulletCount() const { return 0; }
+size_t DynamicObjectManager::getTotalBulletCount() const { return 0; }
 
 void DynamicObjectManager::setCallbacks(
     PhysicsWorldAccessFunc getPhysicsWorldFunc,
@@ -97,12 +73,6 @@ void DynamicObjectManager::updateGlobalDynamicSubcubes(float deltaTime) {
         sub->updateLifetime(deltaTime);
 
         if (sub->hasExpired()) {
-            // Remove from the appropriate physics world
-            if (sub->getRigidBody() && physicsWorld) {
-                LOG_TRACE("DynamicObject", "Removing expired dynamic subcube physics body");
-                physicsWorld->removeCube(sub->getRigidBody());
-            }
-            // VoxelRigidBody lifetime is managed by VoxelDynamicsWorld — just null the pointer
             sub->setVoxelBody(nullptr);
 
             removedCount++;
@@ -137,20 +107,10 @@ void DynamicObjectManager::updateGlobalDynamicSubcubePositions() {
         glm::vec4 newRotation;
 
         if (auto* vb = subcube->getVoxelBody()) {
-            // Custom physics solver path
             if (vb->isAsleep) continue;
             newWorldPos = vb->position;
             const glm::quat& q = vb->orientation;
             newRotation = glm::vec4(q.x, q.y, q.z, q.w);
-
-        } else if (auto* rb = subcube->getRigidBody()) {
-            // Legacy Bullet path
-            btTransform transform = rb->getWorldTransform();
-            btVector3 btPos = transform.getOrigin();
-            newWorldPos = glm::vec3(btPos.x(), btPos.y(), btPos.z());
-            btQuaternion btRot = transform.getRotation();
-            newRotation = glm::vec4(btRot.x(), btRot.y(), btRot.z(), btRot.w());
-
         } else {
             continue;
         }
@@ -169,18 +129,6 @@ void DynamicObjectManager::updateGlobalDynamicSubcubePositions() {
 
 void DynamicObjectManager::clearAllGlobalDynamicSubcubes() {
     auto& subcubes = m_getSubcubes();
-    auto physicsWorld = m_getPhysicsWorld();
-    
-    if (physicsWorld) {
-        for (auto& subcube : subcubes) {
-            if (subcube && subcube->getRigidBody()) {
-                LOG_TRACE("DynamicObject", "Cleaning up physics body for subcube during clear");
-                physicsWorld->removeCube(subcube->getRigidBody());
-                subcube->setRigidBody(nullptr);
-            }
-        }
-    }
-    
     LOG_DEBUG_FMT("DynamicObject", "Clearing all " << subcubes.size() << " global dynamic subcubes");
     subcubes.clear();
     m_rebuildFaces();
@@ -219,12 +167,7 @@ void DynamicObjectManager::updateGlobalDynamicCubes(float deltaTime) {
         (*it)->updateLifetime(deltaTime);
 
         if ((*it)->hasExpired()) {
-            if (physicsWorld && (*it)->getRigidBody()) {
-                LOG_DEBUG("DynamicObject", "Removing expired dynamic cube physics body");
-                physicsWorld->removeCube((*it)->getRigidBody());
-            }
-
-            removedCount++;
+                removedCount++;
             it = cubes.erase(it);
         } else {
             ++it;
@@ -257,14 +200,6 @@ void DynamicObjectManager::updateGlobalDynamicCubePositions() {
             newWorldPos = vb->position;
             const glm::quat& q = vb->orientation;
             newRotation = glm::vec4(q.x, q.y, q.z, q.w);
-
-        } else if (auto* rb = cube->getRigidBody()) {
-            btTransform transform = rb->getWorldTransform();
-            btVector3 btPos = transform.getOrigin();
-            newWorldPos = glm::vec3(btPos.x(), btPos.y(), btPos.z());
-            btQuaternion btRot = transform.getRotation();
-            newRotation = glm::vec4(btRot.x(), btRot.y(), btRot.z(), btRot.w());
-
         } else {
             continue;
         }
@@ -283,18 +218,6 @@ void DynamicObjectManager::updateGlobalDynamicCubePositions() {
 
 void DynamicObjectManager::clearAllGlobalDynamicCubes() {
     auto& cubes = m_getCubes();
-    auto physicsWorld = m_getPhysicsWorld();
-    
-    if (physicsWorld) {
-        for (auto& cube : cubes) {
-            if (cube && cube->getRigidBody()) {
-                LOG_TRACE("DynamicObject", "Cleaning up physics body for cube during clear");
-                physicsWorld->removeCube(cube->getRigidBody());
-                cube->setRigidBody(nullptr);
-            }
-        }
-    }
-    
     LOG_DEBUG_FMT("DynamicObject", "Clearing all " << cubes.size() << " global dynamic cubes");
     cubes.clear();
     m_rebuildFaces();
@@ -333,11 +256,6 @@ void DynamicObjectManager::updateGlobalDynamicMicrocubes(float deltaTime) {
         (*it)->updateLifetime(deltaTime);
 
         if ((*it)->hasExpired()) {
-            if (physicsWorld && (*it)->getRigidBody()) {
-                LOG_TRACE("DynamicObject", "[MICROCUBE] Removing expired dynamic microcube physics body");
-                physicsWorld->removeCube((*it)->getRigidBody());
-            }
-
             removedCount++;
             it = microcubes.erase(it);
         } else {
@@ -365,14 +283,6 @@ void DynamicObjectManager::updateGlobalDynamicMicrocubePositions() {
             newWorldPos = vb->position;
             const glm::quat& q = vb->orientation;
             newRotation = glm::vec4(q.x, q.y, q.z, q.w);
-
-        } else if (auto* rb = microcube->getRigidBody()) {
-            btTransform transform = rb->getWorldTransform();
-            btVector3 btPos = transform.getOrigin();
-            newWorldPos = glm::vec3(btPos.x(), btPos.y(), btPos.z());
-            btQuaternion btRot = transform.getRotation();
-            newRotation = glm::vec4(btRot.x(), btRot.y(), btRot.z(), btRot.w());
-
         } else {
             continue;
         }
@@ -389,18 +299,6 @@ void DynamicObjectManager::updateGlobalDynamicMicrocubePositions() {
 
 void DynamicObjectManager::clearAllGlobalDynamicMicrocubes() {
     auto& microcubes = m_getMicrocubes();
-    auto physicsWorld = m_getPhysicsWorld();
-    
-    if (physicsWorld) {
-        for (auto& microcube : microcubes) {
-            if (microcube && microcube->getRigidBody()) {
-                LOG_TRACE("DynamicObject", "[MICROCUBE] Cleaning up physics body for microcube during clear");
-                physicsWorld->removeCube(microcube->getRigidBody());
-                microcube->setRigidBody(nullptr);
-            }
-        }
-    }
-    
     LOG_DEBUG_FMT("DynamicObject", "[MICROCUBE] Clearing all " << microcubes.size() << " global dynamic microcubes");
     microcubes.clear();
     m_rebuildFaces();
@@ -445,13 +343,6 @@ void DynamicObjectManager::enforceObjectLimits() {
         size_t removeCount = cubes.size() - MAX_DYNAMIC_OBJECTS;
         LOG_INFO_FMT("DynamicObject", "Enforcing object limit: Removing " << removeCount << " oldest dynamic cubes");
         
-        // Clean up physics bodies for the oldest cubes
-        for (size_t i = 0; i < removeCount && i < cubes.size(); ++i) {
-            if (physicsWorld && cubes[i] && cubes[i]->getRigidBody()) {
-                physicsWorld->removeCube(cubes[i]->getRigidBody());
-            }
-        }
-        
         // Bulk erase oldest cubes in one O(n) operation
         cubes.erase(cubes.begin(), cubes.begin() + static_cast<ptrdiff_t>(removeCount));
         
@@ -470,32 +361,13 @@ void DynamicObjectManager::derezCharacter(Scene::RagdollCharacter* character, fl
         int spawnedCount = 0;
         
         for (const auto& part : parts) {
-            if (!part.rigidBody) continue;
-            
-            // 1. Get current world transform
-            btTransform trans;
-            if (part.rigidBody->getMotionState()) {
-                part.rigidBody->getMotionState()->getWorldTransform(trans);
-            } else {
-                trans = part.rigidBody->getWorldTransform();
-            }
-            
-            btVector3 offset(part.offset.x, part.offset.y, part.offset.z);
-            btVector3 worldPos = trans * offset;
-            glm::vec3 pos(static_cast<float>(worldPos.x()), static_cast<float>(worldPos.y()), static_cast<float>(worldPos.z()));
-            
-            // 2. Velocity + Explosion
-            btVector3 currentVel = part.rigidBody->getLinearVelocity();
-            
+            glm::vec3 pos = part.worldPos + part.offset;
+
             float randomX = ((rand() % 100) / 100.0f - 0.5f) * 4.0f * explosionStrength;
             float randomY = (((rand() % 100) / 100.0f) * 4.0f + 2.0f) * explosionStrength;
             float randomZ = ((rand() % 100) / 100.0f - 0.5f) * 4.0f * explosionStrength;
-            
-            glm::vec3 vel(
-                currentVel.x() + randomX, 
-                currentVel.y() + randomY, 
-                currentVel.z() + randomZ
-            );
+
+            glm::vec3 vel(randomX, randomY, randomZ);
             
             // 3. Spawn Particle
             m_debrisSystem->spawnDebris(
@@ -513,41 +385,24 @@ void DynamicObjectManager::derezCharacter(Scene::RagdollCharacter* character, fl
     }
 
     auto* physicsWorld = m_getPhysicsWorld();
-    
+
     if (!physicsWorld) {
         LOG_ERROR("DynamicObject", "Cannot derez character: Physics world not available");
         return;
     }
-    
+
     LOG_INFO("DynamicObject", "Derezzing character into dynamic physics objects");
-    
-    // Use getParts() from RagdollCharacter base class
+
     const auto& parts = character->getParts();
     int spawnedCount = 0;
-    
+
     for (const auto& part : parts) {
-        if (!part.rigidBody) continue;
-        
-        // 1. Get current world transform of the bone
-        btTransform trans;
-        if (part.rigidBody->getMotionState()) {
-            part.rigidBody->getMotionState()->getWorldTransform(trans);
-        } else {
-            trans = part.rigidBody->getWorldTransform();
-        }
-        
-        // 2. Apply the visual offset (rotated by the body's rotation)
-        // The part.offset is in local space relative to the bone
-        btVector3 offset(part.offset.x, part.offset.y, part.offset.z);
-        btVector3 worldPos = trans * offset;
-        
-        // 3. Create a new dynamic cube
+        glm::vec3 pos = part.worldPos + part.offset;
+
         auto cube = std::make_unique<Cube>();
         cube->setDynamicScale(part.scale);
 
-        glm::vec3 pos(static_cast<float>(worldPos.x()), static_cast<float>(worldPos.y()), static_cast<float>(worldPos.z()));
         float mass = 10.0f;
-
         auto* vw = physicsWorld->getVoxelWorld();
         Physics::VoxelRigidBody* newBody = vw
             ? vw->createVoxelBody(pos, part.scale * 0.5f, mass, 0.3f, 0.8f)
@@ -555,17 +410,13 @@ void DynamicObjectManager::derezCharacter(Scene::RagdollCharacter* character, fl
 
         if (!newBody) { ++spawnedCount; continue; }
 
-        // Match bone rotation
-        btQuaternion btRot = trans.getRotation();
-        newBody->orientation = glm::quat(btRot.w(), btRot.x(), btRot.y(), btRot.z());
+        newBody->orientation = part.worldRot;
 
-        // Transfer velocity + random explosion scatter
-        btVector3 currentVel = part.rigidBody->getLinearVelocity();
         float randomX = ((rand() % 100) / 100.0f - 0.5f) * 2.0f;
         float randomY = ((rand() % 100) / 100.0f) * 2.0f + 1.0f;
         float randomZ = ((rand() % 100) / 100.0f - 0.5f) * 2.0f;
 
-        newBody->linearVelocity  = glm::vec3(currentVel.x() + randomX, currentVel.y() + randomY, currentVel.z() + randomZ);
+        newBody->linearVelocity  = glm::vec3(randomX, randomY, randomZ) * explosionStrength;
         newBody->angularVelocity = glm::vec3(randomX, randomY, randomZ);
 
         cube->setVoxelBody(newBody);

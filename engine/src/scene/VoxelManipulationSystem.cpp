@@ -9,7 +9,6 @@
 #include "physics/VoxelRigidBody.h"
 #include "utils/Logger.h"
 #include "utils/CoordinateUtils.h"
-#include <btBulletDynamicsCommon.h>
 #include <random>
 
 namespace Phyxel {
@@ -248,12 +247,6 @@ bool VoxelManipulationSystem::breakCube(const CubeLocation& location, const glm:
                 physicsCenterPos, glm::vec3(0.5f), 1.0f);
             dynamicCube->setVoxelBody(voxelBody);
             dynamicCube->setPhysicsPosition(physicsCenterPos);
-        } else {
-            glm::vec3 cubeSize(1.0f);
-            btRigidBody* rigidBody = physicsWorld->createBreakawayCube(physicsCenterPos, cubeSize, selectedMaterial);
-            dynamicCube->setRigidBody(rigidBody);
-            dynamicCube->setPhysicsPosition(physicsCenterPos);
-            if (rigidBody) rigidBody->setGravity(btVector3(0, -9.81f, 0));
         }
         (void)applyForce;
     }
@@ -421,12 +414,6 @@ bool VoxelManipulationSystem::breakMicrocube(const CubeLocation& location, bool 
             dynamicMicrocube->setVoxelBody(voxelBody);
             dynamicMicrocube->setPhysicsPosition(physicsCenterPos);
             LOG_DEBUG("VoxelManipulation", "[MICROCUBE PHYSICS] Created VoxelRigidBody for microcube");
-        } else {
-            btRigidBody* rigidBody = physicsWorld->createBreakawayCube(physicsCenterPos, microcubeSize, 0.1f);
-            dynamicMicrocube->setRigidBody(rigidBody);
-            dynamicMicrocube->setPhysicsPosition(physicsCenterPos);
-            if (rigidBody) rigidBody->setGravity(btVector3(0, -9.81f, 0));
-            LOG_DEBUG("VoxelManipulation", "[MICROCUBE PHYSICS] Created Bullet btRigidBody for microcube (fallback)");
         }
     }
     
@@ -502,13 +489,6 @@ bool VoxelManipulationSystem::breakCubeAtPosition(const glm::ivec3& worldPos, bo
                 voxelBody->applyCentralImpulse(glm::vec3(0.0f, 2.0f, 0.0f));
             dynamicCube->setVoxelBody(voxelBody);
             dynamicCube->setPhysicsPosition(physicsCenterPos);
-        } else {
-            btRigidBody* rigidBody = physicsWorld->createBreakawayCube(physicsCenterPos, cubeSize, selectedMaterial);
-            dynamicCube->setRigidBody(rigidBody);
-            dynamicCube->setPhysicsPosition(physicsCenterPos);
-            if (rigidBody && !disableForces)
-                rigidBody->applyCentralImpulse(btVector3(0.0f, 2.0f, 0.0f));
-            if (rigidBody) rigidBody->setGravity(btVector3(0, -9.81f, 0));
         }
     }
 

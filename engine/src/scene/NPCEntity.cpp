@@ -1,13 +1,10 @@
 #include "scene/NPCEntity.h"
 #include "scene/AnimatedVoxelCharacter.h"
-#include "scene/VoxelCharacter.h"
 #include "scene/RagdollCharacter.h"
 #include "scene/CharacterAppearance.h"
 #include "graphics/LightManager.h"
 #include "core/EntityRegistry.h"
 #include "utils/Logger.h"
-
-using Phyxel::Scene::DriveMode;
 
 namespace Phyxel {
 namespace Scene {
@@ -47,16 +44,15 @@ NPCEntity::NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& posit
 
 NPCEntity::NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& position,
                      const std::string& name, const std::string& animFile,
-                     const CharacterAppearance& appearance, bool physicsDriven)
+                     const CharacterAppearance& appearance, bool /*physicsDriven*/)
     : m_name(name)
 {
-    m_voxelCharacter = std::make_unique<VoxelCharacter>(physicsWorld, position);
-    m_voxelCharacter->setAppearance(appearance);
-    if (!m_voxelCharacter->loadModel(animFile)) {
-        LOG_WARN("NPCEntity", "Failed to load anim file '{}' for physics NPC '{}'", animFile, name);
+    m_character = std::make_unique<AnimatedVoxelCharacter>(physicsWorld, position);
+    m_character->setAppearance(appearance);
+    if (!m_character->loadModel(animFile)) {
+        LOG_WARN("NPCEntity", "Failed to load anim file '{}' for NPC '{}'", animFile, name);
     } else {
-        m_voxelCharacter->setDriveMode(DriveMode::Physics);
-        m_voxelCharacter->playAnimation("idle");
+        m_character->playAnimation("idle");
     }
     this->position = position;
     m_needs.initDefaults();
@@ -65,16 +61,15 @@ NPCEntity::NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& posit
 NPCEntity::NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& position,
                      const std::string& name, const CharacterAppearance& appearance,
                      const Phyxel::Skeleton& skeleton, const Phyxel::VoxelModel& model,
-                     const std::vector<Phyxel::AnimationClip>& clips, bool physicsDriven)
+                     const std::vector<Phyxel::AnimationClip>& clips, bool /*physicsDriven*/)
     : m_name(name)
 {
-    m_voxelCharacter = std::make_unique<VoxelCharacter>(physicsWorld, position);
-    m_voxelCharacter->setAppearance(appearance);
-    if (!m_voxelCharacter->loadFromData(skeleton, model, clips)) {
-        LOG_WARN("NPCEntity", "Failed to load skeleton template for physics NPC '{}'", name);
+    m_character = std::make_unique<AnimatedVoxelCharacter>(physicsWorld, position);
+    m_character->setAppearance(appearance);
+    if (!m_character->loadFromSkeleton(skeleton, model, clips)) {
+        LOG_WARN("NPCEntity", "Failed to load skeleton template for NPC '{}'", name);
     } else {
-        m_voxelCharacter->setDriveMode(DriveMode::Physics);
-        m_voxelCharacter->playAnimation("idle");
+        m_character->playAnimation("idle");
     }
     this->position = position;
     m_needs.initDefaults();
@@ -83,66 +78,41 @@ NPCEntity::NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& posit
 NPCEntity::~NPCEntity() = default;
 
 void NPCEntity::update(float deltaTime) {
-    // Delegate to behavior
     if (m_behavior) {
         m_context.self = this;
         m_behavior->update(deltaTime, m_context);
     }
 
-    // Update inner character (animated or physics-driven)
-    if (m_voxelCharacter) {
-        m_voxelCharacter->update(deltaTime);
-        this->position = m_voxelCharacter->getPosition();
-    } else if (m_character) {
+    if (m_character) {
         m_character->update(deltaTime);
         this->position = m_character->getPosition();
     }
 
-    // Update attached light position
     if (m_attachedLightId >= 0 && m_context.lightManager) {
         m_context.lightManager->updatePointLightPosition(m_attachedLightId, getPosition() + glm::vec3(0, 2, 0));
     }
 }
 
 void NPCEntity::render(Graphics::RenderCoordinator* renderer) {
-    if (m_voxelCharacter) {
-        m_voxelCharacter->render(renderer);
-    } else if (m_character) {
-        m_character->render(renderer);
-    }
+    if (m_character) m_character->render(renderer);
 }
 
 void NPCEntity::setPosition(const glm::vec3& pos) {
     Entity::setPosition(pos);
-    if (m_voxelCharacter) {
-        m_voxelCharacter->setPosition(pos);
-    } else if (m_character) {
-        m_character->setPosition(pos);
-    }
+    if (m_character) m_character->setPosition(pos);
 }
 
 glm::vec3 NPCEntity::getPosition() const {
-    if (m_voxelCharacter) {
-        return m_voxelCharacter->getPosition();
-    }
-    if (m_character) {
-        return m_character->getPosition();
-    }
+    if (m_character) return m_character->getPosition();
     return position;
 }
 
 void NPCEntity::setMoveVelocity(const glm::vec3& velocity) {
-    if (m_voxelCharacter) {
-        m_voxelCharacter->setMoveVelocity(velocity);
-    } else if (m_character) {
-        m_character->setMoveVelocity(velocity);
-    }
+    if (m_character) m_character->setMoveVelocity(velocity);
 }
 
 RagdollCharacter* NPCEntity::getRenderableCharacter() const {
-    if (m_voxelCharacter) return m_voxelCharacter.get();
-    if (m_character) return m_character.get();
-    return nullptr;
+    return m_character.get();
 }
 
 void NPCEntity::setBehavior(std::unique_ptr<NPCBehavior> behavior) {

@@ -19,10 +19,8 @@
 #include "utils/Frustum.h"
 #include "utils/Logger.h"
 #include "utils/GpuProfiler.h"
-#include "scene/Character.h"
 #include "scene/Entity.h"
 #include "scene/RagdollCharacter.h"
-#include "scene/PhysicsCharacter.h"
 #include "scene/AnimatedVoxelCharacter.h"
 #include "scene/NPCEntity.h"
 #include "core/NPCManager.h"
@@ -819,39 +817,7 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
 
         // Helper lambda to batch a parts list
         auto batchParts = [&](const std::vector<Scene::RagdollPart>& charParts) {
-            // --- Path 1: Bullet-backed parts (PhysicsCharacter) ---
-            std::map<btRigidBody*, std::vector<const Scene::RagdollPart*>> partsByBody;
-            for (const auto& part : charParts) {
-                if (!part.useDirectTransform && part.rigidBody)
-                    partsByBody[part.rigidBody].push_back(&part);
-            }
-            for (const auto& [body, bParts] : partsByBody) {
-                btTransform trans;
-                body->getMotionState()->getWorldTransform(trans);
-                btVector3 pos = trans.getOrigin();
-                btQuaternion rot = trans.getRotation();
-
-                glm::mat4 model = glm::translate(glm::mat4(1.0f),
-                                      glm::vec3(pos.x(), pos.y(), pos.z()))
-                                * glm::mat4_cast(glm::quat(rot.w(), rot.x(), rot.y(), rot.z()));
-
-                Batch batch;
-                batch.model = model;
-                batch.firstInstance = static_cast<uint32_t>(instanceData.size());
-                batch.instanceCount = 0;
-                for (const auto* part : bParts) {
-                    if (!part->active) continue;
-                    CharacterInstanceData data;
-                    data.offset = part->offset;
-                    data.scale  = part->scale;
-                    data.color  = part->color;
-                    instanceData.push_back(data);
-                    batch.instanceCount++;
-                }
-                if (batch.instanceCount > 0) batches.push_back(batch);
-            }
-
-            // --- Path 2: Direct-transform parts (AnimatedVoxelCharacter bones) ---
+            // Direct-transform parts (AnimatedVoxelCharacter bones)
             std::map<int, std::vector<const Scene::RagdollPart*>> partsByGroup;
             for (const auto& part : charParts) {
                 if (part.useDirectTransform)
@@ -910,59 +876,17 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
     vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getCharacterLayout());
 
     for (const auto& entity : standardEntities) {
-        // Check for RagdollCharacter (handles both PhysicsCharacter and SpiderCharacter)
         auto ragdollChar = dynamic_cast<Scene::RagdollCharacter*>(entity);
         if (ragdollChar) {
-            // Allow character to do its own debug rendering (e.g. raycast lines)
             ragdollChar->render(this);
-
-            const auto& parts = ragdollChar->getParts();
-            for (const auto& part : parts) {
-                if (!part.rigidBody || !part.active) continue;
-
-                btTransform trans;
-                part.rigidBody->getMotionState()->getWorldTransform(trans);
-                
-                // Convert Bullet transform to GLM
-                btVector3 pos = trans.getOrigin();
-                btQuaternion rot = trans.getRotation();
-                
-                glm::mat4 model = glm::mat4(1.0f);
-                model = glm::translate(model, glm::vec3(pos.x(), pos.y(), pos.z()));
-                model = model * glm::mat4_cast(glm::quat(rot.w(), rot.x(), rot.y(), rot.z()));
-                
-                // Apply local offset if present
-                if (part.offset != glm::vec3(0.0f)) {
-                    model = glm::translate(model, part.offset);
-                }
-                
-                model = glm::scale(model, part.scale);
-
-                glm::mat4 viewProj = cachedProjectionMatrix * cachedViewMatrix;
-
-                struct PushConsts {
-                    glm::mat4 model;
-                    glm::mat4 viewProj;
-                    glm::vec4 color;
-                } pushConsts;
-                
-                pushConsts.model = model;
-                pushConsts.viewProj = viewProj;
-                pushConsts.color = part.color;
-                
-                vkCmdPushConstants(commandBuffer, renderPipeline->getCharacterLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConsts), &pushConsts);
-                vkCmdDraw(commandBuffer, 36, 1, 0, 0);
-            }
-            continue; // Done with this entity
+            continue;
         }
 
-        // Fallback to old Character system
-        auto character = dynamic_cast<Scene::Character*>(entity);
-        if (character) {
-            glm::mat4 model = character->getModelMatrix();
+        // Fallback generic entity rendering
+        {
+            glm::mat4 model = glm::mat4(1.0f);
             glm::mat4 viewProj = cachedProjectionMatrix * cachedViewMatrix;
-            
-            glm::vec4 color = character->debugColor;
+            glm::vec4 color = glm::vec4(1.0f);
 
             struct PushConsts {
                 glm::mat4 model;

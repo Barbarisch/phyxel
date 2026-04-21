@@ -3,19 +3,19 @@
 namespace Phyxel {
 
 Subcube::Subcube() 
-    : position(0), localPosition(0), scale(SUBCUBE_SCALE), broken(false), visible(true), rigidBody(nullptr) {
+    : position(0), localPosition(0), scale(SUBCUBE_SCALE), broken(false), visible(true) {
 }
 
 Subcube::Subcube(const glm::ivec3& pos) 
-    : position(pos), localPosition(0), scale(SUBCUBE_SCALE), broken(false), visible(true), rigidBody(nullptr) {
+    : position(pos), localPosition(0), scale(SUBCUBE_SCALE), broken(false), visible(true) {
 }
 
 Subcube::Subcube(const glm::ivec3& pos, const glm::ivec3& localPos) 
-    : position(pos), localPosition(localPos), scale(SUBCUBE_SCALE), broken(false), visible(true), rigidBody(nullptr) {
+    : position(pos), localPosition(localPos), scale(SUBCUBE_SCALE), broken(false), visible(true) {
 }
 
 Subcube::Subcube(const glm::ivec3& pos, const glm::ivec3& localPos, const std::string& material) 
-    : position(pos), localPosition(localPos), scale(SUBCUBE_SCALE), materialName(material), broken(false), visible(true), rigidBody(nullptr) {
+    : position(pos), localPosition(localPos), scale(SUBCUBE_SCALE), materialName(material), broken(false), visible(true) {
 }
 
 glm::vec3 Subcube::getWorldPosition() const {

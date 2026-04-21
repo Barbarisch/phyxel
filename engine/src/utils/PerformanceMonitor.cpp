@@ -34,7 +34,8 @@ void PerformanceMonitor::printPerformanceStats(
     LOG_INFO_FMT("Performance", "  Culled Instances: " << frameTiming.culledInstances);
     LOG_INFO_FMT("Performance", "  Total Chunks: " << chunkManager->chunks.size());
     LOG_INFO_FMT("Performance", "  Total Cubes: " << chunkStats.totalCubes);
-    LOG_INFO_FMT("Performance", "  Physics Bodies: " << physicsWorld->getRigidBodyCount());
+    int bodyCount = physicsWorld->getVoxelWorld() ? physicsWorld->getVoxelWorld()->getBodyCount() : 0;
+    LOG_INFO_FMT("Performance", "  Physics Bodies: " << bodyCount);
     LOG_INFO("Performance", "---");
 }
 
