@@ -47,7 +47,7 @@ public:
     void clear();
 
     /// Ensure all engine materials are registered as Material-type items.
-    /// Call this after MaterialManager is initialized.
+    /// Call this after MaterialRegistry is initialized.
     void registerMaterialItems();
 
 private:

@@ -1,5 +1,6 @@
 #include "vulkan/VulkanDevice.h"
 #include "vulkan/RenderPipeline.h"
+#include "core/MaterialRegistry.h"
 #include "core/Types.h"
 #include "utils/Logger.h"
 #define GLFW_INCLUDE_VULKAN
@@ -78,6 +79,9 @@ void VulkanDevice::cleanup() {
 
     // Cleanup light SSBO buffers
     cleanupLightBuffers();
+
+    // Cleanup atlas UV SSBO buffers
+    cleanupAtlasUVBuffers();
     
     if (instanceBuffer != VK_NULL_HANDLE) {
         vkDestroyBuffer(device, instanceBuffer, nullptr);
@@ -1079,7 +1083,7 @@ bool VulkanDevice::createInstanceBuffer() {
     // Create a temporary single instance buffer for now - will be updated later with actual scene data
     InstanceData redCube;
     redCube.packedData = 0x3F << 15; // All faces visible (0x3F face mask), position (0,0,0)
-    redCube.textureIndex = TextureConstants::PLACEHOLDER_TEXTURE_INDEX; // Use placeholder texture
+    redCube.textureIndex = Phyxel::Core::MaterialRegistry::instance().getPlaceholderIndex();
     std::vector<InstanceData> instances = { redCube };
 
     // We'll create buffer large enough for full 32x32x32 = 32,768 instances
@@ -1158,6 +1162,75 @@ void VulkanDevice::cleanupLightBuffers() {
     lightBuffersMemory.clear();
 }
 
+bool VulkanDevice::createAtlasUVBuffers() {
+    // Allocate enough for header (16 bytes) + 256 materials * 6 faces * sizeof(vec4)
+    // = 16 + 6144 = 6160 bytes. Round up for safety.
+    VkDeviceSize bufferSize = 16 + 256 * 6 * sizeof(glm::vec4);
+
+    atlasUVBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+    atlasUVBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        createBuffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                     atlasUVBuffers[i], atlasUVBuffersMemory[i]);
+    }
+
+    // Initialize with zeros
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        void* data;
+        vkMapMemory(device, atlasUVBuffersMemory[i], 0, bufferSize, 0, &data);
+        memset(data, 0, bufferSize);
+        vkUnmapMemory(device, atlasUVBuffersMemory[i]);
+    }
+
+    LOG_INFO("Vulkan", "Created atlas UV SSBO buffers ({} bytes each)", bufferSize);
+    return true;
+}
+
+void VulkanDevice::updateAtlasUVBuffer(const std::vector<glm::vec4>& uvs, uint32_t fallbackIndex) {
+    // SSBO layout: [textureCount (uint32), fallbackIndex (uint32), pad0, pad1, vec4[] uvs]
+    struct AtlasUVHeader {
+        uint32_t textureCount;
+        uint32_t fallbackIndex;
+        uint32_t _pad0;
+        uint32_t _pad1;
+    };
+
+    size_t dataSize = sizeof(AtlasUVHeader) + uvs.size() * sizeof(glm::vec4);
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        void* mapped;
+        vkMapMemory(device, atlasUVBuffersMemory[i], 0, dataSize, 0, &mapped);
+
+        AtlasUVHeader header;
+        header.textureCount = static_cast<uint32_t>(uvs.size());
+        header.fallbackIndex = fallbackIndex;
+        header._pad0 = 0;
+        header._pad1 = 0;
+
+        memcpy(mapped, &header, sizeof(header));
+        memcpy(static_cast<char*>(mapped) + sizeof(header), uvs.data(), uvs.size() * sizeof(glm::vec4));
+
+        vkUnmapMemory(device, atlasUVBuffersMemory[i]);
+    }
+
+    LOG_INFO("Vulkan", "Updated atlas UV SSBO ({} textures, fallback={})", uvs.size(), fallbackIndex);
+}
+
+void VulkanDevice::cleanupAtlasUVBuffers() {
+    for (size_t i = 0; i < atlasUVBuffers.size(); i++) {
+        if (atlasUVBuffers[i] != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, atlasUVBuffers[i], nullptr);
+        }
+        if (atlasUVBuffersMemory[i] != VK_NULL_HANDLE) {
+            vkFreeMemory(device, atlasUVBuffersMemory[i], nullptr);
+        }
+    }
+    atlasUVBuffers.clear();
+    atlasUVBuffersMemory.clear();
+}
+
 bool VulkanDevice::createDescriptorSetLayout() {
     // UBO binding (binding 0)
     VkDescriptorSetLayoutBinding uboLayoutBinding{};
@@ -1191,7 +1264,15 @@ bool VulkanDevice::createDescriptorSetLayout() {
     lightBufferBinding.pImmutableSamplers = nullptr;
     lightBufferBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    std::array<VkDescriptorSetLayoutBinding, 4> bindings = {uboLayoutBinding, samplerLayoutBinding, shadowMapLayoutBinding, lightBufferBinding};
+    // Atlas UV SSBO binding (binding 4)
+    VkDescriptorSetLayoutBinding atlasUVBinding{};
+    atlasUVBinding.binding = 4;
+    atlasUVBinding.descriptorCount = 1;
+    atlasUVBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    atlasUVBinding.pImmutableSamplers = nullptr;
+    atlasUVBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    std::array<VkDescriptorSetLayoutBinding, 5> bindings = {uboLayoutBinding, samplerLayoutBinding, shadowMapLayoutBinding, lightBufferBinding, atlasUVBinding};
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
@@ -1212,7 +1293,7 @@ bool VulkanDevice::createDescriptorPool() {
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[1].descriptorCount = MAX_FRAMES_IN_FLIGHT * 2; // Texture Atlas + Shadow Map
     poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    poolSizes[2].descriptorCount = MAX_FRAMES_IN_FLIGHT; // Light SSBO
+    poolSizes[2].descriptorCount = MAX_FRAMES_IN_FLIGHT * 2; // Light SSBO + Atlas UV SSBO
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1704,6 +1785,116 @@ bool VulkanDevice::loadTextureAtlas(const std::string& atlasPath) {
     return true;
 }
 
+bool VulkanDevice::uploadTextureAtlasPixels(const uint8_t* pixels, int width, int height) {
+    if (!pixels || width <= 0 || height <= 0) return false;
+
+    // Wait for GPU idle before modifying the texture
+    vkDeviceWaitIdle(device);
+
+    // Destroy old image resources
+    if (textureAtlasImageView != VK_NULL_HANDLE) {
+        vkDestroyImageView(device, textureAtlasImageView, nullptr);
+        textureAtlasImageView = VK_NULL_HANDLE;
+    }
+    if (textureAtlasImage != VK_NULL_HANDLE) {
+        vkDestroyImage(device, textureAtlasImage, nullptr);
+        textureAtlasImage = VK_NULL_HANDLE;
+    }
+    if (textureAtlasImageMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, textureAtlasImageMemory, nullptr);
+        textureAtlasImageMemory = VK_NULL_HANDLE;
+    }
+
+    const VkDeviceSize imageSize = static_cast<VkDeviceSize>(width) * height * 4;
+
+    // Create staging buffer
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+    createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                stagingBuffer, stagingBufferMemory);
+
+    void* data;
+    vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
+    memcpy(data, pixels, static_cast<size_t>(imageSize));
+    vkUnmapMemory(device, stagingBufferMemory);
+
+    // Create new texture image
+    createImage(width, height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
+                VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureAtlasImage, textureAtlasImageMemory);
+
+    // Transition + copy via one-shot command buffer
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = commandPool;
+    allocInfo.commandBufferCount = 1;
+
+    VkCommandBuffer cmd;
+    vkAllocateCommandBuffers(device, &allocInfo, &cmd);
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &beginInfo);
+
+    // Barrier: undefined → transfer dst
+    VkImageMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = textureAtlasImage;
+    barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+    barrier.srcAccessMask = 0;
+    barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+    // Copy buffer → image
+    VkBufferImageCopy region{};
+    region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+    region.imageExtent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1 };
+    vkCmdCopyBufferToImage(cmd, stagingBuffer, textureAtlasImage,
+                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+    // Barrier: transfer dst → shader read
+    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                        0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+    vkEndCommandBuffer(cmd);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &cmd;
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(graphicsQueue);
+
+    vkFreeCommandBuffers(device, commandPool, 1, &cmd);
+    vkDestroyBuffer(device, stagingBuffer, nullptr);
+    vkFreeMemory(device, stagingBufferMemory, nullptr);
+
+    // Recreate image view
+    textureAtlasImageView = createImageView(textureAtlasImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+
+    // Update descriptor sets so they point to the new image view
+    // Only if sampler exists (during hot-reload). During initial setup,
+    // the caller creates the sampler and updates descriptors afterwards.
+    if (textureAtlasSampler != VK_NULL_HANDLE) {
+        updateDescriptorSetsWithTexture();
+    }
+
+    LOG_INFO("Vulkan", "Texture atlas re-uploaded ({}x{})", width, height);
+    return true;
+}
+
 bool VulkanDevice::createTextureAtlasSampler() {
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -1758,7 +1949,13 @@ void VulkanDevice::updateDescriptorSetsWithTexture() {
         lightBufferInfo.offset = 0;
         lightBufferInfo.range = sizeof(Graphics::LightBufferGPU);
 
-        std::array<VkWriteDescriptorSet, 4> descriptorWrites{};
+        // Atlas UV SSBO descriptor (binding 4)
+        VkDescriptorBufferInfo atlasUVBufferInfo{};
+        atlasUVBufferInfo.buffer = atlasUVBuffers[i];
+        atlasUVBufferInfo.offset = 0;
+        atlasUVBufferInfo.range = VK_WHOLE_SIZE;
+
+        std::array<VkWriteDescriptorSet, 5> descriptorWrites{};
 
         // UBO write
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1795,6 +1992,15 @@ void VulkanDevice::updateDescriptorSetsWithTexture() {
         descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         descriptorWrites[3].descriptorCount = 1;
         descriptorWrites[3].pBufferInfo = &lightBufferInfo;
+
+        // Atlas UV SSBO write
+        descriptorWrites[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[4].dstSet = descriptorSets[i];
+        descriptorWrites[4].dstBinding = 4;
+        descriptorWrites[4].dstArrayElement = 0;
+        descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[4].descriptorCount = 1;
+        descriptorWrites[4].pBufferInfo = &atlasUVBufferInfo;
 
         vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }

@@ -1,4 +1,5 @@
 #include "core/ItemRegistry.h"
+#include "core/MaterialRegistry.h"
 #include "physics/Material.h"
 #include "utils/Logger.h"
 
@@ -95,8 +96,8 @@ void ItemRegistry::clear() {
 }
 
 void ItemRegistry::registerMaterialItems() {
-    Physics::MaterialManager matMgr;
-    auto names = matMgr.getAllMaterialNames();
+    auto& reg = Phyxel::Core::MaterialRegistry::instance();
+    auto names = reg.getAllMaterialNames();
     int registered = 0;
     for (const auto& name : names) {
         // Skip if already registered (user-defined items take priority)

@@ -121,6 +121,9 @@ public:
     bool createLightBuffers();
     void updateLightBuffer(uint32_t frameIndex, const Graphics::LightBufferGPU& lightData);
     void cleanupLightBuffers();
+    bool createAtlasUVBuffers();
+    void updateAtlasUVBuffer(const std::vector<glm::vec4>& uvs, uint32_t fallbackIndex);
+    void cleanupAtlasUVBuffers();
     bool createDescriptorSetLayout();
     bool createDescriptorPool();
     bool createDescriptorSets();
@@ -169,6 +172,7 @@ public:
         
     // Texture atlas management
     bool loadTextureAtlas(const std::string& atlasPath);
+    bool uploadTextureAtlasPixels(const uint8_t* pixels, int width, int height);
     bool createTextureAtlasSampler();
     void updateDescriptorSetsWithTexture();
     void cleanupTextureAtlas();    
@@ -320,6 +324,10 @@ private:
     // Light SSBO resources
     std::vector<VkBuffer> lightBuffers;
     std::vector<VkDeviceMemory> lightBuffersMemory;
+
+    // Atlas UV SSBO resources
+    std::vector<VkBuffer> atlasUVBuffers;
+    std::vector<VkDeviceMemory> atlasUVBuffersMemory;
 
     // Command buffers
     VkCommandPool commandPool = VK_NULL_HANDLE;

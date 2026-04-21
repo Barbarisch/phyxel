@@ -45,10 +45,25 @@ layout(std430, set = 0, binding = 3) readonly buffer LightBuffer {
     SpotLightGPU spotLights[16];
 } lights;
 
+layout(std430, set = 0, binding = 4) readonly buffer AtlasUVBuffer {
+    uint textureCount;
+    uint fallbackIndex;
+    uint _pad0;
+    uint _pad1;
+    vec4 textureUVs[];
+} atlasUVs;
+
 layout(location = 0) out vec4 outColor;   // output color
 
-// Include auto-generated texture atlas constants
-#include "../resources/textures/cube_atlas.glsl"
+// Get atlas UV coordinates from texture index and local UV
+vec2 getAtlasUV(uint texIndex, vec2 localUV) {
+    uint safeIdx = texIndex;
+    if (texIndex == 0xFFFFu || texIndex >= atlasUVs.textureCount) {
+        safeIdx = atlasUVs.fallbackIndex;
+    }
+    vec4 bounds = atlasUVs.textureUVs[safeIdx];
+    return mix(bounds.xy, bounds.zw, localUV);
+}
 
 // Calculate attenuation for a light at distance d with given radius
 float calcAttenuation(float d, float radius) {

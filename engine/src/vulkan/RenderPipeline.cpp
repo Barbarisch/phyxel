@@ -193,11 +193,6 @@ bool RenderPipeline::createGraphicsPipelineForDynamicSubcubes() {
         }
     }
     
-    // Create descriptor set layout same as static pipeline (UBO only)
-    if (!createDescriptorSetLayout()) {
-        return false;
-    }
-
     // Vertex input - use vertex data and dynamic subcube instance data
     auto vertexBindingDescription = Vertex::getBindingDescription();
     auto vertexAttributeDescriptions = Vertex::getAttributeDescriptions();
@@ -287,11 +282,13 @@ bool RenderPipeline::createGraphicsPipelineForDynamicSubcubes() {
     dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
     dynamicState.pDynamicStates = dynamicStates.data();
 
-    // Create pipeline layout (NO push constants for dynamic subcubes - they use world positions)
+    // Create pipeline layout using the shared device descriptor set layout so that
+    // voxel.frag can access all bindings (including binding 4 = AtlasUVBuffer).
+    VkDescriptorSetLayout deviceDescriptorSetLayout = vulkanDevice.getDescriptorSetLayout();
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+    pipelineLayoutInfo.pSetLayouts = &deviceDescriptorSetLayout;
     pipelineLayoutInfo.pushConstantRangeCount = 0;  // No push constants needed
     pipelineLayoutInfo.pPushConstantRanges = nullptr;
 

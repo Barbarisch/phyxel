@@ -196,9 +196,9 @@ void main() {
     if (faceID == 0u) {        // Front face (+Z) - North - looks good with flip
         // Vertices: (0,0,1), (1,0,1), (1,1,1), (0,1,1)
         baseUV = vec2(float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
-    } else if (faceID == 1u) { // Back face (-Z) - South - looks good
+    } else if (faceID == 1u) { // Back face (-Z) - South - Y flipped to match other side faces
         // Vertices: (1,0,0), (0,0,0), (0,1,0), (1,1,0) - x flipped
-        baseUV = vec2(1.0 - float((vertexID >> 0) & 1u), float((vertexID >> 1) & 1u));
+        baseUV = vec2(1.0 - float((vertexID >> 0) & 1u), 1.0 - float((vertexID >> 1) & 1u));
     } else if (faceID == 2u) { // Right face (+X) - East - 180 degree rotation
         // Vertices: (1,0,1), (1,0,0), (1,1,0), (1,1,1) - z flipped
         // 180 degree rotation: flip both U and V
@@ -228,8 +228,8 @@ void main() {
         
         if (faceID == 0u) {        // North (Front) - Y flipped
             subcubeGridPos = vec2(float(subcubeLocalX), float(2u - subcubeLocalY));
-        } else if (faceID == 1u) { // South (Back) - works correctly
-            subcubeGridPos = vec2(float(subcubeLocalX), float(subcubeLocalY));
+        } else if (faceID == 1u) { // South (Back) - Y flipped to match
+            subcubeGridPos = vec2(float(subcubeLocalX), float(2u - subcubeLocalY));
         } else if (faceID == 2u) { // East (Right) - both X and Y flipped
             subcubeGridPos = vec2(float(2u - subcubeLocalZ), float(2u - subcubeLocalY));
         } else if (faceID == 3u) { // West (Left) - Y flipped
@@ -253,7 +253,7 @@ void main() {
         if (faceID == 0u) {
             subcubeGridPos = vec2(float(subcubeLocalX), float(2u - subcubeLocalY));
         } else if (faceID == 1u) {
-            subcubeGridPos = vec2(float(subcubeLocalX), float(subcubeLocalY));
+            subcubeGridPos = vec2(float(subcubeLocalX), float(2u - subcubeLocalY));
         } else if (faceID == 2u) {
             subcubeGridPos = vec2(float(2u - subcubeLocalZ), float(2u - subcubeLocalY));
         } else if (faceID == 3u) {
@@ -263,13 +263,13 @@ void main() {
         } else if (faceID == 5u) {
             subcubeGridPos = vec2(float(subcubeLocalX), float(2u - subcubeLocalZ));
         }
-        
+
         // Then, get the microcube's position within that subcube
         vec2 microcubeGridPos = vec2(0.0);
         if (faceID == 0u) {
             microcubeGridPos = vec2(float(microcubeLocalX), float(2u - microcubeLocalY));
         } else if (faceID == 1u) {
-            microcubeGridPos = vec2(float(microcubeLocalX), float(microcubeLocalY));
+            microcubeGridPos = vec2(float(microcubeLocalX), float(2u - microcubeLocalY));
         } else if (faceID == 2u) {
             microcubeGridPos = vec2(float(2u - microcubeLocalZ), float(2u - microcubeLocalY));
         } else if (faceID == 3u) {

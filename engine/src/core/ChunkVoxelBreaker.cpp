@@ -117,6 +117,7 @@ bool ChunkVoxelBreaker::breakSubcube(
             glm::vec3 worldPos = subcube->getWorldPosition();      // For physics positioning
             bool isVisible = subcube->isVisible();                 // Visibility state
             float lifetime = subcube->getLifetime();               // Time until expiration
+            std::string materialName = subcube->getMaterialName(); // Texture/material identity
             
             // CRITICAL DATA STRUCTURE UPDATE:
             // removeSubcube() updates ALL of Chunk's internal state:
@@ -148,6 +149,7 @@ bool ChunkVoxelBreaker::breakSubcube(
             // Set properties from stored data
             dynamicSubcube->setVisible(isVisible);
             dynamicSubcube->setLifetime(lifetime);
+            dynamicSubcube->setMaterialName(materialName);
             dynamicSubcube->breakApart(); // Mark as broken
             
             // PHYSICS BODY CREATION:

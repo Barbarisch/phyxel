@@ -10,6 +10,9 @@
 #include <chrono>
 #include "core/Cube.h"
 
+// Forward declarations
+class btRigidBody;
+
 namespace Phyxel {
 
 // Forward declarations within namespace
@@ -20,89 +23,6 @@ enum class TargetMode {
     Subcube,
     Microcube
 };
-
-// Texture system constants
-// Auto-generated atlas indices from tools/texture_atlas_builder.py
-// Atlas: 512x512, 78 textures (13 materials x 6 faces)
-// Face order: 0=side_n, 1=side_s, 2=side_e, 3=side_w, 4=top, 5=bottom
-namespace TextureConstants {
-    constexpr uint16_t PLACEHOLDER_TEXTURE_INDEX = 54;    // Default fallback texture (placeholder_bottom)
-    constexpr uint16_t INVALID_TEXTURE_INDEX = 0xFFFF;    // Invalid/unset texture
-    constexpr uint16_t MAX_TEXTURE_INDEX = 0xFFFE;        // Maximum valid texture index
-    constexpr uint16_t TEXTURE_COUNT = 78;                // Total textures in atlas
-
-    // Material face index table: [materialID][faceID] → atlas texture index
-    // Materials: 0=placeholder, 1=grassdirt, 2=cork, 3=default, 4=glass,
-    //            5=glow, 6=hover, 7=ice, 8=metal, 9=rubber, 10=stone, 11=wood, 12=leaf
-    constexpr int MATERIAL_COUNT = 13;
-
-    // Per-material texture indices: [side_n, side_s, side_e, side_w, top, bottom]
-    constexpr uint16_t MATERIAL_FACE_INDEX[MATERIAL_COUNT][6] = {
-        {56, 57, 55, 58, 59, 54},  // placeholder
-        {26, 27, 25, 28, 29, 24},  // grassdirt
-        { 2,  3,  1,  4,  5,  0},  // cork
-        { 8,  9,  7, 10, 11,  6},  // default
-        {14, 15, 13, 16, 17, 12},  // glass
-        {20, 21, 19, 22, 23, 18},  // glow
-        {32, 33, 31, 34, 35, 30},  // hover
-        {38, 39, 37, 40, 41, 36},  // ice
-        {50, 51, 49, 52, 53, 48},  // metal
-        {62, 63, 61, 64, 65, 60},  // rubber
-        {68, 69, 67, 70, 71, 66},  // stone
-        {74, 75, 73, 76, 77, 72},  // wood
-        {44, 45, 43, 46, 47, 42},  // leaf
-    };
-
-    // Material name → material ID lookup
-    inline int getMaterialID(const std::string& materialName) {
-        // Case-sensitive matching per CLAUDE.md
-        if (materialName == "placeholder") return 0;
-        if (materialName == "grassdirt")   return 1;
-        if (materialName == "Cork")        return 2;
-        if (materialName == "Default")     return 3;
-        if (materialName == "Glass")       return 4;
-        if (materialName == "glow")        return 5;
-        if (materialName == "hover")       return 6;
-        if (materialName == "Ice")         return 7;
-        if (materialName == "Metal")       return 8;
-        if (materialName == "Rubber")      return 9;
-        if (materialName == "Stone")       return 10;
-        if (materialName == "Wood")        return 11;
-        if (materialName == "Leaf")        return 12;
-        return 3; // Default material as fallback
-    }
-    
-    // Get texture index for a material and face
-    inline uint16_t getTextureIndexForMaterial(const std::string& materialName, int faceID) {
-        if (faceID < 0 || faceID >= 6) return PLACEHOLDER_TEXTURE_INDEX;
-        int matID = getMaterialID(materialName);
-        return MATERIAL_FACE_INDEX[matID][faceID];
-    }
-    
-    // Legacy: get placeholder texture index for a face (backward compat)
-    inline uint16_t getTextureIndexForFace(int faceID) {
-        if (faceID >= 0 && faceID < 6) {
-            return static_cast<uint16_t>(faceID);  // Direct mapping: faceID == textureIndex
-        }
-        return PLACEHOLDER_TEXTURE_INDEX;
-    }
-    
-    // Get hover texture index for a specific face
-    inline uint16_t getHoverTextureIndexForFace(int faceID) {
-        if (faceID >= 0 && faceID < 6) {
-            return MATERIAL_FACE_INDEX[6][faceID];  // hover = material ID 6
-        }
-        return PLACEHOLDER_TEXTURE_INDEX;
-    }
-    
-    // Legacy: get grassdirt texture index for a face
-    inline uint16_t getGrassdirtTextureIndexForFace(int faceID) {
-        if (faceID >= 0 && faceID < 6) {
-            return MATERIAL_FACE_INDEX[1][faceID];  // grassdirt = material ID 1
-        }
-        return PLACEHOLDER_TEXTURE_INDEX;
-    }
-}
 
 // Hash function for glm::ivec3 to use in unordered_map
 struct IVec3Hash {

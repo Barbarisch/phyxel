@@ -767,6 +767,66 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/materials/add — Add a new material at runtime
+    // ====================================================================
+    srv.Post("/api/materials/add", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("add_material", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/materials/remove — Remove a material at runtime
+    // ====================================================================
+    srv.Post("/api/materials/remove", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("remove_material", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/materials/save — Save materials.json to disk
+    // ====================================================================
+    srv.Post("/api/materials/save", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("save_materials", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/atlas/reload — Hot-reload the texture atlas
+    // ====================================================================
+    srv.Post("/api/atlas/reload", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("reload_atlas", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // GET /api/world/chunks — Chunk information
     // ====================================================================
     srv.Get("/api/world/chunks", [this](const httplib::Request&, httplib::Response& res) {

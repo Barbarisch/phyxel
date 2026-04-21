@@ -1,4 +1,5 @@
 #include "PropertiesPanel.h"
+#include "core/MaterialRegistry.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "scene/CubeLocation.h"
 #include "core/EntityRegistry.h"
@@ -327,7 +328,7 @@ void PropertiesPanel::renderPlacedObjectInspector(const std::string& id) {
     if (m_templateManager && obj->category == "template") {
         const auto* tmpl = m_templateManager->getTemplate(obj->templateName);
         if (tmpl) {
-            Physics::MaterialManager matMgr;
+            auto& reg = Phyxel::Core::MaterialRegistry::instance();
             std::unordered_map<std::string, int> materialCounts;
             float totalWeight = 0.0f;
             int totalVoxels = 0;
@@ -335,17 +336,17 @@ void PropertiesPanel::renderPlacedObjectInspector(const std::string& id) {
 
             for (const auto& c : tmpl->cubes) {
                 materialCounts[c.material]++;
-                totalWeight += matMgr.getMaterial(c.material).mass * PIECE_MASS;
+                totalWeight += reg.getPhysics(c.material).mass * PIECE_MASS;
                 totalVoxels++;
             }
             for (const auto& s : tmpl->subcubes) {
                 materialCounts[s.material]++;
-                totalWeight += matMgr.getMaterial(s.material).mass * PIECE_MASS;
+                totalWeight += reg.getPhysics(s.material).mass * PIECE_MASS;
                 totalVoxels++;
             }
             for (const auto& m : tmpl->microcubes) {
                 materialCounts[m.material]++;
-                totalWeight += matMgr.getMaterial(m.material).mass * PIECE_MASS;
+                totalWeight += reg.getPhysics(m.material).mass * PIECE_MASS;
                 totalVoxels++;
             }
 
@@ -354,7 +355,7 @@ void PropertiesPanel::renderPlacedObjectInspector(const std::string& id) {
 
             if (ImGui::CollapsingHeader("Materials")) {
                 for (const auto& [matName, count] : materialCounts) {
-                    const auto& mat = matMgr.getMaterial(matName);
+                    const auto& mat = reg.getPhysics(matName);
                     ImGui::BulletText("%s: %d (mass=%.1f, bond=%.2f)",
                         matName.c_str(), count, mat.mass, mat.bondStrength);
                 }

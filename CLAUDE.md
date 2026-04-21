@@ -6,13 +6,12 @@ When starting a new conversation in the engine terminal, **proactively check eng
 
 ## Project Overview
 
-Phyxel is a voxel game engine built with C++17, Vulkan, and a custom physics engine. It features a 32³ chunk system, animated voxel characters, embedded Python scripting, and an MCP server for AI agent integration. Bullet Physics has been removed from active builds — the custom `VoxelDynamicsWorld` handles all CPU rigid body simulation.
+Phyxel is a voxel game engine built with C++17, Vulkan, and Bullet Physics. It features a 32³ chunk system, physics-based entity characters, animated voxel characters, embedded Python scripting, and an MCP server for AI agent integration.
 
 ## Build System
 
 - **CMake 3.15+**, C++17 required, MSVC 2022
-- **Dependencies**: Vulkan SDK, GLFW, GLM, ImGui, pybind11, nlohmann/json, cpp-httplib, Google Test, SQLite3, miniaudio
-- **Note**: Bullet Physics is a git submodule (`external/bullet3`) but is **not compiled**. `STB_IMAGE` is still sourced from the submodule's header-only path.
+- **Dependencies**: Vulkan SDK, GLFW, GLM, Bullet Physics, ImGui, pybind11, nlohmann/json, cpp-httplib, Google Test, SQLite3, miniaudio
 - **CMake is NOT in system PATH**. Before running cmake, add it:
   ```powershell
   $env:PATH += ";C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin"
@@ -56,12 +55,13 @@ Predefined in `MaterialManager` (engine/src/physics/Material.cpp). Names are **c
 | Stone   | 6.0  | 0.8      | 0.05        | Heaviest, rough  |
 | Ice     | 0.9  | 0.1      | 0.4         | Very slippery    |
 | Cork    | 0.2  | 0.5      | 0.4         | Ultra-light      |
+| Dirt    | 2.0  | 0.7      | 0.1         | Earth/terrain sub-surface |
 | glow    | 1.0  | 0.5      | 0.5         | Emissive         |
 | Leaf    | 0.1  | 0.3      | 0.1         | Light foliage for trees/bushes |
 | Default | 1.0  | 0.5      | 0.3         | Balanced         |
 
-Atlas: 78 textures total, 512×512. Source PNGs in `resources/textures/source/`. Rebuild after atlas changes: `.\build_shaders.bat` (also manually recompile `voxel.frag` since glslc doesn't track `#include` deps)
-Lookup: `TextureConstants::getTextureIndexForMaterial(materialName, faceID)` in `Types.h`
+Atlas: 84 textures total, 512×512. Source PNGs in `resources/textures/source/`. Rebuild after atlas changes: `.\build_shaders.bat` (also manually recompile `voxel.frag` since glslc doesn't track `#include` deps)
+Lookup: `MaterialRegistry::instance().getTextureIndex(materialID, faceID)` — data-driven via `resources/materials.json`
 
 ## Voxel Rendering Pipelines
 
@@ -83,9 +83,9 @@ Spawnable via MCP `spawn_entity` or keybindings. Control mode toggled with **K**
 
 | Type       | Class                    | Notes |
 |------------|--------------------------|-------|
+| `physics`  | `PhysicsCharacter`       | Humanoid ragdoll, Bullet Physics, WASD |
+| `spider`   | —                        | Spider-type enemy |
 | `animated` | `AnimatedVoxelCharacter` | .anim-based FSM: Idle/Walk/Run/Jump/Fall/Attack/Crouch/etc. |
-
-> `physics` and `spider` types have been removed — `PhysicsCharacter` and `SpiderCharacter` are archived in `engine/deprecated/bullet/`.
 
 Animated: Jump (Space), Attack (Left Click), Crouch (Ctrl), Sprint (Shift), Derez (X).
 
@@ -174,7 +174,7 @@ In `resources/animated_characters/`:
 | P | Toggle Template Preview |
 | -/= | Ambient Light |
 | [/] | Spawn Speed |
-| K | Toggle Character Control (Animated) |
+| K | Toggle Character Control (Physics/Spider/Animated) |
 | W/A/S/D | Movement |
 | Space | Jump (Animated) |
 | Shift | Sprint |
@@ -252,13 +252,13 @@ docs/            # Documentation
 
 ## Key Engine Subsystems
 
-**Core:** ChunkManager (32³ chunks, Vulkan buffers, face culling), ChunkStreamingManager (SQLite persistence), WorldGenerator, SceneManager (multi-scene transitions), EntityRegistry (O(1) lookup), EngineAPIServer (HTTP port 8090), ScriptingSystem (pybind11), PhysicsWorld (thin wrapper over VoxelDynamicsWorld), VoxelDynamicsWorld (custom PGS sequential-impulse engine), GpuParticlePhysics (Vulkan XPBD, 10000 cap), RenderPipeline/RenderCoordinator (Vulkan instanced)
+**Core:** ChunkManager (32³ chunks, Vulkan buffers, face culling), ChunkStreamingManager (SQLite persistence), WorldGenerator, SceneManager (multi-scene transitions), EntityRegistry (O(1) lookup), EngineAPIServer (HTTP port 8090), ScriptingSystem (pybind11), PhysicsWorld (Bullet), RenderPipeline/RenderCoordinator (Vulkan instanced)
 
 **Gameplay:** HealthComponent, RespawnSystem, CombatSystem (sphere+cone hit detection), EquipmentSystem (6 slots), CraftingSystem, DayNightCycle, HazardSystem, AchievementSystem, MusicPlaylist, PlayerProfile, ObjectiveTracker
 
 **NPC/AI:** NPCManager, NavGrid + AStarPathfinder, DialogueSystem, StoryEngine, AIConversationService (Claude/OpenAI/Ollama), BehaviorTree/UtilityAI
 
-**Voxel Physics:** DynamicObjectManager (VoxelDynamicsWorld-backed, ~500 active soft cap), GpuParticlePhysics (Vulkan XPBD, 10000 cap), VoxelManipulationSystem (hybrid routing — see `docs/DynamicVoxelPhysics.md`)
+**Voxel Physics:** DynamicObjectManager (Bullet, 300 cap), GpuParticlePhysics (Vulkan XPBD, 10000 cap), VoxelManipulationSystem (hybrid routing — see `docs/DynamicVoxelPhysics.md`)
 
 **D&D RPG:** DiceSystem, CharacterAttributes (6 ability scores + modifiers), ProficiencySystem, CharacterSheet/CharacterProgression (class/race/XP/level, data-driven JSON in `resources/rpg/`), ActionEconomy/InitiativeTracker, AttackResolver/ConditionSystem (15 conditions), SpellDefinition/SpellcasterComponent/SpellResolver, RpgItem/CurrencySystem/AttunementSystem/EncumbranceSystem, ReputationSystem/DialogueSkillCheck/SocialInteractionResolver, RestSystem, WorldClock (360-day calendar, lunar cycle), Party, LootTable, EncounterBuilder, CampaignJournal
 

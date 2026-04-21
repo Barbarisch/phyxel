@@ -33,6 +33,7 @@
 #include "TerminalPanel.h"
 #include "PropertiesPanel.h"
 #include "CameraPanel.h"
+#include "TextureEditorPanel.h"
 #endif
 #include "WorldOutlinerPanel.h"
 #include "core/EntityRegistry.h"
@@ -515,6 +516,9 @@ private:
 
     std::unique_ptr<Editor::CameraPanel> m_cameraPanel;        // Dockable camera management
     bool m_showCameraPanel = false;
+
+    std::unique_ptr<Editor::TextureEditorPanel> m_textureEditor; // Dockable texture pixel editor
+    bool m_showTextureEditor = false;
     bool m_needsLayoutReset = false;
 
     bool m_showScenePanel = true;          // Dockable scene management panel
