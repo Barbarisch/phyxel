@@ -31,7 +31,7 @@ struct EngineConfig {
     std::string dialoguesSubdir       = "dialogues";
     std::string soundsSubdir          = "sounds";
     std::string animatedCharsSubdir   = "animated_characters";
-    std::string recipesSubdir         = "recipes";
+    std::string recipesSubdir         = "ai";
 
     // -- Key asset filenames -------------------------------------------
     std::string textureAtlasFile      = "cube_atlas.png";
@@ -56,6 +56,9 @@ struct EngineConfig {
     // -- Rendering --------------------------------------------------------
     float       maxChunkRenderDistance = 256.0f;
     float       chunkInclusionDistance = 320.0f;
+
+    // -- UI / Editor ------------------------------------------------------
+    bool        enableEditorViewports = false;  // Enable ImGui multi-viewport (pop-out OS windows)
 
     // -- Camera defaults --------------------------------------------------
     float       cameraStartX  = 50.0f;

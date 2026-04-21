@@ -90,6 +90,7 @@ void MaterialManager::initializePredefinedMaterials() {
     wood.linearDamping = 0.2f;
     wood.angularDamping = 0.3f;
     wood.breakForceMultiplier = 0.8f;
+    wood.bondStrength = 0.6f;
     wood.angularVelocityScale = 1.2f;
     wood.colorTint = glm::vec3(0.8f, 0.6f, 0.3f); // Brown tint
     materials["Wood"] = wood;
@@ -104,6 +105,7 @@ void MaterialManager::initializePredefinedMaterials() {
     metal.linearDamping = 0.05f;
     metal.angularDamping = 0.1f;
     metal.breakForceMultiplier = 1.5f;
+    metal.bondStrength = 0.95f;
     metal.angularVelocityScale = 0.6f;
     metal.colorTint = glm::vec3(0.7f, 0.7f, 0.8f); // Metallic tint
     materials["Metal"] = metal;
@@ -118,6 +120,7 @@ void MaterialManager::initializePredefinedMaterials() {
     glass.linearDamping = 0.1f;
     glass.angularDamping = 0.15f;
     glass.breakForceMultiplier = 0.5f;
+    glass.bondStrength = 0.2f;
     glass.angularVelocityScale = 1.8f;
     glass.colorTint = glm::vec3(0.9f, 0.95f, 1.0f); // Clear bluish tint
     materials["Glass"] = glass;
@@ -132,6 +135,7 @@ void MaterialManager::initializePredefinedMaterials() {
     rubber.linearDamping = 0.3f;
     rubber.angularDamping = 0.4f;
     rubber.breakForceMultiplier = 0.6f;
+    rubber.bondStrength = 0.7f;
     rubber.angularVelocityScale = 2.0f;
     rubber.colorTint = glm::vec3(0.3f, 0.3f, 0.3f); // Dark rubber
     materials["Rubber"] = rubber;
@@ -146,6 +150,7 @@ void MaterialManager::initializePredefinedMaterials() {
     stone.linearDamping = 0.1f;
     stone.angularDamping = 0.2f;
     stone.breakForceMultiplier = 2.0f;
+    stone.bondStrength = 0.9f;
     stone.angularVelocityScale = 0.4f;
     stone.colorTint = glm::vec3(0.6f, 0.5f, 0.4f); // Stone gray-brown
     materials["Stone"] = stone;
@@ -160,6 +165,7 @@ void MaterialManager::initializePredefinedMaterials() {
     ice.linearDamping = 0.05f;
     ice.angularDamping = 0.05f;
     ice.breakForceMultiplier = 0.7f;
+    ice.bondStrength = 0.3f;
     ice.angularVelocityScale = 2.5f;
     ice.colorTint = glm::vec3(0.8f, 0.9f, 1.0f); // Ice blue
     materials["Ice"] = ice;
@@ -174,10 +180,26 @@ void MaterialManager::initializePredefinedMaterials() {
     cork.linearDamping = 0.4f;
     cork.angularDamping = 0.5f;
     cork.breakForceMultiplier = 0.3f;
+    cork.bondStrength = 0.4f;
     cork.angularVelocityScale = 3.0f;
     cork.colorTint = glm::vec3(0.8f, 0.7f, 0.5f); // Cork color
     materials["Cork"] = cork;
     
+    // Leaf - Light foliage material for trees and bushes
+    MaterialProperties leaf;
+    leaf.name = "Leaf";
+    leaf.description = "Light foliage material for trees and bushes";
+    leaf.mass = 0.1f;
+    leaf.friction = 0.3f;
+    leaf.restitution = 0.1f;
+    leaf.linearDamping = 0.6f;
+    leaf.angularDamping = 0.6f;
+    leaf.breakForceMultiplier = 0.2f;
+    leaf.bondStrength = 0.2f;
+    leaf.angularVelocityScale = 3.0f;
+    leaf.colorTint = glm::vec3(0.3f, 0.7f, 0.2f); // Green tint
+    materials["Leaf"] = leaf;
+
     // Glow - Emissive material
     MaterialProperties glow;
     glow.name = "glow";
@@ -188,6 +210,7 @@ void MaterialManager::initializePredefinedMaterials() {
     glow.linearDamping = 0.1f;
     glow.angularDamping = 0.1f;
     glow.breakForceMultiplier = 1.0f;
+    glow.bondStrength = 0.5f;
     glow.angularVelocityScale = 1.0f;
     glow.colorTint = glm::vec3(1.0f, 1.0f, 1.0f); // White
     materials["glow"] = glow;

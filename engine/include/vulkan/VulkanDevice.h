@@ -132,6 +132,7 @@ public:
     void updateDynamicSubcubeBuffer(const std::vector<DynamicSubcubeInstanceData>& dynamicSubcubes);
     void bindDynamicSubcubeBuffer(uint32_t frameIndex);
     void cleanupDynamicSubcubeBuffer();
+    uint32_t getMaxDynamicSubcubes() const { return maxDynamicSubcubes; }
 
     // Character instance buffer management
     bool createCharacterInstanceBuffer(uint32_t maxInstances);
@@ -232,6 +233,7 @@ public:
         VkExtent2D getSwapChainExtent() const { return swapChainExtent; }
         VkFormat getSwapChainImageFormat() const { return swapChainImageFormat; }
         VkDescriptorSetLayout getDescriptorSetLayout() const { return descriptorSetLayout; }
+        VkDescriptorSet getDescriptorSet(uint32_t frameIndex) const { return descriptorSets[frameIndex]; }
         uint32_t getSwapChainImageCount() const { return static_cast<uint32_t>(swapChainImages.size()); }
         VkImage getSwapChainImage(uint32_t index) const { return swapChainImages[index]; }
         VkFramebuffer getSwapChainFramebuffer(uint32_t index) const { return swapChainFramebuffers[index]; }
@@ -242,6 +244,10 @@ public:
         VkCommandBuffer beginSingleTimeCommands();
         void endSingleTimeCommands(VkCommandBuffer commandBuffer);
         
+        // Synchronization / device idle
+        void deviceWaitIdle();
+        void recreateSyncObjects();
+
         // Window resize handling
         void setFramebufferResized(bool resized) { framebufferResized = resized; }
         bool getFramebufferResized() const { return framebufferResized; }

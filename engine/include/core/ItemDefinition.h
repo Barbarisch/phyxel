@@ -64,7 +64,7 @@ struct ItemDefinition {
     float reach = 1.5f;               // Interaction reach distance
 
     // Visual
-    std::string templateFile;          // Voxel model template (e.g. "weapons/sword.txt")
+    std::string templateFile;          // Voxel model template (e.g. "weapons/sword.voxel")
     std::string attackAnimation;       // Animation clip to use (e.g. "melee_attack_horizontal")
 
     // Serialization

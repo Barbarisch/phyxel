@@ -1,0 +1,171 @@
+#include "core/KinematicVoxelManager.h"
+#include "core/Types.h"
+#include "utils/Logger.h"
+
+#include <algorithm>
+#include <climits>
+#include <cfloat>
+#include <unordered_set>
+
+namespace Phyxel {
+namespace Core {
+
+KinematicVoxelManager::KinematicVoxelManager(Physics::PhysicsWorld* /*physicsWorld*/)
+{}
+
+KinematicVoxelManager::~KinematicVoxelManager() {
+    clear();
+}
+
+std::string KinematicVoxelManager::add(const std::string& idHint,
+                                        std::vector<KinematicVoxel> voxels,
+                                        const glm::mat4& initialTransform,
+                                        const std::string& placedObjectId,
+                                        bool /*skipCollider*/)
+{
+    std::string id = generateId(idHint);
+
+    KinematicVoxelObject obj;
+    obj.id             = id;
+    obj.placedObjectId = placedObjectId;
+    obj.voxels         = std::move(voxels);
+    obj.faces          = buildFaces(obj.voxels);
+    obj.currentTransform = initialTransform;
+
+    LOG_INFO_FMT("KinematicVoxelManager", "Added '" << id << "': "
+                 << obj.voxels.size() << " voxels, "
+                 << obj.faces.size() << " faces");
+
+    m_objects[id] = std::move(obj);
+    m_bufferDirty = true;
+    return id;
+}
+
+void KinematicVoxelManager::remove(const std::string& id) {
+    auto it = m_objects.find(id);
+    if (it == m_objects.end()) return;
+    m_objects.erase(it);
+    m_bufferDirty = true;
+    LOG_INFO_FMT("KinematicVoxelManager", "Removed '" << id << "'");
+}
+
+void KinematicVoxelManager::setTransform(const std::string& id, const glm::mat4& transform) {
+    auto it = m_objects.find(id);
+    if (it != m_objects.end()) {
+        it->second.currentTransform = transform;
+    }
+}
+
+glm::mat4 KinematicVoxelManager::getTransform(const std::string& id) const {
+    auto it = m_objects.find(id);
+    return (it != m_objects.end()) ? it->second.currentTransform : glm::mat4(1.0f);
+}
+
+void KinematicVoxelManager::clear() {
+    m_objects.clear();
+    m_bufferDirty = true;
+}
+
+// ============================================================================
+// Private helpers
+// ============================================================================
+
+// Build GPU face instances from voxels. Performs adjacency culling (skips faces
+// between touching voxels of the same scale) and computes per-face UV offsets for
+// sub-tile texture mapping.
+//
+// Texture mapping logic: each face maps two of the three world axes to U,V.
+// The UV offset is derived from parentFrac (the voxel's position within its parent
+// cube, set during template loading). Per-face axis swaps and Y-flips match the
+// static_voxel.vert conventions so textures look identical whether a voxel is
+// static (in a chunk) or dynamic (in a KinematicVoxelObject).
+//
+// For full cubes (scale=1, parentFrac=0): uvOffset=(0,0), uvScale=1 → full texture.
+// For microcubes (scale=1/9): uvOffset selects the 1/9 slice → seamless tiling.
+std::vector<KinematicFaceData> KinematicVoxelManager::buildFaces(
+    const std::vector<KinematicVoxel>& voxels)
+{
+    auto quantize = [](const glm::vec3& pos, float scale) -> glm::ivec3 {
+        return glm::ivec3(glm::round(pos / scale));
+    };
+
+    float commonScale = voxels.empty() ? 1.0f : voxels[0].scale.x;
+    bool uniformScale = true;
+    for (const auto& v : voxels) {
+        if (v.scale.x != commonScale) { uniformScale = false; break; }
+    }
+
+    std::unordered_set<int64_t> occupied;
+    auto posKey = [](glm::ivec3 p) -> int64_t {
+        return (int64_t(p.x) & 0xFFFFF) | ((int64_t(p.y) & 0xFFFFF) << 20) | ((int64_t(p.z) & 0xFFFFF) << 40);
+    };
+
+    if (uniformScale) {
+        for (const auto& v : voxels) {
+            occupied.insert(posKey(quantize(v.localPos, commonScale)));
+        }
+    }
+
+    static const glm::ivec3 faceDir[6] = {
+        {0,0,1}, {0,0,-1}, {1,0,0}, {-1,0,0}, {0,1,0}, {0,-1,0}
+    };
+
+    std::vector<KinematicFaceData> faces;
+    faces.reserve(voxels.size() * 3);
+
+    for (const auto& v : voxels) {
+        glm::ivec3 qpos = uniformScale ? quantize(v.localPos, commonScale) : glm::ivec3(0);
+
+        for (uint32_t faceId = 0; faceId < 6; ++faceId) {
+            if (uniformScale) {
+                glm::ivec3 neighbor = qpos + faceDir[faceId];
+                if (occupied.count(posKey(neighbor))) continue;
+            }
+
+            KinematicFaceData f{};
+            f.localPosition = v.localPos;
+            f.scale         = v.scale;
+            f.textureIndex  = TextureConstants::getTextureIndexForMaterial(v.materialName, (int)faceId);
+            f.faceId        = faceId;
+
+            float uvScale = v.scale.x;
+            float maxFrac = 1.0f - uvScale;
+
+            glm::vec3 pf = v.parentFrac;
+            switch (faceId) {
+                case 0: f.uvOffset = glm::vec2(pf.x, maxFrac - pf.y); break;
+                case 1: f.uvOffset = glm::vec2(pf.x, pf.y); break;
+                case 2: f.uvOffset = glm::vec2(maxFrac - pf.z, maxFrac - pf.y); break;
+                case 3: f.uvOffset = glm::vec2(pf.z, maxFrac - pf.y); break;
+                case 4: f.uvOffset = glm::vec2(maxFrac - pf.x, maxFrac - pf.z); break;
+                case 5: f.uvOffset = glm::vec2(pf.x, maxFrac - pf.z); break;
+            }
+
+            faces.push_back(f);
+        }
+    }
+    return faces;
+}
+
+glm::vec3 KinematicVoxelManager::computeHalfExtents(const std::vector<KinematicVoxel>& voxels) {
+    if (voxels.empty()) return glm::vec3(0.5f);
+
+    glm::vec3 mn( FLT_MAX);
+    glm::vec3 mx(-FLT_MAX);
+
+    for (const auto& v : voxels) {
+        glm::vec3 h = v.scale * 0.5f;
+        mn = glm::min(mn, v.localPos - h);
+        mx = glm::max(mx, v.localPos + h);
+    }
+    return (mx - mn) * 0.5f;
+}
+
+std::string KinematicVoxelManager::generateId(const std::string& hint) {
+    int& counter = m_idCounters[hint];
+    ++counter;
+    return hint + "_" + std::to_string(counter);
+}
+
+} // namespace Core
+} // namespace Phyxel

@@ -75,7 +75,7 @@ public:
 
     /// Start the Story Director agent session.
     /// Uses the story director recipe.
-    bool start(const std::string& recipePath = "resources/recipes/stories/story_director.yaml");
+    bool start(const std::string& recipePath = "resources/ai/stories/story_director.yaml");
 
     /// Stop the Story Director.
     void stop();

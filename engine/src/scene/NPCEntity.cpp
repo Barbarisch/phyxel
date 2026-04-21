@@ -178,5 +178,51 @@ void NPCEntity::setContext(Core::EntityRegistry* registry, Graphics::LightManage
     }
 }
 
+// ---------------------------------------------------------------------------
+// CharacterSheet integration
+// ---------------------------------------------------------------------------
+
+void NPCEntity::setCharacterSheet(const Core::CharacterSheet& sheet) {
+    m_sheet = sheet;
+    // Sync HealthComponent max HP from the sheet so the two stay in agreement.
+    if (m_health) {
+        m_health->setMaxHealth(static_cast<float>(sheet.maxHP));
+        m_health->setHealth(static_cast<float>(sheet.currentHP > 0 ? sheet.currentHP : sheet.maxHP));
+    }
+}
+
+Core::AttackRollResult NPCEntity::receiveAttack(
+    int attackBonus,
+    const Core::DiceExpression& damageDice,
+    Core::DamageType damageType,
+    bool hasAdvantage,
+    bool hasDisadvantage)
+{
+    // Determine the target AC: prefer the sheet's value if present.
+    int targetAC = m_sheet ? m_sheet->armorClass : 10;
+
+    // Resolve via D&D rules (advantage/disadvantage cancel if both set).
+    Core::DiceSystem dice;
+    auto result = Core::AttackResolver::resolveAttack(
+        attackBonus,
+        targetAC,
+        damageDice,
+        damageType,
+        Core::DamageResistance::Normal,  // TODO: derive from sheet resistances
+        hasAdvantage,
+        hasDisadvantage,
+        dice);
+
+    // Apply damage to HealthComponent and sync back to the sheet if present.
+    if (result.hit && m_health) {
+        m_health->takeDamage(static_cast<float>(result.finalDamage));
+        if (m_sheet) {
+            m_sheet->currentHP = static_cast<int>(m_health->getHealth());
+        }
+    }
+
+    return result;
+}
+
 } // namespace Scene
 } // namespace Phyxel

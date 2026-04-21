@@ -1,0 +1,33 @@
+{
+  "id": "warlock",
+  "name": "Warlock",
+  "hitDieFaces": 8,
+  "primaryAbility": "CHA",
+  "savingThrows": ["WIS", "CHA"],
+  "armorProficiencies": ["light"],
+  "weaponProficiencies": ["simple"],
+  "toolProficiencies": [],
+  "skillChoices": 2,
+  "skillPool": ["Arcana", "Deception", "History", "Intimidation", "Investigation", "Nature", "Religion"],
+  "spellcastingAbility": "CHA",
+  "spellcastingType": "pact",
+  "asiLevels": [4, 8, 12, 16, 19],
+  "features": {
+    "1": [
+      {"id": "otherworldly_patron", "name": "Otherworldly Patron", "description": "Choose your patron: The Archfey, The Fiend, The Great Old One, The Celestial, The Hexblade, The Fathomless, The Genie, The Undead, or others."},
+      {"id": "pact_magic", "name": "Pact Magic", "description": "Cast warlock spells using Charisma. Pact magic slots are all the same level (scales 1st→5th) and recharge on short or long rest. Know a fixed number of spells."}
+    ],
+    "2": [
+      {"id": "eldritch_invocations", "name": "Eldritch Invocations", "description": "Learn two invocations from the warlock list. Gain more invocations as you level. Customize your abilities, cantrips, and spell access."}
+    ],
+    "3": [
+      {"id": "pact_boon", "name": "Pact Boon", "description": "Choose: Pact of the Chain (familiar), Pact of the Blade (weapon), Pact of the Tome (book of shadows), or Pact of the Talisman."}
+    ],
+    "11": [
+      {"id": "mystic_arcanum", "name": "Mystic Arcanum", "description": "Choose one 6th-level spell. Cast it once per long rest without a spell slot. Gain 7th, 8th, and 9th level Arcanum at levels 13, 15, 17."}
+    ],
+    "20": [
+      {"id": "eldritch_master", "name": "Eldritch Master", "description": "Once per long rest, spend 1 minute entreating your patron to regain all expended Pact Magic spell slots."}
+    ]
+  }
+}

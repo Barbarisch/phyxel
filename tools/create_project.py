@@ -235,6 +235,15 @@ def create_project(
     (output_dir / "shaders").mkdir(exist_ok=True)
     (output_dir / "resources" / "textures").mkdir(parents=True, exist_ok=True)
 
+    # For multi-scene definitions, list expected scene databases
+    if game_definition and "scenes" in game_definition:
+        print(f"  Multi-scene game detected with {len(game_definition['scenes'])} scene(s).")
+        print(f"  Each scene needs a pre-baked world database in worlds/:")
+        for scene in game_definition["scenes"]:
+            db_name = scene.get("worldDatabase", f"worlds/{scene['id']}.db")
+            db_file = Path(db_name).name
+            print(f"    - worlds/{db_file}")
+
     print(f"Created project '{name}' in {output_dir}")
     print()
     print("Next steps:")
@@ -253,6 +262,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         #include "{class_name}.h"
         #include "core/ChunkManager.h"
         #include "core/GameDefinitionLoader.h"
+        #include "core/SceneManager.h"
         #include "graphics/Camera.h"
         #include "graphics/CameraManager.h"
         #include "graphics/RenderCoordinator.h"
@@ -446,10 +456,6 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             try {{
                 nlohmann::json gameDef = nlohmann::json::parse(f);
 
-                // Strip world generation — chunks are pre-baked in worlds/default.db.
-                // The loader would overwrite them if the "world" key is present.
-                gameDef.erase("world");
-
                 Phyxel::Core::GameSubsystems subsystems;
                 subsystems.chunkManager    = engine.getChunkManager();
                 subsystems.npcManager      = npcManager_.get();
@@ -469,12 +475,29 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     return entity;
                 }};
 
-                auto result = Phyxel::Core::GameDefinitionLoader::load(gameDef, subsystems);
-                if (result.success) {{
-                    LOG_INFO("{class_name}", "Loaded game: {{}} chunks, {{}} NPCs",
-                             result.chunksGenerated, result.npcsSpawned);
+                // Multi-scene: delegate to SceneManager
+                if (Phyxel::Core::GameDefinitionLoader::isMultiScene(gameDef)) {{
+                    auto* sm = engine.getSceneManager();
+                    if (sm) {{
+                        auto manifest = Phyxel::Core::GameDefinitionLoader::parseManifest(gameDef);
+                        sm->setSubsystems(&subsystems);
+                        sm->loadManifest(manifest);
+                        sm->loadStartScene();
+                        // Drive the first frame so the scene actually loads
+                        sm->update(0.0f);
+                        LOG_INFO("{class_name}", "Loaded multi-scene game ({{}} scenes)", manifest.scenes.size());
+                    }}
                 }} else {{
-                    LOG_ERROR("{class_name}", "Failed to load game: {{}}", result.error);
+                    // Single-scene: strip world key (pre-baked) and load directly
+                    gameDef.erase("world");
+                    auto result = Phyxel::Core::GameDefinitionLoader::load(gameDef, subsystems);
+                    if (result.success) {{
+                        LOG_INFO("{class_name}", "Loaded game: {{}} chunks, {{}} NPCs",
+                                 result.chunksGenerated, result.npcsSpawned);
+                    }} else {{
+                        LOG_ERROR("{class_name}", "Failed to load game: {{}}", result.error);
+                        return false;
+                    }}
                 }}
 
                 // Sync input manager with camera after definition load
@@ -483,7 +506,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 input->setCameraPosition(cam->getPosition());
                 input->setYawPitch(cam->getYaw(), cam->getPitch());
 
-                return result.success;
+                return true;
             }} catch (const std::exception& e) {{
                 LOG_ERROR("{class_name}", "Error parsing game.json: {{}}", e.what());
                 return false;

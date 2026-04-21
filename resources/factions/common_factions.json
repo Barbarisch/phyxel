@@ -1,0 +1,58 @@
+[
+  {
+    "id": "merchants_guild",
+    "name": "Merchants Guild",
+    "description": "A powerful trade organization controlling commerce in major cities.",
+    "startingReputation": 0,
+    "enemyFactionIds": ["thieves_guild"],
+    "allyFactionIds": ["city_guard"]
+  },
+  {
+    "id": "city_guard",
+    "name": "City Guard",
+    "description": "The town's law enforcement, maintaining order and collecting taxes.",
+    "startingReputation": 0,
+    "enemyFactionIds": ["thieves_guild"],
+    "allyFactionIds": ["merchants_guild", "noble_houses"]
+  },
+  {
+    "id": "thieves_guild",
+    "name": "Thieves Guild",
+    "description": "A shadowy criminal syndicate operating in the city's underbelly.",
+    "startingReputation": 0,
+    "enemyFactionIds": ["city_guard", "merchants_guild"],
+    "allyFactionIds": []
+  },
+  {
+    "id": "mages_circle",
+    "name": "Mages Circle",
+    "description": "An order of arcane scholars dedicated to the study and regulation of magic.",
+    "startingReputation": 0,
+    "enemyFactionIds": [],
+    "allyFactionIds": ["noble_houses"]
+  },
+  {
+    "id": "noble_houses",
+    "name": "Noble Houses",
+    "description": "The aristocratic families who hold political power and land ownership.",
+    "startingReputation": 0,
+    "enemyFactionIds": ["thieves_guild"],
+    "allyFactionIds": ["city_guard", "mages_circle"]
+  },
+  {
+    "id": "adventurers_guild",
+    "name": "Adventurers Guild",
+    "description": "A loose organization of mercenaries, explorers, and monster hunters.",
+    "startingReputation": 50,
+    "enemyFactionIds": [],
+    "allyFactionIds": []
+  },
+  {
+    "id": "druids_circle",
+    "name": "Druids Circle",
+    "description": "Ancient keepers of the natural balance, distrustful of urban expansion.",
+    "startingReputation": 0,
+    "enemyFactionIds": [],
+    "allyFactionIds": []
+  }
+]

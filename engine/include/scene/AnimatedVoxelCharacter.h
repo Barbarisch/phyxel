@@ -7,10 +7,12 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <optional>
 
 namespace Phyxel {
     class ChunkManager;       // Forward declaration for voxel collision queries
     class RaycastVisualizer;  // Forward declaration for F5 debug visualization
+    class GpuParticlePhysics; // Forward declaration for derez GPU particle spawning
 }
 
 namespace Phyxel {
@@ -21,6 +23,12 @@ namespace Scene {
         glm::vec3 size; // Size of the voxel box for this bone
         glm::vec3 offset; // Offset from bone pivot
         glm::vec4 color;
+    };
+
+    enum class DerezPattern {
+        Wave,       // voxels fall from feet upward
+        Periphery,  // extremities crumble inward toward center
+        Random,     // random staggered scatter
     };
 
     enum class AnimatedCharacterState {
@@ -183,6 +191,19 @@ namespace Scene {
         void attack();
         void setCrouch(bool crouch);
 
+        // ---- Derez (falling-apart disintegration) ----
+
+        /// Begin staggered voxel detachment. The character remains in the scene during the
+        /// effect; voxels fall off one by one until the character is fully derezed.
+        /// @param gpu       GPU particle system to spawn falling voxels into
+        /// @param duration  Total time (seconds) from first voxel to last
+        /// @param pattern   Detachment order (Wave=feet-up, Periphery=tips-in, Random)
+        void beginDerez(Phyxel::GpuParticlePhysics* gpu, float duration = 2.0f,
+                        DerezPattern pattern = DerezPattern::Wave);
+
+        bool isDerezzing()    const;
+        bool isFullyDerezed() const;
+
         // ---- Hit Frame Callback (for combat integration) ----
 
         /// Set the fraction (0.0-1.0) of the attack animation at which the hit triggers.
@@ -219,17 +240,29 @@ namespace Scene {
         // Get the physics controller body's linear velocity (for GPU particle collision)
         glm::vec3 getControllerVelocity() const;
 
+    protected:
+        /// Called after keyframe sampling + updateGlobalTransforms, before bone body sync.
+        /// Override in subclass to inject IK corrections on skeleton bones.
+        virtual void applyIKCorrections(float deltaTime) {}
+
+        // Protected accessors for subclasses (e.g. HybridCharacter IK)
+        Phyxel::Skeleton& getSkeletonMut() { return skeleton; }
+        Phyxel::AnimationSystem& getAnimSystemMut() { return animSystem; }
+
+        btRigidBody* getControllerBody() const { return nullptr; }
+        const glm::vec3& getWorldPositionRef() const { return worldPosition; }
+        float getSkeletonFootOffset() const { return skeletonFootOffset_; }
+        float getCurrentYaw() const { return currentYaw; }
+        Phyxel::ChunkManager* getChunkManagerPtr() const { return m_chunkManager; }
+
     private:
         Phyxel::Skeleton skeleton;
         std::vector<Phyxel::AnimationClip> clips;
         Phyxel::VoxelModel voxelModel;
         Phyxel::AnimationSystem animSystem;
         
-        // Map from Bone ID to the physics body representing it
-        // Note: The bodies are also stored in RagdollCharacter::parts for rendering/cleanup
-        std::map<int, btRigidBody*> boneBodies; 
         // Map from Bone ID to the visual offset from the bone pivot
-        std::map<int, glm::vec3> boneOffsets; 
+        std::map<int, glm::vec3> boneOffsets;
         
         // Per-animation rotation offsets (to fix bad imports)
         std::map<std::string, float> animationRotationOffsets;
@@ -262,8 +295,9 @@ namespace Scene {
         float m_hitFrameFraction = 0.4f;    // Default: 40% through attack animation
         OnHitFrameCallback m_onHitFrame;
 
-        // Physics Controller
-        btRigidBody* controllerBody = nullptr;
+        // Kinematic controller state (replaces Bullet controllerBody)
+        glm::vec3 m_kinVelocity{0.0f};
+        bool      m_kinGrounded = false;
         float currentForwardInput = 0.0f;
         float currentTurnInput = 0.0f;
         float currentStrafeInput = 0.0f;
@@ -298,12 +332,13 @@ namespace Scene {
     private:
         
         void createController(const glm::vec3& position);
-        void resizeController();  // Resize controller body to match scaled skeleton height
-        float computeSkeletonHeight() const;  // Compute Y-extent of scaled skeleton
-        void rebuildCompoundShape();  // Build/rebuild compound controller shape from bones
-        void updateCompoundTransforms();  // Update compound child transforms from bone positions
+        void resizeController();
+        float computeSkeletonHeight() const;
+        void rebuildCompoundShape();       // no-op: compound was for Bullet terrain, replaced by occupancy grid
+        void updateCompoundTransforms();   // no-op
+        void resolveKinematicMovement(float dt);
         void updateStateMachine(float deltaTime);
-        void detectAndApplyStepUp(const glm::vec3& desiredVelocity, float deltaTime, btDynamicsWorld* physicsWorld);
+        void detectAndApplyStepUp(const glm::vec3& desiredVelocity, float deltaTime);
         void configureAnimationFixes();
         void applySkeletonProportions();  // Scale skeleton joints + anim keyframes per appearance
         void buildBodiesFromModel();  // Builds physics + visual bodies from skeleton/voxelModel
@@ -326,22 +361,19 @@ namespace Scene {
         // ---- Bone Attachments ----
         struct BoneAttachment {
             int id;
-            int boneId;              // skeleton bone ID to follow
-            btRigidBody* body;       // kinematic physics body
+            int boneId;
             glm::vec3 size;
-            glm::vec3 offset;        // offset from bone pivot
+            glm::vec3 offset;
             glm::vec4 color;
             std::string label;
+            glm::vec3 worldPos{0.0f};
+            glm::quat worldRot{1, 0, 0, 0};
         };
         std::vector<BoneAttachment> m_attachments;
         int m_nextAttachmentId = 1;
 
-        // Compound shape for voxel-accurate controller collision
-        btCompoundShape* m_compoundShape = nullptr;
-        std::vector<btBoxShape*> m_compoundChildShapes;  // Owned child shapes
-        std::map<int, int> m_boneToCompoundChild;        // boneId → compound child index
-        float m_originalHalfHeight = 0.95f;              // Original box half-height (for movement)
-        float m_originalHalfWidth = 0.425f;              // Original box half-width (for movement)
+        float m_originalHalfHeight = 0.95f;  // controller half-height (kinematic)
+        float m_originalHalfWidth  = 0.25f;  // controller half-width  (kinematic)
 
         // Interaction archetype (parsed from .anim "# archetype:" header, default "humanoid_normal")
         std::string m_archetype = "humanoid_normal";
@@ -365,17 +397,35 @@ namespace Scene {
         // 8-segment collision boxes — one per major body segment, follow animation pose
         struct SegmentBox {
             std::string boneName;
-            int boneId = -1;              // cached skeleton bone ID
-            btRigidBody* body = nullptr;
-            glm::vec3 halfExtents{0.0f};  // 80% of source bone box half-extents
-            bool isArm = false;           // arm segments trigger LimbBlocked FSM interrupt
-            bool colliding = false;       // set each frame by checkSegmentVoxelOverlap()
+            int boneId = -1;
+            glm::vec3 center{0.0f};       // world-space center, updated each frame
+            glm::vec3 halfExtents{0.0f};
+            bool isArm = false;
+            bool colliding = false;
         };
         std::vector<SegmentBox> m_segmentBoxes;
         bool m_limbBlocked = false;  // true this frame if any arm segment overlaps a voxel
 
         // F5 debug visualization
         Phyxel::RaycastVisualizer* m_raycastVisualizer = nullptr;
+
+        // ---- Derez state ----
+        struct DerezEntry {
+            glm::vec3 worldPos;
+            glm::vec3 scale;
+            glm::vec4 color;
+            float     detachTime;
+            size_t    partIndex;  // index into parts[] at snapshot time (used for active=false)
+        };
+        struct DerezState {
+            std::vector<DerezEntry> queue;   // sorted ascending by detachTime
+            size_t  nextIdx  = 0;
+            float   elapsed  = 0.0f;
+            float   duration = 2.0f;
+            bool    active   = false;
+        };
+        std::optional<DerezState>    m_derezState;
+        Phyxel::GpuParticlePhysics*  m_gpuPhysics = nullptr;
 
         void buildSegmentBoxes();          // called once after buildBodiesFromModel()
         void clearSegmentBoxes();          // called in clearBodies() and destructor

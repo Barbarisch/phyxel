@@ -1,6 +1,9 @@
 #include "scene/VoxelInteractionSystem.h"
 #include "core/ChunkManager.h"
 #include "core/AssetManager.h"
+#include "core/PlacedObjectManager.h"
+#include "core/DynamicFurnitureManager.h"
+#include <btBulletDynamicsCommon.h>
 #include "physics/PhysicsWorld.h"
 #include "ui/WindowManager.h"
 #include "core/ForceSystem.h"
@@ -534,20 +537,68 @@ glm::ivec3 CubeLocation::getAdjacentPlacementPosition() const {
     return placementPos;
 }
 
-void VoxelInteractionSystem::cycleTargetMode() {
+bool VoxelInteractionSystem::tryActivateFurnitureAtHover(const glm::vec3& cameraPos,
+                                                          const glm::vec3& cameraFront) {
+    if (!m_placedObjects || !m_dynamicFurniture) return false;
+    if (!m_hasHoveredCube || !m_currentHoveredLocation.isValid()) return false;
+
+    // Check if the hovered voxel belongs to a placed object
+    glm::ivec3 worldPos = m_currentHoveredLocation.worldPos;
+    auto objectIds = m_placedObjects->getAt(worldPos);
+    if (objectIds.empty()) return false;
+
+    // Pick the first placed object found at this position
+    const std::string& objId = objectIds[0];
+
+    // If already active, just consume the click (no impulse)
+    if (m_dynamicFurniture->isActive(objId)) {
+        return true;  // Consumed the click — don't break voxels
+    }
+
+    // Skip objects that aren't template-based (structures are not activatable)
+    const auto* placed = m_placedObjects->get(objId);
+    if (!placed || placed->category != "template") return false;
+
+    // Activate with zero impulse — just convert static to dynamic
+    bool activated = m_dynamicFurniture->activate(objId);
+    if (activated) {
+        LOG_INFO_FMT("VoxelInteraction", "Activated furniture '" << objId << "'");
+        if (m_audioSystem) {
+            m_audioSystem->playSound(Core::AssetManager::instance().resolveSound("hit.wav"));
+        }
+    }
+    return activated;
+}
+
+std::string VoxelInteractionSystem::getActiveFurnitureAtHover() const {
+    if (!m_placedObjects || !m_dynamicFurniture) return "";
+    if (!m_hasHoveredCube || !m_currentHoveredLocation.isValid()) return "";
+
+    glm::ivec3 worldPos = m_currentHoveredLocation.worldPos;
+    auto objectIds = m_placedObjects->getAt(worldPos);
+
+    for (const auto& objId : objectIds) {
+        if (m_dynamicFurniture->isActive(objId)) {
+            return objId;
+        }
+    }
+    return "";
+}
+
+void VoxelInteractionSystem::cycleTargetMode(int direction) {
+    int current = static_cast<int>(m_targetMode);
+    current = (current + direction % 3 + 3) % 3;
+    m_targetMode = static_cast<TargetMode>(current);
+
+    const char* names[] = {"Cube", "Subcube", "Microcube"};
+    LOG_INFO("VoxelInteractionSystem", "Switched to {} placement mode", names[current]);
+}
+
+void VoxelInteractionSystem::placeActiveVoxelAtHover() {
     switch (m_targetMode) {
-        case TargetMode::Cube:
-            m_targetMode = TargetMode::Subcube;
-            LOG_INFO("VoxelInteractionSystem", "Switched to Subcube placement mode");
-            break;
-        case TargetMode::Subcube:
-            m_targetMode = TargetMode::Microcube;
-            LOG_INFO("VoxelInteractionSystem", "Switched to Microcube placement mode");
-            break;
-        case TargetMode::Microcube:
-            m_targetMode = TargetMode::Cube;
-            LOG_INFO("VoxelInteractionSystem", "Switched to Cube placement mode");
-            break;
+        case TargetMode::Cube:      placeVoxelAtHover();     break;
+        case TargetMode::Subcube:   placeSubcubeAtHover();   break;
+        case TargetMode::Microcube: placeMicrocubeAtHover(); break;
     }
 }
 

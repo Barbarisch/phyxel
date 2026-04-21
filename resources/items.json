@@ -13,7 +13,7 @@
       "speed": 1.2,
       "maxDurability": 250,
       "reach": 2.0,
-      "templateFile": "weapons/sword.txt",
+      "templateFile": "weapons/sword.voxel",
       "attackAnimation": "melee_attack_horizontal"
     },
     {
@@ -29,7 +29,7 @@
       "speed": 0.8,
       "maxDurability": 200,
       "reach": 2.5,
-      "templateFile": "weapons/pickaxe.txt",
+      "templateFile": "weapons/pickaxe.voxel",
       "attackAnimation": "melee_attack_down"
     },
     {
@@ -45,7 +45,7 @@
       "speed": 1.0,
       "maxDurability": 200,
       "reach": 2.0,
-      "templateFile": "weapons/axe.txt",
+      "templateFile": "weapons/axe.voxel",
       "attackAnimation": "melee_attack_horizontal"
     },
     {

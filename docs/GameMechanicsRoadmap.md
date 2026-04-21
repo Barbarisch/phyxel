@@ -222,7 +222,7 @@ Phase 2 (Cameras) ─┘
 - `AnimatedVoxelCharacter`: 19-state FSM, animation blending, physics ragdoll
 - `EntityRegistry`: O(1) lookup, type tags, spatial queries, thread-safe
 - Goose AI framework wired up (`AISystem`, `GooseBridge`, `AICharacterComponent`, `StoryDirector`) but no active NPCs
-- NPC recipes exist in `resources/recipes/` (merchant.yaml, patrol.yaml, dialog.yaml, combat.yaml)
+- NPC recipes exist in `resources/ai/` (merchant.yaml, patrol.yaml, dialog.yaml, combat.yaml)
 - No pathfinding, no interaction trigger system, no NPC spawning API
 
 ### Steps
@@ -426,7 +426,7 @@ Each phase should end with passing unit tests and manual verification before mov
 - EngineAPIServer: `engine/src/core/EngineAPIServer.cpp`
 - AI system: `editor/include/ai/AISystem.h`, `engine/include/ai/GooseBridge.h`, `engine/include/ai/AICharacterComponent.h`
 - StoryDirector: `editor/include/ai/StoryDirector.h`
-- Existing recipes: `resources/recipes/`
+- Existing recipes: `resources/ai/`
 - Shader pipeline: `build_shaders.bat` → glslangValidator
 - UBO struct: `UniformBufferObject` in `VulkanDevice.h`
 - Voxel fragment shader: `shaders/voxel.frag`

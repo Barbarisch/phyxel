@@ -1,0 +1,39 @@
+{
+  "id": "fighter",
+  "name": "Fighter",
+  "hitDieFaces": 10,
+  "primaryAbility": "STR",
+  "savingThrows": ["STR", "CON"],
+  "armorProficiencies": ["light", "medium", "heavy", "shields"],
+  "weaponProficiencies": ["simple", "martial"],
+  "toolProficiencies": [],
+  "skillChoices": 2,
+  "skillPool": ["Acrobatics", "Animal Handling", "Athletics", "History", "Insight", "Intimidation", "Perception", "Survival"],
+  "spellcastingAbility": "",
+  "spellcastingType": "",
+  "asiLevels": [4, 6, 8, 12, 14, 16, 19],
+  "features": {
+    "1": [
+      {"id": "fighting_style", "name": "Fighting Style", "description": "Choose a fighting style specialty: Archery, Defense, Dueling, Great Weapon Fighting, Protection, or Two-Weapon Fighting."},
+      {"id": "second_wind", "name": "Second Wind", "description": "Bonus action: regain 1d10 + Fighter level HP. Recharges on short or long rest."}
+    ],
+    "2": [
+      {"id": "action_surge", "name": "Action Surge", "description": "Take one additional action on your turn. Recharges on short or long rest. Gain second use at level 17."}
+    ],
+    "3": [
+      {"id": "martial_archetype", "name": "Martial Archetype", "description": "Choose a subclass: Champion, Battle Master, Eldritch Knight, or others."}
+    ],
+    "5": [
+      {"id": "extra_attack", "name": "Extra Attack", "description": "Attack twice when you take the Attack action. Increases to 3 attacks at level 11, 4 at level 20."}
+    ],
+    "9": [
+      {"id": "indomitable", "name": "Indomitable", "description": "Reroll a failed saving throw. Must use new result. Gain additional uses at levels 13 and 17."}
+    ],
+    "11": [
+      {"id": "extra_attack_2", "name": "Extra Attack (3)", "description": "Attack three times when you take the Attack action."}
+    ],
+    "20": [
+      {"id": "extra_attack_3", "name": "Extra Attack (4)", "description": "Attack four times when you take the Attack action."}
+    ]
+  }
+}

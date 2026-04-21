@@ -55,14 +55,28 @@
     "material": "Wood",
     "size": 1.2,
     "category": "furniture",
-    "tags": ["chair", "seat", "house", "tavern", "common"],
+    "tags": [
+      "chair",
+      "seat",
+      "house",
+      "tavern",
+      "common"
+    ],
     "interactions": [
       {
         "id": "seat_0",
         "type": "seat",
-        "local_offset": {"x": 0.33, "y": 0.42, "z": 0.33},
+        "local_offset": {
+          "x": 0.33,
+          "y": 0.42,
+          "z": 0.33
+        },
         "facing_yaw": 0.0,
-        "approach_offset": {"x": 0.33, "y": 0.0, "z": -0.7}
+        "approach_offset": {
+          "x": 0.33,
+          "y": 0.0,
+          "z": -0.7
+        }
       }
     ]
   },
@@ -87,5 +101,41 @@
       "door_facing": "front",
       "windows": 2
     }
+  },
+  "shrub_round": {
+    "prompt": "a round leafy shrub, low to the ground, roughly spherical blob of foliage with a short stubby trunk",
+    "model": "anthropic/claude-sonnet-4-20250514",
+    "material": "Wood",
+    "size": 2.0,
+    "cubes": 0,
+    "subcubes": 62,
+    "microcubes": 877,
+    "total": 939,
+    "cost": null,
+    "created": "2026-04-13T19:36:04.630473+00:00"
+  },
+  "shrub_flat": {
+    "prompt": "a small dense bush, low and wide, flat-topped with thick leafy foliage and no visible trunk",
+    "model": "anthropic/claude-sonnet-4-20250514",
+    "material": "Wood",
+    "size": 2.0,
+    "cubes": 0,
+    "subcubes": 25,
+    "microcubes": 583,
+    "total": 608,
+    "cost": null,
+    "created": "2026-04-13T19:36:22.429693+00:00"
+  },
+  "tree_pine": {
+    "prompt": "a tall pine tree with a thin straight trunk and layered triangular branches tapering to a point at the top, like a christmas tree silhouette",
+    "model": "anthropic/claude-sonnet-4-20250514",
+    "material": "Wood",
+    "size": 5.0,
+    "cubes": 2,
+    "subcubes": 80,
+    "microcubes": 3566,
+    "total": 3648,
+    "cost": null,
+    "created": "2026-04-13T19:36:39.215285+00:00"
   }
 }

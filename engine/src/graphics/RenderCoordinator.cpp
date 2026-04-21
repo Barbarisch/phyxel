@@ -6,6 +6,8 @@
 #include "graphics/PostProcessor.h"
 #include "graphics/Camera.h"
 #include "graphics/DebrisRenderPipeline.h"
+#include "graphics/KinematicVoxelPipeline.h"
+#include "core/KinematicVoxelManager.h"
 #include "vulkan/RenderPipeline.h"
 #include "ui/ImGuiRenderer.h"
 #include "ui/UISystem.h"
@@ -106,11 +108,24 @@ RenderCoordinator::RenderCoordinator(
     // Initialize Debris Pipeline
     debrisPipeline = std::make_unique<DebrisRenderPipeline>();
     debrisPipeline->initialize(
-        vulkanDevice->getDevice(), 
-        vulkanDevice->getPhysicalDevice(), 
-        postProcessor->getSceneRenderPass(), 
+        vulkanDevice->getDevice(),
+        vulkanDevice->getPhysicalDevice(),
+        postProcessor->getSceneRenderPass(),
         vulkanDevice->getSwapChainExtent()
     );
+
+    // Initialize Kinematic Voxel Pipeline (doors, rotating platforms, etc.)
+    kinematicPipeline = std::make_unique<KinematicVoxelPipeline>();
+    if (!kinematicPipeline->initialize(
+            vulkanDevice->getDevice(),
+            vulkanDevice->getPhysicalDevice(),
+            postProcessor->getSceneRenderPass(),
+            vulkanDevice->getSwapChainExtent(),
+            vulkanDevice->getDescriptorSetLayout(),
+            vulkanDevice->getDescriptorSet(0))) {
+        LOG_ERROR("RenderCoordinator", "Failed to initialize KinematicVoxelPipeline");
+        kinematicPipeline.reset();
+    }
 }
 
 RenderCoordinator::~RenderCoordinator() = default;
@@ -271,7 +286,14 @@ void RenderCoordinator::renderDynamicSubcubes() {
 
         // Non-indexed draw: vertexID 0-5 procedurally, matching GPU path and
         // dynamic_voxel.vert's cornerRemap[6] expectations.
-        vkCmdDraw(cmd, 6, static_cast<uint32_t>(allDynamicSubcubeFaces.size()), 0, 0);
+        // Clamp instance count to the buffer capacity: if face data exceeds the buffer,
+        // updateDynamicSubcubeBuffer silently truncates the write, and drawing more
+        // instances than were written causes the GPU to read stale buffer data,
+        // producing ghost voxels at expired cube positions.
+        uint32_t drawCount = static_cast<uint32_t>(
+            std::min(allDynamicSubcubeFaces.size(),
+                     static_cast<size_t>(vulkanDevice->getMaxDynamicSubcubes())));
+        vkCmdDraw(cmd, 6, drawCount, 0, 0);
     }
 }
 
@@ -335,51 +357,66 @@ void RenderCoordinator::drawFrame() {
         LOG_INFO("RenderCoordinator", "Resize detected! VulkanFlag: {}, WindowFlag: {}", 
             vulkanDevice->getFramebufferResized(), windowManager->wasResized());
             
-        // Resize PostProcessor resources
-        postProcessor->resize(windowManager->getWidth(), windowManager->getHeight());
-        
-        // Recreate pipelines (viewport/scissor change)
-        renderPipeline->createGraphicsPipeline();
-        renderPipeline->createDebugGraphicsPipeline();
-        renderPipeline->createDebugLinePipeline();
-        dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
-
+        // IMPORTANT: recreate swapchain FIRST — it calls vkDeviceWaitIdle internally,
+        // ensuring all in-flight command buffers finish before we destroy any resources.
         if (!vulkanDevice->recreateSwapChain(windowManager->getWidth(), windowManager->getHeight(), postProcessor->getPostProcessRenderPass())) {
             LOG_INFO("RenderCoordinator", "recreateSwapChain returned false (minimized?)");
             return; // Try again next frame
         }
-        windowManager->acknowledgeResize();
-        projectionMatrixNeedsUpdate = true;
-    }
 
-    // Wait for previous frame
-    vulkanDevice->waitForFence(currentFrame);
-    vulkanDevice->resetFence(currentFrame);
-
-    // Acquire next image
-    uint32_t imageIndex;
-    VkResult result = vulkanDevice->acquireNextImage(currentFrame, &imageIndex);
-    
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        // Resize PostProcessor resources
+        // Now safe to resize PostProcessor and recreate pipelines (GPU is idle)
         postProcessor->resize(windowManager->getWidth(), windowManager->getHeight());
-        
-        // Recreate pipelines
         renderPipeline->createGraphicsPipeline();
         renderPipeline->createDebugGraphicsPipeline();
         renderPipeline->createDebugLinePipeline();
         renderPipeline->createCharacterPipeline();
         dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
 
-        // Swapchain is out of date, recreate it
+        windowManager->acknowledgeResize();
+        projectionMatrixNeedsUpdate = true;
+        return; // Skip this frame — render cleanly on the next one
+    }
+
+    // Wait for previous frame
+    vulkanDevice->waitForFence(currentFrame);
+
+    // Acquire next image (don't reset fence yet — if acquire fails, the still-signaled
+    // fence lets the next frame's waitForFence pass instead of deadlocking)
+    uint32_t imageIndex;
+    VkResult result = vulkanDevice->acquireNextImage(currentFrame, &imageIndex);
+    
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        // Swapchain is out of date — recreate FIRST (calls vkDeviceWaitIdle)
         if (!vulkanDevice->recreateSwapChain(windowManager->getWidth(), windowManager->getHeight(), postProcessor->getPostProcessRenderPass())) {
             return; // Try again next frame
         }
+
+        // Then resize PostProcessor and recreate pipelines (GPU is idle)
+        postProcessor->resize(windowManager->getWidth(), windowManager->getHeight());
+        renderPipeline->createGraphicsPipeline();
+        renderPipeline->createDebugGraphicsPipeline();
+        renderPipeline->createDebugLinePipeline();
+        renderPipeline->createCharacterPipeline();
+        dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
+
         return; // Skip this frame and try again
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        LOG_ERROR("RenderCoordinator", "Failed to acquire swapchain image!");
-        return;
+        LOG_WARN("RenderCoordinator", "Failed to acquire swapchain image (VkResult={}), recreating swapchain", static_cast<int>(result));
+        
+        // Attempt recovery — recreate swapchain first (calls vkDeviceWaitIdle)
+        vulkanDevice->recreateSwapChain(windowManager->getWidth(), windowManager->getHeight(), postProcessor->getPostProcessRenderPass());
+        postProcessor->resize(windowManager->getWidth(), windowManager->getHeight());
+        renderPipeline->createGraphicsPipeline();
+        renderPipeline->createDebugGraphicsPipeline();
+        renderPipeline->createDebugLinePipeline();
+        renderPipeline->createCharacterPipeline();
+        dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
+        return; // Skip this frame, try again next frame
     }
+
+    // Acquire succeeded — now reset fence before submitting work.
+    // The queue submit at the end of this frame will re-signal it.
+    vulkanDevice->resetFence(currentFrame);
 
     // ChunkManager handles its own data management - no instance buffer needed
     // Static chunk geometry is pre-built and doesn't change unless modified
@@ -600,6 +637,21 @@ void RenderCoordinator::drawFrame() {
         }
     }
     
+    // Render Kinematic Voxels (doors, rotating platforms, etc.)
+    if (kinematicPipeline && m_kinematicObjects) {
+        if (m_kinematicObjects->consumeBufferDirty()) {
+            kinematicPipeline->rebuildBuffer(m_kinematicObjects->getObjects());
+        }
+        if (!m_kinematicObjects->getObjects().empty()) {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "KinematicVoxels");
+            kinematicPipeline->render(
+                vulkanDevice->getCommandBuffer(currentFrame),
+                m_kinematicObjects->getObjects(),
+                vulkanDevice->getDescriptorSet(currentFrame)
+            );
+        }
+    }
+
     // End Scene Render Pass
     } // End Scene Pass Scope
     postProcessor->endSceneRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
@@ -632,6 +684,12 @@ void RenderCoordinator::drawFrame() {
     auto submitStart = std::chrono::high_resolution_clock::now();
     if (!vulkanDevice->submitCommandBuffer(currentFrame)) {
         LOG_ERROR("RenderCoordinator", "Failed to submit command buffer!");
+        // Recovery: fence was reset but submit didn't signal it.
+        // Wait for device idle, recreate sync objects (fences start signaled),
+        // and trigger full swapchain recreation on next frame.
+        vulkanDevice->deviceWaitIdle();
+        vulkanDevice->recreateSyncObjects();
+        vulkanDevice->setFramebufferResized(true);
         return;
     }
     auto submitEnd = std::chrono::high_resolution_clock::now();
@@ -640,6 +698,9 @@ void RenderCoordinator::drawFrame() {
     auto presentStart = std::chrono::high_resolution_clock::now();
     VkResult presentResult = vulkanDevice->presentFrame(imageIndex, currentFrame);
     m_lastImageIndex = imageIndex;  // Track for screenshot capture
+
+    // Multi-viewport: update and render secondary platform windows (after main present)
+    imguiRenderer->updatePlatformWindows();
     
     if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR || vulkanDevice->getFramebufferResized()) {
         // Recreate swapchain on next frame
@@ -702,6 +763,14 @@ void RenderCoordinator::renderUI() {
     }
 }
 
+VkImageView RenderCoordinator::getViewportImageView() const {
+    return postProcessor ? postProcessor->getOffscreenImageView() : VK_NULL_HANDLE;
+}
+
+VkSampler RenderCoordinator::getViewportSampler() const {
+    return postProcessor ? postProcessor->getOffscreenSampler() : VK_NULL_HANDLE;
+}
+
 void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
     bool hasEntities = entities && !entities->empty();
     bool hasNPCs = m_npcManager && m_npcManager->getNPCCount() > 0;
@@ -738,7 +807,7 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
         }
     }
 
-    // Render Instanced Characters
+    // Render Instanced Characters (RagdollCharacter-based)
     if (!instancedCharacters.empty()) {
         std::vector<CharacterInstanceData> instanceData;
         struct Batch {
@@ -748,43 +817,69 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
         };
         std::vector<Batch> batches;
 
-        for (auto* charPtr : instancedCharacters) {
-            // Group parts by RigidBody
+        // Helper lambda to batch a parts list
+        auto batchParts = [&](const std::vector<Scene::RagdollPart>& charParts) {
+            // --- Path 1: Bullet-backed parts (PhysicsCharacter) ---
             std::map<btRigidBody*, std::vector<const Scene::RagdollPart*>> partsByBody;
-            for (const auto& part : charPtr->getParts()) {
-                if (part.rigidBody) {
+            for (const auto& part : charParts) {
+                if (!part.useDirectTransform && part.rigidBody)
                     partsByBody[part.rigidBody].push_back(&part);
-                }
             }
-
-            // Create batches
-            for (const auto& [body, parts] : partsByBody) {
-                // Calculate Body Transform
+            for (const auto& [body, bParts] : partsByBody) {
                 btTransform trans;
                 body->getMotionState()->getWorldTransform(trans);
                 btVector3 pos = trans.getOrigin();
                 btQuaternion rot = trans.getRotation();
-                
-                glm::mat4 model = glm::mat4(1.0f);
-                model = glm::translate(model, glm::vec3(pos.x(), pos.y(), pos.z()));
-                model = model * glm::mat4_cast(glm::quat(rot.w(), rot.x(), rot.y(), rot.z()));
+
+                glm::mat4 model = glm::translate(glm::mat4(1.0f),
+                                      glm::vec3(pos.x(), pos.y(), pos.z()))
+                                * glm::mat4_cast(glm::quat(rot.w(), rot.x(), rot.y(), rot.z()));
 
                 Batch batch;
                 batch.model = model;
                 batch.firstInstance = static_cast<uint32_t>(instanceData.size());
                 batch.instanceCount = 0;
-
-                for (const auto* part : parts) {
+                for (const auto* part : bParts) {
+                    if (!part->active) continue;
                     CharacterInstanceData data;
                     data.offset = part->offset;
-                    data.scale = part->scale;
-                    data.color = part->color;
+                    data.scale  = part->scale;
+                    data.color  = part->color;
                     instanceData.push_back(data);
                     batch.instanceCount++;
                 }
-                batches.push_back(batch);
+                if (batch.instanceCount > 0) batches.push_back(batch);
             }
-        }
+
+            // --- Path 2: Direct-transform parts (AnimatedVoxelCharacter bones) ---
+            std::map<int, std::vector<const Scene::RagdollPart*>> partsByGroup;
+            for (const auto& part : charParts) {
+                if (part.useDirectTransform)
+                    partsByGroup[part.boneGroupId].push_back(&part);
+            }
+            for (const auto& [groupId, gParts] : partsByGroup) {
+                if (gParts.empty()) continue;
+                const auto* first = gParts[0];
+                glm::mat4 model = glm::translate(glm::mat4(1.0f), first->worldPos)
+                                * glm::mat4_cast(first->worldRot);
+                Batch batch;
+                batch.model = model;
+                batch.firstInstance = static_cast<uint32_t>(instanceData.size());
+                batch.instanceCount = 0;
+                for (const auto* part : gParts) {
+                    if (!part->active) continue;
+                    CharacterInstanceData data;
+                    data.offset = part->offset;
+                    data.scale  = part->scale;
+                    data.color  = part->color;
+                    instanceData.push_back(data);
+                    batch.instanceCount++;
+                }
+                if (batch.instanceCount > 0) batches.push_back(batch);
+            }
+        };
+
+        for (auto* charPtr : instancedCharacters) batchParts(charPtr->getParts());
 
         if (!instanceData.empty()) {
             vulkanDevice->updateCharacterInstanceBuffer(instanceData);
@@ -823,7 +918,7 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
 
             const auto& parts = ragdollChar->getParts();
             for (const auto& part : parts) {
-                if (!part.rigidBody) continue;
+                if (!part.rigidBody || !part.active) continue;
 
                 btTransform trans;
                 part.rigidBody->getMotionState()->getWorldTransform(trans);

@@ -1,0 +1,302 @@
+[
+  {
+    "id": "bandit",
+    "name": "Bandit",
+    "type": "humanoid",
+    "subtype": "(any race)",
+    "size": "Medium",
+    "alignment": "chaotic neutral",
+    "armorClass": 12,
+    "armorSource": "leather armor",
+    "hitPointDice": "2d8",
+    "averageHP": 11,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        { "type": "Strength",     "base": 11, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Dexterity",    "base": 12, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Constitution", "base": 12, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Intelligence", "base": 10, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Wisdom",       "base": 10, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Charisma",     "base": 10, "racial": 0, "equipment": 0, "temporary": 0 }
+      ]
+    },
+    "challengeRating": 0.125,
+    "xpValue": 25,
+    "passivePerception": 10,
+    "darkvisionRange": 0,
+    "languages": ["Common"],
+    "tags": ["humanoid"],
+    "attacks": [
+      {
+        "name": "Scimitar",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "1d6+1",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false
+      },
+      {
+        "name": "Heavy Crossbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "1d10+1",
+        "damageType": "piercing",
+        "reach": 0,
+        "isRanged": true,
+        "rangeNormal": 100,
+        "rangeLong": 400
+      }
+    ]
+  },
+  {
+    "id": "guard",
+    "name": "Guard",
+    "type": "humanoid",
+    "subtype": "(any race)",
+    "size": "Medium",
+    "alignment": "any lawful",
+    "armorClass": 16,
+    "armorSource": "chain shirt + shield",
+    "hitPointDice": "2d8+2",
+    "averageHP": 11,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        { "type": "Strength",     "base": 13, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Dexterity",    "base": 12, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Constitution", "base": 12, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Intelligence", "base": 10, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Wisdom",       "base": 11, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Charisma",     "base": 10, "racial": 0, "equipment": 0, "temporary": 0 }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": { "Perception": 1 },
+    "challengeRating": 0.125,
+    "xpValue": 25,
+    "passivePerception": 12,
+    "darkvisionRange": 0,
+    "languages": ["Common"],
+    "tags": ["humanoid"],
+    "attacks": [
+      {
+        "name": "Spear",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "1d6+1",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "description": "Or 1d8+1 if used two-handed."
+      }
+    ]
+  },
+  {
+    "id": "goblin",
+    "name": "Goblin",
+    "type": "humanoid",
+    "subtype": "(goblinoid)",
+    "size": "Small",
+    "alignment": "neutral evil",
+    "armorClass": 15,
+    "armorSource": "leather armor + shield",
+    "hitPointDice": "2d6",
+    "averageHP": 7,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        { "type": "Strength",     "base": 8,  "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Dexterity",    "base": 14, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Constitution", "base": 10, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Intelligence", "base": 10, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Wisdom",       "base": 8,  "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Charisma",     "base": 8,  "racial": 0, "equipment": 0, "temporary": 0 }
+      ]
+    },
+    "skillProficiencies": { "Stealth": 2 },
+    "challengeRating": 0.25,
+    "xpValue": 50,
+    "passivePerception": 9,
+    "darkvisionRange": 60,
+    "languages": ["Common", "Goblin"],
+    "tags": ["humanoid", "goblinoid"],
+    "attacks": [
+      {
+        "name": "Scimitar",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d6+2",
+        "damageType": "slashing",
+        "reach": 5
+      },
+      {
+        "name": "Shortbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d6+2",
+        "damageType": "piercing",
+        "isRanged": true,
+        "rangeNormal": 80,
+        "rangeLong": 320
+      }
+    ],
+    "traits": [
+      { "name": "Nimble Escape", "description": "The goblin can take the Disengage or Hide action as a bonus action on each of its turns." }
+    ]
+  },
+  {
+    "id": "hobgoblin",
+    "name": "Hobgoblin",
+    "type": "humanoid",
+    "subtype": "(goblinoid)",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 18,
+    "armorSource": "chain mail + shield",
+    "hitPointDice": "2d8+2",
+    "averageHP": 11,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        { "type": "Strength",     "base": 13, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Dexterity",    "base": 12, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Constitution", "base": 12, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Intelligence", "base": 10, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Wisdom",       "base": 10, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Charisma",     "base": 9,  "racial": 0, "equipment": 0, "temporary": 0 }
+      ]
+    },
+    "challengeRating": 0.5,
+    "xpValue": 100,
+    "passivePerception": 10,
+    "darkvisionRange": 60,
+    "languages": ["Common", "Goblin"],
+    "tags": ["humanoid", "goblinoid"],
+    "attacks": [
+      {
+        "name": "Longsword",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "1d8+1",
+        "damageType": "slashing",
+        "reach": 5
+      },
+      {
+        "name": "Longbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "1d8+1",
+        "damageType": "piercing",
+        "isRanged": true,
+        "rangeNormal": 150,
+        "rangeLong": 600
+      }
+    ],
+    "traits": [
+      { "name": "Martial Advantage", "description": "Once per turn, the hobgoblin can deal an extra 7 (2d6) damage to a creature it hits with a weapon attack if that creature is within 5 feet of an ally." }
+    ]
+  },
+  {
+    "id": "orc",
+    "name": "Orc",
+    "type": "humanoid",
+    "subtype": "(orc)",
+    "size": "Medium",
+    "alignment": "chaotic evil",
+    "armorClass": 13,
+    "armorSource": "hide armor",
+    "hitPointDice": "2d8+6",
+    "averageHP": 15,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        { "type": "Strength",     "base": 16, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Dexterity",    "base": 12, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Constitution", "base": 16, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Intelligence", "base": 7,  "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Wisdom",       "base": 11, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Charisma",     "base": 10, "racial": 0, "equipment": 0, "temporary": 0 }
+      ]
+    },
+    "skillProficiencies": { "Intimidation": 1 },
+    "challengeRating": 0.5,
+    "xpValue": 100,
+    "passivePerception": 10,
+    "darkvisionRange": 60,
+    "languages": ["Common", "Orc"],
+    "tags": ["humanoid"],
+    "attacks": [
+      {
+        "name": "Greataxe",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d12+3",
+        "damageType": "slashing",
+        "reach": 5
+      },
+      {
+        "name": "Javelin",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d6+3",
+        "damageType": "piercing",
+        "isRanged": true,
+        "rangeNormal": 30,
+        "rangeLong": 120
+      }
+    ],
+    "traits": [
+      { "name": "Aggressive", "description": "As a bonus action, the orc can move up to its speed toward a hostile creature that it can see." }
+    ]
+  },
+  {
+    "id": "ogre",
+    "name": "Ogre",
+    "type": "giant",
+    "size": "Large",
+    "alignment": "chaotic evil",
+    "armorClass": 11,
+    "armorSource": "hide armor",
+    "hitPointDice": "7d10+21",
+    "averageHP": 59,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        { "type": "Strength",     "base": 19, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Dexterity",    "base": 8,  "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Constitution", "base": 16, "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Intelligence", "base": 5,  "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Wisdom",       "base": 7,  "racial": 0, "equipment": 0, "temporary": 0 },
+        { "type": "Charisma",     "base": 7,  "racial": 0, "equipment": 0, "temporary": 0 }
+      ]
+    },
+    "challengeRating": 2,
+    "xpValue": 450,
+    "passivePerception": 8,
+    "darkvisionRange": 60,
+    "languages": ["Common", "Giant"],
+    "tags": ["giant"],
+    "attacks": [
+      {
+        "name": "Greatclub",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d8+4",
+        "damageType": "bludgeoning",
+        "reach": 5
+      },
+      {
+        "name": "Javelin",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d6+4",
+        "damageType": "piercing",
+        "isRanged": true,
+        "rangeNormal": 30,
+        "rangeLong": 120
+      }
+    ]
+  }
+]

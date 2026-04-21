@@ -1,0 +1,30 @@
+{
+  "id": "sorcerer",
+  "name": "Sorcerer",
+  "hitDieFaces": 6,
+  "primaryAbility": "CHA",
+  "savingThrows": ["CON", "CHA"],
+  "armorProficiencies": [],
+  "weaponProficiencies": ["daggers", "darts", "slings", "quarterstaffs", "light_crossbows"],
+  "toolProficiencies": [],
+  "skillChoices": 2,
+  "skillPool": ["Arcana", "Deception", "Insight", "Intimidation", "Persuasion", "Religion"],
+  "spellcastingAbility": "CHA",
+  "spellcastingType": "full",
+  "asiLevels": [4, 8, 12, 16, 19],
+  "features": {
+    "1": [
+      {"id": "spellcasting_sorcerer", "name": "Spellcasting", "description": "Cast sorcerer spells using Charisma. Know a fixed list of spells (no preparing) and cantrips."},
+      {"id": "sorcerous_origin", "name": "Sorcerous Origin", "description": "Choose the source of your innate magic: Draconic Bloodline, Wild Magic, Divine Soul, Shadow Magic, Storm Sorcery, Aberrant Mind, Clockwork Soul, or others."}
+    ],
+    "2": [
+      {"id": "font_of_magic", "name": "Font of Magic", "description": "Sorcery Points pool = Sorcerer level. Restore on long rest. Convert slots to points (Flexible Casting) or points to slots."}
+    ],
+    "3": [
+      {"id": "metamagic", "name": "Metamagic", "description": "Choose two Metamagic options: Careful, Distant, Empowered, Extended, Heightened, Quickened, Seeking, Subtle, Transmuted, or Twinned Spell. Gain two more at level 17."}
+    ],
+    "20": [
+      {"id": "sorcerous_restoration", "name": "Sorcerous Restoration", "description": "Regain 4 expended Sorcery Points whenever you finish a short rest."}
+    ]
+  }
+}

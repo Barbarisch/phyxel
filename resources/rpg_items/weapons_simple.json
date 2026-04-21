@@ -1,0 +1,102 @@
+[
+  {
+    "id": "dagger",
+    "name": "Dagger",
+    "type": "Weapon",
+    "rarity": "Common",
+    "weightLbs": 1.0,
+    "valueCp": 200,
+    "description": "A short, double-edged blade. The dagger of choice for assassins and rogues.",
+    "weapon": {
+      "category": "Simple",
+      "damage": "1d4",
+      "damageType": "Piercing",
+      "properties": ["Finesse", "Light", "Thrown"],
+      "rangeNormal": 20,
+      "rangeLong": 60
+    }
+  },
+  {
+    "id": "handaxe",
+    "name": "Handaxe",
+    "type": "Weapon",
+    "rarity": "Common",
+    "weightLbs": 2.0,
+    "valueCp": 500,
+    "description": "A small, single-bladed axe designed for throwing or melee combat.",
+    "weapon": {
+      "category": "Simple",
+      "damage": "1d6",
+      "damageType": "Slashing",
+      "properties": ["Light", "Thrown"],
+      "rangeNormal": 20,
+      "rangeLong": 60
+    }
+  },
+  {
+    "id": "quarterstaff",
+    "name": "Quarterstaff",
+    "type": "Weapon",
+    "rarity": "Common",
+    "weightLbs": 4.0,
+    "valueCp": 20,
+    "description": "A simple wooden staff used for both walking and combat.",
+    "weapon": {
+      "category": "Simple",
+      "damage": "1d6",
+      "damageType": "Bludgeoning",
+      "properties": ["Versatile"],
+      "versatileDamage": "1d8"
+    }
+  },
+  {
+    "id": "shortbow",
+    "name": "Shortbow",
+    "type": "Weapon",
+    "rarity": "Common",
+    "weightLbs": 2.0,
+    "valueCp": 2500,
+    "description": "A small bow, easy to carry and quick to draw.",
+    "weapon": {
+      "category": "Simple",
+      "damage": "1d6",
+      "damageType": "Piercing",
+      "properties": ["Ammunition", "TwoHanded"],
+      "rangeNormal": 80,
+      "rangeLong": 320
+    }
+  },
+  {
+    "id": "mace",
+    "name": "Mace",
+    "type": "Weapon",
+    "rarity": "Common",
+    "weightLbs": 4.0,
+    "valueCp": 500,
+    "description": "A heavy club reinforced with metal flanges.",
+    "weapon": {
+      "category": "Simple",
+      "damage": "1d6",
+      "damageType": "Bludgeoning",
+      "properties": []
+    }
+  },
+  {
+    "id": "spear",
+    "name": "Spear",
+    "type": "Weapon",
+    "rarity": "Common",
+    "weightLbs": 3.0,
+    "valueCp": 100,
+    "description": "A pole weapon with a sharp metal tip. Can be thrown.",
+    "weapon": {
+      "category": "Simple",
+      "damage": "1d6",
+      "damageType": "Piercing",
+      "properties": ["Thrown", "Versatile"],
+      "rangeNormal": 20,
+      "rangeLong": 60,
+      "versatileDamage": "1d8"
+    }
+  }
+]

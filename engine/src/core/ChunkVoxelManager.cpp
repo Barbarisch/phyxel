@@ -756,10 +756,12 @@ bool ChunkVoxelManager::addSubcube(
     
     // Update hash maps
     addSubcubeToMaps(parentPos, subcubePos, rawPtr);
-    
-    // Update collision shape
-    m_addCollision(parentPos);
-    
+
+    // Update collision shape (skipped during bulk template spawn)
+    if (!m_isInBulkOperation()) {
+        m_addCollision(parentPos);
+    }
+
     // Mark for update and as dirty
     m_setNeedsUpdate(true);
     m_setDirty(true);
@@ -1021,9 +1023,11 @@ bool ChunkVoxelManager::addMicrocube(
     // Update hash maps
     addMicrocubeToMaps(parentCubePos, subcubePos, microcubePos, rawPtr);
     
-    // Update collision shape for this parent cube position
-    m_removeCollision(parentCubePos);
-    m_addCollision(parentCubePos);
+    // Update collision shape (skipped during bulk template spawn)
+    if (!m_isInBulkOperation()) {
+        m_removeCollision(parentCubePos);
+        m_addCollision(parentCubePos);
+    }
     
     // Mark for update and as dirty
     m_setNeedsUpdate(true);

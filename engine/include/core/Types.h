@@ -26,35 +26,36 @@ enum class TargetMode {
 
 // Texture system constants
 // Auto-generated atlas indices from tools/texture_atlas_builder.py
-// Atlas: 256x256, 72 textures (12 materials x 6 faces)
+// Atlas: 512x512, 78 textures (13 materials x 6 faces)
 // Face order: 0=side_n, 1=side_s, 2=side_e, 3=side_w, 4=top, 5=bottom
 namespace TextureConstants {
-    constexpr uint16_t PLACEHOLDER_TEXTURE_INDEX = 5;     // Default fallback texture (placeholder_bottom)
+    constexpr uint16_t PLACEHOLDER_TEXTURE_INDEX = 54;    // Default fallback texture (placeholder_bottom)
     constexpr uint16_t INVALID_TEXTURE_INDEX = 0xFFFF;    // Invalid/unset texture
     constexpr uint16_t MAX_TEXTURE_INDEX = 0xFFFE;        // Maximum valid texture index
-    constexpr uint16_t TEXTURE_COUNT = 72;                // Total textures in atlas
-    
+    constexpr uint16_t TEXTURE_COUNT = 78;                // Total textures in atlas
+
     // Material face index table: [materialID][faceID] → atlas texture index
     // Materials: 0=placeholder, 1=grassdirt, 2=cork, 3=default, 4=glass,
-    //            5=glow, 6=hover, 7=ice, 8=metal, 9=rubber, 10=stone, 11=wood
-    constexpr int MATERIAL_COUNT = 12;
-    
+    //            5=glow, 6=hover, 7=ice, 8=metal, 9=rubber, 10=stone, 11=wood, 12=leaf
+    constexpr int MATERIAL_COUNT = 13;
+
     // Per-material texture indices: [side_n, side_s, side_e, side_w, top, bottom]
     constexpr uint16_t MATERIAL_FACE_INDEX[MATERIAL_COUNT][6] = {
-        { 0,  1,  2,  3,  4,  5},  // placeholder
-        { 6,  7,  8,  9, 10, 11},  // grassdirt
-        {12, 22, 32, 42, 52, 62},  // cork
-        {13, 23, 33, 43, 53, 63},  // default
-        {14, 24, 34, 44, 54, 64},  // glass
-        {15, 25, 35, 45, 55, 65},  // glow
-        {16, 26, 36, 46, 56, 66},  // hover
-        {17, 27, 37, 47, 57, 67},  // ice
-        {18, 28, 38, 48, 58, 68},  // metal
-        {19, 29, 39, 49, 59, 69},  // rubber
-        {20, 30, 40, 50, 60, 70},  // stone
-        {21, 31, 41, 51, 61, 71},  // wood
+        {56, 57, 55, 58, 59, 54},  // placeholder
+        {26, 27, 25, 28, 29, 24},  // grassdirt
+        { 2,  3,  1,  4,  5,  0},  // cork
+        { 8,  9,  7, 10, 11,  6},  // default
+        {14, 15, 13, 16, 17, 12},  // glass
+        {20, 21, 19, 22, 23, 18},  // glow
+        {32, 33, 31, 34, 35, 30},  // hover
+        {38, 39, 37, 40, 41, 36},  // ice
+        {50, 51, 49, 52, 53, 48},  // metal
+        {62, 63, 61, 64, 65, 60},  // rubber
+        {68, 69, 67, 70, 71, 66},  // stone
+        {74, 75, 73, 76, 77, 72},  // wood
+        {44, 45, 43, 46, 47, 42},  // leaf
     };
-    
+
     // Material name → material ID lookup
     inline int getMaterialID(const std::string& materialName) {
         // Case-sensitive matching per CLAUDE.md
@@ -70,6 +71,7 @@ namespace TextureConstants {
         if (materialName == "Rubber")      return 9;
         if (materialName == "Stone")       return 10;
         if (materialName == "Wood")        return 11;
+        if (materialName == "Leaf")        return 12;
         return 3; // Default material as fallback
     }
     

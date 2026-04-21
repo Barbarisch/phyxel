@@ -195,7 +195,7 @@ add_subdirectory(engine)    # phyxel_core  — engine static library
 # Game, editor, examples: only when building Phyxel standalone
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     add_subdirectory(editor)    # phyxel_editor — editor/dev-tool library + phyxel executable
-    add_subdirectory(examples/minimal_game)
+    # add_subdirectory(examples/minimal_game)  # removed from working copy
 endif()
 
 # ==========================================================================

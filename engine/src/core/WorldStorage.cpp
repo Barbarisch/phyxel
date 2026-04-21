@@ -69,9 +69,11 @@ WorldStorage::~WorldStorage() {
 }
 
 bool WorldStorage::initialize() {
-    // Ensure directory exists
-    std::filesystem::path dbPathObj(dbPath);
-    std::filesystem::create_directories(dbPathObj.parent_path());
+    // Ensure directory exists (skip for in-memory databases)
+    if (dbPath != ":memory:") {
+        std::filesystem::path dbPathObj(dbPath);
+        std::filesystem::create_directories(dbPathObj.parent_path());
+    }
     
     // Open database
     int result = sqlite3_open(dbPath.c_str(), &db);

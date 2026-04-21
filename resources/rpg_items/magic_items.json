@@ -1,0 +1,140 @@
+[
+  {
+    "id": "longsword_plus1",
+    "name": "+1 Longsword",
+    "type": "MagicItem",
+    "rarity": "Uncommon",
+    "weightLbs": 3.0,
+    "valueCp": 25000,
+    "requiresAttunement": false,
+    "description": "A longsword with a +1 bonus to attack and damage rolls.",
+    "weapon": {
+      "category": "Martial",
+      "damage": "1d8",
+      "damageType": "Slashing",
+      "properties": ["Versatile"],
+      "versatileDamage": "1d10"
+    },
+    "attackBonus": 1,
+    "damageBonus": 1
+  },
+  {
+    "id": "longsword_plus2",
+    "name": "+2 Longsword",
+    "type": "MagicItem",
+    "rarity": "Rare",
+    "weightLbs": 3.0,
+    "valueCp": 250000,
+    "requiresAttunement": false,
+    "description": "A longsword with a +2 bonus to attack and damage rolls.",
+    "weapon": {
+      "category": "Martial",
+      "damage": "1d8",
+      "damageType": "Slashing",
+      "properties": ["Versatile"],
+      "versatileDamage": "1d10"
+    },
+    "attackBonus": 2,
+    "damageBonus": 2
+  },
+  {
+    "id": "flame_tongue",
+    "name": "Flame Tongue",
+    "type": "MagicItem",
+    "rarity": "Rare",
+    "weightLbs": 3.0,
+    "valueCp": 250000,
+    "requiresAttunement": true,
+    "description": "You can use a bonus action to speak this magic sword's command word, causing flames to erupt from the blade. While ablaze, the sword deals an extra 2d6 fire damage.",
+    "weapon": {
+      "category": "Martial",
+      "damage": "1d8",
+      "damageType": "Slashing",
+      "properties": ["Versatile"],
+      "versatileDamage": "1d10"
+    },
+    "attackBonus": 0,
+    "damageBonus": 0
+  },
+  {
+    "id": "staff_of_fire",
+    "name": "Staff of Fire",
+    "type": "Staff",
+    "rarity": "VeryRare",
+    "weightLbs": 4.0,
+    "valueCp": 2500000,
+    "requiresAttunement": true,
+    "maxCharges": 10,
+    "description": "This staff has 10 charges. While holding it, you can expend charges to cast fireball (3 charges, save DC 13), burning hands (1 charge), or wall of fire (4 charges). Regains 1d6+4 charges at dawn.",
+    "weapon": {
+      "category": "Simple",
+      "damage": "1d6",
+      "damageType": "Bludgeoning",
+      "properties": ["Versatile"],
+      "versatileDamage": "1d8"
+    }
+  },
+  {
+    "id": "ring_of_protection",
+    "name": "Ring of Protection",
+    "type": "Ring",
+    "rarity": "Rare",
+    "weightLbs": 0.0,
+    "valueCp": 250000,
+    "requiresAttunement": true,
+    "description": "You gain a +1 bonus to AC and saving throws while wearing this ring.",
+    "acBonus": 1,
+    "saveBonus": 1
+  },
+  {
+    "id": "bracers_of_defense",
+    "name": "Bracers of Defense",
+    "type": "MagicItem",
+    "rarity": "Rare",
+    "weightLbs": 1.0,
+    "valueCp": 250000,
+    "requiresAttunement": true,
+    "description": "While wearing these bracers, you gain a +2 bonus to AC if you are wearing no armor and using no shield.",
+    "acBonus": 2
+  },
+  {
+    "id": "potion_healing",
+    "name": "Potion of Healing",
+    "type": "Potion",
+    "rarity": "Common",
+    "weightLbs": 0.5,
+    "valueCp": 5000,
+    "isConsumable": true,
+    "description": "You regain 2d4+2 hit points when you drink this potion."
+  },
+  {
+    "id": "potion_greater_healing",
+    "name": "Potion of Greater Healing",
+    "type": "Potion",
+    "rarity": "Uncommon",
+    "weightLbs": 0.5,
+    "valueCp": 25000,
+    "isConsumable": true,
+    "description": "You regain 4d4+4 hit points when you drink this potion."
+  },
+  {
+    "id": "cloak_of_elvenkind",
+    "name": "Cloak of Elvenkind",
+    "type": "MagicItem",
+    "rarity": "Uncommon",
+    "weightLbs": 1.0,
+    "valueCp": 25000,
+    "requiresAttunement": true,
+    "description": "While you wear this cloak with its hood up, Wisdom (Perception) checks made to see you have disadvantage, and you have advantage on Dexterity (Stealth) checks made to hide."
+  },
+  {
+    "id": "bag_of_holding",
+    "name": "Bag of Holding",
+    "type": "MagicItem",
+    "rarity": "Uncommon",
+    "weightLbs": 15.0,
+    "valueCp": 25000,
+    "requiresAttunement": false,
+    "description": "This bag has an interior space considerably larger than its outside dimensions suggest. The bag can hold up to 500 pounds, not exceeding a volume of 64 cubic feet."
+  }
+]

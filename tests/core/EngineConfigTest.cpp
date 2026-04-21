@@ -23,7 +23,7 @@ TEST(EngineConfigTest, DefaultValues) {
     EXPECT_EQ(cfg.dialoguesSubdir, "dialogues");
     EXPECT_EQ(cfg.soundsSubdir, "sounds");
     EXPECT_EQ(cfg.animatedCharsSubdir, "animated_characters");
-    EXPECT_EQ(cfg.recipesSubdir, "recipes");
+    EXPECT_EQ(cfg.recipesSubdir, "ai");
     EXPECT_EQ(cfg.textureAtlasFile, "cube_atlas.png");
     EXPECT_EQ(cfg.defaultWorldFile, "default.db");
     EXPECT_EQ(cfg.loggingConfigFile, "logging.ini");
@@ -50,7 +50,7 @@ TEST(EngineConfigTest, PathHelpers) {
     EXPECT_EQ(cfg.dialoguesPath(), "resources/dialogues");
     EXPECT_EQ(cfg.soundsPath(), "resources/sounds");
     EXPECT_EQ(cfg.animatedCharsPath(), "resources/animated_characters");
-    EXPECT_EQ(cfg.recipesPath(), "resources/recipes");
+    EXPECT_EQ(cfg.recipesPath(), "resources/ai");
     EXPECT_EQ(cfg.textureAtlasPath(), "resources/textures/cube_atlas.png");
     EXPECT_EQ(cfg.worldDatabasePath(), "worlds/default.db");
 }

@@ -1,0 +1,47 @@
+{
+  "id": "barbarian",
+  "name": "Barbarian",
+  "hitDieFaces": 12,
+  "primaryAbility": "STR",
+  "savingThrows": ["STR", "CON"],
+  "armorProficiencies": ["light", "medium", "shields"],
+  "weaponProficiencies": ["simple", "martial"],
+  "toolProficiencies": [],
+  "skillChoices": 2,
+  "skillPool": ["Animal Handling", "Athletics", "Intimidation", "Nature", "Perception", "Survival"],
+  "spellcastingAbility": "",
+  "spellcastingType": "",
+  "asiLevels": [4, 8, 12, 16, 19],
+  "features": {
+    "1": [
+      {"id": "rage", "name": "Rage", "description": "Bonus action: enter rage for 1 minute. Advantage on STR checks/saves, bonus melee damage (scales 2→4 by level), resistance to bludgeoning/piercing/slashing. 2 uses/day, scaling to unlimited at 20."},
+      {"id": "unarmored_defense_barbarian", "name": "Unarmored Defense", "description": "While not wearing armor, AC = 10 + DEX mod + CON mod. Can use a shield."}
+    ],
+    "2": [
+      {"id": "reckless_attack", "name": "Reckless Attack", "description": "Advantage on all STR-based melee attacks this turn; attacks against you also have advantage until your next turn."},
+      {"id": "danger_sense", "name": "Danger Sense", "description": "Advantage on DEX saving throws against effects you can see (traps, spells), unless blinded, deafened, or incapacitated."}
+    ],
+    "3": [
+      {"id": "primal_path", "name": "Primal Path", "description": "Choose a subclass: Berserker, Totem Warrior, Ancestral Guardian, Storm Herald, Zealot, Beast, Wild Magic, or others."}
+    ],
+    "5": [
+      {"id": "extra_attack_barbarian", "name": "Extra Attack", "description": "Attack twice when you take the Attack action."},
+      {"id": "fast_movement", "name": "Fast Movement", "description": "Speed increases by 10 ft while not wearing heavy armor."}
+    ],
+    "7": [
+      {"id": "feral_instinct", "name": "Feral Instinct", "description": "Advantage on Initiative rolls. If surprised at start of combat, you can act normally if you enter rage before your first action."}
+    ],
+    "9": [
+      {"id": "brutal_critical", "name": "Brutal Critical", "description": "Roll one additional weapon damage die on critical hits. Increases to two extra dice at level 13, three at level 17."}
+    ],
+    "11": [
+      {"id": "relentless_rage", "name": "Relentless Rage", "description": "If you drop to 0 HP while raging and don't die, make a DC 10 CON save to drop to 1 HP instead. DC increases by 5 each use, resets on short or long rest."}
+    ],
+    "15": [
+      {"id": "persistent_rage", "name": "Persistent Rage", "description": "Rage only ends early if you fall unconscious or choose to end it."}
+    ],
+    "20": [
+      {"id": "primal_champion", "name": "Primal Champion", "description": "STR and CON each increase by 4. Your maximum for those scores is now 24."}
+    ]
+  }
+}

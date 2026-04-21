@@ -86,10 +86,10 @@ Structures are placed after terrain generation. Two types:
 
 **Templates** — pre-built objects:
 ```json
-{"type": "template", "name": "tree.txt", "position": {"x":15,"y":17,"z":15}}
+{"type": "template", "name": "tree.voxel", "position": {"x":15,"y":17,"z":15}}
 ```
 
-Available templates: `tree.txt`, `tree2.txt`, `sphere.txt`, `test_castle_optimized.txt`
+Available templates: `tree.voxel`, `tree2.voxel`, `sphere.voxel`, `test_castle_optimized.voxel`
 
 ### Step 4: Create NPCs
 
@@ -285,7 +285,7 @@ MyGame/
   "structures": [
     {"type": "fill", "from": {"x":10,"y":20,"z":10}, "to": {"x":22,"y":20,"z":22}, "material": "Stone"},
     {"type": "fill", "from": {"x":12,"y":21,"z":12}, "to": {"x":20,"y":25,"z":20}, "material": "Wood", "hollow": true},
-    {"type": "template", "name": "tree.txt", "position": {"x":25,"y":21,"z":15}}
+    {"type": "template", "name": "tree.voxel", "position": {"x":25,"y":21,"z":15}}
   ],
   "player": {"type": "physics", "position": {"x":16,"y":28,"z":16}},
   "camera": {"position": {"x":50,"y":50,"z":50}, "yaw": -135, "pitch": -30},
@@ -360,3 +360,65 @@ After loading, use these tools to refine:
 | Undo changes | `create_snapshot` before editing, `restore_snapshot` to revert |
 | Save progress | `save_world` |
 | Export for reuse | `export_game_definition` |
+
+## Multi-Scene Games
+
+For games with multiple levels, scenes, or areas — see [docs/SceneSystem.md](SceneSystem.md) for full details.
+
+### Quick Start
+
+1. **Design your game definition** with a `"scenes"` array instead of a top-level `"world"` key
+2. **Each scene** gets its own `id`, `worldDatabase`, and `definition` (same schema as single-scene games)
+3. **`startScene`** sets which scene loads first
+4. **`playerDefaults`** and **`globalStory`** sit at the top level and persist across transitions
+
+### Pre-Baking Scene Worlds
+
+Each scene needs a SQLite database with pre-generated terrain. Build them one at a time using the engine:
+
+```
+# 1. Launch the engine
+launch_engine
+
+# 2. For each scene, load just that scene's definition to generate terrain
+load_game_definition  ←  pass the scene's world/structures config
+
+# 3. Build terrain with fill_region, place_voxel, spawn_template, etc.
+
+# 4. Save the world to the scene's database
+save_world  ←  saves to worlds/<scene_id>.db
+
+# 5. Repeat for each scene
+```
+
+Alternatively, if a scene's definition has a `"world"` key with generation config (Perlin, Flat, Mountains, etc.), the engine generates terrain on first load — no pre-baking needed.
+
+### Scaffolding a Multi-Scene Project
+
+```powershell
+# Scaffold with a multi-scene game definition
+python tools/create_project.py MyGame --game-definition multi_scene_game.json
+```
+
+The generated code automatically:
+- Detects `"scenes"` in the game definition
+- Creates a `SceneManager` and loads the manifest
+- Generates `onSceneLoad`, `onSceneUnload`, `onSceneReady` callback stubs
+
+### Packaging
+
+```powershell
+python tools/package_game.py MyGame --project-dir path/to/MyGame
+```
+
+The packager finds all `worldDatabase` entries in the scene manifest and copies each `.db` file to the output `worlds/` directory.
+
+### Scene Tools (MCP / HTTP)
+
+| Tool | Use |
+|------|-----|
+| `list_scenes` | List all scenes in the manifest |
+| `get_active_scene` | Get the currently active scene |
+| `transition_scene` | Switch to a different scene |
+| `add_scene` / `remove_scene` | Modify scenes at runtime |
+| `save_scene_manifest` | Persist the manifest to disk |

@@ -1,4 +1,4 @@
-#ifdef _WIN32
+﻿#ifdef _WIN32
 // Must define NOMINMAX before any Windows header to avoid min/max macro conflicts
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -54,9 +54,12 @@
 #include "ui/UISystem.h"
 #include "ui/GameMenus.h"
 #include <imgui.h>
+#include <imgui_internal.h>
+#include <imgui_impl_vulkan.h>
 #include <iostream>
 #include <iomanip>
 #include <fstream>
+#include <algorithm>
 #include <chrono>
 #include <thread>
 #include <cstring>
@@ -78,6 +81,9 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h> // MessageBoxA
+#include <commdlg.h>  // GetOpenFileName file dialog
+#include <shobjidl.h> // IFileOpenDialog for folder picker
+#include <shlobj.h>   // SHCreateItemFromParsingName
 #else
 #include <sys/stat.h> // mkdir
 #endif
@@ -114,7 +120,7 @@ Application::~Application() {
 bool Application::initialize(const std::string& gameDefinitionPath) {
     // STEP 0: LOAD ENGINE CONFIGURATION
     if (!Core::EngineConfig::loadFromFile("engine.json", engineConfig)) {
-        LOG_WARN("Application", "Failed to parse engine.json — using defaults");
+        LOG_WARN("Application", "Failed to parse engine.json  --  using defaults");
         engineConfig = Core::EngineConfig{};
     }
 
@@ -146,6 +152,9 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
         LOG_INFO("Application", "Project mode: worlds={}, game={}", engineConfig.worldsDir, engineConfig.gameDefinitionFile);
     }
+
+    // Enable editor multi-viewport (pop-out OS windows for docked panels)
+    engineConfig.enableEditorViewports = true;
 
     // STEP 1: CREATE AND INITIALIZE ENGINE RUNTIME
     // EngineRuntime creates all core subsystems: window, Vulkan, physics,
@@ -297,7 +306,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         chunkManager->rebuildOccupancyFromChunks();
         LOG_INFO("Application", "GpuParticlePhysics initialized successfully!");
     } else {
-        LOG_WARN("Application", "GpuParticlePhysics initialization failed — falling back to CPU physics");
+        LOG_WARN("Application", "GpuParticlePhysics initialization failed  --  falling back to CPU physics");
         gpuParticlePhysics.reset();
     }
 
@@ -336,7 +345,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
     // STEP 9.5: INITIALIZE LIGHTWEIGHT AI ENHANCER (bypasses Goose, calls Claude API directly)
     {
-        // Resolve path to ai_enhance.py — try engine source tree first, then project scripts dir
+        // Resolve path to ai_enhance.py  --  try engine source tree first, then project scripts dir
         std::string scriptPath;
         for (const auto& candidate : {
             std::string("scripts/ai_enhance.py"),
@@ -362,10 +371,15 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     entityRegistry = std::make_unique<Core::EntityRegistry>();
     apiCommandQueue = std::make_unique<Core::APICommandQueue>();
     gameEventLog = std::make_unique<Core::GameEventLog>(1000);
+
+    // Wire D&D combat AI (pointers are stable — members outlive all systems)
+    m_combatAI.setInitiativeTracker(&m_rpgInitiative);
+    m_combatAI.setParty(&m_rpgParty);
+    m_combatAI.setEntityRegistry(entityRegistry.get());
     jobSystem = std::make_unique<Core::JobSystem>();
     apiServer = std::make_unique<Core::EngineAPIServer>(apiCommandQueue.get(), engineConfig.apiPort, jobSystem.get());
 
-    // Wire up read-only handlers (called directly on HTTP thread — must be thread-safe)
+    // Wire up read-only handlers (called directly on HTTP thread  --  must be thread-safe)
     apiServer->setEntityListHandler([this]() -> nlohmann::json {
         return entityRegistry->toJson();
     });
@@ -838,6 +852,164 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         };
     });
 
+    // -----------------------------------------------------------------------
+    // RPG System handler  --  routes /api/rpg/<action> to D&D subsystems
+    // -----------------------------------------------------------------------
+    apiServer->setRpgHandler([this](const std::string& action, const nlohmann::json& params) -> nlohmann::json {
+        using json = nlohmann::json;
+
+        // ---- Party --------------------------------------------------------
+        if (action == "party") {
+            return m_rpgParty.toJson();
+        }
+        if (action == "party/add") {
+            std::string id   = params.value("entity_id", "");
+            std::string name = params.value("name", id);
+            int level        = params.value("level", 1);
+            if (id.empty()) return json{{"error","entity_id required"}};
+            m_rpgParty.addMember(id, name, level);
+            return json{{"ok", true}, {"party", m_rpgParty.toJson()}};
+        }
+        if (action == "party/remove") {
+            std::string id = params.value("entity_id", "");
+            if (id.empty()) return json{{"error","entity_id required"}};
+            m_rpgParty.removeMember(id);
+            return json{{"ok", true}};
+        }
+        if (action == "party/set_alive") {
+            std::string id = params.value("entity_id", "");
+            bool alive     = params.value("alive", true);
+            if (id.empty()) return json{{"error","entity_id required"}};
+            m_rpgParty.setAlive(id, alive);
+            return json{{"ok", true}};
+        }
+
+        // ---- Combat / Initiative ------------------------------------------
+        if (action == "combat/state") {
+            return json{
+                {"active",          m_rpgInitiative.isCombatActive()},
+                {"round",           m_rpgInitiative.currentRound()},
+                {"current_entity",  m_rpgInitiative.currentEntityId()},
+                {"turn_order",      m_rpgInitiative.toJson()}
+            };
+        }
+        if (action == "combat/start") {
+            // params: participants = [{entity_id, initiative_bonus}]
+            std::vector<std::string> entityIds;
+            if (params.contains("participants") && params["participants"].is_array()) {
+                for (const auto& p : params["participants"]) {
+                    std::string eid = p.value("entity_id", "");
+                    if (!eid.empty()) entityIds.push_back(eid);
+                }
+            }
+            m_rpgInitiative.startCombat(entityIds);
+            if (params.contains("participants") && params["participants"].is_array()) {
+                Core::DiceSystem dice;
+                for (const auto& p : params["participants"]) {
+                    std::string eid = p.value("entity_id", "");
+                    int bonus = p.value("initiative_bonus", 0);
+                    if (!eid.empty()) m_rpgInitiative.rollInitiative(eid, bonus, dice);
+                }
+            }
+            m_rpgInitiative.sortOrder();
+            return json{{"ok", true}, {"state", m_rpgInitiative.toJson()}};
+        }
+        if (action == "combat/next_turn") {
+            if (!m_rpgInitiative.isCombatActive())
+                return json{{"error","no active combat"}};
+            std::string next = m_rpgInitiative.endTurn();
+            return json{{"ok", true}, {"next_entity", next}, {"round", m_rpgInitiative.currentRound()}};
+        }
+        if (action == "combat/end") {
+            m_rpgInitiative.endCombat();
+            return json{{"ok", true}};
+        }
+        if (action == "combat/set_initiative") {
+            std::string eid = params.value("entity_id", "");
+            int value = params.value("value", 0);
+            if (eid.empty()) return json{{"error","entity_id required"}};
+            m_rpgInitiative.setInitiative(eid, value);
+            m_rpgInitiative.sortOrder();
+            return json{{"ok", true}};
+        }
+
+        // ---- World Calendar -----------------------------------------------
+        if (action == "world/date") {
+            auto date = m_rpgWorldClock.getDate();
+            return json{
+                {"day",         date.day},
+                {"month",       date.month},
+                {"year",        date.year},
+                {"day_of_week", Core::WorldClock::dayOfWeekName(m_rpgWorldClock.getDayOfWeek())},
+                {"season",      Core::WorldClock::seasonName(m_rpgWorldClock.getSeason())},
+                {"moon_phase",  Core::WorldClock::moonPhaseName(m_rpgWorldClock.getMoonPhase())},
+                {"long_date",   date.toLongString()},
+                {"total_days",  m_rpgWorldClock.getTotalDays()},
+                {"is_holiday",  m_rpgWorldClock.isHoliday()},
+                {"holiday_name",m_rpgWorldClock.isHoliday() ? m_rpgWorldClock.getHolidayName() : ""}
+            };
+        }
+        if (action == "world/advance_date") {
+            int days = params.value("days", 1);
+            m_rpgWorldClock.advanceDays(days);
+            auto date = m_rpgWorldClock.getDate();
+            return json{{"ok", true}, {"new_total_days", m_rpgWorldClock.getTotalDays()}, {"date", date.toLongString()}};
+        }
+        if (action == "world/set_date") {
+            int totalDays = params.value("total_days", -1);
+            if (totalDays >= 0) m_rpgWorldClock.setTotalDays(totalDays);
+            return json{{"ok", true}};
+        }
+
+        // ---- Campaign Journal ---------------------------------------------
+        if (action == "journal/entries") {
+            std::string typeFilter = params.value("type", "");
+            std::string tagFilter  = params.value("tag", "");
+            std::string query      = params.value("search", "");
+            int dayFilter          = params.value("day", -1);
+
+            std::vector<const Core::JournalEntry*> entries;
+            if (!query.empty()) {
+                entries = m_rpgJournal.searchEntries(query);
+            } else if (!tagFilter.empty()) {
+                entries = m_rpgJournal.getEntriesByTag(tagFilter);
+            } else if (dayFilter >= 0) {
+                entries = m_rpgJournal.getEntriesByDay(dayFilter);
+            } else if (!typeFilter.empty()) {
+                auto t = Core::journalEntryTypeFromString(typeFilter.c_str());
+                entries = m_rpgJournal.getEntriesByType(t);
+            } else {
+                // All entries via full JSON
+                return m_rpgJournal.toJson();
+            }
+            json arr = json::array();
+            for (const auto* e : entries) arr.push_back(e->toJson());
+            return json{{"entries", arr}, {"count", arr.size()}};
+        }
+        if (action == "journal/add") {
+            std::string typeStr = params.value("type", "WorldEvent");
+            std::string title   = params.value("title", "");
+            std::string content = params.value("content", "");
+            int day             = params.value("day", m_rpgWorldClock.getTotalDays());
+            std::vector<std::string> tags;
+            if (params.contains("tags") && params["tags"].is_array()) {
+                for (const auto& t : params["tags"]) tags.push_back(t.get<std::string>());
+            }
+            if (title.empty()) return json{{"error","title required"}};
+            auto entryType = Core::journalEntryTypeFromString(typeStr.c_str());
+            int id = m_rpgJournal.addEntry(entryType, title, content, day, tags);
+            return json{{"ok", true}, {"id", id}};
+        }
+        if (action == "journal/remove") {
+            int id = params.value("id", -1);
+            if (id < 0) return json{{"error","id required"}};
+            m_rpgJournal.removeEntry(id);
+            return json{{"ok", true}};
+        }
+
+        return json{{"error", "Unknown RPG action: " + action}};
+    });
+
     apiServer->setEventPollHandler([this](uint64_t sinceId) -> nlohmann::json {
         if (!gameEventLog) return nlohmann::json{{"error", "GameEventLog not available"}};
         auto result = gameEventLog->pollSince(sinceId);
@@ -1021,7 +1193,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // Start in creative mode with all materials in hotbar
     {
         static const std::vector<std::string> defaultHotbar = {
-            "Stone", "Wood", "Metal", "Glass", "Rubber", "Ice", "Cork", "glow", "Default"
+            "Stone", "Wood", "Metal", "Glass", "Rubber", "Ice", "Cork", "glow", "Leaf", "Default"
         };
         for (int i = 0; i < static_cast<int>(defaultHotbar.size()); ++i) {
             inventory->setSlot(i, Core::ItemStack{defaultHotbar[i], 64, 64});
@@ -1105,6 +1277,36 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         npcManager->setRaycastVisualizer(raycastVisualizer.get());
     }
 
+    // Initialize Kinematic Voxel Manager (doors, rotating platforms, etc.)
+    kinematicVoxelManager = std::make_unique<Core::KinematicVoxelManager>();
+    kinematicVoxelManager->setPhysicsWorld(physicsWorld);
+    if (renderCoordinator) {
+        renderCoordinator->setKinematicVoxelManager(kinematicVoxelManager.get());
+    }
+
+    // Initialize Door Manager
+    doorManager = std::make_unique<Core::DoorManager>();
+    doorManager->setKinematicVoxelManager(kinematicVoxelManager.get());
+    doorManager->setPlacedObjectManager(placedObjectManager.get());
+    doorManager->setObjectTemplateManager(objectTemplateManager.get());
+    if (npcManager) doorManager->setNavGrid(npcManager->getNavGrid());
+    doorManager->setSettleCallback([this](const std::string& /*objId*/, bool /*isOpen*/) {
+        // NavGrid rebuild is already done inside DoorManager::onSettle()
+    });
+
+    // Initialize Dynamic Furniture Manager
+    dynamicFurnitureManager = std::make_unique<Core::DynamicFurnitureManager>();
+    dynamicFurnitureManager->setPlacedObjectManager(placedObjectManager.get());
+    dynamicFurnitureManager->setObjectTemplateManager(objectTemplateManager.get());
+    dynamicFurnitureManager->setKinematicVoxelManager(kinematicVoxelManager.get());
+    dynamicFurnitureManager->setPhysicsWorld(physicsWorld);
+    dynamicFurnitureManager->setChunkManager(chunkManager);
+    dynamicFurnitureManager->setGpuParticlePhysics(gpuParticlePhysics.get());
+
+    // Wire furniture activation into the voxel interaction system
+    voxelInteractionSystem->setPlacedObjectManager(placedObjectManager.get());
+    voxelInteractionSystem->setDynamicFurnitureManager(dynamicFurnitureManager.get());
+
     // Initialize Interaction Manager
     interactionManager = std::make_unique<Core::InteractionManager>();
     interactionManager->setEntityRegistry(entityRegistry.get());
@@ -1118,7 +1320,18 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     interactionProfileManager->loadArchetype("humanoid_normal");
     interactionManager->setInteractionProfileManager(interactionProfileManager.get());
 
-    // Auto-register interaction point defs from template .txt file metadata.
+    // Create interaction handler registry and register handlers
+    interactionHandlerRegistry = std::make_unique<Core::InteractionHandlerRegistry>();
+    interactionHandlerRegistry->registerHandler("npc",
+        std::make_unique<Core::NPCInteractionHandler>(entityRegistry.get()));
+    interactionHandlerRegistry->registerHandler("seat",
+        std::make_unique<Core::SeatInteractionHandler>(placedObjectManager.get(),
+                                                        interactionProfileManager.get()));
+    interactionHandlerRegistry->registerHandler("door_handle",
+        std::make_unique<Core::DoorInteractionHandler>(doorManager.get()));
+    interactionManager->setHandlerRegistry(interactionHandlerRegistry.get());
+
+    // Auto-register interaction point defs from template .voxel file metadata.
     if (placedObjectManager && objectTemplateManager) {
         for (const auto& name : objectTemplateManager->getTemplateNames()) {
             const auto* tmpl = objectTemplateManager->getTemplate(name);
@@ -1259,7 +1472,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         dialogueSystem->startConversation(npc, tree);
     });
 
-    // Wire seat callback: player presses E near a seat → animated character sits
+    // Wire seat callback: player presses E near a seat â†’ animated character sits
     interactionManager->setSeatCallback([this](const std::string& objectId,
                                                const std::string& pointId,
                                                const glm::vec3& seatAnchorPos,
@@ -1275,16 +1488,22 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
                                  sitBlendDuration, seatHeightOffset);
     });
 
+    // Wire door callback: player presses E near a door handle â†’ toggle door
+    interactionManager->setDoorCallback([this](const std::string& objectId,
+                                               const std::string& /*pointId*/) {
+        if (doorManager) doorManager->toggle(objectId);
+    });
+
     // Start the API server
     if (apiServer->start()) {
         LOG_INFO("Application", "Engine HTTP API available at http://localhost:{}/api/status", engineConfig.apiPort);
     } else {
-        LOG_ERROR("Application", "Failed to start HTTP API server on port {} — another engine instance may already be running.", engineConfig.apiPort);
+        LOG_ERROR("Application", "Failed to start HTTP API server on port {}  --  another engine instance may already be running.", engineConfig.apiPort);
 #ifdef _WIN32
         std::string msg = "Cannot start the engine API server on port " + std::to_string(engineConfig.apiPort)
             + ".\n\nAnother instance of the Phyxel engine is likely already running.\n"
             "Please close the other instance and try again.";
-        MessageBoxA(nullptr, msg.c_str(), "Phyxel — Port Conflict", MB_OK | MB_ICONERROR);
+        MessageBoxA(nullptr, msg.c_str(), "Phyxel  --  Port Conflict", MB_OK | MB_ICONERROR);
 #endif
         return false;
     }
@@ -1322,6 +1541,99 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             autoLoadGameDefinition();
         }
     }
+
+    // Create the properties inspector panel
+    m_propertiesPanel = std::make_unique<Editor::PropertiesPanel>();
+    m_propertiesPanel->setVoxelInteraction(voxelInteractionSystem.get());
+    m_propertiesPanel->setEntityRegistry(entityRegistry.get());
+    m_propertiesPanel->setPlacedObjectManager(placedObjectManager.get());
+    m_propertiesPanel->setNPCManager(npcManager.get());
+    m_propertiesPanel->setObjectTemplateManager(objectTemplateManager.get());
+    m_propertiesPanel->setDynamicFurnitureManager(dynamicFurnitureManager.get());
+
+    // Create the world outliner panel
+    m_worldOutliner = std::make_unique<Editor::WorldOutlinerPanel>();
+
+    // Create the camera management panel
+    m_cameraPanel = std::make_unique<Editor::CameraPanel>();
+    m_cameraPanel->setCameraManager(cameraManager);
+    m_cameraPanel->setCamera(camera);
+    m_cameraPanel->setEntityRegistry(entityRegistry.get());
+    m_cameraPanel->setInputManager(inputManager);
+
+    m_worldOutliner->setEntityRegistry(entityRegistry.get());
+    m_worldOutliner->setNPCManager(npcManager.get());
+    m_worldOutliner->setPlacedObjectManager(placedObjectManager.get());
+    m_worldOutliner->setChunkManager(chunkManager);
+    m_worldOutliner->setObjectTemplateManager(objectTemplateManager.get());
+
+    // Wire add/remove callbacks from the World Outliner panel
+    m_worldOutliner->onRemoveEntity = [this](const std::string& id) -> bool {
+        auto* entity = entityRegistry->getEntity(id);
+        if (!entity) return false;
+        auto it = std::remove_if(entities.begin(), entities.end(),
+            [entity](const std::unique_ptr<Scene::Entity>& e) { return e.get() == entity; });
+        if (it != entities.end()) entities.erase(it, entities.end());
+        if (entity == physicsCharacter) physicsCharacter = nullptr;
+        if (entity == spiderCharacter) spiderCharacter = nullptr;
+        if (entity == animatedCharacter) animatedCharacter = nullptr;
+        entityRegistry->unregisterEntity(id);
+        return true;
+    };
+
+    m_worldOutliner->onSpawnEntity = [this](const std::string& type, const glm::vec3& pos) -> std::string {
+        Scene::Entity* spawned = nullptr;
+        if (type == "animated")
+            spawned = createAnimatedCharacter(pos, "resources/animated_characters/humanoid.anim");
+        else if (type == "physics")
+            spawned = createPhysicsCharacter(pos);
+        else if (type == "spider")
+            spawned = createSpiderCharacter(pos);
+        if (!spawned || !entityRegistry) return "";
+        std::string id = entityRegistry->registerEntity(spawned);
+        return id;
+    };
+
+    m_worldOutliner->onRemoveNPC = [this](const std::string& name) -> bool {
+        if (!npcManager) return false;
+        return npcManager->removeNPC(name);
+    };
+
+    m_worldOutliner->onSpawnNPC = [this](const std::string& name, const glm::vec3& pos,
+                                          const std::string& behavior) -> bool {
+        if (!npcManager) return false;
+        Core::NPCBehaviorType bt = Core::NPCBehaviorType::Idle;
+        if (behavior == "patrol") bt = Core::NPCBehaviorType::Patrol;
+        else if (behavior == "wander") bt = Core::NPCBehaviorType::BehaviorTree;
+        auto* npc = npcManager->spawnNPC(name, "resources/animated_characters/humanoid.anim",
+                                          pos, bt, {}, 2.0f, 2.0f, {});
+        return npc != nullptr;
+    };
+
+    m_worldOutliner->onRemovePlacedObject = [this](const std::string& id) -> bool {
+        if (!placedObjectManager) return false;
+        return placedObjectManager->remove(id);
+    };
+
+    m_worldOutliner->onSpawnTemplate = [this](const std::string& name, const glm::ivec3& pos,
+                                               int rotation) -> std::string {
+        if (!placedObjectManager) return "";
+        std::string objId = placedObjectManager->placeTemplate(name, pos, rotation, "");
+        // Persist to DB so objects survive engine restart
+        if (chunkManager) {
+            auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+            if (ws) placedObjectManager->saveToDb(ws->getDb());
+        }
+        return objId;
+    };
+
+#ifdef _WIN32
+    // Create the terminal panel and assign monospace font
+    m_terminalPanel = std::make_unique<Editor::TerminalPanel>();
+    if (imguiRenderer && imguiRenderer->getMonospaceFont()) {
+        m_terminalPanel->setFont(imguiRenderer->getMonospaceFont());
+    }
+#endif
 
     return true;
 }
@@ -1429,7 +1741,7 @@ void Application::applyProjectSelection(const std::string& projectPath) {
             chunkManager->initializeAllChunkVoxelMaps();
             LOG_INFO("Application", "Loaded {} chunk(s) from project world database", loaded.size());
         } else {
-            LOG_INFO("Application", "Project world database is empty — world will be built from game.json");
+            LOG_INFO("Application", "Project world database is empty  --  world will be built from game.json");
         }
     }
 
@@ -1473,8 +1785,44 @@ void Application::run() {
 
         timer->update();
         
-        // Always process API commands (even during launcher — enables MCP project management)
+        // Always process API commands (even during launcher  --  enables MCP project management)
         processAPICommands();
+
+        // Process deferred file open (set by File > Open menu, must run before rendering)
+        if (!m_pendingOpenFile.empty()) {
+            std::string fileToOpen = std::move(m_pendingOpenFile);
+            m_pendingOpenFile.clear();
+            switchToEditorMode(fileToOpen);
+        }
+
+        // Process deferred project open (set by File > Open Project menu)
+        if (!m_pendingOpenProject.empty()) {
+            std::string projPath = std::move(m_pendingOpenProject);
+            m_pendingOpenProject.clear();
+
+            // Reset any editor mode back to normal project mode
+            resetEditorScene();
+
+            // Apply project selection (switches DB, loads engine.json, etc.)
+            applyProjectSelection(projPath);
+
+            // Track in recent projects
+            namespace fs = std::filesystem;
+            std::string baseDir = Core::ProjectInfo::getDefaultProjectsDir();
+            Core::ProjectInfo info;
+            info.path = projPath;
+            info.name = fs::path(projPath).filename().string();
+            // Save to launcher state if available
+            {
+                Core::LauncherState state;
+                state.load(baseDir);
+                state.addRecentProject(info);
+                state.save(baseDir);
+            }
+
+            autoLoadGameDefinition();
+            LOG_INFO("Application", "Opened project from File menu: {}", projPath);
+        }
 
         // Skip game input and update while launcher is active
         if (!launcherActive_) {
@@ -1486,6 +1834,9 @@ void Application::run() {
 
         {
             ScopedTimer inputTimer(*performanceProfiler, "input");
+            // Feed viewport hover state to InputManager so it can gate mouse/keyboard
+            inputManager->setViewportHovered(m_viewportHovered);
+
             if (!uiConsumedInput) {
                 handleInput();
             } else {
@@ -1502,6 +1853,92 @@ void Application::run() {
         
         // Start ImGui frame
         imguiRenderer->newFrame();
+        
+        // Create full-window DockSpace for editor layout
+        {
+            ImGuiViewport* viewport = ImGui::GetMainViewport();
+            ImGui::SetNextWindowPos(viewport->WorkPos);
+            ImGui::SetNextWindowSize(viewport->WorkSize);
+            ImGui::SetNextWindowViewport(viewport->ID);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+            ImGuiWindowFlags dockWindowFlags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar |
+                ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+                ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus |
+                ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_MenuBar;
+            ImGui::Begin("##DockSpaceWindow", nullptr, dockWindowFlags);
+            ImGui::PopStyleVar(3);
+
+            // Render main menu bar
+            renderMainMenuBar();
+            
+            ImGuiID dockSpaceId = ImGui::GetID("EditorDockSpace");
+            ImGui::DockSpace(dockSpaceId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
+            
+            // Handle layout reset request from View menu
+            if (m_needsLayoutReset) {
+                m_dockLayoutInitialized = false;
+                m_needsLayoutReset = false;
+            }
+
+            // Set up default layout on first run
+            setupDefaultDockLayout(dockSpaceId);
+            
+            ImGui::End();
+
+            // Status bar at bottom of window
+            renderStatusBar();
+
+            // Render 3D viewport as a dockable window
+            renderDockableViewport();
+            
+            // Render world outliner panel (before Properties so selection is fresh)
+            if (m_worldOutliner && m_showWorldOutliner) {
+                m_worldOutliner->render(&m_showWorldOutliner);
+            }
+
+            // Pipe World Outliner selection into Properties panel
+            if (m_propertiesPanel && m_worldOutliner) {
+                const auto& sel = m_worldOutliner->selectedId();
+                if (sel.empty()) {
+                    m_propertiesPanel->clearSelection();
+                } else if (sel.rfind("npc:", 0) == 0) {
+                    m_propertiesPanel->setSelection(Editor::SelectionType::NPC, sel.substr(4));
+                } else if (sel.rfind("po:", 0) == 0) {
+                    m_propertiesPanel->setSelection(Editor::SelectionType::PlacedObject, sel.substr(3));
+                } else {
+                    m_propertiesPanel->setSelection(Editor::SelectionType::Entity, sel);
+                }
+            }
+
+            // Render properties inspector panel
+            if (m_propertiesPanel && m_showProperties) {
+                m_propertiesPanel->setCameraState(camera->getPosition(), camera->getFront());
+                m_propertiesPanel->render(&m_showProperties);
+            }
+
+            // Render camera management panel
+            if (m_cameraPanel && m_showCameraPanel) {
+                m_cameraPanel->render(&m_showCameraPanel);
+            }
+
+#ifdef _WIN32
+            // Render terminal panel as a dockable window
+            if (m_terminalPanel && m_showTerminal) {
+                m_terminalPanel->render(&m_showTerminal);
+            }
+#endif
+        }
+
+        // Render Asset Editor panel (when launched with --asset-editor)
+        renderAssetEditorUI();
+
+        // Render Anim Editor panel (when launched with --anim-editor)
+        renderAnimEditorUI();
+
+        // Render Interaction Editor panel (when launched with --interaction-editor)
+        renderInteractionEditorUI();
         
         // -- Project Launcher overlay (replaces game UI when active) --
         if (launcherActive_ && projectLauncher_) {
@@ -1538,7 +1975,15 @@ void Application::run() {
             voxelInteractionSystem->hasHoveredCube() ? glm::vec3(voxelInteractionSystem->getCurrentHoveredLocation().worldPos) : glm::vec3(0.0f),
             flags.manualForceValue
         );
-        
+
+        // Voxel size mode HUD (persistent indicator + fade label on change)
+        if (voxelInteractionSystem && inputController) {
+            imguiRenderer->renderVoxelSizeHUD(
+                voxelInteractionSystem->getTargetMode(),
+                inputController->getModeChangeTimer(),
+                m_viewportPosX, m_viewportPosY, m_viewportSizeW, m_viewportSizeH);
+        }
+
         // Render AI Stats overlay (inside performance overlay toggle)
         if (showPerformanceOverlay && aiConversationService) {
             if (auto* client = aiConversationService->getLLMClient()) {
@@ -1581,16 +2026,9 @@ void Application::run() {
         // Render Interaction Point Tuner
         renderInteractionTuner();
 
-        // Render Asset Editor panel (when launched with --asset-editor)
-        renderAssetEditorUI();
-
-        // Render Anim Editor panel (when launched with --anim-editor)
-        renderAnimEditorUI();
-
-        // Render Interaction Editor panel (when launched with --interaction-editor)
-        renderInteractionEditorUI();
-
-        // Render Dialogue Box
+        // Render Template Spawner
+        renderTemplateSpawner();
+        renderClickActions();
         if (dialogueSystem) {
             imguiRenderer->renderDialogueBox(dialogueSystem.get());
         }
@@ -1607,26 +2045,28 @@ void Application::run() {
             }
 
             if (interactionManager && interactionManager->shouldShowPrompt()) {
-                // NPC interaction prompt
-                auto* nearestNPC = interactionManager->getNearestInteractableNPC();
-                if (nearestNPC) {
-                    bool showPrompt = !dialogueSystem || !dialogueSystem->isActive();
-                    imguiRenderer->renderInteractionPrompt(
-                        showPrompt,
-                        nearestNPC->getPosition(),
-                        cachedViewMatrix, cachedProjectionMatrix, sw, sh);
-                }
-                // Seat interaction prompt (shown when no NPC is closer)
-                if (!nearestNPC && interactionManager->isSeatInRange()) {
-                    bool showPrompt = animatedCharacter != nullptr;
-                    if (showPrompt) {
+                bool showPrompt = !dialogueSystem || !dialogueSystem->isActive();
+                if (showPrompt) {
+                    const std::string& promptLabel = interactionManager->getActivePromptText();
+                    glm::vec3 promptWorldPos = interactionManager->getActivePromptWorldPos();
+
+                    // NPC: render above head in world-space; seats/doors: bottom-center HUD
+                    auto* nearestNPC = interactionManager->getNearestInteractableNPC();
+                    if (nearestNPC) {
+                        imguiRenderer->renderInteractionPrompt(
+                            true,
+                            promptWorldPos,
+                            cachedViewMatrix, cachedProjectionMatrix, sw, sh,
+                            ("[E] " + promptLabel).c_str());
+                    } else {
+                        // Unified HUD prompt for seats, doors, and other interaction points
                         ImGui::SetNextWindowPos(ImVec2(sw * 0.5f, sh * 0.75f),
                                                 ImGuiCond_Always, ImVec2(0.5f, 0.5f));
                         ImGui::SetNextWindowBgAlpha(0.65f);
-                        ImGui::Begin("##seat_prompt", nullptr,
+                        ImGui::Begin("##interaction_prompt", nullptr,
                             ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
                             ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav);
-                        ImGui::Text("[E] Sit down");
+                        ImGui::Text("[E] %s", promptLabel.c_str());
                         ImGui::End();
                     }
                 }
@@ -1637,6 +2077,9 @@ void Application::run() {
         if (renderCoordinator) {
             renderCoordinator->renderUI();
         }
+
+        // Render D&D Combat HUD (initiative order, HP bars, whose-turn indicator)
+        imguiRenderer->renderCombatHUD(&m_rpgInitiative, &m_rpgParty, entityRegistry.get());
 
         // Render Death overlay
         if (respawnSystem.isPlayerDead()) {
@@ -1765,7 +2208,7 @@ void Application::cleanup() {
     objectTemplateManager.reset();
     inputController.reset();
     
-    // Clear entities BEFORE physics cleanup — they hold raw pointers to physics bodies
+    // Clear entities BEFORE physics cleanup  --  they hold raw pointers to physics bodies
     entities.clear();
     player = nullptr;
     physicsCharacter = nullptr;
@@ -1878,9 +2321,13 @@ void Application::update(float deltaTime) {
         combatSystem->update(deltaTime);
     }
 
+    // Drive enemy turns in D&D initiative combat
+    m_combatAI.tick(deltaTime);
+
     // Update interaction detection (use actual player position, not camera)
     if (interactionManager) {
         glm::vec3 playerPos(0);
+        glm::vec3 playerFront(0, 0, 1);
         if (physicsCharacter && currentControlTarget == ControlTarget::PhysicsCharacter)
             playerPos = physicsCharacter->getPosition();
         else if (animatedCharacter && currentControlTarget == ControlTarget::AnimatedCharacter)
@@ -1889,7 +2336,53 @@ void Application::update(float deltaTime) {
             playerPos = spiderCharacter->getPosition();
         else if (camera)
             playerPos = camera->getPosition();
-        interactionManager->update(deltaTime, playerPos);
+        if (camera)
+            playerFront = camera->getFront();
+        interactionManager->update(deltaTime, playerPos, playerFront);
+    }
+
+    // Update door animations (drives kinematic voxel transforms)
+    if (doorManager) {
+        doorManager->update(deltaTime);
+    }
+
+    // Update dynamic furniture (sync physics transforms, re-staticize on rest)
+    if (dynamicFurnitureManager) {
+        dynamicFurnitureManager->update(deltaTime);
+        // Update grabbed furniture position to track camera
+        if (dynamicFurnitureManager->isGrabbing() && inputManager) {
+            dynamicFurnitureManager->updateGrabPosition(
+                inputManager->getCameraPosition(),
+                inputManager->getCameraFront());
+        }
+        // Sprint-to-move: check player collision with furniture while sprinting
+        // Use character body position (feet), not camera, for accurate AABB overlap
+        if (inputManager && deltaTime > 0.0f) {
+            bool sprinting = inputManager->isKeyPressed(GLFW_KEY_LEFT_SHIFT) ||
+                             inputManager->isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
+            glm::vec3 charPos(0.0f);
+            glm::vec3 charVel(0.0f);
+            bool hasChar = false;
+            if (animatedCharacter) {
+                charPos = animatedCharacter->getPosition(); // feet position
+                // Approximate body center (half height up)
+                charPos.y += animatedCharacter->getControllerHalfHeight();
+                // Velocity from camera delta (character doesn't expose velocity)
+                glm::vec3 camPos = inputManager->getCameraPosition();
+                charVel = (camPos - lastCameraPos) / deltaTime;
+                charVel.y = 0.0f; // Only horizontal movement matters
+                hasChar = true;
+            } else if (physicsCharacter) {
+                charPos = physicsCharacter->getPosition();
+                glm::vec3 camPos = inputManager->getCameraPosition();
+                charVel = (camPos - lastCameraPos) / deltaTime;
+                charVel.y = 0.0f;
+                hasChar = true;
+            }
+            if (hasChar) {
+                dynamicFurnitureManager->checkPlayerFurnitureCollision(charPos, charVel, sprinting);
+            }
+        }
     }
 
     // Update dialogue & speech bubbles
@@ -1907,6 +2400,23 @@ void Application::update(float deltaTime) {
         // If animated character just finished standing up, release its seat claim
         if (wasAnimCharSitting && animatedCharacter && !animatedCharacter->isSitting()) {
             if (interactionManager) interactionManager->releaseSeat("player");
+        }
+
+        // Remove character once all its voxels have been derezed
+        if (animatedCharacter && animatedCharacter->isFullyDerezed()) {
+            LOG_INFO("Application", "Derez complete - removing character from scene");
+            // Unregister from entity registry BEFORE erasing the entity, so nothing
+            // (e.g. WorldOutliner) can dereference the dangling pointer after deletion.
+            if (entityRegistry) {
+                std::string entityId = entityRegistry->getEntityId(animatedCharacter);
+                if (!entityId.empty()) entityRegistry->unregisterEntity(entityId);
+            }
+            auto it = std::remove_if(entities.begin(), entities.end(),
+                [this](const std::unique_ptr<Scene::Entity>& e) {
+                    return e.get() == animatedCharacter;
+                });
+            if (it != entities.end()) entities.erase(it, entities.end());
+            animatedCharacter = nullptr;
         }
     }
 
@@ -1964,14 +2474,18 @@ void Application::update(float deltaTime) {
         // Block voxel hover when ImGui wants the mouse (e.g. hovering any panel),
         // or entirely in anim-editor mode (no voxel editing there).
         bool blockHover = inputManager->isMouseCaptured()
-                       || ImGui::GetIO().WantCaptureMouse
+                       || (ImGui::GetIO().WantCaptureMouse && !m_viewportHovered)
                        || m_animEditorMode;
+        // Remap mouse from window-space to viewport-local, then scale to
+        // full-window coords so the existing ray calculation stays correct.
+        double remappedX = (mouseX - m_viewportPosX) / m_viewportSizeW * windowManager->getWidth();
+        double remappedY = (mouseY - m_viewportPosY) / m_viewportSizeH * windowManager->getHeight();
         voxelInteractionSystem->updateMouseHover(
             inputManager->getCameraPosition(),
             inputManager->getCameraFront(),
             inputManager->getCameraUp(),
-            mouseX,
-            mouseY,
+            remappedX,
+            remappedY,
             blockHover
         );
         
@@ -2004,6 +2518,22 @@ void Application::update(float deltaTime) {
             
             raycastVisualizer->setRaycastData(vizData);
 
+            // Shared wireframe box helper for debug visualization
+            auto addWireBox = [&](const glm::vec3& mn, const glm::vec3& mx, const glm::vec3& col) {
+                raycastVisualizer->addLine({mn.x,mn.y,mn.z},{mx.x,mn.y,mn.z},col);
+                raycastVisualizer->addLine({mx.x,mn.y,mn.z},{mx.x,mn.y,mx.z},col);
+                raycastVisualizer->addLine({mx.x,mn.y,mx.z},{mn.x,mn.y,mx.z},col);
+                raycastVisualizer->addLine({mn.x,mn.y,mx.z},{mn.x,mn.y,mn.z},col);
+                raycastVisualizer->addLine({mn.x,mx.y,mn.z},{mx.x,mx.y,mn.z},col);
+                raycastVisualizer->addLine({mx.x,mx.y,mn.z},{mx.x,mx.y,mx.z},col);
+                raycastVisualizer->addLine({mx.x,mx.y,mx.z},{mn.x,mx.y,mx.z},col);
+                raycastVisualizer->addLine({mn.x,mx.y,mx.z},{mn.x,mx.y,mn.z},col);
+                raycastVisualizer->addLine({mn.x,mn.y,mn.z},{mn.x,mx.y,mn.z},col);
+                raycastVisualizer->addLine({mx.x,mn.y,mn.z},{mx.x,mx.y,mn.z},col);
+                raycastVisualizer->addLine({mx.x,mn.y,mx.z},{mx.x,mx.y,mx.z},col);
+                raycastVisualizer->addLine({mn.x,mn.y,mx.z},{mn.x,mx.y,mx.z},col);
+            };
+
             // Draw character controller box only (segment boxes drawn by AnimatedVoxelCharacter itself)
             auto drawCharacterHitbox = [&](Scene::AnimatedVoxelCharacter* ch, const glm::vec3& controllerColor) {
                 if (!ch) return;
@@ -2012,20 +2542,6 @@ void Application::update(float deltaTime) {
                 float hw = ch->getControllerHalfWidth();
                 glm::vec3 cMin = feet - glm::vec3(hw, 0.0f, hw);
                 glm::vec3 cMax = feet + glm::vec3(hw, 2.0f * hh, hw);
-                auto addWireBox = [&](const glm::vec3& mn, const glm::vec3& mx, const glm::vec3& col) {
-                    raycastVisualizer->addLine({mn.x,mn.y,mn.z},{mx.x,mn.y,mn.z},col);
-                    raycastVisualizer->addLine({mx.x,mn.y,mn.z},{mx.x,mn.y,mx.z},col);
-                    raycastVisualizer->addLine({mx.x,mn.y,mx.z},{mn.x,mn.y,mx.z},col);
-                    raycastVisualizer->addLine({mn.x,mn.y,mx.z},{mn.x,mn.y,mn.z},col);
-                    raycastVisualizer->addLine({mn.x,mx.y,mn.z},{mx.x,mx.y,mn.z},col);
-                    raycastVisualizer->addLine({mx.x,mx.y,mn.z},{mx.x,mx.y,mx.z},col);
-                    raycastVisualizer->addLine({mx.x,mx.y,mx.z},{mn.x,mx.y,mx.z},col);
-                    raycastVisualizer->addLine({mn.x,mx.y,mx.z},{mn.x,mx.y,mn.z},col);
-                    raycastVisualizer->addLine({mn.x,mn.y,mn.z},{mn.x,mx.y,mn.z},col);
-                    raycastVisualizer->addLine({mx.x,mn.y,mn.z},{mx.x,mx.y,mn.z},col);
-                    raycastVisualizer->addLine({mx.x,mn.y,mx.z},{mx.x,mx.y,mx.z},col);
-                    raycastVisualizer->addLine({mn.x,mn.y,mx.z},{mn.x,mx.y,mx.z},col);
-                };
                 addWireBox(cMin, cMax, controllerColor);
             };
 
@@ -2040,6 +2556,48 @@ void Application::update(float deltaTime) {
                     if (npc) {
                         drawCharacterHitbox(npc->getAnimatedCharacter(), {0.0f, 1.0f, 1.0f});
                     }
+                }
+            }
+
+            // Door hinge pivot debug lines (yellow vertical + magenta cross)
+            if (doorManager) {
+                const glm::vec3 hingeColor{1.0f, 1.0f, 0.0f};  // yellow
+                const glm::vec3 axisColor{1.0f, 0.0f, 1.0f};   // magenta
+                for (const auto& [id, door] : doorManager->getDoors()) {
+                    const glm::vec3& h = door.worldHingePos;
+                    // Vertical line through hinge (Y-axis = rotation axis)
+                    raycastVisualizer->addLine(h - glm::vec3(0, 0.5f, 0), h + glm::vec3(0, 4.0f, 0), hingeColor);
+                    // X/Z cross at hinge base
+                    raycastVisualizer->addLine(h + glm::vec3(-0.5f, 0, 0), h + glm::vec3(0.5f, 0, 0), axisColor);
+                    raycastVisualizer->addLine(h + glm::vec3(0, 0, -0.5f), h + glm::vec3(0, 0, 0.5f), axisColor);
+                    // X/Z cross at hinge top
+                    raycastVisualizer->addLine(h + glm::vec3(-0.5f, 4.0f, 0), h + glm::vec3(0.5f, 4.0f, 0), axisColor);
+                    raycastVisualizer->addLine(h + glm::vec3(0, 4.0f, -0.5f), h + glm::vec3(0, 4.0f, 0.5f), axisColor);
+                }
+            }
+
+            // Dynamic furniture compound shape AABB (orange)
+            if (dynamicFurnitureManager) {
+                const glm::vec3 furnitureColor{1.0f, 0.6f, 0.1f};
+                for (const auto& [id, obj] : dynamicFurnitureManager->getActiveObjects()) {
+                    if (!obj.voxelBody) continue;
+                    glm::vec3 mn, mx;
+                    obj.voxelBody->getWorldAABB(mn, mx);
+                    addWireBox(mn, mx, furnitureColor);
+                }
+            }
+
+            // Placed object bounding boxes (dim yellow, only for nearby objects)
+            if (placedObjectManager && camera) {
+                const glm::vec3 placedColor{0.8f, 0.8f, 0.2f};
+                glm::vec3 camPos = camera->getPosition();
+                for (const auto& [id, placed] : placedObjectManager->getAllObjects()) {
+                    // Only draw nearby objects (within 30 units)
+                    glm::vec3 center = glm::vec3(placed.boundingMin + placed.boundingMax) * 0.5f;
+                    if (glm::length(center - camPos) > 30.0f) continue;
+                    glm::vec3 mn(placed.boundingMin);
+                    glm::vec3 mx(placed.boundingMax);
+                    addWireBox(mn, mx, placedColor);
                 }
             }
 
@@ -2067,7 +2625,7 @@ void Application::update(float deltaTime) {
         chunkManager->resetFrameBreakCounter();
         // Update player position for hybrid Bullet/GPU proximity routing
         if (camera) chunkManager->setPlayerPosition(camera->getPosition());
-        // Bullet dynamic object update — always runs in hybrid mode since
+        // Bullet dynamic object update  --  always runs in hybrid mode since
         // nearby cubes use Bullet while mass debris uses GPU particles.
         chunkManager->m_dynamicObjectManager.updateAllDynamicObjects(deltaTime);
     }
@@ -2084,6 +2642,11 @@ void Application::update(float deltaTime) {
     float frameTime = std::min(deltaTime, MAX_DELTA);
     physicsDeltaAccumulator += frameTime;
     
+    // Sync kinematic door/platform colliders into Bullet before physics step
+    if (kinematicVoxelManager) {
+        kinematicVoxelManager->syncCollidersToPhysics();
+    }
+
     // Run physics in fixed timesteps
     while (physicsDeltaAccumulator >= FIXED_TIMESTEP) {
         physicsWorld->stepSimulation(FIXED_TIMESTEP, 1, FIXED_TIMESTEP); // Pure fixed timestep
@@ -2214,7 +2777,7 @@ void Application::update(float deltaTime) {
         if (m_ieChar && m_iePreviewState != InteractionPreviewState::None) {
             switch (m_iePreviewState) {
                 case InteractionPreviewState::SittingDown:
-                    // Wait for sit-down to finish → auto-transitions to SittingIdle
+                    // Wait for sit-down to finish â†’ auto-transitions to SittingIdle
                     if (m_ieChar->isSitting() &&
                         m_ieChar->getAnimationState() == Scene::AnimatedCharacterState::SittingIdle) {
                         m_iePreviewState = m_ieAutoPreview
@@ -2277,20 +2840,20 @@ void Application::handleInput() {
         
         float moveMagnitude = isSprinting ? 1.0f : 0.5f;
 
-        if (inputManager->isKeyPressed(GLFW_KEY_W) || inputManager->isKeyPressed(GLFW_KEY_UP)) forward -= moveMagnitude;
-        if (inputManager->isKeyPressed(GLFW_KEY_S) || inputManager->isKeyPressed(GLFW_KEY_DOWN)) forward += moveMagnitude;
-        
+        if (inputManager->isKeyPressed(GLFW_KEY_W)) forward -= moveMagnitude;
+        if (inputManager->isKeyPressed(GLFW_KEY_S)) forward += moveMagnitude;
+
         // A/D for Turn (if controlling AnimatedCharacter)
         if (currentControlTarget == ControlTarget::AnimatedCharacter) {
-            if (inputManager->isKeyPressed(GLFW_KEY_A) || inputManager->isKeyPressed(GLFW_KEY_LEFT)) turn -= 1.0f;
-            if (inputManager->isKeyPressed(GLFW_KEY_D) || inputManager->isKeyPressed(GLFW_KEY_RIGHT)) turn += 1.0f;
-            
+            if (inputManager->isKeyPressed(GLFW_KEY_A)) turn -= 1.0f;
+            if (inputManager->isKeyPressed(GLFW_KEY_D)) turn += 1.0f;
+
             // Q for Strafe left (E reserved for NPC interaction)
             if (inputManager->isKeyPressed(GLFW_KEY_Q)) strafe -= moveMagnitude;
         } else {
             // Standard Tank Controls for others
-            if (inputManager->isKeyPressed(GLFW_KEY_A) || inputManager->isKeyPressed(GLFW_KEY_LEFT)) turn -= 1.0f;
-            if (inputManager->isKeyPressed(GLFW_KEY_D) || inputManager->isKeyPressed(GLFW_KEY_RIGHT)) turn += 1.0f;
+            if (inputManager->isKeyPressed(GLFW_KEY_A)) turn -= 1.0f;
+            if (inputManager->isKeyPressed(GLFW_KEY_D)) turn += 1.0f;
         }
 
         if (currentControlTarget == ControlTarget::Spider && spiderCharacter) {
@@ -2422,8 +2985,8 @@ void Application::renderInteractionTuner() {
                            def.pointId.c_str(), def.type.c_str(), groupsLabel.c_str());
         ImGui::Separator();
 
-        // === Asset-level settings (saved to .txt) ===
-        if (ImGui::TreeNodeEx("Asset Point (saved to .txt)", ImGuiTreeNodeFlags_DefaultOpen)) {
+        // === Asset-level settings (saved to .voxel) ===
+        if (ImGui::TreeNodeEx("Asset Point (saved to .voxel)", ImGuiTreeNodeFlags_DefaultOpen)) {
             ImGui::TextDisabled("Seat Anchor: base reference point on the seat");
             assetChanged |= ImGui::InputFloat3("Seat Anchor##end", &def.localOffset.x, "%.4f");
             ImGui::Spacing();
@@ -2485,7 +3048,7 @@ void Application::renderInteractionTuner() {
     ImGui::Separator();
 
     // Save buttons
-    if (ImGui::Button("Save Asset (.txt)")) {
+    if (ImGui::Button("Save Asset (.voxel)")) {
         if (objectTemplateManager &&
             objectTemplateManager->saveInteractionDefs(tunerSelectedTemplate, defs)) {
             LOG_INFO("Application", "Saved asset interaction points for '{}' to template file.", tunerSelectedTemplate);
@@ -2520,6 +3083,125 @@ void Application::renderInteractionTuner() {
         ImGui::Separator();
         ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Green cross = seat anchor");
         ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "Yellow cross = character feet (worldPosition)");
+    }
+
+    ImGui::End();
+}
+
+void Application::renderTemplateSpawner() {
+    if (!showTemplateSpawner || !objectTemplateManager) return;
+
+    ImGui::SetNextWindowSize(ImVec2(320, 260), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Template Spawner", &showTemplateSpawner)) {
+        ImGui::End();
+        return;
+    }
+
+    // Template selector combo
+    auto templateNames = objectTemplateManager->getTemplateNames();
+    if (!templateNames.empty()) {
+        if (spawnerTemplateIdx >= static_cast<int>(templateNames.size()))
+            spawnerTemplateIdx = 0;
+        if (ImGui::BeginCombo("Template", templateNames[spawnerTemplateIdx].c_str())) {
+            for (int i = 0; i < static_cast<int>(templateNames.size()); ++i) {
+                bool selected = (spawnerTemplateIdx == i);
+                if (ImGui::Selectable(templateNames[i].c_str(), selected))
+                    spawnerTemplateIdx = i;
+                if (selected) ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+    }
+
+    // Position inputs
+    ImGui::InputFloat3("Position", spawnerPos);
+
+    // Fill from crosshair button
+    if (ImGui::Button("From Crosshair")) {
+        if (voxelInteractionSystem && voxelInteractionSystem->hasHoveredCube()) {
+            const auto& loc = voxelInteractionSystem->getCurrentHoveredLocation();
+            glm::vec3 pos = glm::vec3(loc.worldPos) + loc.hitNormal;
+            spawnerPos[0] = pos.x;
+            spawnerPos[1] = pos.y;
+            spawnerPos[2] = pos.z;
+        } else if (camera) {
+            glm::vec3 pos = camera->getPosition() + camera->getFront() * 5.0f;
+            spawnerPos[0] = pos.x;
+            spawnerPos[1] = pos.y;
+            spawnerPos[2] = pos.z;
+        }
+    }
+
+    // Rotation
+    ImGui::SliderInt("Rotation", &spawnerRotation, 0, 270);
+    // Snap to nearest 90
+    spawnerRotation = (spawnerRotation / 90) * 90;
+
+    ImGui::Separator();
+    if (ImGui::Button("Spawn", ImVec2(-1, 30)) && !templateNames.empty()) {
+        const std::string& name = templateNames[spawnerTemplateIdx];
+        glm::ivec3 pos((int)spawnerPos[0], (int)spawnerPos[1], (int)spawnerPos[2]);
+        if (placedObjectManager) {
+            // Route through PlacedObjectManager so the object is tracked, shows in World Outliner, and persists
+            std::string objId = placedObjectManager->placeTemplate(name, pos, spawnerRotation);
+            LOG_INFO_FMT("TemplateSpawner", "Placed '" << name << "' as '" << objId << "' at ("
+                         << pos.x << "," << pos.y << "," << pos.z << ") rot=" << spawnerRotation);
+            // Persist to DB so objects survive engine restart
+            if (chunkManager) {
+                auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+                if (ws) placedObjectManager->saveToDb(ws->getDb());
+            }
+        } else {
+            objectTemplateManager->spawnTemplate(name, glm::vec3(pos), true, spawnerRotation);
+            LOG_INFO_FMT("TemplateSpawner", "Spawned '" << name << "' (untracked) at ("
+                         << pos.x << "," << pos.y << "," << pos.z << ") rot=" << spawnerRotation);
+        }
+    }
+
+    ImGui::End();
+}
+
+void Application::renderClickActions() {
+    if (!showClickActions) return;
+
+    ImGui::SetNextWindowSize(ImVec2(300, 280), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Click Actions", &showClickActions)) {
+        ImGui::End();
+        return;
+    }
+
+    // Target mode selector (redundant with arrow keys)
+    if (voxelInteractionSystem) {
+        int mode = static_cast<int>(voxelInteractionSystem->getTargetMode());
+        const char* modeNames[] = {"Cube", "Subcube", "Microcube"};
+        if (ImGui::Combo("Target Mode", &mode, modeNames, 3)) {
+            voxelInteractionSystem->setTargetMode(static_cast<TargetMode>(mode));
+        }
+    }
+
+    ImGui::Separator();
+    ImGui::Text("Furniture Physics");
+
+    // Furniture hit force
+    if (voxelInteractionSystem) {
+        ImGui::SliderFloat("Hit Force", &voxelInteractionSystem->furnitureHitForce, 0.0f, 20.0f, "%.1f");
+        ImGui::SetItemTooltip("Impulse applied when clicking furniture (0 = activate only, no push)");
+    }
+
+    if (dynamicFurnitureManager) {
+        int active = static_cast<int>(dynamicFurnitureManager->activeCount());
+        ImGui::Text("Active: %d / %d", active, Core::DynamicFurnitureManager::MAX_DYNAMIC_FURNITURE);
+
+        // Reset all active furniture to original positions
+        if (active > 0) {
+            if (ImGui::Button("Reset All to Original", ImVec2(-1, 0))) {
+                std::vector<std::string> ids;
+                for (const auto& [id, _] : dynamicFurnitureManager->getActiveObjects())
+                    ids.push_back(id);
+                for (const auto& id : ids)
+                    dynamicFurnitureManager->deactivate(id, true);
+            }
+        }
     }
 
     ImGui::End();
@@ -2651,6 +3333,146 @@ void Application::renderCharacterCustomizer() {
     ImGui::End();
 }
 
+// ============================================================================
+// Animated Character inspector panel
+// ============================================================================
+
+void Application::renderAnimatedCharPanel() {
+    if (!animatedCharacter) return;
+
+    if (!showAnimatedCharPanel) {
+        ImGui::SetNextWindowPos(ImVec2(10, 340), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(210, 30), ImGuiCond_Always);
+        ImGui::SetNextWindowBgAlpha(0.6f);
+        ImGuiWindowFlags hint = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize
+                              | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoFocusOnAppearing;
+        if (ImGui::Begin("##animcharhint", nullptr, hint)) {
+            if (ImGui::Button("Animated Char Inspector")) showAnimatedCharPanel = true;
+        }
+        ImGui::End();
+        return;
+    }
+
+    ImGui::SetNextWindowSize(ImVec2(360, 620), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(10, 340), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Animated Character Inspector", &showAnimatedCharPanel)) {
+        ImGui::End();
+        return;
+    }
+
+    // --- State & Position ---
+    ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "State: %s",
+        animatedCharacter->stateToString(animatedCharacter->getAnimationState()).c_str());
+
+    glm::vec3 pos = animatedCharacter->getPosition();
+    ImGui::Text("Position: %.2f, %.2f, %.2f", pos.x, pos.y, pos.z);
+    ImGui::Text("Yaw: %.1f deg", glm::degrees(animatedCharacter->getYaw()));
+
+    glm::vec3 vel = animatedCharacter->getControllerVelocity();
+    float speed = glm::length(glm::vec2(vel.x, vel.z));
+    ImGui::Text("Speed: %.2f m/s  (vel: %.1f, %.1f, %.1f)", speed, vel.x, vel.y, vel.z);
+
+    ImGui::Text("Archetype: %s", animatedCharacter->getArchetype().c_str());
+    ImGui::Separator();
+
+    // --- Animation ---
+    if (ImGui::CollapsingHeader("Animation", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::Text("Clip: %s", animatedCharacter->getCurrentClipName().c_str());
+        float progress = animatedCharacter->getAnimationProgress();
+        float duration = animatedCharacter->getAnimationDuration();
+        ImGui::Text("Progress: %.0f%%  (%.2f / %.2f s)", progress * 100.0f,
+                     progress * duration, duration);
+        ImGui::ProgressBar(progress, ImVec2(-1, 0));
+
+        float bd = animatedCharacter->getBlendDuration();
+        if (ImGui::SliderFloat("Blend duration (s)", &bd, 0.0f, 1.0f, "%.2f"))
+            animatedCharacter->setBlendDuration(bd);
+
+        float stepH = animatedCharacter->getMaxStepHeight();
+        if (ImGui::SliderFloat("Step-up height (m)", &stepH, 0.0f, 1.5f, "%.2f"))
+            animatedCharacter->setMaxStepHeight(stepH);
+
+        // Available clips
+        const auto& clips = animatedCharacter->getAnimationClips();
+        char clipsLabel[64];
+        snprintf(clipsLabel, sizeof(clipsLabel), "Clips (%d)", (int)clips.size());
+        if (ImGui::TreeNode(clipsLabel)) {
+            for (const auto& clip : clips) {
+                ImGui::BulletText("%s  dur=%.2fs spd=%.1f",
+                    clip.name.c_str(), clip.duration, clip.speed);
+            }
+            ImGui::TreePop();
+        }
+    }
+
+    // --- Voxel Model Stats ---
+    if (ImGui::CollapsingHeader("Voxel Model", ImGuiTreeNodeFlags_DefaultOpen)) {
+        const auto& model = animatedCharacter->getVoxelModel();
+        ImGui::Text("Bone shapes: %d", (int)model.shapes.size());
+
+        int totalVoxels = 0;
+        for (const auto& shape : model.shapes) {
+            int vx = std::max(1, (int)std::round(shape.size.x));
+            int vy = std::max(1, (int)std::round(shape.size.y));
+            int vz = std::max(1, (int)std::round(shape.size.z));
+            totalVoxels += vx * vy * vz;
+        }
+        ImGui::Text("Approx total voxels: %d", totalVoxels);
+
+        if (ImGui::TreeNode("Shape details")) {
+            const auto& skel = animatedCharacter->getSkeleton();
+            for (const auto& shape : model.shapes) {
+                const char* name = (shape.boneId >= 0 && shape.boneId < (int)skel.bones.size())
+                    ? skel.bones[shape.boneId].name.c_str() : "?";
+                ImGui::Text("  [%2d] %s  size(%.1f,%.1f,%.1f) off(%.1f,%.1f,%.1f)",
+                    shape.boneId, name,
+                    shape.size.x, shape.size.y, shape.size.z,
+                    shape.offset.x, shape.offset.y, shape.offset.z);
+            }
+            ImGui::TreePop();
+        }
+    }
+
+    // --- Skeleton ---
+    if (ImGui::CollapsingHeader("Skeleton")) {
+        const auto& skel = animatedCharacter->getSkeleton();
+        ImGui::Text("Bones: %d", (int)skel.bones.size());
+
+        for (const auto& bone : skel.bones) {
+            const char* parentName = (bone.parentId >= 0 && bone.parentId < (int)skel.bones.size())
+                ? skel.bones[bone.parentId].name.c_str() : "(root)";
+
+            char label[128];
+            snprintf(label, sizeof(label), "[%2d] %s", bone.id, bone.name.c_str());
+            bool open = ImGui::TreeNode(label);
+            if (open) {
+                ImGui::Text("Parent: [%d] %s", bone.parentId, parentName);
+                glm::vec3 lp = bone.localPosition;
+                ImGui::Text("Local pos: %.3f, %.3f, %.3f", lp.x, lp.y, lp.z);
+                glm::vec3 gp = glm::vec3(bone.globalTransform[3]);
+                ImGui::Text("Model pos: %.3f, %.3f, %.3f", gp.x, gp.y, gp.z);
+                ImGui::TreePop();
+            }
+        }
+    }
+
+    // --- Attachments ---
+    if (animatedCharacter->hasAttachments()) {
+        if (ImGui::CollapsingHeader("Attachments")) {
+            ImGui::Text("Has active bone attachments");
+        }
+    }
+
+    // --- Physics ---
+    if (ImGui::CollapsingHeader("Physics")) {
+        ImGui::Text("Controller half-height: %.3f m", animatedCharacter->getControllerHalfHeight());
+        ImGui::Text("Controller half-width: %.3f m", animatedCharacter->getControllerHalfWidth());
+        ImGui::Text("Sitting: %s", animatedCharacter->isSitting() ? "Yes" : "No");
+    }
+
+    ImGui::End();
+}
+
 void Application::toggleLightingControls() {
     if (renderCoordinator) {
         renderCoordinator->toggleLightingControls();
@@ -2741,7 +3563,7 @@ void Application::toggleRaycastVisualization() {
     }
 }
 
-void Application::cycleRaycastTargetMode() {
+void Application::cycleRaycastTargetMode(int direction) {
     if (voxelInteractionSystem) {
         voxelInteractionSystem->cycleTargetMode();
         
@@ -2866,10 +3688,22 @@ void Application::toggleCharacterControl() {
         }
         // Animated character control logic will need to be added
         
+    } else if (currentControlTarget == ControlTarget::AnimatedCharacter) {
+        currentControlTarget = ControlTarget::PhysicsCharacter;
+        LOG_INFO("Application", "Control switched to Physics Character");
+
+        if (animatedCharacter) animatedCharacter->setControlInput(0, 0, 0);
+        if (physicsCharacter) physicsCharacter->setControlActive(true);
+        if (camera) {
+            camera->setDistanceFromTarget(4.0f);
+            if (camera->getMode() == Graphics::CameraMode::Free) {
+                camera->setMode(Graphics::CameraMode::ThirdPerson);
+            }
+        }
     } else {
         currentControlTarget = ControlTarget::PhysicsCharacter;
         LOG_INFO("Application", "Control switched to Physics Character");
-        
+
         if (physicsCharacter) physicsCharacter->setControlActive(true);
         if (camera) {
             camera->setDistanceFromTarget(4.0f);
@@ -2878,7 +3712,7 @@ void Application::toggleCharacterControl() {
             }
         }
     }
-    
+
     // Update flag for legacy checks (though we should migrate to using enum everywhere)
     isControllingPhysicsCharacter = (currentControlTarget == ControlTarget::PhysicsCharacter);
 }
@@ -2976,69 +3810,37 @@ void Application::setControlTarget(const std::string& targetName) {
     LOG_INFO("Application", "Control target set to: " + targetName);
 }
 
-void Application::derezCharacter(float explosionStrength) {
-    if (animatedCharacter && chunkManager) {
-        LOG_INFO("Application", "Triggering derez on animated character");
-
-        // 1. Spawn debris — GPU path preferred, CPU Verlet/Bullet path as fallback
-        if (gpuParticlePhysics && gpuParticlePhysics->isInitialized()) {
-            const auto& parts = animatedCharacter->getParts();
-            int spawnedCount = 0;
-            for (const auto& part : parts) {
-                if (!part.rigidBody) continue;
-                btTransform trans;
-                if (part.rigidBody->getMotionState())
-                    part.rigidBody->getMotionState()->getWorldTransform(trans);
-                else
-                    trans = part.rigidBody->getWorldTransform();
-                btVector3 worldPos = trans * btVector3(part.offset.x, part.offset.y, part.offset.z);
-                btVector3 vel      = part.rigidBody->getLinearVelocity();
-                btVector3 angVel   = part.rigidBody->getAngularVelocity();
-                btQuaternion rot   = trans.getRotation();
-
-                float randX = ((rand() % 100) / 100.0f - 0.5f) * 4.0f * explosionStrength;
-                float randY = (((rand() % 100) / 100.0f) * 4.0f + 2.0f) * explosionStrength;
-                float randZ = ((rand() % 100) / 100.0f - 0.5f) * 4.0f * explosionStrength;
-
-                GpuParticlePhysics::SpawnParams sp;
-                sp.position    = glm::vec3(worldPos.x(), worldPos.y(), worldPos.z());
-                sp.velocity    = glm::vec3(vel.x() + randX, vel.y() + randY, vel.z() + randZ);
-                sp.angularVel  = glm::vec3(angVel.x(), angVel.y(), angVel.z());
-                sp.rotation    = glm::quat(rot.w(), rot.x(), rot.y(), rot.z());
-                sp.scale       = part.scale;
-                sp.color       = part.color;
-                sp.materialName = "Default";
-                sp.lifetime    = 25.0f + (rand() % 100) / 10.0f; // 25-35s
-                gpuParticlePhysics->queueSpawn(sp);
-                ++spawnedCount;
-            }
-            LOG_INFO_FMT("Application", "Derez spawned " << spawnedCount << " GPU particles");
-        } else {
-            chunkManager->m_dynamicObjectManager.derezCharacter(animatedCharacter, explosionStrength);
-        }
-        
-        // 2. Remove character from entities list
-        // Find and remove the unique_ptr that matches animatedCharacter
-        auto it = std::remove_if(entities.begin(), entities.end(), 
-            [this](const std::unique_ptr<Scene::Entity>& entity) {
-                return entity.get() == animatedCharacter;
-            });
-            
-        if (it != entities.end()) {
-            entities.erase(it, entities.end());
-            LOG_INFO("Application", "Animated character removed from scene");
-        }
-        
-        // 3. Clear the pointer
-        animatedCharacter = nullptr;
-        
-        // If we were controlling it, switch control
-        if (currentControlTarget == ControlTarget::AnimatedCharacter) {
-            toggleCharacterControl(); // Switch to next available
-        }
-    } else {
-        LOG_WARN("Application", "Cannot derez: No animated character or chunk manager");
+void Application::derezCharacter(float duration) {
+    if (!animatedCharacter) {
+        LOG_WARN("Application", "Cannot derez: no animated character");
+        return;
     }
+    if (animatedCharacter->isDerezzing()) {
+        LOG_WARN("Application", "Cannot derez: character is already derezzing");
+        return;
+    }
+
+    LOG_INFO("Application", "Beginning derez on animated character");
+
+    if (gpuParticlePhysics && gpuParticlePhysics->isInitialized()) {
+        // GPU path: staggered voxel-by-voxel falling apart
+        animatedCharacter->beginDerez(gpuParticlePhysics.get(), duration,
+                                      Scene::DerezPattern::Wave);
+    } else {
+        // Fallback: instant CPU debris if GPU physics not available
+        if (chunkManager)
+            chunkManager->m_dynamicObjectManager.derezCharacter(animatedCharacter, 1.0f);
+        auto it = std::remove_if(entities.begin(), entities.end(),
+            [this](const std::unique_ptr<Scene::Entity>& e) {
+                return e.get() == animatedCharacter;
+            });
+        if (it != entities.end()) entities.erase(it, entities.end());
+        animatedCharacter = nullptr;
+    }
+
+    // Release player control immediately
+    if (currentControlTarget == ControlTarget::AnimatedCharacter)
+        toggleCharacterControl();
 }
 
 void Application::spawnTestAINPC() {
@@ -3100,16 +3902,19 @@ void Application::toggleAISystem() {
 }
 
 void Application::interactWithNPC() {
-    if (!interactionManager) return;
+    LOG_WARN("Application", "interactWithNPC() called  --  E key pressed");
+    if (!interactionManager) { LOG_WARN("Application", "  -> no interactionManager"); return; }
 
     // If dialogue is already active, advance it instead of starting new interaction
     if (dialogueSystem && dialogueSystem->isActive()) {
+        LOG_WARN("Application", "  -> dialogue active, advancing");
         dialogueSystem->advanceDialogue();
         return;
     }
 
     // If animated character is currently seated, E = stand up
     if (animatedCharacter && animatedCharacter->isSitting()) {
+        LOG_WARN("Application", "  -> character sitting, standing up");
         animatedCharacter->standUp();
         if (interactionManager) interactionManager->releaseSeat("player");
         return;
@@ -3123,6 +3928,7 @@ void Application::interactWithNPC() {
         playerEntity = animatedCharacter;
     else if (currentControlTarget == ControlTarget::Spider && spiderCharacter)
         playerEntity = spiderCharacter;
+    LOG_WARN("Application", "  -> calling tryInteract, playerEntity={}", playerEntity ? "valid" : "null");
     interactionManager->tryInteract(playerEntity);
 }
 
@@ -3156,7 +3962,7 @@ void Application::autoLoadGameDefinition() {
         nlohmann::json gameDef = nlohmann::json::parse(f);
 
         // If chunks were already loaded from the database (pre-baked world),
-        // skip world generation from the definition — it would overwrite the
+        // skip world generation from the definition  --  it would overwrite the
         // pre-existing terrain and is very slow.
         if (gameDef.contains("world") && chunkManager && !chunkManager->chunks.empty()) {
             LOG_INFO("Application", "Skipping world generation - {} chunks already loaded from database", chunkManager->chunks.size());
@@ -3168,6 +3974,7 @@ void Application::autoLoadGameDefinition() {
         subsystems.npcManager       = npcManager.get();
         subsystems.entityRegistry   = entityRegistry.get();
         subsystems.templateManager  = objectTemplateManager.get();
+        subsystems.placedObjectManager = placedObjectManager.get();
         subsystems.gameEventLog     = gameEventLog.get();
         subsystems.locationRegistry = locationRegistry;
         subsystems.camera           = camera;
@@ -3219,19 +4026,19 @@ void Application::autoLoadGameDefinition() {
                 inputManager->setYawPitch(camera->getYaw(), camera->getPitch());
             }
 
-            // If a player was spawned, switch to third-person camera and character control
-            if (result.playerSpawned && camera) {
-                camera->setMode(Graphics::CameraMode::ThirdPerson);
+            // If a player was spawned, set up character control but keep camera in Free mode
+            // (user can switch to ThirdPerson with V)
+            if (result.playerSpawned) {
                 if (animatedCharacter) {
                     currentControlTarget = ControlTarget::AnimatedCharacter;
                     isControllingPhysicsCharacter = false;
                     camera->setDistanceFromTarget(4.0f);
-                    LOG_INFO("Application", "Camera set to ThirdPerson following animated player");
+                    LOG_INFO("Application", "Player spawned (AnimatedCharacter) — camera stays Free, press V to follow");
                 } else if (physicsCharacter) {
                     currentControlTarget = ControlTarget::PhysicsCharacter;
                     isControllingPhysicsCharacter = true;
                     physicsCharacter->setControlActive(true);
-                    LOG_INFO("Application", "Camera set to ThirdPerson following physics player");
+                    LOG_INFO("Application", "Player spawned (PhysicsCharacter) — camera stays Free, press V to follow");
                 }
             }
         } else {
@@ -4051,6 +4858,61 @@ static bool handleDebugDynamicSpawnCommand(
                     {"position", {{"x", x}, {"y", y}, {"z", z}}}};
         return true;
     }
+    if (cmd.action == "spawn_voxel_body") {
+        float x = cmd.params.value("x", 0.0f);
+        float y = cmd.params.value("y", 20.0f);
+        float z = cmd.params.value("z", 0.0f);
+        float scale = cmd.params.value("scale", 1.0f);
+        float mass = cmd.params.value("mass", 1.0f);
+        float restitution = cmd.params.value("restitution", 0.2f);
+        float friction = cmd.params.value("friction", 0.6f);
+        float lifetime = cmd.params.value("lifetime", std::numeric_limits<float>::max());
+        int count = std::clamp(cmd.params.value("count", 1), 1, 5000);
+        glm::vec3 vel(0.0f);
+        if (cmd.params.contains("velocity")) {
+            vel.x = cmd.params["velocity"].value("x", 0.0f);
+            vel.y = cmd.params["velocity"].value("y", 0.0f);
+            vel.z = cmd.params["velocity"].value("z", 0.0f);
+        }
+        if (!chunkManager || !chunkManager->physicsWorld ||
+            !chunkManager->physicsWorld->getVoxelWorld()) {
+            response = {{"error", "VoxelDynamicsWorld not available"}};
+            return true;
+        }
+        auto* voxelWorld = chunkManager->physicsWorld->getVoxelWorld();
+        glm::vec3 halfExtents(scale * 0.5f);
+        float spacing = scale * 1.1f;
+        int gridSize = static_cast<int>(std::ceil(std::cbrt(static_cast<float>(count))));
+        int spawned = 0;
+        for (int i = 0; i < count; ++i) {
+            int gx = i % gridSize;
+            int gy = (i / gridSize) % gridSize;
+            int gz = i / (gridSize * gridSize);
+            glm::vec3 pos(x + gx * spacing, y + gy * spacing, z + gz * spacing);
+            auto* body = voxelWorld->createVoxelBody(pos, halfExtents, mass, restitution, friction);
+            if (body) {
+                body->linearVelocity = vel;
+                body->lifetime = lifetime;
+                ++spawned;
+            }
+        }
+        response = {{"success", true}, {"spawned", spawned}, {"system", "voxel"},
+                    {"body_count", static_cast<int>(voxelWorld->getBodyCount())},
+                    {"position", {{"x", x}, {"y", y}, {"z", z}}}};
+        return true;
+    }
+    if (cmd.action == "clear_voxel_bodies") {
+        if (!chunkManager || !chunkManager->physicsWorld ||
+            !chunkManager->physicsWorld->getVoxelWorld()) {
+            response = {{"error", "VoxelDynamicsWorld not available"}};
+            return true;
+        }
+        auto* voxelWorld = chunkManager->physicsWorld->getVoxelWorld();
+        size_t cleared = voxelWorld->getBodyCount();
+        voxelWorld->removeAllBodies();
+        response = {{"success", true}, {"cleared", cleared}};
+        return true;
+    }
     if (cmd.action == "clear_dynamics") {
         size_t bulletCleared = 0;
         uint32_t gpuCleared = 0;
@@ -4163,6 +5025,370 @@ static bool handleSubcubeMicrocubeCommand(
     return false; // not handled
 }
 
+// Helper: handle placed-object CRUD commands (extracted to reduce nesting depth)
+static bool handlePlacedObjectCommand(
+    const Core::APICommand& cmd,
+    nlohmann::json& response,
+    Core::PlacedObjectManager* placedObjectManager,
+    ChunkManager* chunkManager,
+    Core::SnapshotManager* snapshotManager)
+{
+    if (cmd.action == "list_placed_objects") {
+        if (!placedObjectManager) {
+            response = {{"error", "PlacedObjectManager not available"}};
+        } else {
+            auto objects = placedObjectManager->list();
+            nlohmann::json arr = nlohmann::json::array();
+            for (const auto& obj : objects) {
+                arr.push_back(obj.toJson());
+            }
+            response = {{"objects", arr}, {"count", objects.size()}};
+        }
+        return true;
+
+    } else if (cmd.action == "get_placed_object") {
+        if (!placedObjectManager) {
+            response = {{"error", "PlacedObjectManager not available"}};
+        } else {
+            std::string id = cmd.params.value("id", "");
+            if (id.empty()) {
+                response = {{"error", "Missing 'id' parameter"}};
+            } else {
+                const auto* obj = placedObjectManager->get(id);
+                if (!obj) {
+                    response = {{"error", "Object not found"}, {"id", id}};
+                } else {
+                    response = obj->toJson();
+                }
+            }
+        }
+        return true;
+
+    } else if (cmd.action == "remove_placed_object") {
+        if (!placedObjectManager) {
+            response = {{"error", "PlacedObjectManager not available"}};
+        } else {
+            std::string id = cmd.params.value("id", "");
+            if (id.empty()) {
+                response = {{"error", "Missing 'id' parameter"}};
+            } else {
+                const auto* obj = placedObjectManager->get(id);
+                if (obj && chunkManager && snapshotManager) {
+                    pushUndoSnapshot(chunkManager, snapshotManager,
+                                     obj->boundingMin, obj->boundingMax,
+                                     "remove_placed_object:" + id);
+                }
+                bool ok = placedObjectManager->remove(id);
+                if (ok && chunkManager) {
+                    auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+                    if (ws) placedObjectManager->saveToDb(ws->getDb());
+                }
+                response = {{"success", ok}, {"id", id}};
+            }
+        }
+        return true;
+
+    } else if (cmd.action == "move_placed_object") {
+        if (!placedObjectManager) {
+            response = {{"error", "PlacedObjectManager not available"}};
+        } else {
+            std::string id = cmd.params.value("id", "");
+            if (id.empty() || !cmd.params.contains("position")) {
+                response = {{"error", "Missing 'id' or 'position' parameter"}};
+            } else {
+                int nx = cmd.params["position"].value("x", 0);
+                int ny = cmd.params["position"].value("y", 0);
+                int nz = cmd.params["position"].value("z", 0);
+
+                const auto* obj = placedObjectManager->get(id);
+                if (obj && chunkManager && snapshotManager) {
+                    pushUndoSnapshot(chunkManager, snapshotManager,
+                                     obj->boundingMin, obj->boundingMax,
+                                     "move_placed_object:" + id);
+                }
+
+                bool ok = placedObjectManager->move(id, glm::ivec3(nx, ny, nz));
+                if (ok && chunkManager) {
+                    auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+                    if (ws) placedObjectManager->saveToDb(ws->getDb());
+                }
+                response = {{"success", ok}, {"id", id},
+                            {"position", {{"x", nx}, {"y", ny}, {"z", nz}}}};
+            }
+        }
+        return true;
+
+    } else if (cmd.action == "rotate_placed_object") {
+        if (!placedObjectManager) {
+            response = {{"error", "PlacedObjectManager not available"}};
+        } else {
+            std::string id = cmd.params.value("id", "");
+            int newRotation = cmd.params.value("rotation", -1);
+            if (id.empty() || newRotation < 0) {
+                response = {{"error", "Missing 'id' or 'rotation' parameter"}};
+            } else {
+                const auto* obj = placedObjectManager->get(id);
+                if (obj && chunkManager && snapshotManager) {
+                    pushUndoSnapshot(chunkManager, snapshotManager,
+                                     obj->boundingMin, obj->boundingMax,
+                                     "rotate_placed_object:" + id);
+                }
+                bool ok = placedObjectManager->rotate(id, newRotation);
+                if (ok && chunkManager) {
+                    auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+                    if (ws) placedObjectManager->saveToDb(ws->getDb());
+                }
+                response = {{"success", ok}, {"id", id}, {"rotation", newRotation}};
+            }
+        }
+        return true;
+
+    } else if (cmd.action == "get_objects_at") {
+        if (!placedObjectManager) {
+            response = {{"error", "PlacedObjectManager not available"}};
+        } else {
+            int x = cmd.params.value("x", 0);
+            int y = cmd.params.value("y", 0);
+            int z = cmd.params.value("z", 0);
+            auto ids = placedObjectManager->getAt(glm::ivec3(x, y, z));
+            response = {{"object_ids", ids}, {"count", ids.size()}};
+        }
+        return true;
+    }
+
+    return false; // not a placed-object command
+}
+
+// Helper: handle dynamic furniture commands (extracted to reduce nesting depth)
+static bool handleDynamicFurnitureCommand(
+    const Core::APICommand& cmd,
+    nlohmann::json& response,
+    Core::DynamicFurnitureManager* dynamicFurnitureManager)
+{
+    if (cmd.action == "activate_furniture") {
+        if (!dynamicFurnitureManager) {
+            response = {{"error", "DynamicFurnitureManager not available"}};
+        } else {
+            std::string id = cmd.params.value("id", "");
+            if (id.empty()) {
+                response = {{"error", "Missing 'id' parameter"}};
+            } else {
+                glm::vec3 impulse(
+                    cmd.params.value("impulse_x", 0.0f),
+                    cmd.params.value("impulse_y", 0.0f),
+                    cmd.params.value("impulse_z", 0.0f)
+                );
+                glm::vec3 contact(
+                    cmd.params.value("contact_x", 0.0f),
+                    cmd.params.value("contact_y", 0.0f),
+                    cmd.params.value("contact_z", 0.0f)
+                );
+                bool ok = dynamicFurnitureManager->activate(id, impulse, contact);
+                response = {{"success", ok}, {"id", id}};
+            }
+        }
+        return true;
+
+    } else if (cmd.action == "deactivate_furniture") {
+        if (!dynamicFurnitureManager) {
+            response = {{"error", "DynamicFurnitureManager not available"}};
+        } else {
+            std::string id = cmd.params.value("id", "");
+            bool restoreOriginal = cmd.params.value("restore_original", false);
+            if (id.empty()) {
+                response = {{"error", "Missing 'id' parameter"}};
+            } else {
+                bool ok = dynamicFurnitureManager->deactivate(id, restoreOriginal);
+                response = {{"success", ok}, {"id", id}};
+            }
+        }
+        return true;
+
+    } else if (cmd.action == "list_dynamic_furniture") {
+        if (!dynamicFurnitureManager) {
+            response = {{"error", "DynamicFurnitureManager not available"}};
+        } else {
+            nlohmann::json arr = nlohmann::json::array();
+            for (const auto& [id, obj] : dynamicFurnitureManager->getActiveObjects()) {
+                nlohmann::json entry;
+                entry["id"] = id;
+                entry["template"] = obj.templateName;
+                entry["mass"] = obj.totalMass;
+                entry["sleep_timer"] = obj.sleepTimer;
+                entry["is_grabbed"] = obj.isGrabbed;
+                glm::vec3 pos(obj.currentTransform[3]);
+                entry["position"] = {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}};
+                arr.push_back(entry);
+            }
+            response = {{"objects", arr}, {"count", dynamicFurnitureManager->activeCount()}};
+        }
+        return true;
+
+    } else if (cmd.action == "shatter_furniture") {
+        if (!dynamicFurnitureManager) {
+            response = {{"error", "DynamicFurnitureManager not available"}};
+        } else {
+            std::string id = cmd.params.value("id", "");
+            if (id.empty()) {
+                response = {{"error", "Missing 'id' parameter"}};
+            } else {
+                float force = cmd.params.value("force", 100.0f);
+                glm::vec3 contact(
+                    cmd.params.value("contact_x", 0.0f),
+                    cmd.params.value("contact_y", 0.0f),
+                    cmd.params.value("contact_z", 0.0f)
+                );
+                int fragments = dynamicFurnitureManager->shatter(id, force, contact);
+                response = {{"success", fragments > 0}, {"id", id}, {"fragments", fragments}};
+            }
+        }
+        return true;
+    }
+
+    return false; // not a furniture command
+}
+
+// Helper: handle door management API commands (extracted to avoid nesting depth limit)
+static bool handleDoorCommand(
+    const Core::APICommand& cmd,
+    nlohmann::json& response,
+    Core::DoorManager* doorManager,
+    Core::PlacedObjectManager* placedObjectManager)
+{
+    if (cmd.action == "register_door") {
+        if (!doorManager) {
+            response = {{"error", "DoorManager not available"}};
+        } else if (!cmd.params.contains("placed_object_id") || !cmd.params.contains("template_name")) {
+            response = {{"error", "Missing 'placed_object_id' or 'template_name'"}};
+        } else {
+            std::string poId = cmd.params.value("placed_object_id", "");
+            std::string tmplName = cmd.params.value("template_name", "");
+            int baseRot = cmd.params.value("base_rotation", 0);
+            float openAngle = cmd.params.value("open_angle", 90.0f);
+            float swingSpeed = cmd.params.value("swing_speed", 120.0f);
+            int   thickness  = cmd.params.value("thickness", 2);
+
+            glm::vec3 hingePos(0.0f);
+            if (cmd.params.contains("hinge")) {
+                hingePos.x = cmd.params["hinge"].value("x", 0.0f);
+                hingePos.y = cmd.params["hinge"].value("y", 0.0f);
+                hingePos.z = cmd.params["hinge"].value("z", 0.0f);
+            } else if (placedObjectManager) {
+                const auto* obj = placedObjectManager->get(poId);
+                if (obj) {
+                    hingePos = glm::vec3(obj->position);
+                }
+            }
+
+            bool ok = doorManager->registerDoor(poId, tmplName, hingePos, baseRot, openAngle, swingSpeed, thickness);
+            response = {{"success", ok}, {"placed_object_id", poId}};
+        }
+        return true;
+    }
+
+    if (cmd.action == "toggle_door") {
+        if (!doorManager) {
+            response = {{"error", "DoorManager not available"}};
+        } else if (!cmd.params.contains("placed_object_id")) {
+            response = {{"error", "Missing 'placed_object_id'"}};
+        } else {
+            std::string poId = cmd.params.value("placed_object_id", "");
+            doorManager->toggle(poId);
+            const auto& doors = doorManager->getDoors();
+            auto it = doors.find(poId);
+            if (it != doors.end()) {
+                response = {{"success", true}, {"placed_object_id", poId},
+                            {"is_open", it->second.isOpen},
+                            {"current_angle", it->second.currentAngle},
+                            {"target_angle", it->second.targetAngle}};
+            } else {
+                response = {{"error", "Door not found: " + poId}};
+            }
+        }
+        return true;
+    }
+
+    if (cmd.action == "open_door") {
+        if (!doorManager) {
+            response = {{"error", "DoorManager not available"}};
+        } else if (!cmd.params.contains("placed_object_id")) {
+            response = {{"error", "Missing 'placed_object_id'"}};
+        } else {
+            std::string poId = cmd.params.value("placed_object_id", "");
+            doorManager->open(poId);
+            response = {{"success", true}, {"placed_object_id", poId}};
+        }
+        return true;
+    }
+
+    if (cmd.action == "close_door") {
+        if (!doorManager) {
+            response = {{"error", "DoorManager not available"}};
+        } else if (!cmd.params.contains("placed_object_id")) {
+            response = {{"error", "Missing 'placed_object_id'"}};
+        } else {
+            std::string poId = cmd.params.value("placed_object_id", "");
+            doorManager->close(poId);
+            response = {{"success", true}, {"placed_object_id", poId}};
+        }
+        return true;
+    }
+
+    if (cmd.action == "list_doors") {
+        if (!doorManager) {
+            response = {{"error", "DoorManager not available"}};
+        } else {
+            const auto& doors = doorManager->getDoors();
+            nlohmann::json doorList = nlohmann::json::array();
+            for (const auto& [id, state] : doors) {
+                doorList.push_back({
+                    {"placed_object_id", id},
+                    {"is_open", state.isOpen},
+                    {"locked", state.locked},
+                    {"current_angle", state.currentAngle},
+                    {"open_angle", state.openAngle},
+                    {"base_rotation", state.baseRotation},
+                    {"swing_speed", state.swingSpeed},
+                    {"settled", state.settled},
+                    {"hinge", {{"x", state.worldHingePos.x}, {"y", state.worldHingePos.y}, {"z", state.worldHingePos.z}}}
+                });
+            }
+            response = {{"doors", doorList}, {"count", doors.size()}};
+        }
+        return true;
+    }
+
+    if (cmd.action == "set_door_lock") {
+        if (!doorManager) {
+            response = {{"error", "DoorManager not available"}};
+        } else if (!cmd.params.contains("placed_object_id")) {
+            response = {{"error", "Missing 'placed_object_id'"}};
+        } else {
+            std::string poId = cmd.params.value("placed_object_id", "");
+            bool locked = cmd.params.value("locked", true);
+            std::string keyItemId = cmd.params.value("key_item_id", "");
+            doorManager->setLocked(poId, locked, keyItemId);
+            response = {{"success", true}, {"placed_object_id", poId}, {"locked", locked}};
+        }
+        return true;
+    }
+
+    if (cmd.action == "unregister_door") {
+        if (!doorManager) {
+            response = {{"error", "DoorManager not available"}};
+        } else if (!cmd.params.contains("placed_object_id")) {
+            response = {{"error", "Missing 'placed_object_id'"}};
+        } else {
+            std::string poId = cmd.params.value("placed_object_id", "");
+            doorManager->unregisterDoor(poId);
+            response = {{"success", true}, {"placed_object_id", poId}};
+        }
+        return true;
+    }
+
+    return false; // not a door command
+}
+
 void Application::processAPICommands() {
     if (!apiCommandQueue || !apiCommandQueue->hasPending()) return;
 
@@ -4181,7 +5407,7 @@ void Application::processAPICommands() {
 
             // Handle subcube/microcube commands via helper (avoids nesting depth limit)
             if (handleSubcubeMicrocubeCommand(cmd, response, chunkManager, npcManager.get())) {
-                // handled — skip to promise fulfillment below
+                // handled  --  skip to promise fulfillment below
             } else if (cmd.action == "spawn_entity") {
                 // Required: "type" (physics/spider/animated), "position" {x,y,z}
                 // Optional: "id", "animFile"
@@ -4333,7 +5559,7 @@ void Application::processAPICommands() {
                 }
 
             } else if (cmd.action == "fill_region") {
-                // Fill a 3D box with voxels — batched per-chunk for performance
+                // Fill a 3D box with voxels  --  batched per-chunk for performance
                 if (!chunkManager) {
                     response = {{"error", "ChunkManager not available"}};
                 } else {
@@ -4479,7 +5705,7 @@ void Application::processAPICommands() {
                 }
 
             } else if (cmd.action == "clear_region") {
-                // Clear (remove) all voxels in a 3D box — batched per-chunk for performance
+                // Clear (remove) all voxels in a 3D box  --  batched per-chunk for performance
                 if (!chunkManager) {
                     response = {{"error", "ChunkManager not available"}};
                 } else {
@@ -4673,6 +5899,7 @@ void Application::processAPICommands() {
                             subsystems.npcManager = npcManager.get();
                             subsystems.entityRegistry = entityRegistry.get();
                             subsystems.templateManager = objectTemplateManager.get();
+                            subsystems.placedObjectManager = placedObjectManager.get();
                             subsystems.gameEventLog = gameEventLog.get();
                             subsystems.locationRegistry = locationRegistry;
                             subsystems.camera = camera;
@@ -4743,6 +5970,10 @@ void Application::processAPICommands() {
                 }
 
             } else if (cmd.action == "save_world") {
+                // Re-staticize all dynamic furniture before saving
+                if (dynamicFurnitureManager) {
+                    dynamicFurnitureManager->deactivateAll();
+                }
                 // Save world chunks to SQLite database
                 if (!chunkManager) {
                     response = {{"error", "ChunkManager not available"}};
@@ -5147,7 +6378,7 @@ void Application::processAPICommands() {
                         y = cmd.params["position"].value("y", 0.0f);
                         z = cmd.params["position"].value("z", 0.0f);
                     }
-                    bool isStatic = cmd.params.value("static", true);
+                    const bool isStatic = true;
                     int rotation = cmd.params.value("rotation", 0);
 
                     // Auto-snapshot the affected region before spawning
@@ -5309,6 +6540,46 @@ void Application::processAPICommands() {
 
             } else if (cmd.action == "list_structure_types") {
                 response = {{"types", Core::StructureGenerator::getStructureTypes()}};
+
+            } else if (handleDoorCommand(cmd, response, doorManager.get(), placedObjectManager.get())) {
+                // Handled by door helper
+
+            } else if (cmd.action == "query_interaction") {
+                // Debug: return current InteractionManager state
+                std::string doorObjId, doorPtId, promptText;
+                bool hasNPC = false;
+                float cooldown = 0.0f;
+                bool hasDoorCb = false;
+                bool imguiWantsKb = ImGui::GetIO().WantCaptureKeyboard;
+                if (interactionManager) {
+                    doorObjId = interactionManager->getNearestDoorObjId();
+                    doorPtId = interactionManager->getNearestDoorPtId();
+                    hasNPC = (interactionManager->getNearestInteractableNPC() != nullptr);
+                    hasDoorCb = interactionManager->hasDoorCallback();
+                    cooldown = interactionManager->getCooldownTimer();
+                    promptText = interactionManager->getActivePromptText();
+                }
+                response = {
+                    {"success", true},
+                    {"door_in_range", !doorObjId.empty()},
+                    {"door_obj_id", doorObjId},
+                    {"door_pt_id", doorPtId},
+                    {"door_callback_set", hasDoorCb},
+                    {"cooldown", cooldown},
+                    {"npc_in_range", hasNPC},
+                    {"seat_in_range", interactionManager && interactionManager->isSeatInRange()},
+                    {"prompt_text", promptText},
+                    {"imgui_wants_keyboard", imguiWantsKb},
+                    {"has_interaction_manager", interactionManager != nullptr},
+                    {"current_control_target", static_cast<int>(currentControlTarget)},
+                    {"has_animated_char", animatedCharacter != nullptr},
+                    {"game_paused", gamePaused}
+                };
+
+            } else if (cmd.action == "trigger_interact") {
+                // Debug: trigger interactWithNPC() from API (bypasses keyboard)
+                interactWithNPC();
+                response = {{"success", true}, {"triggered", true}};
 
             } else if (cmd.action == "set_camera") {
                 if (cmd.params.contains("position") && inputManager) {
@@ -5631,7 +6902,7 @@ void Application::processAPICommands() {
                     // Restore the redo state
                     auto [placed, failed] = placeVoxelEntries(chunkManager, redoSnap.voxels, redoSnap.min);
 
-                    // Push current to undo (without clearing redo — special push)
+                    // Push current to undo (without clearing redo  --  special push)
                     snapshotManager->pushUndoOnly(std::move(current));
 
                     response = {{"success", true}, {"operation", redoSnap.name},
@@ -5672,130 +6943,19 @@ void Application::processAPICommands() {
                 }
 
             // ================================================================
-            // PLACED OBJECT COMMANDS
+            // PLACED OBJECT COMMANDS (extracted to reduce nesting depth)
             // ================================================================
-            } else if (cmd.action == "list_placed_objects") {
-                if (!placedObjectManager) {
-                    response = {{"error", "PlacedObjectManager not available"}};
-                } else {
-                    auto objects = placedObjectManager->list();
-                    nlohmann::json arr = nlohmann::json::array();
-                    for (const auto& obj : objects) {
-                        arr.push_back(obj.toJson());
-                    }
-                    response = {{"objects", arr}, {"count", objects.size()}};
-                }
-
-            } else if (cmd.action == "get_placed_object") {
-                if (!placedObjectManager) {
-                    response = {{"error", "PlacedObjectManager not available"}};
-                } else {
-                    std::string id = cmd.params.value("id", "");
-                    if (id.empty()) {
-                        response = {{"error", "Missing 'id' parameter"}};
-                    } else {
-                        const auto* obj = placedObjectManager->get(id);
-                        if (!obj) {
-                            response = {{"error", "Object not found"}, {"id", id}};
-                        } else {
-                            response = obj->toJson();
-                        }
-                    }
-                }
-
-            } else if (cmd.action == "remove_placed_object") {
-                if (!placedObjectManager) {
-                    response = {{"error", "PlacedObjectManager not available"}};
-                } else {
-                    std::string id = cmd.params.value("id", "");
-                    if (id.empty()) {
-                        response = {{"error", "Missing 'id' parameter"}};
-                    } else {
-                        // Push undo snapshot before removing
-                        const auto* obj = placedObjectManager->get(id);
-                        if (obj && chunkManager && snapshotManager) {
-                            pushUndoSnapshot(chunkManager, snapshotManager.get(),
-                                             obj->boundingMin, obj->boundingMax,
-                                             "remove_placed_object:" + id);
-                        }
-                        bool ok = placedObjectManager->remove(id);
-                        // Immediately persist so removed record doesn't resurrect on restart
-                        if (ok && chunkManager) {
-                            auto* ws = chunkManager->m_streamingManager.getWorldStorage();
-                            if (ws) placedObjectManager->saveToDb(ws->getDb());
-                        }
-                        response = {{"success", ok}, {"id", id}};
-                    }
-                }
-
-            } else if (cmd.action == "move_placed_object") {
-                if (!placedObjectManager) {
-                    response = {{"error", "PlacedObjectManager not available"}};
-                } else {
-                    std::string id = cmd.params.value("id", "");
-                    if (id.empty() || !cmd.params.contains("position")) {
-                        response = {{"error", "Missing 'id' or 'position' parameter"}};
-                    } else {
-                        int nx = cmd.params["position"].value("x", 0);
-                        int ny = cmd.params["position"].value("y", 0);
-                        int nz = cmd.params["position"].value("z", 0);
-
-                        // Push undo snapshot of both old and new regions
-                        const auto* obj = placedObjectManager->get(id);
-                        if (obj && chunkManager && snapshotManager) {
-                            // Snapshot old location
-                            pushUndoSnapshot(chunkManager, snapshotManager.get(),
-                                             obj->boundingMin, obj->boundingMax,
-                                             "move_placed_object:" + id);
-                        }
-
-                        bool ok = placedObjectManager->move(id, glm::ivec3(nx, ny, nz));
-                        if (ok && chunkManager) {
-                            auto* ws = chunkManager->m_streamingManager.getWorldStorage();
-                            if (ws) placedObjectManager->saveToDb(ws->getDb());
-                        }
-                        response = {{"success", ok}, {"id", id},
-                                    {"position", {{"x", nx}, {"y", ny}, {"z", nz}}}};
-                    }
-                }
-
-            } else if (cmd.action == "rotate_placed_object") {
-                if (!placedObjectManager) {
-                    response = {{"error", "PlacedObjectManager not available"}};
-                } else {
-                    std::string id = cmd.params.value("id", "");
-                    int newRotation = cmd.params.value("rotation", -1);
-                    if (id.empty() || newRotation < 0) {
-                        response = {{"error", "Missing 'id' or 'rotation' parameter"}};
-                    } else {
-                        // Push undo snapshot before rotating
-                        const auto* obj = placedObjectManager->get(id);
-                        if (obj && chunkManager && snapshotManager) {
-                            pushUndoSnapshot(chunkManager, snapshotManager.get(),
-                                             obj->boundingMin, obj->boundingMax,
-                                             "rotate_placed_object:" + id);
-                        }
-                        bool ok = placedObjectManager->rotate(id, newRotation);
-                        if (ok && chunkManager) {
-                            auto* ws = chunkManager->m_streamingManager.getWorldStorage();
-                            if (ws) placedObjectManager->saveToDb(ws->getDb());
-                        }
-                        response = {{"success", ok}, {"id", id}, {"rotation", newRotation}};
-                    }
-                }
-
-            } else if (cmd.action == "get_objects_at") {
-                if (!placedObjectManager) {
-                    response = {{"error", "PlacedObjectManager not available"}};
-                } else {
-                    int x = cmd.params.value("x", 0);
-                    int y = cmd.params.value("y", 0);
-                    int z = cmd.params.value("z", 0);
-                    auto ids = placedObjectManager->getAt(glm::ivec3(x, y, z));
-                    response = {{"object_ids", ids}, {"count", ids.size()}};
-                }
+            } else if (handlePlacedObjectCommand(cmd, response,
+                           placedObjectManager.get(), chunkManager, snapshotManager.get())) {
+                // handled
 
             } else if (handlePlacedObjectHierarchyCommands(cmd, response, placedObjectManager.get())) {
+                // handled
+
+            // ================================================================
+            // DYNAMIC FURNITURE COMMANDS (extracted to reduce nesting depth)
+            // ================================================================
+            } else if (handleDynamicFurnitureCommand(cmd, response, dynamicFurnitureManager.get())) {
                 // handled
 
             // ================================================================
@@ -5834,7 +6994,7 @@ void Application::processAPICommands() {
                 if (!chunkManager || !snapshotManager) {
                     response = {{"error", "ChunkManager or SnapshotManager not available"}};
                 } else if (!snapshotManager->hasClipboard()) {
-                    response = {{"error", "Clipboard is empty — use copy_region first"}};
+                    response = {{"error", "Clipboard is empty  --  use copy_region first"}};
                 } else {
                     int px = cmd.params.value("x", 0);
                     int py = cmd.params.value("y", 0);
@@ -5844,7 +7004,7 @@ void Application::processAPICommands() {
                     // Make a copy so we can rotate without affecting stored clipboard
                     Core::RegionSnapshot clip = *snapshotManager->getClipboard();
 
-                    // Apply rotation (90° increments around Y)
+                    // Apply rotation (90Â° increments around Y)
                     int rotSteps = ((rotate % 360) + 360) % 360 / 90;
                     for (int r = 0; r < rotSteps; ++r) {
                         Core::SnapshotManager::rotateY90(clip);
@@ -6053,7 +7213,7 @@ void Application::processAPICommands() {
                 done_generate:;
 
             // ================================================================
-            // SAVE TEMPLATE (region → .txt file)
+            // SAVE TEMPLATE (region â†’ .txt file)
             // ================================================================
             } else if (cmd.action == "save_template") {
                 if (!chunkManager) {
@@ -6112,9 +7272,9 @@ void Application::processAPICommands() {
                                 }
                             }
 
-                            // Write to templates dir/<name>.txt
+                            // Write to templates dir/<name>.voxel
                             auto& assets = Core::AssetManager::instance();
-                            std::string filepath = assets.resolveTemplate(name + ".txt");
+                            std::string filepath = assets.resolveTemplate(name + ".voxel");
                             std::ofstream file(filepath);
                             if (file.is_open()) {
                                 for (const auto& line : lines) {
@@ -6429,7 +7589,7 @@ void Application::processAPICommands() {
                             ok = dialogueSystem->startConversation(npc,
                                 npc->getDialogueProvider()->getDialogueTree());
                         } else {
-                            // No NPC entity — store tree in a member to keep it alive
+                            // No NPC entity  --  store tree in a member to keep it alive
                             m_apiDialogueTree = std::make_unique<UI::DialogueTree>(std::move(parsedTree));
                             ok = dialogueSystem->startConversation(npcName, m_apiDialogueTree.get());
                         }
@@ -6713,13 +7873,14 @@ void Application::processAPICommands() {
                 subsystems.npcManager = npcManager.get();
                 subsystems.entityRegistry = entityRegistry.get();
                 subsystems.templateManager = objectTemplateManager.get();
+                subsystems.placedObjectManager = placedObjectManager.get();
                 subsystems.gameEventLog = gameEventLog.get();
                 subsystems.locationRegistry = locationRegistry;
                 subsystems.camera = camera;
                 subsystems.dialogueSystem = dialogueSystem.get();
                 subsystems.storyEngine = storyEngine.get();
 
-                // Entity spawner callback — delegates to Application factory methods
+                // Entity spawner callback  --  delegates to Application factory methods
                 subsystems.entitySpawner = [this](const std::string& type, const glm::vec3& pos,
                                                    const std::string& animFile) -> Scene::Entity* {
                     if (type == "physics") return createPhysicsCharacter(pos);
@@ -6745,9 +7906,8 @@ void Application::processAPICommands() {
                     chunkManager->rebuildOccupancyFromChunks();
                 }
 
-                // Switch to third-person if player was spawned
-                if (loadResult.playerSpawned && camera) {
-                    camera->setMode(Graphics::CameraMode::ThirdPerson);
+                // Set up character control but keep camera Free (press V to follow)
+                if (loadResult.playerSpawned) {
                     if (animatedCharacter) {
                         currentControlTarget = ControlTarget::AnimatedCharacter;
                         isControllingPhysicsCharacter = false;
@@ -6845,7 +8005,7 @@ void Application::processAPICommands() {
                         std::string config = cmd.params.value("config", "Debug");
                         bool reconfigure = cmd.params.value("reconfigure", false);
 
-                        // Find cmake — check common VS 2022 location, then PATH
+                        // Find cmake  --  check common VS 2022 location, then PATH
                         std::string cmake = "cmake";
                         fs::path vsCmake("C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe");
                         if (fs::exists(vsCmake)) cmake = vsCmake.string();
@@ -7544,7 +8704,7 @@ void Application::processAPICommands() {
                     response = {{"success", true}, {"job_id", jobId}, {"status", "Pending"}, {"type", jobType}};
                 }
 
-            // ── Custom UI Menu Management ──────────────────────────────
+            // â"€â"€ Custom UI Menu Management â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
             } else if (cmd.action == "create_menu") {
                 std::string name = cmd.params.value("name", "");
                 if (name.empty()) {
@@ -7837,7 +8997,7 @@ void Application::processAPICommands() {
                 response = handleSocialSimulationCommand(cmd.action, cmd.params, npcManager.get());
 
             // ================================================================
-            // GAME STATE (extracted — handleGameStateCommand)
+            // GAME STATE (extracted  --  handleGameStateCommand)
             // ================================================================
             } else if (cmd.action == "get_pause_state" || cmd.action == "set_pause_state" ||
                        cmd.action == "get_player_health" || cmd.action == "modify_player_health" ||
@@ -7883,6 +9043,425 @@ void Application::processAPICommands() {
 }
 
 // ============================================================================
+// MAIN MENU BAR
+// ============================================================================
+
+void Application::renderMainMenuBar() {
+    if (ImGui::BeginMenuBar()) {
+        if (ImGui::BeginMenu("File")) {
+            if (ImGui::MenuItem("Open File...", "Ctrl+O")) {
+                openFileDialog();
+            }
+#ifdef _WIN32
+            if (ImGui::MenuItem("Open Project...")) {
+                openProjectDialog();
+            }
+#endif
+            ImGui::Separator();
+
+            // Show current mode info
+            if (m_assetEditorMode) {
+                ImGui::TextDisabled("Asset Editor: %s", 
+                    std::filesystem::path(m_assetEditorFile).filename().string().c_str());
+            } else if (m_animEditorMode) {
+                ImGui::TextDisabled("Anim Editor: %s", 
+                    std::filesystem::path(m_animEditorFile).filename().string().c_str());
+            } else if (m_interactionEditorMode) {
+                ImGui::TextDisabled("Interaction Editor: %s", 
+                    std::filesystem::path(m_interactionEditorFile).filename().string().c_str());
+            } else {
+                ImGui::TextDisabled("Project Mode");
+            }
+
+            ImGui::Separator();
+            if (ImGui::MenuItem("Exit", "Alt+F4")) {
+                isRunning = false;
+            }
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("View")) {
+            // Dockable panels
+            ImGui::MenuItem("Properties", nullptr, &m_showProperties);
+            ImGui::MenuItem("World Outliner", nullptr, &m_showWorldOutliner);
+            ImGui::MenuItem("Camera", nullptr, &m_showCameraPanel);
+#ifdef _WIN32
+            ImGui::MenuItem("Terminal", nullptr, &m_showTerminal);
+#endif
+            ImGui::Separator();
+
+            // Debug & diagnostic panels (toggled by hotkeys too)
+            ImGui::MenuItem("Performance Overlay", "F1", &showPerformanceOverlay);
+            if (ImGui::MenuItem("Profiler", "F7")) toggleProfiler();
+            if (ImGui::MenuItem("Debug Rendering", "F4")) toggleDebugRendering();
+            if (ImGui::MenuItem("Raycast Visualization", "F5")) toggleRaycastVisualization();
+            if (ImGui::MenuItem("Lighting Controls", "F6")) toggleLightingControls();
+            ImGui::Separator();
+
+            // Tool panels
+            ImGui::MenuItem("Character Customizer", "F11", &showCharacterCustomizer);
+            ImGui::MenuItem("Interaction Tuner", "F12", &showInteractionTuner);
+            ImGui::MenuItem("Template Spawner", nullptr, &showTemplateSpawner);
+            ImGui::MenuItem("Click Actions", nullptr, &showClickActions);
+            ImGui::Separator();
+
+            if (ImGui::MenuItem("Reset Layout")) {
+                m_needsLayoutReset = true;
+            }
+
+            ImGui::EndMenu();
+        }
+        ImGui::EndMenuBar();
+    }
+}
+
+void Application::renderStatusBar() {
+    const float barHeight = 24.0f;
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x, viewport->WorkPos.y + viewport->WorkSize.y - barHeight));
+    ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x, barHeight));
+
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                             ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+                             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 3));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
+
+    if (ImGui::Begin("##StatusBar", nullptr, flags)) {
+        // Cursor position
+        if (voxelInteractionSystem && voxelInteractionSystem->hasHoveredCube()) {
+            const auto& loc = voxelInteractionSystem->getCurrentHoveredLocation();
+            ImGui::Text("Cursor: (%d, %d, %d)", loc.worldPos.x, loc.worldPos.y, loc.worldPos.z);
+        } else {
+            ImGui::TextDisabled("Cursor: --");
+        }
+
+        ImGui::SameLine(0, 20);
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+        ImGui::SameLine(0, 20);
+
+        // Voxel mode
+        if (voxelInteractionSystem) {
+            auto mode = voxelInteractionSystem->getTargetMode();
+            const char* modeName = (mode == TargetMode::Cube) ? "CUBE" :
+                                   (mode == TargetMode::Subcube) ? "SUBCUBE" : "MICROCUBE";
+            ImGui::Text("Mode: %s", modeName);
+        }
+
+        ImGui::SameLine(0, 20);
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+        ImGui::SameLine(0, 20);
+
+        // FPS
+        ImGui::Text("FPS: %.0f", ImGui::GetIO().Framerate);
+
+        ImGui::SameLine(0, 20);
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+        ImGui::SameLine(0, 20);
+
+        // Entity count
+        if (entityRegistry) {
+            ImGui::Text("Entities: %zu", entityRegistry->getAllIds().size());
+        }
+
+        ImGui::SameLine(0, 20);
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+        ImGui::SameLine(0, 20);
+
+        // Camera position
+        if (camera) {
+            auto pos = camera->getPosition();
+            ImGui::Text("Camera: (%.0f, %.0f, %.0f)", pos.x, pos.y, pos.z);
+        }
+    }
+    ImGui::End();
+
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+}
+
+#ifdef _WIN32
+void Application::openFileDialog() {
+    // Use Windows native file dialog
+    OPENFILENAMEA ofn = {};
+    char szFile[MAX_PATH] = {};
+
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = nullptr;  // No parent window handle (GLFW doesn't expose HWND directly here)
+    ofn.lpstrFile = szFile;
+    ofn.nMaxFile = sizeof(szFile);
+    ofn.lpstrFilter = 
+        "All Supported Files\0*.anim;*.voxel;*.txt;*.json\0"
+        "Animation Files (*.anim)\0*.anim\0"
+        "Template Files (*.voxel;*.txt)\0*.voxel;*.txt\0"
+        "Game Definition (*.json)\0*.json\0"
+        "All Files (*.*)\0*.*\0";
+    ofn.nFilterIndex = 1;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+
+    if (GetOpenFileNameA(&ofn)) {
+        // Defer to next frame — can't tear down scene mid-render
+        m_pendingOpenFile = std::string(szFile);
+    }
+}
+
+void Application::openProjectDialog() {
+    // Use modern IFileDialog (Vista+) to pick a folder
+    HRESULT hrInit = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    bool comOwned = SUCCEEDED(hrInit);
+
+    IFileOpenDialog* pDialog = nullptr;
+    HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER,
+                                  IID_IFileOpenDialog, reinterpret_cast<void**>(&pDialog));
+    if (FAILED(hr) || !pDialog) {
+        LOG_WARN("Application", "Failed to create folder picker dialog");
+        if (comOwned) CoUninitialize();
+        return;
+    }
+
+    // Set folder-pick mode
+    DWORD options = 0;
+    pDialog->GetOptions(&options);
+    pDialog->SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_NOCHANGEDIR);
+    pDialog->SetTitle(L"Open Phyxel Project");
+
+    // Default to the projects directory
+    std::string defaultDir = Core::ProjectInfo::getDefaultProjectsDir();
+    if (std::filesystem::exists(defaultDir)) {
+        IShellItem* pFolder = nullptr;
+        int wlen = MultiByteToWideChar(CP_UTF8, 0, defaultDir.c_str(), -1, nullptr, 0);
+        std::wstring wDir(wlen - 1, L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, defaultDir.c_str(), -1, wDir.data(), wlen);
+        hr = SHCreateItemFromParsingName(wDir.c_str(), nullptr, IID_IShellItem,
+                                          reinterpret_cast<void**>(&pFolder));
+        if (SUCCEEDED(hr) && pFolder) {
+            pDialog->SetDefaultFolder(pFolder);
+            pFolder->Release();
+        }
+    }
+
+    hr = pDialog->Show(nullptr);
+    if (SUCCEEDED(hr)) {
+        IShellItem* pItem = nullptr;
+        hr = pDialog->GetResult(&pItem);
+        if (SUCCEEDED(hr) && pItem) {
+            PWSTR pszPath = nullptr;
+            hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszPath);
+            if (SUCCEEDED(hr) && pszPath) {
+                // Convert wide string to UTF-8
+                int len = WideCharToMultiByte(CP_UTF8, 0, pszPath, -1, nullptr, 0, nullptr, nullptr);
+                std::string path(len - 1, '\0');
+                WideCharToMultiByte(CP_UTF8, 0, pszPath, -1, path.data(), len, nullptr, nullptr);
+                CoTaskMemFree(pszPath);
+
+                // Validate it looks like a project (has engine.json, game.json, or worlds/ dir)
+                namespace fs = std::filesystem;
+                bool valid = fs::exists(fs::path(path) / "engine.json") ||
+                             fs::exists(fs::path(path) / "game.json") ||
+                             fs::exists(fs::path(path) / "worlds");
+                if (valid) {
+                    m_pendingOpenProject = path;
+                } else {
+                    LOG_WARN("Application", "Selected folder '{}' does not appear to be a Phyxel project "
+                             "(no engine.json, game.json, or worlds/ found)", path);
+                    MessageBoxA(nullptr,
+                        "The selected folder does not appear to be a Phyxel project.\n\n"
+                        "A project folder should contain engine.json, game.json, or a worlds/ directory.",
+                        "Not a Project", MB_OK | MB_ICONWARNING);
+                }
+            }
+            pItem->Release();
+        }
+    }
+    pDialog->Release();
+    if (comOwned) CoUninitialize();
+}
+#else
+void Application::openFileDialog() {
+    LOG_WARN("Application", "File dialog not implemented on this platform. Use command-line flags.");
+}
+void Application::openProjectDialog() {
+    LOG_WARN("Application", "Project dialog not implemented on this platform. Use --project flag.");
+}
+#endif
+
+void Application::resetEditorScene() {
+    // Reset editor-mode-specific state
+    m_assetEditorMode = false;
+    m_assetEditorFile.clear();
+    m_assetRefCharVisible = false;
+    m_assetRefChar = nullptr;
+    m_assetEditorMaterial = "Wood";
+
+    m_animEditorMode = false;
+    m_animEditorFile.clear();
+    m_animEditorChar = nullptr;
+    m_animEditorSelectedBone = -1;
+    m_animEditorBoneScale.clear();
+    m_animEditorBodyBones.clear();
+    m_animEditorAnimIdx = 0;
+
+    m_interactionEditorMode = false;
+    m_interactionEditorFile.clear();
+    m_interactionEditorCharFile.clear();
+    m_ieChar = nullptr;
+    m_ieSelectedPoint = 0;
+    m_iePreviewState = InteractionPreviewState::None;
+    m_ieBodyBones.clear();
+    m_ieBoneScale.clear();
+
+    // Null out raw entity pointers BEFORE clearing the owning vector,
+    // so nothing in the main loop dereferences dangling pointers.
+    animatedCharacter = nullptr;
+    physicsCharacter = nullptr;
+    spiderCharacter = nullptr;
+    player = nullptr;
+    currentControlTarget = ControlTarget::PhysicsCharacter;
+
+    // Clean up entities
+    if (entityRegistry) entityRegistry->clear();
+    entities.clear();
+
+    // Clean up NPC manager
+    if (npcManager) {
+        auto names = npcManager->getAllNPCNames();
+        for (auto& n : names) npcManager->removeNPC(n);
+    }
+
+    // Clean up placed objects
+    if (placedObjectManager) placedObjectManager->clear();
+
+    // Wait for GPU before destroying chunk Vulkan buffers
+    if (vulkanDevice) vkDeviceWaitIdle(vulkanDevice->getDevice());
+
+    // Clean up chunk data
+    if (chunkManager) chunkManager->cleanup();
+}
+
+void Application::switchToEditorMode(const std::string& filePath) {
+    namespace fs = std::filesystem;
+    fs::path p(filePath);
+    std::string ext = p.extension().string();
+
+    // Convert extension to lowercase for comparison
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+
+    LOG_INFO("Application", "Opening file: {} (ext: {})", filePath, ext);
+
+    if (ext == ".anim") {
+        // Anim editor mode
+        resetEditorScene();
+        m_animEditorMode = true;
+        m_animEditorFile = filePath;
+        initAnimEditorScene();
+        LOG_INFO("Application", "Switched to Anim Editor mode: {}", p.filename().string());
+
+    } else if (ext == ".voxel" || ext == ".txt") {
+        // Check if it's an interaction file (has interaction point definitions)
+        // by scanning first few lines for "INTERACT" keyword
+        bool isInteraction = false;
+        std::ifstream f(filePath);
+        if (f.is_open()) {
+            std::string line;
+            int lineCount = 0;
+            while (std::getline(f, line) && lineCount < 200) {
+                if (line.find("INTERACT") != std::string::npos) {
+                    isInteraction = true;
+                    break;
+                }
+                lineCount++;
+            }
+        }
+
+        resetEditorScene();
+        if (isInteraction) {
+            m_interactionEditorMode = true;
+            m_interactionEditorFile = filePath;
+            m_interactionEditorCharFile = "";
+            initInteractionEditorScene();
+            LOG_INFO("Application", "Switched to Interaction Editor mode: {}", p.filename().string());
+        } else {
+            m_assetEditorMode = true;
+            m_assetEditorFile = filePath;
+            initAssetEditorScene();
+            LOG_INFO("Application", "Switched to Asset Editor mode: {}", p.filename().string());
+        }
+
+    } else if (ext == ".json") {
+        // Check if this is an interaction profile JSON
+        // These live in resources/interactions/ and have an "archetype" + "profiles" structure.
+        // The profile keys are template names (e.g. "test_chair") — open the first one
+        // in the interaction editor.
+        bool handled = false;
+        try {
+            std::ifstream jf(filePath);
+            if (jf.is_open()) {
+                std::string content((std::istreambuf_iterator<char>(jf)),
+                                     std::istreambuf_iterator<char>());
+                // Quick check for interaction profile structure
+                if (content.find("\"archetype\"") != std::string::npos &&
+                    content.find("\"profiles\"") != std::string::npos) {
+                    // Parse to find the first template name in profiles
+                    // Simple: find the template .voxel file referenced by profiles keys
+                    auto profilesPos = content.find("\"profiles\"");
+                    if (profilesPos != std::string::npos) {
+                        // Find the first key after "profiles": {
+                        auto bracePos = content.find('{', profilesPos + 10);
+                        if (bracePos != std::string::npos) {
+                            auto keyStart = content.find('"', bracePos + 1);
+                            if (keyStart != std::string::npos) {
+                                auto keyEnd = content.find('"', keyStart + 1);
+                                if (keyEnd != std::string::npos) {
+                                    std::string templateName = content.substr(keyStart + 1, keyEnd - keyStart - 1);
+                                    // Resolve template file path (.voxel preferred, .txt fallback)
+                                    fs::path templatePath = fs::path("resources/templates") / (templateName + ".voxel");
+                                    if (!fs::exists(templatePath)) {
+                                        templatePath = fs::path("resources/templates") / (templateName + ".txt");
+                                    }
+                                    if (!fs::exists(templatePath)) {
+                                        // Try absolute from workspace
+                                        templatePath = fs::current_path() / "resources" / "templates" / (templateName + ".voxel");
+                                    }
+                                    if (!fs::exists(templatePath)) {
+                                        templatePath = fs::current_path() / "resources" / "templates" / (templateName + ".txt");
+                                    }
+                                    if (fs::exists(templatePath)) {
+                                        resetEditorScene();
+                                        m_interactionEditorMode = true;
+                                        m_interactionEditorFile = templatePath.string();
+                                        m_interactionEditorCharFile = "";
+                                        initInteractionEditorScene();
+                                        LOG_INFO("Application", "Opened interaction profile '{}' -> template '{}' in Interaction Editor",
+                                                 p.filename().string(), templateName);
+                                        handled = true;
+                                    } else {
+                                        LOG_WARN("Application", "Interaction profile references template '{}' but template file not found at {}",
+                                                 templateName, templatePath.string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (...) {
+            LOG_WARN("Application", "Failed to parse JSON file: {}", filePath);
+        }
+
+        if (!handled) {
+            LOG_WARN("Application", "Cannot open '{}' — JSON files must be interaction profiles (with archetype + profiles keys) "
+                     "to open in the editor. Use File > Open to select a .voxel template or .anim file instead.",
+                     p.filename().string());
+        }
+
+    } else {
+        LOG_WARN("Application", "Unsupported file type '{}'. Supported: .anim (Anim Editor), .voxel/.txt (Asset/Interaction Editor), "
+                 ".json (interaction profiles)", ext);
+    }
+}
+
+// ============================================================================
 // ASSET EDITOR MODE
 // ============================================================================
 
@@ -7899,7 +9478,7 @@ void Application::initAssetEditorScene() {
     // Create the chunk that will hold the floor (origin 0,0,0 covers Y=0..31)
     chunkManager->createChunk(glm::ivec3(0, 0, 0), false);
 
-    // Build a clean flat platform: Y=15 floor, 32×32 slab of Stone
+    // Build a clean flat platform: Y=15 floor, 32Ã—32 slab of Stone
     for (int x = 0; x < 32; ++x) {
         for (int z = 0; z < 32; ++z) {
             chunkManager->m_voxelModificationSystem.addCubeWithMaterial(
@@ -7948,15 +9527,7 @@ void Application::renderAssetEditorUI() {
     namespace fs = std::filesystem;
     std::string displayName = fs::path(m_assetEditorFile).stem().string();
 
-    float screenW = static_cast<float>(windowManager ? windowManager->getWidth()  : 1280);
-    float screenH = static_cast<float>(windowManager ? windowManager->getHeight() : 720);
-
-    ImGui::SetNextWindowPos(ImVec2(screenW - 260.0f, 20.0f), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(245.0f, 0.0f), ImGuiCond_Always);
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
-                             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize;
-
-    if (!ImGui::Begin("Asset Editor", nullptr, flags)) {
+    if (!ImGui::Begin("Asset Editor", nullptr)) {
         ImGui::End();
         return;
     }
@@ -7969,9 +9540,9 @@ void Application::renderAssetEditorUI() {
     // Material palette
     ImGui::Text("Material:");
     const char* materials[] = {
-        "Wood","Stone","Metal","Glass","Rubber","Ice","Cork","glow","Default"
+        "Wood","Stone","Metal","Glass","Rubber","Ice","Cork","glow","Leaf","Default"
     };
-    for (int i = 0; i < 9; ++i) {
+    for (int i = 0; i < 10; ++i) {
         bool selected = (m_assetEditorMaterial == materials[i]);
         if (selected) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 1.0f, 1.0f));
         if (ImGui::SmallButton(materials[i])) {
@@ -8172,11 +9743,7 @@ void Application::renderAnimEditorUI() {
     namespace fs = std::filesystem;
     std::string displayName = fs::path(m_animEditorFile).filename().string();
 
-    ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - 280.0f, 50.0f),
-                            ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(270.0f, 600.0f), ImGuiCond_Always);
-    ImGui::Begin(("Anim Editor: " + displayName).c_str(), nullptr,
-                 ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
+    ImGui::Begin(("Anim Editor: " + displayName + "###AnimEditor").c_str());
 
     // Animation preview selector
     // ---- Animation list with preview + rename ----
@@ -8201,7 +9768,7 @@ void Application::renderAnimEditorUI() {
                                                ImGuiInputTextFlags_EnterReturnsTrue |
                                                ImGuiInputTextFlags_AutoSelectAll);
                 if (ImGui::IsItemDeactivated()) {
-                    // Enter or focus lost — commit if non-empty and changed
+                    // Enter or focus lost  --  commit if non-empty and changed
                     std::string newName(m_animEditorRenameBuffer);
                     if (!newName.empty() && newName != animNames[i]) {
                         renameAnimationInFile(animNames[i], newName);
@@ -8819,7 +10386,7 @@ void Application::ieSaveAssetTemplate() {
     namespace fs = std::filesystem;
     std::string assetName = fs::path(m_interactionEditorFile).stem().string();
 
-    // Scan region around asset origin (same as asset editor: 16×16×16 above floor)
+    // Scan region around asset origin (same as asset editor: 16Ã—16Ã—16 above floor)
     constexpr int HALF = 8;
     glm::ivec3 minCorner(
         m_ieAssetOrigin.x - HALF,
@@ -8913,14 +10480,7 @@ void Application::renderInteractionEditorUI() {
         : fs::path(m_interactionEditorCharFile).filename().string();
     std::string archetype = m_ieProfileArchetype;
 
-    float screenW = static_cast<float>(windowManager ? windowManager->getWidth()  : 1280);
-
-    ImGui::SetNextWindowPos(ImVec2(screenW - 310.0f, 20.0f), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(295.0f, 0.0f), ImGuiCond_Always);
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
-                             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize;
-
-    if (!ImGui::Begin("Interaction Editor", nullptr, flags)) {
+    if (!ImGui::Begin("Interaction Editor", nullptr)) {
         ImGui::End();
         return;
     }
@@ -8976,9 +10536,9 @@ void Application::renderInteractionEditorUI() {
     // === Material palette ===
     ImGui::Text("Material:");
     const char* ieMaterials[] = {
-        "Wood","Stone","Metal","Glass","Rubber","Ice","Cork","glow","Default"
+        "Wood","Stone","Metal","Glass","Rubber","Ice","Cork","glow","Leaf","Default"
     };
-    for (int i = 0; i < 9; ++i) {
+    for (int i = 0; i < 10; ++i) {
         bool selected = (m_ieMaterial == ieMaterials[i]);
         if (selected) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 1.0f, 1.0f));
         if (ImGui::SmallButton(ieMaterials[i])) {
@@ -9111,7 +10671,7 @@ void Application::renderInteractionEditorUI() {
     // === Asset-level settings ===
     ImGui::Spacing();
     bool assetChanged = false;
-    if (ImGui::TreeNodeEx("Asset Point (saved to .txt)", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::TreeNodeEx("Asset Point (saved to .voxel)", ImGuiTreeNodeFlags_DefaultOpen)) {
         // Type selector
         const char* types[] = {"seat", "bed", "counter", "door_handle", "pickup", "ledge", "switch"};
         int typeIdx = 0;
@@ -9396,7 +10956,7 @@ void Application::renderInteractionEditorUI() {
             LOG_INFO("Application", "Interaction Editor: saved asset defs for '{}'", assetName);
         }
     }
-    if (ImGui::Button("Save Full Template (.txt)", ImVec2(-1, 0))) {
+    if (ImGui::Button("Save Full Template (.voxel)", ImVec2(-1, 0))) {
         ieSaveAssetTemplate();
     }
 
@@ -9408,6 +10968,82 @@ void Application::renderInteractionEditorUI() {
     ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "V: toggle camera mode");
 
     ImGui::End();
+}
+
+// ============================================================================
+// DOCKING / VIEWPORT
+// ============================================================================
+
+void Application::renderDockableViewport() {
+    // Register or re-register the offscreen texture when image view changes (resize)
+    if (renderCoordinator) {
+        VkImageView imageView = renderCoordinator->getViewportImageView();
+        VkSampler sampler = renderCoordinator->getViewportSampler();
+        if (imageView != VK_NULL_HANDLE && sampler != VK_NULL_HANDLE && imageView != m_viewportLastImageView) {
+            if (m_viewportTextureId != VK_NULL_HANDLE) {
+                ImGui_ImplVulkan_RemoveTexture(m_viewportTextureId);
+            }
+            m_viewportTextureId = ImGui_ImplVulkan_AddTexture(
+                sampler, imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            m_viewportLastImageView = imageView;
+        }
+    }
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    bool viewportOpen = true;
+    if (ImGui::Begin("Viewport", &viewportOpen, ImGuiWindowFlags_NoNav)) {
+        ImVec2 size = ImGui::GetContentRegionAvail();
+
+        if (m_viewportTextureId != VK_NULL_HANDLE && size.x > 0 && size.y > 0) {
+            // Record content origin (screen coords of the image top-left)
+            ImVec2 cursorScreenPos = ImGui::GetCursorScreenPos();
+            m_viewportPosX = cursorScreenPos.x;
+            m_viewportPosY = cursorScreenPos.y;
+            m_viewportSizeW = size.x;
+            m_viewportSizeH = size.y;
+            ImGui::Image((ImTextureID)m_viewportTextureId, size);
+        }
+        m_viewportHovered = ImGui::IsWindowHovered();
+        m_viewportFocused = ImGui::IsWindowFocused();
+    } else {
+        m_viewportHovered = false;
+        m_viewportFocused = false;
+    }
+    ImGui::End();
+    ImGui::PopStyleVar();
+}
+
+void Application::setupDefaultDockLayout(unsigned int dockSpaceId) {
+    if (m_dockLayoutInitialized) return;
+    m_dockLayoutInitialized = true;
+
+    // Only set up if no saved layout exists (imgui.ini will override on subsequent runs)
+    ImGui::DockBuilderRemoveNode(dockSpaceId);
+    ImGui::DockBuilderAddNode(dockSpaceId, ImGuiDockNodeFlags_DockSpace);
+    
+    int w = windowManager->getWidth();
+    int h = windowManager->getHeight();
+    ImGui::DockBuilderSetNodeSize(dockSpaceId, ImVec2(static_cast<float>(w), static_cast<float>(h)));
+
+    // Split: center = viewport, bottom = console
+    ImGuiID dockCenter = dockSpaceId;
+    ImGuiID dockBottom = ImGui::DockBuilderSplitNode(dockCenter, ImGuiDir_Down, 0.25f, nullptr, &dockCenter);
+    ImGuiID dockRight = ImGui::DockBuilderSplitNode(dockCenter, ImGuiDir_Right, 0.25f, nullptr, &dockCenter);
+    ImGuiID dockLeft = ImGui::DockBuilderSplitNode(dockCenter, ImGuiDir_Left, 0.20f, nullptr, &dockCenter);
+
+    ImGui::DockBuilderDockWindow("Viewport", dockCenter);
+    ImGui::DockBuilderDockWindow("Scripting Console", dockBottom);
+    ImGui::DockBuilderDockWindow("Terminal", dockBottom);
+    ImGui::DockBuilderDockWindow("Properties", dockRight);
+    ImGui::DockBuilderDockWindow("Camera", dockRight);
+    ImGui::DockBuilderDockWindow("Asset Editor", dockRight);
+    ImGui::DockBuilderDockWindow("###AnimEditor", dockRight);
+    ImGui::DockBuilderDockWindow("Interaction Editor", dockRight);
+    ImGui::DockBuilderDockWindow("World Outliner", dockLeft);
+    ImGui::DockBuilderDockWindow("Performance Profiler", dockRight);
+    ImGui::DockBuilderDockWindow("Performance Overlay", dockRight);
+
+    ImGui::DockBuilderFinish(dockSpaceId);
 }
 
 } // namespace Phyxel

@@ -780,6 +780,23 @@ bool VulkanDevice::createSyncObjects() {
 }
 
 // Command buffer operations
+void VulkanDevice::deviceWaitIdle() {
+    vkDeviceWaitIdle(device);
+}
+
+void VulkanDevice::recreateSyncObjects() {
+    // Destroy old sync objects
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        if (imageAvailableSemaphores.size() > i && imageAvailableSemaphores[i] != VK_NULL_HANDLE)
+            vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
+        if (renderFinishedSemaphores.size() > i && renderFinishedSemaphores[i] != VK_NULL_HANDLE)
+            vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
+        if (inFlightFences.size() > i && inFlightFences[i] != VK_NULL_HANDLE)
+            vkDestroyFence(device, inFlightFences[i], nullptr);
+    }
+    createSyncObjects();
+}
+
 void VulkanDevice::waitForFence(uint32_t frameIndex) {
     vkWaitForFences(device, 1, &inFlightFences[frameIndex], VK_TRUE, UINT64_MAX);
 }
@@ -853,7 +870,9 @@ bool VulkanDevice::submitCommandBuffer(uint32_t frameIndex) {
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[frameIndex]) != VK_SUCCESS) {
+    VkResult result = vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[frameIndex]);
+    if (result != VK_SUCCESS) {
+        LOG_ERROR("Vulkan", "vkQueueSubmit failed with VkResult={}", static_cast<int>(result));
         return false;
     }
 

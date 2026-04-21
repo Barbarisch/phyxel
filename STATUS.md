@@ -196,7 +196,7 @@ Replacing the Goose-based AI pipeline with a direct LLM client so shipped games 
 #### Phase 1: Crafting System
 - **CraftingRecipe, CraftingSystem** — JSON recipe loading, resource validation, crafting with byproducts
 - **MCP tools**: `list_recipes`, `get_recipe`, `craft_item`, `add_recipe`, `reload_recipes`
-- **Sample recipes**: `resources/recipes/` (wood_planks, stone_bricks, glass_pane, etc.)
+- **Sample recipes**: `resources/ai/` (wood_planks, stone_bricks, glass_pane, etc.)
 
 #### Phase 2: Environmental Hazards
 - **HazardZone, HazardSystem** — 6 hazard types (Fire, Poison, Ice, Electric, Void, Radiation), stackable effects, resistance, DOT/slow/stun

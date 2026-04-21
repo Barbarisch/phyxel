@@ -1,0 +1,7 @@
+# Wooden door - 1 wide (X), 2 tall (Y), 1 deep (Z)
+# Hinge edge at local X=0, Z=0. Door extends along +X.
+# interaction_point: handle_0 door_handle 0.5 1.0 1.0 0.0 * 2.00 "Open / Close" 90.0
+# Format: C RelX RelY RelZ Material
+
+C 0 0 0 Wood
+C 0 1 0 Wood

@@ -24,6 +24,7 @@ struct MaterialProperties {
     // Breaking/impulse properties
     float breakForceMultiplier = 1.0f;    // Multiplier for initial break force
     float angularVelocityScale = 1.0f;    // Scale for random tumbling
+    float bondStrength = 0.5f;            // Inter-voxel bond strength (0=fragile, 1=unbreakable)
     
     // Visual properties (optional)
     glm::vec3 colorTint = glm::vec3(1.0f); // Color multiplier for material

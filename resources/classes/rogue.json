@@ -1,0 +1,49 @@
+{
+  "id": "rogue",
+  "name": "Rogue",
+  "hitDieFaces": 8,
+  "primaryAbility": "DEX",
+  "savingThrows": ["DEX", "INT"],
+  "armorProficiencies": ["light"],
+  "weaponProficiencies": ["simple", "hand_crossbows", "longswords", "rapiers", "shortswords"],
+  "toolProficiencies": ["thieves_tools"],
+  "skillChoices": 4,
+  "skillPool": ["Acrobatics", "Athletics", "Deception", "Insight", "Intimidation", "Investigation", "Perception", "Performance", "Persuasion", "Sleight of Hand", "Stealth"],
+  "spellcastingAbility": "",
+  "spellcastingType": "",
+  "asiLevels": [4, 8, 10, 12, 16, 19],
+  "features": {
+    "1": [
+      {"id": "expertise_rogue", "name": "Expertise", "description": "Double proficiency bonus for two chosen skill proficiencies (or one skill and thieves' tools)."},
+      {"id": "sneak_attack", "name": "Sneak Attack", "description": "Deal 1d6 extra damage once per turn when you have advantage or an ally is adjacent to the target. Scales by 1d6 every two levels."},
+      {"id": "thieves_cant", "name": "Thieves' Cant", "description": "Secret rogue language: hidden messages in normal conversation and knowledge of criminal slang."}
+    ],
+    "2": [
+      {"id": "cunning_action", "name": "Cunning Action", "description": "Bonus action to Dash, Disengage, or Hide on each of your turns."}
+    ],
+    "3": [
+      {"id": "roguish_archetype", "name": "Roguish Archetype", "description": "Choose a subclass: Thief, Assassin, Arcane Trickster, Inquisitive, Mastermind, Scout, Soulknife, or Swashbuckler."}
+    ],
+    "5": [
+      {"id": "uncanny_dodge", "name": "Uncanny Dodge", "description": "Reaction: halve the damage from an attacker you can see when they hit you."}
+    ],
+    "7": [
+      {"id": "evasion_rogue", "name": "Evasion", "description": "Dexterity saving throws vs area effects: success = no damage, failure = half damage."}
+    ],
+    "11": [
+      {"id": "reliable_talent", "name": "Reliable Talent", "description": "Any ability check using a proficient skill treats a d20 roll of 9 or lower as a 10."}
+    ],
+    "14": [
+      {"id": "expertise_rogue_2", "name": "Expertise (2nd)", "description": "Apply Expertise to two more skill proficiencies."}
+    ],
+    "15": [
+      {"id": "slippery_mind", "name": "Slippery Mind", "description": "Gain proficiency in Wisdom saving throws."}
+    ],
+    "18": [
+      {"id": "elusive", "name": "Elusive", "description": "No attack roll has advantage against you while you are not incapacitated."}
+    ],
+    "20": [
+      {"id": "stroke_of_luck", "name": "Stroke of Luck", "description": "Once per short or long rest: turn a missed attack roll into a hit, or a failed ability check into a 20."}
+    ]
+  }
+}

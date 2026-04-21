@@ -1,0 +1,10 @@
+{
+  "id": "human",
+  "name": "Human",
+  "abilityBonuses": { "STR": 1, "DEX": 1, "CON": 1, "INT": 1, "WIS": 1, "CHA": 1 },
+  "speed": 30,
+  "darkvisionRange": 0,
+  "traits": ["Extra Language", "Extra Skill"],
+  "languages": ["Common"],
+  "proficiencies": []
+}

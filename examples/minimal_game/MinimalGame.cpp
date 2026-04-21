@@ -262,6 +262,22 @@ void MinimalGame::onShutdown() {
     initialized_ = false;
 }
 
+// ============================================================================
+// Scene lifecycle (multi-scene games)
+// ============================================================================
+
+void MinimalGame::onSceneUnload(Phyxel::Core::EngineRuntime& /*engine*/, const std::string& sceneId) {
+    LOG_INFO("MinimalGame", "Scene '{}' unloading — save any game-specific per-scene state here", sceneId);
+}
+
+void MinimalGame::onSceneLoad(Phyxel::Core::EngineRuntime& /*engine*/, const std::string& sceneId) {
+    LOG_INFO("MinimalGame", "Scene '{}' loading — set up scene-specific game logic here", sceneId);
+}
+
+void MinimalGame::onSceneReady(Phyxel::Core::EngineRuntime& /*engine*/, const std::string& sceneId) {
+    LOG_INFO("MinimalGame", "Scene '{}' ready — start gameplay timers, ambient effects, etc.", sceneId);
+}
+
 void MinimalGame::applySettings(Phyxel::Core::EngineRuntime& engine) {
     auto* win = engine.getWindowManager();
     if (win) {

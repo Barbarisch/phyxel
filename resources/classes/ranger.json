@@ -1,0 +1,47 @@
+{
+  "id": "ranger",
+  "name": "Ranger",
+  "hitDieFaces": 10,
+  "primaryAbility": "DEX",
+  "savingThrows": ["STR", "DEX"],
+  "armorProficiencies": ["light", "medium", "shields"],
+  "weaponProficiencies": ["simple", "martial"],
+  "toolProficiencies": [],
+  "skillChoices": 3,
+  "skillPool": ["Animal Handling", "Athletics", "Insight", "Investigation", "Nature", "Perception", "Stealth", "Survival"],
+  "spellcastingAbility": "WIS",
+  "spellcastingType": "half",
+  "asiLevels": [4, 8, 12, 16, 19],
+  "features": {
+    "1": [
+      {"id": "favored_enemy", "name": "Favored Enemy", "description": "Choose a type of favored enemy (beast, humanoid, undead, etc.). Advantage on Survival checks to track and INT checks to recall info about them. Learn one language they speak."},
+      {"id": "natural_explorer", "name": "Natural Explorer", "description": "Choose a favored terrain. Benefits include: INT/WIS skill checks doubled with proficiency, can't be slowed by difficult terrain, group can't become lost, alert to danger during travel, move stealthily at normal pace alone."}
+    ],
+    "2": [
+      {"id": "fighting_style_ranger", "name": "Fighting Style", "description": "Choose: Archery, Defense, Dueling, or Two-Weapon Fighting."},
+      {"id": "spellcasting_ranger", "name": "Spellcasting", "description": "Cast ranger spells using Wisdom. Know a set number based on level."}
+    ],
+    "3": [
+      {"id": "ranger_archetype", "name": "Ranger Archetype", "description": "Choose a subclass: Hunter, Beast Master, Gloom Stalker, Horizon Walker, Monster Slayer, Fey Wanderer, or Swarmkeeper."},
+      {"id": "primeval_awareness", "name": "Primeval Awareness", "description": "Expend a spell slot to sense aberrations, celestials, dragons, elementals, fey, fiends, and undead within 1 mile (6 miles in favored terrain) for 1 minute per slot level."}
+    ],
+    "5": [
+      {"id": "extra_attack_ranger", "name": "Extra Attack", "description": "Attack twice when you take the Attack action."}
+    ],
+    "8": [
+      {"id": "lands_stride", "name": "Land's Stride", "description": "Moving through nonmagical difficult terrain costs no extra movement. Pass through nonmagical plants without being slowed or taking damage. Advantage on saves vs magical plants."}
+    ],
+    "10": [
+      {"id": "hide_in_plain_sight", "name": "Hide in Plain Sight", "description": "Spend 1 minute camouflaging yourself. +10 to Stealth checks while motionless in natural terrain."}
+    ],
+    "14": [
+      {"id": "vanish", "name": "Vanish", "description": "Hide as a bonus action. Can't be tracked by nonmagical means."}
+    ],
+    "18": [
+      {"id": "feral_senses", "name": "Feral Senses", "description": "No disadvantage on attacks against invisible creatures. Aware of invisible creatures within 30 ft."}
+    ],
+    "20": [
+      {"id": "foe_slayer", "name": "Foe Slayer", "description": "Once per turn, add WIS modifier to the attack roll or damage roll against a favored enemy."}
+    ]
+  }
+}

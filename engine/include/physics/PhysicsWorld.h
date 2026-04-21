@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Types.h"
+#include "physics/VoxelDynamicsWorld.h"
 #include <btBulletDynamicsCommon.h>
 #include <BulletCollision/CollisionDispatch/btGhostObject.h>
 #include <BulletDynamics/Character/btKinematicCharacterController.h>
@@ -76,6 +77,9 @@ public:
     btDiscreteDynamicsWorld* getWorld() const { return dynamicsWorld.get(); }
     btBroadphaseInterface* getBroadphase() const { return broadphase.get(); }
 
+    // Custom voxel physics world (purpose-built for dynamic broken voxels)
+    VoxelDynamicsWorld* getVoxelWorld() const { return m_voxelWorld.get(); }
+
     // Consolidated cube creation with full control over physics params.
     struct CubeCreationParams {
         glm::vec3 position;
@@ -104,6 +108,9 @@ private:
     std::vector<btKinematicCharacterController*> characters;
     std::vector<btPairCachingGhostObject*> ghostObjects;
     std::vector<btCollisionShape*> characterShapes;
+
+    // Custom voxel dynamics world — handles broken voxel physics
+    std::unique_ptr<VoxelDynamicsWorld> m_voxelWorld;
 
     // Ceep track of created bodies for cleanup
     std::vector<btRigidBody*> rigidBodies;

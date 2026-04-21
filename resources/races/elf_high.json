@@ -1,0 +1,10 @@
+{
+  "id": "elf_high",
+  "name": "High Elf",
+  "abilityBonuses": { "DEX": 2, "INT": 1 },
+  "speed": 30,
+  "darkvisionRange": 60,
+  "traits": ["Darkvision", "Fey Ancestry", "Trance", "Keen Senses", "Elf Weapon Training", "Cantrip", "Extra Language"],
+  "languages": ["Common", "Elvish"],
+  "proficiencies": ["longswords", "shortswords", "shortbows", "longbows"]
+}

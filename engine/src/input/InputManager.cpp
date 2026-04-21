@@ -78,9 +78,10 @@ void InputManager::processInput(float deltaTime) {
 
 void InputManager::processCameraMovement(float deltaTime) {
     if (scriptingConsoleMode) return;
+    if (ImGui::GetIO().WantCaptureKeyboard) return;
 
     float speed = cameraSpeed * deltaTime;
-    
+
     // Forward/Backward (W/S)
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
         cameraPos += speed * cameraFront;
@@ -88,7 +89,7 @@ void InputManager::processCameraMovement(float deltaTime) {
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
         cameraPos -= speed * cameraFront;
     }
-    
+
     // Left/Right (A/D)
     glm::vec3 right = glm::normalize(glm::cross(cameraFront, cameraUp));
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
@@ -97,7 +98,7 @@ void InputManager::processCameraMovement(float deltaTime) {
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
         cameraPos += right * speed;
     }
-    
+
     // Up/Down (Space/Z)
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
         cameraPos += cameraUp * speed;
@@ -231,8 +232,10 @@ void InputManager::handleMouseButton(int button, int action, int mods) {
     if (scriptingConsoleMode) return;
 
     // Handle right mouse button for camera rotation
+    // Allow when viewport is hovered (even though ImGui "wants" the mouse for the viewport window)
     if (button == GLFW_MOUSE_BUTTON_RIGHT) {
-        if (action == GLFW_PRESS) {
+        bool mouseOverViewport = m_viewportHovered || !ImGui::GetIO().WantCaptureMouse;
+        if (action == GLFW_PRESS && mouseOverViewport) {
             mouseCaptured = true;
             firstMouse = true; // Reset to avoid jump
             LOG_INFO("InputManager", "*** RIGHT MOUSE PRESSED - CAMERA LOOK MODE ENABLED ***");
@@ -241,9 +244,10 @@ void InputManager::handleMouseButton(int button, int action, int mods) {
             LOG_INFO("InputManager", "*** RIGHT MOUSE RELEASED - CAMERA LOOK MODE DISABLED ***");
         }
     }
-    
-    // Process registered mouse actions — skip when ImGui is consuming the mouse
-    if (action == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse) {
+
+    // Process registered mouse actions — allow when viewport hovered or ImGui doesn't want mouse
+    bool mouseAvailable = m_viewportHovered || !ImGui::GetIO().WantCaptureMouse;
+    if (action == GLFW_PRESS && mouseAvailable) {
         // Look for exact match with button and modifiers
         MouseButtonKey key{button, mods};
         auto it = mouseActions.find(key);
@@ -332,7 +336,8 @@ bool InputManager::isKeyPressed(int key) const {
     // Exception: We might want to allow some keys, but generally the console consumes input.
     // The toggle key (Grave Accent) is handled via registerAction/processKeyboardActions which bypasses this.
     if (scriptingConsoleMode) return false;
-    
+    if (ImGui::GetIO().WantCaptureKeyboard) return false;
+
     return glfwGetKey(window, key) == GLFW_PRESS;
 }
 
@@ -340,6 +345,7 @@ bool InputManager::isMouseButtonPressed(int button) const {
     if (!window) return false;
     // If scripting console is open, block mouse button queries
     if (scriptingConsoleMode) return false;
+    if (ImGui::GetIO().WantCaptureMouse) return false;
 
     return glfwGetMouseButton(window, button) == GLFW_PRESS;
 }

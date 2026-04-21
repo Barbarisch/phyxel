@@ -34,9 +34,11 @@ namespace Phyxel {
     class ScriptingSystem;
     namespace Graphics {
         class DebrisRenderPipeline;
+        class KinematicVoxelPipeline;
     }
     namespace Core {
         class NPCManager;
+        class KinematicVoxelManager;
     }
     class GpuParticlePhysics;
 }
@@ -135,6 +137,9 @@ public:
     // GPU particle physics — must be set before the first drawFrame()
     void setGpuParticlePhysics(GpuParticlePhysics* gpp) { m_gpuParticles = gpp; }
 
+    // Kinematic voxel objects (doors, platforms, etc.)
+    void setKinematicVoxelManager(Core::KinematicVoxelManager* mgr) { m_kinematicObjects = mgr; }
+
     // Custom UI system (non-ImGui menus)
     /// Create and initialize the UISystem. Must be called after construction.
     bool initUISystem();
@@ -142,6 +147,10 @@ public:
     
     // Render UI elements (must be called between ImGui::NewFrame and ImGui::Render)
     void renderUI();
+
+    // Viewport texture for editor docking (offscreen scene image)
+    VkImageView getViewportImageView() const;
+    VkSampler getViewportSampler() const;
 
     // Frame state accessors
     void setFrameStartTime(std::chrono::high_resolution_clock::time_point time) { frameStartTime = time; }
@@ -229,6 +238,10 @@ private:
 
     // Debris Rendering
     std::unique_ptr<DebrisRenderPipeline> debrisPipeline;
+
+    // Kinematic Voxel Rendering (doors, rotating platforms, etc.)
+    std::unique_ptr<KinematicVoxelPipeline> kinematicPipeline;
+    Core::KinematicVoxelManager* m_kinematicObjects = nullptr;
 
     // GPU particle physics (non-owning — owned by Application)
     GpuParticlePhysics* m_gpuParticles = nullptr;

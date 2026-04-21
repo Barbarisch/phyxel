@@ -7,6 +7,8 @@
 class btRigidBody;
 
 namespace Phyxel {
+namespace Physics { class VoxelRigidBody; }
+
 
 /**
  * @brief Subcube class for voxel subdivision system
@@ -39,11 +41,12 @@ public:
     bool isBroken() const { return broken; }
     bool isVisible() const { return visible; }
     btRigidBody* getRigidBody() const { return rigidBody; }
+    Physics::VoxelRigidBody* getVoxelBody() const { return voxelBody; }
     const std::string& getMaterialName() const { return materialName; }
     float getLifetime() const { return lifetime; }
     bool hasExpired() const { return lifetime <= 0.0f; }
     const glm::vec3& getPhysicsPosition() const { return physicsPosition; }
-    bool isDynamic() const { return rigidBody != nullptr; }
+    bool isDynamic() const { return rigidBody != nullptr || voxelBody != nullptr; }
     
     // Mutators
     void setPosition(const glm::ivec3& pos) { position = pos; }
@@ -51,6 +54,7 @@ public:
     void setBroken(bool isBroken) { broken = isBroken; }
     void setVisible(bool vis) { visible = vis; }
     void setRigidBody(btRigidBody* body) { rigidBody = body; }
+    void setVoxelBody(Physics::VoxelRigidBody* body) { voxelBody = body; }
     void setPhysicsPosition(const glm::vec3& pos) { physicsPosition = pos; }
     void setPhysicsRotation(const glm::vec4& rot) { physicsRotation = rot; }
     void setMaterialName(const std::string& mat) { materialName = mat; }
@@ -74,8 +78,9 @@ private:
     bool broken = false;
     bool visible = true;
     
-    // Physics body for dynamic subcubes
+    // Physics bodies: rigidBody = Bullet legacy; voxelBody = custom solver
     btRigidBody* rigidBody = nullptr;
+    Physics::VoxelRigidBody* voxelBody = nullptr;
     
     // Smooth floating-point position and rotation for dynamic subcubes (bypasses integer grid)
     glm::vec3 physicsPosition = glm::vec3(0.0f);

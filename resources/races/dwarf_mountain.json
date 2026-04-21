@@ -1,0 +1,10 @@
+{
+  "id": "dwarf_mountain",
+  "name": "Mountain Dwarf",
+  "abilityBonuses": { "STR": 2, "CON": 2 },
+  "speed": 25,
+  "darkvisionRange": 60,
+  "traits": ["Darkvision", "Dwarven Resilience", "Stonecunning", "Dwarven Combat Training", "Dwarven Armor Training"],
+  "languages": ["Common", "Dwarvish"],
+  "proficiencies": ["battleaxes", "handaxes", "light_hammers", "warhammers"]
+}

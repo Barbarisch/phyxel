@@ -7,7 +7,7 @@ When voxels are broken (left-click), they become physics-driven **dynamic voxels
 - **Bullet Physics** (CPU) — Traditional rigid body simulation via `DynamicObjectManager`. Higher fidelity OBB collision, but CPU-bound and costly above ~75 objects.
 - **GPU Compute** (Vulkan) — Massively parallel XPBD particle physics via `GpuParticlePhysics`. Lower per-particle cost, scales to 5000+ particles with minimal FPS impact.
 
-Both systems render through the same dynamic voxel pipeline (see [DynamicSubcubeRenderPipeline.md](DynamicSubcubeRenderPipeline.md)).
+Both systems render through the same dynamic voxel pipeline (see [VoxelRenderPipelines.md](VoxelRenderPipelines.md)).
 
 ```
           Player breaks voxel
@@ -19,7 +19,7 @@ Both systems render through the same dynamic voxel pipeline (see [DynamicSubcube
     └───────────┬─────────────┘
                 │
         ┌───────┴───────┐
-        │ Hybrid Router │ (proximity + cap check)
+        │ Hybrid Router │ (FPS-based fallback)
         ├───────┬───────┤
         ▼       ▼       
    ┌────────┐  ┌──────────┐
@@ -42,13 +42,14 @@ Both systems render through the same dynamic voxel pipeline (see [DynamicSubcube
 
 ## Hybrid Routing
 
-When a voxel breaks, `VoxelManipulationSystem` decides which backend to use:
+When a voxel breaks, `VoxelManipulationSystem` decides which backend to use via **FPS-based fallback** — Bullet is always preferred for its realistic rigid body simulation, and GPU particles are only used when performance demands it:
 
-1. **Distance check**: If the break position is within 10 blocks of the player, prefer Bullet (better visual fidelity at close range).
-2. **Bullet cap check**: If `DynamicObjectManager::getActiveBulletCount() >= MAX_DYNAMIC_OBJECTS` (300), overflow to GPU regardless of distance.
-3. **Otherwise**: Route to GPU compute.
+1. **FPS check**: If the smoothed FPS is at or above the threshold (`GPU_FALLBACK_FPS_THRESHOLD`, default 30 FPS), use Bullet.
+2. **Bullet cap check**: If `DynamicObjectManager::getActiveBulletCount() >= MAX_DYNAMIC_OBJECTS` (300), overflow to GPU regardless of FPS.
+3. **Per-frame budget**: At most `MAX_BULLET_BREAKS_PER_FRAME` (8) new Bullet objects per frame to avoid spikes.
+4. **FPS below threshold**: Route to GPU compute to avoid further frame rate degradation.
 
-This ensures nearby debris has precise OBB collision while distant debris uses the scalable GPU path.
+The smoothed FPS uses an exponential moving average (~20-frame window) to avoid jitter from single-frame spikes. This ensures Bullet physics is used as much as possible for visual fidelity, with GPU particles as a graceful fallback under load.
 
 ## Bullet Physics Path
 
@@ -323,8 +324,117 @@ Each test step:
 | `shaders/particle_types.glsl` | Shared particle struct definition |
 | `tools/perf_stress_test.py` | Automated performance stress tester |
 
+## VoxelDynamicsWorld (Custom CPU Physics)
+
+A purpose-built sequential-impulse physics engine for dynamic furniture and compound rigid bodies. Replaces Bullet for these use cases, eliminating the per-removal AABB rebuild bottleneck and giving full lifetime control.
+
+### Architecture
+
+- **System**: `VoxelDynamicsWorld` in `engine/src/physics/VoxelDynamicsWorld.cpp`
+- **Bodies**: `VoxelRigidBody` — compound OBB rigid body with sleeping, damping, restitution, friction
+- **Terrain**: `VoxelOccupancyGrid` registered per-chunk; queried via AABB each substep
+- **Contact solver**: Sequential impulse (PGS), 10 iterations per substep
+- **Threading**: Integrate, contact generation (terrain phase), and contact prepare run in parallel via `std::async` on `hardware_concurrency` threads; PGS solve is sequential
+
+### Contact Generation Pipeline
+
+Each substep:
+1. **Build awake list + cache AABBs** — one AABB computed per body, reused in both terrain and body-body phases
+2. **Body vs terrain** (parallel) — each body's AABB queries registered `VoxelOccupancyGrid`s; only nearby terrain voxels are tested
+3. **Body vs kinematic obstacles** (sequential) — character segment boxes; wakes sleeping bodies on overlap
+4. **Body vs body** (spatial hash broadphase) — bodies bucketed into 2-unit 3D cells; only pairs sharing a cell are narrowphase-tested, reducing average complexity from O(N²) to O(N) for sparse scenes
+
+### Furniture Integration
+
+`DynamicFurnitureManager` activates furniture as `VoxelRigidBody` instances when broken free. Key behaviors:
+- Furniture bodies have `lifetime = FLT_MAX` — they never expire and remain as sleeping obstacles indefinitely
+- `AnimatedVoxelCharacter` uses `overlapsAnyBody()` for collision, which correctly hits sleeping furniture bodies
+- Bodies are registered with the character's kinematic obstacles each frame for push impulses
+
+### Properties
+
+| Property | Value |
+|----------|-------|
+| Max bodies | Unlimited (soft limit ~500 active before perf degrades) |
+| Default lifetime | `FLT_MAX` for furniture, 30s for debris |
+| Collision | OBB–OBB and OBB–AABB (terrain) via SAT |
+| Substeps | 3 per frame (configurable) |
+| Sleep threshold | 0.02 m/s linear, 0.05 rad/s angular |
+| Sleep delay | 1.2 seconds below threshold |
+| Broadphase | Spatial hash, 2-unit cells |
+| Thread count | `hardware_concurrency` (configurable via `setThreadCount`) |
+
+### Performance Characteristics (Debug Build)
+
+Measured with `tools/perf_stress_test.py --mode voxel` — all bodies spawned at a single point (worst case: all bodies piled and awake).
+
+| Count | FPS avg | CPU ms | Notes |
+|-------|---------|--------|-------|
+| 0 | 166 | 6.5 | Baseline |
+| 50 | 114 | 23 | Healthy |
+| 100 | 127 | 20 | Healthy |
+| 200 | 86 | 219 | Manageable |
+| 500 | 0.7 | 1353 | Unplayable |
+
+**Key caveat**: the stress test is a worst case — all bodies spawn at the same point and remain awake in a dense pile. In real gameplay most bodies are spread out or sleeping, so practical limits are significantly higher than the pile scenario suggests.
+
+**Spatial hash note**: The broadphase is efficient for sparse distributions (furniture around a room). When all bodies are piled in the same cells it degrades back to O(N²) — the dense pile case is an inherent constraint, not a bug.
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/debug/spawn_voxel_body` | POST | Spawn VoxelDynamicsWorld bodies (count, scale, mass, lifetime, velocity) |
+| `/api/debug/clear_voxel_bodies` | POST | Remove all VoxelDynamicsWorld bodies |
+
+```json
+{
+    "x": 32.0, "y": 24.0, "z": 32.0,
+    "scale": 1.0,
+    "mass": 1.0,
+    "lifetime": 10.0,
+    "count": 100,
+    "velocity": {"x": 0, "y": 0, "z": 0}
+}
+```
+
+### Key Source Files
+
+| File | Purpose |
+|------|---------|
+| `engine/include/physics/VoxelDynamicsWorld.h` | World API (create/remove bodies, grids, queries) |
+| `engine/src/physics/VoxelDynamicsWorld.cpp` | Simulation loop, broadphase, parallel phases |
+| `engine/include/physics/VoxelRigidBody.h` | Rigid body state, sleeping, AABB |
+| `engine/include/physics/VoxelContactSolver.h` | SAT contact generation, PGS solver |
+| `engine/src/physics/VoxelContactSolver.cpp` | OBB–OBB, OBB–AABB, face clipping, impulse solve |
+| `engine/src/core/DynamicFurnitureManager.cpp` | Furniture activation → VoxelRigidBody lifecycle |
+
+---
+
+## Future Performance Work
+
+The following improvements are identified but not yet implemented:
+
+### 1. Dense-pile sleep cascading
+When bodies settle into a pile, they keep nudging each other and cannot sleep despite being nearly stationary. A cascading sleep policy — where a body surrounded only by sleeping/static neighbors is put to sleep immediately regardless of the timer — would collapse settled piles in <1 second and dramatically reduce the awake body count in practice.
+
+### 2. Substep reduction for debris
+The default of 3 substeps is conservative. Single-voxel debris bodies that don't need tight constraint stability could use 1 substep, cutting the physics budget by ~3×. Could be a per-body flag or a global mode.
+
+### 3. Island detection
+Group bodies into connected-component islands (connected by active contacts). Sleep an entire island when all members are below threshold. Eliminates per-body timer jitter in settled piles and enables skipping entire sleeping islands from broadphase.
+
+### 4. Parallel spatial hash construction
+The spatial hash is currently built and queried sequentially. For >500 awake bodies, construction and pair-testing could be parallelized using per-thread hash maps merged before narrowphase.
+
+### 5. Release build benchmarking
+All numbers above are Debug builds. Release mode eliminates bounds checks, enables SIMD auto-vectorization, and typically yields 3–5× physics throughput improvement. A full baseline vs. spatial-hash comparison in Release has not been done.
+
+---
+
 ## See Also
 
-- [DynamicSubcubeRenderPipeline.md](DynamicSubcubeRenderPipeline.md) — Rendering architecture for dynamic voxels
+- [VoxelRenderPipelines.md](VoxelRenderPipelines.md) — Rendering architecture for all three voxel pipelines (static, kinematic, GPU particle)
+- [VoxelSystem.md](VoxelSystem.md) — Conceptual model: voxel sizes, static/kinematic/dynamic states
 - [SubsystemArchitecture.md](SubsystemArchitecture.md) — Engine subsystem overview
 - [CoordinateSystem.md](CoordinateSystem.md) — World coordinate conventions

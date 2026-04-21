@@ -1,0 +1,10 @@
+{
+  "id": "tiefling",
+  "name": "Tiefling",
+  "abilityBonuses": { "INT": 1, "CHA": 2 },
+  "speed": 30,
+  "darkvisionRange": 60,
+  "traits": ["Darkvision", "Hellish Resistance", "Infernal Legacy"],
+  "languages": ["Common", "Infernal"],
+  "proficiencies": []
+}
