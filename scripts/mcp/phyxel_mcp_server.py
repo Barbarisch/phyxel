@@ -533,6 +533,62 @@ async def list_tools() -> list[Tool]:
         ),
 
         # ================================================================
+        # Material Management (runtime add/remove/save)
+        # ================================================================
+        Tool(
+            name="add_material",
+            description="Add a new material to the engine at runtime. Creates texture filename slots automatically. Use reload_atlas after adding to rebuild the texture atlas.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"description": "Unique material name (case-sensitive)", "type": "string"},
+                    "emissive": {"description": "Whether the material glows (default false)", "type": "boolean"},
+                    "physics": {
+                        "description": "Physics properties (omit for system-only materials)",
+                        "type": "object",
+                        "properties": {
+                            "mass": {"type": "number", "description": "Mass (default 1.0)"},
+                            "friction": {"type": "number", "description": "Friction (default 0.5)"},
+                            "restitution": {"type": "number", "description": "Bounciness (default 0.3)"}
+                        }
+                    }
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="remove_material",
+            description="Remove a material from the engine. Does not delete texture files. Use reload_atlas after removing.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"description": "Material name to remove", "type": "string"}
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="save_materials",
+            description="Save the current material definitions to materials.json on disk.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {"description": "Output path (default: resources/materials.json)", "type": "string"}
+                },
+                "required": []
+            }
+        ),
+        Tool(
+            name="reload_atlas",
+            description="Hot-reload the texture atlas from source PNGs. Rebuilds the atlas, uploads to GPU, and updates shader UV data. Call after modifying textures or adding/removing materials.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+
+        # ================================================================
         # Chunk Info
         # ================================================================
         Tool(
@@ -3359,6 +3415,26 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     # --- Materials ---
     elif name == "list_materials":
         return await api_get("/api/materials")
+
+    elif name == "add_material":
+        body = {"name": args["name"]}
+        if "emissive" in args:
+            body["emissive"] = args["emissive"]
+        if "physics" in args:
+            body["physics"] = args["physics"]
+        return await api_post("/api/materials/add", body)
+
+    elif name == "remove_material":
+        return await api_post("/api/materials/remove", {"name": args["name"]})
+
+    elif name == "save_materials":
+        body = {}
+        if "path" in args:
+            body["path"] = args["path"]
+        return await api_post("/api/materials/save", body)
+
+    elif name == "reload_atlas":
+        return await api_post("/api/atlas/reload", {})
 
     # --- Chunk Info ---
     elif name == "get_chunk_info":

@@ -1,5 +1,6 @@
 #include "physics/PhysicsWorld.h"
 #include "physics/Material.h"
+#include "core/MaterialRegistry.h"
 #include "utils/Logger.h"
 #include <iostream>
 #include <algorithm>
@@ -220,8 +221,7 @@ btRigidBody* PhysicsWorld::createCube(const glm::vec3& position, const glm::vec3
 }
 
 btRigidBody* PhysicsWorld::createCube(const glm::vec3& position, const glm::vec3& size, const std::string& materialName) {
-    static Physics::MaterialManager materialManager;
-    const auto& material = materialManager.getMaterial(materialName);
+    const auto& material = Phyxel::Core::MaterialRegistry::instance().getPhysics(materialName);
 
     CubeCreationParams params;
     params.position = position;
@@ -237,8 +237,7 @@ btRigidBody* PhysicsWorld::createCube(const glm::vec3& position, const glm::vec3
 }
 
 btRigidBody* PhysicsWorld::createBreakawayCube(const glm::vec3& position, const glm::vec3& size, const std::string& materialName) {
-    static Physics::MaterialManager materialManager;
-    const auto& material = materialManager.getMaterial(materialName);
+    const auto& material = Phyxel::Core::MaterialRegistry::instance().getPhysics(materialName);
 
     CubeCreationParams params;
     params.position = position;

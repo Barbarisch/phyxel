@@ -19,7 +19,6 @@ class GpuParticlePhysics;
 
 namespace Physics {
     class PhysicsWorld;
-    class MaterialManager;
 }
 
 namespace Core {
@@ -173,8 +172,7 @@ private:
     /// Greedy box merge: group adjacent voxels into larger axis-aligned boxes.
     /// Reduces child shape count from O(voxels) to O(10-30) for typical furniture.
     /// Uses a 3D occupancy grid at the finest voxel resolution and sweeps X→Y→Z.
-    static std::vector<MergedBox> mergeVoxelsGreedy(const std::vector<KinematicVoxel>& voxels,
-                                                     const Physics::MaterialManager& matMgr);
+    static std::vector<MergedBox> mergeVoxelsGreedy(const std::vector<KinematicVoxel>& voxels);
 
     /// Build a btCompoundShape from KinematicVoxel positions.
     /// Uses greedy box merge to minimize child shape count.

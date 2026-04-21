@@ -1,4 +1,5 @@
 #include "core/FaceUpdateCoordinator.h"
+#include "core/MaterialRegistry.h"
 #include "core/Chunk.h"
 #include "core/Subcube.h"
 #include "core/Cube.h"
@@ -53,7 +54,7 @@ void FaceUpdateCoordinator::rebuildGlobalDynamicFaces() {
                 faceInstance.scale = glm::vec3(subcube->getScale());
             }
             
-            faceInstance.textureIndex = TextureConstants::getTextureIndexForMaterial(subcube->getMaterialName(), faceID);
+            faceInstance.textureIndex = Phyxel::Core::MaterialRegistry::instance().getTextureIndex(subcube->getMaterialName(), faceID);
             faceInstance.faceID = faceID;
             faceInstance.localPosition = subcube->getLocalPosition(); // Preserve original grid position
             
@@ -73,7 +74,7 @@ void FaceUpdateCoordinator::rebuildGlobalDynamicFaces() {
             // Dynamic cubes always use physics position and rotation
             faceInstance.worldPosition = cube->getPhysicsPosition();
             faceInstance.rotation = cube->getPhysicsRotation();
-            faceInstance.textureIndex = TextureConstants::getTextureIndexForMaterial(
+            faceInstance.textureIndex = Phyxel::Core::MaterialRegistry::instance().getTextureIndex(
                 cube->getMaterialName(), faceID);
             faceInstance.faceID = faceID;
             faceInstance.scale = cube->getDynamicScale(); // Use dynamic scale (vec3)
@@ -95,7 +96,7 @@ void FaceUpdateCoordinator::rebuildGlobalDynamicFaces() {
             // Dynamic microcubes always use physics position and rotation
             faceInstance.worldPosition = microcube->getPhysicsPosition();
             faceInstance.rotation = microcube->getPhysicsRotation();
-            faceInstance.textureIndex = TextureConstants::getTextureIndexForMaterial(microcube->getMaterialName(), faceID);
+            faceInstance.textureIndex = Phyxel::Core::MaterialRegistry::instance().getTextureIndex(microcube->getMaterialName(), faceID);
             faceInstance.faceID = faceID;
             faceInstance.scale = glm::vec3(microcube->getScale()); // Uniform scale for microcubes
             

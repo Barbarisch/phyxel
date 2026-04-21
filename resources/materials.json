@@ -1,0 +1,336 @@
+{
+  "version": 1,
+  "atlas": {
+    "textureSize": 18,
+    "padding": 1,
+    "texturesPerRow": 6
+  },
+  "materials": [
+    {
+      "name": "placeholder",
+      "category": "system",
+      "description": "Default fallback texture",
+      "textures": {
+        "side_n": "placeholder_side_n.png",
+        "side_s": "placeholder_side_s.png",
+        "side_e": "placeholder_side_e.png",
+        "side_w": "placeholder_side_w.png",
+        "top": "placeholder_top.png",
+        "bottom": "placeholder_bottom.png"
+      }
+    },
+    {
+      "name": "grassdirt",
+      "category": "system",
+      "description": "Grass-topped dirt for terrain",
+      "textures": {
+        "side_n": "grassdirt_side_n.png",
+        "side_s": "grassdirt_side_s.png",
+        "side_e": "grassdirt_side_e.png",
+        "side_w": "grassdirt_side_w.png",
+        "top": "grassdirt_top.png",
+        "bottom": "grassdirt_bottom.png"
+      }
+    },
+    {
+      "name": "Cork",
+      "category": "material",
+      "description": "Ultra-light cork material that floats",
+      "physics": {
+        "mass": 0.2,
+        "friction": 0.5,
+        "restitution": 0.4,
+        "linearDamping": 0.4,
+        "angularDamping": 0.5,
+        "breakForceMultiplier": 0.3,
+        "bondStrength": 0.4,
+        "angularVelocityScale": 3.0,
+        "colorTint": [0.8, 0.7, 0.5],
+        "metallic": 0.0,
+        "roughness": 0.5
+      },
+      "textures": {
+        "side_n": "cork_side_n.png",
+        "side_s": "cork_side_s.png",
+        "side_e": "cork_side_e.png",
+        "side_w": "cork_side_w.png",
+        "top": "cork_top.png",
+        "bottom": "cork_bottom.png"
+      }
+    },
+    {
+      "name": "Default",
+      "category": "material",
+      "description": "Balanced default material properties",
+      "physics": {
+        "mass": 1.0,
+        "friction": 0.5,
+        "restitution": 0.3,
+        "linearDamping": 0.1,
+        "angularDamping": 0.1,
+        "breakForceMultiplier": 1.0,
+        "bondStrength": 0.5,
+        "angularVelocityScale": 1.0,
+        "colorTint": [1.0, 1.0, 1.0],
+        "metallic": 0.0,
+        "roughness": 0.5
+      },
+      "textures": {
+        "side_n": "default_side_n.png",
+        "side_s": "default_side_s.png",
+        "side_e": "default_side_e.png",
+        "side_w": "default_side_w.png",
+        "top": "default_top.png",
+        "bottom": "default_bottom.png"
+      }
+    },
+    {
+      "name": "Dirt",
+      "category": "material",
+      "description": "Brown earth block for terrain sub-surface",
+      "physics": {
+        "mass": 2.0,
+        "friction": 0.7,
+        "restitution": 0.1,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.6,
+        "bondStrength": 0.5,
+        "angularVelocityScale": 1.0,
+        "colorTint": [0.47, 0.33, 0.22],
+        "metallic": 0.0,
+        "roughness": 0.8
+      },
+      "textures": {
+        "side_n": "dirt_side_n.png",
+        "side_s": "dirt_side_s.png",
+        "side_e": "dirt_side_e.png",
+        "side_w": "dirt_side_w.png",
+        "top": "dirt_top.png",
+        "bottom": "dirt_bottom.png"
+      }
+    },
+    {
+      "name": "Glass",
+      "category": "material",
+      "description": "Brittle glass material with smooth surface",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.2,
+        "restitution": 0.6,
+        "linearDamping": 0.1,
+        "angularDamping": 0.15,
+        "breakForceMultiplier": 0.5,
+        "bondStrength": 0.2,
+        "angularVelocityScale": 1.8,
+        "colorTint": [0.9, 0.95, 1.0],
+        "metallic": 0.0,
+        "roughness": 0.5
+      },
+      "textures": {
+        "side_n": "glass_side_n.png",
+        "side_s": "glass_side_s.png",
+        "side_e": "glass_side_e.png",
+        "side_w": "glass_side_w.png",
+        "top": "glass_top.png",
+        "bottom": "glass_bottom.png"
+      }
+    },
+    {
+      "name": "glow",
+      "category": "material",
+      "description": "Emissive material that glows",
+      "emissive": true,
+      "physics": {
+        "mass": 1.0,
+        "friction": 0.5,
+        "restitution": 0.5,
+        "linearDamping": 0.1,
+        "angularDamping": 0.1,
+        "breakForceMultiplier": 1.0,
+        "bondStrength": 0.5,
+        "angularVelocityScale": 1.0,
+        "colorTint": [1.0, 1.0, 1.0],
+        "metallic": 0.0,
+        "roughness": 0.5
+      },
+      "textures": {
+        "side_n": "glow_side_n.png",
+        "side_s": "glow_side_s.png",
+        "side_e": "glow_side_e.png",
+        "side_w": "glow_side_w.png",
+        "top": "glow_top.png",
+        "bottom": "glow_bottom.png"
+      }
+    },
+    {
+      "name": "hover",
+      "category": "system",
+      "description": "Editor hover highlight texture",
+      "textures": {
+        "side_n": "hover_side_n.png",
+        "side_s": "hover_side_s.png",
+        "side_e": "hover_side_e.png",
+        "side_w": "hover_side_w.png",
+        "top": "hover_top.png",
+        "bottom": "hover_bottom.png"
+      }
+    },
+    {
+      "name": "Ice",
+      "category": "material",
+      "description": "Slippery ice material with low friction",
+      "physics": {
+        "mass": 0.9,
+        "friction": 0.1,
+        "restitution": 0.4,
+        "linearDamping": 0.05,
+        "angularDamping": 0.05,
+        "breakForceMultiplier": 0.7,
+        "bondStrength": 0.3,
+        "angularVelocityScale": 2.5,
+        "colorTint": [0.8, 0.9, 1.0],
+        "metallic": 0.0,
+        "roughness": 0.5
+      },
+      "textures": {
+        "side_n": "ice_side_n.png",
+        "side_s": "ice_side_s.png",
+        "side_e": "ice_side_e.png",
+        "side_w": "ice_side_w.png",
+        "top": "ice_top.png",
+        "bottom": "ice_bottom.png"
+      }
+    },
+    {
+      "name": "Leaf",
+      "category": "material",
+      "description": "Light foliage material for trees and bushes",
+      "physics": {
+        "mass": 0.1,
+        "friction": 0.3,
+        "restitution": 0.1,
+        "linearDamping": 0.6,
+        "angularDamping": 0.6,
+        "breakForceMultiplier": 0.2,
+        "bondStrength": 0.2,
+        "angularVelocityScale": 3.0,
+        "colorTint": [0.3, 0.7, 0.2],
+        "metallic": 0.0,
+        "roughness": 0.5
+      },
+      "textures": {
+        "side_n": "leaf_side_n.png",
+        "side_s": "leaf_side_s.png",
+        "side_e": "leaf_side_e.png",
+        "side_w": "leaf_side_w.png",
+        "top": "leaf_top.png",
+        "bottom": "leaf_bottom.png"
+      }
+    },
+    {
+      "name": "Metal",
+      "category": "material",
+      "description": "Heavy metallic material with high density",
+      "physics": {
+        "mass": 4.0,
+        "friction": 0.7,
+        "restitution": 0.1,
+        "linearDamping": 0.05,
+        "angularDamping": 0.1,
+        "breakForceMultiplier": 1.5,
+        "bondStrength": 0.95,
+        "angularVelocityScale": 0.6,
+        "colorTint": [0.7, 0.7, 0.8],
+        "metallic": 0.0,
+        "roughness": 0.5
+      },
+      "textures": {
+        "side_n": "metal_side_n.png",
+        "side_s": "metal_side_s.png",
+        "side_e": "metal_side_e.png",
+        "side_w": "metal_side_w.png",
+        "top": "metal_top.png",
+        "bottom": "metal_bottom.png"
+      }
+    },
+    {
+      "name": "Rubber",
+      "category": "material",
+      "description": "Bouncy rubber material with high elasticity",
+      "physics": {
+        "mass": 0.5,
+        "friction": 0.9,
+        "restitution": 0.9,
+        "linearDamping": 0.3,
+        "angularDamping": 0.4,
+        "breakForceMultiplier": 0.6,
+        "bondStrength": 0.7,
+        "angularVelocityScale": 2.0,
+        "colorTint": [0.3, 0.3, 0.3],
+        "metallic": 0.0,
+        "roughness": 0.5
+      },
+      "textures": {
+        "side_n": "rubber_side_n.png",
+        "side_s": "rubber_side_s.png",
+        "side_e": "rubber_side_e.png",
+        "side_w": "rubber_side_w.png",
+        "top": "rubber_top.png",
+        "bottom": "rubber_bottom.png"
+      }
+    },
+    {
+      "name": "Stone",
+      "category": "material",
+      "description": "Dense stone material with rough surface",
+      "physics": {
+        "mass": 6.0,
+        "friction": 0.8,
+        "restitution": 0.05,
+        "linearDamping": 0.1,
+        "angularDamping": 0.2,
+        "breakForceMultiplier": 2.0,
+        "bondStrength": 0.9,
+        "angularVelocityScale": 0.4,
+        "colorTint": [0.6, 0.5, 0.4],
+        "metallic": 0.0,
+        "roughness": 0.5
+      },
+      "textures": {
+        "side_n": "stone_side_n.png",
+        "side_s": "stone_side_s.png",
+        "side_e": "stone_side_e.png",
+        "side_w": "stone_side_w.png",
+        "top": "stone_top.png",
+        "bottom": "stone_bottom.png"
+      }
+    },
+    {
+      "name": "Wood",
+      "category": "material",
+      "description": "Light wooden material with natural feel",
+      "physics": {
+        "mass": 0.7,
+        "friction": 0.6,
+        "restitution": 0.2,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.8,
+        "bondStrength": 0.6,
+        "angularVelocityScale": 1.2,
+        "colorTint": [0.8, 0.6, 0.3],
+        "metallic": 0.0,
+        "roughness": 0.5
+      },
+      "textures": {
+        "side_n": "wood_side_n.png",
+        "side_s": "wood_side_s.png",
+        "side_e": "wood_side_e.png",
+        "side_w": "wood_side_w.png",
+        "top": "wood_top.png",
+        "bottom": "wood_bottom.png"
+      }
+    }
+  ]
+}

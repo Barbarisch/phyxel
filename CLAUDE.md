@@ -55,11 +55,27 @@ Predefined in `MaterialManager` (engine/src/physics/Material.cpp). Names are **c
 | Stone   | 6.0  | 0.8      | 0.05        | Heaviest, rough  |
 | Ice     | 0.9  | 0.1      | 0.4         | Very slippery    |
 | Cork    | 0.2  | 0.5      | 0.4         | Ultra-light      |
+| Dirt    | 2.0  | 0.7      | 0.1         | Earth/terrain sub-surface |
 | glow    | 1.0  | 0.5      | 0.5         | Emissive         |
+| Leaf    | 0.1  | 0.3      | 0.1         | Light foliage for trees/bushes |
 | Default | 1.0  | 0.5      | 0.3         | Balanced         |
 
-Atlas: 72 textures total, 256×256. Rebuild after atlas changes: `.\build_shaders.bat`
-Lookup: `TextureConstants::getTextureIndexForMaterial(materialName, faceID)` in `Types.h`
+Atlas: 84 textures total, 512×512. Source PNGs in `resources/textures/source/`. Rebuild after atlas changes: `.\build_shaders.bat` (also manually recompile `voxel.frag` since glslc doesn't track `#include` deps)
+Lookup: `MaterialRegistry::instance().getTextureIndex(materialID, faceID)` — data-driven via `resources/materials.json`
+
+## Voxel Rendering Pipelines
+
+Three separate vertex shaders handle voxels in different states. All share `voxel.frag`.
+
+| Shader | Purpose | Instance Data | Sub-tile UV Method |
+|--------|---------|---------------|--------------------|
+| `static_voxel.vert` | Chunk voxels (baked into 32³ grid) | `InstanceData` (8B) — packed position, face, scaleLevel, subcube/microcube grid positions in bits 20-31 | GPU decodes grid positions per face |
+| `dynamic_voxel.vert` | GPU particle debris (compute-expanded) | `DynamicSubcubeInstanceData` (64B) — world pos, scale, rotation, localPosition for grid | GPU decodes localPosition per face |
+| `kinematic_voxel.vert` | Moving rigid groups (doors, furniture, fragments) | `KinematicFaceData` (40B) — local pos, scale, pre-computed uvOffset | CPU pre-computes uvOffset in `buildFaces()` |
+
+**Texture mapping for subcubes/microcubes:** Each voxel face shows only its portion of the parent cube's texture. A subcube (1/3 scale) at grid position (1,2,0) gets UV offset (1/3, 2/3) on applicable axes. Per-face axis mapping and flips ensure seamless tiling. The three shaders achieve the same visual result via different encoding strategies (packed bits, grid positions, or pre-computed offsets).
+
+**Compiling shaders:** `.\build_shaders.bat` — compiles all `.vert`/`.frag`/`.comp` to SPIR-V in `shaders/*.spv`. The CMake build copies compiled shaders to `build/shaders/`.
 
 ## Entity Types
 

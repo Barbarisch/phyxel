@@ -556,7 +556,10 @@ bool VoxelManipulationSystem::placeCube(const glm::ivec3& worldPos, const glm::v
     LOG_INFO("VoxelManipulation", "[PLACE CUBE] Position empty, placing cube...");
     
     // Place the cube
-    bool success = chunkManager->addCube(worldPos);
+    std::string material = m_materialProvider ? m_materialProvider() : "";
+    bool success = material.empty()
+        ? chunkManager->addCube(worldPos)
+        : chunkManager->m_voxelModificationSystem.addCubeWithMaterial(worldPos, material);
     if (success) {
         LOG_INFO_FMT("VoxelManipulation", "[PLACE CUBE] Successfully placed cube at world pos (" 
                   << worldPos.x << "," << worldPos.y << "," << worldPos.z << ")");
@@ -618,7 +621,10 @@ bool VoxelManipulationSystem::placeSubcube(const glm::ivec3& worldPos, const glm
     }
     
     // Place the subcube (this creates a standalone subcube without requiring parent cube)
-    bool success = chunk->addSubcube(localPos, subcubePos);
+    std::string material = m_materialProvider ? m_materialProvider() : "";
+    bool success = material.empty()
+        ? chunk->addSubcube(localPos, subcubePos)
+        : chunkManager->m_voxelModificationSystem.addSubcubeWithMaterial(worldPos, subcubePos, material);
     if (success) {
         LOG_INFO_FMT("VoxelManipulation", "[PLACE SUBCUBE] Successfully placed subcube at world pos (" 
                   << worldPos.x << "," << worldPos.y << "," << worldPos.z 
@@ -688,7 +694,10 @@ bool VoxelManipulationSystem::placeMicrocube(const glm::ivec3& parentCubePos, co
     }
     
     // Place the microcube (standalone, doesn't require parent subcube)
-    bool success = chunk->addMicrocube(localPos, subcubePos, microcubePos);
+    std::string material = m_materialProvider ? m_materialProvider() : "";
+    bool success = material.empty()
+        ? chunk->addMicrocube(localPos, subcubePos, microcubePos)
+        : chunkManager->m_voxelModificationSystem.addMicrocubeWithMaterial(parentCubePos, subcubePos, microcubePos, material);
     if (success) {
         LOG_INFO_FMT("VoxelManipulation", "[PLACE MICROCUBE] Successfully placed microcube at world pos (" 
                   << parentCubePos.x << "," << parentCubePos.y << "," << parentCubePos.z 

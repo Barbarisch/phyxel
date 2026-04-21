@@ -1,4 +1,5 @@
 #include "core/DynamicFurnitureManager.h"
+#include "core/MaterialRegistry.h"
 #include "core/KinematicVoxelManager.h"
 #include "core/PlacedObjectManager.h"
 #include "core/ObjectTemplateManager.h"
@@ -363,6 +364,7 @@ std::vector<KinematicVoxel> DynamicFurnitureManager::buildVoxelsFromTemplate(
         KinematicVoxel v;
         v.localPos     = glm::vec3(cube.relativePos) + glm::vec3(0.5f);
         v.scale        = glm::vec3(1.0f);
+        v.parentFrac   = glm::vec3(0.0f);  // Full cube: UV starts at (0,0)
         v.materialName = cube.material;
         voxels.push_back(v);
     }
@@ -375,6 +377,7 @@ std::vector<KinematicVoxel> DynamicFurnitureManager::buildVoxelsFromTemplate(
                    + glm::vec3(sub.subcubePos) * subScale
                    + glm::vec3(subScale * 0.5f);
         v.scale        = glm::vec3(subScale);
+        v.parentFrac   = glm::vec3(sub.subcubePos) * subScale;
         v.materialName = sub.material;
         voxels.push_back(v);
     }
@@ -389,6 +392,8 @@ std::vector<KinematicVoxel> DynamicFurnitureManager::buildVoxelsFromTemplate(
                    + glm::vec3(micro.microcubePos) * microScale
                    + glm::vec3(microScale * 0.5f);
         v.scale        = glm::vec3(microScale);
+        v.parentFrac   = glm::vec3(micro.subcubePos) * subScale
+                       + glm::vec3(micro.microcubePos) * microScale;
         v.materialName = micro.material;
         voxels.push_back(v);
     }
@@ -401,10 +406,10 @@ std::vector<KinematicVoxel> DynamicFurnitureManager::buildVoxelsFromTemplate(
 // ============================================================================
 
 std::vector<DynamicFurnitureManager::MergedBox> DynamicFurnitureManager::mergeVoxelsGreedy(
-    const std::vector<KinematicVoxel>& voxels,
-    const Physics::MaterialManager& matMgr)
+    const std::vector<KinematicVoxel>& voxels)
 {
     if (voxels.empty()) return {};
+    auto& reg = Phyxel::Core::MaterialRegistry::instance();
 
     // Find the finest resolution among all voxels (smallest scale component)
     float minScale = 1.0f;
@@ -436,7 +441,7 @@ std::vector<DynamicFurnitureManager::MergedBox> DynamicFurnitureManager::mergeVo
         std::vector<MergedBox> result;
         result.reserve(voxels.size());
         for (const auto& v : voxels) {
-            const auto& mat = matMgr.getMaterial(v.materialName);
+            const auto& mat = reg.getPhysics(v.materialName);
             float volume = v.scale.x * v.scale.y * v.scale.z;
             result.push_back({v.localPos, v.scale * 0.5f, mat.mass * volume});
         }
@@ -462,7 +467,7 @@ std::vector<DynamicFurnitureManager::MergedBox> DynamicFurnitureManager::mergeVo
         gmin = glm::clamp(gmin, glm::ivec3(0), gridSize - glm::ivec3(1));
         gmax = glm::clamp(gmax, glm::ivec3(0), gridSize - glm::ivec3(1));
 
-        const auto& mat = matMgr.getMaterial(v.materialName);
+        const auto& mat = reg.getPhysics(v.materialName);
         // Use flat per-piece mass (not volumetric density) so microcube furniture has
         // realistic weight. Each piece contributes 0.05 * materialMass kg regardless of
         // voxel scale. A 99-piece Wood chair ≈ 99 * 0.05 * 0.7 ≈ 3.5 kg.
@@ -547,10 +552,8 @@ btCompoundShape* DynamicFurnitureManager::buildCompoundShape(
 {
     if (voxels.empty()) return nullptr;
 
-    Physics::MaterialManager matMgr;
-
     // Greedy merge: collapse adjacent voxels into larger boxes
-    auto mergedBoxes = mergeVoxelsGreedy(voxels, matMgr);
+    auto mergedBoxes = mergeVoxelsGreedy(voxels);
 
     LOG_INFO_FMT("DynamicFurniture", "Greedy merge: " << voxels.size() << " voxels -> " << mergedBoxes.size()
                  << " boxes (" << (mergedBoxes.empty() ? 1.0f : static_cast<float>(voxels.size()) / mergedBoxes.size()) << "x reduction)");
@@ -795,7 +798,7 @@ int DynamicFurnitureManager::shatter(const std::string& placedObjectId,
     auto& obj = it->second;
 
     // Check bond strength — use average of all voxel materials
-    Physics::MaterialManager matMgr;
+    auto& reg = Phyxel::Core::MaterialRegistry::instance();
     const auto& kinObjects = m_kinematic->getObjects();
     auto kinIt = kinObjects.find(obj.kineticObjId);
     if (kinIt == kinObjects.end()) return 0;
@@ -806,7 +809,7 @@ int DynamicFurnitureManager::shatter(const std::string& placedObjectId,
     // Average bond strength
     float avgBondStrength = 0.0f;
     for (const auto& v : voxels) {
-        avgBondStrength += matMgr.getMaterial(v.materialName).bondStrength;
+        avgBondStrength += reg.getPhysics(v.materialName).bondStrength;
     }
     avgBondStrength /= static_cast<float>(voxels.size());
 

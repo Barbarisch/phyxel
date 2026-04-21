@@ -11,28 +11,44 @@ namespace Physics { class PhysicsWorld; }
 
 namespace Core {
 
-/// Per-face instance data uploaded to the GPU.
-/// Layout must match kinematic_voxel.vert attribute bindings exactly.
-/// 32 bytes, tightly packed.
+/// Per-face instance data uploaded to the GPU for kinematic voxel rendering.
+/// Layout must match kinematic_voxel.vert attribute bindings (locations 0-4) exactly.
+/// 40 bytes, tightly packed.
+///
+/// Texture mapping: uvOffset is pre-computed per face on the CPU so that subcubes
+/// and microcubes show only their portion of the parent cube's texture — matching
+/// the same visual result as static chunk voxels. For full cubes, uvOffset=(0,0)
+/// and scale=1.0, so the entire texture is used (no-op).
 struct KinematicFaceData {
     glm::vec3 localPosition;   ///< Voxel center in object-local (hinge) space
     glm::vec3 scale;            ///< Per-axis scale: (1,1,1) = full cube, (1,1,0.125) = thin slab
+    glm::vec2 uvOffset;         ///< UV offset within parent cube for sub-tile texture mapping
     uint32_t  textureIndex;    ///< Material texture atlas index
     uint32_t  faceId;           ///< 0=+Z  1=-Z  2=+X  3=-X  4=+Y  5=-Y
 };
-static_assert(sizeof(KinematicFaceData) == 32, "KinematicFaceData must be 32 bytes");
+static_assert(sizeof(KinematicFaceData) == 40, "KinematicFaceData must be 40 bytes");
 
 /// A single voxel within a KinematicVoxelObject, stored in object-local space.
+/// Supports all three voxel sizes: cube (1.0), subcube (1/3), microcube (1/9).
 struct KinematicVoxel {
     glm::vec3   localPos;                        ///< Voxel center in hinge-local space
-    glm::vec3   scale = glm::vec3(1.0f);        ///< Per-axis scale (1,1,1) = full cube
+    glm::vec3   scale = glm::vec3(1.0f);        ///< Per-axis scale: (1,1,1)=cube, (1/3)=subcube, (1/9)=microcube
+    glm::vec3   parentFrac = glm::vec3(0.0f);   ///< Position within parent cube [0,1), for sub-tile UV mapping.
+                                                 ///< Set from subcubePos/microcubePos before COM shift.
+                                                 ///< Full cubes: (0,0,0). Microcube at grid (1,2,0): (1/9,2/9,0).
     std::string materialName = "Default";       ///< Material name for per-face texture lookup
 };
 
-/// A voxel object whose world transform is driven externally each frame.
+/// A group of voxels rendered together with a shared world transform.
+/// The transform is driven externally each frame by the owning system.
 /// Voxel composition is fixed at creation; only the transform animates.
 ///
-/// Examples: door slab, drawbridge, rotating platform, elevator, gear.
+/// Used for any dynamic voxel object that moves as a rigid group:
+/// doors, dynamic furniture, drawbridges, elevators, breakable fragments, etc.
+///
+/// Rendering: KinematicVoxelPipeline uploads pre-built face data to the GPU
+/// and draws via kinematic_voxel.vert + voxel.frag. Supports cubes, subcubes,
+/// and microcubes with correct sub-tile texture mapping.
 struct KinematicVoxelObject {
     std::string id;
     std::string placedObjectId;            ///< Linked PlacedObject (empty if standalone)

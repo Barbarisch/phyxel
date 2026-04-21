@@ -5,6 +5,8 @@
 #endif
 #endif
 #include "Application.h"
+#include "core/MaterialRegistry.h"
+#include "core/AtlasManager.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "scene/PhysicsCharacter.h"
 #include "scene/SpiderCharacter.h"
@@ -204,6 +206,14 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         audioSystem
     );
     LOG_INFO("Application", "VoxelInteractionSystem initialized successfully!");
+
+    // Wire up material provider: in asset editor mode use m_assetEditorMaterial,
+    // otherwise use the selected hotbar slot material from inventory.
+    voxelInteractionSystem->setMaterialProvider([this]() -> std::string {
+        if (m_assetEditorMode) return m_assetEditorMaterial;
+        if (inventory) return inventory->getSelectedMaterial();
+        return "";
+    });
 
     // STEP 4.5: CREATE ObjectTemplateManager
     objectTemplateManager = std::make_unique<ObjectTemplateManager>(
@@ -466,22 +476,29 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     });
 
     apiServer->setMaterialListHandler([]() -> nlohmann::json {
-        static Physics::MaterialManager matMgr;
-        auto names = matMgr.getAllMaterialNames();
+        auto& reg = Phyxel::Core::MaterialRegistry::instance();
+        const auto& materials = reg.getAllMaterials();
         nlohmann::json matArr = nlohmann::json::array();
-        for (const auto& name : names) {
-            const auto& mat = matMgr.getMaterial(name);
-            matArr.push_back({
-                {"name", name},
-                {"mass", mat.mass},
-                {"friction", mat.friction},
-                {"restitution", mat.restitution},
-                {"colorTint", {{"r", mat.colorTint.r}, {"g", mat.colorTint.g}, {"b", mat.colorTint.b}}},
-                {"metallic", mat.metallic},
-                {"roughness", mat.roughness}
-            });
+        for (const auto& mat : materials) {
+            nlohmann::json entry = {
+                {"name", mat.name},
+                {"id", reg.getMaterialID(mat.name)},
+                {"emissive", mat.emissive}
+            };
+            if (mat.hasPhysics()) {
+                entry["mass"] = mat.physics.mass;
+                entry["friction"] = mat.physics.friction;
+                entry["restitution"] = mat.physics.restitution;
+            }
+            // Texture face files
+            nlohmann::json faces = nlohmann::json::array();
+            for (int f = 0; f < 6; f++) {
+                faces.push_back(mat.textures.faceFiles[f]);
+            }
+            entry["textures"] = faces;
+            matArr.push_back(entry);
         }
-        return nlohmann::json{{"materials", matArr}};
+        return nlohmann::json{{"materials", matArr}, {"count", materials.size()}};
     });
 
     apiServer->setChunkInfoHandler([this]() -> nlohmann::json {
@@ -1193,7 +1210,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // Start in creative mode with all materials in hotbar
     {
         static const std::vector<std::string> defaultHotbar = {
-            "Stone", "Wood", "Metal", "Glass", "Rubber", "Ice", "Cork", "glow", "Default"
+            "Stone", "Wood", "Metal", "Glass", "Rubber", "Ice", "Cork", "glow", "Leaf", "Default"
         };
         for (int i = 0; i < static_cast<int>(defaultHotbar.size()); ++i) {
             inventory->setSlot(i, Core::ItemStack{defaultHotbar[i], 64, 64});
@@ -1560,6 +1577,10 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     m_cameraPanel->setCamera(camera);
     m_cameraPanel->setEntityRegistry(entityRegistry.get());
     m_cameraPanel->setInputManager(inputManager);
+
+    // Create the texture editor panel
+    m_textureEditor = std::make_unique<Editor::TextureEditorPanel>();
+    m_textureEditor->setVulkanDevice(vulkanDevice);
 
     m_worldOutliner->setEntityRegistry(entityRegistry.get());
     m_worldOutliner->setNPCManager(npcManager.get());
@@ -2029,6 +2050,11 @@ void Application::run() {
         // Render Template Spawner
         renderTemplateSpawner();
         renderClickActions();
+
+        // Render Texture Editor
+        if (m_textureEditor && m_showTextureEditor) {
+            m_textureEditor->render(&m_showTextureEditor);
+        }
         if (dialogueSystem) {
             imguiRenderer->renderDialogueBox(dialogueSystem.get());
         }
@@ -3139,13 +3165,11 @@ void Application::renderTemplateSpawner() {
     // Snap to nearest 90
     spawnerRotation = (spawnerRotation / 90) * 90;
 
-    ImGui::Checkbox("Static", &spawnerStatic);
-
     ImGui::Separator();
     if (ImGui::Button("Spawn", ImVec2(-1, 30)) && !templateNames.empty()) {
         const std::string& name = templateNames[spawnerTemplateIdx];
         glm::ivec3 pos((int)spawnerPos[0], (int)spawnerPos[1], (int)spawnerPos[2]);
-        if (placedObjectManager && spawnerStatic) {
+        if (placedObjectManager) {
             // Route through PlacedObjectManager so the object is tracked, shows in World Outliner, and persists
             std::string objId = placedObjectManager->placeTemplate(name, pos, spawnerRotation);
             LOG_INFO_FMT("TemplateSpawner", "Placed '" << name << "' as '" << objId << "' at ("
@@ -3156,8 +3180,7 @@ void Application::renderTemplateSpawner() {
                 if (ws) placedObjectManager->saveToDb(ws->getDb());
             }
         } else {
-            // Fallback for dynamic or if PlacedObjectManager unavailable
-            objectTemplateManager->spawnTemplate(name, glm::vec3(pos), spawnerStatic, spawnerRotation);
+            objectTemplateManager->spawnTemplate(name, glm::vec3(pos), true, spawnerRotation);
             LOG_INFO_FMT("TemplateSpawner", "Spawned '" << name << "' (untracked) at ("
                          << pos.x << "," << pos.y << "," << pos.z << ") rot=" << spawnerRotation);
         }
@@ -4361,6 +4384,63 @@ static nlohmann::json handleGameStateCommand(
 
 // AI / LLM Command Handler (extracted to reduce nesting depth)
 // ============================================================================
+static nlohmann::json handleMaterialCommand(
+    const std::string& action,
+    const nlohmann::json& params,
+    Phyxel::Vulkan::VulkanDevice* vulkanDevice)
+{
+    using json = nlohmann::json;
+    auto& reg = Phyxel::Core::MaterialRegistry::instance();
+
+    if (action == "add_material") {
+        std::string name = params.value("name", "");
+        if (name.empty()) return {{"error", "Material name is required"}};
+        if (reg.getMaterialID(name) >= 0) return {{"error", "Material already exists: " + name}};
+
+        Phyxel::Core::MaterialDef def;
+        def.name = name;
+        def.emissive = params.value("emissive", false);
+        def.category = "material";
+        if (params.contains("physics")) {
+            auto& p = params["physics"];
+            def.physics.mass = p.value("mass", 1.0f);
+            def.physics.friction = p.value("friction", 0.5f);
+            def.physics.restitution = p.value("restitution", 0.3f);
+        }
+        static const char* faceKeys[6] = {"side_n", "side_s", "side_e", "side_w", "top", "bottom"};
+        for (int f = 0; f < 6; f++) {
+            def.textures.faceFiles[f] = name + "_" + faceKeys[f] + ".png";
+        }
+        int id = reg.addMaterial(def);
+        if (id >= 0) return {{"success", true}, {"name", name}, {"id", id}};
+        return {{"error", "Failed to add material (max capacity?)"}};
+
+    } else if (action == "remove_material") {
+        std::string name = params.value("name", "");
+        if (name.empty()) return {{"error", "Material name is required"}};
+        bool ok = reg.removeMaterial(name);
+        json r = {{"success", ok}};
+        if (!ok) r["error"] = "Material not found or cannot be removed: " + name;
+        return r;
+
+    } else if (action == "save_materials") {
+        std::string path = params.value("path", "resources/materials.json");
+        bool ok = reg.saveToJson(path);
+        return {{"success", ok}, {"path", path}};
+
+    } else if (action == "reload_atlas") {
+        auto& atlas = Phyxel::Core::AtlasManager::instance();
+        bool ok = atlas.hotReload(vulkanDevice);
+        json r = {{"success", ok}};
+        if (ok) {
+            r["textureCount"] = atlas.getAtlasInfo().textureCount;
+            r["atlasSize"] = { atlas.getAtlasInfo().atlasWidth, atlas.getAtlasInfo().atlasHeight };
+        }
+        return r;
+    }
+    return {{"error", "Unknown material action: " + action}};
+}
+
 static nlohmann::json handleAICommand(
     const std::string& action,
     const nlohmann::json& params,
@@ -5606,22 +5686,27 @@ void Application::processAPICommands() {
                 }
 
             } else if (cmd.action == "list_materials") {
-                static Physics::MaterialManager matMgr;
-                auto names = matMgr.getAllMaterialNames();
+                auto& reg = Phyxel::Core::MaterialRegistry::instance();
+                const auto& materials = reg.getAllMaterials();
                 nlohmann::json matArr = nlohmann::json::array();
-                for (const auto& name : names) {
-                    const auto& mat = matMgr.getMaterial(name);
-                    matArr.push_back({
-                        {"name", name},
-                        {"mass", mat.mass},
-                        {"friction", mat.friction},
-                        {"restitution", mat.restitution},
-                        {"colorTint", {{"r", mat.colorTint.r}, {"g", mat.colorTint.g}, {"b", mat.colorTint.b}}},
-                        {"metallic", mat.metallic},
-                        {"roughness", mat.roughness}
-                    });
+                for (const auto& mat : materials) {
+                    nlohmann::json entry = {
+                        {"name", mat.name},
+                        {"id", reg.getMaterialID(mat.name)},
+                        {"emissive", mat.emissive}
+                    };
+                    if (mat.hasPhysics()) {
+                        const auto& p = mat.physics;
+                        entry["mass"] = p.mass;
+                        entry["friction"] = p.friction;
+                        entry["restitution"] = p.restitution;
+                        entry["colorTint"] = {{"r", p.colorTint.r}, {"g", p.colorTint.g}, {"b", p.colorTint.b}};
+                        entry["metallic"] = p.metallic;
+                        entry["roughness"] = p.roughness;
+                    }
+                    matArr.push_back(entry);
                 }
-                response = {{"materials", matArr}};
+                response = {{"materials", matArr}, {"count", materials.size()}};
 
             } else if (cmd.action == "get_chunk_info") {
                 if (!chunkManager) {
@@ -6328,7 +6413,7 @@ void Application::processAPICommands() {
                         y = cmd.params["position"].value("y", 0.0f);
                         z = cmd.params["position"].value("z", 0.0f);
                     }
-                    bool isStatic = cmd.params.value("static", true);
+                    const bool isStatic = true;
                     int rotation = cmd.params.value("rotation", 0);
 
                     // Auto-snapshot the affected region before spawning
@@ -8979,6 +9064,10 @@ void Application::processAPICommands() {
                     aiConversationService.get(), npcManager.get(),
                     entityRegistry.get(), dialogueSystem.get());
 
+            } else if (cmd.action == "add_material" || cmd.action == "remove_material" ||
+                       cmd.action == "save_materials" || cmd.action == "reload_atlas") {
+                response = handleMaterialCommand(cmd.action, cmd.params, vulkanDevice);
+
             } else {
                 response = {{"error", "Unknown action: " + cmd.action}};
             }
@@ -9052,6 +9141,7 @@ void Application::renderMainMenuBar() {
             ImGui::MenuItem("Character Customizer", "F11", &showCharacterCustomizer);
             ImGui::MenuItem("Interaction Tuner", "F12", &showInteractionTuner);
             ImGui::MenuItem("Template Spawner", nullptr, &showTemplateSpawner);
+            ImGui::MenuItem("Texture Editor", nullptr, &m_showTextureEditor);
             ImGui::MenuItem("Click Actions", nullptr, &showClickActions);
             ImGui::Separator();
 
@@ -9490,9 +9580,9 @@ void Application::renderAssetEditorUI() {
     // Material palette
     ImGui::Text("Material:");
     const char* materials[] = {
-        "Wood","Stone","Metal","Glass","Rubber","Ice","Cork","glow","Default"
+        "Wood","Stone","Metal","Glass","Rubber","Ice","Cork","glow","Leaf","Default"
     };
-    for (int i = 0; i < 9; ++i) {
+    for (int i = 0; i < 10; ++i) {
         bool selected = (m_assetEditorMaterial == materials[i]);
         if (selected) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 1.0f, 1.0f));
         if (ImGui::SmallButton(materials[i])) {
@@ -10486,9 +10576,9 @@ void Application::renderInteractionEditorUI() {
     // === Material palette ===
     ImGui::Text("Material:");
     const char* ieMaterials[] = {
-        "Wood","Stone","Metal","Glass","Rubber","Ice","Cork","glow","Default"
+        "Wood","Stone","Metal","Glass","Rubber","Ice","Cork","glow","Leaf","Default"
     };
-    for (int i = 0; i < 9; ++i) {
+    for (int i = 0; i < 10; ++i) {
         bool selected = (m_ieMaterial == ieMaterials[i]);
         if (selected) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 1.0f, 1.0f));
         if (ImGui::SmallButton(ieMaterials[i])) {

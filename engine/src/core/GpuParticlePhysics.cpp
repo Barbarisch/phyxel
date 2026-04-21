@@ -1,4 +1,5 @@
 #include "core/GpuParticlePhysics.h"
+#include "core/MaterialRegistry.h"
 #include "vulkan/VulkanDevice.h"
 #include "core/AssetManager.h"
 #include "physics/Material.h"
@@ -15,7 +16,7 @@ namespace Phyxel {
 // Static data
 // ============================================================
 
-// Maps GPU materialIndex → TextureConstants material ID (same value — we reuse the ID directly)
+// Maps GPU materialIndex → MaterialRegistry material ID (same value — we reuse the ID directly)
 const std::vector<std::string> GpuParticlePhysics::MATERIAL_NAMES = {
     "placeholder", "grassdirt", "Cork", "Default",
     "Glass", "glow", "hover", "Ice",
@@ -347,13 +348,14 @@ bool GpuParticlePhysics::createBuffers(Vulkan::VulkanDevice* dev) {
 // ============================================================
 
 bool GpuParticlePhysics::initMatTexTable(Vulkan::VulkanDevice* dev) {
-    using namespace TextureConstants;
-    const uint32_t tableSize = MATERIAL_COUNT * 6;
+    auto& reg = Core::MaterialRegistry::instance();
+    const int matCount = reg.getMaterialCount();
+    const uint32_t tableSize = matCount * 6;
     std::vector<uint32_t> table(tableSize);
 
-    for (int mat = 0; mat < MATERIAL_COUNT; ++mat) {
+    for (int mat = 0; mat < matCount; ++mat) {
         for (int face = 0; face < 6; ++face) {
-            table[mat * 6 + face] = static_cast<uint32_t>(MATERIAL_FACE_INDEX[mat][face]);
+            table[mat * 6 + face] = static_cast<uint32_t>(reg.getTextureIndex(mat, face));
         }
     }
 
@@ -385,19 +387,19 @@ void GpuParticlePhysics::uploadMatTexTable(Vulkan::VulkanDevice* dev, const std:
 }
 
 // ============================================================
-// Material physics table (GPU SSBO from MaterialManager)
+// Material physics table (GPU SSBO from MaterialRegistry)
 // ============================================================
 
 bool GpuParticlePhysics::initMaterialPhysicsTable() {
-    Physics::MaterialManager matMgr;
+    auto& reg = Phyxel::Core::MaterialRegistry::instance();
     auto* dst = static_cast<MaterialPhysicsGpu*>(m_materialPhysMapped);
 
     for (uint32_t i = 0; i < static_cast<uint32_t>(MATERIAL_NAMES.size()); ++i) {
         const auto& name = MATERIAL_NAMES[i];
         MaterialPhysicsGpu gpu{};
 
-        if (matMgr.hasMaterial(name)) {
-            const auto& mp = matMgr.getMaterial(name);
+        if (reg.hasMaterial(name)) {
+            const auto& mp = reg.getPhysics(name);
             gpu.mass            = mp.mass;
             gpu.restitution     = mp.restitution;
             // MaterialProperties friction is "grip" (0=slippery, 1=full grip).

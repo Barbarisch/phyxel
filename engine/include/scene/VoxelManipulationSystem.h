@@ -145,13 +145,23 @@ public:
      * @param color Color/material of the microcube
      * @return true if microcube was successfully placed
      */
-    bool placeMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, 
+    bool placeMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos,
                        const glm::ivec3& microcubePos, const glm::vec3& color);
+
+    /// Set a callback that returns the material name to use when placing voxels.
+    /// Called at placement time, so the provider always returns the current selection.
+    /// An empty string or unset provider means no material (uses addCube default).
+    void setMaterialProvider(std::function<std::string()> provider) {
+        m_materialProvider = std::move(provider);
+    }
 
 private:
     // Callback functions
     GetChunkManagerFunc getChunkManager;
     GetPhysicsWorldFunc getPhysicsWorld;
+
+    // Optional material provider — called at placement time to get the active material
+    std::function<std::string()> m_materialProvider;
     
     // Helper methods for material selection
     std::string selectMaterialForCube(const glm::vec3& cubeWorldPos) const;

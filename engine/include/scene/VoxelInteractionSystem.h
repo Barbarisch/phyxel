@@ -102,6 +102,12 @@ public:
     /// Place a voxel using the current target mode (cube/subcube/microcube).
     void placeActiveVoxelAtHover();
 
+    /// Set a callback that returns the material to use when placing voxels (C key).
+    /// Called at placement time so it always reflects the current selection.
+    void setMaterialProvider(std::function<std::string()> provider) {
+        m_manipulator.setMaterialProvider(std::move(provider));
+    }
+
     // Hover state accessors
     bool hasHoveredCube() const { return m_hasHoveredCube; }
     const CubeLocation& getCurrentHoveredLocation() const { return m_currentHoveredLocation; }

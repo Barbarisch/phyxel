@@ -1,4 +1,5 @@
 #include "core/Cube.h"
+#include "core/MaterialRegistry.h"
 #include "physics/Material.h"
 #include "utils/Logger.h"
 #include <btBulletDynamicsCommon.h>
@@ -102,8 +103,7 @@ void Cube::applyMaterialProperties() {
     if (!rigidBody) return;
     
     // Get material properties
-    static Physics::MaterialManager materialManager;
-    const auto& material = materialManager.getMaterial(materialName);
+    const auto& material = Phyxel::Core::MaterialRegistry::instance().getPhysics(materialName);
     
     // Apply mass
     btVector3 localInertia(0, 0, 0);
@@ -129,8 +129,7 @@ void Cube::applyMaterialProperties(const std::string& newMaterialName) {
 
 glm::vec3 Cube::getEffectiveColor() const {
     // Get material properties for color tinting
-    static Physics::MaterialManager materialManager;
-    const auto& material = materialManager.getMaterial(materialName);
+    const auto& material = Phyxel::Core::MaterialRegistry::instance().getPhysics(materialName);
     
     // Apply material color tint
     return material.colorTint;

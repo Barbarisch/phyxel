@@ -1,4 +1,5 @@
 #include "core/KinematicVoxelManager.h"
+#include "core/MaterialRegistry.h"
 #include "core/Types.h"
 #include "physics/PhysicsWorld.h"
 #include "utils/Logger.h"
@@ -103,6 +104,18 @@ void KinematicVoxelManager::clear() {
 // Private helpers
 // ============================================================================
 
+// Build GPU face instances from voxels. Performs adjacency culling (skips faces
+// between touching voxels of the same scale) and computes per-face UV offsets for
+// sub-tile texture mapping.
+//
+// Texture mapping logic: each face maps two of the three world axes to U,V.
+// The UV offset is derived from parentFrac (the voxel's position within its parent
+// cube, set during template loading). Per-face axis swaps and Y-flips match the
+// static_voxel.vert conventions so textures look identical whether a voxel is
+// static (in a chunk) or dynamic (in a KinematicVoxelObject).
+//
+// For full cubes (scale=1, parentFrac=0): uvOffset=(0,0), uvScale=1 → full texture.
+// For microcubes (scale=1/9): uvOffset selects the 1/9 slice → seamless tiling.
 std::vector<KinematicFaceData> KinematicVoxelManager::buildFaces(
     const std::vector<KinematicVoxel>& voxels)
 {
@@ -154,8 +167,30 @@ std::vector<KinematicFaceData> KinematicVoxelManager::buildFaces(
             KinematicFaceData f{};
             f.localPosition = v.localPos;
             f.scale         = v.scale;
-            f.textureIndex  = TextureConstants::getTextureIndexForMaterial(v.materialName, (int)faceId);
+            f.textureIndex  = Phyxel::Core::MaterialRegistry::instance().getTextureIndex(v.materialName, (int)faceId);
             f.faceId        = faceId;
+
+            // Compute UV offset for sub-tile texture mapping.
+            // Must match per-face axis mapping and flips from static_voxel.vert.
+            float uvScale = v.scale.x;  // 1.0, 1/3, or 1/9
+            float maxFrac = 1.0f - uvScale;  // for flipping: e.g. 8/9 for microcubes
+
+            glm::vec3 pf = v.parentFrac;
+            switch (faceId) {
+                case 0: // +Z (Front): U=X, V=flip(Y)
+                    f.uvOffset = glm::vec2(pf.x, maxFrac - pf.y); break;
+                case 1: // -Z (Back): U=X, V=Y
+                    f.uvOffset = glm::vec2(pf.x, pf.y); break;
+                case 2: // +X (Right): U=flip(Z), V=flip(Y)
+                    f.uvOffset = glm::vec2(maxFrac - pf.z, maxFrac - pf.y); break;
+                case 3: // -X (Left): U=Z, V=flip(Y)
+                    f.uvOffset = glm::vec2(pf.z, maxFrac - pf.y); break;
+                case 4: // +Y (Top): U=flip(X), V=flip(Z)
+                    f.uvOffset = glm::vec2(maxFrac - pf.x, maxFrac - pf.z); break;
+                case 5: // -Y (Bottom): U=X, V=flip(Z)
+                    f.uvOffset = glm::vec2(pf.x, maxFrac - pf.z); break;
+            }
+
             faces.push_back(f);
         }
     }

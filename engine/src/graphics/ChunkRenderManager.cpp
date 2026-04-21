@@ -2,6 +2,7 @@
 #include "core/Cube.h"
 #include "core/Subcube.h"
 #include "core/Microcube.h"
+#include "core/MaterialRegistry.h"
 #include "core/Types.h"
 #include "utils/Logger.h"
 #include <cstring>
@@ -145,7 +146,7 @@ void ChunkRenderManager::rebuildCubeFaces(
                 );
                 
                 // Assign texture based on material and face ID
-                faceInstance.textureIndex = Phyxel::TextureConstants::getTextureIndexForMaterial(
+                faceInstance.textureIndex = Phyxel::Core::MaterialRegistry::instance().getTextureIndex(
                     cube->getMaterialName(), faceID);
                 
                 // Check for emissive material
@@ -203,7 +204,7 @@ void ChunkRenderManager::rebuildSubcubeFaces(
                 );
                 
                 // Assign texture based on material and face ID
-                faceInstance.textureIndex = Phyxel::TextureConstants::getTextureIndexForMaterial(subcube->getMaterialName(), faceID);
+                faceInstance.textureIndex = Phyxel::Core::MaterialRegistry::instance().getTextureIndex(subcube->getMaterialName(), faceID);
                 faceInstance.reserved = 0;
                 faces.push_back(faceInstance);
             }
@@ -269,7 +270,7 @@ void ChunkRenderManager::rebuildMicrocubeFaces(
                 );
                 
                 // Assign texture based on material and face ID
-                faceInstance.textureIndex = Phyxel::TextureConstants::getTextureIndexForMaterial(microcube->getMaterialName(), faceID);
+                faceInstance.textureIndex = Phyxel::Core::MaterialRegistry::instance().getTextureIndex(microcube->getMaterialName(), faceID);
                 faceInstance.reserved = 0;
                 faces.push_back(faceInstance);
             }
