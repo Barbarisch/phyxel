@@ -445,11 +445,47 @@ private:
     bool m_animEditorCtrlSPrev = false;                    // Edge-detect Ctrl+S
     int m_animEditorRenamingIdx = -1;                      // Index of clip being renamed (-1 = none)
     char m_animEditorRenameBuffer[128] = {};               // ImGui InputText buffer for rename
+    float m_animEditorCharPos[3] = {16.0f, 16.0f, 16.0f}; // InputFloat3 buffer for char position UI
+    float m_animEditorStartOffset[3] = {0.0f, 0.0f, 0.0f}; // Offset added to dest when testing clips
 
     void initAnimEditorScene();
     void renderAnimEditorUI();
     void saveAnimModel();
     void renameAnimationInFile(const std::string& oldName, const std::string& newName);
+
+    // ---- Clip Parameter Tuner ----
+    struct AnimClipMeta {
+        bool  warpEnabled      = false;
+        float authoredFallDist = 0.667f;
+        float takeoffEnd       = 0.1f;
+        float contactFrame     = 0.85f;
+        float warpScaleMin     = 0.4f;
+        float warpScaleMax     = 2.5f;
+        float hitFrameFraction = 0.4f;
+        bool  interruptible    = false;
+        float interruptAfter   = 0.5f;
+    };
+    // Live-edited metadata indexed by clip name; populated on scene init, saved on Ctrl+S
+    std::map<std::string, AnimClipMeta> m_animClipMeta;
+
+    // Wizard step-through tuner state
+    bool  m_animTunerWizard      = false;  // wizard mode active
+    int   m_animTunerStep        = 0;      // which parameter step (0-based)
+    bool  m_animTunerDirty       = false;  // unsaved changes exist
+    // Drop-test anchors (used in authoredFallDist wizard step)
+    float m_tunerLandingY        = 16.0f; // world Y where character should land
+    float m_tunerLaunchY         = 17.0f; // world Y from which character is dropped
+    // Warp preview test height (used by "Test at Height" in playback controls)
+    float m_warpTestHeight       = 1.0f;  // fall distance to simulate
+    // One-shot play: auto-pause when animation reaches the end
+    bool  m_animEditorPlayOnce   = false;
+    float m_animEditorPrevProgress = 0.0f; // previous frame's progress (loop-wrap detection)
+
+    void renderClipParameterTuner();           // renders the Clip Settings panel
+    void animTunerReplayCurrentClip();         // replays selected clip for visual feedback
+    void loadAnimClipMetaFromFile(const std::string& animFile); // parse # clip_meta: comments
+    void saveAnimClipMetaToFile(const std::string& animFile,
+                                std::vector<std::string>& fileLines); // write # clip_meta: lines
 
     // ============================================================================
     // INTERACTION EDITOR MODE  (--interaction-editor <file> [--character <file>])

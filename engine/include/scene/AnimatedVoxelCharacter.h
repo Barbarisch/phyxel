@@ -123,6 +123,31 @@ namespace Scene {
         float getYaw() const { return currentYaw; }
         glm::vec3 getForwardDirection() const;
 
+        // Animation playback control (for editor scrubbing / pause)
+        void setAnimationPaused(bool paused) { m_animPaused = paused; }
+        bool isAnimationPaused() const { return m_animPaused; }
+        void seekAnimation(float normalizedTime); // 0-1, snaps pose immediately
+        float getAnimationTime() const { return animTime; }
+
+        // Warp preview: combine spatial + temporal warp for editor preview.
+        // extraOffsetY   = testHeight - authoredFallDist (spatial: root bone Y at t=0).
+        // warpScale      = testHeight / authoredFallDist (temporal: air phase stretch).
+        // takeoffEnd     = normalized time when takeoff ends (air phase begins).
+        // contactFrameNorm = normalized time when feet touch ground (air phase ends).
+        void setWarpPreview(bool active,
+                            float extraOffsetY     = 0.0f,
+                            float warpScale        = 1.0f,
+                            float takeoffEnd       = 0.1f,
+                            float contactFrameNorm = 0.85f) {
+            m_warpPreviewActive   = active;
+            m_warpPreviewExtraY   = extraOffsetY;
+            m_warpPreviewScale    = warpScale;
+            m_warpPreviewTakeoffN = takeoffEnd;
+            m_warpPreviewContactN = contactFrameNorm;
+        }
+        bool  isWarpPreviewActive() const { return m_warpPreviewActive; }
+        float getWarpPreviewExtraY() const { return m_warpPreviewExtraY; }
+
         // Configurable blend duration
         void setBlendDuration(float duration) { blendDuration = duration; }
         float getBlendDuration() const { return blendDuration; }
@@ -150,6 +175,22 @@ namespace Scene {
         /// Begin standing up from seated state.
         void standUp();
         bool isSitting() const { return m_isSitting; }
+
+        /// Teleport to destinationPos, suppress kinematic movement, play clipName to completion,
+        /// then resume normal movement. The clip's t=0 pose visually hides the teleport.
+        void playAnchoredAnimation(const glm::vec3& destinationPos, float facingYaw,
+                                   const std::string& clipName);
+        bool isPlayingAnchoredAnimation() const { return m_isAnchoredAnim; }
+
+        /// Teleport to startPos and play clipName from t=0 with normal physics (gravity, no position freeze).
+        /// Used by the anim editor to test fall/jump clips with an elevated start position.
+        void playClipFromPosition(const glm::vec3& startPos, float facingYaw,
+                                  const std::string& clipName);
+
+        /// Freeze kinematic physics (gravity + ground snap) so the character stays
+        /// exactly where setPosition() puts it. Used by the anim editor.
+        void setKinematicFrozen(bool frozen) { m_kinFrozen = frozen; if (frozen) m_kinVelocity = glm::vec3(0.0f); }
+        bool isKinematicFrozen() const { return m_kinFrozen; }
         glm::vec3 getSeatSurfacePos() const { return m_seatSurfacePos; }
 
         /// Interaction archetype (e.g. "humanoid_normal"). Parsed from .anim "# archetype:" header.
@@ -312,6 +353,26 @@ namespace Scene {
         glm::vec3 m_prevStepCheckPos{0.0f};  // position from previous frame for blocked detection
         int m_blockedFrames = 0;              // consecutive frames where movement is blocked
 
+        // Root motion state
+        float m_prevAnimTime = 0.0f;          // animTime from previous frame (loop-wrap detection)
+        glm::vec3 m_prevRootPos{0.0f};        // root bone animated position from previous frame (delta base)
+        bool m_yRootMotionActive = false;     // true when current clip extracts Y root motion (suppresses gravity)
+        int m_prevClipIndex = -1;             // clip index from last frame (detects clip transitions)
+
+        // Anchored one-shot animation
+        bool m_isAnchoredAnim = false;        // true while playing an anchored clip
+        glm::vec3 m_anchorPos{0.0f};          // worldPosition frozen here during anchored playback
+        float m_anchorYaw = 0.0f;             // yaw frozen during anchored playback
+        int m_anchorClipIndex = -1;           // clip index of the anchored animation
+
+        bool m_kinFrozen = false;             // suppresses gravity + ground snap (anim editor use)
+        bool  m_animPaused         = false;   // freeze animTime tick (editor scrubbing)
+        bool  m_warpPreviewActive  = false;
+        float m_warpPreviewExtraY  = 0.0f;   // spatial: root bone Y offset at t=0
+        float m_warpPreviewScale   = 1.0f;   // temporal: air phase stretch (actual/authored dist)
+        float m_warpPreviewTakeoffN= 0.1f;   // normalized time where takeoff ends
+        float m_warpPreviewContactN= 0.85f;  // normalized time where landing begins
+
         // Step-up debug ring buffer
         struct StepDebugEntry {
             float timestamp = 0.0f;
@@ -397,8 +458,9 @@ namespace Scene {
         struct SegmentBox {
             std::string boneName;
             int boneId = -1;
-            glm::vec3 center{0.0f};       // world-space center, updated each frame
-            glm::vec3 halfExtents{0.0f};
+            glm::vec3 center{0.0f};           // world-space center, updated each frame
+            glm::vec3 halfExtents{0.0f};      // bind-pose local half-extents (source of truth)
+            glm::vec3 worldHalfExtents{0.0f}; // AABB refit each frame from rotated corners
             bool isArm = false;
             bool colliding = false;
         };

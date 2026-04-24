@@ -59,6 +59,7 @@
 #include <iostream>
 #include <iomanip>
 #include <fstream>
+#include <sstream>
 #include <algorithm>
 #include <chrono>
 #include <thread>
@@ -1951,12 +1952,16 @@ void Application::run() {
         renderInteractionEditorUI();
         
         // -- Project Launcher overlay (replaces game UI when active) --
+        // Specialised editor modes (anim/asset/interaction) also suppress the
+        // game-world UI so panels like pause menus, death overlays, and NPC
+        // dialogue don't render on top of the editor panels.
+        bool inSpecialisedEditorMode = m_animEditorMode || m_assetEditorMode || m_interactionEditorMode;
         if (launcherActive_ && projectLauncher_) {
             LauncherResult result;
             if (projectLauncher_->render(result)) {
                 onLauncherResult(result);
             }
-        } else {
+        } else if (!inSpecialisedEditorMode) {
         // Store current distances before UI update
         float currentRenderDistance = maxChunkRenderDistance;
         float currentChunkInclusionDistance = chunkInclusionDistance;
@@ -2470,11 +2475,9 @@ void Application::update(float deltaTime) {
         PROFILE_SCOPE(*performanceProfiler, "Voxel Interaction");
         double mouseX, mouseY;
         inputManager->getCurrentMousePosition(mouseX, mouseY);
-        // Block voxel hover when ImGui wants the mouse (e.g. hovering any panel),
-        // or entirely in anim-editor mode (no voxel editing there).
+        // Block voxel hover when ImGui wants the mouse (e.g. hovering any panel).
         bool blockHover = inputManager->isMouseCaptured()
-                       || (ImGui::GetIO().WantCaptureMouse && !m_viewportHovered)
-                       || m_animEditorMode;
+                       || (ImGui::GetIO().WantCaptureMouse && !m_viewportHovered);
         // Remap mouse from window-space to viewport-local, then scale to
         // full-window coords so the existing ray calculation stays correct.
         double remappedX = (mouseX - m_viewportPosX) / m_viewportSizeW * windowManager->getWidth();
@@ -2833,9 +2836,9 @@ void Application::handleInput() {
         // Q for Strafe left (E reserved for NPC interaction)
         if (inputManager->isKeyPressed(GLFW_KEY_Q)) strafe -= moveMagnitude;
 
-        if (currentControlTarget == ControlTarget::AnimatedCharacter && animatedCharacter) {
+        if (currentControlTarget == ControlTarget::AnimatedCharacter && animatedCharacter
+            && !m_animEditorMode) {
             animatedCharacter->setControlInput(forward, turn, strafe);
-            animatedCharacter->setSprint(isSprinting);
 
             // New Inputs for Enhanced Animation System
             // Use a static flag to prevent rapid-fire jumping if key is held
@@ -9182,7 +9185,11 @@ void Application::openProjectDialog() {
 #endif
 
 void Application::resetEditorScene() {
-    // Reset editor-mode-specific state
+    // ---- Game state ----
+    // Unpause so the next scene's update() loop runs normally.
+    gamePaused = false;
+
+    // ---- Editor-mode flags ----
     m_assetEditorMode = false;
     m_assetEditorFile.clear();
     m_assetRefCharVisible = false;
@@ -9196,6 +9203,13 @@ void Application::resetEditorScene() {
     m_animEditorBoneScale.clear();
     m_animEditorBodyBones.clear();
     m_animEditorAnimIdx = 0;
+    m_animClipMeta.clear();
+    m_animTunerWizard = false;
+    m_animTunerStep = 0;
+    m_animTunerDirty = false;
+    m_animEditorPlayOnce = false;
+    m_animEditorPrevProgress = 0.0f;
+    m_warpTestHeight = 1.0f;
 
     m_interactionEditorMode = false;
     m_interactionEditorFile.clear();
@@ -9206,30 +9220,64 @@ void Application::resetEditorScene() {
     m_ieBodyBones.clear();
     m_ieBoneScale.clear();
 
-    // Null out raw entity pointers BEFORE clearing the owning vector,
+    // ---- Close game-mode UI panels ----
+    // These panels belong to project/game mode; they have no meaning in the
+    // specialised editor modes and would dangle against the cleared entity list.
+    showAnimatedCharPanel   = false;
+    showCharacterCustomizer = false;
+    showInteractionTuner    = false;
+    showTemplateSpawner     = false;
+    showClickActions        = false;
+    showScriptingConsole    = false;
+    // Request a dock-layout reset so the editor panels rearrange cleanly.
+    m_needsLayoutReset      = true;
+
+    // ---- Close any active dialogue ----
+    if (dialogueSystem && dialogueSystem->isActive()) dialogueSystem->endConversation();
+    m_apiDialogueTree.reset();
+
+    // ---- Stop background music ----
+    musicPlaylist.stop(audioSystem);
+    musicPlaylist.clear();
+
+    // ---- Null out raw entity pointers BEFORE clearing the owning vector ----
     // so nothing in the main loop dereferences dangling pointers.
     animatedCharacter = nullptr;
 
     currentControlTarget = ControlTarget::AnimatedCharacter;
 
-    // Clean up entities
+    // ---- Clear entities & registries ----
     if (entityRegistry) entityRegistry->clear();
     entities.clear();
 
-    // Clean up NPC manager
+    // ---- Clear NPC manager ----
     if (npcManager) {
         auto names = npcManager->getAllNPCNames();
         for (auto& n : names) npcManager->removeNPC(n);
     }
 
-    // Clean up placed objects
+    // ---- Clear kinematic/door/furniture physics objects ----
+    // Must happen before GPU wait so Bullet bodies are removed while the
+    // physics world still exists and is fully intact.
+    if (dynamicFurnitureManager) dynamicFurnitureManager->clear();
+    if (doorManager)             doorManager->clear();
+    if (kinematicVoxelManager)   kinematicVoxelManager->clear();
+
+    // ---- Kill GPU particles ----
+    if (gpuParticlePhysics) gpuParticlePhysics->despawnAll();
+
+    // ---- Clear placed objects ----
     if (placedObjectManager) placedObjectManager->clear();
 
-    // Wait for GPU before destroying chunk Vulkan buffers
+    // ---- GPU sync then chunk teardown ----
+    // Wait for GPU before destroying chunk Vulkan buffers.
     if (vulkanDevice) vkDeviceWaitIdle(vulkanDevice->getDevice());
 
-    // Clean up chunk data
+    // Clean up chunk data (destroys ChunkPhysicsManager → unregisters grids)
     if (chunkManager) chunkManager->cleanup();
+
+    // ---- Clear project directory so stale saves don't hit the old project DB ----
+    projectDir_.clear();
 }
 
 void Application::switchToEditorMode(const std::string& filePath) {
@@ -9582,6 +9630,15 @@ void Application::initAnimEditorScene() {
     chunkManager->rebuildAllChunkFaces();
     chunkManager->initializeAllChunkVoxelMaps();
 
+    // Force-rebuild physics occupancy grids AFTER floor voxels are in place.
+    // createChunk registered the grid when the chunk was empty; the incremental
+    // addCollisionEntity calls inside addCubeWithMaterial should already populate
+    // it, but rebuilding from scratch here guarantees the grid is correct before
+    // the character spawns and its kinematic controller queries findGroundY.
+    for (auto& chunk : chunkManager->chunks) {
+        chunk->forcePhysicsRebuild();
+    }
+
     // Spawn the animated character from the .anim file
     glm::vec3 spawnPos(16.0f, 16.0f, 16.0f);
     auto* ch = createAnimatedCharacter(spawnPos, m_animEditorFile);
@@ -9617,6 +9674,15 @@ void Application::initAnimEditorScene() {
 
         LOG_INFO("Application", "Anim Editor: loaded {} body bones from skeleton",
                  m_animEditorBodyBones.size());
+
+        // Start paused — user manually triggers playback
+        ch->setAnimationPaused(true);
+
+        // Load existing clip_meta comments so the tuner shows current saved values
+        loadAnimClipMetaFromFile(m_animEditorFile);
+        m_animTunerDirty = false;
+        m_animEditorPlayOnce = false;
+        m_animEditorPrevProgress = 0.0f;
     } else {
         LOG_WARN("Application", "Anim Editor: failed to load character from '{}'", m_animEditorFile);
     }
@@ -9680,7 +9746,11 @@ void Application::renderAnimEditorUI() {
                 if (ImGui::Selectable(animNames[i].c_str(), selected,
                                       ImGuiSelectableFlags_AllowDoubleClick)) {
                     m_animEditorAnimIdx = i;
+                    m_animEditorChar->setWarpPreview(false);
                     m_animEditorChar->playAnimation(animNames[i]);
+                    m_animEditorChar->seekAnimation(0.0f);
+                    m_animEditorChar->setAnimationPaused(true);
+                    m_animEditorPlayOnce = false;
 
                     if (ImGui::IsMouseDoubleClicked(0)) {
                         // Start rename
@@ -9698,12 +9768,221 @@ void Application::renderAnimEditorUI() {
 
         if (ImGui::Button("< Prev")) {
             m_animEditorAnimIdx = (m_animEditorAnimIdx - 1 + (int)animNames.size()) % (int)animNames.size();
+            m_animEditorChar->setWarpPreview(false);
             m_animEditorChar->playAnimation(animNames[m_animEditorAnimIdx]);
+            m_animEditorChar->seekAnimation(0.0f);
+            m_animEditorChar->setAnimationPaused(true);
+            m_animEditorPlayOnce = false;
         }
         ImGui::SameLine();
         if (ImGui::Button("Next >")) {
             m_animEditorAnimIdx = (m_animEditorAnimIdx + 1) % (int)animNames.size();
+            m_animEditorChar->setWarpPreview(false);
             m_animEditorChar->playAnimation(animNames[m_animEditorAnimIdx]);
+            m_animEditorChar->seekAnimation(0.0f);
+            m_animEditorChar->setAnimationPaused(true);
+            m_animEditorPlayOnce = false;
+        }
+    }
+
+    // ---- Playback controls ----
+    ImGui::Separator();
+    {
+        bool paused = m_animEditorChar->isAnimationPaused();
+        float progress = m_animEditorChar->getAnimationProgress(); // 0-1
+        float duration = m_animEditorChar->getAnimationDuration();
+        float currentT = m_animEditorChar->getAnimationTime();
+
+        // One-shot auto-pause: if a test play was triggered, pause when the clip
+        // loops back to the start (progress wraps from near-1 to near-0).
+        if (m_animEditorPlayOnce && !paused) {
+            bool loopWrapped = (m_animEditorPrevProgress > 0.85f && progress < 0.15f);
+            if (loopWrapped) {
+                // Don't seek — stay at the current pose (near end of clip).
+                // seekAnimation(1.0) would fmod-wrap to frame 0 for looping clips.
+                m_animEditorChar->setAnimationPaused(true);
+                m_animEditorPlayOnce = false;
+            }
+        }
+        m_animEditorPrevProgress = progress;
+
+        // Play / Pause toggle
+        if (paused) {
+            if (ImGui::Button("  Play  ")) {
+                m_animEditorChar->setWarpPreview(false);
+                m_animEditorChar->seekAnimation(0.0f);
+                m_animEditorChar->setAnimationPaused(false);
+                m_animEditorPlayOnce = true;
+                m_animEditorPrevProgress = 0.0f;
+            }
+        } else {
+            if (ImGui::Button(" Pause  ")) {
+                m_animEditorChar->setAnimationPaused(true);
+                m_animEditorPlayOnce = false;
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Stop")) {
+            m_animEditorChar->setWarpPreview(false);
+            m_animEditorChar->seekAnimation(0.0f);
+            m_animEditorChar->setAnimationPaused(true);
+            m_animEditorPlayOnce = false;
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Rewind to start and pause.");
+
+        // Frame-step buttons (only useful when paused)
+        ImGui::SameLine();
+        if (ImGui::Button("|< Frame")) {
+            if (duration > 0.0f) {
+                float step = 1.0f / 30.0f; // ~1 frame at 30fps
+                m_animEditorChar->seekAnimation((currentT - step) / duration);
+                m_animEditorChar->setAnimationPaused(true);
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Frame >|")) {
+            if (duration > 0.0f) {
+                float step = 1.0f / 30.0f;
+                m_animEditorChar->seekAnimation((currentT + step) / duration);
+                m_animEditorChar->setAnimationPaused(true);
+            }
+        }
+
+        // Scrub bar — full width
+        ImGui::SetNextItemWidth(-1);
+        if (ImGui::SliderFloat("##scrub", &progress, 0.0f, 1.0f, "%.3f")) {
+            m_animEditorChar->seekAnimation(progress);
+            m_animEditorChar->setAnimationPaused(true); // pause on manual scrub
+        }
+        // Time readout
+        bool warpActive = m_animEditorChar->isWarpPreviewActive();
+        if (warpActive) {
+            ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.1f, 1.0f),
+                "%.3fs / %.3fs  (WARP PREVIEW +%.3f units)",
+                currentT, duration, m_animEditorChar->getWarpPreviewExtraY());
+        } else {
+            ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1.0f),
+                "%.3fs / %.3fs  (%s)",
+                currentT, duration, paused ? "PAUSED" : "playing");
+        }
+    }
+
+    // ---- Test at Height ----
+    // Previews how the animation looks when played from a specific height.
+    // Warp params (temporal stretch) only apply when Motion Warp is enabled for this clip.
+    ImGui::Separator();
+    {
+        const auto& animNames2 = m_animEditorChar->getAnimationNames();
+        bool clipWarpEnabled = false;
+        if (!animNames2.empty() && m_animEditorAnimIdx >= 0 && m_animEditorAnimIdx < (int)animNames2.size()) {
+            auto it = m_animClipMeta.find(animNames2[m_animEditorAnimIdx]);
+            if (it != m_animClipMeta.end()) clipWarpEnabled = it->second.warpEnabled;
+        }
+        // Get authored dist from live clip meta if available
+        float authoredDist = 0.667f;
+        if (!animNames2.empty() && m_animEditorAnimIdx >= 0
+            && m_animEditorAnimIdx < (int)animNames2.size()) {
+            const std::string& cn = animNames2[m_animEditorAnimIdx];
+            auto it = m_animClipMeta.find(cn);
+            if (it != m_animClipMeta.end())
+                authoredDist = it->second.authoredFallDist;
+        }
+
+        float contactFrame = 0.85f;
+        float takeoffEnd   = 0.1f;
+        {
+            const auto& animNames3 = m_animEditorChar->getAnimationNames();
+            if (!animNames3.empty() && m_animEditorAnimIdx >= 0
+                && m_animEditorAnimIdx < (int)animNames3.size()) {
+                auto it = m_animClipMeta.find(animNames3[m_animEditorAnimIdx]);
+                if (it != m_animClipMeta.end()) {
+                    contactFrame = it->second.contactFrame;
+                    takeoffEnd   = it->second.takeoffEnd;
+                }
+            }
+        }
+
+        bool warpActive2 = m_animEditorChar->isWarpPreviewActive();
+
+        ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.3f, 1.0f), "Test at Height");
+        ImGui::SameLine();
+        ImGui::TextDisabled("(?)");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip(
+                "Pushes the visual start of the animation up by (testHeight - authoredDist).\n"
+                "The controller stays at the landing spot (floor).\n"
+                "Authored dist for this clip: %.3f units.\n"
+                "Contact frame: %.2f", authoredDist, contactFrame);
+
+        ImGui::SetNextItemWidth(100.0f);
+        ImGui::InputFloat("##warpH", &m_warpTestHeight, 0.0f, 0.0f, "%.2f");
+        m_warpTestHeight = std::max(0.01f, m_warpTestHeight);
+        ImGui::SameLine();
+        ImGui::TextDisabled("units  (authored: %.2f)", authoredDist);
+
+        ImGui::Spacing();
+
+        // Nudge buttons
+        if (ImGui::SmallButton("- 0.5##wt"))  m_warpTestHeight = std::max(0.01f, m_warpTestHeight - 0.5f);
+        ImGui::SameLine();
+        if (ImGui::SmallButton("- 0.1##wt"))  m_warpTestHeight = std::max(0.01f, m_warpTestHeight - 0.1f);
+        ImGui::SameLine();
+        if (ImGui::SmallButton("+ 0.1##wt"))  m_warpTestHeight += 0.1f;
+        ImGui::SameLine();
+        if (ImGui::SmallButton("+ 0.5##wt"))  m_warpTestHeight += 0.5f;
+        ImGui::SameLine();
+        if (ImGui::SmallButton("+ 1.0##wt"))  m_warpTestHeight += 1.0f;
+
+        ImGui::Spacing();
+
+        float extraY = m_warpTestHeight - authoredDist;
+        if (extraY < -authoredDist * 0.5f) {
+            ImGui::TextColored(ImVec4(1.0f,0.4f,0.4f,1.0f),
+                "Warning: test height (%.2f) is much less than authored (%.2f).\n"
+                "Animation will appear compressed.", m_warpTestHeight, authoredDist);
+        }
+
+        if (!clipWarpEnabled)
+            ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1.0f),
+                "(Motion Warp off — spatial offset only, no phase timing)");
+
+        if (ImGui::Button("Play at this Height", ImVec2(-1, 0))) {
+            // Fall time scales as sqrt(height): physics-correct air-phase timing.
+            // Warp scale only applied when Motion Warp is enabled for this clip.
+            float warpScale = (clipWarpEnabled && authoredDist > 0.001f) ? std::sqrt(m_warpTestHeight / authoredDist) : 1.0f;
+            // Clamp to runtime limits so preview matches what will actually play in-game.
+            {
+                const auto& an2 = m_animEditorChar->getAnimationNames();
+                if (!an2.empty() && m_animEditorAnimIdx >= 0 && m_animEditorAnimIdx < (int)an2.size()) {
+                    auto it = m_animClipMeta.find(an2[m_animEditorAnimIdx]);
+                    if (it != m_animClipMeta.end())
+                        warpScale = std::clamp(warpScale, it->second.warpScaleMin, it->second.warpScaleMax);
+                }
+            }
+            m_animEditorChar->setWarpPreview(true, extraY, warpScale, takeoffEnd, contactFrame);
+            m_animEditorChar->seekAnimation(0.0f);
+            m_animEditorChar->setAnimationPaused(false);
+            m_animEditorPlayOnce = true;
+            m_animEditorPrevProgress = 0.0f;
+        }
+        if (ImGui::IsItemHovered()) {
+            float ws = (authoredDist > 0.001f) ? std::sqrt(m_warpTestHeight / authoredDist) : 1.0f;
+            ImGui::SetTooltip(
+                "Plays the animation with physics-correct timing.\n"
+                "Air phase stretch: %.2fx  (sqrt(%.2f / %.2f))\n"
+                "Spatial offset at frame 0: +%.3f units above floor.",
+                ws, m_warpTestHeight, authoredDist, m_warpTestHeight - authoredDist);
+        }
+
+        if (warpActive2) {
+            ImGui::SameLine();
+            if (ImGui::Button("Clear##warp")) {
+                m_animEditorChar->setWarpPreview(false);
+            }
+            ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.1f, 1.0f),
+                "Warp active: visual starts %.2f above floor (extra +%.2f)",
+                m_warpTestHeight, extraY);
         }
     }
 
@@ -9792,6 +10071,74 @@ void Application::renderAnimEditorUI() {
         }
     }
 
+    // --- Character Position ---
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Text("Character Position:");
+    ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1.0f), "(type X Y Z, press Enter)");
+    ImGui::SetNextItemWidth(-1);
+    ImGui::InputFloat3("##charpos", m_animEditorCharPos, "%.2f");
+    // Apply the typed value BEFORE syncing the buffer back from character position,
+    // otherwise the buffer gets stomped with the old position before setPosition() sees it.
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+        m_animEditorChar->setPosition(
+            glm::vec3(m_animEditorCharPos[0], m_animEditorCharPos[1], m_animEditorCharPos[2]));
+    }
+    // Only sync from character when the field is not being actively edited
+    if (!ImGui::IsItemActive()) {
+        glm::vec3 charPos = m_animEditorChar->getPosition();
+        m_animEditorCharPos[0] = charPos.x;
+        m_animEditorCharPos[1] = charPos.y;
+        m_animEditorCharPos[2] = charPos.z;
+    }
+    if (ImGui::Button("Reset Pos")) {
+        m_animEditorChar->setPosition(glm::vec3(16.0f, 16.0f, 16.0f));
+    }
+
+    // --- Clip Test ---
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Text("Test Clip:");
+    ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1.0f), "Start Offset (local-space, relative to facing):");
+    ImGui::SetNextItemWidth(-1);
+    ImGui::InputFloat3("##startoffset", m_animEditorStartOffset, "%.2f");
+    ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1.0f),
+        "X=right  Y=up(world)  Z=forward\n"
+        "e.g. (0, 8, 0) for jump_down:\nchar spawns 8 units above, falls to dest.");
+    ImGui::Spacing();
+    if (!animNames.empty()) {
+        glm::vec3 dest = m_animEditorChar->getPosition();
+        float yaw      = m_animEditorChar->getYaw();
+
+        // Convert local-space offset to world-space using character facing yaw
+        // forward = (sin(yaw), 0, cos(yaw)),  right = (cos(yaw), 0, -sin(yaw))
+        float sinY = std::sin(yaw), cosY = std::cos(yaw);
+        glm::vec3 worldFwd   = glm::vec3( sinY, 0.0f,  cosY);
+        glm::vec3 worldRight = glm::vec3( cosY, 0.0f, -sinY);
+        glm::vec3 startPos = dest
+            + worldRight * m_animEditorStartOffset[0]
+            + glm::vec3(0.0f, m_animEditorStartOffset[1], 0.0f)
+            + worldFwd   * m_animEditorStartOffset[2];
+
+        // With gravity: character starts at dest+offset and falls naturally
+        if (ImGui::Button("Play from Offset (gravity)", ImVec2(-1, 0))) {
+            m_animEditorChar->setWarpPreview(false);
+            m_animEditorChar->setAnimationPaused(false);
+            m_animEditorChar->playClipFromPosition(startPos, yaw,
+                                                   animNames[m_animEditorAnimIdx]);
+            m_animEditorPlayOnce = true;
+        }
+        ImGui::Spacing();
+        // Position-frozen: for sit/stand/interact clips where feet must stay exactly at dest
+        if (ImGui::Button("Play Anchored (freeze pos)", ImVec2(-1, 0))) {
+            m_animEditorChar->setWarpPreview(false);
+            m_animEditorChar->setAnimationPaused(false);
+            m_animEditorChar->playAnchoredAnimation(dest, yaw,
+                                                    animNames[m_animEditorAnimIdx]);
+            m_animEditorPlayOnce = true;
+        }
+    }
+
     ImGui::Spacing();
     if (ImGui::Button("Save Model [Ctrl+S]", ImVec2(-1, 0))) {
         saveAnimModel();
@@ -9803,6 +10150,9 @@ void Application::renderAnimEditorUI() {
     ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1.0f), "V: toggle camera mode");
 
     ImGui::End();
+
+    // Clip Parameter Tuner lives in its own dockable window
+    renderClipParameterTuner();
 }
 
 void Application::saveAnimModel() {
@@ -9834,7 +10184,7 @@ void Application::saveAnimModel() {
     }
     inFile.close();
 
-    // Find and replace the MODEL section
+    // Find and replace the MODEL section, also refresh # clip_meta: comment lines.
     // MODEL section format:
     //   MODEL
     //   BoxCount N
@@ -9843,7 +10193,27 @@ void Application::saveAnimModel() {
     std::vector<std::string> outLines;
     bool inModel = false;
     bool modelDone = false;
+    bool clipMetaWritten = false; // have we flushed the new clip_meta block yet?
     bool modelWritten = false;
+
+    // Helper: write all clip_meta lines for m_animClipMeta
+    auto flushClipMeta = [&]() {
+        if (clipMetaWritten || m_animClipMeta.empty()) return;
+        for (const auto& [name, meta] : m_animClipMeta) {
+            std::string s = "# clip_meta: " + name;
+            s += " warpEnabled=" + std::to_string(meta.warpEnabled ? 1 : 0);
+            s += " authoredFallDist=" + std::to_string(meta.authoredFallDist);
+            s += " takeoffEnd=" + std::to_string(meta.takeoffEnd);
+            s += " contactFrame=" + std::to_string(meta.contactFrame);
+            s += " warpScaleMin=" + std::to_string(meta.warpScaleMin);
+            s += " warpScaleMax=" + std::to_string(meta.warpScaleMax);
+            s += " hitFrameFraction=" + std::to_string(meta.hitFrameFraction);
+            s += " interruptible=" + std::to_string(meta.interruptible ? 1 : 0);
+            s += " interruptAfter=" + std::to_string(meta.interruptAfter);
+            outLines.push_back(s);
+        }
+        clipMetaWritten = true;
+    };
 
     for (size_t i = 0; i < fileLines.size(); ++i) {
         const std::string& fl = fileLines[i];
@@ -9851,6 +10221,14 @@ void Application::saveAnimModel() {
         // Trim leading whitespace
         size_t start = trimmed.find_first_not_of(" \t");
         if (start != std::string::npos) trimmed = trimmed.substr(start);
+
+        // Strip stale clip_meta lines; fresh ones are flushed before SKELETON
+        if (trimmed.rfind("# clip_meta:", 0) == 0) continue;
+
+        // Flush clip_meta lines right before SKELETON (first non-comment line)
+        if (!clipMetaWritten && !trimmed.empty() && trimmed[0] != '#') {
+            flushClipMeta();
+        }
 
         if (!inModel && !modelDone && trimmed == "MODEL") {
             inModel = true;
@@ -9918,6 +10296,9 @@ void Application::saveAnimModel() {
         outLines.push_back(fl);
     }
 
+    // If the file was all comments (degenerate), flush meta at the end
+    flushClipMeta();
+
     // Write back to file
     std::ofstream outFile(m_animEditorFile);
     if (!outFile.is_open()) {
@@ -9929,8 +10310,9 @@ void Application::saveAnimModel() {
     }
     outFile.close();
 
-    LOG_INFO("Application", "Anim Editor: saved {} shapes to '{}'",
-             modifiedModel.shapes.size(), m_animEditorFile);
+    m_animTunerDirty = false;
+    LOG_INFO("Application", "Anim Editor: saved {} shapes + {} clip_meta entries to '{}'",
+             modifiedModel.shapes.size(), m_animClipMeta.size(), m_animEditorFile);
 }
 
 void Application::renameAnimationInFile(const std::string& oldName, const std::string& newName) {
@@ -9989,6 +10371,498 @@ void Application::renameAnimationInFile(const std::string& oldName, const std::s
             if (names[i] == newName) { m_animEditorAnimIdx = i; break; }
         }
     }
+}
+
+// ============================================================================
+// CLIP PARAMETER TUNER
+// ============================================================================
+
+void Application::loadAnimClipMetaFromFile(const std::string& animFile) {
+    m_animClipMeta.clear();
+    std::ifstream f(animFile);
+    if (!f.is_open()) return;
+    std::string line;
+    while (std::getline(f, line)) {
+        if (line.empty()) continue;
+        if (line[0] != '#') break; // header comments only
+        const std::string prefix = "# clip_meta:";
+        if (line.compare(0, prefix.size(), prefix) != 0) continue;
+        std::istringstream ss(line.substr(prefix.size()));
+        std::string name;
+        ss >> name;
+        AnimClipMeta meta;
+        std::string kv;
+        while (ss >> kv) {
+            auto eq = kv.find('=');
+            if (eq == std::string::npos) continue;
+            std::string k = kv.substr(0, eq);
+            float v = std::stof(kv.substr(eq + 1));
+            if      (k == "warpEnabled")      meta.warpEnabled      = (v != 0.0f);
+            else if (k == "authoredFallDist") meta.authoredFallDist = v;
+            else if (k == "takeoffEnd")       meta.takeoffEnd       = v;
+            else if (k == "contactFrame")     meta.contactFrame     = v;
+            else if (k == "warpScaleMin")     meta.warpScaleMin     = v;
+            else if (k == "warpScaleMax")     meta.warpScaleMax     = v;
+            else if (k == "hitFrameFraction") meta.hitFrameFraction = v;
+            else if (k == "interruptible")    meta.interruptible    = (v != 0.0f);
+            else if (k == "interruptAfter")   meta.interruptAfter   = v;
+        }
+        m_animClipMeta[name] = meta;
+    }
+}
+
+void Application::animTunerReplayCurrentClip() {
+    if (!m_animEditorChar) return;
+    const auto& names = m_animEditorChar->getAnimationNames();
+    if (names.empty() || m_animEditorAnimIdx < 0 || m_animEditorAnimIdx >= (int)names.size()) return;
+    m_animEditorChar->seekAnimation(0.0f);
+    m_animEditorChar->setAnimationPaused(false);
+    m_animEditorChar->playAnimation(names[m_animEditorAnimIdx]);
+    m_animEditorPlayOnce = true;
+}
+
+static const char* kTunerParamNames[] = {
+    "Motion Warp Enabled",
+    "Authored Fall Distance",
+    "Contact Frame",
+    "Warp Scale Min",
+    "Warp Scale Max",
+    "Hit Frame Fraction",
+};
+static const char* kTunerParamDescs[] = {
+    "Should this clip stretch/compress vertically to match the actual fall height?\n"
+    "Enable for landing animations (jump_down). Disable for everything else.",
+    "Find the height this clip was designed to drop from.\n"
+    "Set Landing Y = the floor, set Launch Y = the ledge edge, then Test Drop.\n"
+    "Adjust Launch Y until feet land flush at the end of the clip.",
+    "At what fraction (0=start, 1=end) of the clip do the feet hit the ground?\n"
+    "Watch the animation and note when feet make contact.",
+    "Minimum warp scale (clamps how much the clip can compress for short falls).\n"
+    "Lower = more flexible but may look wrong on very short falls.",
+    "Maximum warp scale (clamps how much the clip can stretch for tall falls).\n"
+    "Higher = more flexible but may look wrong on very tall falls.",
+    "At what fraction (0=start, 1=end) of the attack animation does the hit occur?\n"
+    "Watch the attack and note when the weapon/fist reaches the target.",
+};
+static constexpr int kTunerParamCount = 6;
+
+void Application::renderClipParameterTuner() {
+    if (!m_animEditorMode || !m_animEditorChar) return;
+
+    const auto& animNames = m_animEditorChar->getAnimationNames();
+    if (animNames.empty()) return;
+
+    // Clamp index
+    if (m_animEditorAnimIdx < 0) m_animEditorAnimIdx = 0;
+    if (m_animEditorAnimIdx >= (int)animNames.size())
+        m_animEditorAnimIdx = (int)animNames.size() - 1;
+
+    const std::string& clipName = animNames[m_animEditorAnimIdx];
+
+    // Ensure we have a meta entry for this clip
+    if (m_animClipMeta.find(clipName) == m_animClipMeta.end())
+        m_animClipMeta[clipName] = AnimClipMeta{};
+    AnimClipMeta& meta = m_animClipMeta[clipName];
+
+    // Title shows unsaved indicator
+    std::string title = m_animTunerDirty
+        ? "Clip Settings*###ClipTuner"
+        : "Clip Settings###ClipTuner";
+
+    ImGui::Begin(title.c_str());
+
+    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.2f, 1.0f), "Clip: %s", clipName.c_str());
+    ImGui::SameLine();
+    if (m_animTunerDirty)
+        ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "(unsaved)");
+
+    ImGui::Separator();
+
+    // ---- Normal (all-at-once) edit mode ----
+    if (!m_animTunerWizard) {
+        ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Edit all parameters for selected clip.");
+
+        auto markDirty = [&]() { m_animTunerDirty = true; };
+
+        bool we = meta.warpEnabled;
+        if (ImGui::Checkbox("Motion Warp Enabled", &we)) { meta.warpEnabled = we; markDirty(); }
+        ImGui::SameLine();
+        ImGui::TextDisabled("(?)");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Enable for landing animations (jump_down).\n"
+                              "Stretches the clip to match actual fall height at runtime.");
+
+        if (meta.warpEnabled) {
+
+        ImGui::Text("Authored Fall Dist");
+        ImGui::SetNextItemWidth(120.0f);
+        if (ImGui::InputFloat("##afd", &meta.authoredFallDist, 0.0f, 0.0f, "%.3f"))
+            markDirty();
+        ImGui::SameLine();
+        if (ImGui::SmallButton("-0.1##afd"))  { meta.authoredFallDist -= 0.1f; markDirty(); }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("+0.1##afd"))  { meta.authoredFallDist += 0.1f; markDirty(); }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Test Drop##afd")) {
+            // Drop from authoredFallDist above the character's current position
+            glm::vec3 dest = m_animEditorChar->getPosition();
+            float yaw = m_animEditorChar->getYaw();
+            glm::vec3 startPos = dest + glm::vec3(0.0f, meta.authoredFallDist, 0.0f);
+            m_animEditorChar->setAnimationPaused(false);
+            m_animEditorChar->playClipFromPosition(startPos, yaw, clipName);
+            m_animEditorPlayOnce = true;
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Drops character from %.3f units above its current Y (the landing spot).\n"
+                              "Adjust until feet land flush with the floor at the end of the clip.\n"
+                              "Use the Wizard for a more guided version with explicit Landing/Launch Y.", meta.authoredFallDist);
+
+        ImGui::Text("Takeoff End  (where pushoff ends / fall begins)");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Normalized time (0-1) where the takeoff phase ends.\n"
+                              "Only the segment between Takeoff End and Contact Frame\n"
+                              "is stretched/compressed at different heights.");
+        ImGui::SetNextItemWidth(120.0f);
+        if (ImGui::SliderFloat("##te", &meta.takeoffEnd, 0.0f, 1.0f, "%.3f"))
+            markDirty();
+        ImGui::SameLine();
+        if (ImGui::SmallButton("-0.05##te"))  { meta.takeoffEnd = std::max(0.0f, meta.takeoffEnd - 0.05f);  markDirty(); }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("+0.05##te"))  { meta.takeoffEnd = std::min(meta.contactFrame, meta.takeoffEnd + 0.05f);  markDirty(); }
+
+        ImGui::Text("Contact Frame  (where landing begins)");
+        ImGui::SetNextItemWidth(120.0f);
+        if (ImGui::SliderFloat("##cf", &meta.contactFrame, 0.0f, 1.0f, "%.3f"))
+            markDirty();
+        ImGui::SameLine();
+        if (ImGui::SmallButton("-0.05##cf"))  { meta.contactFrame = std::max(meta.takeoffEnd, meta.contactFrame - 0.05f);  markDirty(); }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("+0.05##cf"))  { meta.contactFrame = std::min(1.0f, meta.contactFrame + 0.05f);  markDirty(); }
+
+        ImGui::Text("Warp Scale Min");
+        ImGui::SetNextItemWidth(120.0f);
+        if (ImGui::InputFloat("##wsmin", &meta.warpScaleMin, 0.0f, 0.0f, "%.2f"))
+            markDirty();
+        ImGui::SameLine();
+        if (ImGui::SmallButton("-0.1##wsmin")) { meta.warpScaleMin -= 0.1f; markDirty(); }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("+0.1##wsmin")) { meta.warpScaleMin += 0.1f; markDirty(); }
+
+        ImGui::Text("Warp Scale Max");
+        ImGui::SetNextItemWidth(120.0f);
+        if (ImGui::InputFloat("##wsmax", &meta.warpScaleMax, 0.0f, 0.0f, "%.2f"))
+            markDirty();
+        ImGui::SameLine();
+        if (ImGui::SmallButton("-0.1##wsmax")) { meta.warpScaleMax -= 0.1f; markDirty(); }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("+0.1##wsmax")) { meta.warpScaleMax += 0.1f; markDirty(); }
+
+        } // end warpEnabled block
+
+        ImGui::Separator();
+        ImGui::Text("Hit Frame  (0=start, 1=end)");
+        ImGui::SetNextItemWidth(120.0f);
+        if (ImGui::SliderFloat("##hf", &meta.hitFrameFraction, 0.0f, 1.0f, "%.3f"))
+            markDirty();
+        ImGui::SameLine();
+        if (ImGui::SmallButton("-0.05##hf"))  { meta.hitFrameFraction = std::max(0.0f, meta.hitFrameFraction - 0.05f); markDirty(); }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("+0.05##hf"))  { meta.hitFrameFraction = std::min(1.0f, meta.hitFrameFraction + 0.05f); markDirty(); }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Normalized time when the attack animation triggers a hit.\n"
+                              "Watch the attack and note when the weapon/fist contacts the target.");
+
+        ImGui::Separator();
+        bool intr = meta.interruptible;
+        if (ImGui::Checkbox("Player Can Interrupt", &intr)) { meta.interruptible = intr; markDirty(); }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("When checked, the player can cancel this animation with movement input\n"
+                              "once past the 'Interrupt After' point.\n"
+                              "NPCs always play the full animation regardless of this flag.");
+        if (meta.interruptible) {
+            ImGui::Text("Interrupt After");
+            ImGui::SetNextItemWidth(120.0f);
+            if (ImGui::SliderFloat("##ia", &meta.interruptAfter, 0.0f, 1.0f, "%.3f"))
+                markDirty();
+            ImGui::SameLine();
+            if (ImGui::SmallButton("-0.05##ia")) { meta.interruptAfter = std::max(0.0f, meta.interruptAfter - 0.05f); markDirty(); }
+            ImGui::SameLine();
+            if (ImGui::SmallButton("+0.05##ia")) { meta.interruptAfter = std::min(1.0f, meta.interruptAfter + 0.05f); markDirty(); }
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Normalized time (0-1) after which movement input cancels the animation.\n"
+                                  "Set this past the point of no return (e.g. after the character has\n"
+                                  "committed to a jump or swing).");
+        }
+
+        ImGui::Spacing();
+        ImGui::Separator();
+        if (ImGui::Button("Step-Through Wizard", ImVec2(-1, 0))) {
+            m_animTunerWizard = true;
+            m_animTunerStep = 0;
+            // Seed landing/launch Y from character position so wizard step 2 starts sensibly
+            if (m_animEditorChar) {
+                glm::vec3 p = m_animEditorChar->getPosition();
+                m_tunerLandingY = p.y;
+                m_tunerLaunchY  = p.y + meta.authoredFallDist;
+            }
+            animTunerReplayCurrentClip();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Enter wizard mode: guides you through each parameter one at a time.\n"
+                              "Watch the animation in the viewport and click 'Looks Good' to confirm.");
+
+        ImGui::Spacing();
+        if (ImGui::Button(m_animTunerDirty ? "Save Metadata [Ctrl+S]*" : "Save Metadata [Ctrl+S]",
+                          ImVec2(-1, 0))) {
+            saveAnimModel();
+        }
+
+    // ---- Wizard (step-through) mode ----
+    } else {
+        int step = m_animTunerStep;
+        if (step >= kTunerParamCount) step = kTunerParamCount - 1;
+
+        // Header bar: step progress
+        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.6f, 1.0f),
+            "WIZARD  Step %d / %d", step + 1, kTunerParamCount);
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Exit Wizard")) {
+            m_animTunerWizard = false;
+        }
+
+        ImGui::Separator();
+
+        // Parameter name + description
+        ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.4f, 1.0f), "%s", kTunerParamNames[step]);
+        ImGui::Spacing();
+        ImGui::TextWrapped("%s", kTunerParamDescs[step]);
+        ImGui::Spacing();
+        ImGui::Separator();
+
+        auto markDirty = [&]() { m_animTunerDirty = true; };
+
+        bool valueChanged = false;
+
+        // Per-step controls
+        switch (step) {
+            case 0: { // warpEnabled
+                bool we = meta.warpEnabled;
+                if (ImGui::Checkbox("Enable Motion Warp for this clip", &we)) {
+                    meta.warpEnabled = we;
+                    markDirty();
+                    valueChanged = true;
+                }
+                break;
+            }
+            case 1: { // authoredFallDist — shown as a concrete drop-test setup
+                // Sync landing Y from character's current position (X/Z ignored; Y is what matters)
+                glm::vec3 charPos = m_animEditorChar->getPosition();
+
+                ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.2f, 1.0f),
+                    "Goal: find the height this clip was designed to drop from.");
+                ImGui::TextWrapped(
+                    "1. Set Landing Y = the floor the character lands on.\n"
+                    "2. Adjust Launch Y upward until clicking 'Test Drop' makes the\n"
+                    "   character's feet hit the floor right as the clip ends.\n"
+                    "3. The drop height (Launch - Landing) becomes 'authoredFallDist'.");
+                ImGui::Spacing();
+
+                // Landing Y row
+                ImGui::Text("Landing Y (floor):  %.2f", m_tunerLandingY);
+                ImGui::SameLine();
+                if (ImGui::SmallButton("Use Character##land")) {
+                    m_tunerLandingY = charPos.y;
+                    m_tunerLaunchY  = std::max(m_tunerLaunchY, m_tunerLandingY + 0.1f);
+                    meta.authoredFallDist = m_tunerLaunchY - m_tunerLandingY;
+                    markDirty(); valueChanged = true;
+                }
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("Snaps Landing Y to the character's current Y position.\n"
+                                      "Position the character on the floor first.");
+                if (ImGui::SmallButton("- 1##ly")) { m_tunerLandingY -= 1.0f; meta.authoredFallDist = m_tunerLaunchY - m_tunerLandingY; markDirty(); valueChanged = true; }
+                ImGui::SameLine();
+                if (ImGui::SmallButton("- 0.5##ly")) { m_tunerLandingY -= 0.5f; meta.authoredFallDist = m_tunerLaunchY - m_tunerLandingY; markDirty(); valueChanged = true; }
+                ImGui::SameLine();
+                if (ImGui::SmallButton("+ 0.5##ly")) { m_tunerLandingY += 0.5f; meta.authoredFallDist = m_tunerLaunchY - m_tunerLandingY; markDirty(); valueChanged = true; }
+                ImGui::SameLine();
+                if (ImGui::SmallButton("+ 1##ly")) { m_tunerLandingY += 1.0f; meta.authoredFallDist = m_tunerLaunchY - m_tunerLandingY; markDirty(); valueChanged = true; }
+
+                ImGui::Spacing();
+
+                // Launch Y row
+                ImGui::Text("Launch Y (drop from):  %.2f", m_tunerLaunchY);
+                ImGui::SameLine();
+                if (ImGui::SmallButton("Use Character##launch")) {
+                    m_tunerLaunchY = charPos.y;
+                    m_tunerLandingY = std::min(m_tunerLandingY, m_tunerLaunchY - 0.1f);
+                    meta.authoredFallDist = m_tunerLaunchY - m_tunerLandingY;
+                    markDirty(); valueChanged = true;
+                }
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("Snaps Launch Y to the character's current Y position.\n"
+                                      "Move the character to the top of the ledge first.");
+                if (ImGui::SmallButton("- 1##luy")) { m_tunerLaunchY -= 1.0f; meta.authoredFallDist = m_tunerLaunchY - m_tunerLandingY; markDirty(); valueChanged = true; }
+                ImGui::SameLine();
+                if (ImGui::SmallButton("- 0.5##luy")) { m_tunerLaunchY -= 0.5f; meta.authoredFallDist = m_tunerLaunchY - m_tunerLandingY; markDirty(); valueChanged = true; }
+                ImGui::SameLine();
+                if (ImGui::SmallButton("+ 0.5##luy")) { m_tunerLaunchY += 0.5f; meta.authoredFallDist = m_tunerLaunchY - m_tunerLandingY; markDirty(); valueChanged = true; }
+                ImGui::SameLine();
+                if (ImGui::SmallButton("+ 1##luy")) { m_tunerLaunchY += 1.0f; meta.authoredFallDist = m_tunerLaunchY - m_tunerLandingY; markDirty(); valueChanged = true; }
+
+                ImGui::Spacing();
+                ImGui::Separator();
+
+                // Computed authoredFallDist
+                float dropH = m_tunerLaunchY - m_tunerLandingY;
+                if (dropH < 0.0f) dropH = 0.0f;
+                meta.authoredFallDist = dropH;
+                ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.6f, 1.0f),
+                    "Authored Fall Dist = %.3f  (Launch - Landing)", meta.authoredFallDist);
+
+                ImGui::Spacing();
+
+                // Test button: move character to landingY, then drop from launchY
+                if (ImGui::Button("Test Drop  (play clip with gravity)", ImVec2(-1, 40))) {
+                    float yaw = m_animEditorChar->getYaw();
+                    // Landing position = character's XZ at landingY
+                    glm::vec3 landPos(charPos.x, m_tunerLandingY, charPos.z);
+                    // Reposition controller to landing spot first so clip resolves there
+                    m_animEditorChar->setPosition(landPos);
+                    glm::vec3 startPos(charPos.x, m_tunerLaunchY, charPos.z);
+                    m_animEditorChar->setAnimationPaused(false);
+                    m_animEditorChar->playClipFromPosition(startPos, yaw, clipName);
+                    m_animEditorPlayOnce = true;
+                }
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip(
+                        "Drops the character from Launch Y with gravity.\n"
+                        "Adjust Launch Y until the feet land flush at Landing Y\n"
+                        "right as the animation ends.\n"
+                        "The gap (%.3f units) becomes authoredFallDist.", dropH);
+
+                ImGui::Spacing();
+                ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1.0f),
+                    "Tip: at runtime, warpScale = actualDrop / authoredFallDist.\n"
+                    "This clip will work for any drop in [%.2f, %.2f] units.",
+                    meta.authoredFallDist * meta.warpScaleMin,
+                    meta.authoredFallDist * meta.warpScaleMax);
+                break;
+            }
+            case 2: { // contactFrame
+                ImGui::Text("Contact Frame: %.3f", meta.contactFrame);
+                ImGui::Spacing();
+                ImGui::SetNextItemWidth(-1);
+                if (ImGui::SliderFloat("##wcf", &meta.contactFrame, 0.0f, 1.0f, "%.3f")) {
+                    markDirty();
+                    valueChanged = true;
+                }
+                ImGui::Spacing();
+                if (ImGui::Button("<< -0.05##w"))  { meta.contactFrame = std::max(0.0f, meta.contactFrame - 0.05f); markDirty(); valueChanged = true; }
+                ImGui::SameLine();
+                if (ImGui::Button("< -0.01##w"))   { meta.contactFrame = std::max(0.0f, meta.contactFrame - 0.01f); markDirty(); valueChanged = true; }
+                ImGui::SameLine();
+                if (ImGui::Button("+0.01 >##w"))   { meta.contactFrame = std::min(1.0f, meta.contactFrame + 0.01f); markDirty(); valueChanged = true; }
+                ImGui::SameLine();
+                if (ImGui::Button("+0.05 >>##w"))  { meta.contactFrame = std::min(1.0f, meta.contactFrame + 0.05f); markDirty(); valueChanged = true; }
+                ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1.0f),
+                    "Watch the animation. Note the moment the feet visually land.");
+                break;
+            }
+            case 3: { // warpScaleMin
+                ImGui::Text("Warp Scale Min: %.2f", meta.warpScaleMin);
+                ImGui::Spacing();
+                if (ImGui::Button("< -0.1##wmin"))  { meta.warpScaleMin -= 0.1f; markDirty(); valueChanged = true; }
+                ImGui::SameLine();
+                if (ImGui::Button("+0.1 >##wmin"))  { meta.warpScaleMin += 0.1f; markDirty(); valueChanged = true; }
+                ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1.0f),
+                    "Prevents over-compression on very short falls.\n"
+                    "Default: 0.4  (clip can compress to 40%% of authored distance)");
+                break;
+            }
+            case 4: { // warpScaleMax
+                ImGui::Text("Warp Scale Max: %.2f", meta.warpScaleMax);
+                ImGui::Spacing();
+                if (ImGui::Button("< -0.1##wmax"))  { meta.warpScaleMax -= 0.1f; markDirty(); valueChanged = true; }
+                ImGui::SameLine();
+                if (ImGui::Button("+0.1 >##wmax"))  { meta.warpScaleMax += 0.1f; markDirty(); valueChanged = true; }
+                ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1.0f),
+                    "Prevents over-stretching on very tall falls.\n"
+                    "Default: 2.5  (clip can stretch to 250%% of authored distance)");
+                break;
+            }
+            case 5: { // hitFrameFraction
+                ImGui::Text("Hit Frame: %.3f", meta.hitFrameFraction);
+                ImGui::Spacing();
+                ImGui::SetNextItemWidth(-1);
+                if (ImGui::SliderFloat("##whf", &meta.hitFrameFraction, 0.0f, 1.0f, "%.3f")) {
+                    markDirty();
+                    valueChanged = true;
+                }
+                ImGui::Spacing();
+                if (ImGui::Button("<< -0.05##w"))  { meta.hitFrameFraction = std::max(0.0f, meta.hitFrameFraction - 0.05f); markDirty(); valueChanged = true; }
+                ImGui::SameLine();
+                if (ImGui::Button("< -0.01##w"))   { meta.hitFrameFraction = std::max(0.0f, meta.hitFrameFraction - 0.01f); markDirty(); valueChanged = true; }
+                ImGui::SameLine();
+                if (ImGui::Button("+0.01 >##w"))   { meta.hitFrameFraction = std::min(1.0f, meta.hitFrameFraction + 0.01f); markDirty(); valueChanged = true; }
+                ImGui::SameLine();
+                if (ImGui::Button("+0.05 >>##w"))  { meta.hitFrameFraction = std::min(1.0f, meta.hitFrameFraction + 0.05f); markDirty(); valueChanged = true; }
+                ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1.0f),
+                    "Watch the attack animation. Note when weapon/fist contacts the target.");
+                break;
+            }
+        }
+
+        // Auto-replay on value change
+        if (valueChanged) animTunerReplayCurrentClip();
+
+        ImGui::Spacing();
+        ImGui::Separator();
+
+        // Navigation row
+        if (ImGui::Button("< Back", ImVec2(70, 0)) && m_animTunerStep > 0)
+            --m_animTunerStep;
+        ImGui::SameLine();
+        if (ImGui::Button("Replay", ImVec2(70, 0)))
+            animTunerReplayCurrentClip();
+        ImGui::SameLine();
+        if (ImGui::Button("Skip >", ImVec2(70, 0)))
+            ++m_animTunerStep;
+
+        ImGui::Spacing();
+
+        // "Looks Good" — confirm step and advance
+        ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.1f, 0.6f, 0.15f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.15f,0.75f,0.2f,  1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.05f,0.45f,0.1f,  1.0f));
+        if (ImGui::Button(step < kTunerParamCount - 1
+                              ? "Looks Good  - Next Step >"
+                              : "Looks Good  - Finish!",
+                          ImVec2(-1, 40))) {
+            if (step < kTunerParamCount - 1) {
+                ++m_animTunerStep;
+                animTunerReplayCurrentClip();
+            } else {
+                // Done — exit wizard and offer save
+                m_animTunerWizard = false;
+                m_animTunerStep = 0;
+            }
+        }
+        ImGui::PopStyleColor(3);
+
+        // Reached end of wizard
+        if (m_animTunerStep >= kTunerParamCount) {
+            m_animTunerStep = kTunerParamCount - 1;
+        }
+
+        // Save shortcut from wizard mode
+        if (m_animTunerDirty) {
+            ImGui::Spacing();
+            if (ImGui::Button("Save Metadata now [Ctrl+S]", ImVec2(-1, 0)))
+                saveAnimModel();
+        }
+    }
+
+    ImGui::End();
 }
 
 // ============================================================================

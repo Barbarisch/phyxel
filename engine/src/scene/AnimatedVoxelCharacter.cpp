@@ -7,6 +7,7 @@
 #include "utils/Logger.h"
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <algorithm>
 #include <cmath>
 #include <numeric>
@@ -37,29 +38,33 @@ namespace Scene {
     }
 
     void AnimatedVoxelCharacter::resolveKinematicMovement(float dt) {
+        if (m_kinFrozen) return;  // anim editor: position is set externally
         auto* voxelWorld = physicsWorld ? physicsWorld->getVoxelWorld() : nullptr;
         const float halfW = m_originalHalfWidth;
         const float halfH = m_originalHalfHeight;
 
         if (voxelWorld) {
-            // Gravity
-            if (!m_kinGrounded)
-                m_kinVelocity.y -= 9.81f * dt;
+            // Gravity and ground-snap are suppressed when Y root motion owns vertical movement
+            if (!m_yRootMotionActive) {
+                // Gravity
+                if (!m_kinGrounded)
+                    m_kinVelocity.y -= 9.81f * dt;
 
-            // --- Vertical ---
-            worldPosition.y += m_kinVelocity.y * dt;
+                // --- Vertical ---
+                worldPosition.y += m_kinVelocity.y * dt;
 
-            // Ground resolution
-            glm::vec3 feetPos(worldPosition.x, worldPosition.y, worldPosition.z);
-            float groundY = voxelWorld->findGroundY(feetPos, halfW, halfH + 1.0f);
+                // Ground resolution
+                glm::vec3 feetPos(worldPosition.x, worldPosition.y, worldPosition.z);
+                float groundY = voxelWorld->findGroundY(feetPos, halfW, halfH + 1.0f);
 
-            if (groundY > -1e8f && worldPosition.y < groundY) {
-                worldPosition.y = groundY;
-                if (m_kinVelocity.y < 0.0f)
-                    m_kinVelocity.y = 0.0f;
-                m_kinGrounded = true;
-            } else {
-                m_kinGrounded = false;
+                if (groundY > -1e8f && worldPosition.y < groundY) {
+                    worldPosition.y = groundY;
+                    if (m_kinVelocity.y < 0.0f)
+                        m_kinVelocity.y = 0.0f;
+                    m_kinGrounded = true;
+                } else {
+                    m_kinGrounded = false;
+                }
             }
 
             // --- Horizontal ---
@@ -124,6 +129,40 @@ namespace Scene {
         }
 
         if (animSystem.loadFromFile(animFile, skeleton, clips, voxelModel)) {
+            // Apply per-clip tuning metadata from "# clip_meta:" comment lines
+            {
+                std::ifstream metaIn(animFile);
+                std::string ml;
+                while (std::getline(metaIn, ml)) {
+                    if (ml.empty()) continue;
+                    if (ml[0] != '#') break; // header comments only
+                    const std::string prefix = "# clip_meta:";
+                    if (ml.compare(0, prefix.size(), prefix) != 0) continue;
+                    std::istringstream ss(ml.substr(prefix.size()));
+                    std::string clipName;
+                    ss >> clipName;
+                    auto it = std::find_if(clips.begin(), clips.end(),
+                        [&](const AnimationClip& c){ return c.name == clipName; });
+                    if (it == clips.end()) continue;
+                    std::string kv;
+                    while (ss >> kv) {
+                        auto eq = kv.find('=');
+                        if (eq == std::string::npos) continue;
+                        std::string k = kv.substr(0, eq);
+                        float v = std::stof(kv.substr(eq + 1));
+                        if (k == "warpEnabled")      it->warpEnabled      = (v != 0.0f);
+                        else if (k == "authoredFallDist") it->authoredFallDist = v;
+                        else if (k == "takeoffEnd")       it->takeoffEnd       = v;
+                        else if (k == "contactFrame")     it->contactFrame     = v;
+                        else if (k == "warpScaleMin")     it->warpScaleMin     = v;
+                        else if (k == "warpScaleMax")     it->warpScaleMax     = v;
+                        else if (k == "hitFrameFraction") it->hitFrameFraction = v;
+                        else if (k == "interruptible")   it->interruptible   = (v != 0.0f);
+                        else if (k == "interruptAfter")  it->interruptAfter  = v;
+                    }
+                }
+            }
+
             // Store original unscaled template for later rebuilds
             originalSkeleton_ = skeleton;
             originalVoxelModel_ = voxelModel;
@@ -872,6 +911,24 @@ namespace Scene {
         std::cout << "Preview Animation: " << clips[nextIndex].name << std::endl;
     }
 
+    // Phase-based time warp helpers.
+    // The air phase [takeoffEnd, landingStart] is scaled by warpScale; the
+    // takeoff and landing phases play at their authored speed.
+    static float computeWarpedDuration(float dur, float te, float ls, float scale) {
+        float T1 = te * dur;
+        float T2 = ls * dur;
+        return T1 + (T2 - T1) * scale + (dur - T2);
+    }
+    static float remapToAuthored(float t, float dur, float te, float ls, float scale) {
+        float T1 = te * dur;
+        float T2 = ls * dur;
+        float airW = (T2 - T1) * scale;
+        if (t <= T1) return t;
+        if (airW > 0.0f && t <= T1 + airW)
+            return T1 + (t - T1) / scale;
+        return T2 + (t - T1 - airW);
+    }
+
     std::string AnimatedVoxelCharacter::getCurrentClipName() const {
         if (currentClipIndex >= 0 && currentClipIndex < (int)clips.size()) {
             return clips[currentClipIndex].name;
@@ -882,7 +939,14 @@ namespace Scene {
     float AnimatedVoxelCharacter::getAnimationProgress() const {
         if (currentClipIndex >= 0 && currentClipIndex < (int)clips.size()) {
             float duration = clips[currentClipIndex].duration;
-            if (duration > 0.0f) return animTime / duration;
+            if (duration > 0.0f) {
+                if (m_warpPreviewActive) {
+                    float wd = computeWarpedDuration(duration, m_warpPreviewTakeoffN,
+                                                     m_warpPreviewContactN, m_warpPreviewScale);
+                    if (wd > 0.0f) return std::fmod(animTime, wd) / wd;
+                }
+                return std::fmod(animTime, duration) / duration;
+            }
         }
         return 0.0f;
     }
@@ -896,6 +960,20 @@ namespace Scene {
 
     glm::vec3 AnimatedVoxelCharacter::getForwardDirection() const {
         return glm::vec3(std::sin(currentYaw), 0.0f, std::cos(currentYaw));
+    }
+
+    void AnimatedVoxelCharacter::seekAnimation(float normalizedTime) {
+        if (currentClipIndex < 0 || currentClipIndex >= (int)clips.size()) return;
+        float dur = clips[currentClipIndex].duration;
+        if (dur <= 0.0f) return;
+        animTime = std::clamp(normalizedTime, 0.0f, 1.0f) * dur;
+        // updateAnimation runs fmod(time, duration) for looping clips, so
+        // animTime == duration wraps to frame 0. Clamp just below to show the
+        // actual last frame instead.
+        if (animTime >= dur) animTime = dur - 0.0001f;
+        // Cancel any in-progress blend so the scrubbed pose is clean
+        isBlending = false;
+        blendFactor = 1.0f;
     }
 
     void AnimatedVoxelCharacter::setAnimationState(AnimatedCharacterState state) {
@@ -1001,6 +1079,88 @@ namespace Scene {
         if (!m_isSitting) return;
         currentState = AnimatedCharacterState::SitStandUp;
         stateTimer = 0.0f;
+    }
+
+    void AnimatedVoxelCharacter::playAnchoredAnimation(const glm::vec3& destinationPos,
+                                                        float facingYaw,
+                                                        const std::string& clipName) {
+        // Resolve clip name (case-insensitive)
+        std::string targetLower = clipName;
+        std::transform(targetLower.begin(), targetLower.end(), targetLower.begin(), ::tolower);
+        int targetIndex = -1;
+        for (int i = 0; i < (int)clips.size(); ++i) {
+            std::string n = clips[i].name;
+            std::transform(n.begin(), n.end(), n.begin(), ::tolower);
+            if (n == targetLower) { targetIndex = i; break; }
+        }
+        if (targetIndex < 0) {
+            LOG_WARN("Character", "playAnchoredAnimation: clip '{}' not found", clipName);
+            return;
+        }
+
+        // Cancel any sitting state
+        m_isSitting = false;
+
+        // Teleport to destination — the clip's t=0 pose visually hides this
+        setPosition(destinationPos);
+        m_anchorPos       = destinationPos;
+        m_anchorYaw       = facingYaw;
+        m_anchorClipIndex = targetIndex;
+        currentYaw        = facingYaw;
+        m_kinVelocity     = glm::vec3(0.0f);
+
+        // Switch clip
+        previousClipIndex = currentClipIndex;
+        previousAnimTime  = animTime;
+        currentClipIndex  = targetIndex;
+        animTime          = 0.0f;
+        isBlending        = false;  // hard cut — t=0 pose hides it
+        m_prevClipIndex   = targetIndex;  // prevent first-frame delta spike
+        if (!skeleton.bones.empty())
+            m_prevRootPos = skeleton.bones[0].currentPosition;
+
+        m_isAnchoredAnim  = true;
+        LOG_DEBUG("Character", "playAnchoredAnimation: '{}' at ({:.2f},{:.2f},{:.2f})",
+                  clipName, destinationPos.x, destinationPos.y, destinationPos.z);
+    }
+
+    void AnimatedVoxelCharacter::playClipFromPosition(const glm::vec3& startPos, float facingYaw,
+                                                      const std::string& clipName) {
+        // Resolve clip index (case-insensitive)
+        std::string targetLower = clipName;
+        std::transform(targetLower.begin(), targetLower.end(), targetLower.begin(), ::tolower);
+        int targetIndex = -1;
+        for (int i = 0; i < (int)clips.size(); ++i) {
+            std::string n = clips[i].name;
+            std::transform(n.begin(), n.end(), n.begin(), ::tolower);
+            if (n == targetLower) { targetIndex = i; break; }
+        }
+        if (targetIndex < 0) {
+            LOG_WARN("Character", "playClipFromPosition: clip '{}' not found", clipName);
+            return;
+        }
+
+        // Cancel anchored/sitting states
+        m_isAnchoredAnim = false;
+        m_isSitting      = false;
+
+        // Teleport — setPosition zeros m_kinVelocity so gravity starts fresh
+        setPosition(startPos);
+        currentYaw = facingYaw;
+
+        // Switch clip from t=0, no blend (hard cut)
+        previousClipIndex = currentClipIndex;
+        previousAnimTime  = animTime;
+        currentClipIndex  = targetIndex;
+        animTime          = 0.0f;
+        isBlending        = false;
+        m_prevClipIndex   = targetIndex;
+        if (!skeleton.bones.empty())
+            m_prevRootPos = skeleton.bones[0].currentPosition;
+
+        currentState = AnimatedCharacterState::Preview;
+        LOG_DEBUG("Character", "playClipFromPosition: '{}' from ({:.2f},{:.2f},{:.2f})",
+                  clipName, startPos.x, startPos.y, startPos.z);
     }
 
     AnimatedCharacterState AnimatedVoxelCharacter::stringToState(const std::string& str) {
@@ -1359,6 +1519,17 @@ namespace Scene {
                     currentState = AnimatedCharacterState::Land;
                     stateTimer = 0.0f;
                 }
+                // Player can interrupt the fall animation (e.g. for a long jump_down)
+                // once past the committed takeoff point
+                else if (currentClipIndex >= 0 && currentClipIndex < (int)clips.size()) {
+                    const auto& clip = clips[currentClipIndex];
+                    if (clip.interruptible && currentAnimDuration > 0.0f &&
+                        stateTimer / currentAnimDuration >= clip.interruptAfter &&
+                        (glm::abs(currentForwardInput) > 0.1f || glm::abs(currentStrafeInput) > 0.1f)) {
+                        currentState = AnimatedCharacterState::Walk;
+                        stateTimer = 0.0f;
+                    }
+                }
                 break;
 
             case AnimatedCharacterState::Land:
@@ -1394,6 +1565,17 @@ namespace Scene {
                 if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
                     currentState = AnimatedCharacterState::Idle;
                     m_hitFrameFired = false;
+                }
+                // Movement input can cancel attack early once past the interruptAfter point
+                else if (currentClipIndex >= 0 && currentClipIndex < (int)clips.size()) {
+                    const auto& clip = clips[currentClipIndex];
+                    if (clip.interruptible && currentAnimDuration > 0.0f &&
+                        stateTimer / currentAnimDuration >= clip.interruptAfter &&
+                        (glm::abs(currentForwardInput) > 0.1f || glm::abs(currentStrafeInput) > 0.1f)) {
+                        currentState = AnimatedCharacterState::Walk;
+                        stateTimer = 0.0f;
+                        m_hitFrameFired = false;
+                    }
                 }
                 break;
 
@@ -1481,6 +1663,24 @@ namespace Scene {
                 m_kinVelocity = glm::vec3(0.0f);
             }
             return; // skip normal animation/physics while derezzing
+        }
+
+        // --- Anchored one-shot animation: bypass physics, freeze position ---
+        if (m_isAnchoredAnim) {
+            worldPosition = m_anchorPos;
+            m_kinVelocity = glm::vec3(0.0f);
+            currentYaw    = m_anchorYaw;
+            // Release when clip finishes
+            if (m_anchorClipIndex >= 0 && m_anchorClipIndex < (int)clips.size() &&
+                animTime >= clips[m_anchorClipIndex].duration) {
+                m_isAnchoredAnim = false;
+                // If kinematic was frozen before (e.g. anim editor), restore freeze
+                // so the character doesn't fall after the clip ends
+                if (m_kinFrozen) m_kinVelocity = glm::vec3(0.0f);
+                currentState     = AnimatedCharacterState::Idle;
+                LOG_DEBUG("Character", "playAnchoredAnimation: clip finished, resuming Idle");
+            }
+            goto animate_and_render;
         }
 
         // --- Sitting sequence: bypass normal physics movement ---
@@ -1821,8 +2021,10 @@ namespace Scene {
         } // end movement block
 
         animate_and_render:
+        float evalTime = animTime; // may be remapped for warp preview
         if (currentClipIndex >= 0 && currentClipIndex < clips.size()) {
-            animTime += deltaTime;
+            if (!m_animPaused)
+                animTime += deltaTime;
             
             // Determine looping for current animation
             bool loop = (currentState != AnimatedCharacterState::Attack &&
@@ -1841,26 +2043,135 @@ namespace Scene {
             if (currentState == AnimatedCharacterState::CrouchIdle) {
                 animTime = clips[currentClipIndex].duration;
             }
-            
+
+            // Phase-based temporal warp: remap animTime so only the air phase stretches.
+            if (m_warpPreviewActive) {
+                float dur = clips[currentClipIndex].duration;
+                float wd = computeWarpedDuration(dur, m_warpPreviewTakeoffN,
+                                                  m_warpPreviewContactN, m_warpPreviewScale);
+                if (wd > 0.0f) {
+                    float t = loop ? std::fmod(animTime, wd) : std::min(animTime, wd);
+                    evalTime = remapToAuthored(t, dur, m_warpPreviewTakeoffN,
+                                               m_warpPreviewContactN, m_warpPreviewScale);
+                }
+            }
+
+            float prevAnimTimeSnapshot = m_prevAnimTime;
+
             if (isBlending && previousClipIndex >= 0 && previousClipIndex < clips.size()) {
                 blendFactor += deltaTime / blendDuration;
                 if (blendFactor >= 1.0f) {
                     blendFactor = 1.0f;
                     isBlending = false;
-                    animSystem.updateAnimation(skeleton, clips[currentClipIndex], animTime, loop);
+                    animSystem.updateAnimation(skeleton, clips[currentClipIndex], evalTime, loop);
                 } else {
                     // Blend with previous animation
                     // We freeze the previous animation at the transition point to avoid it looping unexpectedly
                     // or jumping to start if it finished.
-                    bool prevLoop = true; 
-                    animSystem.blendAnimation(skeleton, 
+                    bool prevLoop = true;
+                    animSystem.blendAnimation(skeleton,
                         clips[previousClipIndex], previousAnimTime, prevLoop,
-                        clips[currentClipIndex], animTime, loop,
+                        clips[currentClipIndex], evalTime, loop,
                         blendFactor);
                 }
             } else {
-                animSystem.updateAnimation(skeleton, clips[currentClipIndex], animTime, loop);
+                animSystem.updateAnimation(skeleton, clips[currentClipIndex], evalTime, loop);
             }
+            m_prevAnimTime = animTime;
+
+            // Root motion extraction: apply root bone displacement to worldPosition
+            if (!isBlending && currentClipIndex >= 0 && currentClipIndex < (int)clips.size()) {
+                const AnimationClip& clip = clips[currentClipIndex];
+
+                // Update Y root motion flag so resolveKinematicMovement suppresses gravity
+                m_yRootMotionActive = clip.useRootMotion && clip.rootMotionAxes.y;
+
+                // Clip transition: reset prevRootPos so frame-1 delta is zero (no teleport spike)
+                if (currentClipIndex != m_prevClipIndex) {
+                    if (!skeleton.bones.empty())
+                        m_prevRootPos = skeleton.bones[0].currentPosition;
+                    m_prevClipIndex = currentClipIndex;
+                }
+
+                // Capture animated root position AFTER update, BEFORE any stripping
+                glm::vec3 currentRootAnimated = skeleton.bones.empty() ? glm::vec3(0.0f) : skeleton.bones[0].currentPosition;
+                if (clip.useRootMotion && !skeleton.bones.empty()) {
+                    bool loopWrapped = (animTime < prevAnimTimeSnapshot);
+                    if (!loopWrapped) {
+                        // Use m_prevRootPos (animated pos from last frame) as the delta base.
+                        // rootPosBefore would have been the stripped localPosition — wrong.
+                        glm::vec3 delta = currentRootAnimated - m_prevRootPos;
+                        if (!clip.rootMotionAxes.x) delta.x = 0.0f;
+                        if (!clip.rootMotionAxes.y) delta.y = 0.0f;
+                        if (!clip.rootMotionAxes.z) delta.z = 0.0f;
+
+                        // Rotate XZ from model space into world space by character yaw
+                        float cy = cosf(currentYaw), sy = sinf(currentYaw);
+                        glm::vec3 worldDelta(
+                            delta.x * cy - delta.z * sy,
+                            delta.y,
+                            delta.x * sy + delta.z * cy
+                        );
+
+                        // Apply per-axis with collision checks (same pattern as resolveKinematicMovement)
+                        auto* voxelWorld = physicsWorld ? physicsWorld->getVoxelWorld() : nullptr;
+                        const glm::vec3 charHE(m_originalHalfWidth, m_originalHalfHeight - 0.05f, m_originalHalfWidth);
+                        auto blocked = [&](const glm::vec3& pos) -> bool {
+                            if (!voxelWorld) return false;
+                            glm::vec3 c(pos.x, pos.y + m_originalHalfHeight, pos.z);
+                            return voxelWorld->overlapsTerrain(c, charHE) || voxelWorld->overlapsAnyBody(c, charHE);
+                        };
+
+                        if (worldDelta.x != 0.0f) {
+                            worldPosition.x += worldDelta.x;
+                            if (blocked(worldPosition)) worldPosition.x -= worldDelta.x;
+                        }
+                        if (worldDelta.y != 0.0f) {
+                            worldPosition.y += worldDelta.y;
+                            if (blocked(worldPosition)) worldPosition.y -= worldDelta.y;
+                        }
+                        if (worldDelta.z != 0.0f) {
+                            worldPosition.z += worldDelta.z;
+                            if (blocked(worldPosition)) worldPosition.z -= worldDelta.z;
+                        }
+                    }
+
+                    // Save animated position BEFORE stripping so next frame has the correct delta base
+                    m_prevRootPos = currentRootAnimated;
+
+                    // Strip extracted axes from root bone so the visual doesn't double-count
+                    glm::vec3& rc = skeleton.bones[0].currentPosition;
+                    if (clip.rootMotionAxes.x) rc.x = skeleton.bones[0].localPosition.x;
+                    if (clip.rootMotionAxes.y) rc.y = skeleton.bones[0].localPosition.y;
+                    if (clip.rootMotionAxes.z) rc.z = skeleton.bones[0].localPosition.z;
+                } else {
+                    // Keep m_prevRootPos in sync even when root motion is inactive,
+                    // so the first frame of a root-motion animation has a valid base.
+                    m_prevRootPos = currentRootAnimated;
+                }
+            } else if (isBlending && !skeleton.bones.empty()) {
+                // Keep m_prevRootPos current during blend transitions
+                m_prevRootPos = skeleton.bones[0].currentPosition;
+                // Y root motion is not extracted during blending
+                m_yRootMotionActive = false;
+            }
+        }
+
+        // Warp preview: push root bone Y up by a decaying offset so the character
+        // appears to start higher than authored without moving the controller.
+        // Offset = extraY at t=0, linearly falls to 0 at contactFrame*duration.
+        if (m_warpPreviewActive && !skeleton.bones.empty() && currentClipIndex >= 0) {
+            float T1 = m_warpPreviewTakeoffN  * clips[currentClipIndex].duration;
+            float T2 = m_warpPreviewContactN  * clips[currentClipIndex].duration;
+            float fade;
+            if (evalTime <= T1) {
+                fade = 1.0f; // takeoff phase: hold at full offset
+            } else if (T2 > T1) {
+                fade = std::max(0.0f, 1.0f - (evalTime - T1) / (T2 - T1)); // decay through air
+            } else {
+                fade = 0.0f;
+            }
+            skeleton.bones[0].currentPosition.y += m_warpPreviewExtraY * fade;
         }
 
         animSystem.updateGlobalTransforms(skeleton);
@@ -2113,7 +2424,7 @@ namespace Scene {
             LOG_INFO_FMT("Character", "  Segment [" << seg.name << "] source=" << source
                 << " he=(" << halfExtents.x << "," << halfExtents.y << "," << halfExtents.z << ")");
 
-            m_segmentBoxes.push_back({ seg.name, boneId, glm::vec3(0.0f), halfExtents, seg.isArm, false });
+            m_segmentBoxes.push_back({ seg.name, boneId, glm::vec3(0.0f), halfExtents, glm::vec3(0.0f), seg.isArm, false });
         }
 
         LOG_INFO_FMT("Character", "Built " << m_segmentBoxes.size() << "/8 segment collision boxes");
@@ -2152,6 +2463,19 @@ namespace Scene {
                                      * glm::translate(glm::mat4(1.0f), offset);
 
             seg.center = glm::vec3(finalTransform[3]);
+
+            // AABB refit: transform the 8 local-space corners through the rotation
+            // so worldHalfExtents reflects the bone's current orientation.
+            glm::mat3 rotMat(finalTransform);
+            const glm::vec3& he = seg.halfExtents;
+            glm::vec3 refitHE(0.0f);
+            for (int cx = -1; cx <= 1; cx += 2)
+                for (int cy = -1; cy <= 1; cy += 2)
+                    for (int cz = -1; cz <= 1; cz += 2) {
+                        glm::vec3 corner = rotMat * glm::vec3(cx * he.x, cy * he.y, cz * he.z);
+                        refitHE = glm::max(refitHE, glm::abs(corner));
+                    }
+            seg.worldHalfExtents = refitHE;
         }
 
         // Push updated segment boxes to voxel world as kinematic obstacles.
@@ -2162,7 +2486,7 @@ namespace Scene {
             for (const auto& seg : m_segmentBoxes) {
                 Physics::VoxelDynamicsWorld::KinematicObstacle ob;
                 ob.center      = seg.center;
-                ob.halfExtents = seg.halfExtents;
+                ob.halfExtents = seg.worldHalfExtents;
                 ob.velocity    = m_kinVelocity;
                 obstacles.push_back(ob);
             }
@@ -2176,7 +2500,7 @@ namespace Scene {
         for (auto& seg : m_segmentBoxes) {
             seg.colliding = false;
             const glm::vec3& center = seg.center;
-            const glm::vec3& he = seg.halfExtents;
+            const glm::vec3& he = seg.worldHalfExtents;
 
             int xMin = static_cast<int>(std::floor(center.x - he.x));
             int yMin = static_cast<int>(std::floor(center.y - he.y));
@@ -2238,7 +2562,7 @@ namespace Scene {
                 color = glm::vec3(1.0f, 1.0f, 0.0f);   // YELLOW — legs (not green, avoids controller color)
             }
 
-            glm::vec3 he = seg.halfExtents;
+            glm::vec3 he = seg.worldHalfExtents;
             glm::vec3 mn = center - he;
             glm::vec3 mx = center + he;
             addWireBox(mn, mx, color);
@@ -2248,6 +2572,30 @@ namespace Scene {
             m_raycastVisualizer->addLine(center - glm::vec3(r,0,0), center + glm::vec3(r,0,0), color);
             m_raycastVisualizer->addLine(center - glm::vec3(0,r,0), center + glm::vec3(0,r,0), color);
             m_raycastVisualizer->addLine(center - glm::vec3(0,0,r), center + glm::vec3(0,0,r), color);
+        }
+
+        // --- Root bone: draw WHITE marker so it's unambiguously visible ---
+        if (!skeleton.bones.empty() && skeleton.bones[0].parentId == -1) {
+            glm::vec3 visualOrigin = worldPosition - glm::vec3(0.0f, skeletonFootOffset_, 0.0f);
+            glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), visualOrigin);
+            modelMatrix = glm::rotate(modelMatrix, currentYaw, glm::vec3(0, 1, 0));
+            float animRot = 0.0f;
+            if (currentClipIndex >= 0 && currentClipIndex < static_cast<int>(clips.size())) {
+                auto rit = animationRotationOffsets.find(clips[currentClipIndex].name);
+                if (rit != animationRotationOffsets.end()) animRot = rit->second;
+            }
+            if (animRot != 0.0f)
+                modelMatrix = glm::rotate(modelMatrix, glm::radians(animRot), glm::vec3(0, 1, 0));
+
+            const Phyxel::Bone& rootBone = skeleton.bones[0];
+            glm::vec3 rootWorld = glm::vec3((modelMatrix * rootBone.globalTransform)[3]);
+            const glm::vec3 white{1.0f, 1.0f, 1.0f};
+            constexpr float cr = 0.15f;  // cross radius
+            constexpr float ce = 0.08f;  // box half-extent
+            m_raycastVisualizer->addLine(rootWorld - glm::vec3(cr,0,0), rootWorld + glm::vec3(cr,0,0), white);
+            m_raycastVisualizer->addLine(rootWorld - glm::vec3(0,cr,0), rootWorld + glm::vec3(0,cr,0), white);
+            m_raycastVisualizer->addLine(rootWorld - glm::vec3(0,0,cr), rootWorld + glm::vec3(0,0,cr), white);
+            addWireBox(rootWorld - glm::vec3(ce), rootWorld + glm::vec3(ce), white);
         }
     }
 

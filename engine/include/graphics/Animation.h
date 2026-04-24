@@ -77,7 +77,22 @@ namespace Phyxel {
         float duration = 0.0f;
         float ticksPerSecond = 0.0f;
         float speed = 0.0f; // Extracted movement speed (units/sec)
+        bool useRootMotion = false;
+        glm::bvec3 rootMotionAxes = {false, false, false}; // which axes (x,y,z) to extract
         std::vector<AnimationChannel> channels;
+
+        // Tuning metadata — stored as "# clip_meta:" comments in the .anim file.
+        // Used by the Clip Parameter Tuner in the anim editor and by the motion
+        // warp system at runtime to scale landing animations to the actual fall distance.
+        bool  warpEnabled      = false; // apply spatial Y warp to root motion
+        float authoredFallDist = 0.667f; // fall distance this clip was authored for (world units)
+        float takeoffEnd       = 0.1f;   // normalized time when the takeoff phase ends (before free-fall)
+        float contactFrame     = 0.85f;  // normalized time (0-1) when feet contact ground
+        float warpScaleMin     = 0.4f;   // minimum allowed warp multiplier
+        float warpScaleMax     = 2.5f;   // maximum allowed warp multiplier
+        float hitFrameFraction = 0.4f;   // normalized time (0-1) for combat hit trigger
+        bool  interruptible    = false;  // player can cancel this animation early
+        float interruptAfter   = 0.5f;  // normalized time after which player input cancels it
     };
 
     struct BoneShape {
