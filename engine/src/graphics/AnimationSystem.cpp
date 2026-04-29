@@ -86,6 +86,20 @@ namespace Phyxel {
                 
                 if (peekToken == "Speed") {
                     ssPeek >> clip.speed;
+                    // Read the next line (RootMotion or BoneChannelCount)
+                    std::getline(file, line);
+                    std::stringstream ssRepeek(line);
+                    ssRepeek >> peekToken;
+                }
+                // else: line already contains either RootMotion or BoneChannelCount
+
+                if (peekToken == "RootMotion") {
+                    clip.useRootMotion = true;
+                    int x, y, z;
+                    std::stringstream ssRm(line);
+                    std::string rmToken;
+                    ssRm >> rmToken >> x >> y >> z;
+                    clip.rootMotionAxes = {x != 0, y != 0, z != 0};
                     // Read the actual BoneChannelCount line
                     std::getline(file, line);
                 }

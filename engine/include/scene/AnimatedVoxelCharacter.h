@@ -124,8 +124,15 @@ namespace Scene {
         glm::vec3 getForwardDirection() const;
 
         // Animation playback control (for editor scrubbing / pause)
-        void setAnimationPaused(bool paused) { m_animPaused = paused; }
+        void setAnimationPaused(bool paused) {
+            m_animPaused = paused;
+            if (paused) m_stairDriveActive = false;
+        }
         bool isAnimationPaused() const { return m_animPaused; }
+
+        /// Arm the stair Y-drive for exactly one clip pass (called by "Test Step Down").
+        /// Without this, the drive is inactive in Preview so normal playback is unaffected.
+        void activateStairDrive() { m_stairDriveActive = true; m_stairDriveNeedsInit = true; }
         void seekAnimation(float normalizedTime); // 0-1, snaps pose immediately
         float getAnimationTime() const { return animTime; }
 
@@ -191,6 +198,8 @@ namespace Scene {
         /// exactly where setPosition() puts it. Used by the anim editor.
         void setKinematicFrozen(bool frozen) { m_kinFrozen = frozen; if (frozen) m_kinVelocity = glm::vec3(0.0f); }
         bool isKinematicFrozen() const { return m_kinFrozen; }
+        void setPlaybackSpeed(float s) { m_playbackSpeed = std::max(0.01f, s); }
+        float getPlaybackSpeed() const { return m_playbackSpeed; }
         glm::vec3 getSeatSurfacePos() const { return m_seatSurfacePos; }
 
         /// Interaction archetype (e.g. "humanoid_normal"). Parsed from .anim "# archetype:" header.
@@ -276,15 +285,58 @@ namespace Scene {
 
         // Access the loaded animation clips (for use as motor targets in physics mode)
         const std::vector<Phyxel::AnimationClip>& getAnimationClips() const { return clips; }
+        std::vector<Phyxel::AnimationClip>& getAnimationClipsMut() { return clips; }
         const Phyxel::Skeleton& getSkeleton() const { return skeleton; }
 
         // Get the physics controller body's linear velocity (for GPU particle collision)
         glm::vec3 getControllerVelocity() const;
 
+    public:
+        void setFootIKEnabled(bool enabled) { m_footIKEnabled = enabled; m_footIKBlend = 0.0f; }
+        bool isFootIKEnabled() const { return m_footIKEnabled; }
+        void resetFootLocks(); // clear all foot lock state — call before starting a new stair test
+
     protected:
         /// Called after keyframe sampling + updateGlobalTransforms, before bone body sync.
-        /// Override in subclass to inject IK corrections on skeleton bones.
-        virtual void applyIKCorrections(float deltaTime) {}
+        /// Base implementation runs foot IK; override in subclass to add extra corrections.
+        virtual void applyIKCorrections(float deltaTime);
+
+    private:
+        // ---- Foot IK ----
+        struct FootIKBones {
+            int upLegId = -1;
+            int legId   = -1;
+            int footId  = -1;
+        };
+        FootIKBones m_leftFoot;
+        FootIKBones m_rightFoot;
+        int   m_ikHipBoneId      = -1;    // pelvis/hip bone for body adjustment during IK
+        bool  m_footIKEnabled    = true;
+        bool  m_footIKCacheReady = false;
+        float m_footIKBlend      = 0.0f;  // 0=off, 1=fully applied (ramped each frame)
+
+        // Foot lock state — used during stair clips to pin feet to step surfaces.
+        // When a foot contacts a surface, its world Y is recorded here and held by IK
+        // while the body continues descending. lockBlend ramps 0→1 to ease in the lock.
+        struct FootLockState {
+            bool  active    = false;
+            float lockedY   = 0.0f;
+            float lockBlend = 0.0f;  // 0→1 ease-in after lock engages
+        };
+        FootLockState m_leftFootLock;
+        FootLockState m_rightFootLock;
+        int   m_ikClipIndex    = -1;    // tracks clip changes to reset foot locks
+        float m_ikPrevAnimTime = 0.0f;  // tracks animation time for loop-wrap detection
+
+        /// Populate m_leftFoot / m_rightFoot bone IDs from skeleton.boneMap.
+        void resolveFootBoneIds();
+
+        /// Analytical 2-bone IK (law of cosines). Modifies upLeg and leg currentRotation.
+        /// targetWorld is the desired foot world-space position; invModel converts it to model space.
+        /// blend ∈ [0,1] lerps between the animated foot pos and the IK target.
+        void applyTwoBoneIK(int upLegId, int legId, int footId,
+                            const glm::mat4& invModel, const glm::vec3& targetWorld,
+                            float blend);
 
         // Protected accessors for subclasses (e.g. HybridCharacter IK)
         Phyxel::Skeleton& getSkeletonMut() { return skeleton; }
@@ -347,17 +399,35 @@ namespace Scene {
         glm::vec3 externalVelocity{0.0f};
         bool hasExternalVelocity = false;
 
-        // Step-up detection (blocked-frame gated + velocity impulse)
-        float m_maxStepHeight = 1.0f;  // Max obstacle height character can step over (in world units)
-        float m_stepCooldown = 0.0f;   // cooldown timer to prevent re-triggering
-        glm::vec3 m_prevStepCheckPos{0.0f};  // position from previous frame for blocked detection
-        int m_blockedFrames = 0;              // consecutive frames where movement is blocked
+        // Terrain step-glide (smooth step-up / step-down over small voxel obstacles)
+        float m_maxStepHeight    = 4.0f / 9.0f;  // Max obstacle height to glide over (4/9 voxel unit ≈ 2 subcubes)
+        float m_stepGlideSpeed   = 4.0f;          // Y units/s for smooth ascent or descent
+        float m_stepGlideTargetY = -1.0e30f;      // Active glide target Y (-1e30 = inactive)
+
+        // Legacy step-up fields (kept to avoid breaking debug log / slider code)
+        float     m_stepCooldown      = 0.0f;
+        glm::vec3 m_prevStepCheckPos{0.0f};
+        int       m_blockedFrames     = 0;
+
+        // Foot position cache for swing-phase detection in terrain IK
+        glm::vec3 m_prevLeftFootWorld{0.0f};
+        glm::vec3 m_prevRightFootWorld{0.0f};
+        bool      m_footPosValid = false;
+
+        // Smooth transition blend for terrain IK — ramps 0→1 when uneven terrain is
+        // detected, ramps back to 0 on flat ground.  Prevents the correction from
+        // snapping on at full strength the first frame the threshold is crossed.
+        float m_terrainIKBlend = 0.0f;
+
 
         // Root motion state
         float m_prevAnimTime = 0.0f;          // animTime from previous frame (loop-wrap detection)
         glm::vec3 m_prevRootPos{0.0f};        // root bone animated position from previous frame (delta base)
         bool m_yRootMotionActive = false;     // true when current clip extracts Y root motion (suppresses gravity)
         int m_prevClipIndex = -1;             // clip index from last frame (detects clip transitions)
+        bool  m_stairDriveActive    = false;   // armed by activateStairDrive(); auto-clears after one pass
+        bool  m_stairDriveNeedsInit = false;   // true on first frame after arm: captures world start
+        glm::vec3 m_stairDriveWorldStart{0.0f}; // worldPosition when drive was armed
 
         // Anchored one-shot animation
         bool m_isAnchoredAnim = false;        // true while playing an anchored clip
@@ -366,6 +436,7 @@ namespace Scene {
         int m_anchorClipIndex = -1;           // clip index of the anchored animation
 
         bool m_kinFrozen = false;             // suppresses gravity + ground snap (anim editor use)
+        float m_playbackSpeed      = 1.0f;   // animation time multiplier (editor slow-mo)
         bool  m_animPaused         = false;   // freeze animTime tick (editor scrubbing)
         bool  m_warpPreviewActive  = false;
         float m_warpPreviewExtraY  = 0.0f;   // spatial: root bone Y offset at t=0

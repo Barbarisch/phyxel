@@ -9751,6 +9751,10 @@ void Application::renderAnimEditorUI() {
                     m_animEditorChar->seekAnimation(0.0f);
                     m_animEditorChar->setAnimationPaused(true);
                     m_animEditorPlayOnce = false;
+                    {
+                        auto mit = m_animClipMeta.find(animNames[i]);
+                        m_animEditorChar->setFootIKEnabled(mit != m_animClipMeta.end() ? mit->second.footIKEnabled : true);
+                    }
 
                     if (ImGui::IsMouseDoubleClicked(0)) {
                         // Start rename
@@ -9773,6 +9777,8 @@ void Application::renderAnimEditorUI() {
             m_animEditorChar->seekAnimation(0.0f);
             m_animEditorChar->setAnimationPaused(true);
             m_animEditorPlayOnce = false;
+            { auto mit = m_animClipMeta.find(animNames[m_animEditorAnimIdx]);
+              m_animEditorChar->setFootIKEnabled(mit != m_animClipMeta.end() ? mit->second.footIKEnabled : true); }
         }
         ImGui::SameLine();
         if (ImGui::Button("Next >")) {
@@ -9782,6 +9788,8 @@ void Application::renderAnimEditorUI() {
             m_animEditorChar->seekAnimation(0.0f);
             m_animEditorChar->setAnimationPaused(true);
             m_animEditorPlayOnce = false;
+            { auto mit = m_animClipMeta.find(animNames[m_animEditorAnimIdx]);
+              m_animEditorChar->setFootIKEnabled(mit != m_animClipMeta.end() ? mit->second.footIKEnabled : true); }
         }
     }
 
@@ -9798,10 +9806,13 @@ void Application::renderAnimEditorUI() {
         if (m_animEditorPlayOnce && !paused) {
             bool loopWrapped = (m_animEditorPrevProgress > 0.85f && progress < 0.15f);
             if (loopWrapped) {
-                // Don't seek — stay at the current pose (near end of clip).
-                // seekAnimation(1.0) would fmod-wrap to frame 0 for looping clips.
                 m_animEditorChar->setAnimationPaused(true);
                 m_animEditorPlayOnce = false;
+                if (m_stairTestActive) {
+                    m_animEditorChar->setPosition(m_stairTestReturnPos);
+                    m_animEditorChar->setPlaybackSpeed(1.0f);
+                    m_stairTestActive = false;
+                }
             }
         }
         m_animEditorPrevProgress = progress;
@@ -10071,6 +10082,20 @@ void Application::renderAnimEditorUI() {
         }
     }
 
+    // --- Physics ---
+    ImGui::Spacing();
+    ImGui::Separator();
+    {
+        bool frozen = m_animEditorChar->isKinematicFrozen();
+        bool gravity = !frozen;
+        if (ImGui::Checkbox("Gravity / Physics", &gravity)) {
+            m_animEditorChar->setKinematicFrozen(!gravity);
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("On: character is affected by gravity and floor collision.\n"
+                              "Off: character stays exactly where positioned (scrubbing mode).");
+    }
+
     // --- Character Position ---
     ImGui::Spacing();
     ImGui::Separator();
@@ -10201,6 +10226,7 @@ void Application::saveAnimModel() {
         if (clipMetaWritten || m_animClipMeta.empty()) return;
         for (const auto& [name, meta] : m_animClipMeta) {
             std::string s = "# clip_meta: " + name;
+            s += " type=" + (meta.clipType.empty() ? std::string("locomotion") : meta.clipType);
             s += " warpEnabled=" + std::to_string(meta.warpEnabled ? 1 : 0);
             s += " authoredFallDist=" + std::to_string(meta.authoredFallDist);
             s += " takeoffEnd=" + std::to_string(meta.takeoffEnd);
@@ -10210,6 +10236,17 @@ void Application::saveAnimModel() {
             s += " hitFrameFraction=" + std::to_string(meta.hitFrameFraction);
             s += " interruptible=" + std::to_string(meta.interruptible ? 1 : 0);
             s += " interruptAfter=" + std::to_string(meta.interruptAfter);
+            s += " footIKEnabled=" + std::to_string(meta.footIKEnabled ? 1 : 0);
+            if (meta.stairStepHeight > 0.0f)
+                s += " stairStepHeight=" + std::to_string(meta.stairStepHeight);
+            if (meta.stairStepDepth > 0.0f)
+                s += " stairStepDepth=" + std::to_string(meta.stairStepDepth);
+            if (meta.contactFrame1 > 0.0f)
+                s += " contactFrame1=" + std::to_string(meta.contactFrame1);
+            if (meta.contactFrame2 > 0.0f)
+                s += " contactFrame2=" + std::to_string(meta.contactFrame2);
+            s += " footIKSurfaceReach=" + std::to_string(meta.footIKSurfaceReach);
+            s += " footIKBodyRange=" + std::to_string(meta.footIKBodyRange);
             outLines.push_back(s);
         }
         clipMetaWritten = true;
@@ -10377,6 +10414,17 @@ void Application::renameAnimationInFile(const std::string& oldName, const std::s
 // CLIP PARAMETER TUNER
 // ============================================================================
 
+std::string Application::autoDetectClipType(const std::string& name) {
+    auto has = [&](const char* s) { return name.find(s) != std::string::npos; };
+    if (has("jump") || has("jumping") || has("landing") || has("falling")) return "jump";
+    if (has("stair"))                                                        return "stair";
+    if (has("attack") || has("punch") || has("boxing") || has("headbutt") ||
+        has("melee")  || has("elbow") || has("body_block") || has("taunt")) return "combat";
+    if (has("sit_") || has("_sit") || has("wave") || has("talk") ||
+        has("point") || has("climb") || has("float"))                        return "transition";
+    return "locomotion";
+}
+
 void Application::loadAnimClipMetaFromFile(const std::string& animFile) {
     m_animClipMeta.clear();
     std::ifstream f(animFile);
@@ -10396,6 +10444,7 @@ void Application::loadAnimClipMetaFromFile(const std::string& animFile) {
             auto eq = kv.find('=');
             if (eq == std::string::npos) continue;
             std::string k = kv.substr(0, eq);
+            if (k == "type") { meta.clipType = kv.substr(eq + 1); continue; }
             float v = std::stof(kv.substr(eq + 1));
             if      (k == "warpEnabled")      meta.warpEnabled      = (v != 0.0f);
             else if (k == "authoredFallDist") meta.authoredFallDist = v;
@@ -10406,6 +10455,13 @@ void Application::loadAnimClipMetaFromFile(const std::string& animFile) {
             else if (k == "hitFrameFraction") meta.hitFrameFraction = v;
             else if (k == "interruptible")    meta.interruptible    = (v != 0.0f);
             else if (k == "interruptAfter")   meta.interruptAfter   = v;
+            else if (k == "footIKEnabled")    meta.footIKEnabled    = (v != 0.0f);
+            else if (k == "stairStepHeight")   meta.stairStepHeight   = v;
+            else if (k == "stairStepDepth")    meta.stairStepDepth    = v;
+            else if (k == "contactFrame1")      meta.contactFrame1      = v;
+            else if (k == "contactFrame2")      meta.contactFrame2      = v;
+            else if (k == "footIKSurfaceReach") meta.footIKSurfaceReach = v;
+            else if (k == "footIKBodyRange")    meta.footIKBodyRange    = v;
         }
         m_animClipMeta[name] = meta;
     }
@@ -10463,6 +10519,8 @@ void Application::renderClipParameterTuner() {
     if (m_animClipMeta.find(clipName) == m_animClipMeta.end())
         m_animClipMeta[clipName] = AnimClipMeta{};
     AnimClipMeta& meta = m_animClipMeta[clipName];
+    if (meta.clipType.empty())
+        meta.clipType = Application::autoDetectClipType(clipName);
 
     // Title shows unsaved indicator
     std::string title = m_animTunerDirty
@@ -10483,6 +10541,320 @@ void Application::renderClipParameterTuner() {
         ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Edit all parameters for selected clip.");
 
         auto markDirty = [&]() { m_animTunerDirty = true; };
+
+        // ---- Clip Type ----
+        static const char* kTypes[] = { "locomotion", "jump", "stair", "combat", "transition" };
+        int typeIdx = 0;
+        for (int i = 0; i < 5; ++i) if (meta.clipType == kTypes[i]) { typeIdx = i; break; }
+        ImGui::SetNextItemWidth(160.0f);
+        if (ImGui::Combo("Type##cliptype", &typeIdx, kTypes, 5)) {
+            meta.clipType = kTypes[typeIdx];
+            if (m_animEditorChar)
+                for (auto& c : m_animEditorChar->getAnimationClipsMut())
+                    if (c.name == clipName) { c.clipType = meta.clipType; break; }
+            markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Controls which parameters are shown below.\n"
+                              "Auto-detected from clip name; override here if needed.");
+        const std::string& effectiveType = meta.clipType;
+
+        ImGui::Separator();
+
+        bool ikOn = meta.footIKEnabled;
+        if (ImGui::Checkbox("Foot IK", &ikOn)) {
+            meta.footIKEnabled = ikOn;
+            if (m_animEditorChar) m_animEditorChar->setFootIKEnabled(ikOn);
+            markDirty();
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("(?)");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Plants feet on terrain during this clip.\n"
+                              "Disable for jump, fall, and root-motion clips.");
+
+        // Foot planting knobs — shown for stair and locomotion clips (where foot contact matters)
+        if (effectiveType == "stair" || effectiveType == "locomotion") {
+            ImGui::Separator();
+            ImGui::TextColored(ImVec4(0.7f, 0.9f, 0.7f, 1.0f), "Foot Planting");
+
+            // Helper: push IK planting knobs to the live character immediately
+            auto applyIKToChar = [&]() {
+                if (!m_animEditorChar) return;
+                for (auto& c : m_animEditorChar->getAnimationClipsMut()) {
+                    if (c.name == clipName) {
+                        c.footIKSurfaceReach = meta.footIKSurfaceReach;
+                        c.footIKBodyRange    = meta.footIKBodyRange;
+                        break;
+                    }
+                }
+            };
+
+            // Surface reach: how far above the surface the foot can be before IK activates.
+            // 0.111 = 1 microcube (default, subtle). 0.333 = 1 subcube (good for stairs).
+            ImGui::Text("Surface reach");
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Max distance (world units) the foot can be above a surface\n"
+                                  "before the IK system plants it.\n"
+                                  "0.111 = 1 microcube (subtle, for flat terrain)\n"
+                                  "0.333 = 1 subcube (good for stair clips)\n"
+                                  "Larger values plant the foot from further away — set\n"
+                                  "this to match your step height for stair animations.");
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 100.0f);
+            if (ImGui::SliderFloat("##iksr", &meta.footIKSurfaceReach, 0.0f, 1.0f, "%.3f")) {
+                meta.footIKSurfaceReach = std::max(0.0f, meta.footIKSurfaceReach);
+                applyIKToChar(); markDirty();
+            }
+            ImGui::SameLine();
+            if (ImGui::SmallButton("-##iksr")) { meta.footIKSurfaceReach = std::max(0.0f, meta.footIKSurfaceReach - (1.0f/9.0f)); applyIKToChar(); markDirty(); }
+            ImGui::SameLine();
+            if (ImGui::SmallButton("+##iksr")) { meta.footIKSurfaceReach = std::min(1.0f, meta.footIKSurfaceReach + (1.0f/9.0f)); applyIKToChar(); markDirty(); }
+
+            // Body adjustment: how much the pelvis can shift vertically to help legs reach.
+            // 0.111 = 1 microcube (subtle). 0.222 = 2 microcubes (good for stair clips).
+            ImGui::Text("Body adjustment");
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Max vertical pelvis shift (world units) used to help\n"
+                                  "the legs reach the planted foot position.\n"
+                                  "0.111 = 1 microcube (subtle, barely noticeable)\n"
+                                  "0.222 = 2 microcubes (good for stair clips)\n"
+                                  "Half the correction is absorbed by the pelvis shift;\n"
+                                  "the leg IK handles the remaining half.");
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 100.0f);
+            if (ImGui::SliderFloat("##ikbr", &meta.footIKBodyRange, 0.0f, 0.5f, "%.3f")) {
+                meta.footIKBodyRange = std::max(0.0f, meta.footIKBodyRange);
+                applyIKToChar(); markDirty();
+            }
+            ImGui::SameLine();
+            if (ImGui::SmallButton("-##ikbr")) { meta.footIKBodyRange = std::max(0.0f, meta.footIKBodyRange - (1.0f/9.0f)); applyIKToChar(); markDirty(); }
+            ImGui::SameLine();
+            if (ImGui::SmallButton("+##ikbr")) { meta.footIKBodyRange = std::min(0.5f, meta.footIKBodyRange + (1.0f/9.0f)); applyIKToChar(); markDirty(); }
+        }
+
+        if (effectiveType == "stair") {
+        ImGui::Separator();
+        // ---- Stair Step Descent ----
+        ImGui::TextColored(ImVec4(0.7f, 0.9f, 0.7f, 1.0f), "Stair Step");
+
+        // Helper: push updated stair params into the live character clips immediately
+        auto applyStairToChar = [&]() {
+            if (!m_animEditorChar) return;
+            for (auto& c : m_animEditorChar->getAnimationClipsMut()) {
+                if (c.name == clipName) {
+                    c.stairStepHeight    = meta.stairStepHeight;
+                    c.stairStepDepth     = meta.stairStepDepth;
+                    c.contactFrame1      = meta.contactFrame1;
+                    c.contactFrame2      = meta.contactFrame2;
+                    c.footIKSurfaceReach = meta.footIKSurfaceReach;
+                    c.footIKBodyRange    = meta.footIKBodyRange;
+                    break;
+                }
+            }
+        };
+
+        // Voxel step sizes: microcube=1/9, subcube=1/3, full cube=1
+        static constexpr float kMicro = 1.0f / 9.0f;
+        static constexpr float kSub   = 1.0f / 3.0f;
+
+        // Reusable snap row (height and depth share the same preset grid)
+        auto snapRow = [&](float& val, const char* idSuffix) {
+            for (int n = 1; n <= 9; ++n) {
+                float snap = n * kMicro;
+                char label[20];
+                if      (n == 3) snprintf(label, sizeof(label), "1/3##%s%d", idSuffix, n);
+                else if (n == 6) snprintf(label, sizeof(label), "2/3##%s%d", idSuffix, n);
+                else if (n == 9) snprintf(label, sizeof(label), "x1##%s%d",  idSuffix, n);
+                else             snprintf(label, sizeof(label), "%d/9##%s%d", n, idSuffix, n);
+                bool active = std::fabs(val - snap) < 0.0005f;
+                if (active) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.2f, 1.0f));
+                if (ImGui::SmallButton(label)) { val = snap; applyStairToChar(); markDirty(); }
+                if (active) ImGui::PopStyleColor();
+                if (n < 9) ImGui::SameLine();
+            }
+        };
+
+        ImGui::TextDisabled("Values = TOTAL for the whole clip (all steps combined).");
+
+        ImGui::Text("Total Y drop");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Total descent over the entire clip.\n"
+                              "2 subcube steps = 2 x 1/3 = 2/3.  3 steps = x1.  etc.");
+        ImGui::SetNextItemWidth(100.0f);
+        if (ImGui::InputFloat("##ssh", &meta.stairStepHeight, 0.0f, 0.0f, "%.4f")) {
+            meta.stairStepHeight = std::max(0.0f, meta.stairStepHeight);
+            applyStairToChar(); markDirty();
+        }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("-u##ssh")) { meta.stairStepHeight = std::max(0.0f, meta.stairStepHeight - kMicro); applyStairToChar(); markDirty(); }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("+u##ssh")) { meta.stairStepHeight += kMicro; applyStairToChar(); markDirty(); }
+        snapRow(meta.stairStepHeight, "snph");
+
+        ImGui::Text("Total forward");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Total forward travel over the entire clip.\n"
+                              "Used by Test Step Down to drive XZ in the editor.\n"
+                              "In gameplay, W-key handles forward — this is a tuning reference.");
+        ImGui::SetNextItemWidth(100.0f);
+        if (ImGui::InputFloat("##ssd", &meta.stairStepDepth, 0.0f, 0.0f, "%.4f")) {
+            meta.stairStepDepth = std::max(0.0f, meta.stairStepDepth);
+            applyStairToChar(); markDirty();
+        }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("-u##ssd")) { meta.stairStepDepth = std::max(0.0f, meta.stairStepDepth - kMicro); applyStairToChar(); markDirty(); }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("+u##ssd")) { meta.stairStepDepth += kMicro; applyStairToChar(); markDirty(); }
+        snapRow(meta.stairStepDepth, "snpd");
+
+        ImGui::Spacing();
+        ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.5f, 1.0f), "Contact Frames");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Normalized time (0-1) when each foot first touches its step.\n"
+                              "Drives the capsule to the correct height at each contact point.\n"
+                              "0 on both = linear time fallback.");
+        ImGui::Text("Step 1 (first foot)");
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 100.0f);
+        if (ImGui::SliderFloat("##cf1", &meta.contactFrame1, 0.0f, 1.0f, "%.3f")) {
+            meta.contactFrame1 = glm::clamp(meta.contactFrame1, 0.0f, meta.contactFrame2 > 0.0f ? meta.contactFrame2 - 0.01f : 1.0f);
+            applyStairToChar(); markDirty();
+        }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("-##cf1")) { meta.contactFrame1 = std::max(0.0f, meta.contactFrame1 - 0.01f); applyStairToChar(); markDirty(); }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("+##cf1")) { meta.contactFrame1 = std::min(meta.contactFrame2 > 0.0f ? meta.contactFrame2 - 0.01f : 1.0f, meta.contactFrame1 + 0.01f); applyStairToChar(); markDirty(); }
+
+        ImGui::Text("Step 2 (second foot)");
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 100.0f);
+        if (ImGui::SliderFloat("##cf2", &meta.contactFrame2, 0.0f, 1.0f, "%.3f")) {
+            meta.contactFrame2 = glm::clamp(meta.contactFrame2, meta.contactFrame1 + 0.01f, 1.0f);
+            applyStairToChar(); markDirty();
+        }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("-##cf2")) { meta.contactFrame2 = std::max(meta.contactFrame1 + 0.01f, meta.contactFrame2 - 0.01f); applyStairToChar(); markDirty(); }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("+##cf2")) { meta.contactFrame2 = std::min(1.0f, meta.contactFrame2 + 0.01f); applyStairToChar(); markDirty(); }
+
+        if (meta.stairStepHeight > 0.0f) {
+            // Step profile mini-diagram
+            {
+                const float pH = meta.stairStepHeight;
+                const float pD = meta.stairStepDepth > 0.0f ? meta.stairStepDepth : pH;
+                const float panelW = ImGui::GetContentRegionAvail().x;
+                const float diagW  = std::min(panelW, 180.0f);
+                const float diagH  = 50.0f;
+                ImVec2 p = ImGui::GetCursorScreenPos();
+                ImDrawList* dl = ImGui::GetWindowDrawList();
+
+                // Normalise step dimensions to fit the diagram
+                float scaleY = (diagH * 0.55f) / std::max(pH, 0.001f);
+                float scaleX = (diagW * 0.45f) / std::max(pD, 0.001f);
+                float scale  = std::min(scaleX, scaleY);
+                float stepPx = pH * scale;
+                float depPx  = pD * scale;
+                float baseY  = p.y + diagH - 6.0f;
+                float midX   = p.x + diagW * 0.5f;
+
+                // Upper platform (character stands here before step)
+                dl->AddRectFilled({p.x + 4, baseY - stepPx - 3}, {midX, baseY - stepPx}, IM_COL32(80,120,80,200));
+                // Riser (vertical face of step)
+                dl->AddRectFilled({midX, baseY - stepPx}, {midX + 3, baseY}, IM_COL32(80,120,80,200));
+                // Lower platform (landing)
+                dl->AddRectFilled({midX + 3, baseY - 3}, {p.x + diagW - 4, baseY}, IM_COL32(80,120,80,200));
+                // Dimension arrows
+                ImU32 col = IM_COL32(200,200,80,255);
+                dl->AddLine({p.x + 4, baseY - stepPx}, {p.x + 4, baseY}, col);
+                dl->AddText({p.x + 7, baseY - stepPx * 0.5f - 6}, col,
+                            (std::to_string((int)std::round(pH * 9)) + "/9").c_str());
+                // Character icon at start (top)
+                dl->AddCircleFilled({midX - depPx * 0.4f, baseY - stepPx - 8}, 4, IM_COL32(100,180,255,220));
+                // Arrow showing descent
+                dl->AddLine({midX - depPx * 0.4f, baseY - stepPx - 4}, {midX + depPx * 0.4f, baseY - 4}, IM_COL32(255,180,80,200));
+                // Character icon at end (bottom)
+                dl->AddCircleFilled({midX + depPx * 0.4f, baseY - 8}, 4, IM_COL32(100,255,100,220));
+
+                ImGui::Dummy({diagW, diagH});
+                ImGui::TextDisabled("h=%.4f  d=%.4f  (blue=start, green=land)", pH, pD);
+            }
+
+            // Test start offsets — independent of drive values so geometry can be matched exactly
+            ImGui::TextDisabled("Test start offsets");
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("How far to raise (Y) and step back (forward) before playing.\n"
+                                  "-1 = use Total Y drop / Total forward from above.\n"
+                                  "Override these to match your actual stair geometry.");
+            const float kAutoSentinel = -1.0f;
+            float displayY = (m_stairTestYOffset < 0.0f) ? meta.stairStepHeight : m_stairTestYOffset;
+            float displayZ = (m_stairTestZOffset < 0.0f) ? meta.stairStepDepth  : m_stairTestZOffset;
+            bool yAuto = (m_stairTestYOffset < 0.0f);
+            bool zAuto = (m_stairTestZOffset < 0.0f);
+
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 54.0f);
+            if (ImGui::SliderFloat("##tyoff", &displayY, 0.0f, 2.0f, "Y %.3f")) {
+                m_stairTestYOffset = displayY;
+            }
+            ImGui::SameLine();
+            if (ImGui::SmallButton(yAuto ? "auto##ya" : "reset##ya")) {
+                m_stairTestYOffset = yAuto ? meta.stairStepHeight : kAutoSentinel;
+            }
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip(yAuto ? "Using Total Y drop value. Click to pin." : "Click to reset to auto (Total Y drop).");
+
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 54.0f);
+            if (ImGui::SliderFloat("##tzoff", &displayZ, 0.0f, 2.0f, "Z %.3f")) {
+                m_stairTestZOffset = displayZ;
+            }
+            ImGui::SameLine();
+            if (ImGui::SmallButton(zAuto ? "auto##za" : "reset##za")) {
+                m_stairTestZOffset = zAuto ? meta.stairStepDepth : kAutoSentinel;
+            }
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip(zAuto ? "Using Total forward value. Click to pin." : "Click to reset to auto (Total forward).");
+
+            if (ImGui::Button("Test Step Down")) {
+                if (m_animEditorChar) {
+                    const float testY = (m_stairTestYOffset < 0.0f) ? meta.stairStepHeight : m_stairTestYOffset;
+                    const float testZ = (m_stairTestZOffset < 0.0f) ? meta.stairStepDepth  : m_stairTestZOffset;
+
+                    m_stairTestReturnPos = m_animEditorChar->getPosition();
+                    glm::vec3 startPos   = m_stairTestReturnPos;
+                    startPos.y += testY;
+                    glm::vec3 fwd(0.0f);
+                    if (testZ > 0.0f) {
+                        fwd = m_animEditorChar->getForwardDirection();
+                        startPos.x -= fwd.x * testZ;
+                        startPos.z -= fwd.z * testZ;
+                    }
+                    LOG_INFO("StairTest",
+                        "returnPos=({},{},{})  testY={}  testZ={}  fwd=({},{},{})  startPos=({},{},{})",
+                        m_stairTestReturnPos.x, m_stairTestReturnPos.y, m_stairTestReturnPos.z,
+                        testY, testZ, fwd.x, fwd.y, fwd.z,
+                        startPos.x, startPos.y, startPos.z);
+                    m_animEditorChar->setKinematicFrozen(false);
+                    m_animEditorChar->setPlaybackSpeed(m_stairTestSpeed);
+                    m_animEditorChar->setPosition(startPos);
+                    m_animEditorChar->setAnimationPaused(false);
+                    m_animEditorChar->playAnimation(clipName);
+                    m_animEditorChar->seekAnimation(0.0f);
+                    m_animEditorChar->resetFootLocks();
+                    m_animEditorChar->activateStairDrive();
+                    m_stairTestActive  = true;
+                    m_animEditorPlayOnce = true;
+                }
+            }
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Raises the character by Y offset and steps back by Z offset,\n"
+                                  "then plays the clip once.\n"
+                                  "Adjust the offsets above to match your stair geometry.");
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(80.0f);
+            ImGui::SliderFloat("##testspd", &m_stairTestSpeed, 0.05f, 1.0f, "%.2fx");
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Playback speed for the test (0.05 = very slow, 1.0 = normal)");
+        }
+        } // end stair section
+
+        if (effectiveType == "jump") {
+        ImGui::Separator();
 
         bool we = meta.warpEnabled;
         if (ImGui::Checkbox("Motion Warp Enabled", &we)) { meta.warpEnabled = we; markDirty(); }
@@ -10558,7 +10930,9 @@ void Application::renderClipParameterTuner() {
         if (ImGui::SmallButton("+0.1##wsmax")) { meta.warpScaleMax += 0.1f; markDirty(); }
 
         } // end warpEnabled block
+        } // end jump section
 
+        if (effectiveType == "combat") {
         ImGui::Separator();
         ImGui::Text("Hit Frame  (0=start, 1=end)");
         ImGui::SetNextItemWidth(120.0f);
@@ -10571,6 +10945,7 @@ void Application::renderClipParameterTuner() {
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("Normalized time when the attack animation triggers a hit.\n"
                               "Watch the attack and note when the weapon/fist contacts the target.");
+        } // end combat section
 
         ImGui::Separator();
         bool intr = meta.interruptible;

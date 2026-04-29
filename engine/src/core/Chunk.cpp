@@ -637,7 +637,12 @@ void Chunk::removeCollisionEntities(const glm::ivec3& localPos) {
 void Chunk::batchUpdateCollisions() {
     physicsManager.batchUpdateCollisions(
         [this]() -> const std::vector<std::unique_ptr<Cube>>& { return cubes; },
-        [this](const glm::ivec3& pos) { return getStaticSubcubesAt(pos); },
+        [this](const glm::ivec3&) -> std::vector<Subcube*> {
+            std::vector<Subcube*> result;
+            result.reserve(staticSubcubes.size());
+            for (const auto& s : staticSubcubes) { if (s) result.push_back(s.get()); }
+            return result;
+        },
         [this]() -> const std::vector<std::unique_ptr<Microcube>>& { return staticMicrocubes; },
         [this](size_t index) { return indexToLocal(index); },
         [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); }
@@ -660,7 +665,12 @@ bool Chunk::hasExposedFaces(const glm::ivec3& localPos) const {
 void Chunk::buildInitialCollisionShapes() {
     physicsManager.buildInitialCollisionShapes(
         [this]() -> const std::vector<std::unique_ptr<Cube>>& { return cubes; },
-        [this](const glm::ivec3& pos) { return getStaticSubcubesAt(pos); },
+        [this](const glm::ivec3&) -> std::vector<Subcube*> {
+            std::vector<Subcube*> result;
+            result.reserve(staticSubcubes.size());
+            for (const auto& s : staticSubcubes) { if (s) result.push_back(s.get()); }
+            return result;
+        },
         [this]() -> const std::vector<std::unique_ptr<Microcube>>& { return staticMicrocubes; },
         [this](size_t index) { return indexToLocal(index); },
         [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); }
@@ -679,7 +689,12 @@ void Chunk::updateNeighborCollisionShapes(const glm::ivec3& localPos) {
 void Chunk::endBulkOperation() {
     physicsManager.endBulkOperation(
         [this]() -> const std::vector<std::unique_ptr<Cube>>& { return cubes; },
-        [this](const glm::ivec3& pos) { return getStaticSubcubesAt(pos); },
+        [this](const glm::ivec3&) -> std::vector<Subcube*> {
+            std::vector<Subcube*> result;
+            result.reserve(staticSubcubes.size());
+            for (const auto& s : staticSubcubes) { if (s) result.push_back(s.get()); }
+            return result;
+        },
         [this]() -> const std::vector<std::unique_ptr<Microcube>>& { return staticMicrocubes; },
         [this](size_t index) { return indexToLocal(index); },
         [this](const glm::ivec3& pos) -> const Cube* { return getCubeAt(pos); }

@@ -42,6 +42,27 @@ CLIP_NAME_MAP = {
     "Sit To Stand": "sit_to_stand",
     "Climbing Down": "climbing_down",
     "Climbing To Top": "climbing_top",
+    # Previously unmapped
+    "idle": "idle",
+    "jump": "jump",
+    "running": "run",
+    "walking": "walk",
+    "Kicking": "kick",
+    "Throwing": "throw",
+    "left strafe": "strafe_left",
+    "right strafe": "strafe_right",
+    "left strafe walk": "strafe_walk_left",
+    "right strafe walk": "strafe_walk_right",
+    "left turn": "turn_left",
+    "right turn": "turn_right",
+    "left turn (2)": "turn_left_sharp",
+    "right turn (2)": "turn_right_sharp",
+    "Open Door Outwards": "open_door_out",
+    "Opening Door Inwards": "open_door_in",
+    "Picking Up": "pickup",
+    "Picking Up Object": "pickup_object",
+    "Putting Down": "put_down",
+    "Working On Device": "work_device",
 }
 
 

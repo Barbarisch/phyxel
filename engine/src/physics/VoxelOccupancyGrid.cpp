@@ -45,9 +45,13 @@ void VoxelOccupancyGrid::markSubdivided(const glm::ivec3& lp, bool subdivided) {
     int idx = cubeIdx(lp);
     subdivided ? m_cubeSubdiv.set(idx) : m_cubeSubdiv.reset(idx);
     if (!subdivided) {
-        // Remove any stored subcube data for this position
+        // Remove subcube data for this position
         m_subcubeFilled.erase(static_cast<uint16_t>(idx));
         m_subcubeSubdiv.erase(static_cast<uint16_t>(idx));
+        // Remove microcube data for all 27 subcube slots within this cube
+        uint32_t base = static_cast<uint32_t>(idx) << 5;
+        for (uint32_t si = 0; si < 27; ++si)
+            m_microcubeFilled.erase(base | si);
     }
 }
 

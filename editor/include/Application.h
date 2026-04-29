@@ -464,6 +464,18 @@ private:
         float hitFrameFraction = 0.4f;
         bool  interruptible    = false;
         float interruptAfter   = 0.5f;
+        bool  footIKEnabled    = true;   // apply foot IK (terrain planting) during this clip
+        float stairStepHeight   = 0.0f;  // world-units to descend per play (0 = disabled)
+        float stairStepDepth    = 0.0f;  // world-units of forward travel per play
+        float contactFrame1     = 0.0f;  // normalized time (0-1) when first foot contacts step 1
+        float contactFrame2     = 0.0f;  // normalized time (0-1) when second foot contacts step 2
+        std::string clipType;            // "locomotion"|"jump"|"stair"|"combat"|"transition" (empty = auto)
+        // Foot planting IK — how far above a surface the foot can be before IK activates,
+        // and how much the pelvis can shift to help the legs reach the IK target.
+        // Defaults match 1 microcube (0.111 = 1/9) for subtle correction on flat terrain.
+        // Stair clips typically need larger values (e.g. 0.333 / 0.222).
+        float footIKSurfaceReach = 0.111f;
+        float footIKBodyRange    = 0.111f;
     };
     // Live-edited metadata indexed by clip name; populated on scene init, saved on Ctrl+S
     std::map<std::string, AnimClipMeta> m_animClipMeta;
@@ -480,10 +492,16 @@ private:
     // One-shot play: auto-pause when animation reaches the end
     bool  m_animEditorPlayOnce   = false;
     float m_animEditorPrevProgress = 0.0f; // previous frame's progress (loop-wrap detection)
+    bool  m_stairTestActive      = false;  // true while a Test Step Down preview is running
+    glm::vec3 m_stairTestReturnPos{0.0f}; // position to restore when the test completes
+    float m_stairTestSpeed       = 0.25f; // playback speed for Test Step Down (1=normal)
+    float m_stairTestYOffset     = -1.0f; // Y raise before test (-1 = use stairStepHeight)
+    float m_stairTestZOffset     = -1.0f; // forward setback before test (-1 = use stairStepDepth)
 
     void renderClipParameterTuner();           // renders the Clip Settings panel
     void animTunerReplayCurrentClip();         // replays selected clip for visual feedback
     void loadAnimClipMetaFromFile(const std::string& animFile); // parse # clip_meta: comments
+    static std::string autoDetectClipType(const std::string& clipName); // infer type from clip name
     void saveAnimClipMetaToFile(const std::string& animFile,
                                 std::vector<std::string>& fileLines); // write # clip_meta: lines
 

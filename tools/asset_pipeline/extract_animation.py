@@ -552,6 +552,7 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
                 # If speed is significant, store it and strip motion
                 if speed > 0.1:
                     anim['root_motion_speed'] = speed
+                    anim['root_motion_xz'] = True
                     print(f"  -> Detected moving animation. Stripping root motion...")
                     
                     # Strip motion: Set X and Z to start_pos (or 0 relative to parent?)
@@ -565,7 +566,22 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
                     for k in keys:
                         k['v'][0] = first_x
                         k['v'][2] = first_z
-                        
+
+                # Y root motion detection: large monotonic vertical displacement = fall/climb
+                dy = end_pos[1] - start_pos[1]
+                if abs(dy) > 0.3:
+                    dominant = 1 if dy > 0 else -1
+                    steps = len(keys) - 1
+                    if steps > 0:
+                        steps_in_dir = sum(
+                            1 for i in range(1, len(keys))
+                            if (keys[i]['v'][1] - keys[i-1]['v'][1]) * dominant > 0
+                        )
+                        monotonicity = steps_in_dir / steps
+                        if monotonicity > 0.75:
+                            anim['root_motion_y'] = True
+                            print(f"  -> Detected Y root motion (dy={dy:.3f}, monotonicity={monotonicity:.2f})")
+
     else:
         print("Warning: Could not find Hips/Root bone. Skipping root motion analysis.")
 
@@ -781,6 +797,13 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
             # Write Speed if available
             if 'root_motion_speed' in anim and anim['root_motion_speed'] > 0.0:
                 f.write(f"Speed {anim['root_motion_speed']}\n")
+
+            # Write RootMotion header if any axis was detected
+            xz = anim.get('root_motion_xz', False)
+            y  = anim.get('root_motion_y', False)
+            if xz or y:
+                f.write(f"RootMotion {1 if xz else 0} {1 if y else 0} {1 if xz else 0}\n")
+                print(f"  -> Writing RootMotion {1 if xz else 0} {1 if y else 0} {1 if xz else 0} for '{anim['name']}'")
 
 
             # Group by bone

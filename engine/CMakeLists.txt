@@ -86,4 +86,5 @@ endif()
 # MSVC runtime
 if(PLATFORM_WINDOWS AND MSVC)
     set_property(TARGET phyxel_core PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+    target_compile_options(phyxel_core PRIVATE /FS)
 endif()

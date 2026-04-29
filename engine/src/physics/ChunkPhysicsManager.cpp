@@ -102,7 +102,8 @@ void ChunkPhysicsManager::addCollisionEntity(const glm::ivec3& localPos,
                                              const MicrocubesAccessFunc& getMicrocubes,
                                              const StaticSubcubesAccessFunc& getStaticSubcubes) {
     const Cube* cube = getCube(localPos);
-    if (cube && cube->isVisible()) {
+    bool hasSubcubes = !getStaticSubcubes(localPos).empty();
+    if (cube && cube->isVisible() && !hasSubcubes) {
         createCubeCollisionShape(localPos, getCube);
         return;
     }
@@ -235,7 +236,8 @@ void ChunkPhysicsManager::createCubeCollisionShape(const glm::ivec3& localPos,
 
 void ChunkPhysicsManager::createSubcubeCollisionShape(const glm::ivec3& cubePos,
                                                        const glm::ivec3& subcubePos,
-                                                       const SubcubeAccessFunc& /*getSubcube*/) {
+                                                       const SubcubeAccessFunc& getSubcube) {
+    if (!getSubcube(cubePos, subcubePos)) return;
     m_occupancyGrid.setCube(cubePos, true);
     m_occupancyGrid.markSubdivided(cubePos, true);
     m_occupancyGrid.setSubcube(cubePos, subcubePos, true);

@@ -93,6 +93,21 @@ namespace Phyxel {
         float hitFrameFraction = 0.4f;   // normalized time (0-1) for combat hit trigger
         bool  interruptible    = false;  // player can cancel this animation early
         float interruptAfter   = 0.5f;  // normalized time after which player input cancels it
+        float stairStepHeight  = 0.0f;  // world-units to descend (or ascend) per clip play
+        float stairStepDepth   = 0.0f;  // world-units of forward travel per clip play
+        float contactFrame1    = 0.0f;  // normalized time (0-1) when first foot touches step 1
+        float contactFrame2    = 0.0f;  // normalized time (0-1) when second foot touches step 2
+        std::string clipType;           // "locomotion"|"jump"|"stair"|"combat"|"transition"
+
+        // Foot planting IK knobs — stored as "# clip_meta:" comments in the .anim file.
+        // surfaceReach: the foot must be within this many world units of a surface for the
+        //   lock to engage. Must be SMALLER than the step height — if it equals the step
+        //   height the foot would already be "in range" at the start of the animation.
+        //   Default 0.111 (1 microcube = 1/9). Works for subcube (0.333) and full-cube steps.
+        // bodyRange: max pelvis vertical shift to help legs reach the locked foot.
+        //   Default 0.111 (1 microcube). Subtle — keeps the body compensation non-jarring.
+        float footIKSurfaceReach = 0.111f;
+        float footIKBodyRange    = 0.111f;
     };
 
     struct BoneShape {
