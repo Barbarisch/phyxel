@@ -414,11 +414,24 @@ namespace Scene {
         glm::vec3 m_prevRightFootWorld{0.0f};
         bool      m_footPosValid = false;
 
-        // Smooth transition blend for terrain IK — ramps 0→1 when uneven terrain is
-        // detected, ramps back to 0 on flat ground.  Prevents the correction from
-        // snapping on at full strength the first frame the threshold is crossed.
-        float m_terrainIKBlend = 0.0f;
-
+        // Per-foot obstacle stepping — independent per leg, activates only when the
+        // surface beneath a foot is 1/9 to 4/9 above the current foot Y.
+        // Flat terrain correction is ~0, which is below the 1/9 minimum → never fires.
+        struct FootStepState {
+            bool  active  = false;  // step target is latched
+            float targetY = 0.0f;   // world Y of detected step surface
+            float blend   = 0.0f;   // 0→1 ease-in, ramps down on swing/deactivation
+        };
+        FootStepState m_leftStep;
+        FootStepState m_rightStep;
+        // When a step-up glide fires, this records the obstacle top Y and a
+        // countdown timer so IK persists for a full natural-looking window even
+        // though the capsule glide itself completes in ~1-2 frames.
+        float m_stepIKObstacleY   = -1.0e30f;
+        float m_stepIKTimer       = 0.0f;
+        float m_stepIKOriginalH   = 0.0f;  // >0 = step-up height; <0 = step-down height
+        bool  m_stepIKInitialized = false; // true once stay-foot has been determined
+        bool  m_stepIKLeftIsStay  = false; // which foot gets the per-step correction
 
         // Root motion state
         float m_prevAnimTime = 0.0f;          // animTime from previous frame (loop-wrap detection)

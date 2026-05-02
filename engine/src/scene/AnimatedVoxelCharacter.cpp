@@ -80,11 +80,18 @@ namespace Scene {
 
                     if (groundY > -1e8f) {
                         if (worldPosition.y < groundY) {
+                            // If a step-up glide is already targeting this surface, let the
+                            // glide handle the ascent — don't snap and cancel it. This gives
+                            // the IK more frames of non-zero correction.
+                            if (m_stepGlideTargetY > -1.0e29f && m_stepGlideTargetY >= groundY - 0.01f) {
+                                m_kinGrounded = true; // stay grounded, glide is in control
+                            } else {
                             // Sank below — hard snap (covers edge cases where glide was inactive)
                             worldPosition.y    = groundY;
                             m_stepGlideTargetY = -1.0e30f;
                             if (m_kinVelocity.y < 0.0f) m_kinVelocity.y = 0.0f;
                             m_kinGrounded = true;
+                            }
                         } else if (worldPosition.y < groundY + 0.05f) {
                             // Within grounding tolerance — stay grounded
                             m_kinGrounded = true;
@@ -93,9 +100,19 @@ namespace Scene {
                                    worldPosition.y <= groundY + m_maxStepHeight + 0.05f) {
                             // Small step-down: ground dropped away by ≤ m_maxStepHeight.
                             // Smooth glide down instead of triggering free-fall / Fall state.
+                            float stepH = worldPosition.y - groundY;
                             m_stepGlideTargetY = groundY;
                             m_kinVelocity.y    = 0.0f;
                             m_kinGrounded      = true;
+                            // Arm step-down IK — hold stance foot at the upper surface level
+                            // while the body descends. Timer is shortened to a settle window
+                            // once the glide completes.
+                            if (stepH >= 1.0f / 9.0f - 0.01f) {
+                                m_stepIKObstacleY   = worldPosition.y;  // upper surface
+                                m_stepIKTimer       = 0.4f;
+                                m_stepIKOriginalH   = -stepH;           // negative = step-down
+                                m_stepIKInitialized = false;
+                            }
                         } else {
                             m_kinGrounded = false;
                         }
@@ -135,7 +152,11 @@ namespace Scene {
                              !voxelWorld->overlapsAnyBody(cTest, charHE);
                 worldPosition.y = savedY;
                 if (!clear) return false;
-                m_stepGlideTargetY = obstTopY;
+                m_stepGlideTargetY  = obstTopY;
+                m_stepIKObstacleY   = obstTopY;
+                m_stepIKTimer       = 0.4f;
+                m_stepIKOriginalH   = obstTopY - savedY;  // positive = step-up
+                m_stepIKInitialized = false;
                 return true;
             };
 
@@ -1301,7 +1322,12 @@ namespace Scene {
         m_kinGrounded      = false;       // re-evaluate grounded state after teleport
         m_stepGlideTargetY = -1.0e30f;   // cancel any in-progress terrain glide
         m_footPosValid     = false;       // invalidate foot velocity cache
-        m_terrainIKBlend   = 0.0f;        // reset terrain IK transition blend
+        m_leftStep         = {};          // cancel any in-progress step IK
+        m_rightStep        = {};
+        m_stepIKObstacleY   = -1.0e30f;
+        m_stepIKTimer       = 0.0f;
+        m_stepIKOriginalH   = 0.0f;
+        m_stepIKInitialized = false;
     }
 
     glm::vec3 AnimatedVoxelCharacter::getPosition() const {
@@ -2653,8 +2679,10 @@ namespace Scene {
         }
         m_ikPrevAnimTime = animTime;
 
-        // Model matrix — reconstructed identically to the render sync below the IK hook.
-        glm::vec3 visualOrigin = worldPosition - glm::vec3(0.0f, skeletonFootOffset_, 0.0f);
+        // Model matrix — must match the render sync matrix exactly (including visual lift).
+        static constexpr float k_ikModelLift = 0.05f;
+        glm::vec3 visualOrigin = worldPosition - glm::vec3(0.0f, skeletonFootOffset_, 0.0f)
+                               + glm::vec3(0.0f, k_ikModelLift, 0.0f);
         glm::mat4 modelMatrix  = glm::translate(glm::mat4(1.0f), visualOrigin);
         modelMatrix = glm::rotate(modelMatrix, currentYaw, glm::vec3(0, 1, 0));
         glm::mat4 invModel = glm::inverse(modelMatrix);
@@ -2681,8 +2709,14 @@ namespace Scene {
             if (m_footPosValid) {
                 float lVelY = (lfw.y - m_prevLeftFootWorld.y)  / std::max(deltaTime, 0.001f);
                 float rVelY = (rfw.y - m_prevRightFootWorld.y) / std::max(deltaTime, 0.001f);
-                leftSwing  = (lVelY > 0.4f);
-                rightSwing = (rVelY > 0.4f);
+                // Subtract body vertical velocity so step-glide doesn't falsely trigger
+                // the swing gate. m_kinVelocity.y is zeroed during step-glide, so we
+                // reconstruct the glide contribution separately.
+                float bodyVelY = m_kinVelocity.y;
+                if (m_stepGlideTargetY > -1.0e29f)
+                    bodyVelY += (m_stepGlideTargetY >= worldPosition.y) ? m_stepGlideSpeed : -m_stepGlideSpeed;
+                leftSwing  = ((lVelY - bodyVelY) > 0.4f);
+                rightSwing = ((rVelY - bodyVelY) > 0.4f);
             }
             m_prevLeftFootWorld  = lfw;
             m_prevRightFootWorld = rfw;
@@ -2851,125 +2885,136 @@ namespace Scene {
         }
 
         // ------------------------------------------------------------------
-        // NORMAL MODE — per-frame proximity IK (no persistent lock).
-        // Range extended to 2/9 unit for rough terrain adaptation.
-        // Swing-phase gating (via pre-IK foot velocity) prevents the IK
-        // from pulling a lifted foot back to the ground mid-stride.
+        // NORMAL MODE — obstacle stepping IK driven by the step-glide signal.
+        //
+        // The step-glide (m_stepGlideTargetY) fires reliably when the capsule
+        // encounters an obstacle in [1/9, 4/9]. We use it directly as the IK
+        // trigger rather than a per-foot XZ probe, which was unreliable because
+        // the ankle bone XZ rarely passes directly over small obstacles.
+        //
+        // Per-foot differentiation is preserved via the swing gate: only stance
+        // feet (body-relative velocity near zero) receive the IK correction.
+        // The swing foot (lifting for the next stride) is left alone.
         // ------------------------------------------------------------------
 
-        constexpr float k_terrainReach = 2.0f / 9.0f;  // max downward foot correction
+        constexpr float k_stepMinHeight = 1.0f / 9.0f;   // min obstacle (1 microcube)
+        constexpr float k_stepMaxHeight = 4.0f / 9.0f;   // max (matches m_maxStepHeight)
+        constexpr float k_stepBlendRate = 12.0f;
 
-        auto sampleCorrection = [&](const FootIKBones& fb, float& outGroundY) -> std::pair<float, bool> {
-            outGroundY = -1e9f;
-            if (fb.footId < 0 || fb.footId >= (int)skeleton.bones.size())
-                return {0.0f, false};
-            glm::vec3 fw = footWorldPos(fb);
-
-            const float searchAbove = k_terrainReach + 0.1f;
-            const float searchDepth = k_terrainReach * 2.0f + 0.5f;
-            float groundY = voxelWorld->findGroundY(
-                {fw.x, fw.y + searchAbove, fw.z}, 0.05f, searchDepth);
-            outGroundY = groundY;
-
-            if (hasViz) {
-                const glm::vec3 rayEnd(fw.x, fw.y + searchAbove - searchDepth, fw.z);
-                const float fm = 0.04f;
-                const glm::vec3 yel(1.0f, 1.0f, 0.0f);
-                m_raycastVisualizer->addLine(fw - glm::vec3(fm,0,0), fw + glm::vec3(fm,0,0), yel);
-                m_raycastVisualizer->addLine(fw - glm::vec3(0,fm,0), fw + glm::vec3(0,fm,0), yel);
-                m_raycastVisualizer->addLine(fw - glm::vec3(0,0,fm), fw + glm::vec3(0,0,fm), yel);
-                if (groundY < -1e8f) {
-                    m_raycastVisualizer->addLine({fw.x, fw.y + searchAbove, fw.z}, rayEnd, glm::vec3(1,0.2f,0.2f));
-                } else {
-                    float c = groundY - fw.y;
-                    bool inRange = (std::abs(c) >= 0.005f && std::abs(c) <= k_terrainReach);
-                    glm::vec3 hitPt(fw.x, groundY, fw.z);
-                    m_raycastVisualizer->addLine({fw.x, fw.y + searchAbove, fw.z}, hitPt, glm::vec3(0.85f,0.85f,0.85f));
-                    m_raycastVisualizer->addLine(hitPt, rayEnd, glm::vec3(0.25f,0.25f,0.25f));
-                    const glm::vec3 hitColor = inRange ? glm::vec3(0,1,0.3f) : glm::vec3(1,0.55f,0);
-                    const float cs = 0.06f;
-                    m_raycastVisualizer->addLine(hitPt-glm::vec3(cs,0,0), hitPt+glm::vec3(cs,0,0), hitColor);
-                    m_raycastVisualizer->addLine(hitPt-glm::vec3(0,0,cs), hitPt+glm::vec3(0,0,cs), hitColor);
-                    m_raycastVisualizer->addLine(hitPt-glm::vec3(0,cs,0), hitPt+glm::vec3(0,cs,0), hitColor);
-                }
-            }
-
-            if (groundY < -1e8f) return {0.0f, false};
-            float correction = groundY - fw.y;
-            // Accept both upward (foot too low for a bump) and downward (foot too high) corrections.
-            if (std::abs(correction) < 0.005f || std::abs(correction) > k_terrainReach) return {0.0f, false};
-            return {correction, true};
+        auto rampDown = [&](FootStepState& step) {
+            step.blend = std::max(0.0f, step.blend - deltaTime * k_stepBlendRate);
+            if (step.blend < 0.001f) step.active = false;
         };
 
-        float leftGroundY = -1e9f, rightGroundY = -1e9f;
-        // Gate each foot behind its swing flag — don't correct a foot that is lifting.
-        auto [lc, lv] = leftSwing  ? std::make_pair(0.0f, false) : sampleCorrection(m_leftFoot,  leftGroundY);
-        auto [rc, rv] = rightSwing ? std::make_pair(0.0f, false) : sampleCorrection(m_rightFoot, rightGroundY);
+        // m_stepIKTimer is armed by tryStepUp() (step-up) or the step-down glide path.
+        // m_stepIKOriginalH > 0 = step-up, < 0 = step-down.
+        //
+        // Step-UP: body snaps to obstacle top almost instantly via the ground snap.
+        //   The IK applies a decaying DOWNWARD correction to the stance foot, making
+        //   it appear to lag behind on the lower surface and smoothly settle up.
+        //   Correction = stepHeight * (timer / 0.4) → decays to 0 over the window.
+        //
+        // Step-DOWN: body descends via the glide. The IK holds the stance foot at
+        //   the upper surface level, showing the leg reaching up while the body
+        //   descends. Timer is shortened to 50ms once the glide completes.
+        if (m_stepIKTimer > 0.0f) {
+            m_stepIKTimer -= deltaTime;
 
-        // Only activate terrain IK when the two feet are on meaningfully different surface
-        // heights.  On flat/uniform ground both probes return the same Y — skip IK entirely
-        // so it never fights the walk animation with micro-corrections.
-        // Threshold: 0.05 (≈ half a microcube).  A single microcube (1/9 ≈ 0.111) clears it;
-        // floating-point noise on flat voxel surfaces does not.
-        bool leftSampleValid  = !leftSwing  && (leftGroundY  > -1e8f);
-        bool rightSampleValid = !rightSwing && (rightGroundY > -1e8f);
-        // Terrain is only considered uneven when BOTH feet have valid samples AND
-        // the height difference is meaningful.  If either foot is swinging (sample
-        // unavailable), default to NOT uneven — the IK must not fire during a normal
-        // stride on flat ground just because one foot is in the air.
-        bool terrainIsUneven  = leftSampleValid && rightSampleValid &&
-                                std::abs(leftGroundY - rightGroundY) >= 0.05f;
+            bool glideActive = (m_stepGlideTargetY > -1.0e29f);
 
-        // Ramp a separate blend in/out so the correction fades rather than snapping.
-        constexpr float kTerrainBlendRate = 8.0f;
-        if (terrainIsUneven)
-            m_terrainIKBlend = std::min(1.0f, m_terrainIKBlend + deltaTime * kTerrainBlendRate);
-        else
-            m_terrainIKBlend = std::max(0.0f, m_terrainIKBlend - deltaTime * kTerrainBlendRate);
+            // For step-down: once the glide ends, allow only a brief settle window
+            // so the foot doesn't stay planted at the old level while walking away.
+            if (!glideActive && m_stepIKOriginalH < 0.0f && m_stepIKTimer > 0.06f)
+                m_stepIKTimer = 0.06f;
 
-        if (m_terrainIKBlend > 0.001f) {
-            // Pelvis shift only when BOTH feet have valid in-range corrections.
-            // One foot on bump + one on flat: flat foot correction is in the dead zone
-            // (lv/rv = false), so pelvis stays low — knee bends first, hip follows later.
-            const float ikBlend = m_footIKBlend * m_terrainIKBlend;
+            float obstacleH = m_stepIKObstacleY - worldPosition.y;
+            bool inRange = (std::abs(obstacleH) <= k_stepMaxHeight + 0.05f ||
+                            std::abs(m_stepIKOriginalH) <= k_stepMaxHeight + 0.05f);
 
-            if (bodyRange > 0.0f && m_ikHipBoneId >= 0 &&
-                m_ikHipBoneId < (int)skeleton.bones.size() && lv && rv)
+            // On the first tick of a new step window, decide which foot is the
+            // "stay foot" — the trailing foot still at the old floor level.
+            // Rule: the foot with the lower world Y is the trailing/stance foot.
+            // This is locked in for the whole window so the correction doesn't
+            // swap feet mid-stride.
+            if (!m_stepIKInitialized &&
+                m_leftFoot.footId  >= 0 && m_leftFoot.footId  < (int)skeleton.bones.size() &&
+                m_rightFoot.footId >= 0 && m_rightFoot.footId < (int)skeleton.bones.size())
             {
-                float avg   = (lc + rc) * 0.5f;
-                float shift = glm::clamp(avg * 0.5f, -bodyRange, bodyRange) * ikBlend;
-                skeleton.bones[m_ikHipBoneId].currentPosition.y += shift;
-                animSystem.updateGlobalTransforms(skeleton);
-                invModel = glm::inverse(modelMatrix);
+                m_stepIKLeftIsStay  = (footWorldPos(m_leftFoot).y <= footWorldPos(m_rightFoot).y);
+                m_stepIKInitialized = true;
             }
 
-            auto doFootIK = [&](const FootIKBones& fb, float groundY) {
-                if (fb.footId < 0 || fb.footId >= (int)skeleton.bones.size() || groundY < -1e8f) return;
+            auto applyTimedStep = [&](const FootIKBones& fb, FootStepState& step, bool isSwinging, bool isStayFoot) {
+                if (!isStayFoot || !inRange || isSwinging) { rampDown(step); return; }
                 glm::vec3 fw = footWorldPos(fb);
-                float correction = groundY - fw.y;
-                if (std::abs(correction) < 0.005f || std::abs(correction) > k_terrainReach) return;
-                applyTwoBoneIK(fb.upLegId, fb.legId, fb.footId,
-                               invModel, {fw.x, groundY, fw.z}, ikBlend);
+                float ankleAbove = std::max(0.0f, fw.y - worldPosition.y);
+
+                if (m_stepIKOriginalH > 0.0f) {
+                    // Step-UP: trailing foot lags at old floor level, then rises.
+                    // Anchor to worldPosition (new floor) minus the original step
+                    // height, so at decayRatio=1 the foot targets the OLD floor
+                    // regardless of where the animation puts it.  At decayRatio=0
+                    // the target = worldPosition.y (grounded on new surface).
+                    float decayRatio = std::max(0.0f, m_stepIKTimer) / 0.4f;
+                    step.targetY = worldPosition.y - m_stepIKOriginalH * decayRatio;
+                } else {
+                    // Step-DOWN: stance foot held at upper surface while body descends.
+                    step.targetY = m_stepIKObstacleY + ankleAbove;
+                }
+                step.active = true;
+                step.blend  = 1.0f;
             };
 
-            // Diagnostic log — throttled to ~5/s, only fires when IK is active.
+            applyTimedStep(m_leftFoot,  m_leftStep,  leftSwing,  m_stepIKLeftIsStay);
+            applyTimedStep(m_rightFoot, m_rightStep, rightSwing, !m_stepIKLeftIsStay);
+
+        } else {
+            rampDown(m_leftStep);
+            rampDown(m_rightStep);
+        }
+
+        // Skip IK entirely when nothing is active.
+        bool anyStepActive = (m_leftStep.blend > 0.001f || m_rightStep.blend > 0.001f);
+        if (anyStepActive) {
+            // Pelvis shift: half the weighted average correction so the knee
+            // absorbs most and the hip follows proportionally.
+            if (bodyRange > 0.0f && m_ikHipBoneId >= 0 &&
+                m_ikHipBoneId < (int)skeleton.bones.size())
             {
-                static float s_ikLogTimer = 0.0f;
-                s_ikLogTimer += deltaTime;
-                if (s_ikLogTimer >= 0.2f) {
-                    s_ikLogTimer = 0.0f;
-                    glm::vec3 lfw = (m_leftFoot.footId  >= 0) ? footWorldPos(m_leftFoot)  : glm::vec3(0);
-                    glm::vec3 rfw = (m_rightFoot.footId >= 0) ? footWorldPos(m_rightFoot) : glm::vec3(0);
-                    LOG_INFO_FMT("TerrainIK",
-                        "L=" << lfw.y << " gnd=" << leftGroundY
-                        << " corr=" << (leftGroundY - lfw.y) << " lv=" << lv
-                        << " | R=" << rfw.y << " gnd=" << rightGroundY
-                        << " corr=" << (rightGroundY - rfw.y) << " rv=" << rv);
+                float weightedCorr = 0.0f, totalWeight = 0.0f;
+                auto accumStep = [&](const FootIKBones& fb, const FootStepState& step) {
+                    if (!step.active || step.blend < 0.001f) return;
+                    float corr = step.targetY - footWorldPos(fb).y;
+                    weightedCorr += corr * step.blend;
+                    totalWeight  += step.blend;
+                };
+                accumStep(m_leftFoot,  m_leftStep);
+                accumStep(m_rightFoot, m_rightStep);
+
+                if (totalWeight > 0.001f) {
+                    float avg      = weightedCorr / totalWeight;
+                    float shift    = glm::clamp(avg * 0.5f, -bodyRange, bodyRange);
+                    float hipBlend = m_footIKBlend * std::min(1.0f, totalWeight);
+                    skeleton.bones[m_ikHipBoneId].currentPosition.y += shift * hipBlend;
+                    animSystem.updateGlobalTransforms(skeleton);
+                    invModel = glm::inverse(modelMatrix);
                 }
             }
 
-            if (!leftSwing  && leftGroundY  > -1e8f) doFootIK(m_leftFoot,  leftGroundY);
-            if (!rightSwing && rightGroundY > -1e8f) doFootIK(m_rightFoot, rightGroundY);
+            auto applyStepIK = [&](const FootIKBones& fb, const FootStepState& step) {
+                if (!step.active || step.blend < 0.001f) return;
+                if (fb.footId < 0 || fb.footId >= (int)skeleton.bones.size()) return;
+                glm::vec3 fw = footWorldPos(fb);
+                applyTwoBoneIK(fb.upLegId, fb.legId, fb.footId,
+                               invModel, {fw.x, step.targetY, fw.z},
+                               m_footIKBlend * step.blend);
+            };
+
+            applyStepIK(m_leftFoot, m_leftStep);
+            animSystem.updateGlobalTransforms(skeleton);
+            invModel = glm::inverse(modelMatrix);
+
+            applyStepIK(m_rightFoot, m_rightStep);
         }
 
         animSystem.updateGlobalTransforms(skeleton);
