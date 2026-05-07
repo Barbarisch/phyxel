@@ -1246,6 +1246,89 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // GET /api/scene/:id — Get a specific scene definition by ID
+    srv.Get(R"(/api/scene/(\w[\w-]*))", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = {{"scene_id", req.matches[1]}};
+        json result = queueAndWait("get_scene", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/scene/update — Update fields of an existing scene definition
+    srv.Post("/api/scene/update", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("update_scene", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ── Game Menu Element API ──────────────────────────────────────────────
+
+    // GET /api/menu/element/:id — Get a named menu element's JSON definition
+    srv.Get(R"(/api/menu/element/([^/]+))", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = {{"id", req.matches[1].str()}};
+        json result = queueAndWait("get_menu_element", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/menu/element/set — Override visible / text / color on a named element
+    srv.Post("/api/menu/element/set", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_menu_element", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/menu/element/add — Add a new element to a panel
+    srv.Post("/api/menu/element/add", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("add_menu_element", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/menu/element/remove — Remove a named element
+    srv.Post("/api/menu/element/remove", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("remove_menu_element", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/menu/submenu/open — Push a submenu panel onto the stack
+    srv.Post("/api/menu/submenu/open", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("open_menu_submenu", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/menu/submenu/close — Pop the current submenu
+    srv.Post("/api/menu/submenu/close", [this](const httplib::Request& req, httplib::Response& res) {
+        json result = queueAndWait("close_menu_submenu", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
     // ====================================================================
     // Dynamic Furniture API
     // ====================================================================

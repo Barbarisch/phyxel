@@ -1,0 +1,69 @@
+[21:56:44.127] [INFO] [StairTest] returnPos=(16,16,16)  testY=0.667  testZ=0.667  fwd=(0,0,1)  startPos=(16,16.667,15.333)
+Bone mixamorig:Hips GlobalPos: 16.0022, 17.4574, 15.3601
+[21:56:44.237] [INFO] [Application] Syncing Free Camera: Pos(19.2773) Yaw(-187.8)
+DEBUG: Selected TargetAnim=
+[21:56:44.308] [INFO] [StairIK] [t=0.050] capsY=16.633 | L_foot=16.863 L_surf=-999.000 L_lock=-999.000 | R_foot=16.724 R_surf=16.667 R_lock=16.000
+DEBUG: Selected TargetAnim=
+[21:56:44.494] [INFO] [StairIK] [t=0.101] capsY=16.599 | L_foot=16.750 L_surf=16.333 L_lock=-999.000 | R_foot=16.691 R_surf=16.667 R_lock=16.000
+Bone mixamorig:Hips GlobalPos: 16.0029, 17.3691, 15.4402
+[21:56:44.548] [INFO] [Application] Syncing Free Camera: Pos(19.2773) Yaw(-187.8)
+DEBUG: Selected TargetAnim=
+[21:56:44.682] [INFO] [StairIK] [t=0.152] capsY=16.565 | L_foot=16.662 L_surf=16.333 L_lock=-999.000 | R_foot=16.658 R_surf=16.667 R_lock=16.000
+DEBUG: Selected TargetAnim=
+Bone mixamorig:Hips GlobalPos: 16.0045, 17.2758, 15.5131
+[21:56:44.846] [INFO] [Application] Syncing Free Camera: Pos(19.2773) Yaw(-187.8)
+DEBUG: Selected TargetAnim=
+[21:56:44.866] [INFO] [StairIK] [t=0.203] capsY=16.531 | L_foot=16.618 L_surf=16.333 L_lock=-999.000 | R_foot=16.627 R_surf=16.333 R_lock=16.000
+DEBUG: Selected TargetAnim=
+[21:56:45.053] [INFO] [StairIK] [t=0.253] capsY=16.498 | L_foot=16.583 L_surf=16.333 L_lock=-999.000 | R_foot=16.596 R_surf=16.333 R_lock=16.000
+Bone mixamorig:Hips GlobalPos: 16.0078, 17.1437, 15.5825
+[21:56:45.129] [INFO] [Application] Syncing Free Camera: Pos(19.2773) Yaw(-187.8)
+DEBUG: Selected TargetAnim=
+[21:56:45.239] [INFO] [StairIK] [t=0.304] capsY=16.464 | L_foot=16.550 L_surf=16.333 L_lock=-999.000 | R_foot=16.573 R_surf=16.333 R_lock=16.000
+DEBUG: Selected TargetAnim=
+Bone mixamorig:Hips GlobalPos: 16.0193, 17.0124, 15.6537
+[21:56:45.408] [INFO] [Application] Syncing Free Camera: Pos(19.2773) Yaw(-187.8)
+DEBUG: Selected TargetAnim=
+[21:56:45.425] [INFO] [StairIK] [t=0.355] capsY=16.430 | L_foot=16.517 L_surf=-999.000 L_lock=-999.000 | R_foot=16.561 R_surf=16.333 R_lock=16.000
+DEBUG: Selected TargetAnim=
+[21:56:45.612] [INFO] [StairIK] [t=0.406] capsY=16.396 | L_foot=16.483 L_surf=16.000 L_lock=-999.000 | R_foot=16.543 R_surf=16.333 R_lock=16.000
+Bone mixamorig:Hips GlobalPos: 16.027, 16.924, 15.7363
+[21:56:45.689] [INFO] [Application] Syncing Free Camera: Pos(19.2773) Yaw(-187.8)
+DEBUG: Selected TargetAnim=
+[21:56:45.798] [INFO] [StairIK] [t=0.457] capsY=16.362 | L_foot=16.449 L_surf=16.000 L_lock=-999.000 | R_foot=16.510 R_surf=16.000 R_lock=16.000
+DEBUG: Selected TargetAnim=
+Bone mixamorig:Hips GlobalPos: 16.0291, 16.8739, 15.8353
+[21:56:45.975] [INFO] [Application] Syncing Free Camera: Pos(19.2773) Yaw(-187.8)
+DEBUG: Selected TargetAnim=
+[21:56:45.986] [INFO] [StairIK] [t=0.508] capsY=16.328 | L_foot=16.415 L_surf=16.000 L_lock=-999.000 | R_foot=16.454 R_surf=16.000 R_lock=16.000
+DEBUG: Selected TargetAnim=
+[21:56:46.170] [INFO] [StairIK] [t=0.558] capsY=16.294 | L_foot=16.381 L_surf=16.000 L_lock=-999.000 | R_foot=16.381 R_surf=16.000 R_lock=16.000
+Bone mixamorig:Hips GlobalPos: 16.0289, 16.8246, 15.9451
+[21:56:46.277] [INFO] [Application] Syncing Free Camera: Pos(19.2773) Yaw(-187.8)
+DEBUG: Selected TargetAnim=
+[21:56:46.357] [INFO] [StairIK] [t=0.609] capsY=16.260 | L_foot=16.348 L_surf=16.000 L_lock=-999.000 | R_foot=16.347 R_surf=16.000 R_lock=16.000
+DEBUG: Selected TargetAnim=
+[21:56:46.506] [INFO] [HoverDetection] Hovering - isMicrocube: 0 isSubcube: 0, world pos: (16,15,12)
+[21:56:46.506] [INFO] [Application] [CUBE HOVER] Setting m_currentHoveredLocation: worldPos=(16,15,12) hitFace=3
+[21:56:46.542] [INFO] [StairIK] [t=0.660] capsY=16.227 | L_foot=16.314 L_surf=16.000 L_lock=-999.000 | R_foot=16.314 R_surf=16.000 R_lock=16.000
+Bone mixamorig:Hips GlobalPos: 16.0273, 16.7188, 16.0703
+[21:56:46.626] [INFO] [Application] Syncing Free Camera: Pos(19.2773) Yaw(-187.8)
+DEBUG: Selected TargetAnim=
+[21:56:46.727] [INFO] [StairIK] [t=0.710] capsY=16.193 | L_foot=16.280 L_surf=16.000 L_lock=-999.000 | R_foot=16.280 R_surf=16.000 R_lock=16.000
+DEBUG: Selected TargetAnim=
+[21:56:46.912] [INFO] [StairIK] [t=0.761] capsY=16.159 | L_foot=16.246 L_surf=16.000 L_lock=-999.000 | R_foot=16.246 R_surf=16.000 R_lock=16.000
+Bone mixamorig:Hips GlobalPos: 16.0213, 16.5922, 16.1742
+[21:56:46.926] [INFO] [Application] Syncing Free Camera: Pos(19.2773) Yaw(-187.8)
+DEBUG: Selected TargetAnim=
+DEBUG: Selected TargetAnim=
+[21:56:47.100] [INFO] [StairIK] [t=0.812] capsY=16.125 | L_foot=16.212 L_surf=16.000 L_lock=-999.000 | R_foot=16.212 R_surf=16.000 R_lock=16.000
+Bone mixamorig:Hips GlobalPos: 16.0119, 16.4718, 16.2752
+[21:56:47.226] [INFO] [Application] Syncing Free Camera: Pos(19.2773) Yaw(-187.8)
+DEBUG: Selected TargetAnim=
+[21:56:47.284] [INFO] [StairIK] [t=0.862] capsY=16.092 | L_foot=16.179 L_surf=16.000 L_lock=-999.000 | R_foot=16.179 R_surf=16.000 R_lock=16.000
+DEBUG: Selected TargetAnim=
+[21:56:47.471] [INFO] [StairIK] [t=0.913] capsY=16.058 | L_foot=16.145 L_surf=16.000 L_lock=-999.000 | R_foot=16.145 R_surf=16.000 R_lock=16.000
+Bone mixamorig:Hips GlobalPos: 16.0065, 16.3966, 16.3729
+[21:56:47.527] [INFO] [Application] Syncing Free Camera: Pos(19.2773) Yaw(-187.8)
+DEBUG: Selected TargetAnim=
+[21:56:47.655] [INFO] [StairIK] [t=0.963] capsY=16.024 | L_foot=16.111 L_surf=16.000 L_lock=16.000 | R_foot=16.111 R_surf=16.000 R_lock=16.000

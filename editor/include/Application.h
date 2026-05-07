@@ -36,6 +36,8 @@
 #include "TextureEditorPanel.h"
 #endif
 #include "WorldOutlinerPanel.h"
+#include "MenuEditorPanel.h"
+#include "ui/GameMenuRenderer.h"
 #include "core/EntityRegistry.h"
 #include "core/APICommandQueue.h"
 #include "core/EngineAPIServer.h"
@@ -350,6 +352,7 @@ private:
     void spawnTestDynamicSubcube();  // Spawn a test dynamic subcube above the chunks
     void placeNewCube();            // Place a new cube adjacent to the hovered cube face
     void processAPICommands();       // Process pending HTTP API commands
+    bool dispatchAnimationAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
     void autoLoadGameDefinition();   // Auto-load game.json if present
     Core::GameSubsystems buildGameSubsystems(); // Build subsystems struct for GameDefinitionLoader
     void initializeSceneManager();   // Wire SceneCallbacks and configure SceneManager
@@ -379,6 +382,7 @@ private:
     // Main menu bar
     void renderMainMenuBar();
     void renderStatusBar();
+    void renderMaterialHotbar();
     void openFileDialog();             // Show native file open dialog
     void openProjectDialog();          // Show native folder picker to open a project
     void switchToEditorMode(const std::string& filePath); // Detect type & switch mode
@@ -577,6 +581,12 @@ private:
 
     bool m_showScenePanel = true;          // Dockable scene management panel
     bool showAnimatedCharPanel = false;    // Animated character inspector panel
+
+    std::unique_ptr<Editor::MenuEditorPanel> m_menuEditorPanel; // Menu scene canvas editor
+    bool m_showMenuEditor = false;         // Visible when active scene is type "menu"
+
+    std::unique_ptr<UI::GameMenuRenderer> m_gameMenuRenderer; // Runtime game menu renderer
+    bool m_showGameMenuPreview = false;    // Show full-screen menu preview in editor
 
 #ifdef _WIN32
     std::unique_ptr<Editor::TerminalPanel> m_terminalPanel; // Dockable terminal emulator

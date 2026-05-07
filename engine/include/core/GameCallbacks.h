@@ -58,6 +58,11 @@ public:
 
     /// Called once the new scene is fully ready (after all loading + nav rebuild).
     virtual void onSceneReady(EngineRuntime& /*engine*/, const std::string& /*sceneId*/) {}
+
+    /// Called when a Menu-type scene has been activated. The engine automatically
+    /// renders the menu from its JSON layout; override this to add extra overlays
+    /// or react to specific menu scene IDs.
+    virtual void onMenuSceneLoaded(EngineRuntime& /*engine*/, const std::string& /*sceneId*/) {}
 };
 
 } // namespace Core

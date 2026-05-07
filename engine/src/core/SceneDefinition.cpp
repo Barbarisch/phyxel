@@ -21,6 +21,17 @@ SceneDefinition SceneDefinition::fromJson(const json& j) {
         scene.transitionStyle = transitionStyleFromString(j["transitionStyle"].get<std::string>());
     }
 
+    // Scene type
+    std::string typeStr = j.value("sceneType", "world");
+    if (typeStr == "menu")     scene.sceneType = SceneType::Menu;
+    else if (typeStr == "cutscene") scene.sceneType = SceneType::Cutscene;
+    else                       scene.sceneType = SceneType::World;
+
+    // Menu layout (for Menu-type scenes)
+    if (j.contains("menuLayout")) {
+        scene.menuLayout = j["menuLayout"];
+    }
+
     // The scene's game definition is the scene object itself, minus the scene-management keys.
     // Copy the entire object, then use it as the definition.
     scene.definition = j;
@@ -33,6 +44,8 @@ SceneDefinition SceneDefinition::fromJson(const json& j) {
     scene.definition.erase("onEnterScript");
     scene.definition.erase("onExitScript");
     scene.definition.erase("transitionStyle");
+    scene.definition.erase("sceneType");
+    scene.definition.erase("menuLayout");
 
     return scene;
 }
@@ -47,6 +60,13 @@ json SceneDefinition::toJson() const {
     if (!onExitScript.empty()) j["onExitScript"] = onExitScript;
     if (transitionStyle != SceneTransitionStyle::LoadingScreen) {
         j["transitionStyle"] = transitionStyleToString(transitionStyle);
+    }
+    // Serialize sceneType (only when non-default to keep JSON minimal)
+    if (sceneType == SceneType::Menu)     j["sceneType"] = "menu";
+    else if (sceneType == SceneType::Cutscene) j["sceneType"] = "cutscene";
+    // SceneType::World is the default — omit from JSON
+    if (!menuLayout.is_null()) {
+        j["menuLayout"] = menuLayout;
     }
     return j;
 }

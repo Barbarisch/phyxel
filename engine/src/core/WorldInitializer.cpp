@@ -484,11 +484,16 @@ bool WorldInitializer::initializeTextureAtlas() {
             // Fallback: compute UVs manually (same as before)
             auto& registry = Core::MaterialRegistry::instance();
             int textureCount = registry.getTextureCount();
-            int texturesPerRow = 6;
-            int textureSize = 18;
-            int padding = 1;
-            int cellSize = textureSize + 2 * padding;
-            float atlasSize = 512.0f;
+            int texturesPerRow = Core::AtlasManager::TEXTURES_PER_ROW;
+            int textureSize = Core::AtlasManager::TEXTURE_SIZE;
+            int padding = Core::AtlasManager::PADDING;
+            int cellSize = Core::AtlasManager::CELL_SIZE;
+            int rows = (textureCount + texturesPerRow - 1) / texturesPerRow;
+            int rawDim = std::max(texturesPerRow * cellSize, rows * cellSize);
+            int atlasDim = 1;
+            while (atlasDim < rawDim) atlasDim <<= 1;
+            atlasDim = std::min(atlasDim, Core::AtlasManager::MAX_ATLAS_SIZE);
+            float atlasSize = static_cast<float>(atlasDim);
 
             std::vector<glm::vec4> uvs(textureCount);
             for (int i = 0; i < textureCount; i++) {

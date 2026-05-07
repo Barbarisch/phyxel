@@ -248,7 +248,21 @@
       "Bash(grep -E \"error C|error LNK|\\\\.cpp$\")",
       "Bash(python -m json.tool)",
       "Bash(python -m json.tool \"C:/Users/jack/Documents/PhyxelProjects/VillageChat/game.json\")",
-      "Bash(python -c \"import json; d=json.load\\(open\\('C:/Users/jack/Documents/PhyxelProjects/VillageChat/game.json'\\)\\); print\\(list\\(d.keys\\(\\)\\)\\)\")"
+      "Bash(python -c \"import json; d=json.load\\(open\\('C:/Users/jack/Documents/PhyxelProjects/VillageChat/game.json'\\)\\); print\\(list\\(d.keys\\(\\)\\)\\)\")",
+      "Bash(git show *)",
+      "Bash(git ls-tree *)",
+      "PowerShell(cmake *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git commit -m 'Add phase-based motion warp + anim editor tuning UI *)",
+      "Bash(awk '/^ANIMATION stair_down$/,/^ANIMATION /' \"G:/Github/phyxel/resources/animated_characters/humanoid.anim\")",
+      "Bash(xargs grep *)",
+      "Bash(grep -v \"//\")",
+      "PowerShell(Get-ChildItem \"G:\\\\Github\\\\phyxel\\\\build\" -Recurse | Where-Object { $_.Extension -in \".exe\",\".dll\" } | Select-Object FullName, LastWriteTime | Sort-Object LastWriteTime -Descending | Select-Object -First 10)",
+      "Bash(git checkout *)",
+      "Bash(python *)",
+      "Bash(python3 *)",
+      "Bash(gh repo *)"
     ]
   },
   "enableAllProjectMcpServers": true,

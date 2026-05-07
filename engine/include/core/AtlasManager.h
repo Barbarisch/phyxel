@@ -18,9 +18,9 @@ class MaterialRegistry;
 /// VulkanDevice for GPU texture upload + SSBO updates.
 class AtlasManager {
 public:
-    static constexpr int TEXTURE_SIZE = 18;      // Pixels per texture side
+    static constexpr int TEXTURE_SIZE = 64;      // Pixels per texture side
     static constexpr int PADDING = 1;            // Pixels between textures
-    static constexpr int CELL_SIZE = TEXTURE_SIZE + 2 * PADDING; // 20
+    static constexpr int CELL_SIZE = TEXTURE_SIZE + 2 * PADDING; // 66
     static constexpr int TEXTURES_PER_ROW = 6;
     static constexpr int MAX_ATLAS_SIZE = 2048;  // Max atlas dimension
 
@@ -54,6 +54,11 @@ public:
     /// Call this after editing textures or adding materials.
     /// Returns true on success.
     bool hotReload(Vulkan::VulkanDevice* device);
+
+    /// Per-material hot-reload: re-read source PNGs for a single material and
+    /// upload only those atlas slots to the GPU.  Other materials are untouched.
+    /// Returns true on success; false if material not found or GPU upload fails.
+    bool reloadMaterial(const std::string& materialName, Vulkan::VulkanDevice* device);
 
     /// Write a single texture slot's pixel data into the atlas.
     /// Used by the pixel editor to update a texture in-place without full rebuild.

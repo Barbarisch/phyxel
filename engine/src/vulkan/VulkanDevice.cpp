@@ -12,6 +12,7 @@
 #include <array>
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+#include <imgui_impl_vulkan.h>
 
 namespace Phyxel {
 namespace Vulkan {
@@ -94,6 +95,9 @@ void VulkanDevice::cleanup() {
     
     // Cleanup dynamic subcube buffer
     cleanupDynamicSubcubeBuffer();
+
+    // Cleanup ImGui textures (must be before ImGui shutdown)
+    cleanupImGuiTextures();
     
     // Cleanup texture atlas
     cleanupTextureAtlas();
@@ -2025,6 +2029,120 @@ void VulkanDevice::cleanupTextureAtlas() {
         vkFreeMemory(device, textureAtlasImageMemory, nullptr);
         textureAtlasImageMemory = VK_NULL_HANDLE;
     }
+}
+
+void* VulkanDevice::loadImGuiTexture(const std::string& path) {
+    // Return cached handle if already loaded
+    auto it = imguiTextureCache_.find(path);
+    if (it != imguiTextureCache_.end()) {
+        return reinterpret_cast<void*>(it->second.descriptorSet);
+    }
+
+    // Load pixels via stb_image
+    int w = 0, h = 0, channels = 0;
+    stbi_uc* pixels = stbi_load(path.c_str(), &w, &h, &channels, STBI_rgb_alpha);
+    if (!pixels) {
+        LOG_WARN("Vulkan", "loadImGuiTexture: failed to load '{}'", path);
+        return nullptr;
+    }
+
+    const VkDeviceSize imageSize = static_cast<VkDeviceSize>(w) * h * 4;
+
+    // Upload via staging buffer
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingMemory;
+    createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 stagingBuffer, stagingMemory);
+
+    void* data;
+    vkMapMemory(device, stagingMemory, 0, imageSize, 0, &data);
+    memcpy(data, pixels, static_cast<size_t>(imageSize));
+    vkUnmapMemory(device, stagingMemory);
+    stbi_image_free(pixels);
+
+    ImGuiTextureEntry entry;
+    createImage(w, h, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
+                VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, entry.image, entry.memory);
+
+    // Transition + copy using a one-shot command buffer
+    {
+        VkCommandBuffer cmd = beginSingleTimeCommands();
+
+        VkImageMemoryBarrier barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image = entry.image;
+        barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+        VkBufferImageCopy region{};
+        region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+        region.imageExtent = {static_cast<uint32_t>(w), static_cast<uint32_t>(h), 1};
+        vkCmdCopyBufferToImage(cmd, stagingBuffer, entry.image,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+        endSingleTimeCommands(cmd);
+    }
+
+    vkDestroyBuffer(device, stagingBuffer, nullptr);
+    vkFreeMemory(device, stagingMemory, nullptr);
+
+    entry.view = createImageView(entry.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+
+    VkSamplerCreateInfo samplerInfo{};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.anisotropyEnable = VK_FALSE;
+    samplerInfo.maxAnisotropy = 1.0f;
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerInfo.unnormalizedCoordinates = VK_FALSE;
+    samplerInfo.compareEnable = VK_FALSE;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    vkCreateSampler(device, &samplerInfo, nullptr, &entry.sampler);
+
+    // Register with ImGui — returns a VkDescriptorSet usable as ImTextureID
+    entry.descriptorSet = ImGui_ImplVulkan_AddTexture(
+        entry.sampler, entry.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    imguiTextureCache_[path] = entry;
+    LOG_INFO("Vulkan", "Loaded ImGui texture '{}' ({}x{})", path, w, h);
+    return reinterpret_cast<void*>(entry.descriptorSet);
+}
+
+void VulkanDevice::cleanupImGuiTextures() {
+    vkDeviceWaitIdle(device);
+    for (auto& [path, entry] : imguiTextureCache_) {
+        if (entry.descriptorSet != VK_NULL_HANDLE)
+            ImGui_ImplVulkan_RemoveTexture(entry.descriptorSet);
+        if (entry.sampler != VK_NULL_HANDLE)
+            vkDestroySampler(device, entry.sampler, nullptr);
+        if (entry.view != VK_NULL_HANDLE)
+            vkDestroyImageView(device, entry.view, nullptr);
+        if (entry.image != VK_NULL_HANDLE)
+            vkDestroyImage(device, entry.image, nullptr);
+        if (entry.memory != VK_NULL_HANDLE)
+            vkFreeMemory(device, entry.memory, nullptr);
+    }
+    imguiTextureCache_.clear();
 }
 
 bool VulkanDevice::recreateSwapChain(int windowWidth, int windowHeight, VkRenderPass renderPass) {

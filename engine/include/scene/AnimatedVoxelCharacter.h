@@ -404,6 +404,13 @@ namespace Scene {
         float m_stepGlideSpeed   = 4.0f;          // Y units/s for smooth ascent or descent
         float m_stepGlideTargetY = -1.0e30f;      // Active glide target Y (-1e30 = inactive)
 
+        // Visual body spring — the skeleton renders from m_visualBodyY rather than
+        // worldPosition.y directly. This smooths out instant capsule snaps (step-up,
+        // ground snap) so the legs have time to react via per-foot IK.
+        float m_visualBodyY    = 0.0f;
+        float m_visualBodyVel  = 0.0f;
+        bool  m_visualBodyInit = false;
+
         // Legacy step-up fields (kept to avoid breaking debug log / slider code)
         float     m_stepCooldown      = 0.0f;
         glm::vec3 m_prevStepCheckPos{0.0f};

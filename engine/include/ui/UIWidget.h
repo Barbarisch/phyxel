@@ -88,6 +88,7 @@ enum class WidgetType {
     Slider,
     Checkbox,
     Dropdown,
+    Image,
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -236,6 +237,21 @@ public:
     int selectedIndex = 0;
     bool open = false;
     std::function<void(int)> onChange;
+};
+
+// ════════════════════════════════════════════════════════════════
+// UIImage — textured rectangle (PNG file, or colored placeholder)
+// ════════════════════════════════════════════════════════════════
+
+class UIImage : public UIWidget {
+public:
+    WidgetType type() const override { return WidgetType::Image; }
+    void render(UIRenderer* renderer, const BitmapFont* font,
+                const UITheme& theme, glm::vec2 pos) override;
+
+    std::string imagePath;  ///< Relative or absolute path to a PNG file
+    glm::vec4 tintColor = {1.0f, 1.0f, 1.0f, 1.0f};
+    void* textureHandle = nullptr; ///< Platform-specific loaded texture (ImTextureID)
 };
 
 } // namespace UI

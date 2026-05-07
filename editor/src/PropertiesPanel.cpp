@@ -56,6 +56,9 @@ void PropertiesPanel::render(bool* open) {
             case SelectionType::PlacedObject:
                 renderPlacedObjectInspector(m_selId);
                 break;
+            case SelectionType::Scene:
+                renderSceneInspector(m_selId);
+                break;
             default:
                 break;
         }
@@ -66,6 +69,146 @@ void PropertiesPanel::render(bool* open) {
     }
 
     ImGui::End();
+}
+
+// ============================================================================
+// Selection-driven: Scene inspector
+// ============================================================================
+
+void PropertiesPanel::renderSceneInspector(const std::string& id) {
+    // Handle single-scene fallback (no manager or no manifest)
+    bool hasManager = m_sceneManager && m_sceneManager->hasManifest();
+
+    if (id == "default" && !hasManager) {
+        ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.4f, 1.0f), "Default World");
+        ImGui::SameLine();
+        ImGui::TextDisabled("[active]");
+        ImGui::Separator();
+        ImGui::TextWrapped("This session has no multi-scene manifest. "
+                           "Right-click the scene in the World Outliner to "
+                           "convert it to a multi-scene project.");
+        return;
+    }
+
+    if (!hasManager) {
+        ImGui::TextDisabled("No scene manifest loaded.");
+        return;
+    }
+
+    const Core::SceneDefinition* def = m_sceneManager->findScene(id);
+    if (!def) {
+        ImGui::TextDisabled("Scene not found: %s", id.c_str());
+        return;
+    }
+
+    bool isActive     = (m_sceneManager->getActiveSceneId() == id);
+    bool transitioning = m_sceneManager->isTransitioning();
+
+    // Header
+    ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "%s", def->name.c_str());
+    ImGui::SameLine();
+    ImGui::TextDisabled("(id: %s)", id.c_str());
+    if (isActive) {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.4f, 1.0f), "[active]");
+    }
+    ImGui::Separator();
+
+    // --- Editable fields -------------------------------------------------
+    // We work with local buffers and fire the callback on Enter
+    static char nameBuf[256]   = {};
+    static char dbBuf[256]     = {};
+    static char enterBuf[512]  = {};
+    static char exitBuf[512]   = {};
+    static std::string lastId;
+
+    // Re-populate buffers when selection changes
+    if (lastId != id) {
+        lastId = id;
+        snprintf(nameBuf,  sizeof(nameBuf),  "%s", def->name.c_str());
+        snprintf(dbBuf,    sizeof(dbBuf),    "%s", def->worldDatabase.c_str());
+        snprintf(enterBuf, sizeof(enterBuf), "%s", def->onEnterScript.c_str());
+        snprintf(exitBuf,  sizeof(exitBuf),  "%s", def->onExitScript.c_str());
+    }
+
+    ImGui::TextDisabled("Scene Properties");
+    ImGui::Spacing();
+
+    // Scene Type (read-only display)
+    const char* sceneTypeName = "World";
+    if (def->sceneType == Core::SceneType::Menu)     sceneTypeName = "Menu";
+    else if (def->sceneType == Core::SceneType::Cutscene) sceneTypeName = "Cutscene";
+    ImGui::LabelText("Type", "%s", sceneTypeName);
+
+    // Name
+    if (ImGui::InputText("Name##scname", nameBuf, sizeof(nameBuf),
+                         ImGuiInputTextFlags_EnterReturnsTrue)) {
+        if (onScenePropertyChanged) onScenePropertyChanged(id, "name", nameBuf);
+    }
+
+    // World Database (World scenes only)
+    if (def->sceneType == Core::SceneType::World) {
+        if (ImGui::InputText("World DB##scdb", dbBuf, sizeof(dbBuf),
+                             ImGuiInputTextFlags_EnterReturnsTrue)) {
+            if (onScenePropertyChanged) onScenePropertyChanged(id, "worldDatabase", dbBuf);
+        }
+        ImGui::TextDisabled("  (relative to worlds/)");
+    }
+
+    // Transition style combo
+    const char* styles[] = {"cut", "fade", "loading_screen"};
+    int styleIdx = 2; // default: loading_screen
+    if (def->transitionStyle == Core::SceneTransitionStyle::Cut)           styleIdx = 0;
+    else if (def->transitionStyle == Core::SceneTransitionStyle::Fade)     styleIdx = 1;
+    else                                                                    styleIdx = 2;
+
+    if (ImGui::Combo("Transition##sctrans", &styleIdx, styles, IM_ARRAYSIZE(styles))) {
+        if (onScenePropertyChanged) onScenePropertyChanged(id, "transitionStyle", styles[styleIdx]);
+    }
+
+    // Enter script
+    if (ImGui::InputText("On Enter Script##scenter", enterBuf, sizeof(enterBuf),
+                         ImGuiInputTextFlags_EnterReturnsTrue)) {
+        if (onScenePropertyChanged) onScenePropertyChanged(id, "onEnterScript", enterBuf);
+    }
+
+    // Exit script
+    if (ImGui::InputText("On Exit Script##scexit", exitBuf, sizeof(exitBuf),
+                         ImGuiInputTextFlags_EnterReturnsTrue)) {
+        if (onScenePropertyChanged) onScenePropertyChanged(id, "onExitScript", exitBuf);
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+
+    // --- Read-only info ---------------------------------------------------
+    const auto& result = m_sceneManager->getLastTransitionResult();
+    if (!result.fromScene.empty() || !result.toScene.empty()) {
+        ImGui::TextDisabled("Last transition: %s → %s (%.1f ms)",
+            result.fromScene.c_str(), result.toScene.c_str(), result.transitionTimeMs);
+        if (!result.success && !result.error.empty()) {
+            ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "Error: %s", result.error.c_str());
+        }
+    }
+
+    ImGui::Spacing();
+
+    // --- Action buttons --------------------------------------------------
+    if (!isActive && !transitioning) {
+        if (ImGui::Button("Switch to Scene")) {
+            if (onSwitchScene) onSwitchScene(id);
+        }
+        ImGui::SameLine();
+    } else if (isActive) {
+        ImGui::BeginDisabled();
+        ImGui::Button("Switch to Scene");
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+    }
+
+    if (ImGui::Button("Save Manifest")) {
+        if (onSaveManifest) onSaveManifest();
+    }
 }
 
 // ============================================================================
@@ -86,9 +229,20 @@ void PropertiesPanel::renderEntityInspector(const std::string& id) {
     ImGui::TextDisabled("(%s)", type.c_str());
     ImGui::Separator();
 
-    // Position
+    // Position (editable)
     auto pos = entity->getPosition();
-    ImGui::Text("Position: %.2f, %.2f, %.2f", pos.x, pos.y, pos.z);
+    static float s_posEdit[3] = {0.0f, 0.0f, 0.0f};
+    static std::string s_lastPosId;
+    if (s_lastPosId != id) {
+        s_lastPosId  = id;
+        s_posEdit[0] = pos.x;
+        s_posEdit[1] = pos.y;
+        s_posEdit[2] = pos.z;
+    }
+    ImGui::InputFloat3("Position##entpos", s_posEdit, "%.2f");
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+        entity->setPosition(glm::vec3(s_posEdit[0], s_posEdit[1], s_posEdit[2]));
+    }
 
     // Rotation
     auto rot = entity->getRotation();
@@ -127,7 +281,9 @@ void PropertiesPanel::renderEntityInspector(const std::string& id) {
     auto* animChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity);
     if (animChar) {
         ImGui::Separator();
+        ImGui::PushID(id.c_str());
         renderAnimatedCharInspector(animChar);
+        ImGui::PopID();
     }
 }
 

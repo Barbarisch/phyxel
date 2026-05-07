@@ -38,6 +38,7 @@ public:
     void onSceneUnload(Phyxel::Core::EngineRuntime& engine, const std::string& sceneId) override;
     void onSceneLoad(Phyxel::Core::EngineRuntime& engine, const std::string& sceneId) override;
     void onSceneReady(Phyxel::Core::EngineRuntime& engine, const std::string& sceneId) override;
+    void onMenuSceneLoaded(Phyxel::Core::EngineRuntime& engine, const std::string& sceneId) override;
 
 private:
     void applySettings(Phyxel::Core::EngineRuntime& engine);

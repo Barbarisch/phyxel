@@ -9,6 +9,7 @@ namespace Phyxel {
     namespace UI {
         class WindowManager;
         class ImGuiRenderer;
+        class GameMenuRenderer;
     }
     namespace Input { class InputManager; }
     namespace Vulkan {
@@ -125,6 +126,7 @@ public:
     Graphics::CameraManager*    getCameraManager()          const;
     Core::LocationRegistry*     getLocationRegistry()       const;
     Core::SceneManager*         getSceneManager()           const;
+    UI::GameMenuRenderer*       getGameMenuRenderer()       const;
 
     /// Access the active configuration (read-only).
     const EngineConfig& getConfig() const { return config_; }
@@ -189,6 +191,9 @@ private:
 
     // Scene management
     std::unique_ptr<Core::SceneManager>      sceneManager_;
+
+    // Game menu renderer (for JSON-driven menu scenes in multi-scene games)
+    std::unique_ptr<UI::GameMenuRenderer>    gameMenuRenderer_;
 
     // Initialization orchestrator (kept alive for potential re-init)
     std::unique_ptr<WorldInitializer>        worldInitializer_;

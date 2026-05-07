@@ -11,6 +11,7 @@
 #include "ui/ImGuiRenderer.h"
 #include "ui/GameScreen.h"
 #include "ui/GameMenus.h"
+#include "ui/GameMenuRenderer.h"
 #include "utils/PerformanceProfiler.h"
 #include "utils/PerformanceMonitor.h"
 #include "utils/Logger.h"
@@ -151,6 +152,19 @@ void MinimalGame::onRender(Phyxel::Core::EngineRuntime& engine) {
     auto* window = engine.getWindowManager();
     if (window && window->isMinimized()) return;
 
+    // If a JSON-driven menu scene is active, delegate entirely to GameMenuRenderer
+    auto* gmr = engine.getGameMenuRenderer();
+    if (gmr && gmr->hasLayout()) {
+        auto* imgui = engine.getImGuiRenderer();
+        if (imgui) {
+            imgui->newFrame();
+            gmr->render(elapsed_);
+            imgui->endFrame();
+        }
+        if (renderCoordinator) renderCoordinator->render();
+        return;
+    }
+
     auto* imgui = engine.getImGuiRenderer();
     if (imgui) {
         imgui->newFrame();
@@ -276,6 +290,10 @@ void MinimalGame::onSceneLoad(Phyxel::Core::EngineRuntime& /*engine*/, const std
 
 void MinimalGame::onSceneReady(Phyxel::Core::EngineRuntime& /*engine*/, const std::string& sceneId) {
     LOG_INFO("MinimalGame", "Scene '{}' ready — start gameplay timers, ambient effects, etc.", sceneId);
+}
+
+void MinimalGame::onMenuSceneLoaded(Phyxel::Core::EngineRuntime& /*engine*/, const std::string& sceneId) {
+    LOG_INFO("MinimalGame", "Menu scene '{}' loaded — GameMenuRenderer is now active", sceneId);
 }
 
 void MinimalGame::applySettings(Phyxel::Core::EngineRuntime& engine) {

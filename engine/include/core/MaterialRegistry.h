@@ -69,10 +69,9 @@ struct MaterialDef {
  * associations, and atlas indices. Loaded from resources/materials.json.
  * Replaces the hardcoded TextureConstants namespace and MaterialManager.
  *
- * Materials are ordered alphabetically with two exceptions:
- * - placeholder is always ID 0
- * - grassdirt is always ID 1
- * This matches the existing atlas layout for backward compatibility.
+ * Materials are ordered as defined in materials.json.
+ * The first material (ID 0) is the fallback/error indicator (Default).
+ * "Grass" material is tracked via grassdirtMaterialID_ for terrain face-splitting.
  */
 class MaterialRegistry {
 public:

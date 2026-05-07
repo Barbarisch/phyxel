@@ -90,7 +90,7 @@ void Inventory::clear() {
 }
 
 bool Inventory::setSelectedSlot(int slot) {
-    if (slot < 0 || slot >= HOTBAR_SIZE) return false;
+    if (slot < 0 || slot >= static_cast<int>(m_slots.size())) return false;
     m_selectedSlot = slot;
     return true;
 }

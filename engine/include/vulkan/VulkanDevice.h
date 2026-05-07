@@ -6,6 +6,8 @@
 #include <vector>
 #include <optional>
 #include <algorithm>
+#include <string>
+#include <unordered_map>
 #include <glm/glm.hpp>
 
 namespace Phyxel {
@@ -175,7 +177,16 @@ public:
     bool uploadTextureAtlasPixels(const uint8_t* pixels, int width, int height);
     bool createTextureAtlasSampler();
     void updateDescriptorSetsWithTexture();
-    void cleanupTextureAtlas();    
+    void cleanupTextureAtlas();
+
+    /// Load a PNG from disk and register it as an ImGui texture.
+    /// Returns an ImTextureID (cast from VkDescriptorSet), or nullptr on failure.
+    /// Textures are cached by path; repeated calls return the same handle.
+    /// All ImGui textures are freed in cleanupImGuiTextures().
+    void* loadImGuiTexture(const std::string& path);
+
+    /// Free all textures loaded via loadImGuiTexture.
+    void cleanupImGuiTextures();    
     
     // Shadow map resources
     void setShadowMapResources(VkImageView imageView, VkSampler sampler) {
@@ -316,6 +327,16 @@ private:
     VkDeviceMemory textureAtlasImageMemory = VK_NULL_HANDLE;
     VkImageView textureAtlasImageView = VK_NULL_HANDLE;
     VkSampler textureAtlasSampler = VK_NULL_HANDLE;
+
+    // ImGui texture cache (for menu images, logos, etc.)
+    struct ImGuiTextureEntry {
+        VkImage image = VK_NULL_HANDLE;
+        VkDeviceMemory memory = VK_NULL_HANDLE;
+        VkImageView view = VK_NULL_HANDLE;
+        VkSampler sampler = VK_NULL_HANDLE;
+        VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+    };
+    std::unordered_map<std::string, ImGuiTextureEntry> imguiTextureCache_;
 
     // Shadow map resources
     VkImageView shadowMapImageView = VK_NULL_HANDLE;

@@ -3,12 +3,14 @@
 #include <imgui.h>
 #include <algorithm>
 #include <cstring>
+#include <cstdio>
 
 #include "core/EntityRegistry.h"
 #include "core/NPCManager.h"
 #include "core/PlacedObjectManager.h"
 #include "core/ObjectTemplateManager.h"
 #include "core/ChunkManager.h"
+#include "core/SceneManager.h"
 #include "scene/Entity.h"
 #include "scene/NPCEntity.h"
 #include "scene/NPCBehavior.h"
@@ -48,7 +50,11 @@ void WorldOutlinerPanel::render(bool* open) {
     // Global Delete key — removes whatever is selected
     if (!m_selectedId.empty() && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
         && ImGui::IsKeyPressed(ImGuiKey_Delete)) {
-        if (m_selectedId.rfind("npc:", 0) == 0 && onRemoveNPC) {
+        if (m_selectedId.rfind("scene:", 0) == 0) {
+            std::string sceneId = m_selectedId.substr(6);
+            if (onDeleteScene && onDeleteScene(sceneId))
+                m_selectedId.clear();
+        } else if (m_selectedId.rfind("npc:", 0) == 0 && onRemoveNPC) {
             onRemoveNPC(m_selectedId.substr(4));
             m_selectedId.clear();
         } else if (m_selectedId.rfind("po:", 0) == 0 && onRemovePlacedObject) {
@@ -60,6 +66,7 @@ void WorldOutlinerPanel::render(bool* open) {
         }
     }
 
+    renderScenesSection();
     renderEntitiesSection();
     renderNPCsSection();
     renderPlacedObjectsSection();
@@ -69,8 +76,196 @@ void WorldOutlinerPanel::render(bool* open) {
     renderAddEntityPopup();
     renderAddNPCPopup();
     renderAddTemplatePopup();
+    renderCreateScenePopup();
 
     ImGui::End();
+}
+
+// ---------------------------------------------------------------------------
+// Scenes
+// ---------------------------------------------------------------------------
+
+void WorldOutlinerPanel::renderScenesSection() {
+    // Build scene list — either from SceneManager or a single fallback entry
+    std::vector<std::string> sceneIds;
+    std::string activeId;
+    bool transitioning = false;
+    bool hasManager = (m_sceneManager != nullptr && m_sceneManager->hasManifest());
+
+    if (hasManager) {
+        sceneIds    = m_sceneManager->getSceneIds();
+        activeId    = m_sceneManager->getActiveSceneId();
+        transitioning = m_sceneManager->isTransitioning();
+    }
+
+    const bool singleFallback = sceneIds.empty();
+    if (singleFallback) {
+        sceneIds.push_back("default");
+        activeId = "default";
+    }
+
+    char header[64];
+    snprintf(header, sizeof(header), "Scenes (%zu)###Scenes", sceneIds.size());
+
+    bool headerOpen = ImGui::CollapsingHeader(header,
+        ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowOverlap);
+
+    // "+" button to create a new scene (only meaningful when we have a manager)
+    if (!singleFallback && onCreateScene) {
+        ImGui::SameLine(ImGui::GetContentRegionAvail().x + ImGui::GetCursorPosX() - 20);
+        if (ImGui::SmallButton("+###CreateScene")) {
+            m_createSceneName[0]    = '\0';
+            m_createSceneDb[0]      = '\0';
+            m_createSceneNameTouched = false;
+            ImGui::OpenPopup("CreateScenePopup");
+        }
+    }
+
+    if (!headerOpen) return;
+
+    for (const auto& id : sceneIds) {
+        bool isActive = (id == activeId);
+
+        // Compose display label
+        char itemLabel[256];
+        if (singleFallback) {
+            snprintf(itemLabel, sizeof(itemLabel), "Default World###scene_%s", id.c_str());
+        } else {
+            const auto* def = m_sceneManager->findScene(id);
+            const char* displayName = def ? def->name.c_str() : id.c_str();
+            if (isActive && transitioning) {
+                snprintf(itemLabel, sizeof(itemLabel), "%s  [loading...]###scene_%s",
+                         displayName, id.c_str());
+            } else {
+                snprintf(itemLabel, sizeof(itemLabel), "%s###scene_%s", displayName, id.c_str());
+            }
+        }
+
+        // Apply tint for active scene
+        bool pushedColor = false;
+        if (isActive) {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 0.9f, 0.4f, 1.0f)); // green
+            pushedColor = true;
+        }
+
+        bool selected = (m_selectedId == "scene:" + id);
+        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+        if (selected) flags |= ImGuiTreeNodeFlags_Selected;
+
+        ImGui::TreeNodeEx(itemLabel, flags);
+
+        if (pushedColor) ImGui::PopStyleColor();
+
+        // Single click → select (feeds Properties panel)
+        if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
+            m_selectedId = "scene:" + id;
+
+        // Double click → switch scene
+        if (!isActive && !transitioning && ImGui::IsItemHovered()
+            && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+            if (onSwitchScene) onSwitchScene(id);
+        }
+
+        // Right-click context menu — must be called on the TreeNodeEx item before
+        // any SameLine/TextDisabled that would zero out LastItemData.ID
+        char ctxId[128];
+        snprintf(ctxId, sizeof(ctxId), "scene_ctx_%s", id.c_str());
+        if (ImGui::BeginPopupContextItem(ctxId)) {
+            if (!isActive && !transitioning) {
+                if (ImGui::MenuItem("Switch to Scene")) {
+                    if (onSwitchScene) onSwitchScene(id);
+                }
+            } else if (isActive) {
+                ImGui::TextDisabled("(active scene)");
+            }
+
+            if (singleFallback) {
+                ImGui::Separator();
+                if (ImGui::MenuItem("Convert to Multi-Scene Project")) {
+                    if (onConvertToMultiScene) onConvertToMultiScene();
+                }
+            } else {
+                ImGui::Separator();
+                bool canDelete = !isActive;
+                if (!canDelete) ImGui::BeginDisabled();
+                if (ImGui::MenuItem("Delete Scene")) {
+                    if (onDeleteScene && onDeleteScene(id)) {
+                        if (m_selectedId == "scene:" + id) m_selectedId.clear();
+                    }
+                }
+                if (!canDelete) ImGui::EndDisabled();
+            }
+            ImGui::EndPopup();
+        }
+
+        // Draw "[active]" badge inline after the node (after popup check)
+        if (isActive) {
+            ImGui::SameLine();
+            ImGui::TextDisabled("[active]");
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Create Scene popup modal
+// ---------------------------------------------------------------------------
+
+void WorldOutlinerPanel::renderCreateScenePopup() {
+    if (!ImGui::BeginPopup("CreateScenePopup")) return;
+
+    ImGui::Text("Create New Scene");
+    ImGui::Separator();
+
+    // Scene type picker
+    static const char* sceneTypeLabels[] = { "World", "Menu", "Cutscene" };
+    ImGui::Text("Type");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(120.0f);
+    ImGui::Combo("##cs_type", &m_createSceneType, sceneTypeLabels, 3);
+
+    // Name field
+    bool nameChanged = ImGui::InputText("Name##csname", m_createSceneName, sizeof(m_createSceneName));
+    if (nameChanged) {
+        m_createSceneNameTouched = true;
+        // Auto-generate DB filename from name if user hasn't edited it yet (World scenes only)
+        if (m_createSceneType == 0 && (!m_createSceneNameTouched || m_createSceneDb[0] == '\0')) {
+            std::string sanitised = m_createSceneName;
+            for (char& c : sanitised) {
+                if (!std::isalnum(c) && c != '_') c = '_';
+            }
+            std::transform(sanitised.begin(), sanitised.end(), sanitised.begin(), ::tolower);
+            if (!sanitised.empty())
+                snprintf(m_createSceneDb, sizeof(m_createSceneDb), "%s.db", sanitised.c_str());
+        }
+    }
+
+    // DB file field only for World scenes
+    if (m_createSceneType == 0) {
+        ImGui::InputText("DB File##csdb", m_createSceneDb, sizeof(m_createSceneDb));
+        ImGui::TextDisabled("  (relative to worlds/ directory)");
+    } else {
+        ImGui::TextDisabled("  No world database needed for %s scenes",
+                            sceneTypeLabels[m_createSceneType]);
+    }
+
+    ImGui::Spacing();
+    bool canCreate = (m_createSceneName[0] != '\0') &&
+                     (m_createSceneType != 0 || m_createSceneDb[0] != '\0');
+    if (!canCreate) ImGui::BeginDisabled();
+    if (ImGui::Button("Create", ImVec2(120, 0))) {
+        if (onCreateScene) {
+            std::string dbPath = (m_createSceneType == 0) ? m_createSceneDb : "";
+            std::string newId = onCreateScene(m_createSceneName, dbPath, m_createSceneType);
+            if (!newId.empty()) m_selectedId = "scene:" + newId;
+        }
+        ImGui::CloseCurrentPopup();
+    }
+    if (!canCreate) ImGui::EndDisabled();
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel", ImVec2(120, 0)))
+        ImGui::CloseCurrentPopup();
+
+    ImGui::EndPopup();
 }
 
 // ---------------------------------------------------------------------------
@@ -361,6 +556,14 @@ void WorldOutlinerPanel::renderChunksSection() {
 
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
         ImGui::TreeNodeEx(chunkLabel, flags);
+
+        if (ImGui::BeginPopupContextItem(chunkLabel)) {
+            if (ImGui::MenuItem("Delete Chunk")) {
+                glm::ivec3 chunkCoord = info.origin / 32;
+                if (onDeleteChunk) onDeleteChunk(chunkCoord);
+            }
+            ImGui::EndPopup();
+        }
     }
 }
 

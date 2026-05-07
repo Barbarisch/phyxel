@@ -195,7 +195,7 @@ void MaterialRegistry::rebuildLookupCache() {
 
         if (mat.name == "Default")     defaultMaterialID_ = mat.materialID;
         if (mat.name == "hover")       hoverMaterialID_ = mat.materialID;
-        if (mat.name == "grassdirt")   grassdirtMaterialID_ = mat.materialID;
+        if (mat.name == "grassdirt" || mat.name == "Grass") grassdirtMaterialID_ = mat.materialID;
         if (mat.name == "placeholder") placeholderIndex_ = mat.atlasIndices[5]; // bottom face
     }
 }

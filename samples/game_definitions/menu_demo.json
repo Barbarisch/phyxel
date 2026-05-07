@@ -1,0 +1,269 @@
+{
+  "name": "Menu Demo",
+  "description": "Demonstrates a professional starting menu flowing into a game world.",
+  "version": "1.0",
+
+  "startScene": "main_menu",
+
+  "playerDefaults": {
+    "type": "animated",
+    "anim": "resources/animated_characters/character_female.anim",
+    "position": { "x": 16, "y": 20, "z": 16 }
+  },
+
+  "scenes": [
+    {
+      "id": "main_menu",
+      "name": "Main Menu",
+      "sceneType": "menu",
+      "transitionStyle": "fade",
+      "menuLayout": {
+        "background_type": "solid",
+        "background_color": [0.04, 0.04, 0.10, 1.0],
+
+        "fonts": [
+          {
+            "id": "title",
+            "file": "resources/fonts/JetBrainsMonoNerdFontMono-Regular.ttf",
+            "size": 52.0
+          },
+          {
+            "id": "subtitle",
+            "file": "resources/fonts/JetBrainsMonoNerdFontMono-Regular.ttf",
+            "size": 22.0
+          },
+          {
+            "id": "body",
+            "file": "resources/fonts/JetBrainsMonoNerdFontMono-Regular.ttf",
+            "size": 18.0
+          }
+        ],
+
+        "start_panel": "main",
+
+        "panels": {
+          "main": {
+            "children": [
+              {
+                "type": "label",
+                "id": "game_title",
+                "text": "PHYXEL DEMO",
+                "font": "title",
+                "position": [640, 110],
+                "size": [520, 70],
+                "text_color": [1.0, 0.85, 0.3, 1.0],
+                "animation": "fade_in",
+                "animation_delay": 0.0,
+                "animation_duration": 0.6
+              },
+              {
+                "type": "label",
+                "id": "game_subtitle",
+                "text": "A Voxel Adventure",
+                "font": "subtitle",
+                "position": [640, 178],
+                "size": [400, 32],
+                "text_color": [0.7, 0.7, 0.9, 1.0],
+                "animation": "fade_in",
+                "animation_delay": 0.2,
+                "animation_duration": 0.6
+              },
+              {
+                "type": "button",
+                "id": "btn_new_game",
+                "text": "New Game",
+                "font": "body",
+                "position": [540, 290],
+                "size": [200, 48],
+                "color": [0.12, 0.12, 0.22, 1.0],
+                "color_hover": [0.22, 0.22, 0.40, 1.0],
+                "text_color": [0.95, 0.95, 1.0, 1.0],
+                "action": { "type": "transition_scene", "target": "game_world" },
+                "animation": "slide_in_left",
+                "animation_delay": 0.35,
+                "animation_duration": 0.45
+              },
+              {
+                "type": "button",
+                "id": "btn_options",
+                "text": "Options",
+                "font": "body",
+                "position": [540, 350],
+                "size": [200, 48],
+                "color": [0.12, 0.12, 0.22, 1.0],
+                "color_hover": [0.22, 0.22, 0.40, 1.0],
+                "text_color": [0.95, 0.95, 1.0, 1.0],
+                "action": { "type": "open_submenu", "target": "options" },
+                "animation": "slide_in_left",
+                "animation_delay": 0.45,
+                "animation_duration": 0.45
+              },
+              {
+                "type": "button",
+                "id": "btn_credits",
+                "text": "Credits",
+                "font": "body",
+                "position": [540, 410],
+                "size": [200, 48],
+                "color": [0.12, 0.12, 0.22, 1.0],
+                "color_hover": [0.22, 0.22, 0.40, 1.0],
+                "text_color": [0.95, 0.95, 1.0, 1.0],
+                "action": { "type": "open_submenu", "target": "credits" },
+                "animation": "slide_in_left",
+                "animation_delay": 0.55,
+                "animation_duration": 0.45
+              },
+              {
+                "type": "button",
+                "id": "btn_quit",
+                "text": "Quit",
+                "font": "body",
+                "position": [540, 470],
+                "size": [200, 48],
+                "color": [0.18, 0.08, 0.08, 1.0],
+                "color_hover": [0.35, 0.12, 0.12, 1.0],
+                "text_color": [1.0, 0.7, 0.7, 1.0],
+                "action": { "type": "quit_game" },
+                "animation": "slide_in_left",
+                "animation_delay": 0.65,
+                "animation_duration": 0.45
+              },
+              {
+                "type": "label",
+                "id": "version_label",
+                "text": "v0.1.0 — Early Access",
+                "font": "body",
+                "position": [640, 680],
+                "size": [320, 24],
+                "text_color": [0.4, 0.4, 0.55, 1.0],
+                "animation": "fade_in",
+                "animation_delay": 0.8,
+                "animation_duration": 0.5
+              }
+            ]
+          },
+
+          "options": {
+            "children": [
+              {
+                "type": "label",
+                "id": "opts_title",
+                "text": "OPTIONS",
+                "font": "title",
+                "position": [640, 110],
+                "size": [400, 70],
+                "text_color": [1.0, 0.85, 0.3, 1.0],
+                "animation": "fade_in",
+                "animation_delay": 0.0
+              },
+              {
+                "type": "label",
+                "id": "opts_placeholder",
+                "text": "No configurable options yet.",
+                "font": "body",
+                "position": [640, 300],
+                "size": [400, 30],
+                "text_color": [0.6, 0.6, 0.7, 1.0],
+                "animation": "fade_in",
+                "animation_delay": 0.1
+              },
+              {
+                "type": "button",
+                "id": "opts_back",
+                "text": "< Back",
+                "font": "body",
+                "position": [540, 420],
+                "size": [200, 48],
+                "color": [0.12, 0.12, 0.22, 1.0],
+                "color_hover": [0.22, 0.22, 0.40, 1.0],
+                "text_color": [0.95, 0.95, 1.0, 1.0],
+                "action": { "type": "close_submenu" },
+                "animation": "slide_in_left",
+                "animation_delay": 0.15
+              }
+            ]
+          },
+
+          "credits": {
+            "children": [
+              {
+                "type": "label",
+                "id": "cred_title",
+                "text": "CREDITS",
+                "font": "title",
+                "position": [640, 110],
+                "size": [400, 70],
+                "text_color": [1.0, 0.85, 0.3, 1.0],
+                "animation": "fade_in",
+                "animation_delay": 0.0
+              },
+              {
+                "type": "label",
+                "id": "cred_engine",
+                "text": "Engine: Phyxel",
+                "font": "subtitle",
+                "position": [640, 240],
+                "size": [400, 32],
+                "text_color": [0.8, 0.8, 0.95, 1.0],
+                "animation": "fade_in",
+                "animation_delay": 0.1
+              },
+              {
+                "type": "label",
+                "id": "cred_tech",
+                "text": "Vulkan • Bullet Physics • ImGui",
+                "font": "body",
+                "position": [640, 282],
+                "size": [420, 28],
+                "text_color": [0.6, 0.6, 0.75, 1.0],
+                "animation": "fade_in",
+                "animation_delay": 0.15
+              },
+              {
+                "type": "button",
+                "id": "cred_back",
+                "text": "< Back",
+                "font": "body",
+                "position": [540, 420],
+                "size": [200, 48],
+                "color": [0.12, 0.12, 0.22, 1.0],
+                "color_hover": [0.22, 0.22, 0.40, 1.0],
+                "text_color": [0.95, 0.95, 1.0, 1.0],
+                "action": { "type": "close_submenu" },
+                "animation": "slide_in_left",
+                "animation_delay": 0.2
+              }
+            ]
+          }
+        }
+      }
+    },
+
+    {
+      "id": "game_world",
+      "name": "Game World",
+      "sceneType": "world",
+      "worldDatabase": "worlds/menu_demo.db",
+      "transitionStyle": "fade",
+      "definition": {
+        "world": {
+          "type": "Perlin",
+          "seed": 12345,
+          "from": { "x": -1, "y": 0, "z": -1 },
+          "to":   { "x": 1,  "y": 0, "z": 1  },
+          "params": {
+            "heightScale": 6.0,
+            "frequency": 0.05,
+            "octaves": 4,
+            "persistence": 0.45
+          }
+        },
+        "camera": {
+          "position": { "x": 30, "y": 35, "z": 30 },
+          "yaw": -135,
+          "pitch": -25
+        }
+      }
+    }
+  ]
+}

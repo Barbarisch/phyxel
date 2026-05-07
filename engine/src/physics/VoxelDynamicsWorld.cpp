@@ -356,8 +356,13 @@ void VoxelDynamicsWorld::updateSleepState(float dt) {
 // ---- Queries ----------------------------------------------------------------
 
 float VoxelDynamicsWorld::findGroundY(const glm::vec3& feetPos, float halfWidth, float maxSearchDown) const {
+    // Subtract a tiny epsilon so the Y upper bound is exclusive: a voxel whose
+    // bottom face sits exactly at feetPos.y (i.e. a wall beside the character)
+    // is not treated as ground.  Without this, floor(feetPos.y) includes the
+    // cell starting AT feetPos.y, causing upward snap ghosts when the character
+    // stands adjacent to a wall whose base equals the current surface height.
     glm::vec3 queryMin(feetPos.x - halfWidth, feetPos.y - maxSearchDown, feetPos.z - halfWidth);
-    glm::vec3 queryMax(feetPos.x + halfWidth, feetPos.y,                  feetPos.z + halfWidth);
+    glm::vec3 queryMax(feetPos.x + halfWidth, feetPos.y - 1e-4f,         feetPos.z + halfWidth);
 
     float best = -std::numeric_limits<float>::max();
     bool  found = false;

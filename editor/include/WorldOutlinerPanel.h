@@ -5,6 +5,7 @@
 #include <functional>
 #include <glm/glm.hpp>
 #include "core/PlacedObjectManager.h"
+#include "core/SceneManager.h"
 
 namespace Phyxel {
     class ChunkManager;
@@ -30,6 +31,19 @@ public:
     void setPlacedObjectManager(Core::PlacedObjectManager* p){ m_placedObjects = p; }
     void setChunkManager(ChunkManager* cm)                    { m_chunkManager = cm; }
     void setObjectTemplateManager(ObjectTemplateManager* tm)  { m_templateManager = tm; }
+    void setSceneManager(Core::SceneManager* sm)               { m_sceneManager = sm; }
+
+    // --- Scene mutation callbacks (set by Application) ---
+    // Switch to a scene by ID. Returns true on success.
+    std::function<bool(const std::string& id)> onSwitchScene;
+    // Create a new blank scene. Returns the new scene ID or empty on failure.
+    std::function<std::string(const std::string& name, const std::string& dbPath, int sceneType)> onCreateScene;
+    // Delete a scene by ID. Returns true on success.
+    std::function<bool(const std::string& id)> onDeleteScene;
+    // Save the scene manifest to game.json.
+    std::function<void()> onSaveManifest;
+    // Convert a single-DB session to a multi-scene project.
+    std::function<void()> onConvertToMultiScene;
 
     // --- Mutation callbacks (set by Application) ---
     // Remove entity by ID. Returns true on success.
@@ -42,6 +56,8 @@ public:
     std::function<bool(const std::string& name, const glm::vec3& pos, const std::string& behavior)> onSpawnNPC;
     // Remove placed object by ID.
     std::function<bool(const std::string& id)> onRemovePlacedObject;
+    // Delete a chunk by chunk coordinate (chunkOrigin / 32).
+    std::function<void(const glm::ivec3& chunkCoord)> onDeleteChunk;
     // Spawn template: templateName, position, rotation. Returns object ID or empty.
     std::function<std::string(const std::string& name, const glm::ivec3& pos, int rotation)> onSpawnTemplate;
 
@@ -52,6 +68,7 @@ public:
     const std::string& selectedId() const { return m_selectedId; }
 
 private:
+    void renderScenesSection();
     void renderEntitiesSection();
     void renderNPCsSection();
     void renderPlacedObjectsSection();
@@ -62,12 +79,14 @@ private:
     void renderAddEntityPopup();
     void renderAddNPCPopup();
     void renderAddTemplatePopup();
+    void renderCreateScenePopup();
 
     Core::EntityRegistry*      m_entityRegistry  = nullptr;
     Core::NPCManager*          m_npcManager      = nullptr;
     Core::PlacedObjectManager* m_placedObjects    = nullptr;
     ChunkManager*              m_chunkManager     = nullptr;
     ObjectTemplateManager*     m_templateManager  = nullptr;
+    Core::SceneManager*        m_sceneManager     = nullptr;
 
     std::string m_selectedId;       // currently selected item ID
     std::string m_filterText;       // search filter
@@ -86,6 +105,12 @@ private:
     int   m_addTemplateIdx = 0;
     float m_addTemplatePos[3]{0, 16, 0};
     int   m_addTemplateRot = 0;
+
+    // Create-scene popup state
+    char  m_createSceneName[128]{};
+    char  m_createSceneDb[256]{};
+    bool  m_createSceneNameTouched = false; // true once user edits name
+    int   m_createSceneType        = 0;    // 0=World, 1=Menu, 2=Cutscene
 };
 
 } // namespace Phyxel::Editor

@@ -91,6 +91,23 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         return w;
     }
 
+    if (type == "image") {
+        auto w = std::make_unique<UIImage>();
+        w->id = j.value("id", "");
+        w->imagePath = j.value("image", j.value("imagePath", ""));
+        w->visible = j.value("visible", true);
+        w->enabled = j.value("enabled", true);
+        if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
+            w->size = {j["size"][0].get<float>(), j["size"][1].get<float>()};
+        }
+        if (j.contains("tint") && j["tint"].is_array() && j["tint"].size() >= 4) {
+            auto& t = j["tint"];
+            w->tintColor = {t[0].get<float>(), t[1].get<float>(),
+                            t[2].get<float>(), t[3].get<float>()};
+        }
+        return w;
+    }
+
     if (type == "panel") {
         auto w = std::make_unique<UIPanel>();
         w->id = j.value("id", "");

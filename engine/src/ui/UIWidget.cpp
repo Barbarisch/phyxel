@@ -352,5 +352,17 @@ bool UIDropdown::handleClick(glm::vec2 mousePos, glm::vec2 widgetPos, const UITh
     return false;
 }
 
+// ════════════════════════════════════════════════════════════════
+// UIImage
+// ════════════════════════════════════════════════════════════════
+
+void UIImage::render(UIRenderer* renderer, const BitmapFont* /*font*/,
+                     const UITheme& /*theme*/, glm::vec2 pos) {
+    if (!visible) return;
+    // The UIRenderer Vulkan path doesn't support arbitrary PNG textures yet;
+    // render a tinted placeholder rect so the layout is visible in the editor.
+    renderer->drawRect(pos, size, tintColor);
+}
+
 } // namespace UI
 } // namespace Phyxel

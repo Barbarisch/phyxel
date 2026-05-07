@@ -57,6 +57,10 @@ struct SceneCallbacks {
 
     /// Called when a scene transition completes (for GameCallbacks notification).
     std::function<void(const std::string& sceneId)> onSceneReady;
+
+    /// Called when a Menu-type scene has been activated.
+    /// The host uses this to build and show the menu UI from the scene's menuLayout.
+    std::function<void(const SceneDefinition& scene)> onMenuSceneLoaded;
 };
 
 /// Result of a scene transition attempt.

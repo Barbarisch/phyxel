@@ -252,6 +252,7 @@ void ChunkPhysicsManager::createMicrocubeCollisionShape(const glm::ivec3& cubePo
     m_occupancyGrid.setSubcube(cubePos, subcubePos, true);
     m_occupancyGrid.markSubcubeSubdivided(cubePos, subcubePos, true);
     m_occupancyGrid.setMicrocube(cubePos, subcubePos, mLocalPos, true);
+
 }
 
 } // namespace Physics

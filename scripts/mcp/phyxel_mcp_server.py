@@ -732,20 +732,55 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="add_scene",
-            description="Add a new scene definition to the manifest at runtime. Provide at minimum an 'id' and optionally name, worldDatabase, world generation config, structures, NPCs, etc.",
+            description="Add a new scene definition to the manifest at runtime. Use sceneType='menu' for 2D menu scenes (no world DB needed), 'world' for voxel world scenes, 'cutscene' for non-interactive cinematics.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "id": {"type": "string", "description": "Unique scene identifier"},
                     "name": {"type": "string", "description": "Display name for the scene"},
-                    "worldDatabase": {"type": "string", "description": "SQLite database filename (e.g. 'dungeon.db')"},
-                    "world": {"type": "object", "description": "World generation config (type, seed, etc.)"},
+                    "sceneType": {"type": "string", "enum": ["world", "menu", "cutscene"], "description": "Type of scene (default: world)"},
+                    "worldDatabase": {"type": "string", "description": "SQLite database filename (e.g. 'dungeon.db') — world scenes only"},
+                    "menuLayout": {"type": "object", "description": "Menu layout JSON for menu-type scenes (title, anchor, size, children array)"},
+                    "world": {"type": "object", "description": "World generation config (type, seed, etc.) — world scenes only"},
                     "structures": {"type": "array", "description": "Structure definitions to build"},
                     "npcs": {"type": "array", "description": "NPC definitions to spawn"},
                     "camera": {"type": "object", "description": "Camera position/orientation"},
-                    "player": {"type": "object", "description": "Player spawn config"}
+                    "player": {"type": "object", "description": "Player spawn config"},
+                    "transitionStyle": {"type": "string", "enum": ["cut", "fade", "loading_screen"], "description": "Transition animation style"},
+                    "onEnterScript": {"type": "string", "description": "Python script path to run when entering this scene"},
+                    "onExitScript": {"type": "string", "description": "Python script path to run when leaving this scene"}
                 },
                 "required": ["id"]
+            }
+        ),
+        Tool(
+            name="get_scene",
+            description="Get the full definition of a specific scene by ID, including menuLayout for menu scenes.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "scene_id": {"type": "string", "description": "ID of the scene to retrieve"}
+                },
+                "required": ["scene_id"]
+            }
+        ),
+        Tool(
+            name="update_scene",
+            description="Update fields of an existing scene definition. Use this to rename a scene, change its type, set a menu layout, update scripts, or change its world database. Only provided fields are changed.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "scene_id": {"type": "string", "description": "ID of the scene to update"},
+                    "name": {"type": "string", "description": "New display name"},
+                    "description": {"type": "string", "description": "Scene description"},
+                    "sceneType": {"type": "string", "enum": ["world", "menu", "cutscene"], "description": "Change the scene type"},
+                    "worldDatabase": {"type": "string", "description": "SQLite DB filename (world scenes)"},
+                    "menuLayout": {"type": "object", "description": "Full menu layout JSON replacing any existing layout"},
+                    "onEnterScript": {"type": "string", "description": "Python script path to run on scene enter"},
+                    "onExitScript": {"type": "string", "description": "Python script path to run on scene exit"},
+                    "transitionStyle": {"type": "string", "enum": ["cut", "fade", "loading_screen"]}
+                },
+                "required": ["scene_id"]
             }
         ),
         Tool(
@@ -772,8 +807,79 @@ async def list_tools() -> list[Tool]:
         ),
 
         # ================================================================
-        # Event Polling
+        # Game Menu Element Control
         # ================================================================
+        Tool(
+            name="get_menu_element",
+            description="Get the JSON definition of a named element in the currently-active menu scene layout. Returns the element's type, position, size, text, color, and action.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Element ID to retrieve"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="set_menu_element",
+            description="Override properties of a named element in the active game menu. You can change visibility, text, and background color. Changes are applied immediately on the next rendered frame.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Element ID to modify"},
+                    "visible": {"type": "boolean", "description": "Show or hide the element"},
+                    "text": {"type": "string", "description": "New text for labels or buttons"},
+                    "color": {
+                        "type": "array", "items": {"type": "number"},
+                        "description": "RGBA background color [r, g, b, a] in 0..1 range",
+                        "minItems": 4, "maxItems": 4
+                    }
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="add_menu_element",
+            description="Add a new element (button, label, image, panel) to a panel in the active game menu layout.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "element": {
+                        "type": "object",
+                        "description": "Element definition. Required: type (button/label/image/panel), id, position [x,y], size [w,h]. Optional: text, font, text_color, color, color_hover, image, tint, animation, animation_delay, action {type, target}."
+                    },
+                    "panel_id": {"type": "string", "description": "Panel key to add into (e.g. 'main', 'options'). Defaults to the current panel."}
+                },
+                "required": ["element"]
+            }
+        ),
+        Tool(
+            name="remove_menu_element",
+            description="Remove a named element from the active game menu layout.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Element ID to remove"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="open_menu_submenu",
+            description="Push a named panel onto the menu navigation stack, showing it as the active submenu. Animations reset.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "panel_id": {"type": "string", "description": "Key of the panel in the layout's 'panels' object to show"}
+                },
+                "required": ["panel_id"]
+            }
+        ),
+        Tool(
+            name="close_menu_submenu",
+            description="Pop the current submenu from the navigation stack, returning to the previous panel.",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
         Tool(
             name="poll_events",
             description="Poll game events since a cursor. Returns entity spawned/removed/moved/updated, voxel placed/removed, region filled/cleared, and world save events. Pass the 'cursor' value from the previous response to get only new events. Start with cursor=0 to get all buffered events (up to 1000).",
@@ -1592,16 +1698,15 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="load_game_definition",
             description=(
-                "Load a complete game from a single JSON definition. This is the primary tool for AI-driven "
-                "game creation. Provide a game definition with world generation, structures, player, NPCs "
-                "(with dialogue and story roles), camera setup, and story arcs — all in one call. "
-                "Sections: name, description, version, world, structures, player, camera, npcs, story. "
-                "All sections are optional. Example: {\"name\": \"My Game\", \"world\": {\"type\": \"Perlin\", "
-                "\"from\": {\"x\":-1,\"y\":0,\"z\":-1}, \"to\": {\"x\":1,\"y\":0,\"z\":1}}, "
-                "\"player\": {\"type\": \"physics\", \"position\": {\"x\":16,\"y\":20,\"z\":16}}, "
-                "\"npcs\": [{\"name\": \"Guard\", \"position\": {\"x\":10,\"y\":20,\"z\":10}, "
-                "\"dialogue\": {\"id\":\"talk\", \"startNodeId\":\"start\", "
-                "\"nodes\": [{\"id\":\"start\",\"speaker\":\"Guard\",\"text\":\"Hello!\"}]}}]}"
+                "Load a complete game from a JSON definition. Supports two formats:\n\n"
+                "SINGLE-SCENE: Provide world, structures, player, npcs, camera, story keys directly. "
+                "Immediately generates and populates the world.\n\n"
+                "MULTI-SCENE: Provide a 'scenes' array. Each scene has: id, name, sceneType "
+                "(world|menu|cutscene), worldDatabase, menuLayout (for menu scenes), and a definition "
+                "object (same format as single-scene). The engine loads the scene manifest and transitions "
+                "to the startScene (or first scene). Menu-type scenes display the GameMenuRenderer. "
+                "Use transition_scene to move between scenes. "
+                "See samples/game_definitions/menu_demo.json for a complete example."
             ),
             inputSchema={
                 "type": "object",
@@ -3507,6 +3612,12 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     elif name == "add_scene":
         return await api_post("/api/scene/add", args)
 
+    elif name == "get_scene":
+        return await api_get(f"/api/scene/{args['scene_id']}")
+
+    elif name == "update_scene":
+        return await api_post("/api/scene/update", args)
+
     elif name == "remove_scene":
         return await api_post("/api/scene/remove", {
             "scene_id": args["scene_id"]
@@ -3517,6 +3628,25 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         if "path" in args:
             body["path"] = args["path"]
         return await api_post("/api/scene/manifest/save", body)
+
+    # --- Game Menu Element Control ---
+    elif name == "get_menu_element":
+        return await api_get(f"/api/menu/element/{args['id']}")
+
+    elif name == "set_menu_element":
+        return await api_post("/api/menu/element/set", args)
+
+    elif name == "add_menu_element":
+        return await api_post("/api/menu/element/add", args)
+
+    elif name == "remove_menu_element":
+        return await api_post("/api/menu/element/remove", args)
+
+    elif name == "open_menu_submenu":
+        return await api_post("/api/menu/submenu/open", args)
+
+    elif name == "close_menu_submenu":
+        return await api_post("/api/menu/submenu/close", {})
 
     # --- Event Polling ---
     elif name == "poll_events":

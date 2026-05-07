@@ -212,6 +212,47 @@ bool AtlasManager::hotReload(Vulkan::VulkanDevice* device) {
     return true;
 }
 
+bool AtlasManager::reloadMaterial(const std::string& materialName, Vulkan::VulkanDevice* device) {
+    auto& registry = MaterialRegistry::instance();
+    int matID = registry.getMaterialID(materialName);
+    if (matID < 0) {
+        LOG_WARN("AtlasManager", "reloadMaterial: unknown material '{}'", materialName);
+        return false;
+    }
+
+    const auto* mat = registry.getMaterial(materialName);
+    if (!mat) return false;
+
+    const std::string faceFiles[6] = {
+        mat->textures.sideN(), mat->textures.sideS(),
+        mat->textures.sideE(), mat->textures.sideW(),
+        mat->textures.top(),   mat->textures.bottom()
+    };
+
+    for (int faceID = 0; faceID < 6; faceID++) {
+        uint16_t atlasIdx = registry.getTextureIndex(matID, faceID);
+        if (atlasIdx == MaterialRegistry::INVALID_TEXTURE_INDEX) continue;
+
+        std::string path = sourceDirectory_ + "/" + faceFiles[faceID];
+        auto pixels = loadPNG(path);
+        if (pixels.empty()) {
+            LOG_WARN("AtlasManager", "reloadMaterial: missing PNG '{}', using fallback", path);
+            pixels = generateFallbackTexture(atlasIdx);
+        }
+        blitToAtlas(atlasIdx, pixels.data());
+    }
+
+    if (device) {
+        if (!uploadToGPU(device)) {
+            LOG_ERROR("AtlasManager", "reloadMaterial: GPU upload failed for '{}'", materialName);
+            return false;
+        }
+    }
+
+    LOG_INFO("AtlasManager", "Reloaded material '{}' ({} faces)", materialName, 6);
+    return true;
+}
+
 bool AtlasManager::saveAtlasPNG(const std::string& path) const {
     if (atlasInfo_.pixels.empty()) return false;
     int result = stbi_write_png(path.c_str(),

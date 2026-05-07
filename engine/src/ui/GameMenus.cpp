@@ -28,15 +28,25 @@ static const ImVec4 kColorOverlayBg = ImVec4(0.0f, 0.0f, 0.0f, 0.60f);
 
 // Material name → display color (approximate tint from CLAUDE.md material table)
 static ImVec4 getMaterialColor(const std::string& mat) {
-    if (mat == "Wood")    return ImVec4(0.80f, 0.60f, 0.30f, 1.0f);
-    if (mat == "Metal")   return ImVec4(0.70f, 0.70f, 0.80f, 1.0f);
-    if (mat == "Glass")   return ImVec4(0.90f, 0.95f, 1.00f, 1.0f);
-    if (mat == "Rubber")  return ImVec4(0.30f, 0.30f, 0.30f, 1.0f);
-    if (mat == "Stone")   return ImVec4(0.60f, 0.50f, 0.40f, 1.0f);
-    if (mat == "Ice")     return ImVec4(0.80f, 0.90f, 1.00f, 1.0f);
-    if (mat == "Cork")    return ImVec4(0.80f, 0.70f, 0.50f, 1.0f);
-    if (mat == "glow")    return ImVec4(1.00f, 1.00f, 0.80f, 1.0f);
-    return ImVec4(0.90f, 0.90f, 0.90f, 1.0f); // Default
+    if (mat == "Default")      return ImVec4(1.00f, 0.00f, 1.00f, 1.0f); // magenta = error
+    if (mat == "Dirt")         return ImVec4(0.47f, 0.33f, 0.22f, 1.0f);
+    if (mat == "Grass")        return ImVec4(0.35f, 0.55f, 0.20f, 1.0f);
+    if (mat == "Stone")        return ImVec4(0.60f, 0.50f, 0.40f, 1.0f);
+    if (mat == "Cobblestone")  return ImVec4(0.55f, 0.52f, 0.50f, 1.0f);
+    if (mat == "StoneBricks")  return ImVec4(0.50f, 0.48f, 0.45f, 1.0f);
+    if (mat == "Sand")         return ImVec4(0.90f, 0.85f, 0.65f, 1.0f);
+    if (mat == "Gravel")       return ImVec4(0.55f, 0.53f, 0.50f, 1.0f);
+    if (mat == "Wood")         return ImVec4(0.80f, 0.60f, 0.30f, 1.0f);
+    if (mat == "Log")          return ImVec4(0.55f, 0.38f, 0.18f, 1.0f);
+    if (mat == "Bricks")       return ImVec4(0.70f, 0.35f, 0.25f, 1.0f);
+    if (mat == "Sandstone")    return ImVec4(0.85f, 0.78f, 0.60f, 1.0f);
+    if (mat == "Glass")        return ImVec4(0.90f, 0.95f, 1.00f, 1.0f);
+    if (mat == "Metal")        return ImVec4(0.70f, 0.70f, 0.80f, 1.0f);
+    if (mat == "Gold")         return ImVec4(1.00f, 0.85f, 0.10f, 1.0f);
+    if (mat == "Ice")          return ImVec4(0.80f, 0.90f, 1.00f, 1.0f);
+    if (mat == "Leaf")         return ImVec4(0.20f, 0.55f, 0.15f, 1.0f);
+    if (mat == "glow")         return ImVec4(1.00f, 1.00f, 0.80f, 1.0f);
+    return ImVec4(0.90f, 0.90f, 0.90f, 1.0f); // unknown
 }
 
 // Helper: styled centered button

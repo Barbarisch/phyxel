@@ -7,6 +7,7 @@
 #include "core/SceneManager.h"
 #include "ui/WindowManager.h"
 #include "ui/ImGuiRenderer.h"
+#include "ui/GameMenuRenderer.h"
 #include "input/InputManager.h"
 #include "vulkan/VulkanDevice.h"
 #include "vulkan/RenderPipeline.h"
@@ -114,6 +115,13 @@ bool EngineRuntime::initialize(const EngineConfig& config) {
     sceneManager_ = std::make_unique<Core::SceneManager>();
     sceneManager_->setWorldsDir(config_.worldsDir);
 
+    // Game menu renderer — activated when a Menu-type scene is loaded
+    gameMenuRenderer_ = std::make_unique<UI::GameMenuRenderer>();
+    gameMenuRenderer_->onTransitionScene = [this](const std::string& sceneId) {
+        if (sceneManager_) sceneManager_->transitionTo(sceneId);
+    };
+    gameMenuRenderer_->onQuit = [this]() { quit(); };
+
     // Sync InputManager with Camera state
     inputManager_->setCameraPosition(camera_->getPosition());
     inputManager_->setYawPitch(camera_->getYaw(), camera_->getPitch());
@@ -128,6 +136,27 @@ void EngineRuntime::run(GameCallbacks& game) {
     if (!initialized_) {
         LOG_ERROR("EngineRuntime", "Cannot run — not initialized");
         return;
+    }
+
+    // Wire scene-lifecycle callbacks so GameMenuRenderer activates on menu scenes
+    // and GameCallbacks gets notified of scene transitions.
+    if (sceneManager_) {
+        Core::SceneCallbacks cbs;
+        cbs.onMenuSceneLoaded = [this, &game](const Core::SceneDefinition& sceneDef) {
+            if (gameMenuRenderer_ && !sceneDef.menuLayout.is_null()) {
+                gameMenuRenderer_->load(sceneDef.menuLayout, vulkanDevice_.get());
+            }
+            game.onMenuSceneLoaded(*this, sceneDef.id);
+        };
+        cbs.onSceneReady = [this, &game](const std::string& sceneId) {
+            // Leaving a menu scene — unload the renderer
+            const auto* active = sceneManager_->getActiveScene();
+            if (!active || active->sceneType != Core::SceneType::Menu) {
+                if (gameMenuRenderer_) gameMenuRenderer_->unload();
+            }
+            game.onSceneReady(*this, sceneId);
+        };
+        sceneManager_->setCallbacks(cbs);
     }
 
     if (!game.onInitialize(*this)) {
@@ -157,6 +186,12 @@ void EngineRuntime::shutdown() {
 
     // ImGui must be cleaned up before Vulkan device
     if (imguiRenderer_) imguiRenderer_->cleanup();
+
+    // Game menu renderer (may hold Vulkan textures — cleanup before device)
+    if (gameMenuRenderer_) {
+        gameMenuRenderer_->unload();
+        gameMenuRenderer_.reset();
+    }
 
     // Render pipelines hold Vulkan resources
     if (renderPipeline_)        renderPipeline_->cleanup();
@@ -271,6 +306,7 @@ Graphics::Camera*           EngineRuntime::getCamera()                 const { r
 Graphics::CameraManager*    EngineRuntime::getCameraManager()          const { return cameraManager_.get(); }
 Core::LocationRegistry*     EngineRuntime::getLocationRegistry()       const { return locationRegistry_.get(); }
 Core::SceneManager*         EngineRuntime::getSceneManager()           const { return sceneManager_.get(); }
+UI::GameMenuRenderer*       EngineRuntime::getGameMenuRenderer()       const { return gameMenuRenderer_.get(); }
 
 } // namespace Core
 } // namespace Phyxel

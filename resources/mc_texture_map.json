@@ -1,0 +1,111 @@
+{
+  "_comment": "Minecraft → Phyxel texture mapping config. Edit to mix-and-match packs per material/face.",
+  "_per_face_override": "Any face value can be a string (block name) or {\"pack\": \"name\", \"block\": \"name\"}",
+  "packs": {
+    "realistico": "C:/Users/jack/Downloads/test_textures/realistico",
+    "rtxbeta":    "C:/Users/jack/Downloads/test_textures/rtxbeta",
+    "umsoea":     "C:/Users/jack/Downloads/test_textures/umsoea"
+  },
+  "default_pack": "realistico",
+  "resize_filter": "lanczos",
+  "materials": {
+    "Default": {
+      "_comment": "Generated checkerboard — visible error indicator for unknown/missing materials",
+      "source": "generated"
+    },
+    "Dirt": {
+      "pack": "realistico",
+      "faces": { "all": "dirt" }
+    },
+    "Grass": {
+      "_comment": "Face-split: grass top, grass side on sides, dirt on bottom",
+      "pack": "realistico",
+      "faces": {
+        "top":    "grass_top",
+        "side_n": "grass_side",
+        "side_s": "grass_side",
+        "side_e": "grass_side",
+        "side_w": "grass_side",
+        "bottom": "dirt"
+      }
+    },
+    "Stone": {
+      "pack": "realistico",
+      "faces": { "all": "stone" }
+    },
+    "Cobblestone": {
+      "pack": "realistico",
+      "faces": { "all": "cobblestone" }
+    },
+    "StoneBricks": {
+      "pack": "realistico",
+      "faces": { "all": "stonebrick" }
+    },
+    "Sand": {
+      "pack": "realistico",
+      "faces": { "all": "sand" }
+    },
+    "Gravel": {
+      "pack": "realistico",
+      "faces": { "all": "gravel" }
+    },
+    "Wood": {
+      "_comment": "Oak planks — finished wood",
+      "pack": "realistico",
+      "faces": { "all": "planks_oak" }
+    },
+    "Log": {
+      "_comment": "Face-split: bark texture on sides, growth-ring end cap on top/bottom",
+      "pack": "realistico",
+      "faces": {
+        "side_n": "log_oak",
+        "side_s": "log_oak",
+        "side_e": "log_oak",
+        "side_w": "log_oak",
+        "top":    "log_oak_top",
+        "bottom": "log_oak_top"
+      }
+    },
+    "Bricks": {
+      "pack": "realistico",
+      "faces": { "all": "brick" }
+    },
+    "Sandstone": {
+      "_comment": "Face-split: carved top, normal sides, smooth bottom",
+      "pack": "realistico",
+      "faces": {
+        "top":    "sandstone_top",
+        "side_n": "sandstone_normal",
+        "side_s": "sandstone_normal",
+        "side_e": "sandstone_normal",
+        "side_w": "sandstone_normal",
+        "bottom": "sandstone_bottom"
+      }
+    },
+    "Glass": {
+      "_comment": "Using RTXbeta — Realistico may not have a plain glass.png",
+      "pack": "rtxbeta",
+      "faces": { "all": "glass" }
+    },
+    "Metal": {
+      "pack": "realistico",
+      "faces": { "all": "iron_block" }
+    },
+    "Gold": {
+      "pack": "realistico",
+      "faces": { "all": "gold_block" }
+    },
+    "Ice": {
+      "pack": "realistico",
+      "faces": { "all": "ice" }
+    },
+    "Leaf": {
+      "pack": "realistico",
+      "faces": { "all": "leaves_oak" }
+    },
+    "glow": {
+      "pack": "realistico",
+      "faces": { "all": "glowstone" }
+    }
+  }
+}

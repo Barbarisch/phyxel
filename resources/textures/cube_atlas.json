@@ -1,11 +1,11 @@
 {
-  "atlas_size": 512,
-  "texture_size": 18,
+  "atlas_size": 2048,
+  "texture_size": 64,
   "padding": 1,
-  "effective_size": 20,
+  "effective_size": 66,
   "textures_per_row": 6,
   "textures": {
-    "placeholder_side_n": {
+    "bricks_side_n": {
       "index": 0,
       "grid_pos": [
         0,
@@ -16,367 +16,70 @@
         1
       ],
       "uv_min": [
-        0.001953125,
-        0.001953125
+        0.00048828125,
+        0.00048828125
       ],
       "uv_max": [
-        0.037109375,
-        0.037109375
+        0.03173828125,
+        0.03173828125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "placeholder",
+      "material": "bricks",
       "face": "side",
       "direction": "n",
       "is_directional": true
     },
-    "placeholder_side_s": {
+    "cobblestone_side_n": {
       "index": 1,
       "grid_pos": [
         1,
         0
       ],
       "pixel_pos": [
-        21,
+        67,
         1
       ],
       "uv_min": [
-        0.041015625,
-        0.001953125
+        0.03271484375,
+        0.00048828125
       ],
       "uv_max": [
-        0.076171875,
-        0.037109375
+        0.06396484375,
+        0.03173828125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "placeholder",
+      "material": "cobblestone",
       "face": "side",
-      "direction": "s",
+      "direction": "n",
       "is_directional": true
     },
-    "placeholder_side_e": {
+    "default_side_n": {
       "index": 2,
       "grid_pos": [
         2,
         0
       ],
       "pixel_pos": [
-        41,
+        133,
         1
       ],
       "uv_min": [
-        0.080078125,
-        0.001953125
+        0.06494140625,
+        0.00048828125
       ],
       "uv_max": [
-        0.115234375,
-        0.037109375
+        0.09619140625,
+        0.03173828125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
-      ],
-      "material": "placeholder",
-      "face": "side",
-      "direction": "e",
-      "is_directional": true
-    },
-    "placeholder_side_w": {
-      "index": 3,
-      "grid_pos": [
-        3,
-        0
-      ],
-      "pixel_pos": [
-        61,
-        1
-      ],
-      "uv_min": [
-        0.119140625,
-        0.001953125
-      ],
-      "uv_max": [
-        0.154296875,
-        0.037109375
-      ],
-      "uv_size": [
-        0.03515625,
-        0.03515625
-      ],
-      "material": "placeholder",
-      "face": "side",
-      "direction": "w",
-      "is_directional": true
-    },
-    "placeholder_top": {
-      "index": 4,
-      "grid_pos": [
-        4,
-        0
-      ],
-      "pixel_pos": [
-        81,
-        1
-      ],
-      "uv_min": [
-        0.158203125,
-        0.001953125
-      ],
-      "uv_max": [
-        0.193359375,
-        0.037109375
-      ],
-      "uv_size": [
-        0.03515625,
-        0.03515625
-      ],
-      "material": "placeholder",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
-    },
-    "placeholder_bottom": {
-      "index": 5,
-      "grid_pos": [
-        5,
-        0
-      ],
-      "pixel_pos": [
-        101,
-        1
-      ],
-      "uv_min": [
-        0.197265625,
-        0.001953125
-      ],
-      "uv_max": [
-        0.232421875,
-        0.037109375
-      ],
-      "uv_size": [
-        0.03515625,
-        0.03515625
-      ],
-      "material": "placeholder",
-      "face": "bottom",
-      "direction": null,
-      "is_directional": false
-    },
-    "grassdirt_side_n": {
-      "index": 6,
-      "grid_pos": [
-        0,
-        1
-      ],
-      "pixel_pos": [
-        1,
-        21
-      ],
-      "uv_min": [
-        0.001953125,
-        0.041015625
-      ],
-      "uv_max": [
-        0.037109375,
-        0.076171875
-      ],
-      "uv_size": [
-        0.03515625,
-        0.03515625
-      ],
-      "material": "grassdirt",
-      "face": "side",
-      "direction": "n",
-      "is_directional": true
-    },
-    "grassdirt_side_s": {
-      "index": 7,
-      "grid_pos": [
-        1,
-        1
-      ],
-      "pixel_pos": [
-        21,
-        21
-      ],
-      "uv_min": [
-        0.041015625,
-        0.041015625
-      ],
-      "uv_max": [
-        0.076171875,
-        0.076171875
-      ],
-      "uv_size": [
-        0.03515625,
-        0.03515625
-      ],
-      "material": "grassdirt",
-      "face": "side",
-      "direction": "s",
-      "is_directional": true
-    },
-    "grassdirt_side_e": {
-      "index": 8,
-      "grid_pos": [
-        2,
-        1
-      ],
-      "pixel_pos": [
-        41,
-        21
-      ],
-      "uv_min": [
-        0.080078125,
-        0.041015625
-      ],
-      "uv_max": [
-        0.115234375,
-        0.076171875
-      ],
-      "uv_size": [
-        0.03515625,
-        0.03515625
-      ],
-      "material": "grassdirt",
-      "face": "side",
-      "direction": "e",
-      "is_directional": true
-    },
-    "grassdirt_side_w": {
-      "index": 9,
-      "grid_pos": [
-        3,
-        1
-      ],
-      "pixel_pos": [
-        61,
-        21
-      ],
-      "uv_min": [
-        0.119140625,
-        0.041015625
-      ],
-      "uv_max": [
-        0.154296875,
-        0.076171875
-      ],
-      "uv_size": [
-        0.03515625,
-        0.03515625
-      ],
-      "material": "grassdirt",
-      "face": "side",
-      "direction": "w",
-      "is_directional": true
-    },
-    "grassdirt_top": {
-      "index": 10,
-      "grid_pos": [
-        4,
-        1
-      ],
-      "pixel_pos": [
-        81,
-        21
-      ],
-      "uv_min": [
-        0.158203125,
-        0.041015625
-      ],
-      "uv_max": [
-        0.193359375,
-        0.076171875
-      ],
-      "uv_size": [
-        0.03515625,
-        0.03515625
-      ],
-      "material": "grassdirt",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
-    },
-    "grassdirt_bottom": {
-      "index": 11,
-      "grid_pos": [
-        5,
-        1
-      ],
-      "pixel_pos": [
-        101,
-        21
-      ],
-      "uv_min": [
-        0.197265625,
-        0.041015625
-      ],
-      "uv_max": [
-        0.232421875,
-        0.076171875
-      ],
-      "uv_size": [
-        0.03515625,
-        0.03515625
-      ],
-      "material": "grassdirt",
-      "face": "bottom",
-      "direction": null,
-      "is_directional": false
-    },
-    "cork_side_n": {
-      "index": 12,
-      "grid_pos": [
-        0,
-        2
-      ],
-      "pixel_pos": [
-        1,
-        41
-      ],
-      "uv_min": [
-        0.001953125,
-        0.080078125
-      ],
-      "uv_max": [
-        0.037109375,
-        0.115234375
-      ],
-      "uv_size": [
-        0.03515625,
-        0.03515625
-      ],
-      "material": "cork",
-      "face": "side",
-      "direction": "n",
-      "is_directional": true
-    },
-    "default_side_n": {
-      "index": 13,
-      "grid_pos": [
-        1,
-        2
-      ],
-      "pixel_pos": [
-        21,
-        41
-      ],
-      "uv_min": [
-        0.041015625,
-        0.080078125
-      ],
-      "uv_max": [
-        0.076171875,
-        0.115234375
-      ],
-      "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
       "material": "default",
       "face": "side",
@@ -384,26 +87,26 @@
       "is_directional": true
     },
     "dirt_side_n": {
-      "index": 14,
+      "index": 3,
       "grid_pos": [
-        2,
-        2
+        3,
+        0
       ],
       "pixel_pos": [
-        41,
-        41
+        199,
+        1
       ],
       "uv_min": [
-        0.080078125,
-        0.080078125
+        0.09716796875,
+        0.00048828125
       ],
       "uv_max": [
-        0.115234375,
-        0.115234375
+        0.12841796875,
+        0.03173828125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
       "material": "dirt",
       "face": "side",
@@ -411,26 +114,26 @@
       "is_directional": true
     },
     "glass_side_n": {
-      "index": 15,
+      "index": 4,
       "grid_pos": [
-        3,
-        2
+        4,
+        0
       ],
       "pixel_pos": [
-        61,
-        41
+        265,
+        1
       ],
       "uv_min": [
-        0.119140625,
-        0.080078125
+        0.12939453125,
+        0.00048828125
       ],
       "uv_max": [
-        0.154296875,
-        0.115234375
+        0.16064453125,
+        0.03173828125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
       "material": "glass",
       "face": "side",
@@ -438,80 +141,134 @@
       "is_directional": true
     },
     "glow_side_n": {
-      "index": 16,
+      "index": 5,
       "grid_pos": [
-        4,
-        2
+        5,
+        0
       ],
       "pixel_pos": [
-        81,
-        41
+        331,
+        1
       ],
       "uv_min": [
-        0.158203125,
-        0.080078125
+        0.16162109375,
+        0.00048828125
       ],
       "uv_max": [
-        0.193359375,
-        0.115234375
+        0.19287109375,
+        0.03173828125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
       "material": "glow",
       "face": "side",
       "direction": "n",
       "is_directional": true
     },
-    "hover_side_n": {
-      "index": 17,
+    "gold_side_n": {
+      "index": 6,
       "grid_pos": [
-        5,
-        2
+        0,
+        1
       ],
       "pixel_pos": [
-        101,
-        41
+        1,
+        67
       ],
       "uv_min": [
-        0.197265625,
-        0.080078125
+        0.00048828125,
+        0.03271484375
       ],
       "uv_max": [
-        0.232421875,
-        0.115234375
+        0.03173828125,
+        0.06396484375
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "hover",
+      "material": "gold",
+      "face": "side",
+      "direction": "n",
+      "is_directional": true
+    },
+    "grass_side_n": {
+      "index": 7,
+      "grid_pos": [
+        1,
+        1
+      ],
+      "pixel_pos": [
+        67,
+        67
+      ],
+      "uv_min": [
+        0.03271484375,
+        0.03271484375
+      ],
+      "uv_max": [
+        0.06396484375,
+        0.06396484375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "grass",
+      "face": "side",
+      "direction": "n",
+      "is_directional": true
+    },
+    "gravel_side_n": {
+      "index": 8,
+      "grid_pos": [
+        2,
+        1
+      ],
+      "pixel_pos": [
+        133,
+        67
+      ],
+      "uv_min": [
+        0.06494140625,
+        0.03271484375
+      ],
+      "uv_max": [
+        0.09619140625,
+        0.06396484375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "gravel",
       "face": "side",
       "direction": "n",
       "is_directional": true
     },
     "ice_side_n": {
-      "index": 18,
+      "index": 9,
       "grid_pos": [
-        0,
-        3
+        3,
+        1
       ],
       "pixel_pos": [
-        1,
-        61
+        199,
+        67
       ],
       "uv_min": [
-        0.001953125,
-        0.119140625
+        0.09716796875,
+        0.03271484375
       ],
       "uv_max": [
-        0.037109375,
-        0.154296875
+        0.12841796875,
+        0.06396484375
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
       "material": "ice",
       "face": "side",
@@ -519,188 +276,296 @@
       "is_directional": true
     },
     "leaf_side_n": {
-      "index": 19,
+      "index": 10,
       "grid_pos": [
-        1,
-        3
+        4,
+        1
       ],
       "pixel_pos": [
-        21,
-        61
+        265,
+        67
       ],
       "uv_min": [
-        0.041015625,
-        0.119140625
+        0.12939453125,
+        0.03271484375
       ],
       "uv_max": [
-        0.076171875,
-        0.154296875
+        0.16064453125,
+        0.06396484375
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
       "material": "leaf",
       "face": "side",
       "direction": "n",
       "is_directional": true
     },
-    "metal_side_n": {
-      "index": 20,
+    "log_side_n": {
+      "index": 11,
       "grid_pos": [
-        2,
-        3
+        5,
+        1
       ],
       "pixel_pos": [
-        41,
-        61
+        331,
+        67
       ],
       "uv_min": [
-        0.080078125,
-        0.119140625
+        0.16162109375,
+        0.03271484375
       ],
       "uv_max": [
-        0.115234375,
-        0.154296875
+        0.19287109375,
+        0.06396484375
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
+      ],
+      "material": "log",
+      "face": "side",
+      "direction": "n",
+      "is_directional": true
+    },
+    "metal_side_n": {
+      "index": 12,
+      "grid_pos": [
+        0,
+        2
+      ],
+      "pixel_pos": [
+        1,
+        133
+      ],
+      "uv_min": [
+        0.00048828125,
+        0.06494140625
+      ],
+      "uv_max": [
+        0.03173828125,
+        0.09619140625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
       ],
       "material": "metal",
       "face": "side",
       "direction": "n",
       "is_directional": true
     },
-    "rubber_side_n": {
-      "index": 21,
+    "sand_side_n": {
+      "index": 13,
       "grid_pos": [
-        3,
-        3
+        1,
+        2
       ],
       "pixel_pos": [
-        61,
-        61
+        67,
+        133
       ],
       "uv_min": [
-        0.119140625,
-        0.119140625
+        0.03271484375,
+        0.06494140625
       ],
       "uv_max": [
-        0.154296875,
-        0.154296875
+        0.06396484375,
+        0.09619140625
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "rubber",
+      "material": "sand",
+      "face": "side",
+      "direction": "n",
+      "is_directional": true
+    },
+    "sandstone_side_n": {
+      "index": 14,
+      "grid_pos": [
+        2,
+        2
+      ],
+      "pixel_pos": [
+        133,
+        133
+      ],
+      "uv_min": [
+        0.06494140625,
+        0.06494140625
+      ],
+      "uv_max": [
+        0.09619140625,
+        0.09619140625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "sandstone",
       "face": "side",
       "direction": "n",
       "is_directional": true
     },
     "stone_side_n": {
-      "index": 22,
+      "index": 15,
       "grid_pos": [
-        4,
-        3
+        3,
+        2
       ],
       "pixel_pos": [
-        81,
-        61
+        199,
+        133
       ],
       "uv_min": [
-        0.158203125,
-        0.119140625
+        0.09716796875,
+        0.06494140625
       ],
       "uv_max": [
-        0.193359375,
-        0.154296875
+        0.12841796875,
+        0.09619140625
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
       "material": "stone",
       "face": "side",
       "direction": "n",
       "is_directional": true
     },
-    "wood_side_n": {
-      "index": 23,
+    "stonebricks_side_n": {
+      "index": 16,
       "grid_pos": [
-        5,
-        3
+        4,
+        2
       ],
       "pixel_pos": [
-        101,
-        61
+        265,
+        133
       ],
       "uv_min": [
-        0.197265625,
-        0.119140625
+        0.12939453125,
+        0.06494140625
       ],
       "uv_max": [
-        0.232421875,
-        0.154296875
+        0.16064453125,
+        0.09619140625
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
+      ],
+      "material": "stonebricks",
+      "face": "side",
+      "direction": "n",
+      "is_directional": true
+    },
+    "wood_side_n": {
+      "index": 17,
+      "grid_pos": [
+        5,
+        2
+      ],
+      "pixel_pos": [
+        331,
+        133
+      ],
+      "uv_min": [
+        0.16162109375,
+        0.06494140625
+      ],
+      "uv_max": [
+        0.19287109375,
+        0.09619140625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
       ],
       "material": "wood",
       "face": "side",
       "direction": "n",
       "is_directional": true
     },
-    "cork_side_s": {
-      "index": 24,
+    "bricks_side_s": {
+      "index": 18,
       "grid_pos": [
         0,
-        4
+        3
       ],
       "pixel_pos": [
         1,
-        81
+        199
       ],
       "uv_min": [
-        0.001953125,
-        0.158203125
+        0.00048828125,
+        0.09716796875
       ],
       "uv_max": [
-        0.037109375,
-        0.193359375
+        0.03173828125,
+        0.12841796875
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "cork",
+      "material": "bricks",
+      "face": "side",
+      "direction": "s",
+      "is_directional": true
+    },
+    "cobblestone_side_s": {
+      "index": 19,
+      "grid_pos": [
+        1,
+        3
+      ],
+      "pixel_pos": [
+        67,
+        199
+      ],
+      "uv_min": [
+        0.03271484375,
+        0.09716796875
+      ],
+      "uv_max": [
+        0.06396484375,
+        0.12841796875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "cobblestone",
       "face": "side",
       "direction": "s",
       "is_directional": true
     },
     "default_side_s": {
-      "index": 25,
+      "index": 20,
       "grid_pos": [
-        1,
-        4
+        2,
+        3
       ],
       "pixel_pos": [
-        21,
-        81
+        133,
+        199
       ],
       "uv_min": [
-        0.041015625,
-        0.158203125
+        0.06494140625,
+        0.09716796875
       ],
       "uv_max": [
-        0.076171875,
-        0.193359375
+        0.09619140625,
+        0.12841796875
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
       "material": "default",
       "face": "side",
@@ -708,26 +573,26 @@
       "is_directional": true
     },
     "dirt_side_s": {
-      "index": 26,
+      "index": 21,
       "grid_pos": [
-        2,
-        4
+        3,
+        3
       ],
       "pixel_pos": [
-        41,
-        81
+        199,
+        199
       ],
       "uv_min": [
-        0.080078125,
-        0.158203125
+        0.09716796875,
+        0.09716796875
       ],
       "uv_max": [
-        0.115234375,
-        0.193359375
+        0.12841796875,
+        0.12841796875
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
       "material": "dirt",
       "face": "side",
@@ -735,26 +600,26 @@
       "is_directional": true
     },
     "glass_side_s": {
-      "index": 27,
+      "index": 22,
       "grid_pos": [
-        3,
-        4
+        4,
+        3
       ],
       "pixel_pos": [
-        61,
-        81
+        265,
+        199
       ],
       "uv_min": [
-        0.119140625,
-        0.158203125
+        0.12939453125,
+        0.09716796875
       ],
       "uv_max": [
-        0.154296875,
-        0.193359375
+        0.16064453125,
+        0.12841796875
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
       "material": "glass",
       "face": "side",
@@ -762,80 +627,134 @@
       "is_directional": true
     },
     "glow_side_s": {
-      "index": 28,
+      "index": 23,
       "grid_pos": [
-        4,
-        4
+        5,
+        3
       ],
       "pixel_pos": [
-        81,
-        81
+        331,
+        199
       ],
       "uv_min": [
-        0.158203125,
-        0.158203125
+        0.16162109375,
+        0.09716796875
       ],
       "uv_max": [
-        0.193359375,
-        0.193359375
+        0.19287109375,
+        0.12841796875
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
       "material": "glow",
       "face": "side",
       "direction": "s",
       "is_directional": true
     },
-    "hover_side_s": {
-      "index": 29,
+    "gold_side_s": {
+      "index": 24,
       "grid_pos": [
-        5,
+        0,
         4
       ],
       "pixel_pos": [
-        101,
-        81
+        1,
+        265
       ],
       "uv_min": [
-        0.197265625,
-        0.158203125
+        0.00048828125,
+        0.12939453125
       ],
       "uv_max": [
-        0.232421875,
-        0.193359375
+        0.03173828125,
+        0.16064453125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "hover",
+      "material": "gold",
+      "face": "side",
+      "direction": "s",
+      "is_directional": true
+    },
+    "grass_side_s": {
+      "index": 25,
+      "grid_pos": [
+        1,
+        4
+      ],
+      "pixel_pos": [
+        67,
+        265
+      ],
+      "uv_min": [
+        0.03271484375,
+        0.12939453125
+      ],
+      "uv_max": [
+        0.06396484375,
+        0.16064453125
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "grass",
+      "face": "side",
+      "direction": "s",
+      "is_directional": true
+    },
+    "gravel_side_s": {
+      "index": 26,
+      "grid_pos": [
+        2,
+        4
+      ],
+      "pixel_pos": [
+        133,
+        265
+      ],
+      "uv_min": [
+        0.06494140625,
+        0.12939453125
+      ],
+      "uv_max": [
+        0.09619140625,
+        0.16064453125
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "gravel",
       "face": "side",
       "direction": "s",
       "is_directional": true
     },
     "ice_side_s": {
-      "index": 30,
+      "index": 27,
       "grid_pos": [
-        0,
-        5
+        3,
+        4
       ],
       "pixel_pos": [
-        1,
-        101
+        199,
+        265
       ],
       "uv_min": [
-        0.001953125,
-        0.197265625
+        0.09716796875,
+        0.12939453125
       ],
       "uv_max": [
-        0.037109375,
-        0.232421875
+        0.12841796875,
+        0.16064453125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
       "material": "ice",
       "face": "side",
@@ -843,109 +762,190 @@
       "is_directional": true
     },
     "leaf_side_s": {
-      "index": 31,
+      "index": 28,
       "grid_pos": [
-        1,
-        5
+        4,
+        4
       ],
       "pixel_pos": [
-        21,
-        101
+        265,
+        265
       ],
       "uv_min": [
-        0.041015625,
-        0.197265625
+        0.12939453125,
+        0.12939453125
       ],
       "uv_max": [
-        0.076171875,
-        0.232421875
+        0.16064453125,
+        0.16064453125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
       "material": "leaf",
       "face": "side",
       "direction": "s",
       "is_directional": true
     },
-    "metal_side_s": {
-      "index": 32,
+    "log_side_s": {
+      "index": 29,
       "grid_pos": [
-        2,
+        5,
+        4
+      ],
+      "pixel_pos": [
+        331,
+        265
+      ],
+      "uv_min": [
+        0.16162109375,
+        0.12939453125
+      ],
+      "uv_max": [
+        0.19287109375,
+        0.16064453125
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "log",
+      "face": "side",
+      "direction": "s",
+      "is_directional": true
+    },
+    "metal_side_s": {
+      "index": 30,
+      "grid_pos": [
+        0,
         5
       ],
       "pixel_pos": [
-        41,
-        101
+        1,
+        331
       ],
       "uv_min": [
-        0.080078125,
-        0.197265625
+        0.00048828125,
+        0.16162109375
       ],
       "uv_max": [
-        0.115234375,
-        0.232421875
+        0.03173828125,
+        0.19287109375
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
       "material": "metal",
       "face": "side",
       "direction": "s",
       "is_directional": true
     },
-    "rubber_side_s": {
+    "sand_side_s": {
+      "index": 31,
+      "grid_pos": [
+        1,
+        5
+      ],
+      "pixel_pos": [
+        67,
+        331
+      ],
+      "uv_min": [
+        0.03271484375,
+        0.16162109375
+      ],
+      "uv_max": [
+        0.06396484375,
+        0.19287109375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "sand",
+      "face": "side",
+      "direction": "s",
+      "is_directional": true
+    },
+    "sandstone_side_s": {
+      "index": 32,
+      "grid_pos": [
+        2,
+        5
+      ],
+      "pixel_pos": [
+        133,
+        331
+      ],
+      "uv_min": [
+        0.06494140625,
+        0.16162109375
+      ],
+      "uv_max": [
+        0.09619140625,
+        0.19287109375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "sandstone",
+      "face": "side",
+      "direction": "s",
+      "is_directional": true
+    },
+    "stone_side_s": {
       "index": 33,
       "grid_pos": [
         3,
         5
       ],
       "pixel_pos": [
-        61,
-        101
+        199,
+        331
       ],
       "uv_min": [
-        0.119140625,
-        0.197265625
+        0.09716796875,
+        0.16162109375
       ],
       "uv_max": [
-        0.154296875,
-        0.232421875
+        0.12841796875,
+        0.19287109375
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "rubber",
+      "material": "stone",
       "face": "side",
       "direction": "s",
       "is_directional": true
     },
-    "stone_side_s": {
+    "stonebricks_side_s": {
       "index": 34,
       "grid_pos": [
         4,
         5
       ],
       "pixel_pos": [
-        81,
-        101
+        265,
+        331
       ],
       "uv_min": [
-        0.158203125,
-        0.197265625
+        0.12939453125,
+        0.16162109375
       ],
       "uv_max": [
-        0.193359375,
-        0.232421875
+        0.16064453125,
+        0.19287109375
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "stone",
+      "material": "stonebricks",
       "face": "side",
       "direction": "s",
       "is_directional": true
@@ -957,27 +957,27 @@
         5
       ],
       "pixel_pos": [
-        101,
-        101
+        331,
+        331
       ],
       "uv_min": [
-        0.197265625,
-        0.197265625
+        0.16162109375,
+        0.16162109375
       ],
       "uv_max": [
-        0.232421875,
-        0.232421875
+        0.19287109375,
+        0.19287109375
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
       "material": "wood",
       "face": "side",
       "direction": "s",
       "is_directional": true
     },
-    "cork_side_e": {
+    "bricks_side_e": {
       "index": 36,
       "grid_pos": [
         0,
@@ -985,46 +985,73 @@
       ],
       "pixel_pos": [
         1,
-        121
+        397
       ],
       "uv_min": [
-        0.001953125,
-        0.236328125
+        0.00048828125,
+        0.19384765625
       ],
       "uv_max": [
-        0.037109375,
-        0.271484375
+        0.03173828125,
+        0.22509765625
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "cork",
+      "material": "bricks",
       "face": "side",
       "direction": "e",
       "is_directional": true
     },
-    "default_side_e": {
+    "cobblestone_side_e": {
       "index": 37,
       "grid_pos": [
         1,
         6
       ],
       "pixel_pos": [
-        21,
-        121
+        67,
+        397
       ],
       "uv_min": [
-        0.041015625,
-        0.236328125
+        0.03271484375,
+        0.19384765625
       ],
       "uv_max": [
-        0.076171875,
-        0.271484375
+        0.06396484375,
+        0.22509765625
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
+      ],
+      "material": "cobblestone",
+      "face": "side",
+      "direction": "e",
+      "is_directional": true
+    },
+    "default_side_e": {
+      "index": 38,
+      "grid_pos": [
+        2,
+        6
+      ],
+      "pixel_pos": [
+        133,
+        397
+      ],
+      "uv_min": [
+        0.06494140625,
+        0.19384765625
+      ],
+      "uv_max": [
+        0.09619140625,
+        0.22509765625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
       ],
       "material": "default",
       "face": "side",
@@ -1032,26 +1059,26 @@
       "is_directional": true
     },
     "dirt_side_e": {
-      "index": 38,
+      "index": 39,
       "grid_pos": [
-        2,
+        3,
         6
       ],
       "pixel_pos": [
-        41,
-        121
+        199,
+        397
       ],
       "uv_min": [
-        0.080078125,
-        0.236328125
+        0.09716796875,
+        0.19384765625
       ],
       "uv_max": [
-        0.115234375,
-        0.271484375
+        0.12841796875,
+        0.22509765625
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
       "material": "dirt",
       "face": "side",
@@ -1059,26 +1086,26 @@
       "is_directional": true
     },
     "glass_side_e": {
-      "index": 39,
+      "index": 40,
       "grid_pos": [
-        3,
+        4,
         6
       ],
       "pixel_pos": [
-        61,
-        121
+        265,
+        397
       ],
       "uv_min": [
-        0.119140625,
-        0.236328125
+        0.12939453125,
+        0.19384765625
       ],
       "uv_max": [
-        0.154296875,
-        0.271484375
+        0.16064453125,
+        0.22509765625
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
       "material": "glass",
       "face": "side",
@@ -1086,60 +1113,33 @@
       "is_directional": true
     },
     "glow_side_e": {
-      "index": 40,
-      "grid_pos": [
-        4,
-        6
-      ],
-      "pixel_pos": [
-        81,
-        121
-      ],
-      "uv_min": [
-        0.158203125,
-        0.236328125
-      ],
-      "uv_max": [
-        0.193359375,
-        0.271484375
-      ],
-      "uv_size": [
-        0.03515625,
-        0.03515625
-      ],
-      "material": "glow",
-      "face": "side",
-      "direction": "e",
-      "is_directional": true
-    },
-    "hover_side_e": {
       "index": 41,
       "grid_pos": [
         5,
         6
       ],
       "pixel_pos": [
-        101,
-        121
+        331,
+        397
       ],
       "uv_min": [
-        0.197265625,
-        0.236328125
+        0.16162109375,
+        0.19384765625
       ],
       "uv_max": [
-        0.232421875,
-        0.271484375
+        0.19287109375,
+        0.22509765625
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "hover",
+      "material": "glow",
       "face": "side",
       "direction": "e",
       "is_directional": true
     },
-    "ice_side_e": {
+    "gold_side_e": {
       "index": 42,
       "grid_pos": [
         0,
@@ -1147,19 +1147,100 @@
       ],
       "pixel_pos": [
         1,
-        141
+        463
       ],
       "uv_min": [
-        0.001953125,
-        0.275390625
+        0.00048828125,
+        0.22607421875
       ],
       "uv_max": [
-        0.037109375,
-        0.310546875
+        0.03173828125,
+        0.25732421875
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
+      ],
+      "material": "gold",
+      "face": "side",
+      "direction": "e",
+      "is_directional": true
+    },
+    "grass_side_e": {
+      "index": 43,
+      "grid_pos": [
+        1,
+        7
+      ],
+      "pixel_pos": [
+        67,
+        463
+      ],
+      "uv_min": [
+        0.03271484375,
+        0.22607421875
+      ],
+      "uv_max": [
+        0.06396484375,
+        0.25732421875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "grass",
+      "face": "side",
+      "direction": "e",
+      "is_directional": true
+    },
+    "gravel_side_e": {
+      "index": 44,
+      "grid_pos": [
+        2,
+        7
+      ],
+      "pixel_pos": [
+        133,
+        463
+      ],
+      "uv_min": [
+        0.06494140625,
+        0.22607421875
+      ],
+      "uv_max": [
+        0.09619140625,
+        0.25732421875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "gravel",
+      "face": "side",
+      "direction": "e",
+      "is_directional": true
+    },
+    "ice_side_e": {
+      "index": 45,
+      "grid_pos": [
+        3,
+        7
+      ],
+      "pixel_pos": [
+        199,
+        463
+      ],
+      "uv_min": [
+        0.09716796875,
+        0.22607421875
+      ],
+      "uv_max": [
+        0.12841796875,
+        0.25732421875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
       ],
       "material": "ice",
       "face": "side",
@@ -1167,141 +1248,60 @@
       "is_directional": true
     },
     "leaf_side_e": {
-      "index": 43,
-      "grid_pos": [
-        1,
-        7
-      ],
-      "pixel_pos": [
-        21,
-        141
-      ],
-      "uv_min": [
-        0.041015625,
-        0.275390625
-      ],
-      "uv_max": [
-        0.076171875,
-        0.310546875
-      ],
-      "uv_size": [
-        0.03515625,
-        0.03515625
-      ],
-      "material": "leaf",
-      "face": "side",
-      "direction": "e",
-      "is_directional": true
-    },
-    "metal_side_e": {
-      "index": 44,
-      "grid_pos": [
-        2,
-        7
-      ],
-      "pixel_pos": [
-        41,
-        141
-      ],
-      "uv_min": [
-        0.080078125,
-        0.275390625
-      ],
-      "uv_max": [
-        0.115234375,
-        0.310546875
-      ],
-      "uv_size": [
-        0.03515625,
-        0.03515625
-      ],
-      "material": "metal",
-      "face": "side",
-      "direction": "e",
-      "is_directional": true
-    },
-    "rubber_side_e": {
-      "index": 45,
-      "grid_pos": [
-        3,
-        7
-      ],
-      "pixel_pos": [
-        61,
-        141
-      ],
-      "uv_min": [
-        0.119140625,
-        0.275390625
-      ],
-      "uv_max": [
-        0.154296875,
-        0.310546875
-      ],
-      "uv_size": [
-        0.03515625,
-        0.03515625
-      ],
-      "material": "rubber",
-      "face": "side",
-      "direction": "e",
-      "is_directional": true
-    },
-    "stone_side_e": {
       "index": 46,
       "grid_pos": [
         4,
         7
       ],
       "pixel_pos": [
-        81,
-        141
+        265,
+        463
       ],
       "uv_min": [
-        0.158203125,
-        0.275390625
+        0.12939453125,
+        0.22607421875
       ],
       "uv_max": [
-        0.193359375,
-        0.310546875
+        0.16064453125,
+        0.25732421875
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "stone",
+      "material": "leaf",
       "face": "side",
       "direction": "e",
       "is_directional": true
     },
-    "wood_side_e": {
+    "log_side_e": {
       "index": 47,
       "grid_pos": [
         5,
         7
       ],
       "pixel_pos": [
-        101,
-        141
+        331,
+        463
       ],
       "uv_min": [
-        0.197265625,
-        0.275390625
+        0.16162109375,
+        0.22607421875
       ],
       "uv_max": [
-        0.232421875,
-        0.310546875
+        0.19287109375,
+        0.25732421875
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "wood",
+      "material": "log",
       "face": "side",
       "direction": "e",
       "is_directional": true
     },
-    "cork_side_w": {
+    "metal_side_e": {
       "index": 48,
       "grid_pos": [
         0,
@@ -1309,161 +1309,161 @@
       ],
       "pixel_pos": [
         1,
-        161
+        529
       ],
       "uv_min": [
-        0.001953125,
-        0.314453125
+        0.00048828125,
+        0.25830078125
       ],
       "uv_max": [
-        0.037109375,
-        0.349609375
+        0.03173828125,
+        0.28955078125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "cork",
+      "material": "metal",
       "face": "side",
-      "direction": "w",
+      "direction": "e",
       "is_directional": true
     },
-    "default_side_w": {
+    "sand_side_e": {
       "index": 49,
       "grid_pos": [
         1,
         8
       ],
       "pixel_pos": [
-        21,
-        161
+        67,
+        529
       ],
       "uv_min": [
-        0.041015625,
-        0.314453125
+        0.03271484375,
+        0.25830078125
       ],
       "uv_max": [
-        0.076171875,
-        0.349609375
+        0.06396484375,
+        0.28955078125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "default",
+      "material": "sand",
       "face": "side",
-      "direction": "w",
+      "direction": "e",
       "is_directional": true
     },
-    "dirt_side_w": {
+    "sandstone_side_e": {
       "index": 50,
       "grid_pos": [
         2,
         8
       ],
       "pixel_pos": [
-        41,
-        161
+        133,
+        529
       ],
       "uv_min": [
-        0.080078125,
-        0.314453125
+        0.06494140625,
+        0.25830078125
       ],
       "uv_max": [
-        0.115234375,
-        0.349609375
+        0.09619140625,
+        0.28955078125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "dirt",
+      "material": "sandstone",
       "face": "side",
-      "direction": "w",
+      "direction": "e",
       "is_directional": true
     },
-    "glass_side_w": {
+    "stone_side_e": {
       "index": 51,
       "grid_pos": [
         3,
         8
       ],
       "pixel_pos": [
-        61,
-        161
+        199,
+        529
       ],
       "uv_min": [
-        0.119140625,
-        0.314453125
+        0.09716796875,
+        0.25830078125
       ],
       "uv_max": [
-        0.154296875,
-        0.349609375
+        0.12841796875,
+        0.28955078125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "glass",
+      "material": "stone",
       "face": "side",
-      "direction": "w",
+      "direction": "e",
       "is_directional": true
     },
-    "glow_side_w": {
+    "stonebricks_side_e": {
       "index": 52,
       "grid_pos": [
         4,
         8
       ],
       "pixel_pos": [
-        81,
-        161
+        265,
+        529
       ],
       "uv_min": [
-        0.158203125,
-        0.314453125
+        0.12939453125,
+        0.25830078125
       ],
       "uv_max": [
-        0.193359375,
-        0.349609375
+        0.16064453125,
+        0.28955078125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "glow",
+      "material": "stonebricks",
       "face": "side",
-      "direction": "w",
+      "direction": "e",
       "is_directional": true
     },
-    "hover_side_w": {
+    "wood_side_e": {
       "index": 53,
       "grid_pos": [
         5,
         8
       ],
       "pixel_pos": [
-        101,
-        161
+        331,
+        529
       ],
       "uv_min": [
-        0.197265625,
-        0.314453125
+        0.16162109375,
+        0.25830078125
       ],
       "uv_max": [
-        0.232421875,
-        0.349609375
+        0.19287109375,
+        0.28955078125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "hover",
+      "material": "wood",
       "face": "side",
-      "direction": "w",
+      "direction": "e",
       "is_directional": true
     },
-    "ice_side_w": {
+    "bricks_side_w": {
       "index": 54,
       "grid_pos": [
         0,
@@ -1471,161 +1471,161 @@
       ],
       "pixel_pos": [
         1,
-        181
+        595
       ],
       "uv_min": [
-        0.001953125,
-        0.353515625
+        0.00048828125,
+        0.29052734375
       ],
       "uv_max": [
-        0.037109375,
-        0.388671875
+        0.03173828125,
+        0.32177734375
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "ice",
+      "material": "bricks",
       "face": "side",
       "direction": "w",
       "is_directional": true
     },
-    "leaf_side_w": {
+    "cobblestone_side_w": {
       "index": 55,
       "grid_pos": [
         1,
         9
       ],
       "pixel_pos": [
-        21,
-        181
+        67,
+        595
       ],
       "uv_min": [
-        0.041015625,
-        0.353515625
+        0.03271484375,
+        0.29052734375
       ],
       "uv_max": [
-        0.076171875,
-        0.388671875
+        0.06396484375,
+        0.32177734375
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "leaf",
+      "material": "cobblestone",
       "face": "side",
       "direction": "w",
       "is_directional": true
     },
-    "metal_side_w": {
+    "default_side_w": {
       "index": 56,
       "grid_pos": [
         2,
         9
       ],
       "pixel_pos": [
-        41,
-        181
+        133,
+        595
       ],
       "uv_min": [
-        0.080078125,
-        0.353515625
+        0.06494140625,
+        0.29052734375
       ],
       "uv_max": [
-        0.115234375,
-        0.388671875
+        0.09619140625,
+        0.32177734375
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "metal",
+      "material": "default",
       "face": "side",
       "direction": "w",
       "is_directional": true
     },
-    "rubber_side_w": {
+    "dirt_side_w": {
       "index": 57,
       "grid_pos": [
         3,
         9
       ],
       "pixel_pos": [
-        61,
-        181
+        199,
+        595
       ],
       "uv_min": [
-        0.119140625,
-        0.353515625
+        0.09716796875,
+        0.29052734375
       ],
       "uv_max": [
-        0.154296875,
-        0.388671875
+        0.12841796875,
+        0.32177734375
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "rubber",
+      "material": "dirt",
       "face": "side",
       "direction": "w",
       "is_directional": true
     },
-    "stone_side_w": {
+    "glass_side_w": {
       "index": 58,
       "grid_pos": [
         4,
         9
       ],
       "pixel_pos": [
-        81,
-        181
+        265,
+        595
       ],
       "uv_min": [
-        0.158203125,
-        0.353515625
+        0.12939453125,
+        0.29052734375
       ],
       "uv_max": [
-        0.193359375,
-        0.388671875
+        0.16064453125,
+        0.32177734375
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "stone",
+      "material": "glass",
       "face": "side",
       "direction": "w",
       "is_directional": true
     },
-    "wood_side_w": {
+    "glow_side_w": {
       "index": 59,
       "grid_pos": [
         5,
         9
       ],
       "pixel_pos": [
-        101,
-        181
+        331,
+        595
       ],
       "uv_min": [
-        0.197265625,
-        0.353515625
+        0.16162109375,
+        0.29052734375
       ],
       "uv_max": [
-        0.232421875,
-        0.388671875
+        0.19287109375,
+        0.32177734375
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "wood",
+      "material": "glow",
       "face": "side",
       "direction": "w",
       "is_directional": true
     },
-    "cork_top": {
+    "gold_side_w": {
       "index": 60,
       "grid_pos": [
         0,
@@ -1633,161 +1633,161 @@
       ],
       "pixel_pos": [
         1,
-        201
+        661
       ],
       "uv_min": [
-        0.001953125,
-        0.392578125
+        0.00048828125,
+        0.32275390625
       ],
       "uv_max": [
-        0.037109375,
-        0.427734375
+        0.03173828125,
+        0.35400390625
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "cork",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "gold",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "default_top": {
+    "grass_side_w": {
       "index": 61,
       "grid_pos": [
         1,
         10
       ],
       "pixel_pos": [
-        21,
-        201
+        67,
+        661
       ],
       "uv_min": [
-        0.041015625,
-        0.392578125
+        0.03271484375,
+        0.32275390625
       ],
       "uv_max": [
-        0.076171875,
-        0.427734375
+        0.06396484375,
+        0.35400390625
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "default",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "grass",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "dirt_top": {
+    "gravel_side_w": {
       "index": 62,
       "grid_pos": [
         2,
         10
       ],
       "pixel_pos": [
-        41,
-        201
+        133,
+        661
       ],
       "uv_min": [
-        0.080078125,
-        0.392578125
+        0.06494140625,
+        0.32275390625
       ],
       "uv_max": [
-        0.115234375,
-        0.427734375
+        0.09619140625,
+        0.35400390625
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "dirt",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "gravel",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "glass_top": {
+    "ice_side_w": {
       "index": 63,
       "grid_pos": [
         3,
         10
       ],
       "pixel_pos": [
-        61,
-        201
+        199,
+        661
       ],
       "uv_min": [
-        0.119140625,
-        0.392578125
+        0.09716796875,
+        0.32275390625
       ],
       "uv_max": [
-        0.154296875,
-        0.427734375
+        0.12841796875,
+        0.35400390625
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "glass",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "ice",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "glow_top": {
+    "leaf_side_w": {
       "index": 64,
       "grid_pos": [
         4,
         10
       ],
       "pixel_pos": [
-        81,
-        201
+        265,
+        661
       ],
       "uv_min": [
-        0.158203125,
-        0.392578125
+        0.12939453125,
+        0.32275390625
       ],
       "uv_max": [
-        0.193359375,
-        0.427734375
+        0.16064453125,
+        0.35400390625
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "glow",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "leaf",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "hover_top": {
+    "log_side_w": {
       "index": 65,
       "grid_pos": [
         5,
         10
       ],
       "pixel_pos": [
-        101,
-        201
+        331,
+        661
       ],
       "uv_min": [
-        0.197265625,
-        0.392578125
+        0.16162109375,
+        0.32275390625
       ],
       "uv_max": [
-        0.232421875,
-        0.427734375
+        0.19287109375,
+        0.35400390625
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "hover",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "log",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "ice_top": {
+    "metal_side_w": {
       "index": 66,
       "grid_pos": [
         0,
@@ -1795,161 +1795,161 @@
       ],
       "pixel_pos": [
         1,
-        221
+        727
       ],
       "uv_min": [
-        0.001953125,
-        0.431640625
+        0.00048828125,
+        0.35498046875
       ],
       "uv_max": [
-        0.037109375,
-        0.466796875
+        0.03173828125,
+        0.38623046875
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "ice",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "metal",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "leaf_top": {
+    "sand_side_w": {
       "index": 67,
       "grid_pos": [
         1,
         11
       ],
       "pixel_pos": [
-        21,
-        221
+        67,
+        727
       ],
       "uv_min": [
-        0.041015625,
-        0.431640625
+        0.03271484375,
+        0.35498046875
       ],
       "uv_max": [
-        0.076171875,
-        0.466796875
+        0.06396484375,
+        0.38623046875
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "leaf",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "sand",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "metal_top": {
+    "sandstone_side_w": {
       "index": 68,
       "grid_pos": [
         2,
         11
       ],
       "pixel_pos": [
-        41,
-        221
+        133,
+        727
       ],
       "uv_min": [
-        0.080078125,
-        0.431640625
+        0.06494140625,
+        0.35498046875
       ],
       "uv_max": [
-        0.115234375,
-        0.466796875
+        0.09619140625,
+        0.38623046875
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "metal",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "sandstone",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "rubber_top": {
+    "stone_side_w": {
       "index": 69,
       "grid_pos": [
         3,
         11
       ],
       "pixel_pos": [
-        61,
-        221
+        199,
+        727
       ],
       "uv_min": [
-        0.119140625,
-        0.431640625
+        0.09716796875,
+        0.35498046875
       ],
       "uv_max": [
-        0.154296875,
-        0.466796875
+        0.12841796875,
+        0.38623046875
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "rubber",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "stone",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "stone_top": {
+    "stonebricks_side_w": {
       "index": 70,
       "grid_pos": [
         4,
         11
       ],
       "pixel_pos": [
-        81,
-        221
+        265,
+        727
       ],
       "uv_min": [
-        0.158203125,
-        0.431640625
+        0.12939453125,
+        0.35498046875
       ],
       "uv_max": [
-        0.193359375,
-        0.466796875
+        0.16064453125,
+        0.38623046875
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "stone",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "stonebricks",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "wood_top": {
+    "wood_side_w": {
       "index": 71,
       "grid_pos": [
         5,
         11
       ],
       "pixel_pos": [
-        101,
-        221
+        331,
+        727
       ],
       "uv_min": [
-        0.197265625,
-        0.431640625
+        0.16162109375,
+        0.35498046875
       ],
       "uv_max": [
-        0.232421875,
-        0.466796875
+        0.19287109375,
+        0.38623046875
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
       "material": "wood",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "cork_bottom": {
+    "bricks_top": {
       "index": 72,
       "grid_pos": [
         0,
@@ -1957,161 +1957,161 @@
       ],
       "pixel_pos": [
         1,
-        241
+        793
       ],
       "uv_min": [
-        0.001953125,
-        0.470703125
+        0.00048828125,
+        0.38720703125
       ],
       "uv_max": [
-        0.037109375,
-        0.505859375
+        0.03173828125,
+        0.41845703125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "cork",
-      "face": "bottom",
+      "material": "bricks",
+      "face": "top",
       "direction": null,
       "is_directional": false
     },
-    "default_bottom": {
+    "cobblestone_top": {
       "index": 73,
       "grid_pos": [
         1,
         12
       ],
       "pixel_pos": [
-        21,
-        241
+        67,
+        793
       ],
       "uv_min": [
-        0.041015625,
-        0.470703125
+        0.03271484375,
+        0.38720703125
       ],
       "uv_max": [
-        0.076171875,
-        0.505859375
+        0.06396484375,
+        0.41845703125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "default",
-      "face": "bottom",
+      "material": "cobblestone",
+      "face": "top",
       "direction": null,
       "is_directional": false
     },
-    "dirt_bottom": {
+    "default_top": {
       "index": 74,
       "grid_pos": [
         2,
         12
       ],
       "pixel_pos": [
-        41,
-        241
+        133,
+        793
       ],
       "uv_min": [
-        0.080078125,
-        0.470703125
+        0.06494140625,
+        0.38720703125
       ],
       "uv_max": [
-        0.115234375,
-        0.505859375
+        0.09619140625,
+        0.41845703125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "dirt",
-      "face": "bottom",
+      "material": "default",
+      "face": "top",
       "direction": null,
       "is_directional": false
     },
-    "glass_bottom": {
+    "dirt_top": {
       "index": 75,
       "grid_pos": [
         3,
         12
       ],
       "pixel_pos": [
-        61,
-        241
+        199,
+        793
       ],
       "uv_min": [
-        0.119140625,
-        0.470703125
+        0.09716796875,
+        0.38720703125
       ],
       "uv_max": [
-        0.154296875,
-        0.505859375
+        0.12841796875,
+        0.41845703125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "glass",
-      "face": "bottom",
+      "material": "dirt",
+      "face": "top",
       "direction": null,
       "is_directional": false
     },
-    "glow_bottom": {
+    "glass_top": {
       "index": 76,
       "grid_pos": [
         4,
         12
       ],
       "pixel_pos": [
-        81,
-        241
+        265,
+        793
       ],
       "uv_min": [
-        0.158203125,
-        0.470703125
+        0.12939453125,
+        0.38720703125
       ],
       "uv_max": [
-        0.193359375,
-        0.505859375
+        0.16064453125,
+        0.41845703125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "glow",
-      "face": "bottom",
+      "material": "glass",
+      "face": "top",
       "direction": null,
       "is_directional": false
     },
-    "hover_bottom": {
+    "glow_top": {
       "index": 77,
       "grid_pos": [
         5,
         12
       ],
       "pixel_pos": [
-        101,
-        241
+        331,
+        793
       ],
       "uv_min": [
-        0.197265625,
-        0.470703125
+        0.16162109375,
+        0.38720703125
       ],
       "uv_max": [
-        0.232421875,
-        0.505859375
+        0.19287109375,
+        0.41845703125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "hover",
-      "face": "bottom",
+      "material": "glow",
+      "face": "top",
       "direction": null,
       "is_directional": false
     },
-    "ice_bottom": {
+    "gold_top": {
       "index": 78,
       "grid_pos": [
         0,
@@ -2119,19 +2119,586 @@
       ],
       "pixel_pos": [
         1,
-        261
+        859
       ],
       "uv_min": [
-        0.001953125,
-        0.509765625
+        0.00048828125,
+        0.41943359375
       ],
       "uv_max": [
-        0.037109375,
-        0.544921875
+        0.03173828125,
+        0.45068359375
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
+      ],
+      "material": "gold",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "grass_top": {
+      "index": 79,
+      "grid_pos": [
+        1,
+        13
+      ],
+      "pixel_pos": [
+        67,
+        859
+      ],
+      "uv_min": [
+        0.03271484375,
+        0.41943359375
+      ],
+      "uv_max": [
+        0.06396484375,
+        0.45068359375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "grass",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "gravel_top": {
+      "index": 80,
+      "grid_pos": [
+        2,
+        13
+      ],
+      "pixel_pos": [
+        133,
+        859
+      ],
+      "uv_min": [
+        0.06494140625,
+        0.41943359375
+      ],
+      "uv_max": [
+        0.09619140625,
+        0.45068359375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "gravel",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "ice_top": {
+      "index": 81,
+      "grid_pos": [
+        3,
+        13
+      ],
+      "pixel_pos": [
+        199,
+        859
+      ],
+      "uv_min": [
+        0.09716796875,
+        0.41943359375
+      ],
+      "uv_max": [
+        0.12841796875,
+        0.45068359375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "ice",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "leaf_top": {
+      "index": 82,
+      "grid_pos": [
+        4,
+        13
+      ],
+      "pixel_pos": [
+        265,
+        859
+      ],
+      "uv_min": [
+        0.12939453125,
+        0.41943359375
+      ],
+      "uv_max": [
+        0.16064453125,
+        0.45068359375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "leaf",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "log_top": {
+      "index": 83,
+      "grid_pos": [
+        5,
+        13
+      ],
+      "pixel_pos": [
+        331,
+        859
+      ],
+      "uv_min": [
+        0.16162109375,
+        0.41943359375
+      ],
+      "uv_max": [
+        0.19287109375,
+        0.45068359375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "log",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "metal_top": {
+      "index": 84,
+      "grid_pos": [
+        0,
+        14
+      ],
+      "pixel_pos": [
+        1,
+        925
+      ],
+      "uv_min": [
+        0.00048828125,
+        0.45166015625
+      ],
+      "uv_max": [
+        0.03173828125,
+        0.48291015625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "metal",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "sand_top": {
+      "index": 85,
+      "grid_pos": [
+        1,
+        14
+      ],
+      "pixel_pos": [
+        67,
+        925
+      ],
+      "uv_min": [
+        0.03271484375,
+        0.45166015625
+      ],
+      "uv_max": [
+        0.06396484375,
+        0.48291015625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "sand",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "sandstone_top": {
+      "index": 86,
+      "grid_pos": [
+        2,
+        14
+      ],
+      "pixel_pos": [
+        133,
+        925
+      ],
+      "uv_min": [
+        0.06494140625,
+        0.45166015625
+      ],
+      "uv_max": [
+        0.09619140625,
+        0.48291015625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "sandstone",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "stone_top": {
+      "index": 87,
+      "grid_pos": [
+        3,
+        14
+      ],
+      "pixel_pos": [
+        199,
+        925
+      ],
+      "uv_min": [
+        0.09716796875,
+        0.45166015625
+      ],
+      "uv_max": [
+        0.12841796875,
+        0.48291015625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "stone",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "stonebricks_top": {
+      "index": 88,
+      "grid_pos": [
+        4,
+        14
+      ],
+      "pixel_pos": [
+        265,
+        925
+      ],
+      "uv_min": [
+        0.12939453125,
+        0.45166015625
+      ],
+      "uv_max": [
+        0.16064453125,
+        0.48291015625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "stonebricks",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "wood_top": {
+      "index": 89,
+      "grid_pos": [
+        5,
+        14
+      ],
+      "pixel_pos": [
+        331,
+        925
+      ],
+      "uv_min": [
+        0.16162109375,
+        0.45166015625
+      ],
+      "uv_max": [
+        0.19287109375,
+        0.48291015625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "wood",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "bricks_bottom": {
+      "index": 90,
+      "grid_pos": [
+        0,
+        15
+      ],
+      "pixel_pos": [
+        1,
+        991
+      ],
+      "uv_min": [
+        0.00048828125,
+        0.48388671875
+      ],
+      "uv_max": [
+        0.03173828125,
+        0.51513671875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "bricks",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "cobblestone_bottom": {
+      "index": 91,
+      "grid_pos": [
+        1,
+        15
+      ],
+      "pixel_pos": [
+        67,
+        991
+      ],
+      "uv_min": [
+        0.03271484375,
+        0.48388671875
+      ],
+      "uv_max": [
+        0.06396484375,
+        0.51513671875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "cobblestone",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "default_bottom": {
+      "index": 92,
+      "grid_pos": [
+        2,
+        15
+      ],
+      "pixel_pos": [
+        133,
+        991
+      ],
+      "uv_min": [
+        0.06494140625,
+        0.48388671875
+      ],
+      "uv_max": [
+        0.09619140625,
+        0.51513671875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "default",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "dirt_bottom": {
+      "index": 93,
+      "grid_pos": [
+        3,
+        15
+      ],
+      "pixel_pos": [
+        199,
+        991
+      ],
+      "uv_min": [
+        0.09716796875,
+        0.48388671875
+      ],
+      "uv_max": [
+        0.12841796875,
+        0.51513671875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "dirt",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "glass_bottom": {
+      "index": 94,
+      "grid_pos": [
+        4,
+        15
+      ],
+      "pixel_pos": [
+        265,
+        991
+      ],
+      "uv_min": [
+        0.12939453125,
+        0.48388671875
+      ],
+      "uv_max": [
+        0.16064453125,
+        0.51513671875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "glass",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "glow_bottom": {
+      "index": 95,
+      "grid_pos": [
+        5,
+        15
+      ],
+      "pixel_pos": [
+        331,
+        991
+      ],
+      "uv_min": [
+        0.16162109375,
+        0.48388671875
+      ],
+      "uv_max": [
+        0.19287109375,
+        0.51513671875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "glow",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "gold_bottom": {
+      "index": 96,
+      "grid_pos": [
+        0,
+        16
+      ],
+      "pixel_pos": [
+        1,
+        1057
+      ],
+      "uv_min": [
+        0.00048828125,
+        0.51611328125
+      ],
+      "uv_max": [
+        0.03173828125,
+        0.54736328125
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "gold",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "grass_bottom": {
+      "index": 97,
+      "grid_pos": [
+        1,
+        16
+      ],
+      "pixel_pos": [
+        67,
+        1057
+      ],
+      "uv_min": [
+        0.03271484375,
+        0.51611328125
+      ],
+      "uv_max": [
+        0.06396484375,
+        0.54736328125
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "grass",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "gravel_bottom": {
+      "index": 98,
+      "grid_pos": [
+        2,
+        16
+      ],
+      "pixel_pos": [
+        133,
+        1057
+      ],
+      "uv_min": [
+        0.06494140625,
+        0.51611328125
+      ],
+      "uv_max": [
+        0.09619140625,
+        0.54736328125
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "gravel",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "ice_bottom": {
+      "index": 99,
+      "grid_pos": [
+        3,
+        16
+      ],
+      "pixel_pos": [
+        199,
+        1057
+      ],
+      "uv_min": [
+        0.09716796875,
+        0.51611328125
+      ],
+      "uv_max": [
+        0.12841796875,
+        0.54736328125
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
       ],
       "material": "ice",
       "face": "bottom",
@@ -2139,134 +2706,215 @@
       "is_directional": false
     },
     "leaf_bottom": {
-      "index": 79,
+      "index": 100,
       "grid_pos": [
-        1,
-        13
+        4,
+        16
       ],
       "pixel_pos": [
-        21,
-        261
+        265,
+        1057
       ],
       "uv_min": [
-        0.041015625,
-        0.509765625
+        0.12939453125,
+        0.51611328125
       ],
       "uv_max": [
-        0.076171875,
-        0.544921875
+        0.16064453125,
+        0.54736328125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
       "material": "leaf",
       "face": "bottom",
       "direction": null,
       "is_directional": false
     },
-    "metal_bottom": {
-      "index": 80,
+    "log_bottom": {
+      "index": 101,
       "grid_pos": [
-        2,
-        13
+        5,
+        16
       ],
       "pixel_pos": [
-        41,
-        261
+        331,
+        1057
       ],
       "uv_min": [
-        0.080078125,
-        0.509765625
+        0.16162109375,
+        0.51611328125
       ],
       "uv_max": [
-        0.115234375,
-        0.544921875
+        0.19287109375,
+        0.54736328125
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
+      ],
+      "material": "log",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "metal_bottom": {
+      "index": 102,
+      "grid_pos": [
+        0,
+        17
+      ],
+      "pixel_pos": [
+        1,
+        1123
+      ],
+      "uv_min": [
+        0.00048828125,
+        0.54833984375
+      ],
+      "uv_max": [
+        0.03173828125,
+        0.57958984375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
       ],
       "material": "metal",
       "face": "bottom",
       "direction": null,
       "is_directional": false
     },
-    "rubber_bottom": {
-      "index": 81,
+    "sand_bottom": {
+      "index": 103,
       "grid_pos": [
-        3,
-        13
+        1,
+        17
       ],
       "pixel_pos": [
-        61,
-        261
+        67,
+        1123
       ],
       "uv_min": [
-        0.119140625,
-        0.509765625
+        0.03271484375,
+        0.54833984375
       ],
       "uv_max": [
-        0.154296875,
-        0.544921875
+        0.06396484375,
+        0.57958984375
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
-      "material": "rubber",
+      "material": "sand",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "sandstone_bottom": {
+      "index": 104,
+      "grid_pos": [
+        2,
+        17
+      ],
+      "pixel_pos": [
+        133,
+        1123
+      ],
+      "uv_min": [
+        0.06494140625,
+        0.54833984375
+      ],
+      "uv_max": [
+        0.09619140625,
+        0.57958984375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "sandstone",
       "face": "bottom",
       "direction": null,
       "is_directional": false
     },
     "stone_bottom": {
-      "index": 82,
+      "index": 105,
       "grid_pos": [
-        4,
-        13
+        3,
+        17
       ],
       "pixel_pos": [
-        81,
-        261
+        199,
+        1123
       ],
       "uv_min": [
-        0.158203125,
-        0.509765625
+        0.09716796875,
+        0.54833984375
       ],
       "uv_max": [
-        0.193359375,
-        0.544921875
+        0.12841796875,
+        0.57958984375
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
       ],
       "material": "stone",
       "face": "bottom",
       "direction": null,
       "is_directional": false
     },
-    "wood_bottom": {
-      "index": 83,
+    "stonebricks_bottom": {
+      "index": 106,
       "grid_pos": [
-        5,
-        13
+        4,
+        17
       ],
       "pixel_pos": [
-        101,
-        261
+        265,
+        1123
       ],
       "uv_min": [
-        0.197265625,
-        0.509765625
+        0.12939453125,
+        0.54833984375
       ],
       "uv_max": [
-        0.232421875,
-        0.544921875
+        0.16064453125,
+        0.57958984375
       ],
       "uv_size": [
-        0.03515625,
-        0.03515625
+        0.03125,
+        0.03125
+      ],
+      "material": "stonebricks",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "wood_bottom": {
+      "index": 107,
+      "grid_pos": [
+        5,
+        17
+      ],
+      "pixel_pos": [
+        331,
+        1123
+      ],
+      "uv_min": [
+        0.16162109375,
+        0.54833984375
+      ],
+      "uv_max": [
+        0.19287109375,
+        0.57958984375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
       ],
       "material": "wood",
       "face": "bottom",
@@ -2275,117 +2923,149 @@
     }
   },
   "materials": {
-    "placeholder": {
-      "top": 4,
-      "bottom": 5,
+    "bricks": {
+      "top": 72,
+      "bottom": 90,
       "side_n": 0,
-      "side_s": 1,
-      "side_e": 2,
-      "side_w": 3
-    },
-    "grassdirt": {
-      "top": 10,
-      "bottom": 11,
-      "side_n": 6,
-      "side_s": 7,
-      "side_e": 8,
-      "side_w": 9
-    },
-    "cork": {
-      "top": 60,
-      "bottom": 72,
-      "side_n": 12,
-      "side_s": 24,
+      "side_s": 18,
       "side_e": 36,
-      "side_w": 48
-    },
-    "default": {
-      "top": 61,
-      "bottom": 73,
-      "side_n": 13,
-      "side_s": 25,
-      "side_e": 37,
-      "side_w": 49
-    },
-    "dirt": {
-      "top": 62,
-      "bottom": 74,
-      "side_n": 14,
-      "side_s": 26,
-      "side_e": 38,
-      "side_w": 50
-    },
-    "glass": {
-      "top": 63,
-      "bottom": 75,
-      "side_n": 15,
-      "side_s": 27,
-      "side_e": 39,
-      "side_w": 51
-    },
-    "glow": {
-      "top": 64,
-      "bottom": 76,
-      "side_n": 16,
-      "side_s": 28,
-      "side_e": 40,
-      "side_w": 52
-    },
-    "hover": {
-      "top": 65,
-      "bottom": 77,
-      "side_n": 17,
-      "side_s": 29,
-      "side_e": 41,
-      "side_w": 53
-    },
-    "ice": {
-      "top": 66,
-      "bottom": 78,
-      "side_n": 18,
-      "side_s": 30,
-      "side_e": 42,
       "side_w": 54
     },
-    "leaf": {
-      "top": 67,
-      "bottom": 79,
-      "side_n": 19,
-      "side_s": 31,
-      "side_e": 43,
+    "cobblestone": {
+      "top": 73,
+      "bottom": 91,
+      "side_n": 1,
+      "side_s": 19,
+      "side_e": 37,
       "side_w": 55
     },
-    "metal": {
-      "top": 68,
-      "bottom": 80,
-      "side_n": 20,
-      "side_s": 32,
-      "side_e": 44,
+    "default": {
+      "top": 74,
+      "bottom": 92,
+      "side_n": 2,
+      "side_s": 20,
+      "side_e": 38,
       "side_w": 56
     },
-    "rubber": {
-      "top": 69,
-      "bottom": 81,
-      "side_n": 21,
-      "side_s": 33,
-      "side_e": 45,
+    "dirt": {
+      "top": 75,
+      "bottom": 93,
+      "side_n": 3,
+      "side_s": 21,
+      "side_e": 39,
       "side_w": 57
     },
-    "stone": {
-      "top": 70,
-      "bottom": 82,
-      "side_n": 22,
-      "side_s": 34,
-      "side_e": 46,
+    "glass": {
+      "top": 76,
+      "bottom": 94,
+      "side_n": 4,
+      "side_s": 22,
+      "side_e": 40,
       "side_w": 58
     },
-    "wood": {
-      "top": 71,
-      "bottom": 83,
-      "side_n": 23,
-      "side_s": 35,
-      "side_e": 47,
+    "glow": {
+      "top": 77,
+      "bottom": 95,
+      "side_n": 5,
+      "side_s": 23,
+      "side_e": 41,
       "side_w": 59
+    },
+    "gold": {
+      "top": 78,
+      "bottom": 96,
+      "side_n": 6,
+      "side_s": 24,
+      "side_e": 42,
+      "side_w": 60
+    },
+    "grass": {
+      "top": 79,
+      "bottom": 97,
+      "side_n": 7,
+      "side_s": 25,
+      "side_e": 43,
+      "side_w": 61
+    },
+    "gravel": {
+      "top": 80,
+      "bottom": 98,
+      "side_n": 8,
+      "side_s": 26,
+      "side_e": 44,
+      "side_w": 62
+    },
+    "ice": {
+      "top": 81,
+      "bottom": 99,
+      "side_n": 9,
+      "side_s": 27,
+      "side_e": 45,
+      "side_w": 63
+    },
+    "leaf": {
+      "top": 82,
+      "bottom": 100,
+      "side_n": 10,
+      "side_s": 28,
+      "side_e": 46,
+      "side_w": 64
+    },
+    "log": {
+      "top": 83,
+      "bottom": 101,
+      "side_n": 11,
+      "side_s": 29,
+      "side_e": 47,
+      "side_w": 65
+    },
+    "metal": {
+      "top": 84,
+      "bottom": 102,
+      "side_n": 12,
+      "side_s": 30,
+      "side_e": 48,
+      "side_w": 66
+    },
+    "sand": {
+      "top": 85,
+      "bottom": 103,
+      "side_n": 13,
+      "side_s": 31,
+      "side_e": 49,
+      "side_w": 67
+    },
+    "sandstone": {
+      "top": 86,
+      "bottom": 104,
+      "side_n": 14,
+      "side_s": 32,
+      "side_e": 50,
+      "side_w": 68
+    },
+    "stone": {
+      "top": 87,
+      "bottom": 105,
+      "side_n": 15,
+      "side_s": 33,
+      "side_e": 51,
+      "side_w": 69
+    },
+    "stonebricks": {
+      "top": 88,
+      "bottom": 106,
+      "side_n": 16,
+      "side_s": 34,
+      "side_e": 52,
+      "side_w": 70
+    },
+    "wood": {
+      "top": 89,
+      "bottom": 107,
+      "side_n": 17,
+      "side_s": 35,
+      "side_e": 53,
+      "side_w": 71
     }
   }
 }

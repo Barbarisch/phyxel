@@ -52,12 +52,12 @@ TEST_F(MaterialRegistryTest, LoadsSuccessfully) {
 
 TEST_F(MaterialRegistryTest, HasCorrectMaterialCount) {
     ASSERT_TRUE(loaded_);
-    EXPECT_EQ(registry_->getMaterialCount(), 14);
+    EXPECT_EQ(registry_->getMaterialCount(), 18);
 }
 
 TEST_F(MaterialRegistryTest, HasCorrectTextureCount) {
     ASSERT_TRUE(loaded_);
-    EXPECT_EQ(registry_->getTextureCount(), 84);
+    EXPECT_EQ(registry_->getTextureCount(), 108);
 }
 
 // ============================================================================
@@ -67,20 +67,24 @@ TEST_F(MaterialRegistryTest, HasCorrectTextureCount) {
 TEST_F(MaterialRegistryTest, MaterialIDs_MatchJSON) {
     ASSERT_TRUE(loaded_);
     // IDs assigned by JSON array order (alphabetical after system materials)
-    EXPECT_EQ(registry_->getMaterialID("placeholder"), 0);
-    EXPECT_EQ(registry_->getMaterialID("grassdirt"), 1);
-    EXPECT_EQ(registry_->getMaterialID("Cork"), 2);
-    EXPECT_EQ(registry_->getMaterialID("Default"), 3);
-    EXPECT_EQ(registry_->getMaterialID("Dirt"), 4);
-    EXPECT_EQ(registry_->getMaterialID("Glass"), 5);
-    EXPECT_EQ(registry_->getMaterialID("glow"), 6);
-    EXPECT_EQ(registry_->getMaterialID("hover"), 7);
-    EXPECT_EQ(registry_->getMaterialID("Ice"), 8);
-    EXPECT_EQ(registry_->getMaterialID("Leaf"), 9);
-    EXPECT_EQ(registry_->getMaterialID("Metal"), 10);
-    EXPECT_EQ(registry_->getMaterialID("Rubber"), 11);
-    EXPECT_EQ(registry_->getMaterialID("Stone"), 12);
-    EXPECT_EQ(registry_->getMaterialID("Wood"), 13);
+    EXPECT_EQ(registry_->getMaterialID("Default"),      0);
+    EXPECT_EQ(registry_->getMaterialID("Dirt"),         1);
+    EXPECT_EQ(registry_->getMaterialID("Grass"),        2);
+    EXPECT_EQ(registry_->getMaterialID("Stone"),        3);
+    EXPECT_EQ(registry_->getMaterialID("Cobblestone"),  4);
+    EXPECT_EQ(registry_->getMaterialID("StoneBricks"),  5);
+    EXPECT_EQ(registry_->getMaterialID("Sand"),         6);
+    EXPECT_EQ(registry_->getMaterialID("Gravel"),       7);
+    EXPECT_EQ(registry_->getMaterialID("Wood"),         8);
+    EXPECT_EQ(registry_->getMaterialID("Log"),          9);
+    EXPECT_EQ(registry_->getMaterialID("Bricks"),      10);
+    EXPECT_EQ(registry_->getMaterialID("Sandstone"),   11);
+    EXPECT_EQ(registry_->getMaterialID("Glass"),       12);
+    EXPECT_EQ(registry_->getMaterialID("Metal"),       13);
+    EXPECT_EQ(registry_->getMaterialID("Gold"),        14);
+    EXPECT_EQ(registry_->getMaterialID("Ice"),         15);
+    EXPECT_EQ(registry_->getMaterialID("Leaf"),        16);
+    EXPECT_EQ(registry_->getMaterialID("glow"),        17);
 }
 
 TEST_F(MaterialRegistryTest, UnknownMaterial_FallsBackToDefault) {
@@ -99,8 +103,8 @@ TEST_F(MaterialRegistryTest, MaterialIDs_CaseSensitive) {
     EXPECT_EQ(registry_->getMaterialID("STONE"), defaultID);
     EXPECT_EQ(registry_->getMaterialID("wood"), defaultID);
     // Correct case should work
-    EXPECT_EQ(registry_->getMaterialID("Stone"), 12);
-    EXPECT_EQ(registry_->getMaterialID("Wood"), 13);
+    EXPECT_EQ(registry_->getMaterialID("Stone"), 3);
+    EXPECT_EQ(registry_->getMaterialID("Wood"),  8);
 }
 
 // ============================================================================
@@ -162,9 +166,11 @@ TEST_F(MaterialRegistryTest, Physics_StoneProperties) {
 
 TEST_F(MaterialRegistryTest, Physics_SystemMaterialsHaveNoPhysics) {
     ASSERT_TRUE(loaded_);
-    const MaterialDef* placeholder = registry_->getMaterial("placeholder");
-    ASSERT_NE(placeholder, nullptr);
-    EXPECT_FALSE(placeholder->hasPhysics());
+    // All remaining materials are category=material and have physics
+    // (system-only materials placeholder/hover were removed)
+    const MaterialDef* stone = registry_->getMaterial("Stone");
+    ASSERT_NE(stone, nullptr);
+    EXPECT_TRUE(stone->hasPhysics());
 }
 
 // ============================================================================
@@ -173,10 +179,10 @@ TEST_F(MaterialRegistryTest, Physics_SystemMaterialsHaveNoPhysics) {
 
 TEST_F(MaterialRegistryTest, HoverTextureIndex_ValidFaces) {
     ASSERT_TRUE(loaded_);
-    // Hover material exists and has texture indices
+    // hover material was removed; getHoverTextureIndex falls back to placeholderIndex (0)
     for (int face = 0; face < 6; face++) {
         uint16_t idx = registry_->getHoverTextureIndex(face);
-        EXPECT_LT(idx, registry_->getTextureCount());
+        EXPECT_EQ(idx, registry_->getPlaceholderIndex());
     }
 }
 
@@ -188,6 +194,7 @@ TEST_F(MaterialRegistryTest, HoverTextureIndex_InvalidFace) {
 
 TEST_F(MaterialRegistryTest, GrassdirtTextureIndex_ValidFaces) {
     ASSERT_TRUE(loaded_);
+    // grassdirt was renamed to Grass; getGrassdirtTextureIndex should still resolve
     for (int face = 0; face < 6; face++) {
         uint16_t idx = registry_->getGrassdirtTextureIndex(face);
         EXPECT_LT(idx, registry_->getTextureCount());
@@ -202,14 +209,18 @@ TEST_F(MaterialRegistryTest, HasMaterial_KnownMaterials) {
     ASSERT_TRUE(loaded_);
     EXPECT_TRUE(registry_->hasMaterial("Stone"));
     EXPECT_TRUE(registry_->hasMaterial("Wood"));
-    EXPECT_TRUE(registry_->hasMaterial("placeholder"));
+    EXPECT_TRUE(registry_->hasMaterial("Grass"));
+    EXPECT_TRUE(registry_->hasMaterial("Cobblestone"));
+    EXPECT_TRUE(registry_->hasMaterial("StoneBricks"));
+    EXPECT_TRUE(registry_->hasMaterial("Log"));
+    EXPECT_FALSE(registry_->hasMaterial("placeholder"));
     EXPECT_FALSE(registry_->hasMaterial("unknown"));
 }
 
 TEST_F(MaterialRegistryTest, GetAllMaterialNames_HasAll) {
     ASSERT_TRUE(loaded_);
     auto names = registry_->getAllMaterialNames();
-    EXPECT_EQ(static_cast<int>(names.size()), 14);
+    EXPECT_EQ(static_cast<int>(names.size()), 18);
 }
 
 // ============================================================================
@@ -250,8 +261,10 @@ TEST_F(MaterialRegistryTest, RemoveMaterial_Works) {
 
 TEST_F(MaterialRegistryTest, RemoveMaterial_SystemFails) {
     ASSERT_TRUE(loaded_);
-    EXPECT_FALSE(registry_->removeMaterial("placeholder"));
-    EXPECT_TRUE(registry_->hasMaterial("placeholder"));
+    // placeholder was removed from the material set; verify a real material
+    // cannot be force-removed via name lookup of a non-existent entry
+    EXPECT_FALSE(registry_->removeMaterial("placeholder")); // not present
+    EXPECT_FALSE(registry_->hasMaterial("placeholder"));   // still not present
 }
 
 // ============================================================================

@@ -17,6 +17,13 @@ enum class SceneTransitionStyle {
     LoadingScreen   ///< Show loading screen during transition
 };
 
+/// Semantic type of a scene — determines what the SceneManager loads.
+enum class SceneType {
+    World,      ///< Standard voxel world (has a world database)
+    Menu,       ///< 2D menu / main-menu (no world DB; uses menuLayout)
+    Cutscene,   ///< Non-interactive cinematic (future)
+};
+
 /// A single scene definition — one "level" or "world state" of a game.
 ///
 /// Each scene has its own world database (chunks), entities, NPCs, lighting,
@@ -44,6 +51,13 @@ struct SceneDefinition {
 
     /// Transition style when entering this scene.
     SceneTransitionStyle transitionStyle = SceneTransitionStyle::LoadingScreen;
+
+    /// Scene type — determines load behaviour.
+    SceneType sceneType = SceneType::World;
+
+    /// Menu layout definition (only used when sceneType == Menu).
+    /// Follows the MenuDefinition JSON schema (root UIPanel tree).
+    json menuLayout;
 
     /// Resolved database path (set at runtime by SceneManager).
     std::string resolvedWorldPath;

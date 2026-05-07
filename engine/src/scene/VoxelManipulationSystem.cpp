@@ -706,9 +706,12 @@ bool VoxelManipulationSystem::placeMicrocube(const glm::ivec3& parentCubePos, co
 // =============================================================================
 
 std::string VoxelManipulationSystem::selectMaterialForCube(const glm::vec3& cubeWorldPos) const {
-    // Select material based on position
-    std::vector<std::string> materials = {"Wood", "Metal", "Glass", "Rubber", "Stone", "Ice", "Cork"};
-    int materialIndex = (abs(static_cast<int>(cubeWorldPos.x) + static_cast<int>(cubeWorldPos.z))) % materials.size();
+    // Select material based on position — uses all registered materials
+    std::vector<std::string> materials = {
+        "Stone", "Cobblestone", "StoneBricks", "Dirt", "Gravel", "Sand",
+        "Wood", "Log", "Bricks", "Sandstone", "Metal", "Gold", "Glass", "Ice", "Leaf", "glow"
+    };
+    int materialIndex = (abs(static_cast<int>(cubeWorldPos.x) + static_cast<int>(cubeWorldPos.z))) % static_cast<int>(materials.size());
     return materials[materialIndex];
 }
 

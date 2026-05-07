@@ -53,6 +53,7 @@
 #include "ui/MenuDefinition.h"
 #include "ui/UISystem.h"
 #include "ui/GameMenus.h"
+#include "ui/GameMenuRenderer.h"
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <imgui_impl_vulkan.h>
@@ -1203,13 +1204,11 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     Core::ItemRegistry::instance().loadFromFile("resources/items.json");
 
     inventory = std::make_unique<Core::Inventory>();
-    // Start in creative mode with all materials in hotbar
+    // Populate inventory with all registered materials (hotbar = first HOTBAR_SIZE, rest fill inventory)
     {
-        static const std::vector<std::string> defaultHotbar = {
-            "Stone", "Wood", "Metal", "Glass", "Rubber", "Ice", "Cork", "glow", "Leaf", "Default"
-        };
-        for (int i = 0; i < static_cast<int>(defaultHotbar.size()); ++i) {
-            inventory->setSlot(i, Core::ItemStack{defaultHotbar[i], 64, 64});
+        const auto& allMats = Core::MaterialRegistry::instance().getAllMaterials();
+        for (int i = 0; i < static_cast<int>(allMats.size()) && i < inventory->size(); ++i) {
+            inventory->setSlot(i, Core::ItemStack{allMats[i].name, 64, 64});
         }
     }
 
@@ -1583,6 +1582,68 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     m_worldOutliner->setPlacedObjectManager(placedObjectManager.get());
     m_worldOutliner->setChunkManager(chunkManager);
     m_worldOutliner->setObjectTemplateManager(objectTemplateManager.get());
+    m_worldOutliner->setSceneManager(runtime->getSceneManager());
+
+    m_propertiesPanel->setSceneManager(runtime->getSceneManager());
+
+    // Create and wire the Menu Editor panel
+    m_menuEditorPanel = std::make_unique<Editor::MenuEditorPanel>();
+    m_menuEditorPanel->onSave = [this](const nlohmann::json& layout) {
+        auto* sm = runtime->getSceneManager();
+        if (!sm || !sm->hasManifest()) return;
+        const std::string& activeId = sm->getActiveSceneId();
+        auto& manifest = sm->getManifestMutable();
+        for (auto& scene : manifest.scenes) {
+            if (scene.id != activeId) continue;
+            scene.menuLayout = layout;
+            break;
+        }
+        // Persist immediately
+        m_worldOutliner->onSaveManifest();
+        LOG_INFO("Application", "Menu layout saved for scene '{}'", activeId);
+    };
+
+    // Create the runtime game menu renderer
+    m_gameMenuRenderer = std::make_unique<UI::GameMenuRenderer>();
+    m_gameMenuRenderer->onTransitionScene = [this](const std::string& sceneId) {
+        auto* sm = runtime->getSceneManager();
+        if (sm) sm->transitionTo(sceneId);
+    };
+    m_gameMenuRenderer->onQuit = [this]() { quit(); };
+
+    // Wire SceneManager callbacks so menu scenes show the editor
+    {
+        auto* sm = runtime->getSceneManager();
+        if (sm) {
+            Core::SceneCallbacks cb = {};   // start empty, fill what we can
+
+            cb.onMenuSceneLoaded = [this](const Core::SceneDefinition& scene) {
+                // Build and show the menu editor for this scene
+                m_menuEditorPanel->setSceneName(scene.name);
+                if (!scene.menuLayout.is_null()) {
+                    m_menuEditorPanel->loadFromJson(scene.menuLayout);
+                }
+                m_showMenuEditor = true;
+
+                // Load the layout into the game menu renderer for live preview
+                if (m_gameMenuRenderer && !scene.menuLayout.is_null()) {
+                    m_gameMenuRenderer->load(scene.menuLayout, vulkanDevice);
+                    m_showGameMenuPreview = true;
+                }
+            };
+
+            cb.onSceneReady = [this](const std::string& /*sceneId*/) {
+                // When a world scene is ready, hide the menu editor and preview
+                m_showMenuEditor = false;
+                m_showGameMenuPreview = false;
+                if (m_gameMenuRenderer) m_gameMenuRenderer->unload();
+            };
+
+            // Note: clearEntities, clearNPCs, etc. are already handled by the
+            // SceneManager transition path; we only add the callbacks we care about here.
+            sm->setCallbacks(cb);
+        }
+    }
 
     // Wire add/remove callbacks from the World Outliner panel
     m_worldOutliner->onRemoveEntity = [this](const std::string& id) -> bool {
@@ -1626,6 +1687,18 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         return placedObjectManager->remove(id);
     };
 
+    m_worldOutliner->onDeleteChunk = [this](const glm::ivec3& chunkCoord) {
+        if (!chunkManager) return;
+        chunkManager->clearChunk(chunkCoord);
+        if (gpuParticlePhysics) {
+            glm::ivec3 origin = chunkCoord * 32;
+            for (int lx = 0; lx < 32; ++lx)
+                for (int ly = 0; ly < 32; ++ly)
+                    for (int lz = 0; lz < 32; ++lz)
+                        gpuParticlePhysics->setOccupied(origin.x + lx, origin.y + ly, origin.z + lz, false);
+        }
+    };
+
     m_worldOutliner->onSpawnTemplate = [this](const std::string& name, const glm::ivec3& pos,
                                                int rotation) -> std::string {
         if (!placedObjectManager) return "";
@@ -1636,6 +1709,149 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             if (ws) placedObjectManager->saveToDb(ws->getDb());
         }
         return objId;
+    };
+
+    // --- Scene management callbacks ---
+
+    // Helper: compute where game.json lives for this session
+    auto getManifestPath = [this]() -> std::string {
+        if (!projectDir_.empty())
+            return projectDir_ + "/game.json";
+        if (!engineConfig.gameDefinitionFile.empty())
+            return engineConfig.gameDefinitionFile;
+        return "game.json";
+    };
+
+    m_worldOutliner->onSwitchScene = [this](const std::string& id) -> bool {
+        auto* sm = runtime->getSceneManager();
+        if (!sm) return false;
+        return sm->transitionTo(id);
+    };
+
+    m_worldOutliner->onCreateScene = [this](const std::string& name, const std::string& dbPath, int sceneType) -> std::string {
+        auto* sm = runtime->getSceneManager();
+        if (!sm) return "";
+        // Sanitize name to generate a unique ID
+        std::string id = name;
+        for (char& c : id) {
+            if (!std::isalnum(c) && c != '_') c = '_';
+        }
+        std::transform(id.begin(), id.end(), id.begin(), ::tolower);
+        // Append timestamp suffix to avoid collisions
+        id += "_" + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count() % 100000);
+        Core::SceneDefinition def;
+        def.id            = id;
+        def.name          = name;
+        def.worldDatabase = dbPath;
+        def.transitionStyle = Core::SceneTransitionStyle::LoadingScreen;
+        // Map int sceneType from popup: 0=World, 1=Menu, 2=Cutscene
+        if      (sceneType == 1) def.sceneType = Core::SceneType::Menu;
+        else if (sceneType == 2) def.sceneType = Core::SceneType::Cutscene;
+        else                     def.sceneType = Core::SceneType::World;
+        sm->addScene(def);
+        return id;
+    };
+
+    m_worldOutliner->onDeleteScene = [this](const std::string& id) -> bool {
+        auto* sm = runtime->getSceneManager();
+        if (!sm) return false;
+        return sm->removeScene(id);
+    };
+
+    m_worldOutliner->onSaveManifest = [this, getManifestPath]() {
+        auto* sm = runtime->getSceneManager();
+        if (!sm || !sm->hasManifest()) return;
+        std::string path = getManifestPath();
+        try {
+            nlohmann::json j = sm->getManifest().toJson();
+            std::ofstream out(path);
+            if (out.is_open()) {
+                out << j.dump(2);
+                LOG_INFO("Application", "Scene manifest saved to {}", path);
+            } else {
+                LOG_ERROR("Application", "Could not write manifest to {}", path);
+            }
+        } catch (const std::exception& e) {
+            LOG_ERROR("Application", "Manifest save failed: {}", e.what());
+        }
+    };
+
+    m_worldOutliner->onConvertToMultiScene = [this, getManifestPath]() {
+        auto* sm = runtime->getSceneManager();
+        if (!sm) return;
+        // Build a minimal manifest wrapping the current world
+        std::string dbFile = engineConfig.defaultWorldFile.empty()
+                           ? std::string("default.db")
+                           : engineConfig.defaultWorldFile;
+        Core::SceneDefinition def;
+        def.id            = "default";
+        def.name          = "Default World";
+        def.worldDatabase = dbFile;
+        def.transitionStyle = Core::SceneTransitionStyle::LoadingScreen;
+        Core::SceneManifest manifest;
+        manifest.scenes.push_back(def);
+        manifest.startScene = "default";
+        sm->loadManifest(manifest);
+        // Save game.json
+        std::string path = getManifestPath();
+        try {
+            nlohmann::json j = sm->getManifest().toJson();
+            std::ofstream out(path);
+            if (out.is_open()) {
+                out << j.dump(2);
+                LOG_INFO("Application", "Multi-scene project created at {}", path);
+            }
+        } catch (const std::exception& e) {
+            LOG_ERROR("Application", "Could not create multi-scene project: {}", e.what());
+        }
+    };
+
+    // --- Properties panel scene callbacks ---
+
+    m_propertiesPanel->onSwitchScene = [this](const std::string& id) -> bool {
+        auto* sm = runtime->getSceneManager();
+        if (!sm) return false;
+        return sm->transitionTo(id);
+    };
+
+    m_propertiesPanel->onSaveManifest = [this, getManifestPath]() {
+        auto* sm = runtime->getSceneManager();
+        if (!sm || !sm->hasManifest()) return;
+        std::string path = getManifestPath();
+        try {
+            nlohmann::json j = sm->getManifest().toJson();
+            std::ofstream out(path);
+            if (out.is_open()) {
+                out << j.dump(2);
+                LOG_INFO("Application", "Scene manifest saved to {}", path);
+            } else {
+                LOG_ERROR("Application", "Could not write manifest to {}", path);
+            }
+        } catch (const std::exception& e) {
+            LOG_ERROR("Application", "Manifest save failed: {}", e.what());
+        }
+    };
+
+    m_propertiesPanel->onScenePropertyChanged = [this](const std::string& id,
+                                                        const std::string& field,
+                                                        const std::string& value) {
+        auto* sm = runtime->getSceneManager();
+        if (!sm || !sm->hasManifest()) return;
+        auto& manifest = sm->getManifestMutable();
+        for (auto& scene : manifest.scenes) {
+            if (scene.id != id) continue;
+            if (field == "name")            scene.name          = value;
+            else if (field == "worldDatabase") scene.worldDatabase = value;
+            else if (field == "onEnterScript")  scene.onEnterScript  = value;
+            else if (field == "onExitScript")   scene.onExitScript   = value;
+            else if (field == "transitionStyle") {
+                if      (value == "cut")           scene.transitionStyle = Core::SceneTransitionStyle::Cut;
+                else if (value == "fade")          scene.transitionStyle = Core::SceneTransitionStyle::Fade;
+                else                               scene.transitionStyle = Core::SceneTransitionStyle::LoadingScreen;
+            }
+            break;
+        }
     };
 
 #ifdef _WIN32
@@ -1914,6 +2130,8 @@ void Application::run() {
                 const auto& sel = m_worldOutliner->selectedId();
                 if (sel.empty()) {
                     m_propertiesPanel->clearSelection();
+                } else if (sel.rfind("scene:", 0) == 0) {
+                    m_propertiesPanel->setSelection(Editor::SelectionType::Scene, sel.substr(6));
                 } else if (sel.rfind("npc:", 0) == 0) {
                     m_propertiesPanel->setSelection(Editor::SelectionType::NPC, sel.substr(4));
                 } else if (sel.rfind("po:", 0) == 0) {
@@ -1999,6 +2217,9 @@ void Application::run() {
                 m_viewportPosX, m_viewportPosY, m_viewportSizeW, m_viewportSizeH);
         }
 
+        // Material hotbar (always visible in main editor mode)
+        renderMaterialHotbar();
+
         // Render AI Stats overlay (inside performance overlay toggle)
         if (showPerformanceOverlay && aiConversationService) {
             if (auto* client = aiConversationService->getLLMClient()) {
@@ -2049,6 +2270,17 @@ void Application::run() {
         if (m_textureEditor && m_showTextureEditor) {
             m_textureEditor->render(&m_showTextureEditor);
         }
+
+        // Render Menu Editor (when active scene is type Menu)
+        if (m_menuEditorPanel && m_showMenuEditor) {
+            m_menuEditorPanel->render(&m_showMenuEditor);
+        }
+
+        // Render live game menu preview (full-screen overlay under editor panels)
+        if (m_gameMenuRenderer && m_showGameMenuPreview && m_gameMenuRenderer->hasLayout()) {
+            m_gameMenuRenderer->render(deltaTime);
+        }
+
         if (dialogueSystem) {
             imguiRenderer->renderDialogueBox(dialogueSystem.get());
         }
@@ -4212,6 +4444,185 @@ static nlohmann::json handleGameStateCommand(
     return {{"error", "Unknown game state action: " + action}};
 }
 
+// Scene Command Handler (extracted to reduce nesting depth)
+// ============================================================================
+static nlohmann::json handleSceneCommand(
+    const std::string& action,
+    const nlohmann::json& params,
+    Phyxel::Core::SceneManager* sm,
+    const std::string& projectDir,
+    const Phyxel::Core::EngineConfig& engineConfig)
+{
+    using json = nlohmann::json;
+    namespace SC = Phyxel::Core;
+
+    auto sceneTypeName = [](SC::SceneType t) -> const char* {
+        if (t == SC::SceneType::Menu)     return "menu";
+        if (t == SC::SceneType::Cutscene) return "cutscene";
+        return "world";
+    };
+    auto parseSceneType = [](const std::string& s) -> SC::SceneType {
+        if (s == "menu")     return SC::SceneType::Menu;
+        if (s == "cutscene") return SC::SceneType::Cutscene;
+        return SC::SceneType::World;
+    };
+
+    if (action == "list_scenes") {
+        if (!sm || !sm->hasManifest())
+            return {{"scenes", json::array()}, {"has_manifest", false}};
+        const std::string& activeId = sm->getActiveSceneId();
+        json arr = json::array();
+        for (const auto& s : sm->getManifest().scenes) {
+            arr.push_back({
+                {"id", s.id}, {"name", s.name},
+                {"scene_type", sceneTypeName(s.sceneType)},
+                {"world_database", s.worldDatabase},
+                {"active", s.id == activeId}
+            });
+        }
+        return {{"scenes", arr}, {"has_manifest", true},
+                {"active_scene", activeId}, {"transitioning", sm->isTransitioning()}};
+    }
+
+    if (action == "get_active_scene") {
+        if (!sm || sm->getActiveSceneId().empty())
+            return {{"error", "No active scene"}};
+        const auto* s = sm->getActiveScene();
+        if (!s) return {{"error", "Active scene not found in manifest"}};
+        json resp = {
+            {"id", s->id}, {"name", s->name}, {"description", s->description},
+            {"scene_type", sceneTypeName(s->sceneType)},
+            {"world_database", s->worldDatabase},
+            {"on_enter_script", s->onEnterScript},
+            {"on_exit_script", s->onExitScript},
+            {"transition_style", SC::transitionStyleToString(s->transitionStyle)},
+            {"transitioning", sm->isTransitioning()}
+        };
+        if (!s->menuLayout.is_null()) resp["menu_layout"] = s->menuLayout;
+        return resp;
+    }
+
+    if (action == "get_scene") {
+        if (!sm) return {{"error", "SceneManager not available"}};
+        std::string sceneId = params.value("scene_id", "");
+        if (sceneId.empty()) return {{"error", "scene_id required"}};
+        const auto* s = sm->findScene(sceneId);
+        if (!s) return {{"error", "Scene not found: " + sceneId}};
+        json resp = {
+            {"id", s->id}, {"name", s->name}, {"description", s->description},
+            {"scene_type", sceneTypeName(s->sceneType)},
+            {"world_database", s->worldDatabase},
+            {"on_enter_script", s->onEnterScript},
+            {"on_exit_script", s->onExitScript},
+            {"transition_style", SC::transitionStyleToString(s->transitionStyle)},
+            {"active", sm->getActiveSceneId() == sceneId}
+        };
+        if (!s->menuLayout.is_null()) resp["menu_layout"] = s->menuLayout;
+        return resp;
+    }
+
+    if (action == "transition_scene") {
+        if (!sm) return {{"error", "SceneManager not available"}};
+        std::string sceneId = params.value("scene_id", "");
+        if (sceneId.empty()) return {{"error", "scene_id required"}};
+        if (!sm->hasManifest()) return {{"error", "No scene manifest loaded"}};
+        bool ok = sm->transitionTo(sceneId);
+        json resp = {{"success", ok}, {"scene_id", sceneId}};
+        if (!ok) resp["error"] = "Transition failed or already transitioning";
+        return resp;
+    }
+
+    if (action == "add_scene") {
+        if (!sm) return {{"error", "SceneManager not available"}};
+        std::string id = params.value("id", "");
+        if (id.empty()) return {{"error", "id required"}};
+
+        SC::SceneDefinition def;
+        def.id            = id;
+        def.name          = params.value("name", id);
+        def.description   = params.value("description", "");
+        def.worldDatabase = params.value("worldDatabase", "");
+        def.onEnterScript = params.value("onEnterScript", "");
+        def.onExitScript  = params.value("onExitScript", "");
+        def.sceneType     = parseSceneType(params.value("sceneType", "world"));
+        def.transitionStyle = SC::transitionStyleFromString(params.value("transitionStyle", "loading_screen"));
+        if (params.contains("menuLayout")) def.menuLayout = params["menuLayout"];
+
+        // Remaining keys go into definition payload (world gen, structures, NPCs, etc.)
+        def.definition = params;
+        for (const char* key : {"id","name","description","worldDatabase",
+                                "onEnterScript","onExitScript","transitionStyle",
+                                "sceneType","menuLayout"}) {
+            def.definition.erase(key);
+        }
+
+        if (!sm->hasManifest()) {
+            SC::SceneManifest m;
+            m.startScene = id;
+            sm->loadManifest(m);
+        }
+        sm->addScene(def);
+        return {{"success", true}, {"id", id}};
+    }
+
+    if (action == "remove_scene") {
+        if (!sm) return {{"error", "SceneManager not available"}};
+        std::string sceneId = params.value("scene_id", "");
+        if (sceneId.empty()) return {{"error", "scene_id required"}};
+        bool ok = sm->removeScene(sceneId);
+        json resp = {{"success", ok}};
+        if (!ok) resp["error"] = "Cannot remove scene (active or not found)";
+        return resp;
+    }
+
+    if (action == "update_scene") {
+        if (!sm || !sm->hasManifest()) return {{"error", "SceneManager or manifest unavailable"}};
+        std::string sceneId = params.value("scene_id", "");
+        if (sceneId.empty()) return {{"error", "scene_id required"}};
+        auto& manifest = sm->getManifestMutable();
+        auto it = std::find_if(manifest.scenes.begin(), manifest.scenes.end(),
+                               [&](const SC::SceneDefinition& s){ return s.id == sceneId; });
+        if (it == manifest.scenes.end()) return {{"error", "Scene not found: " + sceneId}};
+        auto& s = *it;
+        if (params.contains("name"))           s.name          = params["name"];
+        if (params.contains("description"))    s.description   = params["description"];
+        if (params.contains("worldDatabase"))   s.worldDatabase = params["worldDatabase"];
+        if (params.contains("onEnterScript"))   s.onEnterScript = params["onEnterScript"];
+        if (params.contains("onExitScript"))    s.onExitScript  = params["onExitScript"];
+        if (params.contains("transitionStyle"))
+            s.transitionStyle = SC::transitionStyleFromString(params["transitionStyle"].get<std::string>());
+        if (params.contains("sceneType"))
+            s.sceneType = parseSceneType(params["sceneType"].get<std::string>());
+        if (params.contains("menuLayout"))
+            s.menuLayout = params["menuLayout"];
+        return {{"success", true}, {"id", sceneId}};
+    }
+
+    if (action == "save_scene_manifest") {
+        if (!sm || !sm->hasManifest()) return {{"error", "No scene manifest to save"}};
+        std::string path = params.value("path", "");
+        if (path.empty()) {
+            if (!projectDir.empty())
+                path = (std::filesystem::path(projectDir) / "game.json").string();
+            else if (!engineConfig.gameDefinitionFile.empty())
+                path = engineConfig.gameDefinitionFile;
+            else
+                path = "game.json";
+        }
+        try {
+            json j = sm->getManifest().toJson();
+            std::ofstream out(path);
+            if (!out.is_open()) return {{"error", "Could not write to: " + path}};
+            out << j.dump(2);
+            return {{"success", true}, {"path", path}};
+        } catch (const std::exception& e) {
+            return {{"error", std::string(e.what())}};
+        }
+    }
+
+    return {{"error", "Unknown scene action: " + action}};
+}
+
 // AI / LLM Command Handler (extracted to reduce nesting depth)
 // ============================================================================
 static nlohmann::json handleMaterialCommand(
@@ -5302,8 +5713,122 @@ static bool handleDoorCommand(
     return false; // not a door command
 }
 
+// Animation API Command Dispatcher (extracted to reduce nesting depth in processAPICommands)
+// ============================================================================
+bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohmann::json& response) {
+    using json = nlohmann::json;
+    const std::string& action = cmd.action;
+
+    // Helper: resolve animated character by ID
+    auto resolveCharacter = [&](const std::string& id) -> Scene::AnimatedVoxelCharacter* {
+        Scene::AnimatedVoxelCharacter* character = nullptr;
+        if (npcManager) {
+            std::string npcName = id;
+            if (npcName.size() > 4 && npcName.substr(0, 4) == "npc_") npcName = npcName.substr(4);
+            auto* npc = npcManager->getNPC(npcName);
+            if (npc) character = npc->getAnimatedCharacter();
+        }
+        if (!character && (id.empty() || id == "player") && animatedCharacter)
+            character = animatedCharacter;
+        return character;
+    };
+
+    if (action == "list_animations") {
+        std::string id = cmd.params.value("id", "");
+        auto* character = resolveCharacter(id);
+        if (!character) {
+            response = {{"error", "No animated character found for: " + id}};
+        } else {
+            json clipList = json::array();
+            const auto& clips = character->getAnimationClips();
+            for (size_t i = 0; i < clips.size(); ++i)
+                clipList.push_back({{"index", i}, {"name", clips[i].name},
+                                    {"duration", clips[i].duration}, {"speed", clips[i].speed}});
+            response = {{"success", true}, {"id", id}, {"animations", clipList}};
+        }
+        return true;
+    }
+
+    if (action == "play_animation") {
+        std::string id = cmd.params.value("id", "");
+        std::string animName = cmd.params.value("animation", "");
+        if (animName.empty()) { response = {{"error", "Animation name required"}}; return true; }
+        auto* character = resolveCharacter(id);
+        if (!character) {
+            response = {{"error", "No animated character found for: " + id}};
+        } else {
+            character->setAnimationState(Scene::AnimatedCharacterState::Preview);
+            character->playAnimation(animName);
+            response = {{"success", true}, {"id", id}, {"animation", animName}};
+        }
+        return true;
+    }
+
+    if (action == "get_animation_state") {
+        std::string id = cmd.params.value("id", "");
+        auto* character = resolveCharacter(id);
+        if (!character) {
+            response = {{"error", "No animated character found for: " + id}};
+        } else {
+            response = {{"success", true}, {"id", id},
+                        {"state", character->stateToString(character->getAnimationState())},
+                        {"clip", character->getCurrentClipName()},
+                        {"progress", character->getAnimationProgress()},
+                        {"duration", character->getAnimationDuration()},
+                        {"blendDuration", character->getBlendDuration()}};
+        }
+        return true;
+    }
+
+    if (action == "set_animation_state") {
+        std::string id = cmd.params.value("id", "");
+        std::string stateName = cmd.params.value("state", "");
+        if (stateName.empty()) { response = {{"error", "State name required"}}; return true; }
+        auto* character = resolveCharacter(id);
+        if (!character) {
+            response = {{"error", "No animated character found for: " + id}};
+        } else {
+            auto state = Scene::AnimatedVoxelCharacter::stringToState(stateName);
+            character->setAnimationState(state);
+            response = {{"success", true}, {"id", id}, {"state", stateName}};
+        }
+        return true;
+    }
+
+    if (action == "set_blend_duration") {
+        std::string id = cmd.params.value("id", "");
+        float duration = cmd.params.value("duration", 0.2f);
+        auto* character = resolveCharacter(id);
+        if (!character) {
+            response = {{"error", "No animated character found for: " + id}};
+        } else {
+            character->setBlendDuration(duration);
+            response = {{"success", true}, {"id", id}, {"blendDuration", duration}};
+        }
+        return true;
+    }
+
+    if (action == "reload_animation") {
+        std::string id = cmd.params.value("id", "");
+        std::string animFile = cmd.params.value("animFile", "");
+        if (animFile.empty()) { response = {{"error", "animFile path required"}}; return true; }
+        auto* character = resolveCharacter(id);
+        if (!character) {
+            response = {{"error", "No animated character found for: " + id}};
+        } else {
+            bool ok = character->reloadAnimations(animFile);
+            response = ok ? json({{"success", true}, {"id", id}, {"animFile", animFile},
+                                  {"clipCount", (int)character->getAnimationNames().size()}})
+                          : json({{"error", "Failed to reload animations from: " + animFile}});
+        }
+        return true;
+    }
+
+    return false; // not an animation command
+}
+
+// ============================================================================
 void Application::processAPICommands() {
-    if (!apiCommandQueue || !apiCommandQueue->hasPending()) return;
 
     std::vector<Core::APICommand> commands;
     apiCommandQueue->drainCommands(commands);
@@ -5321,6 +5846,110 @@ void Application::processAPICommands() {
             // Handle subcube/microcube commands via helper (avoids nesting depth limit)
             if (handleSubcubeMicrocubeCommand(cmd, response, chunkManager, npcManager.get())) {
                 // handled  --  skip to promise fulfillment below
+
+            // Handle scene management commands via helper (avoids nesting depth limit)
+            } else if (cmd.action == "list_scenes"   || cmd.action == "get_active_scene" ||
+                       cmd.action == "get_scene"      || cmd.action == "transition_scene" ||
+                       cmd.action == "add_scene"      || cmd.action == "remove_scene"     ||
+                       cmd.action == "update_scene"   || cmd.action == "save_scene_manifest") {
+                response = handleSceneCommand(cmd.action, cmd.params,
+                                              runtime->getSceneManager(),
+                                              projectDir_, engineConfig);
+
+            // Handle game menu element commands
+            } else if (cmd.action == "get_menu_element" || cmd.action == "set_menu_element" ||
+                       cmd.action == "add_menu_element"  || cmd.action == "remove_menu_element" ||
+                       cmd.action == "open_menu_submenu" || cmd.action == "close_menu_submenu") {
+                if (!m_gameMenuRenderer || !m_gameMenuRenderer->hasLayout()) {
+                    response = {{"error", "No menu scene active or layout not loaded"}};
+                } else if (cmd.action == "get_menu_element") {
+                    std::string id = cmd.params.value("id", "");
+                    nlohmann::json def = m_gameMenuRenderer->getElementDef(id);
+                    response = def.is_null() ? nlohmann::json{{"error", "Element not found: " + id}}
+                                             : nlohmann::json{{"success", true}, {"element", def}};
+                } else if (cmd.action == "set_menu_element") {
+                    std::string id = cmd.params.value("id", "");
+                    if (id.empty()) {
+                        response = {{"error", "id required"}};
+                    } else {
+                        if (cmd.params.contains("visible"))
+                            m_gameMenuRenderer->setElementVisible(id, cmd.params["visible"].get<bool>());
+                        if (cmd.params.contains("text"))
+                            m_gameMenuRenderer->setElementText(id, cmd.params["text"].get<std::string>());
+                        if (cmd.params.contains("color") && cmd.params["color"].is_array()
+                                && cmd.params["color"].size() >= 4) {
+                            auto& c = cmd.params["color"];
+                            m_gameMenuRenderer->setElementColor(id, c[0], c[1], c[2], c[3]);
+                        }
+                        response = {{"success", true}, {"id", id}};
+                    }
+                } else if (cmd.action == "add_menu_element") {
+                    std::string panelId = cmd.params.value("panel_id", "");
+                    nlohmann::json elemDef = cmd.params.value("element", nlohmann::json{});
+                    if (elemDef.is_null() || elemDef.empty()) {
+                        response = {{"error", "element definition required"}};
+                    } else {
+                        m_gameMenuRenderer->addElement(elemDef, panelId);
+                        response = {{"success", true}, {"panel_id", panelId}};
+                    }
+                } else if (cmd.action == "remove_menu_element") {
+                    std::string id = cmd.params.value("id", "");
+                    m_gameMenuRenderer->removeElement(id);
+                    response = {{"success", true}, {"id", id}};
+                } else if (cmd.action == "open_menu_submenu") {
+                    std::string panelId = cmd.params.value("panel_id", "");
+                    m_gameMenuRenderer->openSubmenu(panelId);
+                    response = {{"success", true}, {"panel_id", panelId}};
+                } else if (cmd.action == "close_menu_submenu") {
+                    m_gameMenuRenderer->closeSubmenu();
+                    response = {{"success", true}};
+                }
+
+            // Handle material commands via helper (avoids nesting depth limit)
+            } else if (cmd.action == "add_material" || cmd.action == "remove_material" ||
+                       cmd.action == "save_materials" || cmd.action == "reload_atlas") {
+                response = handleMaterialCommand(cmd.action, cmd.params, vulkanDevice);
+
+            // Handle AI/LLM commands via helper (avoids nesting depth limit)
+            } else if (cmd.action == "get_ai_status" || cmd.action == "configure_ai" ||
+                       cmd.action == "start_ai_conversation" || cmd.action == "send_ai_message") {
+                response = handleAICommand(cmd.action, cmd.params,
+                    aiConversationService.get(), npcManager.get(),
+                    entityRegistry.get(), dialogueSystem.get());
+
+            // Handle AI inspection, location & schedule commands (avoids nesting depth limit)
+            } else if (handleAIInspectionCommands(cmd, response, npcManager.get(), locationRegistry)) {
+                // handled
+
+            // Handle social simulation commands (avoids nesting depth limit)
+            } else if (cmd.action == "get_npc_needs" || cmd.action == "set_npc_needs" ||
+                       cmd.action == "get_npc_relationships" || cmd.action == "set_npc_relationship" ||
+                       cmd.action == "apply_npc_interaction" || cmd.action == "get_npc_worldview" ||
+                       cmd.action == "set_npc_belief" || cmd.action == "set_npc_opinion") {
+                response = handleSocialSimulationCommand(cmd.action, cmd.params, npcManager.get());
+
+            // Handle game state commands (avoids nesting depth limit)
+            } else if (cmd.action == "get_pause_state" || cmd.action == "set_pause_state" ||
+                       cmd.action == "get_player_health" || cmd.action == "modify_player_health" ||
+                       cmd.action == "get_respawn_state" || cmd.action == "modify_respawn" ||
+                       cmd.action == "get_music_state" || cmd.action == "control_music" ||
+                       cmd.action == "save_player_state" || cmd.action == "load_player_state" ||
+                       cmd.action == "get_objectives" || cmd.action == "manage_objectives") {
+                {
+                    GameStateContext gsCtx{
+                        gamePaused,
+                        [this](bool p) { setPaused(p); },
+                        playerHealth, respawnSystem, musicPlaylist,
+                        playerProfile, objectiveTracker,
+                        audioSystem, camera, inventory.get(), chunkManager
+                    };
+                    response = handleGameStateCommand(cmd.action, cmd.params, gsCtx);
+                }
+
+            // Handle NavGrid/movement state queries (avoids nesting depth limit)
+            } else if (handleNavGridQueryCommand(cmd, response, npcManager.get(), entityRegistry.get())) {
+                // handled
+
             } else if (cmd.action == "spawn_entity") {
                 // Required: "type" (physics/spider/animated), "position" {x,y,z}
                 // Optional: "id", "animFile"
@@ -7769,6 +8398,33 @@ void Application::processAPICommands() {
             // ================================================================
 
             } else if (cmd.action == "load_game_definition") {
+                // Multi-scene path: parse manifest + transition to start scene
+                if (Core::GameDefinitionLoader::isMultiScene(cmd.params)) {
+                    auto* sm = runtime->getSceneManager();
+                    if (!sm) {
+                        response = {{"error", "SceneManager not available"}};
+                    } else {
+                        Core::SceneManifest manifest = Core::GameDefinitionLoader::parseManifest(cmd.params);
+                        if (manifest.scenes.empty()) {
+                            response = {{"error", "Multi-scene definition has no scenes"}};
+                        } else {
+                            sm->loadManifest(manifest);
+                            // Resolve project-relative worlds path
+                            if (!projectDir_.empty())
+                                sm->setWorldsDir(projectDir_ + "/worlds");
+                            std::string startId = manifest.startScene;
+                            if (startId.empty() && !manifest.scenes.empty()) startId = manifest.scenes[0].id;
+                            bool ok = sm->transitionTo(startId);
+                            int sceneCount = static_cast<int>(manifest.scenes.size());
+                            response = {
+                                {"success", ok}, {"multi_scene", true},
+                                {"scene_count", sceneCount}, {"start_scene", startId}
+                            };
+                            if (!ok) response["error"] = "Failed to transition to start scene";
+                        }
+                    }
+                } else {
+                // Single-scene path
                 Core::GameSubsystems subsystems;
                 subsystems.chunkManager = chunkManager;
                 subsystems.npcManager = npcManager.get();
@@ -7811,6 +8467,7 @@ void Application::processAPICommands() {
                         camera->setDistanceFromTarget(4.0f);
                     }
                 }
+                } // end single-scene
 
             } else if (cmd.action == "export_game_definition") {
                 Core::GameSubsystems subsystems;
@@ -8027,7 +8684,7 @@ void Application::processAPICommands() {
                                     {"material", inventory->getSelectedMaterial()}};
                     } else {
                         response = {{"error", "Invalid slot"}, {"slot", slot},
-                                    {"valid_range", "0-8"}};
+                                    {"valid_range", "0-" + std::to_string(inventory->size() - 1)}};
                     }
                 }
 
@@ -8726,205 +9383,12 @@ void Application::processAPICommands() {
             // SEGMENT BOX DEBUG
             // ================================================================
             // ================================================================
-            // ANIMATION CONTROL COMMANDS
+            // ANIMATION CONTROL COMMANDS (dispatched via member function to reduce nesting depth)
             // ================================================================
-            } else if (cmd.action == "list_animations") {
-                std::string id = cmd.params.value("id", "");
-                Scene::AnimatedVoxelCharacter* character = nullptr;
-
-                // Try NPC first (strip "npc_" prefix if present)
-                if (npcManager) {
-                    std::string npcName = id;
-                    if (npcName.substr(0, 4) == "npc_") npcName = npcName.substr(4);
-                    auto* npc = npcManager->getNPC(npcName);
-                    if (npc) character = npc->getAnimatedCharacter();
-                }
-                // Fallback to player animated character
-                if (!character && (id.empty() || id == "player") && animatedCharacter) {
-                    character = animatedCharacter;
-                }
-
-                if (!character) {
-                    response = {{"error", "No animated character found for: " + id}};
-                } else {
-                    auto names = character->getAnimationNames();
-                    nlohmann::json clipList = nlohmann::json::array();
-                    const auto& clips = character->getAnimationClips();
-                    for (size_t i = 0; i < clips.size(); ++i) {
-                        clipList.push_back({{"index", i}, {"name", clips[i].name},
-                                            {"duration", clips[i].duration}, {"speed", clips[i].speed}});
-                    }
-                    response = {{"success", true}, {"id", id}, {"animations", clipList}};
-                }
-
-            } else if (cmd.action == "play_animation") {
-                std::string id = cmd.params.value("id", "");
-                std::string animName = cmd.params.value("animation", "");
-                if (animName.empty()) {
-                    response = {{"error", "Animation name required"}};
-                } else {
-                    Scene::AnimatedVoxelCharacter* character = nullptr;
-                    if (npcManager) {
-                        std::string npcName = id;
-                        if (npcName.substr(0, 4) == "npc_") npcName = npcName.substr(4);
-                        auto* npc = npcManager->getNPC(npcName);
-                        if (npc) character = npc->getAnimatedCharacter();
-                    }
-                    if (!character && (id.empty() || id == "player") && animatedCharacter) {
-                        character = animatedCharacter;
-                    }
-
-                    if (!character) {
-                        response = {{"error", "No animated character found for: " + id}};
-                    } else {
-                        character->setAnimationState(Scene::AnimatedCharacterState::Preview);
-                        character->playAnimation(animName);
-                        response = {{"success", true}, {"id", id}, {"animation", animName}};
-                    }
-                }
-
-            } else if (cmd.action == "get_animation_state") {
-                std::string id = cmd.params.value("id", "");
-                Scene::AnimatedVoxelCharacter* character = nullptr;
-                if (npcManager) {
-                    std::string npcName = id;
-                    if (npcName.substr(0, 4) == "npc_") npcName = npcName.substr(4);
-                    auto* npc = npcManager->getNPC(npcName);
-                    if (npc) character = npc->getAnimatedCharacter();
-                }
-                if (!character && (id.empty() || id == "player") && animatedCharacter) {
-                    character = animatedCharacter;
-                }
-
-                if (!character) {
-                    response = {{"error", "No animated character found for: " + id}};
-                } else {
-                    response = {{"success", true}, {"id", id},
-                                {"state", character->stateToString(character->getAnimationState())},
-                                {"clip", character->getCurrentClipName()},
-                                {"progress", character->getAnimationProgress()},
-                                {"duration", character->getAnimationDuration()},
-                                {"blendDuration", character->getBlendDuration()}};
-                }
-
-            } else if (cmd.action == "set_animation_state") {
-                std::string id = cmd.params.value("id", "");
-                std::string stateName = cmd.params.value("state", "");
-                if (stateName.empty()) {
-                    response = {{"error", "State name required"}};
-                } else {
-                    Scene::AnimatedVoxelCharacter* character = nullptr;
-                    if (npcManager) {
-                        std::string npcName = id;
-                        if (npcName.substr(0, 4) == "npc_") npcName = npcName.substr(4);
-                        auto* npc = npcManager->getNPC(npcName);
-                        if (npc) character = npc->getAnimatedCharacter();
-                    }
-                    if (!character && (id.empty() || id == "player") && animatedCharacter) {
-                        character = animatedCharacter;
-                    }
-
-                    if (!character) {
-                        response = {{"error", "No animated character found for: " + id}};
-                    } else {
-                        auto state = Scene::AnimatedVoxelCharacter::stringToState(stateName);
-                        character->setAnimationState(state);
-                        response = {{"success", true}, {"id", id}, {"state", stateName}};
-                    }
-                }
-
-            } else if (cmd.action == "set_blend_duration") {
-                std::string id = cmd.params.value("id", "");
-                float duration = cmd.params.value("duration", 0.2f);
-                Scene::AnimatedVoxelCharacter* character = nullptr;
-                if (npcManager) {
-                    std::string npcName = id;
-                    if (npcName.substr(0, 4) == "npc_") npcName = npcName.substr(4);
-                    auto* npc = npcManager->getNPC(npcName);
-                    if (npc) character = npc->getAnimatedCharacter();
-                }
-                if (!character && (id.empty() || id == "player") && animatedCharacter) {
-                    character = animatedCharacter;
-                }
-
-                if (!character) {
-                    response = {{"error", "No animated character found for: " + id}};
-                } else {
-                    character->setBlendDuration(duration);
-                    response = {{"success", true}, {"id", id}, {"blendDuration", duration}};
-                }
-
-            } else if (cmd.action == "reload_animation") {
-                std::string id = cmd.params.value("id", "");
-                std::string animFile = cmd.params.value("animFile", "");
-                Scene::AnimatedVoxelCharacter* character = nullptr;
-                if (animFile.empty()) { response = {{"error", "animFile path required"}}; }
-                else {
-                    if (npcManager) {
-                        std::string npcName = (id.substr(0, 4) == "npc_") ? id.substr(4) : id;
-                        auto* npc = npcManager->getNPC(npcName);
-                        if (npc) character = npc->getAnimatedCharacter();
-                    }
-                    if (!character && (id.empty() || id == "player") && animatedCharacter)
-                        character = animatedCharacter;
-                    if (!character) { response = {{"error", "No animated character found for: " + id}}; }
-                    else {
-                        bool ok = character->reloadAnimations(animFile);
-                        response = ok ? nlohmann::json({{"success", true}, {"id", id}, {"animFile", animFile},
-                                        {"clipCount", (int)character->getAnimationNames().size()}})
-                                      : nlohmann::json({{"error", "Failed to reload animations from: " + animFile}});
-                    }
-                }
-
-            // AI Inspection, Location & Schedule commands (extracted to reduce nesting)
-            } else if (handleAIInspectionCommands(cmd, response, npcManager.get(), locationRegistry)) {
+            } else if (dispatchAnimationAPICommand(cmd, response)) {
                 // handled
 
-            // ================================================================
-            // Social Simulation (Needs, Relationships, WorldView)
-            // ================================================================
-            } else if (cmd.action == "get_npc_needs" || cmd.action == "set_npc_needs" ||
-                       cmd.action == "get_npc_relationships" || cmd.action == "set_npc_relationship" ||
-                       cmd.action == "apply_npc_interaction" || cmd.action == "get_npc_worldview" ||
-                       cmd.action == "set_npc_belief" || cmd.action == "set_npc_opinion") {
-                response = handleSocialSimulationCommand(cmd.action, cmd.params, npcManager.get());
-
-            // ================================================================
-            // GAME STATE (extracted  --  handleGameStateCommand)
-            // ================================================================
-            } else if (cmd.action == "get_pause_state" || cmd.action == "set_pause_state" ||
-                       cmd.action == "get_player_health" || cmd.action == "modify_player_health" ||
-                       cmd.action == "get_respawn_state" || cmd.action == "modify_respawn" ||
-                       cmd.action == "get_music_state" || cmd.action == "control_music" ||
-                       cmd.action == "save_player_state" || cmd.action == "load_player_state" ||
-                       cmd.action == "get_objectives" || cmd.action == "manage_objectives") {
-                GameStateContext gsCtx{
-                    gamePaused,
-                    [this](bool p) { setPaused(p); },
-                    playerHealth, respawnSystem, musicPlaylist,
-                    playerProfile, objectiveTracker,
-                    audioSystem, camera, inventory.get(), chunkManager
-                };
-                response = handleGameStateCommand(cmd.action, cmd.params, gsCtx);
-
-            // ================================================================
-            // NavGrid / Movement state queries (extracted to avoid nesting depth)
-            // ================================================================
-            } else if (handleNavGridQueryCommand(cmd, response, npcManager.get(), entityRegistry.get())) {
-                // handled
-
-            // ================================================================
-            // AI / LLM
-            // ================================================================
-            } else if (cmd.action == "get_ai_status" || cmd.action == "configure_ai" ||
-                       cmd.action == "start_ai_conversation" || cmd.action == "send_ai_message") {
-                response = handleAICommand(cmd.action, cmd.params,
-                    aiConversationService.get(), npcManager.get(),
-                    entityRegistry.get(), dialogueSystem.get());
-
-            } else if (cmd.action == "add_material" || cmd.action == "remove_material" ||
-                       cmd.action == "save_materials" || cmd.action == "reload_atlas") {
-                response = handleMaterialCommand(cmd.action, cmd.params, vulkanDevice);
+            // AI Inspection, Location & Schedule commands (handled early, above the main chain)
 
             } else {
                 response = {{"error", "Unknown action: " + cmd.action}};
@@ -9000,6 +9464,7 @@ void Application::renderMainMenuBar() {
             ImGui::MenuItem("Interaction Tuner", "F12", &showInteractionTuner);
             ImGui::MenuItem("Template Spawner", nullptr, &showTemplateSpawner);
             ImGui::MenuItem("Texture Editor", nullptr, &m_showTextureEditor);
+            ImGui::MenuItem("Menu Editor", nullptr, &m_showMenuEditor);
             ImGui::MenuItem("Click Actions", nullptr, &showClickActions);
             ImGui::Separator();
 
@@ -9077,6 +9542,83 @@ void Application::renderStatusBar() {
 
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
+}
+
+void Application::renderMaterialHotbar() {
+    if (!inventory) return;
+
+    // Show all registered materials in the hotbar
+    const int matCount  = Core::MaterialRegistry::instance().getMaterialCount();
+    const int slotCount = std::min(matCount, inventory->size());
+    const float slotSize = 44.0f;
+    const float padding  = 4.0f;
+    // +32 accounts for left window padding (8) + right window padding (8) + small margin (16)
+    const float totalW   = slotCount * (slotSize + padding) - padding + 32.0f;
+    const float statusH  = 24.0f;   // Height of the status bar at the bottom
+
+    ImGuiViewport* vp = ImGui::GetMainViewport();
+    float cx = vp->WorkPos.x + vp->WorkSize.x * 0.5f;
+    float by = vp->WorkPos.y + vp->WorkSize.y - statusH - 8.0f;
+
+    ImGui::SetNextWindowPos(ImVec2(cx, by), ImGuiCond_Always, ImVec2(0.5f, 1.0f));
+    ImGui::SetNextWindowSize(ImVec2(totalW, slotSize + 28.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.75f);
+
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                             ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+                             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking |
+                             ImGuiWindowFlags_NoNav;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 6.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(padding, 4.0f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.1f, 0.1f, 0.12f, 0.75f));
+    ImGui::PushStyleColor(ImGuiCol_Border,   ImVec4(0.4f, 0.4f, 0.5f, 0.8f));
+
+    if (ImGui::Begin("##MaterialHotbar", nullptr, flags)) {
+        int selected = inventory->getSelectedSlot();
+
+        for (int i = 0; i < slotCount; ++i) {
+            auto slot = inventory->getSlot(i);
+            const std::string label = slot ? slot->itemId : "";
+            bool isSelected = (i == selected);
+
+            if (isSelected) {
+                ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.15f, 0.45f, 0.85f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f,  0.55f, 1.0f,  1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.1f,  0.35f, 0.75f, 1.0f));
+            } else {
+                ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.2f, 0.2f, 0.22f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.3f, 0.35f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.1f, 0.1f, 0.12f, 1.0f));
+            }
+
+            char btnId[32];
+            snprintf(btnId, sizeof(btnId), "%s##slot%d", label.c_str(), i);
+            if (ImGui::Button(btnId, ImVec2(slotSize, slotSize))) {
+                inventory->setSelectedSlot(i);
+            }
+
+            ImGui::PopStyleColor(3);
+
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("%s", label.empty() ? "(empty)" : label.c_str());
+            }
+
+            if (i < slotCount - 1) ImGui::SameLine();
+        }
+
+        // Slot number labels (small, below buttons — but we're in a fixed window so show above via offset)
+        // Instead, show selected material name under the bar as a one-liner
+        const std::string selMat = inventory->getSelectedMaterial();
+        if (!selMat.empty()) {
+            ImGui::SetCursorPosX(8.0f);
+            ImGui::TextColored(ImVec4(0.7f, 0.85f, 1.0f, 1.0f), "Material: %s", selMat.c_str());
+        }
+    }
+    ImGui::End();
+
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(2);
 }
 
 #ifdef _WIN32
@@ -9478,19 +10020,22 @@ void Application::renderAssetEditorUI() {
     ImGui::TextWrapped("%s", displayName.c_str());
     ImGui::Spacing();
 
-    // Material palette
+    // Material palette — populated dynamically from MaterialRegistry
     ImGui::Text("Material:");
-    const char* materials[] = {
-        "Wood","Stone","Metal","Glass","Rubber","Ice","Cork","glow","Leaf","Default"
-    };
-    for (int i = 0; i < 10; ++i) {
-        bool selected = (m_assetEditorMaterial == materials[i]);
-        if (selected) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 1.0f, 1.0f));
-        if (ImGui::SmallButton(materials[i])) {
-            m_assetEditorMaterial = materials[i];
+    {
+        const auto& allMats = Core::MaterialRegistry::instance().getAllMaterials();
+        ImGui::Columns(3, "assetMatCols", false);
+        for (int i = 0; i < static_cast<int>(allMats.size()); ++i) {
+            const auto& name = allMats[i].name;
+            bool selected = (m_assetEditorMaterial == name);
+            if (selected) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 1.0f, 1.0f));
+            if (ImGui::SmallButton(name.c_str())) {
+                m_assetEditorMaterial = name;
+            }
+            if (selected) ImGui::PopStyleColor();
+            ImGui::NextColumn();
         }
-        if (selected) ImGui::PopStyleColor();
-        if (i % 3 != 2) ImGui::SameLine();
+        ImGui::Columns(1);
     }
     ImGui::Spacing();
 
@@ -11675,19 +12220,22 @@ void Application::renderInteractionEditorUI() {
     }
     ImGui::Spacing();
 
-    // === Material palette ===
+    // === Material palette — populated dynamically from MaterialRegistry ===
     ImGui::Text("Material:");
-    const char* ieMaterials[] = {
-        "Wood","Stone","Metal","Glass","Rubber","Ice","Cork","glow","Leaf","Default"
-    };
-    for (int i = 0; i < 10; ++i) {
-        bool selected = (m_ieMaterial == ieMaterials[i]);
-        if (selected) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 1.0f, 1.0f));
-        if (ImGui::SmallButton(ieMaterials[i])) {
-            m_ieMaterial = ieMaterials[i];
+    {
+        const auto& allMats = Core::MaterialRegistry::instance().getAllMaterials();
+        ImGui::Columns(3, "ieMatCols", false);
+        for (int i = 0; i < static_cast<int>(allMats.size()); ++i) {
+            const auto& name = allMats[i].name;
+            bool selected = (m_ieMaterial == name);
+            if (selected) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 1.0f, 1.0f));
+            if (ImGui::SmallButton(name.c_str())) {
+                m_ieMaterial = name;
+            }
+            if (selected) ImGui::PopStyleColor();
+            ImGui::NextColumn();
         }
-        if (selected) ImGui::PopStyleColor();
-        if (i % 3 != 2) ImGui::SameLine();
+        ImGui::Columns(1);
     }
     ImGui::Spacing();
 

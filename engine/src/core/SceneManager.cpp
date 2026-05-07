@@ -164,49 +164,49 @@ void SceneManager::executeUnload() {
         callbacks_.runScript(scene->onExitScript);
     }
 
-    // 3. Clear application-owned entities (NPCs first, then entities)
-    if (callbacks_.clearNPCs) {
-        callbacks_.clearNPCs();
-    }
-    if (callbacks_.clearEntities) {
-        callbacks_.clearEntities();
-    }
+    // Menu/Cutscene scenes have no entities, chunks, or physics — skip teardown.
+    bool isWorldScene = !scene || scene->sceneType == SceneType::World;
 
-    // 4. Clear scene-local story characters (arcs and world state persist)
-    if (callbacks_.clearSceneStoryCharacters) {
-        callbacks_.clearSceneStoryCharacters();
-    }
+    if (isWorldScene) {
+        // 3. Clear application-owned entities (NPCs first, then entities)
+        if (callbacks_.clearNPCs) {
+            callbacks_.clearNPCs();
+        }
+        if (callbacks_.clearEntities) {
+            callbacks_.clearEntities();
+        }
 
-    // 5. Reset lighting and music
-    if (callbacks_.resetLighting) {
-        callbacks_.resetLighting();
-    }
-    if (callbacks_.clearMusic) {
-        callbacks_.clearMusic();
-    }
+        // 4. Clear scene-local story characters (arcs and world state persist)
+        if (callbacks_.clearSceneStoryCharacters) {
+            callbacks_.clearSceneStoryCharacters();
+        }
 
-    // 6. Clear objectives
-    if (callbacks_.clearObjectives) {
-        callbacks_.clearObjectives();
-    }
+        // 5. Reset lighting and music
+        if (callbacks_.resetLighting) {
+            callbacks_.resetLighting();
+        }
+        if (callbacks_.clearMusic) {
+            callbacks_.clearMusic();
+        }
 
-    // 7. Clear locations
-    if (subsystems_ && subsystems_->locationRegistry) {
-        subsystems_->locationRegistry->clear();
-    }
+        // 6. Clear objectives
+        if (callbacks_.clearObjectives) {
+            callbacks_.clearObjectives();
+        }
 
-    // 8. Save dirty chunks to the current scene's DB, then disconnect
-    //    (This is handled by the host via ChunkManager)
-    //    The actual chunk unload + DB switch happens in executeLoad()
-    //    since we need ChunkManager to save before clearing.
+        // 7. Clear locations
+        if (subsystems_ && subsystems_->locationRegistry) {
+            subsystems_->locationRegistry->clear();
+        }
 
-    // 9. Save player position for re-entry
-    if (subsystems_ && subsystems_->camera) {
-        auto pos = subsystems_->camera->getPosition();
-        auto& rs = reentryStates_[activeSceneId_];
-        rs.lastPlayerX = pos.x;
-        rs.lastPlayerY = pos.y;
-        rs.lastPlayerZ = pos.z;
+        // 8. Save player position for re-entry
+        if (subsystems_ && subsystems_->camera) {
+            auto pos = subsystems_->camera->getPosition();
+            auto& rs = reentryStates_[activeSceneId_];
+            rs.lastPlayerX = pos.x;
+            rs.lastPlayerY = pos.y;
+            rs.lastPlayerZ = pos.z;
+        }
     }
 
     LOG_INFO("SceneManager", "Scene '{}' unloaded", activeSceneId_);
@@ -230,6 +230,36 @@ void SceneManager::executeLoad() {
         return;
     }
 
+    // ── Menu / Cutscene path ────────────────────────────────────────────────
+    // These scene types have no world database. Skip all chunk / physics setup
+    // and delegate rendering entirely to the host via onMenuSceneLoaded.
+    if (scene->sceneType == SceneType::Menu || scene->sceneType == SceneType::Cutscene) {
+        // Fire onEnter script if provided
+        if (!scene->onEnterScript.empty() && callbacks_.runScript) {
+            callbacks_.runScript(scene->onEnterScript);
+        }
+
+        // Notify host so it can build and show the menu UI
+        if (callbacks_.onMenuSceneLoaded) {
+            callbacks_.onMenuSceneLoaded(*scene);
+        }
+
+        // Emit scene_loaded event for MCP polling
+        if (subsystems_->gameEventLog) {
+            subsystems_->gameEventLog->emit("scene_loaded", {
+                {"scene_id", targetSceneId_},
+                {"scene_name", scene->name},
+                {"from_scene", lastResult_.fromScene},
+                {"scene_type", scene->sceneType == SceneType::Menu ? "menu" : "cutscene"}
+            });
+        }
+
+        lastResult_.success = true;
+        lastResult_.error.clear();
+        return;
+    }
+
+    // ── World path ──────────────────────────────────────────────────────────
     // 1. Save dirty chunks from previous scene and switch world database
     if (subsystems_->chunkManager) {
         auto* cm = subsystems_->chunkManager;

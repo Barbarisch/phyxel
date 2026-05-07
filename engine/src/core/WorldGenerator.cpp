@@ -333,7 +333,7 @@ std::string WorldGenerator::getMaterialForPosition(const glm::ivec3& worldPos, f
         if (surfaceHeight > 45.0f && generationType == GenerationType::Mountains) {
             return "Ice";
         }
-        return "grassdirt";
+        return "Grass";
     } else if (depthFromSurface < 4.0f) {
         // Dirt layer (just under surface)
         return "Dirt";

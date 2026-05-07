@@ -1,67 +1,15 @@
 {
-  "version": 1,
+  "version": 2,
   "atlas": {
-    "textureSize": 18,
+    "textureSize": 64,
     "padding": 1,
     "texturesPerRow": 6
   },
   "materials": [
     {
-      "name": "placeholder",
-      "category": "system",
-      "description": "Default fallback texture",
-      "textures": {
-        "side_n": "placeholder_side_n.png",
-        "side_s": "placeholder_side_s.png",
-        "side_e": "placeholder_side_e.png",
-        "side_w": "placeholder_side_w.png",
-        "top": "placeholder_top.png",
-        "bottom": "placeholder_bottom.png"
-      }
-    },
-    {
-      "name": "grassdirt",
-      "category": "system",
-      "description": "Grass-topped dirt for terrain",
-      "textures": {
-        "side_n": "grassdirt_side_n.png",
-        "side_s": "grassdirt_side_s.png",
-        "side_e": "grassdirt_side_e.png",
-        "side_w": "grassdirt_side_w.png",
-        "top": "grassdirt_top.png",
-        "bottom": "grassdirt_bottom.png"
-      }
-    },
-    {
-      "name": "Cork",
-      "category": "material",
-      "description": "Ultra-light cork material that floats",
-      "physics": {
-        "mass": 0.2,
-        "friction": 0.5,
-        "restitution": 0.4,
-        "linearDamping": 0.4,
-        "angularDamping": 0.5,
-        "breakForceMultiplier": 0.3,
-        "bondStrength": 0.4,
-        "angularVelocityScale": 3.0,
-        "colorTint": [0.8, 0.7, 0.5],
-        "metallic": 0.0,
-        "roughness": 0.5
-      },
-      "textures": {
-        "side_n": "cork_side_n.png",
-        "side_s": "cork_side_s.png",
-        "side_e": "cork_side_e.png",
-        "side_w": "cork_side_w.png",
-        "top": "cork_top.png",
-        "bottom": "cork_bottom.png"
-      }
-    },
-    {
       "name": "Default",
       "category": "material",
-      "description": "Balanced default material properties",
+      "description": "Error/fallback indicator",
       "physics": {
         "mass": 1.0,
         "friction": 0.5,
@@ -71,7 +19,11 @@
         "breakForceMultiplier": 1.0,
         "bondStrength": 0.5,
         "angularVelocityScale": 1.0,
-        "colorTint": [1.0, 1.0, 1.0],
+        "colorTint": [
+          1.0,
+          0.0,
+          1.0
+        ],
         "metallic": 0.0,
         "roughness": 0.5
       },
@@ -97,7 +49,11 @@
         "breakForceMultiplier": 0.6,
         "bondStrength": 0.5,
         "angularVelocityScale": 1.0,
-        "colorTint": [0.47, 0.33, 0.22],
+        "colorTint": [
+          0.47,
+          0.33,
+          0.22
+        ],
         "metallic": 0.0,
         "roughness": 0.8
       },
@@ -108,6 +64,306 @@
         "side_w": "dirt_side_w.png",
         "top": "dirt_top.png",
         "bottom": "dirt_bottom.png"
+      }
+    },
+    {
+      "name": "Grass",
+      "category": "material",
+      "description": "Grass-topped dirt for terrain surface",
+      "physics": {
+        "mass": 1.8,
+        "friction": 0.7,
+        "restitution": 0.1,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.5,
+        "bondStrength": 0.45,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          0.35,
+          0.55,
+          0.2
+        ],
+        "metallic": 0.0,
+        "roughness": 0.9
+      },
+      "textures": {
+        "side_n": "grass_side_n.png",
+        "side_s": "grass_side_s.png",
+        "side_e": "grass_side_e.png",
+        "side_w": "grass_side_w.png",
+        "top": "grass_top.png",
+        "bottom": "grass_bottom.png"
+      }
+    },
+    {
+      "name": "Stone",
+      "category": "material",
+      "description": "Dense smooth stone with rough surface",
+      "physics": {
+        "mass": 6.0,
+        "friction": 0.8,
+        "restitution": 0.05,
+        "linearDamping": 0.1,
+        "angularDamping": 0.2,
+        "breakForceMultiplier": 2.0,
+        "bondStrength": 0.9,
+        "angularVelocityScale": 0.4,
+        "colorTint": [
+          0.6,
+          0.5,
+          0.4
+        ],
+        "metallic": 0.0,
+        "roughness": 0.8
+      },
+      "textures": {
+        "side_n": "stone_side_n.png",
+        "side_s": "stone_side_s.png",
+        "side_e": "stone_side_e.png",
+        "side_w": "stone_side_w.png",
+        "top": "stone_top.png",
+        "bottom": "stone_bottom.png"
+      }
+    },
+    {
+      "name": "Cobblestone",
+      "category": "material",
+      "description": "Rough quarried stone with irregular surface",
+      "physics": {
+        "mass": 5.0,
+        "friction": 0.9,
+        "restitution": 0.05,
+        "linearDamping": 0.1,
+        "angularDamping": 0.2,
+        "breakForceMultiplier": 1.5,
+        "bondStrength": 0.75,
+        "angularVelocityScale": 0.5,
+        "colorTint": [
+          0.55,
+          0.52,
+          0.5
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95
+      },
+      "textures": {
+        "side_n": "cobblestone_side_n.png",
+        "side_s": "cobblestone_side_s.png",
+        "side_e": "cobblestone_side_e.png",
+        "side_w": "cobblestone_side_w.png",
+        "top": "cobblestone_top.png",
+        "bottom": "cobblestone_bottom.png"
+      }
+    },
+    {
+      "name": "StoneBricks",
+      "category": "material",
+      "description": "Cut stone blocks with mortar joints",
+      "physics": {
+        "mass": 6.0,
+        "friction": 0.8,
+        "restitution": 0.05,
+        "linearDamping": 0.1,
+        "angularDamping": 0.2,
+        "breakForceMultiplier": 2.0,
+        "bondStrength": 0.9,
+        "angularVelocityScale": 0.4,
+        "colorTint": [
+          0.5,
+          0.48,
+          0.45
+        ],
+        "metallic": 0.0,
+        "roughness": 0.75
+      },
+      "textures": {
+        "side_n": "stonebricks_side_n.png",
+        "side_s": "stonebricks_side_s.png",
+        "side_e": "stonebricks_side_e.png",
+        "side_w": "stonebricks_side_w.png",
+        "top": "stonebricks_top.png",
+        "bottom": "stonebricks_bottom.png"
+      }
+    },
+    {
+      "name": "Sand",
+      "category": "material",
+      "description": "Light granular sand with low friction",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.5,
+        "restitution": 0.1,
+        "linearDamping": 0.3,
+        "angularDamping": 0.4,
+        "breakForceMultiplier": 0.4,
+        "bondStrength": 0.3,
+        "angularVelocityScale": 2.0,
+        "colorTint": [
+          0.9,
+          0.85,
+          0.65
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95
+      },
+      "textures": {
+        "side_n": "sand_side_n.png",
+        "side_s": "sand_side_s.png",
+        "side_e": "sand_side_e.png",
+        "side_w": "sand_side_w.png",
+        "top": "sand_top.png",
+        "bottom": "sand_bottom.png"
+      }
+    },
+    {
+      "name": "Gravel",
+      "category": "material",
+      "description": "Loose gravel with medium friction",
+      "physics": {
+        "mass": 2.5,
+        "friction": 0.7,
+        "restitution": 0.1,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.5,
+        "bondStrength": 0.4,
+        "angularVelocityScale": 1.5,
+        "colorTint": [
+          0.55,
+          0.53,
+          0.5
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95
+      },
+      "textures": {
+        "side_n": "gravel_side_n.png",
+        "side_s": "gravel_side_s.png",
+        "side_e": "gravel_side_e.png",
+        "side_w": "gravel_side_w.png",
+        "top": "gravel_top.png",
+        "bottom": "gravel_bottom.png"
+      }
+    },
+    {
+      "name": "Wood",
+      "category": "material",
+      "description": "Finished oak plank material with natural grain",
+      "physics": {
+        "mass": 0.7,
+        "friction": 0.6,
+        "restitution": 0.2,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.8,
+        "bondStrength": 0.6,
+        "angularVelocityScale": 1.2,
+        "colorTint": [
+          0.8,
+          0.6,
+          0.3
+        ],
+        "metallic": 0.0,
+        "roughness": 0.7
+      },
+      "textures": {
+        "side_n": "wood_side_n.png",
+        "side_s": "wood_side_s.png",
+        "side_e": "wood_side_e.png",
+        "side_w": "wood_side_w.png",
+        "top": "wood_top.png",
+        "bottom": "wood_bottom.png"
+      }
+    },
+    {
+      "name": "Log",
+      "category": "material",
+      "description": "Oak log with bark sides and growth ring end caps",
+      "physics": {
+        "mass": 0.7,
+        "friction": 0.6,
+        "restitution": 0.2,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.8,
+        "bondStrength": 0.6,
+        "angularVelocityScale": 1.2,
+        "colorTint": [
+          0.55,
+          0.38,
+          0.18
+        ],
+        "metallic": 0.0,
+        "roughness": 0.85
+      },
+      "textures": {
+        "side_n": "log_side_n.png",
+        "side_s": "log_side_s.png",
+        "side_e": "log_side_e.png",
+        "side_w": "log_side_w.png",
+        "top": "log_top.png",
+        "bottom": "log_bottom.png"
+      }
+    },
+    {
+      "name": "Bricks",
+      "category": "material",
+      "description": "Red clay bricks with mortar joints",
+      "physics": {
+        "mass": 4.0,
+        "friction": 0.8,
+        "restitution": 0.05,
+        "linearDamping": 0.1,
+        "angularDamping": 0.2,
+        "breakForceMultiplier": 1.5,
+        "bondStrength": 0.8,
+        "angularVelocityScale": 0.5,
+        "colorTint": [
+          0.75,
+          0.35,
+          0.25
+        ],
+        "metallic": 0.0,
+        "roughness": 0.85
+      },
+      "textures": {
+        "side_n": "bricks_side_n.png",
+        "side_s": "bricks_side_s.png",
+        "side_e": "bricks_side_e.png",
+        "side_w": "bricks_side_w.png",
+        "top": "bricks_top.png",
+        "bottom": "bricks_bottom.png"
+      }
+    },
+    {
+      "name": "Sandstone",
+      "category": "material",
+      "description": "Layered sandstone with carved top and smooth bottom",
+      "physics": {
+        "mass": 3.0,
+        "friction": 0.7,
+        "restitution": 0.1,
+        "linearDamping": 0.1,
+        "angularDamping": 0.2,
+        "breakForceMultiplier": 1.2,
+        "bondStrength": 0.7,
+        "angularVelocityScale": 0.6,
+        "colorTint": [
+          0.85,
+          0.78,
+          0.55
+        ],
+        "metallic": 0.0,
+        "roughness": 0.8
+      },
+      "textures": {
+        "side_n": "sandstone_side_n.png",
+        "side_s": "sandstone_side_s.png",
+        "side_e": "sandstone_side_e.png",
+        "side_w": "sandstone_side_w.png",
+        "top": "sandstone_top.png",
+        "bottom": "sandstone_bottom.png"
       }
     },
     {
@@ -123,9 +379,13 @@
         "breakForceMultiplier": 0.5,
         "bondStrength": 0.2,
         "angularVelocityScale": 1.8,
-        "colorTint": [0.9, 0.95, 1.0],
+        "colorTint": [
+          0.9,
+          0.95,
+          1.0
+        ],
         "metallic": 0.0,
-        "roughness": 0.5
+        "roughness": 0.05
       },
       "textures": {
         "side_n": "glass_side_n.png",
@@ -137,43 +397,63 @@
       }
     },
     {
-      "name": "glow",
+      "name": "Metal",
       "category": "material",
-      "description": "Emissive material that glows",
-      "emissive": true,
+      "description": "Heavy metallic iron block",
       "physics": {
-        "mass": 1.0,
-        "friction": 0.5,
-        "restitution": 0.5,
-        "linearDamping": 0.1,
+        "mass": 4.0,
+        "friction": 0.7,
+        "restitution": 0.1,
+        "linearDamping": 0.05,
         "angularDamping": 0.1,
-        "breakForceMultiplier": 1.0,
-        "bondStrength": 0.5,
-        "angularVelocityScale": 1.0,
-        "colorTint": [1.0, 1.0, 1.0],
-        "metallic": 0.0,
-        "roughness": 0.5
+        "breakForceMultiplier": 1.5,
+        "bondStrength": 0.95,
+        "angularVelocityScale": 0.6,
+        "colorTint": [
+          0.7,
+          0.7,
+          0.8
+        ],
+        "metallic": 0.8,
+        "roughness": 0.4
       },
       "textures": {
-        "side_n": "glow_side_n.png",
-        "side_s": "glow_side_s.png",
-        "side_e": "glow_side_e.png",
-        "side_w": "glow_side_w.png",
-        "top": "glow_top.png",
-        "bottom": "glow_bottom.png"
+        "side_n": "metal_side_n.png",
+        "side_s": "metal_side_s.png",
+        "side_e": "metal_side_e.png",
+        "side_w": "metal_side_w.png",
+        "top": "metal_top.png",
+        "bottom": "metal_bottom.png"
       }
     },
     {
-      "name": "hover",
-      "category": "system",
-      "description": "Editor hover highlight texture",
+      "name": "Gold",
+      "category": "material",
+      "description": "Dense gold block with high metallic luster",
+      "physics": {
+        "mass": 8.0,
+        "friction": 0.4,
+        "restitution": 0.2,
+        "linearDamping": 0.05,
+        "angularDamping": 0.1,
+        "breakForceMultiplier": 2.0,
+        "bondStrength": 0.95,
+        "angularVelocityScale": 0.3,
+        "colorTint": [
+          1.0,
+          0.85,
+          0.2
+        ],
+        "metallic": 0.9,
+        "roughness": 0.2
+      },
       "textures": {
-        "side_n": "hover_side_n.png",
-        "side_s": "hover_side_s.png",
-        "side_e": "hover_side_e.png",
-        "side_w": "hover_side_w.png",
-        "top": "hover_top.png",
-        "bottom": "hover_bottom.png"
+        "side_n": "gold_side_n.png",
+        "side_s": "gold_side_s.png",
+        "side_e": "gold_side_e.png",
+        "side_w": "gold_side_w.png",
+        "top": "gold_top.png",
+        "bottom": "gold_bottom.png"
       }
     },
     {
@@ -189,9 +469,13 @@
         "breakForceMultiplier": 0.7,
         "bondStrength": 0.3,
         "angularVelocityScale": 2.5,
-        "colorTint": [0.8, 0.9, 1.0],
+        "colorTint": [
+          0.8,
+          0.9,
+          1.0
+        ],
         "metallic": 0.0,
-        "roughness": 0.5
+        "roughness": 0.05
       },
       "textures": {
         "side_n": "ice_side_n.png",
@@ -205,7 +489,7 @@
     {
       "name": "Leaf",
       "category": "material",
-      "description": "Light foliage material for trees and bushes",
+      "description": "Light oak leaf foliage for trees and bushes",
       "physics": {
         "mass": 0.1,
         "friction": 0.3,
@@ -215,9 +499,13 @@
         "breakForceMultiplier": 0.2,
         "bondStrength": 0.2,
         "angularVelocityScale": 3.0,
-        "colorTint": [0.3, 0.7, 0.2],
+        "colorTint": [
+          0.3,
+          0.7,
+          0.2
+        ],
         "metallic": 0.0,
-        "roughness": 0.5
+        "roughness": 0.9
       },
       "textures": {
         "side_n": "leaf_side_n.png",
@@ -229,107 +517,34 @@
       }
     },
     {
-      "name": "Metal",
+      "name": "glow",
       "category": "material",
-      "description": "Heavy metallic material with high density",
+      "description": "Emissive glowstone material",
+      "emissive": true,
       "physics": {
-        "mass": 4.0,
-        "friction": 0.7,
-        "restitution": 0.1,
-        "linearDamping": 0.05,
-        "angularDamping": 0.1,
-        "breakForceMultiplier": 1.5,
-        "bondStrength": 0.95,
-        "angularVelocityScale": 0.6,
-        "colorTint": [0.7, 0.7, 0.8],
-        "metallic": 0.0,
-        "roughness": 0.5
-      },
-      "textures": {
-        "side_n": "metal_side_n.png",
-        "side_s": "metal_side_s.png",
-        "side_e": "metal_side_e.png",
-        "side_w": "metal_side_w.png",
-        "top": "metal_top.png",
-        "bottom": "metal_bottom.png"
-      }
-    },
-    {
-      "name": "Rubber",
-      "category": "material",
-      "description": "Bouncy rubber material with high elasticity",
-      "physics": {
-        "mass": 0.5,
-        "friction": 0.9,
-        "restitution": 0.9,
-        "linearDamping": 0.3,
-        "angularDamping": 0.4,
-        "breakForceMultiplier": 0.6,
-        "bondStrength": 0.7,
-        "angularVelocityScale": 2.0,
-        "colorTint": [0.3, 0.3, 0.3],
-        "metallic": 0.0,
-        "roughness": 0.5
-      },
-      "textures": {
-        "side_n": "rubber_side_n.png",
-        "side_s": "rubber_side_s.png",
-        "side_e": "rubber_side_e.png",
-        "side_w": "rubber_side_w.png",
-        "top": "rubber_top.png",
-        "bottom": "rubber_bottom.png"
-      }
-    },
-    {
-      "name": "Stone",
-      "category": "material",
-      "description": "Dense stone material with rough surface",
-      "physics": {
-        "mass": 6.0,
-        "friction": 0.8,
-        "restitution": 0.05,
+        "mass": 1.0,
+        "friction": 0.5,
+        "restitution": 0.5,
         "linearDamping": 0.1,
-        "angularDamping": 0.2,
-        "breakForceMultiplier": 2.0,
-        "bondStrength": 0.9,
-        "angularVelocityScale": 0.4,
-        "colorTint": [0.6, 0.5, 0.4],
+        "angularDamping": 0.1,
+        "breakForceMultiplier": 1.0,
+        "bondStrength": 0.5,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          1.0,
+          1.0,
+          0.8
+        ],
         "metallic": 0.0,
         "roughness": 0.5
       },
       "textures": {
-        "side_n": "stone_side_n.png",
-        "side_s": "stone_side_s.png",
-        "side_e": "stone_side_e.png",
-        "side_w": "stone_side_w.png",
-        "top": "stone_top.png",
-        "bottom": "stone_bottom.png"
-      }
-    },
-    {
-      "name": "Wood",
-      "category": "material",
-      "description": "Light wooden material with natural feel",
-      "physics": {
-        "mass": 0.7,
-        "friction": 0.6,
-        "restitution": 0.2,
-        "linearDamping": 0.2,
-        "angularDamping": 0.3,
-        "breakForceMultiplier": 0.8,
-        "bondStrength": 0.6,
-        "angularVelocityScale": 1.2,
-        "colorTint": [0.8, 0.6, 0.3],
-        "metallic": 0.0,
-        "roughness": 0.5
-      },
-      "textures": {
-        "side_n": "wood_side_n.png",
-        "side_s": "wood_side_s.png",
-        "side_e": "wood_side_e.png",
-        "side_w": "wood_side_w.png",
-        "top": "wood_top.png",
-        "bottom": "wood_bottom.png"
+        "side_n": "glow_side_n.png",
+        "side_s": "glow_side_s.png",
+        "side_e": "glow_side_e.png",
+        "side_w": "glow_side_w.png",
+        "top": "glow_top.png",
+        "bottom": "glow_bottom.png"
       }
     }
   ]
