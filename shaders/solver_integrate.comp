@@ -1,0 +1,44 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "particle_types.glsl"
+#include "solver_types.glsl"
+
+layout(local_size_x = WORKGROUP_SOLVER) in;
+
+layout(std430, set=0, binding=0) buffer SolverBodyBuffer        { SolverBody  bodies[]; };
+layout(std430, set=0, binding=1) readonly buffer MaterialBuffer { MaterialPhysics materials[]; };
+layout(std430, set=0, binding=2) readonly buffer ParticleBuffer { GpuParticle particles[]; };
+
+layout(push_constant) uniform PC {
+    uint  count;
+    float dt;
+    float gravity;
+    float pad;
+} pc;
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= pc.count) return;
+
+    SolverBody b = bodies[i];
+    if ((b.flags & PARTICLE_ACTIVE) == 0u || b.invMass == 0.0) return;
+    if ((b.flags & PARTICLE_SLEEPING) != 0u) return;  // frozen until woken by contact
+
+    GpuParticle p     = particles[b.particleIdx];
+    MaterialPhysics mat = materials[p.materialIndex];
+
+    // Save pre-gravity velocity for restitution comparison in collision response
+    b.prevVel = b.vel;
+
+    // Gravity (m/s per tick)
+    b.vel.y += pc.gravity * pc.dt;
+
+    // Damping (air drag per tick)
+    b.vel    *= mat.linearDamp;
+    b.angVel *= mat.angularDamp;
+
+    // Predict position (integrate)
+    b.pos += b.vel * pc.dt;
+
+    bodies[i] = b;
+}

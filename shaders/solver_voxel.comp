@@ -1,0 +1,195 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "particle_types.glsl"
+#include "solver_types.glsl"
+
+layout(local_size_x = WORKGROUP_SOLVER) in;
+
+layout(std430, set=0, binding=0) buffer SolverBodyBuffer  { SolverBody bodies[]; };
+layout(std430, set=0, binding=1) buffer ConstraintBuffer  { GPUConstraint constraints[]; };
+layout(std430, set=0, binding=2) buffer SolverStateBuffer { uint solverState[]; };
+layout(std430, set=0, binding=3) readonly buffer OccupancyBuffer { uint occupancy[]; };
+
+layout(push_constant) uniform PC {
+    uint  count;
+    uint  maxConstraints;
+    float pad0;
+    float pad1;
+} pc;
+
+const int OCC_X        = 512;
+const int OCC_Y        = 256;
+const int OCC_Z        = 512;
+const int OCC_HALF_X   = 256;
+const int OCC_Y_OFFSET = 64;
+const int OCC_HALF_Z   = 256;
+
+bool isOccupied(int wx, int wy, int wz) {
+    int lx = wx + OCC_HALF_X;
+    int ly = wy + OCC_Y_OFFSET;
+    int lz = wz + OCC_HALF_Z;
+    if (lx < 0 || lx >= OCC_X || ly < 0 || ly >= OCC_Y || lz < 0 || lz >= OCC_Z) return false;
+    int  lin  = lx + ly * OCC_X + lz * OCC_X * OCC_Y;
+    uint word = uint(lin) >> 5u;
+    uint bit  = uint(lin) & 31u;
+    return (occupancy[word] & (1u << bit)) != 0u;
+}
+
+// Project OBB (defined by three world-space axes and half-extents) onto unit axis n.
+float projOBB(vec3 ax0, vec3 ax1, vec3 ax2, vec3 h, vec3 n) {
+    return abs(dot(ax0, n)) * h.x
+         + abs(dot(ax1, n)) * h.y
+         + abs(dot(ax2, n)) * h.z;
+}
+
+// Sign function that avoids sign(0) == 0 (use positive bias).
+float sgn(float x) { return (x >= 0.0) ? 1.0 : -1.0; }
+
+// Support point of OBB in direction dir (deepest vertex in that direction).
+vec3 obbSupport(vec3 pos, vec3 ax0, vec3 ax1, vec3 ax2, vec3 h, vec3 dir) {
+    return pos + sgn(dot(ax0, dir)) * h.x * ax0
+               + sgn(dot(ax1, dir)) * h.y * ax1
+               + sgn(dot(ax2, dir)) * h.z * ax2;
+}
+
+// Test OBB vs AABB with SAT.  The AABB has center voxCenter and half-extents (0.5,0.5,0.5).
+// Returns false if separated on any of the 15 axes.
+// On contact, writes the contact normal (pointing from voxel toward OBB) and pen depth.
+bool testOBBvoxel(vec3 pos,
+                  vec3 ax0, vec3 ax1, vec3 ax2, vec3 h,
+                  vec3 voxCenter,
+                  out vec3 outNormal, out float outPen)
+{
+    vec3 d = pos - voxCenter;   // OBB center relative to voxel center
+    const vec3 voxH = vec3(0.5);
+
+    float bestPen = 1e30;
+    vec3  bestN   = vec3(0, 1, 0);
+
+    // --- OBB face axes (3) ---
+    vec3 obbAx[3];
+    obbAx[0] = ax0; obbAx[1] = ax1; obbAx[2] = ax2;
+
+    for (int k = 0; k < 3; k++) {
+        vec3 n = obbAx[k];
+        float pOBB = h[k];   // projection of OBB = halfExt[k] (since n is the OBB axis)
+        float pVox = abs(n.x)*voxH.x + abs(n.y)*voxH.y + abs(n.z)*voxH.z;
+        float dist = abs(dot(d, n));
+        float pen  = pOBB + pVox - dist;
+        if (pen < 0.0) return false;
+        if (pen < bestPen) { bestPen = pen; bestN = n * sgn(dot(d, n)); }
+    }
+
+    // --- Voxel face axes (world X, Y, Z) ---
+    vec3 worldAx[3];
+    worldAx[0] = vec3(1,0,0); worldAx[1] = vec3(0,1,0); worldAx[2] = vec3(0,0,1);
+
+    for (int k = 0; k < 3; k++) {
+        vec3 n = worldAx[k];
+        float pOBB = projOBB(ax0, ax1, ax2, h, n);
+        float pVox = 0.5;
+        float dist = abs(dot(d, n));
+        float pen  = pOBB + pVox - dist;
+        if (pen < 0.0) return false;
+        if (pen < bestPen) { bestPen = pen; bestN = n * sgn(dot(d, n)); }
+    }
+
+    // --- Edge cross-product axes (9) ---
+    for (int a = 0; a < 3; a++) {
+        for (int b = 0; b < 3; b++) {
+            vec3 n = cross(obbAx[a], worldAx[b]);
+            float lenSq = dot(n, n);
+            if (lenSq < 1e-9) continue;
+            n /= sqrt(lenSq);
+            float pOBB = projOBB(ax0, ax1, ax2, h, n);
+            float pVox = abs(n.x)*voxH.x + abs(n.y)*voxH.y + abs(n.z)*voxH.z;
+            float dist = abs(dot(d, n));
+            float pen  = pOBB + pVox - dist;
+            if (pen < 0.0) return false;
+            if (pen < bestPen) { bestPen = pen; bestN = n * sgn(dot(d, n)); }
+        }
+    }
+
+    // bestN points from voxel toward OBB (same sign as d projected onto n)
+    outNormal = bestN;
+    outPen    = bestPen;
+    return true;
+}
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= pc.count) return;
+
+    SolverBody bA = bodies[i];
+    if ((bA.flags & PARTICLE_ACTIVE) == 0u || bA.invMass == 0.0) return;
+    if ((bA.flags & PARTICLE_SLEEPING) != 0u) return;  // frozen; woken via body-body narrowphase
+
+    vec3 pos  = bA.pos;
+    vec3 h    = bA.halfExt;
+    vec4 quat = bA.quat;
+
+    vec3 ax0 = quatRotate(quat, vec3(1,0,0));
+    vec3 ax1 = quatRotate(quat, vec3(0,1,0));
+    vec3 ax2 = quatRotate(quat, vec3(0,0,1));
+
+    // World-space AABB of this OBB for voxel search range
+    float wx = abs(ax0.x)*h.x + abs(ax1.x)*h.y + abs(ax2.x)*h.z;
+    float wy = abs(ax0.y)*h.x + abs(ax1.y)*h.y + abs(ax2.y)*h.z;
+    float wz = abs(ax0.z)*h.x + abs(ax1.z)*h.y + abs(ax2.z)*h.z;
+
+    int x0 = int(floor(pos.x - wx));  int x1 = int(floor(pos.x + wx));
+    int y0 = int(floor(pos.y - wy));  int y1 = int(floor(pos.y + wy));
+    int z0 = int(floor(pos.z - wz));  int z1 = int(floor(pos.z + wz));
+
+    // Track single deepest contact across all voxels.
+    // Emitting one constraint per body eliminates Jacobi over-correction (N simultaneous
+    // contacts with the same normal would sum N× the needed impulse, adding energy).
+    float bestPen    = 0.0;
+    vec3  bestNormal = vec3(0, 1, 0);
+    vec3  bestRa     = vec3(0);
+
+    for (int vz = z0; vz <= z1; vz++) {
+    for (int vy = y0; vy <= y1; vy++) {
+    for (int vx = x0; vx <= x1; vx++) {
+        if (!isOccupied(vx, vy, vz)) continue;
+
+        vec3 voxCenter = vec3(float(vx) + 0.5, float(vy) + 0.5, float(vz) + 0.5);
+
+        vec3  normal;
+        float pen;
+        if (!testOBBvoxel(pos, ax0, ax1, ax2, h, voxCenter, normal, pen)) continue;
+
+        pen += COLLISION_MARGIN;
+        if (pen <= 0.0) continue;
+
+        if (pen > bestPen) {
+            bestPen    = pen;
+            bestNormal = normal;
+            bestRa     = obbSupport(pos, ax0, ax1, ax2, h, -normal) - pos;
+        }
+    }}}
+
+    if (bestPen <= 0.0) return;
+
+    uint slot = atomicAdd(solverState[SS_CONSTRAINT_COUNT], 1u);
+    if (slot >= pc.maxConstraints) return;
+
+    vec3 t1, t2;
+    tangentBasis(bestNormal, t1, t2);
+
+    GPUConstraint c;
+    c.n        = bestNormal;
+    c.depth    = bestPen;
+    c.rA       = bestRa;
+    c.lambdaN  = 0.0;
+    c.rB       = vec3(0);
+    c.lambdaF1 = 0.0;
+    c.t1       = t1;
+    c.lambdaF2 = 0.0;
+    c.bodyA    = i;
+    c.bodyB    = SOLVER_STATIC;
+    c.mu       = bA.friction;
+    c.pad0     = 0.0;
+
+    constraints[slot] = c;
+}

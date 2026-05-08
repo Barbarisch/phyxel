@@ -1,0 +1,417 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "particle_types.glsl"
+#include "solver_types.glsl"
+
+layout(local_size_x = WORKGROUP_SOLVER) in;
+
+layout(std430, set=0, binding=0) readonly buffer SolverBodyBuffer { SolverBody bodies[]; };
+layout(std430, set=0, binding=1) buffer ConstraintBuffer          { GPUConstraint constraints[]; };
+layout(std430, set=0, binding=2) buffer SolverStateBuffer         { uint solverState[]; };
+layout(std430, set=0, binding=3) readonly buffer GridCellCount    { uint gridCellCount[]; };
+layout(std430, set=0, binding=4) readonly buffer GridCellOffset   { uint gridCellOffset[]; };
+layout(std430, set=0, binding=5) readonly buffer SortedIndices    { uint sortedIndices[]; };
+
+layout(push_constant) uniform PC {
+    uint  count;
+    uint  maxConstraints;
+    float pad0;
+    float pad1;
+} pc;
+
+const int GRID_SIZE = 64;
+
+// Positive-biased sign (avoids sign(0)==0 giving zero-length impulse arms)
+float sgn(float x) { return (x >= 0.0) ? 1.0 : -1.0; }
+
+// Project OBB onto axis n
+float projOBB(vec3 ax0, vec3 ax1, vec3 ax2, vec3 h, vec3 n) {
+    return abs(dot(ax0, n))*h.x + abs(dot(ax1, n))*h.y + abs(dot(ax2, n))*h.z;
+}
+
+// Support vertex of an OBB in direction dir
+vec3 obbSupport(vec3 pos, vec3 ax0, vec3 ax1, vec3 ax2, vec3 h, vec3 dir) {
+    return pos + sgn(dot(ax0,dir))*h.x*ax0
+               + sgn(dot(ax1,dir))*h.y*ax1
+               + sgn(dot(ax2,dir))*h.z*ax2;
+}
+
+// Build 4 vertices of OBB face `fi` (0..5: +x,-x,+y,-y,+z,-z)
+// Returns the outward face normal.
+vec3 buildFaceVerts(vec3 pos, vec3 ax0, vec3 ax1, vec3 ax2, vec3 h, int fi,
+                    out vec3 v0, out vec3 v1, out vec3 v2, out vec3 v3)
+{
+    int   ai = fi / 2;
+    float s  = (fi % 2 == 0) ? 1.0 : -1.0;
+    vec3 axMain = (ai == 0) ? ax0 : (ai == 1 ? ax1 : ax2);
+    vec3 axU    = (ai == 0) ? ax1 : (ai == 1 ? ax2 : ax0);
+    vec3 axV    = (ai == 0) ? ax2 : (ai == 1 ? ax0 : ax1);
+    float hMain = (ai == 0) ? h.x : (ai == 1 ? h.y : h.z);
+    float hU    = (ai == 0) ? h.y : (ai == 1 ? h.z : h.x);
+    float hV    = (ai == 0) ? h.z : (ai == 1 ? h.x : h.y);
+    vec3 fc = pos + s * axMain * hMain;
+    v0 = fc + hU*axU + hV*axV;
+    v1 = fc - hU*axU + hV*axV;
+    v2 = fc - hU*axU - hV*axV;
+    v3 = fc + hU*axU - hV*axV;
+    return s * axMain;
+}
+
+// Sutherland-Hodgman: clip polygon by half-space (keep where dot(v, planeN) - planeDist <= 0).
+// Polygon is stored in-place; returns new vertex count.
+int clipByPlane(inout vec3 poly[8], int n, vec3 planeN, float planeDist) {
+    if (n == 0) return 0;
+    vec3 tmp[8];
+    int outN = 0;
+    for (int i = 0; i < n; i++) {
+        vec3 a = poly[i];
+        vec3 b = poly[(i + 1) % n];
+        float da = dot(a, planeN) - planeDist;
+        float db = dot(b, planeN) - planeDist;
+        if (da <= 0.0) {
+            if (outN < 8) tmp[outN++] = a;
+        }
+        if ((da < 0.0) != (db < 0.0)) {
+            float t = da / (da - db);
+            if (outN < 8) tmp[outN++] = mix(a, b, t);
+        }
+    }
+    for (int i = 0; i < outN; i++) poly[i] = tmp[i];
+    return outN;
+}
+
+// Emit one constraint (arms in world space → converted to local).
+void emitCon(uint idxA, uint idxB,
+             vec3 n, float depth, vec3 rA_w, vec3 rB_w,
+             float mu, vec4 quatA, vec4 quatB)
+{
+    uint slot = atomicAdd(solverState[SS_CONSTRAINT_COUNT], 1u);
+    if (slot >= pc.maxConstraints) return;
+
+    vec3 t1, t2;
+    tangentBasis(n, t1, t2);
+
+    GPUConstraint c;
+    c.n        = n;
+    c.depth    = depth;
+    c.rA       = rA_w;    // world-space arm — solver_jacobi uses them directly
+    c.lambdaN  = 0.0;
+    c.rB       = (idxB == SOLVER_STATIC) ? vec3(0) : rB_w;
+    c.lambdaF1 = 0.0;
+    c.t1       = t1;
+    c.lambdaF2 = 0.0;
+    c.bodyA    = idxA;
+    c.bodyB    = idxB;
+    c.mu       = mu;
+    c.pad0     = 0.0;
+    constraints[slot] = c;
+}
+
+// Generate face-contact manifold via Sutherland-Hodgman clipping (up to 4 constraints).
+void faceManifold(uint idxA, uint idxB,
+                  vec3 posA, vec3 ax0A, vec3 ax1A, vec3 ax2A, vec3 hA, vec4 quatA,
+                  vec3 posB, vec3 ax0B, vec3 ax1B, vec3 ax2B, vec3 hB, vec4 quatB,
+                  vec3 satN,   // normalized, points from B toward A
+                  float depth,
+                  float mu)
+{
+    // --- Pick reference face (whose normal is most aligned with satN) ---
+    // Test all 6 faces of A and 6 faces of B; reference = most parallel to satN.
+    float bestDot = -1e30;
+    int   refBody = 0;  // 0 = A is reference, 1 = B is reference
+    int   refFace = 0;
+
+    // Both bodies scored against +satN (from B toward A).
+    // Check B first so that on a tie, B wins — it's typically the supporting surface.
+    vec3 axA[3]; axA[0]=ax0A; axA[1]=ax1A; axA[2]=ax2A;
+    vec3 axB[3]; axB[0]=ax0B; axB[1]=ax1B; axB[2]=ax2B;
+
+    for (int f = 0; f < 6; f++) {
+        int   ai = f / 2;
+        float s  = (f % 2 == 0) ? 1.0 : -1.0;
+        float d  = dot(s * axB[ai], satN);
+        if (d > bestDot) { bestDot = d; refBody = 1; refFace = f; }
+    }
+    for (int f = 0; f < 6; f++) {
+        int   ai = f / 2;
+        float s  = (f % 2 == 0) ? 1.0 : -1.0;
+        float d  = dot(s * axA[ai], satN);
+        if (d > bestDot) { bestDot = d; refBody = 0; refFace = f; }  // strict >, B wins ties
+    }
+
+    // --- Reference face ---
+    vec3 refPos, refAx0, refAx1, refAx2, refH;
+    vec4 refQuat;
+    vec3 incPos, incAx0, incAx1, incAx2, incH;
+    vec4 incQuat;
+    uint refIdx, incIdx;
+    vec3 refN;
+
+    if (refBody == 0) {
+        refPos = posA; refAx0=ax0A; refAx1=ax1A; refAx2=ax2A; refH=hA; refQuat=quatA; refIdx=idxA;
+        incPos = posB; incAx0=ax0B; incAx1=ax1B; incAx2=ax2B; incH=hB; incQuat=quatB; incIdx=idxB;
+    } else {
+        refPos = posB; refAx0=ax0B; refAx1=ax1B; refAx2=ax2B; refH=hB; refQuat=quatB; refIdx=idxB;
+        incPos = posA; incAx0=ax0A; incAx1=ax1A; incAx2=ax2A; incH=hA; incQuat=quatA; incIdx=idxA;
+    }
+
+    vec3 refV0, refV1, refV2, refV3;
+    refN = buildFaceVerts(refPos, refAx0, refAx1, refAx2, refH, refFace,
+                          refV0, refV1, refV2, refV3);
+
+    // --- Incident face: most anti-aligned to refN ---
+    float minDot = 1e30;
+    int   incFace = 0;
+    vec3 incAxArr[3]; incAxArr[0]=incAx0; incAxArr[1]=incAx1; incAxArr[2]=incAx2;
+    for (int f = 0; f < 6; f++) {
+        int   ai = f / 2;
+        float s  = (f % 2 == 0) ? 1.0 : -1.0;
+        float d  = dot(s * incAxArr[ai], refN);
+        if (d < minDot) { minDot = d; incFace = f; }
+    }
+
+    vec3 incV0, incV1, incV2, incV3;
+    buildFaceVerts(incPos, incAx0, incAx1, incAx2, incH, incFace,
+                   incV0, incV1, incV2, incV3);
+
+    // --- Sutherland-Hodgman: clip incident polygon by 4 reference side planes ---
+    vec3 poly[8];
+    poly[0] = incV0; poly[1] = incV1; poly[2] = incV2; poly[3] = incV3;
+    int polyN = 4;
+
+    // 4 side planes of reference face (edge normals, pointing inward)
+    vec3 refEdge[4];
+    refEdge[0] = refV1 - refV0;
+    refEdge[1] = refV2 - refV1;
+    refEdge[2] = refV3 - refV2;
+    refEdge[3] = refV0 - refV3;
+
+    for (int e = 0; e < 4; e++) {
+        vec3 edgeN = normalize(cross(refEdge[e], refN));
+        // Edge start vertex
+        vec3 ev;
+        if      (e == 0) ev = refV0;
+        else if (e == 1) ev = refV1;
+        else if (e == 2) ev = refV2;
+        else             ev = refV3;
+        float planeDist = dot(ev, edgeN);
+        polyN = clipByPlane(poly, polyN, edgeN, planeDist);
+        if (polyN == 0) return;
+    }
+
+    // --- Reference face plane: find single deepest contact (1 constraint per pair).
+    // Multiple simultaneous contacts on the same body in a Jacobi solver sum their
+    // impulses, producing N× the needed correction → energy addition. One contact
+    // per pair is stable and correct; rotational stability comes from the contact arm.
+    float refFaceDist = dot(refV0, refN);
+
+    float bestPen = 0.0;
+    vec3  bestCP  = vec3(0);
+
+    for (int p = 0; p < polyN; p++) {
+        float d = dot(poly[p], refN) - refFaceDist;
+        if (d > COLLISION_MARGIN) continue;
+
+        float pen = depth - d;
+        if (pen <= 0.0) continue;
+
+        if (pen > bestPen) { bestPen = pen; bestCP = poly[p]; }
+    }
+
+    if (bestPen > 0.0) {
+        vec3 rA_w = bestCP - posA;
+        vec3 rB_w = bestCP - posB;
+
+        // Normal: satN direction (from B toward A). Both scoring branches yield refN ≈ satN.
+        vec3 n = refN;
+
+        emitCon(idxA, idxB, n, bestPen, rA_w, rB_w, mu, quatA, quatB);
+    }
+}
+
+// Generate edge contact: 1 constraint at closest points on two edge segments.
+void edgeContact(uint idxA, uint idxB,
+                 vec3 posA, vec3 ax0A, vec3 ax1A, vec3 ax2A, vec3 hA, vec4 quatA,
+                 vec3 posB, vec3 ax0B, vec3 ax1B, vec3 ax2B, vec3 hB, vec4 quatB,
+                 vec3 satN,    // normalized, from B toward A
+                 float depth,
+                 int   eIdxA, int eIdxB,  // edge axis indices (0-2) for each body
+                 float mu)
+{
+    vec3 axA[3]; axA[0]=ax0A; axA[1]=ax1A; axA[2]=ax2A;
+    vec3 axB[3]; axB[0]=ax0B; axB[1]=ax1B; axB[2]=ax2B;
+
+    // Support vertex of A in -satN direction (deepest corner into B)
+    vec3 pA = obbSupport(posA, ax0A, ax1A, ax2A, hA, -satN);
+    // Support vertex of B in +satN direction (deepest corner into A)
+    vec3 pB = obbSupport(posB, ax0B, ax1B, ax2B, hB, satN);
+
+    // Edge directions
+    vec3 eA = axA[eIdxA];
+    vec3 eB = axB[eIdxB];
+
+    // Closest points on the two infinite edge lines
+    vec3  r   = pA - pB;
+    float a   = dot(eA, eA);   // always 1.0 (normalized)
+    float e2  = dot(eB, eB);   // always 1.0
+    float f   = dot(eB, r);
+    float c   = dot(eA, r);
+    float b   = dot(eA, eB);
+    float denom = a * e2 - b * b;
+    float tA, tB;
+    if (abs(denom) < 1e-8) {
+        tA = 0.0;
+        tB = f / e2;
+    } else {
+        tA = (b * f - c * e2) / denom;
+        tB = (a * f - b * c)  / denom;
+    }
+
+    vec3 cpA = pA + tA * eA;
+    vec3 cpB = pB + tB * eB;
+    vec3 cp  = 0.5 * (cpA + cpB);
+
+    emitCon(idxA, idxB, satN, depth,
+            cp - posA, cp - posB,
+            mu, quatA, quatB);
+}
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    uint constraintCount = pc.count;
+    if (i >= constraintCount) return;
+
+    SolverBody a = bodies[i];
+    if ((a.flags & PARTICLE_ACTIVE) == 0u || a.invMass == 0.0) return;
+    if ((a.flags & PARTICLE_SLEEPING) != 0u) return;  // sleeping body A never initiates constraints
+
+    int cx = int(floor(a.pos.x)) & (GRID_SIZE - 1);
+    int cy = int(floor(a.pos.y)) & (GRID_SIZE - 1);
+    int cz = int(floor(a.pos.z)) & (GRID_SIZE - 1);
+
+    vec3 ax0A = quatRotate(a.quat, vec3(1,0,0));
+    vec3 ax1A = quatRotate(a.quat, vec3(0,1,0));
+    vec3 ax2A = quatRotate(a.quat, vec3(0,0,1));
+    vec3 hA   = a.halfExt;
+
+    for (int dz = -1; dz <= 1; dz++) {
+    for (int dy = -1; dy <= 1; dy++) {
+    for (int dx = -1; dx <= 1; dx++) {
+        int nx = (cx + dx) & (GRID_SIZE - 1);
+        int ny = (cy + dy) & (GRID_SIZE - 1);
+        int nz = (cz + dz) & (GRID_SIZE - 1);
+        int nc = nx + ny * GRID_SIZE + nz * GRID_SIZE * GRID_SIZE;
+
+        uint cellCount = gridCellCount[nc];
+        if (cellCount == 0u) continue;
+        uint cellEnd   = gridCellOffset[nc];
+        uint cellStart = cellEnd - cellCount;
+
+        for (uint s = cellStart; s < cellEnd; ++s) {
+            uint j = sortedIndices[s];
+            if (j <= i) continue;
+
+            SolverBody b = bodies[j];
+            if ((b.flags & PARTICLE_ACTIVE) == 0u) continue;
+
+            vec3 ax0B = quatRotate(b.quat, vec3(1,0,0));
+            vec3 ax1B = quatRotate(b.quat, vec3(0,1,0));
+            vec3 ax2B = quatRotate(b.quat, vec3(0,0,1));
+            vec3 hB   = b.halfExt;
+
+            vec3 d = b.pos - a.pos;  // A → B
+
+            // Broad phase: circumscribed sphere check
+            float rA = length(hA) * 1.1;
+            float rB = length(hB) * 1.1;
+            if (dot(d, d) > (rA + rB + COLLISION_MARGIN) * (rA + rB + COLLISION_MARGIN))
+                continue;
+
+            // ================================================================
+            // SAT: 15 axes.  Track min pen for face axes and edge axes separately.
+            // ================================================================
+            float minFacePen = 1e30;
+            vec3  minFaceN   = vec3(0, 1, 0);
+
+            float minEdgePen  = 1e30;
+            vec3  minEdgeN    = vec3(0, 1, 0);
+            int   minEdgeIdxA = 0;
+            int   minEdgeIdxB = 0;
+
+            vec3 axA[3]; axA[0]=ax0A; axA[1]=ax1A; axA[2]=ax2A;
+            vec3 axB[3]; axB[0]=ax0B; axB[1]=ax1B; axB[2]=ax2B;
+
+            bool separated = false;
+
+            // --- 3 face axes of A ---
+            for (int k = 0; k < 3; k++) {
+                vec3 n = axA[k];
+                float pen = projOBB(ax0A,ax1A,ax2A,hA,n) + projOBB(ax0B,ax1B,ax2B,hB,n)
+                          - abs(dot(d, n));
+                if (pen < 0.0) { separated = true; break; }
+                // Ensure axis points from A toward B
+                vec3 nFinal = n * sgn(dot(d, n));
+                if (pen < minFacePen) { minFacePen = pen; minFaceN = nFinal; }
+            }
+            if (separated) continue;
+
+            // --- 3 face axes of B ---
+            for (int k = 0; k < 3; k++) {
+                vec3 n = axB[k];
+                float pen = projOBB(ax0A,ax1A,ax2A,hA,n) + projOBB(ax0B,ax1B,ax2B,hB,n)
+                          - abs(dot(d, n));
+                if (pen < 0.0) { separated = true; break; }
+                vec3 nFinal = n * sgn(dot(d, n));
+                if (pen < minFacePen) { minFacePen = pen; minFaceN = nFinal; }
+            }
+            if (separated) continue;
+
+            // --- 9 edge cross-product axes ---
+            for (int a2 = 0; a2 < 3; a2++) {
+            for (int b2 = 0; b2 < 3; b2++) {
+                vec3 n = cross(axA[a2], axB[b2]);
+                float lenSq = dot(n, n);
+                if (lenSq < 1e-9) continue;  // parallel edges
+                n /= sqrt(lenSq);
+                float pen = projOBB(ax0A,ax1A,ax2A,hA,n) + projOBB(ax0B,ax1B,ax2B,hB,n)
+                          - abs(dot(d, n));
+                if (pen < 0.0) { separated = true; break; }
+                vec3 nFinal = n * sgn(dot(d, n));
+                if (pen < minEdgePen) {
+                    minEdgePen = pen;
+                    minEdgeN   = nFinal;
+                    minEdgeIdxA = a2;
+                    minEdgeIdxB = b2;
+                }
+            }
+            if (separated) break;
+            }
+            if (separated) continue;
+
+            // ================================================================
+            // Contact normal: choose face or edge contact
+            // Use Shallot heuristic: prefer face unless edge is significantly smaller.
+            // ================================================================
+            float mu = mix(a.friction, b.friction, 0.5);
+
+            bool useEdge = (minEdgePen < minFacePen * 0.95 - 0.01);
+
+            if (useEdge) {
+                // satN points from B toward A (we track "from A to B" in minEdgeN)
+                vec3 satN = -minEdgeN;  // flip to "from B toward A"
+                edgeContact(i, j,
+                            a.pos, ax0A, ax1A, ax2A, hA, a.quat,
+                            b.pos, ax0B, ax1B, ax2B, hB, b.quat,
+                            satN, minEdgePen + COLLISION_MARGIN,
+                            minEdgeIdxA, minEdgeIdxB, mu);
+            } else {
+                // satN from B toward A
+                vec3 satN = -minFaceN;
+                faceManifold(i, j,
+                             a.pos, ax0A, ax1A, ax2A, hA, a.quat,
+                             b.pos, ax0B, ax1B, ax2B, hB, b.quat,
+                             satN, minFacePen + COLLISION_MARGIN, mu);
+            }
+        }
+    }}}
+}

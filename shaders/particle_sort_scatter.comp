@@ -1,0 +1,62 @@
+#version 450
+//
+// particle_sort_scatter.comp — Scatter active particles into cell-sorted buffers.
+//
+// Each active particle claims a contiguous write slot within its cell by
+// atomicAdd-ing gridCellOffset[cell]. The particle's full data and its
+// canonical index are written to the sorted buffers.
+//
+// After this pass:
+//   gridCellOffset[c]  = exclusiveStart[c] + gridCellCount[c]  (= END of range)
+//   sortedParticles[s] = GpuParticle for sorted slot s
+//   sortedIndices[s]   = canonical particle index for slot s
+//
+// particle_collide.comp reads [gridCellOffset[nc]-gridCellCount[nc], gridCellOffset[nc])
+// from sortedParticles — contiguous, cache-friendly neighbor access.
+//
+#extension GL_GOOGLE_include_directive : require
+#include "particle_types.glsl"
+
+layout(local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, set = 0, binding = 0) readonly buffer ParticleBuffer {
+    GpuParticle particles[];
+};
+
+layout(std430, set = 0, binding = 1) buffer GridCellOffset {
+    uint gridCellOffset[];
+};
+
+layout(std430, set = 0, binding = 2) buffer SortedParticles {
+    GpuParticle sortedParticles[];
+};
+
+layout(std430, set = 0, binding = 3) buffer SortedIndices {
+    uint sortedIndices[];
+};
+
+layout(push_constant) uniform PC {
+    uint count;
+} pc;
+
+const int GRID_SIZE = 64;
+
+int cellIndex(vec3 pos) {
+    int cx = int(floor(pos.x)) & (GRID_SIZE - 1);
+    int cy = int(floor(pos.y)) & (GRID_SIZE - 1);
+    int cz = int(floor(pos.z)) & (GRID_SIZE - 1);
+    return cx + cy * GRID_SIZE + cz * GRID_SIZE * GRID_SIZE;
+}
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= pc.count) return;
+
+    GpuParticle p = particles[i];
+    if ((p.flags & PARTICLE_ACTIVE) == 0u) return;
+
+    int  cell = cellIndex(p.position);
+    uint slot = atomicAdd(gridCellOffset[cell], 1u);
+    sortedParticles[slot] = p;
+    sortedIndices[slot]   = i;
+}

@@ -1,0 +1,70 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "particle_types.glsl"
+#include "solver_types.glsl"
+
+layout(local_size_x = WORKGROUP_SOLVER) in;
+
+layout(std430, set=0, binding=0) readonly buffer ParticleBuffer  { GpuParticle particles[]; };
+layout(std430, set=0, binding=1) buffer SolverBodyBuffer         { SolverBody  bodies[]; };
+layout(std430, set=0, binding=2) buffer DeltaVelBuffer           { int deltaVel[]; };  // [MAX*3] int fixed-point
+layout(std430, set=0, binding=3) buffer DeltaAngBuffer           { int deltaAng[]; };  // [MAX*3]
+layout(std430, set=0, binding=4) buffer SolverStateBuffer        { uint solverState[]; };
+layout(std430, set=0, binding=5) readonly buffer MaterialBuffer  { MaterialPhysics materials[]; };
+
+layout(push_constant) uniform PC { uint count; float dt; } pc;
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+
+    if (i >= pc.count) return;
+
+    // Clear per-body delta accumulators
+    deltaVel[i*3+0] = 0;
+    deltaVel[i*3+1] = 0;
+    deltaVel[i*3+2] = 0;
+    deltaAng[i*3+0] = 0;
+    deltaAng[i*3+1] = 0;
+    deltaAng[i*3+2] = 0;
+
+    GpuParticle p = particles[i];
+
+    SolverBody b;
+    b.particleIdx = i;
+    b.flags       = p.flags;
+    b.pos         = p.position;
+    b.quat        = p.rotation;
+    b.angVel      = p.angularVel;
+    b.halfExt     = p.scale * 0.5;
+    b.pad0        = 0.0;
+    b.pad1        = 0.0;
+    b.pad2        = 0.0; b.pad3 = 0.0; b.pad4 = 0.0; b.pad5 = 0.0;
+
+    // Sphere radius: circumscribed sphere of the AABB
+    float r  = max(b.halfExt.x, max(b.halfExt.y, b.halfExt.z));
+    b.radius = r;
+
+    // Derive velocity from XPBD prevPosition (convert displacement→m/s)
+    b.vel     = (p.position - p.prevPosition) / pc.dt;
+    b.prevVel = b.vel;
+
+    if ((p.flags & PARTICLE_ACTIVE) == 0u) {
+        b.invMass    = 0.0;
+        b.invInertia = 0.0;
+        b.friction   = 0.5;
+        b.restitution= 0.3;
+        bodies[i] = b;
+        return;
+    }
+
+    MaterialPhysics mat = materials[p.materialIndex];
+    float mass = mat.mass;
+    b.invMass    = (mass > 0.0) ? 1.0 / mass : 0.0;
+    // Solid sphere: I = 2/5 * m * r²
+    float I      = (2.0/5.0) * mass * r * r;
+    b.invInertia = (I > 0.0) ? 1.0 / I : 0.0;
+    b.friction   = mat.friction;
+    b.restitution= mat.restitution;
+
+    bodies[i] = b;
+}

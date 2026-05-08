@@ -36,6 +36,14 @@ const uint PARTICLE_TYPE_SUBCUBE = 1u << 2;
 const uint PARTICLE_TYPE_MICRO   = 2u << 2;
 const uint PARTICLE_TYPE_MASK    = 3u << 2;
 
+// Sleep counter: bits [11:4] — 8-bit (0–255). Incremented each frame body is below
+// the sleep velocity thresholds; cleared on wakeup or when above threshold.
+const uint SLEEP_COUNTER_SHIFT    = 4u;
+const uint SLEEP_COUNTER_MASK     = 0x00000FF0u;
+const uint SLEEP_FRAMES           = 90u;   // ~1.5s at 60Hz before deactivation
+const float SLEEP_LIN_THRESH_SQ   = 1e-4;  // 0.01 m/s squared
+const float SLEEP_ANG_THRESH_SQ   = 1e-2;  // 0.1 rad/s squared
+
 // Spawn age: bits [23:16] — 8-bit counter (0–255) incremented each physics tick.
 // Used to implement a grace period: freshly spawned particles skip character
 // collision and sleep checks until they've had time to separate from the player

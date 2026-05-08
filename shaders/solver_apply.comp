@@ -1,0 +1,50 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "particle_types.glsl"
+#include "solver_types.glsl"
+
+layout(local_size_x = WORKGROUP_SOLVER) in;
+
+layout(std430, set=0, binding=0) buffer SolverBodyBuffer { SolverBody bodies[]; };
+layout(std430, set=0, binding=1) buffer DeltaVelBuffer   { int deltaVel[]; };
+layout(std430, set=0, binding=2) buffer DeltaAngBuffer   { int deltaAng[]; };
+
+layout(push_constant) uniform PC { uint count; float dt; } pc;
+
+const float DELTA_SCALE = 1e5;
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= pc.count) return;
+
+    SolverBody b = bodies[i];
+    if ((b.flags & PARTICLE_ACTIVE) == 0u || b.invMass == 0.0) {
+        // Still clear deltas so they don't bleed to next iteration
+        deltaVel[i*3+0] = 0; deltaVel[i*3+1] = 0; deltaVel[i*3+2] = 0;
+        deltaAng[i*3+0] = 0; deltaAng[i*3+1] = 0; deltaAng[i*3+2] = 0;
+        return;
+    }
+
+    // Apply accumulated velocity and angular velocity deltas
+    vec3 dv = vec3(deltaVel[i*3+0], deltaVel[i*3+1], deltaVel[i*3+2]) / DELTA_SCALE;
+    vec3 dw = vec3(deltaAng[i*3+0], deltaAng[i*3+1], deltaAng[i*3+2]) / DELTA_SCALE;
+
+    b.vel    += dv;
+    b.angVel += dw;
+
+    // Update position from velocity (correct predictor-corrector step)
+    b.pos += dv * pc.dt;
+
+    // Clamp angular velocity to prevent spinning runaway
+    const float MAX_ANGVEL = 50.0;
+    float angSpeed = length(b.angVel);
+    if (angSpeed > MAX_ANGVEL) {
+        b.angVel = b.angVel * (MAX_ANGVEL / angSpeed);
+    }
+
+    // Reset delta buffers for next iteration
+    deltaVel[i*3+0] = 0; deltaVel[i*3+1] = 0; deltaVel[i*3+2] = 0;
+    deltaAng[i*3+0] = 0; deltaAng[i*3+1] = 0; deltaAng[i*3+2] = 0;
+
+    bodies[i] = b;
+}

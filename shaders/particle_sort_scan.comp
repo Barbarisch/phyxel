@@ -1,0 +1,36 @@
+#version 450
+//
+// particle_sort_scan.comp — Exclusive prefix sum over per-cell particle counts.
+//
+// Runs as a single invocation. Reads gridCellCount[GRID_CELLS] and writes
+// the exclusive prefix sum into gridCellOffset[GRID_CELLS].
+//
+// After this pass:
+//   gridCellOffset[c] = sum of gridCellCount[0 .. c-1]
+//
+// particle_sort_scatter.comp then atomicAdd(gridCellOffset[c], 1) to claim
+// write slots, leaving gridCellOffset[c] = exclusiveStart[c] + count[c] = END.
+// Collide reads [gridCellOffset[c] - gridCellCount[c], gridCellOffset[c]).
+//
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, set = 0, binding = 0) readonly buffer GridCellCount {
+    uint gridCellCount[];
+};
+
+layout(std430, set = 0, binding = 1) buffer GridCellOffset {
+    uint gridCellOffset[];
+};
+
+layout(push_constant) uniform PC {
+    uint cellCount;
+} pc;
+
+void main() {
+    uint sum = 0u;
+    for (uint c = 0u; c < pc.cellCount; ++c) {
+        gridCellOffset[c] = sum;
+        sum += gridCellCount[c];
+    }
+}
