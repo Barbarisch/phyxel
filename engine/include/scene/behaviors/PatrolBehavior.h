@@ -1,6 +1,7 @@
 #pragma once
 
 #include "scene/NPCBehavior.h"
+#include "core/AStarPathfinder.h"
 #include "ai/PerceptionSystem.h"
 #include <vector>
 #include <glm/glm.hpp>
@@ -40,7 +41,16 @@ public:
     void setPathfinder(Core::AStarPathfinder* pathfinder) { m_pathfinder = pathfinder; }
 
     /// Invalidate the currently computed path, forcing a recompute on next update.
-    void invalidatePath() { m_pathComputed = false; m_pathNodes.clear(); m_currentPathNode = 0; }
+    void invalidatePath() {
+        m_pathComputed = false;
+        m_pathNodes.clear();
+        m_pathNodeTypes.clear();
+        m_currentPathNode = 0;
+        m_linkJumpTriggered = false;
+    }
+
+    /// Expose the current path waypoints for external inspection (e.g. NPCManager path invalidation).
+    const std::vector<glm::vec3>& getPathNodes() const { return m_pathNodes; }
 
     /// Access perception for external queries (e.g. API)
     AI::PerceptionComponent& getPerception() { return m_perception; }
@@ -49,6 +59,11 @@ public:
 private:
     void updatePerception(float dt, NPCContext& ctx, const glm::vec3& forward);
     void computePath(const glm::vec3& from, const glm::vec3& to);
+
+    /// Check the next PROBE_LOOKAHEAD path nodes against the live NavGrid.
+    /// Calls invalidatePath() if any node's cell is no longer valid.
+    void validateAheadOfPath();
+
     std::vector<glm::vec3> m_waypoints;
     size_t m_currentWaypoint = 0;
     float m_walkSpeed;
@@ -60,11 +75,20 @@ private:
 
     // Pathfinding
     Core::AStarPathfinder* m_pathfinder = nullptr;
-    std::vector<glm::vec3> m_pathNodes;   ///< Current computed sub-waypoints
-    size_t m_currentPathNode = 0;          ///< Index into m_pathNodes
-    bool m_pathComputed = false;           ///< True if we have a path for current waypoint
-    float m_pathRetryTimer = 0.0f;         ///< Cooldown before retrying failed pathfind
+    std::vector<glm::vec3> m_pathNodes;            ///< Current computed sub-waypoints
+    std::vector<Core::WaypointType> m_pathNodeTypes; ///< Parallel to m_pathNodes — Normal or LinkJump
+    size_t m_currentPathNode = 0;                  ///< Index into m_pathNodes
+    bool m_pathComputed = false;                   ///< True if we have a path for current waypoint
+    float m_pathRetryTimer = 0.0f;                 ///< Cooldown before retrying failed pathfind
     static constexpr float PATH_RETRY_DELAY = 2.0f;
+
+    // Jump link execution
+    bool m_linkJumpTriggered = false;  ///< True after jump() called for current LinkJump waypoint
+
+    // Terrain probe (Phase 1)
+    int m_probeFrameCounter = 0;
+    static constexpr int PROBE_INTERVAL  = 5;  ///< Check ahead every N frames
+    static constexpr int PROBE_LOOKAHEAD = 3;  ///< Number of path nodes to inspect ahead
 
     // Ambient speech bubble config
     std::vector<std::string> m_arrivalPhrases;
@@ -72,6 +96,11 @@ private:
 
     // Perception (FOV + LOS)
     AI::PerceptionComponent m_perception;
+
+    // Smooth turning (Phase 5)
+    float m_currentYaw = 0.0f;  ///< Smoothly interpolated yaw in radians
+    static constexpr float TURN_SPEED  = 8.0f;  ///< Yaw lerp rate (rad/s)
+    static constexpr float DECEL_RADIUS = 1.5f; ///< Start decelerating within this distance (blocks)
 
     // Look-around sweep during waypoint waits
     float m_baseYaw = 0.0f;        // yaw when arriving at waypoint

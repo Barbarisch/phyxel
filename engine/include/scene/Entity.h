@@ -34,6 +34,9 @@ public:
     /// Default is a no-op; physics-backed entities override this.
     virtual void setMoveVelocity(const glm::vec3& /*velocity*/) {}
 
+    /// Trigger a jump impulse. Default is a no-op; physics-backed entities override this.
+    virtual void jump() {}
+
     glm::mat4 getModelMatrix() const {
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, position);

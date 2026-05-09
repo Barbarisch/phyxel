@@ -171,6 +171,70 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
+    echo Compiling particle sort scan compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\particle_sort_scan.comp -o shaders\particle_sort_scan.comp.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile particle_sort_scan.comp
+        pause
+        exit /b 1
+    )
+
+    echo Compiling particle sort scatter compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\particle_sort_scatter.comp -o shaders\particle_sort_scatter.comp.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile particle_sort_scatter.comp
+        pause
+        exit /b 1
+    )
+
+    echo Compiling solver_sync_in compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_sync_in.comp -o shaders\solver_sync_in.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_sync_in.comp & pause & exit /b 1 )
+
+    echo Compiling solver_integrate compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_integrate.comp -o shaders\solver_integrate.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_integrate.comp & pause & exit /b 1 )
+
+    echo Compiling solver_narrowphase compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_narrowphase.comp -o shaders\solver_narrowphase.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_narrowphase.comp & pause & exit /b 1 )
+
+    echo Compiling solver_voxel compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_voxel.comp -o shaders\solver_voxel.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_voxel.comp & pause & exit /b 1 )
+
+    echo Compiling solver_jacobi compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_jacobi.comp -o shaders\solver_jacobi.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_jacobi.comp & pause & exit /b 1 )
+
+    echo Compiling solver_apply compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_apply.comp -o shaders\solver_apply.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_apply.comp & pause & exit /b 1 )
+
+    echo Compiling solver_sync_out compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_sync_out.comp -o shaders\solver_sync_out.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_sync_out.comp & pause & exit /b 1 )
+
+    echo Compiling solver_csr_clear compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_csr_clear.comp -o shaders\solver_csr_clear.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_csr_clear.comp & pause & exit /b 1 )
+
+    echo Compiling solver_csr_count compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_csr_count.comp -o shaders\solver_csr_count.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_csr_count.comp & pause & exit /b 1 )
+
+    echo Compiling solver_prefix_sum compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_prefix_sum.comp -o shaders\solver_prefix_sum.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_prefix_sum.comp & pause & exit /b 1 )
+
+    echo Compiling solver_csr_scatter compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_csr_scatter.comp -o shaders\solver_csr_scatter.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_csr_scatter.comp & pause & exit /b 1 )
+
+    echo Compiling solver_graph_color compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_graph_color.comp -o shaders\solver_graph_color.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_graph_color.comp & pause & exit /b 1 )
+
     echo Compiling debris vertex shader...
     %GLSLANG% -fshader-stage=vert -I. shaders\debris.vert -o shaders\debris.vert.spv
     if %errorlevel% neq 0 (
@@ -370,6 +434,70 @@ if defined USE_GLSLC (
         pause
         exit /b 1
     )
+
+    echo Compiling particle sort scan compute shader...
+    %GLSLANG% -V -Ishaders shaders\particle_sort_scan.comp -o shaders\particle_sort_scan.comp.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile particle_sort_scan.comp
+        pause
+        exit /b 1
+    )
+
+    echo Compiling particle sort scatter compute shader...
+    %GLSLANG% -V -Ishaders shaders\particle_sort_scatter.comp -o shaders\particle_sort_scatter.comp.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile particle_sort_scatter.comp
+        pause
+        exit /b 1
+    )
+
+    echo Compiling solver_sync_in compute shader...
+    %GLSLANG% -V -Ishaders shaders\solver_sync_in.comp -o shaders\solver_sync_in.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_sync_in.comp & pause & exit /b 1 )
+
+    echo Compiling solver_integrate compute shader...
+    %GLSLANG% -V -Ishaders shaders\solver_integrate.comp -o shaders\solver_integrate.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_integrate.comp & pause & exit /b 1 )
+
+    echo Compiling solver_narrowphase compute shader...
+    %GLSLANG% -V -Ishaders shaders\solver_narrowphase.comp -o shaders\solver_narrowphase.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_narrowphase.comp & pause & exit /b 1 )
+
+    echo Compiling solver_voxel compute shader...
+    %GLSLANG% -V -Ishaders shaders\solver_voxel.comp -o shaders\solver_voxel.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_voxel.comp & pause & exit /b 1 )
+
+    echo Compiling solver_jacobi compute shader...
+    %GLSLANG% -V -Ishaders shaders\solver_jacobi.comp -o shaders\solver_jacobi.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_jacobi.comp & pause & exit /b 1 )
+
+    echo Compiling solver_apply compute shader...
+    %GLSLANG% -V -Ishaders shaders\solver_apply.comp -o shaders\solver_apply.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_apply.comp & pause & exit /b 1 )
+
+    echo Compiling solver_sync_out compute shader...
+    %GLSLANG% -V -Ishaders shaders\solver_sync_out.comp -o shaders\solver_sync_out.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_sync_out.comp & pause & exit /b 1 )
+
+    echo Compiling solver_csr_clear compute shader...
+    %GLSLANG% -V -Ishaders shaders\solver_csr_clear.comp -o shaders\solver_csr_clear.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_csr_clear.comp & pause & exit /b 1 )
+
+    echo Compiling solver_csr_count compute shader...
+    %GLSLANG% -V -Ishaders shaders\solver_csr_count.comp -o shaders\solver_csr_count.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_csr_count.comp & pause & exit /b 1 )
+
+    echo Compiling solver_prefix_sum compute shader...
+    %GLSLANG% -V -Ishaders shaders\solver_prefix_sum.comp -o shaders\solver_prefix_sum.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_prefix_sum.comp & pause & exit /b 1 )
+
+    echo Compiling solver_csr_scatter compute shader...
+    %GLSLANG% -V -Ishaders shaders\solver_csr_scatter.comp -o shaders\solver_csr_scatter.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_csr_scatter.comp & pause & exit /b 1 )
+
+    echo Compiling solver_graph_color compute shader...
+    %GLSLANG% -V -Ishaders shaders\solver_graph_color.comp -o shaders\solver_graph_color.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_graph_color.comp & pause & exit /b 1 )
 
     echo Compiling debris vertex shader...
     %GLSLANG% -V -I. shaders\debris.vert -o shaders\debris.vert.spv

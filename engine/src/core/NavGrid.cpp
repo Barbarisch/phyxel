@@ -30,6 +30,7 @@ void NavGrid::buildFromRegion(const glm::ivec2& minXZ, const glm::ivec2& maxXZ) 
     }
 
     computeNearWallFlags();
+    buildJumpLinks();
 }
 
 void NavGrid::rebuildCell(int x, int z) {
@@ -67,6 +68,12 @@ void NavGrid::rebuildCell(int x, int z) {
         }
         cit->second.nearWall = near;
     }
+
+    // Phase 3 — Dynamic gap support: remove any links touching the changed cell
+    // (their gap may be closed or the endpoint may no longer be walkable), then
+    // rebuild links for the local neighbourhood so new gaps are discovered.
+    removeLinksAt(x, z);
+    buildJumpLinksNear(x, z, /*radius=*/3);
 }
 
 void NavGrid::rebuildRegion(int minX, int minZ, int maxX, int maxZ) {
@@ -294,6 +301,118 @@ bool NavGrid::hasVoxel(const glm::ivec3& pos) const {
     if (m_queryFunc) return m_queryFunc(pos);
     if (m_chunkManager) return m_chunkManager->hasVoxelAt(pos);
     return false;
+}
+
+// ============================================================
+// Phase 3 — Navigation Links (Jump Links)
+// ============================================================
+
+const std::vector<NavLink>* NavGrid::getLinksAt(int x, int z) const {
+    auto it = m_links.find(packKey(x, z));
+    return (it != m_links.end()) ? &it->second : nullptr;
+}
+
+void NavGrid::addLink(const NavLink& link) {
+    const NavCell* src = getCell(link.start.x, link.start.y);
+    const NavCell* dst = getCell(link.end.x,   link.end.y);
+    if (!src || !src->walkable || !dst || !dst->walkable) return;
+    m_links[packKey(link.start.x, link.start.y)].push_back(link);
+}
+
+void NavGrid::removeLinksAt(int x, int z) {
+    // Remove all links starting at (x, z)
+    m_links.erase(packKey(x, z));
+
+    // Remove any links ending at (x, z): these come from cells up to 2 steps away.
+    // Jump links are at most 2 cells long so we only need to check cardinal directions.
+    static const int dx[] = {1, -1, 0, 0};
+    static const int dz[] = {0,  0, 1, -1};
+    for (int d = 0; d < 4; ++d) {
+        for (int steps = 1; steps <= 2; ++steps) {
+            int sx = x + dx[d] * steps;
+            int sz = z + dz[d] * steps;
+            auto it = m_links.find(packKey(sx, sz));
+            if (it == m_links.end()) continue;
+            auto& vec = it->second;
+            vec.erase(std::remove_if(vec.begin(), vec.end(),
+                [x, z](const NavLink& lnk) {
+                    return lnk.end.x == x && lnk.end.y == z;
+                }), vec.end());
+            if (vec.empty()) m_links.erase(it);
+        }
+    }
+}
+
+void NavGrid::buildJumpLinks() {
+    m_links.clear();
+    buildJumpLinksNear(0, 0, std::numeric_limits<int>::max()); // rebuild all
+}
+
+void NavGrid::buildJumpLinksNear(int cx, int cz, int radius) {
+    static constexpr int MAX_HEIGHT_DIFF  = 2;  // max landing height delta for a jump
+    static constexpr float LINK_BASE_COST = 2.0f;
+    static const int dx[] = {1, -1, 0, 0};
+    static const int dz[] = {0,  0, 1, -1};
+
+    // Determine the range of cells to scan.  When radius is max (full rebuild)
+    // we iterate the entire m_cells map; otherwise we scan the bounding box.
+    auto tryBuildFrom = [&](const NavCell& cell) {
+        if (!cell.walkable) return;
+        int64_t key = packKey(cell.x, cell.z);
+        for (int d = 0; d < 4; ++d) {
+            // The immediate neighbour must be non-walkable (the gap).
+            int midX = cell.x + dx[d];
+            int midZ = cell.z + dz[d];
+            const NavCell* mid = getCell(midX, midZ);
+            if (mid && mid->walkable) continue;  // Not a gap — regular path covers this
+
+            // The landing cell is 2 steps over.
+            int landX = cell.x + dx[d] * 2;
+            int landZ = cell.z + dz[d] * 2;
+            const NavCell* landing = getCell(landX, landZ);
+            if (!landing || !landing->walkable) continue;
+
+            // Height check: don't jump into pits or over walls that are too tall.
+            int heightDiff = std::abs(landing->surfaceY - cell.surfaceY);
+            if (heightDiff > MAX_HEIGHT_DIFF) continue;
+
+            NavLink link;
+            link.start = {cell.x, cell.z};
+            link.end   = {landX, landZ};
+            link.type  = NavLinkType::Jump;
+            link.cost  = LINK_BASE_COST + static_cast<float>(heightDiff) * 0.5f;
+            m_links[key].push_back(link);
+        }
+    };
+
+    if (radius == std::numeric_limits<int>::max()) {
+        for (const auto& [key, cell] : m_cells) tryBuildFrom(cell);
+    } else {
+        for (int x = cx - radius; x <= cx + radius; ++x) {
+            for (int z = cz - radius; z <= cz + radius; ++z) {
+                const NavCell* cell = getCell(x, z);
+                if (cell) tryBuildFrom(*cell);
+            }
+        }
+    }
+}
+
+size_t NavGrid::linkCount() const {
+    size_t n = 0;
+    for (const auto& [key, vec] : m_links) n += vec.size();
+    return n;
+}
+
+void NavGrid::checkPathIntersectsCell(int x, int z, std::vector<glm::vec3>& pathNodes,
+                                       PathInvalidationCallback onIntersect) const {
+    for (const glm::vec3& wp : pathNodes) {
+        int wx = static_cast<int>(std::floor(wp.x));
+        int wz = static_cast<int>(std::floor(wp.z));
+        if (wx == x && wz == z) {
+            onIntersect();
+            return;
+        }
+    }
 }
 
 } // namespace Core

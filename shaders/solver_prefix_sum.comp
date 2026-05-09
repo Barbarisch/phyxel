@@ -1,0 +1,23 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "solver_types.glsl"
+
+// Single-thread exclusive prefix sum over bodyConstraintCount[].
+// Outputs bodyConstraintOffset[] and initialises bodyConstraintCursor[]
+// (cursor is a mutable copy of offset used as an atomic write pointer during scatter).
+layout(local_size_x = 1) in;
+
+layout(std430, set=0, binding=0) readonly buffer CountBuffer  { uint bodyConstraintCount[]; };
+layout(std430, set=0, binding=1) buffer OffsetBuffer          { uint bodyConstraintOffset[]; };
+layout(std430, set=0, binding=2) buffer CursorBuffer          { uint bodyConstraintCursor[]; };
+
+layout(push_constant) uniform PC { uint bodyCount; } pc;
+
+void main() {
+    uint sum = 0u;
+    for (uint i = 0u; i < pc.bodyCount; i++) {
+        bodyConstraintOffset[i] = sum;
+        bodyConstraintCursor[i] = sum;
+        sum += bodyConstraintCount[i];
+    }
+}

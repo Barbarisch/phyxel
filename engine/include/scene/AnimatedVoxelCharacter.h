@@ -233,11 +233,11 @@ namespace Scene {
 
         /// Set horizontal movement velocity (XZ), preserving vertical velocity (gravity).
         void setMoveVelocity(const glm::vec3& velocity);
-        
+
         // Control inputs
         void setControlInput(float forward, float turn, float strafe = 0.0f);
         void setSprint(bool sprint);
-        void jump();
+        void jump() override;
         void attack();
         void setCrouch(bool crouch);
 

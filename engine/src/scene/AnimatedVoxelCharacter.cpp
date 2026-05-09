@@ -1781,6 +1781,10 @@ namespace Scene {
                 float ry = ((rand() % 1000) / 1000.f - 0.5f) * 0.3f;
                 float rz = ((rand() % 1000) / 1000.f - 0.5f) * 0.8f;
                 sp.velocity    = glm::vec3(rx, ry, rz);
+                sp.angularVel  = glm::vec3(
+                    ((rand() % 1000) / 500.f - 1.f) * 3.0f,
+                    ((rand() % 1000) / 500.f - 1.f) * 3.0f,
+                    ((rand() % 1000) / 500.f - 1.f) * 3.0f);
                 sp.scale       = entry.scale;
                 sp.color       = entry.color;
                 sp.lifetime    = 18.0f + (rand() % 120) / 10.f; // 18–30 s

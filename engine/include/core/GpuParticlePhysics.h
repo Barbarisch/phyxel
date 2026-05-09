@@ -149,6 +149,10 @@ public:
     /** Immediately mark all active particles as dead and reset tracking state. */
     void despawnAll();
 
+    /** Switch between constraint solver (new, default) and legacy XPBD pipeline. */
+    void setUseNewPipeline(bool use) { m_useNewPipeline = use; }
+    bool getUseNewPipeline() const   { return m_useNewPipeline; }
+
     // ---- Debug timing stats (ring buffer) ----
     struct FrameTimingEntry {
         float dt;             // raw delta time passed to update()
@@ -186,8 +190,9 @@ private:
     static constexpr int OCC_TOTAL_WORDS = OCC_TOTAL_BITS / 32;          // 2,097,152 uint32s
 
     // Physics constants
-    static constexpr float GRAVITY         = -9.81f;  // match Bullet physics
-    static constexpr float SLEEP_THRESH_SQ = 5e-4f;   // settle faster
+    static constexpr float GRAVITY             = -9.81f;  // match Bullet physics
+    static constexpr float SLEEP_THRESH_SQ     = 5e-4f;   // settle faster
+    static constexpr int   COLLISION_ITERATIONS = 3;       // constraint solver passes per tick
 
     // ---- Vulkan resources ----
     VkDevice         m_device         = VK_NULL_HANDLE;
@@ -229,20 +234,71 @@ private:
     VkDeviceMemory   m_materialPhysMem    = VK_NULL_HANDLE;
     void*            m_materialPhysMapped = nullptr;
 
-    // Spatial hash grid for inter-particle collision
+    // Sorted spatial grid for cache-coherent inter-particle collision
     static constexpr int    GRID_SIZE  = 64;
     static constexpr int    GRID_CELLS = GRID_SIZE * GRID_SIZE * GRID_SIZE; // 262,144
-    VkBuffer         m_gridCellHeadBuffer  = VK_NULL_HANDLE;  // uint[GRID_CELLS] — per-cell head pointer
-    VkDeviceMemory   m_gridCellHeadMem     = VK_NULL_HANDLE;
-    VkBuffer         m_gridNextBuffer      = VK_NULL_HANDLE;  // uint[MAX_PARTICLES] — per-particle next link
-    VkDeviceMemory   m_gridNextMem         = VK_NULL_HANDLE;
+    VkBuffer         m_gridCellCountBuffer  = VK_NULL_HANDLE;  // uint[GRID_CELLS] — particles per cell
+    VkDeviceMemory   m_gridCellCountMem     = VK_NULL_HANDLE;
+    VkBuffer         m_gridCellOffsetBuffer = VK_NULL_HANDLE;  // uint[GRID_CELLS] — END of each cell's sorted range
+    VkDeviceMemory   m_gridCellOffsetMem    = VK_NULL_HANDLE;
+    VkBuffer         m_sortedParticleBuffer = VK_NULL_HANDLE;  // GpuParticle[MAX_PARTICLES] — sorted by cell
+    VkDeviceMemory   m_sortedParticleMem    = VK_NULL_HANDLE;
+    VkBuffer         m_sortedIndexBuffer    = VK_NULL_HANDLE;  // uint[MAX_PARTICLES] — canonical index per sorted slot
+    VkDeviceMemory   m_sortedIndexMem       = VK_NULL_HANDLE;
 
-    // ---- Compute pipelines ----
+    // ---- Compute pipelines (legacy XPBD) ----
     Vulkan::ComputePipeline m_gridClearPass;
     Vulkan::ComputePipeline m_gridBuildPass;
+    Vulkan::ComputePipeline m_sortScanPass;
+    Vulkan::ComputePipeline m_sortScatterPass;
     Vulkan::ComputePipeline m_integratePass;
     Vulkan::ComputePipeline m_collidePass;
     Vulkan::ComputePipeline m_expandPass;
+
+    // ---- Constraint-based solver pipeline (new, default) ----
+    // Pipeline switch: true = constraint solver, false = legacy XPBD
+    bool m_useNewPipeline = true;
+
+    static constexpr uint32_t MAX_CONSTRAINTS = 60000;
+    static constexpr uint32_t MAX_COLORS      = 12;
+    static constexpr int      SOLVE_ITERATIONS = 4;
+
+    // SolverBody buffer — device-local, MAX_PARTICLES × 128 bytes
+    VkBuffer       m_solverBodyBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory m_solverBodyMem    = VK_NULL_HANDLE;
+
+    // Constraint buffer — device-local, MAX_CONSTRAINTS × 80 bytes
+    VkBuffer       m_constraintBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory m_constraintMem    = VK_NULL_HANDLE;
+
+    // Solver state buffer — device-local, 4 × uint (SS_CONSTRAINT_COUNT etc.)
+    VkBuffer       m_solverStateBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory m_solverStateMem    = VK_NULL_HANDLE;
+
+    // Graph-coloring CSR buffers — device-local, MAX_CONSTRAINTS / MAX_PARTICLES × uint32
+    VkBuffer       m_constraintColorBuffer      = VK_NULL_HANDLE;
+    VkDeviceMemory m_constraintColorMem         = VK_NULL_HANDLE;
+    VkBuffer       m_bodyConstraintCountBuffer  = VK_NULL_HANDLE;
+    VkDeviceMemory m_bodyConstraintCountMem     = VK_NULL_HANDLE;
+    VkBuffer       m_bodyConstraintOffsetBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory m_bodyConstraintOffsetMem    = VK_NULL_HANDLE;
+    VkBuffer       m_bodyConstraintCursorBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory m_bodyConstraintCursorMem    = VK_NULL_HANDLE;
+    VkBuffer       m_bodyConstraintListBuffer   = VK_NULL_HANDLE;
+    VkDeviceMemory m_bodyConstraintListMem      = VK_NULL_HANDLE;
+
+    // Compute pipelines for new solver
+    Vulkan::ComputePipeline m_solverSyncInPass;
+    Vulkan::ComputePipeline m_solverIntegratePass;
+    Vulkan::ComputePipeline m_solverNarrowphasePass;
+    Vulkan::ComputePipeline m_solverVoxelPass;
+    Vulkan::ComputePipeline m_solverJacobiPass;
+    Vulkan::ComputePipeline m_solverSyncOutPass;
+    Vulkan::ComputePipeline m_csrClearPass;
+    Vulkan::ComputePipeline m_csrCountPass;
+    Vulkan::ComputePipeline m_prefixSumPass;
+    Vulkan::ComputePipeline m_csrScatterPass;
+    Vulkan::ComputePipeline m_graphColorPass;
 
     // ---- CPU-side state ----
     struct SlotInfo {
@@ -289,7 +345,10 @@ private:
     bool initMatTexTable(Vulkan::VulkanDevice* vulkanDevice);
     bool initMaterialPhysicsTable();
     bool createPipelines(const std::string& shaderDir);
+    bool createSolverBuffers(Vulkan::VulkanDevice* vulkanDevice);
+    bool createSolverPipelines(const std::string& shaderDir);
     void uploadMatTexTable(Vulkan::VulkanDevice* vulkanDevice, const std::vector<uint32_t>& table);
+    void recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t count, float lifetimeDt);
 
     static void insertBarrier(VkCommandBuffer cmd,
                               VkPipelineStageFlags src, VkPipelineStageFlags dst,

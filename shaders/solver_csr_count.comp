@@ -1,0 +1,22 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "solver_types.glsl"
+
+layout(local_size_x = WORKGROUP_SOLVER) in;
+
+layout(std430, set=0, binding=0) readonly buffer ConstraintBuffer    { GPUConstraint constraints[]; };
+layout(std430, set=0, binding=1) readonly buffer SolverStateBuffer   { uint solverState[]; };
+layout(std430, set=0, binding=2) buffer BodyConstraintCount          { uint bodyConstraintCount[]; };
+
+layout(push_constant) uniform PC { uint maxConstraints; } pc;
+
+void main() {
+    uint ci = gl_GlobalInvocationID.x;
+    uint constraintCount = solverState[SS_CONSTRAINT_COUNT];
+    if (ci >= constraintCount || ci >= pc.maxConstraints) return;
+
+    GPUConstraint c = constraints[ci];
+    atomicAdd(bodyConstraintCount[c.bodyA], 1u);
+    if (c.bodyB != SOLVER_STATIC)
+        atomicAdd(bodyConstraintCount[c.bodyB], 1u);
+}

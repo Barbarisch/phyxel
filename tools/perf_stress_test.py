@@ -78,8 +78,13 @@ def clear_dynamics():
     return api_post("/api/debug/clear_dynamics", {})
 
 
-def spawn_gpu(count, scale=1.0, x=32.0, y=20.0, z=32.0):
-    """Spawn GPU particles."""
+def spawn_gpu(count, scale=1.0, x=None, y=None, z=None):
+    """Spawn GPU particles above the player entity."""
+    if x is None or y is None or z is None:
+        px, py, pz = get_player_pos()
+        x = px if x is None else x
+        y = py if y is None else y
+        z = pz if z is None else z
     return api_post("/api/debug/spawn_gpu_particle", {
         "x": x, "y": y, "z": z,
         "material": "Stone",
@@ -89,8 +94,13 @@ def spawn_gpu(count, scale=1.0, x=32.0, y=20.0, z=32.0):
     })
 
 
-def spawn_bullet(count, scale=1.0, x=32.0, y=20.0, z=32.0):
-    """Spawn Bullet cubes."""
+def spawn_bullet(count, scale=1.0, x=None, y=None, z=None):
+    """Spawn Bullet cubes above the player entity."""
+    if x is None or y is None or z is None:
+        px, py, pz = get_player_pos()
+        x = px if x is None else x
+        y = py if y is None else y
+        z = pz if z is None else z
     return api_post("/api/debug/spawn_bullet_cube", {
         "x": x, "y": y, "z": z,
         "material": "Stone",
@@ -108,6 +118,24 @@ def get_camera_pos():
         return cam.get("x", 32.0), cam.get("y", 20.0), cam.get("z", 32.0)
     except Exception:
         return 32.0, 20.0, 32.0
+
+
+def get_player_pos(entity_id="player", above=4.0):
+    """Return spawn position above the player entity.
+    Falls back to camera position if the entity is not found.
+    above: units to add to Y so particles fall onto the character.
+    """
+    try:
+        state = api_get("/api/world/state")
+        for ent in state.get("entities", []):
+            if ent.get("id") == entity_id:
+                p = ent["position"]
+                return p["x"], p["y"] + above, p["z"]
+    except Exception:
+        pass
+    # Fallback: camera position
+    cx, cy, cz = get_camera_pos()
+    return cx, cy + above, cz
 
 
 def spawn_voxel(count, scale=1.0, x=None, y=None, z=None, lifetime=10.0):
@@ -221,6 +249,9 @@ def test_gpu_ramp(quick=False, settle_time=SETTLE_TIME):
 
     clear_dynamics()
     time.sleep(1)
+
+    px, py, pz = get_player_pos()
+    print(f"  Spawning above player at ({px:.1f}, {py:.1f}, {pz:.1f})\n")
 
     rows = []
     total_spawned = 0

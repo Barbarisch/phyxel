@@ -1,6 +1,6 @@
 #version 450
 //
-// particle_grid_clear.comp — Clear spatial hash grid cell heads to 0xFFFFFFFF.
+// particle_grid_clear.comp — Clear spatial hash grid cell counts to 0.
 //
 // Dispatched before particle_grid_build to reset all cells.
 // Uses GRID_CELLS / WORKGROUP_SIZE workgroups.
@@ -8,8 +8,8 @@
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
-layout(std430, set = 0, binding = 0) buffer GridCellHead {
-    uint gridCellHead[];
+layout(std430, set = 0, binding = 0) buffer GridCellCount {
+    uint gridCellCount[];
 };
 
 layout(push_constant) uniform PC {
@@ -19,5 +19,5 @@ layout(push_constant) uniform PC {
 void main() {
     uint i = gl_GlobalInvocationID.x;
     if (i >= pc.cellCount) return;
-    gridCellHead[i] = 0xFFFFFFFFu;
+    gridCellCount[i] = 0u;
 }

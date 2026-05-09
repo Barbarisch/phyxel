@@ -77,6 +77,7 @@ PathResult AStarPathfinder::findPath(const glm::vec3& start, const glm::vec3& go
     std::priority_queue<Node, std::vector<Node>, std::greater<Node>> openSet;
     std::unordered_map<int64_t, float> gScore;
     std::unordered_map<int64_t, int64_t> cameFrom;
+    std::unordered_map<int64_t, bool> reachedViaLink; ///< true when the best known path to a cell used a nav link
     std::unordered_set<int64_t> closedSet;
 
     int64_t startKey = cellKey(startCell);
@@ -101,6 +102,7 @@ PathResult AStarPathfinder::findPath(const glm::vec3& start, const glm::vec3& go
             result.nodesExpanded = iterations;
 
             std::vector<glm::vec3> path;
+            std::vector<WaypointType> pathTypes;
             int64_t key = goalKey;
             while (key != startKey) {
                 auto it = m_grid->getCell(
@@ -111,14 +113,21 @@ PathResult AStarPathfinder::findPath(const glm::vec3& start, const glm::vec3& go
                     static_cast<float>(it->x) + 0.5f,
                     static_cast<float>(it->surfaceY) + 1.0f,
                     static_cast<float>(it->z) + 0.5f));
+                // Tag waypoint if this cell was reached via a navigation link
+                auto lnkIt = reachedViaLink.find(key);
+                pathTypes.push_back((lnkIt != reachedViaLink.end() && lnkIt->second)
+                                        ? WaypointType::LinkJump
+                                        : WaypointType::Normal);
                 auto cf = cameFrom.find(key);
                 if (cf == cameFrom.end()) break;
                 key = cf->second;
             }
 
             std::reverse(path.begin(), path.end());
-            smoothPath(path);
-            result.waypoints = std::move(path);
+            std::reverse(pathTypes.begin(), pathTypes.end());
+            smoothPath(path, pathTypes);
+            result.waypoints     = std::move(path);
+            result.waypointTypes = std::move(pathTypes);
             return result;
         }
 
@@ -143,8 +152,29 @@ PathResult AStarPathfinder::findPath(const glm::vec3& start, const glm::vec3& go
             if (gIt == gScore.end() || tentativeG < gIt->second) {
                 gScore[neighborKey] = tentativeG;
                 cameFrom[neighborKey] = currentKey;
+                reachedViaLink[neighborKey] = false;
                 float f = tentativeG + heuristic(neighbor, goalCell);
                 openSet.push({neighbor, f});
+            }
+        }
+
+        // Phase 3 — expand navigation links (jump links) from this cell.
+        if (const std::vector<NavLink>* links = m_grid->getLinksAt(current.cell->x, current.cell->z)) {
+            for (const NavLink& link : *links) {
+                const NavCell* dest = m_grid->getCell(link.end.x, link.end.y);
+                if (!dest || !dest->walkable) continue;
+                int64_t destKey = cellKey(dest);
+                if (closedSet.count(destKey)) continue;
+
+                float tentativeG = gScore[currentKey] + link.cost;
+                auto gIt = gScore.find(destKey);
+                if (gIt == gScore.end() || tentativeG < gIt->second) {
+                    gScore[destKey] = tentativeG;
+                    cameFrom[destKey] = currentKey;
+                    reachedViaLink[destKey] = true;
+                    float f = tentativeG + heuristic(dest, goalCell);
+                    openSet.push({dest, f});
+                }
             }
         }
     }
@@ -157,16 +187,27 @@ PathResult AStarPathfinder::findPath(const glm::vec3& start, const glm::vec3& go
     return result;
 }
 
-void AStarPathfinder::smoothPath(std::vector<glm::vec3>& waypoints) {
+void AStarPathfinder::smoothPath(std::vector<glm::vec3>& waypoints,
+                                  std::vector<WaypointType>& types) {
     if (waypoints.size() <= 2) return;
 
     std::vector<glm::vec3> smoothed;
+    std::vector<WaypointType> smoothedTypes;
     smoothed.push_back(waypoints.front());
+    smoothedTypes.push_back(types.empty() ? WaypointType::Normal : types.front());
 
     for (size_t i = 1; i + 1 < waypoints.size(); ++i) {
         const glm::vec3& prev = smoothed.back();
         const glm::vec3& curr = waypoints[i];
         const glm::vec3& next = waypoints[i + 1];
+
+        // Always preserve link waypoints — they mark takeoff points for jumps.
+        WaypointType wtype = (i < types.size()) ? types[i] : WaypointType::Normal;
+        if (wtype != WaypointType::Normal) {
+            smoothed.push_back(curr);
+            smoothedTypes.push_back(wtype);
+            continue;
+        }
 
         // Check if prev→curr→next are collinear in XZ
         glm::vec2 d1(curr.x - prev.x, curr.z - prev.z);
@@ -177,11 +218,14 @@ void AStarPathfinder::smoothPath(std::vector<glm::vec3>& waypoints) {
         // Keep the waypoint if direction changes or height changes
         if (std::abs(cross) > 0.001f || std::abs(curr.y - prev.y) > 0.01f) {
             smoothed.push_back(curr);
+            smoothedTypes.push_back(wtype);
         }
     }
 
     smoothed.push_back(waypoints.back());
+    smoothedTypes.push_back(types.empty() ? WaypointType::Normal : types.back());
     waypoints = std::move(smoothed);
+    types     = std::move(smoothedTypes);
 }
 
 } // namespace Core

@@ -103,7 +103,7 @@ void emitCon(uint idxA, uint idxB,
     c.bodyA    = idxA;
     c.bodyB    = idxB;
     c.mu       = mu;
-    c.pad0     = 0.0;
+    c.color    = UNCOLORED;
     constraints[slot] = c;
 }
 
@@ -283,7 +283,6 @@ void main() {
 
     SolverBody a = bodies[i];
     if ((a.flags & PARTICLE_ACTIVE) == 0u || a.invMass == 0.0) return;
-    if ((a.flags & PARTICLE_SLEEPING) != 0u) return;  // sleeping body A never initiates constraints
 
     int cx = int(floor(a.pos.x)) & (GRID_SIZE - 1);
     int cy = int(floor(a.pos.y)) & (GRID_SIZE - 1);

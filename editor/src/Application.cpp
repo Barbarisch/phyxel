@@ -5172,6 +5172,10 @@ static bool handleDebugDynamicSpawnCommand(
             GpuParticlePhysics::SpawnParams sp;
             sp.position = glm::vec3(x + gx * spacing, y + gy * spacing, z + gz * spacing);
             sp.velocity = vel;
+            sp.angularVel = glm::vec3(
+                ((rand() % 1000) / 500.f - 1.f) * 3.0f,
+                ((rand() % 1000) / 500.f - 1.f) * 3.0f,
+                ((rand() % 1000) / 500.f - 1.f) * 3.0f);
             sp.materialName = material;
             sp.scale = glm::vec3(scale);
             sp.lifetime = lifetime;

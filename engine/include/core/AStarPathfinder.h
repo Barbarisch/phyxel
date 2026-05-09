@@ -8,10 +8,14 @@ namespace Core {
 
 class NavGrid;
 
+/// Type of a path waypoint — distinguishes jump-link traversals from normal walking steps.
+enum class WaypointType { Normal, LinkJump };
+
 /// Result of a pathfinding query.
 struct PathResult {
     bool found = false;                    ///< True if a valid path was found
     std::vector<glm::vec3> waypoints;      ///< World-space waypoints (Y = surfaceY + 1)
+    std::vector<WaypointType> waypointTypes; ///< Parallel to waypoints — Normal or LinkJump
     int nodesExpanded = 0;                 ///< Number of A* nodes expanded (for diagnostics)
 };
 
@@ -42,7 +46,9 @@ public:
 
 private:
     /// Smooth path by removing redundant collinear waypoints.
-    static void smoothPath(std::vector<glm::vec3>& waypoints);
+    /// Link waypoints are always preserved. Both vectors are updated in parallel.
+    static void smoothPath(std::vector<glm::vec3>& waypoints,
+                           std::vector<WaypointType>& types);
 
     NavGrid* m_grid = nullptr;
 };

@@ -1,0 +1,20 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "solver_types.glsl"
+
+layout(local_size_x = WORKGROUP_SOLVER) in;
+
+layout(std430, set=0, binding=0) buffer BodyConstraintCount { uint bodyConstraintCount[]; };
+layout(std430, set=0, binding=1) buffer ConstraintColor     { uint constraintColor[]; };
+
+layout(push_constant) uniform PC {
+    uint bodyCount;
+    uint maxConstraints;
+} pc;
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+
+    if (i < pc.bodyCount)       bodyConstraintCount[i] = 0u;
+    if (i < pc.maxConstraints)  constraintColor[i]     = UNCOLORED;
+}

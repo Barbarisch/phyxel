@@ -5,54 +5,40 @@
 
 layout(local_size_x = WORKGROUP_SOLVER) in;
 
-layout(std430, set=0, binding=0) readonly buffer SolverBodyBuffer { SolverBody bodies[]; };
-layout(std430, set=0, binding=1) buffer ConstraintBuffer          { GPUConstraint constraints[]; };
-layout(std430, set=0, binding=2) readonly buffer SolverStateBuffer{ uint solverState[]; };
-layout(std430, set=0, binding=3) buffer DeltaVelBuffer            { int deltaVel[]; };  // [MAX*3]
-layout(std430, set=0, binding=4) buffer DeltaAngBuffer            { int deltaAng[]; };  // [MAX*3]
+// Bodies are writable: within a color, no two constraints share a body,
+// so direct writes are race-free. Sequential color passes (with barriers
+// between them) make each pass see the previous pass's velocity updates —
+// equivalent to Gauss-Seidel convergence instead of Jacobi overcorrection.
+layout(std430, set=0, binding=0) buffer SolverBodyBuffer    { SolverBody bodies[]; };
+layout(std430, set=0, binding=1) buffer ConstraintBuffer    { GPUConstraint constraints[]; };
+layout(std430, set=0, binding=2) readonly buffer StateBuffer{ uint solverState[]; };
+layout(std430, set=0, binding=3) readonly buffer ColorBuffer{ uint constraintColor[]; };
 
 layout(push_constant) uniform PC {
     uint  maxConstraints;
     float dt;
-    float pad0;
-    float pad1;
+    uint  targetColor;
+    float pad;
 } pc;
-
-// Integer scale for fixed-point velocity deltas: 1 unit = 1e-5 m/s
-// Range: ±21474 m/s. Resolution: 10 μm/s.
-const float DELTA_SCALE = 1e5;
-
-void addVelDelta(uint body, vec3 dv) {
-    atomicAdd(deltaVel[body*3+0], int(dv.x * DELTA_SCALE));
-    atomicAdd(deltaVel[body*3+1], int(dv.y * DELTA_SCALE));
-    atomicAdd(deltaVel[body*3+2], int(dv.z * DELTA_SCALE));
-}
-
-void addAngDelta(uint body, vec3 dw) {
-    atomicAdd(deltaAng[body*3+0], int(dw.x * DELTA_SCALE));
-    atomicAdd(deltaAng[body*3+1], int(dw.y * DELTA_SCALE));
-    atomicAdd(deltaAng[body*3+2], int(dw.z * DELTA_SCALE));
-}
 
 void main() {
     uint ci = gl_GlobalInvocationID.x;
     uint constraintCount = solverState[SS_CONSTRAINT_COUNT];
     if (ci >= constraintCount || ci >= pc.maxConstraints) return;
+    if (constraintColor[ci] != pc.targetColor) return;
 
     GPUConstraint con = constraints[ci];
 
     SolverBody a = bodies[con.bodyA];
     if ((a.flags & PARTICLE_ACTIVE) == 0u) return;
 
-    // Body B may be static (infinite mass)
     bool bStatic = (con.bodyB == SOLVER_STATIC);
     SolverBody b;
     if (!bStatic) {
         b = bodies[con.bodyB];
     } else {
-        // Infinite-mass placeholder
-        b.vel    = vec3(0);
-        b.angVel = vec3(0);
+        b.vel        = vec3(0);
+        b.angVel     = vec3(0);
         b.invMass    = 0.0;
         b.invInertia = 0.0;
     }
@@ -63,33 +49,24 @@ void main() {
     vec3 rA = con.rA;
     vec3 rB = con.rB;
 
-    // Relative velocity at contact point
     vec3 vA_contact = a.vel + cross(a.angVel, rA);
     vec3 vB_contact = b.vel + cross(b.angVel, rB);
     vec3 vRel       = vA_contact - vB_contact;
 
     // ---- Normal impulse ----
     float vRelN = dot(vRel, n);
-
-    // Restitution: only apply if velocity is above threshold
     float e = min(a.restitution, bStatic ? 0.0 : b.restitution);
-    if (vRelN > -0.5) e = 0.0;  // below threshold: inelastic
+    if (vRelN > -0.5) e = 0.0;
 
-    // Baumgarte stabilization bias.
-    // Normal convention: n points from B toward A (vRelN < 0 = approaching).
-    // Target: vRelN = +bias > 0 (separating at correction rate).
-    // Formula: jN = -(vRelN*(1+e) - bias) / effMass drives vRelN → +bias.
     float bias = BAUMGARTE * max(0.0, con.depth - SLOP) / pc.dt;
 
     float effMassN = effectiveMass(a.invMass, a.invInertia, rA, n)
                    + (bStatic ? 0.0 : effectiveMass(b.invMass, b.invInertia, rB, n));
 
     float jN = 0.0;
-    if (effMassN > 1e-10) {
+    if (effMassN > 1e-10)
         jN = -(vRelN * (1.0 + e) - bias) / effMassN;
-    }
 
-    // Clamp: normal impulse must push apart (jN ≥ 0)
     float newLambdaN = max(con.lambdaN + jN, 0.0);
     float dLambdaN   = newLambdaN - con.lambdaN;
     constraints[ci].lambdaN = newLambdaN;
@@ -99,33 +76,26 @@ void main() {
 
     float effMassF1 = effectiveMass(a.invMass, a.invInertia, rA, t1)
                     + (bStatic ? 0.0 : effectiveMass(b.invMass, b.invInertia, rB, t1));
-    float vRelF1 = dot(vRel, t1);
-    float jF1    = 0.0;
-    if (effMassF1 > 1e-10) jF1 = -vRelF1 / effMassF1;
+    float jF1 = (effMassF1 > 1e-10) ? -dot(vRel, t1) / effMassF1 : 0.0;
     float newLF1 = clamp(con.lambdaF1 + jF1, -maxFric, maxFric);
     float dLF1   = newLF1 - con.lambdaF1;
     constraints[ci].lambdaF1 = newLF1;
 
     float effMassF2 = effectiveMass(a.invMass, a.invInertia, rA, t2)
                     + (bStatic ? 0.0 : effectiveMass(b.invMass, b.invInertia, rB, t2));
-    float vRelF2 = dot(vRel, t2);
-    float jF2    = 0.0;
-    if (effMassF2 > 1e-10) jF2 = -vRelF2 / effMassF2;
+    float jF2 = (effMassF2 > 1e-10) ? -dot(vRel, t2) / effMassF2 : 0.0;
     float newLF2 = clamp(con.lambdaF2 + jF2, -maxFric, maxFric);
     float dLF2   = newLF2 - con.lambdaF2;
     constraints[ci].lambdaF2 = newLF2;
 
-    // ---- Apply to body A ----
-    vec3 dvA  = a.invMass * (dLambdaN*n + dLF1*t1 + dLF2*t2);
-    vec3 dwA  = a.invInertia * (dLambdaN*cross(rA,n) + dLF1*cross(rA,t1) + dLF2*cross(rA,t2));
-    addVelDelta(con.bodyA, dvA);
-    addAngDelta(con.bodyA, dwA);
+    // ---- Apply directly to bodies (safe: graph coloring guarantees no shared body in this color) ----
+    vec3 impulse = dLambdaN*n + dLF1*t1 + dLF2*t2;
 
-    // ---- Apply opposite to body B (if dynamic) ----
+    bodies[con.bodyA].vel    = a.vel    + a.invMass    * impulse;
+    bodies[con.bodyA].angVel = a.angVel + a.invInertia * cross(rA, impulse);
+
     if (!bStatic) {
-        vec3 dvB = b.invMass * (-dLambdaN*n - dLF1*t1 - dLF2*t2);
-        vec3 dwB = b.invInertia * (-dLambdaN*cross(rB,n) - dLF1*cross(rB,t1) - dLF2*cross(rB,t2));
-        addVelDelta(con.bodyB, dvB);
-        addAngDelta(con.bodyB, dwB);
+        bodies[con.bodyB].vel    = b.vel    - b.invMass    * impulse;
+        bodies[con.bodyB].angVel = b.angVel - b.invInertia * cross(rB, impulse);
     }
 }

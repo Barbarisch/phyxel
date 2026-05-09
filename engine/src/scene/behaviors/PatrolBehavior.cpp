@@ -8,6 +8,7 @@
 #include "ui/SpeechBubbleManager.h"
 #include "utils/Logger.h"
 #include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/compatibility.hpp>
 #include <random>
 #include <cmath>
 
@@ -26,6 +27,16 @@ void PatrolBehavior::update(float dt, NPCContext& ctx) {
 
     // Update perception (FOV cone, LOS) every frame
     updatePerception(dt, ctx, forward);
+
+    // Phase 1 — Forward terrain probe: every PROBE_INTERVAL frames check upcoming
+    // path nodes against the live NavGrid. Invalidates stale paths immediately
+    // instead of waiting up to 1.5 s for the stuck timer.
+    if (m_pathComputed && !m_pathNodes.empty() && m_pathfinder) {
+        if (++m_probeFrameCounter >= PROBE_INTERVAL) {
+            m_probeFrameCounter = 0;
+            validateAheadOfPath();
+        }
+    }
 
     if (m_waiting) {
         m_waitTimer += dt;
@@ -83,6 +94,7 @@ void PatrolBehavior::update(float dt, NPCContext& ctx) {
         if (!m_pathNodes.empty() && m_currentPathNode < m_pathNodes.size()) {
             // Advance to next path node
             ++m_currentPathNode;
+            m_linkJumpTriggered = false; // reset for the next node
             if (m_currentPathNode >= m_pathNodes.size()) {
                 // Reached end of path = arrived at waypoint
                 goto arrived;
@@ -98,7 +110,9 @@ arrived:
         m_lookAroundPhase = 0.0f;
         m_pathComputed = false;
         m_pathNodes.clear();
+        m_pathNodeTypes.clear();
         m_currentPathNode = 0;
+        m_linkJumpTriggered = false;
         m_consecutiveFailedPaths = 0; // Reached destination — reset failure count
 
         // Capture base yaw for look-around sweep (face toward next waypoint)
@@ -120,10 +134,47 @@ arrived:
         return;
     }
 
+    // Phase 3 — Jump link execution: trigger jump() once when targeting a LinkJump waypoint.
+    if (!m_pathNodeTypes.empty() && m_currentPathNode < m_pathNodeTypes.size() &&
+        m_pathNodeTypes[m_currentPathNode] == Core::WaypointType::LinkJump &&
+        !m_linkJumpTriggered) {
+        ctx.self->jump();
+        m_linkJumpTriggered = true;
+        LOG_DEBUG("PatrolBehavior", "Jump link triggered toward ({},{},{})",
+                  moveTarget.x, moveTarget.y, moveTarget.z);
+    }
+
+    // Phase 5 — Arrival deceleration: slow down when close to the next waypoint.
+    float effectiveSpeed = m_walkSpeed;
+    if (distXZ < DECEL_RADIUS) {
+        effectiveSpeed *= glm::clamp(distXZ / DECEL_RADIUS, 0.3f, 1.0f);
+    }
+
     // Compute XZ direction toward current movement target and set velocity (gravity handles Y).
     // The NPC's capsule collider naturally slides over subcube-height steps (~0.333 blocks).
     glm::vec3 direction = glm::normalize(glm::vec3(diff.x, 0.0f, diff.z));
-    ctx.self->setMoveVelocity(direction * m_walkSpeed);
+
+    // Phase 5 — NPC separation: push away from nearby NPCs to prevent piling up.
+    if (ctx.entityRegistry) {
+        auto nearby = ctx.entityRegistry->getEntitiesNear(pos, 1.5f);
+        glm::vec3 separation(0.0f);
+        for (const auto& [id, ent] : nearby) {
+            if (ent == ctx.self) continue;
+            glm::vec3 away = pos - ent->getPosition();
+            float dist = glm::length(away);
+            if (dist > 0.01f && dist < 1.5f) {
+                separation += (away / dist) * (1.0f - dist / 1.5f);
+            }
+        }
+        // Add up to 30% of walk speed as separation offset
+        float sepLen = glm::length(glm::vec2(separation.x, separation.z));
+        if (sepLen > 0.01f) {
+            glm::vec3 sepDir(separation.x / sepLen, 0.0f, separation.z / sepLen);
+            direction = glm::normalize(direction + sepDir * 0.3f);
+        }
+    }
+
+    ctx.self->setMoveVelocity(direction * effectiveSpeed);
 
     // Stuck detection: if NPC hasn't moved significantly in 1.5s, invalidate path and recompute.
     // After 5s still stuck (e.g. NavGrid has not yet updated), teleport to nearest safe cell.
@@ -159,10 +210,15 @@ arrived:
         m_lastLoggedPos = pos;
     }
 
-    // Face movement direction
+    // Phase 5 — Smooth turning: lerp yaw toward movement direction instead of instant snap.
     if (glm::length(glm::vec2(direction.x, direction.z)) > 0.01f) {
-        float yaw = glm::degrees(atan2(direction.x, direction.z));
-        ctx.self->setRotation(glm::angleAxis(glm::radians(yaw), glm::vec3(0, 1, 0)));
+        float targetYaw = std::atan2(direction.x, direction.z);
+        // Normalize angular difference to [-pi, pi]
+        float diff_yaw = targetYaw - m_currentYaw;
+        while (diff_yaw >  glm::pi<float>()) diff_yaw -= glm::two_pi<float>();
+        while (diff_yaw < -glm::pi<float>()) diff_yaw += glm::two_pi<float>();
+        m_currentYaw += diff_yaw * glm::clamp(TURN_SPEED * dt, 0.0f, 1.0f);
+        ctx.self->setRotation(glm::angleAxis(m_currentYaw, glm::vec3(0, 1, 0)));
     }
 
     // Draw active path as cyan lines in F5 debug overlay
@@ -200,7 +256,9 @@ void PatrolBehavior::setWaypoints(const std::vector<glm::vec3>& waypoints) {
     m_waitTimer = 0.0f;
     m_pathComputed = false;
     m_pathNodes.clear();
+    m_pathNodeTypes.clear();
     m_currentPathNode = 0;
+    m_linkJumpTriggered = false;
 }
 
 void PatrolBehavior::computePath(const glm::vec3& from, const glm::vec3& to) {
@@ -217,6 +275,9 @@ void PatrolBehavior::computePath(const glm::vec3& from, const glm::vec3& to) {
     auto result = m_pathfinder->findPath(from, to);
     if (result.found && !result.waypoints.empty()) {
         m_pathNodes = std::move(result.waypoints);
+        m_pathNodeTypes = std::move(result.waypointTypes);
+        // Ensure types vector is always same length as nodes
+        m_pathNodeTypes.resize(m_pathNodes.size(), Core::WaypointType::Normal);
         m_consecutiveFailedPaths = 0; // Reset failure counter on success
         LOG_INFO("PatrolBehavior", "Path found: ({},{},{}) -> ({},{},{}), {} waypoints, {} nodes expanded",
                  from.x, from.y, from.z, to.x, to.y, to.z,
@@ -243,6 +304,37 @@ void PatrolBehavior::computePath(const glm::vec3& from, const glm::vec3& to) {
             LOG_WARN("PatrolBehavior", "Path NOT found ({}/{}): ({},{},{}) -> ({},{},{}), {} nodes expanded",
                      m_consecutiveFailedPaths, PATH_FAILURE_RETREAT,
                      from.x, from.y, from.z, to.x, to.y, to.z, result.nodesExpanded);
+        }
+    }
+}
+
+void PatrolBehavior::validateAheadOfPath() {
+    if (!m_pathfinder) return;
+    const Core::NavGrid* grid = m_pathfinder->getGrid();
+    if (!grid) return;
+
+    // Check the next PROBE_LOOKAHEAD nodes against the live NavGrid.
+    // If any node's cell is now non-walkable or surfaceY has shifted significantly,
+    // invalidate immediately so the path is replanned within PROBE_INTERVAL frames.
+    size_t probeEnd = std::min(m_currentPathNode + static_cast<size_t>(PROBE_LOOKAHEAD),
+                               m_pathNodes.size());
+    for (size_t i = m_currentPathNode; i < probeEnd; ++i) {
+        const glm::vec3& wp = m_pathNodes[i];
+        int cx = static_cast<int>(std::floor(wp.x));
+        int cz = static_cast<int>(std::floor(wp.z));
+        const Core::NavCell* cell = grid->getCell(cx, cz);
+
+        bool invalid = !cell ||
+                       !cell->walkable ||
+                       std::abs(cell->surfaceY - static_cast<int>(wp.y - 1.0f)) > 1;
+        if (invalid) {
+            LOG_DEBUG("PatrolBehavior",
+                      "Probe invalidated path at node {}: cell({},{}) walkable={} surfaceY={}",
+                      i, cx, cz,
+                      cell ? cell->walkable : false,
+                      cell ? cell->surfaceY : -1);
+            invalidatePath();
+            return;
         }
     }
 }

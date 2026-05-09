@@ -19,6 +19,21 @@ struct NavCell {
     int surfaceY = -1;         ///< Y of the topmost solid voxel (-1 = no surface)
     bool walkable = false;     ///< True if NPC can stand here (surface + headroom)
     bool nearWall = false;     ///< True if adjacent to a non-walkable cell (wall/obstacle)
+    // TODO: Phase 4 — debris registration
+    // bool temporaryBlocked = false;  ///< Set by DynamicObjectManager when debris settles here
+    // float blockedUntil = 0.0f;      ///< Game time when the block expires
+};
+
+/// Type of a navigation link connecting two non-adjacent walkable cells.
+enum class NavLinkType { Jump, Climb };
+
+/// A navigable link connecting two non-adjacent walkable cells (one-way).
+/// Used for jump gaps and climb ledges that A* cannot traverse as regular steps.
+struct NavLink {
+    glm::ivec2 start;                   ///< Source XZ cell (world coords)
+    glm::ivec2 end;                     ///< Destination XZ cell (world coords)
+    NavLinkType type = NavLinkType::Jump;
+    float cost = 2.0f;                  ///< Additional A* cost for traversing this link
 };
 
 /// Function type for querying whether a voxel exists at a given world position.
@@ -58,6 +73,28 @@ public:
     /// Get cell at world XZ. Returns nullptr if not in grid.
     const NavCell* getCell(int x, int z) const;
 
+    /// Get all navigation links starting from cell (x, z).
+    const std::vector<NavLink>* getLinksAt(int x, int z) const;
+
+    /// Add a navigation link (one-way). No-op if either cell is not walkable.
+    void addLink(const NavLink& link);
+
+    /// Remove all links that touch cell (x, z) as start or end.
+    void removeLinksAt(int x, int z);
+
+    /// Auto-generate jump links by scanning for 1-cell-wide gaps between walkable cells.
+    /// Called automatically at the end of buildFromRegion() and after rebuildCell().
+    void buildJumpLinks();
+
+    /// Total number of navigation links.
+    size_t linkCount() const;
+
+    /// Invalidate paths for NPCs whose path waypoints fall within the given XZ region.
+    /// Callback is invoked for each affected NPC — the caller calls invalidatePath() on them.
+    using PathInvalidationCallback = std::function<void()>;
+    void checkPathIntersectsCell(int x, int z, std::vector<glm::vec3>& pathNodes,
+                                  PathInvalidationCallback onIntersect) const;
+
     /// Get walkable neighbors (up to 8). Filters by height difference and diagonal rules.
     std::vector<const NavCell*> getNeighbors(const NavCell* cell) const;
 
@@ -92,9 +129,13 @@ private:
     /// Query whether a voxel exists at a given world position.
     bool hasVoxel(const glm::ivec3& pos) const;
 
+    /// Build jump links for a single cell and its immediate surroundings.
+    void buildJumpLinksNear(int cx, int cz, int radius = 3);
+
     ChunkManager* m_chunkManager = nullptr;
     VoxelQueryFunc m_queryFunc;
     std::unordered_map<int64_t, NavCell> m_cells;
+    std::unordered_map<int64_t, std::vector<NavLink>> m_links;  ///< Jump/climb links, keyed by start cell
     glm::ivec2 m_minBounds{0, 0};
     glm::ivec2 m_maxBounds{0, 0};
 };

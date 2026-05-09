@@ -25,20 +25,23 @@ struct GPUConstraint {
     vec3  rA;   float lambdaN;     // 16 .. 31  contact arm on A, normal lambda (warmstart)
     vec3  rB;   float lambdaF1;    // 32 .. 47  contact arm on B, friction lambda 1
     vec3  t1;   float lambdaF2;    // 48 .. 63  tangent 1, friction lambda 2
-    uint  bodyA; uint bodyB; float mu; float pad0; // 64 .. 79
+    uint  bodyA; uint bodyB; float mu; uint color;  // 64 .. 79  color = graph-coloring slot
 };
 // 80 bytes
 
 const uint SOLVER_STATIC = 0xFFFFFFFFu;
+const uint UNCOLORED     = 0xFFFFFFFFu;  // sentinel: constraint not yet colored
+const uint MAX_COLORS    = 12u;          // Jones-Plassmann max colors (matches Shallot)
 
 // Solver state buffer slot indices
 const uint SS_CONSTRAINT_COUNT = 0u;  // atomic constraint counter
 const uint SOLVER_STATE_SIZE   = 4u;
 
 // Baumgarte stabilization strength and slop
-const float BAUMGARTE        = 0.2;
-const float SLOP             = 0.01;   // > gravity_penetration_per_frame (g*dt^2 ~0.003) + COLLISION_MARGIN
+const float BAUMGARTE        = 0.1;
+const float SLOP             = 0.015;
 const float COLLISION_MARGIN = 0.005;
+const float GAMMA            = 0.999;  // per-tick velocity decay (matches Shallot)
 
 #define WORKGROUP_SOLVER 256
 

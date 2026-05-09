@@ -229,14 +229,44 @@ void NPCManager::buildNavGrid() {
 }
 
 void NPCManager::onVoxelChanged(const glm::ivec3& worldPos) {
-    if (m_navGrid) {
-        m_navGrid->rebuildCell(worldPos.x, worldPos.z);
+    if (!m_navGrid) return;
+    m_navGrid->rebuildCell(worldPos.x, worldPos.z);
+
+    // Phase 2 — Immediate path invalidation: any NPC whose current path passes
+    // within 1 block of the changed cell is stale and must replan now, not after 1.5s.
+    // Phase 6 TODO: also post WorldEvent::TerrainChanged(worldPos) to WorldEventBus here
+    // so the stimulus-response layer can react behaviourally before the path replan.
+    for (auto& [name, npc] : m_npcs) {
+        if (auto* patrol = dynamic_cast<Scene::PatrolBehavior*>(npc->getBehavior())) {
+            for (const glm::vec3& wp : patrol->getPathNodes()) {
+                int wx = static_cast<int>(std::floor(wp.x));
+                int wz = static_cast<int>(std::floor(wp.z));
+                if (std::abs(wx - worldPos.x) <= 1 && std::abs(wz - worldPos.z) <= 1) {
+                    patrol->invalidatePath();
+                    break;
+                }
+            }
+        }
     }
 }
 
 void NPCManager::onRegionChanged(const glm::ivec3& minPos, const glm::ivec3& maxPos) {
-    if (m_navGrid) {
-        m_navGrid->rebuildRegion(minPos.x, minPos.z, maxPos.x, maxPos.z);
+    if (!m_navGrid) return;
+    m_navGrid->rebuildRegion(minPos.x, minPos.z, maxPos.x, maxPos.z);
+
+    // Phase 2 — Invalidate paths for any NPC whose waypoints cross the changed region.
+    for (auto& [name, npc] : m_npcs) {
+        if (auto* patrol = dynamic_cast<Scene::PatrolBehavior*>(npc->getBehavior())) {
+            for (const glm::vec3& wp : patrol->getPathNodes()) {
+                int wx = static_cast<int>(std::floor(wp.x));
+                int wz = static_cast<int>(std::floor(wp.z));
+                if (wx >= minPos.x - 1 && wx <= maxPos.x + 1 &&
+                    wz >= minPos.z - 1 && wz <= maxPos.z + 1) {
+                    patrol->invalidatePath();
+                    break;
+                }
+            }
+        }
     }
 }
 

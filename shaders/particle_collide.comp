@@ -32,14 +32,22 @@ layout(std430, set = 0, binding = 3) readonly buffer MaterialBuffer {
     MaterialPhysics materials[];
 };
 
-// Spatial hash grid for inter-particle collision.
-// Built by particle_grid_build.comp each frame.
-layout(std430, set = 0, binding = 4) readonly buffer GridCellHead {
-    uint gridCellHead[];  // GRID_SIZE³ entries
+// Sorted spatial grid for cache-coherent inter-particle collision.
+// Built by grid_build → sort_scan → sort_scatter each tick.
+layout(std430, set = 0, binding = 4) readonly buffer GridCellCount {
+    uint gridCellCount[];  // GRID_SIZE³ entries — particle count per cell
 };
 
-layout(std430, set = 0, binding = 5) readonly buffer GridNextParticle {
-    uint gridNext[];  // MAX_PARTICLES entries
+layout(std430, set = 0, binding = 5) readonly buffer GridCellOffset {
+    uint gridCellOffset[];  // GRID_SIZE³ entries — END of each cell's sorted range
+};
+
+layout(std430, set = 0, binding = 6) readonly buffer SortedParticles {
+    GpuParticle sortedParticles[];  // MAX_PARTICLES — GpuParticle sorted by cell
+};
+
+layout(std430, set = 0, binding = 7) readonly buffer SortedIndices {
+    uint sortedIndices[];  // MAX_PARTICLES — canonical index for each sorted slot
 };
 
 const int GRID_SIZE = 64;
@@ -65,6 +73,7 @@ layout(push_constant) uniform PC {
     float dt;
     float sleepThreshSq;
     float gravity;  // e.g. -9.81 — needed to pre-compensate resting particles
+    uint  iteration; // 0-based collide iteration index this tick
 } pc;
 
 // Returns true if the voxel at world position (wx, wy, wz) is solid.
@@ -154,6 +163,10 @@ void main() {
                 // With collision skin the particle won't get trapped in pits.
                 vel.y += 0.02;
 
+                // Angular impulse from character impact: approximate r×F using the
+                // push direction. Restarts tumbling when the player runs into a pile.
+                p.angularVel += vec3(-charVelocity.z, 0.0, charVelocity.x) * 1.5;
+
                 charGrace = CHAR_PUSH_GRACE_TICKS;
 
                 p.flags &= ~PARTICLE_SLEEPING;
@@ -200,9 +213,9 @@ void main() {
                 vel.y = -gravDisp / mat.linearDamp;
                 if (charGrace > 0u) { vel.x *= 0.95; vel.z *= 0.95; }
                 else { vel.x *= mat.friction; vel.z *= mat.friction; }
-                // Impact torque: horizontal velocity induces subtle rolling
+                // Impact torque: horizontal velocity induces rolling on floor contact
                 p.angularVel += vec3(-vel.z, 0.0, vel.x) * 0.5;
-                p.angularVel *= 0.88;
+                p.angularVel *= 0.90;
                 hitAnything = true;
             }
         } else {
@@ -223,7 +236,7 @@ void main() {
                     vel.y = -gravDisp / mat.linearDamp;
                     if (charGrace > 0u) { vel.x *= 0.95; vel.z *= 0.95; }
                     else { vel.x *= mat.friction; vel.z *= mat.friction; }
-                    p.angularVel *= 0.88;
+                    p.angularVel *= 0.90;
                     hitAnything = true;
                 }
             }
@@ -249,7 +262,7 @@ void main() {
                 if (charGrace > 0u) { vel.x *= 0.95; vel.z *= 0.95; }
                 else { vel.x *= mat.friction; vel.z *= mat.friction; }
                 p.angularVel += vec3(-vel.z, 0.0, vel.x) * 2.0;
-                p.angularVel *= 0.85;
+                p.angularVel *= 0.90;
                 hitAnything = true;
             }
         }
@@ -279,7 +292,7 @@ void main() {
                 if (vel.x > 0.0) vel.x = 0.0;
                 vel.z *= mat.friction;
                 p.angularVel += vec3(0.0, vel.z, -vel.y) * 2.0;
-                p.angularVel *= 0.85;
+                p.angularVel *= 0.90;
                 hitAnything = true;
             }
         }
@@ -302,7 +315,7 @@ void main() {
                 if (vel.x < 0.0) vel.x = 0.0;
                 vel.z *= mat.friction;
                 p.angularVel += vec3(0.0, vel.z, -vel.y) * 2.0;
-                p.angularVel *= 0.85;
+                p.angularVel *= 0.90;
                 hitAnything = true;
             }
         }
@@ -325,7 +338,7 @@ void main() {
                 if (vel.z > 0.0) vel.z = 0.0;
                 vel.x *= mat.friction;
                 p.angularVel += vec3(-vel.y, vel.x, 0.0) * 2.0;
-                p.angularVel *= 0.85;
+                p.angularVel *= 0.90;
                 hitAnything = true;
             }
         }
@@ -348,15 +361,16 @@ void main() {
                 if (vel.z < 0.0) vel.z = 0.0;
                 vel.x *= mat.friction;
                 p.angularVel += vec3(-vel.y, vel.x, 0.0) * 2.0;
-                p.angularVel *= 0.85;
+                p.angularVel *= 0.90;
                 hitAnything = true;
             }
         }
     }
 
-    // ---- Particle-particle collision (spatial hash grid) ----
-    // Check own cell + 26 neighbors (3×3×3 neighborhood).
-    // Only process pairs where j > i to avoid double-processing.
+    // ---- Particle-particle collision (sorted spatial grid) ----
+    // Runs on all iterations. sortedParticles is a snapshot used only for
+    // canonical index lookup; live positions are read from particles[canonIdx]
+    // so each iteration resolves against the latest corrected positions.
     int pairCollisionCount = 0;
     {
         int cx = int(floor(p.position.x)) & (GRID_SIZE - 1);
@@ -369,81 +383,83 @@ void main() {
                     int nx = (cx + dx) & (GRID_SIZE - 1);
                     int ny = (cy + dy) & (GRID_SIZE - 1);
                     int nz = (cz + dz) & (GRID_SIZE - 1);
-                    int cell = nx + ny * GRID_SIZE + nz * GRID_SIZE * GRID_SIZE;
+                    int nc = nx + ny * GRID_SIZE + nz * GRID_SIZE * GRID_SIZE;
 
-                    uint j = gridCellHead[cell];
-                    int maxIter = 16;  // 16 handles dense piles (1000+ particles on flat surface)
-                    while (j != 0xFFFFFFFFu && maxIter > 0) {
-                        maxIter--;
-                        if (j != i) { // skip self
-                            GpuParticle q = particles[j];
-                            if ((q.flags & PARTICLE_ACTIVE) != 0u) {
-                                // Distance guard: spatial hash wraps at GRID_SIZE, so
-                                // particles far apart can hash to adjacent cells.
-                                // Skip if center-to-center is > 2 world units.
-                                vec3 diff = p.position - q.position;
-                                if (dot(diff, diff) > 4.0) {
-                                    j = gridNext[j];
-                                    continue;
-                                }
+                    uint cellCount = gridCellCount[nc];
+                    if (cellCount == 0u) continue;
+                    uint cellEnd   = gridCellOffset[nc];
+                    uint cellStart = cellEnd - cellCount;
 
-                                float qhx = q.scale.x * 0.5;
-                                float qhy = q.scale.y * 0.5;
-                                float qhz = q.scale.z * 0.5;
+                    for (uint s = cellStart; s < cellEnd; ++s) {
+                        uint canonIdx = sortedIndices[s];
+                        if (canonIdx == i) continue; // skip self
 
-                                // AABB overlap test
-                                vec3 pMin = p.position - vec3(halfX, halfY, halfZ);
-                                vec3 pMax = p.position + vec3(halfX, halfY, halfZ);
-                                vec3 qMin = q.position - vec3(qhx, qhy, qhz);
-                                vec3 qMax = q.position + vec3(qhx, qhy, qhz);
+                        GpuParticle q = particles[canonIdx];
+                        if ((q.flags & PARTICLE_ACTIVE) == 0u) continue;
 
-                                if (pMin.x < qMax.x && pMax.x > qMin.x &&
-                                    pMin.y < qMax.y && pMax.y > qMin.y &&
-                                    pMin.z < qMax.z && pMax.z > qMin.z)
-                                {
-                                    float overlapX = min(pMax.x - qMin.x, qMax.x - pMin.x);
-                                    float overlapY = min(pMax.y - qMin.y, qMax.y - pMin.y);
-                                    float overlapZ = min(pMax.z - qMin.z, qMax.z - pMin.z);
+                        // Distance guard: spatial hash wraps at GRID_SIZE, so
+                        // particles far apart can hash to adjacent cells.
+                        // Skip if center-to-center is > 2 world units.
+                        vec3 diff = p.position - q.position;
+                        if (dot(diff, diff) > 4.0) continue;
 
-                                    vec3 velJ = q.position - q.prevPosition;
-                                    MaterialPhysics matJ = materials[q.materialIndex];
-                                    float totalMass = mat.mass + matJ.mass;
-                                    float ratioI = matJ.mass / totalMass;
+                        float qhx = q.scale.x * 0.5;
+                        float qhy = q.scale.y * 0.5;
+                        float qhz = q.scale.z * 0.5;
 
-                                    // Low restitution for inter-particle — solid, not bouncy
-                                    float pairRest = min(mat.restitution, matJ.restitution) * 0.25;
+                        // AABB overlap test
+                        vec3 pMin = p.position - vec3(halfX, halfY, halfZ);
+                        vec3 pMax = p.position + vec3(halfX, halfY, halfZ);
+                        vec3 qMin = q.position - vec3(qhx, qhy, qhz);
+                        vec3 qMax = q.position + vec3(qhx, qhy, qhz);
 
-                                    // Push THIS particle away from q along shortest overlap axis.
-                                    // dir points from q toward p (the escape direction for p).
-                                    // Bias 0.02: must exceed one tick of gravity displacement (0.005)
-                                    // to prevent immediate re-overlap in vertical stacking.
-                                    const float PAIR_BIAS = 0.02;
-                                    if (overlapX <= overlapY && overlapX <= overlapZ) {
-                                        float dir = (p.position.x > q.position.x) ? 1.0 : -1.0;
-                                        p.position.x += dir * (overlapX + PAIR_BIAS) * ratioI;
-                                        float relVel = vel.x - velJ.x;
-                                        vel.x -= relVel * (1.0 + pairRest) * ratioI;
-                                    } else if (overlapY <= overlapZ) {
-                                        float dir = (p.position.y > q.position.y) ? 1.0 : -1.0;
-                                        p.position.y += dir * (overlapY + PAIR_BIAS) * ratioI;
-                                        float relVel = vel.y - velJ.y;
-                                        // Fully kill approach velocity on Y to prevent gravity-driven
-                                        // re-overlap. Standard correction only removes ~54% for equal
-                                        // masses, leaving residual that gravity compounds each tick.
-                                        vel.y -= relVel * ratioI;
-                                    } else {
-                                        float dir = (p.position.z > q.position.z) ? 1.0 : -1.0;
-                                        p.position.z += dir * (overlapZ + PAIR_BIAS) * ratioI;
-                                        float relVel = vel.z - velJ.z;
-                                        vel.z -= relVel * (1.0 + pairRest) * ratioI;
-                                    }
+                        if (pMin.x < qMax.x && pMax.x > qMin.x &&
+                            pMin.y < qMax.y && pMax.y > qMin.y &&
+                            pMin.z < qMax.z && pMax.z > qMin.z)
+                        {
+                            float overlapX = min(pMax.x - qMin.x, qMax.x - pMin.x);
+                            float overlapY = min(pMax.y - qMin.y, qMax.y - pMin.y);
+                            float overlapZ = min(pMax.z - qMin.z, qMax.z - pMin.z);
 
-                                    pairCollisionCount++;
-                                    hitAnything = true;
-                                }
+                            vec3 velJ = q.position - q.prevPosition;
+                            MaterialPhysics matJ = materials[q.materialIndex];
+                            float totalMass = mat.mass + matJ.mass;
+                            float ratioI = matJ.mass / totalMass;
+
+                            // Low restitution for inter-particle — solid, not bouncy
+                            float pairRest = min(mat.restitution, matJ.restitution) * 0.25;
+
+                            // Push THIS particle away from q along shortest overlap axis.
+                            // Use canonical index as tiebreaker when positions are equal so
+                            // particles spawned at the same point spread symmetrically (+/-)
+                            // rather than all being pushed the same direction.
+                            const float PAIR_BIAS = 0.05;
+                            if (overlapX <= overlapY && overlapX <= overlapZ) {
+                                float dx = p.position.x - q.position.x;
+                                float dir = (abs(dx) > 0.001) ? sign(dx) : ((i > canonIdx) ? 1.0 : -1.0);
+                                p.position.x += dir * (overlapX + PAIR_BIAS) * ratioI;
+                                float relVel = vel.x - velJ.x;
+                                vel.x -= relVel * (1.0 + pairRest) * ratioI;
+                            } else if (overlapY <= overlapZ) {
+                                float dy = p.position.y - q.position.y;
+                                float dir = (abs(dy) > 0.001) ? sign(dy) : ((i > canonIdx) ? 1.0 : -1.0);
+                                p.position.y += dir * (overlapY + PAIR_BIAS) * ratioI;
+                                float relVel = vel.y - velJ.y;
+                                // Fully kill approach velocity on Y to prevent gravity-driven
+                                // re-overlap. Standard correction only removes ~54% for equal
+                                // masses, leaving residual that gravity compounds each tick.
+                                vel.y -= relVel * ratioI;
+                            } else {
+                                float dz = p.position.z - q.position.z;
+                                float dir = (abs(dz) > 0.001) ? sign(dz) : ((i > canonIdx) ? 1.0 : -1.0);
+                                p.position.z += dir * (overlapZ + PAIR_BIAS) * ratioI;
+                                float relVel = vel.z - velJ.z;
+                                vel.z -= relVel * (1.0 + pairRest) * ratioI;
                             }
+
+                            pairCollisionCount++;
+                            hitAnything = true;
                         }
-                        j = gridNext[j];
                     }
                 }
             }
@@ -451,10 +467,10 @@ void main() {
     }
 
     // Contact damping — apply once after all pair collisions.
-    // Previous per-pair application was stacking (0.85^N with N contacts),
-    // killing velocity so aggressively that particles couldn't push apart.
+    // 0.92 (was 0.85): less aggressive energy removal so particles can
+    // push each other apart rather than sticking in overlapping piles.
     if (pairCollisionCount > 0) {
-        vel *= 0.85;
+        vel *= 0.92;
     }
 
     // Tick down the char-push grace counter and write it back to flags.

@@ -35,45 +35,11 @@ void main() {
         return;
     }
 
-    // ---- Sleep system ----
-    // Wake detection: sleeping body B receives a velocity delta from solver_apply
-    // when an active body generates a constraint against it. If that delta pushed
-    // b.vel above the sleep threshold, the body was hit and should wake up.
-    bool  wasSleeping = (b.flags & PARTICLE_SLEEPING) != 0u;
-    float speedSq     = dot(b.vel, b.vel);
-    float angSpdSq    = dot(b.angVel, b.angVel);
-    uint  sleepCount  = (b.flags >> SLEEP_COUNTER_SHIFT) & 0xFFu;
-    uint  age         = (p.flags  >> SPAWN_AGE_SHIFT)    & 0xFFu;
-
-    if (wasSleeping) {
-        if (speedSq > SLEEP_LIN_THRESH_SQ || angSpdSq > SLEEP_ANG_THRESH_SQ) {
-            // Woken by collision impulse applied this frame — reset counter, clear flag
-            b.flags = (b.flags & ~PARTICLE_SLEEPING) & ~SLEEP_COUNTER_MASK;
-        } else {
-            // Still sleeping: freeze so next frame sees zero velocity
-            b.vel    = vec3(0.0);
-            b.angVel = vec3(0.0);
-        }
-    } else {
-        bool inGrace = age < SLEEP_GRACE;
-        if (!inGrace && speedSq < SLEEP_LIN_THRESH_SQ && angSpdSq < SLEEP_ANG_THRESH_SQ) {
-            // Accumulate sleep counter
-            sleepCount = min(sleepCount + 1u, 255u);
-            b.flags = (b.flags & ~SLEEP_COUNTER_MASK) | (sleepCount << SLEEP_COUNTER_SHIFT);
-            if (sleepCount >= SLEEP_FRAMES) {
-                b.flags |= PARTICLE_SLEEPING;
-                b.vel    = vec3(0.0);
-                b.angVel = vec3(0.0);
-            }
-        } else {
-            // Moving (or in spawn grace) — reset counter
-            b.flags &= ~SLEEP_COUNTER_MASK;
-            // Zero sub-threshold micro-velocities to break the Baumgarte-gravity loop
-            if (speedSq  < 1e-4)  b.vel    = vec3(0.0);
-            if (angSpdSq < 25e-4) b.angVel = vec3(0.0);
-        }
-    }
-    // ---- End sleep system ----
+    // Zero sub-threshold micro-velocities to prevent Baumgarte-gravity oscillation at rest.
+    // Threshold 4e-4 = |vel| < 0.02 m/s; catches Baumgarte bias (BAUMGARTE*slop_excess*60)
+    // without freezing legitimately moving bodies (typical impact velocities >> 0.1 m/s).
+    if (dot(b.vel,    b.vel)    < 4e-4)  b.vel    = vec3(0.0);
+    if (dot(b.angVel, b.angVel) < 4e-4)  b.angVel = vec3(0.0);
 
     // Write solved position back
     p.position     = b.pos;
@@ -93,7 +59,8 @@ void main() {
     p.angularVel = b.angVel;
     p.flags      = b.flags;
 
-    // Increment spawn age (saturates at 255). `age` was already read above.
+    // Increment spawn age (saturates at 255)
+    uint age = (p.flags >> SPAWN_AGE_SHIFT) & 0xFFu;
     if (age < 255u) {
         age++;
         p.flags = (p.flags & ~SPAWN_AGE_MASK) | (age << SPAWN_AGE_SHIFT);

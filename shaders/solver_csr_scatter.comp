@@ -1,0 +1,31 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "solver_types.glsl"
+
+// Scatter constraint indices into the per-body adjacency list.
+// bodyConstraintCursor[] acts as an atomic write pointer per body
+// (initialised to bodyConstraintOffset[] by solver_prefix_sum.comp).
+layout(local_size_x = WORKGROUP_SOLVER) in;
+
+layout(std430, set=0, binding=0) readonly buffer ConstraintBuffer  { GPUConstraint constraints[]; };
+layout(std430, set=0, binding=1) readonly buffer SolverStateBuffer { uint solverState[]; };
+layout(std430, set=0, binding=2) buffer CursorBuffer               { uint bodyConstraintCursor[]; };
+layout(std430, set=0, binding=3) buffer AdjacencyList              { uint bodyConstraintList[]; };
+
+layout(push_constant) uniform PC { uint maxConstraints; } pc;
+
+void main() {
+    uint ci = gl_GlobalInvocationID.x;
+    uint constraintCount = solverState[SS_CONSTRAINT_COUNT];
+    if (ci >= constraintCount || ci >= pc.maxConstraints) return;
+
+    GPUConstraint c = constraints[ci];
+
+    uint idxA = atomicAdd(bodyConstraintCursor[c.bodyA], 1u);
+    bodyConstraintList[idxA] = ci;
+
+    if (c.bodyB != SOLVER_STATIC) {
+        uint idxB = atomicAdd(bodyConstraintCursor[c.bodyB], 1u);
+        bodyConstraintList[idxB] = ci;
+    }
+}

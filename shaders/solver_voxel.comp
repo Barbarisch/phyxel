@@ -122,7 +122,6 @@ void main() {
 
     SolverBody bA = bodies[i];
     if ((bA.flags & PARTICLE_ACTIVE) == 0u || bA.invMass == 0.0) return;
-    if ((bA.flags & PARTICLE_SLEEPING) != 0u) return;  // frozen; woken via body-body narrowphase
 
     vec3 pos  = bA.pos;
     vec3 h    = bA.halfExt;
@@ -189,7 +188,7 @@ void main() {
     c.bodyA    = i;
     c.bodyB    = SOLVER_STATIC;
     c.mu       = bA.friction;
-    c.pad0     = 0.0;
+    c.color    = UNCOLORED;
 
     constraints[slot] = c;
 }

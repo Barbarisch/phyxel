@@ -47,9 +47,11 @@ bool GpuParticlePhysics::initialize(Vulkan::VulkanDevice* vulkanDevice, const st
     m_physDevice = vulkanDevice->getPhysicalDevice();
 
     if (!createBuffers(vulkanDevice))             return false;
+    if (!createSolverBuffers(vulkanDevice))       return false;
     if (!initMatTexTable(vulkanDevice))           return false;
     if (!initMaterialPhysicsTable())              return false;
     if (!createPipelines(std::string()))          return false; // uses AssetManager internally
+    if (!createSolverPipelines(std::string()))    return false;
 
     // Initialize VkDrawIndirectCommand: {vertexCount=6, instanceCount=0, firstVertex=0, firstInstance=0}
     //
@@ -281,17 +283,27 @@ bool GpuParticlePhysics::createBuffers(Vulkan::VulkanDevice* dev) {
         }
     }
 
-    // 8. Spatial hash grid — cell head buffer (device-local)
+    // 8. Sorted grid — per-cell count (device-local)
     dev->createStorageBuffer(
         static_cast<VkDeviceSize>(GRID_CELLS) * sizeof(uint32_t),
-        m_gridCellHeadBuffer, m_gridCellHeadMem);
+        m_gridCellCountBuffer, m_gridCellCountMem);
 
-    // 9. Spatial hash grid — particle next-link buffer (device-local)
+    // 9. Sorted grid — per-cell write offset / END pointer (device-local)
+    dev->createStorageBuffer(
+        static_cast<VkDeviceSize>(GRID_CELLS) * sizeof(uint32_t),
+        m_gridCellOffsetBuffer, m_gridCellOffsetMem);
+
+    // 10a. Sorted grid — particles ordered by cell (device-local)
+    dev->createStorageBuffer(
+        static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(GpuParticle),
+        m_sortedParticleBuffer, m_sortedParticleMem);
+
+    // 10b. Sorted grid — canonical index per sorted slot (device-local)
     dev->createStorageBuffer(
         static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t),
-        m_gridNextBuffer, m_gridNextMem);
+        m_sortedIndexBuffer, m_sortedIndexMem);
 
-    // 10. Readback buffer for position logging (host-coherent, persistent map)
+    // 11. Readback buffer for position logging (host-coherent, persistent map)
     {
         VkDeviceSize rbSize = static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(GpuParticle);
         VkBufferCreateInfo bi{};
@@ -396,7 +408,7 @@ bool GpuParticlePhysics::initMaterialPhysicsTable() {
             gpu.restitution     = mp.restitution;
             gpu.friction        = std::max(0.0f, 1.0f - mp.friction * 0.36f);
             gpu.linearDamp      = std::max(0.9f, 1.0f - mp.linearDamping * 0.05f);
-            gpu.angularDamp     = std::max(0.7f, 1.0f - mp.angularDamping * 0.3f);
+            gpu.angularDamp     = std::max(0.97f, 1.0f - mp.angularDamping * 0.03f);
             gpu.breakForceScale = mp.breakForceMultiplier;
         } else {
             gpu.mass            = 1.0f;
@@ -429,20 +441,33 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
     };
 
     // Push constant sizes (must match the shader PC blocks)
-    struct IntegratePC { float dt; float gravity; uint32_t count; float sleepThreshSq; float lifetimeDt; };
-    struct CollidePC   { uint32_t count; float dt; float sleepThreshSq; float gravity; };
-    struct ExpandPC    { uint32_t count; uint32_t maxFaceSlots; float interpAlpha; };
-    struct GridClearPC { uint32_t cellCount; };
-    struct GridBuildPC { uint32_t count; };
+    struct IntegratePC  { float dt; float gravity; uint32_t count; float sleepThreshSq; float lifetimeDt; };
+    struct CollidePC    { uint32_t count; float dt; float sleepThreshSq; float gravity; uint32_t iteration; };
+    struct ExpandPC     { uint32_t count; uint32_t maxFaceSlots; float interpAlpha; };
+    struct GridClearPC  { uint32_t cellCount; };
+    struct GridBuildPC  { uint32_t count; };
+    struct SortScanPC   { uint32_t cellCount; };
+    struct SortScatterPC{ uint32_t count; };
 
-    // grid clear: binding 0 = gridCellHead (rw)
+    // grid clear: binding 0 = gridCellCount (rw)
     if (!m_gridClearPass.create(m_device, shader("particle_grid_clear.comp.spv"),
                                  1, sizeof(GridClearPC)))
         return false;
 
-    // grid build: binding 0 = particles (ro), binding 1 = gridCellHead (rw), binding 2 = gridNext (rw)
+    // grid build: binding 0 = particles (ro), binding 1 = gridCellCount (rw)
     if (!m_gridBuildPass.create(m_device, shader("particle_grid_build.comp.spv"),
-                                 3, sizeof(GridBuildPC)))
+                                 2, sizeof(GridBuildPC)))
+        return false;
+
+    // sort scan: binding 0 = gridCellCount (ro), binding 1 = gridCellOffset (rw)
+    if (!m_sortScanPass.create(m_device, shader("particle_sort_scan.comp.spv"),
+                                2, sizeof(SortScanPC)))
+        return false;
+
+    // sort scatter: binding 0 = particles (ro), binding 1 = gridCellOffset (rw atomic),
+    //               binding 2 = sortedParticles (wo), binding 3 = sortedIndices (wo)
+    if (!m_sortScatterPass.create(m_device, shader("particle_sort_scatter.comp.spv"),
+                                   4, sizeof(SortScatterPC)))
         return false;
 
     // integrate: binding 0 = particles (rw), binding 1 = material physics (ro)
@@ -452,9 +477,10 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
 
     // collide: binding 0 = particles (rw), binding 1 = occupancy grid (ro),
     //          binding 2 = character AABB (ro), binding 3 = material physics (ro),
-    //          binding 4 = gridCellHead (ro), binding 5 = gridNext (ro)
+    //          binding 4 = gridCellCount (ro), binding 5 = gridCellOffset (ro),
+    //          binding 6 = sortedParticles (ro), binding 7 = sortedIndices (ro)
     if (!m_collidePass.create(m_device, shader("particle_collide.comp.spv"),
-                               6, sizeof(CollidePC)))
+                               8, sizeof(CollidePC)))
         return false;
 
     // expand: binding 0 = particles (ro), binding 1 = matTexTable (ro),
@@ -464,42 +490,413 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
         return false;
 
     // Wire buffers to each pipeline's descriptor set
-    VkDeviceSize particleSize = static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(GpuParticle);
-    VkDeviceSize faceSize     = static_cast<VkDeviceSize>(MAX_FACE_SLOTS) * 64;
-    VkDeviceSize occSize      = static_cast<VkDeviceSize>(OCC_TOTAL_WORDS) * sizeof(uint32_t);
-    uint32_t     matCount     = static_cast<uint32_t>(Core::MaterialRegistry::instance().getMaterialCount());
-    uint32_t     matTableSize = matCount * 6 * sizeof(uint32_t);
-    VkDeviceSize matPhysSize  = static_cast<VkDeviceSize>(matCount) * sizeof(MaterialPhysicsGpu);
-    VkDeviceSize gridHeadSize = static_cast<VkDeviceSize>(GRID_CELLS) * sizeof(uint32_t);
-    VkDeviceSize gridNextSize = static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t);
+    VkDeviceSize particleSize      = static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(GpuParticle);
+    VkDeviceSize faceSize          = static_cast<VkDeviceSize>(MAX_FACE_SLOTS) * 64;
+    VkDeviceSize occSize           = static_cast<VkDeviceSize>(OCC_TOTAL_WORDS) * sizeof(uint32_t);
+    uint32_t     matCount          = static_cast<uint32_t>(Core::MaterialRegistry::instance().getMaterialCount());
+    uint32_t     matTableSize      = matCount * 6 * sizeof(uint32_t);
+    VkDeviceSize matPhysSize       = static_cast<VkDeviceSize>(matCount) * sizeof(MaterialPhysicsGpu);
+    VkDeviceSize gridCellSize      = static_cast<VkDeviceSize>(GRID_CELLS) * sizeof(uint32_t);
+    VkDeviceSize sortedParticleSize= static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(GpuParticle);
+    VkDeviceSize sortedIndexSize   = static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t);
 
-    m_gridClearPass.bindBuffer(0, m_gridCellHeadBuffer, gridHeadSize);
+    m_gridClearPass.bindBuffer(0, m_gridCellCountBuffer, gridCellSize);
     m_gridClearPass.updateDescriptors();
 
-    m_gridBuildPass.bindBuffer(0, m_particleBuffer, particleSize);
-    m_gridBuildPass.bindBuffer(1, m_gridCellHeadBuffer, gridHeadSize);
-    m_gridBuildPass.bindBuffer(2, m_gridNextBuffer, gridNextSize);
+    m_gridBuildPass.bindBuffer(0, m_particleBuffer,      particleSize);
+    m_gridBuildPass.bindBuffer(1, m_gridCellCountBuffer, gridCellSize);
     m_gridBuildPass.updateDescriptors();
 
-    m_integratePass.bindBuffer(0, m_particleBuffer, particleSize);
+    m_sortScanPass.bindBuffer(0, m_gridCellCountBuffer,  gridCellSize);
+    m_sortScanPass.bindBuffer(1, m_gridCellOffsetBuffer, gridCellSize);
+    m_sortScanPass.updateDescriptors();
+
+    m_sortScatterPass.bindBuffer(0, m_particleBuffer,       particleSize);
+    m_sortScatterPass.bindBuffer(1, m_gridCellOffsetBuffer, gridCellSize);
+    m_sortScatterPass.bindBuffer(2, m_sortedParticleBuffer, sortedParticleSize);
+    m_sortScatterPass.bindBuffer(3, m_sortedIndexBuffer,    sortedIndexSize);
+    m_sortScatterPass.updateDescriptors();
+
+    m_integratePass.bindBuffer(0, m_particleBuffer,    particleSize);
     m_integratePass.bindBuffer(1, m_materialPhysBuffer, matPhysSize);
     m_integratePass.updateDescriptors();
 
-    m_collidePass.bindBuffer(0, m_particleBuffer, particleSize);
-    m_collidePass.bindBuffer(1, m_occupancyBuffer, occSize);
-    m_collidePass.bindBuffer(2, m_characterBuffer, static_cast<VkDeviceSize>(sizeof(CharacterCollider)));
-    m_collidePass.bindBuffer(3, m_materialPhysBuffer, matPhysSize);
-    m_collidePass.bindBuffer(4, m_gridCellHeadBuffer, gridHeadSize);
-    m_collidePass.bindBuffer(5, m_gridNextBuffer, gridNextSize);
+    m_collidePass.bindBuffer(0, m_particleBuffer,       particleSize);
+    m_collidePass.bindBuffer(1, m_occupancyBuffer,      occSize);
+    m_collidePass.bindBuffer(2, m_characterBuffer,      static_cast<VkDeviceSize>(sizeof(CharacterCollider)));
+    m_collidePass.bindBuffer(3, m_materialPhysBuffer,   matPhysSize);
+    m_collidePass.bindBuffer(4, m_gridCellCountBuffer,  gridCellSize);
+    m_collidePass.bindBuffer(5, m_gridCellOffsetBuffer, gridCellSize);
+    m_collidePass.bindBuffer(6, m_sortedParticleBuffer, sortedParticleSize);
+    m_collidePass.bindBuffer(7, m_sortedIndexBuffer,    sortedIndexSize);
     m_collidePass.updateDescriptors();
 
-    m_expandPass.bindBuffer(0, m_particleBuffer, particleSize);
-    m_expandPass.bindBuffer(1, m_matTexBuffer,   matTableSize);
-    m_expandPass.bindBuffer(2, m_faceBuffer,     faceSize);
+    m_expandPass.bindBuffer(0, m_particleBuffer,     particleSize);
+    m_expandPass.bindBuffer(1, m_matTexBuffer,       matTableSize);
+    m_expandPass.bindBuffer(2, m_faceBuffer,         faceSize);
     m_expandPass.bindBuffer(3, m_indirectDrawBuffer, 16);
     m_expandPass.updateDescriptors();
 
     return true;
+}
+
+// ============================================================
+// Constraint solver buffer creation
+// ============================================================
+
+bool GpuParticlePhysics::createSolverBuffers(Vulkan::VulkanDevice* dev) {
+    // SolverBody: 128 bytes per particle
+    dev->createStorageBuffer(
+        static_cast<VkDeviceSize>(MAX_PARTICLES) * 128,
+        m_solverBodyBuffer, m_solverBodyMem);
+
+    // Constraints: 80 bytes each
+    dev->createStorageBuffer(
+        static_cast<VkDeviceSize>(MAX_CONSTRAINTS) * 80,
+        m_constraintBuffer, m_constraintMem);
+
+    // Solver state: 4 uints (SS_CONSTRAINT_COUNT, ...)
+    dev->createStorageBuffer(
+        static_cast<VkDeviceSize>(4) * sizeof(uint32_t),
+        m_solverStateBuffer, m_solverStateMem);
+
+    // Graph-coloring CSR buffers
+    dev->createStorageBuffer(
+        static_cast<VkDeviceSize>(MAX_CONSTRAINTS) * sizeof(uint32_t),
+        m_constraintColorBuffer, m_constraintColorMem);
+
+    dev->createStorageBuffer(
+        static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t),
+        m_bodyConstraintCountBuffer, m_bodyConstraintCountMem);
+
+    dev->createStorageBuffer(
+        static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t),
+        m_bodyConstraintOffsetBuffer, m_bodyConstraintOffsetMem);
+
+    dev->createStorageBuffer(
+        static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t),
+        m_bodyConstraintCursorBuffer, m_bodyConstraintCursorMem);
+
+    // Adjacency list: each constraint appears in at most 2 bodies → 2 × MAX_CONSTRAINTS entries
+    dev->createStorageBuffer(
+        static_cast<VkDeviceSize>(MAX_CONSTRAINTS) * 2 * sizeof(uint32_t),
+        m_bodyConstraintListBuffer, m_bodyConstraintListMem);
+
+    LOG_INFO_FMT("GpuParticlePhysics", "Solver buffers: "
+        << "solverBody=" << (MAX_PARTICLES*128/1024) << "KB"
+        << " constraints=" << (MAX_CONSTRAINTS*80/1024) << "KB"
+        << " csrList=" << (MAX_CONSTRAINTS*2*4/1024) << "KB");
+    return true;
+}
+
+// ============================================================
+// Constraint solver pipeline creation
+// ============================================================
+
+bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/) {
+    auto shader = [](const char* name) {
+        return Core::AssetManager::instance().resolveShader(name);
+    };
+
+    struct SyncInPC    { uint32_t count; float dt; };
+    struct IntegratePC { uint32_t count; float dt; float gravity; float pad; };
+    struct NpPC        { uint32_t count; uint32_t maxConstraints; float p0; float p1; };
+    struct JacobiPC    { uint32_t maxConstraints; float dt; uint32_t targetColor; float pad; };
+    struct SyncOutPC   { uint32_t count; float dt; float lifetimeDt; float pad; };
+    struct CsrClearPC  { uint32_t bodyCount; uint32_t maxConstraints; };
+    struct CsrCountPC  { uint32_t maxConstraints; };
+    struct PrefixSumPC { uint32_t bodyCount; };
+    struct GraphColorPC{ uint32_t maxConstraints; };
+
+    uint32_t     matCount       = static_cast<uint32_t>(Core::MaterialRegistry::instance().getMaterialCount());
+    VkDeviceSize particleSize   = static_cast<VkDeviceSize>(MAX_PARTICLES)   * sizeof(GpuParticle);
+    VkDeviceSize bodySize       = static_cast<VkDeviceSize>(MAX_PARTICLES)   * 128;
+    VkDeviceSize constrSize     = static_cast<VkDeviceSize>(MAX_CONSTRAINTS) * 80;
+    VkDeviceSize stateSize      = static_cast<VkDeviceSize>(4)               * sizeof(uint32_t);
+    VkDeviceSize matPhysSize    = static_cast<VkDeviceSize>(matCount)        * sizeof(MaterialPhysicsGpu);
+    VkDeviceSize occSize        = static_cast<VkDeviceSize>(OCC_TOTAL_WORDS) * sizeof(uint32_t);
+    VkDeviceSize gridCellSize   = static_cast<VkDeviceSize>(GRID_CELLS)      * sizeof(uint32_t);
+    VkDeviceSize sortedIdxSize  = static_cast<VkDeviceSize>(MAX_PARTICLES)   * sizeof(uint32_t);
+    VkDeviceSize colorSize      = static_cast<VkDeviceSize>(MAX_CONSTRAINTS) * sizeof(uint32_t);
+    VkDeviceSize bodyUintSize   = static_cast<VkDeviceSize>(MAX_PARTICLES)   * sizeof(uint32_t);
+    VkDeviceSize adjListSize    = static_cast<VkDeviceSize>(MAX_CONSTRAINTS) * 2 * sizeof(uint32_t);
+
+    // solver_sync_in: particles(ro), bodies(rw), state(rw), materials(ro)
+    if (!m_solverSyncInPass.create(m_device, shader("solver_sync_in.comp.spv"), 4, sizeof(SyncInPC))) return false;
+    m_solverSyncInPass.bindBuffer(0, m_particleBuffer,     particleSize);
+    m_solverSyncInPass.bindBuffer(1, m_solverBodyBuffer,   bodySize);
+    m_solverSyncInPass.bindBuffer(2, m_solverStateBuffer,  stateSize);
+    m_solverSyncInPass.bindBuffer(3, m_materialPhysBuffer, matPhysSize);
+    m_solverSyncInPass.updateDescriptors();
+
+    // solver_integrate: bodies, materials, particles
+    if (!m_solverIntegratePass.create(m_device, shader("solver_integrate.comp.spv"), 3, sizeof(IntegratePC))) return false;
+    m_solverIntegratePass.bindBuffer(0, m_solverBodyBuffer,   bodySize);
+    m_solverIntegratePass.bindBuffer(1, m_materialPhysBuffer, matPhysSize);
+    m_solverIntegratePass.bindBuffer(2, m_particleBuffer,     particleSize);
+    m_solverIntegratePass.updateDescriptors();
+
+    // solver_narrowphase: bodies, constraints, state, gridCount, gridOffset, sortedIndices
+    if (!m_solverNarrowphasePass.create(m_device, shader("solver_narrowphase.comp.spv"), 6, sizeof(NpPC))) return false;
+    m_solverNarrowphasePass.bindBuffer(0, m_solverBodyBuffer,    bodySize);
+    m_solverNarrowphasePass.bindBuffer(1, m_constraintBuffer,    constrSize);
+    m_solverNarrowphasePass.bindBuffer(2, m_solverStateBuffer,   stateSize);
+    m_solverNarrowphasePass.bindBuffer(3, m_gridCellCountBuffer, gridCellSize);
+    m_solverNarrowphasePass.bindBuffer(4, m_gridCellOffsetBuffer,gridCellSize);
+    m_solverNarrowphasePass.bindBuffer(5, m_sortedIndexBuffer,   sortedIdxSize);
+    m_solverNarrowphasePass.updateDescriptors();
+
+    // solver_voxel: bodies, constraints, state, occupancy
+    if (!m_solverVoxelPass.create(m_device, shader("solver_voxel.comp.spv"), 4, sizeof(NpPC))) return false;
+    m_solverVoxelPass.bindBuffer(0, m_solverBodyBuffer,  bodySize);
+    m_solverVoxelPass.bindBuffer(1, m_constraintBuffer,  constrSize);
+    m_solverVoxelPass.bindBuffer(2, m_solverStateBuffer, stateSize);
+    m_solverVoxelPass.bindBuffer(3, m_occupancyBuffer,   occSize);
+    m_solverVoxelPass.updateDescriptors();
+
+    // solver_jacobi: bodies(rw), constraints(rw), state(ro), constraintColor(ro)
+    if (!m_solverJacobiPass.create(m_device, shader("solver_jacobi.comp.spv"), 4, sizeof(JacobiPC))) return false;
+    m_solverJacobiPass.bindBuffer(0, m_solverBodyBuffer,     bodySize);
+    m_solverJacobiPass.bindBuffer(1, m_constraintBuffer,     constrSize);
+    m_solverJacobiPass.bindBuffer(2, m_solverStateBuffer,    stateSize);
+    m_solverJacobiPass.bindBuffer(3, m_constraintColorBuffer,colorSize);
+    m_solverJacobiPass.updateDescriptors();
+
+    // solver_sync_out: bodies, particles
+    if (!m_solverSyncOutPass.create(m_device, shader("solver_sync_out.comp.spv"), 2, sizeof(SyncOutPC))) return false;
+    m_solverSyncOutPass.bindBuffer(0, m_solverBodyBuffer, bodySize);
+    m_solverSyncOutPass.bindBuffer(1, m_particleBuffer,   particleSize);
+    m_solverSyncOutPass.updateDescriptors();
+
+    // solver_csr_clear: bodyConstraintCount(rw), constraintColor(rw)
+    if (!m_csrClearPass.create(m_device, shader("solver_csr_clear.comp.spv"), 2, sizeof(CsrClearPC))) return false;
+    m_csrClearPass.bindBuffer(0, m_bodyConstraintCountBuffer, bodyUintSize);
+    m_csrClearPass.bindBuffer(1, m_constraintColorBuffer,     colorSize);
+    m_csrClearPass.updateDescriptors();
+
+    // solver_csr_count: constraints(ro), state(ro), bodyConstraintCount(rw)
+    if (!m_csrCountPass.create(m_device, shader("solver_csr_count.comp.spv"), 3, sizeof(CsrCountPC))) return false;
+    m_csrCountPass.bindBuffer(0, m_constraintBuffer,         constrSize);
+    m_csrCountPass.bindBuffer(1, m_solverStateBuffer,        stateSize);
+    m_csrCountPass.bindBuffer(2, m_bodyConstraintCountBuffer,bodyUintSize);
+    m_csrCountPass.updateDescriptors();
+
+    // solver_prefix_sum: count(ro), offset(rw), cursor(rw)
+    if (!m_prefixSumPass.create(m_device, shader("solver_prefix_sum.comp.spv"), 3, sizeof(PrefixSumPC))) return false;
+    m_prefixSumPass.bindBuffer(0, m_bodyConstraintCountBuffer, bodyUintSize);
+    m_prefixSumPass.bindBuffer(1, m_bodyConstraintOffsetBuffer,bodyUintSize);
+    m_prefixSumPass.bindBuffer(2, m_bodyConstraintCursorBuffer,bodyUintSize);
+    m_prefixSumPass.updateDescriptors();
+
+    // solver_csr_scatter: constraints(ro), state(ro), cursor(rw), adjacencyList(rw)
+    if (!m_csrScatterPass.create(m_device, shader("solver_csr_scatter.comp.spv"), 4, sizeof(CsrCountPC))) return false;
+    m_csrScatterPass.bindBuffer(0, m_constraintBuffer,          constrSize);
+    m_csrScatterPass.bindBuffer(1, m_solverStateBuffer,         stateSize);
+    m_csrScatterPass.bindBuffer(2, m_bodyConstraintCursorBuffer,bodyUintSize);
+    m_csrScatterPass.bindBuffer(3, m_bodyConstraintListBuffer,  adjListSize);
+    m_csrScatterPass.updateDescriptors();
+
+    // solver_graph_color: constraints(ro), state(ro), color(rw), count(ro), offset(ro), list(ro)
+    if (!m_graphColorPass.create(m_device, shader("solver_graph_color.comp.spv"), 6, sizeof(GraphColorPC))) return false;
+    m_graphColorPass.bindBuffer(0, m_constraintBuffer,          constrSize);
+    m_graphColorPass.bindBuffer(1, m_solverStateBuffer,         stateSize);
+    m_graphColorPass.bindBuffer(2, m_constraintColorBuffer,     colorSize);
+    m_graphColorPass.bindBuffer(3, m_bodyConstraintCountBuffer, bodyUintSize);
+    m_graphColorPass.bindBuffer(4, m_bodyConstraintOffsetBuffer,bodyUintSize);
+    m_graphColorPass.bindBuffer(5, m_bodyConstraintListBuffer,  adjListSize);
+    m_graphColorPass.updateDescriptors();
+
+    return true;
+}
+
+// ============================================================
+// Constraint-solver compute recording (one physics tick)
+// ============================================================
+
+void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t count, float lifetimeDt) {
+    const uint32_t groups        = (count + 255u) / 256u;
+    const uint32_t maxConstrGrps = (MAX_CONSTRAINTS + 255u) / 256u;
+
+    auto ssBarrier = [&](VkBuffer buf) {
+        insertBarrier(cmd,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+            buf);
+    };
+
+    struct SyncInPC    { uint32_t count; float dt; };
+    struct IntegratePC { uint32_t count; float dt; float gravity; float pad; };
+    struct NpPC        { uint32_t count; uint32_t maxConstraints; float p0; float p1; };
+    struct JacobiPC    { uint32_t maxConstraints; float dt; uint32_t targetColor; float pad; };
+    struct SyncOutPC   { uint32_t count; float dt; float lifetimeDt; float pad; };
+    struct GridClearPC { uint32_t cellCount; };
+    struct GridBuildPC { uint32_t count; };
+    struct SortScanPC  { uint32_t cellCount; };
+    struct SortScatterPC { uint32_t count; };
+    struct CsrClearPC  { uint32_t bodyCount; uint32_t maxConstraints; };
+    struct CsrCountPC  { uint32_t maxConstraints; };
+    struct PrefixSumPC { uint32_t bodyCount; };
+    struct GraphColorPC{ uint32_t maxConstraints; };
+
+    // Reset solver state (constraint count = 0) via fill before any compute reads it
+    vkCmdFillBuffer(cmd, m_solverStateBuffer, 0, VK_WHOLE_SIZE, 0u);
+    insertBarrier(cmd,
+        VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+        m_solverStateBuffer);
+
+    // ---- 1. Sync in: GpuParticle → SolverBody ----
+    {
+        SyncInPC pc{ count, FIXED_DT };
+        m_solverSyncInPass.bind(cmd);
+        m_solverSyncInPass.pushConstants(cmd, &pc, sizeof(pc));
+        m_solverSyncInPass.dispatch(cmd, groups);
+    }
+    ssBarrier(m_solverBodyBuffer);
+
+    // ---- 2. Integrate: apply gravity + damping, predict position ----
+    {
+        IntegratePC pc{ count, FIXED_DT, GRAVITY, 0.0f };
+        m_solverIntegratePass.bind(cmd);
+        m_solverIntegratePass.pushConstants(cmd, &pc, sizeof(pc));
+        m_solverIntegratePass.dispatch(cmd, groups);
+    }
+    ssBarrier(m_solverBodyBuffer);
+
+    // ---- 3. Grid sort (reads m_particleBuffer — previous-tick positions for broadphase) ----
+    {
+        GridClearPC gc{ static_cast<uint32_t>(GRID_CELLS) };
+        m_gridClearPass.bind(cmd);
+        m_gridClearPass.pushConstants(cmd, &gc, sizeof(gc));
+        m_gridClearPass.dispatch(cmd, (GRID_CELLS + 255u) / 256u);
+    }
+    ssBarrier(m_gridCellCountBuffer);
+
+    {
+        GridBuildPC gb{ count };
+        m_gridBuildPass.bind(cmd);
+        m_gridBuildPass.pushConstants(cmd, &gb, sizeof(gb));
+        m_gridBuildPass.dispatch(cmd, groups);
+    }
+    insertBarrier(cmd,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+        m_gridCellCountBuffer);
+
+    {
+        SortScanPC ss{ static_cast<uint32_t>(GRID_CELLS) };
+        m_sortScanPass.bind(cmd);
+        m_sortScanPass.pushConstants(cmd, &ss, sizeof(ss));
+        m_sortScanPass.dispatch(cmd, 1);
+    }
+    ssBarrier(m_gridCellOffsetBuffer);
+
+    {
+        SortScatterPC sc{ count };
+        m_sortScatterPass.bind(cmd);
+        m_sortScatterPass.pushConstants(cmd, &sc, sizeof(sc));
+        m_sortScatterPass.dispatch(cmd, groups);
+    }
+    insertBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, m_gridCellOffsetBuffer);
+    insertBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, m_sortedIndexBuffer);
+
+    // ---- 4a. Narrowphase: dynamic-dynamic contacts → constraints ----
+    {
+        NpPC pc{ count, MAX_CONSTRAINTS, 0.0f, 0.0f };
+        m_solverNarrowphasePass.bind(cmd);
+        m_solverNarrowphasePass.pushConstants(cmd, &pc, sizeof(pc));
+        m_solverNarrowphasePass.dispatch(cmd, groups);
+    }
+    ssBarrier(m_constraintBuffer);
+    ssBarrier(m_solverStateBuffer);
+
+    // ---- 4b. Voxel contacts → constraints (appended) ----
+    {
+        NpPC pc{ count, MAX_CONSTRAINTS, 0.0f, 0.0f };
+        m_solverVoxelPass.bind(cmd);
+        m_solverVoxelPass.pushConstants(cmd, &pc, sizeof(pc));
+        m_solverVoxelPass.dispatch(cmd, groups);
+    }
+    ssBarrier(m_constraintBuffer);
+    ssBarrier(m_solverStateBuffer);
+
+    // ---- 5. Build CSR adjacency structure for graph coloring ----
+    // 5a. Clear bodyConstraintCount[] and constraintColor[]
+    {
+        CsrClearPC pc{ count, MAX_CONSTRAINTS };
+        m_csrClearPass.bind(cmd);
+        m_csrClearPass.pushConstants(cmd, &pc, sizeof(pc));
+        m_csrClearPass.dispatch(cmd, maxConstrGrps); // covers both arrays (MAX_CONSTRAINTS > count)
+    }
+    ssBarrier(m_bodyConstraintCountBuffer);
+    ssBarrier(m_constraintColorBuffer);
+
+    // 5b. Count how many constraints each body participates in
+    {
+        CsrCountPC pc{ MAX_CONSTRAINTS };
+        m_csrCountPass.bind(cmd);
+        m_csrCountPass.pushConstants(cmd, &pc, sizeof(pc));
+        m_csrCountPass.dispatch(cmd, maxConstrGrps);
+    }
+    ssBarrier(m_bodyConstraintCountBuffer);
+
+    // 5c. Exclusive prefix sum → bodyConstraintOffset[] and bodyConstraintCursor[]
+    {
+        PrefixSumPC pc{ count };
+        m_prefixSumPass.bind(cmd);
+        m_prefixSumPass.pushConstants(cmd, &pc, sizeof(pc));
+        m_prefixSumPass.dispatch(cmd, 1);
+    }
+    ssBarrier(m_bodyConstraintOffsetBuffer);
+    ssBarrier(m_bodyConstraintCursorBuffer);
+
+    // 5d. Scatter constraint indices into adjacency list using atomic cursors
+    {
+        CsrCountPC pc{ MAX_CONSTRAINTS };
+        m_csrScatterPass.bind(cmd);
+        m_csrScatterPass.pushConstants(cmd, &pc, sizeof(pc));
+        m_csrScatterPass.dispatch(cmd, maxConstrGrps);
+    }
+    ssBarrier(m_bodyConstraintListBuffer);
+
+    // ---- 6. Graph coloring: Jones-Plassmann, 16 passes ----
+    // Each pass assigns colors to newly eligible constraints (those whose higher-priority
+    // uncolored neighbors have already been colored). 16 passes is sufficient for any
+    // sparse constraint graph encountered in practice.
+    {
+        GraphColorPC pc{ MAX_CONSTRAINTS };
+        for (int gc = 0; gc < 16; ++gc) {
+            m_graphColorPass.bind(cmd);
+            m_graphColorPass.pushConstants(cmd, &pc, sizeof(pc));
+            m_graphColorPass.dispatch(cmd, maxConstrGrps);
+            ssBarrier(m_constraintColorBuffer);
+        }
+    }
+
+    // ---- 7. Solve: sequential per-color Jacobi (Gauss-Seidel convergence) ----
+    // Within each color, no two constraints share a body → direct body writes are race-free.
+    // Colors run sequentially with barriers → each color sees previous colors' updates,
+    // giving Gauss-Seidel-like convergence instead of Jacobi overcorrection.
+    for (int iter = 0; iter < SOLVE_ITERATIONS; ++iter) {
+        for (uint32_t color = 0; color < MAX_COLORS; ++color) {
+            JacobiPC pc{ MAX_CONSTRAINTS, FIXED_DT, color, 0.0f };
+            m_solverJacobiPass.bind(cmd);
+            m_solverJacobiPass.pushConstants(cmd, &pc, sizeof(pc));
+            m_solverJacobiPass.dispatch(cmd, maxConstrGrps);
+            ssBarrier(m_solverBodyBuffer);
+        }
+    }
+
+    // ---- 8. Sync out: SolverBody → GpuParticle ----
+    {
+        SyncOutPC pc{ count, FIXED_DT, lifetimeDt, 0.0f };
+        m_solverSyncOutPass.bind(cmd);
+        m_solverSyncOutPass.pushConstants(cmd, &pc, sizeof(pc));
+        m_solverSyncOutPass.dispatch(cmd, groups);
+    }
+    ssBarrier(m_particleBuffer);
 }
 
 // ============================================================
@@ -681,12 +1078,15 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*f
     if (groups == 0) return; // nothing to simulate
 
     // ---- Fixed-timestep physics loop ----
-    // Run integrate → grid → collide for each accumulated physics tick.
-    // At high FPS (>60), some frames have 0 ticks (render-only).
-    // At low FPS (<60), multiple ticks per frame to catch up (max 4).
     for (uint32_t tick = 0; tick < m_physicsTicks; ++tick) {
+        const float lifetimeDtThisTick = (tick == 0) ? m_lastRealDt : 0.0f;
 
-        // ---- 2. Integrate pass ----
+        if (m_useNewPipeline) {
+            recordComputeCommandsNew(cmd, count, lifetimeDtThisTick);
+            continue;
+        }
+
+        // ---- 2. Integrate pass (legacy XPBD) ----
         struct IntegratePC {
             float    dt;
             float    gravity;
@@ -698,9 +1098,7 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*f
         ipc.gravity      = GRAVITY;
         ipc.count        = count;
         ipc.sleepThreshSq= SLEEP_THRESH_SQ;
-        // Drain lifetime only on the first tick using real elapsed time.
-        // Subsequent ticks pass 0 to avoid double-counting.
-        ipc.lifetimeDt   = (tick == 0) ? m_lastRealDt : 0.0f;
+        ipc.lifetimeDt   = lifetimeDtThisTick;
 
         m_integratePass.bind(cmd);
         m_integratePass.pushConstants(cmd, &ipc, sizeof(ipc));
@@ -714,7 +1112,7 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*f
             VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
             m_particleBuffer);
 
-        // ---- 2b. Grid clear ----
+        // ---- 2b. Grid clear — zero per-cell counts ----
         {
             struct GridClearPC { uint32_t cellCount; } gcpc;
             gcpc.cellCount = GRID_CELLS;
@@ -729,9 +1127,9 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*f
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
             VK_ACCESS_SHADER_WRITE_BIT,
             VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-            m_gridCellHeadBuffer);
+            m_gridCellCountBuffer);
 
-        // ---- 2c. Grid build ----
+        // ---- 2c. Grid build — count particles per cell ----
         {
             struct GridBuildPC { uint32_t count; } gbpc;
             gbpc.count = count;
@@ -745,37 +1143,84 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*f
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
             VK_ACCESS_SHADER_WRITE_BIT,
             VK_ACCESS_SHADER_READ_BIT,
-            m_gridCellHeadBuffer);
+            m_gridCellCountBuffer);
+
+        // ---- 2d. Sort scan — exclusive prefix sum → per-cell write offsets ----
+        {
+            struct SortScanPC { uint32_t cellCount; } sspc;
+            sspc.cellCount = GRID_CELLS;
+            m_sortScanPass.bind(cmd);
+            m_sortScanPass.pushConstants(cmd, &sspc, sizeof(sspc));
+            m_sortScanPass.dispatch(cmd, 1); // single invocation — sequential scan
+        }
+
+        insertBarrier(cmd,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+            m_gridCellOffsetBuffer);
+
+        // ---- 2e. Sort scatter — fill sortedParticles / sortedIndices by cell ----
+        // After scatter, gridCellOffset[c] = exclusiveStart[c] + count[c] = END.
+        // Collide reads [gridCellOffset[c]-gridCellCount[c], gridCellOffset[c]).
+        {
+            struct SortScatterPC { uint32_t count; } scpc;
+            scpc.count = count;
+            m_sortScatterPass.bind(cmd);
+            m_sortScatterPass.pushConstants(cmd, &scpc, sizeof(scpc));
+            m_sortScatterPass.dispatch(cmd, groups);
+        }
+
         insertBarrier(cmd,
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
             VK_ACCESS_SHADER_WRITE_BIT,
             VK_ACCESS_SHADER_READ_BIT,
-            m_gridNextBuffer);
+            m_gridCellOffsetBuffer);
+        insertBarrier(cmd,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_ACCESS_SHADER_READ_BIT,
+            m_sortedParticleBuffer);
+        insertBarrier(cmd,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_ACCESS_SHADER_READ_BIT,
+            m_sortedIndexBuffer);
 
-        // ---- 3. Collide pass ----
+        // ---- 3. Collide pass (multi-iteration) ----
+        // Terrain collision re-reads particles[i] each iteration and converges
+        // correctly. Particle-particle is gated to iteration 0 in the shader
+        // because sortedParticles holds a pre-tick snapshot — running it on
+        // iterations 1+ would double-count corrections and cause jitter.
         struct CollidePC {
             uint32_t count;
             float    dt;
             float    sleepThreshSq;
             float    gravity;
+            uint32_t iteration;
         } cpc;
         cpc.count        = count;
         cpc.dt           = FIXED_DT;
         cpc.sleepThreshSq= SLEEP_THRESH_SQ;
         cpc.gravity      = GRAVITY;
 
-        m_collidePass.bind(cmd);
-        m_collidePass.pushConstants(cmd, &cpc, sizeof(cpc));
-        m_collidePass.dispatch(cmd, groups);
+        for (int iter = 0; iter < COLLISION_ITERATIONS; ++iter) {
+            cpc.iteration = static_cast<uint32_t>(iter);
+            m_collidePass.bind(cmd);
+            m_collidePass.pushConstants(cmd, &cpc, sizeof(cpc));
+            m_collidePass.dispatch(cmd, groups);
 
-        // Barrier: particles ready for next tick or expand
-        insertBarrier(cmd,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-            m_particleBuffer);
+            insertBarrier(cmd,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                VK_ACCESS_SHADER_WRITE_BIT,
+                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                m_particleBuffer);
+        }
 
     } // end physics tick loop
 
@@ -950,9 +1395,23 @@ void GpuParticlePhysics::cleanup() {
 
     m_gridClearPass.cleanup();
     m_gridBuildPass.cleanup();
+    m_sortScanPass.cleanup();
+    m_sortScatterPass.cleanup();
     m_integratePass.cleanup();
     m_collidePass.cleanup();
     m_expandPass.cleanup();
+
+    m_solverSyncInPass.cleanup();
+    m_solverIntegratePass.cleanup();
+    m_solverNarrowphasePass.cleanup();
+    m_solverVoxelPass.cleanup();
+    m_solverJacobiPass.cleanup();
+    m_solverSyncOutPass.cleanup();
+    m_csrClearPass.cleanup();
+    m_csrCountPass.cleanup();
+    m_prefixSumPass.cleanup();
+    m_csrScatterPass.cleanup();
+    m_graphColorPass.cleanup();
 
     auto destroyBuf = [&](VkBuffer& buf, VkDeviceMemory& mem) {
         if (buf  != VK_NULL_HANDLE) { vkDestroyBuffer(m_device, buf, nullptr);  buf = VK_NULL_HANDLE; }
@@ -973,10 +1432,20 @@ void GpuParticlePhysics::cleanup() {
     destroyBuf(m_occupancyBuffer,     m_occupancyMem);
     destroyBuf(m_characterBuffer,     m_characterMem);
     destroyBuf(m_materialPhysBuffer,  m_materialPhysMem);
-    destroyBuf(m_gridCellHeadBuffer,  m_gridCellHeadMem);
-    destroyBuf(m_gridNextBuffer,      m_gridNextMem);
+    destroyBuf(m_gridCellCountBuffer,  m_gridCellCountMem);
+    destroyBuf(m_gridCellOffsetBuffer, m_gridCellOffsetMem);
+    destroyBuf(m_sortedParticleBuffer, m_sortedParticleMem);
+    destroyBuf(m_sortedIndexBuffer,    m_sortedIndexMem);
     destroyBuf(m_matTexBuffer,        m_matTexMem);
     destroyBuf(m_readbackBuffer,      m_readbackMem);
+    destroyBuf(m_solverBodyBuffer,          m_solverBodyMem);
+    destroyBuf(m_constraintBuffer,          m_constraintMem);
+    destroyBuf(m_solverStateBuffer,         m_solverStateMem);
+    destroyBuf(m_constraintColorBuffer,     m_constraintColorMem);
+    destroyBuf(m_bodyConstraintCountBuffer, m_bodyConstraintCountMem);
+    destroyBuf(m_bodyConstraintOffsetBuffer,m_bodyConstraintOffsetMem);
+    destroyBuf(m_bodyConstraintCursorBuffer,m_bodyConstraintCursorMem);
+    destroyBuf(m_bodyConstraintListBuffer,  m_bodyConstraintListMem);
 
     m_device     = VK_NULL_HANDLE;
     m_physDevice = VK_NULL_HANDLE;

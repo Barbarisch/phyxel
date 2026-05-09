@@ -1,0 +1,72 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "solver_types.glsl"
+
+// One round of Jones-Plassmann graph coloring on the constraint graph.
+// Two constraints are neighbors if they share bodyA or bodyB.
+// Run this dispatch 16 times; after that, all constraints have a valid color.
+layout(local_size_x = WORKGROUP_SOLVER) in;
+
+layout(std430, set=0, binding=0) readonly buffer ConstraintBuffer    { GPUConstraint constraints[]; };
+layout(std430, set=0, binding=1) readonly buffer SolverStateBuffer   { uint solverState[]; };
+layout(std430, set=0, binding=2) buffer ConstraintColor              { uint constraintColor[]; };
+layout(std430, set=0, binding=3) readonly buffer CountBuffer         { uint bodyConstraintCount[]; };
+layout(std430, set=0, binding=4) readonly buffer OffsetBuffer        { uint bodyConstraintOffset[]; };
+layout(std430, set=0, binding=5) readonly buffer AdjacencyList       { uint bodyConstraintList[]; };
+
+layout(push_constant) uniform PC { uint maxConstraints; } pc;
+
+// Deterministic per-constraint priority in [0,1) via integer hash.
+float hashPriority(uint x) {
+    x = x ^ (x >> 16u);
+    x *= 0x45d9f3bu;
+    x = x ^ (x >> 16u);
+    return float(x & 0x00FFFFFFu) * (1.0 / 16777216.0);
+}
+
+void main() {
+    uint ci = gl_GlobalInvocationID.x;
+    uint constraintCount = solverState[SS_CONSTRAINT_COUNT];
+    if (ci >= constraintCount || ci >= pc.maxConstraints) return;
+    if (constraintColor[ci] != UNCOLORED) return;  // already colored
+
+    float myPriority = hashPriority(ci);
+    GPUConstraint con = constraints[ci];
+
+    // Jones-Plassmann: defer if any uncolored neighbor has higher priority.
+    // Neighbors are all constraints that share bodyA or bodyB.
+    uint bodies[2];
+    bodies[0] = con.bodyA;
+    bodies[1] = con.bodyB;
+    uint numBodies = (con.bodyB == SOLVER_STATIC) ? 1u : 2u;
+
+    for (uint b = 0u; b < numBodies; b++) {
+        uint body  = bodies[b];
+        uint start = bodyConstraintOffset[body];
+        uint end   = start + bodyConstraintCount[body];
+        for (uint s = start; s < end; s++) {
+            uint ni = bodyConstraintList[s];
+            if (ni == ci) continue;
+            if (constraintColor[ni] == UNCOLORED && hashPriority(ni) > myPriority)
+                return;  // higher-priority neighbor still uncolored — wait
+        }
+    }
+
+    // I have highest priority among my uncolored neighbors.
+    // Find the smallest color not used by any neighbor (colored or not).
+    uint usedColors = 0u;
+    for (uint b = 0u; b < numBodies; b++) {
+        uint body  = bodies[b];
+        uint start = bodyConstraintOffset[body];
+        uint end   = start + bodyConstraintCount[body];
+        for (uint s = start; s < end; s++) {
+            uint ni = bodyConstraintList[s];
+            if (ni == ci) continue;
+            uint nc = constraintColor[ni];
+            if (nc < MAX_COLORS) usedColors |= (1u << nc);
+        }
+    }
+
+    // findLSB(~usedColors) gives the lowest free bit = lowest available color
+    constraintColor[ci] = uint(findLSB(~usedColors));
+}

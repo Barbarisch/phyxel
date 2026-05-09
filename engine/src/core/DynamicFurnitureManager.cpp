@@ -749,6 +749,10 @@ int DynamicFurnitureManager::shatter(const std::string& placedObjectId,
                 Phyxel::GpuParticlePhysics::SpawnParams sp;
                 sp.position    = worldPos;
                 sp.velocity    = linearVel + scatter + glm::vec3(0.0f, 2.0f, 0.0f);
+                sp.angularVel  = glm::vec3(
+                    ((rand() % 1000) / 500.f - 1.f) * 5.0f,
+                    ((rand() % 1000) / 500.f - 1.f) * 5.0f,
+                    ((rand() % 1000) / 500.f - 1.f) * 5.0f);
                 sp.scale       = v.scale;
                 sp.materialName = v.materialName;
                 sp.lifetime    = 5.0f;
