@@ -29,6 +29,11 @@ void main() {
     b.pad0        = 0.0;
     b.pad1        = 0.0;
     b.pad2        = 0.0; b.pad3 = 0.0; b.pad4 = 0.0; b.pad5 = 0.0;
+    b.initial     = vec3(0.0); b.pad6 = 0.0;
+    b.initialQuat = vec4(0.0, 0.0, 0.0, 1.0);
+    b.inertial    = vec3(0.0); b.pad7 = 0.0;
+    b.inertialQuat= vec4(0.0, 0.0, 0.0, 1.0);
+    b.cumAng      = vec3(0.0); b.pad8 = 0.0;
 
     // Sphere radius: circumscribed sphere of the AABB
     float r  = max(b.halfExt.x, max(b.halfExt.y, b.halfExt.z));

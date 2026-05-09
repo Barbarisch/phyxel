@@ -207,10 +207,6 @@ if defined USE_GLSLC (
     %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_jacobi.comp -o shaders\solver_jacobi.comp.spv
     if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_jacobi.comp & pause & exit /b 1 )
 
-    echo Compiling solver_apply compute shader...
-    %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_apply.comp -o shaders\solver_apply.comp.spv
-    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_apply.comp & pause & exit /b 1 )
-
     echo Compiling solver_sync_out compute shader...
     %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_sync_out.comp -o shaders\solver_sync_out.comp.spv
     if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_sync_out.comp & pause & exit /b 1 )
@@ -234,6 +230,26 @@ if defined USE_GLSLC (
     echo Compiling solver_graph_color compute shader...
     %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_graph_color.comp -o shaders\solver_graph_color.comp.spv
     if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_graph_color.comp & pause & exit /b 1 )
+
+    echo Compiling solver_body_color compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_body_color.comp -o shaders\solver_body_color.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_body_color.comp & pause & exit /b 1 )
+
+    echo Compiling solver_dual compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_dual.comp -o shaders\solver_dual.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_dual.comp & pause & exit /b 1 )
+
+    echo Compiling solver_primal compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_primal.comp -o shaders\solver_primal.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_primal.comp & pause & exit /b 1 )
+
+    echo Compiling solver_warmstart_save compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_warmstart_save.comp -o shaders\solver_warmstart_save.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_warmstart_save.comp & pause & exit /b 1 )
+
+    echo Compiling solver_hardcontact compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_hardcontact.comp -o shaders\solver_hardcontact.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_hardcontact.comp & pause & exit /b 1 )
 
     echo Compiling debris vertex shader...
     %GLSLANG% -fshader-stage=vert -I. shaders\debris.vert -o shaders\debris.vert.spv
@@ -471,10 +487,6 @@ if defined USE_GLSLC (
     %GLSLANG% -V -Ishaders shaders\solver_jacobi.comp -o shaders\solver_jacobi.comp.spv
     if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_jacobi.comp & pause & exit /b 1 )
 
-    echo Compiling solver_apply compute shader...
-    %GLSLANG% -V -Ishaders shaders\solver_apply.comp -o shaders\solver_apply.comp.spv
-    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_apply.comp & pause & exit /b 1 )
-
     echo Compiling solver_sync_out compute shader...
     %GLSLANG% -V -Ishaders shaders\solver_sync_out.comp -o shaders\solver_sync_out.comp.spv
     if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_sync_out.comp & pause & exit /b 1 )
@@ -498,6 +510,26 @@ if defined USE_GLSLC (
     echo Compiling solver_graph_color compute shader...
     %GLSLANG% -V -Ishaders shaders\solver_graph_color.comp -o shaders\solver_graph_color.comp.spv
     if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_graph_color.comp & pause & exit /b 1 )
+
+    echo Compiling solver_body_color compute shader...
+    %GLSLANG% -V -Ishaders shaders\solver_body_color.comp -o shaders\solver_body_color.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_body_color.comp & pause & exit /b 1 )
+
+    echo Compiling solver_dual compute shader...
+    %GLSLANG% -V -Ishaders shaders\solver_dual.comp -o shaders\solver_dual.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_dual.comp & pause & exit /b 1 )
+
+    echo Compiling solver_primal compute shader...
+    %GLSLANG% -V -Ishaders shaders\solver_primal.comp -o shaders\solver_primal.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_primal.comp & pause & exit /b 1 )
+
+    echo Compiling solver_warmstart_save compute shader...
+    %GLSLANG% -V -Ishaders shaders\solver_warmstart_save.comp -o shaders\solver_warmstart_save.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_warmstart_save.comp & pause & exit /b 1 )
+
+    echo Compiling solver_hardcontact compute shader...
+    %GLSLANG% -V -Ishaders shaders\solver_hardcontact.comp -o shaders\solver_hardcontact.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_hardcontact.comp & pause & exit /b 1 )
 
     echo Compiling debris vertex shader...
     %GLSLANG% -V -I. shaders\debris.vert -o shaders\debris.vert.spv

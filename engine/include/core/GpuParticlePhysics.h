@@ -261,23 +261,37 @@ private:
 
     static constexpr uint32_t MAX_CONSTRAINTS = 60000;
     static constexpr uint32_t MAX_COLORS      = 12;
-    static constexpr int      SOLVE_ITERATIONS = 4;
+    static constexpr int      SOLVE_ITERATIONS = 8;
 
-    // SolverBody buffer — device-local, MAX_PARTICLES × 128 bytes
+    // Warmstart hash table sizing (must match shaders/solver_types.glsl).
+    // HASH_CAP must be a power of two and >= ~2 * MAX_CONSTRAINTS.
+    static constexpr uint32_t HASH_CAP        = 131072;
+    static constexpr uint32_t HASH_BASE       = 8;
+    static constexpr uint32_t SOLVER_STATE_UINTS = HASH_BASE + HASH_CAP;
+
+    // SolverBody buffer — device-local, MAX_PARTICLES × 208 bytes
     VkBuffer       m_solverBodyBuffer = VK_NULL_HANDLE;
     VkDeviceMemory m_solverBodyMem    = VK_NULL_HANDLE;
 
-    // Constraint buffer — device-local, MAX_CONSTRAINTS × 80 bytes
+    // Constraint buffer — device-local, MAX_CONSTRAINTS × 128 bytes
     VkBuffer       m_constraintBuffer = VK_NULL_HANDLE;
     VkDeviceMemory m_constraintMem    = VK_NULL_HANDLE;
 
-    // Solver state buffer — device-local, 4 × uint (SS_CONSTRAINT_COUNT etc.)
+    // Solver state buffer — device-local, SOLVER_STATE_UINTS × uint (counters + warmstart hash table)
     VkBuffer       m_solverStateBuffer = VK_NULL_HANDLE;
     VkDeviceMemory m_solverStateMem    = VK_NULL_HANDLE;
+    // Warmstart hash table is initialized to HASH_EMPTY once at first solve, then PERSISTS
+    // across frames so AVBD multipliers/penalties accumulate (Shallot semantics). Clearing
+    // the hash per-frame would reduce AVBD to pure penalty → bodies sink under gravity.
+    bool           m_hashInitialized   = false;
+
+    // Warmstart entries — device-local, HASH_CAP × 64 bytes (persists penalties across frames)
+    VkBuffer       m_warmstartBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory m_warmstartMem    = VK_NULL_HANDLE;
 
     // Graph-coloring CSR buffers — device-local, MAX_CONSTRAINTS / MAX_PARTICLES × uint32
-    VkBuffer       m_constraintColorBuffer      = VK_NULL_HANDLE;
-    VkDeviceMemory m_constraintColorMem         = VK_NULL_HANDLE;
+    VkBuffer       m_bodyColorBuffer            = VK_NULL_HANDLE;
+    VkDeviceMemory m_bodyColorMem               = VK_NULL_HANDLE;
     VkBuffer       m_bodyConstraintCountBuffer  = VK_NULL_HANDLE;
     VkDeviceMemory m_bodyConstraintCountMem     = VK_NULL_HANDLE;
     VkBuffer       m_bodyConstraintOffsetBuffer = VK_NULL_HANDLE;
@@ -292,13 +306,16 @@ private:
     Vulkan::ComputePipeline m_solverIntegratePass;
     Vulkan::ComputePipeline m_solverNarrowphasePass;
     Vulkan::ComputePipeline m_solverVoxelPass;
-    Vulkan::ComputePipeline m_solverJacobiPass;
+    Vulkan::ComputePipeline m_solverDualPass;
+    Vulkan::ComputePipeline m_solverPrimalPass;
     Vulkan::ComputePipeline m_solverSyncOutPass;
+    Vulkan::ComputePipeline m_solverWarmstartSavePass;
+    Vulkan::ComputePipeline m_solverHardContactPass;
     Vulkan::ComputePipeline m_csrClearPass;
     Vulkan::ComputePipeline m_csrCountPass;
     Vulkan::ComputePipeline m_prefixSumPass;
     Vulkan::ComputePipeline m_csrScatterPass;
-    Vulkan::ComputePipeline m_graphColorPass;
+    Vulkan::ComputePipeline m_bodyColorPass;
 
     // ---- CPU-side state ----
     struct SlotInfo {

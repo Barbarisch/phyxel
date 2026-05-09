@@ -1,0 +1,188 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "particle_types.glsl"
+#include "solver_types.glsl"
+
+// =====================================================================
+// Hard-contact safety pass: post-solve positional projection of dynamic
+// bodies out of the static voxel occupancy grid.
+//
+// AVBD is a soft-contact solver; under heavy stacking pressure the
+// position-correction chain can break and bottom-layer bodies may end
+// up overlapping the static floor / terrain. This pass acts as a final
+// non-physical clamp:
+//   - For each dynamic body, find the deepest static-voxel penetration
+//   - Push body.pos out along that normal (positional, no impulse)
+//   - Zero the velocity component into the surface so they don't immediately
+//     re-penetrate next frame
+//
+// Pure positional, single-pass. Cost is negligible: one thread per body,
+// each thread samples ~3-4 cells (the body AABB). This handles arbitrary
+// terrain geometry because it consults the same occupancy SSBO that
+// solver_voxel.comp uses for normal contact.
+// =====================================================================
+
+layout(local_size_x = WORKGROUP_SOLVER) in;
+
+layout(std430, set=0, binding=0) buffer SolverBodyBuffer { SolverBody bodies[]; };
+layout(std430, set=0, binding=1) readonly buffer OccupancyBuffer { uint occupancy[]; };
+
+layout(push_constant) uniform PC {
+    uint  count;
+    float pad0;
+    float pad1;
+    float pad2;
+} pc;
+
+// Must match solver_voxel.comp.
+const int OCC_X        = 512;
+const int OCC_Y        = 256;
+const int OCC_Z        = 512;
+const int OCC_HALF_X   = 256;
+const int OCC_Y_OFFSET = 64;
+const int OCC_HALF_Z   = 256;
+
+bool isOccupied(int wx, int wy, int wz) {
+    int lx = wx + OCC_HALF_X;
+    int ly = wy + OCC_Y_OFFSET;
+    int lz = wz + OCC_HALF_Z;
+    if (lx < 0 || lx >= OCC_X || ly < 0 || ly >= OCC_Y || lz < 0 || lz >= OCC_Z) return false;
+    int  lin  = lx + ly * OCC_X + lz * OCC_X * OCC_Y;
+    uint word = uint(lin) >> 5u;
+    uint bit  = uint(lin) & 31u;
+    return (occupancy[word] & (1u << bit)) != 0u;
+}
+
+vec3 quatRotateLocal(vec4 q, vec3 v) {
+    vec3 u = q.xyz;
+    float s = q.w;
+    return 2.0 * dot(u, v) * u + (s * s - dot(u, u)) * v + 2.0 * s * cross(u, v);
+}
+
+float sgnH(float x) { return (x >= 0.0) ? 1.0 : -1.0; }
+
+float projOBB(vec3 ax0, vec3 ax1, vec3 ax2, vec3 h, vec3 n) {
+    return abs(dot(ax0, n)) * h.x
+         + abs(dot(ax1, n)) * h.y
+         + abs(dot(ax2, n)) * h.z;
+}
+
+// OBB-vs-unit-AABB SAT. Returns deepest separation as MTV (normal pointing
+// from voxel toward OBB so positive correction pushes the body out).
+bool obbVsVoxelMTV(vec3 pos, vec3 ax0, vec3 ax1, vec3 ax2, vec3 h,
+                   vec3 voxCenter, out vec3 outNormal, out float outPen)
+{
+    vec3 d = pos - voxCenter;
+    const vec3 voxH = vec3(0.5);
+    float bestPen = 1e30;
+    vec3  bestN   = vec3(0.0, 1.0, 0.0);
+
+    // OBB face axes (3)
+    vec3 obbAx[3]; obbAx[0]=ax0; obbAx[1]=ax1; obbAx[2]=ax2;
+    for (int k = 0; k < 3; ++k) {
+        vec3 n = obbAx[k];
+        float pOBB = h[k];
+        float pVox = abs(n.x)*voxH.x + abs(n.y)*voxH.y + abs(n.z)*voxH.z;
+        float dist = abs(dot(d, n));
+        float pen  = pOBB + pVox - dist;
+        if (pen < 0.0) return false;
+        if (pen < bestPen) { bestPen = pen; bestN = n * sgnH(dot(d, n)); }
+    }
+    // Voxel face axes (world X/Y/Z)
+    vec3 worldAx[3]; worldAx[0]=vec3(1,0,0); worldAx[1]=vec3(0,1,0); worldAx[2]=vec3(0,0,1);
+    for (int k = 0; k < 3; ++k) {
+        vec3 n = worldAx[k];
+        float pOBB = projOBB(ax0, ax1, ax2, h, n);
+        float pVox = 0.5;
+        float dist = abs(dot(d, n));
+        float pen  = pOBB + pVox - dist;
+        if (pen < 0.0) return false;
+        if (pen < bestPen) { bestPen = pen; bestN = n * sgnH(dot(d, n)); }
+    }
+    // Edge cross axes (9) — required for full SAT correctness.
+    for (int a = 0; a < 3; ++a) {
+        for (int b = 0; b < 3; ++b) {
+            vec3 n = cross(obbAx[a], worldAx[b]);
+            float l2 = dot(n, n);
+            if (l2 < 1e-8) continue;
+            n = n * inversesqrt(l2);
+            float pOBB = projOBB(ax0, ax1, ax2, h, n);
+            float pVox = abs(n.x)*voxH.x + abs(n.y)*voxH.y + abs(n.z)*voxH.z;
+            float dist = abs(dot(d, n));
+            float pen  = pOBB + pVox - dist;
+            if (pen < 0.0) return false;
+            if (pen < bestPen) { bestPen = pen; bestN = n * sgnH(dot(d, n)); }
+        }
+    }
+    outNormal = bestN;
+    outPen    = bestPen;
+    return true;
+}
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= pc.count) return;
+
+    SolverBody b = bodies[i];
+    if (b.invMass <= 0.0) return;     // skip static bodies
+
+    // World OBB axes from quaternion.
+    vec3 ax0 = quatRotateLocal(b.quat, vec3(1, 0, 0));
+    vec3 ax1 = quatRotateLocal(b.quat, vec3(0, 1, 0));
+    vec3 ax2 = quatRotateLocal(b.quat, vec3(0, 0, 1));
+    vec3 h   = b.halfExt;
+
+    // World-space OBB AABB.
+    vec3 ext = vec3(projOBB(ax0, ax1, ax2, h, vec3(1,0,0)),
+                    projOBB(ax0, ax1, ax2, h, vec3(0,1,0)),
+                    projOBB(ax0, ax1, ax2, h, vec3(0,0,1)));
+    vec3 mn = b.pos - ext;
+    vec3 mx = b.pos + ext;
+
+    // Iterate integer voxel cells in AABB. Cell (vx,vy,vz) has center (vx+0.5, vy+0.5, vz+0.5).
+    int vx0 = int(floor(mn.x));
+    int vy0 = int(floor(mn.y));
+    int vz0 = int(floor(mn.z));
+    int vx1 = int(floor(mx.x));
+    int vy1 = int(floor(mx.y));
+    int vz1 = int(floor(mx.z));
+
+    // Safety clamp on iteration extent to keep cost bounded if a body has
+    // been blown up to a huge scale somehow.
+    const int MAX_RANGE = 6;
+    if (vx1 - vx0 > MAX_RANGE) vx1 = vx0 + MAX_RANGE;
+    if (vy1 - vy0 > MAX_RANGE) vy1 = vy0 + MAX_RANGE;
+    if (vz1 - vz0 > MAX_RANGE) vz1 = vz0 + MAX_RANGE;
+
+    float bestPen = 0.0;
+    vec3  bestN   = vec3(0.0);
+
+    for (int vz = vz0; vz <= vz1; ++vz) {
+        for (int vy = vy0; vy <= vy1; ++vy) {
+            for (int vx = vx0; vx <= vx1; ++vx) {
+                if (!isOccupied(vx, vy, vz)) continue;
+                vec3 c = vec3(float(vx) + 0.5, float(vy) + 0.5, float(vz) + 0.5);
+                vec3 n; float pen;
+                if (!obbVsVoxelMTV(b.pos, ax0, ax1, ax2, h, c, n, pen)) continue;
+                if (pen > bestPen) { bestPen = pen; bestN = n; }
+            }
+        }
+    }
+
+    // Apply MTV with a small skin so we don't sit exactly on the boundary.
+    if (bestPen > 1e-5) {
+        const float SKIN = 1e-3;
+        b.pos += bestN * (bestPen + SKIN);
+        // Kill velocity into the surface (positional projection preserves
+        // tangential motion / sliding).
+        float vn = dot(b.vel, bestN);
+        if (vn < 0.0) b.vel -= bestN * vn;
+        // Damp angular velocity slightly to prevent micro-spin from a
+        // suddenly-clamped body.
+        b.angVel *= 0.5;
+
+        bodies[i].pos    = b.pos;
+        bodies[i].vel    = b.vel;
+        bodies[i].angVel = b.angVel;
+    }
+}

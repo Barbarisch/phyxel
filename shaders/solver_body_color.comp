@@ -1,0 +1,61 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "solver_types.glsl"
+
+// Jones-Plassmann graph coloring on the BODY adjacency graph.
+// Two bodies are adjacent if they share at least one constraint.
+// Same-color bodies have no shared constraints → safe for parallel primal updates.
+// Run 16 rounds; nearly all bodies will be colored after round 3-4 in practice.
+
+layout(local_size_x = WORKGROUP_SOLVER) in;
+
+layout(std430, set=0, binding=0) readonly buffer ConstraintBuffer    { GPUConstraint constraints[]; };
+layout(std430, set=0, binding=1) readonly buffer SolverStateBuffer   { uint solverState[]; };
+layout(std430, set=0, binding=2) buffer BodyColor                    { uint bodyColor[]; };
+layout(std430, set=0, binding=3) readonly buffer CountBuffer         { uint bodyConstraintCount[]; };
+layout(std430, set=0, binding=4) readonly buffer OffsetBuffer        { uint bodyConstraintOffset[]; };
+layout(std430, set=0, binding=5) readonly buffer ListBuffer          { uint bodyConstraintList[]; };
+
+layout(push_constant) uniform PC { uint bodyCount; } pc;
+
+uint hashPriority(uint x) {
+    x = x ^ (x >> 16u);
+    x *= 0x45d9f3bu;
+    x = x ^ (x >> 16u);
+    return x;
+}
+
+void main() {
+    uint bi = gl_GlobalInvocationID.x;
+    if (bi >= pc.bodyCount) return;
+    if (bodyColor[bi] != UNCOLORED) return;
+
+    uint constraintCount = solverState[SS_CONSTRAINT_COUNT];
+    uint myPri  = hashPriority(bi);
+    uint start  = bodyConstraintOffset[bi];
+    uint end    = start + bodyConstraintCount[bi];
+
+    // Defer if any uncolored neighbor body has higher priority
+    for (uint s = start; s < end; s++) {
+        uint ci = bodyConstraintList[s];
+        if (ci >= constraintCount) continue;
+        GPUConstraint con = constraints[ci];
+        uint other = (con.bodyA == bi) ? con.bodyB : con.bodyA;
+        if (other == SOLVER_STATIC) continue;
+        if (bodyColor[other] == UNCOLORED && hashPriority(other) > myPri) return;
+    }
+
+    // Find lowest color not used by any neighbor
+    uint usedColors = 0u;
+    for (uint s = start; s < end; s++) {
+        uint ci = bodyConstraintList[s];
+        if (ci >= constraintCount) continue;
+        GPUConstraint con = constraints[ci];
+        uint other = (con.bodyA == bi) ? con.bodyB : con.bodyA;
+        if (other == SOLVER_STATIC) continue;
+        uint nc = bodyColor[other];
+        if (nc < MAX_COLORS) usedColors |= (1u << nc);
+    }
+
+    bodyColor[bi] = uint(findLSB(~usedColors));
+}

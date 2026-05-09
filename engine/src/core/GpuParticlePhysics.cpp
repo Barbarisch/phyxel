@@ -545,25 +545,30 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
 // ============================================================
 
 bool GpuParticlePhysics::createSolverBuffers(Vulkan::VulkanDevice* dev) {
-    // SolverBody: 128 bytes per particle
+    // SolverBody: 208 bytes per particle (AVBD primal solver fields)
     dev->createStorageBuffer(
-        static_cast<VkDeviceSize>(MAX_PARTICLES) * 128,
+        static_cast<VkDeviceSize>(MAX_PARTICLES) * 208,
         m_solverBodyBuffer, m_solverBodyMem);
 
-    // Constraints: 80 bytes each
+    // Constraints: 128 bytes each (AVBD + warmstart fields: featureKey, wsKey, isNew, stick, C_init_t1/2)
     dev->createStorageBuffer(
-        static_cast<VkDeviceSize>(MAX_CONSTRAINTS) * 80,
+        static_cast<VkDeviceSize>(MAX_CONSTRAINTS) * 128,
         m_constraintBuffer, m_constraintMem);
 
-    // Solver state: 4 uints (SS_CONSTRAINT_COUNT, ...)
+    // Solver state: counters (HASH_BASE uints) + open-addressed hash table (HASH_CAP uints).
     dev->createStorageBuffer(
-        static_cast<VkDeviceSize>(4) * sizeof(uint32_t),
+        static_cast<VkDeviceSize>(SOLVER_STATE_UINTS) * sizeof(uint32_t),
         m_solverStateBuffer, m_solverStateMem);
 
-    // Graph-coloring CSR buffers
+    // Warmstart entries: HASH_CAP × 64 bytes. Indexed by hashInsert(wsKey).
     dev->createStorageBuffer(
-        static_cast<VkDeviceSize>(MAX_CONSTRAINTS) * sizeof(uint32_t),
-        m_constraintColorBuffer, m_constraintColorMem);
+        static_cast<VkDeviceSize>(HASH_CAP) * 64,
+        m_warmstartBuffer, m_warmstartMem);
+
+    // Body color buffer (one uint per body for Jones-Plassmann coloring)
+    dev->createStorageBuffer(
+        static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t),
+        m_bodyColorBuffer, m_bodyColorMem);
 
     dev->createStorageBuffer(
         static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t),
@@ -583,8 +588,10 @@ bool GpuParticlePhysics::createSolverBuffers(Vulkan::VulkanDevice* dev) {
         m_bodyConstraintListBuffer, m_bodyConstraintListMem);
 
     LOG_INFO_FMT("GpuParticlePhysics", "Solver buffers: "
-        << "solverBody=" << (MAX_PARTICLES*128/1024) << "KB"
-        << " constraints=" << (MAX_CONSTRAINTS*80/1024) << "KB"
+        << "solverBody=" << (MAX_PARTICLES*208/1024) << "KB"
+        << " constraints=" << (MAX_CONSTRAINTS*128/1024) << "KB"
+        << " warmstart="   << (HASH_CAP*64/1024) << "KB"
+        << " solverState=" << (SOLVER_STATE_UINTS*4/1024) << "KB"
         << " csrList=" << (MAX_CONSTRAINTS*2*4/1024) << "KB");
     return true;
 }
@@ -598,26 +605,29 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
         return Core::AssetManager::instance().resolveShader(name);
     };
 
-    struct SyncInPC    { uint32_t count; float dt; };
-    struct IntegratePC { uint32_t count; float dt; float gravity; float pad; };
-    struct NpPC        { uint32_t count; uint32_t maxConstraints; float p0; float p1; };
-    struct JacobiPC    { uint32_t maxConstraints; float dt; uint32_t targetColor; float pad; };
-    struct SyncOutPC   { uint32_t count; float dt; float lifetimeDt; float pad; };
-    struct CsrClearPC  { uint32_t bodyCount; uint32_t maxConstraints; };
-    struct CsrCountPC  { uint32_t maxConstraints; };
-    struct PrefixSumPC { uint32_t bodyCount; };
-    struct GraphColorPC{ uint32_t maxConstraints; };
+    struct SyncInPC      { uint32_t count; float dt; };
+    struct IntegratePC   { uint32_t count; float dt; float gravity; float pad; };
+    struct NpPC          { uint32_t count; uint32_t maxConstraints; float p0; float p1; };
+    struct DualPC        { uint32_t maxConstraints; float dt; uint32_t pad0; float pad1; };
+    struct PrimalPC      { uint32_t bodyCount; float dt; uint32_t targetColor; float pad; };
+    struct SyncOutPC     { uint32_t count; float dt; float lifetimeDt; float pad; };
+    struct WarmstartSavePC { uint32_t maxConstraints; };
+    struct HardContactPC { uint32_t count; float pad0; float pad1; float pad2; };
+    struct CsrClearPC    { uint32_t bodyCount; uint32_t maxConstraints; };
+    struct CsrCountPC    { uint32_t maxConstraints; };
+    struct PrefixSumPC   { uint32_t bodyCount; };
+    struct BodyColorPC   { uint32_t bodyCount; };
 
     uint32_t     matCount       = static_cast<uint32_t>(Core::MaterialRegistry::instance().getMaterialCount());
     VkDeviceSize particleSize   = static_cast<VkDeviceSize>(MAX_PARTICLES)   * sizeof(GpuParticle);
-    VkDeviceSize bodySize       = static_cast<VkDeviceSize>(MAX_PARTICLES)   * 128;
-    VkDeviceSize constrSize     = static_cast<VkDeviceSize>(MAX_CONSTRAINTS) * 80;
-    VkDeviceSize stateSize      = static_cast<VkDeviceSize>(4)               * sizeof(uint32_t);
+    VkDeviceSize bodySize       = static_cast<VkDeviceSize>(MAX_PARTICLES)   * 208;
+    VkDeviceSize constrSize     = static_cast<VkDeviceSize>(MAX_CONSTRAINTS) * 128;
+    VkDeviceSize stateSize      = static_cast<VkDeviceSize>(SOLVER_STATE_UINTS) * sizeof(uint32_t);
+    VkDeviceSize warmstartSize  = static_cast<VkDeviceSize>(HASH_CAP)        * 64;
     VkDeviceSize matPhysSize    = static_cast<VkDeviceSize>(matCount)        * sizeof(MaterialPhysicsGpu);
     VkDeviceSize occSize        = static_cast<VkDeviceSize>(OCC_TOTAL_WORDS) * sizeof(uint32_t);
     VkDeviceSize gridCellSize   = static_cast<VkDeviceSize>(GRID_CELLS)      * sizeof(uint32_t);
     VkDeviceSize sortedIdxSize  = static_cast<VkDeviceSize>(MAX_PARTICLES)   * sizeof(uint32_t);
-    VkDeviceSize colorSize      = static_cast<VkDeviceSize>(MAX_CONSTRAINTS) * sizeof(uint32_t);
     VkDeviceSize bodyUintSize   = static_cast<VkDeviceSize>(MAX_PARTICLES)   * sizeof(uint32_t);
     VkDeviceSize adjListSize    = static_cast<VkDeviceSize>(MAX_CONSTRAINTS) * 2 * sizeof(uint32_t);
 
@@ -636,31 +646,43 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     m_solverIntegratePass.bindBuffer(2, m_particleBuffer,     particleSize);
     m_solverIntegratePass.updateDescriptors();
 
-    // solver_narrowphase: bodies, constraints, state, gridCount, gridOffset, sortedIndices
-    if (!m_solverNarrowphasePass.create(m_device, shader("solver_narrowphase.comp.spv"), 6, sizeof(NpPC))) return false;
+    // solver_narrowphase: bodies, constraints, state, gridCount, gridOffset, sortedIndices, warmstarts
+    if (!m_solverNarrowphasePass.create(m_device, shader("solver_narrowphase.comp.spv"), 7, sizeof(NpPC))) return false;
     m_solverNarrowphasePass.bindBuffer(0, m_solverBodyBuffer,    bodySize);
     m_solverNarrowphasePass.bindBuffer(1, m_constraintBuffer,    constrSize);
     m_solverNarrowphasePass.bindBuffer(2, m_solverStateBuffer,   stateSize);
     m_solverNarrowphasePass.bindBuffer(3, m_gridCellCountBuffer, gridCellSize);
     m_solverNarrowphasePass.bindBuffer(4, m_gridCellOffsetBuffer,gridCellSize);
     m_solverNarrowphasePass.bindBuffer(5, m_sortedIndexBuffer,   sortedIdxSize);
+    m_solverNarrowphasePass.bindBuffer(6, m_warmstartBuffer,     warmstartSize);
     m_solverNarrowphasePass.updateDescriptors();
 
-    // solver_voxel: bodies, constraints, state, occupancy
-    if (!m_solverVoxelPass.create(m_device, shader("solver_voxel.comp.spv"), 4, sizeof(NpPC))) return false;
+    // solver_voxel: bodies, constraints, state, occupancy, warmstarts
+    if (!m_solverVoxelPass.create(m_device, shader("solver_voxel.comp.spv"), 5, sizeof(NpPC))) return false;
     m_solverVoxelPass.bindBuffer(0, m_solverBodyBuffer,  bodySize);
     m_solverVoxelPass.bindBuffer(1, m_constraintBuffer,  constrSize);
     m_solverVoxelPass.bindBuffer(2, m_solverStateBuffer, stateSize);
     m_solverVoxelPass.bindBuffer(3, m_occupancyBuffer,   occSize);
+    m_solverVoxelPass.bindBuffer(4, m_warmstartBuffer,   warmstartSize);
     m_solverVoxelPass.updateDescriptors();
 
-    // solver_jacobi: bodies(rw), constraints(rw), state(ro), constraintColor(ro)
-    if (!m_solverJacobiPass.create(m_device, shader("solver_jacobi.comp.spv"), 4, sizeof(JacobiPC))) return false;
-    m_solverJacobiPass.bindBuffer(0, m_solverBodyBuffer,     bodySize);
-    m_solverJacobiPass.bindBuffer(1, m_constraintBuffer,     constrSize);
-    m_solverJacobiPass.bindBuffer(2, m_solverStateBuffer,    stateSize);
-    m_solverJacobiPass.bindBuffer(3, m_constraintColorBuffer,colorSize);
-    m_solverJacobiPass.updateDescriptors();
+    // solver_dual: bodies(ro), constraints(rw), state(ro)
+    if (!m_solverDualPass.create(m_device, shader("solver_dual.comp.spv"), 3, sizeof(DualPC))) return false;
+    m_solverDualPass.bindBuffer(0, m_solverBodyBuffer,  bodySize);
+    m_solverDualPass.bindBuffer(1, m_constraintBuffer,  constrSize);
+    m_solverDualPass.bindBuffer(2, m_solverStateBuffer, stateSize);
+    m_solverDualPass.updateDescriptors();
+
+    // solver_primal: bodies(rw), constraints(ro), state(ro), bodyColor(ro), count(ro), offset(ro), list(ro)
+    if (!m_solverPrimalPass.create(m_device, shader("solver_primal.comp.spv"), 7, sizeof(PrimalPC))) return false;
+    m_solverPrimalPass.bindBuffer(0, m_solverBodyBuffer,            bodySize);
+    m_solverPrimalPass.bindBuffer(1, m_constraintBuffer,            constrSize);
+    m_solverPrimalPass.bindBuffer(2, m_solverStateBuffer,           stateSize);
+    m_solverPrimalPass.bindBuffer(3, m_bodyColorBuffer,             bodyUintSize);
+    m_solverPrimalPass.bindBuffer(4, m_bodyConstraintCountBuffer,   bodyUintSize);
+    m_solverPrimalPass.bindBuffer(5, m_bodyConstraintOffsetBuffer,  bodyUintSize);
+    m_solverPrimalPass.bindBuffer(6, m_bodyConstraintListBuffer,    adjListSize);
+    m_solverPrimalPass.updateDescriptors();
 
     // solver_sync_out: bodies, particles
     if (!m_solverSyncOutPass.create(m_device, shader("solver_sync_out.comp.spv"), 2, sizeof(SyncOutPC))) return false;
@@ -668,10 +690,25 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     m_solverSyncOutPass.bindBuffer(1, m_particleBuffer,   particleSize);
     m_solverSyncOutPass.updateDescriptors();
 
-    // solver_csr_clear: bodyConstraintCount(rw), constraintColor(rw)
+    // solver_warmstart_save: constraints(ro), warmstarts(rw), state(rw)
+    if (!m_solverWarmstartSavePass.create(m_device, shader("solver_warmstart_save.comp.spv"), 3, sizeof(WarmstartSavePC))) return false;
+    m_solverWarmstartSavePass.bindBuffer(0, m_constraintBuffer,  constrSize);
+    m_solverWarmstartSavePass.bindBuffer(1, m_warmstartBuffer,   warmstartSize);
+    m_solverWarmstartSavePass.bindBuffer(2, m_solverStateBuffer, stateSize);
+    m_solverWarmstartSavePass.updateDescriptors();
+
+    // solver_hardcontact: bodies(rw), occupancy(ro)
+    // Final positional safety pass — projects dynamic bodies out of static
+    // voxel terrain in case AVBD couldn't fully resolve under heavy stacking.
+    if (!m_solverHardContactPass.create(m_device, shader("solver_hardcontact.comp.spv"), 2, sizeof(HardContactPC))) return false;
+    m_solverHardContactPass.bindBuffer(0, m_solverBodyBuffer, bodySize);
+    m_solverHardContactPass.bindBuffer(1, m_occupancyBuffer,  occSize);
+    m_solverHardContactPass.updateDescriptors();
+
+    // solver_csr_clear: bodyConstraintCount(rw), bodyColor(rw)
     if (!m_csrClearPass.create(m_device, shader("solver_csr_clear.comp.spv"), 2, sizeof(CsrClearPC))) return false;
     m_csrClearPass.bindBuffer(0, m_bodyConstraintCountBuffer, bodyUintSize);
-    m_csrClearPass.bindBuffer(1, m_constraintColorBuffer,     colorSize);
+    m_csrClearPass.bindBuffer(1, m_bodyColorBuffer,           bodyUintSize);
     m_csrClearPass.updateDescriptors();
 
     // solver_csr_count: constraints(ro), state(ro), bodyConstraintCount(rw)
@@ -696,15 +733,15 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     m_csrScatterPass.bindBuffer(3, m_bodyConstraintListBuffer,  adjListSize);
     m_csrScatterPass.updateDescriptors();
 
-    // solver_graph_color: constraints(ro), state(ro), color(rw), count(ro), offset(ro), list(ro)
-    if (!m_graphColorPass.create(m_device, shader("solver_graph_color.comp.spv"), 6, sizeof(GraphColorPC))) return false;
-    m_graphColorPass.bindBuffer(0, m_constraintBuffer,          constrSize);
-    m_graphColorPass.bindBuffer(1, m_solverStateBuffer,         stateSize);
-    m_graphColorPass.bindBuffer(2, m_constraintColorBuffer,     colorSize);
-    m_graphColorPass.bindBuffer(3, m_bodyConstraintCountBuffer, bodyUintSize);
-    m_graphColorPass.bindBuffer(4, m_bodyConstraintOffsetBuffer,bodyUintSize);
-    m_graphColorPass.bindBuffer(5, m_bodyConstraintListBuffer,  adjListSize);
-    m_graphColorPass.updateDescriptors();
+    // solver_body_color: constraints(ro), state(ro), bodyColor(rw), count(ro), offset(ro), list(ro)
+    if (!m_bodyColorPass.create(m_device, shader("solver_body_color.comp.spv"), 6, sizeof(BodyColorPC))) return false;
+    m_bodyColorPass.bindBuffer(0, m_constraintBuffer,          constrSize);
+    m_bodyColorPass.bindBuffer(1, m_solverStateBuffer,         stateSize);
+    m_bodyColorPass.bindBuffer(2, m_bodyColorBuffer,           bodyUintSize);
+    m_bodyColorPass.bindBuffer(3, m_bodyConstraintCountBuffer, bodyUintSize);
+    m_bodyColorPass.bindBuffer(4, m_bodyConstraintOffsetBuffer,bodyUintSize);
+    m_bodyColorPass.bindBuffer(5, m_bodyConstraintListBuffer,  adjListSize);
+    m_bodyColorPass.updateDescriptors();
 
     return true;
 }
@@ -724,22 +761,38 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
             buf);
     };
 
-    struct SyncInPC    { uint32_t count; float dt; };
-    struct IntegratePC { uint32_t count; float dt; float gravity; float pad; };
-    struct NpPC        { uint32_t count; uint32_t maxConstraints; float p0; float p1; };
-    struct JacobiPC    { uint32_t maxConstraints; float dt; uint32_t targetColor; float pad; };
-    struct SyncOutPC   { uint32_t count; float dt; float lifetimeDt; float pad; };
-    struct GridClearPC { uint32_t cellCount; };
-    struct GridBuildPC { uint32_t count; };
-    struct SortScanPC  { uint32_t cellCount; };
+    struct SyncInPC      { uint32_t count; float dt; };
+    struct IntegratePC   { uint32_t count; float dt; float gravity; float pad; };
+    struct NpPC          { uint32_t count; uint32_t maxConstraints; float p0; float p1; };
+    struct DualPC        { uint32_t maxConstraints; float dt; uint32_t pad0; float pad1; };
+    struct PrimalPC      { uint32_t bodyCount; float dt; uint32_t targetColor; float pad; };
+    struct SyncOutPC     { uint32_t count; float dt; float lifetimeDt; float pad; };
+    struct WarmstartSavePC { uint32_t maxConstraints; };
+    struct HardContactPC { uint32_t count; float pad0; float pad1; float pad2; };
+    struct GridClearPC   { uint32_t cellCount; };
+    struct GridBuildPC   { uint32_t count; };
+    struct SortScanPC    { uint32_t cellCount; };
     struct SortScatterPC { uint32_t count; };
-    struct CsrClearPC  { uint32_t bodyCount; uint32_t maxConstraints; };
-    struct CsrCountPC  { uint32_t maxConstraints; };
-    struct PrefixSumPC { uint32_t bodyCount; };
-    struct GraphColorPC{ uint32_t maxConstraints; };
+    struct CsrClearPC    { uint32_t bodyCount; uint32_t maxConstraints; };
+    struct CsrCountPC    { uint32_t maxConstraints; };
+    struct PrefixSumPC   { uint32_t bodyCount; };
+    struct BodyColorPC   { uint32_t bodyCount; };
 
-    // Reset solver state (constraint count = 0) via fill before any compute reads it
-    vkCmdFillBuffer(cmd, m_solverStateBuffer, 0, VK_WHOLE_SIZE, 0u);
+    // Reset solver counters (first HASH_BASE uints) to 0 every frame so constraint counts,
+    // warmstart hit/miss counters, etc. start fresh.
+    vkCmdFillBuffer(cmd, m_solverStateBuffer, 0,
+                    static_cast<VkDeviceSize>(HASH_BASE) * sizeof(uint32_t), 0u);
+    // Initialize the warmstart hash table to HASH_EMPTY (0xFFFFFFFF) ONLY ONCE. It must
+    // persist across frames so AVBD multipliers/penalties carry over — Shallot semantics.
+    // Clearing per-frame here was the cause of slow gravitational sinking: λ never had a
+    // chance to accumulate from frame to frame, so contacts kept restarting from cold.
+    if (!m_hashInitialized) {
+        vkCmdFillBuffer(cmd, m_solverStateBuffer,
+                        static_cast<VkDeviceSize>(HASH_BASE) * sizeof(uint32_t),
+                        static_cast<VkDeviceSize>(HASH_CAP) * sizeof(uint32_t),
+                        0xFFFFFFFFu);
+        m_hashInitialized = true;
+    }
     insertBarrier(cmd,
         VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
@@ -831,7 +884,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
         m_csrClearPass.dispatch(cmd, maxConstrGrps); // covers both arrays (MAX_CONSTRAINTS > count)
     }
     ssBarrier(m_bodyConstraintCountBuffer);
-    ssBarrier(m_constraintColorBuffer);
+    ssBarrier(m_bodyColorBuffer);
 
     // 5b. Count how many constraints each body participates in
     {
@@ -861,33 +914,54 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     }
     ssBarrier(m_bodyConstraintListBuffer);
 
-    // ---- 6. Graph coloring: Jones-Plassmann, 16 passes ----
-    // Each pass assigns colors to newly eligible constraints (those whose higher-priority
-    // uncolored neighbors have already been colored). 16 passes is sufficient for any
-    // sparse constraint graph encountered in practice.
+    // ---- 6. Body graph coloring: Jones-Plassmann, 16 passes ----
+    // Colors BODIES: two bodies are adjacent if they share a constraint.
+    // Same-color bodies have no shared constraints → safe for parallel primal writes.
     {
-        GraphColorPC pc{ MAX_CONSTRAINTS };
+        BodyColorPC pc{ count };
         for (int gc = 0; gc < 16; ++gc) {
-            m_graphColorPass.bind(cmd);
-            m_graphColorPass.pushConstants(cmd, &pc, sizeof(pc));
-            m_graphColorPass.dispatch(cmd, maxConstrGrps);
-            ssBarrier(m_constraintColorBuffer);
+            m_bodyColorPass.bind(cmd);
+            m_bodyColorPass.pushConstants(cmd, &pc, sizeof(pc));
+            m_bodyColorPass.dispatch(cmd, groups);
+            ssBarrier(m_bodyColorBuffer);
         }
     }
 
-    // ---- 7. Solve: sequential per-color Jacobi (Gauss-Seidel convergence) ----
-    // Within each color, no two constraints share a body → direct body writes are race-free.
-    // Colors run sequentially with barriers → each color sees previous colors' updates,
-    // giving Gauss-Seidel-like convergence instead of Jacobi overcorrection.
+    // ---- 7. AVBD dual+primal solve loop ----
+    // solveDual: per-constraint, updates lambda and grows penalty (fully parallel, no body writes)
+    // solvePrimal: per-body, assembles 6×6 block system and solves via LDL; one color per pass
     for (int iter = 0; iter < SOLVE_ITERATIONS; ++iter) {
+        // Dual: update all constraint lambdas/penalties
+        {
+            DualPC pc{ MAX_CONSTRAINTS, FIXED_DT, 0u, 0.0f };
+            m_solverDualPass.bind(cmd);
+            m_solverDualPass.pushConstants(cmd, &pc, sizeof(pc));
+            m_solverDualPass.dispatch(cmd, maxConstrGrps);
+        }
+        ssBarrier(m_constraintBuffer);
+
+        // Primal: solve per body, one color at a time
         for (uint32_t color = 0; color < MAX_COLORS; ++color) {
-            JacobiPC pc{ MAX_CONSTRAINTS, FIXED_DT, color, 0.0f };
-            m_solverJacobiPass.bind(cmd);
-            m_solverJacobiPass.pushConstants(cmd, &pc, sizeof(pc));
-            m_solverJacobiPass.dispatch(cmd, maxConstrGrps);
+            PrimalPC pc{ count, FIXED_DT, color, 0.0f };
+            m_solverPrimalPass.bind(cmd);
+            m_solverPrimalPass.pushConstants(cmd, &pc, sizeof(pc));
+            m_solverPrimalPass.dispatch(cmd, groups);
             ssBarrier(m_solverBodyBuffer);
         }
     }
+
+    // ---- 7b. Hard-contact safety pass ----
+    // Pure positional projection of dynamic bodies out of any remaining
+    // static-voxel overlap left by the AVBD solver. Acts only when AVBD
+    // failed to fully resolve (e.g. deep stacks). Per body, samples the
+    // static occupancy grid in the body AABB and pushes out along MTV.
+    {
+        HardContactPC pc{ count, 0.0f, 0.0f, 0.0f };
+        m_solverHardContactPass.bind(cmd);
+        m_solverHardContactPass.pushConstants(cmd, &pc, sizeof(pc));
+        m_solverHardContactPass.dispatch(cmd, groups);
+    }
+    ssBarrier(m_solverBodyBuffer);
 
     // ---- 8. Sync out: SolverBody → GpuParticle ----
     {
@@ -897,6 +971,17 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
         m_solverSyncOutPass.dispatch(cmd, groups);
     }
     ssBarrier(m_particleBuffer);
+
+    // ---- 9. Warmstart save: scatter final lambda/penalty/stick into hash table ----
+    // Must run AFTER the dual+primal converge so that the persisted values are post-solve.
+    {
+        WarmstartSavePC pc{ MAX_CONSTRAINTS };
+        m_solverWarmstartSavePass.bind(cmd);
+        m_solverWarmstartSavePass.pushConstants(cmd, &pc, sizeof(pc));
+        m_solverWarmstartSavePass.dispatch(cmd, maxConstrGrps);
+    }
+    ssBarrier(m_warmstartBuffer);
+    ssBarrier(m_solverStateBuffer);
 }
 
 // ============================================================
@@ -1405,13 +1490,16 @@ void GpuParticlePhysics::cleanup() {
     m_solverIntegratePass.cleanup();
     m_solverNarrowphasePass.cleanup();
     m_solverVoxelPass.cleanup();
-    m_solverJacobiPass.cleanup();
+    m_solverDualPass.cleanup();
+    m_solverPrimalPass.cleanup();
     m_solverSyncOutPass.cleanup();
+    m_solverWarmstartSavePass.cleanup();
+    m_solverHardContactPass.cleanup();
     m_csrClearPass.cleanup();
     m_csrCountPass.cleanup();
     m_prefixSumPass.cleanup();
     m_csrScatterPass.cleanup();
-    m_graphColorPass.cleanup();
+    m_bodyColorPass.cleanup();
 
     auto destroyBuf = [&](VkBuffer& buf, VkDeviceMemory& mem) {
         if (buf  != VK_NULL_HANDLE) { vkDestroyBuffer(m_device, buf, nullptr);  buf = VK_NULL_HANDLE; }
@@ -1441,7 +1529,8 @@ void GpuParticlePhysics::cleanup() {
     destroyBuf(m_solverBodyBuffer,          m_solverBodyMem);
     destroyBuf(m_constraintBuffer,          m_constraintMem);
     destroyBuf(m_solverStateBuffer,         m_solverStateMem);
-    destroyBuf(m_constraintColorBuffer,     m_constraintColorMem);
+    destroyBuf(m_warmstartBuffer,           m_warmstartMem);
+    destroyBuf(m_bodyColorBuffer,           m_bodyColorMem);
     destroyBuf(m_bodyConstraintCountBuffer, m_bodyConstraintCountMem);
     destroyBuf(m_bodyConstraintOffsetBuffer,m_bodyConstraintOffsetMem);
     destroyBuf(m_bodyConstraintCursorBuffer,m_bodyConstraintCursorMem);

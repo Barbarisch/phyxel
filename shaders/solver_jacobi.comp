@@ -52,44 +52,71 @@ void main() {
     vec3 vA_contact = a.vel + cross(a.angVel, rA);
     vec3 vB_contact = b.vel + cross(b.angVel, rB);
     vec3 vRel       = vA_contact - vB_contact;
+    float vRelN     = dot(vRel, n);
 
-    // ---- Normal impulse ----
-    float vRelN = dot(vRel, n);
-    float e = min(a.restitution, bStatic ? 0.0 : b.restitution);
-    if (vRelN > -0.5) e = 0.0;
+    // ---- AVBD normal constraint ----
+    // Alpha-blend: only try to correct (1-ALPHA) of the initial penetration this step.
+    // At rest C_n ≈ 0 → no force, no oscillation. Deep penetrations accumulate penalty
+    // over iterations until the stiffness is sufficient to resolve them.
+    float C_n = max(0.0, con.depth - ALPHA * con.C_init_n);
 
-    float bias = BAUMGARTE * max(0.0, con.depth - SLOP) / pc.dt;
+    // Penalty grows proportional to remaining violation (starts at PENALTY_MIN).
+    float pen_n = min(con.penalty_n + BETA * C_n, PENALTY_MAX);
+    constraints[ci].penalty_n = pen_n;
 
     float effMassN = effectiveMass(a.invMass, a.invInertia, rA, n)
                    + (bStatic ? 0.0 : effectiveMass(b.invMass, b.invInertia, rB, n));
 
+    // Restitution: only for significant impacts (speed > 0.5 m/s) — suppressed at rest.
+    float e = min(a.restitution, bStatic ? 0.0 : b.restitution);
+    if (vRelN > -0.5) e = 0.0;
+
+    // Penalty spring impulse with augmented effective mass (Shallot primal analogue).
+    // Derivation: Shallot solves (M/dt² + pen)*Δq = pen*C, giving Δv = pen*C/(M/dt + pen*dt).
+    // As impulse (J = M*Δv): J_pen = pen*C*dt / (1 + pen*dt²*effMassN).
+    // This caps the correction at ~C_n/(dt*effMassN) regardless of penalty magnitude,
+    // so deep initial overlaps can't eject bodies at infinite speed.
     float jN = 0.0;
-    if (effMassN > 1e-10)
-        jN = -(vRelN * (1.0 + e) - bias) / effMassN;
+    if (effMassN > 1e-10) {
+        float J_vel = -(vRelN * (1.0 + e)) / effMassN;
+        float J_pen = (pen_n * C_n * pc.dt) / (1.0 + pen_n * pc.dt * pc.dt * effMassN);
+        jN = J_vel + J_pen;
+    }
 
     float newLambdaN = max(con.lambdaN + jN, 0.0);
     float dLambdaN   = newLambdaN - con.lambdaN;
     constraints[ci].lambdaN = newLambdaN;
 
-    // ---- Friction impulses ----
-    float maxFric = con.mu * newLambdaN;
+    // ---- Friction impulses with stick detection ----
+    float maxFric  = con.mu * newLambdaN;
+    float vRelT1   = dot(vRel, t1);
+    float vRelT2   = dot(vRel, t2);
+    float tangSpdSq = vRelT1 * vRelT1 + vRelT2 * vRelT2;
 
-    float effMassF1 = effectiveMass(a.invMass, a.invInertia, rA, t1)
-                    + (bStatic ? 0.0 : effectiveMass(b.invMass, b.invInertia, rB, t1));
-    float jF1 = (effMassF1 > 1e-10) ? -dot(vRel, t1) / effMassF1 : 0.0;
-    float newLF1 = clamp(con.lambdaF1 + jF1, -maxFric, maxFric);
-    float dLF1   = newLF1 - con.lambdaF1;
-    constraints[ci].lambdaF1 = newLF1;
+    float dLF1 = 0.0;
+    float dLF2 = 0.0;
 
-    float effMassF2 = effectiveMass(a.invMass, a.invInertia, rA, t2)
-                    + (bStatic ? 0.0 : effectiveMass(b.invMass, b.invInertia, rB, t2));
-    float jF2 = (effMassF2 > 1e-10) ? -dot(vRel, t2) / effMassF2 : 0.0;
-    float newLF2 = clamp(con.lambdaF2 + jF2, -maxFric, maxFric);
-    float dLF2   = newLF2 - con.lambdaF2;
-    constraints[ci].lambdaF2 = newLF2;
+    // Stick detection: tangential speed below threshold → skip friction impulse.
+    // Prevents micro-velocity friction chains that cause popcorn in dense piles.
+    if (tangSpdSq > STICK_THRESH * STICK_THRESH) {
+        float effMassF1 = effectiveMass(a.invMass, a.invInertia, rA, t1)
+                        + (bStatic ? 0.0 : effectiveMass(b.invMass, b.invInertia, rB, t1));
+        float effMassF2 = effectiveMass(a.invMass, a.invInertia, rA, t2)
+                        + (bStatic ? 0.0 : effectiveMass(b.invMass, b.invInertia, rB, t2));
 
-    // ---- Apply directly to bodies (safe: graph coloring guarantees no shared body in this color) ----
-    vec3 impulse = dLambdaN*n + dLF1*t1 + dLF2*t2;
+        float jF1 = (effMassF1 > 1e-10) ? -vRelT1 / effMassF1 : 0.0;
+        float jF2 = (effMassF2 > 1e-10) ? -vRelT2 / effMassF2 : 0.0;
+
+        float newLF1 = clamp(con.lambdaF1 + jF1, -maxFric, maxFric);
+        float newLF2 = clamp(con.lambdaF2 + jF2, -maxFric, maxFric);
+        dLF1 = newLF1 - con.lambdaF1;
+        dLF2 = newLF2 - con.lambdaF2;
+        constraints[ci].lambdaF1 = newLF1;
+        constraints[ci].lambdaF2 = newLF2;
+    }
+
+    // ---- Apply impulses directly to bodies (race-free within this color) ----
+    vec3 impulse = dLambdaN * n + dLF1 * t1 + dLF2 * t2;
 
     bodies[con.bodyA].vel    = a.vel    + a.invMass    * impulse;
     bodies[con.bodyA].angVel = a.angVel + a.invInertia * cross(rA, impulse);

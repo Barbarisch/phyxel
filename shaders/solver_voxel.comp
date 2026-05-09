@@ -9,6 +9,7 @@ layout(std430, set=0, binding=0) buffer SolverBodyBuffer  { SolverBody bodies[];
 layout(std430, set=0, binding=1) buffer ConstraintBuffer  { GPUConstraint constraints[]; };
 layout(std430, set=0, binding=2) buffer SolverStateBuffer { uint solverState[]; };
 layout(std430, set=0, binding=3) readonly buffer OccupancyBuffer { uint occupancy[]; };
+layout(std430, set=0, binding=4) readonly buffer WarmstartBuffer { WarmstartEntry warmstarts[]; };
 
 layout(push_constant) uniform PC {
     uint  count;
@@ -140,12 +141,18 @@ void main() {
     int y0 = int(floor(pos.y - wy));  int y1 = int(floor(pos.y + wy));
     int z0 = int(floor(pos.z - wz));  int z1 = int(floor(pos.z + wz));
 
-    // Track single deepest contact across all voxels.
-    // Emitting one constraint per body eliminates Jacobi over-correction (N simultaneous
-    // contacts with the same normal would sum N× the needed impulse, adding energy).
-    float bestPen    = 0.0;
-    vec3  bestNormal = vec3(0, 1, 0);
-    vec3  bestRa     = vec3(0);
+    // Collect up to MAX_VOXEL_CONTACTS contacts per body. AVBD primal LDL correctly
+    // handles multiple simultaneous contacts (the 6x6 system aggregates penalty terms);
+    // emitting only one contact causes resting boxes to perpetually rotate/slide
+    // between corner contacts, producing severe vibration ("popcorn").
+    const int MAX_VOXEL_CONTACTS = 4;
+    vec3  cN[MAX_VOXEL_CONTACTS];
+    float cP[MAX_VOXEL_CONTACTS];
+    vec3  cR[MAX_VOXEL_CONTACTS];
+    ivec3 cV[MAX_VOXEL_CONTACTS];
+    int   cCount = 0;
+    int   shallowIdx = 0;
+    float shallowPen = 1e30;
 
     for (int vz = z0; vz <= z1; vz++) {
     for (int vy = y0; vy <= y1; vy++) {
@@ -161,34 +168,113 @@ void main() {
         pen += COLLISION_MARGIN;
         if (pen <= 0.0) continue;
 
-        if (pen > bestPen) {
-            bestPen    = pen;
-            bestNormal = normal;
-            bestRa     = obbSupport(pos, ax0, ax1, ax2, h, -normal) - pos;
+        // Contact point: voxel face center on the side facing the OBB.
+        // Distinct rA per voxel = essential for stable resting on a flat surface.
+        vec3 contactWorld = voxCenter + normal * 0.5;
+        vec3 rA_w         = contactWorld - pos;
+
+        if (cCount < MAX_VOXEL_CONTACTS) {
+            cN[cCount] = normal; cP[cCount] = pen; cR[cCount] = rA_w; cV[cCount] = ivec3(vx, vy, vz);
+            if (pen < shallowPen) { shallowPen = pen; shallowIdx = cCount; }
+            cCount++;
+        } else if (pen > shallowPen) {
+            cN[shallowIdx] = normal; cP[shallowIdx] = pen; cR[shallowIdx] = rA_w; cV[shallowIdx] = ivec3(vx, vy, vz);
+            // Recompute shallowest
+            shallowPen = cP[0]; shallowIdx = 0;
+            for (int k = 1; k < MAX_VOXEL_CONTACTS; k++) {
+                if (cP[k] < shallowPen) { shallowPen = cP[k]; shallowIdx = k; }
+            }
         }
     }}}
 
-    if (bestPen <= 0.0) return;
+    if (cCount == 0) return;
 
-    uint slot = atomicAdd(solverState[SS_CONSTRAINT_COUNT], 1u);
-    if (slot >= pc.maxConstraints) return;
+    // Emit each accumulated contact as a separate constraint (each with its own warmstart slot).
+    for (int k = 0; k < cCount; k++) {
+        vec3  normal = cN[k];
+        float pen    = cP[k];
+        vec3  rA_w   = cR[k];
+        ivec3 vox    = cV[k];
 
-    vec3 t1, t2;
-    tangentBasis(bestNormal, t1, t2);
+        // Identify the picked voxel face: axis with largest |normal component|.
+        int   axisIdx = (abs(normal.x) > abs(normal.y))
+                      ? ((abs(normal.x) > abs(normal.z)) ? 0 : 2)
+                      : ((abs(normal.y) > abs(normal.z)) ? 1 : 2);
+        float sgnN  = (axisIdx == 0) ? normal.x : (axisIdx == 1 ? normal.y : normal.z);
+        uint  faceIdx = uint(axisIdx) * 2u + ((sgnN >= 0.0) ? 0u : 1u);
 
-    GPUConstraint c;
-    c.n        = bestNormal;
-    c.depth    = bestPen;
-    c.rA       = bestRa;
-    c.lambdaN  = 0.0;
-    c.rB       = vec3(0);
-    c.lambdaF1 = 0.0;
-    c.t1       = t1;
-    c.lambdaF2 = 0.0;
-    c.bodyA    = i;
-    c.bodyB    = SOLVER_STATIC;
-    c.mu       = bA.friction;
-    c.color    = UNCOLORED;
+        uint voxHash = (uint(vox.x + 2048) & 0xFFFu)
+                     | ((uint(vox.y + 2048) & 0xFFFu) << 12)
+                     | ((uint(vox.z + 2048) & 0xFFu)  << 24);
+        uint wsKey      = packKey(i, voxHash, faceIdx);
+        uint featureKey = faceIdx;
 
-    constraints[slot] = c;
+        // ---- Warmstart lookup (cold-fallback default if absent) ----
+        WarmstartEntry ws;
+        ws.lambdaN=0.0; ws.penaltyN=PENALTY_MIN;
+        ws.lambdaF1=0.0; ws.penaltyF1=PENALTY_MIN;
+        ws.lambdaF2=0.0; ws.penaltyF2=PENALTY_MIN;
+        ws.stick=0u; ws.featureKey=FEATURE_KEY_NONE;
+        ws.rA=vec3(0); ws.pad0=0.0; ws.rB=vec3(0); ws.pad1=0.0;
+        {
+            uint slot0 = hashKey(wsKey) & HASH_MASK;
+            for (uint p = 0u; p < MAX_PROBE; p++) {
+                uint idx    = (slot0 + p) & HASH_MASK;
+                uint stored = solverState[HASH_BASE + idx];
+                if (stored == HASH_EMPTY) break;
+                if (stored == wsKey) {
+                    WarmstartEntry e = warmstarts[idx];
+                    if (e.featureKey == featureKey && featureKey != FEATURE_KEY_NONE) {
+                        if (isNanOrInf(e.lambdaN) || isNanOrInf(e.penaltyN) ||
+                            isNanOrInf(e.lambdaF1) || isNanOrInf(e.penaltyF1) ||
+                            isNanOrInf(e.lambdaF2) || isNanOrInf(e.penaltyF2)) {
+                            atomicAdd(solverState[SS_WARMSTART_NAN], 1u);
+                        } else {
+                            if (e.penaltyN > PENALTY_MIN) atomicAdd(solverState[SS_WARMSTART_LOADED], 1u);
+                            atomicAdd(solverState[SS_WARMSTART_HITS], 1u);
+                            ws = e;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        uint slot = atomicAdd(solverState[SS_CONSTRAINT_COUNT], 1u);
+        if (slot >= pc.maxConstraints) return;
+
+        vec3 t1, t2;
+        tangentBasis(normal, t1, t2);
+
+        // Store body-A arm in LOCAL space; bodyB is static so rB unused.
+        vec3 rA_local = quatRotate(quatInv(quat), rA_w);
+
+        GPUConstraint c;
+        c.n          = normal;
+        c.depth      = pen;
+        c.rA         = rA_local;
+        c.lambdaN    = ws.lambdaN  * ALPHA;
+        c.rB         = vec3(0);
+        c.lambdaF1   = ws.lambdaF1 * ALPHA;
+        c.t1         = t1;
+        c.lambdaF2   = ws.lambdaF2 * ALPHA;
+        c.bodyA      = i;
+        c.bodyB      = SOLVER_STATIC;
+        c.mu         = bA.friction;
+        c.color      = UNCOLORED;
+        c.penalty_n  = clamp(ws.penaltyN  * GAMMA, PENALTY_MIN, PENALTY_MAX);
+        c.C_init_n   = pen;
+        c.penalty_t1 = clamp(ws.penaltyF1 * GAMMA, PENALTY_MIN, PENALTY_MAX);
+        c.penalty_t2 = clamp(ws.penaltyF2 * GAMMA, PENALTY_MIN, PENALTY_MAX);
+        c.featureKey = featureKey;
+        c.wsKey      = wsKey;
+        c.isNew      = (ws.featureKey == FEATURE_KEY_NONE) ? 1u : 0u;
+        c.stick      = ws.stick;
+        c.C_init_t1  = 0.0;
+        c.C_init_t2  = 0.0;
+        c.pad0       = 0.0;
+        c.pad1       = 0.0;
+
+        constraints[slot] = c;
+    }
 }

@@ -1,0 +1,117 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "particle_types.glsl"
+#include "solver_types.glsl"
+
+// solveDual: per-constraint lambda and penalty update.
+// Reads current body positions (pos, initial, cumAng) to compute linearized constraint violation C.
+// Updates lambda and penalty — no body writes, fully parallel over all constraints.
+//
+// Sign convention (Shallot gap-based):
+//   gap C_n = -(1-ALPHA)*depth + J*delta_q
+//   C_n < 0 = penetrating (constraint violated)
+//   lambda_n = min(pen * C_n, 0) <= 0  (repulsive contact force)
+
+layout(local_size_x = WORKGROUP_SOLVER) in;
+
+layout(std430, set=0, binding=0) readonly buffer SolverBodyBuffer { SolverBody bodies[]; };
+layout(std430, set=0, binding=1) buffer ConstraintBuffer          { GPUConstraint constraints[]; };
+layout(std430, set=0, binding=2) readonly buffer StateBuffer      { uint solverState[]; };
+
+layout(push_constant) uniform PC {
+    uint  maxConstraints;
+    float dt;
+    uint  pad0;
+    float pad1;
+} pc;
+
+void main() {
+    uint ci = gl_GlobalInvocationID.x;
+    uint constraintCount = solverState[SS_CONSTRAINT_COUNT];
+    if (ci >= constraintCount || ci >= pc.maxConstraints) return;
+
+    GPUConstraint con = constraints[ci];
+
+    SolverBody bA = bodies[con.bodyA];
+    if ((bA.flags & PARTICLE_ACTIVE) == 0u) return;
+
+    bool bStatic = (con.bodyB == SOLVER_STATIC);
+    vec3 dqBLin = vec3(0.0);
+    vec3 dqBAng = vec3(0.0);
+    if (!bStatic) {
+        SolverBody bB = bodies[con.bodyB];
+        dqBLin = bB.pos - bB.initial;
+        dqBAng = bB.cumAng;
+    }
+
+    vec3 dqALin = bA.pos - bA.initial;
+    vec3 dqAAng = bA.cumAng;
+
+    vec3 n  = con.n;
+    vec3 t1 = con.t1;
+    vec3 t2 = cross(n, t1);
+    // con.rA / con.rB are body-local; rotate by current quat to get world-space arm.
+    vec3 rAW = quatRotate(bA.quat, con.rA);
+    vec3 rBW = vec3(0.0);
+    if (!bStatic) {
+        rBW = quatRotate(bodies[con.bodyB].quat, con.rB);
+    }
+
+    float oneMinusAlpha = 1.0 - ALPHA;
+
+    // Linearized constraint violations (gap convention: negative = penetrating)
+    // C_n starts at -(1-alpha)*depth (negative for penetrating contacts)
+    float C_n = -(oneMinusAlpha * con.C_init_n)
+               + dot(n, dqALin - dqBLin)
+               + dot(cross(rAW,  n), dqAAng)
+               + dot(cross(rBW, -n), dqBAng);
+
+    float C_t1 = dot(t1, dqALin - dqBLin)
+               + dot(cross(rAW,  t1), dqAAng)
+               + dot(cross(rBW, -t1), dqBAng);
+
+    float C_t2 = dot(t2, dqALin - dqBLin)
+               + dot(cross(rAW,  t2), dqAAng)
+               + dot(cross(rBW, -t2), dqBAng);
+
+    // AVBD augmented Lagrangian: f = K*C + lambda_prev (NOT just K*C - that's pure penalty).
+    // The +lambda term is what lets the multiplier accumulate across iterations and frames
+    // (via warmstart) until f exactly cancels gravity impulse → object rests on floor.
+    // Without it, with high alpha (small residual), object sinks slowly through floor.
+    // Normal: lambda <= 0 (contact can only push, fmax=0)
+    float new_lambda_n = min(con.penalty_n * C_n + con.lambdaN, 0.0);
+    // Grow penalty when constraint is active (C_n < 0 = penetrating)
+    float new_pen_n = con.penalty_n;
+    if (new_lambda_n < 0.0) {
+        new_pen_n = min(con.penalty_n + BETA * abs(C_n), PENALTY_MAX);
+    }
+
+    // Friction: bounded by |lambda_n| * mu (isotropic cone clamping). Same +lambda accumulation.
+    float bound = abs(new_lambda_n) * con.mu;
+    float f_t1 = con.penalty_t1 * C_t1 + con.lambdaF1;
+    float f_t2 = con.penalty_t2 * C_t2 + con.lambdaF2;
+    float fScale = sqrt(f_t1*f_t1 + f_t2*f_t2);
+    if (fScale > bound && fScale > 0.0) {
+        float ratio = bound / fScale;
+        f_t1 *= ratio;
+        f_t2 *= ratio;
+    }
+    // Grow friction penalty when in stick regime (inside cone)
+    float new_pen_t1 = con.penalty_t1;
+    float new_pen_t2 = con.penalty_t2;
+    if (fScale <= bound) {
+        if (abs(C_t1) > STICK_THRESH)
+            new_pen_t1 = min(con.penalty_t1 + BETA * abs(C_t1), PENALTY_MAX);
+        if (abs(C_t2) > STICK_THRESH)
+            new_pen_t2 = min(con.penalty_t2 + BETA * abs(C_t2), PENALTY_MAX);
+    }
+
+    con.penalty_n  = new_pen_n;
+    con.lambdaN    = new_lambda_n;
+    con.penalty_t1 = new_pen_t1;
+    con.penalty_t2 = new_pen_t2;
+    con.lambdaF1   = f_t1;
+    con.lambdaF2   = f_t2;
+    con.stick      = (fScale <= bound) ? 1u : 0u;
+    constraints[ci] = con;
+}

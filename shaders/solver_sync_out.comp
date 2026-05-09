@@ -19,10 +19,10 @@ void main() {
     uint i = gl_GlobalInvocationID.x;
     if (i >= pc.count) return;
 
-    SolverBody b = bodies[i];
+    SolverBody  b = bodies[i];
     GpuParticle p = particles[i];
 
-    // Lifetime drain (real elapsed time, not physics dt)
+    // Lifetime drain
     p.lifetime -= pc.lifetimeDt;
     if (p.lifetime <= 0.0) {
         p.flags &= ~PARTICLE_ACTIVE;
@@ -35,29 +35,19 @@ void main() {
         return;
     }
 
-    // Zero sub-threshold micro-velocities to prevent Baumgarte-gravity oscillation at rest.
-    // Threshold 4e-4 = |vel| < 0.02 m/s; catches Baumgarte bias (BAUMGARTE*slop_excess*60)
-    // without freezing legitimately moving bodies (typical impact velocities >> 0.1 m/s).
-    if (dot(b.vel,    b.vel)    < 4e-4)  b.vel    = vec3(0.0);
-    if (dot(b.angVel, b.angVel) < 4e-4)  b.angVel = vec3(0.0);
+    // Derive velocity from solved position change (AVBD / Shallot convention)
+    vec3 solvedVel    = (b.pos - b.initial) / pc.dt;
+    // Derive angular velocity from quaternion change
+    vec4 dqFinal      = quatMul(b.quat, quatInv(b.initialQuat));
+    vec3 solvedAngVel = 2.0 * dqFinal.xyz / pc.dt;
 
-    // Write solved position back
-    p.position     = b.pos;
-    // Encode velocity as prevPosition (XPBD convention: vel = pos - prevPos)
-    p.prevPosition = b.pos - b.vel * pc.dt;
-
-    // Integrate quaternion from angular velocity
-    vec3 w = b.angVel * pc.dt * 0.5;
-    vec4 q = b.quat;
-    vec4 dq;
-    dq.x =  w.x*q.w + w.y*q.z - w.z*q.y;
-    dq.y = -w.x*q.z + w.y*q.w + w.z*q.x;
-    dq.z =  w.x*q.y - w.y*q.x + w.z*q.w;
-    dq.w = -w.x*q.x - w.y*q.y - w.z*q.z;
-    p.rotation = normalize(q + dq);
-
-    p.angularVel = b.angVel;
-    p.flags      = b.flags;
+    // Write back solved state
+    p.position    = b.pos;
+    // XPBD prevPosition encodes velocity: vel = (pos - prevPos) / dt
+    p.prevPosition = b.initial;  // initial = position at frame start
+    p.rotation    = b.quat;
+    p.angularVel  = solvedAngVel;
+    p.flags       = b.flags;
 
     // Increment spawn age (saturates at 255)
     uint age = (p.flags >> SPAWN_AGE_SHIFT) & 0xFFu;

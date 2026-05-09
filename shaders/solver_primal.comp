@@ -1,0 +1,270 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "particle_types.glsl"
+#include "solver_types.glsl"
+
+// solvePrimal: per-body 6-DOF position update (Shallot AVBD primal solve).
+// For each body of the target color: assembles a 6×6 block system
+//   (M/dt² + Σ pen·JᵀJ) · Δq = -(M/dt² · (pos-inertial) + Σ J^T·F)
+// and solves via LDL factorization. Directly updates pos, quat, cumAng.
+// Bodies of the same color share no constraints → race-free parallel writes.
+
+layout(local_size_x = WORKGROUP_SOLVER) in;
+
+layout(std430, set=0, binding=0) buffer SolverBodyBuffer         { SolverBody bodies[]; };
+layout(std430, set=0, binding=1) readonly buffer ConstraintBuffer{ GPUConstraint constraints[]; };
+layout(std430, set=0, binding=2) readonly buffer StateBuffer     { uint solverState[]; };
+layout(std430, set=0, binding=3) readonly buffer BodyColorBuffer { uint bodyColor[]; };
+layout(std430, set=0, binding=4) readonly buffer CountBuffer     { uint bodyConstraintCount[]; };
+layout(std430, set=0, binding=5) readonly buffer OffsetBuffer    { uint bodyConstraintOffset[]; };
+layout(std430, set=0, binding=6) readonly buffer ListBuffer      { uint bodyConstraintList[]; };
+
+layout(push_constant) uniform PC {
+    uint  bodyCount;
+    float dt;
+    uint  targetColor;
+    float pad;
+} pc;
+
+// LDL factorization solve for 6×6 lower-triangular symmetric system.
+// a[r*6+c] (r>=c) stores lower triangle + diagonal (row-major storage).
+void solve6(in float a[36], in float b[6], out float x[6]) {
+    float D0 = max(a[0],  1e-20);
+    float L10 = a[6]  / D0;
+    float L20 = a[12] / D0;
+    float L30 = a[18] / D0;
+    float L40 = a[24] / D0;
+    float L50 = a[30] / D0;
+
+    float D1  = max(a[7]  - L10*L10*D0, 1e-20);
+    float L21 = (a[13] - L20*L10*D0) / D1;
+    float L31 = (a[19] - L30*L10*D0) / D1;
+    float L41 = (a[25] - L40*L10*D0) / D1;
+    float L51 = (a[31] - L50*L10*D0) / D1;
+
+    float D2  = max(a[14] - (L20*L20*D0 + L21*L21*D1), 1e-20);
+    float L32 = (a[20] - L30*L20*D0 - L31*L21*D1) / D2;
+    float L42 = (a[26] - L40*L20*D0 - L41*L21*D1) / D2;
+    float L52 = (a[32] - L50*L20*D0 - L51*L21*D1) / D2;
+
+    float D3  = max(a[21] - (L30*L30*D0 + L31*L31*D1 + L32*L32*D2), 1e-20);
+    float L43 = (a[27] - L40*L30*D0 - L41*L31*D1 - L42*L32*D2) / D3;
+    float L53 = (a[33] - L50*L30*D0 - L51*L31*D1 - L52*L32*D2) / D3;
+
+    float D4  = max(a[28] - (L40*L40*D0 + L41*L41*D1 + L42*L42*D2 + L43*L43*D3), 1e-20);
+    float L54 = (a[34] - L50*L40*D0 - L51*L41*D1 - L52*L42*D2 - L53*L43*D3) / D4;
+
+    float D5  = max(a[35] - (L50*L50*D0 + L51*L51*D1 + L52*L52*D2 + L53*L53*D3 + L54*L54*D4), 1e-20);
+
+    float y[6];
+    y[0] = b[0];
+    y[1] = b[1] - L10*y[0];
+    y[2] = b[2] - L20*y[0] - L21*y[1];
+    y[3] = b[3] - L30*y[0] - L31*y[1] - L32*y[2];
+    y[4] = b[4] - L40*y[0] - L41*y[1] - L42*y[2] - L43*y[3];
+    y[5] = b[5] - L50*y[0] - L51*y[1] - L52*y[2] - L53*y[3] - L54*y[4];
+
+    y[0] /= D0; y[1] /= D1; y[2] /= D2;
+    y[3] /= D3; y[4] /= D4; y[5] /= D5;
+
+    x[5] = y[5];
+    x[4] = y[4] - L54*x[5];
+    x[3] = y[3] - L43*x[4] - L53*x[5];
+    x[2] = y[2] - L32*x[3] - L42*x[4] - L52*x[5];
+    x[1] = y[1] - L21*x[2] - L31*x[3] - L41*x[4] - L51*x[5];
+    x[0] = y[0] - L10*x[1] - L20*x[2] - L30*x[3] - L40*x[4] - L50*x[5];
+}
+
+// Accumulate one constraint's contribution to the 6×6 system.
+// K  = vec3(pen_n, pen_t1, pen_t2) — penalty stiffnesses
+// F  = vec3(f_n, f_t1, f_t2)       — constraint forces (f_n <= 0 for contact in gap convention)
+// J_*_lin = linear Jacobian vectors (for this body's DOFs)
+// J_*_ang = angular Jacobian vectors
+void accumulate(inout float lhs[36], inout float rhs[6],
+                vec3 J_n, vec3 rxn,
+                vec3 J_t1, vec3 rxt1,
+                vec3 J_t2, vec3 rxt2,
+                vec3 F, vec3 K)
+{
+    vec3 jLT0 = vec3(J_n.x,  J_t1.x, J_t2.x);
+    vec3 jLT1 = vec3(J_n.y,  J_t1.y, J_t2.y);
+    vec3 jLT2 = vec3(J_n.z,  J_t1.z, J_t2.z);
+    vec3 jAT0 = vec3(rxn.x,  rxt1.x, rxt2.x);
+    vec3 jAT1 = vec3(rxn.y,  rxt1.y, rxt2.y);
+    vec3 jAT2 = vec3(rxn.z,  rxt1.z, rxt2.z);
+
+    vec3 jLTK0 = jLT0 * K,  jLTK1 = jLT1 * K,  jLTK2 = jLT2 * K;
+    vec3 jATK0 = jAT0 * K,  jATK1 = jAT1 * K,  jATK2 = jAT2 * K;
+
+    // LHS linear-linear block (lower triangle)
+    lhs[0]  += dot(jLTK0, jLT0);
+    lhs[6]  += dot(jLTK1, jLT0);
+    lhs[7]  += dot(jLTK1, jLT1);
+    lhs[12] += dot(jLTK2, jLT0);
+    lhs[13] += dot(jLTK2, jLT1);
+    lhs[14] += dot(jLTK2, jLT2);
+
+    // LHS angular-angular block
+    lhs[21] += dot(jATK0, jAT0);
+    lhs[27] += dot(jATK1, jAT0);
+    lhs[28] += dot(jATK1, jAT1);
+    lhs[33] += dot(jATK2, jAT0);
+    lhs[34] += dot(jATK2, jAT1);
+    lhs[35] += dot(jATK2, jAT2);
+
+    // LHS linear-angular cross (lower-left: rows 3-5, cols 0-2)
+    lhs[18] += dot(jATK0, jLT0);
+    lhs[19] += dot(jATK0, jLT1);
+    lhs[20] += dot(jATK0, jLT2);
+    lhs[24] += dot(jATK1, jLT0);
+    lhs[25] += dot(jATK1, jLT1);
+    lhs[26] += dot(jATK1, jLT2);
+    lhs[30] += dot(jATK2, jLT0);
+    lhs[31] += dot(jATK2, jLT1);
+    lhs[32] += dot(jATK2, jLT2);
+
+    // RHS: J^T · F
+    rhs[0] += dot(jLT0, F);
+    rhs[1] += dot(jLT1, F);
+    rhs[2] += dot(jLT2, F);
+    rhs[3] += dot(jAT0, F);
+    rhs[4] += dot(jAT1, F);
+    rhs[5] += dot(jAT2, F);
+}
+
+void main() {
+    uint bi = gl_GlobalInvocationID.x;
+    if (bi >= pc.bodyCount) return;
+    if (bodyColor[bi] != pc.targetColor) return;
+
+    SolverBody b = bodies[bi];
+    if ((b.flags & PARTICLE_ACTIVE) == 0u || b.invMass == 0.0) return;
+
+    float dt  = pc.dt;
+    float dt2 = dt * dt;
+
+    float mdt2 = 1.0 / (b.invMass * dt2);   // mass / dt²
+    float Idt2 = 1.0 / (b.invInertia * dt2); // inertia / dt² (scalar sphere approx)
+
+    // ---- Assemble 6×6 system ----
+    float lhs[36];
+    for (int k = 0; k < 36; k++) lhs[k] = 0.0;
+    lhs[0]  = mdt2; lhs[7]  = mdt2; lhs[14] = mdt2;  // linear inertia
+    lhs[21] = Idt2; lhs[28] = Idt2; lhs[35] = Idt2;  // angular inertia
+
+    float rhs[6];
+    // Inertial restoring force: pull body back toward inertial position
+    vec3 dp = b.pos - b.inertial;
+    rhs[0] = mdt2 * dp.x;
+    rhs[1] = mdt2 * dp.y;
+    rhs[2] = mdt2 * dp.z;
+
+    // Angular restoring force: pull body back toward inertial orientation
+    vec4 dq = quatMul(b.quat, quatInv(b.inertialQuat));
+    vec3 angDisp2 = 2.0 * dq.xyz;
+    rhs[3] = Idt2 * angDisp2.x;
+    rhs[4] = Idt2 * angDisp2.y;
+    rhs[5] = Idt2 * angDisp2.z;
+
+    uint constraintCount = solverState[SS_CONSTRAINT_COUNT];
+    uint start = bodyConstraintOffset[bi];
+    uint end   = start + bodyConstraintCount[bi];
+    float oneMinusAlpha = 1.0 - ALPHA;
+
+    vec3 myDqLin = b.pos - b.initial;
+    vec3 myDqAng = b.cumAng;
+
+    for (uint s = start; s < end; s++) {
+        uint ci = bodyConstraintList[s];
+        if (ci >= constraintCount) continue;
+
+        GPUConstraint con = constraints[ci];
+        bool bIsA   = (con.bodyA == bi);
+        bool bStatic = (con.bodyB == SOLVER_STATIC);
+
+        // The OTHER body's displacement (to compute C)
+        vec3 dqOLin = vec3(0.0), dqOAng = vec3(0.0);
+        if (!bStatic) {
+            uint other = bIsA ? con.bodyB : con.bodyA;
+            SolverBody bO = bodies[other];
+            dqOLin = bO.pos - bO.initial;
+            dqOAng = bO.cumAng;
+        }
+
+        vec3 dqALin = bIsA ? myDqLin : dqOLin;
+        vec3 dqAAng = bIsA ? myDqAng : dqOAng;
+        vec3 dqBLin = bIsA ? dqOLin  : myDqLin;
+        vec3 dqBAng = bIsA ? dqOAng  : myDqAng;
+
+        vec3 n  = con.n;
+        vec3 t1 = con.t1;
+        vec3 t2 = cross(n, t1);
+        // con.rA / con.rB are body-local; rotate by current quat each iter.
+        vec3 rAW = quatRotate(bodies[con.bodyA].quat, con.rA);
+        vec3 rBW = vec3(0.0);
+        if (!bStatic) {
+            rBW = quatRotate(bodies[con.bodyB].quat, con.rB);
+        }
+
+        // Linearized constraint violations (gap: negative = penetrating)
+        float C_n = -(oneMinusAlpha * con.C_init_n)
+                   + dot(n,  dqALin - dqBLin)
+                   + dot(cross(rAW,  n), dqAAng)
+                   + dot(cross(rBW, -n), dqBAng);
+
+        float C_t1 = dot(t1, dqALin - dqBLin)
+                   + dot(cross(rAW,  t1), dqAAng)
+                   + dot(cross(rBW, -t1), dqBAng);
+
+        float C_t2 = dot(t2, dqALin - dqBLin)
+                   + dot(cross(rAW,  t2), dqAAng)
+                   + dot(cross(rBW, -t2), dqBAng);
+
+        // AVBD augmented Lagrangian: f = K*C + lambda (current multiplier).
+        // Forces in gap convention (f_n <= 0 for active contact).
+        float f_n  = min(con.penalty_n * C_n + con.lambdaN, 0.0);
+        float bound = abs(f_n) * con.mu;
+        float f_t1  = con.penalty_t1 * C_t1 + con.lambdaF1;
+        float f_t2  = con.penalty_t2 * C_t2 + con.lambdaF2;
+        float fScl  = sqrt(f_t1*f_t1 + f_t2*f_t2);
+        if (fScl > bound && fScl > 0.0) {
+            float ratio = bound / fScl;
+            f_t1 *= ratio;
+            f_t2 *= ratio;
+        }
+
+        // Jacobian for THIS body (sign: +1 if bodyA, -1 if bodyB)
+        float sJ   = bIsA ? 1.0 : -1.0;
+        vec3 arm   = bIsA ? rAW : rBW;
+        vec3 J_n_l  = n  * sJ;
+        vec3 J_t1_l = t1 * sJ;
+        vec3 J_t2_l = t2 * sJ;
+        vec3 J_n_a  = cross(arm, J_n_l);
+        vec3 J_t1_a = cross(arm, J_t1_l);
+        vec3 J_t2_a = cross(arm, J_t2_l);
+
+        accumulate(lhs, rhs,
+                   J_n_l, J_n_a,
+                   J_t1_l, J_t1_a,
+                   J_t2_l, J_t2_a,
+                   vec3(f_n, f_t1, f_t2),
+                   vec3(con.penalty_n, con.penalty_t1, con.penalty_t2));
+    }
+
+    // Negate RHS (solve LHS·Δq = -rhs, then Δq = -solve(lhs, rhs))
+    // Equivalently: negate here, solve with solve6 → correct Δq
+    for (int k = 0; k < 6; k++) rhs[k] = -rhs[k];
+
+    float delta[6];
+    solve6(lhs, rhs, delta);
+
+    // Apply position and orientation update
+    vec3 newPos    = b.pos + vec3(delta[0], delta[1], delta[2]);
+    vec3 deltaAng  = vec3(delta[3], delta[4], delta[5]);
+    vec4 newQuat   = quatIntegrate(b.quat, deltaAng);
+    vec3 newCumAng = b.cumAng + deltaAng;
+
+    bodies[bi].pos    = newPos;
+    bodies[bi].quat   = newQuat;
+    bodies[bi].cumAng = newCumAng;
+}

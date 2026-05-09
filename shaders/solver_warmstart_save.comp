@@ -1,0 +1,60 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "particle_types.glsl"
+#include "solver_types.glsl"
+
+// solver_warmstart_save.comp — at end of physics tick, persist final lambda/penalty/stick
+// into the warmstart hash table keyed on each constraint's wsKey. Next frame the
+// narrowphase looks them up to seed `pushConstraint` so contacts converge in 1-2 iters.
+//
+// Bindings:
+//   0: constraints (ro)
+//   1: warmstarts  (rw, sized HASH_CAP entries)
+//   2: solverState (rw, hosts the hash table from HASH_BASE..HASH_BASE+HASH_CAP)
+
+layout(local_size_x = WORKGROUP_SOLVER) in;
+
+layout(std430, set=0, binding=0) readonly buffer ConstraintBuffer { GPUConstraint constraints[]; };
+layout(std430, set=0, binding=1) buffer WarmstartBuffer           { WarmstartEntry warmstarts[]; };
+layout(std430, set=0, binding=2) buffer SolverStateBuffer         { uint solverState[]; };
+
+layout(push_constant) uniform PC { uint maxConstraints; } pc;
+
+uint hashInsert(uint key) {
+    uint slot = hashKey(key) & HASH_MASK;
+    for (uint p = 0u; p < MAX_PROBE; p++) {
+        uint idx = (slot + p) & HASH_MASK;
+        uint old = atomicCompSwap(solverState[HASH_BASE + idx], HASH_EMPTY, key);
+        if (old == HASH_EMPTY || old == key) {
+            return idx;
+        }
+    }
+    return HASH_CAP;  // overflow
+}
+
+void main() {
+    uint ci = gl_GlobalInvocationID.x;
+    uint constraintCount = solverState[SS_CONSTRAINT_COUNT];
+    if (ci >= constraintCount || ci >= pc.maxConstraints) return;
+
+    GPUConstraint con = constraints[ci];
+    if (con.wsKey == HASH_EMPTY) return;
+
+    uint idx = hashInsert(con.wsKey);
+    if (idx >= HASH_CAP) return;
+
+    WarmstartEntry ws;
+    ws.lambdaN    = con.lambdaN;
+    ws.penaltyN   = con.penalty_n;
+    ws.lambdaF1   = con.lambdaF1;
+    ws.penaltyF1  = con.penalty_t1;
+    ws.lambdaF2   = con.lambdaF2;
+    ws.penaltyF2  = con.penalty_t2;
+    ws.stick      = con.stick;
+    ws.featureKey = con.featureKey;
+    ws.rA         = con.rA;
+    ws.pad0       = 0.0;
+    ws.rB         = con.rB;
+    ws.pad1       = 0.0;
+    warmstarts[idx] = ws;
+}

@@ -11,6 +11,7 @@ layout(std430, set=0, binding=2) buffer SolverStateBuffer         { uint solverS
 layout(std430, set=0, binding=3) readonly buffer GridCellCount    { uint gridCellCount[]; };
 layout(std430, set=0, binding=4) readonly buffer GridCellOffset   { uint gridCellOffset[]; };
 layout(std430, set=0, binding=5) readonly buffer SortedIndices    { uint sortedIndices[]; };
+layout(std430, set=0, binding=6) readonly buffer WarmstartBuffer  { WarmstartEntry warmstarts[]; };
 
 layout(push_constant) uniform PC {
     uint  count;
@@ -80,30 +81,84 @@ int clipByPlane(inout vec3 poly[8], int n, vec3 planeN, float planeDist) {
     return outN;
 }
 
-// Emit one constraint (arms in world space → converted to local).
+// Look up a warmstart entry by hash key. Returns a default (cold) entry if missing
+// or if featureKey doesn't match (collision discriminator).
+WarmstartEntry loadWarmstart(uint wsKey, uint featureKey) {
+    WarmstartEntry def;
+    def.lambdaN=0.0; def.penaltyN=PENALTY_MIN;
+    def.lambdaF1=0.0; def.penaltyF1=PENALTY_MIN;
+    def.lambdaF2=0.0; def.penaltyF2=PENALTY_MIN;
+    def.stick=0u; def.featureKey=FEATURE_KEY_NONE;
+    def.rA=vec3(0); def.pad0=0.0; def.rB=vec3(0); def.pad1=0.0;
+
+    uint slot = hashKey(wsKey) & HASH_MASK;
+    for (uint p = 0u; p < MAX_PROBE; p++) {
+        uint idx    = (slot + p) & HASH_MASK;
+        uint stored = solverState[HASH_BASE + idx];
+        if (stored == HASH_EMPTY) return def;
+        if (stored == wsKey) {
+            WarmstartEntry ws = warmstarts[idx];
+            if (ws.featureKey != featureKey || featureKey == FEATURE_KEY_NONE) return def;
+            if (isNanOrInf(ws.lambdaN) || isNanOrInf(ws.penaltyN) ||
+                isNanOrInf(ws.lambdaF1) || isNanOrInf(ws.penaltyF1) ||
+                isNanOrInf(ws.lambdaF2) || isNanOrInf(ws.penaltyF2)) {
+                atomicAdd(solverState[SS_WARMSTART_NAN], 1u);
+                return def;
+            }
+            if (ws.penaltyN > PENALTY_MIN) {
+                atomicAdd(solverState[SS_WARMSTART_LOADED], 1u);
+            }
+            atomicAdd(solverState[SS_WARMSTART_HITS], 1u);
+            return ws;
+        }
+    }
+    return def;
+}
+
+// Emit one constraint with warmstart-seeded penalty/lambda. World-space arms are
+// converted to body-local on store; dual/primal rotate them per iter.
 void emitCon(uint idxA, uint idxB,
              vec3 n, float depth, vec3 rA_w, vec3 rB_w,
-             float mu, vec4 quatA, vec4 quatB)
+             float mu, vec4 quatA, vec4 quatB,
+             uint wsKey, uint featureKey)
 {
     uint slot = atomicAdd(solverState[SS_CONSTRAINT_COUNT], 1u);
     if (slot >= pc.maxConstraints) return;
 
+    WarmstartEntry ws = loadWarmstart(wsKey, featureKey);
+
     vec3 t1, t2;
     tangentBasis(n, t1, t2);
 
+    // Convert world-space arms to body-local. ALPHA-decay carries lambdas, GAMMA decays penalty.
+    vec3 rA_local = quatRotate(quatInv(quatA), rA_w);
+    vec3 rB_local = (idxB == SOLVER_STATIC) ? vec3(0) : quatRotate(quatInv(quatB), rB_w);
+
     GPUConstraint c;
-    c.n        = n;
-    c.depth    = depth;
-    c.rA       = rA_w;    // world-space arm — solver_jacobi uses them directly
-    c.lambdaN  = 0.0;
-    c.rB       = (idxB == SOLVER_STATIC) ? vec3(0) : rB_w;
-    c.lambdaF1 = 0.0;
-    c.t1       = t1;
-    c.lambdaF2 = 0.0;
-    c.bodyA    = idxA;
-    c.bodyB    = idxB;
-    c.mu       = mu;
-    c.color    = UNCOLORED;
+    c.n          = n;
+    c.depth      = depth;
+    c.rA         = rA_local;
+    c.lambdaN    = ws.lambdaN  * ALPHA;
+    c.rB         = rB_local;
+    c.lambdaF1   = ws.lambdaF1 * ALPHA;
+    c.t1         = t1;
+    c.lambdaF2   = ws.lambdaF2 * ALPHA;
+    c.bodyA      = idxA;
+    c.bodyB      = idxB;
+    c.mu         = mu;
+    c.color      = UNCOLORED;
+    c.penalty_n  = clamp(ws.penaltyN  * GAMMA, PENALTY_MIN, PENALTY_MAX);
+    c.C_init_n   = depth;
+    c.penalty_t1 = clamp(ws.penaltyF1 * GAMMA, PENALTY_MIN, PENALTY_MAX);
+    c.penalty_t2 = clamp(ws.penaltyF2 * GAMMA, PENALTY_MIN, PENALTY_MAX);
+    c.featureKey = featureKey;
+    c.wsKey      = wsKey;
+    c.isNew      = (ws.featureKey == FEATURE_KEY_NONE) ? 1u : 0u;
+    c.stick      = ws.stick;
+    c.C_init_t1  = 0.0;
+    c.C_init_t2  = 0.0;
+    c.pad0       = 0.0;
+    c.pad1       = 0.0;
     constraints[slot] = c;
 }
 
@@ -199,14 +254,17 @@ void faceManifold(uint idxA, uint idxB,
         if (polyN == 0) return;
     }
 
-    // --- Reference face plane: find single deepest contact (1 constraint per pair).
-    // Multiple simultaneous contacts on the same body in a Jacobi solver sum their
-    // impulses, producing N× the needed correction → energy addition. One contact
-    // per pair is stable and correct; rotational stability comes from the contact arm.
+    // --- Emit up to MAX_PAIR_CONTACTS deepest points from the clipped polygon.
+    // AVBD primal LDL aggregates simultaneous penalties correctly, so a 4-point manifold
+    // is essential for stable stacking — single-point gives rocking/popcorn between corners.
     float refFaceDist = dot(refV0, refN);
 
-    float bestPen = 0.0;
-    vec3  bestCP  = vec3(0);
+    const int MAX_PAIR_CONTACTS = 4;
+    float pens[MAX_PAIR_CONTACTS];
+    vec3  cps [MAX_PAIR_CONTACTS];
+    int   contactCount = 0;
+    int   shallowestI  = 0;
+    float shallowestP  = 1e30;
 
     for (int p = 0; p < polyN; p++) {
         float d = dot(poly[p], refN) - refFaceDist;
@@ -215,17 +273,34 @@ void faceManifold(uint idxA, uint idxB,
         float pen = depth - d;
         if (pen <= 0.0) continue;
 
-        if (pen > bestPen) { bestPen = pen; bestCP = poly[p]; }
+        if (contactCount < MAX_PAIR_CONTACTS) {
+            pens[contactCount] = pen;
+            cps [contactCount] = poly[p];
+            if (pen < shallowestP) { shallowestP = pen; shallowestI = contactCount; }
+            contactCount++;
+        } else if (pen > shallowestP) {
+            pens[shallowestI] = pen;
+            cps [shallowestI] = poly[p];
+            // Recompute shallowest
+            shallowestP = pens[0]; shallowestI = 0;
+            for (int k = 1; k < MAX_PAIR_CONTACTS; k++) {
+                if (pens[k] < shallowestP) { shallowestP = pens[k]; shallowestI = k; }
+            }
+        }
     }
 
-    if (bestPen > 0.0) {
-        vec3 rA_w = bestCP - posA;
-        vec3 rB_w = bestCP - posB;
+    // featureKey encodes (refBody, refFace, incFace, contactSlot). slot bit-packed in low 3 bits.
+    // wsKey uses the per-pair hash slot so each manifold point keeps its own warmstart.
+    uint baseFeature = (uint(refBody) << 6) | (uint(refFace) << 3) | uint(incFace);
+    vec3 n = refN;
 
-        // Normal: satN direction (from B toward A). Both scoring branches yield refN ≈ satN.
-        vec3 n = refN;
-
-        emitCon(idxA, idxB, n, bestPen, rA_w, rB_w, mu, quatA, quatB);
+    for (int k = 0; k < contactCount; k++) {
+        vec3 cp = cps[k];
+        vec3 rA_w = cp - posA;
+        vec3 rB_w = cp - posB;
+        uint featureKey = (baseFeature << 2) | uint(k);
+        uint wsKey      = packKey(idxA, idxB, uint(k));
+        emitCon(idxA, idxB, n, pens[k], rA_w, rB_w, mu, quatA, quatB, wsKey, featureKey);
     }
 }
 
@@ -271,9 +346,13 @@ void edgeContact(uint idxA, uint idxB,
     vec3 cpB = pB + tB * eB;
     vec3 cp  = 0.5 * (cpA + cpB);
 
+    // Edge feature: high bit + edge axis pair. slot=4 keeps edge contacts in their own
+    // hash slot, distinct from face contacts (which use slots 0..3 for the 4-point manifold).
+    uint featureKey = 0x80000000u | (uint(eIdxA) << 4) | uint(eIdxB);
+    uint wsKey      = packKey(idxA, idxB, 4u);
     emitCon(idxA, idxB, satN, depth,
             cp - posA, cp - posB,
-            mu, quatA, quatB);
+            mu, quatA, quatB, wsKey, featureKey);
 }
 
 void main() {

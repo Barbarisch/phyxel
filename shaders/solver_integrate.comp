@@ -21,23 +21,64 @@ void main() {
     if (i >= pc.count) return;
 
     SolverBody b = bodies[i];
-    if ((b.flags & PARTICLE_ACTIVE) == 0u || b.invMass == 0.0) return;
 
-    GpuParticle p     = particles[b.particleIdx];
+    if ((b.flags & PARTICLE_ACTIVE) == 0u || b.invMass == 0.0) {
+        // Static/inactive: save initial, stay in place
+        b.initial      = b.pos;
+        b.initialQuat  = b.quat;
+        b.inertial     = b.pos;
+        b.inertialQuat = b.quat;
+        b.cumAng       = vec3(0.0);
+        bodies[i] = b;
+        return;
+    }
+
+    GpuParticle     p   = particles[b.particleIdx];
     MaterialPhysics mat = materials[p.materialIndex];
 
-    // Save pre-gravity velocity for restitution comparison in collision response
-    b.prevVel = b.vel;
+    // Save state before any forces (these are the "initial" AVBD reference values)
+    b.prevVel     = b.vel;
+    b.initial     = b.pos;
+    b.initialQuat = b.quat;
 
-    // Gravity (m/s per tick)
-    b.vel.y += pc.gravity * pc.dt;
+    // ---- Adaptive accelWeight (Shallot-style; AVBD paper §4) ----------------
+    // At rest, predicting body.pos with full gravity moves it DOWN by ~g*dt² each
+    // frame, forcing narrowphase to re-emit fresh penetration → tug-of-war between
+    // gravity step and solver pushback → vibration / popcorn.
+    //
+    // Shallot uses accelWeight = clamp(actual_accel.y * sign(g) / |g|, 0, 1):
+    // 0 at rest (constraints cancel gravity), 1 in free fall. This requires prevVel
+    // persisted across frames; our sync_in resets prevVel each frame, so we use a
+    // velocity-magnitude heuristic instead — same outcome for the resting case.
+    //   speed² < REST_SQ  → accelWeight ≈ 0 → body.pos NOT pushed by gravity
+    //   speed² > MOVE_SQ  → accelWeight = 1 → full free-fall prediction
+    float speedSq = dot(b.vel, b.vel);
+    const float REST_SQ = 0.01;     // (0.1 m/s)²
+    const float MOVE_SQ = 1.0;      // (1.0 m/s)²
+    float accelWeight = clamp((speedSq - REST_SQ) / (MOVE_SQ - REST_SQ), 0.0, 1.0);
 
-    // Damping: material air-drag × uniform gamma (matches Shallot's gamma=0.999)
-    b.vel    *= mat.linearDamp * GAMMA;
-    b.angVel *= mat.angularDamp * GAMMA;
+    // Apply external forces: gravity + damping
+    b.vel.y   += pc.gravity * pc.dt;
+    b.vel     *= mat.linearDamp  * GAMMA;
+    b.angVel  *= mat.angularDamp * GAMMA;
 
-    // Predict position (integrate)
-    b.pos += b.vel * pc.dt;
+    // Inertial (unconstrained) prediction: where the body goes with no contacts.
+    // Used as the energy minimum in primal/dual — solver pulls body toward it.
+    b.inertial     = b.pos + b.vel * pc.dt;
+    b.inertialQuat = quatIntegrate(b.quat, b.angVel * pc.dt);
+
+    // Adaptive starting iterate for body.pos. After applying gravity above we have
+    //   b.vel * dt = b.vel_old * dt + g*dt²        (gravity already baked in)
+    // Subtracting (1-accelWeight)*g*dt² removes the gravity component for at-rest
+    // bodies, so narrowphase sees the same position as last frame → no fresh
+    // penetration → λ stays steady. In free-fall (accelWeight=1) this collapses
+    // to the full inertial prediction.
+    float gravBackoff = (1.0 - accelWeight) * pc.gravity * pc.dt * pc.dt;
+    b.pos  = b.inertial - vec3(0.0, gravBackoff, 0.0);
+    b.quat = b.inertialQuat;
+
+    // Seed cumAng with the angular displacement accumulated during force integration
+    b.cumAng = angDispFromInitial(b.inertialQuat, b.initialQuat);
 
     bodies[i] = b;
 }
