@@ -83,6 +83,8 @@ struct UniformBufferObject {
     alignas(4) uint32_t numInstances;
     alignas(4) float ambientLight; // Ambient light strength
     alignas(4) float emissiveMultiplier; // Brightness of emissive objects
+    alignas(16) glm::vec3 cameraPosition; // World-space camera position for specular
+    alignas(16) glm::mat4 reflectedViewProj; // Reflected camera VP matrix (identity if no mirrors)
 };
 
 class VulkanDevice {
@@ -129,7 +131,14 @@ public:
     bool createDescriptorSetLayout();
     bool createDescriptorPool();
     bool createDescriptorSets();
-    void updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, const glm::vec3& sunDirection, const glm::vec3& sunColor, uint32_t numInstances, float ambientLight = 1.0f, float emissiveMultiplier = 2.0f);
+    void updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, const glm::vec3& sunDirection, const glm::vec3& sunColor, uint32_t numInstances, float ambientLight = 1.0f, float emissiveMultiplier = 2.0f, const glm::vec3& cameraPosition = glm::vec3(0.0f));
+    void setReflectedViewProj(uint32_t frameIndex, const glm::mat4& reflectedVP);
+
+    // Reflection UBO buffers (separate per-frame UBOs for rendering from reflected camera)
+    bool createReflectionBuffers();
+    void updateReflectionUniformBuffer(uint32_t frameIndex, const glm::mat4& reflectedView, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, const glm::vec3& sunDirection, const glm::vec3& sunColor, uint32_t numInstances, float ambientLight, float emissiveMultiplier, const glm::vec3& cameraPosition);
+    void bindReflectionDescriptorSets(uint32_t frameIndex, VkPipelineLayout layout);
+    void cleanupReflectionBuffers();
     void updateInstanceBuffer(const std::vector<InstanceData>& instances);
     
     // Dynamic subcube buffer management
@@ -321,6 +330,12 @@ private:
     VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
     VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
     std::vector<VkDescriptorSet> descriptorSets;
+
+    // Reflection UBO buffers (per-frame, separate from main UBOs)
+    std::vector<VkBuffer> reflectionUniformBuffers;
+    std::vector<VkDeviceMemory> reflectionUniformBuffersMemory;
+    VkDescriptorPool reflectionDescriptorPool = VK_NULL_HANDLE;
+    std::vector<VkDescriptorSet> reflectionDescriptorSets;
 
     // Texture atlas resources
     VkImage textureAtlasImage = VK_NULL_HANDLE;

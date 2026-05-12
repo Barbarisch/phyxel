@@ -83,6 +83,9 @@ void VulkanDevice::cleanup() {
 
     // Cleanup atlas UV SSBO buffers
     cleanupAtlasUVBuffers();
+
+    // Cleanup reflection UBO buffers
+    cleanupReflectionBuffers();
     
     if (instanceBuffer != VK_NULL_HANDLE) {
         vkDestroyBuffer(device, instanceBuffer, nullptr);
@@ -424,6 +427,7 @@ bool VulkanDevice::createLogicalDevice() {
     VkPhysicalDeviceFeatures deviceFeatures{};
     deviceFeatures.fillModeNonSolid = VK_TRUE;  // Required for wireframe rendering (VK_POLYGON_MODE_LINE)
     deviceFeatures.wideLines = VK_TRUE;          // Required for line width > 1.0
+    deviceFeatures.independentBlend = VK_TRUE;   // Required for OIT: accum and reveal attachments use different blend states
 
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -1408,7 +1412,7 @@ void VulkanDevice::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSi
     vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
 
-void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, const glm::vec3& sunDirection, const glm::vec3& sunColor, uint32_t numInstances, float ambientLight, float emissiveMultiplier) {
+void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, const glm::vec3& sunDirection, const glm::vec3& sunColor, uint32_t numInstances, float ambientLight, float emissiveMultiplier, const glm::vec3& cameraPosition) {
     UniformBufferObject ubo{};
     ubo.view = view;
     ubo.proj = proj;
@@ -1418,6 +1422,7 @@ void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& vie
     ubo.numInstances = numInstances;
     ubo.ambientLight = ambientLight;
     ubo.emissiveMultiplier = emissiveMultiplier;
+    ubo.cameraPosition = cameraPosition;
 
     // Debug: Log matrix data for the first few frames
     static int debugFrameCount = 0;
@@ -1433,6 +1438,168 @@ void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& vie
     vkMapMemory(device, uniformBuffersMemory[frameIndex], 0, sizeof(ubo), 0, &data);
     memcpy(data, &ubo, sizeof(ubo));
     vkUnmapMemory(device, uniformBuffersMemory[frameIndex]);
+}
+
+void VulkanDevice::setReflectedViewProj(uint32_t frameIndex, const glm::mat4& reflectedVP) {
+    // Patch just the reflectedViewProj field in the existing UBO buffer.
+    // The field is at offsetof(UniformBufferObject, reflectedViewProj).
+    const size_t offset = offsetof(UniformBufferObject, reflectedViewProj);
+    void* data;
+    vkMapMemory(device, uniformBuffersMemory[frameIndex], offset, sizeof(glm::mat4), 0, &data);
+    memcpy(data, &reflectedVP, sizeof(glm::mat4));
+    vkUnmapMemory(device, uniformBuffersMemory[frameIndex]);
+}
+
+bool VulkanDevice::createReflectionBuffers() {
+    // Create per-frame UBO buffers for the reflected camera pass
+    VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+    reflectionUniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+    reflectionUniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            reflectionUniformBuffers[i], reflectionUniformBuffersMemory[i]);
+    }
+
+    // Separate descriptor pool for reflection sets (avoids resizing existing pool)
+    std::array<VkDescriptorPoolSize, 3> poolSizes{};
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[0].descriptorCount = MAX_FRAMES_IN_FLIGHT;
+    poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[1].descriptorCount = MAX_FRAMES_IN_FLIGHT * 2; // atlas + shadow
+    poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    poolSizes[2].descriptorCount = MAX_FRAMES_IN_FLIGHT * 2; // lights + atlas UVs
+
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+    poolInfo.pPoolSizes = poolSizes.data();
+    poolInfo.maxSets = MAX_FRAMES_IN_FLIGHT;
+    if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &reflectionDescriptorPool) != VK_SUCCESS) {
+        LOG_ERROR("Vulkan", "Failed to create reflection descriptor pool!");
+        return false;
+    }
+
+    // Allocate reflection descriptor sets using main layout
+    std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = reflectionDescriptorPool;
+    allocInfo.descriptorSetCount = MAX_FRAMES_IN_FLIGHT;
+    allocInfo.pSetLayouts = layouts.data();
+    reflectionDescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+    if (vkAllocateDescriptorSets(device, &allocInfo, reflectionDescriptorSets.data()) != VK_SUCCESS) {
+        LOG_ERROR("Vulkan", "Failed to allocate reflection descriptor sets!");
+        return false;
+    }
+
+    // Write all 5 bindings: reflection UBO at 0, shared resources at 1-4
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        VkDescriptorBufferInfo uboInfo{};
+        uboInfo.buffer = reflectionUniformBuffers[i];
+        uboInfo.offset = 0;
+        uboInfo.range = sizeof(UniformBufferObject);
+
+        VkDescriptorImageInfo atlasInfo{};
+        atlasInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        atlasInfo.imageView = textureAtlasImageView;
+        atlasInfo.sampler = textureAtlasSampler;
+
+        VkDescriptorImageInfo shadowInfo{};
+        shadowInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+        shadowInfo.imageView = shadowMapImageView;
+        shadowInfo.sampler = shadowMapSampler;
+
+        VkDescriptorBufferInfo lightInfo{};
+        lightInfo.buffer = lightBuffers[i];
+        lightInfo.offset = 0;
+        lightInfo.range = VK_WHOLE_SIZE;
+
+        VkDescriptorBufferInfo atlasUVInfo{};
+        atlasUVInfo.buffer = atlasUVBuffers[i];
+        atlasUVInfo.offset = 0;
+        atlasUVInfo.range = VK_WHOLE_SIZE;
+
+        std::array<VkWriteDescriptorSet, 5> writes{};
+        writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[0].dstSet = reflectionDescriptorSets[i];
+        writes[0].dstBinding = 0;
+        writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writes[0].descriptorCount = 1;
+        writes[0].pBufferInfo = &uboInfo;
+
+        writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[1].dstSet = reflectionDescriptorSets[i];
+        writes[1].dstBinding = 1;
+        writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[1].descriptorCount = 1;
+        writes[1].pImageInfo = &atlasInfo;
+
+        writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[2].dstSet = reflectionDescriptorSets[i];
+        writes[2].dstBinding = 2;
+        writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[2].descriptorCount = 1;
+        writes[2].pImageInfo = &shadowInfo;
+
+        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[3].dstSet = reflectionDescriptorSets[i];
+        writes[3].dstBinding = 3;
+        writes[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[3].descriptorCount = 1;
+        writes[3].pBufferInfo = &lightInfo;
+
+        writes[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[4].dstSet = reflectionDescriptorSets[i];
+        writes[4].dstBinding = 4;
+        writes[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[4].descriptorCount = 1;
+        writes[4].pBufferInfo = &atlasUVInfo;
+
+        vkUpdateDescriptorSets(device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+    }
+
+    LOG_INFO("Vulkan", "Created reflection UBO buffers and descriptor sets");
+    return true;
+}
+
+void VulkanDevice::updateReflectionUniformBuffer(uint32_t frameIndex, const glm::mat4& reflectedView, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, const glm::vec3& sunDirection, const glm::vec3& sunColor, uint32_t numInstances, float ambientLight, float emissiveMultiplier, const glm::vec3& cameraPosition) {
+    UniformBufferObject ubo{};
+    ubo.view = reflectedView;
+    ubo.proj = proj;
+    ubo.lightSpaceMatrix = lightSpaceMatrix;
+    ubo.sunDirection = sunDirection;
+    ubo.sunColor = sunColor;
+    ubo.numInstances = numInstances;
+    ubo.ambientLight = ambientLight;
+    ubo.emissiveMultiplier = emissiveMultiplier;
+    ubo.cameraPosition = cameraPosition;
+    ubo.reflectedViewProj = glm::mat4(1.0f); // Not used during reflection rendering
+    void* data;
+    vkMapMemory(device, reflectionUniformBuffersMemory[frameIndex], 0, sizeof(ubo), 0, &data);
+    memcpy(data, &ubo, sizeof(ubo));
+    vkUnmapMemory(device, reflectionUniformBuffersMemory[frameIndex]);
+}
+
+void VulkanDevice::bindReflectionDescriptorSets(uint32_t frameIndex, VkPipelineLayout layout) {
+    vkCmdBindDescriptorSets(commandBuffers[frameIndex], VK_PIPELINE_BIND_POINT_GRAPHICS,
+        layout, 0, 1, &reflectionDescriptorSets[frameIndex], 0, nullptr);
+}
+
+void VulkanDevice::cleanupReflectionBuffers() {
+    if (reflectionDescriptorPool != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(device, reflectionDescriptorPool, nullptr);
+        reflectionDescriptorPool = VK_NULL_HANDLE;
+        reflectionDescriptorSets.clear();
+    }
+    for (size_t i = 0; i < reflectionUniformBuffers.size(); i++) {
+        if (reflectionUniformBuffers[i] != VK_NULL_HANDLE)
+            vkDestroyBuffer(device, reflectionUniformBuffers[i], nullptr);
+        if (reflectionUniformBuffersMemory[i] != VK_NULL_HANDLE)
+            vkFreeMemory(device, reflectionUniformBuffersMemory[i], nullptr);
+    }
+    reflectionUniformBuffers.clear();
+    reflectionUniformBuffersMemory.clear();
 }
 
 void VulkanDevice::updateInstanceBuffer(const std::vector<InstanceData>& instances) {

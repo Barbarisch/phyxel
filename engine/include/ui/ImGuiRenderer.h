@@ -21,7 +21,7 @@ namespace Phyxel {
     class ForceSystem;
     class MouseVelocityTracker;
     namespace Physics { class PhysicsWorld; }
-    namespace Graphics { class LightManager; }
+    namespace Graphics { class LightManager; class ShadowMap; }
     namespace Vulkan { class VulkanDevice; class RenderPipeline; }
     class ScriptingSystem;
     namespace Core { class InitiativeTracker; class Party; class EntityRegistry; }
@@ -83,7 +83,8 @@ public:
         glm::vec3& sunColor,
         float& ambientStrength,
         float& emissiveMultiplier,
-        Graphics::LightManager* lightManager = nullptr
+        Graphics::LightManager* lightManager = nullptr,
+        Graphics::ShadowMap* shadowMap = nullptr
     );
 
     /// Render the RPG dialogue box (bottom of screen) when a conversation is active.

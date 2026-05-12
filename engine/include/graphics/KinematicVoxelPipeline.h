@@ -38,6 +38,14 @@ public:
 
     void cleanup();
 
+    /// Maximum total face instances across all kinematic objects combined.
+    static constexpr size_t MAX_TOTAL_FACES = 8192;
+
+    struct ObjectRange {
+        uint32_t startFace = 0;
+        uint32_t faceCount = 0;
+    };
+
     /// Rebuild the shared face instance buffer from current object composition.
     /// Must be called when objects are added or removed from the manager.
     void rebuildBuffer(const std::unordered_map<std::string, Core::KinematicVoxelObject>& objects);
@@ -49,12 +57,12 @@ public:
                 const std::unordered_map<std::string, Core::KinematicVoxelObject>& objects,
                 VkDescriptorSet uboSet);
 
+    /// Accessors for shadow pass draw (shadow pipeline reuses the same instance buffer)
+    VkBuffer getInstanceBuffer() const { return m_instanceBuffer; }
+    const std::unordered_map<std::string, ObjectRange>& getObjectRanges() const { return m_objectRanges; }
+
     /// Recreate pipeline after swapchain resize.
     void recreatePipeline(VkRenderPass renderPass, VkExtent2D extent);
-
-    /// Maximum total face instances across all kinematic objects combined.
-    static constexpr size_t MAX_TOTAL_FACES = 8192;
-
 private:
     void     createPipeline(VkRenderPass renderPass, VkExtent2D extent,
                              VkDescriptorSetLayout uboLayout);
@@ -69,11 +77,6 @@ private:
     VkBuffer       m_instanceBuffer       = VK_NULL_HANDLE;
     VkDeviceMemory m_instanceBufferMemory = VK_NULL_HANDLE;
 
-
-    struct ObjectRange {
-        uint32_t startFace = 0;
-        uint32_t faceCount = 0;
-    };
     std::unordered_map<std::string, ObjectRange> m_objectRanges;
 
     uint32_t m_totalFaces = 0;

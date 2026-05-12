@@ -572,5 +572,61 @@ if defined USE_GLSLC (
     )
 )
 
+echo Compiling character shadow vertex shader...
+%GLSLANG% -V -I. shaders\character_shadow.vert -o shaders\character_shadow.vert.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile character_shadow.vert
+    pause
+    exit /b 1
+)
+
+echo Compiling kinematic shadow vertex shader...
+%GLSLANG% -V -I. shaders\kinematic_shadow.vert -o shaders\kinematic_shadow.vert.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile kinematic_shadow.vert
+    pause
+    exit /b 1
+)
+
+echo Compiling dynamic shadow vertex shader...
+%GLSLANG% -V -I. shaders\dynamic_shadow.vert -o shaders\dynamic_shadow.vert.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile dynamic_shadow.vert
+    pause
+    exit /b 1
+)
+
+echo Compiling SSAO fragment shader...
+%GLSLANG% -V -I. shaders\ssao.frag -o shaders\ssao.frag.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile ssao.frag
+    pause
+    exit /b 1
+)
+
+echo Compiling SSAO blur fragment shader...
+%GLSLANG% -V -I. shaders\ssao_blur.frag -o shaders\ssao_blur.frag.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile ssao_blur.frag
+    pause
+    exit /b 1
+)
+
+echo Compiling transparent voxel fragment shader...
+%GLSLANG% -V -I. shaders\transparent_voxel.frag -o shaders\transparent_voxel.frag.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile transparent_voxel.frag
+    pause
+    exit /b 1
+)
+
+echo Compiling mirror voxel fragment shader...
+%GLSLANG% -V -I. shaders\mirror_voxel.frag -o shaders\mirror_voxel.frag.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile mirror_voxel.frag
+    pause
+    exit /b 1
+)
+
 echo All shaders compiled successfully!
 REM pause

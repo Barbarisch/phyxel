@@ -785,6 +785,39 @@ void RenderPipeline::cleanup() {
         debugLinePipeline = VK_NULL_HANDLE;
     }
 
+    if (oitPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, oitPipeline, nullptr);
+        oitPipeline = VK_NULL_HANDLE;
+    }
+
+    if (oitFragShaderModule != VK_NULL_HANDLE) {
+        vkDestroyShaderModule(device, oitFragShaderModule, nullptr);
+        oitFragShaderModule = VK_NULL_HANDLE;
+    }
+
+    // Mirror pipeline cleanup
+    if (mirrorPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, mirrorPipeline, nullptr);
+        mirrorPipeline = VK_NULL_HANDLE;
+    }
+    if (mirrorFragShaderModule != VK_NULL_HANDLE) {
+        vkDestroyShaderModule(device, mirrorFragShaderModule, nullptr);
+        mirrorFragShaderModule = VK_NULL_HANDLE;
+    }
+    if (mirrorPipelineLayout != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(device, mirrorPipelineLayout, nullptr);
+        mirrorPipelineLayout = VK_NULL_HANDLE;
+    }
+    if (mirrorDescriptorPool != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(device, mirrorDescriptorPool, nullptr);
+        mirrorDescriptorPool = VK_NULL_HANDLE;
+        mirrorReflectionDescriptorSet = VK_NULL_HANDLE;
+    }
+    if (mirrorReflectionDescSetLayout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(device, mirrorReflectionDescSetLayout, nullptr);
+        mirrorReflectionDescSetLayout = VK_NULL_HANDLE;
+    }
+
     if (characterPipeline != VK_NULL_HANDLE) {
         vkDestroyPipeline(device, characterPipeline, nullptr);
         characterPipeline = VK_NULL_HANDLE;
@@ -982,6 +1015,144 @@ void RenderPipeline::bindDebugGraphicsPipeline(VkCommandBuffer commandBuffer) {
 
 void RenderPipeline::bindDebugLinePipeline(VkCommandBuffer commandBuffer) {
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, debugLinePipeline);
+}
+
+void RenderPipeline::bindOITPipeline(VkCommandBuffer commandBuffer) {
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, oitPipeline);
+}
+
+bool RenderPipeline::createOITPipeline(VkRenderPass oitRenderPass) {
+    VkDevice device = vulkanDevice.getDevice();
+
+    // Load transparent_voxel.frag shader
+    auto fragCode = Utils::readFile("shaders/transparent_voxel.frag.spv");
+    if (fragCode.empty()) {
+        LOG_ERROR("RenderPipeline", "Failed to load transparent_voxel.frag.spv");
+        return false;
+    }
+    if (oitFragShaderModule != VK_NULL_HANDLE) {
+        vkDestroyShaderModule(device, oitFragShaderModule, nullptr);
+        oitFragShaderModule = VK_NULL_HANDLE;
+    }
+    oitFragShaderModule = createShaderModule(fragCode);
+
+    // Vertex stage: same static_voxel.vert as opaque pass
+    VkPipelineShaderStageCreateInfo stages[2]{};
+    stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    stages[0].module = vertShaderModule; // already loaded (static_voxel.vert)
+    stages[0].pName = "main";
+    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    stages[1].module = oitFragShaderModule;
+    stages[1].pName = "main";
+
+    // Same vertex input as opaque pipeline
+    auto vertexBindingDescription = Vertex::getBindingDescription();
+    auto vertexAttributeDescriptions = Vertex::getAttributeDescriptions();
+    auto instanceBindingDescription = InstanceData::getBindingDescription();
+    auto instanceAttributeDescriptions = InstanceData::getAttributeDescriptions();
+
+    std::vector<VkVertexInputBindingDescription> bindingDescs = { vertexBindingDescription, instanceBindingDescription };
+    std::vector<VkVertexInputAttributeDescription> attrDescs;
+    attrDescs.insert(attrDescs.end(), vertexAttributeDescriptions.begin(), vertexAttributeDescriptions.end());
+    attrDescs.insert(attrDescs.end(), instanceAttributeDescriptions.begin(), instanceAttributeDescriptions.end());
+
+    VkPipelineVertexInputStateCreateInfo vi{};
+    vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vi.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescs.size());
+    vi.pVertexBindingDescriptions = bindingDescs.data();
+    vi.vertexAttributeDescriptionCount = static_cast<uint32_t>(attrDescs.size());
+    vi.pVertexAttributeDescriptions = attrDescs.data();
+
+    VkPipelineInputAssemblyStateCreateInfo ia{};
+    ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    VkPipelineViewportStateCreateInfo vps{};
+    vps.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    vps.viewportCount = 1; vps.scissorCount = 1;
+
+    VkPipelineRasterizationStateCreateInfo rs{};
+    rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rs.polygonMode = VK_POLYGON_MODE_FILL; rs.lineWidth = 1.0f;
+    rs.cullMode = VK_CULL_MODE_NONE; // No culling for transparent — show both sides
+    rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
+    VkPipelineMultisampleStateCreateInfo ms{};
+    ms.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    // Depth: test=true (occlude by opaque geometry), write=false (don't overwrite opaque depth)
+    // Use LESS_OR_EQUAL (not LESS) because early-z in the opaque pass may have written depth for
+    // glass fragments before voxel.frag discards them. Those fragments land at exactly the same
+    // depth in the OIT pass, so LESS would fail (D < D = false). LESS_OR_EQUAL passes correctly.
+    VkPipelineDepthStencilStateCreateInfo ds{};
+    ds.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    ds.depthTestEnable  = VK_TRUE;
+    ds.depthWriteEnable = VK_FALSE;
+    ds.depthCompareOp   = VK_COMPARE_OP_LESS_OR_EQUAL;
+
+    // Blend attachment 0 (accum): additive blending — src=ONE, dst=ONE
+    VkPipelineColorBlendAttachmentState blendAccum{};
+    blendAccum.blendEnable = VK_TRUE;
+    blendAccum.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    blendAccum.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    blendAccum.colorBlendOp        = VK_BLEND_OP_ADD;
+    blendAccum.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    blendAccum.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    blendAccum.alphaBlendOp        = VK_BLEND_OP_ADD;
+    blendAccum.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+    // Blend attachment 1 (reveal): multiplicative — dst = src_color * dst (1-alpha accumulates)
+    VkPipelineColorBlendAttachmentState blendReveal{};
+    blendReveal.blendEnable = VK_TRUE;
+    blendReveal.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+    blendReveal.dstColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
+    blendReveal.colorBlendOp        = VK_BLEND_OP_ADD;
+    blendReveal.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    blendReveal.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    blendReveal.alphaBlendOp        = VK_BLEND_OP_ADD;
+    blendReveal.colorWriteMask      = VK_COLOR_COMPONENT_R_BIT;
+
+    std::array<VkPipelineColorBlendAttachmentState, 2> blendAtts = { blendAccum, blendReveal };
+    VkPipelineColorBlendStateCreateInfo cb{};
+    cb.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    cb.attachmentCount = 2; cb.pAttachments = blendAtts.data();
+
+    std::vector<VkDynamicState> dynStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    VkPipelineDynamicStateCreateInfo dyn{};
+    dyn.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dyn.dynamicStateCount = static_cast<uint32_t>(dynStates.size());
+    dyn.pDynamicStates = dynStates.data();
+
+    VkGraphicsPipelineCreateInfo gpi{};
+    gpi.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    gpi.stageCount = 2; gpi.pStages = stages;
+    gpi.pVertexInputState   = &vi;
+    gpi.pInputAssemblyState = &ia;
+    gpi.pViewportState      = &vps;
+    gpi.pRasterizationState = &rs;
+    gpi.pMultisampleState   = &ms;
+    gpi.pDepthStencilState  = &ds;
+    gpi.pColorBlendState    = &cb;
+    gpi.pDynamicState       = &dyn;
+    gpi.layout      = pipelineLayout; // same layout as opaque
+    gpi.renderPass  = oitRenderPass;
+    gpi.subpass     = 0;
+
+    if (oitPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, oitPipeline, nullptr);
+        oitPipeline = VK_NULL_HANDLE;
+    }
+    VkResult res = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &gpi, nullptr, &oitPipeline);
+    if (res != VK_SUCCESS) {
+        LOG_ERROR_FMT("RenderPipeline", "Failed to create OIT pipeline! VkResult=" << res);
+        return false;
+    }
+    LOG_INFO("RenderPipeline", "OIT transparent pipeline created");
+    return true;
 }
 
 bool RenderPipeline::createRenderPass() {
@@ -1325,6 +1496,207 @@ bool RenderPipeline::createInstancedCharacterPipeline() {
 
 void RenderPipeline::bindInstancedCharacterPipeline(VkCommandBuffer commandBuffer) {
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, instancedCharacterPipeline);
+}
+
+void RenderPipeline::bindMirrorPipeline(VkCommandBuffer commandBuffer, uint32_t frameIndex, VkDescriptorSet mirrorReflDescSet) {
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mirrorPipeline);
+    // Bind reflection texture at set 1
+    if (mirrorReflDescSet != VK_NULL_HANDLE) {
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+            mirrorPipelineLayout, 1, 1, &mirrorReflDescSet, 0, nullptr);
+    }
+}
+
+bool RenderPipeline::createMirrorPipeline(VkRenderPass sceneRenderPass) {
+    VkDevice device = vulkanDevice.getDevice();
+
+    // Load mirror_voxel.frag
+    auto fragCode = Utils::readFile("shaders/mirror_voxel.frag.spv");
+    if (fragCode.empty()) {
+        LOG_ERROR("RenderPipeline", "Failed to load mirror_voxel.frag.spv");
+        return false;
+    }
+    if (mirrorFragShaderModule != VK_NULL_HANDLE) {
+        vkDestroyShaderModule(device, mirrorFragShaderModule, nullptr);
+        mirrorFragShaderModule = VK_NULL_HANDLE;
+    }
+    mirrorFragShaderModule = createShaderModule(fragCode);
+
+    // --- Descriptor set layout for set 1: just the reflection sampler ---
+    if (mirrorReflectionDescSetLayout == VK_NULL_HANDLE) {
+        VkDescriptorSetLayoutBinding reflBinding{};
+        reflBinding.binding = 0;
+        reflBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        reflBinding.descriptorCount = 1;
+        reflBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = 1;
+        layoutInfo.pBindings = &reflBinding;
+        if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &mirrorReflectionDescSetLayout) != VK_SUCCESS) {
+            LOG_ERROR("RenderPipeline", "Failed to create mirror reflection descriptor set layout");
+            return false;
+        }
+    }
+
+    // --- Descriptor pool + set for reflection texture ---
+    if (mirrorDescriptorPool != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(device, mirrorDescriptorPool, nullptr);
+        mirrorDescriptorPool = VK_NULL_HANDLE;
+        mirrorReflectionDescriptorSet = VK_NULL_HANDLE;
+    }
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSize.descriptorCount = 1;
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.maxSets = 1;
+    vkCreateDescriptorPool(device, &poolInfo, nullptr, &mirrorDescriptorPool);
+
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = mirrorDescriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &mirrorReflectionDescSetLayout;
+    vkAllocateDescriptorSets(device, &allocInfo, &mirrorReflectionDescriptorSet);
+
+    // --- Pipeline layout: set 0 (main) + set 1 (reflection) ---
+    if (mirrorPipelineLayout != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(device, mirrorPipelineLayout, nullptr);
+        mirrorPipelineLayout = VK_NULL_HANDLE;
+    }
+    VkDescriptorSetLayout setLayouts[] = { vulkanDevice.getDescriptorSetLayout(), mirrorReflectionDescSetLayout };
+    VkPushConstantRange pcRange{};
+    pcRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    pcRange.offset = 0;
+    pcRange.size = 16; // same as main pipeline (vec3 + int)
+    VkPipelineLayoutCreateInfo layoutCI{};
+    layoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    layoutCI.setLayoutCount = 2;
+    layoutCI.pSetLayouts = setLayouts;
+    layoutCI.pushConstantRangeCount = 1;
+    layoutCI.pPushConstantRanges = &pcRange;
+    if (vkCreatePipelineLayout(device, &layoutCI, nullptr, &mirrorPipelineLayout) != VK_SUCCESS) {
+        LOG_ERROR("RenderPipeline", "Failed to create mirror pipeline layout");
+        return false;
+    }
+
+    // --- Shader stages ---
+    VkPipelineShaderStageCreateInfo stages[2]{};
+    stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    stages[0].module = vertShaderModule; // static_voxel.vert
+    stages[0].pName = "main";
+    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    stages[1].module = mirrorFragShaderModule;
+    stages[1].pName = "main";
+
+    // --- Vertex input (same as opaque pipeline) ---
+    auto vertexBindingDescription = Vertex::getBindingDescription();
+    auto vertexAttributeDescriptions = Vertex::getAttributeDescriptions();
+    auto instanceBindingDescription = InstanceData::getBindingDescription();
+    auto instanceAttributeDescriptions = InstanceData::getAttributeDescriptions();
+    std::vector<VkVertexInputBindingDescription> bindingDescs = { vertexBindingDescription, instanceBindingDescription };
+    std::vector<VkVertexInputAttributeDescription> attrDescs;
+    attrDescs.insert(attrDescs.end(), vertexAttributeDescriptions.begin(), vertexAttributeDescriptions.end());
+    attrDescs.insert(attrDescs.end(), instanceAttributeDescriptions.begin(), instanceAttributeDescriptions.end());
+    VkPipelineVertexInputStateCreateInfo vi{};
+    vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vi.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescs.size());
+    vi.pVertexBindingDescriptions = bindingDescs.data();
+    vi.vertexAttributeDescriptionCount = static_cast<uint32_t>(attrDescs.size());
+    vi.pVertexAttributeDescriptions = attrDescs.data();
+
+    VkPipelineInputAssemblyStateCreateInfo ia{};
+    ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    VkPipelineViewportStateCreateInfo vps{};
+    vps.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    vps.viewportCount = 1; vps.scissorCount = 1;
+
+    VkPipelineRasterizationStateCreateInfo rs{};
+    rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rs.polygonMode = VK_POLYGON_MODE_FILL; rs.lineWidth = 1.0f;
+    rs.cullMode = VK_CULL_MODE_BACK_BIT; // Normal back-face culling
+    rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
+    VkPipelineMultisampleStateCreateInfo ms{};
+    ms.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    // Depth: test and write (mirrors are opaque surfaces)
+    VkPipelineDepthStencilStateCreateInfo ds{};
+    ds.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    ds.depthTestEnable  = VK_TRUE;
+    ds.depthWriteEnable = VK_TRUE;
+    ds.depthCompareOp   = VK_COMPARE_OP_LESS;
+
+    // Opaque blend: no blending, replace with mirror color
+    VkPipelineColorBlendAttachmentState blendAtt{};
+    blendAtt.blendEnable = VK_FALSE;
+    blendAtt.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                              VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    VkPipelineColorBlendStateCreateInfo cb{};
+    cb.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    cb.attachmentCount = 1; cb.pAttachments = &blendAtt;
+
+    std::vector<VkDynamicState> dynStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    VkPipelineDynamicStateCreateInfo dyn{};
+    dyn.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dyn.dynamicStateCount = static_cast<uint32_t>(dynStates.size());
+    dyn.pDynamicStates = dynStates.data();
+
+    VkGraphicsPipelineCreateInfo gpi{};
+    gpi.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    gpi.stageCount = 2; gpi.pStages = stages;
+    gpi.pVertexInputState   = &vi;
+    gpi.pInputAssemblyState = &ia;
+    gpi.pViewportState      = &vps;
+    gpi.pRasterizationState = &rs;
+    gpi.pMultisampleState   = &ms;
+    gpi.pDepthStencilState  = &ds;
+    gpi.pColorBlendState    = &cb;
+    gpi.pDynamicState       = &dyn;
+    gpi.layout     = mirrorPipelineLayout;
+    gpi.renderPass = sceneRenderPass;
+    gpi.subpass    = 0;
+
+    if (mirrorPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, mirrorPipeline, nullptr);
+        mirrorPipeline = VK_NULL_HANDLE;
+    }
+    VkResult res = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &gpi, nullptr, &mirrorPipeline);
+    if (res != VK_SUCCESS) {
+        LOG_ERROR("RenderPipeline", "Failed to create mirror pipeline (VkResult={})", static_cast<int>(res));
+        return false;
+    }
+    LOG_INFO("RenderPipeline", "Mirror pipeline created");
+    return true;
+}
+
+void RenderPipeline::updateMirrorReflectionDescriptor(VkImageView reflectionView, VkSampler reflectionSampler) {
+    if (mirrorReflectionDescriptorSet == VK_NULL_HANDLE) return;
+    if (reflectionView == VK_NULL_HANDLE || reflectionSampler == VK_NULL_HANDLE) {
+        LOG_WARN("RenderPipeline", "updateMirrorReflectionDescriptor called with null handles — skipping");
+        return;
+    }
+    VkDescriptorImageInfo imgInfo{};
+    imgInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imgInfo.imageView = reflectionView;
+    imgInfo.sampler = reflectionSampler;
+    VkWriteDescriptorSet write{};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = mirrorReflectionDescriptorSet;
+    write.dstBinding = 0;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.descriptorCount = 1;
+    write.pImageInfo = &imgInfo;
+    vkUpdateDescriptorSets(vulkanDevice.getDevice(), 1, &write, 0, nullptr);
 }
 
 } // namespace Vulkan

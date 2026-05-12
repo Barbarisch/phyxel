@@ -149,12 +149,17 @@ void ChunkRenderManager::rebuildCubeFaces(
                 faceInstance.textureIndex = Phyxel::Core::MaterialRegistry::instance().getTextureIndex(
                     cube->getMaterialName(), faceID);
                 
-                // Check for emissive material
-                if (cube->getMaterialName() == "glow") {
-                    faceInstance.reserved = 1; // Flag 1 = Emissive
-                } else {
-                    faceInstance.reserved = 0;
-                }
+                // Check for emissive / transparent material flags
+                const auto* matDef = Phyxel::Core::MaterialRegistry::instance().getMaterial(cube->getMaterialName());
+                bool isEmissive    = matDef && matDef->emissive;
+                bool isTransparent = matDef && matDef->alpha < 0.99f;
+                bool isMirror      = matDef && matDef->isMirror;
+                uint16_t quantAlpha = isTransparent ? static_cast<uint16_t>(matDef->alpha * 255.0f) : 255u;
+                faceInstance.reserved = static_cast<uint16_t>(
+                    (isEmissive    ? 1u : 0u) |
+                    (isTransparent ? 2u : 0u) |
+                    (quantAlpha << 2u) |
+                    (isMirror      ? (1u << 10) : 0u));
                 
                 faces.push_back(faceInstance);
             }
@@ -205,7 +210,15 @@ void ChunkRenderManager::rebuildSubcubeFaces(
                 
                 // Assign texture based on material and face ID
                 faceInstance.textureIndex = Phyxel::Core::MaterialRegistry::instance().getTextureIndex(subcube->getMaterialName(), faceID);
-                faceInstance.reserved = 0;
+                {
+                    const auto* matDef = Phyxel::Core::MaterialRegistry::instance().getMaterial(subcube->getMaterialName());
+                    bool isEmissive    = matDef && matDef->emissive;
+                    bool isTransparent = matDef && matDef->alpha < 0.99f;
+                    bool isMirror      = matDef && matDef->isMirror;
+                    uint16_t quantAlpha = isTransparent ? static_cast<uint16_t>(matDef->alpha * 255.0f) : 255u;
+                    faceInstance.reserved = static_cast<uint16_t>(
+                        (isEmissive ? 1u : 0u) | (isTransparent ? 2u : 0u) | (quantAlpha << 2u) | (isMirror ? (1u << 10) : 0u));
+                }
                 faces.push_back(faceInstance);
             }
         }
@@ -271,7 +284,15 @@ void ChunkRenderManager::rebuildMicrocubeFaces(
                 
                 // Assign texture based on material and face ID
                 faceInstance.textureIndex = Phyxel::Core::MaterialRegistry::instance().getTextureIndex(microcube->getMaterialName(), faceID);
-                faceInstance.reserved = 0;
+                {
+                    const auto* matDef = Phyxel::Core::MaterialRegistry::instance().getMaterial(microcube->getMaterialName());
+                    bool isEmissive    = matDef && matDef->emissive;
+                    bool isTransparent = matDef && matDef->alpha < 0.99f;
+                    bool isMirror      = matDef && matDef->isMirror;
+                    uint16_t quantAlpha = isTransparent ? static_cast<uint16_t>(matDef->alpha * 255.0f) : 255u;
+                    faceInstance.reserved = static_cast<uint16_t>(
+                        (isEmissive ? 1u : 0u) | (isTransparent ? 2u : 0u) | (quantAlpha << 2u) | (isMirror ? (1u << 10) : 0u));
+                }
                 faces.push_back(faceInstance);
             }
         }

@@ -69,8 +69,8 @@ VkVertexInputBindingDescription InstanceData::getBindingDescription() {
     return desc;
 }
 
-std::array<VkVertexInputAttributeDescription, 2> InstanceData::getAttributeDescriptions() {
-    std::array<VkVertexInputAttributeDescription, 2> desc{};
+std::array<VkVertexInputAttributeDescription, 3> InstanceData::getAttributeDescriptions() {
+    std::array<VkVertexInputAttributeDescription, 3> desc{};
     
     // Packed data (position + face mask + future bits)
     desc[0].binding = 1;
@@ -83,6 +83,12 @@ std::array<VkVertexInputAttributeDescription, 2> InstanceData::getAttributeDescr
     desc[1].location = 2;  // layout(location = 2) in uint inTextureIndex
     desc[1].format = VK_FORMAT_R16_UINT;  // uint16_t textureIndex
     desc[1].offset = offsetof(InstanceData, textureIndex);
+    
+    // Flags (emissive bit 0, transparent bit 1, quantized alpha bits 2-9)
+    desc[2].binding = 1;
+    desc[2].location = 3;  // layout(location = 3) in uint inFlags
+    desc[2].format = VK_FORMAT_R16_UINT;  // uint16_t reserved
+    desc[2].offset = offsetof(InstanceData, reserved);
     
     return desc;
 }

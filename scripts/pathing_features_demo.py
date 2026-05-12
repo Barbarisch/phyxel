@@ -38,28 +38,51 @@ API = "http://localhost:8090"
 # HTTP helpers
 # ---------------------------------------------------------------------------
 
+class EngineOfflineError(RuntimeError):
+    pass
+
 def _get(path):
-    with urllib.request.urlopen(f"{API}{path}", timeout=5) as r:
-        return json.loads(r.read())
+    try:
+        with urllib.request.urlopen(f"{API}{path}", timeout=5) as r:
+            return json.loads(r.read())
+    except (ConnectionRefusedError, urllib.error.URLError) as e:
+        raise EngineOfflineError(f"Engine not reachable ({e})") from e
 
 def _post(path, body):
     data = json.dumps(body).encode()
     req = urllib.request.Request(
         f"{API}{path}", data=data,
         headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=10) as r:
-        return json.loads(r.read())
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read())
+    except (ConnectionRefusedError, urllib.error.URLError) as e:
+        raise EngineOfflineError(f"Engine not reachable ({e})") from e
+
+def _wait_async(async_id, timeout=60):
+    """Poll an async engine operation until it completes."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        time.sleep(0.25)
+        status = _get(f"/api/async/{async_id}")
+        if status.get("status") in ("complete", "error"):
+            return status
+    return {"status": "timeout"}
 
 def fill_region(x1, y1, z1, x2, y2, z2, material="Stone"):
-    _post("/api/world/fill",
-          {"x1": x1, "y1": y1, "z1": z1,
-           "x2": x2, "y2": y2, "z2": z2,
-           "material": material})
+    resp = _post("/api/world/fill",
+                 {"x1": x1, "y1": y1, "z1": z1,
+                  "x2": x2, "y2": y2, "z2": z2,
+                  "material": material})
+    if "async_id" in resp:
+        _wait_async(resp["async_id"])
 
 def clear_region(x1, y1, z1, x2, y2, z2):
-    _post("/api/world/clear",
-          {"x1": x1, "y1": y1, "z1": z1,
-           "x2": x2, "y2": y2, "z2": z2})
+    resp = _post("/api/world/clear",
+                 {"x1": x1, "y1": y1, "z1": z1,
+                  "x2": x2, "y2": y2, "z2": z2})
+    if "async_id" in resp:
+        _wait_async(resp["async_id"])
 
 def set_camera(x, y, z, yaw, pitch):
     _post("/api/camera", {"x": x, "y": y, "z": z, "yaw": yaw, "pitch": pitch})
@@ -78,7 +101,7 @@ def remove_npc(name):
     try:
         _post("/api/npc/remove", {"name": name})
     except Exception:
-        pass  # fine if NPC was never spawned
+        pass  # fine if NPC was never spawned or engine is offline
 
 def get_npc_pos(name):
     resp = _get("/api/npcs")
@@ -90,12 +113,16 @@ def get_npc_pos(name):
 
 def track(name, duration_s, interval_s=2.0):
     """Poll the NPC position on a timer and print each sample.
-    Returns a list of (x, y, z) tuples."""
+    Returns a list of (x, y, z) tuples.  Stops early if engine goes offline."""
     positions = []
     steps = max(1, int(duration_s / interval_s))
     for i in range(steps):
         time.sleep(interval_s)
-        pos = get_npc_pos(name)
+        try:
+            pos = get_npc_pos(name)
+        except EngineOfflineError:
+            print(f"    t={( i + 1) * interval_s:4.0f}s  [engine offline — stopping early]")
+            break
         if pos:
             positions.append(pos)
             print(f"    t={( i + 1) * interval_s:4.0f}s  "
@@ -113,10 +140,9 @@ BASE_Y = 60        # solid-voxel surface Y
 NPC_Y  = BASE_Y + 1  # stand height (one above surface)
 
 # Test 1 — jump gap
-T1_L_X1, T1_L_X2 = 60, 72   # left island X
-T1_GAP_X          = 73       # single non-walkable column
-T1_R_X1, T1_R_X2 = 74, 86   # right island X
-T1_Z1,   T1_Z2   = 60, 70   # Z width for both islands
+T1_X1,   T1_X2   = 60, 86   # full floor width (gap carved from this)
+T1_GAP_X          = 73       # single column to carve out
+T1_Z1,   T1_Z2   = 60, 70   # Z width
 
 # Test 2 — terrain probe
 T2_X1, T2_X2     = 60, 95   # full corridor X
@@ -130,13 +156,19 @@ T2_PIT_X2        = 82       # pit ends here (5 cells — too wide to jump)
 
 def cleanup_t1():
     remove_npc("JumpTester")
-    clear_region(T1_L_X1, BASE_Y - 2, T1_Z1,
-                 T1_R_X2, BASE_Y + 6,  T1_Z2)
+    try:
+        clear_region(T1_X1, BASE_Y - 2, T1_Z1,
+                     T1_X2, BASE_Y + 6,  T1_Z2)
+    except EngineOfflineError:
+        pass
 
 def cleanup_t2():
     remove_npc("ProbeTester")
-    clear_region(T2_X1, BASE_Y - 2, T2_Z1,
-                 T2_X2, BASE_Y + 6,  T2_Z2)
+    try:
+        clear_region(T2_X1, BASE_Y - 2, T2_Z1,
+                     T2_X2, BASE_Y + 6,  T2_Z2)
+    except EngineOfflineError:
+        pass
 
 # ---------------------------------------------------------------------------
 # Main
@@ -157,38 +189,41 @@ try:
     # Always clean the test volume first so re-runs start fresh
     print("  Cleaning test area...")
     cleanup_t1()
-    time.sleep(0.4)
+    time.sleep(0.3)
 
-    # Build two islands; the column at X=T1_GAP_X is intentionally left empty
-    print("  Building left island  "
-          f"(X={T1_L_X1}–{T1_L_X2}, Z={T1_Z1}–{T1_Z2}, Y={BASE_Y})...")
-    fill_region(T1_L_X1, BASE_Y, T1_Z1, T1_L_X2, BASE_Y, T1_Z2, "Stone")
+    # Build a SOLID floor across the whole width first (X=73 included).
+    # This ensures the NavGrid creates a cell at every column before the gap
+    # is introduced — the jump-link detector needs walkable→gap→walkable.
+    print(f"  Building solid floor (X={T1_X1}–{T1_X2}, Z={T1_Z1}–{T1_Z2}, Y={BASE_Y})...")
+    fill_region(T1_X1, BASE_Y, T1_Z1, T1_X2, BASE_Y, T1_Z2, "Stone")
+    # fill_region waits for async completion, so NavGrid cells now exist
 
-    print("  Building right island "
-          f"(X={T1_R_X1}–{T1_R_X2}, Z={T1_Z1}–{T1_Z2}, Y={BASE_Y})...")
-    fill_region(T1_R_X1, BASE_Y, T1_Z1, T1_R_X2, BASE_Y, T1_Z2, "Stone")
-
-    time.sleep(0.6)
+    # Carve the 1-cell gap — rebuildCell(73,z) fires, detects the pattern
+    # walkable(72) → non-walkable(73) → walkable(74) and generates a jump link
+    print(f"  Carving 1-cell gap at X={T1_GAP_X}...")
+    clear_region(T1_GAP_X, BASE_Y, T1_Z1, T1_GAP_X, BASE_Y, T1_Z2)
+    time.sleep(1.0)  # let NavGrid rebuild gap cell and emit jump links
 
     # Position camera above and slightly south so the gap is front-and-centre
     set_camera(73, BASE_Y + 18, T1_Z1 - 10, 0, -38)
     time.sleep(0.3)
 
     NPC1 = "JumpTester"
-    print(f"\n  Spawning {NPC1} on the left island (X={T1_L_X1 + 5})...")
+    mid_z1 = (T1_Z1 + T1_Z2) // 2
+    print(f"\n  Spawning {NPC1} at X={T1_X1 + 5}, heading toward X={T1_X2 - 5}...")
     spawn_npc(NPC1,
-              x=T1_L_X1 + 5, y=NPC_Y, z=(T1_Z1 + T1_Z2) // 2,
+              x=T1_X1 + 5, y=NPC_Y, z=mid_z1,
               waypoints=[
-                  {"x": T1_L_X1 + 5, "y": NPC_Y, "z": (T1_Z1 + T1_Z2) // 2},
-                  {"x": T1_R_X2 - 5, "y": NPC_Y, "z": (T1_Z1 + T1_Z2) // 2},
+                  {"x": T1_X1 + 5, "y": NPC_Y, "z": mid_z1},
+                  {"x": T1_X2 - 5, "y": NPC_Y, "z": mid_z1},
               ],
               speed=3.0)
     time.sleep(1.0)
 
-    print(f"\n  Tracking {NPC1} for 40 s")
+    print(f"\n  Tracking {NPC1} for 50 s")
     print(f"  (needs to reach X > {T1_GAP_X + 0.5:.0f} to cross the gap)")
     print()
-    positions1 = track(NPC1, 40, 2.0)
+    positions1 = track(NPC1, 50, 2.0)
 
     if positions1:
         x_vals     = [p[0] for p in positions1]
@@ -196,18 +231,24 @@ try:
         max_x      = max(x_vals)
         total_dist = sum(abs(positions1[i][0] - positions1[i - 1][0])
                          for i in range(1, len(positions1)))
-        print(f"\n  Max X reached : {max_x:.1f}  (gap at X={T1_GAP_X})")
+        left_edge  = T1_X1 + 5
+        stuck      = max_x < left_edge + 2.0
+        print(f"\n  Max X reached : {max_x:.1f}  (gap at X={T1_GAP_X}, left edge X={left_edge})")
         print(f"  Crossed gap   : {'YES' if crossed else 'NO'}")
+        print(f"  Stuck at start: {'YES' if stuck else 'NO'}")
         print(f"  Total X travel: {total_dist:.1f}")
 
         if crossed:
             print("  RESULT: PASS — NPC jumped the gap!")
             results.append(("Jump gap (Phase 3)", "PASS"))
+        elif stuck:
+            print("  RESULT: FAIL — NPC stuck at spawn (path not computed)")
+            results.append(("Jump gap (Phase 3)", "FAIL"))
         elif total_dist > 3.0:
-            print("  RESULT: PARTIAL — NPC moved but didn't cross")
+            print("  RESULT: PARTIAL — NPC moved toward gap but didn't cross")
             results.append(("Jump gap (Phase 3)", "PARTIAL"))
         else:
-            print("  RESULT: FAIL — NPC stuck before gap")
+            print("  RESULT: FAIL — NPC never moved")
             results.append(("Jump gap (Phase 3)", "FAIL"))
     else:
         print("  RESULT: FAIL — NPC not found")
@@ -293,6 +334,11 @@ try:
 
     cleanup_t2()
     time.sleep(0.5)
+
+except EngineOfflineError as e:
+    print(f"\n\n  Engine went offline: {e}")
+    print("  Restart the engine and re-run the script.")
+    sys.exit(1)
 
 except KeyboardInterrupt:
     print("\n\n  Interrupted — cleaning up...")

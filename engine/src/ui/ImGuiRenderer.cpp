@@ -9,6 +9,7 @@
 #include "core/HealthComponent.h"
 #include "scene/Entity.h"
 #include "graphics/LightManager.h"
+#include "graphics/ShadowMap.h"
 #include "scripting/ScriptingSystem.h"
 #include "utils/Timer.h"
 #include "utils/PerformanceProfiler.h"
@@ -745,7 +746,8 @@ void ImGuiRenderer::renderLightingControls(
     glm::vec3& sunColor,
     float& ambientStrength,
     float& emissiveMultiplier,
-    Graphics::LightManager* lightManager
+    Graphics::LightManager* lightManager,
+    Graphics::ShadowMap* shadowMap
 ) {
     if (!showControls) return;
 
@@ -771,6 +773,15 @@ void ImGuiRenderer::renderLightingControls(
         ImGui::Separator();
         ImGui::Text("Emissive Glow");
         ImGui::SliderFloat("Multiplier", &emissiveMultiplier, 1.0f, 10.0f);
+
+        if (shadowMap) {
+            ImGui::Separator();
+            ImGui::Text("Shadows");
+            float shadowRange = shadowMap->getShadowRange();
+            if (ImGui::SliderFloat("Shadow Range", &shadowRange, 30.0f, 400.0f)) {
+                shadowMap->setShadowRange(shadowRange);
+            }
+        }
 
         if (lightManager) {
             ImGui::Separator();

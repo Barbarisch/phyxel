@@ -369,6 +369,7 @@
     {
       "name": "Glass",
       "category": "material",
+      "alpha": 0.5,
       "description": "Brittle glass material with smooth surface",
       "physics": {
         "mass": 1.5,
@@ -545,6 +546,25 @@
         "side_w": "glow_side_w.png",
         "top": "glow_top.png",
         "bottom": "glow_bottom.png"
+      }
+    },
+    {
+      "name": "Mirror",
+      "description": "Reflective mirror surface",
+      "category": "material",
+      "isMirror": true,
+      "physics": {
+        "mass": 2.5,
+        "friction": 0.4,
+        "restitution": 0.1
+      },
+      "textures": {
+        "side_n": "Glass_side.png",
+        "side_s": "Glass_side.png",
+        "side_e": "Glass_side.png",
+        "side_w": "Glass_side.png",
+        "top": "Glass_side.png",
+        "bottom": "Glass_side.png"
       }
     }
   ]

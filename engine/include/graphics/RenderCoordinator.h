@@ -176,6 +176,10 @@ private:
 
     // Rendering subsystems
     size_t renderStaticGeometry();
+    void renderTransparentGeometryOIT(uint32_t frameIndex);
+    void renderMirrorGeometry(uint32_t frameIndex);
+    void renderReflectionPass(uint32_t frameIndex);
+    bool scanForMirrorVoxels(); // Returns true if any mirror voxels found in visible chunks
     void renderDynamicSubcubes();
     void renderEntities(VkCommandBuffer commandBuffer);
     void renderShadowPass(VkCommandBuffer commandBuffer, const glm::mat4& lightSpaceMatrix);
@@ -232,6 +236,12 @@ private:
 
     // Preallocated to avoid per-frame heap allocation in renderStaticGeometry()
     std::vector<size_t> visibleChunkIndices;
+
+    // Mirror reflection state (updated per-frame when mirror voxels are visible)
+    bool hasMirrorVoxels = false;
+    glm::vec3 mirrorPlaneNormal{0.0f, 0.0f, 1.0f}; // First mirror face normal found
+    glm::vec3 mirrorPlanePoint{0.0f};               // World position of first mirror voxel
+    glm::mat4 cachedReflectedViewProj{1.0f};        // Reflected view-proj for mirror shader
 
     // Light management
     LightManager lightManager;

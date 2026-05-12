@@ -158,22 +158,65 @@ PathResult AStarPathfinder::findPath(const glm::vec3& start, const glm::vec3& go
             }
         }
 
-        // Phase 3 — expand navigation links (jump links) from this cell.
-        if (const std::vector<NavLink>* links = m_grid->getLinksAt(current.cell->x, current.cell->z)) {
-            for (const NavLink& link : *links) {
-                const NavCell* dest = m_grid->getCell(link.end.x, link.end.y);
-                if (!dest || !dest->walkable) continue;
-                int64_t destKey = cellKey(dest);
-                if (closedSet.count(destKey)) continue;
+        // Phase 3 — expand navigation links (jump links).
+        // getNeighbors() skips nearWall cells for physical walking, but those cells
+        // are valid jump-link takeoff points (they sit right at the gap edge).
+        // So we also probe orthogonally-adjacent walkable+nearWall cells and expand
+        // their links with an extra one-step cost to reach them.
+        {
+            static const int ADJDX[] = {1, -1, 0, 0};
+            static const int ADJDZ[] = {0,  0, 1, -1};
 
-                float tentativeG = gScore[currentKey] + link.cost;
-                auto gIt = gScore.find(destKey);
-                if (gIt == gScore.end() || tentativeG < gIt->second) {
-                    gScore[destKey] = tentativeG;
-                    cameFrom[destKey] = currentKey;
-                    reachedViaLink[destKey] = true;
-                    float f = tentativeG + heuristic(dest, goalCell);
-                    openSet.push({dest, f});
+            // adj == -1: the current cell itself; adj 0-3: its 4 cardinal nearWall neighbours
+            for (int adj = -1; adj < 4; ++adj) {
+                const NavCell* linkSrc;
+                float costToSrc;
+                if (adj == -1) {
+                    linkSrc   = current.cell;
+                    costToSrc = 0.0f;
+                } else {
+                    int nx = current.cell->x + ADJDX[adj];
+                    int nz = current.cell->z + ADJDZ[adj];
+                    linkSrc = m_grid->getCell(nx, nz);
+                    if (!linkSrc || !linkSrc->walkable || !linkSrc->nearWall) continue;
+                    costToSrc = COST_ORTHOGONAL;
+                }
+
+                const std::vector<NavLink>* links = m_grid->getLinksAt(linkSrc->x, linkSrc->z);
+                if (!links) continue;
+
+                int64_t srcKey  = cellKey(linkSrc);
+                float   gToSrc  = gScore[currentKey] + costToSrc;
+
+                for (const NavLink& link : *links) {
+                    const NavCell* dest = m_grid->getCell(link.end.x, link.end.y);
+                    if (!dest || !dest->walkable) continue;
+                    int64_t destKey = cellKey(dest);
+                    if (closedSet.count(destKey)) continue;
+
+                    float tentativeG = gToSrc + link.cost;
+                    auto  gIt        = gScore.find(destKey);
+                    if (gIt == gScore.end() || tentativeG < gIt->second) {
+                        gScore[destKey]        = tentativeG;
+                        reachedViaLink[destKey] = true;
+
+                        if (adj >= 0) {
+                            // Record the nearWall edge cell as an intermediate waypoint so
+                            // the NPC physically walks to the gap edge before jumping.
+                            auto sIt = gScore.find(srcKey);
+                            if (sIt == gScore.end() || gToSrc < sIt->second) {
+                                gScore[srcKey]          = gToSrc;
+                                cameFrom[srcKey]         = currentKey;
+                                reachedViaLink[srcKey]   = false;
+                            }
+                            cameFrom[destKey] = srcKey;
+                        } else {
+                            cameFrom[destKey] = currentKey;
+                        }
+
+                        float f = tentativeG + heuristic(dest, goalCell);
+                        openSet.push({dest, f});
+                    }
                 }
             }
         }

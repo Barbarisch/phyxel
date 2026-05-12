@@ -17,6 +17,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     uint numInstances;
     float ambientLight;
     float emissiveMultiplier;
+    vec3 cameraPosition;
 } ubo;
 
 layout(set = 0, binding = 1) uniform sampler2D textureAtlas;  // texture atlas sampler
@@ -75,48 +76,83 @@ float calcAttenuation(float d, float radius) {
     return atten * falloff;
 }
 
+// 16-sample Poisson disk for soft shadow PCF
+const vec2 poissonDisk[16] = vec2[](
+    vec2(-0.94201624,  -0.39906216),
+    vec2( 0.94558609,  -0.76890725),
+    vec2(-0.094184101, -0.92938870),
+    vec2( 0.34495938,   0.29387760),
+    vec2(-0.91588581,   0.45771432),
+    vec2(-0.81544232,  -0.87912464),
+    vec2(-0.38277543,   0.27676845),
+    vec2( 0.97484398,   0.75648379),
+    vec2( 0.44323325,  -0.97511554),
+    vec2( 0.53742981,  -0.47373420),
+    vec2(-0.26496911,  -0.41893023),
+    vec2( 0.79197514,   0.19090188),
+    vec2(-0.24188840,   0.99706507),
+    vec2(-0.81409955,   0.91437590),
+    vec2( 0.19984126,   0.78641367),
+    vec2( 0.14383161,  -0.14100790)
+);
+
 void main() {
     // Calculate atlas UV coordinates
     vec2 atlasUV = getAtlasUV(textureIndex, texCoord);
     
     // Sample from texture atlas
     vec4 textureColor = texture(textureAtlas, atlasUV);
-    
+
+    // Discard fully transparent fragments (cutout transparency)
+    if (textureColor.a < 0.1) discard;
+
+    // Discard mirror fragments — handled in the mirror pass
+    if ((flags & (1u << 10u)) != 0u) discard;
+
+    // NOTE: transparent voxels (flags & 2u) render here in the opaque pass (same as
+    // kinematic/dynamic glass). OIT is not used until the bloom pipeline is also wired up.
+
     // Check for emissive flag (bit 0)
     bool isEmissive = (flags & 1u) != 0u;
 
     // Normal and Light Direction
     vec3 normal = normalize(inNormal);
     vec3 lightDir = normalize(-ubo.sunDirection);
+    vec3 viewDir = normalize(ubo.cameraPosition - inWorldPos);
 
     // Diffuse lighting (sun)
     float diff = max(dot(normal, lightDir), 0.0);
 
-    // Shadow calculation (PCF)
+    // Blinn-Phong specular (sun)
+    float sunSpec = 0.0;
+    if (diff > 0.0) {
+        vec3 halfVec = normalize(lightDir + viewDir);
+        sunSpec = pow(max(dot(normal, halfVec), 0.0), 32.0) * 0.3;
+    }
+
+    // Shadow calculation — 16-sample Poisson disk PCF
     float shadowFactor = 1.0;
     if (!isEmissive && shadowCoord.z > -1.0 && shadowCoord.z < 1.0 && shadowCoord.w > 0.0) {
         float shadowSum = 0.0;
         vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
-        for(int x = -1; x <= 1; ++x) {
-            for(int y = -1; y <= 1; ++y) {
-                float pcfDepth = texture(shadowMap, shadowCoord.xy + vec2(x, y) * texelSize).r; 
-                if (shadowCoord.z - 0.005 > pcfDepth) {
-                    shadowSum += 1.0;
-                }
-            }    
+        for (int i = 0; i < 16; i++) {
+            float pcfDepth = texture(shadowMap, shadowCoord.xy + poissonDisk[i] * texelSize * 1.5).r;
+            if (shadowCoord.z - 0.005 > pcfDepth) {
+                shadowSum += 1.0;
+            }
         }
-        shadowFactor = 1.0 - (shadowSum / 9.0);
+        shadowFactor = 1.0 - (shadowSum / 16.0);
     }
 
     // Apply shadow (or boost if emissive)
     if (isEmissive) {
         outColor = vec4(textureColor.rgb * ubo.emissiveMultiplier, textureColor.a); // Boost brightness for bloom
     } else {
-        // Combine Ambient + Diffuse * Shadow
+        // Combine Ambient + (Diffuse + Specular) * Shadow
         vec3 ambient = vec3(ubo.ambientLight);
-        vec3 diffuse = diff * ubo.sunColor;
+        vec3 sunContrib = (diff * ubo.sunColor + sunSpec * ubo.sunColor) * shadowFactor;
         
-        vec3 finalLight = ambient + (diffuse * shadowFactor);
+        vec3 finalLight = ambient + sunContrib;
 
         // Accumulate point light contributions
         for (uint i = 0u; i < lights.numPointLights && i < 32u; i++) {
@@ -131,7 +167,13 @@ void main() {
                 vec3 ldir = toLight / dist;
                 float ndotl = max(dot(normal, ldir), 0.0);
                 float atten = calcAttenuation(dist, radius);
-                finalLight += lightColor * intensity * ndotl * atten;
+                // Point light specular
+                float pSpec = 0.0;
+                if (ndotl > 0.0) {
+                    vec3 h = normalize(ldir + viewDir);
+                    pSpec = pow(max(dot(normal, h), 0.0), 32.0) * 0.3;
+                }
+                finalLight += lightColor * intensity * (ndotl + pSpec) * atten;
             }
         }
 
@@ -154,17 +196,16 @@ void main() {
                 // Spotlight cone falloff
                 float theta = dot(-ldir, spotDir);
                 float spotFactor = smoothstep(outerCone, innerCone, theta);
-                finalLight += lightColor * intensity * ndotl * atten * spotFactor;
+                // Spot light specular
+                float sSpec = 0.0;
+                if (ndotl > 0.0) {
+                    vec3 h = normalize(ldir + viewDir);
+                    sSpec = pow(max(dot(normal, h), 0.0), 32.0) * 0.3;
+                }
+                finalLight += lightColor * intensity * (ndotl + sSpec) * atten * spotFactor;
             }
         }
         
         outColor = vec4(textureColor.rgb * finalLight, textureColor.a);
-    }
-    
-    // Fallback to solid color if texture is transparent or invalid
-    if (outColor.a < 0.1) {
-        // Use a placeholder color based on texture index for debugging
-        float hue = float(textureIndex % 6u) / 6.0;
-        outColor = vec4(hue, 0.5, 1.0, 1.0);  // HSV-like color
     }
 }

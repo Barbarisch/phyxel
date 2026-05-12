@@ -1,6 +1,6 @@
 # Phyxel — Project Status & Next Steps
 
-*Last updated: March 28, 2026*
+*Last updated: May 11, 2026*
 
 ## What's Been Built
 
@@ -467,3 +467,20 @@ Add to `~/.claude/claude_code_config.json`:
 **Requirements**: `pip install mcp httpx` (MCP SDK v1.9.x+, httpx v0.27+)
 
 The game (`phyxel.exe`) must be running for MCP tools to work. The engine listens on `localhost:8090`.
+
+---
+
+### Lighting Pipeline Enhancement (Phases 1–4) — May 2026
+
+Full documentation: `docs/LightingPipeline.md`
+
+**Phase 1 — Shadow mapping (PCF):** 4096×4096 shadow map, 16-sample Poisson-disk soft shadows in `voxel.frag`. Separate shadow pipelines for static chunks, animated characters, kinematic objects, and dynamic debris.
+
+**Phase 2 — SSAO:** Screen-space ambient occlusion with 64-sample hemisphere kernel and blur pass. Composited in `post_process.frag` via `color *= ao`.
+
+**Phase 3 — OIT infrastructure (Weighted Blended):** `oitAccumImage` (RGBA16F) and `oitRevealImage` (R8_UNORM) render targets, additive/multiplicative blend pipelines, post-process composite shader. Currently disabled pending bloom wire-up (see `docs/LightingPipeline.md`).
+
+**Phase 4a — Glass voxels working:** Transparent materials (`alpha < 0.99`) encoded in `InstanceData.reserved` (bit 1 = isTransparent, bits 2–9 = quantised alpha). Renders through opaque `voxel.frag` pass (same as kinematic/dynamic glass) with correct face culling — no interior faces between glass and adjacent solid voxels.
+
+**Phase 4b — Planar mirror voxels working:** Mirror-material voxels render via dedicated reflection render pass and `mirror_voxel.frag`. Pass skipped when no mirror voxels are present.
+

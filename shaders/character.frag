@@ -13,6 +13,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     uint numInstances;
     float ambientLight;
     float emissiveMultiplier;
+    vec3 cameraPosition;
 } ubo;
 
 // Point light (32 bytes, std430)
@@ -51,11 +52,18 @@ float calcAttenuation(float d, float radius) {
 void main() {
     vec3 normal = normalize(fragNormal);
     vec3 lightDir = normalize(-ubo.sunDirection);
+    vec3 viewDir = normalize(ubo.cameraPosition - fragWorldPos);
     float diff = max(dot(normal, lightDir), 0.0);
 
+    // Blinn-Phong specular (sun)
+    float sunSpec = 0.0;
+    if (diff > 0.0) {
+        vec3 halfVec = normalize(lightDir + viewDir);
+        sunSpec = pow(max(dot(normal, halfVec), 0.0), 32.0) * 0.3;
+    }
+
     vec3 ambient = vec3(ubo.ambientLight);
-    vec3 diffuse = diff * ubo.sunColor;
-    vec3 finalLight = ambient + diffuse;
+    vec3 finalLight = ambient + (diff + sunSpec) * ubo.sunColor;
 
     // Point lights
     for (uint i = 0u; i < lights.numPointLights && i < 32u; i++) {
@@ -70,7 +78,12 @@ void main() {
             vec3 ldir = toLight / dist;
             float ndotl = max(dot(normal, ldir), 0.0);
             float atten = calcAttenuation(dist, radius);
-            finalLight += lightColor * intensity * ndotl * atten;
+            float pSpec = 0.0;
+            if (ndotl > 0.0) {
+                vec3 h = normalize(ldir + viewDir);
+                pSpec = pow(max(dot(normal, h), 0.0), 32.0) * 0.3;
+            }
+            finalLight += lightColor * intensity * (ndotl + pSpec) * atten;
         }
     }
 
@@ -92,7 +105,12 @@ void main() {
             float atten = calcAttenuation(dist, radius);
             float theta = dot(-ldir, spotDir);
             float spotFactor = smoothstep(outerCone, innerCone, theta);
-            finalLight += lightColor * intensity * ndotl * atten * spotFactor;
+            float sSpec = 0.0;
+            if (ndotl > 0.0) {
+                vec3 h = normalize(ldir + viewDir);
+                sSpec = pow(max(dot(normal, h), 0.0), 32.0) * 0.3;
+            }
+            finalLight += lightColor * intensity * (ndotl + sSpec) * atten * spotFactor;
         }
     }
 

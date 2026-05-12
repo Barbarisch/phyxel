@@ -88,7 +88,7 @@ struct InstanceData {
     // Total: 8 bytes (50% reduction from previous 16 bytes!)
     
     static VkVertexInputBindingDescription getBindingDescription();
-    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions();  // packedData + textureIndex
+    static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions();  // packedData + textureIndex + flags
 };
 
 struct CharacterInstanceData {

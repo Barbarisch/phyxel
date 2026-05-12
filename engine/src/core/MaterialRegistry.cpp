@@ -102,7 +102,9 @@ bool MaterialRegistry::loadFromJson(const std::string& path) {
         def.name = matJson.value("name", "");
         def.description = matJson.value("description", "");
         def.category = matJson.value("category", "material");
-        def.emissive = matJson.value("emissive", false);
+        def.emissive  = matJson.value("emissive", false);
+        def.alpha     = matJson.value("alpha", 1.0f);
+        def.isMirror  = matJson.value("isMirror", false);
 
         if (def.name.empty()) {
             LOG_WARN("MaterialRegistry", "Skipping material with empty name");

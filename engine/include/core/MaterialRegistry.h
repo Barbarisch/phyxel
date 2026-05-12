@@ -51,6 +51,8 @@ struct MaterialDef {
     std::string description;
     std::string category;       // "material", "system" (system = editor-only like hover/placeholder)
     bool emissive = false;
+    float alpha = 1.0f;     ///< 1.0 = fully opaque, <1.0 = transparent (OIT)
+    bool isMirror = false;  ///< True = reflective surface (mirror pass)
 
     MaterialPhysics physics;
     MaterialTextures textures;

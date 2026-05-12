@@ -281,7 +281,16 @@
       "Bash(Get-Item \"G:\\\\Github\\\\phyxel\\\\shaders\\\\solver_sync_out_comp.spv\" -ErrorAction SilentlyContinue)",
       "Bash(where glslangValidator)",
       "Bash(where glslc *)",
-      "Bash(\"C:\\\\VulkanSDK\\\\1.4.321.1\\\\Bin\\\\glslangValidator.exe\" -V -Ishaders shaders\\\\solver_csr_clear.comp -o shaders\\\\solver_csr_clear.comp.spv)"
+      "Bash(\"C:\\\\VulkanSDK\\\\1.4.321.1\\\\Bin\\\\glslangValidator.exe\" -V -Ishaders shaders\\\\solver_csr_clear.comp -o shaders\\\\solver_csr_clear.comp.spv)",
+      "Bash(glslc shaders/solver_types.glsl -o /dev/null)",
+      "Bash(glslc shaders/solver_jacobi.comp -o shaders/solver_jacobi.comp.spv)",
+      "Bash(glslc shaders/solver_narrowphase.comp -o shaders/solver_narrowphase.comp.spv)",
+      "Bash(glslc shaders/solver_voxel.comp -o shaders/solver_voxel.comp.spv)",
+      "Bash(./build_shaders.bat)",
+      "Bash(Select-String -Pattern \"solver_body_color|solver_dual|solver_primal|ERROR|error|warning\")",
+      "PowerShell(cd G:\\\\Github\\\\phyxel; $output = cmd /c build_shaders.bat 2>&1; Write-Output \\($output | Where-Object { $_ -match \"solver_body_color|solver_dual|solver_primal|ERROR|error|Failed\" } | Select-Object -First 60\\))",
+      "PowerShell(Set-Location G:\\\\Github\\\\phyxel; cmd /c \".\\\\build_shaders.bat > shader_build_log.txt 2>&1\"; $exit = $LASTEXITCODE; Get-Content shader_build_log.txt | Select-String -Pattern \"solver_types|solver_dual|solver_primal|solver_body|ERROR|Failed|All shaders\" | Select-Object -First 20; Write-Host \"Exit: $exit\")",
+      "mcp__phyxel__run_script"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -21,6 +21,9 @@ public:
     bool createInstancedCharacterPipeline(); // For instanced character rendering
     bool createDebugGraphicsPipeline(); // For debug voxel visualization
     bool createDebugLinePipeline(); // For debug line/raycast visualization
+    bool createOITPipeline(VkRenderPass oitRenderPass); // Weighted Blended OIT transparent pass
+    bool createMirrorPipeline(VkRenderPass sceneRenderPass); // Reflective mirror surface pass
+    void updateMirrorReflectionDescriptor(VkImageView reflectionView, VkSampler reflectionSampler);
     void cleanup();
 
     // Shader management
@@ -36,6 +39,8 @@ public:
     void bindInstancedCharacterPipeline(VkCommandBuffer commandBuffer);
     void bindDebugGraphicsPipeline(VkCommandBuffer commandBuffer);
     void bindDebugLinePipeline(VkCommandBuffer commandBuffer);
+    void bindOITPipeline(VkCommandBuffer commandBuffer);
+    void bindMirrorPipeline(VkCommandBuffer commandBuffer, uint32_t frameIndex, VkDescriptorSet mirrorReflDescSet);
 
     // Getters
     VkPipeline getGraphicsPipeline() const { return graphicsPipeline; }
@@ -43,9 +48,14 @@ public:
     VkPipeline getInstancedCharacterPipeline() const { return instancedCharacterPipeline; }
     VkPipeline getDebugGraphicsPipeline() const { return debugGraphicsPipeline; }
     VkPipeline getDebugLinePipeline() const { return debugLinePipeline; }
+    VkPipeline getOITPipeline() const { return oitPipeline; }
+    VkPipeline getMirrorPipeline() const { return mirrorPipeline; }
+    VkPipelineLayout getMirrorPipelineLayout() const { return mirrorPipelineLayout; }
+    VkDescriptorSet getMirrorReflectionDescriptorSet() const { return mirrorReflectionDescriptorSet; }
     VkPipelineLayout getGraphicsLayout() const { return pipelineLayout; }
     VkPipelineLayout getCharacterLayout() const { return characterPipelineLayout; }
     VkPipelineLayout getInstancedCharacterLayout() const { return instancedCharacterPipelineLayout; }
+    VkDescriptorSetLayout getDescriptorSetLayout() const { return descriptorSetLayout; }
     VkRenderPass getRenderPass() const { return renderPass; }
 
     // Render pass management
@@ -66,6 +76,14 @@ private:
     VkPipeline instancedCharacterPipeline = VK_NULL_HANDLE;
     VkPipeline debugGraphicsPipeline = VK_NULL_HANDLE;  // Debug voxel visualization pipeline
     VkPipeline debugLinePipeline = VK_NULL_HANDLE;      // Debug line/raycast visualization pipeline
+    VkPipeline oitPipeline = VK_NULL_HANDLE;            // Weighted Blended OIT transparent pass
+    VkShaderModule oitFragShaderModule = VK_NULL_HANDLE;
+    VkPipeline mirrorPipeline = VK_NULL_HANDLE;          // Reflective mirror surface pass
+    VkPipelineLayout mirrorPipelineLayout = VK_NULL_HANDLE; // Layout with set 0 + set 1 (reflection)
+    VkShaderModule mirrorFragShaderModule = VK_NULL_HANDLE;
+    VkDescriptorSetLayout mirrorReflectionDescSetLayout = VK_NULL_HANDLE; // set 1: reflection sampler
+    VkDescriptorPool mirrorDescriptorPool = VK_NULL_HANDLE;
+    VkDescriptorSet mirrorReflectionDescriptorSet = VK_NULL_HANDLE; // single, not per-frame
 
     // Descriptor set layouts
     VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;

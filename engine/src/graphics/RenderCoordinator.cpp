@@ -15,6 +15,8 @@
 #include "ui/WindowManager.h"
 #include "input/InputManager.h"
 #include "core/ChunkManager.h"
+#include "core/MaterialRegistry.h"
+#include "core/Cube.h"
 #include "utils/CoordinateUtils.h"
 #include "utils/Frustum.h"
 #include "utils/Logger.h"
@@ -82,6 +84,16 @@ RenderCoordinator::RenderCoordinator(
     renderPipeline->createDebugLinePipeline();
     renderPipeline->createCharacterPipeline();
     renderPipeline->createInstancedCharacterPipeline();
+    // OIT transparent pass pipeline
+    renderPipeline->createOITPipeline(postProcessor->getOITRenderPass());
+
+    // Mirror reflective surface pipeline (uses scene render pass, separate descriptor for reflection texture)
+    renderPipeline->createMirrorPipeline(postProcessor->getSceneRenderPass());
+    renderPipeline->updateMirrorReflectionDescriptor(
+        postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
+
+    // Reflection UBO buffers (must be created after texture atlas + shadow map are bound to main descriptor sets)
+    vulkanDevice->createReflectionBuffers();
 
     dynamicRenderPipeline->setRenderPass(postProcessor->getSceneRenderPass());
     dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
@@ -229,9 +241,161 @@ size_t RenderCoordinator::renderStaticGeometry() {
     return renderedChunks;
 }
 
+void RenderCoordinator::renderTransparentGeometryOIT(uint32_t frameIndex) {
+    // Re-renders visible chunks using the OIT pipeline (transparent fragments only).
+    // The transparent_voxel.frag shader discards non-transparent fragments,
+    // so opaque geometry is skipped automatically.
+    if (!chunkManager || visibleChunkIndices.empty()) return;
+
+    VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(frameIndex);
+
+    // Bind OIT pipeline
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getOITPipeline());
+
+    // Rebind cube vertex buffer at binding 0. Between the opaque pass and here, dynamic subcubes,
+    // entities, kinematic objects, and mirror geometry all rebind binding 0 to their own buffers.
+    // If we don't restore it, the OIT pass draws with the wrong geometry → invisible glass.
+    vulkanDevice->bindVertexBuffers(frameIndex);
+    vulkanDevice->bindIndexBuffer(frameIndex);
+    vulkanDevice->bindDescriptorSets(frameIndex, renderPipeline->getGraphicsLayout());
+
+    for (size_t chunkIndex : visibleChunkIndices) {
+        const Chunk* chunk = chunkManager->chunks[chunkIndex].get();
+        if (chunk->getNumInstances() == 0) continue;
+
+        VkBuffer instanceBuffers[] = {chunk->getInstanceBuffer()};
+        VkDeviceSize instanceOffsets[] = {0};
+        vkCmdBindVertexBuffers(cmd, 1, 1, instanceBuffers, instanceOffsets);
+
+        glm::ivec3 worldOrigin = chunk->getWorldOrigin();
+        glm::vec3 chunkBaseOffset(worldOrigin.x, worldOrigin.y, worldOrigin.z);
+        vulkanDevice->pushConstants(frameIndex, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
+
+        vulkanDevice->drawIndexed(frameIndex, 36, chunk->getNumInstances());
+    }
+}
+
+bool RenderCoordinator::scanForMirrorVoxels() {
+    // Scan visible chunks for any voxels with Mirror material.
+    if (!chunkManager) return false;
+
+    for (size_t chunkIndex : visibleChunkIndices) {
+        const Chunk* chunk = chunkManager->chunks[chunkIndex].get();
+        if (chunk->getNumInstances() == 0) continue;
+
+        glm::ivec3 origin = chunk->getWorldOrigin();
+        for (int x = 0; x < 32; x++) {
+            for (int y = 0; y < 32; y++) {
+                for (int z = 0; z < 32; z++) {
+                    const Cube* cube = chunk->getCubeAt(glm::ivec3(x, y, z));
+                    if (!cube) continue;
+                    const auto* mat = Phyxel::Core::MaterialRegistry::instance().getMaterial(cube->getMaterialName());
+                    if (mat && mat->isMirror) {
+                        mirrorPlanePoint  = glm::vec3(origin.x + x + 0.5f, origin.y + y + 0.5f, origin.z + z + 0.5f);
+                        mirrorPlaneNormal = glm::vec3(0.0f, 0.0f, 1.0f);
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+
+void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
+    // Compute reflected camera: reflect position and orientation about the mirror plane.
+    glm::vec3 N = glm::normalize(mirrorPlaneNormal);
+    float d = -glm::dot(N, mirrorPlanePoint);
+
+    // Reflection matrix (mirrors any point about plane N*p + d = 0)
+    glm::mat4 reflMat(1.0f);
+    reflMat[0][0] = 1.0f - 2.0f*N.x*N.x;  reflMat[1][0] = -2.0f*N.x*N.y;        reflMat[2][0] = -2.0f*N.x*N.z;        reflMat[3][0] = 2.0f*N.x*(-d);
+    reflMat[0][1] = -2.0f*N.x*N.y;         reflMat[1][1] = 1.0f - 2.0f*N.y*N.y;  reflMat[2][1] = -2.0f*N.y*N.z;        reflMat[3][1] = 2.0f*N.y*(-d);
+    reflMat[0][2] = -2.0f*N.x*N.z;         reflMat[1][2] = -2.0f*N.y*N.z;        reflMat[2][2] = 1.0f - 2.0f*N.z*N.z;  reflMat[3][2] = 2.0f*N.z*(-d);
+
+    glm::vec3 camPos   = camera->getPosition();
+    glm::vec3 camFront = camera->getFront();
+    glm::vec3 camUp    = camera->getUp();
+
+    glm::vec3 reflCamPos   = glm::vec3(reflMat * glm::vec4(camPos, 1.0f));
+    glm::vec3 reflCamFront = glm::vec3(reflMat * glm::vec4(camFront, 0.0f));
+    glm::vec3 reflCamUp    = glm::vec3(reflMat * glm::vec4(camUp, 0.0f));
+
+    glm::mat4 reflectedView = glm::lookAt(reflCamPos, reflCamPos + reflCamFront, reflCamUp);
+    cachedReflectedViewProj = cachedProjectionMatrix * reflectedView;
+
+    // Store reflected VP in the main UBO so mirror_voxel.frag can use it for projective texturing
+    vulkanDevice->setReflectedViewProj(frameIndex, cachedReflectedViewProj);
+
+    // Update the reflection-specific UBO with the reflected view matrix
+    auto sunDir   = glm::vec3(0.0f, -1.0f, 0.0f); // Will be overridden by actual sun direction from last frame
+    // Reuse current frame's UBO values (they're already set by the main updateUniformBuffer call above)
+    // For simplicity: just use the same sun/ambient values. A full impl would capture these from the lighting pass.
+    vulkanDevice->updateReflectionUniformBuffer(frameIndex, reflectedView, cachedProjectionMatrix,
+        glm::mat4(1.0f), // lightSpaceMatrix (shadows in reflection not critical)
+        glm::vec3(0.0f, -1.0f, 0.5f), glm::vec3(1.0f, 0.95f, 0.8f),
+        0, 1.0f, 2.0f, reflCamPos);
+
+    // Render the scene from the reflected camera into the reflection framebuffer
+    postProcessor->beginReflectionRenderPass(vulkanDevice->getCommandBuffer(frameIndex));
+
+    // Bind graphics pipeline (same as main scene pass)
+    vkCmdBindPipeline(vulkanDevice->getCommandBuffer(frameIndex),
+        VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getGraphicsPipeline());
+
+    // Bind index buffer and reflection descriptor sets (reflected view matrix)
+    vulkanDevice->bindIndexBuffer(frameIndex);
+    vulkanDevice->bindReflectionDescriptorSets(frameIndex, renderPipeline->getGraphicsLayout());
+
+    // Draw visible chunks from reflected camera (mirror faces discarded by voxel.frag)
+    for (size_t chunkIndex : visibleChunkIndices) {
+        const Chunk* chunk = chunkManager->chunks[chunkIndex].get();
+        if (chunk->getNumInstances() == 0) continue;
+
+        VkBuffer instanceBuffers[] = {chunk->getInstanceBuffer()};
+        VkDeviceSize instanceOffsets[] = {0};
+        vkCmdBindVertexBuffers(vulkanDevice->getCommandBuffer(frameIndex), 1, 1, instanceBuffers, instanceOffsets);
+
+        glm::ivec3 worldOrigin = chunk->getWorldOrigin();
+        glm::vec3 chunkBaseOffset(worldOrigin.x, worldOrigin.y, worldOrigin.z);
+        vulkanDevice->pushConstants(frameIndex, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
+        vulkanDevice->drawIndexed(frameIndex, 36, chunk->getNumInstances());
+    }
+
+    postProcessor->endReflectionRenderPass(vulkanDevice->getCommandBuffer(frameIndex));
+}
+
+void RenderCoordinator::renderMirrorGeometry(uint32_t frameIndex) {
+    // Draws mirror faces inside the scene render pass using the mirror pipeline.
+    // mirror_voxel.frag discards non-mirror faces; reflects the scene using the
+    // reflection texture captured in renderReflectionPass().
+    if (!chunkManager || visibleChunkIndices.empty()) return;
+
+    VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(frameIndex);
+
+    // Bind mirror pipeline (also binds reflection descriptor set at set 1)
+    renderPipeline->bindMirrorPipeline(cmd, frameIndex, renderPipeline->getMirrorReflectionDescriptorSet());
+
+    // Bind main descriptor set at set 0 (original view + atlas + lights)
+    vulkanDevice->bindDescriptorSets(frameIndex, renderPipeline->getMirrorPipelineLayout());
+    vulkanDevice->bindIndexBuffer(frameIndex);
+
+    for (size_t chunkIndex : visibleChunkIndices) {
+        const Chunk* chunk = chunkManager->chunks[chunkIndex].get();
+        if (chunk->getNumInstances() == 0) continue;
+
+        VkBuffer instanceBuffers[] = {chunk->getInstanceBuffer()};
+        VkDeviceSize instanceOffsets[] = {0};
+        vkCmdBindVertexBuffers(cmd, 1, 1, instanceBuffers, instanceOffsets);
+
+        glm::ivec3 worldOrigin = chunk->getWorldOrigin();
+        glm::vec3 chunkBaseOffset(worldOrigin.x, worldOrigin.y, worldOrigin.z);
+        vulkanDevice->pushConstants(frameIndex, renderPipeline->getMirrorPipelineLayout(), chunkBaseOffset);
+        vulkanDevice->drawIndexed(frameIndex, 36, chunk->getNumInstances());
+    }
+}
+
 void RenderCoordinator::renderDynamicSubcubes() {
-    // ---------------------------------------------------------------------------
-    // GPU path (preferred): face buffer written by particle_expand.comp
     //
     // Rendering method:  vkCmdDrawIndirect (NON-INDEXED)
     //   vertexCount  = 6     (set once at init, never changes)
@@ -317,7 +481,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
              glm::vec3 minBounds = chunk->getMinBounds();
              glm::vec3 maxBounds = chunk->getMaxBounds();
              glm::vec3 chunkCenter = (minBounds + maxBounds) * 0.5f;
-             if (glm::length(chunkCenter - cameraPos) > 100.0f + 32.0f) continue; // Shadow range + chunk radius
+             if (glm::length(chunkCenter - cameraPos) > shadowMap->getShadowRange() + 32.0f) continue; // Shadow range + chunk radius
 
              // Bind chunk instance buffer
              VkBuffer instanceBuffers[] = {chunk->getInstanceBuffer()};
@@ -339,6 +503,120 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
              // Draw
              vkCmdDrawIndexed(commandBuffer, 36, chunk->getNumInstances(), 0, 0, 0);
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Character shadow pass (AnimatedVoxelCharacter / NPC ragdolls)
+    // -------------------------------------------------------------------------
+    if (shadowMap->getCharacterShadowPipeline() != VK_NULL_HANDLE) {
+        // Collect same character list as renderEntities
+        std::vector<Scene::RagdollCharacter*> instancedCharacters;
+        if (entities) {
+            for (const auto& entity : *entities) {
+                if (auto* ac = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity.get()))
+                    instancedCharacters.push_back(ac);
+            }
+        }
+        if (m_npcManager) {
+            for (const auto& name : m_npcManager->getAllNPCNames()) {
+                auto* npc = m_npcManager->getNPC(name);
+                if (npc) {
+                    if (auto* renderable = npc->getRenderableCharacter())
+                        instancedCharacters.push_back(renderable);
+                }
+            }
+        }
+
+        if (!instancedCharacters.empty()) {
+            std::vector<CharacterInstanceData> instanceData;
+            struct CharShadowBatch { glm::mat4 model; uint32_t firstInstance; uint32_t instanceCount; };
+            std::vector<CharShadowBatch> batches;
+
+            auto batchParts = [&](const std::vector<Scene::RagdollPart>& charParts) {
+                std::map<int, std::vector<const Scene::RagdollPart*>> partsByGroup;
+                for (const auto& part : charParts)
+                    if (part.useDirectTransform) partsByGroup[part.boneGroupId].push_back(&part);
+                for (const auto& [groupId, gParts] : partsByGroup) {
+                    if (gParts.empty()) continue;
+                    const auto* first = gParts[0];
+                    CharShadowBatch batch;
+                    batch.model = glm::translate(glm::mat4(1.0f), first->worldPos) * glm::mat4_cast(first->worldRot);
+                    batch.firstInstance = static_cast<uint32_t>(instanceData.size());
+                    batch.instanceCount = 0;
+                    for (const auto* part : gParts) {
+                        if (!part->active) continue;
+                        CharacterInstanceData data;
+                        data.offset = part->offset;
+                        data.scale  = part->scale;
+                        data.color  = part->color;
+                        instanceData.push_back(data);
+                        batch.instanceCount++;
+                    }
+                    if (batch.instanceCount > 0) batches.push_back(batch);
+                }
+            };
+
+            for (auto* charPtr : instancedCharacters) batchParts(charPtr->getParts());
+
+            if (!instanceData.empty()) {
+                vulkanDevice->updateCharacterInstanceBuffer(instanceData);
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowMap->getCharacterShadowPipeline());
+                vulkanDevice->bindCharacterInstanceBuffer(commandBuffer);
+
+                struct CharShadowPC { glm::mat4 model; glm::mat4 lightSpaceMatrix; } charPC;
+                charPC.lightSpaceMatrix = lightSpaceMatrix;
+                for (const auto& batch : batches) {
+                    charPC.model = batch.model;
+                    vkCmdPushConstants(commandBuffer, shadowMap->getCharacterShadowLayout(),
+                                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(charPC), &charPC);
+                    vkCmdDraw(commandBuffer, 36, batch.instanceCount, 0, batch.firstInstance);
+                }
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Kinematic voxel shadow pass (doors, rotating platforms, etc.)
+    // -------------------------------------------------------------------------
+    if (shadowMap->getKinematicShadowPipeline() != VK_NULL_HANDLE &&
+        kinematicPipeline && m_kinematicObjects &&
+        !m_kinematicObjects->getObjects().empty())
+    {
+        VkBuffer kinBuf = kinematicPipeline->getInstanceBuffer();
+        if (kinBuf != VK_NULL_HANDLE) {
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowMap->getKinematicShadowPipeline());
+
+            struct KinShadowPC { glm::mat4 modelMatrix; glm::mat4 lightSpaceMatrix; } kinPC;
+            kinPC.lightSpaceMatrix = lightSpaceMatrix;
+            for (const auto& [id, range] : kinematicPipeline->getObjectRanges()) {
+                auto it = m_kinematicObjects->getObjects().find(id);
+                if (it == m_kinematicObjects->getObjects().end() || !it->second.visible) continue;
+                kinPC.modelMatrix = it->second.currentTransform;
+                vkCmdPushConstants(commandBuffer, shadowMap->getKinematicShadowLayout(),
+                                   VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(kinPC), &kinPC);
+                VkDeviceSize offset = range.startFace * sizeof(Core::KinematicFaceData);
+                vkCmdBindVertexBuffers(commandBuffer, 0, 1, &kinBuf, &offset);
+                vkCmdDraw(commandBuffer, 6, range.faceCount, 0, 0);
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Dynamic GPU particle shadow pass
+    // -------------------------------------------------------------------------
+    if (shadowMap->getDynamicShadowPipeline() != VK_NULL_HANDLE &&
+        m_gpuParticles && m_gpuParticles->isInitialized() && m_gpuParticles->getActiveParticleCount() > 0)
+    {
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowMap->getDynamicShadowPipeline());
+        glm::mat4 lsm = lightSpaceMatrix;
+        vkCmdPushConstants(commandBuffer, shadowMap->getDynamicShadowLayout(),
+                           VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &lsm);
+        // Binding 0: vertex ID buffer (shared), binding 1: GPU face buffer
+        vulkanDevice->bindVertexBuffers(currentFrame);
+        VkBuffer faceBuffer = m_gpuParticles->getFaceBuffer();
+        VkDeviceSize faceOffset = 0;
+        vkCmdBindVertexBuffers(commandBuffer, 1, 1, &faceBuffer, &faceOffset);
+        vkCmdDrawIndirect(commandBuffer, m_gpuParticles->getIndirectDrawBuffer(), 0, 1, 16);
     }
 
     shadowMap->endRenderPass(commandBuffer);
@@ -368,6 +646,10 @@ void RenderCoordinator::drawFrame() {
         renderPipeline->createDebugGraphicsPipeline();
         renderPipeline->createDebugLinePipeline();
         renderPipeline->createCharacterPipeline();
+        renderPipeline->createOITPipeline(postProcessor->getOITRenderPass());
+        renderPipeline->createMirrorPipeline(postProcessor->getSceneRenderPass());
+        renderPipeline->updateMirrorReflectionDescriptor(
+            postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
         dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
 
         windowManager->acknowledgeResize();
@@ -395,6 +677,10 @@ void RenderCoordinator::drawFrame() {
         renderPipeline->createDebugGraphicsPipeline();
         renderPipeline->createDebugLinePipeline();
         renderPipeline->createCharacterPipeline();
+        renderPipeline->createOITPipeline(postProcessor->getOITRenderPass());
+        renderPipeline->createMirrorPipeline(postProcessor->getSceneRenderPass());
+        renderPipeline->updateMirrorReflectionDescriptor(
+            postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
         dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
 
         return; // Skip this frame and try again
@@ -408,6 +694,10 @@ void RenderCoordinator::drawFrame() {
         renderPipeline->createDebugGraphicsPipeline();
         renderPipeline->createDebugLinePipeline();
         renderPipeline->createCharacterPipeline();
+        renderPipeline->createOITPipeline(postProcessor->getOITRenderPass());
+        renderPipeline->createMirrorPipeline(postProcessor->getSceneRenderPass());
+        renderPipeline->updateMirrorReflectionDescriptor(
+            postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
         dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
         return; // Skip this frame, try again next frame
     }
@@ -463,7 +753,7 @@ void RenderCoordinator::drawFrame() {
         }
     }
 
-    glm::mat4 lightSpaceMatrix = shadowMap ? shadowMap->getLightSpaceMatrix(sunDirection, cameraPos, 100.0f) : glm::mat4(1.0f);
+    glm::mat4 lightSpaceMatrix = shadowMap ? shadowMap->getLightSpaceMatrix(sunDirection, cameraPos, shadowMap->getShadowRange()) : glm::mat4(1.0f);
     
     auto uboEnd = std::chrono::high_resolution_clock::now();
     
@@ -474,7 +764,7 @@ void RenderCoordinator::drawFrame() {
     size_t uniformBufferSize = sizeof(glm::mat4) * 3 + sizeof(glm::vec3) * 2 + sizeof(uint32_t) + sizeof(float) * 2; // view + proj + lightSpace + sunDir + sunColor + cubeCount + ambient + emissive
     performanceProfiler->recordMemoryTransfer(uniformBufferSize);
     
-    vulkanDevice->updateUniformBuffer(currentFrame, view, proj, lightSpaceMatrix, sunDirection, sunColor, static_cast<uint32_t>(chunkStats.totalCubes), ambientLightStrength, emissiveMultiplier);
+    vulkanDevice->updateUniformBuffer(currentFrame, view, proj, lightSpaceMatrix, sunDirection, sunColor, static_cast<uint32_t>(chunkStats.totalCubes), ambientLightStrength, emissiveMultiplier, cameraPos);
     
     // Upload light data to GPU SSBO
     auto gpuLightData = lightManager.getGPUData();
@@ -520,6 +810,17 @@ void RenderCoordinator::drawFrame() {
         performanceMonitor->getCurrentFrameTiming().faceCulledFaces = 0;
     }
     
+    // Scan for mirror voxels (uses visibleChunkIndices populated above in the culling prepass,
+    // but we need to scan even before the scene pass starts).
+    // Note: visibleChunkIndices is populated inside renderStaticGeometry(), so we do a quick
+    // pre-cull here to find mirrors, then the full scene pass re-does the cull inside its scope.
+    hasMirrorVoxels = scanForMirrorVoxels();
+
+    // Mirror reflection pass: render scene from reflected camera before the main scene pass.
+    if (hasMirrorVoxels && renderPipeline->getMirrorPipeline() != VK_NULL_HANDLE) {
+        renderReflectionPass(currentFrame);
+    }
+
     // Begin Scene Render Pass (Offscreen)
     postProcessor->beginSceneRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
     
@@ -650,9 +951,24 @@ void RenderCoordinator::drawFrame() {
         }
     }
 
+    // Mirror surface pass (inside scene render pass, after all opaque/entity geometry)
+    if (hasMirrorVoxels && renderPipeline->getMirrorPipeline() != VK_NULL_HANDLE) {
+        renderMirrorGeometry(currentFrame);
+    }
+
     // End Scene Render Pass
     } // End Scene Pass Scope
     postProcessor->endSceneRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
+
+    // SSAO pass (samples the depth buffer written by scene pass)
+    postProcessor->renderSSAO(vulkanDevice->getCommandBuffer(currentFrame), cachedProjectionMatrix);
+
+    // OIT transparent pass (reads depth in read-only mode, writes accum + reveal)
+    if (renderPipeline->getOITPipeline() != VK_NULL_HANDLE) {
+        postProcessor->beginOITRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
+        renderTransparentGeometryOIT(currentFrame);
+        postProcessor->endOITRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
+    }
 
     // Begin Post Process Render Pass (Swapchain)
     postProcessor->beginPostProcessRenderPass(vulkanDevice->getCommandBuffer(currentFrame), vulkanDevice->getSwapChainFramebuffer(imageIndex));
@@ -750,7 +1066,8 @@ void RenderCoordinator::renderUI() {
             sunColor,
             ambientLightStrength,
             emissiveMultiplier,
-            &lightManager
+            &lightManager,
+            shadowMap.get()
         );
 
         imguiRenderer->renderProfilerWindow(
