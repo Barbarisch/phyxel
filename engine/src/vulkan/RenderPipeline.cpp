@@ -796,6 +796,10 @@ void RenderPipeline::cleanup() {
     }
 
     // Mirror pipeline cleanup
+    if (reflectionScenePipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, reflectionScenePipeline, nullptr);
+        reflectionScenePipeline = VK_NULL_HANDLE;
+    }
     if (mirrorPipeline != VK_NULL_HANDLE) {
         vkDestroyPipeline(device, mirrorPipeline, nullptr);
         mirrorPipeline = VK_NULL_HANDLE;
@@ -1676,6 +1680,107 @@ bool RenderPipeline::createMirrorPipeline(VkRenderPass sceneRenderPass) {
         return false;
     }
     LOG_INFO("RenderPipeline", "Mirror pipeline created");
+    return true;
+}
+
+bool RenderPipeline::createReflectionScenePipeline(VkRenderPass sceneRenderPass) {
+    // Identical to the main opaque pipeline but uses BACK_BIT culling so that geometry
+    // rendered from a reflected camera (which flips winding order) is visible instead of culled.
+    if (pipelineLayout == VK_NULL_HANDLE || vertShaderModule == VK_NULL_HANDLE || fragShaderModule == VK_NULL_HANDLE) {
+        LOG_ERROR("RenderPipeline", "createReflectionScenePipeline: must call createGraphicsPipeline first");
+        return false;
+    }
+
+    auto vertexBindingDescription    = Vertex::getBindingDescription();
+    auto vertexAttributeDescriptions = Vertex::getAttributeDescriptions();
+    auto instanceBindingDescription  = InstanceData::getBindingDescription();
+    auto instanceAttributeDescriptions = InstanceData::getAttributeDescriptions();
+    std::vector<VkVertexInputBindingDescription> bindingDescs = { vertexBindingDescription, instanceBindingDescription };
+    std::vector<VkVertexInputAttributeDescription> attrDescs;
+    attrDescs.insert(attrDescs.end(), vertexAttributeDescriptions.begin(), vertexAttributeDescriptions.end());
+    attrDescs.insert(attrDescs.end(), instanceAttributeDescriptions.begin(), instanceAttributeDescriptions.end());
+
+    VkPipelineVertexInputStateCreateInfo vi{};
+    vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vi.vertexBindingDescriptionCount   = static_cast<uint32_t>(bindingDescs.size());
+    vi.pVertexBindingDescriptions      = bindingDescs.data();
+    vi.vertexAttributeDescriptionCount = static_cast<uint32_t>(attrDescs.size());
+    vi.pVertexAttributeDescriptions    = attrDescs.data();
+
+    VkPipelineInputAssemblyStateCreateInfo ia{};
+    ia.sType    = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    VkPipelineViewportStateCreateInfo vps{};
+    vps.sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    vps.viewportCount = 1; vps.scissorCount = 1;
+
+    VkPipelineRasterizationStateCreateInfo rs{};
+    rs.sType       = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rs.polygonMode = VK_POLYGON_MODE_FILL;
+    rs.lineWidth   = 1.0f;
+    rs.cullMode    = VK_CULL_MODE_BACK_BIT;              // BACK_BIT: after winding flip from reflection, renders the correct faces
+    rs.frontFace   = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
+    VkPipelineMultisampleStateCreateInfo ms{};
+    ms.sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    VkPipelineDepthStencilStateCreateInfo ds{};
+    ds.sType            = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    ds.depthTestEnable  = VK_TRUE;
+    ds.depthWriteEnable = VK_TRUE;
+    ds.depthCompareOp   = VK_COMPARE_OP_LESS;
+
+    VkPipelineColorBlendAttachmentState blendAtt{};
+    blendAtt.blendEnable    = VK_FALSE;
+    blendAtt.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                              VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    VkPipelineColorBlendStateCreateInfo cb{};
+    cb.sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    cb.attachmentCount = 1; cb.pAttachments = &blendAtt;
+
+    std::vector<VkDynamicState> dynStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    VkPipelineDynamicStateCreateInfo dyn{};
+    dyn.sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dyn.dynamicStateCount = static_cast<uint32_t>(dynStates.size());
+    dyn.pDynamicStates    = dynStates.data();
+
+    VkPipelineShaderStageCreateInfo stages[2]{};
+    stages[0].sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[0].stage  = VK_SHADER_STAGE_VERTEX_BIT;
+    stages[0].module = vertShaderModule;
+    stages[0].pName  = "main";
+    stages[1].sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[1].stage  = VK_SHADER_STAGE_FRAGMENT_BIT;
+    stages[1].module = fragShaderModule;
+    stages[1].pName  = "main";
+
+    VkGraphicsPipelineCreateInfo gpi{};
+    gpi.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    gpi.stageCount          = 2; gpi.pStages = stages;
+    gpi.pVertexInputState   = &vi;
+    gpi.pInputAssemblyState = &ia;
+    gpi.pViewportState      = &vps;
+    gpi.pRasterizationState = &rs;
+    gpi.pMultisampleState   = &ms;
+    gpi.pDepthStencilState  = &ds;
+    gpi.pColorBlendState    = &cb;
+    gpi.pDynamicState       = &dyn;
+    gpi.layout              = pipelineLayout;
+    gpi.renderPass          = sceneRenderPass;
+    gpi.subpass             = 0;
+
+    if (reflectionScenePipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(vulkanDevice.getDevice(), reflectionScenePipeline, nullptr);
+        reflectionScenePipeline = VK_NULL_HANDLE;
+    }
+    VkResult res = vkCreateGraphicsPipelines(vulkanDevice.getDevice(), VK_NULL_HANDLE, 1, &gpi, nullptr, &reflectionScenePipeline);
+    if (res != VK_SUCCESS) {
+        LOG_ERROR("RenderPipeline", "Failed to create reflection scene pipeline (VkResult={})", static_cast<int>(res));
+        return false;
+    }
+    LOG_INFO("RenderPipeline", "Reflection scene pipeline created");
     return true;
 }
 

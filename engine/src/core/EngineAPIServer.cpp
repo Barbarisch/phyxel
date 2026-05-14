@@ -687,6 +687,57 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // GET  /api/debug/overlay — Get current debug visualization state
+    // POST /api/debug/overlay — Set debug visualization overlay
+    // Body: { "enabled": bool, "mode": int }
+    // Modes: 0=wireframe, 1=normals, 2=hierarchy, 3=uv, 4=emissive
+    // Returns: { "enabled": bool, "mode": int, "mode_name": str }
+    // ====================================================================
+    srv.Get("/api/debug/overlay", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("get_debug_overlay", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    srv.Post("/api/debug/overlay", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_debug_overlay", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // GET /api/render/stats — Last-frame render pass statistics
+    // Returns mirror pass state, draw call counts, reflected camera position
+    // ====================================================================
+    srv.Get("/api/render/stats", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("get_render_stats", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // POST /api/logs/level — Set runtime log level for a module or globally
+    // Body: { "module": "RenderCoordinator", "level": "debug" }
+    //       { "module": "global", "level": "info" }
+    // Levels: trace, debug, info, warn, error, off
+    // ====================================================================
+    srv.Post("/api/logs/level", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_log_level", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // POST /api/world/voxel/batch — Place multiple voxels at once
     // Body: { "voxels": [{"x":0,"y":0,"z":0,"material":"stone"}, ...] }
     // ====================================================================

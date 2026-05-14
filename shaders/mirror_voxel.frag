@@ -66,7 +66,6 @@ void main() {
     vec4 projPos = ubo.reflectedViewProj * vec4(inWorldPos, 1.0);
     vec2 projUV = projPos.xy / projPos.w;
     projUV = projUV * 0.5 + 0.5;
-    projUV.y = 1.0 - projUV.y;  // Vulkan NDC Y is flipped relative to texture UV
 
     // Clamp to avoid border artifacts
     projUV = clamp(projUV, vec2(0.001), vec2(0.999));

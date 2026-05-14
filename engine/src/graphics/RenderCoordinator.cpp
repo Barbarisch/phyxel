@@ -89,6 +89,7 @@ RenderCoordinator::RenderCoordinator(
 
     // Mirror reflective surface pipeline (uses scene render pass, separate descriptor for reflection texture)
     renderPipeline->createMirrorPipeline(postProcessor->getSceneRenderPass());
+    renderPipeline->createReflectionScenePipeline(postProcessor->getSceneRenderPass());
     renderPipeline->updateMirrorReflectionDescriptor(
         postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
 
@@ -276,7 +277,6 @@ void RenderCoordinator::renderTransparentGeometryOIT(uint32_t frameIndex) {
 }
 
 bool RenderCoordinator::scanForMirrorVoxels() {
-    // Scan visible chunks for any voxels with Mirror material.
     if (!chunkManager) return false;
 
     for (size_t chunkIndex : visibleChunkIndices) {
@@ -293,6 +293,9 @@ bool RenderCoordinator::scanForMirrorVoxels() {
                     if (mat && mat->isMirror) {
                         mirrorPlanePoint  = glm::vec3(origin.x + x + 0.5f, origin.y + y + 0.5f, origin.z + z + 0.5f);
                         mirrorPlaneNormal = glm::vec3(0.0f, 0.0f, 1.0f);
+                        LOG_DEBUG("RenderCoordinator", "Mirror voxel found at ({},{},{}), plane normal ({},{},{})",
+                            mirrorPlanePoint.x, mirrorPlanePoint.y, mirrorPlanePoint.z,
+                            mirrorPlaneNormal.x, mirrorPlaneNormal.y, mirrorPlaneNormal.z);
                         return true;
                     }
                 }
@@ -303,7 +306,15 @@ bool RenderCoordinator::scanForMirrorVoxels() {
 }
 
 void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
-    // Compute reflected camera: reflect position and orientation about the mirror plane.
+    lastFrameStats.mirrorPassRan       = true;
+    lastFrameStats.reflectionDrawCalls = 0;
+    lastFrameStats.mirrorPlaneX = mirrorPlanePoint.x;
+    lastFrameStats.mirrorPlaneY = mirrorPlanePoint.y;
+    lastFrameStats.mirrorPlaneZ = mirrorPlanePoint.z;
+    lastFrameStats.mirrorNormalX = mirrorPlaneNormal.x;
+    lastFrameStats.mirrorNormalY = mirrorPlaneNormal.y;
+    lastFrameStats.mirrorNormalZ = mirrorPlaneNormal.z;
+
     glm::vec3 N = glm::normalize(mirrorPlaneNormal);
     float d = -glm::dot(N, mirrorPlanePoint);
 
@@ -321,17 +332,41 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
     glm::vec3 reflCamFront = glm::vec3(reflMat * glm::vec4(camFront, 0.0f));
     glm::vec3 reflCamUp    = glm::vec3(reflMat * glm::vec4(camUp, 0.0f));
 
+    lastFrameStats.reflCamX = reflCamPos.x;
+    lastFrameStats.reflCamY = reflCamPos.y;
+    lastFrameStats.reflCamZ = reflCamPos.z;
+    LOG_DEBUG("RenderCoordinator", "Reflection pass: camPos=({},{},{}) reflCamPos=({},{},{}) reflFront=({},{},{}) visibleChunks={}",
+        camPos.x, camPos.y, camPos.z,
+        reflCamPos.x, reflCamPos.y, reflCamPos.z,
+        reflCamFront.x, reflCamFront.y, reflCamFront.z,
+        visibleChunkIndices.size());
+
     glm::mat4 reflectedView = glm::lookAt(reflCamPos, reflCamPos + reflCamFront, reflCamUp);
     cachedReflectedViewProj = cachedProjectionMatrix * reflectedView;
 
     // Store reflected VP in the main UBO so mirror_voxel.frag can use it for projective texturing
     vulkanDevice->setReflectedViewProj(frameIndex, cachedReflectedViewProj);
 
+    // Build a clipped projection for the reflection render pass.
+    // Use mirrorDist as the NEAR plane so that the thin band between the reflected camera
+    // and the mirror surface (world z=20.5..27) is clipped by hardware.
+    // Objects on the main camera's side of the mirror (world z < 20.5, farther than mirrorDist
+    // from the reflected camera) are kept and appear correctly in the reflection.
+    float mirrorDist = glm::max(0.2f, glm::abs(glm::dot(mirrorPlanePoint - reflCamPos, N)));
+    // Preserve the original far plane by extracting it from cachedProjectionMatrix.
+    // Works for both OpenGL [-1,1] and Vulkan [0,1] depth conventions: far = B/(A+1).
+    float A = cachedProjectionMatrix[2][2];
+    float B = cachedProjectionMatrix[3][2];
+    float farPlane = B / (A + 1.0f);
+    float reflAspect = (float)windowManager->getWidth() / (float)windowManager->getHeight();
+    glm::mat4 clippedProj = glm::perspective(glm::radians(45.0f), reflAspect, mirrorDist, farPlane);
+    clippedProj[1][1] *= -1;  // Y-flip for Vulkan, matching cachedProjectionMatrix
+
     // Update the reflection-specific UBO with the reflected view matrix
     auto sunDir   = glm::vec3(0.0f, -1.0f, 0.0f); // Will be overridden by actual sun direction from last frame
     // Reuse current frame's UBO values (they're already set by the main updateUniformBuffer call above)
     // For simplicity: just use the same sun/ambient values. A full impl would capture these from the lighting pass.
-    vulkanDevice->updateReflectionUniformBuffer(frameIndex, reflectedView, cachedProjectionMatrix,
+    vulkanDevice->updateReflectionUniformBuffer(frameIndex, reflectedView, clippedProj,
         glm::mat4(1.0f), // lightSpaceMatrix (shadows in reflection not critical)
         glm::vec3(0.0f, -1.0f, 0.5f), glm::vec3(1.0f, 0.95f, 0.8f),
         0, 1.0f, 2.0f, reflCamPos);
@@ -339,9 +374,9 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
     // Render the scene from the reflected camera into the reflection framebuffer
     postProcessor->beginReflectionRenderPass(vulkanDevice->getCommandBuffer(frameIndex));
 
-    // Bind graphics pipeline (same as main scene pass)
+    // Bind reflection scene pipeline (BACK_BIT culling — winding is flipped by camera reflection)
     vkCmdBindPipeline(vulkanDevice->getCommandBuffer(frameIndex),
-        VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getGraphicsPipeline());
+        VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getReflectionScenePipeline());
 
     // Bind index buffer and reflection descriptor sets (reflected view matrix)
     vulkanDevice->bindIndexBuffer(frameIndex);
@@ -360,16 +395,16 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
         glm::vec3 chunkBaseOffset(worldOrigin.x, worldOrigin.y, worldOrigin.z);
         vulkanDevice->pushConstants(frameIndex, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
         vulkanDevice->drawIndexed(frameIndex, 36, chunk->getNumInstances());
+        lastFrameStats.reflectionDrawCalls++;
     }
 
+    LOG_DEBUG("RenderCoordinator", "Reflection pass complete: {} chunks drawn", lastFrameStats.reflectionDrawCalls);
     postProcessor->endReflectionRenderPass(vulkanDevice->getCommandBuffer(frameIndex));
 }
 
 void RenderCoordinator::renderMirrorGeometry(uint32_t frameIndex) {
-    // Draws mirror faces inside the scene render pass using the mirror pipeline.
-    // mirror_voxel.frag discards non-mirror faces; reflects the scene using the
-    // reflection texture captured in renderReflectionPass().
     if (!chunkManager || visibleChunkIndices.empty()) return;
+    lastFrameStats.mirrorGeomDrawCalls = 0;
 
     VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(frameIndex);
 
@@ -392,7 +427,9 @@ void RenderCoordinator::renderMirrorGeometry(uint32_t frameIndex) {
         glm::vec3 chunkBaseOffset(worldOrigin.x, worldOrigin.y, worldOrigin.z);
         vulkanDevice->pushConstants(frameIndex, renderPipeline->getMirrorPipelineLayout(), chunkBaseOffset);
         vulkanDevice->drawIndexed(frameIndex, 36, chunk->getNumInstances());
+        lastFrameStats.mirrorGeomDrawCalls++;
     }
+    LOG_DEBUG("RenderCoordinator", "Mirror geometry pass: {} chunks drawn", lastFrameStats.mirrorGeomDrawCalls);
 }
 
 void RenderCoordinator::renderDynamicSubcubes() {
@@ -648,6 +685,7 @@ void RenderCoordinator::drawFrame() {
         renderPipeline->createCharacterPipeline();
         renderPipeline->createOITPipeline(postProcessor->getOITRenderPass());
         renderPipeline->createMirrorPipeline(postProcessor->getSceneRenderPass());
+        renderPipeline->createReflectionScenePipeline(postProcessor->getSceneRenderPass());
         renderPipeline->updateMirrorReflectionDescriptor(
             postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
         dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
@@ -679,6 +717,7 @@ void RenderCoordinator::drawFrame() {
         renderPipeline->createCharacterPipeline();
         renderPipeline->createOITPipeline(postProcessor->getOITRenderPass());
         renderPipeline->createMirrorPipeline(postProcessor->getSceneRenderPass());
+        renderPipeline->createReflectionScenePipeline(postProcessor->getSceneRenderPass());
         renderPipeline->updateMirrorReflectionDescriptor(
             postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
         dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
@@ -696,6 +735,7 @@ void RenderCoordinator::drawFrame() {
         renderPipeline->createCharacterPipeline();
         renderPipeline->createOITPipeline(postProcessor->getOITRenderPass());
         renderPipeline->createMirrorPipeline(postProcessor->getSceneRenderPass());
+        renderPipeline->createReflectionScenePipeline(postProcessor->getSceneRenderPass());
         renderPipeline->updateMirrorReflectionDescriptor(
             postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
         dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
@@ -810,11 +850,12 @@ void RenderCoordinator::drawFrame() {
         performanceMonitor->getCurrentFrameTiming().faceCulledFaces = 0;
     }
     
-    // Scan for mirror voxels (uses visibleChunkIndices populated above in the culling prepass,
-    // but we need to scan even before the scene pass starts).
-    // Note: visibleChunkIndices is populated inside renderStaticGeometry(), so we do a quick
-    // pre-cull here to find mirrors, then the full scene pass re-does the cull inside its scope.
+    // Reset per-frame stats
+    lastFrameStats = {};
+    lastFrameStats.visibleChunkCount = static_cast<int>(visibleChunkIndices.size());
+
     hasMirrorVoxels = scanForMirrorVoxels();
+    LOG_DEBUG("RenderCoordinator", "Frame: visibleChunks={} hasMirrorVoxels={}", visibleChunkIndices.size(), hasMirrorVoxels);
 
     // Mirror reflection pass: render scene from reflected camera before the main scene pass.
     if (hasMirrorVoxels && renderPipeline->getMirrorPipeline() != VK_NULL_HANDLE) {

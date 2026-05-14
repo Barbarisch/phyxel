@@ -93,6 +93,17 @@ public:
     bool isDebugModeEnabled() const { return debugModeEnabled; }
     void setDebugVisualizationMode(uint32_t mode) { debugVisualizationMode = mode; }
     uint32_t getDebugVisualizationMode() const { return debugVisualizationMode; }
+
+    struct RenderStats {
+        bool   mirrorPassRan         = false;
+        int    reflectionDrawCalls   = 0;
+        int    mirrorGeomDrawCalls   = 0;
+        int    visibleChunkCount     = 0;
+        float  mirrorPlaneX = 0, mirrorPlaneY = 0, mirrorPlaneZ = 0;
+        float  mirrorNormalX = 0, mirrorNormalY = 0, mirrorNormalZ = 0;
+        float  reflCamX = 0, reflCamY = 0, reflCamZ = 0;
+    };
+    const RenderStats& getLastFrameStats() const { return lastFrameStats; }
     
     // Raycast visualization
     void toggleRaycastVisualization() { raycastVisualizationEnabled = !raycastVisualizationEnabled; }
@@ -239,9 +250,11 @@ private:
 
     // Mirror reflection state (updated per-frame when mirror voxels are visible)
     bool hasMirrorVoxels = false;
-    glm::vec3 mirrorPlaneNormal{0.0f, 0.0f, 1.0f}; // First mirror face normal found
-    glm::vec3 mirrorPlanePoint{0.0f};               // World position of first mirror voxel
-    glm::mat4 cachedReflectedViewProj{1.0f};        // Reflected view-proj for mirror shader
+    glm::vec3 mirrorPlaneNormal{0.0f, 0.0f, 1.0f};
+    glm::vec3 mirrorPlanePoint{0.0f};
+    glm::mat4 cachedReflectedViewProj{1.0f};
+
+    RenderStats lastFrameStats;
 
     // Light management
     LightManager lightManager;

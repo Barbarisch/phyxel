@@ -23,6 +23,7 @@ public:
     bool createDebugLinePipeline(); // For debug line/raycast visualization
     bool createOITPipeline(VkRenderPass oitRenderPass); // Weighted Blended OIT transparent pass
     bool createMirrorPipeline(VkRenderPass sceneRenderPass); // Reflective mirror surface pass
+    bool createReflectionScenePipeline(VkRenderPass sceneRenderPass); // Scene rendered from reflected camera (BACK_BIT cull)
     void updateMirrorReflectionDescriptor(VkImageView reflectionView, VkSampler reflectionSampler);
     void cleanup();
 
@@ -50,6 +51,7 @@ public:
     VkPipeline getDebugLinePipeline() const { return debugLinePipeline; }
     VkPipeline getOITPipeline() const { return oitPipeline; }
     VkPipeline getMirrorPipeline() const { return mirrorPipeline; }
+    VkPipeline getReflectionScenePipeline() const { return reflectionScenePipeline; }
     VkPipelineLayout getMirrorPipelineLayout() const { return mirrorPipelineLayout; }
     VkDescriptorSet getMirrorReflectionDescriptorSet() const { return mirrorReflectionDescriptorSet; }
     VkPipelineLayout getGraphicsLayout() const { return pipelineLayout; }
@@ -79,6 +81,7 @@ private:
     VkPipeline oitPipeline = VK_NULL_HANDLE;            // Weighted Blended OIT transparent pass
     VkShaderModule oitFragShaderModule = VK_NULL_HANDLE;
     VkPipeline mirrorPipeline = VK_NULL_HANDLE;          // Reflective mirror surface pass
+    VkPipeline reflectionScenePipeline = VK_NULL_HANDLE; // Scene rendered from reflected camera
     VkPipelineLayout mirrorPipelineLayout = VK_NULL_HANDLE; // Layout with set 0 + set 1 (reflection)
     VkShaderModule mirrorFragShaderModule = VK_NULL_HANDLE;
     VkDescriptorSetLayout mirrorReflectionDescSetLayout = VK_NULL_HANDLE; // set 1: reflection sampler

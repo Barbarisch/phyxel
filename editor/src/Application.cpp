@@ -384,7 +384,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     m_combatAI.setParty(&m_rpgParty);
     m_combatAI.setEntityRegistry(entityRegistry.get());
     jobSystem = std::make_unique<Core::JobSystem>();
-    apiServer = std::make_unique<Core::EngineAPIServer>(apiCommandQueue.get(), engineConfig.apiPort, jobSystem.get());
+    int apiPort = (m_apiPortOverride > 0) ? m_apiPortOverride : engineConfig.apiPort;
+    apiServer = std::make_unique<Core::EngineAPIServer>(apiCommandQueue.get(), apiPort, jobSystem.get());
 
     // Wire up read-only handlers (called directly on HTTP thread  --  must be thread-safe)
     apiServer->setEntityListHandler([this]() -> nlohmann::json {
@@ -5717,6 +5718,84 @@ static bool handleDoorCommand(
     return false; // not a door command
 }
 
+// Debug/Diagnostic API Command Dispatcher (extracted to reduce nesting depth in processAPICommands)
+// ============================================================================
+bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann::json& response) {
+    using json = nlohmann::json;
+    const std::string& action = cmd.action;
+
+    if (action == "get_debug_overlay") {
+        if (!renderCoordinator) {
+            response = {{"error", "RenderCoordinator not available"}};
+        } else {
+            bool enabled = renderCoordinator->isDebugModeEnabled();
+            uint32_t mode = renderCoordinator->getDebugVisualizationMode();
+            const char* modeNames[] = {"Wireframe", "Normals", "Hierarchy", "UV Coords", "Emissive"};
+            const char* modeName = (mode < 5) ? modeNames[mode] : "Unknown";
+            response = {{"enabled", enabled}, {"mode", (int)mode}, {"mode_name", modeName}};
+        }
+        return true;
+
+    } else if (action == "set_debug_overlay") {
+        if (!renderCoordinator) {
+            response = {{"error", "RenderCoordinator not available"}};
+        } else {
+            bool enabled = cmd.params.value("enabled", false);
+            int mode = cmd.params.value("mode", 0);
+            renderCoordinator->setDebugMode(enabled);
+            if (enabled && mode >= 0 && mode < 5) {
+                renderCoordinator->setDebugVisualizationMode((uint32_t)mode);
+            }
+            const char* modeNames[] = {"Wireframe", "Normals", "Hierarchy", "UV Coords", "Emissive"};
+            const char* modeName = (mode >= 0 && mode < 5) ? modeNames[mode] : "None";
+            response = {
+                {"success", true},
+                {"debug_enabled", enabled},
+                {"mode", mode},
+                {"mode_name", modeName}
+            };
+        }
+        return true;
+
+    } else if (action == "get_render_stats") {
+        if (!renderCoordinator) {
+            response = {{"error", "RenderCoordinator not available"}};
+        } else {
+            const auto& s = renderCoordinator->getLastFrameStats();
+            response = {
+                {"mirror_pass_ran",          s.mirrorPassRan},
+                {"reflection_draw_calls",    s.reflectionDrawCalls},
+                {"mirror_geom_draw_calls",   s.mirrorGeomDrawCalls},
+                {"visible_chunk_count",      s.visibleChunkCount},
+                {"mirror_plane", {{"x", s.mirrorPlaneX}, {"y", s.mirrorPlaneY}, {"z", s.mirrorPlaneZ}}},
+                {"mirror_normal", {{"x", s.mirrorNormalX}, {"y", s.mirrorNormalY}, {"z", s.mirrorNormalZ}}},
+                {"reflected_cam", {{"x", s.reflCamX}, {"y", s.reflCamY}, {"z", s.reflCamZ}}}
+            };
+        }
+        return true;
+
+    } else if (action == "set_log_level") {
+        std::string module    = cmd.params.value("module", "global");
+        std::string level_str = cmd.params.value("level", "info");
+        Phyxel::Utils::LogLevel level = Phyxel::Utils::LogLevel::Info;
+        if      (level_str == "trace") level = Phyxel::Utils::LogLevel::Trace;
+        else if (level_str == "debug") level = Phyxel::Utils::LogLevel::Debug;
+        else if (level_str == "warn")  level = Phyxel::Utils::LogLevel::Warn;
+        else if (level_str == "error") level = Phyxel::Utils::LogLevel::Error;
+        else if (level_str == "off")   level = Phyxel::Utils::LogLevel::Off;
+
+        if (module == "global") {
+            Phyxel::Utils::Logger::setGlobalLevel(level);
+        } else {
+            Phyxel::Utils::Logger::setModuleLevel(module, level);
+        }
+        response = {{"success", true}, {"module", module}, {"level", level_str}};
+        return true;
+    }
+
+    return false; // not a debug command
+}
+
 // Animation API Command Dispatcher (extracted to reduce nesting depth in processAPICommands)
 // ============================================================================
 bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohmann::json& response) {
@@ -9386,6 +9465,12 @@ void Application::processAPICommands() {
             // ================================================================
             // SEGMENT BOX DEBUG
             // ================================================================
+            // ================================================================
+            // DEBUG / DIAGNOSTIC COMMANDS (dispatched via member function to reduce nesting depth)
+            // ================================================================
+            } else if (dispatchDebugAPICommand(cmd, response)) {
+                // handled
+
             // ================================================================
             // ANIMATION CONTROL COMMANDS (dispatched via member function to reduce nesting depth)
             // ================================================================

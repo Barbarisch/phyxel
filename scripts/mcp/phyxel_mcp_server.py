@@ -42,7 +42,8 @@ from pathlib import Path
 # MCP SDK imports
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
+import base64
+from mcp.types import Tool, TextContent, ImageContent
 
 # ============================================================================
 # Configuration
@@ -635,7 +636,112 @@ async def list_tools() -> list[Tool]:
         # ================================================================
         Tool(
             name="screenshot",
-            description="Capture a screenshot of the current game view. Returns the path to the saved PNG file along with dimensions. Use this to observe the visual result of your actions.",
+            description="Capture a screenshot of the current game view. Returns the PNG image inline (Claude can see it directly) plus path and dimensions.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+
+        Tool(
+            name="get_visual_diagnostic",
+            description=(
+                "Capture a full visual diagnostic: screenshot (embedded for Claude to see), camera state, "
+                "entity list, and optionally a debug overlay. Use this to diagnose visual bugs — "
+                "rendering artifacts, lighting issues, wrong normals, reflection problems, animation pose errors. "
+                "The 'overlays' parameter activates a specific debug visualization before capturing:\n"
+                "  'normals'   — draws face normals as colored lines (diagnose winding order, flipped faces)\n"
+                "  'wireframe' — wireframe rendering (diagnose geometry, culled faces)\n"
+                "  'uv'        — UV coordinate visualization (diagnose texture mapping)\n"
+                "  'emissive'  — emissive channel only (diagnose glow/emission)\n"
+                "  'hierarchy' — chunk/object hierarchy coloring\n"
+                "The overlay is automatically restored to its previous state after capture."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "overlay": {
+                        "type": "string",
+                        "enum": ["none", "normals", "wireframe", "uv", "emissive", "hierarchy"],
+                        "description": "Debug overlay to activate before capturing (default: none)",
+                        "default": "none"
+                    }
+                },
+                "required": []
+            }
+        ),
+
+        Tool(
+            name="set_debug_overlay",
+            description=(
+                "Enable or disable a debug visualization overlay on the rendered scene. "
+                "Modes: normals (face normal vectors), wireframe (geometry edges), "
+                "uv (texture coordinate visualization), emissive (emission channel), hierarchy (object tree). "
+                "Use 'none' to turn off all overlays. Changes persist until changed again or engine restarts."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "overlay": {
+                        "type": "string",
+                        "enum": ["none", "normals", "wireframe", "uv", "emissive", "hierarchy"],
+                        "description": "Overlay mode to activate, or 'none' to disable"
+                    }
+                },
+                "required": ["overlay"]
+            }
+        ),
+
+        Tool(
+            name="get_engine_logs",
+            description=(
+                "Read recent lines from the engine log file (phyxel.log). "
+                "Use after screenshots or after a visual bug appears to correlate what the engine was doing. "
+                "Filter by module (e.g. 'RenderCoordinator', 'Vulkan', 'Physics') and/or level "
+                "('trace','debug','info','warn','error') to focus on relevant output. "
+                "Returns the most recent N lines matching the filter."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "lines":  {"type": "integer", "description": "Max lines to return (default 50)", "default": 50},
+                    "module": {"type": "string",  "description": "Filter to lines containing this module name (case-insensitive)"},
+                    "level":  {"type": "string",  "description": "Filter to lines at this level or above (trace/debug/info/warn/error)"}
+                },
+                "required": []
+            }
+        ),
+
+        Tool(
+            name="set_log_level",
+            description=(
+                "Set the runtime log level for a specific engine module or globally. "
+                "Use 'debug' or 'trace' on a module to get verbose output for that system. "
+                "Then call get_engine_logs to read the output. "
+                "Key modules: RenderCoordinator, Vulkan, Physics, Application, ChunkManager, NPC. "
+                "Use module='global' to change all modules at once."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "module": {"type": "string", "description": "Module name or 'global' for all modules"},
+                    "level":  {"type": "string", "enum": ["trace", "debug", "info", "warn", "error", "off"],
+                               "description": "Log level to set"}
+                },
+                "required": ["module", "level"]
+            }
+        ),
+
+        Tool(
+            name="get_render_stats",
+            description=(
+                "Get last-frame rendering statistics. Shows whether each render pass ran, "
+                "how many draw calls each pass made, and mirror-specific data (plane position, "
+                "normal, reflected camera position). Use this to immediately answer questions like "
+                "'did the reflection pass run?', 'how many chunks were visible?', "
+                "'where is the reflected camera?'. Essential for debugging rendering bugs."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {},
@@ -1245,7 +1351,11 @@ async def list_tools() -> list[Tool]:
                     "name": {"type": "string", "description": "Template name (used as filename, no extension)"},
                     "material": {"type": "string", "description": "Default material for the model", "default": "Wood"},
                     "size": {"type": "number", "description": "Target size in world cubes (1.0 = one block)", "default": 3.0},
-                    "force": {"type": "boolean", "description": "Force regeneration even if template already exists", "default": False}
+                    "force": {"type": "boolean", "description": "Force regeneration even if template already exists", "default": False},
+                    "native": {"type": "boolean", "description": "Use native Phyxel C/S/M generation (no bbmodel/trimesh pipeline). Enables per-part materials and subcube detail.", "default": False},
+                    "image": {"type": "string", "description": "Reference image (local path or URL). Enables prompt enhancement automatically."},
+                    "enhance_prompt": {"type": "boolean", "description": "Run a pre-pass LLM call to expand the prompt into a detailed spatial breakdown before generation.", "default": False},
+                    "auto_inspect": {"type": "boolean", "description": "After generation, automatically take multi-angle screenshots with the asset editor and return them inline.", "default": False}
                 },
                 "required": ["prompt", "name"]
             }
@@ -2019,6 +2129,198 @@ async def list_tools() -> list[Tool]:
             name="engine_running",
             description="Check if the engine process is currently running and responsive.",
             inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="stop_engine",
+            description=(
+                "Stop the running engine process. Sends SIGTERM and waits up to 5 seconds "
+                "for graceful shutdown; force-kills if it does not exit. "
+                "Use before rebuild-and-relaunch cycles or to clean up after a test run."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "grace_seconds": {"type": "number", "description": "Seconds to wait for graceful exit before force-kill (default: 5)"}
+                }
+            }
+        ),
+        Tool(
+            name="restart_engine",
+            description=(
+                "Stop the running engine then launch it again. "
+                "Replays the same command-line args as the previous launch unless overridden. "
+                "Useful after a build to pick up new binaries without manually stopping and starting. "
+                "Always clears phyxel.log before relaunching so the new session starts with a clean log."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "config": {"type": "string", "enum": ["Debug", "Release"], "description": "Build config to launch (default: same as previous launch, or Debug)"},
+                    "args": {"type": "array", "items": {"type": "string"}, "description": "Command-line args (default: same as previous launch)"}
+                }
+            }
+        ),
+        Tool(
+            name="clear_engine_logs",
+            description=(
+                "Truncate phyxel.log to empty. Call this before a test run or after stop_engine "
+                "to prevent the log file from growing too large for get_engine_logs to process. "
+                "restart_engine does this automatically; use clear_engine_logs when you want to "
+                "reset logs without restarting."
+            ),
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="launch_asset_editor",
+            description=(
+                "Launch the engine in asset-editor mode to inspect a .voxel template on a clean "
+                "Stone floor. The asset editor runs on a separate port (default 8091) so it "
+                "can coexist with a running game engine on port 8090. "
+                "Use inspect_template or critique_template afterwards to take screenshots and "
+                "evaluate the model visually."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "template_path": {
+                        "type": "string",
+                        "description": "Relative or absolute path to the .voxel file to inspect"
+                    },
+                    "port": {
+                        "type": "integer",
+                        "description": "HTTP API port for the asset editor instance (default: 8091)"
+                    },
+                    "config": {
+                        "type": "string",
+                        "enum": ["Debug", "Release"],
+                        "description": "Build configuration (default: Debug)"
+                    }
+                },
+                "required": ["template_path"]
+            }
+        ),
+        Tool(
+            name="close_asset_editor",
+            description="Stop the asset editor process launched by launch_asset_editor.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="inspect_template",
+            description=(
+                "Take multi-angle screenshots of a .voxel template in the asset editor and return "
+                "them inline. Launches the asset editor automatically if needed. "
+                "Returns screenshots from front, right, back-left, and top-down viewpoints, "
+                "plus primitive counts from the template file header."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "template_name": {
+                        "type": "string",
+                        "description": "Template name (without extension) in resources/templates/"
+                    },
+                    "template_path": {
+                        "type": "string",
+                        "description": "Explicit path to .voxel file (overrides template_name)"
+                    },
+                    "angles": {
+                        "type": "integer",
+                        "description": "Number of viewpoints: 2 (front+right), 3 (+back-left), 4 (+top). Default: 4"
+                    },
+                    "port": {
+                        "type": "integer",
+                        "description": "Asset editor API port (default: 8091)"
+                    },
+                    "config": {
+                        "type": "string",
+                        "enum": ["Debug", "Release"],
+                        "description": "Build config for auto-launch (default: Debug)"
+                    }
+                }
+            }
+        ),
+        Tool(
+            name="critique_template",
+            description=(
+                "Visually inspect a .voxel template and return an AI critique. "
+                "Takes multi-angle screenshots, then asks a vision-capable model to evaluate "
+                "how well it matches the original prompt. Returns critique JSON plus all screenshots. "
+                "Use refine_template to act on the critique automatically."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "template_name": {
+                        "type": "string",
+                        "description": "Template name (without extension) in resources/templates/"
+                    },
+                    "original_prompt": {
+                        "type": "string",
+                        "description": "The original generation prompt — used to evaluate match quality"
+                    },
+                    "critique_model": {
+                        "type": "string",
+                        "description": "Vision-capable model for critique (default: anthropic/claude-opus-4-5)"
+                    },
+                    "port": {
+                        "type": "integer",
+                        "description": "Asset editor API port (default: 8091)"
+                    },
+                    "config": {
+                        "type": "string",
+                        "enum": ["Debug", "Release"],
+                        "description": "Build config for auto-launch (default: Debug)"
+                    }
+                },
+                "required": ["template_name", "original_prompt"]
+            }
+        ),
+        Tool(
+            name="refine_template",
+            description=(
+                "Iterative refinement loop: critique → regenerate → repeat until quality threshold "
+                "is met or max rounds exhausted. Each round saves <name>_round_N.voxel; the best "
+                "round is promoted to <name>.voxel. Uses native Phyxel C/S/M generation."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "template_name": {
+                        "type": "string",
+                        "description": "Template name (without .voxel extension)"
+                    },
+                    "original_prompt": {
+                        "type": "string",
+                        "description": "Original generation prompt"
+                    },
+                    "max_rounds": {
+                        "type": "integer",
+                        "description": "Maximum refinement rounds (default: 3)"
+                    },
+                    "quality_threshold": {
+                        "type": "number",
+                        "description": "Stop when critique score >= this value 0-10 (default: 7)"
+                    },
+                    "critique_model": {
+                        "type": "string",
+                        "description": "Vision model for critique (default: anthropic/claude-opus-4-5)"
+                    },
+                    "generation_model": {
+                        "type": "string",
+                        "description": "Model for generation (default: anthropic/claude-sonnet-4-20250514)"
+                    },
+                    "port": {
+                        "type": "integer",
+                        "description": "Asset editor API port (default: 8091)"
+                    },
+                    "config": {
+                        "type": "string",
+                        "enum": ["Debug", "Release"],
+                        "description": "Build config for asset editor (default: Debug)"
+                    }
+                },
+                "required": ["template_name", "original_prompt"]
+            }
         ),
         Tool(
             name="package_game",
@@ -3300,12 +3602,18 @@ async def list_tools() -> list[Tool]:
     ]
 
 
+_VISUAL_TOOLS = {"screenshot", "get_visual_diagnostic"}
+
+
 @server.call_tool()
-async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+async def call_tool(name: str, arguments: dict) -> list:
     """Route tool calls to the engine HTTP API."""
     logger.info(f"Tool call: {name}({json.dumps(arguments, default=str)[:200]})")
 
     result = await _dispatch_tool(name, arguments)
+
+    if name in _VISUAL_TOOLS:
+        return _build_visual_response(result)
 
     return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
@@ -3572,9 +3880,32 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             }
         return await api_post("/api/entity/update", body)
 
-    # --- Screenshot ---
+    # --- Screenshot / Visual Diagnostics ---
     elif name == "screenshot":
         return await api_get("/api/screenshot")
+
+    elif name == "get_visual_diagnostic":
+        return await _get_visual_diagnostic(args)
+
+    elif name == "set_debug_overlay":
+        overlay = args.get("overlay", "none")
+        return await _set_overlay(overlay)
+
+    elif name == "get_engine_logs":
+        return _read_engine_logs(
+            lines=args.get("lines", 50),
+            module=args.get("module"),
+            level=args.get("level")
+        )
+
+    elif name == "set_log_level":
+        return await api_post("/api/logs/level", {
+            "module": args.get("module", "global"),
+            "level":  args.get("level", "info")
+        })
+
+    elif name == "get_render_stats":
+        return await api_get("/api/render/stats")
 
     # --- Region Scan ---
     elif name == "scan_region":
@@ -3810,13 +4141,27 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         ]
         if args.get("force", False):
             cmd.append("--force")
-        result = _sp.run(cmd, capture_output=True, text=True, timeout=120)
+        if args.get("native", False):
+            cmd.append("--native")
+        if args.get("image"):
+            cmd += ["--image", args["image"]]
+        if args.get("enhance_prompt", False):
+            cmd.append("--enhance-prompt")
+        result = _sp.run(cmd, capture_output=True, text=True, timeout=180)
         if result.returncode != 0:
             return {"success": False, "error": result.stderr.strip() or "Generation failed"}
         try:
-            return json.loads(result.stdout.strip().split("\n")[-1])
+            gen_result = json.loads(result.stdout.strip().split("\n")[-1])
         except json.JSONDecodeError:
             return {"success": False, "error": f"Failed to parse output: {result.stdout}"}
+
+        if args.get("auto_inspect", False) and gen_result.get("success"):
+            inspect_content = await _inspect_template({
+                "template_name": args["name"],
+            })
+            return [TextContent(type="text", text=json.dumps(gen_result))] + inspect_content
+
+        return gen_result
 
     elif name == "search_templates":
         catalog_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "resources", "templates", "template_catalog.json")
@@ -4159,6 +4504,30 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     elif name == "launch_engine":
         return await _launch_engine(args)
+
+    elif name == "stop_engine":
+        return await _stop_engine(float(args.get("grace_seconds", 5.0)))
+
+    elif name == "restart_engine":
+        return await _restart_engine(args)
+
+    elif name == "clear_engine_logs":
+        return _clear_engine_logs()
+
+    elif name == "launch_asset_editor":
+        return await _launch_asset_editor(args)
+
+    elif name == "close_asset_editor":
+        return await _close_asset_editor()
+
+    elif name == "inspect_template":
+        return await _inspect_template(args)
+
+    elif name == "critique_template":
+        return await _critique_template(args)
+
+    elif name == "refine_template":
+        return await _refine_template(args)
 
     elif name == "engine_running":
         return await _check_engine_running()
@@ -4736,6 +5105,39 @@ def _rpg_check_dc(args: dict) -> dict:
 # Resolve project root (parent of scripts/mcp/)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
+
+def _embed_screenshot(path_str: str) -> ImageContent | None:
+    """Read a screenshot PNG from disk and return an MCP ImageContent block.
+
+    The engine writes screenshots relative to PROJECT_ROOT (e.g. "screenshots/foo.png").
+    Tries the path as-is first, then relative to PROJECT_ROOT.
+    """
+    candidates = [Path(path_str), PROJECT_ROOT / path_str]
+    for p in candidates:
+        if p.exists():
+            try:
+                data = base64.standard_b64encode(p.read_bytes()).decode("ascii")
+                return ImageContent(type="image", data=data, mimeType="image/png")
+            except Exception as e:
+                logger.warning(f"Failed to embed screenshot {p}: {e}")
+                return None
+    logger.warning(f"Screenshot file not found: {path_str}")
+    return None
+
+
+def _build_visual_response(result: dict) -> list:
+    """Build MCP content list for a result that may contain a screenshot path."""
+    content: list = [TextContent(type="text", text=json.dumps(result, indent=2))]
+    path_str = (
+        result.get("path")
+        or (result.get("screenshot") or {}).get("path")
+    )
+    if path_str:
+        img = _embed_screenshot(path_str)
+        if img:
+            content.append(img)
+    return content
+
 # CMake path (MSVC 2022)
 CMAKE_PATH = r"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
 
@@ -4795,12 +5197,553 @@ async def _build_project(args: dict) -> dict:
         return {"success": False, "error": "CMake build timed out (300s)"}
 
 
+_LEVEL_ORDER = {"trace": 0, "debug": 1, "info": 2, "warn": 3, "error": 4, "fatal": 5}
+
+
+def _read_engine_logs(lines: int = 50, module: str | None = None, level: str | None = None) -> dict:
+    """Read tail of phyxel.log, optionally filtered by module name and minimum log level."""
+    log_path = PROJECT_ROOT / "phyxel.log"
+    if not log_path.exists():
+        return {"error": "phyxel.log not found", "searched": str(log_path)}
+
+    try:
+        content = log_path.read_text(encoding="utf-8", errors="replace")
+        all_lines = content.splitlines()
+        total = len(all_lines)
+
+        min_level = _LEVEL_ORDER.get((level or "").lower(), -1)
+
+        filtered = []
+        for line in all_lines:
+            if module and module.lower() not in line.lower():
+                continue
+            if min_level >= 0:
+                matched_level = next(
+                    (v for k, v in _LEVEL_ORDER.items() if f"[{k.upper()}]" in line.upper()),
+                    -1
+                )
+                if matched_level < min_level:
+                    continue
+            filtered.append(line)
+
+        result_lines = filtered[-lines:]
+        return {
+            "log_file":      str(log_path),
+            "total_lines":   total,
+            "matched_lines": len(filtered),
+            "returned":      len(result_lines),
+            "filters":       {"module": module, "level": level},
+            "content":       "\n".join(result_lines)
+        }
+    except Exception as e:
+        return {"error": f"Failed to read log: {e}"}
+
+
+_OVERLAY_MODES = {
+    "none":      (-1, False),
+    "wireframe": (0,  True),
+    "normals":   (1,  True),
+    "hierarchy": (2,  True),
+    "uv":        (3,  True),
+    "emissive":  (4,  True),
+}
+
+
+async def _set_overlay(overlay: str) -> dict:
+    mode, enabled = _OVERLAY_MODES.get(overlay, (-1, False))
+    return await api_post("/api/debug/overlay", {"enabled": enabled, "mode": mode})
+
+
+async def _get_visual_diagnostic(args: dict) -> dict:
+    """Capture screenshot + world state + render stats + recent logs in one call."""
+    overlay = args.get("overlay", "none")
+    log_module = args.get("log_module")   # optional module filter for logs
+    log_lines  = args.get("log_lines", 40)
+
+    # Save current overlay state so we can restore it
+    prev = await api_get("/api/debug/overlay")
+
+    # Activate requested overlay
+    if overlay != "none":
+        await _set_overlay(overlay)
+    elif prev.get("enabled"):
+        await api_post("/api/debug/overlay", {"enabled": False, "mode": 0})
+
+    # Capture screenshot, camera, state, and render stats in parallel
+    shot, camera, state, render_stats = await asyncio.gather(
+        api_get("/api/screenshot"),
+        api_get("/api/camera"),
+        api_get("/api/state"),
+        api_get("/api/render/stats"),
+    )
+
+    # Restore overlay state
+    await api_post("/api/debug/overlay", {
+        "enabled": prev.get("enabled", False),
+        "mode":    prev.get("mode", 0),
+    })
+
+    # Read logs synchronously (local file read, no await needed)
+    logs = _read_engine_logs(lines=log_lines, module=log_module, level="debug")
+
+    return {
+        "screenshot":    shot,
+        "camera":        camera,
+        "world":         state,
+        "render_stats":  render_stats,
+        "recent_logs":   logs,
+        "overlay_used":  overlay,
+        "path":          shot.get("path"),
+    }
+
+
 _engine_process = None
+_engine_launch_args: dict = {}  # remembered so restart can replay them
+_asset_editor_process = None
+_asset_editor_port: int = 8091
+
+
+_asset_editor_port: int = 8091
+
+
+async def _launch_asset_editor(args: dict) -> dict:
+    """Launch the engine in asset-editor mode on a separate port."""
+    global _asset_editor_process, _asset_editor_port
+
+    template_path = args.get("template_path", "")
+    port = int(args.get("port", 8091))
+    config = args.get("config", "Debug")
+
+    # Resolve template path
+    abs_path = Path(template_path)
+    if not abs_path.is_absolute():
+        abs_path = PROJECT_ROOT / template_path
+    if not abs_path.exists():
+        # Try resources/templates/
+        candidate = PROJECT_ROOT / "resources" / "templates" / template_path
+        if candidate.exists():
+            abs_path = candidate
+        elif (candidate.with_suffix(".voxel")).exists():
+            abs_path = candidate.with_suffix(".voxel")
+        else:
+            return {"error": f"Template not found: {template_path}"}
+
+    # Kill existing asset editor
+    if _asset_editor_process and _asset_editor_process.poll() is None:
+        _asset_editor_process.terminate()
+        await asyncio.sleep(1.0)
+
+    exe_path = PROJECT_ROOT / "build" / "editor" / config / "phyxel.exe"
+    if not exe_path.exists():
+        exe_path = PROJECT_ROOT / "build" / "game" / config / "phyxel.exe"
+    if not exe_path.exists():
+        return {"error": "Engine executable not found. Build the project first."}
+
+    cmd = [str(exe_path), "--asset-editor", str(abs_path), "--port", str(port)]
+    try:
+        _asset_editor_process = subprocess.Popen(
+            cmd,
+            cwd=str(PROJECT_ROOT),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        _asset_editor_port = port
+    except Exception as e:
+        return {"error": f"Failed to launch asset editor: {e}"}
+
+    # Poll /api/status until ready (up to 15s)
+    import time
+    deadline = time.monotonic() + 15.0
+    while time.monotonic() < deadline:
+        await asyncio.sleep(1.0)
+        if _asset_editor_process.poll() is not None:
+            return {"error": "Asset editor process exited unexpectedly"}
+        try:
+            async with httpx.AsyncClient(base_url=f"http://localhost:{port}", timeout=2.0) as c:
+                resp = await c.get("/api/status")
+                if resp.status_code == 200:
+                    return {
+                        "success": True,
+                        "pid": _asset_editor_process.pid,
+                        "port": port,
+                        "template": str(abs_path),
+                    }
+        except Exception:
+            pass
+
+    return {"error": "Asset editor did not become responsive within 15s"}
+
+
+async def _close_asset_editor() -> dict:
+    """Stop the asset editor process."""
+    global _asset_editor_process
+    if _asset_editor_process is None or _asset_editor_process.poll() is not None:
+        _asset_editor_process = None
+        return {"success": True, "message": "Asset editor was not running"}
+    pid = _asset_editor_process.pid
+    _asset_editor_process.terminate()
+    await asyncio.sleep(1.5)
+    if _asset_editor_process.poll() is None:
+        _asset_editor_process.kill()
+        _asset_editor_process.wait(timeout=3)
+    _asset_editor_process = None
+    return {"success": True, "message": f"Asset editor (pid {pid}) stopped"}
+
+
+async def _api_get_port(path: str, port: int) -> dict:
+    """api_get but targets the given port instead of the default 8090."""
+    try:
+        async with httpx.AsyncClient(base_url=f"http://localhost:{port}", timeout=10.0) as c:
+            resp = await c.get(path)
+            resp.raise_for_status()
+            return resp.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+async def _api_post_port(path: str, body: dict, port: int) -> dict:
+    """api_post but targets the given port."""
+    try:
+        async with httpx.AsyncClient(base_url=f"http://localhost:{port}", timeout=10.0) as c:
+            resp = await c.post(path, json=body)
+            resp.raise_for_status()
+            return resp.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+async def _inspect_template(args: dict) -> list:
+    """Take multi-angle screenshots in the asset editor and return them inline."""
+    global _asset_editor_process, _asset_editor_port
+
+    port = int(args.get("port", _asset_editor_port or 8091))
+    angles = int(args.get("angles", 4))
+    config = args.get("config", "Debug")
+
+    # Resolve template path
+    template_path = None
+    if args.get("template_path"):
+        template_path = args["template_path"]
+    elif args.get("template_name"):
+        name = args["template_name"]
+        p = PROJECT_ROOT / "resources" / "templates" / (name + ".voxel")
+        template_path = str(p) if p.exists() else name
+
+    if template_path is None:
+        return [TextContent(type="text", text="ERROR: provide template_name or template_path")]
+
+    # Ensure asset editor is running with this template
+    editor_ready = (
+        _asset_editor_process is not None and _asset_editor_process.poll() is None
+    )
+    if not editor_ready:
+        launch_result = await _launch_asset_editor({
+            "template_path": template_path, "port": port, "config": config
+        })
+        if "error" in launch_result:
+            return [TextContent(type="text", text=f"ERROR: {launch_result['error']}")]
+
+    # Camera orbit positions around template origin (13, 16, 13)
+    # (x, y, z, yaw_deg, pitch_deg)  — asset editor camera JSON uses yaw/pitch in degrees
+    camera_views = [
+        {"pos": [13, 20, 28], "yaw": 180, "pitch": -25, "label": "front"},
+        {"pos": [28, 20, 13], "yaw": 90, "pitch": -25, "label": "right"},
+        {"pos": [2, 22, 2],   "yaw": -45, "pitch": -30, "label": "back-left"},
+        {"pos": [13, 35, 13], "yaw": 180, "pitch": -75, "label": "top"},
+    ][:angles]
+
+    screenshots = []
+    for view in camera_views:
+        cam_body = {
+            "position": view["pos"],
+            "yaw": view["yaw"],
+            "pitch": view["pitch"],
+        }
+        await _api_post_port("/api/camera", cam_body, port)
+        await asyncio.sleep(0.4)  # let render settle
+        shot = await _api_get_port("/api/screenshot", port)
+        shot_path = shot.get("path") if isinstance(shot, dict) else None
+        img = _embed_screenshot(shot_path) if shot_path else None
+        screenshots.append((view["label"], img))
+
+    # Read primitive counts from the .voxel file
+    abs_voxel = Path(template_path)
+    if not abs_voxel.is_absolute():
+        abs_voxel = PROJECT_ROOT / template_path
+    if not abs_voxel.exists():
+        abs_voxel = PROJECT_ROOT / "resources" / "templates" / (args.get("template_name", "") + ".voxel")
+
+    cubes = subcubes = microcubes = 0
+    if abs_voxel.exists():
+        for line in abs_voxel.read_text().splitlines():
+            s = line.strip()
+            if s.startswith("C "): cubes += 1
+            elif s.startswith("S "): subcubes += 1
+            elif s.startswith("M "): microcubes += 1
+
+    summary = (
+        f"Template: {abs_voxel.name}\n"
+        f"Primitives: {cubes}C + {subcubes}S + {microcubes}M = {cubes + subcubes + microcubes} total\n"
+        f"Screenshots ({len(screenshots)} angles):"
+    )
+
+    content = [TextContent(type="text", text=summary)]
+    for label, img in screenshots:
+        content.append(TextContent(type="text", text=f"\n--- {label} ---"))
+        if img:
+            content.append(img)
+        else:
+            content.append(TextContent(type="text", text="(screenshot unavailable)"))
+    return content
+
+
+async def _critique_template(args: dict) -> list:
+    """Visually critique a template using a vision-capable LLM."""
+    import base64, json as _json
+
+    template_name = args.get("template_name", "")
+    original_prompt = args.get("original_prompt", "")
+    critique_model = args.get("critique_model", "anthropic/claude-opus-4-5")
+    port = int(args.get("port", _asset_editor_port or 8091))
+    config = args.get("config", "Debug")
+
+    # Get screenshots
+    inspect_content = await _inspect_template({
+        "template_name": template_name,
+        "angles": 4,
+        "port": port,
+        "config": config,
+    })
+
+    # Collect image data from inspect results
+    image_parts = []
+    for item in inspect_content:
+        if hasattr(item, "data") and hasattr(item, "mimeType"):
+            image_parts.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:{item.mimeType};base64,{item.data}"},
+            })
+
+    if not image_parts:
+        return inspect_content + [TextContent(
+            type="text",
+            text="ERROR: No screenshots available for critique"
+        )]
+
+    # Ask the vision LLM
+    try:
+        import litellm
+        critique_messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": (
+                            f"You are evaluating a voxel 3D model. The original prompt was:\n\n"
+                            f"\"{original_prompt}\"\n\n"
+                            "The following screenshots show the model from multiple angles. "
+                            "Evaluate how well it matches the prompt. "
+                            "Return ONLY valid JSON with these fields:\n"
+                            "{\n"
+                            '  "issues": ["list of specific problems"],\n'
+                            '  "suggestions": ["actionable improvements"],\n'
+                            '  "overall_quality": <0-10>,\n'
+                            '  "revised_prompt": "improved prompt for regeneration"\n'
+                            "}"
+                        ),
+                    },
+                    *image_parts,
+                ],
+            }
+        ]
+        response = litellm.completion(
+            model=critique_model,
+            messages=critique_messages,
+            max_tokens=1500,
+            temperature=0.3,
+        )
+        critique_text = response.choices[0].message.content.strip()
+    except Exception as e:
+        critique_text = f"Critique LLM call failed: {e}"
+
+    return inspect_content + [TextContent(type="text", text=f"\n=== Critique ===\n{critique_text}")]
+
+
+async def _refine_template(args: dict) -> list:
+    """Iterative critique → regenerate loop."""
+    import json as _json, shutil
+
+    template_name = args.get("template_name", "")
+    original_prompt = args.get("original_prompt", "")
+    max_rounds = int(args.get("max_rounds", 3))
+    quality_threshold = float(args.get("quality_threshold", 7.0))
+    critique_model = args.get("critique_model", "anthropic/claude-opus-4-5")
+    generation_model = args.get("generation_model", "anthropic/claude-sonnet-4-20250514")
+    port = int(args.get("port", _asset_editor_port or 8091))
+    config = args.get("config", "Debug")
+
+    templates_dir = PROJECT_ROOT / "resources" / "templates"
+    base_path = templates_dir / f"{template_name}.voxel"
+
+    current_prompt = original_prompt
+    best_quality = 0.0
+    best_round_path = base_path
+    all_content = []
+
+    for round_num in range(1, max_rounds + 1):
+        round_label = f"Round {round_num}/{max_rounds}"
+        all_content.append(TextContent(type="text", text=f"\n{'='*40}\n{round_label}\n{'='*40}"))
+
+        # Critique current template
+        critique_content = await _critique_template({
+            "template_name": template_name,
+            "original_prompt": current_prompt,
+            "critique_model": critique_model,
+            "port": port,
+            "config": config,
+        })
+        all_content.extend(critique_content)
+
+        # Extract quality score and revised prompt from last text item
+        quality = 0.0
+        revised_prompt = current_prompt
+        for item in reversed(critique_content):
+            if hasattr(item, "text") and "overall_quality" in item.text:
+                try:
+                    start = item.text.find("{")
+                    end = item.text.rfind("}") + 1
+                    critique_json = _json.loads(item.text[start:end])
+                    quality = float(critique_json.get("overall_quality", 0))
+                    revised_prompt = critique_json.get("revised_prompt", current_prompt)
+                except Exception:
+                    pass
+                break
+
+        all_content.append(TextContent(type="text", text=f"Quality score: {quality}/10"))
+
+        # Save round snapshot
+        round_path = templates_dir / f"{template_name}_round_{round_num}.voxel"
+        if base_path.exists():
+            shutil.copy2(str(base_path), str(round_path))
+            if quality > best_quality:
+                best_quality = quality
+                best_round_path = round_path
+
+        if quality >= quality_threshold:
+            all_content.append(TextContent(
+                type="text",
+                text=f"Quality threshold met ({quality} >= {quality_threshold}). Done."
+            ))
+            break
+
+        if round_num == max_rounds:
+            all_content.append(TextContent(type="text", text="Max rounds reached."))
+            break
+
+        # Regenerate
+        all_content.append(TextContent(type="text", text=f"Regenerating with revised prompt..."))
+        current_prompt = revised_prompt
+        regen_result = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda p=current_prompt: _run_blocksmith_native(template_name, p, generation_model, templates_dir)
+        )
+        if not regen_result.get("success"):
+            all_content.append(TextContent(type="text", text=f"Regeneration failed: {regen_result.get('error')}"))
+            break
+
+        # Reload asset editor with new template
+        await _launch_asset_editor({
+            "template_path": str(base_path), "port": port, "config": config
+        })
+
+    # Promote best round to canonical path
+    if best_round_path != base_path and best_round_path.exists():
+        shutil.copy2(str(best_round_path), str(base_path))
+        all_content.append(TextContent(
+            type="text",
+            text=f"Best result (quality={best_quality}) promoted to {base_path.name}"
+        ))
+
+    return all_content
+
+
+def _run_blocksmith_native(name: str, prompt: str, model: str, templates_dir) -> dict:
+    """Run blocksmith_generate.py --native in a subprocess."""
+    script = PROJECT_ROOT / "tools" / "blocksmith_generate.py"
+    import sys as _sys
+    cmd = [
+        _sys.executable, str(script),
+        prompt,
+        "--name", name,
+        "--model", model,
+        "--native",
+        "--force",
+        "--output-dir", str(templates_dir),
+        "--json",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(PROJECT_ROOT))
+    if result.returncode != 0:
+        return {"success": False, "error": result.stderr or result.stdout}
+    try:
+        import json as _json
+        return _json.loads(result.stdout.strip())
+    except Exception:
+        return {"success": False, "error": f"JSON parse error: {result.stdout}"}
+
+
+def _clear_engine_logs() -> dict:
+    """Truncate phyxel.log to zero bytes."""
+    log_path = PROJECT_ROOT / "phyxel.log"
+    try:
+        if log_path.exists():
+            log_path.write_text("", encoding="utf-8")
+            return {"success": True, "cleared": str(log_path)}
+        return {"success": True, "message": "phyxel.log did not exist — nothing to clear"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+async def _stop_engine(grace_seconds: float = 5.0) -> dict:
+    """Terminate the engine process if it is running."""
+    global _engine_process
+    if _engine_process is None or _engine_process.poll() is not None:
+        return {"success": True, "message": "Engine was not running"}
+
+    pid = _engine_process.pid
+    _engine_process.terminate()
+    import time
+    deadline = time.monotonic() + grace_seconds
+    while time.monotonic() < deadline:
+        if _engine_process.poll() is not None:
+            _engine_process = None
+            return {"success": True, "message": f"Engine (pid {pid}) stopped gracefully"}
+        await asyncio.sleep(0.2)
+
+    # Force-kill if still alive after grace period
+    try:
+        _engine_process.kill()
+        _engine_process.wait(timeout=3)
+    except Exception:
+        pass
+    _engine_process = None
+    return {"success": True, "message": f"Engine (pid {pid}) force-killed after {grace_seconds}s"}
+
+
+async def _restart_engine(args: dict) -> dict:
+    """Stop the running engine then launch it again with the same (or new) args."""
+    stop_result = await _stop_engine()
+    if not stop_result.get("success"):
+        return stop_result
+    _clear_engine_logs()
+    await asyncio.sleep(1.0)  # brief pause so ports are released
+    launch_args = {**_engine_launch_args, **args}  # caller can override any field
+    return await _launch_engine(launch_args)
 
 
 async def _launch_engine(args: dict) -> dict:
     """Launch the engine executable as a background process."""
-    global _engine_process
+    global _engine_process, _engine_launch_args
     config = args.get("config", "Debug")
     extra_args = args.get("args", [])
 
@@ -4825,6 +5768,7 @@ async def _launch_engine(args: dict) -> dict:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
+        _engine_launch_args = dict(args)  # remember for restart
         return {"success": True, "pid": _engine_process.pid, "executable": str(exe_path)}
     except Exception as e:
         return {"error": f"Failed to launch engine: {e}"}

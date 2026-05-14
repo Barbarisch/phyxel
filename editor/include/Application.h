@@ -353,6 +353,7 @@ private:
     void placeNewCube();            // Place a new cube adjacent to the hovered cube face
     void processAPICommands();       // Process pending HTTP API commands
     bool dispatchAnimationAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
+    bool dispatchDebugAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
     void autoLoadGameDefinition();   // Auto-load game.json if present
     Core::GameSubsystems buildGameSubsystems(); // Build subsystems struct for GameDefinitionLoader
     void initializeSceneManager();   // Wire SceneCallbacks and configure SceneManager
@@ -429,6 +430,10 @@ public:
         m_interactionEditorCharFile = charPath;
     }
 
+    void setApiPortOverride(int port) {
+        m_apiPortOverride = port;
+    }
+
 private:
     void initAssetEditorScene();
     void renderAssetEditorUI();
@@ -438,6 +443,7 @@ private:
     // ANIM EDITOR MODE  (--anim-editor <file>)
     // ============================================================================
     bool m_animEditorMode = false;
+    int m_apiPortOverride = -1;                             // --port override (0 = use engine.json default)
     std::string m_animEditorFile;                           // Full path to the .anim file being edited
     Scene::AnimatedVoxelCharacter* m_animEditorChar = nullptr; // Non-owning pointer into entities list
     int m_animEditorSelectedBone = -1;                     // Currently selected bone index in MODEL list
