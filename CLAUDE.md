@@ -8,11 +8,36 @@ When starting a new conversation in the engine terminal, **proactively check eng
 
 Phyxel is a voxel game engine built with C++17, Vulkan, and Bullet Physics. It features a 32³ chunk system, physics-based entity characters, animated voxel characters, embedded Python scripting, and an MCP server for AI agent integration.
 
-## Build System
+## Build & Test Pipeline (REQUIRED)
 
-- **CMake 3.15+**, C++17 required, MSVC 2022
-- **Dependencies**: Vulkan SDK, GLFW, GLM, Bullet Physics, ImGui, pybind11, nlohmann/json, cpp-httplib, Google Test, SQLite3, miniaudio
-- **CMake is NOT in system PATH**. Before running cmake, add it:
+**Always use MCP tools for the build/test/debug cycle. Never run cmake or PowerShell build commands directly.**
+
+### Build
+Use `build_project` MCP tool (not cmake in PowerShell). It streams output and handles the CMake path correctly.
+
+### Engine Lifecycle
+Use `launch_engine` / `stop_engine` / `restart_engine` / `engine_running`. The linker cannot overwrite `phyxel.exe` while it is running — always `stop_engine` before rebuilding.
+
+### Verifying a Fix — MANDATORY
+After applying any code change, you MUST verify it works at runtime, not just that it compiled:
+1. `stop_engine` (if running)
+2. `build_project`
+3. `launch_engine` with appropriate args
+4. Poll `engine_running` until `api_responsive: true`
+5. Trigger the specific scenario that was broken
+6. Capture evidence: `get_visual_diagnostic` (rendering fixes) or `screenshot` + `get_engine_logs` (crash/behavior fixes)
+7. `stop_engine` when done (unless engine was pre-running)
+
+**A fix is not done until the engine runs it successfully. "Compiled clean" is not verification.**
+
+### Diagnostics Without a Project
+`screenshot`, `get_visual_diagnostic`, `get_engine_logs`, `get_render_stats`, `set_log_level`, `set_debug_overlay`, `stop_engine`, `restart_engine`, and `clear_engine_logs` all work in any engine mode — including `--asset-editor`, `--anim-editor`, and no-project states.
+
+### Rendering / Visual Fixes
+Use the `/visual-test` skill — it handles the full lifecycle (build check → launch → scene setup → multi-source capture → report).
+
+### Raw Build Reference (fallback only)
+- **CMake is NOT in system PATH**. Add it first:
   ```powershell
   $env:PATH += ";C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin"
   ```

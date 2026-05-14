@@ -10042,9 +10042,9 @@ void Application::initAssetEditorScene() {
 
     LOG_INFO("Application", "Asset Editor: initializing scene for '{}'", m_assetEditorFile);
 
-    // Clear the default world that WorldInitializer loaded from worlds/default.db.
-    // initialize() runs before this function, so the default DB is already in memory.
-    // run() hasn't started yet so there are no in-flight GPU render operations.
+    // Clear any world loaded at startup (default.db) or leftover from a previous scene.
+    // When called from switchToEditorMode(), resetEditorScene() already ran cleanup —
+    // calling it again is a safe no-op. When called at startup it's the only cleanup.
     chunkManager->cleanup();
 
     // Create the chunk that will hold the floor (origin 0,0,0 covers Y=0..31)

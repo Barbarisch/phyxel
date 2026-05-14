@@ -300,15 +300,19 @@ void ChunkRenderManager::rebuildMicrocubeFaces(
 }
 
 void ChunkRenderManager::updateVulkanBuffer() {
-    void* mappedMem = renderBuffer.getMappedMemory();
-    if (!mappedMem || faces.empty()) return;
-    
-    // Ensure buffer capacity is sufficient, reallocate if necessary
+    if (faces.empty()) return;
+    if (!renderBuffer.getMappedMemory()) return;
+
+    // ensureBufferCapacity may call reallocateBuffer() which remaps memory —
+    // fetch the pointer AFTER this call so we never write to a freed mapping.
     ensureBufferCapacity(faces.size());
-    
+
+    void* mappedMem = renderBuffer.getMappedMemory();
+    if (!mappedMem) return;
+
     // Track peak usage for analysis
     renderBuffer.updateMaxUsage(faces.size());
-    
+
     // Copy data to GPU buffer (only the used portion)
     VkDeviceSize copySize = sizeof(InstanceData) * faces.size();
     memcpy(mappedMem, faces.data(), copySize);

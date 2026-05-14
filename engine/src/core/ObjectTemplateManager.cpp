@@ -265,7 +265,7 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
         glm::ivec3 pos = basePos + rotateOffset(tCube.relativePos);
         glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(pos);
         if (Chunk* chunk = getOrCreateChunk(pos)) {
-            chunk->addCube(localPos);
+            chunk->addCube(localPos, tCube.material);
         }
     }
 

@@ -3621,8 +3621,12 @@ async def call_tool(name: str, arguments: dict) -> list:
 # Tools that are safe to call without a project loaded
 _NO_PROJECT_TOOLS = {
     "engine_status", "engine_running", "build_project", "launch_engine",
+    "stop_engine", "restart_engine", "clear_engine_logs",
     "project_info", "list_projects", "create_project", "open_project",
     "package_game",
+    # Diagnostics — work in any engine mode (asset editor, anim editor, no project)
+    "screenshot", "get_visual_diagnostic", "get_engine_logs",
+    "get_render_stats", "set_log_level", "set_debug_overlay",
     # D&D stateless tools — no engine needed
     "roll_dice", "check_dc",
 }
