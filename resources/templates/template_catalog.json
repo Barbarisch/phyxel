@@ -1,8 +1,11 @@
 {
   "simple_table": {
+    "display_name": "Simple Table",
+    "description": "A simple wooden dining table.",
     "prompt": "a simple wooden dining table",
     "model": "anthropic/claude-sonnet-4-20250514",
     "material": "Wood",
+    "materials": ["Wood"],
     "size": 2.0,
     "cubes": 0,
     "subcubes": 0,
@@ -10,17 +13,17 @@
     "total": 263,
     "cost": null,
     "created": "2026-04-01T02:28:52.486557+00:00",
-    "category": "table",
-    "tags": [
-      "tavern",
-      "house",
-      "common"
-    ]
+    "category": "furniture",
+    "subcategory": "table",
+    "tags": ["table", "dining", "tavern", "house", "common"]
   },
   "tavern_table": {
+    "display_name": "Tavern Table",
+    "description": "A small rectangular wooden tavern table with four legs.",
     "prompt": "a small rectangular wooden tavern table with four legs",
     "model": "anthropic/claude-sonnet-4-20250514",
     "material": "Wood",
+    "materials": ["Wood"],
     "size": 2.0,
     "cubes": 0,
     "subcubes": 0,
@@ -28,16 +31,17 @@
     "total": 159,
     "cost": null,
     "created": "2026-04-01T02:38:53.256860+00:00",
-    "category": "table",
-    "tags": [
-      "tavern",
-      "common"
-    ]
+    "category": "furniture",
+    "subcategory": "table",
+    "tags": ["table", "tavern", "common"]
   },
   "tavern_bar": {
+    "display_name": "Tavern Bar Counter",
+    "description": "A long wooden bar counter, rectangular and waist height.",
     "prompt": "a long wooden bar counter for a tavern, rectangular and waist height",
     "model": "anthropic/claude-sonnet-4-20250514",
     "material": "Wood",
+    "materials": ["Wood"],
     "size": 4.0,
     "cubes": 3,
     "subcubes": 18,
@@ -45,110 +49,29 @@
     "total": 1583,
     "cost": null,
     "created": "2026-04-01T02:39:18.642804+00:00",
-    "category": "counter",
-    "tags": [
-      "tavern"
-    ]
+    "category": "furniture",
+    "subcategory": "counter",
+    "tags": ["bar", "counter", "tavern"]
   },
   "test_chair": {
+    "display_name": "Wooden Chair",
+    "description": "A simple wooden chair with a sit interaction point.",
     "prompt": "a simple wooden chair",
     "material": "Wood",
+    "materials": ["Wood"],
     "size": 1.2,
     "category": "furniture",
-    "tags": [
-      "chair",
-      "seat",
-      "house",
-      "tavern",
-      "common"
-    ],
+    "subcategory": "seating",
+    "tags": ["chair", "seat", "house", "tavern", "common"],
     "interactions": [
       {
         "id": "seat_0",
         "type": "seat",
-        "local_offset": {
-          "x": 0.33,
-          "y": 0.42,
-          "z": 0.33
-        },
+        "local_offset": { "x": 0.33, "y": 0.42, "z": 0.33 },
         "facing_yaw": 0.0,
-        "approach_offset": {
-          "x": 0.33,
-          "y": 0.0,
-          "z": -0.7
-        }
+        "approach_offset": { "x": 0.33, "y": 0.0, "z": -0.7 }
       }
     ]
-  },
-  "tavern_test": {
-    "prompt": "Generate a medieval tavern building.\n\nEXACT DIMENSIONS (in game blocks, 1 block = 1 unit):\n- Width (X axis): 14 blocks\n- Depth (Z axis): 18 blocks\n- Interior height per story (Y axis): 5 blocks (wall height above each floor)\n- Number of stories: 1\n- Total building height: ~6 blocks (including floor slabs + roof)\n\nDOOR:\n- Position: Centered on the front wall (Z=0 side)\n- Size: 2 blocks wide \u00d7 3 blocks tall\n- The door is a GAP \u2014 do not place a cuboid there. Split the wall around it.\n\n\nWINDOW OPENINGS:\n- Place 2 window(s) per side wall per story.\n- Each window is 2 blocks wide \u00d7 2 blocks tall.\n- Windows start at Y=2 above each floor level (leave 1 block of wall below).\n- Space windows evenly along the wall length.\n- Windows are GAPS \u2014 split the wall into segments around each opening.\n\n\n\nSTRUCTURE REQUIREMENTS:\n- Ground floor slab at Y=0, 1 block thick, spanning full 14\u00d718\n- All walls are 1 block thick\n- Interior is EMPTY (no furniture, tables, etc. \u2014 added separately)\n- Roof on top \u2014 be creative with the roof style (flat, peaked, etc.)\n- Origin (0,0,0) is at the front-left corner at ground level\n\nBUILDING CHARACTER:\nThis is a tavern/pub. Consider: a large open main hall on the ground floor, a prominent entrance, thick sturdy walls. The upper floor (if multi-story) has smaller rooms for sleeping quarters.\n\n\nSTYLE: medieval\n- Add architectural character appropriate to the style\n- Use mat-wall for walls, mat-floor for floors, mat-roof for roof\n- Use mat-trim or mat-accent for decorative elements\n- Keep total cuboid count under 80\n\nMaterial mapping (use these mat- prefixes):\n  - mat-wall \u2192 Stone\n  - mat-floor \u2192 Wood\n  - mat-roof \u2192 Wood\n  - mat-trim \u2192 Wood\n",
-    "model": "anthropic/claude-sonnet-4-20250514",
-    "material": "Wood",
-    "size": 18.0,
-    "cubes": 1168,
-    "subcubes": 0,
-    "microcubes": 0,
-    "total": 1168,
-    "cost": null,
-    "created": "2026-04-01T15:36:35.268770+00:00",
-    "building": {
-      "type": "tavern",
-      "style": "medieval",
-      "width": 14,
-      "depth": 18,
-      "height": 5,
-      "stories": 1,
-      "door_facing": "front",
-      "windows": 2
-    }
-  },
-  "shrub_round": {
-    "prompt": "a round leafy shrub, low to the ground, roughly spherical blob of foliage with a short stubby trunk",
-    "model": "anthropic/claude-sonnet-4-20250514",
-    "material": "Wood",
-    "size": 2.0,
-    "cubes": 0,
-    "subcubes": 62,
-    "microcubes": 877,
-    "total": 939,
-    "cost": null,
-    "created": "2026-04-13T19:36:04.630473+00:00"
-  },
-  "shrub_flat": {
-    "prompt": "a small dense bush, low and wide, flat-topped with thick leafy foliage and no visible trunk",
-    "model": "anthropic/claude-sonnet-4-20250514",
-    "material": "Wood",
-    "size": 2.0,
-    "cubes": 0,
-    "subcubes": 25,
-    "microcubes": 583,
-    "total": 608,
-    "cost": null,
-    "created": "2026-04-13T19:36:22.429693+00:00"
-  },
-  "tree_pine": {
-    "prompt": "a tall pine tree with a thin straight trunk and layered triangular branches tapering to a point at the top, like a christmas tree silhouette",
-    "model": "anthropic/claude-sonnet-4-20250514",
-    "material": "Wood",
-    "size": 5.0,
-    "cubes": 2,
-    "subcubes": 80,
-    "microcubes": 3566,
-    "total": 3648,
-    "cost": null,
-    "created": "2026-04-13T19:36:39.215285+00:00"
-  },
-  "throne": {
-    "prompt": "a royal throne for a medieval fantasy game",
-    "model": "anthropic/claude-sonnet-4-20250514",
-    "material": "Wood",
-    "size": 3.0,
-    "cubes": 3,
-    "subcubes": 78,
-    "microcubes": 14,
-    "total": 95,
-    "cost": 0.042429,
-    "created": "2026-05-14T23:12:52.713618+00:00"
   },
   "wooden_throne": {
     "display_name": "Wooden Throne",
@@ -173,40 +96,200 @@
     "seat_height": 0.667,
     "version": 3
   },
-  "stool_test": {
-    "prompt": "a simple wooden stool",
+  "tavern_test": {
+    "display_name": "Tavern Building",
+    "description": "A medieval stone-walled tavern, 14×18 footprint, 1 story with wood floor and roof.",
+    "prompt": "a medieval tavern building",
     "model": "anthropic/claude-sonnet-4-20250514",
-    "material": "Wood",
-    "size": 3.0,
+    "material": "Stone",
+    "materials": ["Stone", "Wood"],
+    "size": 18.0,
+    "cubes": 1168,
+    "subcubes": 0,
+    "microcubes": 0,
+    "total": 1168,
+    "cost": null,
+    "created": "2026-04-01T15:36:35.268770+00:00",
+    "category": "building",
+    "subcategory": "tavern",
+    "tags": ["building", "tavern", "inn", "medieval", "exterior"],
+    "building": {
+      "type": "tavern",
+      "style": "medieval",
+      "width": 14,
+      "depth": 18,
+      "height": 5,
+      "stories": 1,
+      "door_facing": "front",
+      "windows": 2
+    }
+  },
+  "shrub_round": {
+    "display_name": "Round Shrub",
+    "description": "A round leafy shrub, low to the ground, roughly spherical foliage with a short trunk.",
+    "prompt": "a round leafy shrub, low to the ground, roughly spherical blob of foliage with a short stubby trunk",
+    "model": "anthropic/claude-sonnet-4-20250514",
+    "material": "Leaf",
+    "materials": ["Leaf", "Wood"],
+    "size": 2.0,
     "cubes": 0,
-    "subcubes": 22,
-    "microcubes": 2,
-    "total": 24,
-    "cost": 0.019575,
-    "created": "2026-05-14T23:04:50.965376+00:00"
+    "subcubes": 62,
+    "microcubes": 877,
+    "total": 939,
+    "cost": null,
+    "created": "2026-04-13T19:36:04.630473+00:00",
+    "category": "nature",
+    "subcategory": "vegetation",
+    "tags": ["shrub", "bush", "nature", "exterior", "garden"]
   },
-  "throne_test": {
-    "prompt": "a royal throne for a medieval fantasy game",
+  "shrub_flat": {
+    "display_name": "Flat Shrub",
+    "description": "A small dense bush, low and wide, flat-topped with thick leafy foliage.",
+    "prompt": "a small dense bush, low and wide, flat-topped with thick leafy foliage and no visible trunk",
+    "model": "anthropic/claude-sonnet-4-20250514",
+    "material": "Leaf",
+    "materials": ["Leaf", "Wood"],
+    "size": 2.0,
+    "cubes": 0,
+    "subcubes": 25,
+    "microcubes": 583,
+    "total": 608,
+    "cost": null,
+    "created": "2026-04-13T19:36:22.429693+00:00",
+    "category": "nature",
+    "subcategory": "vegetation",
+    "tags": ["shrub", "bush", "nature", "exterior", "garden"]
+  },
+  "tree_pine": {
+    "display_name": "Pine Tree",
+    "description": "A tall pine tree with a thin trunk and layered triangular branches tapering to a point.",
+    "prompt": "a tall pine tree with a thin straight trunk and layered triangular branches tapering to a point at the top, like a christmas tree silhouette",
     "model": "anthropic/claude-sonnet-4-20250514",
     "material": "Wood",
-    "size": 3.0,
-    "cubes": 7,
-    "subcubes": 76,
-    "microcubes": 17,
-    "total": 100,
-    "cost": 0.043746,
-    "created": "2026-05-14T23:05:41.479466+00:00"
+    "materials": ["Wood", "Leaf"],
+    "size": 5.0,
+    "cubes": 2,
+    "subcubes": 80,
+    "microcubes": 3566,
+    "total": 3648,
+    "cost": null,
+    "created": "2026-04-13T19:36:39.215285+00:00",
+    "category": "nature",
+    "subcategory": "tree",
+    "tags": ["tree", "pine", "evergreen", "nature", "exterior", "forest"]
   },
-  "throne_time_test": {
-    "prompt": "a royal throne",
-    "model": "anthropic/claude-sonnet-4-20250514",
+  "door_wood": {
+    "display_name": "Wooden Door",
+    "description": "A standard single wooden door, 1 wide × 2 tall. Hinge at X=0.",
     "material": "Wood",
-    "size": 3.0,
-    "cubes": 10,
-    "subcubes": 78,
-    "microcubes": 18,
-    "total": 106,
-    "cost": 0.044916000000000005,
-    "created": "2026-05-14T23:20:55.587835+00:00"
+    "materials": ["Wood"],
+    "cubes": 2,
+    "subcubes": 0,
+    "microcubes": 0,
+    "total": 2,
+    "created": "2026-04-21T00:00:00.000000+00:00",
+    "category": "architecture",
+    "subcategory": "door",
+    "tags": ["door", "wood", "entrance", "interior", "exterior", "common"],
+    "facing": "+X (door swings along X)",
+    "interactions": [
+      {
+        "id": "handle_0",
+        "type": "door_handle",
+        "local_offset": { "x": 0.5, "y": 1.0, "z": 1.0 },
+        "swing_yaw": 90.0
+      }
+    ]
+  },
+  "door_metal": {
+    "display_name": "Metal Door",
+    "description": "A single metal door, 1 wide × 2 tall. Hinge at X=0.",
+    "material": "Metal",
+    "materials": ["Metal"],
+    "cubes": 2,
+    "subcubes": 0,
+    "microcubes": 0,
+    "total": 2,
+    "created": "2026-04-21T00:00:00.000000+00:00",
+    "category": "architecture",
+    "subcategory": "door",
+    "tags": ["door", "metal", "dungeon", "castle", "entrance"],
+    "facing": "+X (door swings along X)",
+    "interactions": [
+      {
+        "id": "handle_0",
+        "type": "door_handle",
+        "local_offset": { "x": 0.5, "y": 1.0, "z": 1.0 },
+        "swing_yaw": 90.0
+      }
+    ]
+  },
+  "door_wood_wide": {
+    "display_name": "Wide Wooden Door",
+    "description": "A double wooden door, 2 wide × 2 tall. Hinge at X=0.",
+    "material": "Wood",
+    "materials": ["Wood"],
+    "cubes": 4,
+    "subcubes": 0,
+    "microcubes": 0,
+    "total": 4,
+    "created": "2026-04-21T00:00:00.000000+00:00",
+    "category": "architecture",
+    "subcategory": "door",
+    "tags": ["door", "wood", "wide", "double", "entrance", "tavern", "common"],
+    "facing": "+X (door swings along X)",
+    "interactions": [
+      {
+        "id": "handle_0",
+        "type": "door_handle",
+        "local_offset": { "x": 1.5, "y": 1.0, "z": 1.0 },
+        "swing_yaw": 90.0
+      }
+    ]
+  },
+  "sword": {
+    "display_name": "Sword",
+    "description": "A simple sword — wood handle, metal blade, 1×5×1 cubes.",
+    "material": "Metal",
+    "materials": ["Wood", "Metal"],
+    "cubes": 5,
+    "subcubes": 0,
+    "microcubes": 0,
+    "total": 5,
+    "created": "2026-04-21T00:00:00.000000+00:00",
+    "category": "weapon",
+    "subcategory": "melee",
+    "tags": ["sword", "blade", "weapon", "combat", "one-handed"],
+    "file": "weapons/sword.voxel"
+  },
+  "axe": {
+    "display_name": "Axe",
+    "description": "A simple axe — wood handle with a metal head, 2×4×1 cubes.",
+    "material": "Metal",
+    "materials": ["Wood", "Metal"],
+    "cubes": 5,
+    "subcubes": 0,
+    "microcubes": 0,
+    "total": 5,
+    "created": "2026-04-21T00:00:00.000000+00:00",
+    "category": "weapon",
+    "subcategory": "melee",
+    "tags": ["axe", "weapon", "combat", "one-handed"],
+    "file": "weapons/axe.voxel"
+  },
+  "pickaxe": {
+    "display_name": "Pickaxe",
+    "description": "A T-shaped pickaxe — wood handle with a metal crosshead.",
+    "material": "Metal",
+    "materials": ["Wood", "Metal"],
+    "cubes": 6,
+    "subcubes": 0,
+    "microcubes": 0,
+    "total": 6,
+    "created": "2026-04-21T00:00:00.000000+00:00",
+    "category": "tool",
+    "subcategory": "mining",
+    "tags": ["pickaxe", "tool", "mining", "weapon"],
+    "file": "weapons/pickaxe.voxel"
   }
 }
