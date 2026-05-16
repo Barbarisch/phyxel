@@ -1,0 +1,77 @@
+# ==========================================================
+# ASSET METADATA
+# name:         bed_single
+# display_name: Single Bed
+# description:  A medieval single bed with wooden frame, mattress, and pillow.
+# category:     furniture
+# subcategory:  bed
+# tags:         bed, sleep, rest, bedroom, inn, house, common
+# materials:    Wood, Default
+# facing:       +Z (foot of bed faces viewer)
+# bounds:       1W x 2H x 2D  (X: 0, Y: 0..1, Z: 0..1 cubes)
+# seat_height:  0.667  (mattress top)
+# primitives:   0 C + 47 S + 0 M = 47
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Front = +Z. Headboard at Z=0 (back). Footboard at Z=1 (front).
+
+# --- HEADBOARD (Z=0, full panel sz=0, rises to Y=1.667) ---
+S 0 0 0  0 0 0  Wood
+S 0 0 0  1 0 0  Wood
+S 0 0 0  2 0 0  Wood
+S 0 0 0  0 1 0  Wood
+S 0 0 0  1 1 0  Wood
+S 0 0 0  2 1 0  Wood
+S 0 0 0  0 2 0  Wood
+S 0 0 0  1 2 0  Wood
+S 0 0 0  2 2 0  Wood
+S 0 1 0  0 0 0  Wood
+S 0 1 0  1 0 0  Wood
+S 0 1 0  2 0 0  Wood
+S 0 1 0  0 1 0  Wood
+S 0 1 0  1 1 0  Wood
+S 0 1 0  2 1 0  Wood
+
+# --- FOOTBOARD (Z=1, short panel sz=2, 2/3 cube tall) ---
+S 0 0 1  0 0 2  Wood
+S 0 0 1  1 0 2  Wood
+S 0 0 1  2 0 2  Wood
+S 0 0 1  0 1 2  Wood
+S 0 0 1  1 1 2  Wood
+S 0 0 1  2 1 2  Wood
+
+# --- SIDE RAILS (sx=0 left, sx=2 right, at sy=1) ---
+S 0 0 0  0 1 1  Wood
+S 0 0 0  0 1 2  Wood
+S 0 0 1  0 1 0  Wood
+S 0 0 1  0 1 1  Wood
+S 0 0 0  2 1 1  Wood
+S 0 0 0  2 1 2  Wood
+S 0 0 1  2 1 0  Wood
+S 0 0 1  2 1 1  Wood
+
+# --- MATTRESS (sy=2 of Y=0, interior between rails) ---
+S 0 0 0  0 2 1  Sand
+S 0 0 0  1 2 1  Sand
+S 0 0 0  2 2 1  Sand
+S 0 0 0  0 2 2  Sand
+S 0 0 0  1 2 2  Sand
+S 0 0 0  2 2 2  Sand
+S 0 0 1  0 2 0  Sand
+S 0 0 1  1 2 0  Sand
+S 0 0 1  2 2 0  Sand
+S 0 0 1  0 2 1  Sand
+S 0 0 1  1 2 1  Sand
+S 0 0 1  2 2 1  Sand
+
+# --- PILLOW (head end, on top of mattress at Y=1 sy=0) ---
+S 0 1 0  0 0 1  Sand
+S 0 1 0  1 0 1  Sand
+S 0 1 0  2 0 1  Sand
+S 0 1 0  0 0 2  Sand
+S 0 1 0  1 0 2  Sand
+S 0 1 0  2 0 2  Sand

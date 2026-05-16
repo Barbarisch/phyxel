@@ -1,0 +1,34 @@
+# ==========================================================
+# ASSET METADATA
+# name:         campfire
+# display_name: Campfire
+# description:  A campfire with a stone ring, crossed logs, and glowing embers with flame.
+# category:     environment
+# subcategory:  light_source
+# tags:         campfire, fire, light, rest, wilderness, camp, outdoor
+# materials:    Stone, Wood, glow
+# facing:       +Z
+# bounds:       1W x 2H x 1D  (X: 0, Y: 0..1, Z: 0 cubes)
+# primitives:   0 C + 11 S + 0 M = 11
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# --- STONE RING (sy=0, cardinal positions) ---
+S 0 0 0  1 0 0  Stone
+S 0 0 0  0 0 1  Stone
+S 0 0 0  2 0 1  Stone
+S 0 0 0  1 0 2  Stone
+
+# --- CROSSED LOGS (sy=0, diagonal corners) ---
+S 0 0 0  0 0 0  Wood
+S 0 0 0  2 0 0  Wood
+S 0 0 0  0 0 2  Wood
+S 0 0 0  2 0 2  Wood
+
+# --- EMBERS + FLAME (glow) ---
+S 0 0 0  1 0 1  glow
+S 0 0 0  1 1 1  glow
+S 0 1 0  1 0 1  glow

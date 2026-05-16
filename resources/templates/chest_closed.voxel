@@ -1,0 +1,51 @@
+# ==========================================================
+# ASSET METADATA
+# name:         chest_closed
+# display_name: Chest (Closed)
+# description:  A wooden storage chest with metal clasp, lid closed.
+# category:     furniture
+# subcategory:  container
+# tags:         chest, loot, storage, dungeon, house, treasure, common
+# materials:    Wood, Metal
+# facing:       +Z (clasp faces viewer)
+# bounds:       1W x 1H x 1D  (X: 0, Y: 0, Z: 0 cubes)
+# primitives:   0 C + 26 S + 0 M = 26
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Front = +Z (sz=0 face is the front with the clasp).
+
+# --- BOTTOM (sy=0, full 3x3) ---
+S 0 0 0  0 0 0  Wood
+S 0 0 0  1 0 0  Wood
+S 0 0 0  2 0 0  Wood
+S 0 0 0  0 0 1  Wood
+S 0 0 0  1 0 1  Wood
+S 0 0 0  2 0 1  Wood
+S 0 0 0  0 0 2  Wood
+S 0 0 0  1 0 2  Wood
+S 0 0 0  2 0 2  Wood
+
+# --- WALLS (sy=1, outer ring — interior hollow) ---
+S 0 0 0  0 1 0  Wood
+S 0 0 0  1 1 0  Metal
+S 0 0 0  2 1 0  Wood
+S 0 0 0  0 1 1  Wood
+S 0 0 0  2 1 1  Wood
+S 0 0 0  0 1 2  Wood
+S 0 0 0  1 1 2  Wood
+S 0 0 0  2 1 2  Wood
+
+# --- LID (sy=2, full 3x3 with metal latch) ---
+S 0 0 0  0 2 0  Wood
+S 0 0 0  1 2 0  Wood
+S 0 0 0  2 2 0  Wood
+S 0 0 0  0 2 1  Wood
+S 0 0 0  1 2 1  Metal
+S 0 0 0  2 2 1  Wood
+S 0 0 0  0 2 2  Wood
+S 0 0 0  1 2 2  Wood
+S 0 0 0  2 2 2  Wood
