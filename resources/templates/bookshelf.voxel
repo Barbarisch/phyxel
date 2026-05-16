@@ -1,0 +1,85 @@
+# ==========================================================
+# ASSET METADATA
+# name:         bookshelf
+# display_name: Bookshelf
+# description:  A tall wooden bookshelf, 2 cubes high, with three rows of books visible from the front.
+# category:     furniture
+# subcategory:  storage
+# tags:         bookshelf, books, library, study, house, inn, common
+# materials:    Wood, Bricks, Sand
+# facing:       +Z (spine of books faces viewer)
+# bounds:       1W x 2H x 1D  (X: 0, Y: 0..1, Z: 0 cubes)
+# primitives:   0 C + 45 S + 0 M = 45
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Back = sz=0 (depth backdrop). Books visible at sz=2 (front face). Shelves at sz=1+2.
+# From front: floor shelf / Bricks books / Wood mid-shelf / Sand books / Wood shelf / Bricks books
+
+# --- LOWER CUBE (Y=0) ---
+
+# Back wall
+S 0 0 0  0 0 0  Wood
+S 0 0 0  1 0 0  Wood
+S 0 0 0  2 0 0  Wood
+S 0 0 0  0 1 0  Wood
+S 0 0 0  1 1 0  Wood
+S 0 0 0  2 1 0  Wood
+S 0 0 0  0 2 0  Wood
+S 0 0 0  1 2 0  Wood
+S 0 0 0  2 2 0  Wood
+
+# Floor shelf (sy=0)
+S 0 0 0  0 0 1  Wood
+S 0 0 0  1 0 1  Wood
+S 0 0 0  2 0 1  Wood
+S 0 0 0  0 0 2  Wood
+S 0 0 0  1 0 2  Wood
+S 0 0 0  2 0 2  Wood
+
+# Books row 1 (sy=1, front face only)
+S 0 0 0  0 1 2  Bricks
+S 0 0 0  1 1 2  Bricks
+S 0 0 0  2 1 2  Bricks
+
+# Mid shelf (sy=2)
+S 0 0 0  0 2 1  Wood
+S 0 0 0  1 2 1  Wood
+S 0 0 0  2 2 1  Wood
+S 0 0 0  0 2 2  Wood
+S 0 0 0  1 2 2  Wood
+S 0 0 0  2 2 2  Wood
+
+# --- UPPER CUBE (Y=1) ---
+
+# Back wall
+S 0 1 0  0 0 0  Wood
+S 0 1 0  1 0 0  Wood
+S 0 1 0  2 0 0  Wood
+S 0 1 0  0 1 0  Wood
+S 0 1 0  1 1 0  Wood
+S 0 1 0  2 1 0  Wood
+S 0 1 0  0 2 0  Wood
+S 0 1 0  1 2 0  Wood
+S 0 1 0  2 2 0  Wood
+
+# Books row 2 (sy=0, front face)
+S 0 1 0  0 0 2  Sand
+S 0 1 0  1 0 2  Sand
+S 0 1 0  2 0 2  Sand
+
+# Upper mid shelf (sy=1)
+S 0 1 0  0 1 1  Wood
+S 0 1 0  1 1 1  Wood
+S 0 1 0  2 1 1  Wood
+S 0 1 0  0 1 2  Wood
+S 0 1 0  1 1 2  Wood
+S 0 1 0  2 1 2  Wood
+
+# Books row 3 (sy=2, front face — top of bookshelf)
+S 0 1 0  0 2 2  Bricks
+S 0 1 0  1 2 2  Bricks
+S 0 1 0  2 2 2  Bricks

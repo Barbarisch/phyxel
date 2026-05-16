@@ -1,0 +1,30 @@
+# ==========================================================
+# ASSET METADATA
+# name:         candle_holder
+# display_name: Candle Holder
+# description:  A metal candle holder with a cross-shaped base, a white candle, and a glowing flame.
+# category:     furniture
+# subcategory:  light_source
+# tags:         candle, light, holder, decoration, dungeon, house, inn, tavern, common
+# materials:    Metal, Sand, glow
+# facing:       +Z
+# bounds:       1W x 1H x 1D  (X: 0, Y: 0, Z: 0 cubes)
+# primitives:   0 C + 7 S + 0 M = 7
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# --- METAL BASE (cross shape at sy=0) ---
+S 0 0 0  1 0 0  Metal
+S 0 0 0  0 0 1  Metal
+S 0 0 0  1 0 1  Metal
+S 0 0 0  2 0 1  Metal
+S 0 0 0  1 0 2  Metal
+
+# --- CANDLE SHAFT (sy=1, center) ---
+S 0 0 0  1 1 1  Sand
+
+# --- FLAME (sy=2, center) ---
+S 0 0 0  1 2 1  glow

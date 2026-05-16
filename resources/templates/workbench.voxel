@@ -1,0 +1,43 @@
+# ==========================================================
+# ASSET METADATA
+# name:         workbench
+# display_name: Workbench
+# description:  A sturdy wooden workbench with a metal vise clamp at the front-left corner and a lower center shelf.
+# category:     furniture
+# subcategory:  work_surface
+# tags:         workbench, crafting, tools, workshop, blacksmith, carpenter, house
+# materials:    Wood, Metal
+# facing:       +Z (front face with vise faces viewer)
+# bounds:       1W x 1H x 1D  (X: 0, Y: 0, Z: 0 cubes)
+# seat_height:  0.667  (work surface top)
+# primitives:   0 C + 18 S + 0 M = 18
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# --- CORNER LEGS (sy=0 and sy=1) ---
+S 0 0 0  0 0 0  Wood
+S 0 0 0  0 1 0  Wood
+S 0 0 0  2 0 0  Wood
+S 0 0 0  2 1 0  Wood
+S 0 0 0  0 0 2  Wood
+S 0 0 0  0 1 2  Wood
+S 0 0 0  2 0 2  Wood
+S 0 0 0  2 1 2  Wood
+
+# --- LOWER SHELF (center, between legs) ---
+S 0 0 0  1 0 1  Wood
+
+# --- WORK SURFACE (sy=2, full 3x3) ---
+# Front-left corner is metal vise, rest is Wood
+S 0 0 0  0 2 0  Wood
+S 0 0 0  1 2 0  Wood
+S 0 0 0  2 2 0  Wood
+S 0 0 0  0 2 1  Wood
+S 0 0 0  1 2 1  Wood
+S 0 0 0  2 2 1  Wood
+S 0 0 0  1 2 2  Wood
+S 0 0 0  2 2 2  Wood
+S 0 0 0  0 2 2  Metal

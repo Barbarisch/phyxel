@@ -1,0 +1,52 @@
+# ==========================================================
+# ASSET METADATA
+# name:         bench_wood
+# display_name: Wooden Bench
+# description:  A simple wooden bench, 2 cubes wide with no backrest. Four corner legs.
+# category:     furniture
+# subcategory:  seating
+# tags:         bench, seat, tavern, park, house, inn, common
+# materials:    Wood
+# facing:       +Z
+# bounds:       2W x 1H x 1D  (X: 0..1, Y: 0, Z: 0 cubes)
+# seat_height:  0.667  (top of sy=2 subcube layer)
+# primitives:   0 C + 26 S + 0 M = 26
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Seat spans X=0 and X=1 cubes, sy=2 (top 1/3 of Y=0).
+
+# --- SEAT (sy=2, full 3x3 per cube) ---
+S 0 0 0  0 2 0  Wood
+S 0 0 0  1 2 0  Wood
+S 0 0 0  2 2 0  Wood
+S 0 0 0  0 2 1  Wood
+S 0 0 0  1 2 1  Wood
+S 0 0 0  2 2 1  Wood
+S 0 0 0  0 2 2  Wood
+S 0 0 0  1 2 2  Wood
+S 0 0 0  2 2 2  Wood
+S 1 0 0  0 2 0  Wood
+S 1 0 0  1 2 0  Wood
+S 1 0 0  2 2 0  Wood
+S 1 0 0  0 2 1  Wood
+S 1 0 0  1 2 1  Wood
+S 1 0 0  2 2 1  Wood
+S 1 0 0  0 2 2  Wood
+S 1 0 0  1 2 2  Wood
+S 1 0 0  2 2 2  Wood
+
+# --- LEGS (sy=0 and sy=1, 4 corners) ---
+# Left cube legs (X=0): sx=0 (left edge)
+S 0 0 0  0 0 0  Wood
+S 0 0 0  0 1 0  Wood
+S 0 0 0  0 0 2  Wood
+S 0 0 0  0 1 2  Wood
+# Right cube legs (X=1): sx=2 (right edge)
+S 1 0 0  2 0 0  Wood
+S 1 0 0  2 1 0  Wood
+S 1 0 0  2 0 2  Wood
+S 1 0 0  2 1 2  Wood

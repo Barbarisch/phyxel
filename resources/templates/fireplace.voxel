@@ -1,0 +1,53 @@
+# ==========================================================
+# ASSET METADATA
+# name:         fireplace
+# display_name: Stone Fireplace
+# description:  A stone fireplace with two pillars, a mantelpiece, stone hearth, and glowing fire inside.
+# category:     furniture
+# subcategory:  hearth
+# tags:         fireplace, fire, heat, light, stone, castle, inn, house, tavern
+# materials:    Stone, glow
+# facing:       +Z (opening faces viewer)
+# bounds:       3W x 2H x 1D  (X: 0..2, Y: 0..1, Z: 0 cubes)
+# primitives:   5 C + 19 S + 0 M = 24
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Pillars flank a central firebox. Mantelpiece caps the top. Opening faces +Z.
+
+# --- PILLARS (solid Stone cubes flanking the firebox) ---
+C 0 0 0  Stone
+C 2 0 0  Stone
+
+# --- FIREBOX BACK WALL (center cube, X=1, sz=0 strip) ---
+S 1 0 0  0 0 0  Stone
+S 1 0 0  1 0 0  Stone
+S 1 0 0  2 0 0  Stone
+S 1 0 0  0 1 0  Stone
+S 1 0 0  1 1 0  Stone
+S 1 0 0  2 1 0  Stone
+S 1 0 0  0 2 0  Stone
+S 1 0 0  1 2 0  Stone
+S 1 0 0  2 2 0  Stone
+
+# --- HEARTH FLOOR (sy=0, sz=1..2) ---
+S 1 0 0  0 0 1  Stone
+S 1 0 0  1 0 1  Stone
+S 1 0 0  2 0 1  Stone
+S 1 0 0  0 0 2  Stone
+S 1 0 0  1 0 2  Stone
+S 1 0 0  2 0 2  Stone
+
+# --- FIRE (glow, above hearth) ---
+S 1 0 0  0 1 1  glow
+S 1 0 0  1 1 1  glow
+S 1 0 0  2 1 1  glow
+S 1 0 0  1 2 1  glow
+
+# --- MANTELPIECE (full-width Stone cap at Y=1) ---
+C 0 1 0  Stone
+C 1 1 0  Stone
+C 2 1 0  Stone
