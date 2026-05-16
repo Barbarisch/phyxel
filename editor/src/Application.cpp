@@ -327,26 +327,35 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     inputController->initializeBindings();
 
     // STEP 8: INITIALIZE SCRIPTING SYSTEM
-    // scriptingSystem created earlier for dependency injection
-    scriptingSystem->init();
+    // Skip in specialized editor modes — Python startup scripts are game-specific and
+    // would hang or error when no game world is loaded (asset/anim/interaction editors).
+    if (!m_assetEditorMode && !m_animEditorMode && !m_interactionEditorMode) {
+        LOG_INFO("Application", "Initializing scripting system...");
+        scriptingSystem->init();
+        LOG_INFO("Application", "Scripting system initialized successfully");
+    } else {
+        LOG_INFO("Application", "Skipping scripting system init (editor mode)");
+    }
 
     // STEP 9: INITIALIZE AI SYSTEM
-    // Create and initialize the AI system (goose-server sidecar, NPC management, story director)
-    aiSystem = std::make_unique<AI::AISystem>();
-    {
-        AI::GooseConfig aiConfig;
-        aiConfig.defaultProvider = engineConfig.aiProvider;
-        if (!engineConfig.aiModel.empty())
-            aiConfig.defaultModel = engineConfig.aiModel;
+    // Skip in specialized editor modes — Goose server not needed.
+    if (!m_assetEditorMode && !m_animEditorMode && !m_interactionEditorMode) {
+        aiSystem = std::make_unique<AI::AISystem>();
+        {
+            AI::GooseConfig aiConfig;
+            aiConfig.defaultProvider = engineConfig.aiProvider;
+            if (!engineConfig.aiModel.empty())
+                aiConfig.defaultModel = engineConfig.aiModel;
 
-        bool autoStart = engineConfig.aiAutoStart;
-        if (!aiSystem->initialize(aiConfig, autoStart)) {
-            LOG_WARN("Application", "AI system initialization failed (non-critical)");
-        } else {
-            if (autoStart)
-                LOG_INFO("Application", "AI system initialized (server auto-started, provider={})", engineConfig.aiProvider);
-            else
-                LOG_INFO("Application", "AI system initialized (server not auto-started, provider={})", engineConfig.aiProvider);
+            bool autoStart = engineConfig.aiAutoStart;
+            if (!aiSystem->initialize(aiConfig, autoStart)) {
+                LOG_WARN("Application", "AI system initialization failed (non-critical)");
+            } else {
+                if (autoStart)
+                    LOG_INFO("Application", "AI system initialized (server auto-started, provider={})", engineConfig.aiProvider);
+                else
+                    LOG_INFO("Application", "AI system initialized (server not auto-started, provider={})", engineConfig.aiProvider);
+            }
         }
     }
 
@@ -5790,6 +5799,48 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
             Phyxel::Utils::Logger::setModuleLevel(module, level);
         }
         response = {{"success", true}, {"module", module}, {"level", level_str}};
+        return true;
+
+    } else if (action == "toggle_ref_character") {
+        if (!m_assetEditorMode) {
+            response = {{"error", "Not in asset editor mode"}};
+            return true;
+        }
+        bool desired = cmd.params.contains("visible")
+            ? cmd.params["visible"].get<bool>()
+            : !m_assetRefCharVisible;
+
+        if (desired && !m_assetRefCharVisible) {
+            auto& assets = Core::AssetManager::instance();
+            std::string animPath = assets.resolveAnimatedChar("humanoid.anim");
+            glm::vec3 refPos(m_assetTemplateOrigin.x + 4, m_assetTemplateOrigin.y, m_assetTemplateOrigin.z);
+            m_assetRefChar = createAnimatedCharacter(refPos, animPath);
+            if (m_assetRefChar) {
+                m_assetRefChar->playAnimation("idle");
+                m_assetRefCharVisible = true;
+            }
+        } else if (!desired && m_assetRefCharVisible) {
+            entities.erase(
+                std::remove_if(entities.begin(), entities.end(),
+                    [this](const std::unique_ptr<Scene::Entity>& e) {
+                        return e.get() == m_assetRefChar;
+                    }),
+                entities.end());
+            m_assetRefChar = nullptr;
+            m_assetRefCharVisible = false;
+        }
+        response = {{"success", true}, {"visible", m_assetRefCharVisible}};
+        return true;
+
+    } else if (action == "reload_asset") {
+        if (!m_assetEditorMode) {
+            response = {{"error", "Not in asset editor mode"}};
+            return true;
+        }
+        if (cmd.params.contains("path"))
+            m_assetEditorFile = cmd.params["path"].get<std::string>();
+        initAssetEditorScene();
+        response = {{"success", true}, {"file", m_assetEditorFile}};
         return true;
     }
 

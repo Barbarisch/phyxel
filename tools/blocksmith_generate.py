@@ -36,13 +36,26 @@ _tools_path = os.path.join(_repo_root, "tools")
 if _tools_path not in sys.path:
     sys.path.insert(0, _tools_path)
 
+def _load_env_file():
+    """Load .env from the repo root into os.environ (setdefault — never overwrites)."""
+    env_path = os.path.join(_repo_root, ".env")
+    if not os.path.exists(env_path):
+        return
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, _, v = line.partition("=")
+                os.environ.setdefault(k.strip(), v.strip())
+
+
 def setup_api_keys(model="anthropic/claude-sonnet-4-20250514", json_mode=False):
     """Ensure the required API key is set for the chosen model provider.
 
-    Propagates PHYXEL_AI_API_KEY → ANTHROPIC_API_KEY as a convenience alias.
-    If the required key is still missing, prompts the user to enter it
-    interactively (or exits with a clear error in --json mode).
+    Loads .env from repo root, then propagates PHYXEL_AI_API_KEY → ANTHROPIC_API_KEY.
+    If the required key is still missing, prompts interactively (or exits in --json mode).
     """
+    _load_env_file()
     # Convenience alias
     phyxel_key = os.environ.get("PHYXEL_AI_API_KEY")
     if phyxel_key and not os.environ.get("ANTHROPIC_API_KEY"):
@@ -274,7 +287,7 @@ def convert_bbmodel_building_direct(bbmodel_path, template_path, material_map):
 def count_template_primitives(template_path):
     """Count cubes, subcubes, microcubes in a template file."""
     cubes = subcubes = microcubes = 0
-    with open(template_path, "r") as f:
+    with open(template_path, "r", encoding="utf-8", errors="replace") as f:
         for line in f:
             line = line.strip()
             if line.startswith("C "):
@@ -399,7 +412,31 @@ def main():
         help='Material palette as JSON: \'{"wall":"Stone","floor":"Wood","roof":"Wood"}\''
     )
 
+    # Native Phyxel C/S/M mode
+    parser.add_argument(
+        "--native", action="store_true",
+        help="Native mode: LLM outputs C/S/M lines directly — no bbmodel or trimesh pipeline"
+    )
+
+    # Prompt enhancement
+    parser.add_argument(
+        "--enhance-prompt", action="store_true",
+        help="Pre-pass LLM call to expand terse prompt into a spatial breakdown before generation"
+    )
+    parser.add_argument(
+        "--enhancer-model", default=None,
+        help="LLM model for prompt enhancement (defaults to --model)"
+    )
+    parser.add_argument(
+        "--image", default=None,
+        help="Reference image (local file path or URL). Enables --enhance-prompt automatically"
+    )
+
     args = parser.parse_args()
+
+    # Image implies prompt enhancement
+    if args.image and not args.enhance_prompt:
+        args.enhance_prompt = True
 
     # Determine output directory early (needed for --list and --search)
     if args.output_dir:
@@ -469,6 +506,23 @@ def main():
 
     setup_api_keys(model=args.model, json_mode=args.json)
 
+    # Prompt enhancement pre-pass (before generation)
+    generation_prompt = args.prompt
+    if args.enhance_prompt and not args.building:
+        try:
+            from asset_pipeline.prompt_enhancer import enhance_prompt
+            enhancer_model = args.enhancer_model or args.model
+            if not args.json:
+                print(f"Enhancing prompt with {enhancer_model}...")
+            generation_prompt = enhance_prompt(
+                args.prompt, image=args.image, model=enhancer_model
+            )
+            if not args.json:
+                print(f"  Enhanced prompt ready ({len(generation_prompt)} chars)")
+        except Exception as e:
+            if not args.json:
+                print(f"  Warning: prompt enhancement failed ({e}), using original prompt")
+
     os.makedirs(output_dir, exist_ok=True)
 
     template_path = os.path.join(output_dir, f"{args.name}.voxel")
@@ -494,9 +548,61 @@ def main():
             print(f"  Use --force to regenerate")
         return
 
+    # --- Native Phyxel C/S/M mode (bypasses bbmodel pipeline) ---
+    if args.native and not args.building:
+        try:
+            from blocksmith.client import Blocksmith
+            if not args.json:
+                print(f"Native Phyxel generation with {args.model}...")
+            bs = Blocksmith(default_model=args.model)
+            phyxel_result = bs.generate_phyxel(
+                generation_prompt, model=args.model, image=args.image
+            )
+            if phyxel_result.warnings and not args.json:
+                for w in phyxel_result.warnings:
+                    print(f"  Warning: {w}")
+            phyxel_result.save(
+                template_path,
+                prompt=args.prompt,
+                material=args.material,
+                target_size=args.size,
+            )
+            if not args.json:
+                print(f"  Tokens: {phyxel_result.tokens.total_tokens}"
+                      + (f"  Cost: ${phyxel_result.cost:.4f}" if phyxel_result.cost else ""))
+        except Exception as e:
+            if args.json:
+                print(json.dumps({"success": False, "error": str(e)}))
+            else:
+                print(f"ERROR: Native generation failed: {e}")
+            sys.exit(1)
+
+        cubes, subcubes, microcubes = count_template_primitives(template_path)
+        catalog_add(output_dir, args.name, args.prompt, args.model, args.material,
+                    args.size, cubes, subcubes, microcubes,
+                    cost=phyxel_result.cost)
+        result_info = {
+            "success": True,
+            "template_path": template_path,
+            "name": args.name,
+            "cubes": cubes,
+            "subcubes": subcubes,
+            "microcubes": microcubes,
+            "total_primitives": cubes + subcubes + microcubes,
+            "model_used": args.model,
+            "mode": "native",
+        }
+        if args.json:
+            print(json.dumps(result_info))
+        else:
+            print(f"\nTemplate ready: {template_path}")
+            print(f"  Primitives: {cubes}C + {subcubes}S + {microcubes}M = {cubes + subcubes + microcubes} total")
+            print(f"  Use: spawn_template with name '{args.name}'")
+        return
+
     # Step 1: Generate .bbmodel via BlockSmith
     try:
-        result = generate_bbmodel(args.prompt, args.model, bbmodel_path,
+        result = generate_bbmodel(generation_prompt, args.model, bbmodel_path,
                                   system_prompt=building_system_prompt)
     except Exception as e:
         if args.json:

@@ -514,13 +514,21 @@ bool ChunkVoxelManager::addCube(
         cubes.resize(32 * 32 * 32);
     }
     
-    // If cube already exists, just ensure it's not broken
+    // Reject if position is already occupied by a solid cube or subdivided voxels
+    if (cubes[index] && !cubes[index]->isBroken()) {
+        return false;
+    }
+    auto typeIt = voxelTypeMap.find(localPos);
+    if (!cubes[index] && typeIt != voxelTypeMap.end() && typeIt->second == VoxelLocation::SUBDIVIDED) {
+        return false;
+    }
+
     if (cubes[index]) {
+        // Repair a broken cube
         cubes[index]->setBroken(false);
         if (!material.empty()) {
             cubes[index]->setMaterial(material);
         }
-        // Update hash maps for existing cube
         addToVoxelMaps(localPos, cubes[index].get());
     } else {
         // Create new cube
@@ -529,7 +537,6 @@ bool ChunkVoxelManager::addCube(
         } else {
             cubes[index] = std::make_unique<Cube>(localPos);
         }
-        // Update hash maps for new cube
         addToVoxelMaps(localPos, cubes[index].get());
     }
     
@@ -629,6 +636,13 @@ int ChunkVoxelManager::addCubesBatch(const std::vector<glm::ivec3>& positions, c
             continue;
         }
         size_t index = localPos.z + localPos.y * 32 + localPos.x * 32 * 32;
+        if (cubes[index] && !cubes[index]->isBroken()) {
+            continue; // occupied — skip overlap
+        }
+        auto typeIt = voxelTypeMap.find(localPos);
+        if (!cubes[index] && typeIt != voxelTypeMap.end() && typeIt->second == VoxelLocation::SUBDIVIDED) {
+            continue; // subdivided voxels here — skip overlap
+        }
         if (cubes[index]) {
             cubes[index]->setBroken(false);
             if (!material.empty()) cubes[index]->setMaterial(material);
@@ -740,13 +754,22 @@ bool ChunkVoxelManager::addSubcube(
         return false;
     }
     
+    // Reject if a solid non-broken cube occupies this cube position
+    {
+        auto& cubes = m_getCubes();
+        size_t cubeIndex = parentPos.z + parentPos.y * 32 + parentPos.x * 32 * 32;
+        if (cubes.size() > cubeIndex && cubes[cubeIndex] && !cubes[cubeIndex]->isBroken()) {
+            return false;
+        }
+    }
+
     // Check if subcube already exists
     if (getSubcubeHelper(parentPos, subcubePos)) {
         LOG_DEBUG("VoxelManager", "addSubcube FAIL: subcube already exists at parent(%d,%d,%d) sub(%d,%d,%d)",
                   parentPos.x, parentPos.y, parentPos.z, subcubePos.x, subcubePos.y, subcubePos.z);
         return false;
     }
-    
+
     // Create new subcube
     glm::ivec3 parentWorldPos = m_getWorldOrigin() + parentPos;
     auto newSubcube = std::make_unique<Subcube>(parentWorldPos, subcubePos, material);
@@ -985,11 +1008,20 @@ bool ChunkVoxelManager::addMicrocube(
         return false;
     }
     
+    // Reject if a solid non-broken cube occupies the parent cube position
+    {
+        auto& cubes = m_getCubes();
+        size_t cubeIndex = parentCubePos.z + parentCubePos.y * 32 + parentCubePos.x * 32 * 32;
+        if (cubes.size() > cubeIndex && cubes[cubeIndex] && !cubes[cubeIndex]->isBroken()) {
+            return false;
+        }
+    }
+
     // Check if microcube already exists
     if (getMicrocubeHelper(parentCubePos, subcubePos, microcubePos)) {
         return false;
     }
-    
+
     // Check if this is the first microcube at this subcube position
     auto existingMicrocubes = getMicrocubesHelper(parentCubePos, subcubePos);
     if (existingMicrocubes.empty()) {

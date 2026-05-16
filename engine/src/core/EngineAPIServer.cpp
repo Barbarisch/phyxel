@@ -687,6 +687,89 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/orbit-screenshots — Capture 6-angle orbit around a world position
+    // Body: { "x": float, "y": float, "z": float, "radius": float }
+    // Optional: "views": ["north","south","east","west","top","iso"] to subset
+    // Returns: { "success": true, "screenshots": [{"view","path","width","height"}] }
+    // ====================================================================
+    srv.Post("/api/orbit-screenshots", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            float ax = params.value("x", 0.0f);
+            float ay = params.value("y", 16.0f);
+            float az = params.value("z", 0.0f);
+            float r  = params.value("radius", 4.0f);
+            float d  = r * 2.5f;
+            float h  = r * 0.5f;
+
+            // front = (cos(yaw°), sin(yaw°)) — confirmed from camera.cpp
+            struct View { std::string name; float cx, cy, cz, yaw, pitch; };
+            std::vector<View> allViews = {
+                {"north", ax,     ay+h,   az-d,    90.0f, -15.0f},  // camera S of asset, faces +Z
+                {"south", ax,     ay+h,   az+d,   -90.0f, -15.0f},  // camera N of asset, faces -Z
+                {"east",  ax-d,   ay+h,   az,       0.0f, -15.0f},  // camera W of asset, faces +X
+                {"west",  ax+d,   ay+h,   az,     180.0f, -15.0f},  // camera E of asset, faces -X
+                {"top",   ax,     ay+d,   az,      -90.0f, -88.0f}, // above, looking down
+                {"iso",   ax+d,   ay+d*0.6f, az+d, 225.0f, -25.0f}, // NE corner, faces SW
+            };
+
+            // Filter to requested views if provided
+            std::set<std::string> requested;
+            if (params.contains("views") && params["views"].is_array()) {
+                for (auto& v : params["views"]) requested.insert(v.get<std::string>());
+            }
+
+            // Warm-up: position camera at the first active view and wait 2 frames so
+            // chunk render buffers have been uploaded to the GPU before capture starts.
+            for (const auto& v : allViews) {
+                if (!requested.empty() && requested.find(v.name) == requested.end()) continue;
+                json warmup = {
+                    {"position", {{"x", v.cx}, {"y", v.cy}, {"z", v.cz}}},
+                    {"yaw", v.yaw}, {"pitch", v.pitch}
+                };
+                queueAndWait("set_camera", warmup); // tick 1 — camera moved
+                queueAndWait("set_camera", warmup); // tick 2 — chunks uploaded, ready to capture
+                break;
+            }
+
+            json screenshots = json::array();
+            for (const auto& v : allViews) {
+                if (!requested.empty() && requested.find(v.name) == requested.end()) continue;
+
+                json camParams = {
+                    {"position", {{"x", v.cx}, {"y", v.cy}, {"z", v.cz}}},
+                    {"yaw",   v.yaw},
+                    {"pitch", v.pitch}
+                };
+                queueAndWait("set_camera", camParams);
+
+                json cap = queueAndWait("capture_screenshot", json::object(), 10000);
+                if (!cap.contains("error")) {
+                    screenshots.push_back({
+                        {"view",   v.name},
+                        {"path",   cap.value("path", "")},
+                        {"width",  cap.value("width", 0)},
+                        {"height", cap.value("height", 0)}
+                    });
+                }
+            }
+
+            json result = {
+                {"success",     true},
+                {"screenshots", screenshots},
+                {"target",      {{"x", ax}, {"y", ay}, {"z", az}}},
+                {"radius",      r}
+            };
+            res.set_content(result.dump(), "application/json");
+
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // GET  /api/debug/overlay — Get current debug visualization state
     // POST /api/debug/overlay — Set debug visualization overlay
     // Body: { "enabled": bool, "mode": int }
@@ -702,6 +785,40 @@ void EngineAPIServer::setupRoutes() {
         try {
             json params = json::parse(req.body);
             json result = queueAndWait("set_debug_overlay", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/asset-editor/ref-character — Show/hide humanoid reference character
+    // Body: { "visible": bool }  — omit to toggle current state
+    // Returns: { "success": true, "visible": bool }
+    // ====================================================================
+    srv.Post("/api/asset-editor/ref-character", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("toggle_ref_character", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/asset-editor/reload — Hot-reload the current template from disk
+    // Body: { "path": "<optional new .voxel path>" }
+    // Returns: { "success": true, "file": "<path>" }
+    // ====================================================================
+    srv.Post("/api/asset-editor/reload", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("reload_asset", params);
             res.set_content(result.dump(), "application/json");
         } catch (const json::exception& e) {
             json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};

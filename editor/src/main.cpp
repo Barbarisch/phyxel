@@ -15,6 +15,7 @@ int main(int argc, char* argv[]) {
     std::string animEditorFile;
     std::string interactionEditorFile;
     std::string interactionEditorChar;
+    int apiPortOverride = -1;
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         if ((arg == "--game" || arg == "-g") && i + 1 < argc) {
@@ -29,6 +30,8 @@ int main(int argc, char* argv[]) {
             interactionEditorFile = argv[++i];
         } else if ((arg == "--character") && i + 1 < argc) {
             interactionEditorChar = argv[++i];
+        } else if ((arg == "--port") && i + 1 < argc) {
+            apiPortOverride = std::stoi(argv[++i]);
         }
     }
 
@@ -59,6 +62,9 @@ int main(int argc, char* argv[]) {
     }
     if (!interactionEditorFile.empty()) {
         app.setInteractionEditorFile(interactionEditorFile, interactionEditorChar);
+    }
+    if (apiPortOverride > 0) {
+        app.setApiPortOverride(apiPortOverride);
     }
 
     try {

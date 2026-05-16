@@ -1,0 +1,203 @@
+# ==========================================================
+# ASSET METADATA
+# name:         wooden_throne
+# display_name: Wooden Throne
+# description:  Medieval king's wooden throne with a tall backrest, side armrests, and a gold crown cap. Hand-authored.
+# category:     furniture
+# subcategory:  seating
+# tags:         throne, seat, royalty, medieval, castle, palace, king, wood, gold
+# materials:    Wood, Gold
+# facing:       +Z (seat faces viewer, backrest toward -Z)
+# bounds:       4W x 4H x 2D  (X: -1..2, Y: 0..3, Z: 0..1 cubes)
+# seat_height:  0.667
+# primitives:   0 C + 187 S + 0 M = 187
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored, 3 rounds)
+# created:      2026-05-16
+# version:      3
+# ==========================================================
+
+# --- SEAT (sy=0+sy=1 per cube, top surface at Y=0.667) ---
+# Cube (0,0,0)
+S 0 0 0  0 0 0  Wood
+S 0 0 0  1 0 0  Wood
+S 0 0 0  2 0 0  Wood
+S 0 0 0  0 0 1  Wood
+S 0 0 0  1 0 1  Wood
+S 0 0 0  2 0 1  Wood
+S 0 0 0  0 0 2  Wood
+S 0 0 0  1 0 2  Wood
+S 0 0 0  2 0 2  Wood
+S 0 0 0  0 1 0  Wood
+S 0 0 0  1 1 0  Wood
+S 0 0 0  2 1 0  Wood
+S 0 0 0  0 1 1  Wood
+S 0 0 0  1 1 1  Wood
+S 0 0 0  2 1 1  Wood
+S 0 0 0  0 1 2  Wood
+S 0 0 0  1 1 2  Wood
+S 0 0 0  2 1 2  Wood
+# Cube (1,0,0)
+S 1 0 0  0 0 0  Wood
+S 1 0 0  1 0 0  Wood
+S 1 0 0  2 0 0  Wood
+S 1 0 0  0 0 1  Wood
+S 1 0 0  1 0 1  Wood
+S 1 0 0  2 0 1  Wood
+S 1 0 0  0 0 2  Wood
+S 1 0 0  1 0 2  Wood
+S 1 0 0  2 0 2  Wood
+S 1 0 0  0 1 0  Wood
+S 1 0 0  1 1 0  Wood
+S 1 0 0  2 1 0  Wood
+S 1 0 0  0 1 1  Wood
+S 1 0 0  1 1 1  Wood
+S 1 0 0  2 1 1  Wood
+S 1 0 0  0 1 2  Wood
+S 1 0 0  1 1 2  Wood
+S 1 0 0  2 1 2  Wood
+# Cube (0,0,1)
+S 0 0 1  0 0 0  Wood
+S 0 0 1  1 0 0  Wood
+S 0 0 1  2 0 0  Wood
+S 0 0 1  0 0 1  Wood
+S 0 0 1  1 0 1  Wood
+S 0 0 1  2 0 1  Wood
+S 0 0 1  0 0 2  Wood
+S 0 0 1  1 0 2  Wood
+S 0 0 1  2 0 2  Wood
+S 0 0 1  0 1 0  Wood
+S 0 0 1  1 1 0  Wood
+S 0 0 1  2 1 0  Wood
+S 0 0 1  0 1 1  Wood
+S 0 0 1  1 1 1  Wood
+S 0 0 1  2 1 1  Wood
+S 0 0 1  0 1 2  Wood
+S 0 0 1  1 1 2  Wood
+S 0 0 1  2 1 2  Wood
+# Cube (1,0,1)
+S 1 0 1  0 0 0  Wood
+S 1 0 1  1 0 0  Wood
+S 1 0 1  2 0 0  Wood
+S 1 0 1  0 0 1  Wood
+S 1 0 1  1 0 1  Wood
+S 1 0 1  2 0 1  Wood
+S 1 0 1  0 0 2  Wood
+S 1 0 1  1 0 2  Wood
+S 1 0 1  2 0 2  Wood
+S 1 0 1  0 1 0  Wood
+S 1 0 1  1 1 0  Wood
+S 1 0 1  2 1 0  Wood
+S 1 0 1  0 1 1  Wood
+S 1 0 1  1 1 1  Wood
+S 1 0 1  2 1 1  Wood
+S 1 0 1  0 1 2  Wood
+S 1 0 1  1 1 2  Wood
+S 1 0 1  2 1 2  Wood
+
+# --- BACKREST (thin panel, sz=0 only, rises from seat top) ---
+# sy=2 at cube Y=0 Z=0 (Y=0.667 to 1.0, connects to seat top)
+S 0 0 0  0 2 0  Wood
+S 0 0 0  1 2 0  Wood
+S 0 0 0  2 2 0  Wood
+S 1 0 0  0 2 0  Wood
+S 1 0 0  1 2 0  Wood
+S 1 0 0  2 2 0  Wood
+# Full cube Y=1 at Z=0
+S 0 1 0  0 0 0  Wood
+S 0 1 0  1 0 0  Wood
+S 0 1 0  2 0 0  Wood
+S 0 1 0  0 1 0  Wood
+S 0 1 0  1 1 0  Wood
+S 0 1 0  2 1 0  Wood
+S 0 1 0  0 2 0  Wood
+S 0 1 0  1 2 0  Wood
+S 0 1 0  2 2 0  Wood
+S 1 1 0  0 0 0  Wood
+S 1 1 0  1 0 0  Wood
+S 1 1 0  2 0 0  Wood
+S 1 1 0  0 1 0  Wood
+S 1 1 0  1 1 0  Wood
+S 1 1 0  2 1 0  Wood
+S 1 1 0  0 2 0  Wood
+S 1 1 0  1 2 0  Wood
+S 1 1 0  2 2 0  Wood
+# Top backrest section Y=2 at Z=0 (all sy, continuous to crown at Y=3.0)
+S 0 2 0  0 0 0  Wood
+S 0 2 0  1 0 0  Wood
+S 0 2 0  2 0 0  Wood
+S 0 2 0  0 1 0  Wood
+S 0 2 0  1 1 0  Wood
+S 0 2 0  2 1 0  Wood
+S 0 2 0  0 2 0  Wood
+S 0 2 0  1 2 0  Wood
+S 0 2 0  2 2 0  Wood
+S 1 2 0  0 0 0  Wood
+S 1 2 0  1 0 0  Wood
+S 1 2 0  2 0 0  Wood
+S 1 2 0  0 1 0  Wood
+S 1 2 0  1 1 0  Wood
+S 1 2 0  2 1 0  Wood
+S 1 2 0  0 2 0  Wood
+S 1 2 0  1 2 0  Wood
+S 1 2 0  2 2 0  Wood
+
+# --- ARMRESTS (sy=2 at cube Y=0, flush with seat top, Z=0 and Z=1) ---
+# Left armrest at X=-1
+S -1 0 0  0 2 0  Wood
+S -1 0 0  1 2 0  Wood
+S -1 0 0  2 2 0  Wood
+S -1 0 0  0 2 1  Wood
+S -1 0 0  1 2 1  Wood
+S -1 0 0  2 2 1  Wood
+S -1 0 0  0 2 2  Wood
+S -1 0 0  1 2 2  Wood
+S -1 0 0  2 2 2  Wood
+S -1 0 1  0 2 0  Wood
+S -1 0 1  1 2 0  Wood
+S -1 0 1  2 2 0  Wood
+S -1 0 1  0 2 1  Wood
+S -1 0 1  1 2 1  Wood
+S -1 0 1  2 2 1  Wood
+S -1 0 1  0 2 2  Wood
+S -1 0 1  1 2 2  Wood
+S -1 0 1  2 2 2  Wood
+# Right armrest at X=2
+S 2 0 0  0 2 0  Wood
+S 2 0 0  1 2 0  Wood
+S 2 0 0  2 2 0  Wood
+S 2 0 0  0 2 1  Wood
+S 2 0 0  1 2 1  Wood
+S 2 0 0  2 2 1  Wood
+S 2 0 0  0 2 2  Wood
+S 2 0 0  1 2 2  Wood
+S 2 0 0  2 2 2  Wood
+S 2 0 1  0 2 0  Wood
+S 2 0 1  1 2 0  Wood
+S 2 0 1  2 2 0  Wood
+S 2 0 1  0 2 1  Wood
+S 2 0 1  1 2 1  Wood
+S 2 0 1  2 2 1  Wood
+S 2 0 1  0 2 2  Wood
+S 2 0 1  1 2 2  Wood
+S 2 0 1  2 2 2  Wood
+
+# --- CROWN (Gold, thin front slab sz=0 only at Y=3) ---
+S 0 3 0  0 0 0  Gold
+S 0 3 0  1 0 0  Gold
+S 0 3 0  2 0 0  Gold
+S 0 3 0  0 1 0  Gold
+S 0 3 0  1 1 0  Gold
+S 0 3 0  2 1 0  Gold
+S 0 3 0  0 2 0  Gold
+S 0 3 0  1 2 0  Gold
+S 0 3 0  2 2 0  Gold
+S 1 3 0  0 0 0  Gold
+S 1 3 0  1 0 0  Gold
+S 1 3 0  2 0 0  Gold
+S 1 3 0  0 1 0  Gold
+S 1 3 0  1 1 0  Gold
+S 1 3 0  2 1 0  Gold
+S 1 3 0  0 2 0  Gold
+S 1 3 0  1 2 0  Gold
+S 1 3 0  2 2 0  Gold
