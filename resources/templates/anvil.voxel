@@ -1,0 +1,46 @@
+# ==========================================================
+# ASSET METADATA
+# name:         anvil
+# display_name: Anvil
+# description:  A blacksmith's iron anvil with a wide base, narrow waist, flat working face, and front horn.
+# category:     furniture
+# subcategory:  work_surface
+# tags:         anvil, blacksmith, forge, smith, metal, workshop, crafting, dungeon
+# materials:    Metal
+# facing:       +Z (horn points toward viewer)
+# bounds:       1W x 1H x 1D  (X: 0, Y: 0, Z: 0 cubes)
+# primitives:   0 C + 19 S + 0 M = 19
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Classic T-profile: wide base, narrow waist, wide top face with forward horn.
+
+# --- BASE (sy=0, full 3x3) ---
+S 0 0 0  0 0 0  Metal
+S 0 0 0  1 0 0  Metal
+S 0 0 0  2 0 0  Metal
+S 0 0 0  0 0 1  Metal
+S 0 0 0  1 0 1  Metal
+S 0 0 0  2 0 1  Metal
+S 0 0 0  0 0 2  Metal
+S 0 0 0  1 0 2  Metal
+S 0 0 0  2 0 2  Metal
+
+# --- WAIST (sy=1, center depth strip — narrow from front) ---
+S 0 0 0  0 1 1  Metal
+S 0 0 0  1 1 1  Metal
+S 0 0 0  2 1 1  Metal
+
+# --- WORKING FACE (sy=2, back 2/3 — main striking surface) ---
+S 0 0 0  0 2 1  Metal
+S 0 0 0  1 2 1  Metal
+S 0 0 0  2 2 1  Metal
+S 0 0 0  0 2 2  Metal
+S 0 0 0  1 2 2  Metal
+S 0 0 0  2 2 2  Metal
+
+# --- HORN (sy=2, front tip — points toward viewer) ---
+S 0 0 0  1 2 0  Metal

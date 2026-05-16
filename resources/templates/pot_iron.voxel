@@ -1,0 +1,44 @@
+# ==========================================================
+# ASSET METADATA
+# name:         pot_iron
+# display_name: Iron Cauldron
+# description:  A round iron cauldron with a rounded belly, open rim, and glowing brew inside.
+# category:     furniture
+# subcategory:  container
+# tags:         cauldron, pot, cooking, iron, witch, dungeon, tavern, kitchen, alchemy
+# materials:    Metal, glow
+# facing:       +Z
+# bounds:       1W x 1H x 1D  (X: 0, Y: 0, Z: 0 cubes)
+# primitives:   0 C + 19 S + 0 M = 19
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# --- BOTTOM (sy=0, cross — rounded base) ---
+S 0 0 0  1 0 0  Metal
+S 0 0 0  0 0 1  Metal
+S 0 0 0  1 0 1  Metal
+S 0 0 0  2 0 1  Metal
+S 0 0 0  1 0 2  Metal
+
+# --- BELLY (sy=1, full 3x3) ---
+S 0 0 0  0 1 0  Metal
+S 0 0 0  1 1 0  Metal
+S 0 0 0  2 1 0  Metal
+S 0 0 0  0 1 1  Metal
+S 0 0 0  1 1 1  Metal
+S 0 0 0  2 1 1  Metal
+S 0 0 0  0 1 2  Metal
+S 0 0 0  1 1 2  Metal
+S 0 0 0  2 1 2  Metal
+
+# --- RIM (sy=2, ring without center — open top) ---
+S 0 0 0  1 2 0  Metal
+S 0 0 0  0 2 1  Metal
+S 0 0 0  2 2 1  Metal
+S 0 0 0  1 2 2  Metal
+
+# --- BREW / FIRE INSIDE (glow, center of open top) ---
+S 0 0 0  1 2 1  glow

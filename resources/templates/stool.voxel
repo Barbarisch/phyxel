@@ -1,0 +1,39 @@
+# ==========================================================
+# ASSET METADATA
+# name:         stool
+# display_name: Wooden Stool
+# description:  A simple wooden stool with a full round seat and three legs (tripod). Bar stool style.
+# category:     furniture
+# subcategory:  seating
+# tags:         stool, seat, bar, tavern, house, inn, common
+# materials:    Wood
+# facing:       +Z
+# bounds:       1W x 1H x 1D  (X: 0, Y: 0, Z: 0 cubes)
+# seat_height:  0.667
+# primitives:   0 C + 15 S + 0 M = 15
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Three-leg tripod stool — distinguishes from 4-leg bench and workbench.
+
+# --- SEAT (sy=2, full 3x3) ---
+S 0 0 0  0 2 0  Wood
+S 0 0 0  1 2 0  Wood
+S 0 0 0  2 2 0  Wood
+S 0 0 0  0 2 1  Wood
+S 0 0 0  1 2 1  Wood
+S 0 0 0  2 2 1  Wood
+S 0 0 0  0 2 2  Wood
+S 0 0 0  1 2 2  Wood
+S 0 0 0  2 2 2  Wood
+
+# --- LEGS (tripod: front-center, back-left, back-right) ---
+S 0 0 0  1 0 0  Wood
+S 0 0 0  1 1 0  Wood
+S 0 0 0  0 0 2  Wood
+S 0 0 0  0 1 2  Wood
+S 0 0 0  2 0 2  Wood
+S 0 0 0  2 1 2  Wood

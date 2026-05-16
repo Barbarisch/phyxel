@@ -1,0 +1,48 @@
+# ==========================================================
+# ASSET METADATA
+# name:         chest_open
+# display_name: Chest (Open)
+# description:  A wooden storage chest with the lid open, revealing a glowing interior. Companion to chest_closed.
+# category:     furniture
+# subcategory:  container
+# tags:         chest, loot, storage, dungeon, house, treasure, open, common
+# materials:    Wood, Metal, glow
+# facing:       +Z (front clasp faces viewer)
+# bounds:       1W x 2H x 1D  (X: 0, Y: 0..1, Z: 0 cubes)
+# primitives:   0 C + 21 S + 0 M = 21
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Same base/walls as chest_closed. Lid stands upright at Y=1, back face.
+
+# --- BOTTOM (sy=0, full 3x3) ---
+S 0 0 0  0 0 0  Wood
+S 0 0 0  1 0 0  Wood
+S 0 0 0  2 0 0  Wood
+S 0 0 0  0 0 1  Wood
+S 0 0 0  1 0 1  Wood
+S 0 0 0  2 0 1  Wood
+S 0 0 0  0 0 2  Wood
+S 0 0 0  1 0 2  Wood
+S 0 0 0  2 0 2  Wood
+
+# --- WALLS (sy=1, outer ring with front clasp) ---
+S 0 0 0  0 1 0  Wood
+S 0 0 0  1 1 0  Metal
+S 0 0 0  2 1 0  Wood
+S 0 0 0  0 1 1  Wood
+S 0 0 0  2 1 1  Wood
+S 0 0 0  0 1 2  Wood
+S 0 0 0  1 1 2  Wood
+S 0 0 0  2 1 2  Wood
+
+# --- GLOW INTERIOR (sy=1 center — treasure glint) ---
+S 0 0 0  1 1 1  glow
+
+# --- OPEN LID (standing vertically at back, Y=1 cube, sz=0) ---
+S 0 1 0  0 0 0  Wood
+S 0 1 0  1 0 0  Wood
+S 0 1 0  2 0 0  Wood

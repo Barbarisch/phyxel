@@ -1,0 +1,30 @@
+# ==========================================================
+# ASSET METADATA
+# name:         torch_wall
+# display_name: Wall Torch
+# description:  A wall-mounted torch with a metal bracket at the back, a wooden shaft, and a glowing flame.
+# category:     furniture
+# subcategory:  light_source
+# tags:         torch, light, wall, dungeon, castle, inn, tavern, house, common
+# materials:    Metal, Wood, glow
+# facing:       +Z (flame faces viewer, bracket mounts to wall at back)
+# bounds:       1W x 1H x 1D  (X: 0, Y: 0, Z: 0 cubes)
+# primitives:   0 C + 5 S + 0 M = 5
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Mount against a wall face at -Z. Bracket at sz=0, torch body at sz=1.
+
+# --- WALL BRACKET (Metal, at sz=0) ---
+S 0 0 0  1 0 0  Metal
+S 0 0 0  1 1 0  Metal
+
+# --- TORCH SHAFT (Wood, at sz=1) ---
+S 0 0 0  1 0 1  Wood
+S 0 0 0  1 1 1  Wood
+
+# --- FLAME (glow, top of torch) ---
+S 0 0 0  1 2 1  glow
