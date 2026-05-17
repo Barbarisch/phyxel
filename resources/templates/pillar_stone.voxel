@@ -1,0 +1,48 @@
+# ==========================================================
+# ASSET METADATA
+# name:         pillar_stone
+# display_name: Stone Pillar
+# description:  A classical stone pillar with a wide base, narrow cross-section shaft, and wide capital, all in one cube.
+# category:     architecture
+# subcategory:  structural
+# tags:         pillar, column, stone, dungeon, castle, temple, architecture, classical
+# materials:    Stone
+# facing:       +Z
+# bounds:       1W x 1H x 1D  (X: 0, Y: 0, Z: 0 cubes)
+# primitives:   0 C + 23 S + 0 M = 23
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Wide base → cross shaft → wide capital. Classic column profile in one cube height.
+
+# --- BASE (sy=0, full 3x3) ---
+S 0 0 0  0 0 0  Stone
+S 0 0 0  1 0 0  Stone
+S 0 0 0  2 0 0  Stone
+S 0 0 0  0 0 1  Stone
+S 0 0 0  1 0 1  Stone
+S 0 0 0  2 0 1  Stone
+S 0 0 0  0 0 2  Stone
+S 0 0 0  1 0 2  Stone
+S 0 0 0  2 0 2  Stone
+
+# --- SHAFT (sy=1, cross — narrower than base) ---
+S 0 0 0  1 1 0  Stone
+S 0 0 0  0 1 1  Stone
+S 0 0 0  1 1 1  Stone
+S 0 0 0  2 1 1  Stone
+S 0 0 0  1 1 2  Stone
+
+# --- CAPITAL (sy=2, full 3x3) ---
+S 0 0 0  0 2 0  Stone
+S 0 0 0  1 2 0  Stone
+S 0 0 0  2 2 0  Stone
+S 0 0 0  0 2 1  Stone
+S 0 0 0  1 2 1  Stone
+S 0 0 0  2 2 1  Stone
+S 0 0 0  0 2 2  Stone
+S 0 0 0  1 2 2  Stone
+S 0 0 0  2 2 2  Stone

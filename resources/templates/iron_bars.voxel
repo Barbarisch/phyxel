@@ -1,0 +1,35 @@
+# ==========================================================
+# ASSET METADATA
+# name:         iron_bars
+# display_name: Iron Bars
+# description:  A wall section of vertical iron bars, two cubes tall. Use to build prison cells and dungeon cages.
+# category:     architecture
+# subcategory:  barrier
+# tags:         bars, iron, prison, dungeon, cell, cage, castle, common
+# materials:    Metal
+# facing:       +Z (bars face viewer)
+# bounds:       1W x 2H x 1D  (X: 0, Y: 0..1, Z: 0 cubes)
+# primitives:   0 C + 12 S + 0 M = 12
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Two vertical bars at sx=0 and sx=2 (gap at sx=1). Each bar runs full height (sy=0,1,2) at sz=1.
+
+# --- LOWER SECTION (Y=0) ---
+S 0 0 0  0 0 1  Metal
+S 0 0 0  0 1 1  Metal
+S 0 0 0  0 2 1  Metal
+S 0 0 0  2 0 1  Metal
+S 0 0 0  2 1 1  Metal
+S 0 0 0  2 2 1  Metal
+
+# --- UPPER SECTION (Y=1) ---
+S 0 1 0  0 0 1  Metal
+S 0 1 0  0 1 1  Metal
+S 0 1 0  0 2 1  Metal
+S 0 1 0  2 0 1  Metal
+S 0 1 0  2 1 1  Metal
+S 0 1 0  2 2 1  Metal

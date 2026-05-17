@@ -1,0 +1,41 @@
+# ==========================================================
+# ASSET METADATA
+# name:         mushroom
+# display_name: Giant Mushroom
+# description:  A large dungeon mushroom with a thin wooden stem, a flared cap underside, and a wide sandy cap top.
+# category:     nature
+# subcategory:  vegetation
+# tags:         mushroom, fungus, dungeon, cave, forest, nature, fantasy
+# materials:    Wood, Sand
+# facing:       +Z
+# bounds:       1W x 2H x 1D  (X: 0, Y: 0..1, Z: 0 cubes)
+# primitives:   0 C + 16 S + 0 M = 16
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Thin center stem, cross-flare at cap base, full wide cap on top.
+
+# --- STEM (Y=0, center column, sy=0+1) ---
+S 0 0 0  1 0 1  Wood
+S 0 0 0  1 1 1  Wood
+
+# --- CAP UNDERSIDE FLARE (Y=0, sy=2, cross) ---
+S 0 0 0  1 2 0  Sand
+S 0 0 0  0 2 1  Sand
+S 0 0 0  1 2 1  Sand
+S 0 0 0  2 2 1  Sand
+S 0 0 0  1 2 2  Sand
+
+# --- CAP TOP (Y=1, sy=0, full 3x3) ---
+S 0 1 0  0 0 0  Sand
+S 0 1 0  1 0 0  Sand
+S 0 1 0  2 0 0  Sand
+S 0 1 0  0 0 1  Sand
+S 0 1 0  1 0 1  Sand
+S 0 1 0  2 0 1  Sand
+S 0 1 0  0 0 2  Sand
+S 0 1 0  1 0 2  Sand
+S 0 1 0  2 0 2  Sand
