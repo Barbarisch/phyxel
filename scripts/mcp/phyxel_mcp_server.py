@@ -3218,6 +3218,95 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="seek_animation",
+            description="Pause an entity's animation and scrub to a specific normalised time [0.0–1.0] within the current clip. Use for storyboard-style visual review: 0.0=start, 0.5=midpoint, 1.0=end. Call resume_animation to unpause.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id":   {"type": "string", "description": "Entity ID (e.g. 'player', 'npc_Guard')"},
+                    "time": {"type": "number", "description": "Normalised time within the current clip [0.0, 1.0]"}
+                },
+                "required": ["id", "time"]
+            }
+        ),
+        Tool(
+            name="resume_animation",
+            description="Unpause an entity's animation after seek_animation. The clip resumes from the scrubbed position.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Entity ID"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="get_bone_positions",
+            description="Get world-space bone AABBs for an animated character. Returns center position and half-extents for each named bone. Use during SittingIdle to check pelvis height vs seat surface and foot height vs floor.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Entity ID (e.g. 'player', 'npc_Guard')"}
+                },
+                "required": ["id"]
+            }
+        ),
+        Tool(
+            name="sit_character",
+            description="Sit an animated entity at a placed object's named interaction point. Looks up the seat's world position and facing (rotation-corrected), applies any existing calibration profile, then drives the stand_to_sit → sitting_idle animation sequence.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "entity_id": {"type": "string", "description": "Entity ID (e.g. 'player', 'npc_Guard')"},
+                    "object_id": {"type": "string", "description": "Placed object ID (e.g. 'chair_wood_1')"},
+                    "point_id":  {"type": "string", "description": "Interaction point ID on the object (default: 'seat_0')"}
+                },
+                "required": ["entity_id", "object_id"]
+            }
+        ),
+        Tool(
+            name="stand_up_character",
+            description="Stand an entity up from a seated state, driving the sit_to_stand → idle animation sequence.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "entity_id": {"type": "string", "description": "Entity ID (e.g. 'player', 'npc_Guard')"}
+                },
+                "required": ["entity_id"]
+            }
+        ),
+        Tool(
+            name="set_interaction_profile",
+            description="Create or update a calibration profile for a specific (archetype, template, interaction point) combination. Offsets are in template-local space — the engine rotates them automatically at runtime. Saved to resources/interactions/<archetype>.json.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "archetype":            {"type": "string", "description": "Character archetype (e.g. 'humanoid_normal')"},
+                    "template_name":        {"type": "string", "description": "Template name (e.g. 'chair_wood', 'wooden_throne')"},
+                    "point_id":             {"type": "string", "description": "Interaction point ID (e.g. 'seat_0')"},
+                    "sit_down_offset":      {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "[x, y, z] foot-snap offset for the stand_to_sit transition (template-local)"},
+                    "sitting_idle_offset":  {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "[x, y, z] foot-snap offset for the seated idle loop (template-local)"},
+                    "sit_stand_up_offset":  {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "[x, y, z] foot-snap offset for the sit_to_stand transition (template-local)"},
+                    "sit_blend_duration":   {"type": "number", "description": "Animation crossfade duration in seconds (0 = instant)"},
+                    "seat_height_offset":   {"type": "number", "description": "Additional Y offset on the seat anchor position"}
+                },
+                "required": ["template_name"]
+            }
+        ),
+        Tool(
+            name="get_interaction_profile",
+            description="Retrieve the current calibration profile for a (archetype, template, interaction point) combination. Returns found=false if no profile exists yet.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "archetype":     {"type": "string", "description": "Character archetype (default: 'humanoid_normal')"},
+                    "template_name": {"type": "string", "description": "Template name (e.g. 'chair_wood')"},
+                    "point_id":      {"type": "string", "description": "Interaction point ID (default: 'seat_0')"}
+                },
+                "required": ["template_name"]
+            }
+        ),
+        Tool(
             name="get_npc_blackboard",
             description="Get the AI blackboard state of a BehaviorTree-driven NPC. Shows all key-value pairs used by the behavior tree for decision-making.",
             inputSchema={
@@ -4909,6 +4998,46 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         return await api_post("/api/animation/reload", {
             "id": args["id"],
             "animFile": args["animFile"]
+        })
+
+    elif name == "seek_animation":
+        return await api_post("/api/animation/seek", {
+            "id": args["id"],
+            "time": args["time"]
+        })
+
+    elif name == "resume_animation":
+        return await api_post("/api/animation/resume", {"id": args["id"]})
+
+    elif name == "get_bone_positions":
+        return await api_get(f"/api/entity/{args['id']}/bones")
+
+    elif name == "sit_character":
+        body = {"entity_id": args["entity_id"], "object_id": args["object_id"]}
+        if "point_id" in args:
+            body["point_id"] = args["point_id"]
+        return await api_post("/api/interaction/sit", body)
+
+    elif name == "stand_up_character":
+        return await api_post("/api/interaction/stand_up", {"entity_id": args["entity_id"]})
+
+    elif name == "set_interaction_profile":
+        body = {
+            "archetype":    args.get("archetype", "humanoid_normal"),
+            "template_name": args["template_name"],
+            "point_id":     args.get("point_id", "seat_0"),
+        }
+        for key in ("sit_down_offset", "sitting_idle_offset", "sit_stand_up_offset",
+                    "sit_blend_duration", "seat_height_offset"):
+            if key in args:
+                body[key] = args[key]
+        return await api_post("/api/interaction/profile", body)
+
+    elif name == "get_interaction_profile":
+        return await api_get("/api/interaction/profile", {
+            "archetype":     args.get("archetype", "humanoid_normal"),
+            "template_name": args["template_name"],
+            "point_id":      args.get("point_id", "seat_0"),
         })
 
     elif name == "get_npc_blackboard":

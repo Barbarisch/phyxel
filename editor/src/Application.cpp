@@ -5958,6 +5958,200 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         return true;
     }
 
+    // ------------------------------------------------------------------
+    // Animation feedback pipeline tools
+    // ------------------------------------------------------------------
+
+    if (action == "seek_animation") {
+        std::string id = cmd.params.value("id", "");
+        float time = cmd.params.value("time", 0.0f);
+        time = std::max(0.0f, std::min(1.0f, time));
+        auto* character = resolveCharacter(id);
+        if (!character) {
+            response = {{"error", "No animated character found for: " + id}};
+        } else {
+            character->setAnimationPaused(true);
+            character->seekAnimation(time);
+            response = {{"success", true}, {"id", id}, {"time", time},
+                        {"clip", character->getCurrentClipName()},
+                        {"state", character->stateToString(character->getAnimationState())}};
+        }
+        return true;
+    }
+
+    if (action == "resume_animation") {
+        std::string id = cmd.params.value("id", "");
+        auto* character = resolveCharacter(id);
+        if (!character) {
+            response = {{"error", "No animated character found for: " + id}};
+        } else {
+            character->setAnimationPaused(false);
+            response = {{"success", true}, {"id", id},
+                        {"clip", character->getCurrentClipName()},
+                        {"state", character->stateToString(character->getAnimationState())}};
+        }
+        return true;
+    }
+
+    if (action == "get_bone_positions") {
+        std::string id = cmd.params.value("id", "");
+        auto* character = resolveCharacter(id);
+        if (!character) {
+            response = {{"error", "No animated character found for: " + id}};
+        } else {
+            auto bones = character->getBoneAABBs();
+            json arr = json::array();
+            for (const auto& b : bones) {
+                arr.push_back({
+                    {"name",   b.boneName},
+                    {"id",     b.boneId},
+                    {"center", {b.center.x, b.center.y, b.center.z}},
+                    {"half",   {b.halfExtents.x, b.halfExtents.y, b.halfExtents.z}}
+                });
+            }
+            response = {{"success", true}, {"id", id}, {"bones", arr}, {"count", (int)arr.size()}};
+        }
+        return true;
+    }
+
+    if (action == "sit_character") {
+        std::string entityId = cmd.params.value("entity_id", "");
+        std::string objectId = cmd.params.value("object_id", "");
+        std::string pointId  = cmd.params.value("point_id", "seat_0");
+
+        auto* character = resolveCharacter(entityId);
+        if (!character) {
+            response = {{"error", "No animated character found for entity_id: " + entityId}};
+            return true;
+        }
+        if (!placedObjectManager) {
+            response = {{"error", "PlacedObjectManager not available"}};
+            return true;
+        }
+        const auto* obj = placedObjectManager->get(objectId);
+        if (!obj) {
+            response = {{"error", "Placed object not found: " + objectId}};
+            return true;
+        }
+
+        const Core::InteractionPoint* pt = nullptr;
+        for (const auto& p : obj->interactionPoints) {
+            if (p.pointId == pointId) { pt = &p; break; }
+        }
+        if (!pt) {
+            response = {{"error", "Interaction point '" + pointId + "' not found on '" + objectId + "'"}};
+            return true;
+        }
+
+        // Start with template defaults (already rotation-corrected by PlacedObjectManager)
+        glm::vec3 sitDown    = pt->worldSitDownOffset;
+        glm::vec3 sitIdle    = pt->worldSittingIdleOffset;
+        glm::vec3 sitStandUp = pt->worldSitStandUpOffset;
+        float blendDur  = pt->sitBlendDuration;
+        float heightOff = pt->seatHeightOffset;
+
+        // Per-archetype profile overrides if one exists
+        if (interactionProfileManager) {
+            const std::string arch = character->getArchetype();
+            const auto* profile = interactionProfileManager->getProfile(arch, obj->templateName, pointId);
+            if (profile) {
+                auto rotOff = [](const glm::vec3& v, int deg) -> glm::vec3 {
+                    switch (((deg % 360) + 360) % 360) {
+                        case 90:  return {-v.z, v.y,  v.x};
+                        case 180: return {-v.x, v.y, -v.z};
+                        case 270: return { v.z, v.y, -v.x};
+                        default:  return v;
+                    }
+                };
+                sitDown    = rotOff(profile->sitDownOffset,     pt->objectRotation);
+                sitIdle    = rotOff(profile->sittingIdleOffset, pt->objectRotation);
+                sitStandUp = rotOff(profile->sitStandUpOffset,  pt->objectRotation);
+                blendDur   = profile->sitBlendDuration;
+                heightOff  = profile->seatHeightOffset;
+            }
+        }
+
+        character->sitAt(pt->worldPos, pt->facingYaw, sitDown, sitIdle, sitStandUp, blendDur, heightOff);
+        response = {{"success", true}, {"entity_id", entityId}, {"object_id", objectId}, {"point_id", pointId},
+                    {"seat_world_pos", {pt->worldPos.x, pt->worldPos.y, pt->worldPos.z}},
+                    {"facing_yaw", pt->facingYaw}, {"object_rotation", pt->objectRotation}};
+        return true;
+    }
+
+    if (action == "stand_up_character") {
+        std::string id = cmd.params.value("entity_id", "");
+        if (id.empty()) id = cmd.params.value("id", "");
+        auto* character = resolveCharacter(id);
+        if (!character) {
+            response = {{"error", "No animated character found for: " + id}};
+        } else {
+            character->standUp();
+            response = {{"success", true}, {"id", id}};
+        }
+        return true;
+    }
+
+    if (action == "set_interaction_profile") {
+        if (!interactionProfileManager) {
+            response = {{"error", "InteractionProfileManager not available"}}; return true;
+        }
+        std::string archetype = cmd.params.value("archetype", "humanoid_normal");
+        std::string tmplName  = cmd.params.value("template_name", "");
+        std::string pointId   = cmd.params.value("point_id", "seat_0");
+        if (tmplName.empty()) { response = {{"error", "template_name required"}}; return true; }
+
+        // Read existing profile as base so unset fields are preserved
+        Core::InteractionProfile profile;
+        const auto* existing = interactionProfileManager->getProfile(archetype, tmplName, pointId);
+        if (existing) profile = *existing;
+
+        auto readVec3 = [&](const std::string& key, glm::vec3& out) {
+            if (cmd.params.contains(key) && cmd.params[key].is_array() && cmd.params[key].size() >= 3)
+                out = {cmd.params[key][0].get<float>(), cmd.params[key][1].get<float>(), cmd.params[key][2].get<float>()};
+        };
+        readVec3("sit_down_offset",     profile.sitDownOffset);
+        readVec3("sitting_idle_offset", profile.sittingIdleOffset);
+        readVec3("sit_stand_up_offset", profile.sitStandUpOffset);
+        if (cmd.params.contains("sit_blend_duration"))
+            profile.sitBlendDuration = cmd.params["sit_blend_duration"].get<float>();
+        if (cmd.params.contains("seat_height_offset"))
+            profile.seatHeightOffset = cmd.params["seat_height_offset"].get<float>();
+
+        interactionProfileManager->setProfile(archetype, tmplName, pointId, profile);
+        interactionProfileManager->saveArchetype(archetype);
+
+        response = {{"success", true}, {"archetype", archetype}, {"template_name", tmplName}, {"point_id", pointId},
+                    {"sit_down_offset",     {profile.sitDownOffset.x,     profile.sitDownOffset.y,     profile.sitDownOffset.z}},
+                    {"sitting_idle_offset", {profile.sittingIdleOffset.x, profile.sittingIdleOffset.y, profile.sittingIdleOffset.z}},
+                    {"sit_stand_up_offset", {profile.sitStandUpOffset.x,  profile.sitStandUpOffset.y,  profile.sitStandUpOffset.z}},
+                    {"sit_blend_duration",  profile.sitBlendDuration},
+                    {"seat_height_offset",  profile.seatHeightOffset}};
+        return true;
+    }
+
+    if (action == "get_interaction_profile") {
+        if (!interactionProfileManager) {
+            response = {{"error", "InteractionProfileManager not available"}}; return true;
+        }
+        std::string archetype = cmd.params.value("archetype", "humanoid_normal");
+        std::string tmplName  = cmd.params.value("template_name", "");
+        std::string pointId   = cmd.params.value("point_id", "seat_0");
+        if (tmplName.empty()) { response = {{"error", "template_name required"}}; return true; }
+
+        const auto* profile = interactionProfileManager->getProfile(archetype, tmplName, pointId);
+        if (!profile) {
+            response = {{"found", false}, {"archetype", archetype}, {"template_name", tmplName}, {"point_id", pointId}};
+        } else {
+            response = {{"found", true}, {"archetype", archetype}, {"template_name", tmplName}, {"point_id", pointId},
+                        {"sit_down_offset",     {profile->sitDownOffset.x,     profile->sitDownOffset.y,     profile->sitDownOffset.z}},
+                        {"sitting_idle_offset", {profile->sittingIdleOffset.x, profile->sittingIdleOffset.y, profile->sittingIdleOffset.z}},
+                        {"sit_stand_up_offset", {profile->sitStandUpOffset.x,  profile->sitStandUpOffset.y,  profile->sitStandUpOffset.z}},
+                        {"sit_blend_duration",  profile->sitBlendDuration},
+                        {"seat_height_offset",  profile->seatHeightOffset}};
+        }
+        return true;
+    }
+
     return false; // not an animation command
 }
 

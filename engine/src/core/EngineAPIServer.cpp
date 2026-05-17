@@ -286,6 +286,45 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // POST /api/animation/seek — Pause + scrub to normalised time [0, 1]
+    // Body: { "id": "player", "time": 0.5 }
+    srv.Post("/api/animation/seek", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("seek_animation", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/animation/resume — Unpause a paused animation
+    // Body: { "id": "player" }
+    srv.Post("/api/animation/resume", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("resume_animation", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // GET /api/entity/:id/bones — World-space bone AABBs for an animated entity
+    // Must be registered BEFORE /api/entity/(.*) to avoid greedy matching
+    // ====================================================================
+    srv.Get(R"(/api/entity/([^/]+)/bones)", [this](const httplib::Request& req, httplib::Response& res) {
+        std::string entityId = req.matches[1].str();
+        json params = {{"id", entityId}};
+        json result = queueAndWait("get_bone_positions", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
     // ====================================================================
     // GET /api/entity/:id/movement — Entity movement state
     // Must be registered BEFORE /api/entity/(.*) to avoid greedy matching
@@ -1787,6 +1826,63 @@ void EngineAPIServer::setupRoutes() {
         json params = json::object();
         if (req.has_param("id")) params["id"] = req.get_param_value("id");
         json result = queueAndWait("get_object_tree", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // Interaction: sit / stand-up / profile CRUD
+    // ====================================================================
+
+    // POST /api/interaction/sit
+    // Body: { "entity_id": "player", "object_id": "chair_wood_1", "point_id": "seat_0" }
+    srv.Post("/api/interaction/sit", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("sit_character", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/interaction/stand_up
+    // Body: { "entity_id": "player" }
+    srv.Post("/api/interaction/stand_up", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("stand_up_character", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/interaction/profile — Create or overwrite a calibration profile
+    // Body: { "archetype": "humanoid_normal", "template_name": "chair_wood",
+    //         "point_id": "seat_0", "sitting_idle_offset": [0,0.1,0], ... }
+    srv.Post("/api/interaction/profile", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_interaction_profile", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // GET /api/interaction/profile?archetype=humanoid_normal&template_name=chair_wood&point_id=seat_0
+    srv.Get("/api/interaction/profile", [this](const httplib::Request& req, httplib::Response& res) {
+        json params;
+        params["archetype"]     = req.has_param("archetype")     ? req.get_param_value("archetype")     : "humanoid_normal";
+        params["template_name"] = req.has_param("template_name") ? req.get_param_value("template_name") : "";
+        params["point_id"]      = req.has_param("point_id")      ? req.get_param_value("point_id")      : "seat_0";
+        json result = queueAndWait("get_interaction_profile", params);
         res.set_content(result.dump(), "application/json");
     });
 
