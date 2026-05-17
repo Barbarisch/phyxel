@@ -1,0 +1,55 @@
+# ==========================================================
+# ASSET METADATA
+# name:         well
+# display_name: Stone Well
+# description:  A stone well with three ring layers and a wooden crossbeam at the top.
+# category:     environment
+# subcategory:  exterior
+# tags:         well, water, stone, outdoor, village, town, farm, common
+# materials:    Stone, Wood
+# facing:       +Z
+# bounds:       1W x 2H x 1D  (X: 0, Y: 0..1, Z: 0 cubes)
+# primitives:   0 C + 27 S + 0 M = 27
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Stone ring = 8 outer subcubes per layer (no center = open shaft).
+# Wooden crossbeam spans full width at top.
+
+# --- RING LAYER 1 (sy=0) ---
+S 0 0 0  0 0 0  Stone
+S 0 0 0  1 0 0  Stone
+S 0 0 0  2 0 0  Stone
+S 0 0 0  0 0 1  Stone
+S 0 0 0  2 0 1  Stone
+S 0 0 0  0 0 2  Stone
+S 0 0 0  1 0 2  Stone
+S 0 0 0  2 0 2  Stone
+
+# --- RING LAYER 2 (sy=1) ---
+S 0 0 0  0 1 0  Stone
+S 0 0 0  1 1 0  Stone
+S 0 0 0  2 1 0  Stone
+S 0 0 0  0 1 1  Stone
+S 0 0 0  2 1 1  Stone
+S 0 0 0  0 1 2  Stone
+S 0 0 0  1 1 2  Stone
+S 0 0 0  2 1 2  Stone
+
+# --- RING LAYER 3 / RIM (sy=2) ---
+S 0 0 0  0 2 0  Stone
+S 0 0 0  1 2 0  Stone
+S 0 0 0  2 2 0  Stone
+S 0 0 0  0 2 1  Stone
+S 0 0 0  2 2 1  Stone
+S 0 0 0  0 2 2  Stone
+S 0 0 0  1 2 2  Stone
+S 0 0 0  2 2 2  Stone
+
+# --- CROSSBEAM (Y=1, sy=0, spans full width at center depth) ---
+S 0 1 0  0 0 1  Wood
+S 0 1 0  1 0 1  Wood
+S 0 1 0  2 0 1  Wood

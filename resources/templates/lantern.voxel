@@ -1,0 +1,35 @@
+# ==========================================================
+# ASSET METADATA
+# name:         lantern
+# display_name: Lantern
+# description:  A small hanging lantern with a metal frame, bottom cap, top hook, and glowing interior.
+# category:     furniture
+# subcategory:  light_source
+# tags:         lantern, light, hanging, dungeon, tavern, inn, house, castle, common
+# materials:    Metal, glow
+# facing:       +Z
+# bounds:       1W x 1H x 1D  (X: 0, Y: 0, Z: 0 cubes)
+# primitives:   0 C + 10 S + 0 M = 10
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Four corner uprights expose the glow center from all cardinal angles.
+
+# --- 4 CORNER UPRIGHTS (sy=0+1) ---
+S 0 0 0  0 0 0  Metal
+S 0 0 0  0 1 0  Metal
+S 0 0 0  2 0 0  Metal
+S 0 0 0  2 1 0  Metal
+S 0 0 0  0 0 2  Metal
+S 0 0 0  0 1 2  Metal
+S 0 0 0  2 0 2  Metal
+S 0 0 0  2 1 2  Metal
+
+# --- TOP HOOK (sy=2, center) ---
+S 0 0 0  1 2 1  Metal
+
+# --- GLOW INTERIOR ---
+S 0 0 0  1 1 1  glow

@@ -1,0 +1,50 @@
+# ==========================================================
+# ASSET METADATA
+# name:         chair_wood
+# display_name: Wooden Chair
+# description:  A simple wooden chair with a full seat, four corner legs, and a three-plank backrest.
+# category:     furniture
+# subcategory:  seating
+# tags:         chair, seat, dining, tavern, house, inn, common
+# materials:    Wood
+# facing:       +Z (front of seat faces viewer)
+# bounds:       1W x 2H x 1D  (X: 0, Y: 0..1, Z: 0 cubes)
+# primitives:   0 C + 24 S + 0 M = 24
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# seat_height:  0.667
+# ==========================================================
+
+# --- SEAT (Y=0, sy=2, full 3x3) ---
+S 0 0 0  0 2 0  Wood
+S 0 0 0  1 2 0  Wood
+S 0 0 0  2 2 0  Wood
+S 0 0 0  0 2 1  Wood
+S 0 0 0  1 2 1  Wood
+S 0 0 0  2 2 1  Wood
+S 0 0 0  0 2 2  Wood
+S 0 0 0  1 2 2  Wood
+S 0 0 0  2 2 2  Wood
+
+# --- ALL 4 CORNER LEGS (Y=0, sy=0+1) ---
+S 0 0 0  0 0 0  Wood
+S 0 0 0  0 1 0  Wood
+S 0 0 0  2 0 0  Wood
+S 0 0 0  2 1 0  Wood
+S 0 0 0  0 0 2  Wood
+S 0 0 0  0 1 2  Wood
+S 0 0 0  2 0 2  Wood
+S 0 0 0  2 1 2  Wood
+
+# --- BACK LEGS EXTENDED INTO Y=1 (support backrest) ---
+S 0 1 0  0 0 0  Wood
+S 0 1 0  0 1 0  Wood
+S 0 1 0  2 0 0  Wood
+S 0 1 0  2 1 0  Wood
+
+# --- BACKREST (Y=1, sy=2, back face sz=0) ---
+S 0 1 0  0 2 0  Wood
+S 0 1 0  1 2 0  Wood
+S 0 1 0  2 2 0  Wood

@@ -1,0 +1,40 @@
+# ==========================================================
+# ASSET METADATA
+# name:         table_wood
+# display_name: Wooden Table
+# description:  A simple square wooden dining table with a full top slab and four corner legs.
+# category:     furniture
+# subcategory:  surface
+# tags:         table, dining, tavern, house, inn, common
+# materials:    Wood
+# facing:       +Z
+# bounds:       1W x 1H x 1D  (X: 0, Y: 0, Z: 0 cubes)
+# primitives:   0 C + 17 S + 0 M = 17
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Four-corner legs, full square top. Cardinal legs distinguish from workbench (which has corner legs + vise).
+
+# --- TABLETOP (sy=2, full 3x3) ---
+S 0 0 0  0 2 0  Wood
+S 0 0 0  1 2 0  Wood
+S 0 0 0  2 2 0  Wood
+S 0 0 0  0 2 1  Wood
+S 0 0 0  1 2 1  Wood
+S 0 0 0  2 2 1  Wood
+S 0 0 0  0 2 2  Wood
+S 0 0 0  1 2 2  Wood
+S 0 0 0  2 2 2  Wood
+
+# --- CORNER LEGS (sy=0+1, 4 corners) ---
+S 0 0 0  0 0 0  Wood
+S 0 0 0  0 1 0  Wood
+S 0 0 0  2 0 0  Wood
+S 0 0 0  2 1 0  Wood
+S 0 0 0  0 0 2  Wood
+S 0 0 0  0 1 2  Wood
+S 0 0 0  2 0 2  Wood
+S 0 0 0  2 1 2  Wood

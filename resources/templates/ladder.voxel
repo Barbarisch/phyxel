@@ -1,0 +1,37 @@
+# ==========================================================
+# ASSET METADATA
+# name:         ladder
+# display_name: Wooden Ladder
+# description:  A two-cube-tall wooden ladder with left and right rails and two rungs.
+# category:     furniture
+# subcategory:  utility
+# tags:         ladder, climb, wood, dungeon, warehouse, house, barn, common
+# materials:    Wood
+# facing:       +Z (rungs face viewer)
+# bounds:       1W x 2H x 1D  (X: 0, Y: 0..1, Z: 0 cubes)
+# primitives:   0 C + 14 S + 0 M = 14
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Rails at sx=0 and sx=2, center depth sz=1. Rungs at sx=1, sy=1 per Y cube.
+
+# --- LOWER SECTION (Y=0) ---
+S 0 0 0  0 0 1  Wood
+S 0 0 0  0 1 1  Wood
+S 0 0 0  0 2 1  Wood
+S 0 0 0  2 0 1  Wood
+S 0 0 0  2 1 1  Wood
+S 0 0 0  2 2 1  Wood
+S 0 0 0  1 1 1  Wood
+
+# --- UPPER SECTION (Y=1) ---
+S 0 1 0  0 0 1  Wood
+S 0 1 0  0 1 1  Wood
+S 0 1 0  0 2 1  Wood
+S 0 1 0  2 0 1  Wood
+S 0 1 0  2 1 1  Wood
+S 0 1 0  2 2 1  Wood
+S 0 1 0  1 1 1  Wood
