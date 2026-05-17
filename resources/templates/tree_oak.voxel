@@ -1,0 +1,51 @@
+# ==========================================================
+# ASSET METADATA
+# name:         tree_oak
+# display_name: Oak Tree
+# description:  A classic oak tree with a log trunk and a wide round leaf canopy.
+# category:     nature
+# subcategory:  trees
+# tags:         tree, oak, leaf, forest, wood, nature, outdoor, village, common
+# materials:    Log, Leaf
+# facing:       +Z
+# bounds:       1W x 2H x 1D  (X: 0, Y: 0..1, Z: 0 cubes)
+# primitives:   0 C + 22 S + 0 M = 22
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Trunk sy=0+1 at center, canopy flare at sy=2, full dome in Y=1.
+
+# --- TRUNK (Y=0, center, sy=0+1) ---
+S 0 0 0  1 0 1  Log
+S 0 0 0  1 1 1  Log
+
+# --- CANOPY FLARE (Y=0, sy=2, cross) ---
+S 0 0 0  1 2 0  Leaf
+S 0 0 0  0 2 1  Leaf
+S 0 0 0  1 2 1  Leaf
+S 0 0 0  2 2 1  Leaf
+S 0 0 0  1 2 2  Leaf
+
+# --- CANOPY BASE (Y=1, sy=0, full 3x3) ---
+S 0 1 0  0 0 0  Leaf
+S 0 1 0  1 0 0  Leaf
+S 0 1 0  2 0 0  Leaf
+S 0 1 0  0 0 1  Leaf
+S 0 1 0  1 0 1  Leaf
+S 0 1 0  2 0 1  Leaf
+S 0 1 0  0 0 2  Leaf
+S 0 1 0  1 0 2  Leaf
+S 0 1 0  2 0 2  Leaf
+
+# --- CANOPY DOME (Y=1, sy=1, cross) ---
+S 0 1 0  1 1 0  Leaf
+S 0 1 0  0 1 1  Leaf
+S 0 1 0  1 1 1  Leaf
+S 0 1 0  2 1 1  Leaf
+S 0 1 0  1 1 2  Leaf
+
+# --- CANOPY TOP (Y=1, sy=2, center) ---
+S 0 1 0  1 2 1  Leaf

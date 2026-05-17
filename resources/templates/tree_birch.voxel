@@ -1,0 +1,49 @@
+# ==========================================================
+# ASSET METADATA
+# name:         tree_birch
+# display_name: Birch Tree
+# description:  A birch tree with a tall thin trunk and an oval leaf canopy wider in the middle.
+# category:     nature
+# subcategory:  trees
+# tags:         tree, birch, leaf, forest, wood, nature, outdoor, village, common
+# materials:    Wood, Leaf
+# facing:       +Z
+# bounds:       1W x 2H x 1D  (X: 0, Y: 0..1, Z: 0 cubes)
+# primitives:   0 C + 22 S + 0 M = 22
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Full-height trunk visible below canopy. Oval canopy: narrow base, wide middle, narrow top.
+
+# --- TRUNK (Y=0, center, full height sy=0,1,2) ---
+S 0 0 0  1 0 1  Wood
+S 0 0 0  1 1 1  Wood
+S 0 0 0  1 2 1  Wood
+
+# --- CANOPY BASE (Y=1, sy=0, cross — narrow) ---
+S 0 1 0  1 0 0  Leaf
+S 0 1 0  0 0 1  Leaf
+S 0 1 0  1 0 1  Leaf
+S 0 1 0  2 0 1  Leaf
+S 0 1 0  1 0 2  Leaf
+
+# --- CANOPY MIDDLE (Y=1, sy=1, full 3x3 — wide) ---
+S 0 1 0  0 1 0  Leaf
+S 0 1 0  1 1 0  Leaf
+S 0 1 0  2 1 0  Leaf
+S 0 1 0  0 1 1  Leaf
+S 0 1 0  1 1 1  Leaf
+S 0 1 0  2 1 1  Leaf
+S 0 1 0  0 1 2  Leaf
+S 0 1 0  1 1 2  Leaf
+S 0 1 0  2 1 2  Leaf
+
+# --- CANOPY TOP (Y=1, sy=2, cross — narrow) ---
+S 0 1 0  1 2 0  Leaf
+S 0 1 0  0 2 1  Leaf
+S 0 1 0  1 2 1  Leaf
+S 0 1 0  2 2 1  Leaf
+S 0 1 0  1 2 2  Leaf

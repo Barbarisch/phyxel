@@ -1,0 +1,20 @@
+# ==========================================================
+# ASSET METADATA
+# name:         hedge_section
+# display_name: Hedge Section
+# description:  A dense trimmed hedge wall section — a solid cube of leaves. Tile these to build garden walls.
+# category:     nature
+# subcategory:  shrubs
+# tags:         hedge, wall, garden, maze, topiary, estate, outdoor, park, barrier
+# materials:    Leaf
+# facing:       +Z
+# bounds:       1W x 1H x 1D  (X: 0, Y: 0, Z: 0 cubes)
+# primitives:   1 C + 0 S + 0 M = 1
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# A full cube of Leaf — hedges are dense and trimmed flat.
+C 0 0 0  Leaf

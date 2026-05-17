@@ -1,0 +1,41 @@
+# ==========================================================
+# ASSET METADATA
+# name:         bush_flower
+# display_name: Flowering Bush
+# description:  A decorative flowering bush with leaf foliage and glowing flower blooms at the corners.
+# category:     nature
+# subcategory:  shrubs
+# tags:         bush, shrub, flower, bloom, garden, park, outdoor, village, nature
+# materials:    Leaf, glow
+# facing:       +Z
+# bounds:       1W x 1H x 1D  (X: 0, Y: 0, Z: 0 cubes)
+# primitives:   0 C + 18 S + 0 M = 18
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Full leaf base, glow flower blooms at corners of mid layer, cross leaf midsection.
+
+# --- BASE (sy=0, full 3x3) ---
+S 0 0 0  0 0 0  Leaf
+S 0 0 0  1 0 0  Leaf
+S 0 0 0  2 0 0  Leaf
+S 0 0 0  0 0 1  Leaf
+S 0 0 0  1 0 1  Leaf
+S 0 0 0  2 0 1  Leaf
+S 0 0 0  0 0 2  Leaf
+S 0 0 0  1 0 2  Leaf
+S 0 0 0  2 0 2  Leaf
+
+# --- MID (sy=1): cross leaf + corner glow flowers ---
+S 0 0 0  0 1 0  glow
+S 0 0 0  1 1 0  Leaf
+S 0 0 0  2 1 0  glow
+S 0 0 0  0 1 1  Leaf
+S 0 0 0  1 1 1  Leaf
+S 0 0 0  2 1 1  Leaf
+S 0 0 0  0 1 2  glow
+S 0 0 0  1 1 2  Leaf
+S 0 0 0  2 1 2  glow

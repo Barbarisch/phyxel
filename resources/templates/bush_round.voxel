@@ -1,0 +1,40 @@
+# ==========================================================
+# ASSET METADATA
+# name:         bush_round
+# display_name: Round Bush
+# description:  A simple round leafy bush with a wide base tapering to a rounded top.
+# category:     nature
+# subcategory:  shrubs
+# tags:         bush, shrub, leaf, hedge, garden, forest, outdoor, village, common
+# materials:    Leaf
+# facing:       +Z
+# bounds:       1W x 1H x 1D  (X: 0, Y: 0, Z: 0 cubes)
+# primitives:   0 C + 15 S + 0 M = 15
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Full 3x3 base, cross midsection, center top — classic dome profile.
+
+# --- BASE (sy=0, full 3x3) ---
+S 0 0 0  0 0 0  Leaf
+S 0 0 0  1 0 0  Leaf
+S 0 0 0  2 0 0  Leaf
+S 0 0 0  0 0 1  Leaf
+S 0 0 0  1 0 1  Leaf
+S 0 0 0  2 0 1  Leaf
+S 0 0 0  0 0 2  Leaf
+S 0 0 0  1 0 2  Leaf
+S 0 0 0  2 0 2  Leaf
+
+# --- MIDSECTION (sy=1, cross) ---
+S 0 0 0  1 1 0  Leaf
+S 0 0 0  0 1 1  Leaf
+S 0 0 0  1 1 1  Leaf
+S 0 0 0  2 1 1  Leaf
+S 0 0 0  1 1 2  Leaf
+
+# --- TOP (sy=2, center) ---
+S 0 0 0  1 2 1  Leaf

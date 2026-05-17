@@ -1,0 +1,34 @@
+# ==========================================================
+# ASSET METADATA
+# name:         fern
+# display_name: Fern
+# description:  A low spreading fern with wide ground-level fronds and a rising central frond.
+# category:     nature
+# subcategory:  ground_cover
+# tags:         fern, plant, leaf, ground, forest, dungeon, cave, nature, undergrowth
+# materials:    Leaf
+# facing:       +Z
+# bounds:       1W x 1H x 1D  (X: 0, Y: 0, Z: 0 cubes)
+# primitives:   0 C + 11 S + 0 M = 11
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Flat spreading fronds at sy=0, rising center frond at sy=1.
+
+# --- GROUND FRONDS (sy=0, full 3x3) ---
+S 0 0 0  0 0 0  Leaf
+S 0 0 0  1 0 0  Leaf
+S 0 0 0  2 0 0  Leaf
+S 0 0 0  0 0 1  Leaf
+S 0 0 0  1 0 1  Leaf
+S 0 0 0  2 0 1  Leaf
+S 0 0 0  0 0 2  Leaf
+S 0 0 0  1 0 2  Leaf
+S 0 0 0  2 0 2  Leaf
+
+# --- RISING FROND (sy=1, center + front) ---
+S 0 0 0  1 1 1  Leaf
+S 0 0 0  1 1 2  Leaf

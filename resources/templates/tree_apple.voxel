@@ -1,0 +1,51 @@
+# ==========================================================
+# ASSET METADATA
+# name:         tree_apple
+# display_name: Apple Tree
+# description:  A round apple tree with a log trunk, leaf canopy, and glowing red apple fruits scattered through the foliage.
+# category:     nature
+# subcategory:  trees
+# tags:         tree, apple, fruit, orchard, farm, village, nature, outdoor, food
+# materials:    Log, Leaf, glow
+# facing:       +Z
+# bounds:       1W x 2H x 1D  (X: 0, Y: 0..1, Z: 0 cubes)
+# primitives:   0 C + 22 S + 0 M = 22
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Oak-shaped tree with glow fruit dots scattered at base of canopy.
+
+# --- TRUNK (Y=0, center, sy=0,1) ---
+S 0 0 0  1 0 1  Log
+S 0 0 0  1 1 1  Log
+
+# --- CANOPY FLARE (Y=0, sy=2, cross) ---
+S 0 0 0  1 2 0  Leaf
+S 0 0 0  0 2 1  Leaf
+S 0 0 0  1 2 1  Leaf
+S 0 0 0  2 2 1  Leaf
+S 0 0 0  1 2 2  Leaf
+
+# --- CANOPY BASE (Y=1, sy=0): leaf + glow fruit ---
+S 0 1 0  0 0 0  Leaf
+S 0 1 0  1 0 0  Leaf
+S 0 1 0  2 0 0  Leaf
+S 0 1 0  0 0 1  glow
+S 0 1 0  1 0 1  Leaf
+S 0 1 0  2 0 1  glow
+S 0 1 0  0 0 2  Leaf
+S 0 1 0  1 0 2  glow
+S 0 1 0  2 0 2  Leaf
+
+# --- CANOPY DOME (Y=1, sy=1, cross) ---
+S 0 1 0  1 1 0  Leaf
+S 0 1 0  0 1 1  Leaf
+S 0 1 0  1 1 1  Leaf
+S 0 1 0  2 1 1  Leaf
+S 0 1 0  1 1 2  Leaf
+
+# --- CANOPY TOP (Y=1, sy=2, center) ---
+S 0 1 0  1 2 1  Leaf

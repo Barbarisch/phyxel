@@ -1,0 +1,41 @@
+# ==========================================================
+# ASSET METADATA
+# name:         tree_palm
+# display_name: Palm Tree
+# description:  A tropical palm tree with a straight log trunk and leaf fronds spreading from the crown.
+# category:     nature
+# subcategory:  trees
+# tags:         tree, palm, tropical, desert, beach, jungle, nature, outdoor
+# materials:    Log, Leaf
+# facing:       +Z
+# bounds:       1W x 2H x 1D  (X: 0, Y: 0..1, Z: 0 cubes)
+# primitives:   0 C + 12 S + 0 M = 12
+# author:       claude-sonnet-4-6
+# method:       /model (hand-authored)
+# created:      2026-05-16
+# version:      1
+# ==========================================================
+
+# Straight trunk, fronds droop from crown down into upper part of lower cube.
+
+# --- TRUNK (Y=0, center, sy=0,1) ---
+S 0 0 0  1 0 1  Log
+S 0 0 0  1 1 1  Log
+
+# --- DROOPING FROND TIPS (Y=0, sy=2, cardinal) ---
+S 0 0 0  0 2 1  Leaf
+S 0 0 0  2 2 1  Leaf
+S 0 0 0  1 2 0  Leaf
+S 0 0 0  1 2 2  Leaf
+
+# --- CROWN (Y=1, sy=0, center) ---
+S 0 1 0  1 0 1  Log
+
+# --- HORIZONTAL FRONDS (Y=1, sy=0, cardinal) ---
+S 0 1 0  0 0 1  Leaf
+S 0 1 0  2 0 1  Leaf
+S 0 1 0  1 0 0  Leaf
+S 0 1 0  1 0 2  Leaf
+
+# --- CROWN TUFT (Y=1, sy=1, center) ---
+S 0 1 0  1 1 1  Leaf
