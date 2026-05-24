@@ -3,5 +3,6 @@
 # interaction_point: handle_0 door_handle 0.5 1.0 1.0 0.0
 # Format: C RelX RelY RelZ Material
 
+# part: panel hinge=left_bottom axis=y
 C 0 0 0 Metal
 C 0 1 0 Metal

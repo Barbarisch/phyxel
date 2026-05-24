@@ -1,0 +1,57 @@
+{
+  "$schema": "engine_fix_catalog.v1",
+  "description": "Catalog of known/expected engine bugs that the interaction pipeline can surface. Detectors map symptoms to these entries; the tuner emits engine_findings referencing the symptom id. NEVER auto-applied — these go to engine_fix_queue.json for human review.",
+  "symptoms": {
+    "POSITION_SNAP_AT_CLIP_BOUNDARY": {
+      "description": "Character position teleports between clips instead of interpolating. Visible as a discrete jump in centroid or world_pos when t crosses 0.0 / 1.0 boundaries between stand_to_sit -> sitting_idle -> sit_to_stand.",
+      "where": "engine/src/scene/AnimatedVoxelCharacter.cpp:1875-1900",
+      "evidence_required": [
+        "Centroid delta between last sample of clip N and first sample of clip N+1 exceeds 0.10 world units while bone poses are nearly identical."
+      ],
+      "suggested_fix": "Apply the same per-frame foot-anchor interpolation that exists for SitStandUp to SitDown and SittingIdle entry transitions."
+    },
+    "POSE_FEET_DESYNC": {
+      "description": "Feet drift asymmetrically relative to the supporting surface during a sit clip — one foot pulls away or moves differently from the other while seated. Indicates the bone blend duration is desynchronized from the foot-anchor lerp, or independent foot IK is misfiring.",
+      "where": "engine/src/scene/AnimatedVoxelCharacter.cpp:1875-1900",
+      "evidence_required": [
+        "Per-frame asymmetry abs(feet.left.signed_distance - feet.right.signed_distance) > tolerance, OR per-frame inter-sample drift of either foot's signed_distance > tolerance within a single clip.",
+        "Note: absolute signed_distance is NOT used — the interaction editor has no floor voxels so feet legitimately sit far below the chair seat."
+      ],
+      "suggested_fix": "Drive feet-anchor lerp from the same alpha used for bone blending; reuse blend_t. Ensure left/right foot IK use the same support frame."
+    },
+    "INITIAL_TELEPORT": {
+      "description": "On first entry to a sit state the engine teleports the character onto the seat (feet at or above seat top) instead of leaving them standing in front of the chair to animate down into it.",
+      "where": "engine/src/scene/AnimatedVoxelCharacter.cpp:1231 (sitAt())",
+      "evidence_required": [
+        "First sample (clip=stand_to_sit, t=0.0): BOTH feet.y values are at or above seat_anchor.y (within ~0.10 m below the seat top counts as on/above).",
+        "Note: centroid-vs-seat is NOT used — a standing person's bone centroid is naturally around pelvis height which is below typical chair seat tops."
+      ],
+      "suggested_fix": "sitAt() should place worldPosition so feet stay on the floor at t=0 of stand_to_sit, then let the clip animate the body down into the seat. Per-clip Hips anchoring (m_hipsRef_sitDown sampled at clip END) handles seat alignment at clip END."
+    },
+    "BLEND_DURATION_ASYNC": {
+      "description": "Bone-blend (~0.2s) finishes before foot-anchor lerp, producing a final slide.",
+      "where": "engine/src/scene/AnimatedVoxelCharacter.cpp:1875-1900",
+      "evidence_required": [
+        "At clip boundary t=1.0 -> t=0.0 of the next clip, total centroid travel during the trailing 20% of the source clip exceeds 0.05 while bone half-extent travel is < 0.01."
+      ],
+      "suggested_fix": "Make blend and anchor lerp share a single duration parameter."
+    },
+    "POSE_HORIZONTAL_SLIDING": {
+      "description": "Character model translates horizontally in world space while the IK pose is anchored to a seat (sitting_down / sitting_idle / standing_up). User-visible as the entire model sliding in one direction during the end of stand_to_sit and/or all of sit_to_stand. Most commonly caused by root motion being applied on top of the seat-anchored world position, or the world position being tweened toward a stale target while the pose has already locked.",
+      "where": "engine/src/scene/AnimatedVoxelCharacter.cpp — search for transform updates inside SitDown/SittingIdle/SitStandUp states. Also inspect any RootMotion application paths that may not be gated by the seated flag.",
+      "evidence_required": [
+        "Monotonic horizontal centroid drift (dx or dz same sign) across >= 2 consecutive samples within a single clip whose telemetry state is sitting_down / sitting_idle / standing_up.",
+        "Cumulative horizontal drift across the clip exceeds 0.20 m, OR any single inter-sample dxz exceeds 0.10 m, OR sitting_idle drifts more than 0.03 m."
+      ],
+      "suggested_fix": "Gate root-motion application by isSeated(); during sit/stand transitions drive world position from the seat anchor + per-frame foot-anchor lerp instead of from animation-baked translation."
+    },
+    "SEATED_HIPS_OFF_SEAT": {
+      "description": "During sitting_idle the character's Hips/Pelvis bone is significantly above or below the seat surface in world space. User-visible as the character either floating above the chair or sinking into it. Almost always a profile tuning issue (sit_stand_up_offset.y) rather than an engine bug, because the engine's per-clip Hips anchor in AnimatedVoxelCharacter::update() already does worldPosition.y = seat.y + sit_stand_up_offset.y - hipsRef.y — if the profile's offset.y is non-zero, that nudge is applied directly. The pipeline emits this as a PROFILE finding so the tuner can adjust it.",
+      "where": "resources/interactions/<archetype>.json — sit_stand_up_offset[1] (and matching values on sit_down_offset and sitting_idle_offset).",
+      "evidence_required": [
+        "Median over all sitting_idle samples of (Hips.center.y - seat_anchor.y) is more than below_tolerance below 0 OR more than above_tolerance above 0."
+      ],
+      "suggested_fix": "Set sit_stand_up_offset.y (and matching sit_down / sitting_idle Y values) to -median_delta so Hips lands on the seat. Most chairs should have these all at 0 with the per-clip Hips anchor system."
+    }
+  }
+}

@@ -44,6 +44,101 @@ namespace Scene {
         const float halfW = m_originalHalfWidth;
         const float halfH = m_originalHalfHeight;
 
+        // --- Phase M5: ledge mantle override ---
+        // When active, gravity, ground-snap, and horizontal input are all
+        // suspended; the capsule moves along a fixed start→end timeline.
+        // Y is eased so the character rises first, then arcs forward (the
+        // classic mantle silhouette).
+        if (m_mantleActive) {
+            m_mantleTime += dt;
+            float t = glm::clamp(m_mantleTime / std::max(1e-3f, m_mantleDuration),
+                                 0.0f, 1.0f);
+            // Easing: XZ linear; Y direction-aware. For ascent (end.y > start.y)
+            // Y is front-loaded (rise then walk forward — classic mantle).
+            // For descent (end.y < start.y) Y is back-loaded (step out then
+            // drop — classic step-down silhouette).
+            bool ascending = m_mantleEnd.y >= m_mantleStart.y;
+            float ty;
+            if (ascending) {
+                ty = (t < 0.5f) ? (t * 2.0f) * (t * 2.0f) * 0.5f
+                                : 0.5f + (1.0f - (1.0f - t) * (1.0f - t) * 2.0f) * 0.5f;
+            } else {
+                // Back-loaded: stays high for first half, drops smoothly in second.
+                ty = (t < 0.5f) ? (1.0f - (1.0f - t * 2.0f) * (1.0f - t * 2.0f)) * 0.5f
+                                : 0.5f + ((t - 0.5f) * 2.0f) * ((t - 0.5f) * 2.0f) * 0.5f;
+            }
+            ty = glm::clamp(ty, 0.0f, 1.0f);
+            worldPosition.x = glm::mix(m_mantleStart.x, m_mantleEnd.x, t);
+            worldPosition.z = glm::mix(m_mantleStart.z, m_mantleEnd.z, t);
+            worldPosition.y = glm::mix(m_mantleStart.y, m_mantleEnd.y, ty);
+            m_kinVelocity   = glm::vec3(0.0f);
+            m_kinGrounded   = false;
+            if (t >= 1.0f) {
+                m_mantleActive = false;
+                m_mantleTime   = 0.0f;
+                m_kinGrounded  = true;
+            }
+            // Still refresh the contact snapshot below so consumers see the
+            // new position. Skip the main integrator.
+            if (voxelWorld) {
+                glm::vec3 fwd = getForwardDirection();
+                glm::vec3 half(halfW, halfH, halfW);
+                m_lastContact = sampleVoxelContact(*voxelWorld, worldPosition,
+                                                   fwd, half, {});
+            } else {
+                m_lastContact = CharacterContact{};
+            }
+            return;
+        }
+
+        // --- Phase M7: ladder climb override ---
+        // When on a ladder, gravity and ground-snap are suspended; XZ is
+        // locked to the rail centreline; m_ladderInput drives Y velocity.
+        // Hitting the top auto-mantles forward by half a voxel; hitting the
+        // bottom releases the climb.
+        if (m_ladderActive) {
+            worldPosition.x = m_ladderRailX;
+            worldPosition.z = m_ladderRailZ;
+            worldPosition.y += m_ladderInput * m_ladderSpeed * dt;
+
+            if (worldPosition.y >= m_ladderTopY) {
+                // Auto-mantle off the top, in current facing direction.
+                glm::vec3 fwd = getForwardDirection();
+                fwd.y = 0.0f;
+                float fl = glm::length(fwd);
+                if (fl > 1e-4f) fwd /= fl; else fwd = glm::vec3(1.0f, 0.0f, 0.0f);
+                glm::vec3 mStart{m_ladderRailX, m_ladderTopY, m_ladderRailZ};
+                glm::vec3 mEnd  = mStart + fwd * 0.6f + glm::vec3(0.0f, 0.1f, 0.0f);
+                endLadderClimb();
+                beginMantle(mStart, mEnd, 0.35f);
+                // Refresh contact and return — mantle path will run next tick.
+                if (voxelWorld) {
+                    glm::vec3 half(halfW, halfH, halfW);
+                    m_lastContact = sampleVoxelContact(*voxelWorld, worldPosition,
+                                                       fwd, half, {});
+                }
+                return;
+            }
+            if (worldPosition.y <= m_ladderBottomY) {
+                worldPosition.y = m_ladderBottomY;
+                endLadderClimb();
+                m_kinGrounded = true;
+                // Fall through to the regular integrator below.
+            } else {
+                m_kinVelocity = glm::vec3(0.0f);
+                m_kinGrounded = false;
+                if (voxelWorld) {
+                    glm::vec3 fwd = getForwardDirection();
+                    glm::vec3 half(halfW, halfH, halfW);
+                    m_lastContact = sampleVoxelContact(*voxelWorld, worldPosition,
+                                                       fwd, half, {});
+                } else {
+                    m_lastContact = CharacterContact{};
+                }
+                return;
+            }
+        }
+
         if (voxelWorld) {
             // Gravity and ground-snap are suppressed when Y root motion owns vertical movement
             if (!m_yRootMotionActive) {
@@ -192,6 +287,46 @@ namespace Scene {
             // No voxel world — integrate freely (fallback, should not happen in normal use)
             m_kinVelocity.y -= 9.81f * dt;
             worldPosition += m_kinVelocity * dt;
+        }
+
+        // --- Voxel contact probe (Phase M1) ---
+        // One frame-coherent snapshot of ground / forward-face / climb feature
+        // for downstream FSM consumers (edge teeter, climb-up, climb-down) and
+        // the /api/character/contact debug route.
+        if (voxelWorld) {
+            glm::vec3 fwd = getForwardDirection();
+            glm::vec3 half(halfW, halfH, halfW);
+            m_lastContact = sampleVoxelContact(*voxelWorld, worldPosition,
+                                               fwd, half, {});
+        } else {
+            m_lastContact = CharacterContact{};
+        }
+
+        // --- Edge teeter blend (Phase M2) ---
+        // When opted in, idle, grounded, and near an edge, lerp a small pelvis
+        // offset away from the edge direction. Pure cosmetic — touches only
+        // m_teeterAmount / m_teeterDirXZ which the render path consumes.
+        {
+            const float k_target = (m_enableTeeterBlend
+                                    && currentState == AnimatedCharacterState::Idle
+                                    && m_lastContact.groundFound
+                                    && m_lastContact.nearEdgeDir != Phyxel::Scene::EdgeDir::None)
+                                       ? 1.0f : 0.0f;
+            // Pick "away from edge" direction (opposite of nearEdgeDir).
+            glm::vec3 fwd = getForwardDirection();
+            glm::vec3 right = glm::normalize(glm::cross(fwd, glm::vec3(0,1,0)));
+            glm::vec2 away{0.0f, 0.0f};
+            switch (m_lastContact.nearEdgeDir) {
+                case Phyxel::Scene::EdgeDir::Forward: away = {-fwd.x, -fwd.z}; break;
+                case Phyxel::Scene::EdgeDir::Back:    away = { fwd.x,  fwd.z}; break;
+                case Phyxel::Scene::EdgeDir::Left:    away = { right.x, right.z}; break;
+                case Phyxel::Scene::EdgeDir::Right:   away = {-right.x,-right.z}; break;
+                default: break;
+            }
+            if (k_target > 0.5f) m_teeterDirXZ = away;
+            // Critically damped lerp toward target (1.5s settle).
+            float k_rate = 4.0f;
+            m_teeterAmount += (k_target - m_teeterAmount) * std::min(1.0f, k_rate * dt);
         }
     }
 
@@ -881,6 +1016,47 @@ namespace Scene {
         return result;
     }
 
+    std::vector<AnimatedVoxelCharacter::BoneAABB> AnimatedVoxelCharacter::sampleBoneAABBsAtTime(
+        const std::string& clipName, float normalizedTime, const glm::vec3& overrideWorldPos)
+    {
+        int clipIdx = -1;
+        for (int i = 0; i < (int)clips.size(); ++i) {
+            if (clips[i].name == clipName) { clipIdx = i; break; }
+        }
+        if (clipIdx < 0) return {};
+
+        const AnimationClip& clip = clips[clipIdx];
+        float evalTime = std::clamp(normalizedTime, 0.0f, 1.0f) * clip.duration;
+
+        // Work on a temporary skeleton copy so the live skeleton and animSystem state
+        // are never touched. Multiple back-to-back calls are safe and fully independent.
+        Skeleton tempSkel = skeleton;
+        animSystem.updateAnimation(tempSkel, clip, evalTime, false);
+        animSystem.updateGlobalTransforms(tempSkel);
+
+        // Swap into the live skeleton only long enough to compute segment boxes,
+        // then immediately swap back. worldPosition and currentClipIndex are also
+        // temporarily overridden for updateSegmentBoxes (uses currentYaw which is
+        // already correct for the seated facing direction).
+        auto savedBones    = skeleton.bones;
+        auto savedSegBoxes = m_segmentBoxes;
+        glm::vec3 savedWorldPos = worldPosition;
+        int       savedClipIdx  = currentClipIndex;
+
+        skeleton.bones   = std::move(tempSkel.bones);
+        worldPosition    = overrideWorldPos;
+        currentClipIndex = clipIdx;
+        updateSegmentBoxes();
+        auto result = getBoneAABBs();
+
+        skeleton.bones   = std::move(savedBones);
+        m_segmentBoxes   = savedSegBoxes;
+        worldPosition    = savedWorldPos;
+        currentClipIndex = savedClipIdx;
+
+        return result;
+    }
+
     int AnimatedVoxelCharacter::attachToBone(const std::string& boneName, const glm::vec3& size,
                                               const glm::vec3& offset, const glm::vec4& color,
                                               const std::string& label) {
@@ -950,6 +1126,20 @@ namespace Scene {
         applySkeletonProportions();
         resizeController();
         buildBodiesFromModel();
+
+        // Recompute global bone transforms so segment AABBs and any downstream
+        // measurement reflect the rebuilt rig's bind pose immediately
+        // (without this, `updateSegmentBoxes()` reads stale `bone.globalTransform`
+        // from the previous skeleton and `getBoneAABBs()` returns nonsense
+        // proportions until the next animation tick).
+        animSystem.updateGlobalTransforms(skeleton);
+
+        // Refresh segment AABBs so post-rebuild measurement (used by the
+        // interaction pipeline's `spawn_for_test` flow) returns the new
+        // morphology immediately rather than stale boxes from before the
+        // rebuild. Without this the next `getBoneAABBs()` call sees empty
+        // or pre-scaling segment data until the update tick runs.
+        updateSegmentBoxes();
     }
 
     CharacterSkeleton AnimatedVoxelCharacter::buildCharacterSkeleton() const {
@@ -1080,14 +1270,26 @@ namespace Scene {
         float dur = clips[currentClipIndex].duration;
         if (dur <= 0.0f) return;
         animTime = std::clamp(normalizedTime, 0.0f, 1.0f) * dur;
-        // updateAnimation runs fmod(time, duration) for looping clips, so
-        // animTime == duration wraps to frame 0. Clamp just below to show the
-        // actual last frame instead.
         if (animTime >= dur) animTime = dur - 0.0001f;
-        // Cancel any in-progress blend so the scrubbed pose is clean
         isBlending = false;
         blendFactor = 1.0f;
         m_prevAnimTime = animTime;
+    }
+
+    void AnimatedVoxelCharacter::seekToClip(int clipIndex, float normalizedTime) {
+        if (clipIndex < 0 || clipIndex >= (int)clips.size()) return;
+        currentClipIndex = clipIndex;
+        float dur = clips[clipIndex].duration;
+        if (dur <= 0.0f) return;
+        animTime = std::clamp(normalizedTime, 0.0f, 1.0f) * dur;
+        if (animTime >= dur) animTime = dur - 0.0001f;
+        isBlending = false;
+        blendFactor = 1.0f;
+        m_prevAnimTime = animTime;
+        // Force-evaluate bones immediately so the very next render shows the correct pose
+        animSystem.updateAnimation(skeleton, clips[clipIndex], animTime, false);
+        animSystem.updateGlobalTransforms(skeleton);
+        updateSegmentBoxes();
     }
 
     void AnimatedVoxelCharacter::setAnimationState(AnimatedCharacterState state) {
@@ -1167,6 +1369,7 @@ namespace Scene {
         m_seatSurfacePos.y += seatHeightOffset;
         m_seatFacingYaw   = facingYaw;
         m_isSitting       = true;
+        m_lastSeatHeightOffset = seatHeightOffset;
 
         // Store per-state foot snap offsets
         m_sitDownOffset      = sitDownOffset;
@@ -1174,8 +1377,55 @@ namespace Scene {
         m_sitStandUpOffset   = sitStandUpOffset;
         m_sitBlendDuration   = sitBlendDur;
 
-        // Snap feet to the SitDown position immediately (no separate approach)
-        glm::vec3 initialPos = m_seatSurfacePos + m_sitDownOffset;
+        // ---- Cache per-clip Hips reference offsets ----
+        // Sample bone 0 (Hips) at each sit clip's reference frame. The reference
+        // frame is the frame where we want Hips to coincide with the seat anchor
+        // in world space (i.e. the frame where the character is most clearly
+        // seated on the chair):
+        //   stand_to_sit:  END of clip   (character has just settled on seat)
+        //   sitting_idle:  START of clip (basically constant across the loop)
+        //   sit_to_stand:  START of clip (character is still seated before push)
+        // Per-frame snap will subtract these from the seat anchor so that for
+        // every state, the visible Hips lands at the seat at the reference frame,
+        // and animates around it elsewhere in the clip.
+        auto findClipByName = [&](const char* name) -> int {
+            std::string lower = name;
+            std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+            for (size_t i = 0; i < clips.size(); ++i) {
+                std::string n = clips[i].name;
+                std::transform(n.begin(), n.end(), n.begin(), ::tolower);
+                if (n == lower) return (int)i;
+            }
+            return -1;
+        };
+        int sitDownIdx     = findClipByName("stand_to_sit");
+        int sittingIdleIdx = findClipByName("sitting_idle");
+        int sitStandUpIdx  = findClipByName("sit_to_stand");
+        m_hipsRef_sitDown     = (sitDownIdx >= 0)
+            ? sampleClipBonePos(sitDownIdx, 0, clips[sitDownIdx].duration)
+            : glm::vec3(0.0f);
+        m_hipsRef_sittingIdle = (sittingIdleIdx >= 0)
+            ? sampleClipBonePos(sittingIdleIdx, 0, 0.0f)
+            : glm::vec3(0.0f);
+        m_hipsRef_sitStandUp  = (sitStandUpIdx >= 0)
+            ? sampleClipBonePos(sitStandUpIdx, 0, 0.0f)
+            : glm::vec3(0.0f);
+        // Keep Y component too: it represents the Hips height in model space at
+        // the seated reference frame (typically ~0.45m for a humanoid). Including
+        // Y in the snap places the character's pelvis bone exactly on the seat
+        // surface in world space (Hips_world.y = seat.y), instead of relying on
+        // a hand-tuned m_sitStandUpOffset.y.
+
+        // Snap feet to the SitDown-anchored seated position so the very first
+        // frame is already at the right spot (per-frame snap takes over after).
+        float cy0 = cosf(facingYaw), sy0 = sinf(facingYaw);
+        glm::vec3 anchorWorld;
+        anchorWorld.x = m_hipsRef_sitDown.x * cy0 - m_hipsRef_sitDown.z * sy0;
+        anchorWorld.z = m_hipsRef_sitDown.x * sy0 + m_hipsRef_sitDown.z * cy0;
+        glm::vec3 initialPos = m_seatSurfacePos + m_sitStandUpOffset;
+        initialPos.x -= anchorWorld.x;
+        initialPos.y -= m_hipsRef_sitDown.y;
+        initialPos.z -= anchorWorld.z;
         currentYaw = facingYaw;
         setPosition(initialPos);
         m_kinVelocity = glm::vec3(0.0f);
@@ -1193,6 +1443,68 @@ namespace Scene {
         if (!m_isSitting) return;
         currentState = AnimatedCharacterState::SitStandUp;
         stateTimer = 0.0f;
+    }
+
+    void AnimatedVoxelCharacter::refreshSitOffsets(const glm::vec3& sitDownOffset,
+                                                    const glm::vec3& sittingIdleOffset,
+                                                    const glm::vec3& sitStandUpOffset,
+                                                    float sitBlendDuration,
+                                                    float seatHeightOffset) {
+        // Replace the cached offsets so the per-frame snap (update() reads
+        // m_seatSurfacePos + m_sitStandUpOffset etc.) reflects the new values
+        // on the very next tick. Only re-applies the height offset relative to
+        // the previously stored value to avoid double-adding.
+        m_sitDownOffset      = sitDownOffset;
+        m_sittingIdleOffset  = sittingIdleOffset;
+        m_sitStandUpOffset   = sitStandUpOffset;
+        m_sitBlendDuration   = sitBlendDuration;
+        m_seatSurfacePos.y  += (seatHeightOffset - m_lastSeatHeightOffset);
+        m_lastSeatHeightOffset = seatHeightOffset;
+    }
+
+    glm::vec3 AnimatedVoxelCharacter::sampleClipBonePos(int clipIndex, int boneIndex, float time) const {
+        if (clipIndex < 0 || clipIndex >= (int)clips.size()) return glm::vec3(0.0f);
+        const auto& clip = clips[clipIndex];
+        for (const auto& ch : clip.channels) {
+            if (ch.boneId != boneIndex) continue;
+            if (ch.positionKeys.empty()) return glm::vec3(0.0f);
+            if (time <= ch.positionKeys.front().time) return ch.positionKeys.front().value;
+            if (time >= ch.positionKeys.back().time)  return ch.positionKeys.back().value;
+            for (size_t i = 1; i < ch.positionKeys.size(); ++i) {
+                if (time <= ch.positionKeys[i].time) {
+                    float t0 = ch.positionKeys[i-1].time;
+                    float t1 = ch.positionKeys[i].time;
+                    float f  = (t1 > t0) ? (time - t0) / (t1 - t0) : 0.0f;
+                    return ch.positionKeys[i-1].value * (1.0f - f) + ch.positionKeys[i].value * f;
+                }
+            }
+            return ch.positionKeys.back().value;
+        }
+        // Fallback: bone's bind-pose local position
+        if (boneIndex >= 0 && boneIndex < (int)skeleton.bones.size()) {
+            return skeleton.bones[boneIndex].localPosition;
+        }
+        return glm::vec3(0.0f);
+    }
+
+    glm::vec3 AnimatedVoxelCharacter::getCameraTrackPosition() const {
+        // Normal path: camera tracks worldPosition (feet) directly.
+        if (!m_isSitting) return worldPosition;
+        // While sitting, worldPosition snaps by the per-clip Hips anchor at each
+        // sit/idle/stand transition. The rendered character does NOT visibly jump
+        // (its Hips bone stays at the seat), but a camera following worldPosition
+        // would lurch ~0.5m at each boundary. Track the visible Hips XZ instead:
+        //   hips_world = worldPosition + rotateByYaw(currentHipsLocal)
+        // Keep Y at worldPosition.y so camera height (feet+0.5) stays sane.
+        if (m_hipBoneIndex < 0 || m_hipBoneIndex >= (int)skeleton.bones.size()) {
+            return worldPosition;
+        }
+        const glm::vec3& h = skeleton.bones[m_hipBoneIndex].currentPosition;
+        float cy = cosf(currentYaw), sy = sinf(currentYaw);
+        glm::vec3 r = worldPosition;
+        r.x += h.x * cy - h.z * sy;
+        r.z += h.x * sy + h.z * cy;
+        return r;
     }
 
     void AnimatedVoxelCharacter::playAnchoredAnimation(const glm::vec3& destinationPos,
@@ -1349,6 +1661,65 @@ namespace Scene {
         return worldPosition;
     }
 
+    bool AnimatedVoxelCharacter::beginMantle(const glm::vec3& start,
+                                             const glm::vec3& end,
+                                             float durationSec) {
+        if (m_mantleActive) return false;
+        m_mantleActive   = true;
+        m_mantleTime     = 0.0f;
+        m_mantleDuration = std::max(0.05f, durationSec);
+        m_mantleStart    = start;
+        m_mantleEnd      = end;
+        // Snap visual spring so the body doesn't lag below feet during the
+        // mantle (the spring normally smooths step-ups, but the mantle drives
+        // the body explicitly).
+        m_visualBodyY    = start.y;
+        m_visualBodyVel  = 0.0f;
+        m_visualBodyInit = true;
+        m_kinVelocity    = glm::vec3(0.0f);
+        return true;
+    }
+
+    // --- Phase M7: ladder climb ---
+    bool AnimatedVoxelCharacter::beginLadderClimb(const glm::vec3& railXZ_topY,
+                                                  float bottomY,
+                                                  float climbSpeed) {
+        if (m_ladderActive || m_mantleActive) return false;
+        m_ladderActive  = true;
+        m_ladderRailX   = railXZ_topY.x;
+        m_ladderRailZ   = railXZ_topY.z;
+        m_ladderTopY    = railXZ_topY.y;
+        m_ladderBottomY = bottomY;
+        m_ladderSpeed   = std::max(0.1f, climbSpeed);
+        m_ladderInput   = 0.0f;
+        // Snap XZ onto the rail, clamp Y into the rail extent with a small
+        // inset so the boundary check doesn't immediately detach on tick 0.
+        worldPosition.x = m_ladderRailX;
+        worldPosition.z = m_ladderRailZ;
+        const float kInset = 0.02f;
+        float yMin = m_ladderBottomY + kInset;
+        float yMax = m_ladderTopY    - kInset;
+        if (yMax < yMin) yMax = yMin;
+        worldPosition.y = glm::clamp(worldPosition.y, yMin, yMax);
+        m_kinVelocity   = glm::vec3(0.0f);
+        m_kinGrounded   = false;
+        m_visualBodyY    = worldPosition.y;
+        m_visualBodyVel  = 0.0f;
+        m_visualBodyInit = true;
+        return true;
+    }
+
+    void AnimatedVoxelCharacter::setLadderInput(float vertical) {
+        m_ladderInput = glm::clamp(vertical, -1.0f, 1.0f);
+    }
+
+    void AnimatedVoxelCharacter::endLadderClimb() {
+        if (!m_ladderActive) return;
+        m_ladderActive = false;
+        m_ladderInput  = 0.0f;
+        m_kinVelocity  = glm::vec3(0.0f);
+    }
+
     void AnimatedVoxelCharacter::setMoveVelocity(const glm::vec3& velocity) {
         externalVelocity = velocity;
         hasExternalVelocity = true;
@@ -1432,6 +1803,76 @@ namespace Scene {
 
         // Check vertical velocity for falling
         float verticalVel = m_kinVelocity.y;
+
+        // --- Auto-mantle on jump near a LedgeUp (Phase M5 integration) ---
+        // When the player presses jump while grounded and the contact probe
+        // reports a reachable ledge in front, swap the plain jump impulse
+        // for a mantle. This makes the new system player-visible without
+        // touching every jump-trigger branch below.
+        if (jumpRequested && m_kinGrounded && !m_mantleActive && !m_ladderActive &&
+            m_lastContact.climb == ClimbFeature::LedgeUp)
+        {
+            glm::vec3 fwd = getForwardDirection();
+            fwd.y = 0.0f;
+            float fl = glm::length(fwd);
+            if (fl > 1e-4f) fwd /= fl;
+            float depthInward = std::max(0.25f, m_lastContact.forwardDepthClear * 0.5f);
+            glm::vec3 mStart = worldPosition;
+            glm::vec3 mEnd{
+                m_lastContact.climbAnchorXZ.x + fwd.x * depthInward,
+                m_lastContact.climbTopY,
+                m_lastContact.climbAnchorXZ.z + fwd.z * depthInward,
+            };
+            if (beginMantle(mStart, mEnd, 0.7f)) {
+                jumpRequested = false;
+                currentState  = AnimatedCharacterState::Preview;  // owned by mantle
+                stateTimer    = 0.0f;
+                m_previewOwnedByOverride = true;
+                playAnimation("climb_ladder_start");
+                LOG_INFO_FMT("AutoMantle",
+                    "Jump consumed by LedgeUp mantle: start=(" << mStart.x << "," << mStart.y << "," << mStart.z
+                    << ") end=(" << mEnd.x << "," << mEnd.y << "," << mEnd.z << ")");
+                return;  // FSM stays in Preview until mantle completes
+            }
+        }
+
+        // --- Auto step-down on walking off a LedgeDown (Phase M6 integration) ---
+        // When the player walks forward off a small ledge (drop fits within a
+        // mantle), trigger the step-down mantle instead of a free-fall. Skip
+        // for jumps (player intent is to fly), running (would look slow), and
+        // very tall drops (Fall handles those naturally).
+        const float k_walkOffMaxDrop = 1.6f;  // matches ContactProbeParams.maxClimbHeight
+        const float k_walkOffMinDrop = 0.6f;  // matches ContactProbeParams.minLedgeDrop
+        if (!jumpRequested && m_kinGrounded && !m_mantleActive && !m_ladderActive &&
+            currentForwardInput < -0.1f && currentForwardInput > -0.6f &&  // walking, not running
+            m_lastContact.climb == ClimbFeature::LedgeDown)
+        {
+            float drop = worldPosition.y - m_lastContact.climbGrabY;
+            if (drop >= k_walkOffMinDrop && drop <= k_walkOffMaxDrop) {
+                glm::vec3 fwd = getForwardDirection();
+                fwd.y = 0.0f;
+                float fl = glm::length(fwd);
+                if (fl > 1e-4f) fwd /= fl;
+                float depthInward = std::max(0.25f, m_lastContact.forwardDepthClear * 0.5f);
+                glm::vec3 mStart = worldPosition;
+                glm::vec3 mEnd{
+                    m_lastContact.climbAnchorXZ.x + fwd.x * depthInward,
+                    m_lastContact.climbGrabY,
+                    m_lastContact.climbAnchorXZ.z + fwd.z * depthInward,
+                };
+                if (beginMantle(mStart, mEnd, 0.5f)) {
+                    currentState = AnimatedCharacterState::Preview;
+                    stateTimer   = 0.0f;
+                    m_previewOwnedByOverride = true;
+                    playAnimation("step_down");
+                    LOG_INFO_FMT("AutoStepDown",
+                        "Walk-off LedgeDown mantle: drop=" << drop
+                        << " start=(" << mStart.x << "," << mStart.y << "," << mStart.z
+                        << ") end=(" << mEnd.x << "," << mEnd.y << "," << mEnd.z << ")");
+                    return;
+                }
+            }
+        }
 
         // State Transitions
         switch (currentState) {
@@ -1723,19 +2164,64 @@ namespace Scene {
             case AnimatedCharacterState::SitStandUp:
                 // One-shot: wait for stand-up animation, then restore gravity and go Idle
                 if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
+                    // ---- Transfer Hips delta into worldPosition ----
+                    // While seated, worldPosition was anchored so that the sit_to_stand
+                    // clip's t=0 Hips coincides with the seat. The clip ends with Hips
+                    // ~0.5m forward of that anchor (character stood up and stepped
+                    // forward). When we release the seat anchor, the idle clip's t=0
+                    // Hips would render back at the seat — a visible snap. Compensate
+                    // by shifting worldPosition by (currentHips - idleStartHips)
+                    // rotated into world space, so idle's Hips lands at the SAME
+                    // world spot the stand-up animation ended at.
+                    if (!skeleton.bones.empty()) {
+                        int idleIdx = -1;
+                        for (size_t i = 0; i < clips.size(); ++i) {
+                            std::string n = clips[i].name;
+                            std::transform(n.begin(), n.end(), n.begin(), ::tolower);
+                            if (n == "idle") { idleIdx = (int)i; break; }
+                        }
+                        glm::vec3 idleStartHips = (idleIdx >= 0)
+                            ? sampleClipBonePos(idleIdx, 0, 0.0f)
+                            : skeleton.bones[0].localPosition;
+                        glm::vec3 currentHips = skeleton.bones[0].currentPosition;
+                        float dx = currentHips.x - idleStartHips.x;
+                        float dy = currentHips.y - idleStartHips.y;
+                        float dz = currentHips.z - idleStartHips.z;
+                        float cy = cosf(currentYaw), sy = sinf(currentYaw);
+                        worldPosition.x += dx * cy - dz * sy;
+                        worldPosition.y += dy;
+                        worldPosition.z += dx * sy + dz * cy;
+                    }
                     m_isSitting = false;
                     currentState = AnimatedCharacterState::Idle;
                     stateTimer = 0.0f;
+                    // Defense-in-depth: if the next clip switch goes through the
+                    // normal-path (non-sit) animation selection, hard-cut into
+                    // idle so the bone blend doesn't smear our worldPosition
+                    // compensation over the blend window.
+                    m_pendingClipSnap = true;
                 }
                 break;
 
             case AnimatedCharacterState::Preview:
+                // M5/M6/M7 integration: when a mantle/ladder owns this Preview
+                // (started by the auto-mantle path or the ladder routes) and
+                // the override has finished, return to Idle. m_previewOwnedByOverride
+                // is set when we transition INTO Preview from the override and
+                // cleared here when the override completes.
+                if (m_previewOwnedByOverride && !m_mantleActive && !m_ladderActive) {
+                    m_previewOwnedByOverride = false;
+                    currentState = AnimatedCharacterState::Idle;
+                    stateTimer   = 0.0f;
+                    break;
+                }
                 // Exit preview if any input is detected
                 if (glm::abs(currentForwardInput) > 0.01f ||
                     glm::abs(currentStrafeInput) > 0.01f ||
                     glm::abs(currentTurnInput) > 0.01f ||
                     jumpRequested || attackRequested || isCrouching) {
                     currentState = AnimatedCharacterState::Idle;
+                    m_previewOwnedByOverride = false;
                 }
                 break;
 
@@ -1823,25 +2309,35 @@ namespace Scene {
         }
 
         // --- Sitting sequence: bypass normal physics movement ---
-        // Foot-anchored model: each state snaps worldPosition (= feet) to a fixed point.
-        // The animation itself moves the hips/torso — we never lerp worldPosition.
+        // Per-clip Hips-anchored model: for each sit state we shift worldPosition
+        // by minus the clip's reference Hips offset (rotated by yaw) so that the
+        // Hips bone in world space coincides with the seat anchor at every clip's
+        // reference frame. This is required because Mixamo authored the three sit
+        // clips with different model-space origins — e.g. stand_to_sit's end Hips
+        // is at z=-0.471 while sitting_idle's start Hips is at z=+0.035. Without
+        // per-clip compensation, switching between them would teleport the Hips
+        // ~0.5m even though worldPosition stays still. (See sitAt() for how the
+        // three m_hipsRef_* fields are sampled from the clip data.)
+        //
+        // Within a single clip, the Hips bone animates freely from its reference
+        // frame — e.g. sit_to_stand ends 0.5m forward of its start, which renders
+        // as the character standing up and stepping forward. At the SitStandUp
+        // end transition (in updateStateMachine below) we transfer that forward
+        // motion into worldPosition so the standing idle clip continues from the
+        // visible end pose instead of snapping back to the seat.
         if (m_isSitting) {
-            {
-                glm::vec3 snapPos;
-                if (currentState == AnimatedCharacterState::SitDown)
-                    snapPos = m_seatSurfacePos + m_sitDownOffset;
-                else if (currentState == AnimatedCharacterState::SittingIdle)
-                    snapPos = m_seatSurfacePos + m_sittingIdleOffset;
-                else
-                    snapPos = m_seatSurfacePos + m_sitStandUpOffset;
-
-                worldPosition = snapPos;
-                m_kinVelocity = glm::vec3(0.0f);
-                currentYaw = m_seatFacingYaw;
-            }
+            // (Snap deferred until AFTER updateStateMachine + clip selection so
+            // it uses the post-transition state. Doing it before would cause a
+            // 1-frame visible spike at every state change: the snap uses the
+            // OLD state's hipsRef while the new clip's Hips pose is rendered.)
+            m_kinVelocity = glm::vec3(0.0f);
+            currentYaw = m_seatFacingYaw;
 
             // Run FSM — transitions SitDown→SittingIdle→SitStandUp→Idle
-            updateStateMachine(deltaTime);
+            // Guard with m_animPaused: when scrubbing via seek_ie_animation we do NOT want
+            // stateTimer to accumulate and auto-transition out of the seeked state.
+            if (!m_animPaused)
+                updateStateMachine(deltaTime);
 
             // Animation selection for sitting states (this block is normally skipped by the
             // movement path, so we must do it explicitly here for clips to actually switch)
@@ -1873,11 +2369,54 @@ namespace Scene {
                     animTime          = 0.0f;
                     isBlending        = (previousClipIndex != -1);
                     blendFactor       = 0.0f;
-                    // Use the per-seat blend duration for sit transitions
+                    // Sit clips (stand_to_sit, sitting_idle, sit_to_stand) all have
+                    // significantly different Hips bone translations at their start
+                    // and end frames (e.g. stand_to_sit ends at Hips z=-0.47 deep
+                    // in the chair, sitting_idle starts at z=+0.04 sitting upright).
+                    // Crossfading two such poses linearly interpolates the Hips
+                    // position over the blend window, which renders as a smooth
+                    // ~0.5m visual slide of the character in front of / out of
+                    // the chair. Hard-cut between sit clips instead. The seat
+                    // anchor (m_seatSurfacePos + m_sitStandUpOffset) keeps
+                    // worldPosition stable, so the only visible change is the
+                    // one-frame pose snap — much less perceptible than the
+                    // 16-frame slide that the crossfade would produce.
                     if (isBlending) {
-                        blendDuration = m_sitBlendDuration;
+                        blendDuration = 0.0f;
                     }
                 }
+            }
+
+            // ---- Post-FSM Hips-anchored snap ----
+            // Now that updateStateMachine and clip selection have run, snap
+            // worldPosition using the CURRENT (post-transition) state's hipsRef.
+            // This guarantees that the bone evaluation at animate_and_render
+            // (which uses the new clip) lines up with the seat in world space.
+            //
+            // Skip the snap if updateStateMachine just cleared m_isSitting (the
+            // SitStandUp end transfer set worldPosition itself; re-snapping
+            // would clobber it). In that case we already left the sit cycle and
+            // the next frame will be on the normal physics path.
+            if (m_isSitting) {
+                glm::vec3 hipsRef;
+                switch (currentState) {
+                    case AnimatedCharacterState::SitDown:
+                        hipsRef = m_hipsRef_sitDown; break;
+                    case AnimatedCharacterState::SittingIdle:
+                        hipsRef = m_hipsRef_sittingIdle; break;
+                    case AnimatedCharacterState::SitStandUp:
+                        hipsRef = m_hipsRef_sitStandUp; break;
+                    default:
+                        hipsRef = m_hipsRef_sittingIdle; break;
+                }
+                float cy = cosf(m_seatFacingYaw), sy = sinf(m_seatFacingYaw);
+                float wox = hipsRef.x * cy - hipsRef.z * sy;
+                float woz = hipsRef.x * sy + hipsRef.z * cy;
+                glm::vec3 snapPos = m_seatSurfacePos + m_sitStandUpOffset;
+                snapPos.x -= wox;
+                snapPos.y -= hipsRef.y;
+                snapPos.z -= woz;
+                worldPosition = snapPos;
             }
 
             goto animate_and_render;
@@ -1948,33 +2487,71 @@ namespace Scene {
 
             // Handle Movement based on State
             float moveSpeed = 0.0f;
-            
-            // Use animation speed if available
-            if (currentClipIndex >= 0 && currentClipIndex < clips.size()) {
+
+            // Use animation speed if available. This is the authoritative
+            // source: when an .anim clip declares `Speed N`, the engine uses
+            // it directly so visual stride matches translation. If we ever
+            // fall through to the state-based fallbacks below, that means
+            // the clip is missing its Speed line (root-motion never extracted,
+            // or stripped during a re-import) — log once per clip so it's
+            // noisy at runtime instead of silently wrong.
+            if (currentClipIndex >= 0 && currentClipIndex < (int)clips.size()) {
                 float animSpeed = clips[currentClipIndex].speed;
                 if (animSpeed > 0.1f) {
                     moveSpeed = animSpeed;
                 }
             }
-            
-            // Override speed based on state if needed (only if anim speed wasn't sufficient)
-            if (currentState == AnimatedCharacterState::Walk && moveSpeed < 0.1f) moveSpeed = 2.0f; 
-            if (currentState == AnimatedCharacterState::StartWalk && moveSpeed < 0.1f) moveSpeed = 1.5f;
+
+            // State-based fallbacks. These only take effect when the active
+            // clip provided no usable speed. Each is a *visual best-guess* and
+            // will probably look wrong — they exist so the character doesn't
+            // freeze in place, not as a target for tuning.
+            auto warnFallback = [&](const char* state, float v) {
+                if (currentClipIndex >= 0 && currentClipIndex < (int)clips.size()) {
+                    const auto& clip = clips[currentClipIndex];
+                    if (!m_warnedSpeedFallback.count(clip.name)) {
+                        m_warnedSpeedFallback.insert(clip.name);
+                        LOG_ERROR("Character",
+                                  "Clip '{}' (state={}) has no Speed line; using fallback {} m/s. "
+                                  "Add `Speed <val>` to the clip in the .anim file.",
+                                  clip.name, state, v);
+                    }
+                }
+            };
+
+            if (currentState == AnimatedCharacterState::Walk && moveSpeed < 0.1f) {
+                moveSpeed = 2.0f; warnFallback("Walk", moveSpeed);
+            }
+            if (currentState == AnimatedCharacterState::StartWalk && moveSpeed < 0.1f) {
+                moveSpeed = 1.5f; warnFallback("StartWalk", moveSpeed);
+            }
             if (currentState == AnimatedCharacterState::Run && moveSpeed < 0.1f) {
-                moveSpeed = 5.0f; 
+                moveSpeed = 5.0f;
                 if (glm::abs(currentForwardInput) > 0.9f) moveSpeed = 8.0f;
+                warnFallback("Run", moveSpeed);
             }
             if (currentState == AnimatedCharacterState::StrafeLeft || currentState == AnimatedCharacterState::StrafeRight ||
                 currentState == AnimatedCharacterState::WalkStrafeLeft || currentState == AnimatedCharacterState::WalkStrafeRight) {
-                 moveSpeed = 2.0f;
-                 if (glm::abs(currentStrafeInput) > 0.6f) moveSpeed = 4.0f;
+                if (moveSpeed < 0.1f) {
+                    moveSpeed = 2.0f;
+                    if (glm::abs(currentStrafeInput) > 0.6f) moveSpeed = 4.0f;
+                    warnFallback("Strafe", moveSpeed);
+                }
             }
-            if (currentState == AnimatedCharacterState::CrouchWalk) moveSpeed = 1.5f;
-            if (currentState == AnimatedCharacterState::BackwardWalk) moveSpeed = 1.5f;
-            if (currentState == AnimatedCharacterState::ClimbStairs) moveSpeed = 1.5f;
-            if (currentState == AnimatedCharacterState::DescendStairs) moveSpeed = 1.5f;
+            if (currentState == AnimatedCharacterState::CrouchWalk && moveSpeed < 0.1f) {
+                moveSpeed = 1.5f; warnFallback("CrouchWalk", moveSpeed);
+            }
+            if (currentState == AnimatedCharacterState::BackwardWalk && moveSpeed < 0.1f) {
+                moveSpeed = 1.5f; warnFallback("BackwardWalk", moveSpeed);
+            }
+            if (currentState == AnimatedCharacterState::ClimbStairs && moveSpeed < 0.1f) {
+                moveSpeed = 1.5f; warnFallback("ClimbStairs", moveSpeed);
+            }
+            if (currentState == AnimatedCharacterState::DescendStairs && moveSpeed < 0.1f) {
+                moveSpeed = 1.5f; warnFallback("DescendStairs", moveSpeed);
+            }
             if (currentState == AnimatedCharacterState::StopWalk || currentState == AnimatedCharacterState::StopRun) moveSpeed = 0.5f;
-            if (currentState == AnimatedCharacterState::Idle || currentState == AnimatedCharacterState::Attack || 
+            if (currentState == AnimatedCharacterState::Idle || currentState == AnimatedCharacterState::Attack ||
                 currentState == AnimatedCharacterState::Crouch || currentState == AnimatedCharacterState::CrouchIdle ||
                 currentState == AnimatedCharacterState::TurnLeft || currentState == AnimatedCharacterState::TurnRight) moveSpeed = 0.0f;
 
@@ -2153,6 +2730,16 @@ namespace Scene {
                             bone.currentScale = bone.localScale;
                         }
                     }
+
+                    // Consume pending-snap flag set when leaving the sit cycle.
+                    // See header for rationale: sit_to_stand's end Hips differs
+                    // from idle's start Hips by ~0.5m, and a smooth blend renders
+                    // as a visible slide.
+                    if (m_pendingClipSnap && isBlending) {
+                        isBlending = false;
+                        blendFactor = 0.0f;
+                    }
+                    m_pendingClipSnap = false;
                 }
             }
             } // end !usedExternalVelocity
@@ -2228,7 +2815,17 @@ namespace Scene {
             }
             m_prevAnimTime = animTime;
 
-            // Root motion extraction: apply root bone displacement to worldPosition
+            // Root motion extraction.
+            //
+            // The bone-stripping step (clearing the animated root translation off the
+            // root bone so it doesn't double-count visually) must run for ANY clip with
+            // `useRootMotion=true`, including while seated. Otherwise sit/stand clips
+            // that animate the root bone forward to push off the chair produce a
+            // visible model slide even though worldPosition is anchored to the seat.
+            //
+            // The worldPosition application step (translating the character through the
+            // world) is gated by `!m_isSitting`: while seated, the seat anchor owns
+            // worldPosition and the root delta must be discarded, not applied.
             if (!isBlending && currentClipIndex >= 0 && currentClipIndex < (int)clips.size()) {
                 const AnimationClip& clip = clips[currentClipIndex];
 
@@ -2239,8 +2836,9 @@ namespace Scene {
                     (currentState == AnimatedCharacterState::DescendStairs ||
                      currentState == AnimatedCharacterState::ClimbStairs   ||
                      (currentState == AnimatedCharacterState::Preview && m_stairDriveActive));
-                m_yRootMotionActive = (!m_animPaused && clip.useRootMotion && clip.rootMotionAxes.y)
-                                   || isActiveStairDrive;
+                m_yRootMotionActive = !m_isSitting &&
+                    ((!m_animPaused && clip.useRootMotion && clip.rootMotionAxes.y)
+                     || isActiveStairDrive);
 
                 // Clip transition: reset prevRootPos so frame-1 delta is zero (no teleport spike)
                 if (currentClipIndex != m_prevClipIndex) {
@@ -2258,7 +2856,12 @@ namespace Scene {
                     float clipDur = clip.duration;
                     bool loopWrapped = loop && clipDur > 0.0f &&
                         (std::fmod(animTime, clipDur) < std::fmod(prevAnimTimeSnapshot, clipDur));
-                    if (!loopWrapped) {
+
+                    // Only translate the world while not seated. The delta still has to be
+                    // computed so we can keep m_prevRootPos in sync, but seated motion is
+                    // discarded — the seat anchor (in the sitting branch above) owns
+                    // worldPosition.
+                    if (!loopWrapped && !m_isSitting) {
                         // Use m_prevRootPos (animated pos from last frame) as the delta base.
                         // rootPosBefore would have been the stripped localPosition — wrong.
                         glm::vec3 delta = currentRootAnimated - m_prevRootPos;
@@ -2304,7 +2907,8 @@ namespace Scene {
                     // Save animated position BEFORE stripping so next frame has the correct delta base
                     m_prevRootPos = currentRootAnimated;
 
-                    // Strip extracted axes from root bone so the visual doesn't double-count
+                    // Strip extracted axes from root bone so the visual doesn't double-count.
+                    // This MUST run even while seated — see header comment above.
                     glm::vec3& rc = skeleton.bones[0].currentPosition;
                     if (clip.rootMotionAxes.x) rc.x = skeleton.bones[0].localPosition.x;
                     if (clip.rootMotionAxes.y) rc.y = skeleton.bones[0].localPosition.y;
@@ -2416,6 +3020,12 @@ namespace Scene {
         glm::vec3 visualOrigin = glm::vec3(worldPosition.x, m_visualBodyY, worldPosition.z)
                                - glm::vec3(0.0f, skeletonFootOffset_, 0.0f)
                                + glm::vec3(0.0f, k_modelVisualLift, 0.0f);
+        // Phase M2 — teeter pose offset (matches IK render path above).
+        if (m_teeterAmount > 0.001f) {
+            constexpr float k_teeterMaxOffset = 0.08f;
+            visualOrigin.x += m_teeterDirXZ.x * m_teeterAmount * k_teeterMaxOffset;
+            visualOrigin.z += m_teeterDirXZ.y * m_teeterAmount * k_teeterMaxOffset;
+        }
         glm::mat4 modelMatrix  = glm::translate(glm::mat4(1.0f), visualOrigin);
         modelMatrix = glm::rotate(modelMatrix, currentYaw, glm::vec3(0, 1, 0));
 
@@ -2519,6 +3129,29 @@ namespace Scene {
                     part.worldRot = attRot;
                 }
             }
+        }
+
+        // ---- Motion trace recording ----
+        // Capture per-frame state for slide/teleport detection by the interaction pipeline.
+        // worldPosition has been settled by every code path above (sitting branch snap,
+        // normal physics resolve, derez, anchored anim, etc.) at this point.
+        if (m_motionTraceCapacity > 0) {
+            MotionTraceEntry e;
+            e.totalTime  = m_totalTime;
+            e.deltaTime  = deltaTime;
+            e.worldPos   = worldPosition;
+            e.hipsLocal  = skeleton.bones.empty() ? glm::vec3(0.0f) : skeleton.bones[0].currentPosition;
+            e.state      = static_cast<int>(currentState);
+            e.isSitting  = m_isSitting;
+            e.isBlending = isBlending;
+            e.clipIndex  = currentClipIndex;
+            e.animTime   = animTime;
+            if (m_motionTrace.size() >= m_motionTraceCapacity) {
+                // Drop oldest by shifting — capacity is small (default 1024) so the
+                // amortized cost is negligible compared to the per-frame animation work.
+                m_motionTrace.erase(m_motionTrace.begin());
+            }
+            m_motionTrace.push_back(e);
         }
     }
 
@@ -2658,6 +3291,17 @@ namespace Scene {
     }
 
     void AnimatedVoxelCharacter::applyIKCorrections(float deltaTime) {
+        // Foot IK and body spring must not run during sitting — the seat anchor fully
+        // owns worldPosition and bone positions during these states. IK would fight the
+        // anchor and the spring would diverge m_visualBodyY from the snapped worldPosition.
+        if (m_isSitting) {
+            m_visualBodyY   = worldPosition.y;
+            m_visualBodyVel = 0.0f;
+            m_footIKBlend   = 0.0f;
+            m_leftFootLock  = {};
+            m_rightFootLock = {};
+            return;
+        }
         if (!m_footIKEnabled) return;
         auto* voxelWorld = physicsWorld ? physicsWorld->getVoxelWorld() : nullptr;
         if (!voxelWorld) return;
@@ -2758,6 +3402,13 @@ namespace Scene {
         glm::vec3 visualOrigin = glm::vec3(worldPosition.x, m_visualBodyY, worldPosition.z)
                                - glm::vec3(0.0f, skeletonFootOffset_, 0.0f)
                                + glm::vec3(0.0f, k_ikModelLift, 0.0f);
+        // Phase M2 — teeter pose offset (small visual shift away from a nearby
+        // edge while idle). Default off; lerped in resolveKinematicMovement.
+        if (m_teeterAmount > 0.001f) {
+            constexpr float k_teeterMaxOffset = 0.08f;   // ~8 cm pelvis shift
+            visualOrigin.x += m_teeterDirXZ.x * m_teeterAmount * k_teeterMaxOffset;
+            visualOrigin.z += m_teeterDirXZ.y * m_teeterAmount * k_teeterMaxOffset;
+        }
         glm::mat4 modelMatrix  = glm::translate(glm::mat4(1.0f), visualOrigin);
         modelMatrix = glm::rotate(modelMatrix, currentYaw, glm::vec3(0, 1, 0));
         glm::mat4 invModel = glm::inverse(modelMatrix);

@@ -1,0 +1,15 @@
+{
+  "schema_version": "asset_metrics.v1",
+  "template_name": "bed_single",
+  "overall_min": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "overall_max": [
+    1.0,
+    1.6666666666666665,
+    1.9999999999999998
+  ],
+  "interaction_points": []
+}

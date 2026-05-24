@@ -1,0 +1,189 @@
+{
+  "schema_version": "engine_fix_queue.v1",
+  "entries": [
+    {
+      "finding": {
+        "id": "INITIAL_TELEPORT",
+        "kind": "engine_bug",
+        "severity": "error",
+        "message": "At first sample (clip=stand_to_sit, t=0.0), both feet are at or above the seat top (left +0.172, right +0.172; tolerance -0.100) \u2014 engine appears to have teleported the character onto the seat instead of leaving them standing in front of it.",
+        "evidence": {
+          "seat_y": 16.66699981689453,
+          "feet_y": {
+            "left": 16.838844299316406,
+            "right": 16.839183807373047
+          },
+          "feet_delta_vs_seat": {
+            "left": 0.171844482421875,
+            "right": 0.17218399047851562
+          },
+          "tolerance": -0.1
+        },
+        "suggested_action": "Queue engine fix \u2014 see catalog entry.",
+        "catalog_ref": "INITIAL_TELEPORT"
+      },
+      "catalog": {
+        "description": "On first entry to a sit state the engine teleports the character onto the seat (feet at or above seat top) instead of leaving them standing in front of the chair to animate down into it.",
+        "where": "engine/src/scene/AnimatedVoxelCharacter.cpp:1231 (sitAt())",
+        "evidence_required": [
+          "First sample (clip=stand_to_sit, t=0.0): BOTH feet.y values are at or above seat_anchor.y (within ~0.10 m below the seat top counts as on/above).",
+          "Note: centroid-vs-seat is NOT used \u2014 a standing person's bone centroid is naturally around pelvis height which is below typical chair seat tops."
+        ],
+        "suggested_fix": "sitAt() should place worldPosition so feet stay on the floor at t=0 of stand_to_sit, then let the clip animate the body down into the seat. Per-clip Hips anchoring (m_hipsRef_sitDown sampled at clip END) handles seat alignment at clip END."
+      },
+      "sweep_report": "G:\\Github\\phyxel\\tools\\interaction_pipeline\\reports\\chair_wood\\20260522_221207\\report.json"
+    },
+    {
+      "finding": {
+        "id": "POSE_FEET_DESYNC",
+        "kind": "engine_bug",
+        "severity": "warn",
+        "message": "Per-frame foot asymmetry or drift exceeded 0.1. max_asymmetry=0.154, max_drift=0.147.",
+        "evidence": {
+          "worst": {
+            "asymmetry": {
+              "clip": "stand_to_sit",
+              "t": 0.0,
+              "left": 0.5574759840965271,
+              "right": 0.40300559997558594,
+              "delta": 0.15447038412094116
+            },
+            "drift": {
+              "clip": "sit_to_stand",
+              "t": 0.6,
+              "d_left": 0.14657217264175415,
+              "d_right": 0.1402294635772705
+            }
+          },
+          "tolerance": 0.1,
+          "note": "signed_distance is distance to asset voxels (the chair), not to a floor. Absolute values are expected to be large in the interaction editor; we flag asymmetry and drift only."
+        },
+        "suggested_action": "Queue engine fix \u2014 see catalog entry.",
+        "catalog_ref": "POSE_FEET_DESYNC"
+      },
+      "catalog": {
+        "description": "Feet drift asymmetrically relative to the supporting surface during a sit clip \u2014 one foot pulls away or moves differently from the other while seated. Indicates the bone blend duration is desynchronized from the foot-anchor lerp, or independent foot IK is misfiring.",
+        "where": "engine/src/scene/AnimatedVoxelCharacter.cpp:1875-1900",
+        "evidence_required": [
+          "Per-frame asymmetry abs(feet.left.signed_distance - feet.right.signed_distance) > tolerance, OR per-frame inter-sample drift of either foot's signed_distance > tolerance within a single clip.",
+          "Note: absolute signed_distance is NOT used \u2014 the interaction editor has no floor voxels so feet legitimately sit far below the chair seat."
+        ],
+        "suggested_fix": "Drive feet-anchor lerp from the same alpha used for bone blending; reuse blend_t. Ensure left/right foot IK use the same support frame."
+      },
+      "sweep_report": "G:\\Github\\phyxel\\tools\\interaction_pipeline\\reports\\chair_wood\\20260522_221344\\report.json"
+    },
+    {
+      "finding": {
+        "id": "INITIAL_TELEPORT",
+        "kind": "engine_bug",
+        "severity": "error",
+        "message": "At first sample (clip=stand_to_sit, t=0.0), both feet are at or above the seat top (left -0.001, right -0.002; tolerance -0.100) \u2014 engine appears to have teleported the character onto the seat instead of leaving them standing in front of it.",
+        "evidence": {
+          "seat_y": 16.66699981689453,
+          "feet_y": {
+            "left": 16.66554832458496,
+            "right": 16.664892196655273
+          },
+          "feet_delta_vs_seat": {
+            "left": -0.0014514923095703125,
+            "right": -0.0021076202392578125
+          },
+          "tolerance": -0.1
+        },
+        "suggested_action": "Queue engine fix \u2014 see catalog entry.",
+        "catalog_ref": "INITIAL_TELEPORT"
+      },
+      "catalog": {
+        "description": "On first entry to a sit state the engine teleports the character onto the seat (feet at or above seat top) instead of leaving them standing in front of the chair to animate down into it.",
+        "where": "engine/src/scene/AnimatedVoxelCharacter.cpp:1231 (sitAt())",
+        "evidence_required": [
+          "First sample (clip=stand_to_sit, t=0.0): BOTH feet.y values are at or above seat_anchor.y (within ~0.10 m below the seat top counts as on/above).",
+          "Note: centroid-vs-seat is NOT used \u2014 a standing person's bone centroid is naturally around pelvis height which is below typical chair seat tops."
+        ],
+        "suggested_fix": "sitAt() should place worldPosition so feet stay on the floor at t=0 of stand_to_sit, then let the clip animate the body down into the seat. Per-clip Hips anchoring (m_hipsRef_sitDown sampled at clip END) handles seat alignment at clip END."
+      },
+      "sweep_report": "G:\\Github\\phyxel\\tools\\interaction_pipeline\\reports\\chair_wood\\20260522_221344\\report.json"
+    },
+    {
+      "finding": {
+        "id": "SEATED_THIGHS_NOT_HORIZONTAL",
+        "kind": "engine_bug",
+        "severity": "warn",
+        "message": "sitting_idle: Knees are -0.439 m from Hips in Y (expected within \u00b10.35). Thighs are not horizontal \u2014 pose may be standing or kneeling, not sitting.",
+        "evidence": {
+          "median_knee_minus_hips_y": -0.43946075439453125,
+          "tolerance": 0.35,
+          "samples": 6
+        },
+        "suggested_action": "Inspect sitting_idle clip thigh keyframes.",
+        "catalog_ref": "SEATED_THIGHS_NOT_HORIZONTAL"
+      },
+      "catalog": {},
+      "sweep_report": "G:\\Github\\phyxel\\tools\\interaction_pipeline\\reports\\chair_wood\\20260522_221344\\report.json"
+    },
+    {
+      "finding": {
+        "id": "POSE_FEET_DESYNC",
+        "kind": "engine_bug",
+        "severity": "warn",
+        "message": "Per-frame foot asymmetry or drift exceeded 0.1. max_asymmetry=0.038, max_drift=0.178.",
+        "evidence": {
+          "worst": {
+            "drift": {
+              "clip": "stand_to_sit",
+              "t": 0.6,
+              "d_left": 0.17316895723342896,
+              "d_right": 0.17831100523471832
+            }
+          },
+          "tolerance": 0.1,
+          "note": "signed_distance is distance to asset voxels (the chair), not to a floor. Absolute values are expected to be large in the interaction editor; we flag asymmetry and drift only."
+        },
+        "suggested_action": "Queue engine fix \u2014 see catalog entry.",
+        "catalog_ref": "POSE_FEET_DESYNC"
+      },
+      "catalog": {
+        "description": "Feet drift asymmetrically relative to the supporting surface during a sit clip \u2014 one foot pulls away or moves differently from the other while seated. Indicates the bone blend duration is desynchronized from the foot-anchor lerp, or independent foot IK is misfiring.",
+        "where": "engine/src/scene/AnimatedVoxelCharacter.cpp:1875-1900",
+        "evidence_required": [
+          "Per-frame asymmetry abs(feet.left.signed_distance - feet.right.signed_distance) > tolerance, OR per-frame inter-sample drift of either foot's signed_distance > tolerance within a single clip.",
+          "Note: absolute signed_distance is NOT used \u2014 the interaction editor has no floor voxels so feet legitimately sit far below the chair seat."
+        ],
+        "suggested_fix": "Drive feet-anchor lerp from the same alpha used for bone blending; reuse blend_t. Ensure left/right foot IK use the same support frame."
+      },
+      "sweep_report": "G:\\Github\\phyxel\\tools\\interaction_pipeline\\reports\\chair_wood\\20260522_221520\\report.json"
+    },
+    {
+      "finding": {
+        "id": "INITIAL_TELEPORT",
+        "kind": "engine_bug",
+        "severity": "error",
+        "message": "At first sample (clip=stand_to_sit, t=0.0), both feet are at or above the seat top (left +0.200, right +0.201; tolerance -0.100) \u2014 engine appears to have teleported the character onto the seat instead of leaving them standing in front of it.",
+        "evidence": {
+          "seat_y": 16.66699981689453,
+          "feet_y": {
+            "left": 16.866662979125977,
+            "right": 16.867965698242188
+          },
+          "feet_delta_vs_seat": {
+            "left": 0.1996631622314453,
+            "right": 0.20096588134765625
+          },
+          "tolerance": -0.1
+        },
+        "suggested_action": "Queue engine fix \u2014 see catalog entry.",
+        "catalog_ref": "INITIAL_TELEPORT"
+      },
+      "catalog": {
+        "description": "On first entry to a sit state the engine teleports the character onto the seat (feet at or above seat top) instead of leaving them standing in front of the chair to animate down into it.",
+        "where": "engine/src/scene/AnimatedVoxelCharacter.cpp:1231 (sitAt())",
+        "evidence_required": [
+          "First sample (clip=stand_to_sit, t=0.0): BOTH feet.y values are at or above seat_anchor.y (within ~0.10 m below the seat top counts as on/above).",
+          "Note: centroid-vs-seat is NOT used \u2014 a standing person's bone centroid is naturally around pelvis height which is below typical chair seat tops."
+        ],
+        "suggested_fix": "sitAt() should place worldPosition so feet stay on the floor at t=0 of stand_to_sit, then let the clip animate the body down into the seat. Per-clip Hips anchoring (m_hipsRef_sitDown sampled at clip END) handles seat alignment at clip END."
+      },
+      "sweep_report": "G:\\Github\\phyxel\\tools\\interaction_pipeline\\reports\\chair_wood\\20260522_221520\\report.json"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "cells": {
+    "chair_wood/seat_0/sit": {
+      "matrix_ok": true
+    },
+    "chair_wood/seat_0/sit/standard": {
+      "refine_ok": true,
+      "converged": false
+    },
+    "chair_wood/seat_0/sit/giant": {
+      "refine_ok": true,
+      "converged": false
+    },
+    "chair_wood/seat_0/sit/child": {
+      "refine_ok": true,
+      "converged": false
+    },
+    "door_metal/handle_0/door_open": {
+      "matrix_ok": true
+    },
+    "door_wood/handle_0/door_open": {
+      "matrix_ok": true
+    },
+    "door_wood_wide/handle_0/door_open": {
+      "matrix_ok": true
+    },
+    "test_chair/seat_0/sit": {
+      "matrix_ok": true
+    }
+  }
+}

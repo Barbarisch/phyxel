@@ -87,6 +87,12 @@ class AnimFile:
     boxes: list[Box] = field(default_factory=list)
     clips: list[Clip] = field(default_factory=list)
     bone_map: dict[str, int] = field(default_factory=dict)
+    # Verbatim leading comment / blank lines (e.g. `# archetype:` and
+    # `# clip_meta:` headers consumed by the engine's metadata loader).
+    # Preserved through parse/write round-trips so locomotion / jump /
+    # stair tuning data is never silently dropped by tools that only
+    # touch clip speeds or bone positions.
+    header_lines: list[str] = field(default_factory=list)
 
     def get_clip(self, name: str) -> Optional[Clip]:
         for c in self.clips:
@@ -114,7 +120,19 @@ def parse_anim_file(path: str | Path) -> AnimFile:
     with open(path, "r") as f:
         lines = f.readlines()
 
+    # Capture any leading comment / blank lines verbatim so the writer can
+    # round-trip them. The engine reads `# archetype:` and `# clip_meta:`
+    # headers; dropping them silently disables motion warp, foot IK, stair
+    # contact frames, etc.
     i = 0
+    while i < len(lines):
+        stripped = lines[i].strip()
+        if stripped == "" or stripped.startswith("#"):
+            af.header_lines.append(lines[i].rstrip("\n"))
+            i += 1
+            continue
+        break
+
     while i < len(lines):
         line = lines[i].strip()
 
@@ -220,6 +238,9 @@ def write_anim_file(af: AnimFile, path: str | Path):
     """Write an AnimFile to disk in .anim format."""
     path = Path(path)
     with open(path, "w", newline="\n") as f:
+        # Header comments (archetype / clip_meta) come back verbatim.
+        for hl in af.header_lines:
+            f.write(hl + "\n")
         # SKELETON
         f.write("SKELETON\n")
         f.write(f"BoneCount {len(af.bones)}\n")

@@ -2,17 +2,21 @@
 #include "core/ChunkManager.h"
 #include "core/DynamicObjectManager.h"
 #include "core/PlacedObjectManager.h"
+#include "core/KinematicVoxelManager.h"
+#include "core/KinematicAnimator.h"
 #include "core/Cube.h"
 #include "core/Subcube.h"
 #include "core/Microcube.h"
 #include "physics/PhysicsWorld.h"
 #include "utils/CoordinateUtils.h"
 #include "utils/Logger.h"
+#include <glm/gtc/matrix_transform.hpp>
 #include <fstream>
 #include <sstream>
 #include <filesystem>
 #include <iostream>
 #include <unordered_set>
+#include <algorithm>
 
 namespace Phyxel {
 
@@ -64,7 +68,8 @@ bool ObjectTemplateManager::loadTemplate(const std::string& filePath) {
                  << tmpl->cubes.size() << " cubes, " 
                  << tmpl->subcubes.size() << " subcubes, " 
                  << tmpl->microcubes.size() << " microcubes, "
-                 << tmpl->interactionPoints.size() << " interaction points");
+                 << tmpl->interactionPoints.size() << " interaction points, "
+                 << tmpl->parts.size() << " parts");
 
     m_templates[tmpl->name] = std::move(tmpl);
     return true;
@@ -87,6 +92,94 @@ void ObjectTemplateManager::parseLine(const std::string& line, VoxelTemplate& tm
             try {
                 tmpl.facingYaw = std::stof(line.substr(facingKey.size()));
             } catch (...) {}
+            return;
+        }
+
+        // Composite-part directive:
+        //   "# part: <name>"                              (static part)
+        //   "# part: <name> hinge=<keyword|x,y,z> axis=<x|y|z>"  (movable part)
+        // Voxels emitted after this line are tagged with the new part until
+        // the next `# part:` directive or end of file. Backward-compatible:
+        // files that never use the directive end up with one implicit
+        // "default" part (created on demand by VoxelTemplate::addCube etc.).
+        const std::string partKey = "# part:";
+        if (line.compare(0, partKey.size(), partKey) == 0) {
+            std::istringstream iss(line.substr(partKey.size()));
+            std::string partName;
+            iss >> partName;
+            if (partName.empty()) {
+                LOG_WARN_FMT("ObjectTemplateManager", "Empty part name in line: " << line);
+                return;
+            }
+            VoxelTemplatePart part;
+            part.name = partName;
+            std::string token;
+            while (iss >> token) {
+                auto eq = token.find('=');
+                if (eq == std::string::npos) continue;
+                std::string key = token.substr(0, eq);
+                std::string val = token.substr(eq + 1);
+                if (key == "hinge") {
+                    part.movable = true;
+                    // Try parsing "x,y,z" first; if that fails treat as keyword.
+                    float hx, hy, hz; char c1, c2;
+                    std::istringstream vs(val);
+                    if ((vs >> hx >> c1 >> hy >> c2 >> hz) && c1 == ',' && c2 == ',') {
+                        part.hingeExplicit = true;
+                        part.hingeLocal = {hx, hy, hz};
+                    } else {
+                        part.hingeKeyword = val;
+                    }
+                } else if (key == "axis") {
+                    part.axis = val;
+                } else if (key == "slide") {
+                    // slide=x+ | x- | y+ | y- | z+ | z- (or trailing sign optional => +)
+                    part.movable = true;
+                    part.slide = true;
+                    if (val.empty()) {
+                        LOG_WARN_FMT("ObjectTemplateManager",
+                            "Empty slide direction in line: " << line);
+                    } else {
+                        char ax = static_cast<char>(std::tolower(val[0]));
+                        float sign = 1.0f;
+                        if (val.size() > 1) {
+                            if (val[1] == '-') sign = -1.0f;
+                            else if (val[1] == '+') sign = 1.0f;
+                        }
+                        glm::vec3 dir{0.0f};
+                        if      (ax == 'x') dir.x = sign;
+                        else if (ax == 'y') dir.y = sign;
+                        else if (ax == 'z') dir.z = sign;
+                        else LOG_WARN_FMT("ObjectTemplateManager",
+                            "Unknown slide axis '" << val << "' in line: " << line);
+                        part.slideDirLocal = dir;
+                        part.axis = std::string(1, ax);
+                    }
+                } else {
+                    LOG_WARN_FMT("ObjectTemplateManager",
+                        "Unknown part attribute '" << key << "' in line: " << line);
+                }
+            }
+            // Reject duplicate names — they'd produce ambiguous partId routing.
+            for (const auto& existing : tmpl.parts) {
+                if (existing.name == part.name) {
+                    LOG_WARN_FMT("ObjectTemplateManager",
+                        "Duplicate part name '" << part.name << "' in template '"
+                        << tmpl.name << "' — keeping first definition");
+                    // Still switch currentPartId to the existing entry so
+                    // authors can re-open a part across the file.
+                    for (size_t i = 0; i < tmpl.parts.size(); ++i) {
+                        if (tmpl.parts[i].name == part.name) {
+                            tmpl.currentPartId = static_cast<int>(i);
+                            break;
+                        }
+                    }
+                    return;
+                }
+            }
+            tmpl.ensureDefaultPart();
+            tmpl.parts.push_back(part);
+            tmpl.currentPartId = static_cast<int>(tmpl.parts.size()) - 1;
             return;
         }
 
@@ -126,6 +219,13 @@ void ObjectTemplateManager::parseLine(const std::string& line, VoxelTemplate& tm
                 float viewAngle = 0.0f;
                 if (iss >> viewAngle) {
                     def.viewAngleHalf = viewAngle;
+                }
+                // Optional: require_compatibility flag (0/1, defaults to 1).
+                // Authors append "0" to mark a forgiving point — compat-check
+                // errors become warnings and `can_interact` returns true.
+                int requireCompat = 1;
+                if (iss >> requireCompat) {
+                    def.requireCompatibility = (requireCompat != 0);
                 }
                 tmpl.interactionPoints.push_back(def);
             } else {
@@ -203,6 +303,24 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
         return false;
     }
 
+    m_lastSpawnedKinematicIds.clear();
+
+    // Detect movable parts. Backward-compat: when there are no movable parts
+    // (the common case), every voxel routes straight to the chunk bake path.
+    auto isMovablePart = [&](int partId) -> bool {
+        if (partId < 0 || partId >= static_cast<int>(tmpl->parts.size())) return false;
+        return tmpl->parts[partId].movable;
+    };
+    bool hasMovable = false;
+    for (const auto& p : tmpl->parts) {
+        if (p.movable) { hasMovable = true; break; }
+    }
+    // Routing to the kinematic manager requires both a movable part AND a
+    // wired manager. Without the manager pointer we fall back to the legacy
+    // path so command-line tools / tests that bypass Application.cpp still
+    // work (movable voxels stay baked, behavior is identical to pre-C0b).
+    const bool routeKinematic = hasMovable && (m_kinematicManager != nullptr);
+
     // Normalize rotation to number of 90° steps
     int rotSteps = ((rotation % 360) + 360) % 360 / 90;
 
@@ -260,8 +378,37 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
         return chunk;
     };
 
+    // Phase C0b: voxels belonging to movable parts get collected here, keyed
+    // by partId, in template-local *unrotated* float coordinates (the centers
+    // of each voxel in cube units). Hinge resolution happens after the gather.
+    struct PartVoxelAcc {
+        std::vector<Core::KinematicVoxel> voxels;
+        glm::vec3 aabbMin{ std::numeric_limits<float>::max()};
+        glm::vec3 aabbMax{-std::numeric_limits<float>::max()};
+        void extend(const glm::vec3& min, const glm::vec3& max) {
+            aabbMin = glm::min(aabbMin, min);
+            aabbMax = glm::max(aabbMax, max);
+        }
+    };
+    std::unordered_map<int, PartVoxelAcc> movableAcc;
+
     // Spawn Cubes
     for (const auto& tCube : tmpl->cubes) {
+        if (routeKinematic && isMovablePart(tCube.partId)) {
+            // Local-space (unrotated) voxel descriptor. We pin world placement
+            // and rotation in the kinematic transform later so the hinge can
+            // be the rotation pivot.
+            Core::KinematicVoxel v;
+            v.localPos     = glm::vec3(tCube.relativePos) + glm::vec3(0.5f);
+            v.scale        = glm::vec3(1.0f);
+            v.parentFrac   = glm::vec3(0.0f);
+            v.materialName = tCube.material;
+            auto& acc = movableAcc[tCube.partId];
+            acc.voxels.push_back(v);
+            acc.extend(glm::vec3(tCube.relativePos),
+                       glm::vec3(tCube.relativePos) + glm::vec3(1.0f));
+            continue;
+        }
         glm::ivec3 pos = basePos + rotateOffset(tCube.relativePos);
         glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(pos);
         if (Chunk* chunk = getOrCreateChunk(pos)) {
@@ -271,6 +418,20 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
 
     // Spawn Subcubes
     for (const auto& tSub : tmpl->subcubes) {
+        if (routeKinematic && isMovablePart(tSub.partId)) {
+            const glm::vec3 parent = glm::vec3(tSub.parentRelativePos);
+            const glm::vec3 sub    = glm::vec3(tSub.subcubePos) / 3.0f;
+            const glm::vec3 size   = glm::vec3(1.0f / 3.0f);
+            Core::KinematicVoxel v;
+            v.localPos     = parent + sub + size * 0.5f;
+            v.scale        = size;
+            v.parentFrac   = sub;
+            v.materialName = tSub.material;
+            auto& acc = movableAcc[tSub.partId];
+            acc.voxels.push_back(v);
+            acc.extend(parent + sub, parent + sub + size);
+            continue;
+        }
         glm::ivec3 parentPos = basePos + rotateOffset(tSub.parentRelativePos);
         glm::ivec3 subPos = rotateLocal(tSub.subcubePos);
         glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(parentPos);
@@ -281,6 +442,21 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
 
     // Spawn Microcubes
     for (const auto& tMicro : tmpl->microcubes) {
+        if (routeKinematic && isMovablePart(tMicro.partId)) {
+            const glm::vec3 parent = glm::vec3(tMicro.parentRelativePos);
+            const glm::vec3 sub    = glm::vec3(tMicro.subcubePos) / 3.0f;
+            const glm::vec3 micro  = glm::vec3(tMicro.microcubePos) / 9.0f;
+            const glm::vec3 size   = glm::vec3(1.0f / 9.0f);
+            Core::KinematicVoxel v;
+            v.localPos     = parent + sub + micro + size * 0.5f;
+            v.scale        = size;
+            v.parentFrac   = sub + micro;
+            v.materialName = tMicro.material;
+            auto& acc = movableAcc[tMicro.partId];
+            acc.voxels.push_back(v);
+            acc.extend(parent + sub + micro, parent + sub + micro + size);
+            continue;
+        }
         glm::ivec3 parentPos = basePos + rotateOffset(tMicro.parentRelativePos);
         glm::ivec3 subPos = rotateLocal(tMicro.subcubePos);
         glm::ivec3 microPos = rotateLocal(tMicro.microcubePos);
@@ -296,6 +472,126 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
         chunk->setPhysicsBulkMode(false);
         chunk->rebuildFaces();
         chunk->updateVulkanBuffer();
+    }
+
+    // --------------------------------------------------------------------
+    // Phase C0b: emit movable parts as KinematicVoxelObjects.
+    //
+    // For each accumulated part:
+    //   * Resolve the hinge in template-local cube space (either explicit
+    //     `x,y,z` from the directive, or a keyword resolved against the
+    //     part's AABB).
+    //   * Shift every voxel's localPos so the hinge sits at the origin.
+    //   * Build the initial world transform as
+    //       Translate(worldPos + rotateOffset(hingeLocal)) * Rotate(rotation).
+    //     The kinematic transform IS the part's pivot, so future angle
+    //     updates only have to multiply a rotation about `axis`.
+    // --------------------------------------------------------------------
+    if (routeKinematic) {
+        auto resolveHingeKeyword = [](const std::string& kw,
+                                      const glm::vec3& aabbMin,
+                                      const glm::vec3& aabbMax) -> glm::vec3 {
+            glm::vec3 mid = 0.5f * (aabbMin + aabbMax);
+            glm::vec3 h = mid;
+            std::string lower = kw;
+            std::transform(lower.begin(), lower.end(), lower.begin(),
+                           [](unsigned char c){ return std::tolower(c); });
+            // Tokenize on underscore / whitespace.
+            std::istringstream tok(lower);
+            std::string seg;
+            while (std::getline(tok, seg, '_')) {
+                if      (seg == "left")   h.x = aabbMin.x;
+                else if (seg == "right")  h.x = aabbMax.x;
+                else if (seg == "bottom") h.y = aabbMin.y;
+                else if (seg == "top")    h.y = aabbMax.y;
+                else if (seg == "front")  h.z = aabbMin.z;
+                else if (seg == "back")   h.z = aabbMax.z;
+                else if (seg == "center") {} // already midpoint
+                else if (!seg.empty()) {
+                    LOG_WARN_FMT("ObjectTemplateManager",
+                        "Unknown hinge keyword token '" << seg << "'");
+                }
+            }
+            return h;
+        };
+
+        // Reuse the integer rotateOffset above by re-implementing it for
+        // floats (so the hinge — which can be fractional, e.g. subcube
+        // boundary — rotates consistently with the integer cube positions).
+        auto rotateOffsetF = [&](glm::vec3 pos) -> glm::vec3 {
+            switch (rotSteps) {
+                case 1: return glm::vec3(maxExtent.z - pos.z, pos.y, pos.x);
+                case 2: return glm::vec3(maxExtent.x - pos.x, pos.y, maxExtent.z - pos.z);
+                case 3: return glm::vec3(pos.z, pos.y, maxExtent.x - pos.x);
+                default: return pos;
+            }
+        };
+        float rotRad = glm::radians(static_cast<float>(rotSteps * 90));
+
+        for (auto& [partId, acc] : movableAcc) {
+            if (acc.voxels.empty()) continue;
+            const auto& part = tmpl->parts[partId];
+
+            glm::vec3 hingeLocal;
+            if (part.hingeExplicit) {
+                hingeLocal = part.hingeLocal;
+            } else if (!part.hingeKeyword.empty()) {
+                hingeLocal = resolveHingeKeyword(part.hingeKeyword, acc.aabbMin, acc.aabbMax);
+            } else if (part.slide) {
+                // Slide-only parts use AABB min as the local origin so the
+                // voxels keep their authored positions relative to the
+                // KVO transform (no rotation pivot needed).
+                hingeLocal = acc.aabbMin;
+            } else {
+                // Movable but no hinge specified — fall back to AABB center.
+                hingeLocal = 0.5f * (acc.aabbMin + acc.aabbMax);
+                LOG_WARN_FMT("ObjectTemplateManager",
+                    "Movable part '" << part.name << "' in template '"
+                    << tmpl->name << "' has no hinge — defaulting to AABB center");
+            }
+
+            // Shift voxels into hinge-relative space so rotation about the
+            // hinge is just a rotation of the object transform.
+            for (auto& v : acc.voxels) {
+                v.localPos -= hingeLocal;
+            }
+
+            // Initial world transform = translate(hingeWorld) * rotate(rotSteps).
+            glm::vec3 hingeWorld = glm::vec3(basePos) + rotateOffsetF(hingeLocal);
+            glm::mat4 xform = glm::translate(glm::mat4(1.0f), hingeWorld) *
+                              glm::rotate(glm::mat4(1.0f), -rotRad, glm::vec3(0, 1, 0));
+
+            std::string idHint = tmpl->name + "_" + part.name;
+            std::string kinematicId = m_kinematicManager->add(
+                idHint,
+                std::move(acc.voxels),
+                xform,
+                "",      // placedObjectId — wired by the caller via PlacedObject metadata
+                false);
+            m_lastSpawnedKinematicIds.push_back(kinematicId);
+
+            // Phase C: auto-register with the animator (if wired) so callers can
+            // drive setTargetAngle/setTargetOffset without recomputing pivots.
+            if (m_animator) {
+                Core::KinematicAnimator::PartConfig pc;
+                pc.kinematicId = kinematicId;
+                pc.hingeWorld  = hingeWorld;
+                if      (part.axis == "x") pc.rotationAxis = Core::KinematicAnimator::Axis::X;
+                else if (part.axis == "z") pc.rotationAxis = Core::KinematicAnimator::Axis::Z;
+                else                        pc.rotationAxis = Core::KinematicAnimator::Axis::Y;
+                pc.baseRotationRad = -rotRad;
+                if (part.slide) pc.slideDirLocal = part.slideDirLocal;
+                m_animator->registerPart(pc);
+            }
+
+            LOG_INFO_FMT("ObjectTemplateManager",
+                "Spawned kinematic part '" << part.name
+                << "' from template '" << tmpl->name
+                << "' (id=" << kinematicId
+                << ", hingeLocal=(" << hingeLocal.x << ","
+                << hingeLocal.y << "," << hingeLocal.z
+                << "), axis=" << part.axis << ")");
+        }
     }
 
     return true;

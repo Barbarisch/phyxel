@@ -2,12 +2,14 @@
 #include "scene/RagdollCharacter.h"
 #include "scene/CharacterAppearance.h"
 #include "scene/CharacterSkeleton.h"
+#include "scene/VoxelContactProbe.h"
 #include "graphics/AnimationSystem.h"
 #include "physics/PhysicsWorld.h"
 #include <map>
 #include <string>
 #include <vector>
 #include <optional>
+#include <unordered_set>
 
 namespace Phyxel {
     class ChunkManager;       // Forward declaration for voxel collision queries
@@ -134,7 +136,11 @@ namespace Scene {
         /// Without this, the drive is inactive in Preview so normal playback is unaffected.
         void activateStairDrive() { m_stairDriveActive = true; m_stairDriveNeedsInit = true; }
         void seekAnimation(float normalizedTime); // 0-1, snaps pose immediately
+        // Seek to a specific clip by index AND evaluate bones immediately (for editor scrubbing)
+        void seekToClip(int clipIndex, float normalizedTime);
         float getAnimationTime() const { return animTime; }
+        void forceState(AnimatedCharacterState state) { currentState = state; }
+        void resetStateTimer() { stateTimer = 0.0f; }
 
         // Warp preview: combine spatial + temporal warp for editor preview.
         // extraOffsetY   = testHeight - authoredFallDist (spatial: root bone Y at t=0).
@@ -183,6 +189,16 @@ namespace Scene {
         void standUp();
         bool isSitting() const { return m_isSitting; }
 
+        /// Refresh the cached sit offsets while the character is already sitting.
+        /// Used by the interaction editor when a per-character profile override
+        /// is written mid-session: without this the next physics tick snaps
+        /// the character back to the stale anchor position.
+        void refreshSitOffsets(const glm::vec3& sitDownOffset,
+                               const glm::vec3& sittingIdleOffset,
+                               const glm::vec3& sitStandUpOffset,
+                               float sitBlendDuration,
+                               float seatHeightOffset);
+
         /// Teleport to destinationPos, suppress kinematic movement, play clipName to completion,
         /// then resume normal movement. The clip's t=0 pose visually hides the teleport.
         void playAnchoredAnimation(const glm::vec3& destinationPos, float facingYaw,
@@ -201,6 +217,18 @@ namespace Scene {
         void setPlaybackSpeed(float s) { m_playbackSpeed = std::max(0.01f, s); }
         float getPlaybackSpeed() const { return m_playbackSpeed; }
         glm::vec3 getSeatSurfacePos() const { return m_seatSurfacePos; }
+
+        /// Sample a bone's local position from a clip at a given time. Returns
+        /// glm::vec3(0) if the clip or bone has no position keyframes. Used
+        /// internally to compute per-clip Hips anchor offsets for sit/stand.
+        glm::vec3 sampleClipBonePos(int clipIndex, int boneIndex, float time) const;
+
+        /// Position to use for camera follow / interaction queries. Equals
+        /// worldPosition normally, but while sitting it returns the visible
+        /// Hips XZ (worldPosition + rotated currentHipsLocal) so the camera
+        /// doesn't jump when worldPosition snaps at sit/idle/stand clip
+        /// boundaries. Y is kept as worldPosition.y (feet height).
+        glm::vec3 getCameraTrackPosition() const;
 
         /// Interaction archetype (e.g. "humanoid_normal"). Parsed from .anim "# archetype:" header.
         const std::string& getArchetype() const { return m_archetype; }
@@ -283,10 +311,41 @@ namespace Scene {
         };
         std::vector<BoneAABB> getBoneAABBs() const;
 
+        /// Evaluate a named animation clip at a specific normalized time [0,1] and return
+        /// world-space bone AABBs — without disturbing the character's live playback state.
+        /// overrideWorldPos is the foot-anchor position to use during evaluation (matches the
+        /// per-state sitDownOffset / sittingIdleOffset / sitStandUpOffset conventions).
+        /// Returns empty vector if the clip is not found.
+        std::vector<BoneAABB> sampleBoneAABBsAtTime(const std::string& clipName,
+                                                     float normalizedTime,
+                                                     const glm::vec3& overrideWorldPos);
+
         // Access the loaded animation clips (for use as motor targets in physics mode)
         const std::vector<Phyxel::AnimationClip>& getAnimationClips() const { return clips; }
         std::vector<Phyxel::AnimationClip>& getAnimationClipsMut() { return clips; }
         const Phyxel::Skeleton& getSkeleton() const { return skeleton; }
+
+        // ---- Motion trace (per-frame ring buffer for slide/teleport detection) ----
+        // Recorded at the END of every update() call. Used by the interaction pipeline
+        // to verify that worldPosition does not jump unexpectedly during sit/stand
+        // transitions. Includes enough state to attribute any jump to a specific gate
+        // (m_isSitting, isBlending, currentClipIndex).
+        struct MotionTraceEntry {
+            float     totalTime;       // m_totalTime when this entry was recorded
+            float     deltaTime;       // deltaTime passed to update()
+            glm::vec3 worldPos;        // worldPosition AFTER update()
+            glm::vec3 hipsLocal;       // Hips bone localPosition (model space)
+            int       state;           // currentState (AnimatedCharacterState as int)
+            bool      isSitting;       // m_isSitting flag
+            bool      isBlending;      // isBlending flag
+            int       clipIndex;       // currentClipIndex
+            float     animTime;        // animTime at record
+        };
+
+        const std::vector<MotionTraceEntry>& getMotionTrace() const { return m_motionTrace; }
+        void clearMotionTrace() { m_motionTrace.clear(); }
+        void setMotionTraceCapacity(size_t cap) { m_motionTraceCapacity = cap; }
+        size_t motionTraceCapacity() const { return m_motionTraceCapacity; }
 
         // Get the physics controller body's linear velocity (for GPU particle collision)
         glm::vec3 getControllerVelocity() const;
@@ -365,6 +424,10 @@ namespace Scene {
 
         int currentClipIndex = -1;
         float animTime = 0.0f;
+
+        // One-shot dedup of "clip missing Speed" warnings emitted from the
+        // movement step. Keyed by clip name.
+        std::unordered_set<std::string> m_warnedSpeedFallback;
         
         // Blending support
         int previousClipIndex = -1;
@@ -394,6 +457,70 @@ namespace Scene {
         float currentTurnInput = 0.0f;
         float currentStrafeInput = 0.0f;
         float currentYaw = 0.0f;
+
+        // Frame-coherent voxel-contact snapshot. Refreshed once per update().
+        // Read by edge-teeter / climb-up / climb-down FSM consumers, and by
+        // the MCP /api/character/contact debug route.
+        CharacterContact m_lastContact;
+
+        // Phase M5 — Ledge mantle. When active, resolveKinematicMovement
+        // overrides gravity and drives the capsule along a fixed timeline
+        // from (startXZ, startY) to (endXZ, endY) over m_mantleDuration.
+        bool      m_mantleActive   = false;
+        float     m_mantleTime     = 0.0f;
+        float     m_mantleDuration = 0.7f;
+        glm::vec3 m_mantleStart{0.0f};
+        glm::vec3 m_mantleEnd{0.0f};
+        // True when an active Preview state was entered by an override
+        // (auto-mantle / ladder), so the FSM knows to auto-return to Idle
+        // when the override clears. False for asset-editor Preview.
+        bool      m_previewOwnedByOverride = false;
+    public:
+        // Returns true if a mantle was successfully started.
+        bool beginMantle(const glm::vec3& start, const glm::vec3& end,
+                         float durationSec = 0.7f);
+        bool isMantleActive() const { return m_mantleActive; }
+
+        // Phase M7 — Ladder climb. Continuous (not timeline-based): the
+        // character locks XZ to the rail centreline, gravity is suspended,
+        // and m_ladderInput.y drives vertical velocity. Caller drives the
+        // climb each tick with setLadderInput(); detach via endLadderClimb().
+        bool beginLadderClimb(const glm::vec3& railXZ_topY,
+                              float bottomY,
+                              float climbSpeed = 1.5f);
+        void setLadderInput(float vertical);   // +1 = up, -1 = down, 0 = hold
+        void endLadderClimb();
+        bool isOnLadder() const { return m_ladderActive; }
+        glm::vec2 getLadderRailXZ() const { return glm::vec2(m_ladderRailX, m_ladderRailZ); }
+
+        // Public hook so the API server can simulate a player-style jump for
+        // FSM-wire tests (Phase M5/M6 integration smokes).
+        void requestJump() { jumpRequested = true; }
+    private:
+        // M7 ladder state
+        bool  m_ladderActive   = false;
+        float m_ladderRailX    = 0.0f;
+        float m_ladderRailZ    = 0.0f;
+        float m_ladderTopY     = 0.0f;
+        float m_ladderBottomY  = 0.0f;
+        float m_ladderSpeed    = 1.5f;
+        float m_ladderInput    = 0.0f;
+    private:
+
+        // Phase M2 — Edge teeter: when enabled and the character is idle near
+        // a voxel-column edge, apply a small visual pelvis offset away from the
+        // edge so the pose visibly "shrinks back" from the drop. Default off
+        // (opt-in via MCP set_teeter_blend) to keep existing visuals unchanged.
+        bool  m_enableTeeterBlend  = false;
+        float m_teeterAmount       = 0.0f;   // 0..1, lerped each frame
+        glm::vec2 m_teeterDirXZ    = {0.0f, 0.0f};  // unit XZ direction away from edge
+    public:
+        const CharacterContact& getLastContact() const { return m_lastContact; }
+        void  setTeeterBlendEnabled(bool on) { m_enableTeeterBlend = on; if (!on) { m_teeterAmount = 0.0f; } }
+        bool  isTeeterBlendEnabled() const { return m_enableTeeterBlend; }
+        float getTeeterAmount() const { return m_teeterAmount; }
+        glm::vec2 getTeeterDirXZ() const { return m_teeterDirXZ; }
+    private:
 
         // External velocity override (used by NPC patrol behavior)
         glm::vec3 externalVelocity{0.0f};
@@ -541,6 +668,29 @@ namespace Scene {
         glm::vec3 m_sittingIdleOffset{0.0f};
         glm::vec3 m_sitStandUpOffset{0.0f};
         float m_sitBlendDuration = 0.0f;    // crossfade duration for sit transitions
+        float m_lastSeatHeightOffset = 0.0f; // last seatHeightOffset baked into m_seatSurfacePos.y
+
+        // ---- Per-clip Hips reference offsets (Mixamo sit chain compensation) ----
+        // The three sit clips were authored with different model-space origins:
+        //   stand_to_sit ends with Hips at z=-0.471 (leaned back in chair)
+        //   sitting_idle starts with Hips at z=+0.035 (upright on seat)
+        //   sit_to_stand starts with Hips at z=+0.033, ends at z=+0.510 (forward)
+        // To make the visible Hips world position continuous across clip boundaries,
+        // each sit state shifts worldPosition by its reference Hips so that
+        //   worldPosition + rotateByYaw(hipsRef) == seat anchor
+        // at the clip's reference frame. Sampled once in sitAt() from the clip data.
+        glm::vec3 m_hipsRef_sitDown{0.0f};     // hips XZ at END of stand_to_sit
+        glm::vec3 m_hipsRef_sittingIdle{0.0f}; // hips XZ at START of sitting_idle
+        glm::vec3 m_hipsRef_sitStandUp{0.0f};  // hips XZ at START of sit_to_stand
+
+        // When true, the next clip-change should be a hard cut (blendDuration=0).
+        // Defense-in-depth in case the sit-cycle exit triggers a clip switch from
+        // the normal-path animation selection rather than the sit-block path.
+        bool m_pendingClipSnap = false;
+
+        // Motion trace ring buffer — see public MotionTraceEntry
+        std::vector<MotionTraceEntry> m_motionTrace;
+        size_t m_motionTraceCapacity = 1024;
 
         // Per-limb voxel collision
         Phyxel::ChunkManager* m_chunkManager = nullptr;

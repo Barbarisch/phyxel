@@ -1,0 +1,131 @@
+{
+  "started_at": "2026-05-19T22:43:46",
+  "finished_at": "2026-05-20T08:45:41",
+  "asset_path": "G:\\Github\\phyxel\\resources\\templates\\chair_wood.voxel",
+  "archetype": "humanoid_normal",
+  "template_name": "chair_wood",
+  "point_id": "seat_0",
+  "engine_fix_queue": "G:\\Github\\phyxel\\tools\\interaction_pipeline\\engine_fix_queue.json",
+  "game_smoke_result": null,
+  "converged": true,
+  "notes": [],
+  "iterations": [
+    {
+      "iteration": 1,
+      "sweep_report": "G:\\Github\\phyxel\\tools\\interaction_pipeline\\reports\\chair_wood\\20260519_224349\\report.json",
+      "detection": {
+        "profile_findings": [],
+        "engine_findings": [
+          {
+            "id": "POSITION_SNAP_AT_CLIP_BOUNDARY",
+            "kind": "engine_bug",
+            "severity": "error",
+            "message": "Centroid jumped 0.473 world units between stand_to_sit@t=1.0 and sitting_idle@t=0.0 (threshold 0.1).",
+            "evidence": {
+              "from_clip": "stand_to_sit",
+              "to_clip": "sitting_idle",
+              "from_centroid": [
+                13.34479808807373,
+                16.862709045410156,
+                13.637138366699219
+              ],
+              "to_centroid": [
+                13.342060089111328,
+                16.88884162902832,
+                14.109671592712402
+              ],
+              "distance": 0.4732632018774594
+            },
+            "suggested_action": "Queue engine fix \u2014 see catalog entry.",
+            "catalog_ref": "POSITION_SNAP_AT_CLIP_BOUNDARY"
+          },
+          {
+            "id": "POSE_FEET_DESYNC",
+            "kind": "engine_bug",
+            "severity": "warn",
+            "message": "Feet diverged from the support surface across multiple consecutive samples. Tolerance 0.1, persistent_frames=2.",
+            "evidence": {
+              "worst": {
+                "left": {
+                  "value": 0.7424745559692383,
+                  "frame": 11,
+                  "clip": "sit_to_stand",
+                  "t": 1.0
+                },
+                "right": {
+                  "value": 0.6750812530517578,
+                  "frame": 11,
+                  "clip": "sit_to_stand",
+                  "t": 1.0
+                }
+              },
+              "tolerance": 0.1
+            },
+            "suggested_action": "Queue engine fix \u2014 see catalog entry.",
+            "catalog_ref": "POSE_FEET_DESYNC"
+          }
+        ],
+        "profile_count": 0,
+        "engine_count": 2
+      },
+      "tuner": {
+        "profile_deltas": [],
+        "engine_findings": [
+          {
+            "id": "POSITION_SNAP_AT_CLIP_BOUNDARY",
+            "kind": "engine_bug",
+            "severity": "error",
+            "message": "Centroid jumped 0.473 world units between stand_to_sit@t=1.0 and sitting_idle@t=0.0 (threshold 0.1).",
+            "evidence": {
+              "from_clip": "stand_to_sit",
+              "to_clip": "sitting_idle",
+              "from_centroid": [
+                13.34479808807373,
+                16.862709045410156,
+                13.637138366699219
+              ],
+              "to_centroid": [
+                13.342060089111328,
+                16.88884162902832,
+                14.109671592712402
+              ],
+              "distance": 0.4732632018774594
+            },
+            "suggested_action": "Queue engine fix \u2014 see catalog entry.",
+            "catalog_ref": "POSITION_SNAP_AT_CLIP_BOUNDARY"
+          },
+          {
+            "id": "POSE_FEET_DESYNC",
+            "kind": "engine_bug",
+            "severity": "warn",
+            "message": "Feet diverged from the support surface across multiple consecutive samples. Tolerance 0.1, persistent_frames=2.",
+            "evidence": {
+              "worst": {
+                "left": {
+                  "value": 0.7424745559692383,
+                  "frame": 11,
+                  "clip": "sit_to_stand",
+                  "t": 1.0
+                },
+                "right": {
+                  "value": 0.6750812530517578,
+                  "frame": 11,
+                  "clip": "sit_to_stand",
+                  "t": 1.0
+                }
+              },
+              "tolerance": 0.1
+            },
+            "suggested_action": "Queue engine fix \u2014 see catalog entry.",
+            "catalog_ref": "POSE_FEET_DESYNC"
+          }
+        ],
+        "confidence": 0.8,
+        "recommend_continue": false,
+        "rationale": "Engine bugs detected; deferring profile tuning until engine fixes land.",
+        "backend": "heuristic"
+      },
+      "applied_profile": {}
+    }
+  ]
+}

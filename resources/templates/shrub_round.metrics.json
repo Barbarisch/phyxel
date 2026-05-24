@@ -1,0 +1,15 @@
+{
+  "schema_version": "asset_metrics.v1",
+  "template_name": "shrub_round",
+  "overall_min": [
+    0.2222222222222222,
+    0.0,
+    0.5555555555555556
+  ],
+  "overall_max": [
+    2.111111111111111,
+    1.4444444444444444,
+    2.2222222222222223
+  ],
+  "interaction_points": []
+}

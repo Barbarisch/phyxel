@@ -1,0 +1,15 @@
+{
+  "schema_version": "asset_metrics.v1",
+  "template_name": "tree_oak",
+  "overall_min": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "overall_max": [
+    1.0,
+    1.9999999999999998,
+    1.0
+  ],
+  "interaction_points": []
+}

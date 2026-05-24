@@ -1,0 +1,15 @@
+{
+  "schema_version": "asset_metrics.v1",
+  "template_name": "fern",
+  "overall_min": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "overall_max": [
+    1.0,
+    0.6666666666666666,
+    1.0
+  ],
+  "interaction_points": []
+}

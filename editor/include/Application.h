@@ -2,6 +2,7 @@
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+#include <chrono>
 #include "core/Types.h"
 #include "vulkan/VulkanDevice.h"
 #include "vulkan/RenderPipeline.h"
@@ -65,6 +66,7 @@
 #include "core/interactions/DoorInteractionHandler.h"
 #include "core/interactions/NPCInteractionHandler.h"
 #include "core/KinematicVoxelManager.h"
+#include "core/KinematicAnimator.h"
 #include "core/DoorManager.h"
 #include "core/DynamicFurnitureManager.h"
 #include "core/LocationRegistry.h"
@@ -223,6 +225,7 @@ private:
     std::unique_ptr<Core::EntityRegistry> entityRegistry;
     std::unique_ptr<Core::APICommandQueue> apiCommandQueue;
     std::unique_ptr<Core::EngineAPIServer> apiServer;
+    std::chrono::steady_clock::time_point m_apiServerStartTime;
     std::unique_ptr<Core::JobSystem> jobSystem;
     std::unique_ptr<Core::Inventory> inventory;
     std::unique_ptr<Core::GameEventLog> gameEventLog;
@@ -247,6 +250,7 @@ private:
 
     // Door / Kinematic Voxel System
     std::unique_ptr<Core::KinematicVoxelManager> kinematicVoxelManager;
+    std::unique_ptr<Core::KinematicAnimator>     kinematicAnimator;
     std::unique_ptr<Core::DoorManager> doorManager;
     std::unique_ptr<Core::DynamicFurnitureManager> dynamicFurnitureManager;
 

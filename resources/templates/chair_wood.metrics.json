@@ -1,0 +1,39 @@
+{
+  "schema_version": "asset_metrics.v1",
+  "template_name": "chair_wood",
+  "overall_min": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "overall_max": [
+    0.6666666666666666,
+    1.9999999999999998,
+    0.6666666666666666
+  ],
+  "interaction_points": [
+    {
+      "point_id": "seat_0",
+      "kind": "seat",
+      "local_position": [
+        0.333,
+        0.667,
+        0.333
+      ],
+      "facing_yaw": 0.0,
+      "features": {
+        "seat_top_y": 0.6666666666666666,
+        "seat_width_x": 0.6666666666666666,
+        "seat_depth_z": 0.6666666666666666,
+        "seat_center": [
+          0.3333333333333333,
+          0.6666666666666666,
+          0.3333333333333333
+        ],
+        "front_edge_z": 0.6666666666666666,
+        "backrest_height": 1.333333333333333,
+        "backrest_present": true
+      }
+    }
+  ]
+}

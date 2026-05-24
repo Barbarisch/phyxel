@@ -59,10 +59,33 @@ CLIP_NAME_MAP = {
     "right turn (2)": "turn_right_sharp",
     "Open Door Outwards": "open_door_out",
     "Opening Door Inwards": "open_door_in",
+    "Opening A Lid": "open_lid",
+    "Closing A Lid": "close_lid",
     "Picking Up": "pickup",
     "Picking Up Object": "pickup_object",
     "Putting Down": "put_down",
     "Working On Device": "work_device",
+    # Phase D/E/H/I — pivot / control kinds
+    "Pulling Lever": "pull_lever",
+    "Pull Heavy Object": "pull_heavy",
+    "Push": "push",
+    # Phase G — carry kit
+    "Carrying": "carry_idle",
+    # Phase F — climb kit
+    "Climbing": "climb_loop",
+    "Climbing Ladder": "climb_ladder",
+    "Start Climbing Ladder": "climb_ladder_start",
+    # Phase J — poses
+    "Kneel": "kneel",
+    "Laying Idle": "lay_idle",
+    "Standing Up": "stand_up",
+    # Combat / flavor (richness)
+    "Center Block": "block_center",
+    "Dying": "death_front",
+    "Dying Backwards": "death_back",
+    "Rallying": "rally",
+    "Salute": "salute",
+    "Standing 1H Magic Attack 01": "cast_1h",
 }
 
 
@@ -175,7 +198,18 @@ def main():
         print(f"  Source clip: '{src_clip.name}' ({src_clip.duration:.3f}s, {len(src_clip.channels)} channels)")
         
         remapped_clip = remap_clip(src_clip, bone_remap, clip_name)
-        
+
+        # If the master already has this clip with an authored Speed line
+        # (e.g. `walk`/`run` whose locomotion speed was hand-tuned during the
+        # original asset pass), preserve it. Mixamo FBX has no root-motion
+        # speed metadata, so a blind overwrite would silently drop the value
+        # and the engine would fall back to its hardcoded constants — making
+        # the W key feel completely wrong.
+        existing = next((c for c in master.clips if c.name == clip_name), None)
+        if existing is not None and existing.speed is not None and remapped_clip.speed is None:
+            print(f"  Preserving authored speed {existing.speed} for '{clip_name}'")
+            remapped_clip.speed = existing.speed
+
         # Remove old version if exists
         master.remove_clip(clip_name)
         master.clips.append(remapped_clip)
@@ -197,6 +231,22 @@ def main():
     
     # Step 5: Write the updated master file
     if imported_count > 0:
+        # Guard against the regression where locomotion clips lose their
+        # authored Speed line: the engine falls back to hardcoded constants
+        # and movement feels wrong. Refuse to write if a known locomotion
+        # clip ended up with no speed.
+        LOCOMOTION_CLIPS = {"walk", "run", "unarmed_walk", "crouched_walking",
+                            "walking_backward", "fast_run",
+                            "left_strafe_walk", "right_strafe_walk",
+                            "left_strafe", "right_strafe"}
+        missing = [c.name for c in master.clips
+                   if c.name in LOCOMOTION_CLIPS and not c.speed]
+        if missing:
+            print("ERROR: refusing to write — locomotion clips missing Speed:")
+            for n in missing:
+                print(f"  - {n}")
+            print("Fix the import source or add a Speed line, then rerun.")
+            return
         write_anim_file(master, HUMANOID_FILE)
         print(f"=== Imported {imported_count} clips into {HUMANOID_FILE} ===")
         print(f"Master now has {len(master.clips)} clips")

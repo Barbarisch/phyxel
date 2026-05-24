@@ -1,0 +1,26 @@
+# ==========================================================
+# ASSET METADATA
+# name:         bedroll_test
+# display_name: Bedroll (Test)
+# description:  Flat bedroll for Phase J lay_idle / pose interaction tests.
+# category:     furniture
+# subcategory:  pose_anchor
+# tags:         bedroll, sleep, lay, ground
+# materials:    Wood, Leaf
+# facing:       +Y (lie on top)
+# bounds:       1W x 1H x 2D
+# primitives:   6 S
+# author:       phyxel
+# method:       hand-authored
+# created:      2026-05-21
+# version:      1
+# ==========================================================
+
+# Two-cube-long flat mat. Static — no movable parts.
+
+S 0 0 0  0 0 0  Wood
+S 0 0 0  1 0 0  Wood
+S 0 0 0  2 0 0  Wood
+S 0 0 1  0 0 0  Leaf
+S 0 0 1  1 0 0  Leaf
+S 0 0 1  2 0 0  Leaf

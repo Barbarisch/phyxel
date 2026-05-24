@@ -3,6 +3,12 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+// Forward-declare GetCurrentProcessId rather than pulling in <windows.h>, which
+// pollutes the global namespace (NEAR/FAR/etc.) and breaks our Frustum and
+// Shell ID headers when included this early in the TU.
+extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(void);
+#else
+#include <unistd.h>
 #endif
 #include "Application.h"
 #include "core/MaterialRegistry.h"
@@ -50,6 +56,8 @@
 #include "core/ItemRegistry.h"
 #include "core/EquipmentSystem.h"
 #include "core/CombatSystem.h"
+#include "core/Cube.h"
+#include "physics/VoxelRigidBody.h"
 #include "ui/MenuDefinition.h"
 #include "ui/UISystem.h"
 #include "ui/GameMenus.h"
@@ -62,6 +70,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <set>
 #include <chrono>
 #include <thread>
 #include <cstring>
@@ -395,8 +404,42 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     jobSystem = std::make_unique<Core::JobSystem>();
     int apiPort = (m_apiPortOverride > 0) ? m_apiPortOverride : engineConfig.apiPort;
     apiServer = std::make_unique<Core::EngineAPIServer>(apiCommandQueue.get(), apiPort, jobSystem.get());
+    m_apiServerStartTime = std::chrono::steady_clock::now();
 
     // Wire up read-only handlers (called directly on HTTP thread  --  must be thread-safe)
+    // Engine status — used by external lifecycle controllers (interaction_pipeline).
+    apiServer->setEngineStatusHandler([this]() -> nlohmann::json {
+        nlohmann::json s;
+        s["running"] = true;
+        const char* modeStr = "no_project";
+        const char* loadedAsset = nullptr;
+        std::string loadedAssetStr;
+        if (m_interactionEditorMode) {
+            modeStr = "interaction_editor";
+            loadedAssetStr = m_interactionEditorFile;
+        } else if (m_assetEditorMode) {
+            modeStr = "asset_editor";
+            loadedAssetStr = m_assetEditorFile;
+        } else if (m_animEditorMode) {
+            modeStr = "anim_editor";
+            loadedAssetStr = m_animEditorFile;
+        } else if (!projectDir_.empty()) {
+            modeStr = "project";
+        }
+        s["mode"] = modeStr;
+        s["loaded_asset"]   = loadedAssetStr.empty() ? nlohmann::json(nullptr) : nlohmann::json(loadedAssetStr);
+        s["loaded_project"] = projectDir_.empty()    ? nlohmann::json(nullptr) : nlohmann::json(projectDir_);
+#ifdef _WIN32
+        s["pid"] = static_cast<int>(GetCurrentProcessId());
+#else
+        s["pid"] = static_cast<int>(getpid());
+#endif
+        auto now = std::chrono::steady_clock::now();
+        float uptime = std::chrono::duration<float>(now - m_apiServerStartTime).count();
+        s["uptime_s"] = uptime;
+        return s;
+    });
+
     apiServer->setEntityListHandler([this]() -> nlohmann::json {
         return entityRegistry->toJson();
     });
@@ -1305,6 +1348,17 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     if (renderCoordinator) {
         renderCoordinator->setKinematicVoxelManager(kinematicVoxelManager.get());
     }
+    // Phase C0b: let ObjectTemplateManager route movable-part voxels here.
+    if (objectTemplateManager) {
+        objectTemplateManager->setKinematicVoxelManager(kinematicVoxelManager.get());
+    }
+
+    // Phase C: animation driver for kinematic parts (open/close, slide).
+    kinematicAnimator = std::make_unique<Core::KinematicAnimator>();
+    kinematicAnimator->setKinematicVoxelManager(kinematicVoxelManager.get());
+    if (objectTemplateManager) {
+        objectTemplateManager->setKinematicAnimator(kinematicAnimator.get());
+    }
 
     // Initialize Door Manager
     doorManager = std::make_unique<Core::DoorManager>();
@@ -1336,10 +1390,17 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
     // Initialize Interaction Profile Manager (per-archetype tuning data)
     interactionProfileManager = std::make_unique<Core::InteractionProfileManager>();
+    // Load engine built-in profiles first so projects that don't ship their own
+    // interactions/ directory still get the correct sitting offsets etc.
+    interactionProfileManager->setBasePath("resources/interactions/");
+    interactionProfileManager->loadArchetype("humanoid_normal");
+    // If a project directory exists, set it as the save path and allow project-specific
+    // profiles to override (loadArchetype only clears on successful open, so a missing
+    // project file leaves the engine defaults intact).
     if (!projectDir_.empty()) {
         interactionProfileManager->setBasePath(projectDir_ + "/resources/interactions/");
+        interactionProfileManager->loadArchetype("humanoid_normal");
     }
-    interactionProfileManager->loadArchetype("humanoid_normal");
     interactionManager->setInteractionProfileManager(interactionProfileManager.get());
 
     // Create interaction handler registry and register handlers
@@ -2602,6 +2663,12 @@ void Application::update(float deltaTime) {
         doorManager->update(deltaTime);
     }
 
+    // Phase C: drive composite-part kinematic transforms (chests, drawers,
+    // generic hinged/slide parts emitted by ObjectTemplateManager).
+    if (kinematicAnimator) {
+        kinematicAnimator->update(deltaTime);
+    }
+
     // Update dynamic furniture (sync physics transforms, re-staticize on rest)
     if (dynamicFurnitureManager) {
         dynamicFurnitureManager->update(deltaTime);
@@ -2690,7 +2757,13 @@ void Application::update(float deltaTime) {
             camera->setPitch(inputManager->getPitch());
 
             if (currentControlTarget == ControlTarget::AnimatedCharacter && animatedCharacter) {
-                camera->updatePositionFromTarget(animatedCharacter->getPosition(), 0.5f);
+                // Use camera-track position rather than raw worldPosition. While
+                // sitting, worldPosition snaps ~0.5m at clip boundaries to keep
+                // the visible Hips bone aligned with the seat across the three
+                // sit clips with different model-space origins. The camera
+                // should follow the visible Hips XZ so it doesn't lurch at those
+                // boundaries.
+                camera->updatePositionFromTarget(animatedCharacter->getCameraTrackPosition(), 0.5f);
             }
         }
 
@@ -5847,6 +5920,251 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
     return false; // not a debug command
 }
 
+// ============================================================================
+// Interaction compatibility helpers (Phase 2.3 gate).
+//
+// These helpers let `sit_character` (and the read-only `can_interact` query)
+// refuse a (character, asset) pairing when geometry says it won't work — e.g.,
+// a giant whose hips don't fit on a child's chair. They mirror the rules in
+// `tools/interaction_pipeline/interaction_kinds/sit.py` so offline analysis
+// and the runtime gate agree.
+//
+// We deliberately keep the C++ side dependency-light: the pipeline owns
+// generating sidecar `<template>.metrics.json` files; the engine just reads
+// them. If a sidecar is missing the gate degrades to "no checks possible" —
+// it does not block interaction.
+// ============================================================================
+namespace {
+
+namespace fs = std::filesystem;
+
+/// Minimal character metric scalars needed by current compatibility rules.
+/// Mirrors the fields produced by `compute_character_metrics`. Values are in
+/// metres in the character's world-space at the current bind pose.
+struct CharScalarMetrics {
+    float total_height = 0.0f;
+    float hip_height   = 0.0f;
+    float eye_height   = 0.0f;
+    float leg_length   = 0.0f;
+    float arm_reach    = 0.0f;
+    float shoulder_width = 0.0f;
+    float hip_width    = 0.0f;
+    float body_depth   = 0.0f;
+    float sitting_height = 0.0f;
+};
+
+/// Suffix-match a bone name against candidates, treating ':' as a namespace
+/// separator (so "mixamorig:Hips" matches the candidate "Hips").
+static const Phyxel::Scene::AnimatedVoxelCharacter::BoneAABB*
+findAABB(const std::vector<Phyxel::Scene::AnimatedVoxelCharacter::BoneAABB>& v,
+         const std::vector<std::string>& candidates)
+{
+    for (const auto& cand : candidates) {
+        for (const auto& b : v) {
+            const auto& nm = b.boneName;
+            if (nm == cand
+                || (nm.size() > cand.size()
+                    && nm.compare(nm.size() - cand.size(), cand.size(), cand) == 0
+                    && (nm.size() == cand.size() || nm[nm.size() - cand.size() - 1] == ':'))) {
+                return &b;
+            }
+        }
+    }
+    return nullptr;
+}
+
+/// Compute the scalar metrics used by interaction compatibility rules.
+/// Same approach as the `compute_character_metrics` handler but returns the
+/// minimal struct used by the gate (no per-bone breakdown).
+static CharScalarMetrics computeCharScalarMetrics(Phyxel::Scene::AnimatedVoxelCharacter* ch) {
+    CharScalarMetrics m;
+    if (!ch) return m;
+
+    auto liveAABBs = ch->getBoneAABBs();
+    auto sitAABBs  = ch->sampleBoneAABBsAtTime("sitting_idle", 0.5f, glm::vec3(0.0f));
+
+    float yMin =  std::numeric_limits<float>::infinity();
+    float yMax = -std::numeric_limits<float>::infinity();
+    for (const auto& b : liveAABBs) {
+        yMin = std::min(yMin, b.center.y - b.halfExtents.y);
+        yMax = std::max(yMax, b.center.y + b.halfExtents.y);
+    }
+    m.total_height = (std::isfinite(yMin) && std::isfinite(yMax)) ? (yMax - yMin) : 0.0f;
+
+    const auto* hips  = findAABB(liveAABBs, {"Hips", "Pelvis", "mixamorig:Hips"});
+    const auto* head  = findAABB(liveAABBs, {"Head", "mixamorig:Head"});
+    const auto* lSh   = findAABB(liveAABBs, {"LeftArm", "LeftShoulder", "mixamorig:LeftArm"});
+    const auto* rSh   = findAABB(liveAABBs, {"RightArm", "RightShoulder", "mixamorig:RightArm"});
+    const auto* lUp   = findAABB(liveAABBs, {"LeftUpLeg", "mixamorig:LeftUpLeg"});
+    const auto* rUp   = findAABB(liveAABBs, {"RightUpLeg", "mixamorig:RightUpLeg"});
+    const auto* lFt   = findAABB(liveAABBs, {"LeftFoot", "mixamorig:LeftFoot"});
+    const auto* lLg   = findAABB(liveAABBs, {"LeftLeg", "mixamorig:LeftLeg"});
+    const auto* spine = findAABB(liveAABBs, {"Spine2", "Spine1", "Spine", "mixamorig:Spine2"});
+
+    m.hip_height      = hips ? hips->center.y - yMin : 0.0f;
+    m.eye_height      = head ? head->center.y - yMin : 0.0f;
+    m.shoulder_width  = (lSh && rSh) ? glm::distance(lSh->center, rSh->center) : 0.0f;
+    m.hip_width       = (lUp && rUp) ? glm::distance(lUp->center, rUp->center) : 0.0f;
+    m.body_depth      = spine ? spine->halfExtents.z * 2.0f : 0.0f;
+    if (hips && lFt)      m.leg_length = hips->center.y - (lFt->center.y - lFt->halfExtents.y);
+    else if (hips && lLg) m.leg_length = hips->center.y - (lLg->center.y - lLg->halfExtents.y);
+    else                  m.leg_length = m.hip_height;
+
+    // Arm reach via bind-pose chain length Hand->Shoulder.
+    const auto& skel = ch->getSkeleton();
+    auto findBoneId = [&](std::initializer_list<const char*> names) -> int {
+        for (const auto* cand : names) {
+            std::string c(cand);
+            for (const auto& kv : skel.boneMap) {
+                const auto& nm = kv.first;
+                if (nm == c
+                    || (nm.size() > c.size()
+                        && nm.compare(nm.size() - c.size(), c.size(), c) == 0
+                        && (nm.size() == c.size() || nm[nm.size() - c.size() - 1] == ':'))) {
+                    return kv.second;
+                }
+            }
+        }
+        return -1;
+    };
+    int handId = findBoneId({"LeftHand", "mixamorig:LeftHand"});
+    int shId   = findBoneId({"LeftArm", "LeftShoulder", "mixamorig:LeftArm"});
+    if (handId >= 0 && shId >= 0) {
+        float total = 0.0f;
+        int cur = handId, guard = 0;
+        while (cur != -1 && cur != shId && guard < 64) {
+            total += glm::length(skel.bones[cur].localPosition);
+            cur = skel.bones[cur].parentId;
+            ++guard;
+        }
+        m.arm_reach = total;
+    }
+
+    if (!sitAABBs.empty()) {
+        const auto* sHead = findAABB(sitAABBs, {"Head", "mixamorig:Head"});
+        const auto* sHips = findAABB(sitAABBs, {"Hips", "Pelvis", "mixamorig:Hips"});
+        if (sHead && sHips) {
+            m.sitting_height = (sHead->center.y + sHead->halfExtents.y)
+                             - (sHips->center.y - sHips->halfExtents.y);
+        }
+    }
+    return m;
+}
+
+/// Try cwd-relative then current_path-relative paths for the sidecar.
+/// Returns parsed JSON on success; null json on miss.
+static nlohmann::json loadAssetMetricsSidecar(const std::string& templateName) {
+    fs::path candidates[] = {
+        fs::path("resources/templates") / (templateName + ".metrics.json"),
+        fs::current_path() / "resources" / "templates" / (templateName + ".metrics.json"),
+    };
+    for (const auto& p : candidates) {
+        if (!fs::exists(p)) continue;
+        try {
+            std::ifstream in(p);
+            return nlohmann::json::parse(in);
+        } catch (...) {
+            // Treat parse failures as "no sidecar" — better to allow than to wrongly block.
+            return nullptr;
+        }
+    }
+    return nullptr;
+}
+
+/// Look up a seat-kind interaction point in a parsed sidecar and return its
+/// `features` object (or null if not present / not a seat).
+static nlohmann::json findSeatFeaturesInSidecar(const nlohmann::json& sidecar,
+                                                const std::string& pointId) {
+    if (!sidecar.is_object()) return nullptr;
+    if (!sidecar.contains("interaction_points")) return nullptr;
+    for (const auto& p : sidecar["interaction_points"]) {
+        if (!p.is_object()) continue;
+        if (p.value("point_id", std::string{}) != pointId) continue;
+        if (p.value("kind", std::string{}) != "seat") return nullptr;
+        if (p.contains("features") && p["features"].is_object()) return p["features"];
+        return nlohmann::json::object();
+    }
+    return nullptr;
+}
+
+/// Run the sit-kind compatibility rules. Appends `{rule_id, message, measured,
+/// required, severity}` entries into `issues`. Returns true if any issue had
+/// severity == "error" (i.e., the interaction should be refused).
+///
+/// Margins MUST stay in sync with
+/// `tools/interaction_pipeline/interaction_kinds/sit.py`.
+static bool runSitCompatChecks(const CharScalarMetrics& c,
+                               const nlohmann::json& seatFeatures,
+                               nlohmann::json& issues)
+{
+    constexpr float HIP_CLEARANCE   = 0.05f;
+    constexpr float DEPTH_CLEARANCE = 0.10f;
+    constexpr float FOOT_DROP_MAX   = 0.20f;
+    constexpr float BACKREST_HEAD_MAX = 0.10f;
+
+    const float seat_width  = seatFeatures.value("seat_width_x", 0.0f);
+    const float seat_depth  = seatFeatures.value("seat_depth_z", 0.0f);
+    const float seat_top_y  = seatFeatures.value("seat_top_y",   0.0f);
+    const float backrest_h  = seatFeatures.value("backrest_height", 0.0f);
+
+    bool hasError = false;
+    auto push = [&](const char* rule, const std::string& msg, float meas, float req,
+                    const char* sev) {
+        issues.push_back({
+            {"rule_id", rule},
+            {"message", msg},
+            {"measured", meas},
+            {"required", req},
+            {"severity", sev}
+        });
+        if (std::string(sev) == "error") hasError = true;
+    };
+
+    auto fmt = [](const char* prefix, float a, const char* mid, float b, const char* suffix = "") {
+        std::ostringstream os;
+        os << std::fixed << std::setprecision(3)
+           << prefix << a << mid << b << suffix;
+        return os.str();
+    };
+
+    if (seat_width > 0.0f && c.hip_width > 0.0f) {
+        float need = c.hip_width + HIP_CLEARANCE;
+        if (seat_width < need) {
+            push("SEAT_TOO_NARROW",
+                 fmt("Seat width ", seat_width, "m too narrow for hip width ", c.hip_width, "m"),
+                 seat_width, need, "error");
+        }
+    }
+    if (seat_depth > 0.0f && c.body_depth > 0.0f) {
+        float need = c.body_depth + DEPTH_CLEARANCE;
+        if (seat_depth < need) {
+            push("SEAT_TOO_SHALLOW",
+                 fmt("Seat depth ", seat_depth, "m too shallow for body depth ", c.body_depth, "m"),
+                 seat_depth, need, "warn");
+        }
+    }
+    if (seat_top_y > 0.0f && c.leg_length > 0.0f) {
+        float overhang = seat_top_y - c.leg_length;
+        if (overhang > FOOT_DROP_MAX) {
+            push("SEAT_TOO_TALL",
+                 fmt("Seat ", seat_top_y, "m above floor, legs only ", c.leg_length, "m"),
+                 overhang, FOOT_DROP_MAX, "warn");
+        }
+    }
+    if (backrest_h > 0.0f && c.sitting_height > 0.0f) {
+        float seated_eye_above_seat = std::max(0.0f, c.sitting_height - 0.1f);
+        if (backrest_h > seated_eye_above_seat + BACKREST_HEAD_MAX) {
+            push("BACKREST_BLOCKS_VIEW",
+                 fmt("Backrest ", backrest_h, "m exceeds seated eye height ~",
+                     seated_eye_above_seat, "m"),
+                 backrest_h, seated_eye_above_seat + BACKREST_HEAD_MAX, "warn");
+        }
+    }
+    return hasError;
+}
+
+} // anonymous namespace
+
 // Animation API Command Dispatcher (extracted to reduce nesting depth in processAPICommands)
 // ============================================================================
 bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohmann::json& response) {
@@ -5864,6 +6182,10 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         }
         if (!character && (id.empty() || id == "player") && animatedCharacter)
             character = animatedCharacter;
+        if (!character && entityRegistry) {
+            auto* entity = entityRegistry->getEntity(id);
+            if (entity) character = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity);
+        }
         return character;
     };
 
@@ -6018,6 +6340,11 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         std::string entityId = cmd.params.value("entity_id", "");
         std::string objectId = cmd.params.value("object_id", "");
         std::string pointId  = cmd.params.value("point_id", "seat_0");
+        // When true (or when the point's requireCompatibility is false),
+        // compat-check errors are downgraded to warnings and the sit still
+        // proceeds. Set by scripted/cutscene callers via `force_interact`
+        // or by tools that just want to inspect posture.
+        bool force = cmd.params.value("force", false);
 
         auto* character = resolveCharacter(entityId);
         if (!character) {
@@ -6043,6 +6370,42 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
             return true;
         }
 
+        // ---- Compatibility gate (Phase 2.3) ---------------------------------
+        // If a sidecar `<template>.metrics.json` exists, run the sit-kind
+        // rules. Errors block the interaction; warnings are reported but the
+        // sit proceeds. Missing sidecar -> degrade gracefully (no checks).
+        //
+        // Phase B: errors are downgraded to warnings when either
+        //   (a) the caller passed `force=true` (scripted/cutscene path), or
+        //   (b) the point itself has `requireCompatibility=false` (author
+        //       marked it forgiving).
+        // In both cases the issues array is still surfaced so the caller can
+        // log/display them; only the gate decision flips.
+        nlohmann::json compatIssues = nlohmann::json::array();
+        bool compatOverridden = false;
+        {
+            nlohmann::json sidecar = loadAssetMetricsSidecar(obj->templateName);
+            nlohmann::json seatFeatures = findSeatFeaturesInSidecar(sidecar, pointId);
+            if (seatFeatures.is_object() && !seatFeatures.empty()) {
+                CharScalarMetrics m = computeCharScalarMetrics(character);
+                bool hasError = runSitCompatChecks(m, seatFeatures, compatIssues);
+                const bool blocking = pt->requireCompatibility && !force;
+                if (hasError && blocking) {
+                    response = {
+                        {"success", false},
+                        {"error", "Character is not compatible with this seat"},
+                        {"entity_id", entityId},
+                        {"object_id", objectId},
+                        {"point_id", pointId},
+                        {"compatibility_issues", compatIssues},
+                    };
+                    return true;
+                }
+                if (hasError && !blocking) compatOverridden = true;
+            }
+        }
+        // ---------------------------------------------------------------------
+
         // Start with template defaults (already rotation-corrected by PlacedObjectManager)
         glm::vec3 sitDown    = pt->worldSitDownOffset;
         glm::vec3 sitIdle    = pt->worldSittingIdleOffset;
@@ -6050,10 +6413,15 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         float blendDur  = pt->sitBlendDuration;
         float heightOff = pt->seatHeightOffset;
 
-        // Per-archetype profile overrides if one exists
+        // Per-archetype profile overrides if one exists, with optional
+        // per-character override picked from the active character's preset id
+        // (set when `spawn_for_test` applied a morphology preset). Falls back
+        // to the base profile automatically when no override is registered.
         if (interactionProfileManager) {
             const std::string arch = character->getArchetype();
-            const auto* profile = interactionProfileManager->getProfile(arch, obj->templateName, pointId);
+            const std::string presetId = character->getAppearance().presetId;
+            const auto* profile = interactionProfileManager->resolveProfile(
+                arch, obj->templateName, pointId, presetId);
             if (profile) {
                 auto rotOff = [](const glm::vec3& v, int deg) -> glm::vec3 {
                     switch (((deg % 360) + 360) % 360) {
@@ -6074,7 +6442,722 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         character->sitAt(pt->worldPos, pt->facingYaw, sitDown, sitIdle, sitStandUp, blendDur, heightOff);
         response = {{"success", true}, {"entity_id", entityId}, {"object_id", objectId}, {"point_id", pointId},
                     {"seat_world_pos", {pt->worldPos.x, pt->worldPos.y, pt->worldPos.z}},
-                    {"facing_yaw", pt->facingYaw}, {"object_rotation", pt->objectRotation}};
+                    {"facing_yaw", pt->facingYaw}, {"object_rotation", pt->objectRotation},
+                    {"compatibility_issues", compatIssues},
+                    {"compatibility_overridden", compatOverridden},
+                    {"forced", force}};
+        return true;
+    }
+
+    if (action == "can_interact") {
+        // Read-only compatibility query: returns whether a character could
+        // perform an interaction at a placed object's interaction point. Used
+        // by the offline pipeline to enumerate (character x asset) matrices
+        // without actually triggering animations.
+        // Body: { "entity_id": "...", "object_id": "...", "point_id": "seat_0", "kind": "sit" }
+        std::string entityId = cmd.params.value("entity_id", "");
+        std::string objectId = cmd.params.value("object_id", "");
+        std::string pointId  = cmd.params.value("point_id", "seat_0");
+        std::string kind     = cmd.params.value("kind", "sit");
+
+        auto* character = resolveCharacter(entityId);
+        if (!character) {
+            response = {{"error", "No animated character found for entity_id: " + entityId}};
+            return true;
+        }
+        if (!placedObjectManager) {
+            response = {{"error", "PlacedObjectManager not available"}};
+            return true;
+        }
+        const auto* obj = placedObjectManager->get(objectId);
+        if (!obj) {
+            response = {{"error", "Placed object not found: " + objectId}};
+            return true;
+        }
+        bool pointExists = false;
+        bool requireCompatibility = true;
+        for (const auto& p : obj->interactionPoints) {
+            if (p.pointId == pointId) { pointExists = true; requireCompatibility = p.requireCompatibility; break; }
+        }
+        if (!pointExists) {
+            response = {
+                {"success", false}, {"can_interact", false},
+                {"reason", "interaction_point_not_found"},
+                {"point_id", pointId}, {"object_id", objectId},
+            };
+            return true;
+        }
+
+        nlohmann::json sidecar = loadAssetMetricsSidecar(obj->templateName);
+        if (!sidecar.is_object()) {
+            // No sidecar => unknown, default to allow (matches gate semantics).
+            response = {
+                {"success", true}, {"can_interact", true},
+                {"reason", "no_asset_metrics_sidecar"},
+                {"compatibility_issues", nlohmann::json::array()},
+            };
+            return true;
+        }
+
+        nlohmann::json compatIssues = nlohmann::json::array();
+        bool hasError = false;
+        if (kind == "sit") {
+            nlohmann::json seatFeatures = findSeatFeaturesInSidecar(sidecar, pointId);
+            if (!seatFeatures.is_object()) {
+                response = {
+                    {"success", false}, {"can_interact", false},
+                    {"reason", "point_is_not_a_seat"},
+                };
+                return true;
+            }
+            CharScalarMetrics m = computeCharScalarMetrics(character);
+            hasError = runSitCompatChecks(m, seatFeatures, compatIssues);
+        } else {
+            // Other kinds (door_open, pickup, container_open) have no runtime
+            // rules yet — allow with an empty issue list.
+        }
+        response = {
+            {"success", true},
+            {"can_interact", !hasError || !requireCompatibility},
+            {"kind", kind},
+            {"require_compatibility", requireCompatibility},
+            {"compatibility_issues", compatIssues},
+        };
+        return true;
+    }
+
+    if (action == "force_interact") {
+        // Scripted/cutscene path: skip compat gates and route to the
+        // appropriate interaction handler based on point type. Today the
+        // only operational kind is sit; future kinds plug in here. The
+        // caller is asserting they own the consequences (e.g. clipping).
+        //
+        // Implementation note: we can't mutate the const `cmd`, so we
+        // construct a mutable copy with `force=true` and re-dispatch.
+        std::string objectId = cmd.params.value("object_id", "");
+        std::string pointId  = cmd.params.value("point_id", "seat_0");
+        if (!placedObjectManager) {
+            response = {{"error", "PlacedObjectManager not available"}}; return true;
+        }
+        const auto* obj = placedObjectManager->get(objectId);
+        if (!obj) {
+            response = {{"error", "Placed object not found: " + objectId}}; return true;
+        }
+        const Core::InteractionPoint* pt = nullptr;
+        for (const auto& p : obj->interactionPoints) {
+            if (p.pointId == pointId) { pt = &p; break; }
+        }
+        if (!pt) {
+            response = {{"error", "Interaction point '" + pointId + "' not found on '" + objectId + "'"}};
+            return true;
+        }
+        if (pt->type != "seat") {
+            response = {{"error", "force_interact does not yet support point type: " + pt->type}};
+            return true;
+        }
+        Core::APICommand forwarded = cmd;
+        forwarded.action = "sit_character";
+        forwarded.params["force"] = true;
+        return dispatchAnimationAPICommand(forwarded, response);
+    }
+
+    // Phase D — pivot-hinge kind (doors / gates / trapdoors / chest lids).
+    // Engine-side skeleton: drives the KinematicAnimator for the part the
+    // PlacedObject owns. The character clip is intentionally absent until
+    // the Mixamo reach asset lands; the object opens while the character
+    // stands still, which is enough to validate the C0b → C pipeline.
+    //
+    // Body: {
+    //   "object_id":  "<placed_id>",
+    //   "part_index": 0,                // index into metadata["kinematic_part_ids"], default 0
+    //   "angle_deg":  90.0,             // target hinge angle in degrees
+    //   "speed_deg":  180.0,            // angular speed deg/s; <=0 snaps
+    //   "character_id": "...",          // optional: entity to play the reach clip on
+    //   "clip":        "open_door_in"   // optional: clip name (e.g. open_door_in/out, open_lid, close_lid)
+    // }
+    if (action == "try_pivot") {
+        if (!placedObjectManager) {
+            response = {{"error", "PlacedObjectManager not available"}};
+            return true;
+        }
+        if (!kinematicAnimator) {
+            response = {{"error", "KinematicAnimator not available"}};
+            return true;
+        }
+        std::string objectId = cmd.params.value("object_id", "");
+        int partIndex = cmd.params.value("part_index", 0);
+        float angleDeg = cmd.params.value("angle_deg", 0.0f);
+        float speedDeg = cmd.params.value("speed_deg", 180.0f);
+        std::string characterId = cmd.params.value("character_id", "");
+        std::string clipName    = cmd.params.value("clip", "");
+
+        const auto* obj = placedObjectManager->get(objectId);
+        if (!obj) {
+            response = {{"error", "Placed object not found: " + objectId}};
+            return true;
+        }
+        if (!obj->metadata.contains("kinematic_part_ids") ||
+            !obj->metadata["kinematic_part_ids"].is_array() ||
+            obj->metadata["kinematic_part_ids"].empty())
+        {
+            response = {{"success", false},
+                        {"error", "Object has no kinematic parts"},
+                        {"object_id", objectId}};
+            return true;
+        }
+        const auto& ids = obj->metadata["kinematic_part_ids"];
+        if (partIndex < 0 || partIndex >= static_cast<int>(ids.size())) {
+            response = {{"success", false},
+                        {"error", "part_index out of range"},
+                        {"part_count", static_cast<int>(ids.size())}};
+            return true;
+        }
+        std::string partId = ids[partIndex].get<std::string>();
+        if (!kinematicAnimator->has(partId)) {
+            response = {{"success", false},
+                        {"error", "Kinematic part not registered with animator"},
+                        {"part_id", partId}};
+            return true;
+        }
+
+        const float angleRad = glm::radians(angleDeg);
+        const float speedRad = glm::radians(speedDeg);
+        kinematicAnimator->setTargetAngle(partId, angleRad, speedRad);
+
+        // Optional: play a character reach clip in parallel. We don't sync to
+        // a specific frame yet — Phase D ships with parallel playback; sync
+        // points land with later iteration.
+        bool clipPlayed = false;
+        std::string clipError;
+        if (!characterId.empty() && !clipName.empty()) {
+            auto* character = resolveCharacter(characterId);
+            if (!character) {
+                clipError = "No animated character found for: " + characterId;
+            } else {
+                character->setAnimationState(Scene::AnimatedCharacterState::Preview);
+                character->playAnimation(clipName);
+                clipPlayed = true;
+            }
+        }
+
+        response = {
+            {"success", true},
+            {"object_id", objectId},
+            {"part_id", partId},
+            {"part_index", partIndex},
+            {"target_angle_deg", angleDeg},
+            {"speed_deg", speedDeg},
+            {"clip_played", clipPlayed},
+        };
+        if (!clipError.empty()) response["clip_error"] = clipError;
+        if (clipPlayed) {
+            response["character_id"] = characterId;
+            response["clip"] = clipName;
+        }
+        return true;
+    }
+
+    // Phase H — drawer / sliding-door translation. Mirrors try_pivot but
+    // calls KinematicAnimator::setTargetOffset.
+    //   "object_id":   "drawer_test_1",
+    //   "part_index":  0,
+    //   "offset_m":    0.35,            // target offset in meters along slide axis
+    //   "speed_mps":   0.5,             // m/s; <=0 snaps
+    //   "character_id": "...",          // optional reach clip
+    //   "clip":        "open_door_in"
+    if (action == "try_slide") {
+        if (!placedObjectManager) {
+            response = {{"error", "PlacedObjectManager not available"}};
+            return true;
+        }
+        if (!kinematicAnimator) {
+            response = {{"error", "KinematicAnimator not available"}};
+            return true;
+        }
+        std::string objectId = cmd.params.value("object_id", "");
+        int partIndex = cmd.params.value("part_index", 0);
+        float offsetM = cmd.params.value("offset_m", 0.0f);
+        float deltaM  = cmd.params.value("delta_m", 0.0f);   // Phase M4: relative offset
+        float speedMps = cmd.params.value("speed_mps", 0.5f);
+        std::string characterId = cmd.params.value("character_id", "");
+        std::string clipName    = cmd.params.value("clip", "");
+
+        const auto* obj = placedObjectManager->get(objectId);
+        if (!obj) {
+            response = {{"error", "Placed object not found: " + objectId}};
+            return true;
+        }
+        if (!obj->metadata.contains("kinematic_part_ids") ||
+            !obj->metadata["kinematic_part_ids"].is_array() ||
+            obj->metadata["kinematic_part_ids"].empty())
+        {
+            response = {{"success", false},
+                        {"error", "Object has no kinematic parts"},
+                        {"object_id", objectId}};
+            return true;
+        }
+        const auto& ids = obj->metadata["kinematic_part_ids"];
+        if (partIndex < 0 || partIndex >= static_cast<int>(ids.size())) {
+            response = {{"success", false},
+                        {"error", "part_index out of range"},
+                        {"part_count", static_cast<int>(ids.size())}};
+            return true;
+        }
+        std::string partId = ids[partIndex].get<std::string>();
+        if (!kinematicAnimator->has(partId)) {
+            response = {{"success", false},
+                        {"error", "Kinematic part not registered with animator"},
+                        {"part_id", partId}};
+            return true;
+        }
+
+        // Phase M4: support relative delta_m (used by try_pull coupling) by
+        // computing target = current + delta. offset_m takes priority.
+        if (cmd.params.contains("delta_m") && !cmd.params.contains("offset_m")) {
+            float cur = kinematicAnimator->currentOffset(partId);
+            offsetM = cur + deltaM;
+        }
+        kinematicAnimator->setTargetOffset(partId, offsetM, speedMps);
+
+        bool clipPlayed = false;
+        std::string clipError;
+        if (!characterId.empty() && !clipName.empty()) {
+            auto* character = resolveCharacter(characterId);
+            if (!character) {
+                clipError = "No animated character found for: " + characterId;
+            } else {
+                character->setAnimationState(Scene::AnimatedCharacterState::Preview);
+                character->playAnimation(clipName);
+                clipPlayed = true;
+            }
+        }
+
+        response = {
+            {"success", true},
+            {"object_id", objectId},
+            {"part_id", partId},
+            {"part_index", partIndex},
+            {"target_offset_m", offsetM},
+            {"speed_mps", speedMps},
+            {"clip_played", clipPlayed},
+        };
+        if (!clipError.empty()) response["clip_error"] = clipError;
+        if (clipPlayed) {
+            response["character_id"] = characterId;
+            response["clip"] = clipName;
+        }
+        return true;
+    }
+
+    if (action == "try_push") {
+        // Phase M3: apply a capped horizontal impulse to the nearest dynamic
+        // cube in front of `character_id` within `reach`. Plays the push clip
+        // if both character_id and clip are supplied. A miss is still a
+        // success (clip plays, no impulse) — push against a wall is cosmetic.
+        if (!chunkManager) {
+            response = {{"error", "ChunkManager not available"}};
+            return true;
+        }
+        std::string characterId = cmd.params.value("character_id", "");
+        float force   = cmd.params.value("force", 6.0f);
+        float reach   = cmd.params.value("reach", 0.8f);
+        std::string clipName = cmd.params.value("clip", "push");
+
+        Phyxel::Scene::AnimatedVoxelCharacter* ch = resolveCharacter(characterId);
+        if (!ch) {
+            if (m_interactionEditorMode && m_ieChar) ch = m_ieChar;
+            else if (animatedCharacter)              ch = animatedCharacter;
+        }
+        if (!ch) {
+            response = {{"error", "No animated character found for: " + characterId}};
+            return true;
+        }
+
+        glm::vec3 pos = ch->getPosition();
+        glm::vec3 fwd = ch->getForwardDirection();
+        fwd.y = 0.0f;
+        float fl = glm::length(fwd);
+        if (fl > 1e-4f) fwd /= fl;
+
+        // Find nearest dynamic cube within reach + cube half-extent (0.5 m).
+        const auto& cubes = chunkManager->getGlobalDynamicCubes();
+        float bestDist = reach + 0.5f;
+        Phyxel::Cube* bestCube = nullptr;
+        for (const auto& c : cubes) {
+            if (!c || !c->getVoxelBody()) continue;
+            glm::vec3 cp = c->getPhysicsPosition();
+            glm::vec3 d = cp - pos;
+            d.y = 0.0f;
+            float fwdDot = glm::dot(d, fwd);
+            if (fwdDot <= 0.0f) continue;  // behind the character
+            glm::vec3 perp = d - fwd * fwdDot;
+            float lateral = glm::length(perp);
+            if (lateral > 0.6f) continue;  // outside contact cone
+            float dist = glm::length(d);
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestCube = c.get();
+            }
+        }
+
+        bool clipPlayed = false;
+        if (!clipName.empty()) {
+            ch->setAnimationState(Phyxel::Scene::AnimatedCharacterState::Preview);
+            ch->playAnimation(clipName);
+            clipPlayed = true;
+        }
+
+        glm::vec3 applied(0.0f);
+        json contactVoxel = nullptr;
+        std::string objectIdPushed;
+        if (bestCube && bestCube->getVoxelBody()) {
+            applied = fwd * force;
+            bestCube->getVoxelBody()->wake();
+            bestCube->getVoxelBody()->applyCentralImpulse(applied);
+            glm::ivec3 vp = bestCube->getPosition();
+            contactVoxel = json::array({vp.x, vp.y, vp.z});
+            // Use the cube's grid position as a stable identifier.
+            char buf[64];
+            std::snprintf(buf, sizeof(buf), "dyn_cube_%d_%d_%d", vp.x, vp.y, vp.z);
+            objectIdPushed = buf;
+        }
+
+        response = {
+            {"success", true},
+            {"object_id_pushed", objectIdPushed},
+            {"applied_impulse", {applied.x, applied.y, applied.z}},
+            {"contact_voxel", contactVoxel},
+            {"clip_played", clipPlayed},
+            {"force", force},
+            {"reach", reach},
+        };
+        return true;
+    }
+
+    if (action == "try_pull") {
+        // Phase M4: pull a kinematic part toward the character by total_offset_m
+        // (along the part's slideDirLocal axis), playing the pull clip on the
+        // character. Coupled animation: the same time parameter drives both
+        // the part offset and the clip — we simply set the target offset and
+        // start the clip; the animator's lerp matches the clip duration if
+        // speed_mps is set to total_offset_m / clip_duration_s.
+        // Body: { "object_id", "part_index"?, "total_offset_m", "speed_mps"?,
+        //         "character_id"?, "clip"?: "pull" }
+        if (!placedObjectManager || !kinematicAnimator) {
+            response = {{"error", "PlacedObjectManager or KinematicAnimator unavailable"}};
+            return true;
+        }
+        std::string objectId = cmd.params.value("object_id", "");
+        int partIndex = cmd.params.value("part_index", 0);
+        float totalOffset = cmd.params.value("total_offset_m", 0.4f);
+        float speedMps = cmd.params.value("speed_mps", 0.5f);
+        std::string characterId = cmd.params.value("character_id", "");
+        std::string clipName = cmd.params.value("clip", "pull");
+
+        const auto* obj = placedObjectManager->get(objectId);
+        if (!obj) { response = {{"error", "Placed object not found: " + objectId}}; return true; }
+        if (!obj->metadata.contains("kinematic_part_ids") ||
+            !obj->metadata["kinematic_part_ids"].is_array() ||
+            obj->metadata["kinematic_part_ids"].empty()) {
+            response = {{"success", false}, {"error", "Object has no kinematic parts"}};
+            return true;
+        }
+        const auto& ids = obj->metadata["kinematic_part_ids"];
+        if (partIndex < 0 || partIndex >= (int)ids.size()) {
+            response = {{"success", false}, {"error", "part_index out of range"}};
+            return true;
+        }
+        std::string partId = ids[partIndex].get<std::string>();
+        if (!kinematicAnimator->has(partId)) {
+            response = {{"success", false}, {"error", "Kinematic part not registered"}};
+            return true;
+        }
+
+        float cur = kinematicAnimator->currentOffset(partId);
+        float target = cur + totalOffset;
+        kinematicAnimator->setTargetOffset(partId, target, speedMps);
+
+        bool clipPlayed = false;
+        std::string clipError;
+        if (!clipName.empty()) {
+            auto* character = resolveCharacter(characterId);
+            if (!character && m_interactionEditorMode && m_ieChar) character = m_ieChar;
+            else if (!character && animatedCharacter)              character = animatedCharacter;
+            if (character) {
+                character->setAnimationState(Phyxel::Scene::AnimatedCharacterState::Preview);
+                character->playAnimation(clipName);
+                clipPlayed = true;
+            } else {
+                clipError = "No animated character found";
+            }
+        }
+
+        response = {
+            {"success", true},
+            {"object_id", objectId},
+            {"part_id", partId},
+            {"part_index", partIndex},
+            {"current_offset_m", cur},
+            {"target_offset_m", target},
+            {"total_offset_m", totalOffset},
+            {"speed_mps", speedMps},
+            {"clip_played", clipPlayed},
+        };
+        if (!clipError.empty()) response["clip_error"] = clipError;
+        return true;
+    }
+
+    if (action == "try_climb_up") {
+        // Phase M5: begin a ledge mantle. Uses the character's last contact
+        // probe — requires contact.climb.kind == "ledge_up". The mantle is a
+        // timeline-driven Y/XZ override (no physics).
+        // Body: { "character_id"?, "duration"?: float, "clip"?: "climb_ladder_start",
+        //         "start"?: [x,y,z], "end"?: [x,y,z]   // override: bypass contact check }
+        std::string characterId = cmd.params.value("character_id", "");
+        float duration = cmd.params.value("duration", 0.7f);
+        std::string clipName = cmd.params.value("clip", "climb_ladder_start");
+
+        Phyxel::Scene::AnimatedVoxelCharacter* ch = resolveCharacter(characterId);
+        if (!ch) {
+            if (m_interactionEditorMode && m_ieChar) ch = m_ieChar;
+            else if (animatedCharacter)              ch = animatedCharacter;
+        }
+        if (!ch) {
+            response = {{"error", "No animated character found for: " + characterId}};
+            return true;
+        }
+
+        glm::vec3 start{0.0f}, end{0.0f};
+        std::string kindStr = "override";
+        bool haveOverride = cmd.params.contains("start") && cmd.params.contains("end")
+                            && cmd.params["start"].is_array() && cmd.params["end"].is_array()
+                            && cmd.params["start"].size() == 3 && cmd.params["end"].size() == 3;
+
+        if (haveOverride) {
+            start = glm::vec3(cmd.params["start"][0].get<float>(),
+                              cmd.params["start"][1].get<float>(),
+                              cmd.params["start"][2].get<float>());
+            end   = glm::vec3(cmd.params["end"][0].get<float>(),
+                              cmd.params["end"][1].get<float>(),
+                              cmd.params["end"][2].get<float>());
+            // Teleport to start so the mantle begins from a coherent position.
+            ch->setPosition(start);
+        } else {
+            const auto& contact = ch->getLastContact();
+            switch (contact.climb) {
+                case Phyxel::Scene::ClimbFeature::None:    kindStr = "none";    break;
+                case Phyxel::Scene::ClimbFeature::LedgeUp: kindStr = "ledge_up"; break;
+                case Phyxel::Scene::ClimbFeature::LedgeDown: kindStr = "ledge_down"; break;
+                case Phyxel::Scene::ClimbFeature::Ladder:  kindStr = "ladder";  break;
+            }
+            if (contact.climb != Phyxel::Scene::ClimbFeature::LedgeUp) {
+                response = {
+                    {"success", false},
+                    {"started", false},
+                    {"climb_kind", kindStr},
+                    {"error", "Contact climb.kind is not ledge_up"},
+                };
+                return true;
+            }
+
+            start = ch->getPosition();
+            glm::vec3 fwd = ch->getForwardDirection();
+            fwd.y = 0.0f;
+            float fl = glm::length(fwd);
+            if (fl > 1e-4f) fwd /= fl;
+            float depthInward = std::max(0.25f, contact.forwardDepthClear * 0.5f);
+            end = glm::vec3{
+                contact.climbAnchorXZ.x + fwd.x * depthInward,
+                contact.climbTopY,
+                contact.climbAnchorXZ.z + fwd.z * depthInward,
+            };
+        }
+
+        bool started = ch->beginMantle(start, end, duration);
+        bool clipPlayed = false;
+        if (started && !clipName.empty()) {
+            ch->setAnimationState(Phyxel::Scene::AnimatedCharacterState::Preview);
+            ch->playAnimation(clipName);
+            clipPlayed = true;
+        }
+
+        response = {
+            {"success", started},
+            {"started", started},
+            {"start", {start.x, start.y, start.z}},
+            {"end",   {end.x,   end.y,   end.z}},
+            {"duration", duration},
+            {"climb_kind", kindStr},
+            {"clip_played", clipPlayed},
+        };
+        return true;
+    }
+
+    if (action == "try_climb_down") {
+        // Phase M6: step-down mantle. Mirror of try_climb_up but auto-detects
+        // ledge_down and Y goes negative. Supports the same {start,end}
+        // override path for deterministic testing.
+        std::string characterId = cmd.params.value("character_id", "");
+        float duration = cmd.params.value("duration", 0.5f);
+        std::string clipName = cmd.params.value("clip", "step_down");
+
+        Phyxel::Scene::AnimatedVoxelCharacter* ch = resolveCharacter(characterId);
+        if (!ch) {
+            if (m_interactionEditorMode && m_ieChar) ch = m_ieChar;
+            else if (animatedCharacter)              ch = animatedCharacter;
+        }
+        if (!ch) {
+            response = {{"error", "No animated character found for: " + characterId}};
+            return true;
+        }
+
+        glm::vec3 start{0.0f}, end{0.0f};
+        std::string kindStr = "override";
+        bool haveOverride = cmd.params.contains("start") && cmd.params.contains("end")
+                            && cmd.params["start"].is_array() && cmd.params["end"].is_array()
+                            && cmd.params["start"].size() == 3 && cmd.params["end"].size() == 3;
+
+        if (haveOverride) {
+            start = glm::vec3(cmd.params["start"][0].get<float>(),
+                              cmd.params["start"][1].get<float>(),
+                              cmd.params["start"][2].get<float>());
+            end   = glm::vec3(cmd.params["end"][0].get<float>(),
+                              cmd.params["end"][1].get<float>(),
+                              cmd.params["end"][2].get<float>());
+            ch->setPosition(start);
+        } else {
+            const auto& contact = ch->getLastContact();
+            switch (contact.climb) {
+                case Phyxel::Scene::ClimbFeature::None:      kindStr = "none";       break;
+                case Phyxel::Scene::ClimbFeature::LedgeUp:   kindStr = "ledge_up";   break;
+                case Phyxel::Scene::ClimbFeature::LedgeDown: kindStr = "ledge_down"; break;
+                case Phyxel::Scene::ClimbFeature::Ladder:    kindStr = "ladder";     break;
+            }
+            if (contact.climb != Phyxel::Scene::ClimbFeature::LedgeDown) {
+                response = {
+                    {"success", false},
+                    {"started", false},
+                    {"climb_kind", kindStr},
+                    {"error", "Contact climb.kind is not ledge_down"},
+                };
+                return true;
+            }
+
+            start = ch->getPosition();
+            glm::vec3 fwd = ch->getForwardDirection();
+            fwd.y = 0.0f;
+            float fl = glm::length(fwd);
+            if (fl > 1e-4f) fwd /= fl;
+            // For a ledge_down, climbAnchorXZ is the near-edge column centre and
+            // climbGrabY is the lower surface (top of the dropped column).
+            float depthInward = std::max(0.25f, contact.forwardDepthClear * 0.5f);
+            end = glm::vec3{
+                contact.climbAnchorXZ.x + fwd.x * depthInward,
+                contact.climbGrabY,
+                contact.climbAnchorXZ.z + fwd.z * depthInward,
+            };
+        }
+
+        bool started = ch->beginMantle(start, end, duration);
+        bool clipPlayed = false;
+        if (started && !clipName.empty()) {
+            ch->setAnimationState(Phyxel::Scene::AnimatedCharacterState::Preview);
+            ch->playAnimation(clipName);
+            clipPlayed = true;
+        }
+
+        response = {
+            {"success", started},
+            {"started", started},
+            {"start", {start.x, start.y, start.z}},
+            {"end",   {end.x,   end.y,   end.z}},
+            {"duration", duration},
+            {"climb_kind", kindStr},
+            {"clip_played", clipPlayed},
+        };
+        return true;
+    }
+
+    if (action == "ladder_start") {
+        // Phase M7: begin a continuous ladder climb. Body must supply the
+        // rail centreline XZ and the rail Y extent (top_y, bottom_y).
+        std::string characterId = cmd.params.value("character_id", "");
+        Phyxel::Scene::AnimatedVoxelCharacter* ch = resolveCharacter(characterId);
+        if (!ch) {
+            if (m_interactionEditorMode && m_ieChar) ch = m_ieChar;
+            else if (animatedCharacter)              ch = animatedCharacter;
+        }
+        if (!ch) {
+            response = {{"error", "No animated character found for: " + characterId}};
+            return true;
+        }
+        if (!cmd.params.contains("rail_x") || !cmd.params.contains("rail_z") ||
+            !cmd.params.contains("top_y")  || !cmd.params.contains("bottom_y")) {
+            response = {{"error", "Missing rail_x / rail_z / top_y / bottom_y"}};
+            return true;
+        }
+        float railX  = cmd.params["rail_x"].get<float>();
+        float railZ  = cmd.params["rail_z"].get<float>();
+        float topY   = cmd.params["top_y"].get<float>();
+        float botY   = cmd.params["bottom_y"].get<float>();
+        float speed  = cmd.params.value("speed", 1.5f);
+        bool started = ch->beginLadderClimb(glm::vec3(railX, topY, railZ), botY, speed);
+        glm::vec3 pos = ch->getPosition();
+        response = {
+            {"success", started},
+            {"started", started},
+            {"on_ladder", ch->isOnLadder()},
+            {"position", {pos.x, pos.y, pos.z}},
+            {"rail_x", railX}, {"rail_z", railZ},
+            {"top_y", topY}, {"bottom_y", botY},
+            {"speed", speed},
+        };
+        return true;
+    }
+
+    if (action == "ladder_input") {
+        std::string characterId = cmd.params.value("character_id", "");
+        Phyxel::Scene::AnimatedVoxelCharacter* ch = resolveCharacter(characterId);
+        if (!ch) {
+            if (m_interactionEditorMode && m_ieChar) ch = m_ieChar;
+            else if (animatedCharacter)              ch = animatedCharacter;
+        }
+        if (!ch) {
+            response = {{"error", "No animated character found"}};
+            return true;
+        }
+        float v = cmd.params.value("vertical", 0.0f);
+        ch->setLadderInput(v);
+        glm::vec3 pos = ch->getPosition();
+        response = {
+            {"success", true},
+            {"on_ladder", ch->isOnLadder()},
+            {"vertical", v},
+            {"position", {pos.x, pos.y, pos.z}},
+        };
+        return true;
+    }
+
+    if (action == "ladder_end") {
+        std::string characterId = cmd.params.value("character_id", "");
+        Phyxel::Scene::AnimatedVoxelCharacter* ch = resolveCharacter(characterId);
+        if (!ch) {
+            if (m_interactionEditorMode && m_ieChar) ch = m_ieChar;
+            else if (animatedCharacter)              ch = animatedCharacter;
+        }
+        if (!ch) {
+            response = {{"error", "No animated character found"}};
+            return true;
+        }
+        bool wasOn = ch->isOnLadder();
+        ch->endLadderClimb();
+        glm::vec3 pos = ch->getPosition();
+        response = {
+            {"success", true},
+            {"was_on_ladder", wasOn},
+            {"on_ladder", ch->isOnLadder()},
+            {"position", {pos.x, pos.y, pos.z}},
+        };
         return true;
     }
 
@@ -6091,6 +7174,56 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         return true;
     }
 
+    if (action == "character_motion_trace_clear") {
+        std::string id = cmd.params.value("entity_id", "");
+        if (id.empty()) id = cmd.params.value("id", "");
+        auto* character = resolveCharacter(id);
+        if (!character) {
+            response = {{"error", "No animated character found for: " + id}};
+            return true;
+        }
+        if (cmd.params.contains("capacity")) {
+            int cap = cmd.params["capacity"].get<int>();
+            if (cap < 0) cap = 0;
+            character->setMotionTraceCapacity(static_cast<size_t>(cap));
+        }
+        character->clearMotionTrace();
+        response = {{"success", true}, {"id", id},
+                    {"capacity", static_cast<int>(character->motionTraceCapacity())}};
+        return true;
+    }
+
+    if (action == "character_motion_trace_dump") {
+        std::string id = cmd.params.value("entity_id", "");
+        if (id.empty()) id = cmd.params.value("id", "");
+        auto* character = resolveCharacter(id);
+        if (!character) {
+            response = {{"error", "No animated character found for: " + id}};
+            return true;
+        }
+        const auto& trace = character->getMotionTrace();
+        json entries = json::array();
+        entries.get_ref<json::array_t&>().reserve(trace.size());
+        for (const auto& e : trace) {
+            entries.push_back({
+                {"total_time", e.totalTime},
+                {"delta_time", e.deltaTime},
+                {"world_pos", {{"x", e.worldPos.x}, {"y", e.worldPos.y}, {"z", e.worldPos.z}}},
+                {"hips_local", {{"x", e.hipsLocal.x}, {"y", e.hipsLocal.y}, {"z", e.hipsLocal.z}}},
+                {"state",       e.state},
+                {"is_sitting",  e.isSitting},
+                {"is_blending", e.isBlending},
+                {"clip_index",  e.clipIndex},
+                {"anim_time",   e.animTime},
+            });
+        }
+        response = {{"success", true}, {"id", id},
+                    {"count", static_cast<int>(trace.size())},
+                    {"capacity", static_cast<int>(character->motionTraceCapacity())},
+                    {"entries", entries}};
+        return true;
+    }
+
     if (action == "set_interaction_profile") {
         if (!interactionProfileManager) {
             response = {{"error", "InteractionProfileManager not available"}}; return true;
@@ -6098,17 +7231,31 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         std::string archetype = cmd.params.value("archetype", "humanoid_normal");
         std::string tmplName  = cmd.params.value("template_name", "");
         std::string pointId   = cmd.params.value("point_id", "seat_0");
+        // Optional: when present, this becomes a per-character override on top
+        // of the existing base profile rather than replacing the base. The base
+        // must already exist (seed it with character_id omitted first).
+        std::string characterId = cmd.params.value("character_id", "");
         if (tmplName.empty()) { response = {{"error", "template_name required"}}; return true; }
 
-        // Read existing profile as base so unset fields are preserved
+        // Read existing profile as base so unset fields are preserved. For an
+        // override write we start from the existing override (or base, if no
+        // override exists yet) so partial updates don't clobber unspecified axes.
         Core::InteractionProfile profile;
-        const auto* existing = interactionProfileManager->getProfile(archetype, tmplName, pointId);
+        const auto* existing = characterId.empty()
+            ? interactionProfileManager->getProfile(archetype, tmplName, pointId)
+            : interactionProfileManager->resolveProfile(archetype, tmplName, pointId, characterId);
         if (existing) profile = *existing;
+        profile.perCharacter.clear(); // never store nested overrides
 
         auto readVec3 = [&](const std::string& key, glm::vec3& out) {
             if (cmd.params.contains(key) && cmd.params[key].is_array() && cmd.params[key].size() >= 3)
                 out = {cmd.params[key][0].get<float>(), cmd.params[key][1].get<float>(), cmd.params[key][2].get<float>()};
         };
+        // Optional kind discriminator. Defaults to whatever the existing
+        // profile had (or "sit" for new entries). Future kinds use the
+        // params block below instead of the sit-specific fields.
+        if (cmd.params.contains("kind") && cmd.params["kind"].is_string())
+            profile.kind = cmd.params["kind"].get<std::string>();
         readVec3("sit_down_offset",     profile.sitDownOffset);
         readVec3("sitting_idle_offset", profile.sittingIdleOffset);
         readVec3("sit_stand_up_offset", profile.sitStandUpOffset);
@@ -6117,10 +7264,46 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         if (cmd.params.contains("seat_height_offset"))
             profile.seatHeightOffset = cmd.params["seat_height_offset"].get<float>();
 
-        interactionProfileManager->setProfile(archetype, tmplName, pointId, profile);
+        // Generic params for non-sit kinds. Each sub-block is optional; the
+        // caller PATCHes whichever entries it wants to set (existing entries
+        // for the same kind are preserved by the `profile = *existing` copy
+        // above; explicit empty objects clear the relevant dictionary).
+        if (cmd.params.contains("params") && cmd.params["params"].is_object()) {
+            const auto& p = cmd.params["params"];
+            if (p.contains("vec3") && p["vec3"].is_object()) {
+                for (auto& [k, v] : p["vec3"].items())
+                    if (v.is_array() && v.size() == 3)
+                        profile.vec3Params[k] = {v[0].get<float>(), v[1].get<float>(), v[2].get<float>()};
+            }
+            if (p.contains("scalar") && p["scalar"].is_object()) {
+                for (auto& [k, v] : p["scalar"].items())
+                    if (v.is_number()) profile.scalarParams[k] = v.get<float>();
+            }
+            if (p.contains("string") && p["string"].is_object()) {
+                for (auto& [k, v] : p["string"].items())
+                    if (v.is_string()) profile.stringParams[k] = v.get<std::string>();
+            }
+        }
+
+        if (characterId.empty()) {
+            interactionProfileManager->setProfile(archetype, tmplName, pointId, profile);
+        } else {
+            // Override path — the base profile must already exist so resolveProfile
+            // has something to fall back to for un-tuned characters.
+            if (!interactionProfileManager->getProfile(archetype, tmplName, pointId)) {
+                response = {{"error", "Cannot write per-character override: base profile does not exist for "
+                                       + archetype + "/" + tmplName + "/" + pointId
+                                       + " -- POST with character_id omitted first."}};
+                return true;
+            }
+            interactionProfileManager->setCharacterOverride(
+                archetype, tmplName, pointId, characterId, profile);
+        }
         interactionProfileManager->saveArchetype(archetype);
 
         response = {{"success", true}, {"archetype", archetype}, {"template_name", tmplName}, {"point_id", pointId},
+                    {"character_id", characterId},
+                    {"kind", profile.kind},
                     {"sit_down_offset",     {profile.sitDownOffset.x,     profile.sitDownOffset.y,     profile.sitDownOffset.z}},
                     {"sitting_idle_offset", {profile.sittingIdleOffset.x, profile.sittingIdleOffset.y, profile.sittingIdleOffset.z}},
                     {"sit_stand_up_offset", {profile.sitStandUpOffset.x,  profile.sitStandUpOffset.y,  profile.sitStandUpOffset.z}},
@@ -6136,19 +7319,999 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         std::string archetype = cmd.params.value("archetype", "humanoid_normal");
         std::string tmplName  = cmd.params.value("template_name", "");
         std::string pointId   = cmd.params.value("point_id", "seat_0");
+        std::string characterId = cmd.params.value("character_id", "");
         if (tmplName.empty()) { response = {{"error", "template_name required"}}; return true; }
 
-        const auto* profile = interactionProfileManager->getProfile(archetype, tmplName, pointId);
+        // Returns the effective profile after override resolution. The caller
+        // can tell whether they got the base or an override by inspecting
+        // `resolved_from_override` in the response.
+        const auto* base = interactionProfileManager->getProfile(archetype, tmplName, pointId);
+        const auto* profile = interactionProfileManager->resolveProfile(
+            archetype, tmplName, pointId, characterId);
+        bool resolvedFromOverride = (profile != nullptr) && (profile != base);
         if (!profile) {
-            response = {{"found", false}, {"archetype", archetype}, {"template_name", tmplName}, {"point_id", pointId}};
+            response = {{"found", false}, {"archetype", archetype}, {"template_name", tmplName}, {"point_id", pointId},
+                        {"character_id", characterId}};
         } else {
+            // Also surface the list of known per-character overrides for this
+            // (archetype, template, point) so tools can render the matrix UI.
+            json overrideIds = json::array();
+            if (base) {
+                for (auto& [cid, _ov] : base->perCharacter) overrideIds.push_back(cid);
+            }
             response = {{"found", true}, {"archetype", archetype}, {"template_name", tmplName}, {"point_id", pointId},
+                        {"character_id", characterId},
+                        {"kind", profile->kind},
+                        {"resolved_from_override", resolvedFromOverride},
+                        {"available_overrides", overrideIds},
                         {"sit_down_offset",     {profile->sitDownOffset.x,     profile->sitDownOffset.y,     profile->sitDownOffset.z}},
                         {"sitting_idle_offset", {profile->sittingIdleOffset.x, profile->sittingIdleOffset.y, profile->sittingIdleOffset.z}},
                         {"sit_stand_up_offset", {profile->sitStandUpOffset.x,  profile->sitStandUpOffset.y,  profile->sitStandUpOffset.z}},
                         {"sit_blend_duration",  profile->sitBlendDuration},
                         {"seat_height_offset",  profile->seatHeightOffset}};
+            // Also emit the generic param dictionaries when populated so
+            // callers reading a non-sit kind get full state in one shot.
+            if (!profile->vec3Params.empty() || !profile->scalarParams.empty() || !profile->stringParams.empty()) {
+                json params = json::object();
+                if (!profile->vec3Params.empty()) {
+                    json v = json::object();
+                    for (auto& [k, val] : profile->vec3Params) v[k] = {val.x, val.y, val.z};
+                    params["vec3"] = v;
+                }
+                if (!profile->scalarParams.empty()) {
+                    json v = json::object();
+                    for (auto& [k, val] : profile->scalarParams) v[k] = val;
+                    params["scalar"] = v;
+                }
+                if (!profile->stringParams.empty()) {
+                    json v = json::object();
+                    for (auto& [k, val] : profile->stringParams) v[k] = val;
+                    params["string"] = v;
+                }
+                response["params"] = params;
+            }
         }
+        return true;
+    }
+
+    // engine_shutdown — orderly exit requested by external lifecycle controllers
+    // (interaction_pipeline). Signals the main loop to break; the OS process
+    // exits cleanly via the normal shutdown path. The caller is expected to
+    // verify by polling process death.
+    if (action == "engine_shutdown") {
+        if (windowManager && windowManager->getHandle()) {
+            glfwSetWindowShouldClose(windowManager->getHandle(), GLFW_TRUE);
+            response = {{"success", true}, {"shutting_down", true}};
+        } else {
+            response = {{"error", "No window manager — cannot signal shutdown"}};
+        }
+        return true;
+    }
+
+    // ie_telemetry — rich per-frame state used by the interaction pipeline to
+    // detect engine bugs (snap/slide between clips, feet desync, initial
+    // teleport) AND to score profile offsets. Params:
+    //   clip            (optional) — sample bones at this clip
+    //   t               (optional, default 0.5) — normalized time [0,1]
+    //   include_bones   (optional, default true)
+    if (action == "ie_telemetry") {
+        if (!m_interactionEditorMode || !m_ieChar) {
+            response = {{"error", "Not in interaction editor mode"}}; return true;
+        }
+        namespace fs = std::filesystem;
+
+        const bool includeBones = cmd.params.value("include_bones", true);
+        const bool sampled      = cmd.params.contains("clip");
+        const std::string clip  = cmd.params.value("clip", std::string());
+        const float t           = std::clamp(cmd.params.value("t", 0.5f), 0.0f, 1.0f);
+
+        // Build voxel boxes once for overlap/distance queries
+        std::string stemName = fs::path(m_interactionEditorFile).stem().string();
+        const VoxelTemplate* tmpl = objectTemplateManager
+            ? objectTemplateManager->getTemplate(stemName) : nullptr;
+
+        float seatTopWorldY = -1.0e6f;
+        json seatAnchor = nullptr;
+        if (placedObjectManager) {
+            auto& allDefs = placedObjectManager->getMutableTemplateDefs();
+            auto defIt2 = allDefs.find(stemName);
+            if (defIt2 != allDefs.end() && m_ieSelectedPoint >= 0
+                && m_ieSelectedPoint < (int)defIt2->second.size()) {
+                const auto& pt = defIt2->second[m_ieSelectedPoint];
+                glm::vec3 anchor = glm::vec3(m_ieAssetOrigin) + glm::vec3(pt.localOffset);
+                seatTopWorldY = anchor.y;
+                seatAnchor = {{"x", anchor.x}, {"y", anchor.y}, {"z", anchor.z}};
+            }
+        }
+
+        struct VoxelBox { glm::vec3 mn, mx; bool isSeat; };
+        std::vector<VoxelBox> boxes;
+        if (tmpl) {
+            constexpr float S = 1.0f / 3.0f;
+            constexpr float Mc = 1.0f / 9.0f;
+            glm::vec3 orig = glm::vec3(m_ieAssetOrigin);
+            auto markSeat = [&](const glm::vec3& mx) -> bool {
+                return seatTopWorldY > -1.0e5f && std::abs(mx.y - seatTopWorldY) < 0.05f;
+            };
+            for (const auto& c : tmpl->cubes) {
+                glm::vec3 mn = orig + glm::vec3(c.relativePos);
+                glm::vec3 mx = mn + glm::vec3(1.0f);
+                boxes.push_back({mn, mx, markSeat(mx)});
+            }
+            for (const auto& sc : tmpl->subcubes) {
+                glm::vec3 mn = orig + glm::vec3(sc.parentRelativePos) + glm::vec3(sc.subcubePos) * S;
+                glm::vec3 mx = mn + glm::vec3(S);
+                boxes.push_back({mn, mx, markSeat(mx)});
+            }
+            for (const auto& mc : tmpl->microcubes) {
+                glm::vec3 mn = orig + glm::vec3(mc.parentRelativePos)
+                             + glm::vec3(mc.subcubePos) * S + glm::vec3(mc.microcubePos) * Mc;
+                glm::vec3 mx = mn + glm::vec3(Mc);
+                boxes.push_back({mn, mx, markSeat(mx)});
+            }
+        }
+
+        // Sample or read live bones
+        std::vector<Phyxel::Scene::AnimatedVoxelCharacter::BoneAABB> bones;
+        if (sampled) {
+            bones = m_ieChar->sampleBoneAABBsAtTime(clip, t, m_ieChar->getPosition());
+        } else {
+            bones = m_ieChar->getBoneAABBs();
+        }
+
+        // Classify each bone vs the asset
+        json boneArr = json::array();
+        glm::vec3 centroidAccum(0.0f);
+        int centroidCount = 0;
+        float footL_y = std::numeric_limits<float>::quiet_NaN();
+        float footR_y = std::numeric_limits<float>::quiet_NaN();
+        float footL_dist = std::numeric_limits<float>::quiet_NaN();
+        float footR_dist = std::numeric_limits<float>::quiet_NaN();
+        for (const auto& b : bones) {
+            const glm::vec3 bMn = b.center - b.halfExtents;
+            const glm::vec3 bMx = b.center + b.halfExtents;
+            // Inside-asset (any overlap with non-seat voxel) > inside-seat (overlap with seat top)
+            // > free (no overlap, signed distance positive).
+            const char* overlapClass = "free";
+            float bestPen = 0.0f;            // positive penetration
+            float bestPosDist = 1.0e9f;      // nearest surface distance (free case)
+            bool seatContact = false;
+            for (const auto& v : boxes) {
+                const bool overlap =
+                    !(bMn.x >= v.mx.x || bMx.x <= v.mn.x ||
+                      bMn.y >= v.mx.y || bMx.y <= v.mn.y ||
+                      bMn.z >= v.mx.z || bMx.z <= v.mn.z);
+                if (overlap) {
+                    float px = std::min(bMx.x, v.mx.x) - std::max(bMn.x, v.mn.x);
+                    float py = std::min(bMx.y, v.mx.y) - std::max(bMn.y, v.mn.y);
+                    float pz = std::min(bMx.z, v.mx.z) - std::max(bMn.z, v.mn.z);
+                    float pen = std::min({px, py, pz});
+                    if (pen > bestPen) bestPen = pen;
+                    if (v.isSeat) seatContact = true;
+                    else overlapClass = "inside_asset";
+                } else {
+                    // distance from bone AABB to voxel AABB
+                    float dx = std::max({v.mn.x - bMx.x, bMn.x - v.mx.x, 0.0f});
+                    float dy = std::max({v.mn.y - bMx.y, bMn.y - v.mx.y, 0.0f});
+                    float dz = std::max({v.mn.z - bMx.z, bMn.z - v.mx.z, 0.0f});
+                    float d = std::sqrt(dx*dx + dy*dy + dz*dz);
+                    if (d < bestPosDist) bestPosDist = d;
+                }
+            }
+            if (strcmp(overlapClass, "inside_asset") != 0 && seatContact && bestPen > 0.0f) {
+                overlapClass = "desired_contact";
+            }
+            float signedDistance = (bestPen > 0.0f) ? -bestPen
+                                                    : (boxes.empty() ? 0.0f : bestPosDist);
+
+            if (includeBones) {
+                boneArr.push_back({
+                    {"name", b.boneName},
+                    {"center",       {{"x", b.center.x},      {"y", b.center.y},      {"z", b.center.z}}},
+                    {"half_extents", {{"x", b.halfExtents.x}, {"y", b.halfExtents.y}, {"z", b.halfExtents.z}}},
+                    {"overlap_class", overlapClass},
+                    {"signed_distance", signedDistance}
+                });
+            }
+            centroidAccum += b.center;
+            ++centroidCount;
+            const std::string& n = b.boneName;
+            const float bottomY = b.center.y - b.halfExtents.y;
+            if (n.find("LeftFoot") != std::string::npos || n.find("Foot_L") != std::string::npos
+                || n.find("LeftLeg") != std::string::npos) {
+                footL_y = bottomY; footL_dist = signedDistance;
+            } else if (n.find("RightFoot") != std::string::npos || n.find("Foot_R") != std::string::npos
+                       || n.find("RightLeg") != std::string::npos) {
+                footR_y = bottomY; footR_dist = signedDistance;
+            }
+        }
+
+        json centroid = nullptr;
+        if (centroidCount > 0) {
+            glm::vec3 c = centroidAccum / float(centroidCount);
+            centroid = {{"x", c.x}, {"y", c.y}, {"z", c.z}};
+        }
+
+        const char* stateStr = "standing";
+        switch (m_iePreviewState) {
+            case InteractionPreviewState::SittingDown: stateStr = "sitting_down"; break;
+            case InteractionPreviewState::SittingIdle: stateStr = "sitting_idle"; break;
+            case InteractionPreviewState::AutoIdle:    stateStr = "sitting_idle"; break;
+            case InteractionPreviewState::StandingUp:  stateStr = "standing_up"; break;
+            default: break;
+        }
+
+        auto pos = m_ieChar->getPosition();
+        response = {
+            {"success", true},
+            {"sampled", sampled},
+            {"clip", sampled ? clip : std::string()},
+            {"t", sampled ? t : -1.0f},
+            {"state", stateStr},
+            {"world_pos", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}},
+            {"facing_yaw", m_ieChar->getYaw()},
+            {"centroid", centroid},
+            {"seat_anchor", seatAnchor},
+            {"feet", {
+                {"left",  {{"y", footL_y}, {"signed_distance", footL_dist}}},
+                {"right", {{"y", footR_y}, {"signed_distance", footR_dist}}}
+            }},
+            {"voxel_count", (int)boxes.size()},
+            {"bone_count", (int)bones.size()},
+            {"bones", boneArr}
+        };
+        return true;
+    }
+
+    if (action == "ie_sit_preview") {
+        if (!m_interactionEditorMode || !m_ieChar) {
+            response = {{"error", "Not in interaction editor mode"}}; return true;
+        }
+        ieStartPreview(false);
+        response = {{"success", true}, {"state", "sitting_down"}};
+        return true;
+    }
+
+    if (action == "ie_stand_preview") {
+        if (!m_interactionEditorMode || !m_ieChar) {
+            response = {{"error", "Not in interaction editor mode"}}; return true;
+        }
+        ieStopPreview();
+        response = {{"success", true}, {"state", "standing"}};
+        return true;
+    }
+
+    if (action == "ie_preview_state") {
+        if (!m_interactionEditorMode || !m_ieChar) {
+            response = {{"error", "Not in interaction editor mode"}}; return true;
+        }
+        const char* stateStr = "standing";
+        switch (m_iePreviewState) {
+            case InteractionPreviewState::SittingDown: stateStr = "sitting_down"; break;
+            case InteractionPreviewState::SittingIdle: stateStr = "sitting_idle"; break;
+            case InteractionPreviewState::AutoIdle:    stateStr = "sitting_idle"; break;
+            case InteractionPreviewState::StandingUp:  stateStr = "standing_up"; break;
+            default: break;
+        }
+        auto pos = m_ieChar->getPosition();
+        response = {{"success", true}, {"state", stateStr},
+                    {"character_pos", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}}};
+        return true;
+    }
+
+    if (action == "validate_ie_pose") {
+        if (!m_interactionEditorMode || !m_ieChar) {
+            response = {{"error", "Not in interaction editor mode"}}; return true;
+        }
+        if (!objectTemplateManager) {
+            response = {{"error", "ObjectTemplateManager not available"}}; return true;
+        }
+
+        namespace fs = std::filesystem;
+        std::string stemName = fs::path(m_interactionEditorFile).stem().string();
+        const VoxelTemplate* tmpl = objectTemplateManager->getTemplate(stemName);
+        if (!tmpl) {
+            response = {{"error", "Template not loaded: " + stemName}}; return true;
+        }
+
+        // Severity by bone name — trunk bones are errors; extremities are warnings
+        auto boneSeverity = [](const std::string& name) -> const char* {
+            static const char* critKw[] = {"Hips","Spine","Neck","Head","UpLeg","Leg"};
+            for (const auto* kw : critKw)
+                if (name.find(kw) != std::string::npos) return "error";
+            return "warning";
+        };
+
+        // Get seat anchor world Y for this interaction point — voxels whose top face
+        // sits at this height are the seating surface; bone contact there is expected.
+        float seatTopWorldY = -1.0e6f;
+        if (placedObjectManager) {
+            auto& allDefs = placedObjectManager->getMutableTemplateDefs();
+            auto defIt2 = allDefs.find(stemName);
+            if (defIt2 != allDefs.end() && m_ieSelectedPoint < (int)defIt2->second.size())
+                seatTopWorldY = m_ieAssetOrigin.y + defIt2->second[m_ieSelectedPoint].localOffset.y;
+        }
+
+        // Build world-space AABB for every voxel in the template
+        struct VoxelBox { glm::vec3 mn, mx; std::string desc; bool isSeat; };
+        std::vector<VoxelBox> boxes;
+        constexpr float S = 1.0f / 3.0f;
+        constexpr float Mc = 1.0f / 9.0f;
+        glm::vec3 orig = glm::vec3(m_ieAssetOrigin);
+
+        auto markSeat = [&](const glm::vec3& mx) -> bool {
+            return seatTopWorldY > -1.0e5f && std::abs(mx.y - seatTopWorldY) < 0.05f;
+        };
+
+        for (const auto& c : tmpl->cubes) {
+            glm::vec3 mn = orig + glm::vec3(c.relativePos);
+            glm::vec3 mx = mn + glm::vec3(1.0f);
+            char buf[64]; snprintf(buf, sizeof(buf), "C %d %d %d",
+                c.relativePos.x, c.relativePos.y, c.relativePos.z);
+            boxes.push_back({mn, mx, buf, markSeat(mx)});
+        }
+        for (const auto& sc : tmpl->subcubes) {
+            glm::vec3 mn = orig + glm::vec3(sc.parentRelativePos) + glm::vec3(sc.subcubePos) * S;
+            glm::vec3 mx = mn + glm::vec3(S);
+            char buf[96]; snprintf(buf, sizeof(buf), "S %d %d %d  %d %d %d",
+                sc.parentRelativePos.x, sc.parentRelativePos.y, sc.parentRelativePos.z,
+                sc.subcubePos.x, sc.subcubePos.y, sc.subcubePos.z);
+            boxes.push_back({mn, mx, buf, markSeat(mx)});
+        }
+        for (const auto& mc : tmpl->microcubes) {
+            glm::vec3 mn = orig + glm::vec3(mc.parentRelativePos)
+                         + glm::vec3(mc.subcubePos) * S + glm::vec3(mc.microcubePos) * Mc;
+            glm::vec3 mx = mn + glm::vec3(Mc);
+            char buf[128]; snprintf(buf, sizeof(buf), "M %d %d %d  %d %d %d  %d %d %d",
+                mc.parentRelativePos.x, mc.parentRelativePos.y, mc.parentRelativePos.z,
+                mc.subcubePos.x, mc.subcubePos.y, mc.subcubePos.z,
+                mc.microcubePos.x, mc.microcubePos.y, mc.microcubePos.z);
+            boxes.push_back({mn, mx, buf, markSeat(mx)});
+        }
+
+        // Test every bone AABB against every voxel AABB
+        auto bones = m_ieChar->getBoneAABBs();
+        json violations = json::array();
+        bool hasError = false;
+
+        for (const auto& bone : bones) {
+            glm::vec3 bMn = bone.center - bone.halfExtents;
+            glm::vec3 bMx = bone.center + bone.halfExtents;
+            for (const auto& vox : boxes) {
+                if (bMn.x >= vox.mx.x || bMx.x <= vox.mn.x) continue;
+                if (bMn.y >= vox.mx.y || bMx.y <= vox.mn.y) continue;
+                if (bMn.z >= vox.mx.z || bMx.z <= vox.mn.z) continue;
+                float px = std::min(bMx.x, vox.mx.x) - std::max(bMn.x, vox.mn.x);
+                float py = std::min(bMx.y, vox.mx.y) - std::max(bMn.y, vox.mn.y);
+                float pz = std::min(bMx.z, vox.mx.z) - std::max(bMn.z, vox.mn.z);
+                // Seat-surface contact is expected — downgrade to "contact"
+                const char* sev = vox.isSeat ? "contact" : boneSeverity(bone.boneName);
+                if (strcmp(sev, "error") == 0) hasError = true;
+                violations.push_back({
+                    {"bone", bone.boneName},
+                    {"voxel", vox.desc},
+                    {"severity", sev},
+                    {"penetration_xyz", {px, py, pz}}
+                });
+            }
+        }
+
+        response = {
+            {"valid",            !hasError},
+            {"has_errors",       hasError},
+            {"violation_count",  (int)violations.size()},
+            {"violations",       violations},
+            {"bone_count",       (int)bones.size()},
+            {"voxel_count",      (int)boxes.size()}
+        };
+        return true;
+    }
+
+    if (action == "validate_ie_animation") {
+        if (!m_interactionEditorMode || !m_ieChar) {
+            response = {{"error", "Not in interaction editor mode"}}; return true;
+        }
+        if (!objectTemplateManager || !placedObjectManager) {
+            response = {{"error", "Managers not available"}}; return true;
+        }
+
+        namespace fs = std::filesystem;
+        std::string stemName = fs::path(m_interactionEditorFile).stem().string();
+        const VoxelTemplate* tmpl = objectTemplateManager->getTemplate(stemName);
+        if (!tmpl) {
+            response = {{"error", "Template not loaded: " + stemName}}; return true;
+        }
+
+        // Resolve seat anchor and per-state foot positions
+        auto& allDefs = placedObjectManager->getMutableTemplateDefs();
+        auto defIt = allDefs.find(stemName);
+        if (defIt == allDefs.end() || defIt->second.empty()) {
+            response = {{"error", "No interaction points defined on template"}}; return true;
+        }
+        int ptIdx = (m_ieSelectedPoint >= 0 && m_ieSelectedPoint < (int)defIt->second.size())
+                    ? m_ieSelectedPoint : 0;
+        const auto& def = defIt->second[ptIdx];
+        glm::vec3 seatAnchor = glm::vec3(m_ieAssetOrigin) + def.localOffset;
+
+        glm::vec3 sitDownPos = seatAnchor, sittingIdlePos = seatAnchor, sitStandUpPos = seatAnchor;
+        if (interactionProfileManager) {
+            const auto* profile = interactionProfileManager->getProfile(
+                m_ieChar->getArchetype(), stemName, def.pointId);
+            if (profile) {
+                sitDownPos    = seatAnchor + profile->sitDownOffset;
+                sittingIdlePos = seatAnchor + profile->sittingIdleOffset;
+                sitStandUpPos  = seatAnchor + profile->sitStandUpOffset;
+            }
+        }
+
+        // Severity by bone name
+        auto boneSeverity = [](const std::string& name) -> const char* {
+            static const char* critKw[] = {"Hips","Spine","Neck","Head","UpLeg","Leg"};
+            for (const auto* kw : critKw)
+                if (name.find(kw) != std::string::npos) return "error";
+            return "warning";
+        };
+
+        // Seat-surface voxel detection (top face at anchor Y = expected contact)
+        float seatTopWorldY = m_ieAssetOrigin.y + def.localOffset.y;
+        auto markSeat = [&](const glm::vec3& mx) -> bool {
+            return std::abs(mx.y - seatTopWorldY) < 0.05f;
+        };
+
+        // Build world-space voxel AABBs
+        struct VoxelBox { glm::vec3 mn, mx; std::string desc; bool isSeat; };
+        std::vector<VoxelBox> boxes;
+        constexpr float S = 1.0f / 3.0f;
+        constexpr float Mc = 1.0f / 9.0f;
+        glm::vec3 orig = glm::vec3(m_ieAssetOrigin);
+        for (const auto& c : tmpl->cubes) {
+            glm::vec3 mn = orig + glm::vec3(c.relativePos), mx = mn + glm::vec3(1.0f);
+            char buf[64]; snprintf(buf, sizeof(buf), "C %d %d %d", c.relativePos.x, c.relativePos.y, c.relativePos.z);
+            boxes.push_back({mn, mx, buf, markSeat(mx)});
+        }
+        for (const auto& sc : tmpl->subcubes) {
+            glm::vec3 mn = orig + glm::vec3(sc.parentRelativePos) + glm::vec3(sc.subcubePos) * S, mx = mn + glm::vec3(S);
+            char buf[96]; snprintf(buf, sizeof(buf), "S %d %d %d  %d %d %d",
+                sc.parentRelativePos.x, sc.parentRelativePos.y, sc.parentRelativePos.z,
+                sc.subcubePos.x, sc.subcubePos.y, sc.subcubePos.z);
+            boxes.push_back({mn, mx, buf, markSeat(mx)});
+        }
+        for (const auto& mc : tmpl->microcubes) {
+            glm::vec3 mn = orig + glm::vec3(mc.parentRelativePos) + glm::vec3(mc.subcubePos) * S + glm::vec3(mc.microcubePos) * Mc;
+            glm::vec3 mx = mn + glm::vec3(Mc);
+            char buf[128]; snprintf(buf, sizeof(buf), "M %d %d %d  %d %d %d  %d %d %d",
+                mc.parentRelativePos.x, mc.parentRelativePos.y, mc.parentRelativePos.z,
+                mc.subcubePos.x, mc.subcubePos.y, mc.subcubePos.z,
+                mc.microcubePos.x, mc.microcubePos.y, mc.microcubePos.z);
+            boxes.push_back({mn, mx, buf, markSeat(mx)});
+        }
+
+        // Scan clips at N evenly-spaced sample points
+        int numSamples = cmd.params.value("samples", 30);
+        struct ClipScan { const char* name; glm::vec3 footPos; };
+        ClipScan clipsToScan[] = {
+            {"stand_to_sit", sitDownPos},
+            {"sitting_idle", sittingIdlePos},
+            {"sit_to_stand", sitStandUpPos}
+        };
+
+        json violations = json::array();
+        json clipSummary = json::array();
+        bool hasError = false;
+        int totalSamples = 0;
+
+        for (const auto& cs : clipsToScan) {
+            int clipErrors = 0, clipWarnings = 0, clipContacts = 0;
+            float worstPen = 0.0f;
+
+            for (int i = 0; i <= numSamples; ++i) {
+                float t = (float)i / numSamples;
+                auto bones = m_ieChar->sampleBoneAABBsAtTime(cs.name, t, cs.footPos);
+                if (bones.empty()) break;  // clip not found — skip remaining
+                ++totalSamples;
+
+                for (const auto& bone : bones) {
+                    glm::vec3 bMn = bone.center - bone.halfExtents;
+                    glm::vec3 bMx = bone.center + bone.halfExtents;
+                    for (const auto& vox : boxes) {
+                        if (bMn.x >= vox.mx.x || bMx.x <= vox.mn.x) continue;
+                        if (bMn.y >= vox.mx.y || bMx.y <= vox.mn.y) continue;
+                        if (bMn.z >= vox.mx.z || bMx.z <= vox.mn.z) continue;
+                        float px = std::min(bMx.x, vox.mx.x) - std::max(bMn.x, vox.mn.x);
+                        float py = std::min(bMx.y, vox.mx.y) - std::max(bMn.y, vox.mn.y);
+                        float pz = std::min(bMx.z, vox.mx.z) - std::max(bMn.z, vox.mn.z);
+                        float pen = std::min({px, py, pz});
+                        const char* sev = vox.isSeat ? "contact" : boneSeverity(bone.boneName);
+                        if (strcmp(sev, "error") == 0)   { hasError = true; ++clipErrors; }
+                        else if (strcmp(sev, "warning") == 0) ++clipWarnings;
+                        else ++clipContacts;
+                        worstPen = std::max(worstPen, pen);
+                        violations.push_back({
+                            {"clip",            cs.name},
+                            {"anim_t",          t},
+                            {"bone",            bone.boneName},
+                            {"voxel",           vox.desc},
+                            {"severity",        sev},
+                            {"penetration_xyz", {px, py, pz}}
+                        });
+                    }
+                }
+            }
+            clipSummary.push_back({
+                {"clip",      cs.name},
+                {"errors",    clipErrors},
+                {"warnings",  clipWarnings},
+                {"contacts",  clipContacts},
+                {"worst_pen", worstPen}
+            });
+        }
+
+        response = {
+            {"valid",           !hasError},
+            {"has_errors",      hasError},
+            {"violation_count", (int)violations.size()},
+            {"samples_taken",   totalSamples},
+            {"clip_summary",    clipSummary},
+            {"violations",      violations}
+        };
+        return true;
+    }
+
+    if (action == "ie_seek_animation") {
+        if (!m_interactionEditorMode || !m_ieChar) {
+            response = {{"error", "Not in interaction editor mode"}}; return true;
+        }
+        std::string clipName = cmd.params.value("clip_name", "");
+        float normalizedTime = cmd.params.value("normalized_time", 0.0f);
+        normalizedTime = std::clamp(normalizedTime, 0.0f, 1.0f);
+
+        // Find the clip by name (case-insensitive)
+        std::string targetLower = clipName;
+        std::transform(targetLower.begin(), targetLower.end(), targetLower.begin(), ::tolower);
+        const auto& clips = m_ieChar->getAnimationClips();
+        int clipIdx = -1;
+        for (int i = 0; i < (int)clips.size(); ++i) {
+            std::string n = clips[i].name;
+            std::transform(n.begin(), n.end(), n.begin(), ::tolower);
+            if (n == targetLower) { clipIdx = i; break; }
+        }
+        if (clipIdx < 0) {
+            response = {{"error", "Clip not found"}, {"clip_name", clipName}}; return true;
+        }
+
+        // Look up the seat anchor and profile offsets from the template definition
+        namespace fs = std::filesystem;
+        std::string stemName = fs::path(m_interactionEditorFile).stem().string();
+        glm::vec3 seatAnchor = glm::vec3(m_ieAssetOrigin);
+        glm::vec3 sitDown{0}, sittingIdle{0}, sitStandUp{0};
+        float blendDur = 0.0f, heightOff = 0.0f;
+        float facingYaw = 0.0f;
+
+        if (placedObjectManager) {
+            auto& allDefs = placedObjectManager->getMutableTemplateDefs();
+            auto it = allDefs.find(stemName);
+            if (it != allDefs.end() && m_ieSelectedPoint < (int)it->second.size()) {
+                auto& def = it->second[m_ieSelectedPoint];
+                seatAnchor = glm::vec3(m_ieAssetOrigin) + def.localOffset;
+                facingYaw = def.facingYaw;
+            }
+        }
+        std::string dbgArch, dbgPreset;
+        bool dbgFoundOverride = false;
+        if (interactionProfileManager) {
+            std::string archetype = m_ieChar->getArchetype();
+            // Resolve through per-character override so IE preview reflects
+            // any baked override matching the active character's presetId
+            // (e.g. the matrix runner's --apply-overrides output).
+            const std::string& presetId = m_ieChar->getAppearance().presetId;
+            dbgArch = archetype;
+            dbgPreset = presetId;
+            const auto* profile = interactionProfileManager->resolveProfile(
+                archetype, stemName, "seat_0", presetId);
+            if (profile) {
+                sitDown     = profile->sitDownOffset;
+                sittingIdle = profile->sittingIdleOffset;
+                sitStandUp  = profile->sitStandUpOffset;
+                blendDur    = profile->sitBlendDuration;
+                heightOff   = profile->seatHeightOffset;
+                // Detect override actually used: check if base profile differs
+                const auto* base = interactionProfileManager->getProfile(archetype, stemName, "seat_0");
+                if (base && profile != base) dbgFoundOverride = true;
+            }
+        }
+        seatAnchor.y += heightOff;
+
+        // Determine target state and per-clip Hips reference. The runtime engine
+        // mirrors this formula every frame in update():
+        //   worldPosition = seat + sitStandUpOffset - rotateByYaw(hipsRef_<state>)
+        // so the visible Hips bone lines up with the seat in world space. We must
+        // do the same here so IE preview renders the character on the chair, not
+        // ~0.5m below it.
+        Scene::AnimatedCharacterState targetState = Scene::AnimatedCharacterState::SitDown;
+        glm::vec3 hipsRef{0.0f};
+        const auto& clipDur = clips[clipIdx].duration;
+        if (targetLower == "stand_to_sit") {
+            targetState = Scene::AnimatedCharacterState::SitDown;
+            m_iePreviewState = InteractionPreviewState::SittingDown;
+            // Reference frame for stand_to_sit is the END (character settled on seat)
+            hipsRef = m_ieChar->sampleClipBonePos(clipIdx, 0, clipDur);
+        } else if (targetLower == "sitting_idle") {
+            targetState = Scene::AnimatedCharacterState::SittingIdle;
+            m_iePreviewState = InteractionPreviewState::SittingIdle;
+            hipsRef = m_ieChar->sampleClipBonePos(clipIdx, 0, 0.0f);
+        } else if (targetLower == "sit_to_stand") {
+            targetState = Scene::AnimatedCharacterState::SitStandUp;
+            m_iePreviewState = InteractionPreviewState::StandingUp;
+            hipsRef = m_ieChar->sampleClipBonePos(clipIdx, 0, 0.0f);
+        }
+
+        // Always (re-)apply offsets so the cached m_sit*Offset members stay in
+        // sync with the current profile (including any per-character override).
+        // Without this refresh, a subsequent profile update would be ignored
+        // because update() snaps the character back to the stale anchor.
+        if (!m_ieChar->isSitting()) {
+            m_ieChar->sitAt(seatAnchor, facingYaw, sitDown, sittingIdle, sitStandUp, blendDur, heightOff);
+        } else {
+            m_ieChar->refreshSitOffsets(sitDown, sittingIdle, sitStandUp, blendDur, heightOff);
+        }
+
+        float cy = cosf(facingYaw), sy = sinf(facingYaw);
+        glm::vec3 targetWorldPos = seatAnchor + sitStandUp;
+        targetWorldPos.x -= hipsRef.x * cy - hipsRef.z * sy;
+        targetWorldPos.y -= hipsRef.y;
+        targetWorldPos.z -= hipsRef.x * sy + hipsRef.z * cy;
+
+        // Force the character into the target state and position.
+        // Also reset stateTimer so a previously accumulated timer doesn't immediately
+        // re-trigger a state transition on the next unpaused frame.
+        m_ieChar->forceState(targetState);
+        m_ieChar->resetStateTimer();
+        m_ieChar->setPosition(targetWorldPos);
+
+        // Pause and seek to the correct clip at the requested time.
+        // seekToClip sets currentClipIndex AND force-evaluates bones immediately,
+        // so the very next render shows the correct pose — not just the Idle clip.
+        m_ieChar->setAnimationPaused(true);
+        m_ieChar->seekToClip(clipIdx, normalizedTime);
+
+        auto pos = m_ieChar->getPosition();
+        float clipDuration = clips[clipIdx].duration;
+        response = {{"success", true},
+                    {"clip_name", clipName},
+                    {"normalized_time", normalizedTime},
+                    {"eval_time_seconds", normalizedTime * clipDuration},
+                    {"clip_duration", clipDuration},
+                    {"paused", true},
+                    {"world_pos", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}},
+                    {"seat_anchor", {{"x", seatAnchor.x}, {"y", seatAnchor.y}, {"z", seatAnchor.z}}},
+                    {"debug_archetype", dbgArch},
+                    {"debug_preset_id", dbgPreset},
+                    {"debug_override_used", dbgFoundOverride},
+                    {"debug_sitting_idle_offset", {sittingIdle.x, sittingIdle.y, sittingIdle.z}}};
+        return true;
+    }
+
+    if (action == "ie_resume_animation") {
+        if (!m_interactionEditorMode || !m_ieChar) {
+            response = {{"error", "Not in interaction editor mode"}}; return true;
+        }
+        m_ieChar->setAnimationPaused(false);
+        response = {{"success", true}, {"paused", false}};
+        return true;
+    }
+
+    if (action == "get_character_design_constraints") {
+        std::string archetype = cmd.params.value("archetype", "humanoid_normal");
+        std::ifstream f("resources/character_design_constraints.json");
+        if (!f.is_open()) {
+            response = {{"error", "character_design_constraints.json not found"},
+                        {"path", "resources/character_design_constraints.json"}};
+            return true;
+        }
+        json constraints;
+        try { f >> constraints; } catch (const json::exception& e) {
+            response = {{"error", "Failed to parse constraints file"}, {"detail", e.what()}};
+            return true;
+        }
+        if (!constraints.contains(archetype)) {
+            response = {{"error", "Archetype not found"}, {"archetype", archetype},
+                        {"available", json::array()}};
+            for (auto& [k, v] : constraints.items())
+                if (k != "_comment") response["available"].push_back(k);
+            return true;
+        }
+        response = {{"success", true}, {"archetype", archetype}, {"constraints", constraints[archetype]}};
+        return true;
+    }
+
+    if (action == "compute_character_metrics") {
+        // Compute structured anatomical metrics from the currently-loaded character
+        // (IE mode: m_ieChar; otherwise the player AnimatedVoxelCharacter).
+        Phyxel::Scene::AnimatedVoxelCharacter* ch = nullptr;
+        if (m_interactionEditorMode && m_ieChar) {
+            ch = m_ieChar;
+        } else if (animatedCharacter) {
+            ch = animatedCharacter;
+        }
+        if (!ch) {
+            response = {{"error", "No animated character loaded"}};
+            return true;
+        }
+
+        // Helper: pick a bone by suffix-match against a list of candidate names.
+        auto findBoneId = [&](const std::vector<std::string>& candidates) -> int {
+            const auto& skel = ch->getSkeleton();
+            for (const auto& cand : candidates) {
+                for (const auto& [name, idx] : skel.boneMap) {
+                    if (name == cand || name.size() > cand.size()
+                        && name.compare(name.size() - cand.size(), cand.size(), cand) == 0
+                        && (name.size() == cand.size() || name[name.size() - cand.size() - 1] == ':')) {
+                        return idx;
+                    }
+                }
+            }
+            return -1;
+        };
+
+        // Helper: chain length in bind pose (sum of |localPosition| from start child to end ancestor).
+        auto chainLength = [&](int startBoneId, int endBoneId) -> float {
+            const auto& skel = ch->getSkeleton();
+            if (startBoneId < 0 || endBoneId < 0) return 0.0f;
+            float total = 0.0f;
+            int cur = startBoneId;
+            int guard = 0;
+            while (cur != -1 && cur != endBoneId && guard < 64) {
+                total += glm::length(skel.bones[cur].localPosition);
+                cur = skel.bones[cur].parentId;
+                guard++;
+            }
+            return total;
+        };
+
+        // Snapshot current bone AABBs for live extents.
+        auto liveAABBs = ch->getBoneAABBs();
+        // Sample sitting_idle at t=0.5 with origin at (0,0,0) for sitting-height measurement.
+        auto sitAABBs = ch->sampleBoneAABBsAtTime("sitting_idle", 0.5f, glm::vec3(0.0f));
+
+        auto aabbByBoneName = [](const std::vector<Phyxel::Scene::AnimatedVoxelCharacter::BoneAABB>& v,
+                                 const std::vector<std::string>& candidates)
+            -> const Phyxel::Scene::AnimatedVoxelCharacter::BoneAABB* {
+            for (const auto& cand : candidates) {
+                for (const auto& b : v) {
+                    const auto& nm = b.boneName;
+                    if (nm == cand
+                        || (nm.size() > cand.size()
+                            && nm.compare(nm.size() - cand.size(), cand.size(), cand) == 0
+                            && (nm.size() == cand.size() || nm[nm.size() - cand.size() - 1] == ':'))) {
+                        return &b;
+                    }
+                }
+            }
+            return nullptr;
+        };
+
+        // ---- Total height: live AABB Y span. ----
+        float yMin = std::numeric_limits<float>::infinity();
+        float yMax = -std::numeric_limits<float>::infinity();
+        for (const auto& b : liveAABBs) {
+            yMin = std::min(yMin, b.center.y - b.halfExtents.y);
+            yMax = std::max(yMax, b.center.y + b.halfExtents.y);
+        }
+        const float totalHeight = std::isfinite(yMin) && std::isfinite(yMax) ? (yMax - yMin) : 0.0f;
+
+        // ---- Bone references ----
+        const auto* hips      = aabbByBoneName(liveAABBs, {"Hips", "Pelvis", "mixamorig:Hips"});
+        const auto* head      = aabbByBoneName(liveAABBs, {"Head", "mixamorig:Head"});
+        const auto* lShoulder = aabbByBoneName(liveAABBs, {"LeftArm", "LeftShoulder", "mixamorig:LeftArm"});
+        const auto* rShoulder = aabbByBoneName(liveAABBs, {"RightArm", "RightShoulder", "mixamorig:RightArm"});
+        const auto* lUpLeg    = aabbByBoneName(liveAABBs, {"LeftUpLeg", "mixamorig:LeftUpLeg"});
+        const auto* rUpLeg    = aabbByBoneName(liveAABBs, {"RightUpLeg", "mixamorig:RightUpLeg"});
+        const auto* lFoot     = aabbByBoneName(liveAABBs, {"LeftFoot", "mixamorig:LeftFoot"});
+        const auto* lLeg      = aabbByBoneName(liveAABBs, {"LeftLeg", "mixamorig:LeftLeg"});
+        const auto* spine     = aabbByBoneName(liveAABBs, {"Spine2", "Spine1", "Spine", "mixamorig:Spine2"});
+
+        const float hipHeight    = hips ? hips->center.y - yMin : 0.0f;
+        const float eyeHeight    = head ? head->center.y - yMin : 0.0f;
+        const float shoulderW    = (lShoulder && rShoulder) ? glm::distance(lShoulder->center, rShoulder->center) : 0.0f;
+        const float hipW         = (lUpLeg && rUpLeg)       ? glm::distance(lUpLeg->center, rUpLeg->center) : 0.0f;
+        const float bodyDepth    = spine ? spine->halfExtents.z * 2.0f : 0.0f;
+        // Leg length: prefer Hips-to-foot; fall back to Hips-to-shin-bottom; ultimately to hip height.
+        float legLength = 0.0f;
+        if (hips && lFoot) {
+            legLength = hips->center.y - (lFoot->center.y - lFoot->halfExtents.y);
+        } else if (hips && lLeg) {
+            legLength = hips->center.y - (lLeg->center.y - lLeg->halfExtents.y);
+        } else {
+            legLength = hipHeight;
+        }
+
+        // ---- Arm reach: chain length Hand <- ForeArm <- Arm <- Shoulder in bind pose ----
+        int handId     = findBoneId({"LeftHand", "mixamorig:LeftHand"});
+        int shoulderId = findBoneId({"LeftArm", "LeftShoulder", "mixamorig:LeftArm"});
+        const float armReach = chainLength(handId, shoulderId);
+
+        // ---- Sitting height: sitting_idle t=0.5, head top minus hips bottom ----
+        float sittingHeight = 0.0f;
+        if (!sitAABBs.empty()) {
+            const auto* sHead = aabbByBoneName(sitAABBs, {"Head", "mixamorig:Head"});
+            const auto* sHips = aabbByBoneName(sitAABBs, {"Hips", "Pelvis", "mixamorig:Hips"});
+            if (sHead && sHips) {
+                sittingHeight = (sHead->center.y + sHead->halfExtents.y) - (sHips->center.y - sHips->halfExtents.y);
+            }
+        }
+
+        // ---- Per-bone live extents (for clearance/bulk reasoning) ----
+        json perBone = json::object();
+        for (const auto& b : liveAABBs) {
+            perBone[b.boneName] = {
+                {"half_extents", {{"x", b.halfExtents.x}, {"y", b.halfExtents.y}, {"z", b.halfExtents.z}}},
+                {"center_y_above_floor", b.center.y - yMin}
+            };
+        }
+
+        response = {
+            {"success", true},
+            {"schema_version", "character_metrics.v1"},
+            {"metrics", {
+                {"total_height",    totalHeight},
+                {"hip_height",      hipHeight},
+                {"eye_height",      eyeHeight},
+                {"leg_length",      legLength},
+                {"arm_reach",       armReach},
+                {"shoulder_width",  shoulderW},
+                {"hip_width",       hipW},
+                {"body_depth",      bodyDepth},
+                {"sitting_height",  sittingHeight},
+                {"per_bone",        perBone}
+            }}
+        };
+        return true;
+    }
+
+    if (action == "get_character_contact") {
+        // Phase M1: return the kinematic character's most recent voxel-contact
+        // snapshot (refreshed every tick inside resolveKinematicMovement()).
+        Phyxel::Scene::AnimatedVoxelCharacter* ch = nullptr;
+        if (m_interactionEditorMode && m_ieChar) ch = m_ieChar;
+        else if (animatedCharacter)             ch = animatedCharacter;
+        if (!ch) {
+            response = {{"error", "No animated character loaded"}, {"success", false}};
+            return true;
+        }
+        const auto& c = ch->getLastContact();
+        glm::vec3 pos = ch->getPosition();
+        glm::vec3 fwd = ch->getForwardDirection();
+        response = {
+            {"success", true},
+            {"position", {pos.x, pos.y, pos.z}},
+            {"facing", {fwd.x, fwd.y, fwd.z}},
+            {"ground", {
+                {"found",          c.groundFound},
+                {"y",              c.groundY},
+                {"near_edge_dir",  Phyxel::Scene::toString(c.nearEdgeDir)},
+                {"edge_drop",      c.edgeDrop}
+            }},
+            {"forward", {
+                {"hit",            c.forwardHit},
+                {"hit_point",      {c.forwardHitPoint.x, c.forwardHitPoint.y, c.forwardHitPoint.z}},
+                {"face_normal",    {c.forwardFaceNormal.x, c.forwardFaceNormal.y, c.forwardFaceNormal.z}},
+                {"face_y_min",     c.forwardFaceYMin},
+                {"face_y_max",     c.forwardFaceYMax},
+                {"headroom_above", c.forwardHeadroomAbove},
+                {"depth_clear",    c.forwardDepthClear}
+            }},
+            {"climb", {
+                {"kind",       Phyxel::Scene::toString(c.climb)},
+                {"grab_y",     c.climbGrabY},
+                {"top_y",      c.climbTopY},
+                {"anchor_xz",  {c.climbAnchorXZ.x, c.climbAnchorXZ.y, c.climbAnchorXZ.z}}
+            }},
+            {"push", {
+                {"kind",       Phyxel::Scene::toString(c.push)},
+                {"object_id",  c.pushObjectId},
+                {"part_id",    c.pushPartId}
+            }}
+        };
+        return true;
+    }
+
+    if (action == "set_teeter_blend" || action == "get_teeter_blend") {
+        // Phase M2: toggle / inspect the edge-teeter pose blend (default off).
+        Phyxel::Scene::AnimatedVoxelCharacter* ch = nullptr;
+        if (m_interactionEditorMode && m_ieChar) ch = m_ieChar;
+        else if (animatedCharacter)             ch = animatedCharacter;
+        if (!ch) {
+            response = {{"error", "No animated character loaded"}, {"success", false}};
+            return true;
+        }
+        if (action == "set_teeter_blend" && cmd.params.contains("enabled")) {
+            ch->setTeeterBlendEnabled(cmd.params["enabled"].get<bool>());
+        }
+        glm::vec2 d = ch->getTeeterDirXZ();
+        response = {
+            {"success", true},
+            {"enabled", ch->isTeeterBlendEnabled()},
+            {"amount",  ch->getTeeterAmount()},
+            {"dir_xz",  {d.x, d.y}}
+        };
+        return true;
+    }
+
+    if (action == "request_jump") {
+        // Phase M5/M6 FSM-wire smoke hook: set jumpRequested=true on the
+        // active animated character, the same flag the keyboard Space-press
+        // sets. Used to verify the auto-mantle path triggers from a player-
+        // style jump.
+        Phyxel::Scene::AnimatedVoxelCharacter* ch = nullptr;
+        if (m_interactionEditorMode && m_ieChar) ch = m_ieChar;
+        else if (animatedCharacter)             ch = animatedCharacter;
+        if (!ch) {
+            response = {{"error", "No animated character loaded"}, {"success", false}};
+            return true;
+        }
+        ch->requestJump();
+        response = {{"success", true}, {"jump_requested", true}};
+        return true;
+    }
+
+    if (action == "spawn_for_test") {
+        // Rebuild the currently-loaded character (IE mode: m_ieChar; project mode:
+        // animatedCharacter) with the morphology in `appearance`. Used by the
+        // pipeline to fan out the (character × asset) matrix without authoring
+        // a separate .anim per morphology.
+        //
+        // Body: { "appearance": { ... CharacterAppearance JSON ... },
+        //         "anim_file": "resources/animated_characters/humanoid.anim",   // optional
+        //         "position":  { "x":..., "y":..., "z":... } }                  // optional
+        //
+        // Returns the resulting character metrics so the caller can confirm the
+        // morphology actually took effect.
+        Phyxel::Scene::AnimatedVoxelCharacter* ch = nullptr;
+        if (m_interactionEditorMode && m_ieChar) {
+            ch = m_ieChar;
+        } else if (animatedCharacter) {
+            ch = animatedCharacter;
+        }
+        if (!ch) {
+            response = {{"error", "No animated character loaded; nothing to rebuild"}};
+            return true;
+        }
+        if (!cmd.params.contains("appearance") || !cmd.params["appearance"].is_object()) {
+            response = {{"error", "Missing required field 'appearance' (object)"}};
+            return true;
+        }
+        Phyxel::Scene::CharacterAppearance appearance;
+        try {
+            appearance = Phyxel::Scene::CharacterAppearance::fromJson(cmd.params["appearance"]);
+        } catch (const std::exception& e) {
+            response = {{"error", std::string("Failed to parse appearance: ") + e.what()}};
+            return true;
+        }
+
+        // Rebuild in place — the rig + clips are re-scaled, no new entity needed.
+        // (`setAppearance` updates colors/morphology fields; `rebuildWithAppearance`
+        // re-applies skeleton proportions and re-builds bodies.)
+        ch->setAppearance(appearance);
+        ch->rebuildWithAppearance(appearance);
+
+        // Re-measure so the caller sees the post-rebuild metrics in the same
+        // response (no need for a second round-trip to /api/character/metrics).
+        CharScalarMetrics m = computeCharScalarMetrics(ch);
+        response = {
+            {"success", true},
+            {"appearance_applied", appearance.toJson()},
+            {"metrics", {
+                {"total_height",    m.total_height},
+                {"hip_height",      m.hip_height},
+                {"eye_height",      m.eye_height},
+                {"leg_length",      m.leg_length},
+                {"arm_reach",       m.arm_reach},
+                {"shoulder_width",  m.shoulder_width},
+                {"hip_width",       m.hip_width},
+                {"body_depth",      m.body_depth},
+                {"sitting_height",  m.sitting_height},
+            }}
+        };
         return true;
     }
 
@@ -7260,6 +9423,44 @@ void Application::processAPICommands() {
                             pushUndoSnapshot(chunkManager, snapshotManager.get(),
                                              origin + tmin, origin + tmax,
                                              "spawn_template:" + name);
+                        }
+                    }
+
+                    // Surface-snap: prevent placing templates inside the ground.
+                    // Scan the template's XZ footprint, find the highest occupied voxel
+                    // in each column, and raise y so the template sits on top.
+                    if (chunkManager) {
+                        const auto* tmpl = objectTemplateManager->getTemplate(name);
+                        if (tmpl) {
+                            // Collect all integer cube XZ positions the template occupies
+                            std::set<std::pair<int,int>> footprint;
+                            for (const auto& c : tmpl->cubes)
+                                footprint.insert({c.relativePos.x, c.relativePos.z});
+                            for (const auto& s : tmpl->subcubes)
+                                footprint.insert({s.parentRelativePos.x, s.parentRelativePos.z});
+                            for (const auto& m : tmpl->microcubes)
+                                footprint.insert({m.parentRelativePos.x, m.parentRelativePos.z});
+
+                            int requestedY = static_cast<int>(y);
+                            int requiredY  = requestedY;
+
+                            for (const auto& [lx, lz] : footprint) {
+                                int wx = static_cast<int>(x) + lx;
+                                int wz = static_cast<int>(z) + lz;
+                                // Scan downward from requested Y to find the top occupied voxel
+                                for (int wy = requestedY; wy >= requestedY - 64; --wy) {
+                                    if (chunkManager->getCubeAt({wx, wy, wz})) {
+                                        // Surface is at wy+1; template must start at or above that
+                                        requiredY = std::max(requiredY, wy + 1);
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (requiredY > requestedY) {
+                                LOG_INFO("SpawnTemplate", "Surface-snap: {} raised from y={} to y={}", name, requestedY, requiredY);
+                                y = static_cast<float>(requiredY);
+                            }
                         }
                     }
 

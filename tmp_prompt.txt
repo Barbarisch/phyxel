@@ -1,0 +1,11 @@
+a wooden throne for a medieval king
+
+## Revision Notes
+- [Scale] The throne footprint must be at least 2 cubes wide (X) and 1.5 cubes deep (Z) -- the current model is only 1 cube wide which is far too narrow for a humanoid to sit in
+- [Scale] Seat surface must be at Y=0.67, total throne height should be 2.0-2.5 cubes -- currently the model is a narrow pillar
+- Build the seat first: a flat wide slab 2 cubes wide, 1.5 cubes deep, 0.25-0.33 cubes thick, placed so the top surface is at Y=0.67; use full Cubes (C) or large Subcubes for this slab
+- Build four corner legs: each a narrow post (1/3 cube wide) running from Y=0 up to Y=0.67, one at each corner of the seat
+- Build the backrest: a tall flat panel 1.5-2.0 cubes wide, 0.25 cubes deep, rising from Y=0.67 up to Y=2.0-2.5, placed at the back edge of the seat (high Z)
+- ARMRESTS: Build two armrests -- one on each side -- as horizontal slabs (0.15 cubes thick, 0.33 cubes wide, 0.67 cubes long) running forward from the backrest at Y=1.0; position them flush with the left and right edges of the seat
+- Add a decorative top to the backrest: two small corner posts at Y=2.0-2.5 or a wider slab for a crown/headboard shape
+- All voxels must use "Wood" material; use "Gold" only for optional accent subcubes at the backrest crown top

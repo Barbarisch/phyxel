@@ -1,0 +1,26 @@
+# Minimal composite asset for Phase C0b/D/C verification.
+# A 3x1x3 wooden base with a 3x0x3 single-layer lid hinged at the back edge.
+#
+# The lid is a single horizontal layer of cubes (y=1) tagged with the movable
+# part "lid". The hinge keyword `back_top` resolves to the +Z, +Y corner of the
+# lid's AABB so the lid rotates open backwards like a treasure chest.
+# part: base
+C 0 0 0 Wood
+C 1 0 0 Wood
+C 2 0 0 Wood
+C 0 0 1 Wood
+C 1 0 1 Wood
+C 2 0 1 Wood
+C 0 0 2 Wood
+C 1 0 2 Wood
+C 2 0 2 Wood
+# part: lid hinge=back_top axis=x
+C 0 1 0 Wood
+C 1 1 0 Wood
+C 2 1 0 Wood
+C 0 1 1 Wood
+C 1 1 1 Wood
+C 2 1 1 Wood
+C 0 1 2 Wood
+C 1 1 2 Wood
+C 2 1 2 Wood

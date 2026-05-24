@@ -1,0 +1,96 @@
+{
+  "started": "2026-05-22T22:11:05",
+  "finished": "2026-05-22T22:11:44",
+  "cells": [
+    {
+      "template": "chair_wood",
+      "point_id": "seat_0",
+      "kind": "sit",
+      "asset_path": "G:\\Github\\phyxel\\resources\\templates\\chair_wood.voxel",
+      "matrix": {
+        "ok": true,
+        "result_path": "G:\\Github\\phyxel\\tools\\interaction_pipeline\\reports\\tune_all\\chair_wood\\matrix_seat_0_sit.json",
+        "cells": [
+          {
+            "cid": "standard",
+            "can_interact": true,
+            "issues": 1,
+            "notes": [
+              "baked override"
+            ]
+          },
+          {
+            "cid": "giant",
+            "can_interact": true,
+            "issues": 1,
+            "notes": [
+              "baked override"
+            ]
+          },
+          {
+            "cid": "dwarf",
+            "can_interact": true,
+            "issues": 2,
+            "notes": [
+              "baked override"
+            ]
+          },
+          {
+            "cid": "child",
+            "can_interact": true,
+            "issues": 2,
+            "notes": [
+              "baked override"
+            ]
+          }
+        ]
+      },
+      "refine": {},
+      "started_at": "2026-05-22T22:11:05"
+    }
+  ],
+  "missing_annotations": [
+    "altar",
+    "anvil",
+    "barrel",
+    "bed_single",
+    "bench_wood",
+    "bookshelf",
+    "brazier",
+    "bush_flower",
+    "bush_round",
+    "campfire",
+    "candle_holder",
+    "chest_closed",
+    "chest_open",
+    "crate_wood",
+    "fern",
+    "fireplace",
+    "hedge_section",
+    "iron_bars",
+    "ladder",
+    "lantern",
+    "mushroom",
+    "pillar_stone",
+    "pot_iron",
+    "shrub_flat",
+    "shrub_round",
+    "simple_table",
+    "stool",
+    "table_wood",
+    "tavern_bar",
+    "tavern_table",
+    "tavern_test",
+    "torch_wall",
+    "tree_apple",
+    "tree_birch",
+    "tree_dead",
+    "tree_oak",
+    "tree_palm",
+    "tree_pine",
+    "tree_stump",
+    "well",
+    "wooden_throne",
+    "workbench"
+  ]
+}

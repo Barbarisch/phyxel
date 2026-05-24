@@ -1,0 +1,45 @@
+{
+  "_doc": "Stage 3 of the interaction pipeline: declarative spec for alias -> clip selection. Each kind lists the profile-key aliases it requires (matching the kind's `required_clip_aliases`); each alias lists candidate patterns ranked by weight. The selector scores every clip the loaded character exposes against the patterns and picks the highest-scoring match per alias. A clip name need only match one pattern's regex (case-insensitive); ties broken by `weight` then by candidate order. Patterns are NOT anchored — use ^/$ explicitly when needed.",
+  "version": 1,
+  "kinds": {
+    "sit": {
+      "aliases": {
+        "sit_down": [
+          { "pattern": "^stand_to_sit$",    "weight": 100, "rationale": "exact canonical sit-down clip" },
+          { "pattern": "^sit_down$",        "weight":  95, "rationale": "alternate canonical name" },
+          { "pattern": "sit.*down",         "weight":  60 },
+          { "pattern": "stand.*to.*sit",    "weight":  50 }
+        ],
+        "sitting_idle": [
+          { "pattern": "^sitting_idle$",    "weight": 100, "rationale": "exact canonical seated idle" },
+          { "pattern": "^sit_idle$",        "weight":  90 },
+          { "pattern": "sitting.*idle",     "weight":  60 },
+          { "pattern": "^seated$",          "weight":  40 }
+        ],
+        "sit_stand_up": [
+          { "pattern": "^sit_to_stand$",    "weight": 100, "rationale": "exact canonical stand-up from seat" },
+          { "pattern": "^sit_stand_up$",    "weight":  95 },
+          { "pattern": "sit.*to.*stand",    "weight":  60 },
+          { "pattern": "stand.*up.*sit",    "weight":  50 }
+        ]
+      }
+    },
+    "door_open": {
+      "aliases": {
+        "door_open_pull": [
+          { "pattern": "^open_door_in$",    "weight": 100, "rationale": "pulling door inward" },
+          { "pattern": "^door_pull$",       "weight":  90 },
+          { "pattern": "door.*pull",        "weight":  60 },
+          { "pattern": "open.*door.*in",    "weight":  55 }
+        ],
+        "door_open_push": [
+          { "pattern": "^open_door_out$",   "weight": 100, "rationale": "pushing door outward" },
+          { "pattern": "^door_push$",       "weight":  90 },
+          { "pattern": "door.*push",        "weight":  60 },
+          { "pattern": "open.*door.*out",   "weight":  55 },
+          { "pattern": "^push$",            "weight":  25, "rationale": "generic push as last resort" }
+        ]
+      }
+    }
+  }
+}

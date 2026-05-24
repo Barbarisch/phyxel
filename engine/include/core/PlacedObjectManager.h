@@ -97,6 +97,13 @@ struct InteractionPointDef {
     /// Half-angle (degrees) of the view cone required to interact. 0 = no angle check.
     float viewAngleHalf = 0.0f;
 
+    /// When false, compatibility errors (e.g. hip width too wide, seat depth
+    /// too short) are reported as warnings instead of blocking the interaction.
+    /// Authors set this to false on "forgiving" points (e.g. a bench that any
+    /// character can sit on, even if visually clipping). Defaults to true so
+    /// strict-fit assets keep their gates.
+    bool requireCompatibility = true;
+
     // Per-sit-state foot snap offsets (template-local, rotated at placement time)
     // These are default/fallback values; per-archetype profiles override them.
     glm::vec3 sitDownOffset{0.0f};   ///< Feet position during SitDown animation
@@ -131,6 +138,11 @@ struct InteractionPoint {
 
     /// Half-angle (degrees) of the view cone required to interact. 0 = no angle check.
     float viewAngleHalf = 0.0f;
+
+    /// Copied from InteractionPointDef::requireCompatibility. When false,
+    /// compat-check errors degrade to warnings (the gate still surfaces them
+    /// but `can_interact` returns true).
+    bool requireCompatibility = true;
 
     // Per-sit-state foot snap offsets (world-space, rotated from template-local defaults)
     glm::vec3 worldSitDownOffset{0.0f};

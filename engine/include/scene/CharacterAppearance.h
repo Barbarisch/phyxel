@@ -39,6 +39,13 @@ struct CharacterAppearance {
     // ---- Morphology ----
     MorphologyType morphology = MorphologyType::Unknown;
 
+    // ---- Variant identity ----
+    // Optional morphology preset id (e.g. "giant", "dwarf", "child"). Set when
+    // a preset was applied via the interaction pipeline's spawn_for_test flow;
+    // looked up by sit/interact code to pick the per-character override on an
+    // InteractionProfile. Empty string = no preset (use base profile).
+    std::string presetId;
+
     // ---- Color regions ----
     // These 5 slots are semantically named per morphology type.
     // For Humanoid:  region1=skin,  region2=torso, region3=arm,  region4=leg,     default

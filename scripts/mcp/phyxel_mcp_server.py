@@ -2222,6 +2222,10 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "enum": ["Debug", "Release"],
                         "description": "Build configuration (default: Debug)"
+                    },
+                    "interaction_editor": {
+                        "type": "boolean",
+                        "description": "Launch in --interaction-editor mode instead of --asset-editor. Spawns a standing character next to the asset for sit/stand animation preview and calibration."
                     }
                 },
                 "required": ["template_path"]
@@ -3252,6 +3256,16 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="get_character_design_constraints",
+            description="Return pre-measured furniture sizing targets for a character archetype. Includes popliteal height (ideal seat top), achievable subcube seat height, seat depth/width minimums, and backrest height ranges. Use this BEFORE designing any seating asset to ensure correct scale.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "archetype": {"type": "string", "description": "Character archetype key (default: 'humanoid_normal')"}
+                }
+            }
+        ),
+        Tool(
             name="sit_character",
             description="Sit an animated entity at a placed object's named interaction point. Looks up the seat's world position and facing (rotation-corrected), applies any existing calibration profile, then drives the stand_to_sit → sitting_idle animation sequence.",
             inputSchema={
@@ -3304,6 +3318,79 @@ async def list_tools() -> list[Tool]:
                     "point_id":      {"type": "string", "description": "Interaction point ID (default: 'seat_0')"}
                 },
                 "required": ["template_name"]
+            }
+        ),
+        Tool(
+            name="ie_sit_preview",
+            description="Trigger the 'Sit Down' preview in the interaction editor (--interaction-editor mode only). Drives the character through the stand_to_sit → sitting_idle animation sequence using the current seat anchor and profile offsets.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="ie_stand_preview",
+            description="Reset the interaction editor preview — stands the character back up and returns to the standing idle state. Use after ie_sit_preview to prepare for another sit cycle.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="ie_preview_state",
+            description="Get the current interaction editor preview state: 'standing', 'sitting_down', 'sitting_idle', or 'standing_up'. Also returns the character's world position.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="validate_ie_pose",
+            description=(
+                "Run a bone-vs-voxel AABB intersection check for the character's current pose in the "
+                "interaction editor. Tests every character bone against every voxel in the asset and "
+                "reports any penetrations. Returns valid=true only when no 'error'-severity violations "
+                "exist. Severity: 'error' for trunk/core bones (Hips, Spine, UpLeg, Leg, Neck, Head), "
+                "'warning' for extremities (arms, hands, feet). MUST be called after ie_sit_preview "
+                "before accepting a calibration as correct — visual inspection alone cannot catch "
+                "axis-parallel penetrations."
+            ),
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="seek_ie_animation",
+            description=(
+                "Pause the interaction editor character at a specific point in a sitting animation clip. "
+                "After calling this, the character is frozen at that exact pose and orbit_screenshots can "
+                "capture it visually. Call ie_resume_animation to resume playback. "
+                "clip_name: 'stand_to_sit', 'sitting_idle', or 'sit_to_stand'. "
+                "normalized_time: 0.0 = start of clip, 1.0 = end of clip."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "clip_name": {"type": "string", "description": "Animation clip name"},
+                    "normalized_time": {"type": "number", "description": "0.0 to 1.0"}
+                },
+                "required": ["clip_name", "normalized_time"]
+            }
+        ),
+        Tool(
+            name="ie_resume_animation",
+            description="Resume animation playback in the interaction editor after a seek_ie_animation pause.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="validate_ie_animation",
+            description=(
+                "Run a multi-frame bone-vs-voxel AABB intersection check across all three sitting "
+                "animation clips (stand_to_sit, sitting_idle, sit_to_stand). Samples bone positions "
+                "at N evenly-spaced time steps per clip and tests each against every voxel in the "
+                "asset. Returns per-clip summaries (error/warning counts, worst penetration depth) "
+                "and a full violation list tagged with clip name, normalized time, bone name, and "
+                "penetration vector. Use this after validate_ie_pose to catch transient violations "
+                "that only occur mid-animation. A clean result requires has_errors=false across all "
+                "clips."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "samples": {
+                        "type": "integer",
+                        "description": "Number of time samples per clip (default: 30). More samples = finer coverage but slower."
+                    }
+                }
             }
         ),
         Tool(
@@ -5012,6 +5099,10 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     elif name == "get_bone_positions":
         return await api_get(f"/api/entity/{args['id']}/bones")
 
+    elif name == "get_character_design_constraints":
+        archetype = args.get("archetype", "humanoid_normal")
+        return await api_get(f"/api/character/design_constraints?archetype={archetype}")
+
     elif name == "sit_character":
         body = {"entity_id": args["entity_id"], "object_id": args["object_id"]}
         if "point_id" in args:
@@ -5039,6 +5130,31 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             "template_name": args["template_name"],
             "point_id":      args.get("point_id", "seat_0"),
         })
+
+    elif name == "ie_sit_preview":
+        return await api_post("/api/interaction/ie/sit", {})
+
+    elif name == "ie_stand_preview":
+        return await api_post("/api/interaction/ie/stand", {})
+
+    elif name == "ie_preview_state":
+        return await api_get("/api/interaction/ie/state")
+
+    elif name == "seek_ie_animation":
+        return await api_post("/api/interaction/ie/seek", {
+            "clip_name": args["clip_name"],
+            "normalized_time": args["normalized_time"]
+        })
+
+    elif name == "ie_resume_animation":
+        return await api_post("/api/interaction/ie/resume", {})
+
+    elif name == "validate_ie_pose":
+        return await api_get("/api/interaction/ie/validate")
+
+    elif name == "validate_ie_animation":
+        samples = args.get("samples", 30)
+        return await api_get(f"/api/interaction/ie/validate_animation?samples={samples}")
 
     elif name == "get_npc_blackboard":
         return await api_get(f"/api/npc/{args['name']}/blackboard")
@@ -5594,6 +5710,7 @@ async def _launch_asset_editor(args: dict) -> dict:
     template_path = args.get("template_path", "")
     port = int(args.get("port", 8091))
     config = args.get("config", "Debug")
+    interaction_editor = bool(args.get("interaction_editor", False))
 
     # Resolve template path
     abs_path = Path(template_path)
@@ -5618,7 +5735,8 @@ async def _launch_asset_editor(args: dict) -> dict:
     if not exe_path.exists():
         return {"error": "Engine executable not found. Build the project first."}
 
-    cmd = [str(exe_path), "--asset-editor", str(abs_path), "--port", str(port)]
+    editor_flag = "--interaction-editor" if interaction_editor else "--asset-editor"
+    cmd = [str(exe_path), editor_flag, str(abs_path), "--port", str(port)]
     try:
         _asset_editor_process = subprocess.Popen(
             cmd,

@@ -183,6 +183,48 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // GET /api/engine/status — Rich engine state for lifecycle controllers
+    //
+    // Returns mode + loaded asset/project so external pipelines (Python
+    // interaction_pipeline, CI, /interaction-pipeline skill) can detect
+    // "engine is already running in the correct mode" and skip a relaunch.
+    // Falls back to a minimal payload if no handler is registered.
+    // ====================================================================
+    srv.Get("/api/engine/status", [this](const httplib::Request&, httplib::Response& res) {
+        json response;
+        if (m_engineStatusHandler) {
+            response = m_engineStatusHandler();
+        } else {
+            response = {
+                {"running", true},
+                {"mode", "unknown"},
+                {"loaded_asset", nullptr},
+                {"loaded_project", nullptr},
+                {"port", m_port}
+            };
+        }
+        // Ensure required fields are always present
+        if (!response.contains("running"))        response["running"]        = true;
+        if (!response.contains("mode"))           response["mode"]           = "unknown";
+        if (!response.contains("loaded_asset"))   response["loaded_asset"]   = nullptr;
+        if (!response.contains("loaded_project")) response["loaded_project"] = nullptr;
+        response["port"] = m_port;
+        res.set_content(response.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // POST /api/engine/shutdown — Request orderly shutdown
+    //
+    // Queues a "engine_shutdown" action. The main loop is expected to
+    // honor it on the next frame. Returns immediately; the lifecycle
+    // controller then verifies via process death.
+    // ====================================================================
+    srv.Post("/api/engine/shutdown", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("engine_shutdown", {}, 2000);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
     // GET /api/entities — List all entities
     // ====================================================================
     srv.Get("/api/entities", [this](const httplib::Request&, httplib::Response& res) {
@@ -1861,6 +1903,34 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // ====================================================================
+    // Character motion trace — per-frame worldPosition recording for the
+    // interaction pipeline. Used to detect engine-side slides/teleports.
+    // ====================================================================
+
+    // POST /api/character/motion_trace/clear
+    // Body: { "entity_id": "player", "capacity": 1024 (optional) }
+    srv.Post("/api/character/motion_trace/clear", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("character_motion_trace_clear", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // GET /api/character/motion_trace?entity_id=player
+    srv.Get("/api/character/motion_trace", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("entity_id")) params["entity_id"] = req.get_param_value("entity_id");
+        else if (req.has_param("id"))   params["entity_id"] = req.get_param_value("id");
+        json result = queueAndWait("character_motion_trace_dump", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
     // POST /api/interaction/profile — Create or overwrite a calibration profile
     // Body: { "archetype": "humanoid_normal", "template_name": "chair_wood",
     //         "point_id": "seat_0", "sitting_idle_offset": [0,0.1,0], ... }
@@ -1876,14 +1946,362 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
-    // GET /api/interaction/profile?archetype=humanoid_normal&template_name=chair_wood&point_id=seat_0
+    // GET /api/interaction/profile?archetype=humanoid_normal&template_name=chair_wood&point_id=seat_0&character_id=giant
+    // Optional `character_id` resolves to the per-character override on top of the
+    // base profile; omit it (or pass empty) to get the base profile directly.
     srv.Get("/api/interaction/profile", [this](const httplib::Request& req, httplib::Response& res) {
         json params;
         params["archetype"]     = req.has_param("archetype")     ? req.get_param_value("archetype")     : "humanoid_normal";
         params["template_name"] = req.has_param("template_name") ? req.get_param_value("template_name") : "";
         params["point_id"]      = req.has_param("point_id")      ? req.get_param_value("point_id")      : "seat_0";
+        params["character_id"]  = req.has_param("character_id")  ? req.get_param_value("character_id")  : "";
         json result = queueAndWait("get_interaction_profile", params);
         res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/interaction/ie/sit — Trigger Sit Down preview in interaction editor
+    srv.Post("/api/interaction/ie/sit", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("ie_sit_preview", {});
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/interaction/ie/stand — Reset/Stand Up preview in interaction editor
+    srv.Post("/api/interaction/ie/stand", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("ie_stand_preview", {});
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/interaction/ie/state — Get current preview state in interaction editor
+    srv.Get("/api/interaction/ie/state", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("ie_preview_state", {});
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/interaction/ie/validate — Bone-vs-voxel AABB intersection check for current IE pose
+    srv.Get("/api/interaction/ie/validate", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("validate_ie_pose", {});
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/interaction/ie/seek — Pause the IE character at a specific clip and normalized time (0-1)
+    // Body: { "clip_name": "stand_to_sit", "normalized_time": 0.5 }
+    srv.Post("/api/interaction/ie/seek", [this](const httplib::Request& req, httplib::Response& res) {
+        json params;
+        try { params = json::parse(req.body); } catch (...) {}
+        json result = queueAndWait("ie_seek_animation", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/interaction/ie/resume — Resume animation playback after a seek/pause
+    srv.Post("/api/interaction/ie/resume", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("ie_resume_animation", {});
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/interaction/ie/validate_animation — Multi-frame bone-vs-voxel check across all sitting clips
+    // Query param: samples (default 30) — number of time samples per clip
+    srv.Get("/api/interaction/ie/validate_animation", [this](const httplib::Request& req, httplib::Response& res) {
+        json params;
+        params["samples"] = req.has_param("samples") ? std::stoi(req.get_param_value("samples")) : 30;
+        json result = queueAndWait("validate_ie_animation", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/interaction/ie/telemetry — Rich per-frame state for the interaction pipeline.
+    // Query: ?clip=<name>&t=<normalized 0..1>&include_bones=1
+    // If clip+t omitted, returns current live state. If clip+t provided, samples
+    // bone poses at that frame WITHOUT disturbing live playback.
+    // Response includes: world_pos, seat_anchor, character facing, centroid,
+    // per-bone AABBs + overlap classification + signed distance to nearest asset
+    // surface, foot grounding (down-raycast).
+    srv.Get("/api/interaction/ie/telemetry", [this](const httplib::Request& req, httplib::Response& res) {
+        json params;
+        if (req.has_param("clip"))           params["clip"]           = req.get_param_value("clip");
+        if (req.has_param("t"))              params["t"]              = std::stof(req.get_param_value("t"));
+        if (req.has_param("include_bones"))  params["include_bones"]  = req.get_param_value("include_bones") != "0";
+        else                                  params["include_bones"]  = true;
+        json result = queueAndWait("ie_telemetry", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/character/design_constraints — Return furniture sizing targets for a character archetype
+    // Query param: archetype (default: humanoid_normal)
+    srv.Get("/api/character/design_constraints", [this](const httplib::Request& req, httplib::Response& res) {
+        json params;
+        params["archetype"] = req.has_param("archetype") ? req.get_param_value("archetype") : "humanoid_normal";
+        json result = queueAndWait("get_character_design_constraints", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/character/metrics — Compute structured anatomical metrics for the
+    // currently-loaded character (IE mode uses m_ieChar; project mode uses the
+    // player). Used by the interaction pipeline to author per-character profile
+    // offsets and run compatibility checks against assets.
+    // Returns total height, hip/eye height, leg/arm reach, shoulder/hip width,
+    // sitting height (sampled from sitting_idle), and per-bone bind-pose extents.
+    srv.Get("/api/character/metrics", [this](const httplib::Request& req, httplib::Response& res) {
+        json result = queueAndWait("compute_character_metrics", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/character/contact — Return the kinematic character's voxel
+    // contact snapshot: ground, near-edge direction, forward face, climb
+    // classification, push handle. Used by the edge/push/pull/climb plan
+    // (Phase M1+) for testing and visualization.
+    // Query: entity_id (optional; defaults to active animated character).
+    srv.Get("/api/character/contact", [this](const httplib::Request& req, httplib::Response& res) {
+        json params;
+        if (req.has_param("entity_id")) params["entity_id"] = req.get_param_value("entity_id");
+        json result = queueAndWait("get_character_contact", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/character/teeter_blend — Toggle Phase M2 edge-teeter pose
+    // blend on the active animated character. Default off.
+    // Body: { "enabled": bool, "entity_id"?: "..." }
+    // Returns: { success, enabled, amount, dir_xz: [x, z] }
+    srv.Post("/api/character/teeter_blend", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_teeter_blend", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
+    });
+
+    // GET /api/character/teeter_blend — Read current teeter state.
+    srv.Get("/api/character/teeter_blend", [this](const httplib::Request& req, httplib::Response& res) {
+        json params;
+        if (req.has_param("entity_id")) params["entity_id"] = req.get_param_value("entity_id");
+        json result = queueAndWait("get_teeter_blend", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/character/spawn_for_test — Rebuild the active animated character
+    // with a morphology preset (CharacterAppearance JSON). Used by the
+    // interaction pipeline to fan out the (character × asset) matrix without
+    // authoring per-morphology .anim files.
+    // Body: { "appearance": { heightScale, bulkScale, ... } }
+    // Returns: { success, appearance_applied, metrics: { ... } }
+    srv.Post("/api/character/spawn_for_test", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("spawn_for_test", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
+    });
+
+    // POST /api/character/request_jump — Set jumpRequested=true on the active
+    // animated character. Used by the FSM-wire smoke (Phase M5/M6 integration)
+    // to confirm a player-style jump near a LedgeUp triggers an auto-mantle.
+    // Body: { "entity_id"?: "..." }
+    // Returns: { success, jump_requested: true }
+    srv.Post("/api/character/request_jump", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params;
+            if (!req.body.empty()) params = json::parse(req.body);
+            json result = queueAndWait("request_jump", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
+    });
+
+    // POST /api/interaction/can_interact — Read-only compatibility query.
+    // Body: { "entity_id": "...", "object_id": "...", "point_id": "seat_0", "kind": "sit" }
+    // Returns: { success, can_interact, kind, compatibility_issues: [...], reason? }
+    // The pipeline uses this to enumerate (character × asset) matrices without
+    // executing the animation. `sit_character` itself enforces the same gate.
+    srv.Post("/api/interaction/can_interact", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("can_interact", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
+    });
+
+    // POST /api/interaction/force_interact — Scripted/cutscene path.
+    // Body: { "entity_id": "...", "object_id": "...", "point_id": "seat_0" }
+    // Bypasses the compatibility gate (use for cutscenes / mocap capture /
+    // pipeline tooling). Today only seat points are supported; other point
+    // types return an error. The caller owns visual consequences.
+    srv.Post("/api/interaction/force_interact", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("force_interact", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
+    });
+
+    // POST /api/interaction/try_pivot — Phase D.
+    // Body: { "object_id": "<placed_id>", "part_index": 0,
+    //         "angle_deg": 90.0, "speed_deg": 180.0 }
+    // Drives the KinematicAnimator for the part registered against the
+    // object. No character animation runs until the Mixamo reach clip is
+    // wired into the sit-style dispatch; the object swings while the
+    // character stands still.
+    srv.Post("/api/interaction/try_pivot", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("try_pivot", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
+    });
+
+    // POST /api/interaction/try_slide — Phase H. Mirrors try_pivot but
+    // drives a translation along the part's slideDirLocal axis.
+    // Body: { "object_id", "part_index", "offset_m", "speed_mps",
+    //         "character_id", "clip" }
+    srv.Post("/api/interaction/try_slide", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("try_slide", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
+    });
+
+    // POST /api/interaction/try_push — Phase M3. Find nearest dynamic cube
+    // in front of the character (within `reach`) and apply a capped
+    // horizontal impulse along the character's forward direction. Plays
+    // the named push clip if a character_id+clip is supplied. If no
+    // dynamic body is found within reach, response.success is true but
+    // object_id_pushed is empty and applied_impulse is zero — the clip
+    // still plays (cosmetic push against a wall).
+    // Body: { "character_id"?, "force"?: float (default 6.0),
+    //         "reach"?: float (default 0.8), "clip"?: "push" }
+    // Returns: { success, object_id_pushed, applied_impulse: [x,y,z],
+    //            contact_voxel: [x,y,z]?, clip_played }
+    srv.Post("/api/interaction/try_push", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("try_push", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
+    });
+
+    // POST /api/interaction/try_pull — Phase M4. Pull a kinematic part by
+    // total_offset_m along its slide axis. Plays the pull clip on the
+    // character — coupled motion since both are driven by speed_mps.
+    // Body: { "object_id", "part_index"?, "total_offset_m", "speed_mps"?,
+    //         "character_id"?, "clip"?: "pull" }
+    srv.Post("/api/interaction/try_pull", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("try_pull", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
+    });
+
+    // POST /api/interaction/try_climb_up — Phase M5. Begin a ledge mantle
+    // from the character's current position to (climb.anchor_xz, climb.top_y)
+    // when contact.climb.kind == ledge_up. Plays the climb_ladder_start clip.
+    // Body: { "character_id"?, "duration"?: float (default 0.7s),
+    //         "clip"?: "climb_ladder_start" }
+    // Returns: { success, started, start: [x,y,z], end: [x,y,z],
+    //            duration, climb_kind, clip_played }
+    srv.Post("/api/interaction/try_climb_up", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("try_climb_up", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
+    });
+
+    // POST /api/interaction/try_climb_down — Phase M6. Begin a step-down
+    // mantle when contact.climb.kind == ledge_down. The mantle is driven by
+    // the same timeline as try_climb_up, with direction-aware easing (Y
+    // back-loaded so the character steps out before dropping).
+    // Body: { "character_id"?, "duration"?: float (default 0.5s),
+    //         "clip"?: "step_down", "start"?: [x,y,z], "end"?: [x,y,z] }
+    srv.Post("/api/interaction/try_climb_down", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("try_climb_down", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
+    });
+
+    // POST /api/interaction/ladder/start — Phase M7. Begin a ladder climb.
+    // Body: { "character_id"?, "rail_x", "rail_z", "top_y", "bottom_y",
+    //         "speed"?: float (default 1.5 m/s) }
+    srv.Post("/api/interaction/ladder/start", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("ladder_start", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
+    });
+
+    // POST /api/interaction/ladder/input — Drive the active ladder climb.
+    // Body: { "character_id"?, "vertical": -1..1 }
+    srv.Post("/api/interaction/ladder/input", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("ladder_input", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
+    });
+
+    // POST /api/interaction/ladder/end — Release the ladder.
+    srv.Post("/api/interaction/ladder/end", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("ladder_end", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
     });
 
     // ====================================================================

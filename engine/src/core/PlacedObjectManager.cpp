@@ -122,6 +122,7 @@ std::vector<InteractionPoint> PlacedObjectManager::computeInteractionPoints(
         pt.interactionRadius      = def.interactionRadius;
         pt.promptText             = def.promptText;
         pt.viewAngleHalf          = def.viewAngleHalf;
+        pt.requireCompatibility   = def.requireCompatibility;
         result.push_back(std::move(pt));
     }
     return result;
@@ -385,6 +386,11 @@ std::string PlacedObjectManager::placeTemplate(const std::string& templateName,
     bool ok = m_templateManager->spawnTemplate(templateName, glm::vec3(position), true, rotation);
     if (!ok) return "";
 
+    // Phase C0b/D: snapshot any kinematic part IDs emitted by the spawn so we
+    // can route interaction events (try_pivot) back to them. The animator was
+    // wired in Phase C; this records the address book.
+    std::vector<std::string> kinematicIds = m_templateManager->lastSpawnedKinematicIds();
+
     std::lock_guard<std::mutex> lock(m_mutex);
     std::string id = generateId(templateName);
 
@@ -403,6 +409,12 @@ std::string PlacedObjectManager::placeTemplate(const std::string& templateName,
     auto defsIt = m_templateDefs.find(templateName);
     if (defsIt != m_templateDefs.end()) {
         obj.interactionPoints = computeInteractionPoints(defsIt->second, position, rotation);
+    }
+
+    // Phase D: record kinematic part IDs in metadata so try_pivot can find
+    // the animator binding without doing a name lookup against the template.
+    if (!kinematicIds.empty()) {
+        obj.metadata["kinematic_part_ids"] = kinematicIds;
     }
 
     m_objects[id] = std::move(obj);

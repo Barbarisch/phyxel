@@ -1,0 +1,15 @@
+{
+  "schema_version": "asset_metrics.v1",
+  "template_name": "tavern_bar",
+  "overall_min": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "overall_max": [
+    3.888888888888889,
+    1.2222222222222223,
+    1.2222222222222223
+  ],
+  "interaction_points": []
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": "asset_metrics.v1",
+  "template_name": "door_metal",
+  "overall_min": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "overall_max": [
+    1.0,
+    2.0,
+    1.0
+  ],
+  "interaction_points": [
+    {
+      "point_id": "handle_0",
+      "kind": "door_handle",
+      "local_position": [
+        0.5,
+        1.0,
+        1.0
+      ],
+      "facing_yaw": 0.0,
+      "features": {}
+    }
+  ]
+}

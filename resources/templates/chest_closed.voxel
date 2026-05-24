@@ -30,6 +30,7 @@ S 0 0 0  1 0 2  Wood
 S 0 0 0  2 0 2  Wood
 
 # --- WALLS (sy=1, outer ring — interior hollow) ---
+# part: base
 S 0 0 0  0 1 0  Wood
 S 0 0 0  1 1 0  Metal
 S 0 0 0  2 1 0  Wood
@@ -40,6 +41,7 @@ S 0 0 0  1 1 2  Wood
 S 0 0 0  2 1 2  Wood
 
 # --- LID (sy=2, full 3x3 with metal latch) ---
+# part: lid hinge=back_top axis=x
 S 0 0 0  0 2 0  Wood
 S 0 0 0  1 2 0  Wood
 S 0 0 0  2 2 0  Wood

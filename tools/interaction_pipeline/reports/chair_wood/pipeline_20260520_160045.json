@@ -1,0 +1,161 @@
+{
+  "started_at": "2026-05-20T16:00:45",
+  "finished_at": "2026-05-20T16:02:53",
+  "asset_path": "G:\\Github\\phyxel\\resources\\templates\\chair_wood.voxel",
+  "archetype": "humanoid_normal",
+  "template_name": "chair_wood",
+  "point_id": "seat_0",
+  "engine_fix_queue": "G:\\Github\\phyxel\\tools\\interaction_pipeline\\engine_fix_queue.json",
+  "game_smoke_result": {
+    "passed": true,
+    "project_dir": "C:\\Users\\jack\\Documents\\PhyxelProjects\\CharacterTestbed",
+    "template_name": "chair_wood",
+    "spawn_pos": [
+      0.0,
+      16.0,
+      0.0
+    ],
+    "timestamp": "2026-05-20T16:02:32",
+    "duration_s": 21.002858,
+    "bone_deltas": [],
+    "notes": [
+      "spawned: chair_wood",
+      "No baseline supplied \u2014 skipping bone comparison."
+    ],
+    "screenshots": [
+      "smoke_north.png",
+      "smoke_iso.png"
+    ],
+    "error": null
+  },
+  "converged": false,
+  "notes": [],
+  "iterations": [
+    {
+      "iteration": 1,
+      "sweep_report": "G:\\Github\\phyxel\\tools\\interaction_pipeline\\reports\\chair_wood\\20260520_160100\\report.json",
+      "detection": {
+        "profile_findings": [
+          {
+            "id": "SEATED_HIPS_OFF_SEAT_XZ",
+            "kind": "profile",
+            "severity": "error",
+            "message": "sitting_idle: Hips is 0.584 m off the seat horizontally (forward=+0.584, lateral=+0.001; seat half-extent =0.30). Character is not on the chair.",
+            "evidence": {
+              "median_hips_minus_seat_dx": 0.0009336471557617188,
+              "median_hips_minus_seat_dz": 0.5843362808227539,
+              "median_forward": 0.5843362808227539,
+              "median_lateral": 0.0009336471557617188,
+              "horiz_distance": 0.5843370267087135,
+              "seat_half_extent": 0.3,
+              "samples": 8,
+              "suggested_offset_dx": -0.0009336471557617188,
+              "suggested_offset_dz": -0.5843362808227539
+            },
+            "suggested_action": "Set sit_stand_up_offset.x/.z so Hips lands inside the seat footprint.",
+            "catalog_ref": "SEATED_HIPS_OFF_SEAT_XZ"
+          }
+        ],
+        "engine_findings": [
+          {
+            "id": "SEATED_THIGHS_NOT_HORIZONTAL",
+            "kind": "engine_bug",
+            "severity": "warn",
+            "message": "sitting_idle: Knees are -0.273 m from Hips in Y (expected within \u00b10.20). Thighs are not horizontal \u2014 pose may be standing or kneeling, not sitting.",
+            "evidence": {
+              "median_knee_minus_hips_y": -0.2732563018798828,
+              "tolerance": 0.2,
+              "samples": 8
+            },
+            "suggested_action": "Inspect sitting_idle clip thigh keyframes.",
+            "catalog_ref": "SEATED_THIGHS_NOT_HORIZONTAL"
+          }
+        ],
+        "profile_count": 1,
+        "engine_count": 1
+      },
+      "tuner": {
+        "profile_deltas": [
+          {
+            "target": "sit_down",
+            "axis": "x",
+            "delta": -0.0009336471557617188,
+            "reason": "centre Hips over seat (SEATED_HIPS_OFF_SEAT_XZ, x=-0.001)"
+          },
+          {
+            "target": "sitting_idle",
+            "axis": "x",
+            "delta": -0.0009336471557617188,
+            "reason": "centre Hips over seat (SEATED_HIPS_OFF_SEAT_XZ, x=-0.001)"
+          },
+          {
+            "target": "sit_stand_up",
+            "axis": "x",
+            "delta": -0.0009336471557617188,
+            "reason": "centre Hips over seat (SEATED_HIPS_OFF_SEAT_XZ, x=-0.001)"
+          },
+          {
+            "target": "sit_down",
+            "axis": "z",
+            "delta": -0.4,
+            "reason": "centre Hips over seat (SEATED_HIPS_OFF_SEAT_XZ, z=-0.584)"
+          },
+          {
+            "target": "sitting_idle",
+            "axis": "z",
+            "delta": -0.4,
+            "reason": "centre Hips over seat (SEATED_HIPS_OFF_SEAT_XZ, z=-0.584)"
+          },
+          {
+            "target": "sit_stand_up",
+            "axis": "z",
+            "delta": -0.4,
+            "reason": "centre Hips over seat (SEATED_HIPS_OFF_SEAT_XZ, z=-0.584)"
+          }
+        ],
+        "engine_findings": [
+          {
+            "id": "SEATED_THIGHS_NOT_HORIZONTAL",
+            "kind": "engine_bug",
+            "severity": "warn",
+            "message": "sitting_idle: Knees are -0.273 m from Hips in Y (expected within \u00b10.20). Thighs are not horizontal \u2014 pose may be standing or kneeling, not sitting.",
+            "evidence": {
+              "median_knee_minus_hips_y": -0.2732563018798828,
+              "tolerance": 0.2,
+              "samples": 8
+            },
+            "suggested_action": "Inspect sitting_idle clip thigh keyframes.",
+            "catalog_ref": "SEATED_THIGHS_NOT_HORIZONTAL"
+          }
+        ],
+        "confidence": 0.5,
+        "recommend_continue": false,
+        "rationale": "Heuristic adjustments: hips-on-seat X -0.001; hips-on-seat Z -0.400",
+        "backend": "heuristic"
+      },
+      "applied_profile": {
+        "archetype": "humanoid_normal",
+        "point_id": "seat_0",
+        "seat_height_offset": 0.0,
+        "sit_blend_duration": 0.30000001192092896,
+        "sit_down_offset": [
+          -0.0009336471557617188,
+          0.0,
+          0.20000001788139343
+        ],
+        "sit_stand_up_offset": [
+          -0.0009336471557617188,
+          0.0,
+          0.20000001788139343
+        ],
+        "sitting_idle_offset": [
+          -0.0009336471557617188,
+          0.0,
+          -0.20000000298023224
+        ],
+        "success": true,
+        "template_name": "chair_wood"
+      }
+    }
+  ]
+}

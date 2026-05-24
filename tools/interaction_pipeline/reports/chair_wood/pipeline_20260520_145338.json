@@ -1,0 +1,150 @@
+{
+  "started_at": "2026-05-20T14:53:38",
+  "finished_at": "2026-05-20T14:55:42",
+  "asset_path": "G:\\Github\\phyxel\\resources\\templates\\chair_wood.voxel",
+  "archetype": "humanoid_normal",
+  "template_name": "chair_wood",
+  "point_id": "seat_0",
+  "engine_fix_queue": "G:\\Github\\phyxel\\tools\\interaction_pipeline\\engine_fix_queue.json",
+  "game_smoke_result": {
+    "passed": true,
+    "project_dir": "C:\\Users\\jack\\Documents\\PhyxelProjects\\CharacterTestbed",
+    "template_name": "chair_wood",
+    "spawn_pos": [
+      0.0,
+      16.0,
+      0.0
+    ],
+    "timestamp": "2026-05-20T14:55:21",
+    "duration_s": 20.950286,
+    "bone_deltas": [],
+    "notes": [
+      "spawned: chair_wood",
+      "No baseline supplied \u2014 skipping bone comparison."
+    ],
+    "screenshots": [
+      "smoke_north.png",
+      "smoke_iso.png"
+    ],
+    "error": null
+  },
+  "converged": true,
+  "notes": [],
+  "iterations": [
+    {
+      "iteration": 1,
+      "sweep_report": "G:\\Github\\phyxel\\tools\\interaction_pipeline\\reports\\chair_wood\\20260520_145353\\report.json",
+      "detection": {
+        "profile_findings": [],
+        "engine_findings": [
+          {
+            "id": "POSE_FEET_DESYNC",
+            "kind": "engine_bug",
+            "severity": "warn",
+            "message": "Feet diverged from the support surface across multiple consecutive samples. Tolerance 0.1, persistent_frames=2.",
+            "evidence": {
+              "worst": {
+                "left": {
+                  "value": 0.7313928604125977,
+                  "frame": 1,
+                  "clip": "stand_to_sit",
+                  "t": 0.14285714285714285
+                },
+                "right": {
+                  "value": 0.6602334976196289,
+                  "frame": 2,
+                  "clip": "stand_to_sit",
+                  "t": 0.2857142857142857
+                }
+              },
+              "tolerance": 0.1
+            },
+            "suggested_action": "Queue engine fix \u2014 see catalog entry.",
+            "catalog_ref": "POSE_FEET_DESYNC"
+          },
+          {
+            "id": "INITIAL_TELEPORT",
+            "kind": "engine_bug",
+            "severity": "error",
+            "message": "At first sample (clip=stand_to_sit, t=0.0), centroid is only -0.068 above seat anchor \u2014 engine teleported the character to the seat instead of animating in.",
+            "evidence": {
+              "first_centroid": {
+                "x": 13.343536376953125,
+                "y": 16.599388122558594,
+                "z": 14.411376953125
+              },
+              "seat_anchor": {
+                "x": 13.333000183105469,
+                "y": 16.66699981689453,
+                "z": 13.333000183105469
+              },
+              "standing_clearance": -0.0676116943359375,
+              "threshold": 0.2
+            },
+            "suggested_action": "Queue engine fix \u2014 see catalog entry.",
+            "catalog_ref": "INITIAL_TELEPORT"
+          }
+        ],
+        "profile_count": 0,
+        "engine_count": 2
+      },
+      "tuner": {
+        "profile_deltas": [],
+        "engine_findings": [
+          {
+            "id": "POSE_FEET_DESYNC",
+            "kind": "engine_bug",
+            "severity": "warn",
+            "message": "Feet diverged from the support surface across multiple consecutive samples. Tolerance 0.1, persistent_frames=2.",
+            "evidence": {
+              "worst": {
+                "left": {
+                  "value": 0.7313928604125977,
+                  "frame": 1,
+                  "clip": "stand_to_sit",
+                  "t": 0.14285714285714285
+                },
+                "right": {
+                  "value": 0.6602334976196289,
+                  "frame": 2,
+                  "clip": "stand_to_sit",
+                  "t": 0.2857142857142857
+                }
+              },
+              "tolerance": 0.1
+            },
+            "suggested_action": "Queue engine fix \u2014 see catalog entry.",
+            "catalog_ref": "POSE_FEET_DESYNC"
+          },
+          {
+            "id": "INITIAL_TELEPORT",
+            "kind": "engine_bug",
+            "severity": "error",
+            "message": "At first sample (clip=stand_to_sit, t=0.0), centroid is only -0.068 above seat anchor \u2014 engine teleported the character to the seat instead of animating in.",
+            "evidence": {
+              "first_centroid": {
+                "x": 13.343536376953125,
+                "y": 16.599388122558594,
+                "z": 14.411376953125
+              },
+              "seat_anchor": {
+                "x": 13.333000183105469,
+                "y": 16.66699981689453,
+                "z": 13.333000183105469
+              },
+              "standing_clearance": -0.0676116943359375,
+              "threshold": 0.2
+            },
+            "suggested_action": "Queue engine fix \u2014 see catalog entry.",
+            "catalog_ref": "INITIAL_TELEPORT"
+          }
+        ],
+        "confidence": 0.8,
+        "recommend_continue": false,
+        "rationale": "Engine bugs detected; deferring profile tuning until engine fixes land.",
+        "backend": "heuristic"
+      },
+      "applied_profile": {}
+    }
+  ]
+}

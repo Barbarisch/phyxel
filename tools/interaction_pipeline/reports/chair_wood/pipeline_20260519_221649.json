@@ -1,0 +1,33 @@
+{
+  "started_at": "2026-05-19T22:16:49",
+  "finished_at": "2026-05-19T22:17:51",
+  "asset_path": "G:\\Github\\phyxel\\resources\\templates\\chair_wood.voxel",
+  "archetype": "humanoid_normal",
+  "template_name": "chair_wood",
+  "point_id": "seat_0",
+  "engine_fix_queue": null,
+  "game_smoke_result": null,
+  "converged": true,
+  "notes": [],
+  "iterations": [
+    {
+      "iteration": 1,
+      "sweep_report": "G:\\Github\\phyxel\\tools\\interaction_pipeline\\reports\\chair_wood\\20260519_221704\\report.json",
+      "detection": {
+        "profile_findings": [],
+        "engine_findings": [],
+        "profile_count": 0,
+        "engine_count": 0
+      },
+      "tuner": {
+        "profile_deltas": [],
+        "engine_findings": [],
+        "confidence": 1.0,
+        "recommend_continue": false,
+        "rationale": "No profile findings detected in telemetry sweep. All interaction states for chair_wood appear to be functioning within acceptable parameters across all tested clips.",
+        "backend": "anthropic"
+      },
+      "applied_profile": {}
+    }
+  ]
+}

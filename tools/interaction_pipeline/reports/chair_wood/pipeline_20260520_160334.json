@@ -1,0 +1,54 @@
+{
+  "started_at": "2026-05-20T16:03:34",
+  "finished_at": "2026-05-20T16:05:38",
+  "asset_path": "G:\\Github\\phyxel\\resources\\templates\\chair_wood.voxel",
+  "archetype": "humanoid_normal",
+  "template_name": "chair_wood",
+  "point_id": "seat_0",
+  "engine_fix_queue": null,
+  "game_smoke_result": {
+    "passed": true,
+    "project_dir": "C:\\Users\\jack\\Documents\\PhyxelProjects\\CharacterTestbed",
+    "template_name": "chair_wood",
+    "spawn_pos": [
+      0.0,
+      16.0,
+      0.0
+    ],
+    "timestamp": "2026-05-20T16:05:17",
+    "duration_s": 20.894666,
+    "bone_deltas": [],
+    "notes": [
+      "spawned: chair_wood",
+      "No baseline supplied \u2014 skipping bone comparison."
+    ],
+    "screenshots": [
+      "smoke_north.png",
+      "smoke_iso.png"
+    ],
+    "error": null
+  },
+  "converged": true,
+  "notes": [],
+  "iterations": [
+    {
+      "iteration": 1,
+      "sweep_report": "G:\\Github\\phyxel\\tools\\interaction_pipeline\\reports\\chair_wood\\20260520_160349\\report.json",
+      "detection": {
+        "profile_findings": [],
+        "engine_findings": [],
+        "profile_count": 0,
+        "engine_count": 0
+      },
+      "tuner": {
+        "profile_deltas": [],
+        "engine_findings": [],
+        "confidence": 0.8,
+        "recommend_continue": false,
+        "rationale": "No profile findings to act on.",
+        "backend": "heuristic"
+      },
+      "applied_profile": {}
+    }
+  ]
+}

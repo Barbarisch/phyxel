@@ -1,0 +1,15 @@
+{
+  "schema_version": "asset_metrics.v1",
+  "template_name": "shrub_flat",
+  "overall_min": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "overall_max": [
+    1.8888888888888888,
+    0.5555555555555556,
+    1.8888888888888888
+  ],
+  "interaction_points": []
+}

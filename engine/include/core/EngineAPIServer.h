@@ -95,6 +95,20 @@ public:
     // because they don't mutate game state. They must be thread-safe.
     // ========================================================================
 
+    /// Handler that returns engine-mode/loaded-asset state.
+    /// Powers /api/engine/status — required by the interaction pipeline lifecycle
+    /// controller to detect "already running in the right mode" and skip relaunch.
+    /// Expected JSON shape:
+    /// {
+    ///   "running": true,
+    ///   "mode": "interaction_editor" | "asset_editor" | "anim_editor" | "project" | "no_project",
+    ///   "loaded_asset": "<absolute path or null>",
+    ///   "loaded_project": "<absolute path or null>",
+    ///   "pid": <int>, "uptime_s": <float>, "fps": <float>
+    /// }
+    using EngineStatusHandler = std::function<json()>;
+    void setEngineStatusHandler(EngineStatusHandler handler) { m_engineStatusHandler = std::move(handler); }
+
     /// Handler that returns the entity list JSON.
     using EntityListHandler = std::function<json()>;
     void setEntityListHandler(EntityListHandler handler) { m_entityListHandler = std::move(handler); }
@@ -302,6 +316,7 @@ private:
     std::atomic<uint64_t> m_nextRequestId{1};
 
     // Read-only handlers (called on HTTP thread)
+    EngineStatusHandler m_engineStatusHandler;
     EntityListHandler m_entityListHandler;
     EntityDetailHandler m_entityDetailHandler;
     CameraHandler m_cameraHandler;

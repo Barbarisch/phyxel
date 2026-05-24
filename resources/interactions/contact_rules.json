@@ -1,0 +1,32 @@
+{
+  "$schema": "interaction_contact_rules.v1",
+  "description": "Taxonomy for classifying bone-vs-world contact during interaction animations. Used by tools/interaction_pipeline/detectors.py to separate profile-tuning issues from engine bugs.",
+  "classes": {
+    "free":            "Bone is not touching any voxel. Positive signed_distance.",
+    "desired_contact": "Bone is touching a voxel marked as the interaction surface (seat, handle, step). Small positive penetration (signed_distance in [-0.05, 0]) is expected.",
+    "inside_asset":    "Bone penetrates a non-interaction voxel of the target asset. Always a violation.",
+    "inside_world":    "Bone penetrates a world voxel that is not part of the target asset. Always a violation."
+  },
+  "interactions": {
+    "sit": {
+      "expected_contact_bones": ["Hips", "Pelvis", "Spine", "LeftUpLeg", "RightUpLeg"],
+      "expected_free_bones":    ["Head", "Neck", "LeftHand", "RightHand"],
+      "grounded_bones":         ["LeftFoot", "RightFoot"],
+      "tolerances": {
+        "desired_contact_penetration_max": 0.05,
+        "free_clearance_min":              0.02,
+        "feet_grounding_tolerance":        0.10
+      }
+    },
+    "door_open": {
+      "expected_contact_bones": ["RightHand"],
+      "expected_free_bones":    ["Head", "Hips"],
+      "grounded_bones":         ["LeftFoot", "RightFoot"],
+      "tolerances": {
+        "desired_contact_penetration_max": 0.08,
+        "free_clearance_min":              0.02,
+        "feet_grounding_tolerance":        0.10
+      }
+    }
+  }
+}

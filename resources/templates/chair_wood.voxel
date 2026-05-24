@@ -2,49 +2,45 @@
 # ASSET METADATA
 # name:         chair_wood
 # display_name: Wooden Chair
-# description:  A simple wooden chair with a full seat, four corner legs, and a three-plank backrest.
+# description:  A compact wooden chair sized to humanoid scale. Seat top at 0.667 cubes (subcube sy=1), backrest to 1.667 cubes.
 # category:     furniture
 # subcategory:  seating
 # tags:         chair, seat, dining, tavern, house, inn, common
 # materials:    Wood
-# facing:       +Z (front of seat faces viewer)
-# bounds:       1W x 2H x 1D  (X: 0, Y: 0..1, Z: 0 cubes)
-# primitives:   0 C + 24 S + 0 M = 24
+# facing:       +Z (front of seat faces viewer, backrest at -Z side)
+# bounds:       0.667W x 1.667H x 0.667D  (2x2 subcube footprint)
+# primitives:   0 C + 16 S + 0 M = 16
 # author:       claude-sonnet-4-6
-# method:       /model (hand-authored)
-# created:      2026-05-16
-# version:      1
+# method:       /model (bone-constraint pipeline)
+# created:      2026-05-17
+# version:      2
+# design_ref:   resources/character_design_constraints.json humanoid_normal.seating
 # seat_height:  0.667
+# interaction_point: seat_0 seat 0.333 0.667 0.333 0.0 *
 # ==========================================================
 
-# --- SEAT (Y=0, sy=2, full 3x3) ---
+# --- LEGS (sy=0, floor to seat bottom: Y=0 to Y=0.333) ---
+S 0 0 0  0 0 0  Wood
+S 0 0 0  1 0 0  Wood
+S 0 0 0  0 0 1  Wood
+S 0 0 0  1 0 1  Wood
+
+# --- SEAT (sy=1, seat slab: Y=0.333 to Y=0.667) ---
+S 0 0 0  0 1 0  Wood
+S 0 0 0  1 1 0  Wood
+S 0 0 0  0 1 1  Wood
+S 0 0 0  1 1 1  Wood
+
+# --- BACK LEG BRIDGE (sy=2 in cube Y=0: Y=0.667 to Y=1.0, sz=0, connects seat to backrest) ---
 S 0 0 0  0 2 0  Wood
 S 0 0 0  1 2 0  Wood
-S 0 0 0  2 2 0  Wood
-S 0 0 0  0 2 1  Wood
-S 0 0 0  1 2 1  Wood
-S 0 0 0  2 2 1  Wood
-S 0 0 0  0 2 2  Wood
-S 0 0 0  1 2 2  Wood
-S 0 0 0  2 2 2  Wood
 
-# --- ALL 4 CORNER LEGS (Y=0, sy=0+1) ---
-S 0 0 0  0 0 0  Wood
-S 0 0 0  0 1 0  Wood
-S 0 0 0  2 0 0  Wood
-S 0 0 0  2 1 0  Wood
-S 0 0 0  0 0 2  Wood
-S 0 0 0  0 1 2  Wood
-S 0 0 0  2 0 2  Wood
-S 0 0 0  2 1 2  Wood
-
-# --- BACK LEGS EXTENDED INTO Y=1 (support backrest) ---
+# --- BACK LEG POSTS (sy=0 in cube Y=1: Y=1.0 to Y=1.333, sz=0) ---
 S 0 1 0  0 0 0  Wood
-S 0 1 0  0 1 0  Wood
-S 0 1 0  2 0 0  Wood
-S 0 1 0  2 1 0  Wood
+S 0 1 0  1 0 0  Wood
 
-# --- BACKREST (Y=1, sy=2, back face sz=0) ---
+# --- BACKREST (sy=1,2 in cube Y=1: Y=1.333 to Y=2.0, sz=0) ---
+S 0 1 0  0 1 0  Wood
+S 0 1 0  1 1 0  Wood
 S 0 1 0  0 2 0  Wood
 S 0 1 0  1 2 0  Wood
-S 0 1 0  2 2 0  Wood

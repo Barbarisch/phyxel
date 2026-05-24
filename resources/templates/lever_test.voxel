@@ -1,0 +1,26 @@
+# ==========================================================
+# ASSET METADATA
+# name:         lever_test
+# display_name: Lever (Test)
+# description:  Wall-mounted lever for Phase I control interaction tests.
+# category:     furniture
+# subcategory:  control
+# tags:         lever, control, switch, dungeon
+# materials:    Wood, Metal
+# facing:       +Z (handle protrudes toward viewer)
+# bounds:       1W x 1H x 1D
+# primitives:   2 S
+# author:       phyxel
+# method:       hand-authored
+# created:      2026-05-21
+# version:      1
+# ==========================================================
+
+# Stone base + Metal handle that pivots around its base.
+
+# part: base
+S 0 0 0  1 0 1  Wood
+
+# part: handle hinge=bottom axis=x
+S 0 0 0  1 1 1  Metal
+S 0 0 0  1 2 1  Metal

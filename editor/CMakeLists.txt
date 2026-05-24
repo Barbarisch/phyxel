@@ -22,6 +22,9 @@ enable_sanitizers(phyxel_editor)
 
 if(PLATFORM_WINDOWS AND MSVC)
     set_property(TARGET phyxel_editor PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+    # Application.cpp has grown too many sections for the default object format;
+    # /bigobj raises the COFF section limit to ~4 billion.
+    target_compile_options(phyxel_editor PRIVATE /bigobj)
 endif()
 
 # ==========================================================================

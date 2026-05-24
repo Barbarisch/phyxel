@@ -1,0 +1,39 @@
+{
+  "schema_version": "asset_metrics.v1",
+  "template_name": "test_chair",
+  "overall_min": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "overall_max": [
+    0.5555555555555556,
+    1.1111111111111112,
+    0.5555555555555556
+  ],
+  "interaction_points": [
+    {
+      "point_id": "seat_0",
+      "kind": "seat",
+      "local_position": [
+        0.33,
+        1.0,
+        0.33
+      ],
+      "facing_yaw": 3.141593,
+      "features": {
+        "seat_top_y": 1.0,
+        "seat_width_x": 0.5555555555555556,
+        "seat_depth_z": 0.11111111111111116,
+        "seat_center": [
+          0.2777777777777778,
+          1.0,
+          0.5
+        ],
+        "front_edge_z": 0.4444444444444444,
+        "backrest_height": 0.11111111111111116,
+        "backrest_present": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+# Drawer test — 3-wide x 1-tall x 2-deep wooden drawer that slides out
+# along +Z (toward the viewer). Used by Phase H smoke tests.
+
+# part: drawer slide=z+
+C 0 0 0 Wood
+C 1 0 0 Wood
+C 2 0 0 Wood
+C 0 0 1 Wood
+C 1 0 1 Wood
+C 2 0 1 Wood

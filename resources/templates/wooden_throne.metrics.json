@@ -1,0 +1,15 @@
+{
+  "schema_version": "asset_metrics.v1",
+  "template_name": "wooden_throne",
+  "overall_min": [
+    -1.0,
+    0.0,
+    0.0
+  ],
+  "overall_max": [
+    3.0,
+    4.0,
+    1.9999999999999998
+  ],
+  "interaction_points": []
+}

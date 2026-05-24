@@ -1,0 +1,46 @@
+{
+  "_comment": "Pre-measured bone data for the default animated character archetypes. Used by the asset design pipeline to size furniture to character scale. Re-measure after .anim file changes.",
+  "humanoid_normal": {
+    "measured_from": "character_complete.anim",
+    "measured_date": "2026-05-17",
+    "method": "get_bone_positions in standing-idle pose, world Y minus floor Y=16",
+    "measurements": {
+      "character_height": 1.751,
+      "floor": 0.0,
+      "shin_bottom": 0.074,
+      "popliteal": 0.479,
+      "hip_bottom": 0.868,
+      "head_top": 1.751
+    },
+    "seating": {
+      "seat_top_ideal": 0.479,
+      "_seat_top_note": "Popliteal height — feet flat on floor when seated. Subcubes cannot hit this exactly.",
+      "seat_top_achievable": 0.667,
+      "_achievable_note": "sy=1 in cube Y=0 (top at 0.667). 0.188 above ideal; legs slope slightly downward — acceptable.",
+      "seat_subcube_recipe": "sy=1 in cube cy=0 (S cx 0 cz sx 1 sz Wood)",
+      "leg_height_subcubes": 1,
+      "_leg_note": "sy=0 in cube cy=0 fills exactly floor-to-seat-bottom (Y=0 to Y=0.333).",
+      "seat_depth_min": 0.389,
+      "_depth_note": "Thigh length = hip_bottom - popliteal. Seat must be at least this deep.",
+      "seat_depth_subcubes": 2,
+      "_depth_subcubes_note": "2 subcubes = 0.667 cubes; accommodates full thigh with slight overhang.",
+      "seat_width_min": 0.500,
+      "seat_width_subcubes": 2,
+      "_width_note": "2 subcubes = 0.667 cubes; ~10% wider than estimated hip width. Minimum 1 subcube (0.333).",
+      "backrest_start_y": 0.667,
+      "backrest_lumbar_y": 0.868,
+      "backrest_top_y_min": 1.000,
+      "backrest_top_y_chair": 1.667,
+      "backrest_top_y_throne": 2.000,
+      "_backrest_note": "Lumbar at ~0.868 must be covered. Chair backs stop at ~1.667 (shoulder blade). Thrones go to 2.0.",
+      "interaction_point_facing_yaw": 0.0,
+      "_facing_note": "yaw=0 is empirically correct for humanoid_normal sitting. At yaw=0 the sitting animation's legs extend in +Z (forward, away from backrest at sz=0). At yaw=pi legs go through the backrest. Backrest placed at sz=0 (-Z side)."
+    },
+    "tables": {
+      "standing_height_ideal": 1.000,
+      "_standing_note": "Elbow height when standing is ~1.1; table at 1.0 cube is comfortable.",
+      "seated_height_ideal": 0.868,
+      "_seated_note": "Seated elbow height; leave clearance above seat top (0.667) of at least 0.200."
+    }
+  }
+}

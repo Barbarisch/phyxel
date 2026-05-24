@@ -606,6 +606,12 @@ CharacterAppearance CharacterAppearance::fromJson(const nlohmann::json& j) {
     app.torsoLengthScale   = j.value("torsoLengthScale",   app.torsoLengthScale);
     app.shoulderWidthScale = j.value("shoulderWidthScale", app.shoulderWidthScale);
 
+    // Optional preset identifier (variant tag from the morphology presets table)
+    if (j.contains("presetId") && j["presetId"].is_string())
+        app.presetId = j["presetId"].get<std::string>();
+    else if (j.contains("preset_id") && j["preset_id"].is_string())
+        app.presetId = j["preset_id"].get<std::string>();
+
     // Creature-specific scales
     app.tailLengthScale = j.value("tailLengthScale", app.tailLengthScale);
     app.wingSpanScale   = j.value("wingSpanScale",   app.wingSpanScale);
@@ -617,6 +623,7 @@ CharacterAppearance CharacterAppearance::fromJson(const nlohmann::json& j) {
 nlohmann::json CharacterAppearance::toJson() const {
     return {
         {"morphology",   morphologyToString(morphology)},
+        {"presetId",     presetId},
         {"skinColor",    writeColor(skinColor)},
         {"torsoColor",   writeColor(torsoColor)},
         {"armColor",     writeColor(armColor)},

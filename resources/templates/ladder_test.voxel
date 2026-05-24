@@ -1,0 +1,34 @@
+# ==========================================================
+# ASSET METADATA
+# name:         ladder_test
+# display_name: Ladder (Test)
+# description:  Simple wooden ladder for Phase F climb interaction tests.
+# category:     furniture
+# subcategory:  climbable
+# tags:         ladder, climb, vertical, dungeon
+# materials:    Wood
+# facing:       +Z (front of rungs)
+# bounds:       1W x 4H x 1D
+# primitives:   8 S + 0 C + 0 M
+# author:       phyxel
+# method:       hand-authored
+# created:      2026-05-21
+# version:      1
+# ==========================================================
+
+# Two vertical rails (left = sx 0, right = sx 2), four rungs at sy 0..3 sx 1.
+# All on subcube grid at base cube (0,0,0). Static asset — no movable parts.
+
+# --- LEFT RAIL ---
+S 0 0 0  0 0 0  Wood
+S 0 0 0  0 1 0  Wood
+S 0 0 0  0 2 0  Wood
+
+# --- RIGHT RAIL ---
+S 0 0 0  2 0 0  Wood
+S 0 0 0  2 1 0  Wood
+S 0 0 0  2 2 0  Wood
+
+# --- RUNGS ---
+S 0 0 0  1 0 0  Wood
+S 0 0 0  1 2 0  Wood
