@@ -22,6 +22,7 @@ namespace Phyxel {
         class CameraManager;
     }
     namespace Utils { class PerformanceMonitor; }
+    namespace AI { class TTSService; }
     class Timer;
     class ChunkManager;
     class ForceSystem;
@@ -116,6 +117,7 @@ public:
     Timer*                      getTimer()                  const;
     ChunkManager*               getChunkManager()           const;
     AudioSystem*                getAudioSystem()            const;
+    AI::TTSService*             getTTSService()             const;
     Input::InputManager*        getInputManager()           const;
     ForceSystem*                getForceSystem()            const;
     UI::ImGuiRenderer*          getImGuiRenderer()          const;
@@ -181,6 +183,7 @@ private:
 
     // Audio
     std::unique_ptr<AudioSystem>             audioSystem_;
+    std::unique_ptr<AI::TTSService>          ttsService_;
 
     // Camera
     std::unique_ptr<Graphics::Camera>        camera_;

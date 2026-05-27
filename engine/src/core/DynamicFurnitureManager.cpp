@@ -234,7 +234,14 @@ bool DynamicFurnitureManager::deactivate(const std::string& placedObjectId, bool
     auto it = m_active.find(placedObjectId);
     if (it == m_active.end()) return false;
 
-    DynamicFurnitureObject& obj = it->second;
+    // Move the record out and drop it from the active set up front. The
+    // re-staticize path below calls PlacedObjectManager::remove(), which can
+    // call back into discard() via the pre-remove hook; doing the erase first
+    // makes that callback a no-op (the object is already inactive), avoiding
+    // re-entrancy on this same entry.
+    DynamicFurnitureObject obj = std::move(it->second);
+    m_active.erase(it);
+    if (m_grabbedObjectId == placedObjectId) m_grabbedObjectId.clear();
 
     if (m_kinematic && !obj.kineticObjId.empty()) {
         m_kinematic->remove(obj.kineticObjId);
@@ -256,26 +263,48 @@ bool DynamicFurnitureManager::deactivate(const std::string& placedObjectId, bool
 
     cleanupPhysics(obj);
 
+    // Re-staticize ONLY if the placed object still exists. If it was removed
+    // while active, this deactivate is effectively a discard — baking the
+    // template back in here was the "removed chair reappears" bug.
     if (m_placedObjects && m_templateManager) {
         auto* mutablePlaced = const_cast<PlacedObject*>(m_placedObjects->get(placedObjectId));
         if (mutablePlaced) {
             mutablePlaced->metadata.erase("dynamic_furniture");
-        }
 
-        if (placePos != obj.originalPosition || placeRot != obj.originalRotation) {
-            m_placedObjects->remove(placedObjectId);
-            m_placedObjects->placeTemplate(obj.templateName, placePos, placeRot);
+            if (placePos != obj.originalPosition || placeRot != obj.originalRotation) {
+                m_placedObjects->remove(placedObjectId);
+                m_placedObjects->placeTemplate(obj.templateName, placePos, placeRot);
+            } else {
+                m_templateManager->spawnTemplate(obj.templateName, glm::vec3(placePos), true, placeRot);
+            }
+
+            LOG_INFO_FMT("DynamicFurniture", "Deactivated '" << placedObjectId
+                         << "' at (" << placePos.x << "," << placePos.y << "," << placePos.z
+                         << ") rot=" << placeRot);
         } else {
-            m_templateManager->spawnTemplate(obj.templateName, glm::vec3(placePos), true, placeRot);
+            LOG_INFO_FMT("DynamicFurniture", "Deactivated '" << placedObjectId
+                         << "' but placed object is gone — discarding (no re-staticize)");
         }
     }
 
-    LOG_INFO_FMT("DynamicFurniture", "Deactivated '" << placedObjectId
-                 << "' at (" << placePos.x << "," << placePos.y << "," << placePos.z
-                 << ") rot=" << placeRot);
-
-    m_active.erase(it);
     return true;
+}
+
+void DynamicFurnitureManager::discard(const std::string& placedObjectId) {
+    auto it = m_active.find(placedObjectId);
+    if (it == m_active.end()) return;
+
+    DynamicFurnitureObject obj = std::move(it->second);
+    m_active.erase(it);
+    if (m_grabbedObjectId == placedObjectId) m_grabbedObjectId.clear();
+
+    if (m_kinematic && !obj.kineticObjId.empty()) {
+        m_kinematic->remove(obj.kineticObjId);
+    }
+    cleanupPhysics(obj);
+
+    LOG_INFO_FMT("DynamicFurniture", "Discarded '" << placedObjectId
+                 << "' (placed object removed — no re-staticize)");
 }
 
 // ============================================================================

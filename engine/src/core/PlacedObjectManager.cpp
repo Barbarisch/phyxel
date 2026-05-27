@@ -480,6 +480,10 @@ bool PlacedObjectManager::remove(const std::string& id) {
         auto removeIt = m_objects.find(removeId);
         if (removeIt == m_objects.end()) continue;
 
+        // Let subsystems tear down derived state (e.g. an active dynamic-furniture
+        // body + render) before the object disappears, so it cannot be re-baked.
+        if (m_preRemove) m_preRemove(removeId);
+
         const PlacedObject& obj = removeIt->second;
         clearRegion(obj.boundingMin, obj.boundingMax);
 

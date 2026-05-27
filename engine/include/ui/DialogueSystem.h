@@ -10,6 +10,7 @@ namespace Phyxel {
 
 namespace Scene { class NPCEntity; }
 namespace Core { class GameEventLog; }
+namespace AI { class TTSService; }
 
 namespace UI {
 
@@ -131,11 +132,17 @@ public:
 
     void setGameEventLog(Core::GameEventLog* log) { m_gameEventLog = log; }
 
+    /// Optional local TTS for speaking NPC lines. Null = text-only (default).
+    void setTTSService(AI::TTSService* tts) { m_tts = tts; }
+
 private:
     void loadNode(const std::string& nodeId);
     void finishTyping();
     void applyPendingAIResponse();
     void applyPendingEnhancement();
+
+    /// Speak an NPC line through TTS (no-op if TTS unset or speaker is the player).
+    void speakLine(const std::string& speaker, const std::string& text);
 
     DialogueState m_state = DialogueState::Inactive;
     const DialogueTree* m_tree = nullptr;
@@ -178,6 +185,7 @@ private:
     // Callbacks
     ConversationEndCallback m_endCallback;
     Core::GameEventLog* m_gameEventLog = nullptr;
+    AI::TTSService* m_tts = nullptr;
 };
 
 } // namespace UI

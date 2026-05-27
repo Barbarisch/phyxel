@@ -143,6 +143,11 @@ namespace Scene {
             // Gravity and ground-snap are suppressed when Y root motion owns vertical movement
             if (!m_yRootMotionActive) {
 
+                // Feet position at the start of this frame's vertical integration.
+                // Used below for a swept ground test so a fast fall or a frame-time
+                // stutter cannot tunnel through a floor the character was above.
+                const float prevFeetY = worldPosition.y;
+
                 // --- Terrain-glide Y control ---
                 // When active, smoothly moves the capsule toward a step surface instead of
                 // free-falling (step-down) or snapping (step-up). Keeps m_kinGrounded true
@@ -170,8 +175,15 @@ namespace Scene {
                 bool skipGroundSnap = // DescendStairs snap disabled to prevent falling through world
                     (currentState == AnimatedCharacterState::Preview && m_stairDriveActive);
                 if (!skipGroundSnap) {
-                    glm::vec3 feetPos(worldPosition.x, worldPosition.y, worldPosition.z);
-                    float groundY = voxelWorld->findGroundY(feetPos, halfW, halfH + 1.0f);
+                    // Swept downward probe: search from the higher of this frame's
+                    // start/end Y down through where the feet ended up, so a floor
+                    // crossed mid-frame is still detected regardless of fall speed or
+                    // frame time. Identical to a fixed-depth probe when not descending
+                    // (prevFeetY == worldPosition.y). This is the anti-tunnel guard.
+                    const float sweepTop   = std::max(prevFeetY, worldPosition.y);
+                    const float sweepDepth = (sweepTop - worldPosition.y) + halfH + 1.0f;
+                    glm::vec3 feetPos(worldPosition.x, sweepTop, worldPosition.z);
+                    float groundY = voxelWorld->findGroundY(feetPos, halfW, sweepDepth);
 
                     if (groundY > -1e8f) {
                         if (worldPosition.y < groundY) {

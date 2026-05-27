@@ -3,6 +3,7 @@
 #include "core/AssetManager.h"
 #include "core/WorldInitializer.h"
 #include "core/AudioSystem.h"
+#include "ai/TTSService.h"
 #include "core/LocationRegistry.h"
 #include "core/SceneManager.h"
 #include "ui/WindowManager.h"
@@ -75,6 +76,10 @@ bool EngineRuntime::initialize(const EngineConfig& config) {
         LOG_ERROR("EngineRuntime", "Failed to initialize AudioSystem");
         // Non-critical — continue
     }
+
+    // Local Piper TTS for NPC voices. Non-critical: no-ops if assets are absent.
+    ttsService_ = std::make_unique<AI::TTSService>();
+    ttsService_->initialize(audioSystem_.get(), AI::TTSConfig{});
 
     // -- WorldInitializer orchestrates the complex init sequence --
     worldInitializer_ = std::make_unique<WorldInitializer>(
@@ -220,6 +225,9 @@ void EngineRuntime::shutdown() {
     // Physics
     if (physicsWorld_) physicsWorld_->cleanup();
 
+    // TTS worker calls into AudioSystem — stop it before audio goes away.
+    if (ttsService_) { ttsService_->shutdown(); ttsService_.reset(); }
+
     // Audio
     audioSystem_.reset();
 
@@ -296,6 +304,7 @@ Physics::PhysicsWorld*      EngineRuntime::getPhysicsWorld()           const { r
 Timer*                      EngineRuntime::getTimer()                  const { return timer_.get(); }
 ChunkManager*               EngineRuntime::getChunkManager()           const { return chunkManager_.get(); }
 AudioSystem*                EngineRuntime::getAudioSystem()            const { return audioSystem_.get(); }
+AI::TTSService*             EngineRuntime::getTTSService()             const { return ttsService_.get(); }
 Input::InputManager*        EngineRuntime::getInputManager()           const { return inputManager_.get(); }
 ForceSystem*                EngineRuntime::getForceSystem()            const { return forceSystem_.get(); }
 UI::ImGuiRenderer*          EngineRuntime::getImGuiRenderer()          const { return imguiRenderer_.get(); }

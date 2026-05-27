@@ -244,3 +244,9 @@ particle_positions.csv
 imgui.ini
 
 .claude/
+
+# Piper TTS assets (downloaded via tools/setup_piper.py, ~80MB model)
+external/piper/
+
+# Generated TTS audio cache
+cache/tts/

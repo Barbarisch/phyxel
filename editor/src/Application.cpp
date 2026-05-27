@@ -1379,6 +1379,13 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     dynamicFurnitureManager->setChunkManager(chunkManager);
     dynamicFurnitureManager->setGpuParticlePhysics(gpuParticlePhysics.get());
 
+    // Removing a placed object must tear down its active dynamic-furniture body
+    // + render so it cannot be re-baked back into the world (the "removed chair
+    // reappears" bug). Covers every removal path, not just the MCP handler.
+    placedObjectManager->setPreRemoveCallback([this](const std::string& id) {
+        if (dynamicFurnitureManager) dynamicFurnitureManager->discard(id);
+    });
+
     // Wire furniture activation into the voxel interaction system
     voxelInteractionSystem->setPlacedObjectManager(placedObjectManager.get());
     voxelInteractionSystem->setDynamicFurnitureManager(dynamicFurnitureManager.get());
@@ -1441,6 +1448,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // Initialize Dialogue System
     dialogueSystem = std::make_unique<UI::DialogueSystem>();
     dialogueSystem->setGameEventLog(gameEventLog.get());
+    if (runtime) dialogueSystem->setTTSService(runtime->getTTSService());
 
     // Initialize Speech Bubble Manager
     speechBubbleManager = std::make_unique<UI::SpeechBubbleManager>();

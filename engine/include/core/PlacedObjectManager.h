@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <mutex>
 #include <chrono>
+#include <functional>
 #include <glm/glm.hpp>
 #include <nlohmann/json.hpp>
 #include <sqlite3.h>
@@ -303,6 +304,13 @@ public:
     /// Get read-only access to all placed objects.
     const std::unordered_map<std::string, PlacedObject>& getAllObjects() const { return m_objects; }
 
+    /// Callback fired for each object id about to be removed (before its voxels
+    /// are cleared and its entry erased). Subsystems that hold derived state for
+    /// an object (e.g. DynamicFurnitureManager) hook this to tear that state
+    /// down. The callback MUST NOT call back into PlacedObjectManager.
+    using PreRemoveCallback = std::function<void(const std::string& id)>;
+    void setPreRemoveCallback(PreRemoveCallback cb) { m_preRemove = std::move(cb); }
+
 private:
     /// Generate a unique ID for a template/structure placement.
     std::string generateId(const std::string& baseName);
@@ -318,6 +326,8 @@ private:
     ChunkManager* m_chunkManager;
     ObjectTemplateManager* m_templateManager;
     SnapshotManager* m_snapshotManager;
+
+    PreRemoveCallback m_preRemove;
 
     mutable std::mutex m_mutex;
     std::unordered_map<std::string, PlacedObject> m_objects;

@@ -82,6 +82,12 @@ public:
     /// Deactivate: remove rigid body, place voxels back into chunks at current position.
     bool deactivate(const std::string& placedObjectId, bool restoreOriginal = false);
 
+    /// Tear down an active dynamic object (rigid body + render) WITHOUT
+    /// re-staticizing it. Used when the underlying placed object is being
+    /// removed, so the furniture does not get baked back into the world.
+    /// No-op if the id is not active.
+    void discard(const std::string& placedObjectId);
+
     /// Shatter an active dynamic furniture into fragments based on contact force.
     int shatter(const std::string& placedObjectId,
                 float contactForce,

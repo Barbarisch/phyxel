@@ -1,6 +1,7 @@
 #include "ui/DialogueSystem.h"
 #include "scene/NPCEntity.h"
 #include "core/GameEventLog.h"
+#include "ai/TTSService.h"
 #include "utils/Logger.h"
 #include <fstream>
 #include <filesystem>
@@ -155,6 +156,15 @@ void DialogueSystem::update(float dt) {
     }
 }
 
+void DialogueSystem::speakLine(const std::string& speaker, const std::string& text) {
+    if (!m_tts || text.empty()) return;
+    if (speaker == "Player" || speaker == "player") return;  // never voice the player
+    std::string voiceKey = speaker.empty() ? m_npcName : speaker;
+    if (voiceKey.empty()) voiceKey = "narrator";
+    if (m_npc) m_tts->speak(voiceKey, text, m_npc->getPosition());
+    else       m_tts->speak2D(voiceKey, text);
+}
+
 void DialogueSystem::loadNode(const std::string& nodeId) {
     const auto* node = m_tree->getNode(nodeId);
     if (!node) {
@@ -181,9 +191,13 @@ void DialogueSystem::loadNode(const std::string& nodeId) {
 
     m_state = DialogueState::Typing;
 
-    // Request AI enhancement if available (async — static text shows immediately)
+    // Request AI enhancement if available (async — static text shows immediately).
+    // Defer speech to the enhanced text so audio matches the rephrased line;
+    // otherwise speak the authored line now.
     if (m_aiEnhanceCallback) {
         m_aiEnhanceCallback(node->id, node->text, node->speaker, node->emotion);
+    } else {
+        speakLine(m_currentSpeaker, m_currentFullText);
     }
 }
 
@@ -300,6 +314,8 @@ void DialogueSystem::applyPendingAIResponse() {
     m_revealedCharCount = 0;
     m_state = DialogueState::Typing;
 
+    speakLine(m_npcName, text);
+
     LOG_DEBUG("DialogueSystem", "AI '{}' responded: {}", m_npcName, text);
 }
 
@@ -334,6 +350,8 @@ void DialogueSystem::applyPendingEnhancement() {
     // Replace text with the AI-enhanced version
     m_currentFullText = text;
     if (!emotion.empty()) m_currentEmotion = emotion;
+
+    speakLine(m_currentSpeaker, text);
 
     if (m_state == DialogueState::Typing) {
         // Still typing — restart typewriter with AI text
