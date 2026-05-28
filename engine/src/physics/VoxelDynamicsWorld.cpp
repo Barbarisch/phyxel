@@ -377,6 +377,31 @@ float VoxelDynamicsWorld::findGroundY(const glm::vec3& feetPos, float halfWidth,
     return found ? best : -std::numeric_limits<float>::max();
 }
 
+float VoxelDynamicsWorld::groundHeight(const glm::vec3& feetPos, float halfWidth, float maxSearchDown) const {
+    // Static terrain answer first, then raise it if a dynamic body supports higher.
+    float best = findGroundY(feetPos, halfWidth, maxSearchDown);
+
+    const float yLo  = feetPos.y - maxSearchDown;
+    const float yHi  = feetPos.y - 1e-4f;            // matches findGroundY's exclusive top
+    const float xMin = feetPos.x - halfWidth, xMax = feetPos.x + halfWidth;
+    const float zMin = feetPos.z - halfWidth, zMax = feetPos.z + halfWidth;
+
+    // Dynamic rigid bodies ONLY (furniture, debris). NOT kinematic obstacles —
+    // those are character segment boxes; including them lets a character detect
+    // its own body as ground. The character is kinematic (never in m_bodies), so
+    // this can never self-detect.
+    for (const auto& body : m_bodies) {
+        if (body->isDead) continue;
+        glm::vec3 bMin, bMax;
+        body->getWorldAABB(bMin, bMax);
+        if (bMax.x < xMin || bMin.x > xMax) continue;       // XZ column overlap
+        if (bMax.z < zMin || bMin.z > zMax) continue;
+        if (bMin.y >= yHi || bMax.y <= yLo) continue;       // straddles the band below the feet
+        if (bMax.y > best) best = bMax.y;                   // stand on its top
+    }
+    return best;
+}
+
 bool VoxelDynamicsWorld::overlapsTerrain(const glm::vec3& center, const glm::vec3& halfExtents) const {
     glm::vec3 queryMin = center - halfExtents;
     glm::vec3 queryMax = center + halfExtents;

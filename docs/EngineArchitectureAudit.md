@@ -104,6 +104,68 @@ composition root.
 
 ---
 
+# Instance / object model — single-owner design (CURRENT DIRECTION, 2026-05-27)
+
+Supersedes the Feature-module/full-ECS section below (shelved as over-built). This is the
+focused, KISS redesign of the **instance/object layer only**. Hard boundary: **ChunkManager
+and the voxel shaders are OFF-LIMITS** — the static-voxel/chunk system is the perf substrate
+for large worlds and is not touched.
+
+## Why: one logical "thing" is spread across ~5 representations
+Voxels-in-chunks + template ref + `PlacedObjectManager` row + `VoxelRigidBody` +
+`KinematicVoxelManager` render, across 5 managers, with inconsistent persistence, synced by
+hand. Every op (place/activate/move/despawn/save) is a multi-system dance; a missed step =
+ghost / orphan / reappear / fall-through. (Despawn proven incomplete: `cleanupDead` only
+flags `isDead`; render, manager entry, registry row, DB row all leak.)
+
+## Three clearly-separated concepts (the naming fix)
+- **WorldObject** — a *persistent, addressable instance* of a template (furniture, door,
+  structure, prop). Exactly one owner. Persisted in the DB. Has a current *form*.
+- **Transient effect** — debris / shatter fragments / GPU particles. Runtime-only,
+  lifetime-based despawn, **never** a WorldObject, **never** in the registry or DB. The 30s
+  `VoxelRigidBody.lifetime` belongs **only** here.
+- **Bulk voxels** — terrain + baked WorldObject geometry in chunks. The substrate. Not objects.
+
+## Canonical record (one per WorldObject)
+`id, templateName, position, rotation, form{Static|Dynamic}, bounds, interactionPoints,
+metadata`, plus runtime projection handles only when Dynamic (physics body ptr, render id).
+The record round-trips through the DB.
+
+## Forms = projections (owner keeps exactly ONE active)
+- **Static** → voxels baked in chunks (`static_voxel.vert` fast path). No body/render.
+- **Dynamic** → voxels cleared from chunks; physics body + kinematic render
+  (`kinematic_voxel.vert`).
+The owner is the ONLY thing that switches forms; each switch tears down the old projection
+and builds the new — using the EXISTING ChunkManager / KinematicVoxelManager /
+VoxelDynamicsWorld APIs in bulk (on transition, not per-frame, not per-voxel). Zero shader
+or chunk changes; zero per-voxel overhead.
+
+## Lifecycle (one owner, coordinated transitions)
+- `create(template,pos,rot)` → record (Static) → bake voxels → persist.
+- `activate()` Static→Dynamic → clear voxels → create body + render.
+- `settle()/deactivate()` Dynamic→Static → destroy body + render → re-bake voxels at settled
+  pos → update record → persist.
+- `destroy(id)` [ANY form] → tear down current projection (clear voxels OR destroy
+  body+render) → remove record → delete DB row.
+
+## Invariants (what makes it robust)
+- **Single teardown path:** every removal/despawn goes through `destroy(id)`. No other way to
+  remove a WorldObject → no orphans, no ghosts, no reappear.
+- **Deliberate persistence:** WorldObject record always round-trips; simplest rule = persist
+  as Static (re-staticize current pos on save) so reload is always a clean static object.
+  Transient effects never persist.
+- **Lifetime only for transient effects.** WorldObjects never expire on a timer (this is the
+  design-level fix for "character falls through furniture after ~30s").
+
+## Migration (incremental; substrate untouched)
+Consolidate `PlacedObjectManager` + `DynamicFurnitureManager` into one owner (or make
+`PlacedObjectManager` the owner and `DynamicFurnitureManager` a subordinate projection driver
+it calls). Split the debris/shatter path out of the owner (it's transient effects, keeps its
+lifetime). Do it one operation at a time, verifying each (place → activate → deactivate →
+despawn → save/reload) with dense, coordinate-level checks.
+
+---
+
 # Target architecture: the Feature-module seam
 
 **North-star goal: make feature work hard to get wrong.** Adding a feature should touch

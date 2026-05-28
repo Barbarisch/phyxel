@@ -183,7 +183,9 @@ namespace Scene {
                     const float sweepTop   = std::max(prevFeetY, worldPosition.y);
                     const float sweepDepth = (sweepTop - worldPosition.y) + halfH + 1.0f;
                     glm::vec3 feetPos(worldPosition.x, sweepTop, worldPosition.z);
-                    float groundY = voxelWorld->findGroundY(feetPos, halfW, sweepDepth);
+                    // Unified ground: static terrain + dynamic bodies (furniture),
+                    // excluding kinematic obstacles (character segments) -> no self-grounding.
+                    float groundY = voxelWorld->groundHeight(feetPos, halfW, sweepDepth);
 
                     if (groundY > -1e8f) {
                         if (worldPosition.y < groundY) {

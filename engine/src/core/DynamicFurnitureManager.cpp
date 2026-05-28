@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <queue>
 #include <cmath>
+#include <limits>
 
 namespace Phyxel {
 namespace Core {
@@ -192,6 +193,12 @@ bool DynamicFurnitureManager::activate(const std::string& placedObjectId,
         return false;
     }
     obj.rigidBody->wake();
+
+    // Furniture is a persistent WorldObject, not transient debris — it must not
+    // despawn on the rigid-body lifetime timer (cleanupDead). Without this the body
+    // dies after ~30s and anything standing on it falls through. Its real lifecycle
+    // is owned here (deactivate/discard), not the timer.
+    obj.rigidBody->lifetime = std::numeric_limits<float>::max();
 
     // Apply initial impulse
     if (glm::dot(impulse, impulse) > 1e-6f) {

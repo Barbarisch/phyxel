@@ -80,6 +80,14 @@ public:
     // Returns -FLT_MAX if no terrain found within maxSearchDown.
     float findGroundY(const glm::vec3& feetPos, float halfWidth, float maxSearchDown) const;
 
+    // Unified support query for the kinematic character: highest surface across
+    // static terrain AND dynamic rigid bodies (m_bodies) below feetPos, so the
+    // character can stand on dynamic furniture. Deliberately does NOT consider
+    // kinematic obstacles — those are character segment boxes, and including them
+    // makes a character detect its own body as ground (self-grounding). Dynamic
+    // bodies contribute their AABB top. Returns -FLT_MAX if nothing found.
+    float groundHeight(const glm::vec3& feetPos, float halfWidth, float maxSearchDown) const;
+
     // Returns true if the given AABB overlaps any terrain voxel.
     bool overlapsTerrain(const glm::vec3& center, const glm::vec3& halfExtents) const;
 
