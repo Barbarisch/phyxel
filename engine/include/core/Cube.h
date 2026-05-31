@@ -94,7 +94,13 @@ public:
     
     // Material accessors (for dynamic cubes)
     const std::string& getMaterialName() const { return materialName; }
-    
+
+    // Destruction damage accumulation (DamageSystem). Sub-threshold hits add up
+    // here until they exceed material toughness, then the voxel breaks. 0 = pristine.
+    float getAccumulatedDamage() const { return accumulatedDamage; }
+    void  addDamage(float amount) { accumulatedDamage += amount; }
+    void  resetDamage() { accumulatedDamage = 0.0f; }
+
     // Bond system accessors
     const std::array<Bond, 6>& getBonds() const { return bonds; }
     const Bond& getBond(BondDirection direction) const { return bonds[static_cast<int>(direction)]; }
@@ -170,7 +176,10 @@ private:
     
     // Bond system - stores connection strength to neighbors in each direction
     std::array<Bond, 6> bonds;  // Indexed by BondDirection enum
-    
+
+    // Destruction: accumulated damage from sub-threshold hits (0 = pristine).
+    float accumulatedDamage = 0.0f;
+
     static constexpr float CUBE_SCALE = 1.0f; // Scale of each cube unit
 };
 

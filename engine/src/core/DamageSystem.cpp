@@ -23,21 +23,21 @@ DamageSystem::MatResponse DamageSystem::responseFor(const std::string& materialN
     if (def) bond = std::max(0.05f, def->physics.bondStrength);
 
     MatResponse r;
-    r.toughness  = bond * 120.0f;   // energy units to break one voxel
-    // Defaults (balanced)
+    // Default (balanced) — toughness derived from bondStrength for unlisted materials.
+    r.toughness = bond * 120.0f;
     r.s1 = 2.5f; r.s2 = 6.0f; r.absorption = 0.6f;
 
-    // Tuned exemplars (the "two tunable materials" + a few extras):
-    if (materialName == "Stone") {        // tough, very brittle → shatters fine, shields well
-        r.s1 = 1.8f; r.s2 = 4.0f; r.absorption = 0.9f;
-    } else if (materialName == "Glass") { // weak, extremely brittle → powders
-        r.s1 = 1.3f; r.s2 = 2.5f; r.absorption = 0.3f;
-    } else if (materialName == "Wood") {  // ductile → stays chunky, light shielding
-        r.s1 = 3.5f; r.s2 = 9.0f; r.absorption = 0.45f;
-    } else if (materialName == "Metal") { // tough, ductile → big chunks, strong shield
-        r.s1 = 4.0f; r.s2 = 10.0f; r.absorption = 1.1f;
-    } else if (materialName == "Dirt") {  // crumbly → subcubes easily, low shield
-        r.s1 = 1.6f; r.s2 = 4.5f; r.absorption = 0.4f;
+    // Tuned exemplars — distinct toughness + brittleness so materials FEEL different.
+    if (materialName == "Stone") {        // tough, brittle → shatters fine, shields well
+        r.toughness = 110.0f; r.s1 = 1.8f; r.s2 = 4.0f; r.absorption = 0.9f;
+    } else if (materialName == "Glass") { // weak, extremely brittle → powders instantly
+        r.toughness = 35.0f;  r.s1 = 1.3f; r.s2 = 2.2f; r.absorption = 0.3f;
+    } else if (materialName == "Wood") {  // medium, ductile → stays chunky, light shielding
+        r.toughness = 70.0f;  r.s1 = 3.5f; r.s2 = 9.0f; r.absorption = 0.45f;
+    } else if (materialName == "Metal") { // toughest, ductile → resists, big chunks, strong shield
+        r.toughness = 200.0f; r.s1 = 4.5f; r.s2 = 11.0f; r.absorption = 1.2f;
+    } else if (materialName == "Dirt") {  // weak, crumbly → subcubes easily, low shield
+        r.toughness = 45.0f;  r.s1 = 1.6f; r.s2 = 4.0f; r.absorption = 0.4f;
     }
     return r;
 }
@@ -114,9 +114,18 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
         MatResponse mr = responseFor(mat);
         int shield = solidVoxelsBetween(center, vc);
         float reached = energy * fall * std::exp(-mr.absorption * static_cast<float>(shield));
-        float ratio = reached / mr.toughness;
 
-        if (ratio < 1.0f) { res.voxelsGrazed++; continue; } // P1: no accumulation yet
+        // Damage accumulation: prior sub-threshold hits add to this one. The voxel
+        // breaks once total energy exceeds toughness, so repeated weak hits chip
+        // through. Tier is based on total energy at break (chip = chunky, big hit = dust).
+        float effective = reached + cube->getAccumulatedDamage();
+        float ratio = effective / mr.toughness;
+
+        if (ratio < 1.0f) {
+            cube->addDamage(reached);   // weakened but intact (cracks; visual feedback = P4)
+            res.voxelsGrazed++;
+            continue;
+        }
 
         // Outward launch direction (radial + optional hit-direction bias).
         glm::vec3 outDir = (dist > 1e-3f) ? (vc - center) / dist : glm::vec3(0.0f, 1.0f, 0.0f);
