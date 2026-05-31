@@ -16,6 +16,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/VfxSystem.h"
 #include "core/VfxDirector.h"
 #include "core/SpellVfxMapper.h"
+#include "core/DamageSystem.h"
 #include "utils/GpuProfiler.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "scene/AnimatedVoxelCharacter.h"
@@ -8399,6 +8400,36 @@ void Application::processAPICommands() {
                 continue;
             }
 
+            // Apply area destruction damage at a point (P1 destruction core)
+            if (cmd.action == "apply_damage") {
+                if (!chunkManager) {
+                    response = {{"error", "ChunkManager not available"}};
+                } else {
+                    glm::vec3 center(
+                        cmd.params.value("x", 0.0f),
+                        cmd.params.value("y", 0.0f),
+                        cmd.params.value("z", 0.0f));
+                    float radius = cmd.params.value("radius", 4.0f);
+                    float energy = cmd.params.value("energy", 400.0f);
+                    std::string type = cmd.params.value("type", std::string("force"));
+                    glm::vec3 dir(0.0f);
+                    if (cmd.params.contains("direction")) {
+                        auto d = cmd.params["direction"];
+                        dir = glm::vec3(d.value("x", 0.0f), d.value("y", 0.0f), d.value("z", 0.0f));
+                    }
+                    Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
+                    auto r = dmg.applyDamage(center, radius, energy, type, dir);
+                    response = {
+                        {"success", true},
+                        {"broken", r.voxelsBroken},
+                        {"grazed", r.voxelsGrazed},
+                        {"debris", r.debrisSpawned}
+                    };
+                }
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
+
             // Cast a real spell's VFX through the Layer-3 mapper (gameplay modifiers -> params)
             if (cmd.action == "cast_spell") {
                 auto* dir = renderCoordinator ? renderCoordinator->getVfxDirector() : nullptr;
@@ -8435,9 +8466,22 @@ void Application::processAPICommands() {
                         };
                     }
                     std::string sid = dir->cast(Phyxel::resolveSpellVfx(spellId, mods), ctx);
+
+                    // Optional destruction at the target: pass "destroy": true (or a
+                    // "damage" energy) to also blast voxels. Energy scales with power.
+                    nlohmann::json dmgInfo;
+                    bool destroy = cmd.params.value("destroy", false) || cmd.params.contains("damage");
+                    if (destroy && chunkManager) {
+                        float energy = cmd.params.value("damage", 350.0f * mods.power);
+                        float radius = cmd.params.value("damage_radius", 3.5f);
+                        Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
+                        auto r = dmg.applyDamage(tgt, radius, energy, "force", glm::normalize(tgt - caster));
+                        dmgInfo = {{"broken", r.voxelsBroken}, {"debris", r.debrisSpawned}};
+                    }
                     response = {
                         {"success", true}, {"spell", spellId}, {"spell_id", sid},
-                        {"power", mods.power}, {"tier", mods.tier}, {"crit", mods.crit}
+                        {"power", mods.power}, {"tier", mods.tier}, {"crit", mods.crit},
+                        {"destruction", dmgInfo}
                     };
                 }
                 if (cmd.onComplete) cmd.onComplete(response);

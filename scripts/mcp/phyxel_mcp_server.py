@@ -2911,6 +2911,31 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="apply_damage",
+            description=(
+                "Apply area destruction damage at a world point. Energy radiates from the "
+                "center, attenuated by distance and by solid voxels in the way (shielding); "
+                "voxels past their material toughness break, and the overkill ratio decides "
+                "whether they pop off intact or shatter into subcubes/microcubes (debris spawns "
+                "as GPU particles). Returns broken/grazed/debris counts."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"},
+                    "radius": {"type": "number", "description": "Blast radius in voxels", "default": 4.0},
+                    "energy": {"type": "number", "description": "Total impact energy", "default": 400.0},
+                    "type": {"type": "string", "description": "Damage type (informational)", "default": "force"},
+                    "direction": {
+                        "type": "object",
+                        "description": "Optional debris bias direction",
+                        "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}
+                    }
+                },
+                "required": ["x", "y", "z"]
+            }
+        ),
+        Tool(
             name="cast_spell",
             description=(
                 "Cast a named spell's VFX from caster to target, scaled by gameplay modifiers "
@@ -5203,10 +5228,17 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             "from": args["from"],
             "to": args["to"],
         }
-        for k in ("power", "tier", "crit", "range"):
+        for k in ("power", "tier", "crit", "range", "destroy", "damage", "damage_radius"):
             if k in args:
                 body[k] = args[k]
         return await api_post("/api/spell/cast", body)
+
+    elif name == "apply_damage":
+        body: dict[str, Any] = {"x": args["x"], "y": args["y"], "z": args["z"]}
+        for k in ("radius", "energy", "type", "direction"):
+            if k in args:
+                body[k] = args[k]
+        return await api_post("/api/damage/apply", body)
 
     # --- Audio ---
     elif name == "list_sounds":
