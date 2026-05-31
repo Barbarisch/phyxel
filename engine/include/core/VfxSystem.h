@@ -8,6 +8,35 @@
 
 namespace Phyxel {
 
+// Emission shape for archetypes. Bursts use shapes to bias outward VELOCITY
+// directions (nova/cone/ring); fields use shapes to place the shell POSITIONS
+// (bubble/dome/cylinder/wall/line). Keeps the VFX layer's spatial vocabulary
+// generic so spells (Layer 2) can map cones, walls, cylinders, etc.
+enum class VfxShape {
+    Sphere,    // full radial (default)
+    Dome,      // upper hemisphere around `direction`
+    Cone,      // within coneAngle of `direction`
+    Ring,      // on a circle in the plane perpendicular to `direction`
+    Cube,      // within/on a box of half-extent `extent`
+    Cylinder,  // shell of a cylinder: radius `radius`, height `extent.y`, axis `direction`
+    Wall,      // planar rectangle: normal `direction`, size `extent.x` x `extent.y`
+    Line       // along a segment of length `extent.x` centered, along `direction`
+};
+
+// An anchor: fills outPos with the live position to track and returns true,
+// or returns false if the anchor is no longer valid (e.g. its entity is gone,
+// which ends the effect). A fixed-point anchor just returns a constant.
+using VfxPositionProvider = std::function<bool(glm::vec3& outPos)>;
+
+// Lifecycle events emitted by archetypes; the composition layer (VfxDirector)
+// drains these to chain emissions (e.g. spawn a burst when a projectile impacts).
+struct VfxEvent {
+    enum class Type { Spawned, Impact, Expired, Tick };
+    Type        type;
+    std::string instanceId;   // id of the emitting effect (projectile/beam/field)
+    glm::vec3   position{0.0f};
+};
+
 // One glowing voxel particle. Pure CPU data — integrated each frame and
 // uploaded to the GPU as instanced cubes by Graphics::VfxRenderPipeline.
 struct VfxParticle {
@@ -36,6 +65,12 @@ struct VfxBurstParams {
     float sizeVar     = 0.08f;
     float intensity   = 1.6f;     // emissive boost baked into color
     glm::vec3 color{1.0f, 0.45f, 0.12f}; // fire orange by default
+    // Shape of the outward velocity spray. Sphere/Dome/Cone/Ring use `direction`
+    // (and coneAngleDeg for Cone). Cube fills a box of half-extent `extent`.
+    VfxShape  shape = VfxShape::Sphere;
+    glm::vec3 direction{0.0f, 1.0f, 0.0f}; // axis for Dome/Cone/Ring
+    float     coneAngleDeg = 45.0f;        // Cone half-angle
+    glm::vec3 extent{1.0f};                // Cube half-extent (world units)
 };
 
 // Parameters for a travelling projectile (Phase 2). The projectile's glowing
@@ -75,6 +110,9 @@ struct VfxBeamParams {
     float lightRadius = 7.0f;
     float lightIntensity = 2.2f;
     std::string impactEffect = "";   // optional burst preset at target on beam end ("" = none)
+    bool  untilDismissed = false;    // ignore duration; persist until dismiss(id) (channeled beams)
+    float tickInterval = 0.0f;       // >0 emits a Tick event every N seconds (0 = none)
+    VfxPositionProvider anchorTarget;// optional: target end follows this (e.g. tracks a creature)
 };
 
 // Parameters for a sustained field/shell (Phase 2): a shimmering shell of glowing
@@ -88,11 +126,20 @@ struct VfxFieldParams {
     float intensity = 1.6f;
     float particleLifetime = 0.12f;  // short — re-emitted each frame for a steady shell
     float pulseSpeed = 3.0f;         // shimmer/breathe rate (radians/sec)
-    bool  hemisphere = false;        // false = full bubble, true = ground dome
+    bool  hemisphere = false;        // (legacy) true forces Dome shape
     glm::vec3 color{0.3f, 0.6f, 1.0f}; // protective blue
     bool  light = true;              // transient point light at center
     float lightRadius = 6.0f;
     float lightIntensity = 1.8f;
+    // Shell shape. Sphere/Dome use `radius`. Cylinder: radius + height `extent.y`,
+    // axis `direction`. Wall: normal `direction`, size `extent.x` x `extent.y`.
+    // Line: length `extent.x` along `direction`.
+    VfxShape  shape = VfxShape::Sphere;
+    glm::vec3 direction{0.0f, 1.0f, 0.0f};
+    glm::vec3 extent{4.0f, 3.0f, 0.0f}; // shape-specific dimensions (see above)
+    bool  untilDismissed = false;      // ignore duration; persist until dismiss(id) (walls, auras)
+    float tickInterval = 0.0f;         // >0 emits a Tick event every N seconds (0 = none)
+    VfxPositionProvider anchor;        // optional: center follows this (e.g. an aura on a creature)
 };
 
 // Lightweight CPU particle VFX system for spell/effect bursts, projectiles, beams, and fields.
@@ -113,25 +160,36 @@ public:
     // Returns the number of particles actually spawned.
     int spawnEffect(const std::string& effect, const glm::vec3& position);
 
-    // Launch a single travelling projectile from origin (Phase 2).
-    void spawnProjectile(const glm::vec3& origin, const VfxProjectileParams& params);
+    // Launch a single travelling projectile from origin (Phase 2). Returns its instance id.
+    std::string spawnProjectile(const glm::vec3& origin, const VfxProjectileParams& params);
 
     // Cast a named travelling spell from origin toward target. "fireball" =
     // one fiery projectile + light + arrival burst; "magic_missile" = a fan of
     // homing violet darts. Returns the number of projectiles launched.
     int castProjectile(const std::string& effect, const glm::vec3& origin, const glm::vec3& target);
 
-    // Fire a sustained beam from origin to target (Phase 2).
-    void spawnBeam(const glm::vec3& origin, const glm::vec3& target, const VfxBeamParams& params);
+    // Fire a sustained beam from origin to target (Phase 2). Returns its instance id.
+    std::string spawnBeam(const glm::vec3& origin, const glm::vec3& target, const VfxBeamParams& params);
 
     // Cast a named beam ("eldritch_blast"). Returns 1 if a beam was created.
     int castBeam(const std::string& effect, const glm::vec3& origin, const glm::vec3& target);
 
-    // Raise a sustained field/shell around a center (Phase 2).
-    void spawnField(const glm::vec3& center, const VfxFieldParams& params);
+    // Raise a sustained field/shell around a center (Phase 2). Returns its instance id.
+    std::string spawnField(const glm::vec3& center, const VfxFieldParams& params);
 
-    // Cast a named field ("shield"). Returns 1 if a field was created.
-    int castField(const std::string& effect, const glm::vec3& center);
+    // Cast a named field ("shield"). Optional shapeOverride ("sphere","dome",
+    // "cylinder","wall","line","cube") overrides the preset's shell shape for
+    // testing/customization. Returns 1 if a field was created.
+    int castField(const std::string& effect, const glm::vec3& center, const std::string& shapeOverride = "");
+
+    // Parse a shape name to the enum (defaults to Sphere on unknown/empty).
+    static VfxShape shapeFromString(const std::string& s);
+
+    // End a sustained effect (beam/field) early by instance id. Returns true if found.
+    bool dismiss(const std::string& instanceId);
+
+    // Drain lifecycle events emitted since the last call (consumed by VfxDirector).
+    std::vector<VfxEvent> drainEvents();
 
     // Wire transient point lights to the renderer's LightManager (optional —
     // projectiles skip lights if these aren't set). Keeps VfxSystem decoupled
@@ -159,6 +217,7 @@ private:
     // A travelling projectile. Its core + trail are emitted into the particle
     // pool each frame; this struct only holds the mover's state.
     struct VfxProjectile {
+        std::string id;
         glm::vec3 position{0.0f};
         glm::vec3 velocity{0.0f};
         glm::vec3 target{0.0f};
@@ -184,6 +243,7 @@ private:
     // A sustained beam. Its line of cubes is emitted into the particle pool
     // each frame; this struct only holds the beam's state.
     struct VfxBeam {
+        std::string id;
         glm::vec3 origin{0.0f};
         glm::vec3 target{0.0f};
         float duration = 0.35f;
@@ -195,12 +255,17 @@ private:
         glm::vec3 color{1.0f};
         int   lightId = -1;
         std::string impactEffect;
+        bool  untilDismissed = false;
+        float tickInterval = 0.0f;
+        float tickAccum = 0.0f;
+        VfxPositionProvider anchorTarget;
         bool  active = false;
     };
 
     // A sustained field/shell. Its shell of cubes is emitted into the particle
     // pool each frame; this struct only holds the field's state.
     struct VfxField {
+        std::string id;
         glm::vec3 center{0.0f};
         float radius = 2.5f;
         float duration = 3.0f;
@@ -213,6 +278,13 @@ private:
         bool  hemisphere = false;
         glm::vec3 color{1.0f};
         int   lightId = -1;
+        VfxShape  shape = VfxShape::Sphere;
+        glm::vec3 direction{0.0f, 1.0f, 0.0f};
+        glm::vec3 extent{4.0f, 3.0f, 0.0f};
+        bool  untilDismissed = false;
+        float tickInterval = 0.0f;
+        float tickAccum = 0.0f;
+        VfxPositionProvider anchor;
         bool  active = false;
     };
 
@@ -227,6 +299,13 @@ private:
     int allocField();
     void updateFields(float dt);
     glm::vec3 randomUnitVector();
+    // Random direction within a cone of half-angle (radians) around `axis`.
+    glm::vec3 randomConeDir(const glm::vec3& axis, float halfAngleRad);
+    // A random point on the given shell shape around `center`.
+    glm::vec3 randomShellPoint(VfxShape shape, const glm::vec3& center, float radius,
+                               const glm::vec3& dir, const glm::vec3& extent);
+    // Two unit vectors perpendicular to `dir` (and to each other) — a basis for shapes.
+    void buildBasis(const glm::vec3& dir, glm::vec3& outU, glm::vec3& outV);
     float frand();                // [0, 1)
     float frand(float lo, float hi);
 
@@ -240,6 +319,12 @@ private:
     size_t m_activeBeams = 0;
     std::vector<VfxField> m_fields;
     size_t m_activeFields = 0;
+
+    std::vector<VfxEvent> m_events;          // lifecycle events drained by VfxDirector
+    uint32_t m_instanceCounter = 0;          // for unique effect ids
+    std::string nextId(const char* prefix);
+    void emitEvent(VfxEvent::Type type, const std::string& id, const glm::vec3& pos);
+
     AddLightFn    m_addLight;
     MoveLightFn   m_moveLight;
     RemoveLightFn m_removeLight;

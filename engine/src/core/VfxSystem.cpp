@@ -21,10 +21,103 @@ float VfxSystem::frand(float lo, float hi) {
     return lo + (hi - lo) * frand();
 }
 
+std::string VfxSystem::nextId(const char* prefix) {
+    return std::string(prefix) + std::to_string(++m_instanceCounter);
+}
+
+void VfxSystem::emitEvent(VfxEvent::Type type, const std::string& id, const glm::vec3& pos) {
+    // Cap the queue so events don't accumulate if nothing is draining them
+    // (e.g. effects fired directly without the VfxDirector). Drop oldest.
+    if (m_events.size() > 512) {
+        m_events.erase(m_events.begin(), m_events.begin() + 256);
+    }
+    m_events.push_back(VfxEvent{type, id, pos});
+}
+
+std::vector<VfxEvent> VfxSystem::drainEvents() {
+    std::vector<VfxEvent> out;
+    out.swap(m_events);
+    return out;
+}
+
+bool VfxSystem::dismiss(const std::string& instanceId) {
+    for (auto& b : m_beams) {
+        if (b.active && b.id == instanceId) {
+            if (b.lightId >= 0 && m_removeLight) m_removeLight(b.lightId);
+            b.lightId = -1; b.active = false;
+            emitEvent(VfxEvent::Type::Expired, b.id, b.target);
+            return true;
+        }
+    }
+    for (auto& f : m_fields) {
+        if (f.active && f.id == instanceId) {
+            if (f.lightId >= 0 && m_removeLight) m_removeLight(f.lightId);
+            f.lightId = -1; f.active = false;
+            emitEvent(VfxEvent::Type::Expired, f.id, f.center);
+            return true;
+        }
+    }
+    return false;
+}
+
 glm::vec3 VfxSystem::randomUnitVector() {
     glm::vec3 v(frand(-1.0f, 1.0f), frand(-1.0f, 1.0f), frand(-1.0f, 1.0f));
     float len = glm::length(v);
     return (len > 1e-4f) ? v / len : glm::vec3(0.0f, 1.0f, 0.0f);
+}
+
+void VfxSystem::buildBasis(const glm::vec3& dir, glm::vec3& outU, glm::vec3& outV) {
+    glm::vec3 n = glm::length(dir) > 1e-4f ? glm::normalize(dir) : glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 ref = (std::abs(n.y) < 0.99f) ? glm::vec3(0.0f, 1.0f, 0.0f) : glm::vec3(1.0f, 0.0f, 0.0f);
+    outU = glm::normalize(glm::cross(ref, n));
+    outV = glm::cross(n, outU);
+}
+
+glm::vec3 VfxSystem::randomConeDir(const glm::vec3& axis, float halfAngleRad) {
+    glm::vec3 n = glm::length(axis) > 1e-4f ? glm::normalize(axis) : glm::vec3(0.0f, 1.0f, 0.0f);
+    // Uniform sample within a spherical cap of half-angle halfAngleRad.
+    float cosTheta = 1.0f - frand() * (1.0f - std::cos(halfAngleRad));
+    float sinTheta = std::sqrt(std::max(0.0f, 1.0f - cosTheta * cosTheta));
+    float phi = frand() * 6.2831853f;
+    glm::vec3 u, v;
+    buildBasis(n, u, v);
+    return glm::normalize(n * cosTheta + (u * std::cos(phi) + v * std::sin(phi)) * sinTheta);
+}
+
+glm::vec3 VfxSystem::randomShellPoint(VfxShape shape, const glm::vec3& center, float radius,
+                                      const glm::vec3& dir, const glm::vec3& extent) {
+    glm::vec3 n = glm::length(dir) > 1e-4f ? glm::normalize(dir) : glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 u, v;
+    buildBasis(n, u, v);
+    switch (shape) {
+        case VfxShape::Dome: {
+            glm::vec3 d = randomUnitVector();
+            d.y = std::abs(d.y);
+            return center + d * radius;
+        }
+        case VfxShape::Cylinder: {
+            float ang = frand() * 6.2831853f;
+            float h = frand(-0.5f, 0.5f) * extent.y;             // height along axis n
+            glm::vec3 ring = (u * std::cos(ang) + v * std::sin(ang)) * radius;
+            return center + ring + n * h;
+        }
+        case VfxShape::Wall: {
+            // Planar rectangle with normal n, spanning u (width=extent.x) and world-up-ish v (height=extent.y)
+            float w = frand(-0.5f, 0.5f) * extent.x;
+            float h = frand(-0.5f, 0.5f) * extent.y;
+            return center + u * w + v * h;
+        }
+        case VfxShape::Line: {
+            float t = frand(-0.5f, 0.5f) * extent.x;
+            return center + n * t;
+        }
+        case VfxShape::Cube: {
+            return center + glm::vec3(frand(-1.0f, 1.0f), frand(-1.0f, 1.0f), frand(-1.0f, 1.0f)) * extent;
+        }
+        case VfxShape::Sphere:
+        default:
+            return center + randomUnitVector() * radius;
+    }
 }
 
 int VfxSystem::allocParticle() {
@@ -90,19 +183,48 @@ void VfxSystem::spawnBurst(const glm::vec3& position, const VfxBurstParams& para
 
         VfxParticle& p = m_particles[idx];
 
-        // Random unit direction biased upward by upBias.
-        glm::vec3 dir(frand(-1.0f, 1.0f), frand(-1.0f, 1.0f), frand(-1.0f, 1.0f));
-        float len = glm::length(dir);
-        dir = (len > 1e-4f) ? dir / len : glm::vec3(0.0f, 1.0f, 0.0f);
-        dir.y = dir.y * (1.0f - params.upBias) + params.upBias;
-        len = glm::length(dir);
-        if (len > 1e-4f) dir /= len;
+        // Outward velocity direction (and, for Cube, the start position) by shape.
+        glm::vec3 dir;
+        glm::vec3 startPos = position;
+        switch (params.shape) {
+            case VfxShape::Cone:
+                dir = randomConeDir(params.direction, glm::radians(params.coneAngleDeg));
+                break;
+            case VfxShape::Dome: {
+                dir = randomUnitVector();
+                glm::vec3 axis = glm::length(params.direction) > 1e-4f ? glm::normalize(params.direction) : glm::vec3(0,1,0);
+                if (glm::dot(dir, axis) < 0.0f) dir = -dir; // fold into hemisphere
+                break;
+            }
+            case VfxShape::Ring: {
+                glm::vec3 u, v; buildBasis(params.direction, u, v);
+                float ang = frand() * 6.2831853f;
+                dir = glm::normalize(u * std::cos(ang) + v * std::sin(ang));
+                break;
+            }
+            case VfxShape::Cube: {
+                startPos = position + glm::vec3(frand(-1.0f,1.0f), frand(-1.0f,1.0f), frand(-1.0f,1.0f)) * params.extent;
+                glm::vec3 out = startPos - position;
+                dir = (glm::length(out) > 1e-4f) ? glm::normalize(out) : glm::vec3(0,1,0);
+                break;
+            }
+            case VfxShape::Sphere:
+            default: {
+                glm::vec3 d(frand(-1.0f, 1.0f), frand(-1.0f, 1.0f), frand(-1.0f, 1.0f));
+                float len = glm::length(d);
+                d = (len > 1e-4f) ? d / len : glm::vec3(0.0f, 1.0f, 0.0f);
+                d.y = d.y * (1.0f - params.upBias) + params.upBias;
+                len = glm::length(d);
+                dir = (len > 1e-4f) ? d / len : glm::vec3(0,1,0);
+                break;
+            }
+        }
 
         float speed = std::max(0.0f, params.speed + frand(-params.speedVar, params.speedVar));
         float life  = std::max(0.05f, params.lifetime + frand(-params.lifetimeVar, params.lifetimeVar));
         float size  = std::max(0.02f, params.size + frand(-params.sizeVar, params.sizeVar));
 
-        p.position    = position;
+        p.position    = startPos;
         p.velocity    = dir * speed;
         p.scale       = glm::vec3(size);
         p.gravity     = params.gravity;
@@ -191,10 +313,11 @@ int VfxSystem::allocProjectile() {
     return -1;
 }
 
-void VfxSystem::spawnProjectile(const glm::vec3& origin, const VfxProjectileParams& params) {
+std::string VfxSystem::spawnProjectile(const glm::vec3& origin, const VfxProjectileParams& params) {
     int idx = allocProjectile();
-    if (idx < 0) return;
+    if (idx < 0) return std::string();
     VfxProjectile& pr = m_projectiles[idx];
+    pr.id = nextId("proj_");
 
     // Initial direction: toward target, or the explicit direction.
     glm::vec3 dir = params.useTarget ? (params.target - origin) : params.direction;
@@ -233,6 +356,8 @@ void VfxSystem::spawnProjectile(const glm::vec3& origin, const VfxProjectilePara
     }
 
     ++m_activeProjectiles;
+    emitEvent(VfxEvent::Type::Spawned, pr.id, origin);
+    return pr.id;
 }
 
 void VfxSystem::updateProjectiles(float dt) {
@@ -285,6 +410,9 @@ void VfxSystem::updateProjectiles(float dt) {
                        (pr.useTarget && glm::distance(pr.position, pr.target) <= arriveDist);
 
         if (arrived) {
+            // Decoupling seam: report the impact; the composition layer (VfxDirector)
+            // decides what spawns there. arrivalEffect is kept only for legacy presets.
+            emitEvent(VfxEvent::Type::Impact, pr.id, pr.position);
             if (!pr.arrivalEffect.empty()) spawnEffect(pr.arrivalEffect, pr.position);
             if (pr.lightId >= 0 && m_removeLight) m_removeLight(pr.lightId);
             pr.lightId = -1;
@@ -356,10 +484,11 @@ int VfxSystem::allocBeam() {
     return -1;
 }
 
-void VfxSystem::spawnBeam(const glm::vec3& origin, const glm::vec3& target, const VfxBeamParams& params) {
+std::string VfxSystem::spawnBeam(const glm::vec3& origin, const glm::vec3& target, const VfxBeamParams& params) {
     int idx = allocBeam();
-    if (idx < 0) return;
+    if (idx < 0) return std::string();
     VfxBeam& b = m_beams[idx];
+    b.id               = nextId("beam_");
     b.origin           = origin;
     b.target           = target;
     b.duration         = params.duration;
@@ -370,6 +499,10 @@ void VfxSystem::spawnBeam(const glm::vec3& origin, const glm::vec3& target, cons
     b.particleLifetime = params.particleLifetime;
     b.color            = params.color;
     b.impactEffect     = params.impactEffect;
+    b.untilDismissed   = params.untilDismissed;
+    b.tickInterval     = params.tickInterval;
+    b.tickAccum        = 0.0f;
+    b.anchorTarget     = params.anchorTarget;
 
     b.lightId = -1;
     if (params.light && m_addLight) {
@@ -377,6 +510,9 @@ void VfxSystem::spawnBeam(const glm::vec3& origin, const glm::vec3& target, cons
     }
     b.active = true;
     ++m_activeBeams;
+    emitEvent(VfxEvent::Type::Spawned, b.id, origin);
+    emitEvent(VfxEvent::Type::Impact, b.id, target); // beams strike instantly
+    return b.id;
 }
 
 void VfxSystem::updateBeams(float dt) {
@@ -386,6 +522,30 @@ void VfxSystem::updateBeams(float dt) {
     for (auto& b : m_beams) {
         if (!b.active) continue;
         b.elapsed += dt;
+
+        // Anchor: track a moving target end (e.g. a tethering beam follows a creature).
+        if (b.anchorTarget) {
+            glm::vec3 p;
+            if (b.anchorTarget(p)) {
+                b.target = p;
+                if (b.lightId >= 0 && m_moveLight) m_moveLight(b.lightId, p);
+            } else {
+                // anchor gone — end the beam
+                if (b.lightId >= 0 && m_removeLight) m_removeLight(b.lightId);
+                b.lightId = -1; b.active = false;
+                emitEvent(VfxEvent::Type::Expired, b.id, b.target);
+                continue;
+            }
+        }
+
+        // Periodic tick events (e.g. channeled re-zap).
+        if (b.tickInterval > 0.0f) {
+            b.tickAccum += dt;
+            while (b.tickAccum >= b.tickInterval) {
+                b.tickAccum -= b.tickInterval;
+                emitEvent(VfxEvent::Type::Tick, b.id, b.target);
+            }
+        }
 
         glm::vec3 axis = b.target - b.origin;
         float length = glm::length(axis);
@@ -409,11 +569,12 @@ void VfxSystem::updateBeams(float dt) {
                      glm::vec4(glm::vec3(emissive) * 1.3f, 1.0f),
                      b.particleLifetime, 0.0f, 0.0f);
 
-        if (b.elapsed >= b.duration) {
+        if (!b.untilDismissed && b.elapsed >= b.duration) {
             if (!b.impactEffect.empty()) spawnEffect(b.impactEffect, b.target);
             if (b.lightId >= 0 && m_removeLight) m_removeLight(b.lightId);
             b.lightId = -1;
             b.active = false;
+            emitEvent(VfxEvent::Type::Expired, b.id, b.target);
         } else {
             ++active;
         }
@@ -453,10 +614,11 @@ int VfxSystem::allocField() {
     return -1;
 }
 
-void VfxSystem::spawnField(const glm::vec3& center, const VfxFieldParams& params) {
+std::string VfxSystem::spawnField(const glm::vec3& center, const VfxFieldParams& params) {
     int idx = allocField();
-    if (idx < 0) return;
+    if (idx < 0) return std::string();
     VfxField& f = m_fields[idx];
+    f.id               = nextId("field_");
     f.center           = center;
     f.radius           = params.radius;
     f.duration         = params.duration;
@@ -468,6 +630,13 @@ void VfxSystem::spawnField(const glm::vec3& center, const VfxFieldParams& params
     f.pulseSpeed       = params.pulseSpeed;
     f.hemisphere       = params.hemisphere;
     f.color            = params.color;
+    f.shape            = params.hemisphere ? VfxShape::Dome : params.shape; // legacy hemisphere flag
+    f.direction        = params.direction;
+    f.extent           = params.extent;
+    f.untilDismissed   = params.untilDismissed;
+    f.tickInterval     = params.tickInterval;
+    f.tickAccum        = 0.0f;
+    f.anchor           = params.anchor;
 
     f.lightId = -1;
     if (params.light && m_addLight) {
@@ -475,6 +644,8 @@ void VfxSystem::spawnField(const glm::vec3& center, const VfxFieldParams& params
     }
     f.active = true;
     ++m_activeFields;
+    emitEvent(VfxEvent::Type::Spawned, f.id, center);
+    return f.id;
 }
 
 void VfxSystem::updateFields(float dt) {
@@ -485,23 +656,46 @@ void VfxSystem::updateFields(float dt) {
         if (!f.active) continue;
         f.elapsed += dt;
 
+        // Anchor: track a moving center (e.g. an aura that follows a creature).
+        if (f.anchor) {
+            glm::vec3 p;
+            if (f.anchor(p)) {
+                f.center = p;
+                if (f.lightId >= 0 && m_moveLight) m_moveLight(f.lightId, p);
+            } else {
+                if (f.lightId >= 0 && m_removeLight) m_removeLight(f.lightId);
+                f.lightId = -1; f.active = false;
+                emitEvent(VfxEvent::Type::Expired, f.id, f.center);
+                continue;
+            }
+        }
+
+        // Periodic tick events (e.g. a zone that pulses each interval).
+        if (f.tickInterval > 0.0f) {
+            f.tickAccum += dt;
+            while (f.tickAccum >= f.tickInterval) {
+                f.tickAccum -= f.tickInterval;
+                emitEvent(VfxEvent::Type::Tick, f.id, f.center);
+            }
+        }
+
         // Gentle "breathe": brightness shimmer + a small radius pulse.
         float pulse = 0.85f + 0.15f * std::sin(f.elapsed * f.pulseSpeed);
         float r = f.radius * (1.0f + 0.03f * std::sin(f.elapsed * f.pulseSpeed * 1.3f));
         glm::vec4 emissive(f.color * f.intensity, 1.0f);
 
-        // Fade the shell out over the last 25% of its life.
+        // Fade the shell out over the last 25% of its life (skip when persistent).
         float fade = 1.0f;
-        if (f.duration > 0.0f) {
+        if (!f.untilDismissed && f.duration > 0.0f) {
             float lifeT = f.elapsed / f.duration; // 0..1
             if (lifeT > 0.75f) fade = std::max(0.0f, (1.0f - lifeT) / 0.25f);
         }
 
         int count = std::max(1, static_cast<int>(f.density));
         for (int i = 0; i < count; ++i) {
-            glm::vec3 dir = randomUnitVector();
-            if (f.hemisphere) dir.y = std::abs(dir.y);
-            glm::vec3 pos = f.center + dir * (r + frand(-1.0f, 1.0f) * f.thickness * 0.5f);
+            // Place on the shell shape, then jitter outward for shell thickness.
+            glm::vec3 pos = randomShellPoint(f.shape, f.center, r, f.direction, f.extent);
+            pos += randomUnitVector() * (frand(-1.0f, 1.0f) * f.thickness * 0.5f);
             float flicker = frand(0.6f, 1.0f) * pulse * fade;
             float size = f.thickness * frand(0.7f, 1.1f);
             emitParticle(pos, glm::vec3(0.0f), size,
@@ -509,10 +703,11 @@ void VfxSystem::updateFields(float dt) {
                          f.particleLifetime, 0.0f, 0.0f);
         }
 
-        if (f.elapsed >= f.duration) {
+        if (!f.untilDismissed && f.elapsed >= f.duration) {
             if (f.lightId >= 0 && m_removeLight) m_removeLight(f.lightId);
             f.lightId = -1;
             f.active = false;
+            emitEvent(VfxEvent::Type::Expired, f.id, f.center);
         } else {
             ++active;
         }
@@ -520,7 +715,18 @@ void VfxSystem::updateFields(float dt) {
     m_activeFields = active;
 }
 
-int VfxSystem::castField(const std::string& effect, const glm::vec3& center) {
+VfxShape VfxSystem::shapeFromString(const std::string& s) {
+    if (s == "dome")     return VfxShape::Dome;
+    if (s == "cone")     return VfxShape::Cone;
+    if (s == "ring")     return VfxShape::Ring;
+    if (s == "cube")     return VfxShape::Cube;
+    if (s == "cylinder") return VfxShape::Cylinder;
+    if (s == "wall")     return VfxShape::Wall;
+    if (s == "line")     return VfxShape::Line;
+    return VfxShape::Sphere;
+}
+
+int VfxSystem::castField(const std::string& effect, const glm::vec3& center, const std::string& shapeOverride) {
     VfxFieldParams p;
     if (effect == "shield") {
         p.radius = 2.6f;
@@ -536,6 +742,12 @@ int VfxSystem::castField(const std::string& effect, const glm::vec3& center) {
         p.lightIntensity = 1.8f;
     }
     // (unknown effects use the default field params)
+    if (!shapeOverride.empty()) {
+        p.shape = shapeFromString(shapeOverride);
+        if (p.shape == VfxShape::Cylinder) { p.extent = glm::vec3(0.0f, 5.0f, 0.0f); p.direction = glm::vec3(0,1,0); }
+        else if (p.shape == VfxShape::Wall) { p.extent = glm::vec3(6.0f, 4.0f, 0.0f); p.direction = glm::vec3(0,0,1); }
+        else if (p.shape == VfxShape::Line) { p.extent = glm::vec3(8.0f, 0.0f, 0.0f); p.direction = glm::vec3(1,0,0); }
+    }
     spawnField(center, p);
     return 1;
 }

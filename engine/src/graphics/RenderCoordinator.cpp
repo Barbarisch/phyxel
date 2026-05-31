@@ -8,6 +8,7 @@
 #include "graphics/DebrisRenderPipeline.h"
 #include "graphics/VfxRenderPipeline.h"
 #include "core/VfxSystem.h"
+#include "core/VfxDirector.h"
 #include "graphics/KinematicVoxelPipeline.h"
 #include "core/KinematicVoxelManager.h"
 #include "vulkan/RenderPipeline.h"
@@ -136,6 +137,7 @@ RenderCoordinator::RenderCoordinator(
         },
         [this](int id, const glm::vec3& pos) { lightManager.updatePointLightPosition(id, pos); },
         [this](int id) { lightManager.removeLight(id); });
+    vfxDirector = std::make_unique<VfxDirector>(vfxSystem.get());
     vfxPipeline = std::make_unique<VfxRenderPipeline>();
     vfxPipeline->initialize(
         vulkanDevice->getDevice(),
@@ -180,9 +182,10 @@ void RenderCoordinator::render() {
 }
 
 void RenderCoordinator::updateVfx(float dt) {
-    if (vfxSystem) {
-        vfxSystem->update(dt);
-    }
+    // Director first: it drains last frame's events and fires new emissions
+    // (spawning into vfxSystem), which the integrate pass below then ticks.
+    if (vfxDirector) vfxDirector->update(dt);
+    if (vfxSystem) vfxSystem->update(dt);
 }
 
 size_t RenderCoordinator::renderStaticGeometry() {

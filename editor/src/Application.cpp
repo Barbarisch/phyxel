@@ -14,6 +14,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/MaterialRegistry.h"
 #include "core/AtlasManager.h"
 #include "core/VfxSystem.h"
+#include "core/VfxDirector.h"
 #include "utils/GpuProfiler.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "scene/AnimatedVoxelCharacter.h"
@@ -8397,6 +8398,43 @@ void Application::processAPICommands() {
                 continue;
             }
 
+            // Cast a composed TEST SPELL via the VfxDirector (Layer-2 composition runtime)
+            if (cmd.action == "cast_test_spell") {
+                auto* dir = renderCoordinator ? renderCoordinator->getVfxDirector() : nullptr;
+                if (!dir) {
+                    response = {{"error", "VfxDirector not available"}};
+                } else {
+                    std::string name = cmd.params.value("name", std::string("t_firebolt"));
+                    auto from = cmd.params.value("from", nlohmann::json::object());
+                    auto to   = cmd.params.value("to",   nlohmann::json::object());
+                    glm::vec3 caster(from.value("x", 0.0f), from.value("y", 0.0f), from.value("z", 0.0f));
+                    glm::vec3 tgt(to.value("x", 0.0f), to.value("y", 0.0f), to.value("z", 0.0f));
+
+                    Phyxel::VfxCastContext ctx;
+                    ctx.caster = caster;
+                    ctx.targets.push_back(tgt);
+                    if (name == "t_chainlightning") {
+                        ctx.targets.push_back(tgt + glm::vec3(5.0f, 1.0f, 2.0f));
+                        ctx.targets.push_back(tgt + glm::vec3(9.0f, 0.0f, -2.0f));
+                    } else if (name == "t_magicmissile") {
+                        ctx.targets.push_back(tgt + glm::vec3(2.5f, 1.0f, 1.0f));
+                        ctx.targets.push_back(tgt + glm::vec3(-2.5f, 1.0f, -1.0f));
+                    }
+                    if (name == "t_spiritguardians") {
+                        // Follow the live player so the aura tracks a moving caster.
+                        ctx.casterProvider = [this](glm::vec3& out) -> bool {
+                            if (!animatedCharacter) return false;
+                            out = animatedCharacter->getPosition();
+                            return true;
+                        };
+                    }
+                    std::string sid = dir->cast(Phyxel::buildTestSpell(name), ctx);
+                    response = {{"success", true}, {"name", name}, {"spell_id", sid}};
+                }
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
+
             // Cast a travelling projectile VFX (Phase 2): from -> to
             if (cmd.action == "cast_vfx_projectile") {
                 if (!renderCoordinator || !renderCoordinator->getVfxSystem()) {
@@ -8449,11 +8487,12 @@ void Application::processAPICommands() {
                     response = {{"error", "VfxSystem not available"}};
                 } else {
                     std::string effect = cmd.params.value("effect", std::string("shield"));
+                    std::string shape  = cmd.params.value("shape", std::string(""));
                     glm::vec3 center(
                         cmd.params.value("x", 0.0f),
                         cmd.params.value("y", 0.0f),
                         cmd.params.value("z", 0.0f));
-                    int n = renderCoordinator->getVfxSystem()->castField(effect, center);
+                    int n = renderCoordinator->getVfxSystem()->castField(effect, center, shape);
                     response = {
                         {"success", true},
                         {"effect", effect},

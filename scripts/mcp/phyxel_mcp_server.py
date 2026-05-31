@@ -2911,6 +2911,33 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="cast_test_spell",
+            description=(
+                "Cast a composed multi-archetype TEST SPELL via the VfxDirector, from a caster "
+                "point to a target point. Exercises the composition/sequencing engine (shape, "
+                "anchor, lifetime, count/multi-target, triggers). Spells: t_firebolt (projectile->burst), "
+                "t_conecold (cone), t_thunderwave (cube), t_magicmissile (homing fan, multi-target), "
+                "t_lightningbolt (line beam), t_walloffire (wall, persistent), t_moonbeam (cylinder + tick), "
+                "t_spiritguardians (aura follows player, persistent), t_delayedblast (charge -> delayed boom), "
+                "t_chainlightning (multi-hop beams), t_thunderstep (two-point teleport)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "enum": ["t_firebolt", "t_conecold", "t_thunderwave", "t_magicmissile",
+                                  "t_lightningbolt", "t_walloffire", "t_moonbeam", "t_spiritguardians",
+                                  "t_delayedblast", "t_chainlightning", "t_thunderstep"],
+                        "default": "t_firebolt"
+                    },
+                    "from": {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}},
+                    "to":   {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}}
+                },
+                "required": ["name", "from", "to"]
+            }
+        ),
+        Tool(
             name="cast_vfx_field",
             description=(
                 "Raise a sustained field/shell VFX at a center position (spell-style). "
@@ -2929,7 +2956,12 @@ async def list_tools() -> list[Tool]:
                     },
                     "x": {"type": "number", "description": "Center X"},
                     "y": {"type": "number", "description": "Center Y"},
-                    "z": {"type": "number", "description": "Center Z"}
+                    "z": {"type": "number", "description": "Center Z"},
+                    "shape": {
+                        "type": "string",
+                        "description": "Optional shell shape override",
+                        "enum": ["sphere", "dome", "cylinder", "wall", "line", "cube"]
+                    }
                 },
                 "required": ["x", "y", "z"]
             }
@@ -5130,7 +5162,17 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             "effect": args.get("effect", "shield"),
             "x": args["x"], "y": args["y"], "z": args["z"],
         }
+        if "shape" in args:
+            body["shape"] = args["shape"]
         return await api_post("/api/vfx/field", body)
+
+    elif name == "cast_test_spell":
+        body: dict[str, Any] = {
+            "name": args.get("name", "t_firebolt"),
+            "from": args["from"],
+            "to": args["to"],
+        }
+        return await api_post("/api/vfx/test_spell", body)
 
     # --- Audio ---
     elif name == "list_sounds":

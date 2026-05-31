@@ -33,6 +33,7 @@ namespace Phyxel {
     class RaycastVisualizer;
     class ScriptingSystem;
     class VfxSystem;
+    class VfxDirector;
     namespace Graphics {
         class DebrisRenderPipeline;
         class KinematicVoxelPipeline;
@@ -155,7 +156,8 @@ public:
 
     // Lightweight VFX particle system (spell bursts, etc.).
     VfxSystem* getVfxSystem() { return vfxSystem.get(); }
-    void updateVfx(float dt); // integrate VFX particles (call once per frame)
+    VfxDirector* getVfxDirector() { return vfxDirector.get(); }
+    void updateVfx(float dt); // tick VFX director + integrate particles (call once per frame)
 
     // Custom UI system (non-ImGui menus)
     /// Create and initialize the UISystem. Must be called after construction.
@@ -268,8 +270,9 @@ private:
     // Debris Rendering
     std::unique_ptr<DebrisRenderPipeline> debrisPipeline;
 
-    // Lightweight VFX particle system + its instanced-cube renderer.
+    // Lightweight VFX particle system + its instanced-cube renderer + composition runtime.
     std::unique_ptr<VfxSystem> vfxSystem;
+    std::unique_ptr<VfxDirector> vfxDirector;
     std::unique_ptr<VfxRenderPipeline> vfxPipeline;
 
     // Kinematic Voxel Rendering (doors, rotating platforms, etc.)
