@@ -129,6 +129,13 @@ RenderCoordinator::RenderCoordinator(
 
     // Initialize VFX particle system + its additive instanced-cube renderer.
     vfxSystem = std::make_unique<VfxSystem>();
+    // Let projectiles carry transient point lights via the LightManager.
+    vfxSystem->setLightCallbacks(
+        [this](const glm::vec3& pos, const glm::vec3& color, float intensity, float radius) {
+            return lightManager.addPointLight(pos, color, intensity, radius);
+        },
+        [this](int id, const glm::vec3& pos) { lightManager.updatePointLightPosition(id, pos); },
+        [this](int id) { lightManager.removeLight(id); });
     vfxPipeline = std::make_unique<VfxRenderPipeline>();
     vfxPipeline->initialize(
         vulkanDevice->getDevice(),

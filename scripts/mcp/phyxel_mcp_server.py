@@ -2848,6 +2848,93 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="cast_vfx_projectile",
+            description=(
+                "Cast a travelling projectile VFX from one point to another (spell-style). "
+                "The projectile flies from 'from' to 'to' with a glowing core and trail, then "
+                "spawns a burst on arrival. 'fireball' = one fiery projectile that lights the room "
+                "and explodes on impact; 'magic_missile' = a fan of homing violet darts. "
+                "Standalone, not wired into combat."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "effect": {
+                        "type": "string",
+                        "description": "Projectile effect preset",
+                        "enum": ["fireball", "magic_missile"],
+                        "default": "fireball"
+                    },
+                    "from": {
+                        "type": "object",
+                        "description": "Origin (caster position)",
+                        "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}
+                    },
+                    "to": {
+                        "type": "object",
+                        "description": "Target position",
+                        "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}
+                    }
+                },
+                "required": ["from", "to"]
+            }
+        ),
+        Tool(
+            name="cast_vfx_beam",
+            description=(
+                "Fire a sustained beam VFX from one point to another (spell-style). "
+                "A flickering line of glowing cubes from 'from' to 'to' with a bright impact node "
+                "and a transient light at the target, lasting a short duration. 'eldritch_blast' = "
+                "warlock green beam. Standalone, not wired into combat."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "effect": {
+                        "type": "string",
+                        "description": "Beam effect preset",
+                        "enum": ["eldritch_blast"],
+                        "default": "eldritch_blast"
+                    },
+                    "from": {
+                        "type": "object",
+                        "description": "Origin (caster position)",
+                        "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}
+                    },
+                    "to": {
+                        "type": "object",
+                        "description": "Target position",
+                        "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}
+                    }
+                },
+                "required": ["from", "to"]
+            }
+        ),
+        Tool(
+            name="cast_vfx_field",
+            description=(
+                "Raise a sustained field/shell VFX at a center position (spell-style). "
+                "A shimmering shell of glowing cubes on a sphere around the point, persisting "
+                "for a few seconds with a transient light. 'shield' = protective blue energy bubble. "
+                "Standalone, not wired into combat."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "effect": {
+                        "type": "string",
+                        "description": "Field effect preset",
+                        "enum": ["shield"],
+                        "default": "shield"
+                    },
+                    "x": {"type": "number", "description": "Center X"},
+                    "y": {"type": "number", "description": "Center Y"},
+                    "z": {"type": "number", "description": "Center Z"}
+                },
+                "required": ["x", "y", "z"]
+            }
+        ),
+        Tool(
             name="list_lights",
             description=(
                 "List all lights in the scene (point lights, spot lights) and the ambient light strength. "
@@ -5021,6 +5108,29 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             "x": args["x"], "y": args["y"], "z": args["z"],
         }
         return await api_post("/api/vfx/spawn", body)
+
+    elif name == "cast_vfx_projectile":
+        body: dict[str, Any] = {
+            "effect": args.get("effect", "fireball"),
+            "from": args["from"],
+            "to": args["to"],
+        }
+        return await api_post("/api/vfx/projectile", body)
+
+    elif name == "cast_vfx_beam":
+        body: dict[str, Any] = {
+            "effect": args.get("effect", "eldritch_blast"),
+            "from": args["from"],
+            "to": args["to"],
+        }
+        return await api_post("/api/vfx/beam", body)
+
+    elif name == "cast_vfx_field":
+        body: dict[str, Any] = {
+            "effect": args.get("effect", "shield"),
+            "x": args["x"], "y": args["y"], "z": args["z"],
+        }
+        return await api_post("/api/vfx/field", body)
 
     # --- Audio ---
     elif name == "list_sounds":

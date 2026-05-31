@@ -3707,6 +3707,42 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // POST /api/vfx/projectile — Cast a travelling projectile VFX from -> to
+    srv.Post("/api/vfx/projectile", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("cast_vfx_projectile", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/vfx/beam — Fire a sustained beam VFX from -> to
+    srv.Post("/api/vfx/beam", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("cast_vfx_beam", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/vfx/field — Raise a sustained field/shell VFX at a center
+    srv.Post("/api/vfx/field", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("cast_vfx_field", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
     // ====================================================================
     // AUDIO ENDPOINTS
     // ====================================================================

@@ -8397,6 +8397,74 @@ void Application::processAPICommands() {
                 continue;
             }
 
+            // Cast a travelling projectile VFX (Phase 2): from -> to
+            if (cmd.action == "cast_vfx_projectile") {
+                if (!renderCoordinator || !renderCoordinator->getVfxSystem()) {
+                    response = {{"error", "VfxSystem not available"}};
+                } else {
+                    std::string effect = cmd.params.value("effect", std::string("fireball"));
+                    auto from = cmd.params.value("from", nlohmann::json::object());
+                    auto to   = cmd.params.value("to",   nlohmann::json::object());
+                    glm::vec3 origin(from.value("x", 0.0f), from.value("y", 0.0f), from.value("z", 0.0f));
+                    glm::vec3 target(to.value("x", 0.0f),   to.value("y", 0.0f),   to.value("z", 0.0f));
+                    int n = renderCoordinator->getVfxSystem()->castProjectile(effect, origin, target);
+                    response = {
+                        {"success", true},
+                        {"effect", effect},
+                        {"projectiles", n},
+                        {"from", {{"x", origin.x}, {"y", origin.y}, {"z", origin.z}}},
+                        {"to",   {{"x", target.x}, {"y", target.y}, {"z", target.z}}}
+                    };
+                }
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
+
+            // Fire a sustained beam VFX (Phase 2): from -> to
+            if (cmd.action == "cast_vfx_beam") {
+                if (!renderCoordinator || !renderCoordinator->getVfxSystem()) {
+                    response = {{"error", "VfxSystem not available"}};
+                } else {
+                    std::string effect = cmd.params.value("effect", std::string("eldritch_blast"));
+                    auto from = cmd.params.value("from", nlohmann::json::object());
+                    auto to   = cmd.params.value("to",   nlohmann::json::object());
+                    glm::vec3 origin(from.value("x", 0.0f), from.value("y", 0.0f), from.value("z", 0.0f));
+                    glm::vec3 target(to.value("x", 0.0f),   to.value("y", 0.0f),   to.value("z", 0.0f));
+                    int n = renderCoordinator->getVfxSystem()->castBeam(effect, origin, target);
+                    response = {
+                        {"success", true},
+                        {"effect", effect},
+                        {"beams", n},
+                        {"from", {{"x", origin.x}, {"y", origin.y}, {"z", origin.z}}},
+                        {"to",   {{"x", target.x}, {"y", target.y}, {"z", target.z}}}
+                    };
+                }
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
+
+            // Raise a sustained field/shell VFX (Phase 2) at a center position
+            if (cmd.action == "cast_vfx_field") {
+                if (!renderCoordinator || !renderCoordinator->getVfxSystem()) {
+                    response = {{"error", "VfxSystem not available"}};
+                } else {
+                    std::string effect = cmd.params.value("effect", std::string("shield"));
+                    glm::vec3 center(
+                        cmd.params.value("x", 0.0f),
+                        cmd.params.value("y", 0.0f),
+                        cmd.params.value("z", 0.0f));
+                    int n = renderCoordinator->getVfxSystem()->castField(effect, center);
+                    response = {
+                        {"success", true},
+                        {"effect", effect},
+                        {"fields", n},
+                        {"center", {{"x", center.x}, {"y", center.y}, {"z", center.z}}}
+                    };
+                }
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
+
             // Handle subcube/microcube commands via helper (avoids nesting depth limit)
             if (handleSubcubeMicrocubeCommand(cmd, response, chunkManager, npcManager.get())) {
                 // handled  --  skip to promise fulfillment below
