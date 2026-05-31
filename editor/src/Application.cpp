@@ -15,6 +15,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/AtlasManager.h"
 #include "core/VfxSystem.h"
 #include "core/VfxDirector.h"
+#include "core/SpellVfxMapper.h"
 #include "utils/GpuProfiler.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "scene/AnimatedVoxelCharacter.h"
@@ -8392,6 +8393,51 @@ void Application::processAPICommands() {
                         {"effect", effect},
                         {"spawned", spawned},
                         {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}}
+                    };
+                }
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
+
+            // Cast a real spell's VFX through the Layer-3 mapper (gameplay modifiers -> params)
+            if (cmd.action == "cast_spell") {
+                auto* dir = renderCoordinator ? renderCoordinator->getVfxDirector() : nullptr;
+                if (!dir) {
+                    response = {{"error", "VfxDirector not available"}};
+                } else {
+                    std::string spellId = cmd.params.value("spell", std::string("fireball"));
+                    auto from = cmd.params.value("from", nlohmann::json::object());
+                    auto to   = cmd.params.value("to",   nlohmann::json::object());
+                    glm::vec3 caster(from.value("x", 0.0f), from.value("y", 0.0f), from.value("z", 0.0f));
+                    glm::vec3 tgt(to.value("x", 0.0f), to.value("y", 0.0f), to.value("z", 0.0f));
+
+                    Phyxel::VfxSpellModifiers mods;
+                    mods.power      = cmd.params.value("power", 1.0f);
+                    mods.tier       = cmd.params.value("tier", 0);
+                    mods.crit       = cmd.params.value("crit", false);
+                    mods.rangeUnits = cmd.params.value("range", 0.0f);
+
+                    Phyxel::VfxCastContext ctx;
+                    ctx.caster = caster;
+                    ctx.targets.push_back(tgt);
+                    if (spellId == "magic_missile") {
+                        ctx.targets.push_back(tgt + glm::vec3(2.5f, 1.0f, 1.0f));
+                        ctx.targets.push_back(tgt + glm::vec3(-2.5f, 1.0f, -1.0f));
+                    } else if (spellId == "chain_lightning") {
+                        ctx.targets.push_back(tgt + glm::vec3(5.0f, 1.0f, 2.0f));
+                        ctx.targets.push_back(tgt + glm::vec3(9.0f, 0.0f, -2.0f));
+                    }
+                    if (spellId == "spirit_guardians") {
+                        ctx.casterProvider = [this](glm::vec3& out) -> bool {
+                            if (!animatedCharacter) return false;
+                            out = animatedCharacter->getPosition();
+                            return true;
+                        };
+                    }
+                    std::string sid = dir->cast(Phyxel::resolveSpellVfx(spellId, mods), ctx);
+                    response = {
+                        {"success", true}, {"spell", spellId}, {"spell_id", sid},
+                        {"power", mods.power}, {"tier", mods.tier}, {"crit", mods.crit}
                     };
                 }
                 if (cmd.onComplete) cmd.onComplete(response);

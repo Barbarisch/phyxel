@@ -3731,6 +3731,18 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // POST /api/spell/cast — Cast a real spell's VFX via the Layer-3 mapper (gameplay modifiers)
+    srv.Post("/api/spell/cast", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("cast_spell", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
     // POST /api/vfx/test_spell — Cast a composed test spell via the VfxDirector
     srv.Post("/api/vfx/test_spell", [this](const httplib::Request& req, httplib::Response& res) {
         try {

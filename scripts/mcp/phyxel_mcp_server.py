@@ -2911,6 +2911,29 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="cast_spell",
+            description=(
+                "Cast a named spell's VFX from caster to target, scaled by gameplay modifiers "
+                "(Layer 3). The spell maps to an archetype composition; power/tier/crit/range reshape "
+                "size, particle count, color, and distance. Spells: fireball, fire_bolt, magic_missile, "
+                "eldritch_blast, lightning_bolt, burning_hands, cone_of_cold, thunderwave, moonbeam, "
+                "spirit_guardians, wall_of_fire, chain_lightning, cure_wounds, healing_word, shield."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "spell": {"type": "string", "description": "Spell id", "default": "fireball"},
+                    "from": {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}},
+                    "to":   {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}},
+                    "power": {"type": "number", "description": "Magnitude (~damage/reference); 1.0 = baseline. Scales size/count/intensity.", "default": 1.0},
+                    "tier":  {"type": "integer", "description": "Upcast slots above base / mastery; palette shift + extra particles.", "default": 0},
+                    "crit":  {"type": "boolean", "description": "Critical hit: bigger + brighter.", "default": False},
+                    "range": {"type": "number", "description": "Optional projectile travel distance override (world units).", "default": 0}
+                },
+                "required": ["spell", "from", "to"]
+            }
+        ),
+        Tool(
             name="cast_test_spell",
             description=(
                 "Cast a composed multi-archetype TEST SPELL via the VfxDirector, from a caster "
@@ -5173,6 +5196,17 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             "to": args["to"],
         }
         return await api_post("/api/vfx/test_spell", body)
+
+    elif name == "cast_spell":
+        body: dict[str, Any] = {
+            "spell": args.get("spell", "fireball"),
+            "from": args["from"],
+            "to": args["to"],
+        }
+        for k in ("power", "tier", "crit", "range"):
+            if k in args:
+                body[k] = args[k]
+        return await api_post("/api/spell/cast", body)
 
     # --- Audio ---
     elif name == "list_sounds":
