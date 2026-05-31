@@ -2931,7 +2931,8 @@ async def list_tools() -> list[Tool]:
                         "description": "Optional debris bias direction",
                         "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}
                     },
-                    "support_y": {"type": "number", "description": "Structural-integrity anchor: voxel groups that can't reach solid voxels at/below this world-Y detach and fall. Omit to disable collapse."}
+                    "support_y": {"type": "number", "description": "Optional extra anchor: solid voxels at/below this world-Y are always supported (designer pinning). Collapse is on by default via the connected-to-main-mass rule."},
+                    "collapse": {"type": "boolean", "description": "Structural collapse of severed groups (default true). Set false for a pure blast.", "default": True}
                 },
                 "required": ["x", "y", "z"]
             }
@@ -5236,7 +5237,7 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     elif name == "apply_damage":
         body: dict[str, Any] = {"x": args["x"], "y": args["y"], "z": args["z"]}
-        for k in ("radius", "energy", "type", "direction", "support_y"):
+        for k in ("radius", "energy", "type", "direction", "support_y", "collapse"):
             if k in args:
                 body[k] = args[k]
         return await api_post("/api/damage/apply", body)

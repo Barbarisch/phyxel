@@ -87,7 +87,7 @@ void DamageSystem::spawnDebris(const glm::vec3& pos, const glm::vec3& vel, float
 
 DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, float energy,
                                        const std::string& /*damageType*/, const glm::vec3& direction,
-                                       float supportY) {
+                                       float supportY, bool collapse) {
     DamageResult res;
     if (!m_cm || radius <= 0.0f || energy <= 0.0f) return res;
 
@@ -170,8 +170,8 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
         }
     }
 
-    // P3: collapse any voxel groups the blast left unsupported.
-    if (supportY > NO_SUPPORT && !removed.empty()) {
+    // P3/P4: collapse any voxel groups the blast severed from the main mass.
+    if (collapse && !removed.empty()) {
         collapseUnsupported(removed, supportY, res);
     }
 
@@ -220,6 +220,7 @@ void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, f
             glm::ivec3 v = stack.back(); stack.pop_back();
             if (v.y <= yAnchor) { grounded = true; break; }   // reached the anchor → supported
             component.push_back(v);
+            // Flooded past the cap → this is the MAIN MASS → treat as anchored.
             if (static_cast<int>(component.size()) > MAX_FLOOD) { overflow = true; break; }
             for (const auto& n : NB) {
                 glm::ivec3 nb = v + n;
@@ -249,7 +250,9 @@ void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, f
         }
     }
     res.voxelsBroken += totalDetached;
-    if (totalDetached > 0)
+    if (totalDetached >= MAX_COLLAPSE)
+        LOG_WARN("DamageSystem", "collapse hit hard cap ({} voxels) — chain reaction truncated", MAX_COLLAPSE);
+    else if (totalDetached > 0)
         LOG_INFO("DamageSystem", "collapse: {} voxels detached and fell", totalDetached);
 }
 

@@ -30,15 +30,21 @@ public:
     // Apply a radial energy hit at `center`. `direction` biases debris (and can
     // be (0,0,0) for a pure radial blast). `damageType` is informational for now.
     //
-    // supportY (P3 structural integrity): if set above NO_SUPPORT, after the blast
-    // any connected voxel group bordering the hole that can't reach a solid voxel
-    // at world-Y <= supportY (the "anchor"/ground) — and is within MAX_FLOOD — is
-    // detached and falls as dynamic debris. Default = disabled (opt-in, safe).
+    // Structural integrity (default ON). After the blast, each connected voxel
+    // group bordering the hole is flood-filled (bounded):
+    //   - floods PAST the cap (MAX_FLOOD)  → it's the MAIN MASS → supported (anchor).
+    //   - fully enclosed UNDER the cap      → genuinely severed → detaches and falls.
+    // This "connected to the main mass" anchor handles caverns, below-ground, and
+    // floating terrain (no ground-plane assumption). `supportY` is an OPTIONAL extra
+    // anchor (solid voxels at Y <= supportY are always supported — designer pinning).
+    // Per-event collapse is hard-capped (MAX_COLLAPSE) as a chain-reaction stop-gap.
+    // Pass collapse=false to disable (e.g. pure cosmetic blasts).
     static constexpr float NO_SUPPORT = -1.0e8f;
     DamageResult applyDamage(const glm::vec3& center, float radius, float energy,
                              const std::string& damageType = "force",
                              const glm::vec3& direction = glm::vec3(0.0f),
-                             float supportY = NO_SUPPORT);
+                             float supportY = NO_SUPPORT,
+                             bool  collapse = true);
 
 private:
     // Per-material destruction response (the tunable knobs).
