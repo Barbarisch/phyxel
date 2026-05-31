@@ -1,5 +1,6 @@
 #include "core/Chunk.h"
 #include "core/ChunkManager.h"
+#include "core/MaterialRegistry.h"
 #include "physics/PhysicsWorld.h"
 #include "utils/Logger.h"
 #include <iostream>
@@ -255,6 +256,32 @@ void Chunk::rebuildFaces() {
 void Chunk::rebuildFaces(const NeighborLookupFunc& getNeighborCube) {
     // Delegate to render manager
     renderManager.rebuildAllFaces(cubes, staticSubcubes, staticMicrocubes, worldOrigin, getNeighborCube);
+    // Refresh cached render flags (geometry/materials may have changed).
+    recomputeRenderFlags();
+}
+
+// Rescan this chunk's cubes for mirror / transparent materials and cache the result.
+// Called only when contents change (rebuildFaces), never per-frame. The renderer reads
+// hasMirrorVoxel()/getFirstMirrorLocal() to decide on a reflection pass, and
+// hasTransparentVoxel() to decide whether to run the OIT transparent pass.
+void Chunk::recomputeRenderFlags() {
+    m_hasMirror = false;
+    m_hasTransparent = false;
+    auto& registry = Phyxel::Core::MaterialRegistry::instance();
+    for (size_t i = 0; i < cubes.size(); ++i) {
+        const Cube* cube = cubes[i].get();
+        if (!cube) continue;
+        const auto* mat = registry.getMaterial(cube->getMaterialName());
+        if (!mat) continue;
+        if (mat->isMirror && !m_hasMirror) {
+            m_hasMirror = true;
+            m_firstMirrorLocal = indexToLocal(i);
+        }
+        if (mat->alpha < 0.99f) {  // matches ChunkRenderManager transparency criterion
+            m_hasTransparent = true;
+        }
+        if (m_hasMirror && m_hasTransparent) return; // both found, no need to scan further
+    }
 }
 
 void Chunk::updateVulkanBuffer() {

@@ -399,17 +399,16 @@ ChunkManager::ChunkStats ChunkManager::getPerformanceStats() const {
             stats.totalHiddenFaces += (totalPossibleFaces - chunk->getNumInstances());
         }
         
-        // Count occlusion types based on visible faces per cube
-        // This is an approximation since we don't track individual cubes anymore
-        for (uint32_t cubeIdx = 0; cubeIdx < totalPossibleCubes; ++cubeIdx) {
-            // Rough estimate: assume evenly distributed face visibility
-            float avgVisibleFacesPerCube = float(chunk->getNumInstances()) / float(totalPossibleCubes);
-            
-            if (avgVisibleFacesPerCube == 0.0f) {
-                stats.fullyOccludedCubes++;
-            } else if (avgVisibleFacesPerCube < 6.0f) {
-                stats.partiallyOccludedCubes++;
-            }
+        // Count occlusion types based on average visible faces per cube.
+        // This is an approximation since we don't track individual cubes anymore.
+        // The estimate is loop-invariant across a chunk's cells, so compute it O(1)
+        // instead of iterating all 32768 cells every frame — this was a ~5ms/frame
+        // hot path (same brute-force class as the old per-frame mirror scan).
+        float avgVisibleFacesPerCube = float(chunk->getNumInstances()) / float(totalPossibleCubes);
+        if (avgVisibleFacesPerCube == 0.0f) {
+            stats.fullyOccludedCubes += totalPossibleCubes;
+        } else if (avgVisibleFacesPerCube < 6.0f) {
+            stats.partiallyOccludedCubes += totalPossibleCubes;
         }
     }
     

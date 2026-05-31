@@ -3680,6 +3680,34 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // VFX ENDPOINTS
+    // ====================================================================
+
+    // GET /api/debug/gpu_scopes — Per-pass GPU timings (timestamp scopes) for the last frame
+    srv.Get("/api/debug/gpu_scopes", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("get_gpu_scopes", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/debug/frame_profile — Per-phase CPU frame profile tree (input/update/render)
+    srv.Get("/api/debug/frame_profile", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("get_frame_profile", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/vfx/spawn — Spawn a lightweight particle VFX burst at a position
+    srv.Post("/api/vfx/spawn", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("spawn_vfx", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // AUDIO ENDPOINTS
     // ====================================================================
 

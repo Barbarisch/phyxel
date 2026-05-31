@@ -75,6 +75,14 @@ private:
     // Dirty tracking for smart saves
     bool isDirty = false;                          // Track if chunk has been modified since last save
 
+    // Cached per-chunk render flags (recomputed only on rebuildFaces, not per-frame).
+    // Let the renderer's mirror / transparency checks be O(visibleChunks) instead of
+    // scanning all 32768 cells every frame.
+    bool m_hasMirror = false;
+    bool m_hasTransparent = false;                 // any cube with material alpha < 0.99
+    glm::ivec3 m_firstMirrorLocal{0};              // Local pos of first mirror cube (valid when m_hasMirror)
+    void recomputeRenderFlags();                   // Rescan cubes for mirror/transparent materials; updates caches above
+
 public:
     // Constructor
     explicit Chunk(const glm::ivec3& origin = glm::ivec3(0));
@@ -100,6 +108,9 @@ public:
     size_t getStaticMicrocubeCount() const { return staticMicrocubes.size(); }
     size_t getTotalSubcubeCount() const { return staticSubcubes.size(); }     // Only static subcubes remain in chunks
     uint32_t getNumInstances() const { return renderManager.getNumInstances(); }
+    bool hasMirrorVoxel() const { return m_hasMirror; }            // Cached; see recomputeRenderFlags()
+    bool hasTransparentVoxel() const { return m_hasTransparent; }  // Cached; any cube alpha < 0.99
+    glm::ivec3 getFirstMirrorLocal() const { return m_firstMirrorLocal; }
     bool getNeedsUpdate() const { return renderManager.getNeedsUpdate(); }
     void setNeedsUpdate(bool needsUpdate) { renderManager.setNeedsUpdate(needsUpdate); }
     

@@ -6,6 +6,7 @@
 #include <vector>
 #include <array>
 #include <cstdint>
+#include <cstdlib>
 #include <optional>
 #include <chrono>
 #include "core/Cube.h"
@@ -442,7 +443,8 @@ const std::vector<const char*> validationLayers = {
 #ifdef NDEBUG
 constexpr bool enableValidationLayers = false;
 #else
-constexpr bool enableValidationLayers = true;
+// Debug: opt-in via PHYXEL_VALIDATION env var (see VulkanDevice.h for rationale).
+inline const bool enableValidationLayers = (std::getenv("PHYXEL_VALIDATION") != nullptr);
 #endif
 
 } // namespace Phyxel

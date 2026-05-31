@@ -13,6 +13,8 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "Application.h"
 #include "core/MaterialRegistry.h"
 #include "core/AtlasManager.h"
+#include "core/VfxSystem.h"
+#include "utils/GpuProfiler.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "scene/AnimatedVoxelCharacter.h"
 #include "graphics/AnimationSystem.h"
@@ -2619,6 +2621,11 @@ void Application::update(float deltaTime) {
             gpuParticlePhysics->clearCharacterAABB();
         }
         gpuParticlePhysics->update(deltaTime);
+    }
+
+    // Integrate lightweight VFX particles (spell bursts, etc.)
+    if (renderCoordinator) {
+        renderCoordinator->updateVfx(deltaTime);
     }
 
     // Update respawn system (handles death timer and auto-respawn)
@@ -8338,6 +8345,54 @@ void Application::processAPICommands() {
             // Handle debug dynamic spawn commands early (avoids nesting depth limit)
             if (handleDebugDynamicSpawnCommand(cmd, response, chunkManager,
                     gpuParticlePhysics.get())) {
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
+
+            // Per-phase CPU frame profile tree (input/update/render + children) — for perf profiling
+            if (cmd.action == "get_frame_profile") {
+                nlohmann::json prof;
+                if (performanceProfiler) {
+                    std::string s = performanceProfiler->dumpFrameToJSON();
+                    prof = nlohmann::json::parse(s, nullptr, false);
+                    if (prof.is_discarded()) prof = s; // fall back to raw string
+                }
+                response = {{"profile", prof}};
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
+
+            // Per-pass GPU timings (timestamp scopes) — for perf profiling
+            if (cmd.action == "get_gpu_scopes") {
+                nlohmann::json arr = nlohmann::json::array();
+                if (renderCoordinator && renderCoordinator->getGpuProfiler()) {
+                    for (const auto& s : renderCoordinator->getGpuProfiler()->getResults()) {
+                        arr.push_back({{"name", s.name}, {"ms", s.durationMs}, {"depth", s.depth}});
+                    }
+                }
+                response = {{"scopes", arr}};
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
+
+            // Handle VFX commands early (avoids nesting depth limit)
+            if (cmd.action == "spawn_vfx") {
+                if (!renderCoordinator || !renderCoordinator->getVfxSystem()) {
+                    response = {{"error", "VfxSystem not available"}};
+                } else {
+                    std::string effect = cmd.params.value("effect", std::string("spark"));
+                    glm::vec3 pos(
+                        cmd.params.value("x", 0.0f),
+                        cmd.params.value("y", 0.0f),
+                        cmd.params.value("z", 0.0f));
+                    int spawned = renderCoordinator->getVfxSystem()->spawnEffect(effect, pos);
+                    response = {
+                        {"success", true},
+                        {"effect", effect},
+                        {"spawned", spawned},
+                        {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}}
+                    };
+                }
                 if (cmd.onComplete) cmd.onComplete(response);
                 continue;
             }

@@ -32,9 +32,11 @@ namespace Phyxel {
     class PerformanceProfiler;
     class RaycastVisualizer;
     class ScriptingSystem;
+    class VfxSystem;
     namespace Graphics {
         class DebrisRenderPipeline;
         class KinematicVoxelPipeline;
+        class VfxRenderPipeline;
     }
     namespace Core {
         class NPCManager;
@@ -151,6 +153,10 @@ public:
     // Kinematic voxel objects (doors, platforms, etc.)
     void setKinematicVoxelManager(Core::KinematicVoxelManager* mgr) { m_kinematicObjects = mgr; }
 
+    // Lightweight VFX particle system (spell bursts, etc.).
+    VfxSystem* getVfxSystem() { return vfxSystem.get(); }
+    void updateVfx(float dt); // integrate VFX particles (call once per frame)
+
     // Custom UI system (non-ImGui menus)
     /// Create and initialize the UISystem. Must be called after construction.
     bool initUISystem();
@@ -261,6 +267,10 @@ private:
 
     // Debris Rendering
     std::unique_ptr<DebrisRenderPipeline> debrisPipeline;
+
+    // Lightweight VFX particle system + its instanced-cube renderer.
+    std::unique_ptr<VfxSystem> vfxSystem;
+    std::unique_ptr<VfxRenderPipeline> vfxPipeline;
 
     // Kinematic Voxel Rendering (doors, rotating platforms, etc.)
     std::unique_ptr<KinematicVoxelPipeline> kinematicPipeline;

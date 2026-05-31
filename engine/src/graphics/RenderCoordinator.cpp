@@ -6,6 +6,8 @@
 #include "graphics/PostProcessor.h"
 #include "graphics/Camera.h"
 #include "graphics/DebrisRenderPipeline.h"
+#include "graphics/VfxRenderPipeline.h"
+#include "core/VfxSystem.h"
 #include "graphics/KinematicVoxelPipeline.h"
 #include "core/KinematicVoxelManager.h"
 #include "vulkan/RenderPipeline.h"
@@ -125,6 +127,16 @@ RenderCoordinator::RenderCoordinator(
         vulkanDevice->getSwapChainExtent()
     );
 
+    // Initialize VFX particle system + its additive instanced-cube renderer.
+    vfxSystem = std::make_unique<VfxSystem>();
+    vfxPipeline = std::make_unique<VfxRenderPipeline>();
+    vfxPipeline->initialize(
+        vulkanDevice->getDevice(),
+        vulkanDevice->getPhysicalDevice(),
+        postProcessor->getSceneRenderPass(),
+        vulkanDevice->getSwapChainExtent()
+    );
+
     // Initialize Kinematic Voxel Pipeline (doors, rotating platforms, etc.)
     kinematicPipeline = std::make_unique<KinematicVoxelPipeline>();
     if (!kinematicPipeline->initialize(
@@ -158,6 +170,12 @@ bool RenderCoordinator::initUISystem() {
 
 void RenderCoordinator::render() {
     drawFrame();
+}
+
+void RenderCoordinator::updateVfx(float dt) {
+    if (vfxSystem) {
+        vfxSystem->update(dt);
+    }
 }
 
 size_t RenderCoordinator::renderStaticGeometry() {
@@ -248,6 +266,21 @@ void RenderCoordinator::renderTransparentGeometryOIT(uint32_t frameIndex) {
     // so opaque geometry is skipped automatically.
     if (!chunkManager || visibleChunkIndices.empty()) return;
 
+    // Skip the expensive transparent geometry submission when no visible chunk
+    // actually contains a transparent voxel (cached per-chunk flag, refreshed on
+    // rebuildFaces). begin/endOITRenderPass in drawFrame still clear the OIT targets,
+    // so the post-process composite stays correct. This avoids re-submitting every
+    // visible face every frame for nothing — the common case (no glass in view).
+    bool anyVisibleTransparent = false;
+    for (size_t chunkIndex : visibleChunkIndices) {
+        const Chunk* chunk = chunkManager->chunks[chunkIndex].get();
+        if (chunk && chunk->getNumInstances() > 0 && chunk->hasTransparentVoxel()) {
+            anyVisibleTransparent = true;
+            break;
+        }
+    }
+    if (!anyVisibleTransparent) return;
+
     VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(frameIndex);
 
     // Bind OIT pipeline
@@ -279,28 +312,25 @@ void RenderCoordinator::renderTransparentGeometryOIT(uint32_t frameIndex) {
 bool RenderCoordinator::scanForMirrorVoxels() {
     if (!chunkManager) return false;
 
+    // Per-chunk mirror presence is cached and recomputed only when a chunk's
+    // contents change (Chunk::rebuildFaces). Here we just check the cached flag
+    // for each visible chunk — O(visibleChunks), not O(visibleChunks * 32768).
+    // (The old brute-force per-frame voxel scan cost ~46ms/frame; see git history.)
     for (size_t chunkIndex : visibleChunkIndices) {
         const Chunk* chunk = chunkManager->chunks[chunkIndex].get();
-        if (chunk->getNumInstances() == 0) continue;
+        if (!chunk || chunk->getNumInstances() == 0) continue;
+        if (!chunk->hasMirrorVoxel()) continue;
 
         glm::ivec3 origin = chunk->getWorldOrigin();
-        for (int x = 0; x < 32; x++) {
-            for (int y = 0; y < 32; y++) {
-                for (int z = 0; z < 32; z++) {
-                    const Cube* cube = chunk->getCubeAt(glm::ivec3(x, y, z));
-                    if (!cube) continue;
-                    const auto* mat = Phyxel::Core::MaterialRegistry::instance().getMaterial(cube->getMaterialName());
-                    if (mat && mat->isMirror) {
-                        mirrorPlanePoint  = glm::vec3(origin.x + x + 0.5f, origin.y + y + 0.5f, origin.z + z + 0.5f);
-                        mirrorPlaneNormal = glm::vec3(0.0f, 0.0f, 1.0f);
-                        LOG_DEBUG("RenderCoordinator", "Mirror voxel found at ({},{},{}), plane normal ({},{},{})",
-                            mirrorPlanePoint.x, mirrorPlanePoint.y, mirrorPlanePoint.z,
-                            mirrorPlaneNormal.x, mirrorPlaneNormal.y, mirrorPlaneNormal.z);
-                        return true;
-                    }
-                }
-            }
-        }
+        glm::ivec3 local  = chunk->getFirstMirrorLocal();
+        mirrorPlanePoint  = glm::vec3(origin.x + local.x + 0.5f,
+                                      origin.y + local.y + 0.5f,
+                                      origin.z + local.z + 0.5f);
+        mirrorPlaneNormal = glm::vec3(0.0f, 0.0f, 1.0f);
+        LOG_DEBUG("RenderCoordinator", "Mirror voxel found at ({},{},{}), plane normal ({},{},{})",
+            mirrorPlanePoint.x, mirrorPlanePoint.y, mirrorPlanePoint.z,
+            mirrorPlaneNormal.x, mirrorPlaneNormal.y, mirrorPlaneNormal.z);
+        return true;
     }
     return false;
 }
@@ -968,13 +998,25 @@ void RenderCoordinator::drawFrame() {
         if (debrisSystem && debrisSystem->getActiveParticleCount() > 0) {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Debris");
             debrisPipeline->render(
-                vulkanDevice->getCommandBuffer(currentFrame), 
-                *camera, 
+                vulkanDevice->getCommandBuffer(currentFrame),
+                *camera,
                 cachedProjectionMatrix,
-                debrisSystem->getParticles(), 
+                debrisSystem->getParticles(),
                 debrisSystem->getActiveParticleCount()
             );
         }
+    }
+
+    // Render VFX particles (additive glow — after opaque/debris geometry)
+    if (vfxPipeline && vfxSystem && vfxSystem->getActiveCount() > 0) {
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "VFX");
+        vfxPipeline->render(
+            vulkanDevice->getCommandBuffer(currentFrame),
+            *camera,
+            cachedProjectionMatrix,
+            vfxSystem->getParticles(),
+            vfxSystem->getActiveCount()
+        );
     }
     
     // Render Kinematic Voxels (doors, rotating platforms, etc.)
@@ -1002,10 +1044,14 @@ void RenderCoordinator::drawFrame() {
     postProcessor->endSceneRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
 
     // SSAO pass (samples the depth buffer written by scene pass)
-    postProcessor->renderSSAO(vulkanDevice->getCommandBuffer(currentFrame), cachedProjectionMatrix);
+    {
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "SSAO");
+        postProcessor->renderSSAO(vulkanDevice->getCommandBuffer(currentFrame), cachedProjectionMatrix);
+    }
 
     // OIT transparent pass (reads depth in read-only mode, writes accum + reveal)
     if (renderPipeline->getOITPipeline() != VK_NULL_HANDLE) {
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "OIT");
         postProcessor->beginOITRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
         renderTransparentGeometryOIT(currentFrame);
         postProcessor->endOITRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
@@ -1022,13 +1068,17 @@ void RenderCoordinator::drawFrame() {
 
     // Render custom UI system (non-ImGui menus)
     if (m_uiSystem) {
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Custom UI");
         m_uiSystem->render(vulkanDevice->getCommandBuffer(currentFrame));
     }
 
     // Render ImGui on top
     // Scripting console rendering is handled in Application::run() before endFrame()
     // Lighting controls rendering is handled in Application::run() before endFrame()
-    imguiRenderer->render(currentFrame, imageIndex);
+    {
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "ImGui");
+        imguiRenderer->render(currentFrame, imageIndex);
+    }
     
     // End Post Process Render Pass
     postProcessor->endPostProcessRenderPass(vulkanDevice->getCommandBuffer(currentFrame));

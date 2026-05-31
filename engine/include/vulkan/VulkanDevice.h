@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <string>
 #include <unordered_map>
+#include <cstdlib>
 #include <glm/glm.hpp>
 
 namespace Phyxel {
@@ -410,9 +411,14 @@ private:
     };
 
 #ifdef NDEBUG
+    // Release: validation layers compiled out entirely (zero overhead).
     const bool enableValidationLayers = false;
 #else
-    const bool enableValidationLayers = true;
+    // Debug: validation layers are OPT-IN to keep normal debug iteration fast.
+    // They add heavy per-Vulkan-call CPU overhead (can drop FPS ~3-5x). Enable
+    // only when actually debugging GPU/Vulkan issues:
+    //   set PHYXEL_VALIDATION=1   (PowerShell: $env:PHYXEL_VALIDATION=1)
+    const bool enableValidationLayers = (std::getenv("PHYXEL_VALIDATION") != nullptr);
 #endif
 
     // Cleanup state tracking

@@ -2823,6 +2823,31 @@ async def list_tools() -> list[Tool]:
         ),
 
         Tool(
+            name="spawn_vfx",
+            description=(
+                "Spawn a lightweight voxel particle VFX burst at a world position. "
+                "Stylized chunky glowing cubes that fly outward and fade (additive glow, no physics). "
+                "Standalone — not wired into the spell/combat system. "
+                "Effects: fireball (orange), magic_missile (violet), eldritch_blast (green), "
+                "shield (blue dome-ish), heal (golden rising), spark (generic fallback)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "effect": {
+                        "type": "string",
+                        "description": "Effect preset name",
+                        "enum": ["fireball", "magic_missile", "eldritch_blast", "shield", "heal", "spark"],
+                        "default": "fireball"
+                    },
+                    "x": {"type": "number", "description": "Burst X position"},
+                    "y": {"type": "number", "description": "Burst Y position"},
+                    "z": {"type": "number", "description": "Burst Z position"}
+                },
+                "required": ["x", "y", "z"]
+            }
+        ),
+        Tool(
             name="list_lights",
             description=(
                 "List all lights in the scene (point lights, spot lights) and the ambient light strength. "
@@ -4988,6 +5013,14 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     elif name == "set_ambient_light":
         return await api_post("/api/ambient", {"strength": args["strength"]})
+
+    # --- VFX ---
+    elif name == "spawn_vfx":
+        body: dict[str, Any] = {
+            "effect": args.get("effect", "fireball"),
+            "x": args["x"], "y": args["y"], "z": args["z"],
+        }
+        return await api_post("/api/vfx/spawn", body)
 
     # --- Audio ---
     elif name == "list_sounds":

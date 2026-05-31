@@ -628,5 +628,21 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+echo Compiling VFX particle vertex shader...
+%GLSLANG% -V -I. shaders\vfx.vert -o shaders\vfx.vert.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile vfx.vert
+    pause
+    exit /b 1
+)
+
+echo Compiling VFX particle fragment shader...
+%GLSLANG% -V -I. shaders\vfx.frag -o shaders\vfx.frag.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile vfx.frag
+    pause
+    exit /b 1
+)
+
 echo All shaders compiled successfully!
 REM pause
