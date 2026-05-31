@@ -6,6 +6,9 @@
 #include "utils/Logger.h"
 #include <algorithm>
 #include <cmath>
+#include <vector>
+#include <unordered_set>
+#include <cstdint>
 
 namespace Phyxel {
 
@@ -83,11 +86,13 @@ void DamageSystem::spawnDebris(const glm::vec3& pos, const glm::vec3& vel, float
 }
 
 DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, float energy,
-                                       const std::string& /*damageType*/, const glm::vec3& direction) {
+                                       const std::string& /*damageType*/, const glm::vec3& direction,
+                                       float supportY) {
     DamageResult res;
     if (!m_cm || radius <= 0.0f || energy <= 0.0f) return res;
 
     glm::vec3 dirBias = (glm::length(direction) > 1e-3f) ? glm::normalize(direction) : glm::vec3(0.0f);
+    std::vector<glm::ivec3> removed; // for the P3 collapse pass
 
     glm::ivec3 lo(static_cast<int>(std::floor(center.x - radius)),
                   static_cast<int>(std::floor(center.y - radius)),
@@ -136,6 +141,7 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
         // and clear its collision occupancy cell.
         m_cm->removeCubeFast(wp);
         if (m_gpu) m_gpu->setOccupied(x, y, z, false);
+        removed.push_back(wp);
         res.voxelsBroken++;
 
         if (res.debrisSpawned >= MAX_DEBRIS) continue; // capped: voxel still removed
@@ -164,9 +170,87 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
         }
     }
 
+    // P3: collapse any voxel groups the blast left unsupported.
+    if (supportY > NO_SUPPORT && !removed.empty()) {
+        collapseUnsupported(removed, supportY, res);
+    }
+
     LOG_INFO("DamageSystem", "applyDamage E={} r={} -> broken={} grazed={} debris={}",
              energy, radius, res.voxelsBroken, res.voxelsGrazed, res.debrisSpawned);
     return res;
+}
+
+// Pack a voxel coord into a 63-bit key (21 bits/axis, ±~1M range).
+static inline int64_t packVoxel(int x, int y, int z) {
+    auto m = [](int v) -> int64_t { return static_cast<int64_t>(v + 1048576) & 0x1FFFFF; };
+    return (m(x) << 42) | (m(y) << 21) | m(z);
+}
+
+void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, float supportY,
+                                       DamageResult& res) {
+    const int yAnchor = static_cast<int>(std::floor(supportY));
+    std::unordered_set<int64_t> visited;
+    int totalDetached = 0;
+
+    // Seeds: solid voxels bordering the removed set (the rim of the hole).
+    static const glm::ivec3 NB[6] = {{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}};
+    std::vector<glm::ivec3> seeds;
+    for (const glm::ivec3& r : removed) {
+        for (const auto& n : NB) {
+            glm::ivec3 s = r + n;
+            if (m_cm->getCubeAt(s)) seeds.push_back(s);
+        }
+    }
+
+    std::vector<glm::ivec3> stack;
+    std::vector<glm::ivec3> component;
+    for (const glm::ivec3& seed : seeds) {
+        if (totalDetached >= MAX_COLLAPSE) break;
+        if (visited.count(packVoxel(seed.x, seed.y, seed.z))) continue;
+
+        // Flood-fill this connected solid component (bounded), checking for an anchor.
+        component.clear();
+        stack.clear();
+        stack.push_back(seed);
+        visited.insert(packVoxel(seed.x, seed.y, seed.z));
+        bool grounded = false;
+        bool overflow = false;
+
+        while (!stack.empty()) {
+            glm::ivec3 v = stack.back(); stack.pop_back();
+            if (v.y <= yAnchor) { grounded = true; break; }   // reached the anchor → supported
+            component.push_back(v);
+            if (static_cast<int>(component.size()) > MAX_FLOOD) { overflow = true; break; }
+            for (const auto& n : NB) {
+                glm::ivec3 nb = v + n;
+                int64_t key = packVoxel(nb.x, nb.y, nb.z);
+                if (visited.count(key)) continue;
+                if (m_cm->getCubeAt(nb)) { visited.insert(key); stack.push_back(nb); }
+            }
+        }
+
+        // Supported or too-large-to-collapse → leave static.
+        if (grounded || overflow) continue;
+
+        // Detached: drop the whole component as falling debris.
+        for (const glm::ivec3& v : component) {
+            if (totalDetached >= MAX_COLLAPSE) break;
+            Cube* c = m_cm->getCubeAt(v);
+            if (!c) continue;
+            std::string mat = c->getMaterialName();
+            glm::vec3 vc(v.x + 0.5f, v.y + 0.5f, v.z + 0.5f);
+            m_cm->removeCubeFast(v);
+            if (m_gpu) m_gpu->setOccupied(v.x, v.y, v.z, false);
+            // Small outward+down nudge; gravity does the rest.
+            glm::vec3 vel(frand(-0.5f, 0.5f), frand(-1.0f, -0.2f), frand(-0.5f, 0.5f));
+            spawnDebris(vc, vel, 1.0f, mat);
+            ++totalDetached;
+            res.debrisSpawned++;
+        }
+    }
+    res.voxelsBroken += totalDetached;
+    if (totalDetached > 0)
+        LOG_INFO("DamageSystem", "collapse: {} voxels detached and fell", totalDetached);
 }
 
 } // namespace Phyxel

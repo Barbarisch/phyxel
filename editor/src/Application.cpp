@@ -8417,8 +8417,9 @@ void Application::processAPICommands() {
                         auto d = cmd.params["direction"];
                         dir = glm::vec3(d.value("x", 0.0f), d.value("y", 0.0f), d.value("z", 0.0f));
                     }
+                    float supportY = cmd.params.value("support_y", Phyxel::DamageSystem::NO_SUPPORT);
                     Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
-                    auto r = dmg.applyDamage(center, radius, energy, type, dir);
+                    auto r = dmg.applyDamage(center, radius, energy, type, dir, supportY);
                     response = {
                         {"success", true},
                         {"broken", r.voxelsBroken},

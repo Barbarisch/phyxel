@@ -2930,7 +2930,8 @@ async def list_tools() -> list[Tool]:
                         "type": "object",
                         "description": "Optional debris bias direction",
                         "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}
-                    }
+                    },
+                    "support_y": {"type": "number", "description": "Structural-integrity anchor: voxel groups that can't reach solid voxels at/below this world-Y detach and fall. Omit to disable collapse."}
                 },
                 "required": ["x", "y", "z"]
             }
@@ -5235,7 +5236,7 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     elif name == "apply_damage":
         body: dict[str, Any] = {"x": args["x"], "y": args["y"], "z": args["z"]}
-        for k in ("radius", "energy", "type", "direction"):
+        for k in ("radius", "energy", "type", "direction", "support_y"):
             if k in args:
                 body[k] = args[k]
         return await api_post("/api/damage/apply", body)
