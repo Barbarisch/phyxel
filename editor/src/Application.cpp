@@ -2620,15 +2620,28 @@ void Application::update(float deltaTime) {
 
     // Update GPU particle physics (CPU-side slot tracking + staging upload)
     if (gpuParticlePhysics) {
-        // Feed character AABB to GPU so particles collide with the player
+        // Feed per-limb character colliders to the GPU so debris collides with the
+        // player's body parts (not just the torso capsule). These are the same segment
+        // boxes used for CPU kinematic-obstacle collision; fall back to the controller
+        // capsule if they haven't been built yet.
         if (animatedCharacter) {
-            auto pos = animatedCharacter->getPosition(); // feet position
-            float halfH = animatedCharacter->getControllerHalfHeight();
-            float halfW = animatedCharacter->getControllerHalfWidth();
-            glm::vec3 center = pos + glm::vec3(0.0f, halfH, 0.0f);
-            glm::vec3 halfExt(halfW, halfH, halfW);
             glm::vec3 vel = animatedCharacter->getControllerVelocity();
-            gpuParticlePhysics->setCharacterAABB(center, halfExt, vel);
+            auto segs = animatedCharacter->getSegmentBoxInfo();
+            std::vector<std::pair<glm::vec3, glm::vec3>> boxes;
+            boxes.reserve(segs.size());
+            for (const auto& s : segs) {
+                if (s.worldHalfExtents.x <= 0.0f) continue; // skip un-refit/degenerate
+                boxes.emplace_back(s.position, s.worldHalfExtents);
+            }
+            if (!boxes.empty()) {
+                gpuParticlePhysics->setCharacterColliders(boxes, vel);
+            } else {
+                glm::vec3 pos = animatedCharacter->getPosition(); // feet position
+                float halfH   = animatedCharacter->getControllerHalfHeight();
+                float halfW   = animatedCharacter->getControllerHalfWidth();
+                gpuParticlePhysics->setCharacterAABB(pos + glm::vec3(0.0f, halfH, 0.0f),
+                                                     glm::vec3(halfW, halfH, halfW), vel);
+            }
         } else {
             gpuParticlePhysics->clearCharacterAABB();
         }

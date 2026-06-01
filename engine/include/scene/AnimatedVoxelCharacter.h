@@ -110,7 +110,8 @@ namespace Scene {
         // Debug query: returns per-segment box info (count, sizes, positions, collision state)
         struct SegmentBoxInfo {
             std::string boneName;
-            glm::vec3 halfExtents;
+            glm::vec3 halfExtents;       // bind-pose local half-extents
+            glm::vec3 worldHalfExtents;  // per-frame AABB-refit world half-extents (rotation-aware)
             glm::vec3 position;
             bool isArm;
             bool colliding;

@@ -1043,7 +1043,7 @@ void GpuParticlePhysics::update(float dt) {
         if (cc) {
             m_posLogFile << "," << cc->center.x << "," << cc->center.y << "," << cc->center.z
                          << "," << cc->velocity.x << "," << cc->velocity.y << "," << cc->velocity.z
-                         << "," << cc->active;
+                         << "," << cc->segmentCount;
         } else {
             m_posLogFile << ",0,0,0,0,0,0,0";
         }
@@ -1432,18 +1432,46 @@ void GpuParticlePhysics::despawnAll() {
 // Character collider
 // ============================================================
 
-void GpuParticlePhysics::setCharacterAABB(const glm::vec3& center, const glm::vec3& halfExtents, const glm::vec3& velocity) {
+void GpuParticlePhysics::setCharacterColliders(
+    const std::vector<std::pair<glm::vec3, glm::vec3>>& boxes, const glm::vec3& velocity) {
     if (!m_characterMapped) return;
     CharacterCollider* cc = static_cast<CharacterCollider*>(m_characterMapped);
-    cc->center      = center;
-    cc->halfExtents = halfExtents;
-    cc->velocity    = velocity;
-    cc->active      = 1.0f;
+
+    uint32_t n = static_cast<uint32_t>(boxes.size());
+    if (n > MAX_CHAR_SEGMENTS) n = MAX_CHAR_SEGMENTS;
+    if (n == 0) {
+        cc->segmentCount = 0.0f;
+        cc->legacyActive = 0.0f;
+        return;
+    }
+
+    // Write segments and accumulate the union AABB (the solver's broadphase box).
+    glm::vec3 mn( 1e30f);
+    glm::vec3 mx(-1e30f);
+    for (uint32_t i = 0; i < n; ++i) {
+        const glm::vec3& c = boxes[i].first;
+        const glm::vec3& h = boxes[i].second;
+        cc->segments[i].center      = glm::vec4(c, 0.0f);
+        cc->segments[i].halfExtents = glm::vec4(h, 0.0f);
+        mn = glm::min(mn, c - h);
+        mx = glm::max(mx, c + h);
+    }
+    cc->center       = (mn + mx) * 0.5f;
+    cc->halfExtents  = (mx - mn) * 0.5f;
+    cc->velocity     = velocity;
+    cc->segmentCount = static_cast<float>(n);
+    cc->legacyActive = static_cast<float>(n);
+}
+
+void GpuParticlePhysics::setCharacterAABB(const glm::vec3& center, const glm::vec3& halfExtents, const glm::vec3& velocity) {
+    setCharacterColliders({ { center, halfExtents } }, velocity);
 }
 
 void GpuParticlePhysics::clearCharacterAABB() {
     if (!m_characterMapped) return;
-    static_cast<CharacterCollider*>(m_characterMapped)->active = 0.0f;
+    CharacterCollider* cc = static_cast<CharacterCollider*>(m_characterMapped);
+    cc->segmentCount = 0.0f;
+    cc->legacyActive = 0.0f;
 }
 
 // ============================================================

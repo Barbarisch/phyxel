@@ -3193,11 +3193,12 @@ namespace Scene {
         std::vector<SegmentBoxInfo> result;
         for (const auto& seg : m_segmentBoxes) {
             SegmentBoxInfo info;
-            info.boneName    = seg.boneName;
-            info.halfExtents = seg.halfExtents;
-            info.isArm       = seg.isArm;
-            info.colliding   = seg.colliding;
-            info.position    = seg.center;
+            info.boneName         = seg.boneName;
+            info.halfExtents      = seg.halfExtents;
+            info.worldHalfExtents = seg.worldHalfExtents;
+            info.isArm            = seg.isArm;
+            info.colliding        = seg.colliding;
+            info.position         = seg.center;
             result.push_back(info);
         }
         return result;

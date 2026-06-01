@@ -9,6 +9,7 @@
 #include <string>
 #include <cstdint>
 #include <fstream>
+#include <utility>
 
 namespace Phyxel {
 
@@ -106,18 +107,44 @@ public:
 
     // ---- Character collision interface ----
 
-    // std430 layout (48 bytes) — uploaded each frame for particle-vs-character AABB collision.
-    struct CharacterCollider {
-        glm::vec3 center;      // World-space AABB center
-        float     pad0;
-        glm::vec3 halfExtents; // Half-size on each axis
-        float     pad1;
-        glm::vec3 velocity;    // Character velocity (transferred to particles on hit)
-        float     active;      // 1.0 = enabled, 0.0 = disabled (no character spawned)
-    };
-    static_assert(sizeof(CharacterCollider) == 48, "CharacterCollider must be 48 bytes");
+    // Max per-limb segment boxes uploaded per frame. Must cover the character's full
+    // segment set — 12 boxes (4 torso + 4 arm + 4 leg). Setting this too low silently
+    // drops the trailing boxes (e.g. the legs), leaving floor-height debris uncovered.
+    // Keep in sync with charSeg[] in solver_integrate.comp.
+    static constexpr uint32_t MAX_CHAR_SEGMENTS = 12;
 
-    /** Update character AABB for particle collision. Called each frame from Application. */
+    // One body-part box (std430: two vec4s = 32 bytes).
+    struct CharSegmentGpu {
+        glm::vec4 center;       // xyz = world center
+        glm::vec4 halfExtents;  // xyz = world half-extents
+    };
+    static_assert(sizeof(CharSegmentGpu) == 32, "CharSegmentGpu must be 32 bytes");
+
+    // std430 layout uploaded each frame for particle-vs-character collision.
+    // The first 48 bytes are the broadphase union AABB + velocity, byte-compatible
+    // with the original single-AABB layout (so the dead legacy particle_collide.comp
+    // still reads sane values). The live AVBD solver (solver_integrate.comp) uses the
+    // union for a cheap early-out, then tests the per-limb segments[].
+    struct CharacterCollider {
+        glm::vec3 center;       // union AABB center (broadphase)
+        float     segmentCount; // number of active segments (0 = disabled)
+        glm::vec3 halfExtents;  // union AABB half-extents
+        float     pad0;
+        glm::vec3 velocity;     // character velocity (imparted to pushed debris)
+        float     legacyActive; // mirrors (segmentCount>0) for the legacy shader's charActive
+        CharSegmentGpu segments[MAX_CHAR_SEGMENTS];
+    };
+    static_assert(sizeof(CharacterCollider) == 48 + 32 * MAX_CHAR_SEGMENTS,
+                  "CharacterCollider layout mismatch");
+
+    /** Update per-limb character colliders for the live solver. `boxes` = (center,
+     *  halfExtents) of each body segment; the union AABB is computed internally.
+     *  Empty disables character collision. Called each frame from Application. */
+    void setCharacterColliders(const std::vector<std::pair<glm::vec3, glm::vec3>>& boxes,
+                               const glm::vec3& velocity);
+
+    /** Convenience: single-box character collider (used as a fallback when segment
+     *  boxes are unavailable). Delegates to setCharacterColliders. */
     void setCharacterAABB(const glm::vec3& center, const glm::vec3& halfExtents, const glm::vec3& velocity);
 
     /** Disable character collision (no character active). */
