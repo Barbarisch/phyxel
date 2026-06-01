@@ -94,7 +94,11 @@ public:
     // Cube operations
     bool addCube(const glm::ivec3& localPos);
     bool addCube(const glm::ivec3& localPos, const std::string& material);
-    bool removeCube(const glm::ivec3& localPos);
+    // deferRebuild=true: skip the (expensive) per-call chunk re-mesh + GPU upload
+    // and instead flag the chunk via setNeedsUpdate, so the per-frame
+    // updateDirtyChunks() pass re-meshes each touched chunk exactly ONCE. Used by
+    // removeCubeFast / bulk destruction to avoid O(voxels-removed) re-meshes.
+    bool removeCube(const glm::ivec3& localPos, bool deferRebuild = false);
     int removeCubesBatch(const std::vector<glm::ivec3>& positions);  // Remove multiple cubes, rebuild once
     int addCubesBatch(const std::vector<glm::ivec3>& positions, const std::string& material = "");  // Add multiple cubes, rebuild once
 

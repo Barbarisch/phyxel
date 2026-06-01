@@ -133,8 +133,8 @@ const Cube* Chunk::getCubeAtIndex(size_t index) const {
     return cubes[index].get();
 }
 
-bool Chunk::removeCube(const glm::ivec3& localPos) {
-    return voxelManager.removeCube(localPos);
+bool Chunk::removeCube(const glm::ivec3& localPos, bool deferRebuild) {
+    return voxelManager.removeCube(localPos, deferRebuild);
 }
 
 bool Chunk::addCube(const glm::ivec3& localPos) {

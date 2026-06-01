@@ -9,6 +9,7 @@
 #include <vector>
 #include <unordered_set>
 #include <cstdint>
+#include <chrono>
 
 namespace Phyxel {
 
@@ -91,6 +92,9 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
     DamageResult res;
     if (!m_cm || radius <= 0.0f || energy <= 0.0f) return res;
 
+    using Clock = std::chrono::high_resolution_clock;
+    auto t0 = Clock::now();
+
     glm::vec3 dirBias = (glm::length(direction) > 1e-3f) ? glm::normalize(direction) : glm::vec3(0.0f);
     std::vector<glm::ivec3> removed; // for the P3 collapse pass
 
@@ -170,13 +174,34 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
         }
     }
 
+    auto t1 = Clock::now();
+
     // P3/P4: collapse any voxel groups the blast severed from the main mass.
     if (collapse && !removed.empty()) {
         collapseUnsupported(removed, supportY, res);
     }
+    auto t2 = Clock::now();
 
+    // Batch re-mesh: all the removeCubeFast calls above only flagged their chunks
+    // dirty (deferRebuild). Flush once here so every touched chunk is re-meshed a
+    // SINGLE time within this op, instead of once per removed voxel. This is the
+    // core lag-spike fix: O(chunks touched) re-meshes instead of O(voxels removed).
+    if (res.voxelsBroken > 0) {
+        m_cm->updateDirtyChunks();
+    }
+    auto t3 = Clock::now();
+
+    auto ms = [](Clock::time_point a, Clock::time_point b) {
+        return std::chrono::duration<double, std::milli>(b - a).count();
+    };
     LOG_INFO("DamageSystem", "applyDamage E={} r={} -> broken={} grazed={} debris={}",
              energy, radius, res.voxelsBroken, res.voxelsGrazed, res.debrisSpawned);
+    // Per-phase timing (DEBUG): break-loop scans/breaks/spawns, collapse floods the
+    // severed groups, remesh is the single batched chunk rebuild. Watch this if a
+    // big op ever starts spiking again.
+    LOG_DEBUG_FMT("DamageSystem",
+             "timing break-loop=" << ms(t0, t1) << "ms collapse=" << ms(t1, t2)
+             << "ms remesh=" << ms(t2, t3) << "ms total=" << ms(t0, t3) << "ms");
     return res;
 }
 

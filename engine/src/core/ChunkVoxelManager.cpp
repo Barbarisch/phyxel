@@ -557,7 +557,8 @@ bool ChunkVoxelManager::addCube(
 }
 
 bool ChunkVoxelManager::removeCube(
-    const glm::ivec3& localPos
+    const glm::ivec3& localPos,
+    bool deferRebuild
 ) {
     // Validate position
     if (localPos.x < 0 || localPos.x >= 32 ||
@@ -584,13 +585,20 @@ bool ChunkVoxelManager::removeCube(
     
     // Mark chunk as dirty for smart saving
     m_setDirty(true);
-    LOG_DEBUG_FMT("ChunkVoxelManager", "Removed cube at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z 
+    LOG_DEBUG_FMT("ChunkVoxelManager", "Removed cube at local pos (" << localPos.x << "," << localPos.y << "," << localPos.z
               << ") - Chunk now DIRTY for save");
-    
-    // Immediately rebuild faces to remove the cube from GPU buffer
-    m_rebuildFaces();
-    m_updateVulkanBuffer();
-    
+
+    if (deferRebuild) {
+        // Defer the expensive re-mesh: flag the chunk so the per-frame
+        // updateDirtyChunks() pass rebuilds it ONCE, no matter how many voxels
+        // were removed this op. Avoids O(voxels) full-chunk re-meshes + uploads.
+        m_setNeedsUpdate(true);
+    } else {
+        // Immediately rebuild faces to remove the cube from GPU buffer
+        m_rebuildFaces();
+        m_updateVulkanBuffer();
+    }
+
     return true;
 }
 

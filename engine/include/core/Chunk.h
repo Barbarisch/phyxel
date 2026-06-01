@@ -161,7 +161,7 @@ public:
     void initializeVoxelMaps();  // Initialize hash maps from existing data
     
     // Cube manipulation
-    bool removeCube(const glm::ivec3& localPos);
+    bool removeCube(const glm::ivec3& localPos, bool deferRebuild = false);
     bool addCube(const glm::ivec3& localPos);
     bool addCube(const glm::ivec3& localPos, const std::string& material);
     int removeCubesBatch(const std::vector<glm::ivec3>& positions);

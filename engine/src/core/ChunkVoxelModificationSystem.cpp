@@ -24,13 +24,15 @@ bool ChunkVoxelModificationSystem::removeCubeFast(const glm::ivec3& worldPos) {
     if (!chunk) return false;
     
     glm::ivec3 localPos = worldToLocalCoord(worldPos);
-    bool result = chunk->removeCube(localPos);
-    
+    // deferRebuild=true: skip the per-call full-chunk re-mesh; markChunkDirty +
+    // the per-frame updateDirtyChunks() pass re-meshes each touched chunk ONCE.
+    bool result = chunk->removeCube(localPos, /*deferRebuild=*/true);
+
     if (result) {
         m_markChunkDirty(chunk);
-        // Note: Face regeneration would happen in updateChunk()
+        // Face regeneration is deferred to updateChunk() via the dirty tracker.
     }
-    
+
     return result;
 }
 
