@@ -37,7 +37,11 @@ enable_sanitizers(phyxel)
 
 if(MSVC)
     set_property(TARGET phyxel PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
-    set_target_properties(phyxel PROPERTIES LINK_FLAGS "/NODEFAULTLIB:python313t.lib")
+    # /INCREMENTAL:NO — incremental linking has produced STALE executables here:
+    # the linker re-stamped phyxel.exe without pulling updated phyxel_core.lib code,
+    # so source changes silently didn't take effect ("compiled clean, no change").
+    # Appended after CMake's default /INCREMENTAL; the linker honors the last flag.
+    set_target_properties(phyxel PROPERTIES LINK_FLAGS "/NODEFAULTLIB:python313t.lib /INCREMENTAL:NO")
 endif()
 
 # Copy executable to project root on Windows
