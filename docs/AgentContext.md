@@ -149,15 +149,21 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     back to 1 tick/frame (the low-FPS→more-ticks spiral stops). Lesson: a `dispatch(cmd, 1)`
     over a large buffer is a serial-scan trap — check dispatch sizes.
   - **Next targets** (per the per-pass breakdown): NarrowVoxel (~5ms) and Solve (~3ms).
-  - **No sleep system (open):** the AVBD solver fully solves EVERY live body each tick until
-    its lifetime expires (~25s) — settled debris keeps paying full cost AND micro-jitters
-    ("popcorn", esp. in concave/bowl piles where dense contacts + spawn overlap inject
-    energy). Legacy XPBD had sleep + a bounce-velocity threshold; the new pipeline dropped
-    them (legacy sleep oscillated in/out on stacks — see `particle_collide.comp` notes). A
-    contact-aware sleep/freeze with hysteresis is the likely biggest remaining win (perf +
-    settling); complementary low-risk fixes: spawn shatter pieces at non-overlapping sub-cell
-    positions instead of random jitter (`DamageSystem::applyDamage`), and a restitution
-    velocity threshold to kill micro-bounce.
+  - **Settling "popcorn" (PARKED — don't reopen without a plan):** debris stays too
+    energetic, esp. in concave/bowl piles. Root cause: it's a pure position-based solver
+    (NO restitution term anywhere — confirmed; so it's not "bounciness" to tune down) —
+    resolving penetration moves position, and position deltas become velocity, so overlap
+    injects energy. Two feeders: (1) spawn overlap — FIXED, shatter pieces now spawn at
+    distinct non-overlapping sub-cell positions (`DamageSystem::applyDamage`), which removed
+    the spawn-time burst but did NOT fully calm dense piles; (2) dense bowls — many
+    simultaneous contacts under-converge in 8 solve iters + there's no sleep system, so
+    residual jitter never halts (bodies are fully solved until the ~25s lifetime expires).
+    Remaining real fix = a **contact-aware sleep/freeze with hysteresis** (also the biggest
+    steady-state perf win). RISK: legacy XPBD sleep "oscillated in/out on stacks" — needs
+    island-based waking + separate sleep/wake thresholds. Player-wake is easy (the per-limb
+    char push in `solver_integrate.comp` just clears the sleep flag, as legacy did);
+    debris-waking-debris (island propagation) is the hard part. User tabled this to avoid
+    regressing working behavior — pick it up deliberately, not casually.
 - **Open items:** `open_project` / heavy commands time out the 5s game-loop budget (one-time
   heavy load, cosmetic); no world DB versioning.
 
