@@ -639,11 +639,12 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     m_solverSyncInPass.bindBuffer(3, m_materialPhysBuffer, matPhysSize);
     m_solverSyncInPass.updateDescriptors();
 
-    // solver_integrate: bodies, materials, particles
-    if (!m_solverIntegratePass.create(m_device, shader("solver_integrate.comp.spv"), 3, sizeof(IntegratePC))) return false;
+    // solver_integrate: bodies, materials, particles, character collider
+    if (!m_solverIntegratePass.create(m_device, shader("solver_integrate.comp.spv"), 4, sizeof(IntegratePC))) return false;
     m_solverIntegratePass.bindBuffer(0, m_solverBodyBuffer,   bodySize);
     m_solverIntegratePass.bindBuffer(1, m_materialPhysBuffer, matPhysSize);
     m_solverIntegratePass.bindBuffer(2, m_particleBuffer,     particleSize);
+    m_solverIntegratePass.bindBuffer(3, m_characterBuffer,    static_cast<VkDeviceSize>(sizeof(CharacterCollider)));
     m_solverIntegratePass.updateDescriptors();
 
     // solver_narrowphase: bodies, constraints, state, gridCount, gridOffset, sortedIndices, warmstarts
@@ -1170,6 +1171,18 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*f
             recordComputeCommandsNew(cmd, count, lifetimeDtThisTick);
             continue;
         }
+
+        // ===================================================================
+        // LEGACY XPBD PIPELINE (NOT used by default — m_useNewPipeline is true
+        // and is never toggled off). Retained for reference/fallback only.
+        // Everything below until "end physics tick loop" runs ONLY in the
+        // legacy path: m_integratePass (particle_integrate.comp) and
+        // m_collidePass (particle_collide.comp). The AVBD pipeline above
+        // (recordComputeCommandsNew) is the live path; character collision,
+        // voxel collision, etc. must be maintained THERE, not here.
+        // (The expand pass + grid-sort passes below the loop are SHARED and
+        // are NOT legacy.)
+        // ===================================================================
 
         // ---- 2. Integrate pass (legacy XPBD) ----
         struct IntegratePC {

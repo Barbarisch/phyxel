@@ -255,8 +255,12 @@ private:
     Vulkan::ComputePipeline m_collidePass;
     Vulkan::ComputePipeline m_expandPass;
 
-    // ---- Constraint-based solver pipeline (new, default) ----
-    // Pipeline switch: true = constraint solver, false = legacy XPBD
+    // ---- Constraint-based solver pipeline (the live pipeline) ----
+    // Pipeline switch: true = AVBD constraint solver (solver_*.comp), false =
+    // legacy XPBD (particle_integrate/collide.comp). Hardcoded true and never
+    // toggled off anywhere — the legacy path is dead code kept for reference.
+    // All particle physics (gravity, voxel + character collision) lives in the
+    // solver_*.comp shaders; do NOT add new behaviour to the legacy shaders.
     bool m_useNewPipeline = true;
 
     static constexpr uint32_t MAX_CONSTRAINTS = 60000;

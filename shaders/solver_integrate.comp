@@ -9,6 +9,19 @@ layout(std430, set=0, binding=0) buffer SolverBodyBuffer        { SolverBody  bo
 layout(std430, set=0, binding=1) readonly buffer MaterialBuffer { MaterialPhysics materials[]; };
 layout(std430, set=0, binding=2) readonly buffer ParticleBuffer { GpuParticle particles[]; };
 
+// Player character AABB — uploaded each frame from the CPU (setCharacterAABB).
+// Debris overlapping it is shoved out + inherits the character's velocity, so the
+// player can plow through debris piles. This is the AVBD-pipeline equivalent of the
+// legacy XPBD character collision in particle_collide.comp (no longer dispatched).
+layout(std430, set=0, binding=3) readonly buffer CharacterBuffer {
+    vec3  charCenter;      // AABB center (world space)
+    float charPad0;
+    vec3  charHalfExtents; // Half-size per axis
+    float charPad1;
+    vec3  charVelocity;    // Character velocity (imparted to particles, world units/sec)
+    float charActive;      // 1.0 = enabled, 0.0 = disabled
+};
+
 layout(push_constant) uniform PC {
     uint  count;
     float dt;
@@ -79,6 +92,57 @@ void main() {
 
     // Seed cumAng with the angular displacement accumulated during force integration
     b.cumAng = angDispFromInitial(b.inertialQuat, b.initialQuat);
+
+    // ---- Character AABB push (external influence, applied after prediction) -----
+    // Ported from the legacy XPBD particle_collide.comp character block. Treats the
+    // body's OBB as an AABB (axis-aligned half-extents) for a cheap shove, matching
+    // the legacy behaviour. On overlap we push the body out along the shortest exit
+    // axis, give it the character's velocity (slightly boosted for a lively shove)
+    // plus a small upward pop, and RE-ANCHOR the AVBD inertial target to the pushed
+    // state — otherwise the solver would pull the body straight back. The subsequent
+    // voxel-contact pass still resolves any push-into-floor, so debris can't sink.
+    if (charActive > 0.5) {
+        vec3 he   = b.halfExt;
+        vec3 pMin = b.pos - he;
+        vec3 pMax = b.pos + he;
+        vec3 cMin = charCenter - charHalfExtents;
+        vec3 cMax = charCenter + charHalfExtents;
+
+        if (pMin.x < cMax.x && pMax.x > cMin.x &&
+            pMin.y < cMax.y && pMax.y > cMin.y &&
+            pMin.z < cMax.z && pMax.z > cMin.z)
+        {
+            float penPX = cMax.x - pMin.x;  float penNX = pMax.x - cMin.x;
+            float penPY = cMax.y - pMin.y;  float penNY = pMax.y - cMin.y;
+            float penPZ = cMax.z - pMin.z;  float penNZ = pMax.z - cMin.z;
+
+            float minPen = penPX; int axis = 0;
+            if (penNX < minPen) { minPen = penNX; axis = 1; }
+            if (penPY < minPen) { minPen = penPY; axis = 2; }
+            if (penNY < minPen) { minPen = penNY; axis = 3; }
+            if (penPZ < minPen) { minPen = penPZ; axis = 4; }
+            if (penNZ < minPen) { minPen = penNZ; axis = 5; }
+
+            vec3 disp = vec3(0.0);
+            if      (axis == 0) disp.x =  minPen;
+            else if (axis == 1) disp.x = -minPen;
+            else if (axis == 2) disp.y =  minPen;
+            else if (axis == 3) disp.y = -minPen;
+            else if (axis == 4) disp.z =  minPen;
+            else                disp.z = -minPen;
+
+            b.pos += disp;
+
+            vec3 pushVel = charVelocity * 1.25;
+            pushVel.y   += 0.5;
+            b.vel        = pushVel;
+            b.angVel    += vec3(-charVelocity.z, 0.0, charVelocity.x);
+
+            b.inertial     = b.pos + b.vel * pc.dt;
+            b.inertialQuat = quatIntegrate(b.quat, b.angVel * pc.dt);
+            b.cumAng       = angDispFromInitial(b.inertialQuat, b.initialQuat);
+        }
+    }
 
     bodies[i] = b;
 }

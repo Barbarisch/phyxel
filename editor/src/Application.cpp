@@ -2055,6 +2055,10 @@ void Application::applyProjectSelection(const std::string& projectPath) {
             // so characters fall through the world. (Runtime/WorldInitializer path
             // already does this; the editor project-open path previously skipped it.)
             chunkManager->buildAllChunkPhysics();
+            // GPU-side analog of buildAllChunkPhysics: populate the particle
+            // occupancy grid so debris collides with DB-loaded terrain instead of
+            // falling through it.
+            chunkManager->rebuildOccupancyFromChunks();
             LOG_INFO("Application", "Loaded {} chunk(s) from project world database", loaded.size());
         } else {
             LOG_INFO("Application", "Project world database is empty  --  world will be built from game.json");
@@ -4216,6 +4220,16 @@ void Application::autoLoadGameDefinition() {
         auto result = Core::GameDefinitionLoader::load(gameDef, subsystems);
         if (result.success) {
             LOG_INFO("Application", "Game definition loaded: {} chunks, {} structures, {} NPCs", result.chunksGenerated, result.structuresPlaced, result.npcsSpawned);
+
+            // Populate the GPU particle occupancy grid from the freshly generated
+            // terrain. Without this, debris particles have no floor to collide with
+            // and fall straight through the world. CPU collision grids are built
+            // inside GameDefinitionLoader::load (so characters ground correctly);
+            // this is the GPU-side analog, previously only done on the MCP
+            // load_game_definition path — the startup --project path skipped it.
+            if (chunkManager && (result.chunksGenerated > 0 || result.structuresPlaced > 0)) {
+                chunkManager->rebuildOccupancyFromChunks();
+            }
 
             // Build navigation grid for NPC pathfinding
             if (npcManager) {

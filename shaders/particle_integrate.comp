@@ -1,4 +1,12 @@
 #version 450
+// ============================================================================
+// LEGACY XPBD pipeline shader — NOT used by default.
+// The live pipeline is the AVBD constraint solver (solver_*.comp), selected by
+// GpuParticlePhysics::m_useNewPipeline (hardcoded true, never toggled off).
+// This file is dispatched only in the legacy branch of
+// GpuParticlePhysics::recordComputeCommands. Maintain physics in the solver_*
+// shaders; this is kept for reference/fallback only.
+// ============================================================================
 #extension GL_GOOGLE_include_directive : require
 #include "particle_types.glsl"
 

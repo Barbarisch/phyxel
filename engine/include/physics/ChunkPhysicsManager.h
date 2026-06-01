@@ -4,6 +4,8 @@
 #include "physics/VoxelOccupancyGrid.h"
 #include <glm/glm.hpp>
 #include <functional>
+#include <memory>
+#include <vector>
 
 namespace Phyxel {
 
