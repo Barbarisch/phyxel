@@ -112,13 +112,22 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   coherent breakable fragments; bedrock/anchor pin flags.
 - **Character grounding robustness:** fall-through root cause fixed (DB-load paths now build
   + register physics) with fail-loud + auto-register invariant. Done + committed.
-- **Character ↔ debris interaction:** the character now PUSHES GPU debris (one-way) — ported
-  the AABB push into the live AVBD `solver_integrate.comp`; also fixed debris falling through
-  the floor (GPU occupancy grid not rebuilt on world-load paths — see GPU rule above). Done +
-  committed. **Next:** upgrade the single body-capsule AABB to the 8 per-limb segment boxes
-  (already computed each frame for the CPU `setKinematicObstacles` path) so arms/legs push
-  too, not just the torso. GPU debris does NOT push the character back (would need a readback)
-  — deliberately out of scope.
+- **Character ↔ debris interaction:** the character now PUSHES GPU debris (one-way). The push
+  lives in the live AVBD `solver_integrate.comp` (NOT the dead legacy `particle_collide.comp`).
+  It uses the character's **12 per-limb segment boxes** (4 torso + 4 arm + 4 leg) uploaded each
+  frame via `setCharacterColliders` (same boxes fed to the CPU `setKinematicObstacles` path),
+  with a **broadphase union AABB** tested first for a cheap early-out. Also fixed debris falling
+  through the floor (GPU occupancy grid not rebuilt on world-load paths — see GPU rule above).
+  Done + committed.
+  - **Trap (cost me a debug cycle):** `GpuParticlePhysics::MAX_CHAR_SEGMENTS` caps how many
+    segment boxes upload. The character builds **12**; when the cap was 8 it silently dropped
+    the trailing 4 (the LEGS), so short floor-resting debris (subcubes/microcubes) was never
+    pushed while full-height cubes were. If a body region stops colliding, check this cap and
+    `buildSegmentBoxes`' `kSegments` count FIRST.
+  - **Known gap:** the lowest boxes are the shins (`mixamorig:LeftLeg`/`RightLeg`) — there is
+    NO dedicated foot box, so debris directly under the foot tip can slip the shin box. Fix if
+    it matters: also upload the controller capsule (reaches the floor) as an extra collider.
+  - GPU debris does NOT push the character back (would need a GPU→CPU readback) — out of scope.
 - **Spell VFX system:** 3-layer architecture (dumb archetypes → per-spell composition →
   gameplay modifiers) implemented. `VfxSystem`/`VfxDirector`/`SpellVfxMapper` +
   `VfxRenderPipeline`. Done + committed.
@@ -145,7 +154,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ---
 
-*Last meaningful update: character↔debris push landed on `main` (character collision ported
-to the live AVBD solver; GPU occupancy floor-collision fix; legacy XPBD pipeline marked dead).
+*Last meaningful update: per-limb character↔debris push landed on `main` (12 segment boxes +
+union-AABB broadphase in the live AVBD solver; fixed the MAX_CHAR_SEGMENTS=8 truncation that
+dropped the leg boxes; earlier: floor-collision fix + legacy XPBD pipeline marked dead).
 If you're a fresh session, skim this, then `git log --oneline -15` and
 `docs/DestructionSystem.md`.*
