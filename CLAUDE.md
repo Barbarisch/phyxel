@@ -1,5 +1,10 @@
 # CLAUDE.md — Phyxel Voxel Game Engine
 
+> **New session? Read [`docs/AgentContext.md`](docs/AgentContext.md) first.** It holds the
+> portable, hard-won working context (operational gotchas, engine ground truth, current
+> workstreams + roadmap, user preferences) — the substitute for per-machine agent memory
+> when picking up on a different computer.
+
 ## Auto-Context on Startup
 
 When starting a new conversation in the engine terminal, **proactively check engine state** before the user asks. Call `engine_status` — if the engine is running, gather world context by running `/context` (or manually calling the same MCP tools). This saves the user from having to explain what's loaded. If the engine is not running, skip and wait for instructions.
