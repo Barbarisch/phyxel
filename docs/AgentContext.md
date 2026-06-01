@@ -57,9 +57,20 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 - **Physics is HYBRID, and Bullet is removed** (the `external/bullet3` submodule is reference
   only; `getActiveBulletCount()` is hardcoded 0). Two live in-house backends:
-  - **`GpuParticlePhysics`** (Vulkan compute XPBD/AVBD, warm-started) — the stable,
+  - **`GpuParticlePhysics`** (Vulkan compute, warm-started) — the stable,
     count-scalable path; **destruction (`DamageSystem`) always routes here** via
     `queueSpawn`. Any doc/comment calling GPU/AVBD "broken/experimental" is STALE.
+    - **TWO pipelines exist; only ONE is live.** The default is the **AVBD constraint
+      solver** (`solver_*.comp`), selected by `m_useNewPipeline` — hardcoded `true`,
+      never toggled off. The older **XPBD pipeline** (`particle_integrate.comp` /
+      `particle_collide.comp`, the `m_integratePass`/`m_collidePass` dispatch in the
+      legacy branch of `recordComputeCommands`) is **dead code** kept for reference.
+      `particle_expand.comp` and the grid-sort passes are **shared** (NOT legacy).
+      **All particle physics changes go in the `solver_*.comp` shaders.** Trap that
+      already bit once: the character-vs-debris push lived only in the legacy
+      `particle_collide.comp`, so the player passed straight through GPU debris until
+      it was ported to `solver_integrate.comp`. Character collision now works in the
+      live solver (debris inherits character velocity on AABB overlap).
   - **`VoxelDynamicsWorld`** (custom CPU sequential-impulse rigid-body world) — furniture,
     the **static-terrain occupancy grids characters ground against**, and the **left-click
     break-debris path** (`breakCube` → `addGlobalDynamicCube` → `DynamicObjectManager`).
@@ -77,11 +88,18 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   `removeCubeFast` defers the re-mesh (marks the chunk dirty); the per-frame
   `ChunkManager::updateDirtyChunks()` re-meshes each touched chunk once. (This was a 48×
   destruction speedup: 5.4s → 113ms.)
-- **Collision registration RULE:** any code path that loads chunks from the DB MUST follow
-  `loadAllChunksFromDatabase()` with `ChunkManager::buildAllChunkPhysics()` — otherwise the
-  occupancy grids are never registered and **characters fall through the world**.
-  `AnimatedVoxelCharacter` logs a one-time ERROR ("No terrain occupancy grids registered…")
-  if this is ever skipped again.
+- **Collision registration RULE (CPU grids):** any code path that loads chunks from the DB
+  MUST follow `loadAllChunksFromDatabase()` with `ChunkManager::buildAllChunkPhysics()` —
+  otherwise the occupancy grids are never registered and **characters fall through the
+  world**. `AnimatedVoxelCharacter` logs a one-time ERROR ("No terrain occupancy grids
+  registered…") if this is ever skipped again.
+- **Collision registration RULE (GPU grid) — the analog:** the GPU particle solver has its
+  OWN occupancy grid, separate from the CPU one. Every world-load/build path MUST also call
+  `ChunkManager::rebuildOccupancyFromChunks()` — otherwise **debris particles have no floor
+  and fall straight through the world** (while the character still stands, because that's the
+  CPU grid). The init-time rebuild runs with 0 chunks, so it does NOT cover the
+  `--project`/`autoLoadGameDefinition` or DB-load paths — those each call it explicitly.
+  Symptom of a missing call: log shows only `Occupancy grid rebuilt from 0 chunks`.
 
 ---
 
@@ -94,6 +112,13 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   coherent breakable fragments; bedrock/anchor pin flags.
 - **Character grounding robustness:** fall-through root cause fixed (DB-load paths now build
   + register physics) with fail-loud + auto-register invariant. Done + committed.
+- **Character ↔ debris interaction:** the character now PUSHES GPU debris (one-way) — ported
+  the AABB push into the live AVBD `solver_integrate.comp`; also fixed debris falling through
+  the floor (GPU occupancy grid not rebuilt on world-load paths — see GPU rule above). Done +
+  committed. **Next:** upgrade the single body-capsule AABB to the 8 per-limb segment boxes
+  (already computed each frame for the CPU `setKinematicObstacles` path) so arms/legs push
+  too, not just the torso. GPU debris does NOT push the character back (would need a readback)
+  — deliberately out of scope.
 - **Spell VFX system:** 3-layer architecture (dumb archetypes → per-spell composition →
   gameplay modifiers) implemented. `VfxSystem`/`VfxDirector`/`SpellVfxMapper` +
   `VfxRenderPipeline`. Done + committed.
@@ -120,6 +145,7 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ---
 
-*Last meaningful update: destruction lag-spike fix + character-grounding robustness landed
-on `main`. If you're a fresh session, skim this, then `git log --oneline -15` and
+*Last meaningful update: character↔debris push landed on `main` (character collision ported
+to the live AVBD solver; GPU occupancy floor-collision fix; legacy XPBD pipeline marked dead).
+If you're a fresh session, skim this, then `git log --oneline -15` and
 `docs/DestructionSystem.md`.*
