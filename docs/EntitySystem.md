@@ -68,14 +68,19 @@ The base abstract class defining the interface for all game objects.
 - **Responsibilities**: Lifecycle management (update/render), transform access.
 - **Key Methods**: `update()`, `render()`.
 
-### PhysicsCharacter (New)
-A new active-ragdoll based character controller.
-- **Documentation**: See [PhysicsCharacter.md](PhysicsCharacter.md) for full details.
-- **Physics**: Uses `btRigidBody` and `btHingeConstraint` with motors.
-- **Balance**: Uses a PID controller to maintain upright orientation.
+### PhysicsCharacter (DEPRECATED — Bullet removed)
+> **No longer in active builds.** `PhysicsCharacter` (and `Character`, `SpiderCharacter`,
+> `VoxelCharacter`, `PhysicsDriveMode`) were moved to `engine/deprecated/bullet/` when Bullet
+> Physics was removed. The active character is `AnimatedVoxelCharacter` (kinematic capsule;
+> grounds against `VoxelDynamicsWorld` occupancy grids). The Bullet-based descriptions below
+> are historical. See [PhysicsCharacter.md](PhysicsCharacter.md).
 
-### Character (Legacy)
-A specialization of `Entity` that uses Bullet Physics for movement.
+A (deprecated) active-ragdoll based character controller.
+- **Physics**: Used `btRigidBody` and `btHingeConstraint` with motors.
+- **Balance**: Used a PID controller to maintain upright orientation.
+
+### Character (Legacy — DEPRECATED, Bullet removed)
+A specialization of `Entity` that used Bullet Physics for movement (archived in `engine/deprecated/bullet/`).
 - **Physics Integration**: Uses `btKinematicCharacterController` for robust character movement (handling slopes, stairs, gravity) without the instability of pure rigid bodies.
 - **Collision**: Uses `btPairCachingGhostObject` to detect collisions without applying forces to static geometry in a way that would cause jitter.
 - **Rendering**: Renders as a voxel-style cube using a dedicated pipeline.
@@ -111,16 +116,20 @@ Owns and manages all `NPCEntity` instances.
 
 ## Physics Integration
 
-The system integrates with Bullet3 via `PhysicsWorld`:
+> **Bullet has been removed.** The active `AnimatedVoxelCharacter` is a kinematic capsule
+> that grounds against `VoxelDynamicsWorld` occupancy grids (see
+> [DynamicVoxelPhysics.md](DynamicVoxelPhysics.md) and [AgentContext.md](AgentContext.md)).
+> `PhysicsWorld` is now a thin wrapper over the custom CPU `VoxelDynamicsWorld`. The
+> Bullet-based descriptions below are historical (archived in `engine/deprecated/bullet/`).
 
-### Kinematic (Legacy)
-- **Kinematic Controllers**: Characters are kinematic objects, meaning their movement is determined by game logic (velocity) rather than forces/impulses, but they still collide with the static world.
-- **Lifecycle**: `PhysicsWorld` manages the creation and destruction of Bullet objects (`btKinematicCharacterController`, `btPairCachingGhostObject`, `btConvexShape`).
+### Kinematic (Legacy — Bullet, deprecated)
+- **Kinematic Controllers**: Characters were kinematic objects whose movement is determined by game logic (velocity) rather than forces/impulses, colliding with the static world.
+- **Lifecycle**: Bullet `PhysicsWorld` managed `btKinematicCharacterController`, `btPairCachingGhostObject`, `btConvexShape`.
 
-### Active Ragdoll (New)
-- **Rigid Bodies**: The `PhysicsCharacter` uses standard `btRigidBody` objects with mass and inertia.
-- **Constraints**: Uses `btHingeConstraint` to connect body parts.
-- **Motors**: Movement is driven by motors on the constraints, not by setting velocity directly.
+### Active Ragdoll (Legacy — Bullet, deprecated)
+- **Rigid Bodies**: `PhysicsCharacter` used `btRigidBody` objects with mass and inertia.
+- **Constraints**: Used `btHingeConstraint` to connect body parts.
+- **Motors**: Movement was driven by motors on the constraints, not by setting velocity directly.
 
 
 ## Rendering Pipeline

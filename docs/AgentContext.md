@@ -55,13 +55,20 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Engine ground truth (supersedes older docs/comments)
 
-- **GPU AVBD physics (`GpuParticlePhysics`) is the LIVE, primary, stable physics path** for
-  voxel debris (Vulkan compute XPBD, warm-started). Bullet was removed. Any doc/comment
-  calling GPU/AVBD physics "broken/experimental" is STALE.
-- **CPU `VoxelDynamicsWorld` still exists** for: furniture rigid bodies, and the **static
-  terrain occupancy grids that kinematic characters ground against**. Each GPU particle is
-  one independent body; constraints are contacts only (no welds → no coherent rigid
-  multi-voxel fragments yet — that's the destruction P5 idea).
+- **Physics is HYBRID, and Bullet is removed** (the `external/bullet3` submodule is reference
+  only; `getActiveBulletCount()` is hardcoded 0). Two live in-house backends:
+  - **`GpuParticlePhysics`** (Vulkan compute XPBD/AVBD, warm-started) — the stable,
+    count-scalable path; **destruction (`DamageSystem`) always routes here** via
+    `queueSpawn`. Any doc/comment calling GPU/AVBD "broken/experimental" is STALE.
+  - **`VoxelDynamicsWorld`** (custom CPU sequential-impulse rigid-body world) — furniture,
+    the **static-terrain occupancy grids characters ground against**, and the **left-click
+    break-debris path** (`breakCube` → `addGlobalDynamicCube` → `DynamicObjectManager`).
+  - **Break routing** (`VoxelManipulationSystem`, see `docs/DynamicVoxelPhysics.md`): a
+    left-click break PREFERS CPU `VoxelDynamicsWorld` and only falls back to GPU particles
+    when smoothed FPS drops below a threshold. So "GPU is primary" is true for
+    destruction/scale, NOT for every single break — it's genuinely hybrid. Don't overstate it.
+  - Each GPU particle is one independent body; constraints are contacts only (no welds → no
+    coherent rigid multi-voxel fragments yet — that's the destruction P5 idea).
 - **Static collision = per-chunk `VoxelOccupancyGrid`** (sub-voxel: cube→subcube→microcube,
   bitset O(1) tests) registered into `VoxelDynamicsWorld::m_grids`. It is NOT redundant with
   `ChunkManager` cubes — don't "simplify" it away. See `docs/AgentContext.md` collision rule

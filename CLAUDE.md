@@ -11,7 +11,7 @@ When starting a new conversation in the engine terminal, **proactively check eng
 
 ## Project Overview
 
-Phyxel is a voxel game engine built with C++17, Vulkan, and Bullet Physics. It features a 32³ chunk system, physics-based entity characters, animated voxel characters, embedded Python scripting, and an MCP server for AI agent integration.
+Phyxel is a voxel game engine built with C++17 and Vulkan. Physics is an in-house stack — a GPU compute solver (`GpuParticlePhysics`, Vulkan XPBD/AVBD, primary for large-scale debris/destruction) plus a custom CPU rigid-body world (`VoxelDynamicsWorld`, used for furniture, character grounding, and left-click break debris). **Bullet Physics has been removed** from active builds (the `external/bullet3` submodule is kept for reference only). It features a 32³ chunk system, animated voxel characters, GPU/CPU voxel physics, embedded Python scripting, and an MCP server for AI agent integration.
 
 ## Build & Test Pipeline (REQUIRED)
 
@@ -113,9 +113,9 @@ Spawnable via MCP `spawn_entity` or keybindings. Control mode toggled with **K**
 
 | Type       | Class                    | Notes |
 |------------|--------------------------|-------|
-| `physics`  | `PhysicsCharacter`       | Humanoid ragdoll, Bullet Physics, WASD |
-| `spider`   | —                        | Spider-type enemy |
-| `animated` | `AnimatedVoxelCharacter` | .anim-based FSM: Idle/Walk/Run/Jump/Fall/Attack/Crouch/etc. |
+| `physics`  | _(deprecated)_           | Bullet ragdoll `PhysicsCharacter` was moved to `engine/deprecated/bullet/` — not in active builds. The primary character is `animated`. |
+| `spider`   | _(deprecated?)_          | `SpiderCharacter` was archived with Bullet (`engine/deprecated/bullet/`) — likely non-functional; verify before relying on it. |
+| `animated` | `AnimatedVoxelCharacter` | .anim-based FSM: Idle/Walk/Run/Jump/Fall/Attack/Crouch/etc. Kinematic capsule; grounds against `VoxelDynamicsWorld` occupancy grids. |
 
 Animated: Jump (Space), Attack (Left Click), Crouch (Ctrl), Sprint (Shift), Derez (X).
 
@@ -276,19 +276,19 @@ tools/           # create_project.py, package_game.py, anim_editor.py, etc.
 scripts/mcp/     # MCP server for AI agents
 resources/       # Templates, animations, textures, sounds, recipes, rpg/
 shaders/         # GLSL shaders + compiled SPIR-V
-external/        # Third-party: bullet3, glfw, glm, imgui, goose, miniaudio, sqlite3
+external/        # Third-party: bullet3 (reference only — NOT built/linked), glfw, glm, imgui, goose, miniaudio, sqlite3
 docs/            # Documentation
 ```
 
 ## Key Engine Subsystems
 
-**Core:** ChunkManager (32³ chunks, Vulkan buffers, face culling), ChunkStreamingManager (SQLite persistence), WorldGenerator, SceneManager (multi-scene transitions), EntityRegistry (O(1) lookup), EngineAPIServer (HTTP port 8090), ScriptingSystem (pybind11), PhysicsWorld (Bullet), RenderPipeline/RenderCoordinator (Vulkan instanced)
+**Core:** ChunkManager (32³ chunks, Vulkan buffers, face culling), ChunkStreamingManager (SQLite persistence), WorldGenerator, SceneManager (multi-scene transitions), EntityRegistry (O(1) lookup), EngineAPIServer (HTTP port 8090), ScriptingSystem (pybind11), PhysicsWorld (thin wrapper over the custom CPU `VoxelDynamicsWorld` — Bullet removed), RenderPipeline/RenderCoordinator (Vulkan instanced)
 
 **Gameplay:** HealthComponent, RespawnSystem, CombatSystem (sphere+cone hit detection), EquipmentSystem (6 slots), CraftingSystem, DayNightCycle, HazardSystem, AchievementSystem, MusicPlaylist, PlayerProfile, ObjectiveTracker
 
 **NPC/AI:** NPCManager, NavGrid + AStarPathfinder, DialogueSystem, StoryEngine, AIConversationService (Claude/OpenAI/Ollama), BehaviorTree/UtilityAI
 
-**Voxel Physics:** DynamicObjectManager (Bullet, 300 cap), GpuParticlePhysics (Vulkan XPBD, 10000 cap), VoxelManipulationSystem (hybrid routing — see `docs/DynamicVoxelPhysics.md`)
+**Voxel Physics (NO Bullet — removed):** GpuParticlePhysics (Vulkan compute XPBD/AVBD, ~10000 cap; the LIVE primary path for large-scale debris/destruction, warm-started), VoxelDynamicsWorld (custom CPU sequential-impulse rigid-body world; furniture, static-terrain occupancy grids + character grounding, and the left-click break-debris path via DynamicObjectManager/DebrisSystem), VoxelManipulationSystem (break routing — see `docs/DynamicVoxelPhysics.md`). Static voxel collision = per-chunk occupancy grids registered in VoxelDynamicsWorld; see `docs/AgentContext.md` for the "every DB-load path must call buildAllChunkPhysics()" rule.
 
 **D&D RPG:** DiceSystem, CharacterAttributes (6 ability scores + modifiers), ProficiencySystem, CharacterSheet/CharacterProgression (class/race/XP/level, data-driven JSON in `resources/rpg/`), ActionEconomy/InitiativeTracker, AttackResolver/ConditionSystem (15 conditions), SpellDefinition/SpellcasterComponent/SpellResolver, RpgItem/CurrencySystem/AttunementSystem/EncumbranceSystem, ReputationSystem/DialogueSkillCheck/SocialInteractionResolver, RestSystem, WorldClock (360-day calendar, lunar cycle), Party, LootTable, EncounterBuilder, CampaignJournal
 

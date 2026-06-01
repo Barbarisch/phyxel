@@ -234,7 +234,7 @@ Handle data transformations:
 
 ### System Subsystems
 Interface with external systems:
-- ChunkPhysicsManager (Bullet Physics integration)
+- ChunkPhysicsManager (builds the chunk's `VoxelOccupancyGrid` collision + registers it with `VoxelDynamicsWorld`; Bullet removed)
 - ChunkRenderManager (Vulkan rendering)
 
 ## When to Create a Subsystem
@@ -243,7 +243,7 @@ Interface with external systems:
 1. **Clear domain boundary**: "All physics code" or "All rendering code"
 2. **Reusable logic**: Code used in multiple places
 3. **Complex operations**: 100+ lines of intricate logic
-4. **External system interface**: Wrapping Vulkan, Bullet, etc.
+4. **External system interface**: Wrapping Vulkan, audio, etc.
 5. **Performance optimization**: Spatial queries, caching, batching
 
 ### ❌ Bad Reasons
