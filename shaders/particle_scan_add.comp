@@ -1,0 +1,21 @@
+#version 450
+//
+// particle_scan_add.comp — Parallel exclusive prefix sum, Pass 3 of 3.
+//
+// Adds each block's global start offset (blockSums, scanned by Pass 2) to the
+// block-local exclusive prefix in gridCellOffset (written by Pass 1), producing
+// the final exclusive prefix sum over all GRID_CELLS.
+//
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, set = 0, binding = 0)          buffer GridCellOffset { uint gridCellOffset[]; };
+layout(std430, set = 0, binding = 1) readonly buffer BlockSums      { uint blockSums[]; };
+
+layout(push_constant) uniform PC { uint cellCount; } pc;
+
+void main() {
+    uint gid = gl_GlobalInvocationID.x;
+    if (gid >= pc.cellCount) return;
+    gridCellOffset[gid] += blockSums[gl_WorkGroupID.x];
+}

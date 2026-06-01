@@ -265,6 +265,11 @@ private:
     // Sorted spatial grid for cache-coherent inter-particle collision
     static constexpr int    GRID_SIZE  = 64;
     static constexpr int    GRID_CELLS = GRID_SIZE * GRID_SIZE * GRID_SIZE; // 262,144
+    // Work-efficient parallel prefix sum over gridCellCount (replaces the old
+    // single-thread serial scan). SCAN_BLOCK must match local_size_x in the
+    // particle_scan_*.comp shaders; GRID_CELLS is divisible by it.
+    static constexpr int    SCAN_BLOCK  = 256;
+    static constexpr int    SCAN_BLOCKS = GRID_CELLS / SCAN_BLOCK; // 1024
     VkBuffer         m_gridCellCountBuffer  = VK_NULL_HANDLE;  // uint[GRID_CELLS] — particles per cell
     VkDeviceMemory   m_gridCellCountMem     = VK_NULL_HANDLE;
     VkBuffer         m_gridCellOffsetBuffer = VK_NULL_HANDLE;  // uint[GRID_CELLS] — END of each cell's sorted range
@@ -273,12 +278,19 @@ private:
     VkDeviceMemory   m_sortedParticleMem    = VK_NULL_HANDLE;
     VkBuffer         m_sortedIndexBuffer    = VK_NULL_HANDLE;  // uint[MAX_PARTICLES] — canonical index per sorted slot
     VkDeviceMemory   m_sortedIndexMem       = VK_NULL_HANDLE;
+    VkBuffer         m_scanBlockSumsBuffer  = VK_NULL_HANDLE;  // uint[SCAN_BLOCKS] — per-block totals for the parallel scan
+    VkDeviceMemory   m_scanBlockSumsMem     = VK_NULL_HANDLE;
 
     // ---- Compute pipelines (legacy XPBD) ----
     Vulkan::ComputePipeline m_gridClearPass;
     Vulkan::ComputePipeline m_gridBuildPass;
     Vulkan::ComputePipeline m_sortScanPass;
     Vulkan::ComputePipeline m_sortScatterPass;
+    // Parallel prefix-sum passes — replace the serial m_sortScanPass in the live
+    // (AVBD) pipeline. The dead legacy path still uses m_sortScanPass.
+    Vulkan::ComputePipeline m_scanBlockPass;
+    Vulkan::ComputePipeline m_scanBlockSumsPass;
+    Vulkan::ComputePipeline m_scanAddPass;
     Vulkan::ComputePipeline m_integratePass;
     Vulkan::ComputePipeline m_collidePass;
     Vulkan::ComputePipeline m_expandPass;

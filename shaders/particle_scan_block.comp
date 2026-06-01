@@ -1,0 +1,50 @@
+#version 450
+//
+// particle_scan_block.comp — Parallel exclusive prefix sum, Pass 1 of 3.
+//
+// Replaces the old single-thread serial scan (particle_sort_scan.comp) in the
+// live AVBD pipeline. Each workgroup of 256 threads scans 256 cells of
+// gridCellCount into a block-local exclusive prefix written to gridCellOffset,
+// and writes the block's total to blockSums[workgroupID].
+//
+// Pass 2 (particle_scan_blocksums.comp) exclusive-scans blockSums; Pass 3
+// (particle_scan_add.comp) adds each block's global offset back into
+// gridCellOffset, yielding the full exclusive prefix sum.
+//
+// SCAN_BLOCK (256) must match GpuParticlePhysics::SCAN_BLOCK and local_size_x.
+//
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, set = 0, binding = 0) readonly buffer GridCellCount  { uint gridCellCount[]; };
+layout(std430, set = 0, binding = 1)          buffer GridCellOffset { uint gridCellOffset[]; };
+layout(std430, set = 0, binding = 2)          buffer BlockSums      { uint blockSums[]; };
+
+layout(push_constant) uniform PC { uint cellCount; } pc;
+
+shared uint temp[256];
+
+void main() {
+    uint gid = gl_GlobalInvocationID.x;
+    uint lid = gl_LocalInvocationID.x;
+    const uint n = 256u;
+
+    uint v = (gid < pc.cellCount) ? gridCellCount[gid] : 0u;
+    temp[lid] = v;
+    barrier();
+
+    // Hillis-Steele inclusive scan in shared memory (double-barrier, hazard-free).
+    for (uint offset = 1u; offset < n; offset <<= 1u) {
+        uint add = (lid >= offset) ? temp[lid - offset] : 0u;
+        barrier();
+        temp[lid] += add;
+        barrier();
+    }
+
+    // temp[lid] is the inclusive prefix; exclusive = inclusive - v.
+    uint inclusive = temp[lid];
+    if (gid < pc.cellCount) gridCellOffset[gid] = inclusive - v;
+
+    // Last lane writes the block total (inclusive sum across the whole block).
+    if (lid == n - 1u) blockSums[gl_WorkGroupID.x] = inclusive;
+}

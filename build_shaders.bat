@@ -187,6 +187,18 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
+    echo Compiling particle scan block compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\particle_scan_block.comp -o shaders\particle_scan_block.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile particle_scan_block.comp & pause & exit /b 1 )
+
+    echo Compiling particle scan blocksums compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\particle_scan_blocksums.comp -o shaders\particle_scan_blocksums.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile particle_scan_blocksums.comp & pause & exit /b 1 )
+
+    echo Compiling particle scan add compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\particle_scan_add.comp -o shaders\particle_scan_add.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile particle_scan_add.comp & pause & exit /b 1 )
+
     echo Compiling solver_sync_in compute shader...
     %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_sync_in.comp -o shaders\solver_sync_in.comp.spv
     if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_sync_in.comp & pause & exit /b 1 )
@@ -466,6 +478,18 @@ if defined USE_GLSLC (
         pause
         exit /b 1
     )
+
+    echo Compiling particle scan block compute shader...
+    %GLSLANG% -V -Ishaders shaders\particle_scan_block.comp -o shaders\particle_scan_block.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile particle_scan_block.comp & pause & exit /b 1 )
+
+    echo Compiling particle scan blocksums compute shader...
+    %GLSLANG% -V -Ishaders shaders\particle_scan_blocksums.comp -o shaders\particle_scan_blocksums.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile particle_scan_blocksums.comp & pause & exit /b 1 )
+
+    echo Compiling particle scan add compute shader...
+    %GLSLANG% -V -Ishaders shaders\particle_scan_add.comp -o shaders\particle_scan_add.comp.spv
+    if %errorlevel% neq 0 ( echo ERROR: Failed to compile particle_scan_add.comp & pause & exit /b 1 )
 
     echo Compiling solver_sync_in compute shader...
     %GLSLANG% -V -Ishaders shaders\solver_sync_in.comp -o shaders\solver_sync_in.comp.spv

@@ -294,6 +294,11 @@ bool GpuParticlePhysics::createBuffers(Vulkan::VulkanDevice* dev) {
         static_cast<VkDeviceSize>(GRID_CELLS) * sizeof(uint32_t),
         m_gridCellOffsetBuffer, m_gridCellOffsetMem);
 
+    // 9b. Parallel-scan per-block totals (device-local), SCAN_BLOCKS entries
+    dev->createStorageBuffer(
+        static_cast<VkDeviceSize>(SCAN_BLOCKS) * sizeof(uint32_t),
+        m_scanBlockSumsBuffer, m_scanBlockSumsMem);
+
     // 10a. Sorted grid — particles ordered by cell (device-local)
     dev->createStorageBuffer(
         static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(GpuParticle),
@@ -517,6 +522,27 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
     m_sortScatterPass.bindBuffer(2, m_sortedParticleBuffer, sortedParticleSize);
     m_sortScatterPass.bindBuffer(3, m_sortedIndexBuffer,    sortedIndexSize);
     m_sortScatterPass.updateDescriptors();
+
+    // Parallel prefix-sum passes — replace the serial sort scan in the live AVBD
+    // pipeline: block scan -> block-sum scan -> add block offsets.
+    VkDeviceSize scanBlockSumsSize = static_cast<VkDeviceSize>(SCAN_BLOCKS) * sizeof(uint32_t);
+    if (!m_scanBlockPass.create(m_device, shader("particle_scan_block.comp.spv"), 3, sizeof(SortScanPC)))
+        return false;
+    m_scanBlockPass.bindBuffer(0, m_gridCellCountBuffer,  gridCellSize);
+    m_scanBlockPass.bindBuffer(1, m_gridCellOffsetBuffer, gridCellSize);
+    m_scanBlockPass.bindBuffer(2, m_scanBlockSumsBuffer,  scanBlockSumsSize);
+    m_scanBlockPass.updateDescriptors();
+
+    if (!m_scanBlockSumsPass.create(m_device, shader("particle_scan_blocksums.comp.spv"), 1, sizeof(SortScanPC)))
+        return false;
+    m_scanBlockSumsPass.bindBuffer(0, m_scanBlockSumsBuffer, scanBlockSumsSize);
+    m_scanBlockSumsPass.updateDescriptors();
+
+    if (!m_scanAddPass.create(m_device, shader("particle_scan_add.comp.spv"), 2, sizeof(SortScanPC)))
+        return false;
+    m_scanAddPass.bindBuffer(0, m_gridCellOffsetBuffer, gridCellSize);
+    m_scanAddPass.bindBuffer(1, m_scanBlockSumsBuffer,  scanBlockSumsSize);
+    m_scanAddPass.updateDescriptors();
 
     m_integratePass.bindBuffer(0, m_particleBuffer,    particleSize);
     m_integratePass.bindBuffer(1, m_materialPhysBuffer, matPhysSize);
@@ -850,10 +876,26 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     {
         endP(); beginP("SortScan");
+        const uint32_t scanBlocks = static_cast<uint32_t>(SCAN_BLOCKS);
         SortScanPC ss{ static_cast<uint32_t>(GRID_CELLS) };
-        m_sortScanPass.bind(cmd);
-        m_sortScanPass.pushConstants(cmd, &ss, sizeof(ss));
-        m_sortScanPass.dispatch(cmd, 1);
+
+        // Pass 1: per-block exclusive scan -> gridCellOffset; block totals -> blockSums
+        m_scanBlockPass.bind(cmd);
+        m_scanBlockPass.pushConstants(cmd, &ss, sizeof(ss));
+        m_scanBlockPass.dispatch(cmd, scanBlocks);
+        ssBarrier(m_gridCellOffsetBuffer);
+        ssBarrier(m_scanBlockSumsBuffer);
+
+        // Pass 2: exclusive scan of the block totals (small; ~1024 elements)
+        m_scanBlockSumsPass.bind(cmd);
+        m_scanBlockSumsPass.pushConstants(cmd, &scanBlocks, sizeof(scanBlocks));
+        m_scanBlockSumsPass.dispatch(cmd, 1);
+        ssBarrier(m_scanBlockSumsBuffer);
+
+        // Pass 3: add each block's global offset -> final exclusive prefix sum
+        m_scanAddPass.bind(cmd);
+        m_scanAddPass.pushConstants(cmd, &ss, sizeof(ss));
+        m_scanAddPass.dispatch(cmd, scanBlocks);
     }
     ssBarrier(m_gridCellOffsetBuffer);
 
@@ -1542,6 +1584,9 @@ void GpuParticlePhysics::cleanup() {
     m_gridBuildPass.cleanup();
     m_sortScanPass.cleanup();
     m_sortScatterPass.cleanup();
+    m_scanBlockPass.cleanup();
+    m_scanBlockSumsPass.cleanup();
+    m_scanAddPass.cleanup();
     m_integratePass.cleanup();
     m_collidePass.cleanup();
     m_expandPass.cleanup();
@@ -1582,6 +1627,7 @@ void GpuParticlePhysics::cleanup() {
     destroyBuf(m_materialPhysBuffer,  m_materialPhysMem);
     destroyBuf(m_gridCellCountBuffer,  m_gridCellCountMem);
     destroyBuf(m_gridCellOffsetBuffer, m_gridCellOffsetMem);
+    destroyBuf(m_scanBlockSumsBuffer,  m_scanBlockSumsMem);
     destroyBuf(m_sortedParticleBuffer, m_sortedParticleMem);
     destroyBuf(m_sortedIndexBuffer,    m_sortedIndexMem);
     destroyBuf(m_matTexBuffer,        m_matTexMem);

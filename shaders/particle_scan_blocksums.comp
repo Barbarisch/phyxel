@@ -1,0 +1,23 @@
+#version 450
+//
+// particle_scan_blocksums.comp — Parallel exclusive prefix sum, Pass 2 of 3.
+//
+// Exclusive-scans the per-block totals produced by particle_scan_block.comp,
+// in place. numBlocks = GRID_CELLS / SCAN_BLOCK (1024), so a single-thread
+// serial scan here is negligible (~1024 iterations vs the original 262,144).
+//
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, set = 0, binding = 0) buffer BlockSums { uint blockSums[]; };
+
+layout(push_constant) uniform PC { uint numBlocks; } pc;
+
+void main() {
+    uint sum = 0u;
+    for (uint i = 0u; i < pc.numBlocks; ++i) {
+        uint v = blockSums[i];
+        blockSums[i] = sum;   // exclusive prefix → each block's global start offset
+        sum += v;
+    }
+}
