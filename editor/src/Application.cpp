@@ -2050,6 +2050,11 @@ void Application::applyProjectSelection(const std::string& projectPath) {
         if (!loaded.empty()) {
             chunkManager->rebuildAllChunkFaces();
             chunkManager->initializeAllChunkVoxelMaps();
+            // Build collision + register occupancy grids for the loaded terrain.
+            // Without this, DB-loaded chunks render but have no registered collision,
+            // so characters fall through the world. (Runtime/WorldInitializer path
+            // already does this; the editor project-open path previously skipped it.)
+            chunkManager->buildAllChunkPhysics();
             LOG_INFO("Application", "Loaded {} chunk(s) from project world database", loaded.size());
         } else {
             LOG_INFO("Application", "Project world database is empty  --  world will be built from game.json");

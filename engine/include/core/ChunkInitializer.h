@@ -98,7 +98,16 @@ public:
      * 3. Update Vulkan buffers
      */
     void rebuildAllChunkFaces();
-    
+
+    /**
+     * @brief Build collision shapes + register the occupancy grid for every loaded
+     *        chunk. The physics-side counterpart to rebuildAllChunkFaces(); call it
+     *        after a bulk load (e.g. loading a world from the database) so static
+     *        terrain is visible to character/furniture grounding. Without this the
+     *        grids are never registered and kinematic bodies fall through the world.
+     */
+    void buildAllChunkPhysics();
+
     /**
      * @brief Perform cross-chunk occlusion culling for all chunks
      */

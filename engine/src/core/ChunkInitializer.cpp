@@ -138,6 +138,28 @@ void ChunkInitializer::initializeAllChunkVoxelMaps() {
     LOG_INFO("Chunk", "Completed voxel map initialization for optimized O(1) hover detection");
 }
 
+void ChunkInitializer::buildAllChunkPhysics() {
+    auto& chunks = m_getChunks();
+
+    // DB-loaded chunks start with a null physics world (Chunk ctor), unlike
+    // procedurally-created ones (createChunk wires it). Set it before building so
+    // createChunkPhysicsBody can register the occupancy grid.
+    Physics::PhysicsWorld* physicsWorld = m_getPhysicsWorld();
+    if (!physicsWorld) {
+        LOG_WARN("Chunk", "buildAllChunkPhysics: no physics world — chunk grids will NOT be registered (characters will fall through)");
+        return;
+    }
+
+    LOG_INFO_FMT("Chunk", "Building physics + registering occupancy grids for all " << chunks.size() << " chunks...");
+
+    for (auto& chunk : chunks) {
+        chunk->setPhysicsWorld(physicsWorld);
+        chunk->createChunkPhysicsBody();
+    }
+
+    LOG_INFO_FMT("Chunk", "Chunk physics build complete for " << chunks.size() << " chunks");
+}
+
 void ChunkInitializer::rebuildAllChunkFaces() {
     auto& chunks = m_getChunks();
     

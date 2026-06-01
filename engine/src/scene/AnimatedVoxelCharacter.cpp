@@ -140,6 +140,22 @@ namespace Scene {
         }
 
         if (voxelWorld) {
+            // FAIL LOUD: a character grounds against this world's registered terrain
+            // occupancy grids. If none are registered, every ground query returns
+            // "no ground" and the character silently falls through the world forever.
+            // Surface that immediately instead of debugging a -300k Y later. Logs once
+            // per process; includes the world pointer so an instance mismatch (chunks
+            // registering into a different VoxelDynamicsWorld) is also visible.
+            if (voxelWorld->gridCount() == 0) {
+                static bool s_warnedNoGrids = false;
+                if (!s_warnedNoGrids) {
+                    s_warnedNoGrids = true;
+                    LOG_ERROR_FMT("AnimatedVoxelCharacter",
+                        "No terrain occupancy grids registered in physics world (voxelWorld="
+                        << static_cast<const void*>(voxelWorld) << ") — characters will fall "
+                        "through all terrain. Check chunk grid registration on this load path.");
+                }
+            }
             // Gravity and ground-snap are suppressed when Y root motion owns vertical movement
             if (!m_yRootMotionActive) {
 
@@ -3801,7 +3817,7 @@ namespace Scene {
             float rBlend   = m_rightFootLock.active
                                ? (m_footIKBlend * m_rightFootLock.lockBlend) : m_footIKBlend;
 
-            LOG_INFO_FMT("TerrainIK",
+            LOG_TRACE_FMT("TerrainIK",
                 "cap=(" << worldPosition.x << "," << worldPosition.y << "," << worldPosition.z << ")"
                 << " L=(" << lfw.x << "," << lfw.y << "," << lfw.z << ")"
                 << " R=(" << rfw.x << "," << rfw.y << "," << rfw.z << ")"
@@ -3839,7 +3855,7 @@ namespace Scene {
                                    invModel, {fw.x, lTargetY, fw.z}, lBlend);
                     animSystem.updateGlobalTransforms(skeleton);
                     invModel = glm::inverse(modelMatrix);
-                    LOG_INFO_FMT("TerrainIK_post",
+                    LOG_TRACE_FMT("TerrainIK_post",
                         "Ltarget=" << lTargetY
                         << " Lpost=" << footWorldPos(m_leftFoot).y
                         << " blend=" << lBlend

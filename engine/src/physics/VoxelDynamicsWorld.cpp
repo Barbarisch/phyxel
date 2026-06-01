@@ -1,4 +1,5 @@
 #include "physics/VoxelDynamicsWorld.h"
+#include "utils/Logger.h"
 #include <algorithm>
 #include <cmath>
 #include <future>
@@ -48,8 +49,11 @@ VoxelDynamicsWorld::VoxelDynamicsWorld() {
 void VoxelDynamicsWorld::registerGrid(VoxelOccupancyGrid* grid) {
     if (!grid) return;
     auto it = std::find(m_grids.begin(), m_grids.end(), grid);
-    if (it == m_grids.end())
+    if (it == m_grids.end()) {
         m_grids.push_back(grid);
+        LOG_DEBUG_FMT("VoxelDynamicsWorld", "registerGrid into world=" << static_cast<const void*>(this)
+                      << " grid=" << static_cast<const void*>(grid) << " total=" << m_grids.size());
+    }
 }
 
 void VoxelDynamicsWorld::unregisterGrid(VoxelOccupancyGrid* grid) {

@@ -204,6 +204,16 @@ void ChunkPhysicsManager::buildInitialCollisionShapes(const CubesArrayAccessFunc
         m_occupancyGrid.setMicrocube(parentLocalPos, subcubePos, microcubePos, true);
     }
 
+    // Auto-register the grid here so registration is an invariant of "collision
+    // built", not a separate step a caller must remember. This closes the
+    // create-vs-force asymmetry that let DB/project loads build collision without
+    // ever registering it (characters fell through the world). registerGrid dedups,
+    // so calling this from every build path is safe.
+    if (physicsWorld) {
+        if (auto* vw = physicsWorld->getVoxelWorld())
+            vw->registerGrid(&m_occupancyGrid);
+    }
+
     LOG_TRACE("ChunkPhysicsManager", "Built occupancy grid for chunk");
 }
 

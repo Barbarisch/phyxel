@@ -142,7 +142,8 @@ public:
     
     // Post-loading face rebuilding (call after all chunks are loaded)
     void rebuildAllChunkFaces(); // Rebuild faces for all chunks with proper cross-chunk culling
-    
+    void buildAllChunkPhysics(); // Build collision + register occupancy grids for all chunks (call after bulk DB load)
+
     // Initialize hash maps for all existing chunks (call after loading chunks)
     void initializeAllChunkVoxelMaps();
     

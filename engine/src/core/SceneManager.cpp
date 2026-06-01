@@ -286,6 +286,10 @@ void SceneManager::executeLoad() {
             if (!scene->definition.contains("world")) {
                 cm->loadAllChunksFromDatabase();
                 cm->rebuildAllChunkFaces();
+                // Build collision + register occupancy grids for the loaded terrain,
+                // or characters fall through the world after a scene transition (same
+                // footgun the editor open_project path had).
+                cm->buildAllChunkPhysics();
             }
         }
     }

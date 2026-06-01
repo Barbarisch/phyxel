@@ -188,6 +188,10 @@ void ChunkManager::rebuildAllChunkFaces() {
     m_chunkInitializer.rebuildAllChunkFaces();
 }
 
+void ChunkManager::buildAllChunkPhysics() {
+    m_chunkInitializer.buildAllChunkPhysics();
+}
+
 void ChunkManager::initializeAllChunkVoxelMaps() {
     m_chunkInitializer.initializeAllChunkVoxelMaps();
 }

@@ -42,6 +42,9 @@ public:
     void registerGrid(VoxelOccupancyGrid* grid);
     // Call when a chunk is unloaded.
     void unregisterGrid(VoxelOccupancyGrid* grid);
+    // Number of registered terrain occupancy grids. Zero while chunks exist means
+    // static-terrain collision is invisible to this world (characters fall through).
+    size_t gridCount() const { return m_grids.size(); }
 
     // ---- Body management ----
     // Create a new rigid body from one or more local boxes (compound-aware).
