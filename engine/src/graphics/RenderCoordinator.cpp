@@ -870,7 +870,7 @@ void RenderCoordinator::drawFrame() {
     // Must run before the render pass because it writes the face vertex buffer
     if (m_gpuParticles && m_gpuParticles->isInitialized()) {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "GPU Particles");
-        m_gpuParticles->recordComputeCommands(cmd, currentFrame);
+        m_gpuParticles->recordComputeCommands(cmd, currentFrame, gpuProfiler.get());
     }
 
     // Record occlusion culling statistics from chunk manager

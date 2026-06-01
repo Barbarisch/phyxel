@@ -4,6 +4,7 @@
 #include "core/AssetManager.h"
 #include "physics/Material.h"
 #include "utils/Logger.h"
+#include "utils/GpuProfiler.h"
 #include <glm/gtc/quaternion.hpp>
 #include <cstring>
 #include <algorithm>
@@ -751,7 +752,8 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
 // Constraint-solver compute recording (one physics tick)
 // ============================================================
 
-void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t count, float lifetimeDt) {
+void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t count, float lifetimeDt,
+                                                  GpuProfiler* profiler, bool instrument) {
     const uint32_t groups        = (count + 255u) / 256u;
     const uint32_t maxConstrGrps = (MAX_CONSTRAINTS + 255u) / 256u;
 
@@ -761,6 +763,12 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
             VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
             buf);
     };
+
+    // Per-pass GPU timing. Nested under the caller's "GPU Particles" scope; emitted
+    // only on the first tick of the frame (instrument) to stay under the profiler's
+    // per-frame query budget. begin/end are balanced no-ops when not instrumenting.
+    auto beginP = [&](const char* n) { if (instrument && profiler) profiler->startScope(cmd, n); };
+    auto endP   = [&]()              { if (instrument && profiler) profiler->endScope(cmd); };
 
     struct SyncInPC      { uint32_t count; float dt; };
     struct IntegratePC   { uint32_t count; float dt; float gravity; float pad; };
@@ -801,6 +809,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     // ---- 1. Sync in: GpuParticle → SolverBody ----
     {
+        beginP("Setup");
         SyncInPC pc{ count, FIXED_DT };
         m_solverSyncInPass.bind(cmd);
         m_solverSyncInPass.pushConstants(cmd, &pc, sizeof(pc));
@@ -819,6 +828,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     // ---- 3. Grid sort (reads m_particleBuffer — previous-tick positions for broadphase) ----
     {
+        endP(); beginP("GridClear");
         GridClearPC gc{ static_cast<uint32_t>(GRID_CELLS) };
         m_gridClearPass.bind(cmd);
         m_gridClearPass.pushConstants(cmd, &gc, sizeof(gc));
@@ -827,6 +837,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     ssBarrier(m_gridCellCountBuffer);
 
     {
+        endP(); beginP("GridBuild");
         GridBuildPC gb{ count };
         m_gridBuildPass.bind(cmd);
         m_gridBuildPass.pushConstants(cmd, &gb, sizeof(gb));
@@ -838,6 +849,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
         m_gridCellCountBuffer);
 
     {
+        endP(); beginP("SortScan");
         SortScanPC ss{ static_cast<uint32_t>(GRID_CELLS) };
         m_sortScanPass.bind(cmd);
         m_sortScanPass.pushConstants(cmd, &ss, sizeof(ss));
@@ -846,6 +858,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     ssBarrier(m_gridCellOffsetBuffer);
 
     {
+        endP(); beginP("SortScatter");
         SortScatterPC sc{ count };
         m_sortScatterPass.bind(cmd);
         m_sortScatterPass.pushConstants(cmd, &sc, sizeof(sc));
@@ -858,6 +871,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     // ---- 4a. Narrowphase: dynamic-dynamic contacts → constraints ----
     {
+        endP(); beginP("NarrowVoxel");
         NpPC pc{ count, MAX_CONSTRAINTS, 0.0f, 0.0f };
         m_solverNarrowphasePass.bind(cmd);
         m_solverNarrowphasePass.pushConstants(cmd, &pc, sizeof(pc));
@@ -879,6 +893,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     // ---- 5. Build CSR adjacency structure for graph coloring ----
     // 5a. Clear bodyConstraintCount[] and constraintColor[]
     {
+        endP(); beginP("ColoringCSR");
         CsrClearPC pc{ count, MAX_CONSTRAINTS };
         m_csrClearPass.bind(cmd);
         m_csrClearPass.pushConstants(cmd, &pc, sizeof(pc));
@@ -931,6 +946,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     // ---- 7. AVBD dual+primal solve loop ----
     // solveDual: per-constraint, updates lambda and grows penalty (fully parallel, no body writes)
     // solvePrimal: per-body, assembles 6×6 block system and solves via LDL; one color per pass
+    endP(); beginP("Solve");
     for (int iter = 0; iter < SOLVE_ITERATIONS; ++iter) {
         // Dual: update all constraint lambdas/penalties
         {
@@ -957,6 +973,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     // failed to fully resolve (e.g. deep stacks). Per body, samples the
     // static occupancy grid in the body AABB and pushes out along MTV.
     {
+        endP(); beginP("Finalize");
         HardContactPC pc{ count, 0.0f, 0.0f, 0.0f };
         m_solverHardContactPass.bind(cmd);
         m_solverHardContactPass.pushConstants(cmd, &pc, sizeof(pc));
@@ -983,6 +1000,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     }
     ssBarrier(m_warmstartBuffer);
     ssBarrier(m_solverStateBuffer);
+    endP();
 }
 
 // ============================================================
@@ -1135,7 +1153,7 @@ void GpuParticlePhysics::update(float dt) {
 // Compute command recording
 // ============================================================
 
-void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*frameIndex*/) {
+void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*frameIndex*/, GpuProfiler* profiler) {
     if (!m_initialized || m_activeCount == 0 && m_pendingThisFrame.empty()) return;
 
     // ---- 1. Upload pending spawns from staging buffer ----
@@ -1168,7 +1186,8 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*f
         const float lifetimeDtThisTick = (tick == 0) ? m_lastRealDt : 0.0f;
 
         if (m_useNewPipeline) {
-            recordComputeCommandsNew(cmd, count, lifetimeDtThisTick);
+            // Per-pass GPU timing only on the first tick (query-budget safe).
+            recordComputeCommandsNew(cmd, count, lifetimeDtThisTick, profiler, tick == 0);
             continue;
         }
 

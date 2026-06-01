@@ -14,6 +14,7 @@
 namespace Phyxel {
 
 namespace Vulkan { class VulkanDevice; }
+class GpuProfiler;
 
 /**
  * GpuParticlePhysics — GPU-accelerated voxel debris physics.
@@ -92,7 +93,7 @@ public:
      * Call this BEFORE vkCmdBeginRenderPass.
      * Includes pipeline barriers from compute → vertex input.
      */
-    void recordComputeCommands(VkCommandBuffer cmd, uint32_t frameIndex);
+    void recordComputeCommands(VkCommandBuffer cmd, uint32_t frameIndex, GpuProfiler* profiler = nullptr);
 
     // ---- 3D occupancy grid interface (called by ChunkManager) ----
 
@@ -396,7 +397,8 @@ private:
     bool createSolverBuffers(Vulkan::VulkanDevice* vulkanDevice);
     bool createSolverPipelines(const std::string& shaderDir);
     void uploadMatTexTable(Vulkan::VulkanDevice* vulkanDevice, const std::vector<uint32_t>& table);
-    void recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t count, float lifetimeDt);
+    void recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t count, float lifetimeDt,
+                                  GpuProfiler* profiler, bool instrument);
 
     static void insertBarrier(VkCommandBuffer cmd,
                               VkPipelineStageFlags src, VkPipelineStageFlags dst,
