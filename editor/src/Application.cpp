@@ -2358,6 +2358,7 @@ void Application::run() {
         // Render Template Spawner
         renderTemplateSpawner();
         renderClickActions();
+        renderSpellCaster();
 
         // Render Texture Editor
         if (m_textureEditor && m_showTextureEditor) {
@@ -2647,6 +2648,9 @@ void Application::update(float deltaTime) {
         }
         gpuParticlePhysics->update(deltaTime);
     }
+
+    // Tick deferred spell-impact destruction (editor spell-cast click tool).
+    updatePendingSpellHits(deltaTime);
 
     // Integrate lightweight VFX particles (spell bursts, etc.)
     if (renderCoordinator) {
@@ -3490,6 +3494,126 @@ void Application::renderTemplateSpawner() {
                          << pos.x << "," << pos.y << "," << pos.z << ") rot=" << spawnerRotation);
         }
     }
+
+    ImGui::End();
+}
+
+// Built-in spell options for the editor spell-cast tool. Label shown in the UI;
+// `name` is the VfxDirector test-spell composition (see buildTestSpell()).
+namespace {
+    struct SpellOption { const char* label; const char* name; };
+    static const SpellOption kSpellOptions[] = {
+        { "Firebolt",        "t_firebolt"       },
+        { "Lightning Bolt",  "t_lightningbolt"  },
+        { "Magic Missile",   "t_magicmissile"   },
+        { "Thunderwave",     "t_thunderwave"    },
+        { "Wall of Fire",    "t_walloffire"     },
+        { "Chain Lightning", "t_chainlightning" },
+        { "Delayed Blast",   "t_delayedblast"   },
+    };
+    static const int kSpellOptionCount = static_cast<int>(sizeof(kSpellOptions) / sizeof(kSpellOptions[0]));
+}
+
+void Application::castSpellAtHover() {
+    if (!voxelInteractionSystem || !voxelInteractionSystem->hasHoveredCube()) return;
+
+    const auto& loc = voxelInteractionSystem->getCurrentHoveredLocation();
+    glm::vec3 target = glm::vec3(loc.worldPos) + glm::vec3(0.5f);  // hovered cube center
+
+    // Origin a bit in front of the camera so the bolt visibly flies from the viewer.
+    glm::vec3 camPos = inputManager->getCameraPosition();
+    glm::vec3 camFwd = inputManager->getCameraFront();
+    glm::vec3 caster = camPos + camFwd * 1.5f;
+
+    int idx = glm::clamp(m_spellTypeIndex, 0, kSpellOptionCount - 1);
+    const char* spellName = kSpellOptions[idx].name;
+
+    // Visual: cast the built-in composition from caster -> target.
+    Phyxel::VfxComposition comp = Phyxel::buildTestSpell(spellName);
+    if (auto* dir = renderCoordinator ? renderCoordinator->getVfxDirector() : nullptr) {
+        Phyxel::VfxCastContext ctx;
+        ctx.caster = caster;
+        ctx.targets.push_back(target);
+        dir->cast(comp, ctx);
+    }
+
+    // Destruction timing: match the spell's ACTUAL VFX so the blast lands with the
+    // visual instead of a one-size guess. A travelling projectile arrives after
+    // dist / its speed; beams/fields/bursts hit the target ~instantly; a spell with
+    // an OnDelay emission (e.g. delayed blast) syncs to that delay.
+    float dist  = glm::length(target - caster);
+    float delay = 0.06f;  // near-instant default (beam / field / burst at target)
+    bool  hasProjectile = false;
+    for (const auto& e : comp.emissions) {
+        if (e.archetype == Phyxel::VfxArchetypeKind::Projectile && e.projectile.speed > 0.1f) {
+            delay = dist / e.projectile.speed;
+            hasProjectile = true;
+            break;
+        }
+    }
+    if (!hasProjectile) {
+        float maxDelay = 0.0f;
+        for (const auto& e : comp.emissions)
+            if (e.trigger == Phyxel::VfxTriggerKind::OnDelay && e.delay > maxDelay) maxDelay = e.delay;
+        if (maxDelay > 0.0f) delay = maxDelay;
+    }
+    delay = glm::clamp(delay, 0.0f, 2.5f);
+    m_pendingSpellHits.push_back({ delay, target, m_spellRadius, m_spellPower });
+
+    LOG_INFO_FMT("Application", "Spell '" << spellName << "' cast at ("
+        << target.x << "," << target.y << "," << target.z << ") power=" << m_spellPower
+        << " radius=" << m_spellRadius);
+}
+
+void Application::updatePendingSpellHits(float dt) {
+    if (m_pendingSpellHits.empty() || !chunkManager) return;
+    for (auto it = m_pendingSpellHits.begin(); it != m_pendingSpellHits.end();) {
+        it->delay -= dt;
+        if (it->delay <= 0.0f) {
+            Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
+            dmg.applyDamage(it->center, it->radius, it->energy, "force",
+                            glm::vec3(0.0f), Phyxel::DamageSystem::NO_SUPPORT, true);
+            it = m_pendingSpellHits.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+void Application::renderSpellCaster() {
+    if (!showSpellCaster) return;
+
+    ImGui::SetNextWindowSize(ImVec2(320, 230), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Spell Caster", &showSpellCaster)) {
+        ImGui::End();
+        return;
+    }
+
+    ImGui::Checkbox("Spell mode (left-click casts)", &m_spellModeEnabled);
+    ImGui::SetItemTooltip("While ON, left-click in the viewport casts the selected spell "
+                          "at the hovered voxel instead of breaking it.");
+
+    const char* preview = (m_spellTypeIndex >= 0 && m_spellTypeIndex < kSpellOptionCount)
+                        ? kSpellOptions[m_spellTypeIndex].label : "?";
+    if (ImGui::BeginCombo("Spell Type", preview)) {
+        for (int i = 0; i < kSpellOptionCount; ++i) {
+            bool selected = (i == m_spellTypeIndex);
+            if (ImGui::Selectable(kSpellOptions[i].label, selected)) m_spellTypeIndex = i;
+            if (selected) ImGui::SetItemDefaultFocus();
+        }
+        ImGui::EndCombo();
+    }
+
+    ImGui::SliderFloat("Power", &m_spellPower, 50.0f, 2000.0f, "%.0f");
+    ImGui::SetItemTooltip("Blast energy at impact — higher destroys more voxels.");
+    ImGui::SliderFloat("Radius", &m_spellRadius, 1.0f, 10.0f, "%.1f");
+    ImGui::SetItemTooltip("Blast radius in voxels.");
+
+    ImGui::Separator();
+    if (m_spellModeEnabled)
+        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Spell mode ON — left-click to cast.");
+    else
+        ImGui::TextDisabled("Spell mode OFF — left-click breaks voxels.");
 
     ImGui::End();
 }

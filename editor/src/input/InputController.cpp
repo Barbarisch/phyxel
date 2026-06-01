@@ -361,6 +361,13 @@ void InputController::setupKeyboardBindings() {
 void InputController::setupMouseBindings() {
     // Left click - Break cube/subcube/microcube (or activate furniture)
     m_inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_LEFT, 0, "Break Voxel", [this]() {
+        // Spell-cast tool: when spell mode is enabled, left-click casts the selected
+        // spell at the hovered voxel instead of breaking / activating anything.
+        if (m_app->isSpellModeEnabled()) {
+            m_app->castSpellAtHover();
+            return;
+        }
+
         // If grabbing furniture, throw it on left click
         auto* furnitureMgr = m_app->getDynamicFurnitureManager();
         if (furnitureMgr && furnitureMgr->isGrabbing()) {

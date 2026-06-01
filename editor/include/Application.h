@@ -172,6 +172,12 @@ public:
     Core::DynamicFurnitureManager* getDynamicFurnitureManager() const { return dynamicFurnitureManager.get(); }
     UI::SpeechBubbleManager* getSpeechBubbleManager() const { return speechBubbleManager.get(); }
 
+    // Spell-cast click tool (editor). When spell mode is enabled, left-click casts
+    // the selected spell at the hovered voxel (VFX + delayed destruction) instead
+    // of breaking it. Driven from InputController's "Break Voxel" mouse action.
+    bool isSpellModeEnabled() const { return m_spellModeEnabled; }
+    void castSpellAtHover();
+
 private:
     // ============================================================================
     // ENGINE RUNTIME (owns all core subsystems)
@@ -329,6 +335,19 @@ private:
     // Click Actions panel
     bool showClickActions = false;
     void renderClickActions();
+
+    // Spell Caster panel + state
+    bool  showSpellCaster    = true;
+    bool  m_spellModeEnabled = false;
+    int   m_spellTypeIndex   = 0;
+    float m_spellPower       = 500.0f;  // -> DamageSystem blast energy
+    float m_spellRadius      = 4.0f;    // -> DamageSystem blast radius
+    void renderSpellCaster();
+    // Impact-timed destruction: damage is deferred so the wall breaks roughly when
+    // the projectile arrives, rather than instantly on click.
+    struct PendingSpellHit { float delay; glm::vec3 center; float radius; float energy; };
+    std::vector<PendingSpellHit> m_pendingSpellHits;
+    void updatePendingSpellHits(float dt);
 
     // Debug system
     // Debug flags moved to InputController
