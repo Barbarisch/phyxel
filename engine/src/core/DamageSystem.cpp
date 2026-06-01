@@ -156,19 +156,32 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
             spawnDebris(vc, outDir * speed, 1.0f, mat);
             res.debrisSpawned++;
         } else if (ratio < mr.s2) {
-            // Shatter into subcubes (1/3).
+            // Shatter into subcubes (1/3). Spawn each piece at a DISTINCT sub-cell
+            // center of the parent voxel's 3x3x3 grid so pieces never start
+            // interpenetrating — overlapping spawns make the position-based solver
+            // shove them apart, injecting energy ("popcorn"). Velocity jitter (not
+            // position) still gives them spread + tumble.
+            const int S = 3, TOTAL = S * S * S;  // 27 sub-cells
             for (int i = 0; i < SUBCUBE_PIECES && res.debrisSpawned < MAX_DEBRIS; ++i) {
-                glm::vec3 jitter(frand(-0.4f, 0.4f), frand(-0.4f, 0.4f), frand(-0.4f, 0.4f));
-                glm::vec3 v = outDir * speed * frand(0.7f, 1.3f) + jitter * speed;
-                spawnDebris(vc + jitter, v, 1.0f / 3.0f, mat);
+                int cell = i * TOTAL / SUBCUBE_PIECES;  // distinct, spread across the grid
+                int cx = cell % S, cy = (cell / S) % S, cz = (cell / (S * S)) % S;
+                glm::vec3 cellOff((cx + 0.5f) / S - 0.5f, (cy + 0.5f) / S - 0.5f, (cz + 0.5f) / S - 0.5f);
+                glm::vec3 vjit(frand(-0.3f, 0.3f), frand(-0.3f, 0.3f), frand(-0.3f, 0.3f));
+                glm::vec3 v = outDir * speed * frand(0.7f, 1.3f) + vjit * speed;
+                spawnDebris(vc + cellOff, v, 1.0f / 3.0f, mat);
                 res.debrisSpawned++;
             }
         } else {
-            // Pulverize into microcubes (1/9), sampled + capped.
+            // Pulverize into microcubes (1/9), sampled + capped. Distinct sub-cell
+            // centers of the 9x9x9 grid — non-overlapping spawns (see subcube note).
+            const int S = 9, TOTAL = S * S * S;  // 729 sub-cells
             for (int i = 0; i < MICROCUBE_PIECES && res.debrisSpawned < MAX_DEBRIS; ++i) {
-                glm::vec3 jitter(frand(-0.45f, 0.45f), frand(-0.45f, 0.45f), frand(-0.45f, 0.45f));
-                glm::vec3 v = outDir * speed * frand(0.6f, 1.5f) + jitter * speed * 1.5f;
-                spawnDebris(vc + jitter, v, 1.0f / 9.0f, mat);
+                int cell = i * TOTAL / MICROCUBE_PIECES;  // distinct, spread across the grid
+                int cx = cell % S, cy = (cell / S) % S, cz = (cell / (S * S)) % S;
+                glm::vec3 cellOff((cx + 0.5f) / S - 0.5f, (cy + 0.5f) / S - 0.5f, (cz + 0.5f) / S - 0.5f);
+                glm::vec3 vjit(frand(-0.45f, 0.45f), frand(-0.45f, 0.45f), frand(-0.45f, 0.45f));
+                glm::vec3 v = outDir * speed * frand(0.6f, 1.5f) + vjit * speed * 1.5f;
+                spawnDebris(vc + cellOff, v, 1.0f / 9.0f, mat);
                 res.debrisSpawned++;
             }
         }
