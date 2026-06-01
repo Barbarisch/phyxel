@@ -134,6 +134,30 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 - **Render perf:** 18 → 235 FPS via removing two per-frame brute-force loops (mirror-voxel
   scan cache + `getPerformanceStats` O(1)). Open ideas: skip OIT pass when no transparent
   voxels, 36→6 index cube draw, backface cull (winding is fragile — see render docs).
+- **Debris/particle solver perf:** the GPU particle solver (`GpuParticlePhysics`,
+  `recordComputeCommandsNew`) dominated frame time under debris load. **Per-pass GPU timing
+  is now built in** — `recordComputeCommands` takes an optional `GpuProfiler*` and emits
+  phase scopes on the first physics tick: Setup / GridClear / GridBuild / SortScan /
+  SortScatter / NarrowVoxel / ColoringCSR / Solve / Finalize, nested under "GPU Particles"
+  in the `gpu_scopes` endpoint. **How to use:** break a wall (`apply_damage`, ~3000 debris),
+  then `curl /api/debug/gpu_scopes` + `/api/debug/engine_timing`.
+  - **FIXED:** the inter-particle broadphase prefix sum (`particle_sort_scan.comp`) was a
+    SINGLE GPU thread serially scanning all 64³=262,144 grid cells every tick — ~24ms/tick,
+    a FIXED cost regardless of particle count, ~72% of the solver. Replaced with a 3-pass
+    work-efficient parallel scan (`particle_scan_block` / `_blocksums` / `_add`). Result
+    (Debug, 3166 debris): SortScan 24ms→0.2ms, solver 130ms→10ms, ~7→50 FPS, and physics
+    back to 1 tick/frame (the low-FPS→more-ticks spiral stops). Lesson: a `dispatch(cmd, 1)`
+    over a large buffer is a serial-scan trap — check dispatch sizes.
+  - **Next targets** (per the per-pass breakdown): NarrowVoxel (~5ms) and Solve (~3ms).
+  - **No sleep system (open):** the AVBD solver fully solves EVERY live body each tick until
+    its lifetime expires (~25s) — settled debris keeps paying full cost AND micro-jitters
+    ("popcorn", esp. in concave/bowl piles where dense contacts + spawn overlap inject
+    energy). Legacy XPBD had sleep + a bounce-velocity threshold; the new pipeline dropped
+    them (legacy sleep oscillated in/out on stacks — see `particle_collide.comp` notes). A
+    contact-aware sleep/freeze with hysteresis is the likely biggest remaining win (perf +
+    settling); complementary low-risk fixes: spawn shatter pieces at non-overlapping sub-cell
+    positions instead of random jitter (`DamageSystem::applyDamage`), and a restitution
+    velocity threshold to kill micro-bounce.
 - **Open items:** `open_project` / heavy commands time out the 5s game-loop budget (one-time
   heavy load, cosmetic); no world DB versioning.
 
@@ -154,8 +178,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ---
 
-*Last meaningful update: per-limb character↔debris push landed on `main` (12 segment boxes +
-union-AABB broadphase in the live AVBD solver; fixed the MAX_CHAR_SEGMENTS=8 truncation that
-dropped the leg boxes; earlier: floor-collision fix + legacy XPBD pipeline marked dead).
-If you're a fresh session, skim this, then `git log --oneline -15` and
-`docs/DestructionSystem.md`.*
+*Last meaningful update: debris broadphase perf fix landed on `main` — parallel prefix sum
+replaced the single-thread serial scan (SortScan 24ms→0.2ms, ~7→50 FPS at 3000 debris); added
+permanent per-pass GPU timing scopes. Open thread: debris settling/"popcorn" + no sleep system
+(see Debris/particle solver perf above). Earlier: per-limb character↔debris push, floor-collision
+fix, legacy XPBD pipeline marked dead. Fresh session? Skim this, then `git log --oneline -15`.*
