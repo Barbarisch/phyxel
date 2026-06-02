@@ -1153,6 +1153,7 @@ void GpuParticlePhysics::update(float dt) {
         if (m_slots[i].lifetimeRemaining <= 0.0f) {
             m_slots[i].active = false;
             m_freeSlots.push_back(i);
+            m_pendingDeactivations.push_back(i); // clear its GPU ACTIVE flag this frame
             --m_activeCount;
         } else {
             newHigh = i + 1;
@@ -1196,7 +1197,14 @@ void GpuParticlePhysics::update(float dt) {
 // ============================================================
 
 void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*frameIndex*/, GpuProfiler* profiler) {
-    if (!m_initialized || m_activeCount == 0 && m_pendingThisFrame.empty()) return;
+    // Enter if anything is alive, spawning, or being retired this frame. The
+    // deactivation check is required: when the last particles die, activeCount
+    // is 0 and there are no spawns, but we still must clear their GPU flags.
+    if (!m_initialized ||
+        (m_activeCount == 0 && m_pendingThisFrame.empty() && m_pendingDeactivations.empty()))
+        return;
+
+    const bool didTransfer = !m_pendingThisFrame.empty() || !m_pendingDeactivations.empty();
 
     // ---- 1. Upload pending spawns from staging buffer ----
     for (const auto& pc : m_pendingThisFrame) {
@@ -1208,8 +1216,39 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*f
     }
     m_pendingThisFrame.clear();
 
+    // ---- 1b. Clear slots the CPU retired this frame ----
+    // Zero each retired slot so its GPU ACTIVE flag is cleared. Without this a
+    // retired slot keeps its flag and gets re-counted by the expand shader the
+    // moment a later spawn raises the high-water mark back over it, making
+    // previously-vanished debris reappear. (The GPU lifetime drain can't be
+    // relied on: it only runs on physics-tick frames and only for slots below
+    // the dispatch high-water mark.) Zeroing the whole slot is safe — a re-used
+    // slot is fully overwritten by its spawn copy before the next dispatch.
+    //
+    // Slots from a single break wave are allocated contiguously (LIFO free
+    // list), so coalesce contiguous runs into one fill — a mass simultaneous
+    // death (one shatter, uniform lifetime) collapses to a single command.
+    if (!m_pendingDeactivations.empty()) {
+        std::sort(m_pendingDeactivations.begin(), m_pendingDeactivations.end());
+        size_t r = 0;
+        while (r < m_pendingDeactivations.size()) {
+            uint32_t runStart = m_pendingDeactivations[r];
+            uint32_t runEnd   = runStart; // inclusive
+            while (r + 1 < m_pendingDeactivations.size() &&
+                   m_pendingDeactivations[r + 1] == runEnd + 1) {
+                runEnd = m_pendingDeactivations[++r];
+            }
+            ++r;
+            vkCmdFillBuffer(cmd, m_particleBuffer,
+                static_cast<VkDeviceSize>(runStart) * sizeof(GpuParticle),
+                static_cast<VkDeviceSize>(runEnd - runStart + 1) * sizeof(GpuParticle),
+                0u);
+        }
+        m_pendingDeactivations.clear();
+    }
+
     // Barrier: TRANSFER_WRITE → COMPUTE_SHADER_READ/WRITE (particle buffer)
-    if (m_activeCount > 0) {
+    if (didTransfer) {
         insertBarrier(cmd,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -1481,6 +1520,7 @@ void GpuParticlePhysics::despawnAll() {
             m_slots[i].active = false;
             m_slots[i].lifetimeRemaining = 0.0f;
             m_freeSlots.push_back(i);
+            m_pendingDeactivations.push_back(i); // clear its GPU ACTIVE flag this frame
         }
     }
     m_activeCount = 0;

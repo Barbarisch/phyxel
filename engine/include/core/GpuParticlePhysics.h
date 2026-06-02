@@ -378,6 +378,14 @@ private:
     std::vector<PendingCopy> m_pendingSpawns;
     std::vector<PendingCopy> m_pendingThisFrame; // snapshot used during recordCompute
 
+    // Slots the CPU retired (lifetime expired / despawned) since the last
+    // recordComputeCommands. Their GPU PARTICLE_ACTIVE flag must be cleared
+    // explicitly: the GPU lifetime drain only runs on physics-tick frames and
+    // only for slots below the dispatch high-water mark, so a retired slot can
+    // keep a stale ACTIVE flag and reappear once a later spawn grows the
+    // high-water mark back over it. The CPU free list is the source of truth.
+    std::vector<uint32_t> m_pendingDeactivations;
+
     // Fixed-timestep accumulator: physics runs at exactly FIXED_DT intervals
     // regardless of render frame rate. Prevents speed-up at high FPS.
     static constexpr float FIXED_DT = 1.0f / 60.0f;
