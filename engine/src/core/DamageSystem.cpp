@@ -105,6 +105,25 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
                   static_cast<int>(std::ceil(center.y + radius)),
                   static_cast<int>(std::ceil(center.z + radius)));
 
+    // A voxel that the blast breaks. Decided in the scan pass below, applied after.
+    struct BreakRec {
+        glm::ivec3  wp;
+        glm::vec3   vc;
+        glm::vec3   outDir;
+        float       ratio;
+        float       speed;
+        std::string mat;
+        MatResponse mr;
+    };
+    std::vector<BreakRec> breaks;
+
+    // ---- Phase A: scan + decide ----
+    // Shielding (solidVoxelsBetween) is computed against the PRE-BLAST grid: we only
+    // record break decisions here and defer every removeCubeFast to phase B. If we
+    // removed voxels mid-scan, each break would un-shield the voxels behind it in
+    // iteration order (x-outer), igniting a self-reinforcing cascade straight down
+    // +x and carving an axis-aligned trench instead of a symmetric crater. A blast is
+    // instantaneous, so all shielding must reflect the geometry at the moment of impact.
     for (int x = lo.x; x <= hi.x; ++x)
     for (int y = lo.y; y <= hi.y; ++y)
     for (int z = lo.z; z <= hi.z; ++z) {
@@ -141,10 +160,24 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
         outDir = glm::normalize(outDir + dirBias * 0.5f);
         float speed = BASE_SPEED * std::sqrt(ratio);
 
+        breaks.push_back({ wp, vc, outDir, ratio, speed, std::move(mat), mr });
+    }
+
+    // ---- Phase B: apply removals + spawn debris ----
+    // The grid is mutated only here, after every shielding decision has been made.
+    for (const BreakRec& b : breaks) {
+        const glm::ivec3& wp = b.wp;
+        const glm::vec3&  vc = b.vc;
+        const glm::vec3&  outDir = b.outDir;
+        const float       ratio  = b.ratio;
+        const float       speed  = b.speed;
+        const std::string& mat   = b.mat;
+        const MatResponse& mr     = b.mr;
+
         // Remove the static voxel (fast: marks chunk dirty, defers face rebuild)
         // and clear its collision occupancy cell.
         m_cm->removeCubeFast(wp);
-        if (m_gpu) m_gpu->setOccupied(x, y, z, false);
+        if (m_gpu) m_gpu->setOccupied(wp.x, wp.y, wp.z, false);
         removed.push_back(wp);
         res.voxelsBroken++;
 
@@ -227,7 +260,8 @@ static inline int64_t packVoxel(int x, int y, int z) {
 void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, float supportY,
                                        DamageResult& res) {
     const int yAnchor = static_cast<int>(std::floor(supportY));
-    std::unordered_set<int64_t> visited;
+    std::unordered_set<int64_t> visited;   // every solid voxel enqueued by any flood
+    std::unordered_set<int64_t> anchored;  // voxels proven connected to the supported main mass
     int totalDetached = 0;
 
     // Seeds: solid voxels bordering the removed set (the rim of the hole).
@@ -251,25 +285,36 @@ void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, f
         stack.clear();
         stack.push_back(seed);
         visited.insert(packVoxel(seed.x, seed.y, seed.z));
-        bool grounded = false;
-        bool overflow = false;
+        bool supported = false;
 
         while (!stack.empty()) {
             glm::ivec3 v = stack.back(); stack.pop_back();
-            if (v.y <= yAnchor) { grounded = true; break; }   // reached the anchor → supported
+            if (v.y <= yAnchor) { supported = true; break; }   // reached the designer anchor
             component.push_back(v);
             // Flooded past the cap → this is the MAIN MASS → treat as anchored.
-            if (static_cast<int>(component.size()) > MAX_FLOOD) { overflow = true; break; }
+            if (static_cast<int>(component.size()) > MAX_FLOOD) { supported = true; break; }
             for (const auto& n : NB) {
                 glm::ivec3 nb = v + n;
                 int64_t key = packVoxel(nb.x, nb.y, nb.z);
+                // Reached a voxel already proven part of the main mass → supported.
+                if (anchored.count(key)) { supported = true; break; }
                 if (visited.count(key)) continue;
                 if (m_cm->getCubeAt(nb)) { visited.insert(key); stack.push_back(nb); }
             }
+            if (supported) break;
         }
 
-        // Supported or too-large-to-collapse → leave static.
-        if (grounded || overflow) continue;
+        if (supported) {
+            // Record this flood (processed component + the unprocessed frontier still
+            // on the stack) as anchored. A flood that hits the MAX_FLOOD cap stops
+            // early, leaving a visited frontier; without marking it anchored, that
+            // frontier walls the rest of the connected ground into sub-cap pockets
+            // that later seeds mistake for severed islands and drop — carving false
+            // straight-line trenches across supported terrain.
+            for (const glm::ivec3& v : component) anchored.insert(packVoxel(v.x, v.y, v.z));
+            for (const glm::ivec3& v : stack)     anchored.insert(packVoxel(v.x, v.y, v.z));
+            continue;
+        }
 
         // Detached: drop the whole component as falling debris.
         for (const glm::ivec3& v : component) {
