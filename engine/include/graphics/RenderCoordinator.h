@@ -38,6 +38,7 @@ namespace Phyxel {
         class DebrisRenderPipeline;
         class KinematicVoxelPipeline;
         class VfxRenderPipeline;
+        class WaterRenderPipeline;
     }
     namespace Core {
         class NPCManager;
@@ -153,6 +154,13 @@ public:
 
     // Kinematic voxel objects (doors, platforms, etc.)
     void setKinematicVoxelManager(Core::KinematicVoxelManager* mgr) { m_kinematicObjects = mgr; }
+
+    // Water (Phase 0: implicit sea-level surface — see docs/WaterSystem.md).
+    // TODO: sea level + enabled should come from per-world config, not render state.
+    void  setWaterEnabled(bool enabled) { m_waterEnabled = enabled; }
+    bool  isWaterEnabled() const { return m_waterEnabled; }
+    void  setSeaLevel(float y) { m_seaLevel = y; }
+    float getSeaLevel() const { return m_seaLevel; }
 
     // Lightweight VFX particle system (spell bursts, etc.).
     VfxSystem* getVfxSystem() { return vfxSystem.get(); }
@@ -278,6 +286,12 @@ private:
     // Kinematic Voxel Rendering (doors, rotating platforms, etc.)
     std::unique_ptr<KinematicVoxelPipeline> kinematicPipeline;
     Core::KinematicVoxelManager* m_kinematicObjects = nullptr;
+
+    // Water surface (Phase 0). Default ON for the feature branch demo; sea level
+    // chosen to flood the test world's flat plain (surface ~y16) so it's visible.
+    std::unique_ptr<WaterRenderPipeline> waterPipeline;
+    bool  m_waterEnabled = true;
+    float m_seaLevel = 18.0f;
 
     // GPU particle physics (non-owning — owned by Application)
     GpuParticlePhysics* m_gpuParticles = nullptr;

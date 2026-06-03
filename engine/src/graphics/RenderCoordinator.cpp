@@ -7,6 +7,7 @@
 #include "graphics/Camera.h"
 #include "graphics/DebrisRenderPipeline.h"
 #include "graphics/VfxRenderPipeline.h"
+#include "graphics/WaterRenderPipeline.h"
 #include "core/VfxSystem.h"
 #include "core/VfxDirector.h"
 #include "graphics/KinematicVoxelPipeline.h"
@@ -140,6 +141,15 @@ RenderCoordinator::RenderCoordinator(
     vfxDirector = std::make_unique<VfxDirector>(vfxSystem.get());
     vfxPipeline = std::make_unique<VfxRenderPipeline>();
     vfxPipeline->initialize(
+        vulkanDevice->getDevice(),
+        vulkanDevice->getPhysicalDevice(),
+        postProcessor->getSceneRenderPass(),
+        vulkanDevice->getSwapChainExtent()
+    );
+
+    // Initialize Water surface pipeline (Phase 0 — see docs/WaterSystem.md).
+    waterPipeline = std::make_unique<WaterRenderPipeline>();
+    waterPipeline->initialize(
         vulkanDevice->getDevice(),
         vulkanDevice->getPhysicalDevice(),
         postProcessor->getSceneRenderPass(),
@@ -1042,6 +1052,20 @@ void RenderCoordinator::drawFrame() {
                 vulkanDevice->getDescriptorSet(currentFrame)
             );
         }
+    }
+
+    // Water surface (Phase 0): a translucent sea-level plane, after all opaque
+    // geometry so it blends over the scene. Depth-tested (terrain occludes it) but
+    // no depth-write, so the mirror pass below is unaffected.
+    if (m_waterEnabled && waterPipeline) {
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Water");
+        waterPipeline->render(
+            vulkanDevice->getCommandBuffer(currentFrame),
+            *camera,
+            cachedProjectionMatrix,
+            m_seaLevel,
+            2.0f * maxChunkRenderDistance
+        );
     }
 
     // Mirror surface pass (inside scene render pass, after all opaque/entity geometry)

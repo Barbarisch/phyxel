@@ -668,5 +668,21 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+echo Compiling water vertex shader...
+%GLSLANG% -V -I. shaders\water.vert -o shaders\water.vert.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile water.vert
+    pause
+    exit /b 1
+)
+
+echo Compiling water fragment shader...
+%GLSLANG% -V -I. shaders\water.frag -o shaders\water.frag.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile water.frag
+    pause
+    exit /b 1
+)
+
 echo All shaders compiled successfully!
 REM pause
