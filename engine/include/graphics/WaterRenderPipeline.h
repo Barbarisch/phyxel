@@ -26,15 +26,24 @@ public:
                     VkRenderPass renderPass, VkExtent2D swapChainExtent);
     void cleanup();
 
+    // Point the reflection sampler at the planar-reflection texture. Call after
+    // initialize() and again after any swapchain resize (the texture is recreated).
+    // Must not be called mid-frame (updates a descriptor set).
+    void setReflectionTexture(VkImageView reflectionView, VkSampler reflectionSampler);
+
     // Draw the sea-level surface. `size` is the side length of the camera-following
-    // quad (world units). Call inside the scene render pass after opaque geometry.
+    // quad (world units). When `reflectionEnabled`, the fragment shader samples the
+    // reflection texture (set via setReflectionTexture). Call inside the scene render
+    // pass after opaque geometry.
     void render(VkCommandBuffer commandBuffer, const Camera& camera,
-                const glm::mat4& projectionMatrix, float seaLevel, float size);
+                const glm::mat4& projectionMatrix, float seaLevel, float size,
+                VkExtent2D screenExtent, bool reflectionEnabled);
 
     void recreatePipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent);
 
 private:
     void createDescriptorSetLayout();
+    void createDescriptorPool();
     void createPipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent);
     void createBuffers();
 
@@ -44,6 +53,8 @@ private:
     VkPipelineLayout      m_pipelineLayout = VK_NULL_HANDLE;
     VkPipeline            m_pipeline = VK_NULL_HANDLE;
     VkDescriptorSetLayout m_descriptorSetLayout = VK_NULL_HANDLE;
+    VkDescriptorPool      m_descriptorPool = VK_NULL_HANDLE;
+    VkDescriptorSet       m_descriptorSet = VK_NULL_HANDLE;
 
     VkBuffer       m_vertexBuffer = VK_NULL_HANDLE;
     VkDeviceMemory m_vertexBufferMemory = VK_NULL_HANDLE;

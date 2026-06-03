@@ -292,6 +292,9 @@ private:
     std::unique_ptr<WaterRenderPipeline> waterPipeline;
     bool  m_waterEnabled = true;
     float m_seaLevel = 18.0f;
+    // True for frames where the reflection pass was rendered for the water plane
+    // (decided before the scene pass, consumed when the water surface is drawn).
+    bool  m_waterReflectionActive = false;
 
     // GPU particle physics (non-owning — owned by Application)
     GpuParticlePhysics* m_gpuParticles = nullptr;

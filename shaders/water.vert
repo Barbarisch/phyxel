@@ -1,6 +1,6 @@
 #version 450
 //
-// water.vert — Phase 0 water surface (see docs/WaterSystem.md).
+// water.vert — Phase 0/1 water surface (see docs/WaterSystem.md).
 //
 // Draws a single large quad locked to sea level and centered on the camera in XZ,
 // giving an "infinite ocean" plane. Terrain occludes it via the depth buffer, so
@@ -12,6 +12,7 @@ layout(push_constant) uniform PushConstants {
     mat4 viewProj;
     vec4 camPosTime; // xyz = camera world position, w = time (seconds)
     vec4 params;     // x = seaLevel, y = quad size, zw unused
+    vec4 params2;    // x = screen width, y = screen height, z = reflectionEnabled, w unused
 } pc;
 
 layout(location = 0) out vec3 fragWorldPos;

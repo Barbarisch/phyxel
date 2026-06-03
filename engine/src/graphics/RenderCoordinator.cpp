@@ -147,7 +147,7 @@ RenderCoordinator::RenderCoordinator(
         vulkanDevice->getSwapChainExtent()
     );
 
-    // Initialize Water surface pipeline (Phase 0 — see docs/WaterSystem.md).
+    // Initialize Water surface pipeline (see docs/WaterSystem.md).
     waterPipeline = std::make_unique<WaterRenderPipeline>();
     waterPipeline->initialize(
         vulkanDevice->getDevice(),
@@ -155,6 +155,9 @@ RenderCoordinator::RenderCoordinator(
         postProcessor->getSceneRenderPass(),
         vulkanDevice->getSwapChainExtent()
     );
+    // Phase 1: water samples the shared planar-reflection texture.
+    waterPipeline->setReflectionTexture(
+        postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
 
     // Initialize Kinematic Voxel Pipeline (doors, rotating platforms, etc.)
     kinematicPipeline = std::make_unique<KinematicVoxelPipeline>();
@@ -738,6 +741,8 @@ void RenderCoordinator::drawFrame() {
         renderPipeline->createReflectionScenePipeline(postProcessor->getSceneRenderPass());
         renderPipeline->updateMirrorReflectionDescriptor(
             postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
+        if (waterPipeline) waterPipeline->setReflectionTexture(
+            postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
         dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
 
         windowManager->acknowledgeResize();
@@ -770,6 +775,8 @@ void RenderCoordinator::drawFrame() {
         renderPipeline->createReflectionScenePipeline(postProcessor->getSceneRenderPass());
         renderPipeline->updateMirrorReflectionDescriptor(
             postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
+        if (waterPipeline) waterPipeline->setReflectionTexture(
+            postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
         dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
 
         return; // Skip this frame and try again
@@ -787,6 +794,8 @@ void RenderCoordinator::drawFrame() {
         renderPipeline->createMirrorPipeline(postProcessor->getSceneRenderPass());
         renderPipeline->createReflectionScenePipeline(postProcessor->getSceneRenderPass());
         renderPipeline->updateMirrorReflectionDescriptor(
+            postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
+        if (waterPipeline) waterPipeline->setReflectionTexture(
             postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
         dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
         return; // Skip this frame, try again next frame
@@ -910,6 +919,20 @@ void RenderCoordinator::drawFrame() {
     // Mirror reflection pass: render scene from reflected camera before the main scene pass.
     if (hasMirrorVoxels && renderPipeline->getMirrorPipeline() != VK_NULL_HANDLE) {
         renderReflectionPass(currentFrame);
+    }
+
+    // Water planar reflection: reuse the same reflection pass with a horizontal sea
+    // plane. Mirror voxels take priority for the shared reflection texture, so only
+    // reflect water when no mirror is visible. (Accepted cost: re-renders visible
+    // chunks from the reflected camera every frame water is on screen.)
+    m_waterReflectionActive = false;
+    if (!hasMirrorVoxels && m_waterEnabled && waterPipeline &&
+        renderPipeline->getReflectionScenePipeline() != VK_NULL_HANDLE) {
+        glm::vec3 cam = camera->getPosition();
+        mirrorPlanePoint  = glm::vec3(cam.x, m_seaLevel, cam.z);
+        mirrorPlaneNormal = glm::vec3(0.0f, 1.0f, 0.0f);
+        renderReflectionPass(currentFrame);
+        m_waterReflectionActive = true;
     }
 
     // Begin Scene Render Pass (Offscreen)
@@ -1064,7 +1087,9 @@ void RenderCoordinator::drawFrame() {
             *camera,
             cachedProjectionMatrix,
             m_seaLevel,
-            2.0f * maxChunkRenderDistance
+            2.0f * maxChunkRenderDistance,
+            vulkanDevice->getSwapChainExtent(),
+            m_waterReflectionActive
         );
     }
 

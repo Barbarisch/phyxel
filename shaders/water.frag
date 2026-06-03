@@ -1,22 +1,25 @@
 #version 450
 //
-// water.frag — Phase 0 stylized water surface shading.
+// water.frag — Phase 1 stylized water surface shading.
 //
-// Procedural look only (no textures, no reflection/refraction sampling yet — those
-// are Phase 1): a blue depth-tinted body, a sky-colored Fresnel rim at grazing
-// angles, animated ripple normals, and a sharp sun glint. Alpha-blended.
+// A blue depth-tinted body, a sky-colored Fresnel rim at grazing angles, animated
+// ripple normals, a sun glint, and — when reflectionEnabled — a planar reflection
+// sampled from the reflection texture (the scene re-rendered from the mirrored
+// camera across the sea plane). Refraction/depth-based color/foam come in Phase 1b.
 //
 layout(location = 0) in vec3 fragWorldPos;
 layout(location = 0) out vec4 outColor;
+
+layout(set = 0, binding = 0) uniform sampler2D reflectionTex;
 
 layout(push_constant) uniform PushConstants {
     mat4 viewProj;
     vec4 camPosTime; // xyz = camera world position, w = time (seconds)
     vec4 params;     // x = seaLevel, y = quad size, zw unused
+    vec4 params2;    // x = screen width, y = screen height, z = reflectionEnabled, w unused
 } pc;
 
 // Cheap animated surface normal from two crossing directional sine waves.
-// Returns a perturbed normal around (0,1,0); analytic slope keeps it smooth.
 vec3 waterNormal(vec2 p, float t) {
     vec2 d1 = normalize(vec2( 1.0, 0.4));
     vec2 d2 = normalize(vec2(-0.6, 1.0));
@@ -27,7 +30,6 @@ vec3 waterNormal(vec2 p, float t) {
     float phase1 = dot(p, d1) * f1 + t * s1;
     float phase2 = dot(p, d2) * f2 + t * s2;
 
-    // d(height)/dx, d(height)/dz of the summed sines.
     float dx = a1 * f1 * d1.x * cos(phase1) + a2 * f2 * d2.x * cos(phase2);
     float dz = a1 * f1 * d1.y * cos(phase1) + a2 * f2 * d2.y * cos(phase2);
     return normalize(vec3(-dx, 1.0, -dz));
@@ -50,7 +52,21 @@ void main() {
     vec3 skyColor     = vec3(0.55, 0.72, 0.92);
 
     vec3 baseColor = mix(shallowColor, deepColor, ndv);
-    vec3 color     = mix(baseColor, skyColor, fres);
+
+    // Reflection color: planar reflection texture (screen-space UV, since every
+    // water fragment lies on the reflection plane) with a small ripple distortion.
+    // Falls back to the flat sky color when reflection is disabled.
+    vec3 reflColor = skyColor;
+    if (pc.params2.z > 0.5) {
+        vec2 screenUV = gl_FragCoord.xy / pc.params2.xy;
+        screenUV += N.xz * 0.03; // ripple distortion
+        screenUV = clamp(screenUV, vec2(0.001), vec2(0.999));
+        vec3 sampled = texture(reflectionTex, screenUV).rgb;
+        // Blend toward sky a touch so a black/empty reflection doesn't read as a void.
+        reflColor = mix(skyColor, sampled, 0.85);
+    }
+
+    vec3 color = mix(baseColor, reflColor, fres);
 
     // Sun specular glint (light dir points toward the sun).
     vec3  L    = normalize(vec3(0.4, 0.9, 0.3));
@@ -58,6 +74,6 @@ void main() {
     float spec = pow(max(dot(N, H), 0.0), 220.0);
     color += vec3(1.0) * spec * 0.8;
 
-    float alpha = clamp(0.55 + 0.4 * fres, 0.0, 0.95);
+    float alpha = clamp(0.55 + 0.4 * fres, 0.0, 0.97);
     outColor = vec4(color, alpha);
 }

@@ -16,11 +16,12 @@ static const std::array<glm::vec3, 6> QUAD_VERTICES = {
     glm::vec3( 0.5f, 0.0f,  0.5f), glm::vec3(-0.5f, 0.0f,  0.5f), glm::vec3(-0.5f, 0.0f, -0.5f),
 };
 
-// Push constants shared by both stages. 96 bytes — under the 128-byte guaranteed min.
+// Push constants shared by both stages. 112 bytes — under the 128-byte guaranteed min.
 struct WaterPushConstants {
     glm::mat4 viewProj;    // 64
     glm::vec4 camPosTime;  // 16  (camera xyz, time seconds)
     glm::vec4 params;      // 16  (seaLevel, quad size, 0, 0)
+    glm::vec4 params2;     // 16  (screen width, screen height, reflectionEnabled, 0)
 };
 
 static std::vector<char> readFile(const std::string& filename) {
@@ -55,6 +56,7 @@ void WaterRenderPipeline::cleanup() {
         vkFreeMemory(m_device, m_vertexBufferMemory, nullptr);
         vkDestroyPipeline(m_device, m_pipeline, nullptr);
         vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
+        vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
         vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
     }
 }
@@ -65,6 +67,7 @@ void WaterRenderPipeline::initialize(VkDevice device, VkPhysicalDevice physicalD
     m_physicalDevice = physicalDevice;
     createBuffers();
     createDescriptorSetLayout();
+    createDescriptorPool();
     createPipeline(renderPass, swapChainExtent);
 }
 
@@ -99,16 +102,24 @@ void WaterRenderPipeline::createBuffers() {
 }
 
 void WaterRenderPipeline::createDescriptorSetLayout() {
+    // Binding 0: the planar-reflection texture, sampled in the fragment shader.
+    VkDescriptorSetLayoutBinding reflectionBinding{};
+    reflectionBinding.binding = 0;
+    reflectionBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    reflectionBinding.descriptorCount = 1;
+    reflectionBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 1;
+    layoutInfo.pBindings = &reflectionBinding;
+    if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_descriptorSetLayout) != VK_SUCCESS)
+        throw std::runtime_error("failed to create water descriptor set layout!");
+
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pushConstantRange.offset = 0;
     pushConstantRange.size = sizeof(WaterPushConstants);
-
-    VkDescriptorSetLayoutCreateInfo layoutInfo{};
-    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = 0; // push constants + vertex attributes only
-    if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_descriptorSetLayout) != VK_SUCCESS)
-        throw std::runtime_error("failed to create water descriptor set layout!");
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -118,6 +129,44 @@ void WaterRenderPipeline::createDescriptorSetLayout() {
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
     if (vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout) != VK_SUCCESS)
         throw std::runtime_error("failed to create water pipeline layout!");
+}
+
+void WaterRenderPipeline::createDescriptorPool() {
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSize.descriptorCount = 1;
+
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.maxSets = 1;
+    if (vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
+        throw std::runtime_error("failed to create water descriptor pool!");
+
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_descriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &m_descriptorSetLayout;
+    if (vkAllocateDescriptorSets(m_device, &allocInfo, &m_descriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate water descriptor set!");
+}
+
+void WaterRenderPipeline::setReflectionTexture(VkImageView reflectionView, VkSampler reflectionSampler) {
+    VkDescriptorImageInfo imageInfo{};
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfo.imageView = reflectionView;
+    imageInfo.sampler = reflectionSampler;
+
+    VkWriteDescriptorSet write{};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = m_descriptorSet;
+    write.dstBinding = 0;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.descriptorCount = 1;
+    write.pImageInfo = &imageInfo;
+    vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
 }
 
 void WaterRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent) {
@@ -246,8 +295,12 @@ void WaterRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D swa
 }
 
 void WaterRenderPipeline::render(VkCommandBuffer commandBuffer, const Camera& camera,
-                                 const glm::mat4& projectionMatrix, float seaLevel, float size) {
+                                 const glm::mat4& projectionMatrix, float seaLevel, float size,
+                                 VkExtent2D screenExtent, bool reflectionEnabled) {
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
+
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout,
+                            0, 1, &m_descriptorSet, 0, nullptr);
 
     VkBuffer vertexBuffers[] = {m_vertexBuffer};
     VkDeviceSize offsets[] = {0};
@@ -260,6 +313,9 @@ void WaterRenderPipeline::render(VkCommandBuffer commandBuffer, const Camera& ca
     pc.viewProj   = projectionMatrix * camera.getViewMatrix();
     pc.camPosTime = glm::vec4(camPos, t);
     pc.params     = glm::vec4(seaLevel, size, 0.0f, 0.0f);
+    pc.params2    = glm::vec4(static_cast<float>(screenExtent.width),
+                              static_cast<float>(screenExtent.height),
+                              reflectionEnabled ? 1.0f : 0.0f, 0.0f);
 
     vkCmdPushConstants(commandBuffer, m_pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
