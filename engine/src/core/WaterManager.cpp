@@ -10,6 +10,7 @@ WaterManager::WaterManager(ChunkManager* chunkManager, const glm::ivec3& origin,
     : m_cm(chunkManager), m_origin(origin), m_dims(dims),
       m_sim(dims.x, dims.y, dims.z) {
     syncSolidsFromChunks();
+    rebuildSurface();
 }
 
 void WaterManager::syncSolidsFromChunks() {
@@ -31,6 +32,25 @@ void WaterManager::update(float dt) {
         ++steps;
     }
     if (steps == MAX_STEPS_PER_UPDATE) m_accum = 0.0f; // drop backlog after a stall
+    if (steps > 0) rebuildSurface();
+}
+
+void WaterManager::rebuildSurface() {
+    m_surface.clear();
+    for (int z = 0; z < m_dims.z; ++z)
+    for (int x = 0; x < m_dims.x; ++x)
+    for (int y = 0; y < m_dims.y; ++y) {
+        float m = m_sim.massAt(x, y, z);
+        if (m <= RENDER_MIN) continue;
+        // Surface cell: the one above is empty (or solid / out of bounds).
+        if (m_sim.massAt(x, y + 1, z) > RENDER_MIN && !m_sim.isSolid(x, y + 1, z)) continue;
+        float fill = std::min(m, 1.0f);
+        m_surface.emplace_back(
+            static_cast<float>(m_origin.x + x) + 0.5f,
+            static_cast<float>(m_origin.y + y) + fill,
+            static_cast<float>(m_origin.z + z) + 0.5f,
+            fill);
+    }
 }
 
 bool WaterManager::worldToLocal(const glm::vec3& w, int& lx, int& ly, int& lz) const {
@@ -42,7 +62,10 @@ bool WaterManager::worldToLocal(const glm::vec3& w, int& lx, int& ly, int& lz) c
 
 void WaterManager::placeWater(const glm::vec3& worldPos, float amount) {
     int lx, ly, lz;
-    if (worldToLocal(worldPos, lx, ly, lz)) m_sim.addWater(lx, ly, lz, amount);
+    if (worldToLocal(worldPos, lx, ly, lz)) {
+        m_sim.addWater(lx, ly, lz, amount);
+        rebuildSurface();
+    }
 }
 
 float WaterManager::massAtWorld(const glm::vec3& worldPos) const {

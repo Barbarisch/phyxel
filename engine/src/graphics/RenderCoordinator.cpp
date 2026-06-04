@@ -8,6 +8,8 @@
 #include "graphics/DebrisRenderPipeline.h"
 #include "graphics/VfxRenderPipeline.h"
 #include "graphics/WaterRenderPipeline.h"
+#include "graphics/WaterCellRenderPipeline.h"
+#include "core/WaterManager.h"
 #include "core/VfxSystem.h"
 #include "core/VfxDirector.h"
 #include "graphics/KinematicVoxelPipeline.h"
@@ -158,6 +160,15 @@ RenderCoordinator::RenderCoordinator(
     // Phase 1: water samples the shared planar-reflection texture.
     waterPipeline->setReflectionTexture(
         postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
+
+    // Per-cell water surface pipeline (renders the CPU sim's actual field — Phase 2).
+    waterCellPipeline = std::make_unique<WaterCellRenderPipeline>();
+    waterCellPipeline->initialize(
+        vulkanDevice->getDevice(),
+        vulkanDevice->getPhysicalDevice(),
+        postProcessor->getSceneRenderPass(),
+        vulkanDevice->getSwapChainExtent()
+    );
 
     // Initialize Kinematic Voxel Pipeline (doors, rotating platforms, etc.)
     kinematicPipeline = std::make_unique<KinematicVoxelPipeline>();
@@ -1083,6 +1094,18 @@ void RenderCoordinator::drawFrame() {
             2.0f * maxChunkRenderDistance,
             vulkanDevice->getSwapChainExtent(),
             m_waterReflectionActive
+        );
+    }
+
+    // Per-cell water surface (the CPU sim's actual field): translucent quads at each
+    // surface cell's fill height. Independent of the flat sea plane above.
+    if (m_waterManager && waterCellPipeline && !m_waterManager->surfaceCells().empty()) {
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterCells");
+        waterCellPipeline->render(
+            vulkanDevice->getCommandBuffer(currentFrame),
+            *camera,
+            cachedProjectionMatrix,
+            m_waterManager->surfaceCells()
         );
     }
 

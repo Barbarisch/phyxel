@@ -39,10 +39,12 @@ namespace Phyxel {
         class KinematicVoxelPipeline;
         class VfxRenderPipeline;
         class WaterRenderPipeline;
+        class WaterCellRenderPipeline;
     }
     namespace Core {
         class NPCManager;
         class KinematicVoxelManager;
+        class WaterManager;
     }
     class GpuParticlePhysics;
 }
@@ -154,6 +156,9 @@ public:
 
     // Kinematic voxel objects (doors, platforms, etc.)
     void setKinematicVoxelManager(Core::KinematicVoxelManager* mgr) { m_kinematicObjects = mgr; }
+
+    // CPU water cellular-automaton sim — its surface cells are rendered per-cell.
+    void setWaterManager(Core::WaterManager* mgr) { m_waterManager = mgr; }
 
     // Water (Phase 0: implicit sea-level surface — see docs/WaterSystem.md).
     // TODO: sea level + enabled should come from per-world config, not render state.
@@ -292,6 +297,10 @@ private:
     std::unique_ptr<WaterRenderPipeline> waterPipeline;
     bool  m_waterEnabled = false;
     float m_seaLevel = 16.0f;
+
+    // Per-cell water surface rendering (the CPU sim's actual field).
+    std::unique_ptr<WaterCellRenderPipeline> waterCellPipeline;
+    Core::WaterManager* m_waterManager = nullptr;
     // True for frames where the reflection pass was rendered for the water plane
     // (decided before the scene pass, consumed when the water surface is drawn).
     bool  m_waterReflectionActive = false;

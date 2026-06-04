@@ -335,6 +335,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // Solidity is synced from chunks after the world loads (autoLoadGameDefinition).
     waterManager = std::make_unique<Core::WaterManager>(
         chunkManager, glm::ivec3(0, 8, 0), glm::ivec3(64, 32, 64));
+    renderCoordinator->setWaterManager(waterManager.get());
 
     // STEP 7: REGISTER INPUT ACTIONS
     // Create InputController to handle input bindings
