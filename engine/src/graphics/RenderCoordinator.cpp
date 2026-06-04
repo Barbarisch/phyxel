@@ -921,19 +921,12 @@ void RenderCoordinator::drawFrame() {
         renderReflectionPass(currentFrame);
     }
 
-    // Water planar reflection: reuse the same reflection pass with a horizontal sea
-    // plane. Mirror voxels take priority for the shared reflection texture, so only
-    // reflect water when no mirror is visible. (Accepted cost: re-renders visible
-    // chunks from the reflected camera every frame water is on screen.)
+    // Water reflection: the surface shader uses a procedural sky+sun reflection, so we
+    // no longer re-render the scene for water. True planar scene reflection is deferred
+    // until a correct reflection pass exists (the shared mirror pass is broken — wrong
+    // winding/projection). When that lands, set m_waterReflectionActive and run a
+    // reflection pass with the sea plane; the water shader's dormant branch samples it.
     m_waterReflectionActive = false;
-    if (!hasMirrorVoxels && m_waterEnabled && waterPipeline &&
-        renderPipeline->getReflectionScenePipeline() != VK_NULL_HANDLE) {
-        glm::vec3 cam = camera->getPosition();
-        mirrorPlanePoint  = glm::vec3(cam.x, m_seaLevel, cam.z);
-        mirrorPlaneNormal = glm::vec3(0.0f, 1.0f, 0.0f);
-        renderReflectionPass(currentFrame);
-        m_waterReflectionActive = true;
-    }
 
     // Begin Scene Render Pass (Offscreen)
     postProcessor->beginSceneRenderPass(vulkanDevice->getCommandBuffer(currentFrame));

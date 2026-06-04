@@ -53,26 +53,36 @@ void main() {
 
     vec3 baseColor = mix(shallowColor, deepColor, ndv);
 
-    // Reflection color: planar reflection texture (screen-space UV, since every
-    // water fragment lies on the reflection plane) with a small ripple distortion.
-    // Falls back to the flat sky color when reflection is disabled.
-    vec3 reflColor = skyColor;
+    // Reflection color: a procedural sky gradient + reflected sun, sampled along the
+    // view direction reflected about the (rippled) surface normal. Cheap, correct, and
+    // free of the planar-reflection artifacts. (Planar scene reflection is deferred —
+    // the dormant branch below re-enables it once a correct reflection pass exists.)
+    vec3 sunDir = normalize(vec3(0.4, 0.85, 0.35)); // direction TO the sun
+    vec3 R = reflect(-V, N);                          // reflected view ray
+
+    vec3  horizonCol = vec3(0.72, 0.82, 0.95);
+    vec3  zenithCol  = vec3(0.24, 0.46, 0.80);
+    float up         = clamp(R.y, 0.0, 1.0);
+    vec3  sky        = mix(horizonCol, zenithCol, pow(up, 0.6));
+
+    float sunDisc = pow(max(dot(R, sunDir), 0.0), 900.0);  // tight bright disc
+    float sunGlow = pow(max(dot(R, sunDir), 0.0), 40.0);   // soft halo
+    vec3  sunCol  = vec3(1.0, 0.96, 0.86);
+
+    vec3 reflColor = sky + sunCol * (sunDisc * 2.0 + sunGlow * 0.12);
+
+    // Dormant: planar scene reflection (re-enable once a correct reflection pass lands).
     if (pc.params2.z > 0.5) {
         vec2 screenUV = gl_FragCoord.xy / pc.params2.xy;
-        screenUV += N.xz * 0.03; // ripple distortion
+        screenUV += N.xz * 0.03;
         screenUV = clamp(screenUV, vec2(0.001), vec2(0.999));
-        vec3 sampled = texture(reflectionTex, screenUV).rgb;
-        // Blend toward sky a touch so a black/empty reflection doesn't read as a void.
-        reflColor = mix(skyColor, sampled, 0.85);
+        reflColor = mix(reflColor, texture(reflectionTex, screenUV).rgb, 0.85);
     }
 
     vec3 color = mix(baseColor, reflColor, fres);
 
-    // Sun specular glint (light dir points toward the sun).
-    vec3  L    = normalize(vec3(0.4, 0.9, 0.3));
-    vec3  H    = normalize(L + V);
-    float spec = pow(max(dot(N, H), 0.0), 220.0);
-    color += vec3(1.0) * spec * 0.8;
+    // A touch of direct sun glitter, always visible (additive, not gated by Fresnel).
+    color += sunCol * sunDisc * 0.5;
 
     float alpha = clamp(0.55 + 0.4 * fres, 0.0, 0.97);
     outColor = vec4(color, alpha);
