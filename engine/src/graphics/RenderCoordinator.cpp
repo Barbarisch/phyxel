@@ -471,6 +471,18 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
     renderInstancedCharacters(vulkanDevice->getCommandBuffer(frameIndex), reflViewProj,
                               renderPipeline->getReflectionInstancedCharacterPipeline());
 
+    // Draw kinematic objects (doors, furniture, fragments) into the reflection. They read
+    // view/proj from the descriptor set, so we pass the reflected-camera descriptor set; the
+    // renderReflection() variant uses the BACK_BIT pipeline for the flipped reflected winding.
+    // (Object add/remove rebuilds the shared buffer in the main pass — moving objects, the
+    // common case, need no rebuild, so they reflect correctly; add/remove may lag one frame.)
+    if (kinematicPipeline && m_kinematicObjects && !m_kinematicObjects->getObjects().empty()) {
+        kinematicPipeline->renderReflection(
+            vulkanDevice->getCommandBuffer(frameIndex),
+            m_kinematicObjects->getObjects(),
+            vulkanDevice->getReflectionDescriptorSet(frameIndex));
+    }
+
     LOG_DEBUG("RenderCoordinator", "Reflection pass complete: {} chunks drawn", lastFrameStats.reflectionDrawCalls);
     postProcessor->endReflectionRenderPass(vulkanDevice->getCommandBuffer(frameIndex));
 }

@@ -251,6 +251,14 @@ Instanced characters (the player + animated NPCs) reflect via the shared helper 
 
 The character instance buffer is single + host-visible, so the helper rebuilds and re-uploads it on every call. When both the reflection pass and the main pass run in one frame they upload **byte-identical** data (same character state, same batch offsets), so the redundant upload is harmless — both draws read the same final buffer contents at GPU execution. Only instanced characters are reflected; non-instanced/ragdoll entities are not (yet).
 
+### Kinematic objects in reflections
+
+Kinematic voxels (doors, furniture, fragments) also reflect. `KinematicVoxelPipeline` has a `renderReflection()` that mirrors `render()` but binds a **BACK_BIT** reflection pipeline (`m_reflectionPipeline`, opposite of the main pass's FRONT_BIT for the flipped reflected winding). Unlike characters, these read view/proj from the **descriptor set**, so the reflection pass passes `VulkanDevice::getReflectionDescriptorSet(frame)` — the set whose UBO holds the reflected camera. No push-constant change is needed (the per-object world transform is already in world space). The shared instance buffer is only rebuilt on object add/remove (in the main pass), so a newly added/removed kinematic object can lag one frame in the reflection; moving objects (the common case) reflect correctly every frame.
+
+### What does *not* reflect yet
+
+Dynamic voxels / debris (the GPU-particle + CPU-Bullet `renderDynamicSubcubes` paths). Same approach would work — a BACK_BIT reflection pipeline + replay the indirect/CPU draws with the reflected descriptor set — but debris counts can reach ~10k particles, so it is best paired with a reduced-resolution reflection target. Deferred.
+
 ---
 
 ## Common Pitfalls
