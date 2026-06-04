@@ -201,6 +201,13 @@ private:
     bool scanForMirrorVoxels(); // Returns true if any mirror voxels found in visible chunks
     void renderDynamicSubcubes();
     void renderEntities(VkCommandBuffer commandBuffer);
+    // Draw all instanced characters (player + animated NPCs) with the given view-projection
+    // and pipeline. Used both for the main pass and the mirror reflection pass (which passes
+    // the reflected view-projection + the FRONT_BIT reflection pipeline). The shared character
+    // instance buffer is rebuilt+uploaded on every call; when both passes run in one frame
+    // they upload byte-identical data, so the redundant upload is harmless.
+    void renderInstancedCharacters(VkCommandBuffer commandBuffer, const glm::mat4& viewProj,
+                                   VkPipeline pipeline);
     void renderShadowPass(VkCommandBuffer commandBuffer, const glm::mat4& lightSpaceMatrix);
     
     // Dependencies (non-owning pointers)

@@ -463,6 +463,14 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
         lastFrameStats.reflectionDrawCalls++;
     }
 
+    // Draw instanced characters (player + animated NPCs) into the reflection target so they
+    // appear in mirrors. Uses the reflected view-projection (clippedProj * reflectedView) and
+    // the FRONT_BIT reflection pipeline (the reflected view's det=-1 flips winding). This pass
+    // runs first each frame, so it is responsible for uploading the shared character buffer.
+    glm::mat4 reflViewProj = clippedProj * reflectedView;
+    renderInstancedCharacters(vulkanDevice->getCommandBuffer(frameIndex), reflViewProj,
+                              renderPipeline->getReflectionInstancedCharacterPipeline());
+
     LOG_DEBUG("RenderCoordinator", "Reflection pass complete: {} chunks drawn", lastFrameStats.reflectionDrawCalls);
     postProcessor->endReflectionRenderPass(vulkanDevice->getCommandBuffer(frameIndex));
 }
@@ -1219,108 +1227,107 @@ VkSampler RenderCoordinator::getViewportSampler() const {
     return postProcessor ? postProcessor->getOffscreenSampler() : VK_NULL_HANDLE;
 }
 
+void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
+        const glm::mat4& viewProj, VkPipeline pipeline) {
+    bool hasEntities = entities && !entities->empty();
+    bool hasNPCs = m_npcManager && m_npcManager->getNPCCount() > 0;
+    if (!hasEntities && !hasNPCs) return;
+
+    // Collect instanced characters: the animated player + animated/physics NPCs.
+    std::vector<Scene::RagdollCharacter*> instancedCharacters;
+    if (hasEntities) {
+        for (const auto& entity : *entities) {
+            auto animatedChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity.get());
+            // Hide player when F5 debug overlay is active so segment boxes are visible.
+            if (animatedChar && !raycastVisualizationEnabled) {
+                instancedCharacters.push_back(animatedChar);
+            }
+        }
+    }
+    if (hasNPCs) {
+        for (const auto& name : m_npcManager->getAllNPCNames()) {
+            auto* npc = m_npcManager->getNPC(name);
+            if (npc) {
+                if (auto* renderable = npc->getRenderableCharacter())
+                    instancedCharacters.push_back(renderable);
+            }
+        }
+    }
+    if (instancedCharacters.empty()) return;
+
+    std::vector<CharacterInstanceData> instanceData;
+    struct Batch { glm::mat4 model; uint32_t firstInstance; uint32_t instanceCount; };
+    std::vector<Batch> batches;
+
+    auto batchParts = [&](const std::vector<Scene::RagdollPart>& charParts) {
+        std::map<int, std::vector<const Scene::RagdollPart*>> partsByGroup;
+        for (const auto& part : charParts) {
+            if (part.useDirectTransform)
+                partsByGroup[part.boneGroupId].push_back(&part);
+        }
+        for (const auto& [groupId, gParts] : partsByGroup) {
+            if (gParts.empty()) continue;
+            const auto* first = gParts[0];
+            glm::mat4 model = glm::translate(glm::mat4(1.0f), first->worldPos)
+                            * glm::mat4_cast(first->worldRot);
+            Batch batch;
+            batch.model = model;
+            batch.firstInstance = static_cast<uint32_t>(instanceData.size());
+            batch.instanceCount = 0;
+            for (const auto* part : gParts) {
+                if (!part->active) continue;
+                CharacterInstanceData data;
+                data.offset = part->offset;
+                data.scale  = part->scale;
+                data.color  = part->color;
+                instanceData.push_back(data);
+                batch.instanceCount++;
+            }
+            if (batch.instanceCount > 0) batches.push_back(batch);
+        }
+    };
+    for (auto* charPtr : instancedCharacters) batchParts(charPtr->getParts());
+    if (instanceData.empty()) return;
+
+    // Upload the shared (single, host-visible) character instance buffer. If both the
+    // reflection pass and the main pass run this frame they upload byte-identical data (same
+    // character state, same batch offsets), so the redundant memcpy is harmless — both draws
+    // read the same final buffer contents at GPU execution time.
+    vulkanDevice->updateCharacterInstanceBuffer(instanceData);
+
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+    vulkanDevice->bindCharacterInstanceBuffer(commandBuffer);
+    vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getInstancedCharacterLayout());
+
+    for (const auto& batch : batches) {
+        struct PushConsts { glm::mat4 model; glm::mat4 viewProj; } pushConsts;
+        pushConsts.model = batch.model;
+        pushConsts.viewProj = viewProj;
+        vkCmdPushConstants(commandBuffer, renderPipeline->getInstancedCharacterLayout(),
+                           VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConsts), &pushConsts);
+        vkCmdDraw(commandBuffer, 36, batch.instanceCount, 0, batch.firstInstance);
+    }
+}
+
 void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
     bool hasEntities = entities && !entities->empty();
     bool hasNPCs = m_npcManager && m_npcManager->getNPCCount() > 0;
     if (!hasEntities && !hasNPCs) return;
 
-    // Separate entities into instanced and standard
-    std::vector<Scene::RagdollCharacter*> instancedCharacters;
+    // Collect non-instanced (standard) entities. Instanced characters (player + animated
+    // NPCs) are drawn by renderInstancedCharacters(), which is shared with the mirror
+    // reflection pass so characters appear in mirrors too.
     std::vector<Scene::Entity*> standardEntities;
-
     if (hasEntities) {
         for (const auto& entity : *entities) {
-            auto animatedChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity.get());
-            if (animatedChar) {
-                // Hide player character when F5 debug overlay is active so segment boxes are visible
-                if (!raycastVisualizationEnabled) {
-                    instancedCharacters.push_back(animatedChar);
-                }
-            } else {
+            if (!dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity.get()))
                 standardEntities.push_back(entity.get());
-            }
         }
     }
 
-    // Add NPC characters to the instanced list (both animated and physics-driven)
-    if (hasNPCs) {
-        for (const auto& name : m_npcManager->getAllNPCNames()) {
-            auto* npc = m_npcManager->getNPC(name);
-            if (npc) {
-                auto* renderable = npc->getRenderableCharacter();
-                if (renderable) {
-                    instancedCharacters.push_back(renderable);
-                }
-            }
-        }
-    }
-
-    // Render Instanced Characters (RagdollCharacter-based)
-    if (!instancedCharacters.empty()) {
-        std::vector<CharacterInstanceData> instanceData;
-        struct Batch {
-            glm::mat4 model;
-            uint32_t firstInstance;
-            uint32_t instanceCount;
-        };
-        std::vector<Batch> batches;
-
-        // Helper lambda to batch a parts list
-        auto batchParts = [&](const std::vector<Scene::RagdollPart>& charParts) {
-            // Direct-transform parts (AnimatedVoxelCharacter bones)
-            std::map<int, std::vector<const Scene::RagdollPart*>> partsByGroup;
-            for (const auto& part : charParts) {
-                if (part.useDirectTransform)
-                    partsByGroup[part.boneGroupId].push_back(&part);
-            }
-            for (const auto& [groupId, gParts] : partsByGroup) {
-                if (gParts.empty()) continue;
-                const auto* first = gParts[0];
-                glm::mat4 model = glm::translate(glm::mat4(1.0f), first->worldPos)
-                                * glm::mat4_cast(first->worldRot);
-                Batch batch;
-                batch.model = model;
-                batch.firstInstance = static_cast<uint32_t>(instanceData.size());
-                batch.instanceCount = 0;
-                for (const auto* part : gParts) {
-                    if (!part->active) continue;
-                    CharacterInstanceData data;
-                    data.offset = part->offset;
-                    data.scale  = part->scale;
-                    data.color  = part->color;
-                    instanceData.push_back(data);
-                    batch.instanceCount++;
-                }
-                if (batch.instanceCount > 0) batches.push_back(batch);
-            }
-        };
-
-        for (auto* charPtr : instancedCharacters) batchParts(charPtr->getParts());
-
-        if (!instanceData.empty()) {
-            vulkanDevice->updateCharacterInstanceBuffer(instanceData);
-            renderPipeline->bindInstancedCharacterPipeline(commandBuffer);
-            vulkanDevice->bindCharacterInstanceBuffer(commandBuffer);
-            vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getInstancedCharacterLayout());
-
-            glm::mat4 viewProj = cachedProjectionMatrix * cachedViewMatrix;
-
-            for (const auto& batch : batches) {
-                struct PushConsts {
-                    glm::mat4 model;
-                    glm::mat4 viewProj;
-                } pushConsts;
-                pushConsts.model = batch.model;
-                pushConsts.viewProj = viewProj;
-
-                vkCmdPushConstants(commandBuffer, renderPipeline->getInstancedCharacterLayout(), 
-                                 VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConsts), &pushConsts);
-                
-                // Draw 36 vertices (cube) * instanceCount
-                vkCmdDraw(commandBuffer, 36, batch.instanceCount, 0, batch.firstInstance);
-            }
-        }
-    }
+    // Instanced characters in the main pass (main camera view-projection).
+    renderInstancedCharacters(commandBuffer, cachedProjectionMatrix * cachedViewMatrix,
+                              renderPipeline->getInstancedCharacterPipeline());
 
     renderPipeline->bindCharacterPipeline(commandBuffer);
     vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getCharacterLayout());

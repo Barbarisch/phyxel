@@ -832,6 +832,11 @@ void RenderPipeline::cleanup() {
         instancedCharacterPipeline = VK_NULL_HANDLE;
     }
 
+    if (reflectionInstancedCharacterPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, reflectionInstancedCharacterPipeline, nullptr);
+        reflectionInstancedCharacterPipeline = VK_NULL_HANDLE;
+    }
+
     if (characterPipelineLayout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(device, characterPipelineLayout, nullptr);
         characterPipelineLayout = VK_NULL_HANDLE;
@@ -1490,8 +1495,26 @@ bool RenderPipeline::createInstancedCharacterPipeline() {
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
+    if (instancedCharacterPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(vulkanDevice.getDevice(), instancedCharacterPipeline, nullptr);
+        instancedCharacterPipeline = VK_NULL_HANDLE;
+    }
     if (vkCreateGraphicsPipelines(vulkanDevice.getDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &instancedCharacterPipeline) != VK_SUCCESS) {
         LOG_ERROR("Rendering", "Failed to create instanced character graphics pipeline!");
+        return false;
+    }
+
+    // Reflection variant: identical pipeline but FRONT_BIT culling. Characters drawn into the
+    // mirror reflection are seen through the reflected view (mainView * reflMat), which has
+    // det=-1 and flips triangle winding — so they need the opposite cull from the main pass
+    // (BACK_BIT), exactly like reflectionScenePipeline vs the main voxel pipeline.
+    rasterizer.cullMode = VK_CULL_MODE_FRONT_BIT;
+    if (reflectionInstancedCharacterPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(vulkanDevice.getDevice(), reflectionInstancedCharacterPipeline, nullptr);
+        reflectionInstancedCharacterPipeline = VK_NULL_HANDLE;
+    }
+    if (vkCreateGraphicsPipelines(vulkanDevice.getDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &reflectionInstancedCharacterPipeline) != VK_SUCCESS) {
+        LOG_ERROR("Rendering", "Failed to create reflection instanced character graphics pipeline!");
         return false;
     }
 

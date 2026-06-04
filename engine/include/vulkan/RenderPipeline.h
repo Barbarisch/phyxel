@@ -47,6 +47,7 @@ public:
     VkPipeline getGraphicsPipeline() const { return graphicsPipeline; }
     VkPipeline getCharacterPipeline() const { return characterPipeline; }
     VkPipeline getInstancedCharacterPipeline() const { return instancedCharacterPipeline; }
+    VkPipeline getReflectionInstancedCharacterPipeline() const { return reflectionInstancedCharacterPipeline; }
     VkPipeline getDebugGraphicsPipeline() const { return debugGraphicsPipeline; }
     VkPipeline getDebugLinePipeline() const { return debugLinePipeline; }
     VkPipeline getOITPipeline() const { return oitPipeline; }
@@ -76,6 +77,7 @@ private:
     VkPipeline graphicsPipeline = VK_NULL_HANDLE;
     VkPipeline characterPipeline = VK_NULL_HANDLE;
     VkPipeline instancedCharacterPipeline = VK_NULL_HANDLE;
+    VkPipeline reflectionInstancedCharacterPipeline = VK_NULL_HANDLE;  // FRONT_BIT variant for mirror reflection pass
     VkPipeline debugGraphicsPipeline = VK_NULL_HANDLE;  // Debug voxel visualization pipeline
     VkPipeline debugLinePipeline = VK_NULL_HANDLE;      // Debug line/raycast visualization pipeline
     VkPipeline oitPipeline = VK_NULL_HANDLE;            // Weighted Blended OIT transparent pass

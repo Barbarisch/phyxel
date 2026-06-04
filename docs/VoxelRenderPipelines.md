@@ -245,6 +245,12 @@ The reflection projection uses a **small near plane near the virtual camera** (`
 
 `MIRROR_TINT` (faint cool silver) and `MIRROR_REFLECT` (~0.90) plus a `mix(0.78, 1.0, cosTheta)` edge darkening. A perfect untinted 100% reflector reads as a hole, not a surface — these small imperfections are deliberate.
 
+### Characters in reflections
+
+Instanced characters (the player + animated NPCs) reflect via the shared helper `RenderCoordinator::renderInstancedCharacters(cmd, viewProj, pipeline)`. The instanced character pipeline takes its **view-projection as a push constant**, so the reflection pass simply passes `clippedProj * reflectedView` and a dedicated `reflectionInstancedCharacterPipeline` whose only difference is **`FRONT_BIT` culling** (the reflected view's `det = −1` flips winding — same coupling as `reflectionScenePipeline`).
+
+The character instance buffer is single + host-visible, so the helper rebuilds and re-uploads it on every call. When both the reflection pass and the main pass run in one frame they upload **byte-identical** data (same character state, same batch offsets), so the redundant upload is harmless — both draws read the same final buffer contents at GPU execution. Only instanced characters are reflected; non-instanced/ragdoll entities are not (yet).
+
 ---
 
 ## Common Pitfalls
