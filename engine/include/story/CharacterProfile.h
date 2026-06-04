@@ -99,6 +99,23 @@ void to_json(nlohmann::json& j, const Relationship& r);
 void from_json(const nlohmann::json& j, Relationship& r);
 
 // ============================================================================
+// VoiceProfile — how this character should sound (drives TTS speaker selection)
+// ============================================================================
+
+struct VoiceProfile {
+    std::string gender = "neutral";  // "male", "female", "neutral"
+    std::string age    = "adult";    // "child", "young", "adult", "elderly"
+    float pitch     = 0.5f;          // 0 (low) .. 1 (high)
+    float rate      = 0.5f;          // 0 (slow) .. 1 (fast); maps to Piper lengthScale
+    float gruffness = 0.5f;          // 0 (smooth) .. 1 (rough/gravelly)
+    std::string accent;              // freeform hint, e.g. "rural", "posh", "gruff"
+    int   speakerId = -1;            // explicit Piper speaker override (-1 = derive from above + id)
+};
+
+void to_json(nlohmann::json& j, const VoiceProfile& v);
+void from_json(const nlohmann::json& j, VoiceProfile& v);
+
+// ============================================================================
 // CharacterProfile — everything that defines who a character is
 // ============================================================================
 
@@ -106,12 +123,22 @@ struct CharacterProfile {
     std::string id;
     std::string name;
     std::string description;
+    std::string backstory;             // Longer history/background (for AI context)
     std::string factionId;
 
     PersonalityTraits traits;
     std::vector<CharacterGoal> goals;
     std::vector<Relationship> relationships;
     EmotionalState emotion;
+
+    // Drives & dispositions — feed personality into dialogue and decisions.
+    std::vector<std::string> drives;      // core motivations/values: "coin", "reputation", "family"
+    std::vector<std::string> likes;       // "ale", "honest folk", "a quiet shop"
+    std::vector<std::string> dislikes;    // "haggling", "loud children", "the city guard"
+    std::vector<std::string> prejudices;  // biases toward groups/factions: "distrusts mages"
+    std::string speechStyle;              // e.g. "terse and sarcastic", "florid and formal"
+
+    VoiceProfile voice;
 
     AgencyLevel agencyLevel = AgencyLevel::Scripted;
 

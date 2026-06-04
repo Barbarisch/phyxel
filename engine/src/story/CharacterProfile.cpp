@@ -167,6 +167,32 @@ void from_json(const nlohmann::json& j, Relationship& r) {
 }
 
 // ============================================================================
+// VoiceProfile
+// ============================================================================
+
+void to_json(nlohmann::json& j, const VoiceProfile& v) {
+    j = nlohmann::json{
+        {"gender", v.gender},
+        {"age", v.age},
+        {"pitch", v.pitch},
+        {"rate", v.rate},
+        {"gruffness", v.gruffness}
+    };
+    if (!v.accent.empty())  j["accent"] = v.accent;
+    if (v.speakerId >= 0)   j["speakerId"] = v.speakerId;
+}
+
+void from_json(const nlohmann::json& j, VoiceProfile& v) {
+    v.gender    = j.value("gender", "neutral");
+    v.age       = j.value("age", "adult");
+    v.pitch     = j.value("pitch", 0.5f);
+    v.rate      = j.value("rate", 0.5f);
+    v.gruffness = j.value("gruffness", 0.5f);
+    v.accent    = j.value("accent", "");
+    v.speakerId = j.value("speakerId", -1);
+}
+
+// ============================================================================
 // CharacterProfile
 // ============================================================================
 
@@ -201,23 +227,38 @@ void to_json(nlohmann::json& j, const CharacterProfile& p) {
         {"goals", p.goals},
         {"relationships", p.relationships},
         {"emotion", p.emotion},
+        {"voice", p.voice},
         {"agencyLevel", agencyLevelToString(p.agencyLevel)},
         {"defaultBehavior", p.defaultBehavior},
         {"defaultDialogueFile", p.defaultDialogueFile},
         {"allowedActions", p.allowedActions},
         {"roles", p.roles}
     };
+    // Optional descriptive fields — omit when empty to keep JSON tidy.
+    if (!p.backstory.empty())   j["backstory"] = p.backstory;
+    if (!p.drives.empty())      j["drives"] = p.drives;
+    if (!p.likes.empty())       j["likes"] = p.likes;
+    if (!p.dislikes.empty())    j["dislikes"] = p.dislikes;
+    if (!p.prejudices.empty())  j["prejudices"] = p.prejudices;
+    if (!p.speechStyle.empty()) j["speechStyle"] = p.speechStyle;
 }
 
 void from_json(const nlohmann::json& j, CharacterProfile& p) {
     p.id = j.at("id").get<std::string>();
     p.name = j.value("name", "");
     p.description = j.value("description", "");
+    p.backstory = j.value("backstory", "");
     p.factionId = j.value("factionId", "");
     if (j.contains("traits")) j.at("traits").get_to(p.traits);
     p.goals = j.value("goals", std::vector<CharacterGoal>{});
     p.relationships = j.value("relationships", std::vector<Relationship>{});
     if (j.contains("emotion")) j.at("emotion").get_to(p.emotion);
+    if (j.contains("voice")) j.at("voice").get_to(p.voice);
+    p.drives      = j.value("drives", std::vector<std::string>{});
+    p.likes       = j.value("likes", std::vector<std::string>{});
+    p.dislikes    = j.value("dislikes", std::vector<std::string>{});
+    p.prejudices  = j.value("prejudices", std::vector<std::string>{});
+    p.speechStyle = j.value("speechStyle", "");
     p.agencyLevel = agencyLevelFromString(j.value("agencyLevel", "scripted"));
     p.defaultBehavior = j.value("defaultBehavior", "");
     p.defaultDialogueFile = j.value("defaultDialogueFile", "");
