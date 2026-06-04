@@ -651,11 +651,13 @@ size_t ChunkManager::getChunkIndex(const Chunk* chunk) const {
 void ChunkManager::updateAfterCubeBreak(const glm::ivec3& worldPos) {
     m_faceUpdateCoordinator.updateAfterCubeBreak(worldPos);
     if (m_gpuParticles) m_gpuParticles->setOccupied(worldPos.x, worldPos.y, worldPos.z, false);
+    if (m_voxelOccupancyCallback) m_voxelOccupancyCallback(worldPos.x, worldPos.y, worldPos.z, false);
 }
 
 void ChunkManager::updateAfterCubePlace(const glm::ivec3& worldPos) {
     m_faceUpdateCoordinator.updateAfterCubePlace(worldPos);
     if (m_gpuParticles) m_gpuParticles->setOccupied(worldPos.x, worldPos.y, worldPos.z, true);
+    if (m_voxelOccupancyCallback) m_voxelOccupancyCallback(worldPos.x, worldPos.y, worldPos.z, true);
 }
 
 void ChunkManager::rebuildOccupancyFromChunks() {
@@ -678,6 +680,7 @@ void ChunkManager::rebuildOccupancyFromChunks() {
 
 void ChunkManager::updateOccupancyVoxel(int worldX, int worldY, int worldZ, bool solid) {
     if (m_gpuParticles) m_gpuParticles->setOccupied(worldX, worldY, worldZ, solid);
+    if (m_voxelOccupancyCallback) m_voxelOccupancyCallback(worldX, worldY, worldZ, solid);
 }
 
 void ChunkManager::updateAfterCubeSubdivision(const glm::ivec3& worldPos) {

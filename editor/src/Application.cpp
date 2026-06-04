@@ -336,6 +336,11 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     waterManager = std::make_unique<Core::WaterManager>(
         chunkManager, glm::ivec3(0, 8, 0), glm::ivec3(64, 32, 64));
     renderCoordinator->setWaterManager(waterManager.get());
+    // Keep the water sim's solid mask in sync with terrain edits so water flows into
+    // newly-removed voxels (break / spell / blast) without a manual water_sync.
+    chunkManager->setVoxelOccupancyCallback([this](int x, int y, int z, bool solid) {
+        if (waterManager) waterManager->setSolidWorld(x, y, z, solid);
+    });
 
     // STEP 7: REGISTER INPUT ACTIONS
     // Create InputController to handle input bindings

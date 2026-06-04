@@ -16,6 +16,7 @@
 #include <unordered_map>
 #include <memory>
 #include <shared_mutex>
+#include <functional>
 
 namespace Physics {
     class PhysicsWorld;
@@ -66,6 +67,7 @@ public:
 
     // GPU particle physics — receives height map updates when voxels change
     GpuParticlePhysics* m_gpuParticles = nullptr;
+    std::function<void(int, int, int, bool)> m_voxelOccupancyCallback;
     
     // Chunk streaming manager (handles chunk loading/unloading/saving)
     ChunkStreamingManager m_streamingManager;
@@ -114,6 +116,13 @@ public:
 
     // Set GPU particle system for occupancy grid updates
     void setGpuParticlePhysics(GpuParticlePhysics* gpp) { m_gpuParticles = gpp; }
+
+    // Notified (worldX, worldY, worldZ, solid) whenever a single voxel's occupancy
+    // changes (break/place/occupancy update). Used to keep the water sim's solid mask
+    // in sync so water flows into newly-removed cells.
+    void setVoxelOccupancyCallback(std::function<void(int, int, int, bool)> cb) {
+        m_voxelOccupancyCallback = std::move(cb);
+    }
 
     // Update a single voxel's occupancy bit in the GPU grid.
     void updateOccupancyVoxel(int worldX, int worldY, int worldZ, bool solid);

@@ -68,6 +68,11 @@ void WaterManager::placeWater(const glm::vec3& worldPos, float amount) {
     }
 }
 
+void WaterManager::setSolidWorld(int worldX, int worldY, int worldZ, bool solid) {
+    int lx = worldX - m_origin.x, ly = worldY - m_origin.y, lz = worldZ - m_origin.z;
+    if (m_sim.inBounds(lx, ly, lz)) m_sim.setSolid(lx, ly, lz, solid);
+}
+
 float WaterManager::massAtWorld(const glm::vec3& worldPos) const {
     int lx, ly, lz;
     if (!worldToLocal(worldPos, lx, ly, lz)) return 0.0f;

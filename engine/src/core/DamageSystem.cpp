@@ -177,7 +177,9 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
         // Remove the static voxel (fast: marks chunk dirty, defers face rebuild)
         // and clear its collision occupancy cell.
         m_cm->removeCubeFast(wp);
-        if (m_gpu) m_gpu->setOccupied(wp.x, wp.y, wp.z, false);
+        // Route through ChunkManager so both the GPU occupancy grid and the water sim
+        // (via its occupancy callback) learn the cell is now open.
+        m_cm->updateOccupancyVoxel(wp.x, wp.y, wp.z, false);
         removed.push_back(wp);
         res.voxelsBroken++;
 
@@ -324,7 +326,7 @@ void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, f
             std::string mat = c->getMaterialName();
             glm::vec3 vc(v.x + 0.5f, v.y + 0.5f, v.z + 0.5f);
             m_cm->removeCubeFast(v);
-            if (m_gpu) m_gpu->setOccupied(v.x, v.y, v.z, false);
+            m_cm->updateOccupancyVoxel(v.x, v.y, v.z, false);
             // Small outward+down nudge; gravity does the rest.
             glm::vec3 vel(frand(-0.5f, 0.5f), frand(-1.0f, -0.2f), frand(-0.5f, 0.5f));
             spawnDebris(vc, vel, 1.0f, mat);

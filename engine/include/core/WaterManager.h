@@ -28,6 +28,11 @@ public:
     void  placeWater(const glm::vec3& worldPos, float amount);
     float massAtWorld(const glm::vec3& worldPos) const;
 
+    // Update one cell's solid state (world coords) — wired to voxel break/place so
+    // water flows into newly-removed cells on the next step. Cheap; ignores cells
+    // outside the region.
+    void  setSolidWorld(int worldX, int worldY, int worldZ, bool solid);
+
     float totalMass() const { return m_sim.totalMass(); }
     const glm::ivec3& origin() const { return m_origin; }
     const glm::ivec3& dims() const   { return m_dims; }
