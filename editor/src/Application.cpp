@@ -4307,6 +4307,16 @@ void Application::autoLoadGameDefinition() {
 
         nlohmann::json gameDef = nlohmann::json::parse(f);
 
+        // Per-world water surface config (see docs/WaterSystem.md). Default OFF so a
+        // world without a "water" block never floods; switching to such a world also
+        // turns water back off. Top-level so the "world" erase below doesn't drop it.
+        if (renderCoordinator) {
+            nlohmann::json water = gameDef.contains("water") ? gameDef["water"] : nlohmann::json::object();
+            renderCoordinator->setWaterEnabled(water.value("enabled", false));
+            if (water.contains("seaLevel"))
+                renderCoordinator->setSeaLevel(water.value("seaLevel", 16.0f));
+        }
+
         // If chunks were already loaded from the database (pre-baked world),
         // skip world generation from the definition  --  it would overwrite the
         // pre-existing terrain and is very slow.

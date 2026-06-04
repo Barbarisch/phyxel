@@ -287,11 +287,11 @@ private:
     std::unique_ptr<KinematicVoxelPipeline> kinematicPipeline;
     Core::KinematicVoxelManager* m_kinematicObjects = nullptr;
 
-    // Water surface (Phase 0). Default ON for the feature branch demo; sea level
-    // chosen to flood the test world's flat plain (surface ~y16) so it's visible.
+    // Water surface. Default OFF; enabled + sea level come from the per-world game
+    // definition ("water": { "enabled": true, "seaLevel": N }), applied on load.
     std::unique_ptr<WaterRenderPipeline> waterPipeline;
-    bool  m_waterEnabled = true;
-    float m_seaLevel = 18.0f;
+    bool  m_waterEnabled = false;
+    float m_seaLevel = 16.0f;
     // True for frames where the reflection pass was rendered for the water plane
     // (decided before the scene pass, consumed when the water surface is drawn).
     bool  m_waterReflectionActive = false;
