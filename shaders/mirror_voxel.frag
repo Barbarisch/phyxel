@@ -73,15 +73,21 @@ void main() {
     // Sample the reflection image
     vec4 reflColor = texture(reflectionSampler, projUV);
 
-    // Fresnel: reflection strength increases at grazing angles
+    // A real mirror is not a perfect 100% reflector: it loses a little light and has a
+    // faint cool/silver tint. These imperfections are what let the eye read the surface as
+    // a mirror rather than a hole in the world.
+    const vec3  MIRROR_TINT     = vec3(0.93, 0.96, 1.0); // faint cool silver
+    const float MIRROR_REFLECT  = 0.90;                  // ~90% reflective
+
     vec3 viewDir = normalize(ubo.cameraPosition - inWorldPos);
     vec3 N = normalize(inNormal);
-    float cosTheta = max(dot(viewDir, N), 0.0);
-    float fresnel = 0.05 + 0.95 * pow(1.0 - cosTheta, 3.0);
-    fresnel = clamp(fresnel, 0.1, 1.0);
+    float cosTheta = clamp(dot(viewDir, N), 0.0, 1.0);
 
-    // Slight darkening at the surface edges for depth
-    vec3 mirrorColor = reflColor.rgb * mix(0.85, 1.0, fresnel);
+    vec3 mirrorColor = reflColor.rgb * MIRROR_TINT * MIRROR_REFLECT;
+
+    // Subtle edge darkening (Fresnel-ish): faces seen face-on stay bright, grazing edges
+    // darken slightly, giving the surface a perceptible glassy boundary.
+    mirrorColor *= mix(0.78, 1.0, cosTheta);
 
     outColor = vec4(mirrorColor, 1.0);
 }

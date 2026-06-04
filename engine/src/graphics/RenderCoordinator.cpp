@@ -333,10 +333,14 @@ bool RenderCoordinator::scanForMirrorVoxels() {
 
         glm::ivec3 origin = chunk->getWorldOrigin();
         glm::ivec3 local  = chunk->getFirstMirrorLocal();
+        mirrorPlaneNormal = glm::vec3(0.0f, 0.0f, 1.0f);
+        // Put the reflection plane on the VISIBLE +Z face of the mirror voxel (z = local+1.0),
+        // not the voxel center (z = local+0.5). The player sees the +Z face; computing the
+        // reflection about the center plane misregisters reflections by a half-voxel (objects
+        // don't line up with their reflections where they meet the mirror surface).
         mirrorPlanePoint  = glm::vec3(origin.x + local.x + 0.5f,
                                       origin.y + local.y + 0.5f,
-                                      origin.z + local.z + 0.5f);
-        mirrorPlaneNormal = glm::vec3(0.0f, 0.0f, 1.0f);
+                                      origin.z + local.z + 0.5f) + mirrorPlaneNormal * 0.5f;
         LOG_DEBUG("RenderCoordinator", "Mirror voxel found at ({},{},{}), plane normal ({},{},{})",
             mirrorPlanePoint.x, mirrorPlanePoint.y, mirrorPlanePoint.z,
             mirrorPlaneNormal.x, mirrorPlaneNormal.y, mirrorPlaneNormal.z);
@@ -381,25 +385,39 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
         reflCamFront.x, reflCamFront.y, reflCamFront.z,
         visibleChunkIndices.size());
 
-    glm::mat4 reflectedView = glm::lookAt(reflCamPos, reflCamPos + reflCamFront, reflCamUp);
+    // Build the reflected view by composing the reflection into the main view matrix.
+    // NOT glm::lookAt(reflected eye/front/up): lookAt re-derives the right axis via
+    // cross(front,up), which picks up the reflection's det=-1 sign and (a) horizontally
+    // mirrors the image and (b) yields a det=+1 view that does NOT flip triangle winding.
+    // mainView * reflMat is the exact reflected view: correct handedness, det=-1 so winding
+    // flips as the reflectionScenePipeline's BACK_BIT culling expects.
+    glm::mat4 reflectedView = camera->getViewMatrix() * reflMat;
     cachedReflectedViewProj = cachedProjectionMatrix * reflectedView;
 
     // Store reflected VP in the main UBO so mirror_voxel.frag can use it for projective texturing
     vulkanDevice->setReflectedViewProj(frameIndex, cachedReflectedViewProj);
 
-    // Build a clipped projection for the reflection render pass.
-    // Use mirrorDist as the NEAR plane so that the thin band between the reflected camera
-    // and the mirror surface (world z=20.5..27) is clipped by hardware.
-    // Objects on the main camera's side of the mirror (world z < 20.5, farther than mirrorDist
-    // from the reflected camera) are kept and appear correctly in the reflection.
-    float mirrorDist = glm::max(0.2f, glm::abs(glm::dot(mirrorPlanePoint - reflCamPos, N)));
+    // Build the projection for the reflection render pass.
+    //
+    // We do NOT set the near plane at the mirror surface. A perspective near plane is
+    // perpendicular to the view direction, so when the camera looks at the mirror at an
+    // angle it tilts relative to the mirror plane and clips a wedge of the floor nearest
+    // the mirror base — that produced the dark band along the bottom edge of the mirror.
+    //
+    // Instead use a small near plane close to the reflected camera. This never clips valid
+    // reflected geometry. The cost is that geometry directly BEHIND the mirror is also
+    // rendered into the reflection; for a mirror mounted on a solid wall there is nothing
+    // meaningful back there, and a continuous floor simply fills the bottom edge correctly.
+    // (For a mirror with a real room behind it, the exact fix is oblique near-plane clipping
+    // or a gl_ClipDistance world-plane clip at the mirror — a future enhancement.)
+    const float reflNear = 0.3f;
     // Preserve the original far plane by extracting it from cachedProjectionMatrix.
     // Works for both OpenGL [-1,1] and Vulkan [0,1] depth conventions: far = B/(A+1).
     float A = cachedProjectionMatrix[2][2];
     float B = cachedProjectionMatrix[3][2];
     float farPlane = B / (A + 1.0f);
     float reflAspect = (float)windowManager->getWidth() / (float)windowManager->getHeight();
-    glm::mat4 clippedProj = glm::perspective(glm::radians(45.0f), reflAspect, mirrorDist, farPlane);
+    glm::mat4 clippedProj = glm::perspective(glm::radians(45.0f), reflAspect, reflNear, farPlane);
     clippedProj[1][1] *= -1;  // Y-flip for Vulkan, matching cachedProjectionMatrix
 
     // Update the reflection-specific UBO with the reflected view matrix
@@ -421,6 +439,13 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
     // Bind index buffer and reflection descriptor sets (reflected view matrix)
     vulkanDevice->bindIndexBuffer(frameIndex);
     vulkanDevice->bindReflectionDescriptorSets(frameIndex, renderPipeline->getGraphicsLayout());
+
+    // Bind the shared cube geometry to vertex binding 0. The reflection pass runs at the
+    // START of the frame, so binding 0 still holds whatever buffer the PREVIOUS frame left
+    // there (mirror/entity/kinematic geometry). Without this rebind the reflected chunks pull
+    // cube vertices from the wrong buffer → torn/garbage geometry in the reflection texture.
+    // The per-chunk loop below rebinds binding 1 to each chunk's instance buffer.
+    vulkanDevice->bindVertexBuffers(frameIndex);
 
     // Draw visible chunks from reflected camera (mirror faces discarded by voxel.frag)
     for (size_t chunkIndex : visibleChunkIndices) {
@@ -454,6 +479,13 @@ void RenderCoordinator::renderMirrorGeometry(uint32_t frameIndex) {
     // Bind main descriptor set at set 0 (original view + atlas + lights)
     vulkanDevice->bindDescriptorSets(frameIndex, renderPipeline->getMirrorPipelineLayout());
     vulkanDevice->bindIndexBuffer(frameIndex);
+
+    // Rebind the shared cube geometry to vertex binding 0. The mirror pass runs after the
+    // entity/kinematic/dynamic passes, which leave their own buffers bound at binding 0 (see
+    // the comment in renderScene). Without this the mirror faces pull cube vertices from a
+    // leftover buffer → torn coverage (visible triangle holes in the mirror surface).
+    // The per-chunk loop below rebinds binding 1 to each chunk's instance buffer.
+    vulkanDevice->bindVertexBuffers(frameIndex);
 
     for (size_t chunkIndex : visibleChunkIndices) {
         const Chunk* chunk = chunkManager->chunks[chunkIndex].get();

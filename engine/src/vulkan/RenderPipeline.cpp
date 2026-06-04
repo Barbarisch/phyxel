@@ -1626,7 +1626,10 @@ bool RenderPipeline::createMirrorPipeline(VkRenderPass sceneRenderPass) {
     VkPipelineRasterizationStateCreateInfo rs{};
     rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rs.polygonMode = VK_POLYGON_MODE_FILL; rs.lineWidth = 1.0f;
-    rs.cullMode = VK_CULL_MODE_BACK_BIT; // Normal back-face culling
+    rs.cullMode = VK_CULL_MODE_FRONT_BIT; // Match main voxel pipeline (FRONT_BIT) — mirror faces
+                                          // are drawn from the main camera with the same winding as
+                                          // all other static voxels. BACK_BIT here showed the mirror's
+                                          // back side / culled it from the viewing side.
     rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
     VkPipelineMultisampleStateCreateInfo ms{};
@@ -1719,7 +1722,11 @@ bool RenderPipeline::createReflectionScenePipeline(VkRenderPass sceneRenderPass)
     rs.sType       = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rs.polygonMode = VK_POLYGON_MODE_FILL;
     rs.lineWidth   = 1.0f;
-    rs.cullMode    = VK_CULL_MODE_BACK_BIT;              // BACK_BIT: after winding flip from reflection, renders the correct faces
+    rs.cullMode    = VK_CULL_MODE_BACK_BIT;              // Opposite of the main voxel pipeline's FRONT_BIT:
+                                                        // the reflected view (mainView * reflMat) has det=-1 and flips
+                                                        // triangle winding, so the covering sub-triangle group survives
+                                                        // under BACK_BIT. (If the reflected view is ever rebuilt with
+                                                        // glm::lookAt — det=+1, no flip — revert this to FRONT_BIT.)
     rs.frontFace   = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
     VkPipelineMultisampleStateCreateInfo ms{};
