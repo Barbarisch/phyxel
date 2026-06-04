@@ -67,6 +67,53 @@ TEST(WaterSimulation, LevelsAcrossBasin) {
     EXPECT_GE(sim.minMass(), -1e-5f);
 }
 
+// Pressure / upward flow: more than one cell's worth of water in a bottom cell
+// stacks up the column (rises) instead of staying crushed in place. This is the
+// mechanism that lets connected water reach a common level.
+TEST(WaterSimulation, RisesUnderPressure) {
+    WaterSimulation sim(1, 6, 1);
+    sim.setSolid(0, 0, 0, true);    // floor
+    sim.addWater(0, 1, 0, 3.0f);    // three cells' worth dumped into the bottom cell
+
+    for (int i = 0; i < 400; ++i) sim.step();
+
+    // It climbed into the cells above rather than remaining a single crushed cell.
+    EXPECT_GT(sim.massAt(0, 1, 0), 0.9f);
+    EXPECT_GT(sim.massAt(0, 2, 0), 0.9f);
+    EXPECT_GT(sim.massAt(0, 3, 0), 0.5f);
+    EXPECT_NEAR(sim.totalMass(), 3.0f, 1e-3f);
+    EXPECT_GE(sim.minMass(), -1e-5f);
+}
+
+// Q1: a sealed pit not connected to water stays dry; breaching the wall floods it.
+TEST(WaterSimulation, DisconnectedPitStaysDryThenFloodsAfterBreach) {
+    WaterSimulation sim(7, 5, 1);
+    addFloor(sim);
+    sim.setSolid(0, 0, 0, true);
+    for (int y = 1; y < 5; ++y) {
+        sim.setSolid(0, y, 0, true); // left boundary
+        sim.setSolid(3, y, 0, true); // divider wall: left "sea" | right "pit"
+        sim.setSolid(6, y, 0, true); // right boundary
+    }
+    // A sea on the left, held full.
+    sim.setSource(1, 1, 0, WaterSimulation::MAX_MASS);
+    sim.setSource(2, 1, 0, WaterSimulation::MAX_MASS);
+
+    for (int i = 0; i < 1500; ++i) sim.step();
+
+    // Left sea is full; the walled-off right pit is bone dry (water cannot reach it).
+    EXPECT_GT(sim.massAt(2, 1, 0), 0.9f);
+    EXPECT_LT(sim.massAt(4, 1, 0), 0.01f);
+    EXPECT_LT(sim.massAt(5, 1, 0), 0.01f);
+
+    // Breach the bottom of the divider — now water can reach the pit.
+    sim.setSolid(3, 1, 0, false);
+    for (int i = 0; i < 1500; ++i) sim.step();
+
+    EXPECT_GT(sim.massAt(4, 1, 0), 0.3f); // the pit floods through the breach
+    EXPECT_GE(sim.minMass(), -1e-5f);
+}
+
 // Water never seeps into solid cells.
 TEST(WaterSimulation, DoesNotLeakIntoSolids) {
     WaterSimulation sim(3, 4, 3);

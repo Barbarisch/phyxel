@@ -52,6 +52,32 @@ A **hybrid** of a free global ocean and a small simulated region:
   nothing (a flag); only chunks deviating from the implicit model carry a mass array.
 - Mass per cell is a normalized fill `[0,1]` (`float` or `uint8`).
 
+## Connectivity, holes, and authored water (ponds / lakes / rivers)
+
+Two requirements that the altitude-only implicit model does **not** satisfy on its own:
+
+- **Holes must only fill if water can reach them.** The implicit ocean must be
+  **connectivity-gated**, not "everything below sea level is water." A sub-sea cell
+  renders/contains water only if it is reachable through open space from the sea (or
+  another water body/source). Consequences: a bunker dug into a hillside above sea
+  level stays dry; a sealed chamber below sea level stays dry until a wall is breached,
+  then it floods. The active CA already gives this for free (water only flows where it
+  can reach); the implicit optimization needs a **bounded flood-fill from the water
+  boundary** to decide which sub-sea cells are "open to water" — the same pattern as
+  the destruction-collapse "connected to the main mass?" check (`collapseUnsupported`).
+
+- **Water bodies can be authored after terrain exists, independent of sea level.**
+  - *Pond/lake:* deposit a water volume into a basin (or a source that fills until
+    settled); the CA levels it to a flat surface at the basin's height — works above
+    sea level (mountain lakes).
+  - *River:* a persistent **source** uphill feeding flow + a **drain/sink** (or it
+    runs to the sea) downhill.
+  - These persist in the world DB as part of the water field.
+  - **Requires the per-cell surface renderer** — the flat global sea plane cannot draw
+    a water body sitting at a different height than the ocean. This raises the priority
+    of per-cell rendering and adds **authoring tools** (place volume / source / drain)
+    + persistence to the Phase 2/3 scope.
+
 ## Simulation: GPU cellular automaton
 
 Runs on the existing `ComputePipeline` infrastructure (the same machinery

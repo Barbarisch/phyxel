@@ -38,6 +38,13 @@ public:
     // Add (or, with a negative amount, remove) water at a cell; clamped to >= 0.
     void  addWater(int x, int y, int z, float amount);
 
+    // Mark a cell as a source held at a fixed mass: it is re-pinned to `mass` at the
+    // start of every step, acting as an infinite reservoir. This models the implicit
+    // ocean's boundary (pin edge cells to sea-level mass) and authored springs/rivers.
+    // Note: sources inject/remove mass, so total mass is not conserved while any exist.
+    void  setSource(int x, int y, int z, float mass);
+    void  clearSource(int x, int y, int z);
+
     float massAt(int x, int y, int z) const;
     float totalMass() const;
     float minMass() const; // for invariant checks (should never go negative)
@@ -55,7 +62,9 @@ private:
     int m_sx, m_sy, m_sz;
     std::vector<float>   m_mass;
     std::vector<uint8_t> m_solid;
-    std::vector<float>   m_next; // scratch buffer reused across steps
+    std::vector<float>   m_next;   // scratch buffer reused across steps
+    std::vector<float>   m_source; // per-cell pinned mass; < 0 means "not a source"
+    bool                 m_hasSources = false;
 };
 
 } // namespace Core
