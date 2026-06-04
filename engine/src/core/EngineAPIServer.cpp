@@ -1313,6 +1313,29 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // Water sim (CPU WaterManager) debug endpoints.
+    //   POST /api/debug/place_water  { "x":N,"y":N,"z":N,"amount":F }
+    //   POST /api/debug/water_sync   {}                  (re-read terrain solidity)
+    //   POST /api/debug/water_stats  { ["x":N,"y":N,"z":N] }  (total + optional mass_at)
+    // ====================================================================
+    auto waterEndpoint = [this](const char* action) {
+        return [this, action](const httplib::Request& req, httplib::Response& res) {
+            try {
+                json params = req.body.empty() ? json::object() : json::parse(req.body);
+                json result = queueAndWait(action, params);
+                res.set_content(result.dump(), "application/json");
+            } catch (const json::exception& e) {
+                json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+                res.status = 400;
+                res.set_content(err.dump(), "application/json");
+            }
+        };
+    };
+    srv.Post("/api/debug/place_water", waterEndpoint("place_water"));
+    srv.Post("/api/debug/water_sync",  waterEndpoint("water_sync"));
+    srv.Post("/api/debug/water_stats", waterEndpoint("water_stats"));
+
+    // ====================================================================
     // POST /api/world/clear — Clear all voxels in a region
     // Body: { "x1":0,"y1":0,"z1":0, "x2":10,"y2":5,"z2":10 }
     // ====================================================================

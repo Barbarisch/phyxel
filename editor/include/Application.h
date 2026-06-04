@@ -77,6 +77,7 @@
 #include "core/EngineRuntime.h"
 #include "core/SceneManager.h"
 #include "core/GpuParticlePhysics.h"
+#include "core/WaterManager.h"
 #include "scene/NPCEntity.h"
 #include "scene/Entity.h"
 #include "scene/AnimatedVoxelCharacter.h"
@@ -213,6 +214,7 @@ private:
 
     // Game-specific subsystems (still owned by Application)
     std::unique_ptr<GpuParticlePhysics> gpuParticlePhysics;            // GPU-accelerated debris physics
+    std::unique_ptr<Core::WaterManager> waterManager;                  // CPU water cellular-automaton sim
     std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;    // Coordinates all rendering
     std::unique_ptr<RaycastVisualizer> raycastVisualizer;              // Raycast debug visualization
     std::unique_ptr<VoxelInteractionSystem> voxelInteractionSystem;    // Cube/subcube interaction

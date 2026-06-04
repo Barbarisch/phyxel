@@ -331,6 +331,11 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         gpuParticlePhysics.reset();
     }
 
+    // STEP 6c: INITIALIZE CPU WATER SIMULATION (cellular automaton over a world region).
+    // Solidity is synced from chunks after the world loads (autoLoadGameDefinition).
+    waterManager = std::make_unique<Core::WaterManager>(
+        chunkManager, glm::ivec3(0, 8, 0), glm::ivec3(64, 32, 64));
+
     // STEP 7: REGISTER INPUT ACTIONS
     // Create InputController to handle input bindings
     inputController = std::make_unique<InputController>(
@@ -2649,6 +2654,9 @@ void Application::update(float deltaTime) {
         gpuParticlePhysics->update(deltaTime);
     }
 
+    // Tick the CPU water cellular automaton (fixed-rate internally).
+    if (waterManager) waterManager->update(deltaTime);
+
     // Tick deferred spell-impact destruction (editor spell-cast click tool).
     updatePendingSpellHits(deltaTime);
 
@@ -4377,6 +4385,9 @@ void Application::autoLoadGameDefinition() {
             if (chunkManager && (result.chunksGenerated > 0 || result.structuresPlaced > 0)) {
                 chunkManager->rebuildOccupancyFromChunks();
             }
+
+            // Sync terrain solidity into the water sim now the world is loaded.
+            if (waterManager) waterManager->syncSolidsFromChunks();
 
             // Build navigation grid for NPC pathfinding
             if (npcManager) {
@@ -8514,6 +8525,47 @@ void Application::processAPICommands() {
             // Handle debug dynamic spawn commands early (avoids nesting depth limit)
             if (handleDebugDynamicSpawnCommand(cmd, response, chunkManager,
                     gpuParticlePhysics.get())) {
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
+
+            // ---- Water sim (CPU WaterManager) debug commands ----
+            if (cmd.action == "place_water") {
+                if (!waterManager) {
+                    response = {{"error", "WaterManager not available"}};
+                } else {
+                    glm::vec3 p(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f),
+                                cmd.params.value("z", 0.0f));
+                    float amount = cmd.params.value("amount", 1.0f);
+                    waterManager->placeWater(p, amount);
+                    response = {{"success", true}, {"total_mass", waterManager->totalMass()}};
+                }
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
+            if (cmd.action == "water_sync") {
+                if (!waterManager) {
+                    response = {{"error", "WaterManager not available"}};
+                } else {
+                    waterManager->syncSolidsFromChunks();
+                    response = {{"success", true}};
+                }
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
+            if (cmd.action == "water_stats") {
+                if (!waterManager) {
+                    response = {{"error", "WaterManager not available"}};
+                } else {
+                    response = {{"total_mass", waterManager->totalMass()},
+                                {"origin", {{"x", waterManager->origin().x}, {"y", waterManager->origin().y}, {"z", waterManager->origin().z}}},
+                                {"dims",   {{"x", waterManager->dims().x},   {"y", waterManager->dims().y},   {"z", waterManager->dims().z}}}};
+                    if (cmd.params.contains("x")) {
+                        glm::vec3 p(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f),
+                                    cmd.params.value("z", 0.0f));
+                        response["mass_at"] = waterManager->massAtWorld(p);
+                    }
+                }
                 if (cmd.onComplete) cmd.onComplete(response);
                 continue;
             }
