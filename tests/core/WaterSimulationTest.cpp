@@ -169,6 +169,28 @@ TEST(WaterSimulation, SpringReachesBoundedSteadyState) {
     EXPECT_GT(sim.massAt(7, 1, 7), 0.3f);
 }
 
+// Channel cells are exempt from evaporation: thin water on a channel persists while the
+// same thin water off-channel evaporates away. (Authored riverbeds carry flow.)
+TEST(WaterSimulation, ChannelCellsResistEvaporation) {
+    WaterSimulation sim(7, 3, 7);
+    addFloor(sim);
+    sim.setEvaporation(true);
+    // Two isolated walled cells (so flow can't move the water — isolates evaporation).
+    auto isolate = [&](int x, int z) {
+        sim.setSolid(x - 1, 1, z, true); sim.setSolid(x + 1, 1, z, true);
+        sim.setSolid(x, 1, z - 1, true); sim.setSolid(x, 1, z + 1, true);
+    };
+    isolate(2, 2); isolate(5, 5);
+    sim.setChannel(2, 1, 2, true);  // channel cell (where the water sits)
+    sim.addWater(2, 1, 2, 0.06f);   // thin water on the channel...
+    sim.addWater(5, 1, 5, 0.06f);   // ...and the same off-channel
+
+    for (int i = 0; i < 200; ++i) sim.step();
+
+    EXPECT_GT(sim.massAt(2, 1, 2), 0.04f);  // channel retained its water
+    EXPECT_LT(sim.massAt(5, 1, 5), 0.01f);  // off-channel evaporated away
+}
+
 // Ocean seam: a seeded basin fills to sea level and HOLDS it when dug deeper
 // (infinite reservoir), unlike a self-contained pond which would drop.
 TEST(WaterSimulation, OceanHoldsSeaLevelWhenDug) {

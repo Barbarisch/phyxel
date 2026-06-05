@@ -1339,6 +1339,7 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/clear_ocean",    waterEndpoint("clear_ocean"));
     srv.Post("/api/debug/place_spring",   waterEndpoint("place_spring"));
     srv.Post("/api/debug/clear_springs",  waterEndpoint("clear_springs"));
+    srv.Post("/api/debug/set_channel_region", waterEndpoint("set_channel_region"));
     srv.Post("/api/debug/water_save",     waterEndpoint("water_save"));
 
     // ====================================================================

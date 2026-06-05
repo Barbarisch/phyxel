@@ -36,6 +36,12 @@ public:
     void  setSolid(int x, int y, int z, bool solid);
     bool  isSolid(int x, int y, int z) const;
 
+    // Channel cells (authored riverbeds) are exempt from evaporation, so water carried
+    // along them doesn't fade — an authored river flows its full length. (A binary
+    // special case of a per-material flow-resistance scalar; see docs/WaterSystem.md.)
+    void  setChannel(int x, int y, int z, bool channel);
+    bool  isChannel(int x, int y, int z) const;
+
     // Add (or, with a negative amount, remove) water at a cell; clamped to >= 0.
     void  addWater(int x, int y, int z, float amount);
 
@@ -83,7 +89,8 @@ private:
     std::vector<float>   m_mass;
     std::vector<uint8_t> m_solid;
     std::vector<float>   m_next;   // scratch buffer reused across steps
-    std::vector<float>   m_source; // per-cell pinned mass; < 0 means "not a source"
+    std::vector<float>   m_source;  // per-cell pinned mass; < 0 means "not a source"
+    std::vector<uint8_t> m_channel; // per-cell: 1 = channel (no evaporation)
     bool                 m_hasSources = false;
     bool                 m_evaporate  = false;
 };

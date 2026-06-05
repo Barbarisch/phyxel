@@ -49,8 +49,13 @@ public:
     void  addSpring(const glm::vec3& worldPos, float mass);
     void  clearSprings();
 
+    // --- Channels (authored riverbeds, exempt from evaporation) ---
+    void  setChannelWorld(int worldX, int worldY, int worldZ, bool channel);
+    void  setChannelRegion(const glm::ivec3& a, const glm::ivec3& b); // inclusive box
+
     // --- Persistence accessors (authoring inputs; the field reconstructs on load) ---
-    const std::vector<glm::ivec3>& oceanSeeds() const { return m_oceanSeeds; }
+    const std::vector<glm::ivec3>& oceanSeeds()   const { return m_oceanSeeds; }
+    const std::vector<glm::ivec3>& channelCells() const { return m_channelCells; }
     std::vector<glm::vec4> springsData() const {       // (x, y, z, mass) per spring
         std::vector<glm::vec4> out;
         out.reserve(m_springs.size());
@@ -83,7 +88,8 @@ private:
     std::vector<glm::ivec3> m_oceanSeeds; // world-space flood seeds
 
     struct Spring { glm::ivec3 cell; float mass; };
-    std::vector<Spring>     m_springs;    // world-space authored sources
+    std::vector<Spring>     m_springs;      // world-space authored sources
+    std::vector<glm::ivec3> m_channelCells; // world-space channel cells (for persistence)
 
     ChunkManager*   m_cm;
     glm::ivec3      m_origin;

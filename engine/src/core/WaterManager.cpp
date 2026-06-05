@@ -128,6 +128,22 @@ void WaterManager::addSpring(const glm::vec3& worldPos, float mass) {
     rebuildSurface();
 }
 
+void WaterManager::setChannelWorld(int worldX, int worldY, int worldZ, bool channel) {
+    int lx = worldX - m_origin.x, ly = worldY - m_origin.y, lz = worldZ - m_origin.z;
+    if (!m_sim.inBounds(lx, ly, lz)) return;
+    m_sim.setChannel(lx, ly, lz, channel);
+    if (channel) m_channelCells.emplace_back(worldX, worldY, worldZ);
+}
+
+void WaterManager::setChannelRegion(const glm::ivec3& a, const glm::ivec3& b) {
+    glm::ivec3 lo(std::min(a.x, b.x), std::min(a.y, b.y), std::min(a.z, b.z));
+    glm::ivec3 hi(std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z));
+    for (int z = lo.z; z <= hi.z; ++z)
+        for (int y = lo.y; y <= hi.y; ++y)
+            for (int x = lo.x; x <= hi.x; ++x)
+                setChannelWorld(x, y, z, true);
+}
+
 void WaterManager::clearSprings() {
     for (const Spring& s : m_springs) {
         int lx = s.cell.x - m_origin.x, ly = s.cell.y - m_origin.y, lz = s.cell.z - m_origin.z;

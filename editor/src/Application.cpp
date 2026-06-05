@@ -4408,6 +4408,10 @@ void Application::autoLoadGameDefinition() {
                         for (const auto& sp : w["springs"])
                             waterManager->addSpring(glm::vec3(sp.value("x", 0.0f), sp.value("y", 0.0f), sp.value("z", 0.0f)),
                                                     sp.value("mass", 1.0f));
+                    if (w.contains("channels"))
+                        for (const auto& c : w["channels"])
+                            if (c.is_array() && c.size() == 3)
+                                waterManager->setChannelWorld(c[0].get<int>(), c[1].get<int>(), c[2].get<int>(), true);
                 }
             }
 
@@ -8629,6 +8633,18 @@ void Application::processAPICommands() {
                 if (cmd.onComplete) cmd.onComplete(response);
                 continue;
             }
+            if (cmd.action == "set_channel_region") {
+                if (!waterManager) {
+                    response = {{"error", "WaterManager not available"}};
+                } else {
+                    glm::ivec3 a(cmd.params.value("x1", 0), cmd.params.value("y1", 0), cmd.params.value("z1", 0));
+                    glm::ivec3 b(cmd.params.value("x2", a.x), cmd.params.value("y2", a.y), cmd.params.value("z2", a.z));
+                    waterManager->setChannelRegion(a, b);
+                    response = {{"success", true}, {"channel_cells", waterManager->channelCells().size()}};
+                }
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
             if (cmd.action == "water_save") {
                 if (!waterManager) {
                     response = {{"error", "WaterManager not available"}};
@@ -8649,6 +8665,10 @@ void Application::processAPICommands() {
                     for (const auto& sp : waterManager->springsData())
                         springs.push_back({{"x", sp.x}, {"y", sp.y}, {"z", sp.z}, {"mass", sp.w}});
                     w["springs"] = springs;
+                    nlohmann::json channels = nlohmann::json::array();
+                    for (const auto& c : waterManager->channelCells())
+                        channels.push_back({c.x, c.y, c.z});
+                    w["channels"] = channels;
                     doc["water"] = w;
                     std::ofstream out(path);
                     if (out.is_open()) {

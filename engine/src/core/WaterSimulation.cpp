@@ -9,7 +9,8 @@ WaterSimulation::WaterSimulation(int sizeX, int sizeY, int sizeZ)
       m_mass(static_cast<size_t>(sizeX) * sizeY * sizeZ, 0.0f),
       m_solid(static_cast<size_t>(sizeX) * sizeY * sizeZ, 0),
       m_next(static_cast<size_t>(sizeX) * sizeY * sizeZ, 0.0f),
-      m_source(static_cast<size_t>(sizeX) * sizeY * sizeZ, -1.0f) {}
+      m_source(static_cast<size_t>(sizeX) * sizeY * sizeZ, -1.0f),
+      m_channel(static_cast<size_t>(sizeX) * sizeY * sizeZ, 0) {}
 
 void WaterSimulation::setSolid(int x, int y, int z, bool solid) {
     if (!inBounds(x, y, z)) return;
@@ -20,6 +21,16 @@ void WaterSimulation::setSolid(int x, int y, int z, bool solid) {
 bool WaterSimulation::isSolid(int x, int y, int z) const {
     if (!inBounds(x, y, z)) return true; // out-of-bounds acts as a solid wall
     return m_solid[idx(x, y, z)] != 0;
+}
+
+void WaterSimulation::setChannel(int x, int y, int z, bool channel) {
+    if (!inBounds(x, y, z)) return;
+    m_channel[idx(x, y, z)] = channel ? 1 : 0;
+}
+
+bool WaterSimulation::isChannel(int x, int y, int z) const {
+    if (!inBounds(x, y, z)) return false;
+    return m_channel[idx(x, y, z)] != 0;
 }
 
 void WaterSimulation::addWater(int x, int y, int z, float amount) {
@@ -177,8 +188,8 @@ void WaterSimulation::step(float flowSide) {
         const size_t n = m_mass.size();
         for (size_t i = 0; i < n; ++i) {
             float m = m_mass[i];
-            if (m > 0.0f && m < EVAP_THRESHOLD && !m_solid[i])
-                m_mass[i] = std::max(0.0f, m - EVAP_RATE);
+            if (m > 0.0f && m < EVAP_THRESHOLD && !m_solid[i] && !m_channel[i])
+                m_mass[i] = std::max(0.0f, m - EVAP_RATE); // channel cells never evaporate
         }
     }
 }
