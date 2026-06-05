@@ -704,8 +704,21 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
                     Story::CharacterProfile* prof = sub.storyEngine->getCharacterMut(charId);
                     Story::CharacterMemory*  mem  = sub.storyEngine->getCharacterMemoryMut(charId);
                     if (prof) {
-                        npc->setBehavior(std::make_unique<Scene::StoryDrivenBehavior>(
-                            sub.characterAgent, prof, mem, sub.storyEngine));
+                        auto sdb = std::make_unique<Scene::StoryDrivenBehavior>(
+                            sub.characterAgent, prof, mem, sub.storyEngine);
+
+                        // Daily routine: explicit schedule from JSON, else a role-based default
+                        // (merchant/guard/farmer/innkeeper). Gives the autonomy a purpose —
+                        // the character heads to scheduled locations by time of day.
+                        if (npcDef.contains("schedule")) {
+                            sdb->setSchedule(AI::Schedule::fromJson(npcDef["schedule"]));
+                        } else {
+                            std::string role = !npcRole.empty() ? npcRole
+                                             : (!prof->roles.empty() ? prof->roles.front() : "");
+                            if (!role.empty()) sdb->setSchedule(AI::Schedule::forRole(role));
+                        }
+
+                        npc->setBehavior(std::move(sdb));
                         LOG_INFO("GameDefinitionLoader",
                                  "NPC " + name + ": StoryDrivenBehavior attached (agency>=Guided)");
                     }

@@ -4,6 +4,7 @@
 #include "story/CharacterAgent.h"
 #include "story/CharacterProfile.h"
 #include "story/CharacterMemory.h"
+#include "ai/Schedule.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -54,6 +55,16 @@ public:
     /// Wander/roam speed for move_to decisions (world units/sec). Default: 1.5
     void setWalkSpeed(float speed) { m_walkSpeed = speed; }
 
+    /// Give this character a daily routine. When set (and a DayNightCycle +
+    /// LocationRegistry are available), the character heads to its scheduled
+    /// location for the current hour instead of wandering randomly.
+    void setSchedule(AI::Schedule schedule) {
+        m_schedule = std::move(schedule);
+        m_hasSchedule = m_schedule.size() > 0;
+    }
+    /// Name of the activity the character is currently doing (from its schedule).
+    const std::string& getCurrentActivity() const { return m_currentActivity; }
+
     /// Set callback for decision events.
     void setDecisionCallback(DecisionCallback callback) { m_onDecision = std::move(callback); }
 
@@ -98,10 +109,16 @@ private:
     glm::vec3 m_anchor{0.0f};     // home point wander stays near (first-seen position)
     bool      m_anchorSet = false;
 
+    // Daily routine (optional).
+    AI::Schedule m_schedule;
+    bool         m_hasSchedule = false;
+    std::string  m_currentActivity;   // e.g. "Work", "Sleep" (from the active schedule entry)
+
     Story::CharacterDecisionContext buildContext(const NPCContext& ctx) const;
     std::string buildDefaultSituation(const NPCContext& ctx) const;
 
     // Decision execution
+    bool applySchedule(NPCContext& ctx);                 // route toward the scheduled location; true if it set intent
     void applyDecision(NPCContext& ctx);                 // set up movement/speech from m_lastDecision
     void updateMovement(float dt, NPCContext& ctx);      // per-frame steering toward roam target
     void maybeAmbientChatter(NPCContext& ctx);           // personality-driven idle speech

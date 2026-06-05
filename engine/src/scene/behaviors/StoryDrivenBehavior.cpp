@@ -2,6 +2,8 @@
 #include "story/StoryEngine.h"
 #include "scene/Entity.h"
 #include "ui/SpeechBubbleManager.h"
+#include "core/LocationRegistry.h"
+#include "graphics/DayNightCycle.h"
 #include <glm/gtc/quaternion.hpp>
 #include <sstream>
 #include <random>
@@ -34,16 +36,56 @@ void StoryDrivenBehavior::update(float dt, NPCContext& ctx) {
     if (m_decisionTimer >= m_decisionInterval) {
         m_decisionTimer = 0.0f;
 
+        // A daily routine, when present, decides WHERE the character goes; the agent
+        // still runs for emotion/reasoning and flavor. Without a schedule (or with no
+        // entry for this hour) we fall back to the agent's own action (wander/idle).
+        bool scheduleHandled = m_hasSchedule && applySchedule(ctx);
+
         auto context = buildContext(ctx);
         m_lastDecision = m_agent->decide(context);
         if (m_onDecision) m_onDecision(ctx.selfId, m_lastDecision);
 
-        applyDecision(ctx);
+        if (!scheduleHandled) applyDecision(ctx);
         maybeAmbientChatter(ctx);
     }
 
     // Steering runs every frame so movement is smooth between decision ticks.
     updateMovement(dt, ctx);
+}
+
+// Route the character according to its daily schedule. Returns true when the schedule
+// dictated an intent (heading to / staying at a location); false to let the agent decide.
+bool StoryDrivenBehavior::applySchedule(NPCContext& ctx) {
+    if (!ctx.dayNightCycle || !ctx.self) return false;
+
+    float hour = ctx.dayNightCycle->getTimeOfDay();
+    const AI::ScheduleEntry* entry = m_schedule.getCurrentActivity(hour);
+    if (!entry) { m_currentActivity.clear(); return false; }
+
+    m_currentActivity = AI::ScheduleEntry::activityToString(entry->activity);
+
+    // Resolve the destination for this block, if any.
+    if (!entry->locationId.empty() && ctx.locationRegistry) {
+        const auto* loc = ctx.locationRegistry->getLocation(entry->locationId);
+        if (loc) {
+            glm::vec3 pos = ctx.self->getPosition();
+            float distXZ = glm::length(glm::vec2(loc->position.x - pos.x,
+                                                 loc->position.z - pos.z));
+            if (distXZ > loc->radius) {
+                m_roamTarget = loc->position;   // travel to the scheduled place
+                m_moving = true;
+            } else {
+                m_moving = false;               // arrived — perform the activity here
+            }
+            return true;
+        }
+    }
+
+    // No location for this block: "Wander" lets the agent roam; everything else (Sleep,
+    // Eat, Guard, ...) holds position where they are.
+    if (entry->activity == AI::ActivityType::Wander) return false;
+    m_moving = false;
+    return true;
 }
 
 // Translate the latest decision into an embodied intent.
@@ -91,6 +133,7 @@ void StoryDrivenBehavior::pickRoamTarget(NPCContext& ctx) {
 // it isn't in a conversation. Extraverts speak up; introverts mostly stay quiet.
 void StoryDrivenBehavior::maybeAmbientChatter(NPCContext& ctx) {
     if (!ctx.speechBubbleManager || ctx.selfId.empty()) return;
+    if (m_currentActivity == "Sleep") return;   // don't chatter in their sleep
     static thread_local std::mt19937 rng(std::random_device{}());
     std::uniform_real_distribution<float> roll(0.0f, 1.0f);
     float chance = 0.05f + m_profile->traits.extraversion * 0.20f;   // ~0.05..0.25 per tick
