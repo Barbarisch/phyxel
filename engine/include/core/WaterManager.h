@@ -1,11 +1,14 @@
 #pragma once
 
 #include "core/WaterSimulation.h"
+#include "vulkan/ComputePipeline.h"
 #include <glm/glm.hpp>
+#include <vulkan/vulkan.h>
 
 namespace Phyxel {
 
 class ChunkManager;
+namespace Vulkan { class VulkanDevice; }
 
 namespace Core {
 
@@ -56,6 +59,15 @@ public:
     // --- Persistence accessors (authoring inputs; the field reconstructs on load) ---
     const std::vector<glm::ivec3>& oceanSeeds()   const { return m_oceanSeeds; }
     const std::vector<glm::ivec3>& channelCells() const { return m_channelCells; }
+
+    // --- GPU backend ---
+    // Run the per-tick flow step on a compute shader instead of the CPU. Behaviour is
+    // close (gather-formulated, see docs/WaterSystem.md), not bit-identical. Masks
+    // (solid/source/channel) and the field round-trip CPU<->GPU each step, so all CPU
+    // authoring (ocean flood, springs, place/edit) and rendering keep working unchanged.
+    void enableGpu(Vulkan::VulkanDevice* device); // create GPU resources (once)
+    void setUseGpu(bool on) { m_useGpu = on && m_gpuReady; }
+    bool useGpu() const { return m_useGpu; }
     std::vector<glm::vec4> springsData() const {       // (x, y, z, mass) per spring
         std::vector<glm::vec4> out;
         out.reserve(m_springs.size());
@@ -90,6 +102,21 @@ private:
     struct Spring { glm::ivec3 cell; float mass; };
     std::vector<Spring>     m_springs;      // world-space authored sources
     std::vector<glm::ivec3> m_channelCells; // world-space channel cells (for persistence)
+
+    // GPU backend state.
+    void stepGpu();        // upload field+masks, dispatch flow, read back
+    void uploadMasks();    // solid/source/channel CPU -> GPU
+    Vulkan::VulkanDevice*  m_vk = nullptr;
+    bool                   m_useGpu = false;
+    bool                   m_gpuReady = false;
+    bool                   m_gpuMasksDirty = true;
+    Vulkan::ComputePipeline m_flowPipe;
+    VkBuffer       m_bufMassIn = VK_NULL_HANDLE,  m_bufMassOut = VK_NULL_HANDLE;
+    VkBuffer       m_bufSolid  = VK_NULL_HANDLE,  m_bufSource = VK_NULL_HANDLE, m_bufChannel = VK_NULL_HANDLE;
+    VkDeviceMemory m_memMassIn = VK_NULL_HANDLE,  m_memMassOut = VK_NULL_HANDLE;
+    VkDeviceMemory m_memSolid  = VK_NULL_HANDLE,  m_memSource = VK_NULL_HANDLE, m_memChannel = VK_NULL_HANDLE;
+    void*          m_mapMassIn = nullptr;  void* m_mapMassOut = nullptr;
+    void*          m_mapSolid  = nullptr;  void* m_mapSource  = nullptr; void* m_mapChannel = nullptr;
 
     ChunkManager*   m_cm;
     glm::ivec3      m_origin;

@@ -341,6 +341,9 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     chunkManager->setVoxelOccupancyCallback([this](int x, int y, int z, bool solid) {
         if (waterManager) waterManager->setSolidWorld(x, y, z, solid);
     });
+    // Create GPU compute resources for the water flow (off by default; toggle with the
+    // water_gpu debug command). Falls back to CPU if creation fails.
+    if (vulkanDevice) waterManager->enableGpu(vulkanDevice);
 
     // STEP 7: REGISTER INPUT ACTIONS
     // Create InputController to handle input bindings
@@ -8629,6 +8632,16 @@ void Application::processAPICommands() {
                 } else {
                     waterManager->clearSprings();
                     response = {{"success", true}};
+                }
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
+            if (cmd.action == "water_gpu") {
+                if (!waterManager) {
+                    response = {{"error", "WaterManager not available"}};
+                } else {
+                    waterManager->setUseGpu(cmd.params.value("on", true));
+                    response = {{"success", true}, {"gpu", waterManager->useGpu()}};
                 }
                 if (cmd.onComplete) cmd.onComplete(response);
                 continue;

@@ -1,0 +1,111 @@
+#version 450
+//
+// water_flow.comp — GPU port of the water cellular-automaton step (see docs/WaterSystem.md).
+//
+// One thread per cell, GATHER formulation (no atomics): a cell computes its new mass
+// from a snapshot of its neighbourhood. To CONSERVE mass (a cell must not donate more
+// than it has across its 6 directions at once), every cell's total outflow is clamped
+// to its available mass, and inflows are scaled by the *source* cell's clamp factor.
+// Both endpoints of a pair compute the identical flow + clamp from the same snapshot,
+// so transfers match exactly. Approximates the CPU rules (gravity via stable-bottom
+// split, horizontal leveling, compression/upflow, evaporation, sources, channels).
+//
+layout(local_size_x = 64) in;
+
+layout(std430, set = 0, binding = 0) readonly buffer MassIn  { float massIn[];  };
+layout(std430, set = 0, binding = 1)          buffer MassOut { float massOut[]; };
+layout(std430, set = 0, binding = 2) readonly buffer Solid   { uint  solid[];   };
+layout(std430, set = 0, binding = 3) readonly buffer Source  { float source[];  }; // < 0 = none
+layout(std430, set = 0, binding = 4) readonly buffer Channel { uint  channel[]; };
+
+layout(push_constant) uniform PC {
+    int   sx; int sy; int sz;
+    uint  evapEnabled;
+    float evapThreshold;
+    float evapRate;
+    float pad0; float pad1;
+} pc;
+
+const float MAXM = 1.0;   // full cell
+const float COMP = 0.02;  // compression headroom (pressure)
+const float K    = 0.1;   // horizontal leveling rate per neighbour (calmer -> pools more)
+
+const ivec3 NB[6] = ivec3[6](ivec3(1,0,0), ivec3(-1,0,0), ivec3(0,1,0),
+                             ivec3(0,-1,0), ivec3(0,0,1), ivec3(0,0,-1));
+
+int  cellIdx(int x, int y, int z) { return x + pc.sx * (y + pc.sy * z); }
+bool inB(int x, int y, int z) { return x >= 0 && x < pc.sx && y >= 0 && y < pc.sy && z >= 0 && z < pc.sz; }
+
+float stableBottom(float total) {
+    if (total <= MAXM) return total;
+    if (total < 2.0 * MAXM + COMP) return (MAXM * MAXM + total * COMP) / (MAXM + COMP);
+    return (total + COMP) * 0.5;
+}
+
+// Effective mass a cell presents (sources read their pinned value; solid/oob = 0).
+float mAt(int x, int y, int z) {
+    if (!inB(x, y, z)) return 0.0;
+    int i = cellIdx(x, y, z);
+    if (solid[i] != 0u) return 0.0;
+    float s = source[i];
+    return (s >= 0.0) ? s : massIn[i];
+}
+
+// Signed intended flow from cell A to its adjacent neighbour B (positive = into B).
+float flowAB(int ax, int ay, int az, int bx, int by, int bz) {
+    float mA = mAt(ax, ay, az);
+    float mB = mAt(bx, by, bz);
+    if (by == ay - 1) return stableBottom(mA + mB) - mB;  // down (gravity + compression)
+    if (by == ay + 1) return mA - stableBottom(mB + mA);  // up (pressure)
+    return K * (mA - mB);                                 // horizontal leveling
+}
+
+// Sum of a cell's positive (outgoing) intended flows over its 6 neighbours.
+float totalOut(int x, int y, int z) {
+    float t = 0.0;
+    for (int k = 0; k < 6; ++k) {
+        int nx = x + NB[k].x, ny = y + NB[k].y, nz = z + NB[k].z;
+        if (inB(nx, ny, nz) && solid[cellIdx(nx, ny, nz)] == 0u)
+            t += max(0.0, flowAB(x, y, z, nx, ny, nz));
+    }
+    return t;
+}
+
+// Fraction of intended outflow a cell may actually send (so it never over-donates).
+float clampF(int x, int y, int z) {
+    float m = mAt(x, y, z);
+    if (m <= 0.0) return 0.0;
+    float t = totalOut(x, y, z);
+    return (t > m) ? (m / t) : 1.0;
+}
+
+void main() {
+    uint gid = gl_GlobalInvocationID.x;
+    int count = pc.sx * pc.sy * pc.sz;
+    if (gid >= uint(count)) return;
+    int c = int(gid);
+    if (solid[c] != 0u) { massOut[c] = 0.0; return; }
+
+    int x = c % pc.sx;
+    int y = (c / pc.sx) % pc.sy;
+    int z = c / (pc.sx * pc.sy);
+
+    float m  = mAt(x, y, z);
+    float cF = clampF(x, y, z);
+    float outSum = cF * totalOut(x, y, z); // total leaving this cell (<= m)
+
+    float inSum = 0.0;
+    for (int k = 0; k < 6; ++k) {
+        int nx = x + NB[k].x, ny = y + NB[k].y, nz = z + NB[k].z;
+        if (!inB(nx, ny, nz) || solid[cellIdx(nx, ny, nz)] != 0u) continue;
+        float fNtoC = max(0.0, flowAB(nx, ny, nz, x, y, z)); // neighbour's intended flow into c
+        inSum += clampF(nx, ny, nz) * fNtoC;                 // scaled by the neighbour's clamp
+    }
+
+    float newM = m - outSum + inSum;
+
+    if (pc.evapEnabled != 0u && channel[c] == 0u && newM > 0.0 && newM < pc.evapThreshold)
+        newM -= pc.evapRate;
+
+    massOut[c] = max(newM, 0.0);
+}

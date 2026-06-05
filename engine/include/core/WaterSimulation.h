@@ -64,6 +64,16 @@ public:
     float totalMass() const;
     float minMass() const; // for invariant checks (should never go negative)
 
+    // Raw data access for the GPU backend (upload masks / read back mass). The mass
+    // vector is mutable so the GPU stepper can write the readback into it.
+    std::vector<float>&         mass()              { return m_mass; }
+    const std::vector<float>&   mass()        const { return m_mass; }
+    const std::vector<uint8_t>& solidMask()   const { return m_solid; }
+    const std::vector<float>&   sourceMask()  const { return m_source; }
+    const std::vector<uint8_t>& channelMask() const { return m_channel; }
+    bool                        evaporationOn() const { return m_evaporate; }
+    int                         cellCount()   const { return m_sx * m_sy * m_sz; }
+
     // Evaporation sink: when enabled, cells thinner than EVAP_THRESHOLD lose mass each
     // step. This bounds free flow (a source/spill spreads, thins at the frontier, and
     // the thin edge evaporates → finite extent) and dries up thin films, while deep

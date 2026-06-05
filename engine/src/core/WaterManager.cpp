@@ -1,10 +1,53 @@
 #include "core/WaterManager.h"
 #include "core/ChunkManager.h"
+#include "core/AssetManager.h"
+#include "vulkan/VulkanDevice.h"
+#include "utils/Logger.h"
 #include <algorithm>
 #include <cmath>
+#include <cstring>
+#include <cstdint>
 
 namespace Phyxel {
 namespace Core {
+
+namespace {
+// Push constants for water_flow.comp (32 bytes).
+struct FlowPC {
+    int32_t  sx, sy, sz;
+    uint32_t evapEnabled;
+    float    evapThreshold, evapRate, pad0, pad1;
+};
+
+uint32_t findMemoryType(VkPhysicalDevice phys, uint32_t typeFilter, VkMemoryPropertyFlags props) {
+    VkPhysicalDeviceMemoryProperties mp;
+    vkGetPhysicalDeviceMemoryProperties(phys, &mp);
+    for (uint32_t i = 0; i < mp.memoryTypeCount; ++i)
+        if ((typeFilter & (1u << i)) && (mp.memoryTypes[i].propertyFlags & props) == props) return i;
+    return 0;
+}
+
+// Create a host-visible, host-coherent storage buffer and persistently map it.
+bool makeHostBuffer(VkDevice dev, VkPhysicalDevice phys, VkDeviceSize size,
+                    VkBuffer& buf, VkDeviceMemory& mem, void*& mapped) {
+    VkBufferCreateInfo bi{};
+    bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bi.size = size;
+    bi.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    if (vkCreateBuffer(dev, &bi, nullptr, &buf) != VK_SUCCESS) return false;
+    VkMemoryRequirements req;
+    vkGetBufferMemoryRequirements(dev, buf, &req);
+    VkMemoryAllocateInfo ai{};
+    ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    ai.allocationSize = req.size;
+    ai.memoryTypeIndex = findMemoryType(phys, req.memoryTypeBits,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    if (vkAllocateMemory(dev, &ai, nullptr, &mem) != VK_SUCCESS) return false;
+    vkBindBufferMemory(dev, buf, mem, 0);
+    return vkMapMemory(dev, mem, 0, size, 0, &mapped) == VK_SUCCESS;
+}
+} // namespace
 
 WaterManager::WaterManager(ChunkManager* chunkManager, const glm::ivec3& origin, const glm::ivec3& dims)
     : m_cm(chunkManager), m_origin(origin), m_dims(dims),
@@ -29,7 +72,7 @@ void WaterManager::update(float dt) {
     m_accum += std::min(dt, 0.25f);
     int steps = 0;
     while (m_accum >= STEP_DT && steps < MAX_STEPS_PER_UPDATE) {
-        m_sim.step();
+        if (m_useGpu) stepGpu(); else m_sim.step();
         m_accum -= STEP_DT;
         ++steps;
     }
@@ -157,6 +200,81 @@ float WaterManager::massAtWorld(const glm::vec3& worldPos) const {
     int lx, ly, lz;
     if (!worldToLocal(worldPos, lx, ly, lz)) return 0.0f;
     return m_sim.massAt(lx, ly, lz);
+}
+
+// ---- GPU backend ----
+
+void WaterManager::enableGpu(Vulkan::VulkanDevice* device) {
+    if (m_gpuReady || !device) return;
+    m_vk = device;
+    VkDevice dev = device->getDevice();
+    VkPhysicalDevice phys = device->getPhysicalDevice();
+    const int n = m_sim.cellCount();
+    const VkDeviceSize fbytes = VkDeviceSize(n) * sizeof(float);
+    const VkDeviceSize ubytes = VkDeviceSize(n) * sizeof(uint32_t);
+
+    bool ok = makeHostBuffer(dev, phys, fbytes, m_bufMassIn,  m_memMassIn,  m_mapMassIn)
+           && makeHostBuffer(dev, phys, fbytes, m_bufMassOut, m_memMassOut, m_mapMassOut)
+           && makeHostBuffer(dev, phys, ubytes, m_bufSolid,   m_memSolid,   m_mapSolid)
+           && makeHostBuffer(dev, phys, fbytes, m_bufSource,  m_memSource,  m_mapSource)
+           && makeHostBuffer(dev, phys, ubytes, m_bufChannel, m_memChannel, m_mapChannel);
+    if (!ok) { LOG_ERROR("WaterManager", "GPU water buffer alloc failed; staying on CPU"); return; }
+
+    std::string spv = AssetManager::instance().resolveShader("water_flow.comp.spv");
+    if (!m_flowPipe.create(dev, spv, 5, sizeof(FlowPC))) {
+        LOG_ERROR("WaterManager", "water_flow pipeline create failed; staying on CPU");
+        return;
+    }
+    m_flowPipe.bindBuffer(0, m_bufMassIn,  fbytes);
+    m_flowPipe.bindBuffer(1, m_bufMassOut, fbytes);
+    m_flowPipe.bindBuffer(2, m_bufSolid,   ubytes);
+    m_flowPipe.bindBuffer(3, m_bufSource,  fbytes);
+    m_flowPipe.bindBuffer(4, m_bufChannel, ubytes);
+    m_flowPipe.updateDescriptors();
+    m_gpuReady = true;
+    LOG_INFO("WaterManager", "GPU water flow ready ({} cells)", n);
+}
+
+void WaterManager::uploadMasks() {
+    const int n = m_sim.cellCount();
+    const auto& solid = m_sim.solidMask();   // uint8
+    const auto& chan  = m_sim.channelMask(); // uint8
+    uint32_t* gs = static_cast<uint32_t*>(m_mapSolid);
+    uint32_t* gc = static_cast<uint32_t*>(m_mapChannel);
+    for (int i = 0; i < n; ++i) { gs[i] = solid[i] ? 1u : 0u; gc[i] = chan[i] ? 1u : 0u; }
+    std::memcpy(m_mapSource, m_sim.sourceMask().data(), VkDeviceSize(n) * sizeof(float));
+}
+
+void WaterManager::stepGpu() {
+    const int n = m_sim.cellCount();
+    // Upload current field + masks (masks round-trip each step for prototype simplicity).
+    std::memcpy(m_mapMassIn, m_sim.mass().data(), VkDeviceSize(n) * sizeof(float));
+    uploadMasks();
+
+    FlowPC pc{};
+    pc.sx = m_dims.x; pc.sy = m_dims.y; pc.sz = m_dims.z;
+    pc.evapEnabled   = m_sim.evaporationOn() ? 1u : 0u;
+    pc.evapThreshold = WaterSimulation::EVAP_THRESHOLD;
+    pc.evapRate      = WaterSimulation::EVAP_RATE;
+
+    VkCommandBuffer cmd = m_vk->beginSingleTimeCommands();
+    m_flowPipe.bind(cmd);
+    m_flowPipe.pushConstants(cmd, &pc, sizeof(pc));
+    m_flowPipe.dispatch(cmd, (uint32_t(n) + 63u) / 64u);
+    VkMemoryBarrier mb{};
+    mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    mb.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    mb.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+                         0, 1, &mb, 0, nullptr, 0, nullptr);
+    m_vk->endSingleTimeCommands(cmd); // submit + wait
+
+    // Read the new field back into the CPU mirror; re-pin sources so the ocean surface
+    // reads full (the shader already used the source mask, so this is just for rendering).
+    std::memcpy(m_sim.mass().data(), m_mapMassOut, VkDeviceSize(n) * sizeof(float));
+    const auto& src = m_sim.sourceMask();
+    auto& mass = m_sim.mass();
+    for (int i = 0; i < n; ++i) if (src[i] >= 0.0f) mass[i] = src[i];
 }
 
 } // namespace Core
