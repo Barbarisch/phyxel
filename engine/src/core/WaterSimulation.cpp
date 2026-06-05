@@ -133,6 +133,18 @@ void WaterSimulation::step(float flowSide) {
     }
 
     m_mass.swap(m_next);
+
+    // Evaporation sink: thin cells (the frontier of a spreading flow, films) lose a
+    // little mass each step, so free flow has a finite reach and spills dry up. Deep
+    // (>= EVAP_THRESHOLD) water is untouched, so ponds and channels persist.
+    if (m_evaporate) {
+        const size_t n = m_mass.size();
+        for (size_t i = 0; i < n; ++i) {
+            float m = m_mass[i];
+            if (m > 0.0f && m < EVAP_THRESHOLD && !m_solid[i])
+                m_mass[i] = std::max(0.0f, m - EVAP_RATE);
+        }
+    }
 }
 
 } // namespace Core

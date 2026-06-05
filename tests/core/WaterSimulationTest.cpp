@@ -114,6 +114,39 @@ TEST(WaterSimulation, DisconnectedPitStaysDryThenFloodsAfterBreach) {
     EXPECT_GE(sim.minMass(), -1e-5f);
 }
 
+// With evaporation on, a thin spill on flat ground dries up (bounds free spread).
+TEST(WaterSimulation, ThinSpillEvaporates) {
+    WaterSimulation sim(15, 4, 15);
+    addFloor(sim);
+    sim.setEvaporation(true);
+    sim.addWater(7, 1, 7, 3.0f); // a puddle on an open flat floor — nothing contains it
+
+    for (int i = 0; i < 800; ++i) sim.step();
+
+    // It spread thin and evaporated away rather than dispersing into an endless film.
+    EXPECT_LT(sim.totalMass(), 1.0f);
+    EXPECT_GE(sim.minMass(), -1e-5f);
+}
+
+// Evaporation spares deep water, so a contained pond persists.
+TEST(WaterSimulation, DeepPondPersistsUnderEvaporation) {
+    WaterSimulation sim(4, 5, 4);
+    addFloor(sim);
+    for (int y = 1; y < 5; ++y) // walls around a 2x2 interior basin
+        for (int x = 0; x < 4; ++x)
+            for (int z = 0; z < 4; ++z)
+                if (x == 0 || x == 3 || z == 0 || z == 3) sim.setSolid(x, y, z, true);
+    sim.setEvaporation(true);
+    sim.addWater(1, 3, 1, 6.0f); // fills the 2x2 basin a couple cells deep
+
+    const float before = sim.totalMass();
+    for (int i = 0; i < 800; ++i) sim.step();
+
+    // Deep cells (>= threshold) are untouched; only a thin top sliver could go.
+    EXPECT_GT(sim.totalMass(), before - 0.6f);
+    EXPECT_GT(sim.massAt(1, 1, 1), 0.9f); // floor of the pond stays full
+}
+
 // Water never seeps into solid cells.
 TEST(WaterSimulation, DoesNotLeakIntoSolids) {
     WaterSimulation sim(3, 4, 3);

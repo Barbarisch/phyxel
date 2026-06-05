@@ -9,6 +9,7 @@ namespace Core {
 WaterManager::WaterManager(ChunkManager* chunkManager, const glm::ivec3& origin, const glm::ivec3& dims)
     : m_cm(chunkManager), m_origin(origin), m_dims(dims),
       m_sim(dims.x, dims.y, dims.z) {
+    m_sim.setEvaporation(true); // bound free flow / dry thin spills in-game
     syncSolidsFromChunks();
     rebuildSurface();
 }

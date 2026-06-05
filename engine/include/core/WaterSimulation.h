@@ -49,6 +49,17 @@ public:
     float totalMass() const;
     float minMass() const; // for invariant checks (should never go negative)
 
+    // Evaporation sink: when enabled, cells thinner than EVAP_THRESHOLD lose mass each
+    // step. This bounds free flow (a source/spill spreads, thins at the frontier, and
+    // the thin edge evaporates → finite extent) and dries up thin films, while deep
+    // (full) water is spared so ponds persist. Disabled by default so the pure CA is
+    // mass-conserving for tests; the live game (WaterManager) turns it on.
+    void setEvaporation(bool enabled) { m_evaporate = enabled; }
+    bool evaporation() const { return m_evaporate; }
+
+    static constexpr float EVAP_THRESHOLD = 0.1f;  // below this depth a cell evaporates
+    static constexpr float EVAP_RATE      = 0.01f; // mass lost per step by a thin cell
+
     // Advance the simulation one tick. `flowSide` damps horizontal equalization
     // (0..1); lower = calmer/slower leveling.
     void step(float flowSide = 1.0f);
@@ -65,6 +76,7 @@ private:
     std::vector<float>   m_next;   // scratch buffer reused across steps
     std::vector<float>   m_source; // per-cell pinned mass; < 0 means "not a source"
     bool                 m_hasSources = false;
+    bool                 m_evaporate  = false;
 };
 
 } // namespace Core
