@@ -25,6 +25,7 @@ void WaterManager::syncSolidsFromChunks() {
 }
 
 void WaterManager::update(float dt) {
+    if (m_oceanDirty) rebuildOcean(); // re-flood once before stepping
     m_accum += std::min(dt, 0.25f);
     int steps = 0;
     while (m_accum >= STEP_DT && steps < MAX_STEPS_PER_UPDATE) {
@@ -71,7 +72,41 @@ void WaterManager::placeWater(const glm::vec3& worldPos, float amount) {
 
 void WaterManager::setSolidWorld(int worldX, int worldY, int worldZ, bool solid) {
     int lx = worldX - m_origin.x, ly = worldY - m_origin.y, lz = worldZ - m_origin.z;
-    if (m_sim.inBounds(lx, ly, lz)) m_sim.setSolid(lx, ly, lz, solid);
+    if (m_sim.inBounds(lx, ly, lz)) {
+        m_sim.setSolid(lx, ly, lz, solid);
+        // Terrain changed: re-flood the ocean so breaches fill / dug seabed refills.
+        if (!m_oceanSeeds.empty()) m_oceanDirty = true;
+    }
+}
+
+void WaterManager::setSeaLevel(float worldY) {
+    m_seaLevel = worldY;
+    if (!m_oceanSeeds.empty()) m_oceanDirty = true;
+}
+
+void WaterManager::addOceanSeed(const glm::vec3& worldPos) {
+    m_oceanSeeds.emplace_back(static_cast<int>(std::floor(worldPos.x)),
+                              static_cast<int>(std::floor(worldPos.y)),
+                              static_cast<int>(std::floor(worldPos.z)));
+    m_oceanDirty = true;
+}
+
+void WaterManager::clearOcean() {
+    m_oceanSeeds.clear();
+    m_sim.fillOcean({}, 0); // clears all source pins
+    m_oceanDirty = false;
+    rebuildSurface();
+}
+
+void WaterManager::rebuildOcean() {
+    m_oceanDirty = false;
+    const int seaLevelLocalY = static_cast<int>(std::floor(m_seaLevel)) - m_origin.y;
+    std::vector<glm::ivec3> localSeeds;
+    localSeeds.reserve(m_oceanSeeds.size());
+    for (const glm::ivec3& s : m_oceanSeeds)
+        localSeeds.emplace_back(s.x - m_origin.x, s.y - m_origin.y, s.z - m_origin.z);
+    m_sim.fillOcean(localSeeds, seaLevelLocalY);
+    rebuildSurface();
 }
 
 float WaterManager::massAtWorld(const glm::vec3& worldPos) const {

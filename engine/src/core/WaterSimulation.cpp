@@ -39,6 +39,42 @@ void WaterSimulation::clearSource(int x, int y, int z) {
     // (m_hasSources stays true; harmless — the per-cell check still gates pinning.)
 }
 
+int WaterSimulation::fillOcean(const std::vector<glm::ivec3>& localSeeds, int seaLevelY) {
+    // Ocean owns the source system: clear all pins, then re-flood.
+    std::fill(m_source.begin(), m_source.end(), -1.0f);
+    m_hasSources = false;
+
+    auto canOcean = [&](int x, int y, int z) {
+        return inBounds(x, y, z) && !m_solid[idx(x, y, z)] && y <= seaLevelY;
+    };
+
+    std::vector<uint8_t> visited(m_mass.size(), 0);
+    std::vector<glm::ivec3> stack;
+    for (const glm::ivec3& s : localSeeds) {
+        if (canOcean(s.x, s.y, s.z) && !visited[idx(s.x, s.y, s.z)]) {
+            visited[idx(s.x, s.y, s.z)] = 1;
+            stack.push_back(s);
+        }
+    }
+
+    static const int NB[6][3] = {{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}};
+    int count = 0;
+    while (!stack.empty()) {
+        glm::ivec3 v = stack.back(); stack.pop_back();
+        m_source[idx(v.x, v.y, v.z)] = MAX_MASS; // pin full (infinite reservoir)
+        ++count;
+        for (const auto& n : NB) {
+            int nx = v.x + n[0], ny = v.y + n[1], nz = v.z + n[2];
+            if (canOcean(nx, ny, nz) && !visited[idx(nx, ny, nz)]) {
+                visited[idx(nx, ny, nz)] = 1;
+                stack.push_back({nx, ny, nz});
+            }
+        }
+    }
+    m_hasSources = (count > 0);
+    return count;
+}
+
 float WaterSimulation::massAt(int x, int y, int z) const {
     if (!inBounds(x, y, z)) return 0.0f;
     return m_mass[idx(x, y, z)];

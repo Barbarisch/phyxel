@@ -3,6 +3,7 @@
 #include <vector>
 #include <cstdint>
 #include <cstddef>
+#include <glm/glm.hpp>
 
 namespace Phyxel {
 namespace Core {
@@ -44,6 +45,14 @@ public:
     // Note: sources inject/remove mass, so total mass is not conserved while any exist.
     void  setSource(int x, int y, int z, float mass);
     void  clearSource(int x, int y, int z);
+
+    // Ocean seam: flood from `localSeeds` through non-solid cells with y <= seaLevelY
+    // and pin each reached cell as a full source — an infinite reservoir that holds sea
+    // level, refills when dug, and floods through breaches. Cells unreachable from a
+    // seed stay un-pinned, so sealed sub-sea cavities stay dry (connectivity-gating).
+    // Clears all existing sources first (the ocean owns the source system for now).
+    // Returns the number of cells pinned.
+    int fillOcean(const std::vector<glm::ivec3>& localSeeds, int seaLevelY);
 
     float massAt(int x, int y, int z) const;
     float totalMass() const;

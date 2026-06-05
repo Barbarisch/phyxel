@@ -33,6 +33,15 @@ public:
     // outside the region.
     void  setSolidWorld(int worldX, int worldY, int worldZ, bool solid);
 
+    // --- Ocean seam (infinite reservoir at sea level) ---
+    // Open cells at/below `seaLevel` that are connected to an ocean seed become an
+    // infinite reservoir: they hold sea level, refill when dug, and flood through
+    // breaches; sealed sub-sea cavities stay dry. (See docs/WaterSystem.md.)
+    void  setSeaLevel(float worldY);
+    float seaLevel() const { return m_seaLevel; }
+    void  addOceanSeed(const glm::vec3& worldPos); // a point the ocean floods out from
+    void  clearOcean();                             // remove the ocean (seeds + pins)
+
     float totalMass() const { return m_sim.totalMass(); }
     const glm::ivec3& origin() const { return m_origin; }
     const glm::ivec3& dims() const   { return m_dims; }
@@ -49,6 +58,11 @@ public:
 private:
     bool worldToLocal(const glm::vec3& w, int& lx, int& ly, int& lz) const;
     void rebuildSurface();
+    void rebuildOcean(); // re-run the ocean flood-fill from the seeds
+
+    float                   m_seaLevel = 0.0f;
+    bool                    m_oceanDirty = false;
+    std::vector<glm::ivec3> m_oceanSeeds; // world-space flood seeds
 
     ChunkManager*   m_cm;
     glm::ivec3      m_origin;

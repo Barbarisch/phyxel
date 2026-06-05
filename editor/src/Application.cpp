@@ -8559,6 +8559,38 @@ void Application::processAPICommands() {
                 if (cmd.onComplete) cmd.onComplete(response);
                 continue;
             }
+            if (cmd.action == "set_sea_level") {
+                if (!waterManager) {
+                    response = {{"error", "WaterManager not available"}};
+                } else {
+                    waterManager->setSeaLevel(cmd.params.value("level", 0.0f));
+                    response = {{"success", true}, {"sea_level", waterManager->seaLevel()}};
+                }
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
+            if (cmd.action == "add_ocean_seed") {
+                if (!waterManager) {
+                    response = {{"error", "WaterManager not available"}};
+                } else {
+                    glm::vec3 p(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f),
+                                cmd.params.value("z", 0.0f));
+                    waterManager->addOceanSeed(p);
+                    response = {{"success", true}, {"sea_level", waterManager->seaLevel()}};
+                }
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
+            if (cmd.action == "clear_ocean") {
+                if (!waterManager) {
+                    response = {{"error", "WaterManager not available"}};
+                } else {
+                    waterManager->clearOcean();
+                    response = {{"success", true}};
+                }
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
             if (cmd.action == "water_stats") {
                 if (!waterManager) {
                     response = {{"error", "WaterManager not available"}};

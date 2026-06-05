@@ -147,6 +147,50 @@ TEST(WaterSimulation, DeepPondPersistsUnderEvaporation) {
     EXPECT_GT(sim.massAt(1, 1, 1), 0.9f); // floor of the pond stays full
 }
 
+// Ocean seam: a seeded basin fills to sea level and HOLDS it when dug deeper
+// (infinite reservoir), unlike a self-contained pond which would drop.
+TEST(WaterSimulation, OceanHoldsSeaLevelWhenDug) {
+    WaterSimulation sim(5, 6, 1);
+    addFloor(sim);
+    for (int y = 1; y < 6; ++y) { sim.setSolid(0, y, 0, true); sim.setSolid(4, y, 0, true); }
+    const int seaY = 3;
+
+    sim.fillOcean({glm::ivec3(2, 1, 0)}, seaY);
+    for (int i = 0; i < 60; ++i) sim.step();
+    EXPECT_GT(sim.massAt(1, 3, 0), 0.9f); // filled to sea level
+    EXPECT_GT(sim.massAt(3, 3, 0), 0.9f);
+    EXPECT_LT(sim.massAt(2, 4, 0), 0.1f); // nothing above sea level
+
+    // Dig the seabed deeper and re-flood — the surface must stay at sea level.
+    sim.setSolid(2, 0, 0, false);
+    sim.fillOcean({glm::ivec3(2, 1, 0)}, seaY);
+    for (int i = 0; i < 60; ++i) sim.step();
+    EXPECT_GT(sim.massAt(2, 0, 0), 0.9f); // new depth filled by the reservoir
+    EXPECT_GT(sim.massAt(1, 3, 0), 0.9f); // surface still at sea level (did NOT drop)
+    EXPECT_LT(sim.massAt(2, 4, 0), 0.1f);
+}
+
+// Ocean connectivity: a sealed sub-sea pocket not reachable from the seed stays dry.
+TEST(WaterSimulation, OceanConnectivityLeavesSealedPocketDry) {
+    WaterSimulation sim(7, 5, 1);
+    addFloor(sim);
+    for (int y = 1; y < 5; ++y) {
+        sim.setSolid(0, y, 0, true); // left boundary
+        sim.setSolid(3, y, 0, true); // wall separating the open basin from the pocket
+        sim.setSolid(6, y, 0, true); // right boundary
+    }
+    sim.setSolid(4, 4, 0, true); // lid: fully enclose the pocket (x=4,5 below)
+    sim.setSolid(5, 4, 0, true);
+    const int seaY = 3;
+
+    sim.fillOcean({glm::ivec3(1, 1, 0)}, seaY); // seed only in the left open basin
+    for (int i = 0; i < 60; ++i) sim.step();
+
+    EXPECT_GT(sim.massAt(2, 3, 0), 0.9f);  // open basin is ocean, filled to sea level
+    EXPECT_LT(sim.massAt(5, 1, 0), 0.05f); // sealed pocket bone dry
+    EXPECT_LT(sim.massAt(4, 1, 0), 0.05f);
+}
+
 // Water never seeps into solid cells.
 TEST(WaterSimulation, DoesNotLeakIntoSolids) {
     WaterSimulation sim(3, 4, 3);
