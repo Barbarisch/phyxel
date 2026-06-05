@@ -88,6 +88,32 @@ TEST_F(ContextManagerTest, SystemPromptContainsNPCName) {
         << "System prompt should mention NPC name";
 }
 
+// The personality fields (backstory, likes/dislikes/prejudices, speechStyle) must be
+// woven into the dialogue system prompt so the LLM responds in-character.
+TEST_F(ContextManagerTest, SystemPromptIncludesPersonalityFields) {
+    Story::CharacterProfile clerk;
+    clerk.id = "clerk_01";
+    clerk.name = "Gareth";
+    clerk.description = "a grumpy store clerk";
+    clerk.backstory = "Thirty years behind the counter wore his patience to nothing.";
+    clerk.drives = {"coin"};
+    clerk.likes = {"exact change"};
+    clerk.dislikes = {"haggling"};
+    clerk.prejudices = {"distrusts adventurers"};
+    clerk.speechStyle = "terse and sarcastic";
+    storyEngine->addCharacter(std::move(clerk));
+
+    auto ctx = contextManager->buildContext("clerk_01", "Hello", glm::vec3(0));
+    ASSERT_FALSE(ctx.messages.empty());
+    const auto& sp = ctx.messages.front().content;
+
+    EXPECT_NE(sp.find("Thirty years behind the counter"), std::string::npos) << "backstory missing";
+    EXPECT_NE(sp.find("exact change"), std::string::npos) << "likes missing";
+    EXPECT_NE(sp.find("haggling"), std::string::npos) << "dislikes missing";
+    EXPECT_NE(sp.find("distrusts adventurers"), std::string::npos) << "prejudices missing";
+    EXPECT_NE(sp.find("terse and sarcastic"), std::string::npos) << "speechStyle missing";
+}
+
 TEST_F(ContextManagerTest, UnknownNPCProducesEmptyContext) {
     auto ctx = contextManager->buildContext("nonexistent_npc", "Hello", glm::vec3(0));
     // Should still produce something (graceful fallback) or empty

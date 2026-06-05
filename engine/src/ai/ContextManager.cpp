@@ -133,6 +133,10 @@ std::string ContextManager::buildSystemPrompt(const Story::CharacterProfile& npc
     }
     ss << ".";
 
+    if (!npc.backstory.empty()) {
+        ss << "\n\nBackground: " << npc.backstory;
+    }
+
     // Personality traits (Big Five)
     const auto& t = npc.traits;
     ss << "\n\nPersonality: ";
@@ -190,6 +194,29 @@ std::string ContextManager::buildSystemPrompt(const Story::CharacterProfile& npc
             if (goal.priority > 0.8f) ss << " (high priority)";
         }
     }
+
+    // Drives, likes, dislikes, prejudices — shape what the character reacts to.
+    auto appendList = [&ss](const char* label, const std::vector<std::string>& items) {
+        if (items.empty()) return;
+        ss << "\n" << label << ' ';
+        for (size_t i = 0; i < items.size(); ++i) {
+            if (i) ss << ", ";
+            ss << items[i];
+        }
+        ss << '.';
+    };
+    appendList("You are driven by:", npc.drives);
+    appendList("You like:", npc.likes);
+    appendList("You dislike:", npc.dislikes);
+    appendList("Your biases/prejudices:", npc.prejudices);
+
+    // Speech style — strong instruction on HOW to speak. This is what makes the
+    // character actually *sound* like themselves rather than a generic assistant.
+    ss << "\n\n";
+    if (!npc.speechStyle.empty()) {
+        ss << "Always speak in a " << npc.speechStyle << " manner. ";
+    }
+    ss << "Stay in character at all times; never break character or mention being an AI.";
 
     return ss.str();
 }

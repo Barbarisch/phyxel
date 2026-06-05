@@ -8,10 +8,24 @@
 #include <condition_variable>
 #include <deque>
 #include <atomic>
+#include <functional>
 
 namespace Phyxel {
 namespace Core { class AudioSystem; }
 namespace AI {
+
+/// Per-character voice descriptor resolved at speak time. Lets a character's
+/// VoiceProfile (gender/age/pitch/rate/gruffness) drive Piper speaker + rate
+/// selection without TTSService depending on the story layer.
+struct TTSVoiceHint {
+    bool  valid     = false;      ///< Set true by the resolver when a profile was found.
+    int   speakerId = -1;         ///< Explicit Piper speaker override (-1 = derive).
+    std::string gender = "neutral";
+    std::string age    = "adult";
+    float pitch     = 0.5f;
+    float rate      = 0.5f;       ///< 0 slow .. 1 fast (maps to lengthScale).
+    float gruffness = 0.5f;
+};
 
 /// Configuration for local Piper text-to-speech.
 /// All paths are resolved against the engine resource root at initialize().
@@ -65,6 +79,12 @@ public:
     /// Queue an NPC line for non-spatialized (2D) playback.
     void speak2D(const std::string& voiceKey, const std::string& text);
 
+    /// Resolver that maps a voiceKey (NPC/character id) to a TTSVoiceHint.
+    /// Return true and fill `out` when a voice profile exists; false to fall back
+    /// to the deterministic name-hash voice. Wired where the story engine is available.
+    using VoiceHintResolver = std::function<bool(const std::string& voiceKey, TTSVoiceHint& out)>;
+    void setVoiceHintResolver(VoiceHintResolver resolver) { m_voiceResolver = std::move(resolver); }
+
 private:
     struct Job {
         std::string text;
@@ -74,8 +94,8 @@ private:
         bool  spatial;
     };
 
-    int   speakerIdFor(const std::string& voiceKey) const;
-    float lengthScaleFor(const std::string& voiceKey) const;
+    int   speakerIdFor(const std::string& voiceKey, const TTSVoiceHint& hint) const;
+    float lengthScaleFor(const std::string& voiceKey, const TTSVoiceHint& hint) const;
     std::string cachePathFor(const std::string& text, int speakerId, float lengthScale) const;
     bool  synthesize(const Job& job, const std::string& outWav);
     void  workerLoop();
@@ -84,6 +104,7 @@ private:
 
     Core::AudioSystem* m_audio = nullptr;
     TTSConfig   m_config;
+    VoiceHintResolver m_voiceResolver;  ///< Optional: maps voiceKey -> per-character voice.
     std::string m_modelName;   ///< Bare model filename, part of the cache key.
     bool        m_available = false;
 

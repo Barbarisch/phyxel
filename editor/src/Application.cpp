@@ -45,6 +45,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "ai/AIEnhancer.h"
 #include "ai/AIConversationService.h"
 #include "ai/LLMClient.h"
+#include "ai/TTSService.h"  // TTSVoiceHint + setVoiceHintResolver (personality-driven voice)
 #include "core/WorldStorage.h"
 #include "core/Chunk.h"
 #include "core/WorldGenerator.h"
@@ -1454,6 +1455,26 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     dialogueSystem = std::make_unique<UI::DialogueSystem>();
     dialogueSystem->setGameEventLog(gameEventLog.get());
     if (runtime) dialogueSystem->setTTSService(runtime->getTTSService());
+
+    // Personality-driven voice: let each character's VoiceProfile (gender/age/rate/...)
+    // pick the Piper speaker + speaking rate. voiceKey is the NPC/character id.
+    if (runtime && runtime->getTTSService()) {
+        runtime->getTTSService()->setVoiceHintResolver(
+            [this](const std::string& voiceKey, AI::TTSVoiceHint& out) -> bool {
+                if (!storyEngine) return false;
+                const auto* p = storyEngine->getCharacter(voiceKey);
+                if (!p) return false;
+                const auto& v = p->voice;
+                out.valid     = true;
+                out.speakerId = v.speakerId;
+                out.gender    = v.gender;
+                out.age       = v.age;
+                out.pitch     = v.pitch;
+                out.rate      = v.rate;
+                out.gruffness = v.gruffness;
+                return true;
+            });
+    }
 
     // Initialize Speech Bubble Manager
     speechBubbleManager = std::make_unique<UI::SpeechBubbleManager>();
