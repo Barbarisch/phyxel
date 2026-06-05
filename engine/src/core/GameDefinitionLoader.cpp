@@ -12,6 +12,7 @@
 #include "scene/NPCEntity.h"
 #include "scene/AnimatedVoxelCharacter.h"
 #include "scene/behaviors/ScheduledBehavior.h"
+#include "scene/behaviors/StoryDrivenBehavior.h"
 #include "ai/Schedule.h"
 #include "ai/BTLoader.h"
 #include "graphics/Camera.h"
@@ -692,8 +693,23 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
 
             try {
                 Story::CharacterProfile profile = sc.get<Story::CharacterProfile>();
+                const std::string charId = profile.id;
+                const Story::AgencyLevel agency = profile.agencyLevel;
                 sub.storyEngine->addCharacter(std::move(profile));
                 LOG_DEBUG("GameDefinitionLoader", "NPC " + name + ": story character registered (full profile)");
+
+                // Guided/Autonomous characters get a profile-driven behavior so they act on
+                // their personality/goals (wander, idle, ambient chatter) via the shared agent.
+                if (npc && sub.characterAgent && agency >= Story::AgencyLevel::Guided) {
+                    Story::CharacterProfile* prof = sub.storyEngine->getCharacterMut(charId);
+                    Story::CharacterMemory*  mem  = sub.storyEngine->getCharacterMemoryMut(charId);
+                    if (prof) {
+                        npc->setBehavior(std::make_unique<Scene::StoryDrivenBehavior>(
+                            sub.characterAgent, prof, mem, sub.storyEngine));
+                        LOG_INFO("GameDefinitionLoader",
+                                 "NPC " + name + ": StoryDrivenBehavior attached (agency>=Guided)");
+                    }
+                }
             } catch (const std::exception& e) {
                 LOG_WARN("GameDefinitionLoader", "NPC " + name + ": failed to parse storyCharacter profile: " + e.what());
             }

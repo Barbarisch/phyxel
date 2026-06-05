@@ -73,6 +73,7 @@
 #include "ui/DialogueSystem.h"
 #include "ui/SpeechBubbleManager.h"
 #include "story/StoryEngine.h"
+#include "story/RuleBasedCharacterAgent.h"
 #include "core/EngineConfig.h"
 #include "core/EngineRuntime.h"
 #include "core/SceneManager.h"
@@ -262,6 +263,8 @@ private:
 
     // Story Engine
     std::unique_ptr<Story::StoryEngine> storyEngine;
+    // Shared agent driving Guided/Autonomous NPCs (StoryDrivenBehavior). One instance for all.
+    std::unique_ptr<Story::RuleBasedCharacterAgent> m_characterAgent;
 
     // Dialogue System
     std::unique_ptr<UI::DialogueSystem> dialogueSystem;

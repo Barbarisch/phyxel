@@ -60,7 +60,7 @@ TEST(StoryDrivenBehaviorTest, BehaviorName) {
 TEST(StoryDrivenBehaviorTest, DefaultDecisionInterval) {
     TestFixture f;
     StoryDrivenBehavior behavior(&f.agent, &f.profile, &f.memory);
-    EXPECT_FLOAT_EQ(behavior.getDecisionInterval(), 1.0f);
+    EXPECT_FLOAT_EQ(behavior.getDecisionInterval(), 1.5f);
 }
 
 TEST(StoryDrivenBehaviorTest, SetDecisionInterval) {

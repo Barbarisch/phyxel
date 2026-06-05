@@ -1,7 +1,11 @@
 #include "scene/behaviors/StoryDrivenBehavior.h"
 #include "story/StoryEngine.h"
 #include "scene/Entity.h"
+#include "ui/SpeechBubbleManager.h"
+#include <glm/gtc/quaternion.hpp>
 #include <sstream>
+#include <random>
+#include <cmath>
 
 namespace Phyxel {
 namespace Scene {
@@ -18,27 +22,89 @@ StoryDrivenBehavior::StoryDrivenBehavior(Story::CharacterAgent* agent,
 }
 
 void StoryDrivenBehavior::update(float dt, NPCContext& ctx) {
-    if (!m_agent || !m_profile) return;
+    if (!m_agent || !m_profile || !ctx.self) return;
 
-    m_decisionTimer += dt;
-    if (m_decisionTimer < m_decisionInterval) return;
-    m_decisionTimer = 0.0f;
-
-    // Build context and decide
-    auto context = buildContext(ctx);
-    m_lastDecision = m_agent->decide(context);
-
-    // Notify callback
-    if (m_onDecision) {
-        m_onDecision(ctx.selfId, m_lastDecision);
+    if (!m_anchorSet) {
+        m_anchor = ctx.self->getPosition();
+        m_anchorSet = true;
     }
 
-    // Show speech bubble if speaking
-    if (m_lastDecision.action == "speak" && !m_lastDecision.dialogueText.empty()) {
-        if (ctx.speechBubbleManager) {
-            // Use speech bubble manager to display the dialogue
-            // The speechBubbleManager API is assumed to accept entity ID + text
-        }
+    // Decision tick — re-evaluate what to do every decisionInterval seconds.
+    m_decisionTimer += dt;
+    if (m_decisionTimer >= m_decisionInterval) {
+        m_decisionTimer = 0.0f;
+
+        auto context = buildContext(ctx);
+        m_lastDecision = m_agent->decide(context);
+        if (m_onDecision) m_onDecision(ctx.selfId, m_lastDecision);
+
+        applyDecision(ctx);
+        maybeAmbientChatter(ctx);
+    }
+
+    // Steering runs every frame so movement is smooth between decision ticks.
+    updateMovement(dt, ctx);
+}
+
+// Translate the latest decision into an embodied intent.
+void StoryDrivenBehavior::applyDecision(NPCContext& ctx) {
+    const std::string& a = m_lastDecision.action;
+    if (a == "speak" && !m_lastDecision.dialogueText.empty()) {
+        sayBubble(ctx, m_lastDecision.dialogueText);
+        m_moving = false;
+    } else if (a == "move_to") {
+        pickRoamTarget(ctx);   // no goal->coordinate mapping yet: wander near the anchor
+        m_moving = true;
+    } else {
+        // idle / wait / (flee/attack/trade not embodied yet) → hold position
+        m_moving = false;
+    }
+}
+
+void StoryDrivenBehavior::updateMovement(float /*dt*/, NPCContext& ctx) {
+    if (!ctx.self) return;
+    if (!m_moving) { ctx.self->setMoveVelocity(glm::vec3(0.0f)); return; }
+
+    glm::vec3 pos  = ctx.self->getPosition();
+    glm::vec3 diff = m_roamTarget - pos;
+    float distXZ = glm::length(glm::vec2(diff.x, diff.z));
+    if (distXZ < 0.5f) {            // arrived — stop and wait for the next decision
+        m_moving = false;
+        ctx.self->setMoveVelocity(glm::vec3(0.0f));
+        return;
+    }
+    glm::vec3 dir = glm::normalize(glm::vec3(diff.x, 0.0f, diff.z));
+    ctx.self->setMoveVelocity(dir * m_walkSpeed);          // gravity handles Y
+    ctx.self->setRotation(glm::angleAxis(std::atan2(dir.x, dir.z), glm::vec3(0, 1, 0)));
+}
+
+void StoryDrivenBehavior::pickRoamTarget(NPCContext& ctx) {
+    static thread_local std::mt19937 rng(std::random_device{}());
+    std::uniform_real_distribution<float> ang(0.0f, 6.2831853f);
+    std::uniform_real_distribution<float> rad(2.0f, 6.0f);
+    float a = ang(rng), r = rad(rng);
+    glm::vec3 base = m_anchorSet ? m_anchor : ctx.self->getPosition();
+    m_roamTarget = base + glm::vec3(std::cos(a) * r, 0.0f, std::sin(a) * r);
+}
+
+// Personality-driven idle chatter so a character's temperament is visible even when
+// it isn't in a conversation. Extraverts speak up; introverts mostly stay quiet.
+void StoryDrivenBehavior::maybeAmbientChatter(NPCContext& ctx) {
+    if (!ctx.speechBubbleManager || ctx.selfId.empty()) return;
+    static thread_local std::mt19937 rng(std::random_device{}());
+    std::uniform_real_distribution<float> roll(0.0f, 1.0f);
+    float chance = 0.05f + m_profile->traits.extraversion * 0.20f;   // ~0.05..0.25 per tick
+    if (roll(rng) >= chance) return;
+
+    Story::CharacterDecisionContext c;
+    c.profile = m_profile;
+    std::string line = m_agent->generateDialogue(c);
+    if (!line.empty()) sayBubble(ctx, line);
+}
+
+void StoryDrivenBehavior::sayBubble(NPCContext& ctx, const std::string& text) {
+    if (ctx.speechBubbleManager && !ctx.selfId.empty()) {
+        ctx.speechBubbleManager->say(ctx.selfId, text, 3.0f);
     }
 }
 

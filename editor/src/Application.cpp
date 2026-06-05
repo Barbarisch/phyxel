@@ -1137,6 +1137,9 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
     // Initialize Story Engine
     storyEngine = std::make_unique<Story::StoryEngine>();
+    // Shared rule-based agent that drives Guided/Autonomous NPCs (personality/goal-driven,
+    // synchronous, no API key). LLM-backed dialogue stays on the AIConversationService path.
+    m_characterAgent = std::make_unique<Story::RuleBasedCharacterAgent>();
 
     // Wire story read-only handlers
     apiServer->setStoryStateHandler([this]() -> nlohmann::json {
@@ -4347,6 +4350,7 @@ void Application::autoLoadGameDefinition() {
         subsystems.camera           = camera;
         subsystems.dialogueSystem   = dialogueSystem.get();
         subsystems.storyEngine      = storyEngine.get();
+        subsystems.characterAgent   = m_characterAgent.get();
 
         subsystems.entitySpawner = [this](const std::string& type, const glm::vec3& pos,
                                           const std::string& animFile) -> Scene::Entity* {
@@ -9373,6 +9377,7 @@ void Application::processAPICommands() {
                             subsystems.camera = camera;
                             subsystems.dialogueSystem = dialogueSystem.get();
                             subsystems.storyEngine = storyEngine.get();
+                            subsystems.characterAgent = m_characterAgent.get();
                             subsystems.entitySpawner = [this](const std::string& type, const glm::vec3& pos,
                                                                const std::string& animFile) -> Scene::Entity* {
                                 return createAnimatedCharacter(pos, animFile.empty() ? "resources/animated_characters/humanoid.anim" : animFile);
@@ -11404,6 +11409,7 @@ void Application::processAPICommands() {
                 subsystems.camera = camera;
                 subsystems.dialogueSystem = dialogueSystem.get();
                 subsystems.storyEngine = storyEngine.get();
+                subsystems.characterAgent = m_characterAgent.get();
 
                 // Entity spawner callback  --  delegates to Application factory methods
                 subsystems.entitySpawner = [this](const std::string& type, const glm::vec3& pos,
@@ -11462,6 +11468,7 @@ void Application::processAPICommands() {
                     subsystems.gameEventLog = gameEventLog.get();
                     subsystems.dialogueSystem = dialogueSystem.get();
                     subsystems.storyEngine = storyEngine.get();
+                    subsystems.characterAgent = m_characterAgent.get();
                     subsystems.locationRegistry = locationRegistry;
                     subsystems.aiRegister = [this](Scene::Entity* entity, const std::string& entityId,
                                                     const std::string& npcName, const std::string& personality) {
