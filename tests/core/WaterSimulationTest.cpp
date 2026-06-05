@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 #include "core/WaterSimulation.h"
+#include <cmath>
+#include <algorithm>
 
 using Phyxel::Core::WaterSimulation;
 
@@ -145,6 +147,26 @@ TEST(WaterSimulation, DeepPondPersistsUnderEvaporation) {
     // Deep cells (>= threshold) are untouched; only a thin top sliver could go.
     EXPECT_GT(sim.totalMass(), before - 0.6f);
     EXPECT_GT(sim.massAt(1, 1, 1), 0.9f); // floor of the pond stays full
+}
+
+// A spring (continuous source) on flat ground, bounded by evaporation, settles to a
+// persistent puddle — it neither dries up nor grows without bound.
+TEST(WaterSimulation, SpringReachesBoundedSteadyState) {
+    WaterSimulation sim(15, 4, 15);
+    addFloor(sim);
+    sim.setEvaporation(true);
+    sim.setSource(7, 1, 7, WaterSimulation::MAX_MASS); // the spring
+
+    for (int i = 0; i < 400; ++i) sim.step();
+    float t1 = sim.totalMass();
+    for (int i = 0; i < 400; ++i) sim.step();
+    float t2 = sim.totalMass();
+
+    EXPECT_GT(t2, 0.5f);                    // a persistent puddle exists
+    EXPECT_LT(std::abs(t2 - t1), 1.0f);     // steady, not growing unbounded
+    // The spring cell is re-pinned full each step but flows out during it, so it reads
+    // partial after a step — what matters is the spring area stays wet (continuously fed).
+    EXPECT_GT(sim.massAt(7, 1, 7), 0.3f);
 }
 
 // Ocean seam: a seeded basin fills to sea level and HOLDS it when dug deeper

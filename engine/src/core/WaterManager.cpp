@@ -94,6 +94,7 @@ void WaterManager::addOceanSeed(const glm::vec3& worldPos) {
 void WaterManager::clearOcean() {
     m_oceanSeeds.clear();
     m_sim.fillOcean({}, 0); // clears all source pins
+    applySprings();         // ...but keep authored springs
     m_oceanDirty = false;
     rebuildSurface();
 }
@@ -105,7 +106,34 @@ void WaterManager::rebuildOcean() {
     localSeeds.reserve(m_oceanSeeds.size());
     for (const glm::ivec3& s : m_oceanSeeds)
         localSeeds.emplace_back(s.x - m_origin.x, s.y - m_origin.y, s.z - m_origin.z);
-    m_sim.fillOcean(localSeeds, seaLevelLocalY);
+    m_sim.fillOcean(localSeeds, seaLevelLocalY); // clears all sources, then pins the ocean
+    applySprings();                               // re-pin authored springs over the top
+    rebuildSurface();
+}
+
+void WaterManager::applySprings() {
+    for (const Spring& s : m_springs) {
+        int lx = s.cell.x - m_origin.x, ly = s.cell.y - m_origin.y, lz = s.cell.z - m_origin.z;
+        if (m_sim.inBounds(lx, ly, lz)) m_sim.setSource(lx, ly, lz, s.mass);
+    }
+}
+
+void WaterManager::addSpring(const glm::vec3& worldPos, float mass) {
+    glm::ivec3 cell(static_cast<int>(std::floor(worldPos.x)),
+                    static_cast<int>(std::floor(worldPos.y)),
+                    static_cast<int>(std::floor(worldPos.z)));
+    m_springs.push_back({cell, mass});
+    int lx = cell.x - m_origin.x, ly = cell.y - m_origin.y, lz = cell.z - m_origin.z;
+    if (m_sim.inBounds(lx, ly, lz)) m_sim.setSource(lx, ly, lz, mass);
+    rebuildSurface();
+}
+
+void WaterManager::clearSprings() {
+    for (const Spring& s : m_springs) {
+        int lx = s.cell.x - m_origin.x, ly = s.cell.y - m_origin.y, lz = s.cell.z - m_origin.z;
+        if (m_sim.inBounds(lx, ly, lz)) m_sim.clearSource(lx, ly, lz);
+    }
+    m_springs.clear();
     rebuildSurface();
 }
 

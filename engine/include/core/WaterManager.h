@@ -42,6 +42,13 @@ public:
     void  addOceanSeed(const glm::vec3& worldPos); // a point the ocean floods out from
     void  clearOcean();                             // remove the ocean (seeds + pins)
 
+    // --- Authored sources (springs / river heads) ---
+    // A spring is a persistent source pinned to `mass` each step — a continuous supply
+    // (a fountain, a river head). Survives ocean re-floods (kept separate from the
+    // ocean's pinned cells).
+    void  addSpring(const glm::vec3& worldPos, float mass);
+    void  clearSprings();
+
     float totalMass() const { return m_sim.totalMass(); }
     const glm::ivec3& origin() const { return m_origin; }
     const glm::ivec3& dims() const   { return m_dims; }
@@ -59,10 +66,14 @@ private:
     bool worldToLocal(const glm::vec3& w, int& lx, int& ly, int& lz) const;
     void rebuildSurface();
     void rebuildOcean(); // re-run the ocean flood-fill from the seeds
+    void applySprings(); // (re-)pin authored springs after the ocean clears sources
 
     float                   m_seaLevel = 0.0f;
     bool                    m_oceanDirty = false;
     std::vector<glm::ivec3> m_oceanSeeds; // world-space flood seeds
+
+    struct Spring { glm::ivec3 cell; float mass; };
+    std::vector<Spring>     m_springs;    // world-space authored sources
 
     ChunkManager*   m_cm;
     glm::ivec3      m_origin;

@@ -8591,6 +8591,28 @@ void Application::processAPICommands() {
                 if (cmd.onComplete) cmd.onComplete(response);
                 continue;
             }
+            if (cmd.action == "place_spring") {
+                if (!waterManager) {
+                    response = {{"error", "WaterManager not available"}};
+                } else {
+                    glm::vec3 p(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f),
+                                cmd.params.value("z", 0.0f));
+                    waterManager->addSpring(p, cmd.params.value("mass", 1.0f));
+                    response = {{"success", true}};
+                }
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
+            if (cmd.action == "clear_springs") {
+                if (!waterManager) {
+                    response = {{"error", "WaterManager not available"}};
+                } else {
+                    waterManager->clearSprings();
+                    response = {{"success", true}};
+                }
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
             if (cmd.action == "water_stats") {
                 if (!waterManager) {
                     response = {{"error", "WaterManager not available"}};
