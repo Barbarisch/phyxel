@@ -78,6 +78,82 @@ Two requirements that the altitude-only implicit model does **not** satisfy on i
     of per-cell rendering and adds **authoring tools** (place volume / source / drain)
     + persistence to the Phase 2/3 scope.
 
+## Massive-scale water: infinite bodies, sources/sinks, and flow bounding
+
+Tracking per-cell mass for an ocean (or a continent-spanning river network) is pointless
+and unaffordable. The model splits water into two classes:
+
+- **Implicit / infinite bodies** (oceans, large lakes, designer-tagged "infinite
+  source" volumes): **not mass-tracked**. Represented by a *level* + a *tag*. They cost
+  ~nothing and are rendered cheaply (sea plane / connectivity-gated implicit fill).
+- **Active / tracked** water: the mass-conserving CA, run **only** in a bounded region
+  near disturbances and along source-fed channels.
+
+### Sources AND sinks (both required)
+
+An infinite **source** with no **sink** floods the world without bound. Source-fed flow
+(rivers, springs, waterfalls) only reaches a believable steady state if water has
+somewhere to go:
+
+- An implicit body is a **bidirectional boundary**: pinning its edge cells to its level
+  each step makes it *supply* water where the area is below the line and *absorb* water
+  where above. (Our source primitive — `WaterSimulation::setSource`, pin-to-value —
+  already does this; "a river runs into the sea and disappears" is the same mechanism.)
+- **Evaporation / distance-decay** is the sink for the thin leading edge of a free flow
+  (see below).
+
+So a river is: **source (head, pinned level) → tracked CA flow downhill → sink (ocean
+absorbs + decay trims the spread)**. Inflow ≈ outflow → a stable channel; the tracked
+region is just the channel + a margin.
+
+### Flow-distance bounding ("water doesn't travel forever")
+
+Free-flowing water carries a **reach budget** that falls off with distance from its
+source; at zero it stops. This is the Minecraft 7-block rule, and it does double duty:
+believable behavior (a spring doesn't flood a continent) **and** it bounds the active
+set (simulated cells stay near sources/disturbances) — the core scale mechanism.
+
+Design fork (decide when building):
+- **Level/distance-based**: a per-cell integer "reach" decremented per step. Simple,
+  trivially bounded, blockier/less physical.
+- **Mass + evaporation**: keep the continuous depth, add a small per-tick decay. More
+  natural (variable depth, real pooling), fuzzier bound, needs tuning.
+- **Hybrid** (likely best): continuous mass for depth/pooling **+** a source-distance
+  "reach" that hard-caps how far a thin sheet spreads.
+
+### Channel / flow-resistance tag (authored riverbeds)
+
+A **per-voxel tag** that exempts marked cells from the distance-decay, so a designer can
+paint a riverbed and guarantee water flows its full length from an infinite source,
+while un-marked terrain still bounds ad-hoc spills. It's a deliberate **authoring
+override on the bounding heuristic**, not a physical force.
+
+- **Authoring:** tag the **riverbed voxels** (a "Channel"/"Riverbed" material); the open
+  cell *above* a channel voxel inherits "no-decay" status. The sim reads the tag like it
+  reads solidity. Stored per-voxel, persisted in the world DB.
+- **Generalize** the binary to a **flow-resistance scalar** per material: channel = 0
+  (no decay), normal ground = medium, sand/rough = high (water sinks fast). Binary
+  "conductive or not" is the 0-vs-default case.
+- **Caveats:**
+  1. Still needs a **sink** at the end (sea / pool / evaporation) — exempting decay
+     means it won't fade, so it must drain somewhere or pile up.
+  2. **Gravity/head still rules** — the tag removes the *distance* limit, not physics.
+     Water flows downhill, or uphill only if pushed by a source whose surface sits
+     higher than the channel's high point (communicating-vessels pressure). An uphill
+     channel past the source level correctly won't flow.
+  3. The whole channel stays **active** while sourced — the active region spans its
+     authored length (bounded by the designer, not runaway).
+
+### The composite authored river (the payoff)
+
+> Tag a lake as an **infinite source** → paint a **channel** riverbed down to the coast
+> → the **sea** (also infinite) is the **sink**.
+
+Water flows the whole authored length, falls as waterfalls where the bed drops, pools
+where it widens, and is absorbed at the sea — and the engine simulates **neither ocean**,
+only the bounded channel. This is how "oceans + all of it" stays tractable: oceans
+implicit, rivers authored + bounded, destruction-water dynamic + decaying.
+
 ## Simulation: GPU cellular automaton
 
 Runs on the existing `ComputePipeline` infrastructure (the same machinery
