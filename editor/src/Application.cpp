@@ -4392,8 +4392,24 @@ void Application::autoLoadGameDefinition() {
                 chunkManager->rebuildOccupancyFromChunks();
             }
 
-            // Sync terrain solidity into the water sim now the world is loaded.
-            if (waterManager) waterManager->syncSolidsFromChunks();
+            // Sync terrain solidity into the water sim now the world is loaded, then
+            // restore persisted water (sea level / ocean seeds / springs). The field
+            // itself reconstructs: the ocean re-floods from its seeds and springs re-emit.
+            if (waterManager) {
+                waterManager->syncSolidsFromChunks();
+                if (gameDef.contains("water")) {
+                    const auto& w = gameDef["water"];
+                    if (w.contains("seaLevel")) waterManager->setSeaLevel(w.value("seaLevel", 0.0f));
+                    if (w.contains("oceanSeeds"))
+                        for (const auto& s : w["oceanSeeds"])
+                            if (s.is_array() && s.size() == 3)
+                                waterManager->addOceanSeed(glm::vec3(s[0].get<float>(), s[1].get<float>(), s[2].get<float>()));
+                    if (w.contains("springs"))
+                        for (const auto& sp : w["springs"])
+                            waterManager->addSpring(glm::vec3(sp.value("x", 0.0f), sp.value("y", 0.0f), sp.value("z", 0.0f)),
+                                                    sp.value("mass", 1.0f));
+                }
+            }
 
             // Build navigation grid for NPC pathfinding
             if (npcManager) {
@@ -8609,6 +8625,39 @@ void Application::processAPICommands() {
                 } else {
                     waterManager->clearSprings();
                     response = {{"success", true}};
+                }
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
+            if (cmd.action == "water_save") {
+                if (!waterManager) {
+                    response = {{"error", "WaterManager not available"}};
+                } else {
+                    std::string path = !projectDir_.empty() ? (projectDir_ + "/game.json")
+                        : (!engineConfig.gameDefinitionFile.empty() ? engineConfig.gameDefinitionFile : "game.json");
+                    nlohmann::json doc;
+                    { std::ifstream f(path); if (f.is_open()) { try { doc = nlohmann::json::parse(f); } catch (...) {} } }
+                    if (!doc.is_object()) doc = nlohmann::json::object();
+                    nlohmann::json w = doc.contains("water") ? doc["water"] : nlohmann::json::object();
+                    w["enabled"]  = renderCoordinator ? renderCoordinator->isWaterEnabled() : false;
+                    w["seaLevel"] = waterManager->seaLevel();
+                    nlohmann::json seeds = nlohmann::json::array();
+                    for (const auto& s : waterManager->oceanSeeds())
+                        seeds.push_back({s.x, s.y, s.z});
+                    w["oceanSeeds"] = seeds;
+                    nlohmann::json springs = nlohmann::json::array();
+                    for (const auto& sp : waterManager->springsData())
+                        springs.push_back({{"x", sp.x}, {"y", sp.y}, {"z", sp.z}, {"mass", sp.w}});
+                    w["springs"] = springs;
+                    doc["water"] = w;
+                    std::ofstream out(path);
+                    if (out.is_open()) {
+                        out << doc.dump(2);
+                        response = {{"success", true}, {"path", path},
+                                    {"ocean_seeds", seeds.size()}, {"springs", springs.size()}};
+                    } else {
+                        response = {{"error", "could not write game.json"}, {"path", path}};
+                    }
                 }
                 if (cmd.onComplete) cmd.onComplete(response);
                 continue;

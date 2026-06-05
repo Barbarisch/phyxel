@@ -49,6 +49,16 @@ public:
     void  addSpring(const glm::vec3& worldPos, float mass);
     void  clearSprings();
 
+    // --- Persistence accessors (authoring inputs; the field reconstructs on load) ---
+    const std::vector<glm::ivec3>& oceanSeeds() const { return m_oceanSeeds; }
+    std::vector<glm::vec4> springsData() const {       // (x, y, z, mass) per spring
+        std::vector<glm::vec4> out;
+        out.reserve(m_springs.size());
+        for (const Spring& s : m_springs)
+            out.emplace_back(float(s.cell.x), float(s.cell.y), float(s.cell.z), s.mass);
+        return out;
+    }
+
     float totalMass() const { return m_sim.totalMass(); }
     const glm::ivec3& origin() const { return m_origin; }
     const glm::ivec3& dims() const   { return m_dims; }
