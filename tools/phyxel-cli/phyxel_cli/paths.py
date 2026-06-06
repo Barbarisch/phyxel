@@ -76,6 +76,14 @@ def mcp_server_script(home: Path) -> Path:
     return home / "scripts" / "mcp" / "phyxel_mcp_server.py"
 
 
+def feedback_inbox(home: Path) -> Path:
+    return home / "docs" / "feedback" / "inbox.md"
+
+
+def feedback_archive(home: Path) -> Path:
+    return home / "docs" / "feedback" / "archive.md"
+
+
 def engine_binary(home: Path) -> Optional[Path]:
     """Best-effort path to the built engine executable (OS-aware; searches build locations)."""
     name = "phyxel.exe" if sys.platform.startswith("win") else "phyxel"

@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from datetime import date
 from pathlib import Path
 
 from . import engine, paths, scaffold
@@ -54,6 +55,31 @@ def _cmd_up(args: argparse.Namespace) -> int:
         print(f"phyxel: engine already running for {r['project']} on port {r['port']}")
     else:
         print(f"phyxel: launched engine for {r['project']} on port {r['port']} (pid {r['pid']})")
+    return 0
+
+
+def _cmd_feedback(args: argparse.Namespace) -> int:
+    home = paths.engine_home()
+    if home is None or not paths.looks_like_engine(home):
+        print("phyxel feedback: engine home not set/invalid - run `phyxel init`", file=sys.stderr)
+        return 1
+    text = args.text.strip()
+    if not text:
+        print("phyxel feedback: empty feedback text", file=sys.stderr)
+        return 1
+    if args.project:
+        project = args.project
+    elif os.environ.get("CLAUDE_PROJECT_DIR"):
+        project = Path(os.environ["CLAUDE_PROJECT_DIR"]).name
+    else:
+        project = Path.cwd().name
+
+    inbox = paths.feedback_inbox(home)
+    inbox.parent.mkdir(parents=True, exist_ok=True)
+    entry = f"## {date.today().isoformat()} — {project} — {args.type}\n{text}\n\n"
+    with inbox.open("a", encoding="utf-8") as f:
+        f.write(entry)
+    print(f"phyxel: logged {args.type} from '{project}' -> {inbox}")
     return 0
 
 
@@ -115,6 +141,13 @@ def build_parser() -> argparse.ArgumentParser:
     pu = sub.add_parser("up", help="ensure this project's engine instance is running")
     pu.add_argument("path", nargs="?", help="project directory (default: session/current dir)")
     pu.set_defaults(func=_cmd_up)
+
+    pf = sub.add_parser("feedback", help="log a lesson/feature-request to the engine feedback inbox")
+    pf.add_argument("text", help="the feedback (one concise paragraph)")
+    pf.add_argument("--type", choices=["bug", "gotcha", "feature-request"],
+                    default="feature-request")
+    pf.add_argument("--project", help="project name (default: session/cwd name)")
+    pf.set_defaults(func=_cmd_feedback)
     return p
 
 
