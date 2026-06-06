@@ -6,6 +6,7 @@
 #include "core/EntityRegistry.h"
 #include "core/ObjectTemplateManager.h"
 #include "core/GameEventLog.h"
+#include "core/TriggerSystem.h"
 #include "core/HealthComponent.h"
 #include "core/LocationRegistry.h"
 #include "core/PlacedObjectManager.h"
@@ -86,6 +87,11 @@ std::pair<bool, std::string> GameDefinitionLoader::validate(const json& definiti
         if (!definition["player"].is_object()) return {false, "'player' must be an object"};
     }
 
+    // Validate triggers (per-entry validation happens in TriggerSystem::addTrigger)
+    if (definition.contains("triggers")) {
+        if (!definition["triggers"].is_array()) return {false, "'triggers' must be an array"};
+    }
+
     // Validate structures
     if (definition.contains("structures")) {
         if (!definition["structures"].is_array()) return {false, "'structures' must be an array"};
@@ -160,6 +166,16 @@ GameDefinitionResult GameDefinitionLoader::load(const json& definition, GameSubs
     if (definition.contains("story")) {
         loadStory(definition["story"], subsystems, result);
         if (!result.error.empty()) return result;
+    }
+
+    // Declarative when/then triggers (win conditions, game-flow rules). A
+    // definition that carries a "triggers" key REPLACES the active trigger set;
+    // a definition without one leaves existing triggers alone (consistent with
+    // the other optional sections).
+    if (definition.contains("triggers") && subsystems.triggerSystem) {
+        subsystems.triggerSystem->clear();
+        int added = subsystems.triggerSystem->loadFromJson(definition["triggers"]);
+        LOG_INFO("GameDefinitionLoader", "Triggers: loaded " + std::to_string(added));
     }
 
     result.success = true;

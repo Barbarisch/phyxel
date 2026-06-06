@@ -50,6 +50,7 @@
 #include "core/PlayerProfile.h"
 #include "core/ObjectiveTracker.h"
 #include "core/GameEventLog.h"
+#include "core/TriggerSystem.h"
 #include "core/SnapshotManager.h"
 #include "core/PlacedObjectManager.h"
 #include "core/CombatSystem.h"
@@ -238,6 +239,8 @@ private:
     std::unique_ptr<Core::JobSystem> jobSystem;
     std::unique_ptr<Core::Inventory> inventory;
     std::unique_ptr<Core::GameEventLog> gameEventLog;
+    std::unique_ptr<Core::TriggerSystem> triggerSystem;
+    Core::GameSubsystems m_sceneSubsystems; // persistent — SceneManager keeps a pointer to it
     std::unique_ptr<Core::SnapshotManager> snapshotManager;
     std::unique_ptr<Core::PlacedObjectManager> placedObjectManager;
 
@@ -385,6 +388,9 @@ private:
     void autoLoadGameDefinition();   // Auto-load game.json if present
     Core::GameSubsystems buildGameSubsystems(); // Build subsystems struct for GameDefinitionLoader
     void initializeSceneManager();   // Wire SceneCallbacks and configure SceneManager
+    // Keep the SceneManager's GameSubsystems pointers current (refreshed each frame
+    // before pumping transitions — systems can be recreated across project loads).
+    void refreshSceneSubsystems();
     void renderScenePanel();         // Dockable ImGui panel for scene management
 
     // Ray-AABB intersection utility

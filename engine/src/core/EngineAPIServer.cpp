@@ -2164,6 +2164,39 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // --- Declarative when/then triggers (data-driven win conditions) ---------
+    // POST /api/triggers/add — Body: { id?, when:{event,...}, then:[{type,...}], once? }
+    // GET  /api/triggers     — List triggers
+    // POST /api/triggers/remove — Body: { id }
+    srv.Post("/api/triggers/add", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params;
+            if (!req.body.empty()) params = json::parse(req.body);
+            json result = queueAndWait("add_trigger", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
+    });
+    srv.Get("/api/triggers", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("list_triggers", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+    srv.Post("/api/triggers/remove", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params;
+            if (!req.body.empty()) params = json::parse(req.body);
+            json result = queueAndWait("remove_trigger", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
+    });
+
     // POST /api/interaction/can_interact — Read-only compatibility query.
     // Body: { "entity_id": "...", "object_id": "...", "point_id": "seat_0", "kind": "sit" }
     // Returns: { success, can_interact, kind, compatibility_issues: [...], reason? }

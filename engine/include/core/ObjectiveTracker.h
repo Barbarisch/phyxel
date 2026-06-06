@@ -1,6 +1,7 @@
 #pragma once
 
 #include <nlohmann/json.hpp>
+#include <functional>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -29,6 +30,12 @@ struct Objective {
 
 class ObjectiveTracker {
 public:
+    /// Fired whenever an objective transitions to Completed, regardless of who
+    /// completed it (MCP command, trigger action, gameplay code). Hosts use it
+    /// to emit the "objective_complete" gameplay event / feed the TriggerSystem.
+    /// Not fired during fromJson state restoration.
+    std::function<void(const std::string& id)> onCompleted;
+
     bool addObjective(const std::string& id, const std::string& title,
                       const std::string& description = "", const std::string& category = "main",
                       int priority = 0, bool hidden = false) {
@@ -48,8 +55,10 @@ public:
     bool completeObjective(const std::string& id) {
         auto it = m_objectives.find(id);
         if (it == m_objectives.end()) return false;
+        if (it->second.status == Objective::Status::Completed) return true; // idempotent
         it->second.status = Objective::Status::Completed;
         m_completedCount++;
+        if (onCompleted) onCompleted(id);
         return true;
     }
 
@@ -118,6 +127,15 @@ public:
     }
 
     void fromJson(const nlohmann::json& j) {
+        // State restoration must not fire gameplay hooks (these are not "new"
+        // completions) — stash the callback for the duration.
+        auto cb = std::move(onCompleted);
+        onCompleted = nullptr;
+        struct Restore {
+            ObjectiveTracker* t; std::function<void(const std::string&)>* saved;
+            ~Restore() { t->onCompleted = std::move(*saved); }
+        } restore{this, &cb};
+
         clear();
         if (!j.contains("objectives")) return;
         for (auto& obj : j["objectives"]) {

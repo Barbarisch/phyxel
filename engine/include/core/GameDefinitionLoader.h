@@ -23,6 +23,7 @@ class EntityRegistry;
 class GameEventLog;
 class LocationRegistry;
 class PlacedObjectManager;
+class TriggerSystem;
 }
 
 namespace Graphics {
@@ -130,6 +131,7 @@ struct GameSubsystems {
     ObjectTemplateManager* templateManager = nullptr;
     Core::PlacedObjectManager* placedObjectManager = nullptr;
     Core::GameEventLog* gameEventLog = nullptr;
+    Core::TriggerSystem* triggerSystem = nullptr;
     Core::LocationRegistry* locationRegistry = nullptr;
     Graphics::Camera* camera = nullptr;
     UI::DialogueSystem* dialogueSystem = nullptr;

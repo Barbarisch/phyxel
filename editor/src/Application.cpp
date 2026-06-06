@@ -417,6 +417,38 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     apiCommandQueue = std::make_unique<Core::APICommandQueue>();
     gameEventLog = std::make_unique<Core::GameEventLog>(1000);
 
+    // Declarative when/then gameplay triggers (data-driven win conditions).
+    triggerSystem = std::make_unique<Core::TriggerSystem>();
+    triggerSystem->setEventSink([this](const std::string& type, const nlohmann::json& data) {
+        if (gameEventLog) gameEventLog->emit(type, data); // e.g. trigger_fired
+    });
+    triggerSystem->setActionExecutor([this](const nlohmann::json& a, const std::string& tid) {
+        const std::string type = a.value("type", "");
+        if (type == "complete_objective") {
+            objectiveTracker.completeObjective(a.value("id", ""));
+        } else if (type == "fail_objective") {
+            objectiveTracker.failObjective(a.value("id", ""));
+        } else if (type == "transition_scene") {
+            auto* sm = runtime ? runtime->getSceneManager() : nullptr;
+            const std::string target = a.value("target", a.value("scene_id", ""));
+            if (sm && sm->hasManifest() && !target.empty()) {
+                sm->transitionTo(target);
+            } else {
+                LOG_WARN("TriggerSystem", "transition_scene action from '{}' skipped (no manifest or target)", tid);
+            }
+        } else if (type == "quit_game") {
+            quit();
+        } else {
+            LOG_WARN("TriggerSystem", "Unknown trigger action type '{}' (trigger '{}')", type, tid);
+        }
+    });
+    // Objective completions become gameplay events (any completion path) so
+    // triggers can chain: objective_complete -> transition_scene, etc.
+    objectiveTracker.onCompleted = [this](const std::string& id) {
+        if (gameEventLog) gameEventLog->emit("objective_complete", {{"id", id}});
+        if (triggerSystem) triggerSystem->onEvent("objective_complete", {{"id", id}});
+    };
+
     // Wire D&D combat AI (pointers are stable — members outlive all systems)
     m_combatAI.setInitiativeTracker(&m_rpgInitiative);
     m_combatAI.setParty(&m_rpgParty);
@@ -2644,6 +2676,40 @@ void Application::setTitle(const std::string& title) {
     }
 }
 
+void Application::refreshSceneSubsystems() {
+    // Raw subsystem pointers can change across project loads — refresh every frame
+    // before the SceneManager pump so scene transitions always see live systems.
+    m_sceneSubsystems.chunkManager        = chunkManager;
+    m_sceneSubsystems.npcManager          = npcManager.get();
+    m_sceneSubsystems.entityRegistry      = entityRegistry.get();
+    m_sceneSubsystems.templateManager     = objectTemplateManager.get();
+    m_sceneSubsystems.placedObjectManager = placedObjectManager.get();
+    m_sceneSubsystems.gameEventLog        = gameEventLog.get();
+    m_sceneSubsystems.triggerSystem       = triggerSystem.get();
+    m_sceneSubsystems.locationRegistry    = locationRegistry;
+    m_sceneSubsystems.camera              = camera;
+    m_sceneSubsystems.dialogueSystem      = dialogueSystem.get();
+    m_sceneSubsystems.storyEngine         = storyEngine.get();
+    m_sceneSubsystems.characterAgent      = m_characterAgent.get();
+
+    // The [this]-capturing callbacks are stable — set them once.
+    if (!m_sceneSubsystems.entitySpawner) {
+        m_sceneSubsystems.entitySpawner = [this](const std::string& type, const glm::vec3& pos,
+                                                 const std::string& animFile) -> Scene::Entity* {
+            return createAnimatedCharacter(pos, animFile.empty()
+                ? "resources/animated_characters/humanoid.anim" : animFile);
+        };
+        m_sceneSubsystems.aiRegister = [this](Scene::Entity* entity, const std::string& entityId,
+                                              const std::string& npcName, const std::string& personality) {
+            if (!aiSystem) return;
+            std::string recipe = Core::AssetManager::instance().resolveRecipe("characters/" + entityId + ".yaml");
+            if (recipe.empty()) recipe = Core::AssetManager::instance().resolveRecipe("characters/guard.yaml");
+            std::string p = personality.empty() ? "You are " + npcName + ", an NPC in a voxel world." : personality;
+            aiSystem->createAINPC(entity, entityId, recipe, p);
+        };
+    }
+}
+
 void Application::update(float deltaTime) {
     PROFILE_SCOPE(*performanceProfiler, "Update");
     this->deltaTime = deltaTime;
@@ -2819,6 +2885,15 @@ void Application::update(float deltaTime) {
         }
     }
 
+    // Pump the scene-transition state machine (Unloading -> Loading -> Ready, one
+    // step per frame). Without this, transitionTo() / the initial multi-scene load
+    // set the state but the transition never executes ("stuck transitioning").
+    if (runtime && runtime->getSceneManager()) {
+        refreshSceneSubsystems(); // scene loads need current subsystem pointers
+        runtime->getSceneManager()->setSubsystems(&m_sceneSubsystems);
+        runtime->getSceneManager()->update(deltaTime);
+    }
+
     // Update dialogue & speech bubbles
     if (dialogueSystem) dialogueSystem->update(deltaTime);
     if (speechBubbleManager) speechBubbleManager->update(deltaTime);
@@ -2838,16 +2913,39 @@ void Application::update(float deltaTime) {
 
         // Gameplay events for agents/triggers: surface the player's jump/land
         // edges (detected centrally in AnimatedVoxelCharacter::update) into the
-        // poll_events stream.
+        // poll_events stream and the trigger system.
         if (animatedCharacter && gameEventLog) {
             if (animatedCharacter->consumeJustJumped()) {
                 const glm::vec3 p = animatedCharacter->getPosition();
-                gameEventLog->emit("player_jumped", {{"x", p.x}, {"y", p.y}, {"z", p.z}});
+                const nlohmann::json data = {{"x", p.x}, {"y", p.y}, {"z", p.z}};
+                gameEventLog->emit("player_jumped", data);
+                if (triggerSystem) triggerSystem->onEvent("player_jumped", data);
             }
             if (animatedCharacter->consumeJustLanded()) {
                 const glm::vec3 p = animatedCharacter->getPosition();
-                gameEventLog->emit("player_landed", {{"x", p.x}, {"y", p.y}, {"z", p.z}});
+                const nlohmann::json data = {{"x", p.x}, {"y", p.y}, {"z", p.z}};
+                gameEventLog->emit("player_landed", data);
+                if (triggerSystem) triggerSystem->onEvent("player_landed", data);
             }
+        }
+
+        // Advance triggers (timers, region checks) and execute any fired actions
+        // at this safe point in the frame.
+        if (triggerSystem) {
+            triggerSystem->update(deltaTime,
+                [this](const std::string& entityId, glm::vec3& outPos) -> bool {
+                    if (entityId == "player" && animatedCharacter) {
+                        outPos = animatedCharacter->getPosition();
+                        return true;
+                    }
+                    if (entityRegistry) {
+                        if (Scene::Entity* e = entityRegistry->getEntity(entityId)) {
+                            outPos = e->getPosition();
+                            return true;
+                        }
+                    }
+                    return false;
+                });
         }
 
         // Remove character once all its voxels have been derezed
@@ -4419,6 +4517,7 @@ void Application::autoLoadGameDefinition() {
         subsystems.templateManager  = objectTemplateManager.get();
         subsystems.placedObjectManager = placedObjectManager.get();
         subsystems.gameEventLog     = gameEventLog.get();
+        subsystems.triggerSystem    = triggerSystem.get();
         subsystems.locationRegistry = locationRegistry;
         subsystems.camera           = camera;
         subsystems.dialogueSystem   = dialogueSystem.get();
@@ -8571,6 +8670,31 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         return true;
     }
 
+    // --- Declarative trigger authoring (when/then win conditions) ------------
+    if (action == "add_trigger") {
+        if (!triggerSystem) { response = {{"error", "TriggerSystem not available"}}; return true; }
+        std::string err;
+        std::string id = triggerSystem->addTrigger(cmd.params, &err);
+        if (id.empty()) response = {{"success", false}, {"error", err}};
+        else            response = {{"success", true}, {"id", id}};
+        return true;
+    }
+
+    if (action == "list_triggers") {
+        if (!triggerSystem) { response = {{"error", "TriggerSystem not available"}}; return true; }
+        response = {{"success", true}, {"triggers", triggerSystem->listTriggers()}};
+        return true;
+    }
+
+    if (action == "remove_trigger") {
+        if (!triggerSystem) { response = {{"error", "TriggerSystem not available"}}; return true; }
+        const std::string id = cmd.params.value("id", "");
+        bool removed = triggerSystem->removeTrigger(id);
+        response = {{"success", removed}, {"id", id}};
+        if (!removed) response["error"] = "No trigger with that id";
+        return true;
+    }
+
     if (action == "spawn_for_test") {
         // Rebuild the currently-loaded character (IE mode: m_ieChar; project mode:
         // animatedCharacter) with the morphology in `appearance`. Used by the
@@ -9645,6 +9769,7 @@ void Application::processAPICommands() {
                             subsystems.templateManager = objectTemplateManager.get();
                             subsystems.placedObjectManager = placedObjectManager.get();
                             subsystems.gameEventLog = gameEventLog.get();
+                            subsystems.triggerSystem = triggerSystem.get();
                             subsystems.locationRegistry = locationRegistry;
                             subsystems.camera = camera;
                             subsystems.dialogueSystem = dialogueSystem.get();
@@ -11677,6 +11802,7 @@ void Application::processAPICommands() {
                 subsystems.templateManager = objectTemplateManager.get();
                 subsystems.placedObjectManager = placedObjectManager.get();
                 subsystems.gameEventLog = gameEventLog.get();
+                subsystems.triggerSystem = triggerSystem.get();
                 subsystems.locationRegistry = locationRegistry;
                 subsystems.camera = camera;
                 subsystems.dialogueSystem = dialogueSystem.get();
@@ -11738,6 +11864,7 @@ void Application::processAPICommands() {
                     subsystems.npcManager = npcManager.get();
                     subsystems.entityRegistry = entityRegistry.get();
                     subsystems.gameEventLog = gameEventLog.get();
+                    subsystems.triggerSystem = triggerSystem.get();
                     subsystems.dialogueSystem = dialogueSystem.get();
                     subsystems.storyEngine = storyEngine.get();
                     subsystems.characterAgent = m_characterAgent.get();

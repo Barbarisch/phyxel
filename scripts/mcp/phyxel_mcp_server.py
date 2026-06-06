@@ -2122,6 +2122,41 @@ async def list_tools() -> list[Tool]:
             inputSchema={"type": "object", "properties": {}}
         ),
         Tool(
+            name="add_trigger",
+            description="Add a declarative when/then gameplay trigger (data-driven win condition). "
+                        "Example: {when: {event: 'player_jumped'}, then: [{type: 'transition_scene', "
+                        "target: 'credits'}]}. Events: player_jumped, player_landed, "
+                        "objective_complete (optional when.id to match a specific objective), "
+                        "timer (when.seconds), entity_reached_region (when.entity + when.region "
+                        "{from,to}). Actions: complete_objective {id}, fail_objective {id}, "
+                        "transition_scene {target}, quit_game. 'once' defaults true. Triggers can "
+                        "also be authored in game.json via a top-level 'triggers' array.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id":   {"type": "string", "description": "Trigger id (auto-assigned if omitted; same id replaces)"},
+                    "when": {"type": "object", "description": "Condition: {event, id?, seconds?, entity?, region?}"},
+                    "then": {"type": "array",  "description": "Actions: [{type, ...params}]"},
+                    "once": {"type": "boolean", "description": "Fire once (default true)"}
+                },
+                "required": ["when", "then"]
+            }
+        ),
+        Tool(
+            name="list_triggers",
+            description="List all declarative gameplay triggers (id, when, then, once, fired).",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="remove_trigger",
+            description="Remove a gameplay trigger by id.",
+            inputSchema={
+                "type": "object",
+                "properties": {"id": {"type": "string"}},
+                "required": ["id"]
+            }
+        ),
+        Tool(
             name="damage_player",
             description="Deal damage to the player. If health reaches 0, triggers death sequence.",
             inputSchema={
@@ -5045,6 +5080,15 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     elif name == "get_player_state":
         return await api_post("/api/character/player_state", {})
+
+    elif name == "add_trigger":
+        return await api_post("/api/triggers/add", arguments)
+
+    elif name == "list_triggers":
+        return await api_get("/api/triggers")
+
+    elif name == "remove_trigger":
+        return await api_post("/api/triggers/remove", {"id": arguments.get("id", "")})
 
     elif name == "damage_player":
         return await api_post("/api/game/health", {
