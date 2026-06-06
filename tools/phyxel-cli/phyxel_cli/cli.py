@@ -9,7 +9,31 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import paths
+from . import paths, scaffold
+
+
+def _cmd_link(args: argparse.Namespace) -> int:
+    target = Path(args.path).expanduser() if args.path else Path.cwd()
+    try:
+        r = scaffold.link(target, port=args.port)
+    except (NotADirectoryError, OSError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    print(f"phyxel: linked {r['project']} (api port {r['port']})")
+    print(f"        wrote: {', '.join(r['wrote'])}")
+    return 0
+
+
+def _cmd_new(args: argparse.Namespace) -> int:
+    out = Path(args.output).expanduser() if args.output else (Path.cwd() / args.name)
+    try:
+        r = scaffold.new(args.name, out, port=args.port)
+    except (FileExistsError, OSError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    print(f"phyxel: created project {r['project']} (api port {r['port']})")
+    print(f"        wrote: game.json, worlds/, {', '.join(r['wrote'])}")
+    return 0
 
 
 def _cmd_init(args: argparse.Namespace) -> int:
@@ -63,12 +87,19 @@ def build_parser() -> argparse.ArgumentParser:
     pw = sub.add_parser("where", help="show resolved paths/config (diagnostics)")
     pw.set_defaults(func=_cmd_where)
 
+    pl = sub.add_parser("link", help="add the Claude workflow files to an existing project")
+    pl.add_argument("path", nargs="?", help="project directory (default: current directory)")
+    pl.add_argument("--port", type=int, help="force a specific API port (else reuse/allocate)")
+    pl.set_defaults(func=_cmd_link)
+
+    pn = sub.add_parser("new", help="create a minimal dev project, then link it")
+    pn.add_argument("name", help="project name")
+    pn.add_argument("--output", help="output directory (default: ./<name>)")
+    pn.add_argument("--port", type=int, help="force a specific API port (else allocate)")
+    pn.set_defaults(func=_cmd_new)
+
     sub.add_parser("up", help="ensure this project's engine is running (Phase 4)").set_defaults(
         func=_stub("up", 4))
-    sub.add_parser("new", help="scaffold a new game project (Phase 2)").set_defaults(
-        func=_stub("new", 2))
-    sub.add_parser("link", help="retrofit an existing project (Phase 2)").set_defaults(
-        func=_stub("link", 2))
     return p
 
 

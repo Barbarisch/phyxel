@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import sys
 from pathlib import Path
 from typing import Optional
 
 APP = "phyxel"
+PORT_BASE = 8091  # 8090 is reserved for the dev/editor default single instance
 
 
 # --- per-machine user config -------------------------------------------------------------
@@ -103,3 +105,32 @@ def project_config(project_dir: Path) -> dict:
 
 def project_api_port(project_dir: Path, default: int = DEFAULT_API_PORT) -> int:
     return int(project_config(project_dir).get("apiPort", default))
+
+
+# --- port allocation (per-machine registry avoids collisions across projects) ------------
+
+def _port_in_use(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.2)
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+def record_port(port: int) -> None:
+    """Remember a port (e.g. one already committed in a project) so we never reallocate it."""
+    cfg = load_config()
+    assigned = set(cfg.get("assigned_ports", []))
+    if port not in assigned:
+        assigned.add(port)
+        cfg["assigned_ports"] = sorted(assigned)
+        save_config(cfg)
+
+
+def allocate_port() -> int:
+    """Pick the lowest free API port (>= PORT_BASE): not already assigned on this machine and
+    not currently bound. Records it in the per-machine registry."""
+    assigned = set(load_config().get("assigned_ports", []))
+    port = PORT_BASE
+    while port in assigned or _port_in_use(port):
+        port += 1
+    record_port(port)
+    return port
