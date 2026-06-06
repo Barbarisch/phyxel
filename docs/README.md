@@ -29,6 +29,7 @@ Phyxel is a voxel game engine and development application. The engine (`phyxel_c
 - **[ArchitectureOverview.md](ArchitectureOverview.md)** — Visual architecture diagrams
 - **[SubsystemArchitecture.md](SubsystemArchitecture.md)** — Callback-based subsystem design pattern guide
 - **[EntitySystem.md](EntitySystem.md)** — Entity types, characters, physics, and AI
+- **[NavigationArchitecture.md](NavigationArchitecture.md)** — Proposed 3D, world-aware NPC navigation (3-layer: surface graph + HPA* + location/route graph)
 
 ## Rendering & World
 
