@@ -49,7 +49,11 @@ from mcp.types import Tool, TextContent, ImageContent
 # Configuration
 # ============================================================================
 
-ENGINE_API_URL = os.environ.get("PHYXEL_API_URL", "http://localhost:8090")
+# Target engine: PHYXEL_API_URL (full override) wins; else build from PHYXEL_API_PORT
+# (set by the `phyxel-mcp` launcher per project for multi-instance); else the 8090 default.
+_api_port = os.environ.get("PHYXEL_API_PORT")
+_default_api_url = f"http://localhost:{_api_port}" if _api_port else "http://localhost:8090"
+ENGINE_API_URL = os.environ.get("PHYXEL_API_URL", _default_api_url)
 ENGINE_API_TIMEOUT = float(os.environ.get("PHYXEL_API_TIMEOUT", "10"))
 
 # Logging to stderr (stdout is MCP protocol)

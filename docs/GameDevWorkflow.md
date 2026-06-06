@@ -74,9 +74,11 @@ through it so committed files stay path-free. Build first.
 ### 1. Multi-instance ports (engine change)
 Today `EngineAPIServer` and `scripts/mcp/phyxel_mcp_server.py` are hardwired to
 `localhost:8090`. Changes:
-- `phyxel[.exe] --api-port <N>` → `EngineAPIServer` binds `<N>` (default **8090** for back-compat).
+- `phyxel[.exe] --port <N>` → `EngineAPIServer` binds `<N>` (default **8090** for back-compat).
+  *(Already implemented: `main.cpp` parses `--port` → `setApiPortOverride` → the server.)*
 - MCP server (`phyxel-mcp`) reads the port from the project's `.phyxel/config.json` (and project
-  dir = cwd); engine location comes from the per-machine config.
+  dir = cwd), exports `PHYXEL_API_PORT`; `phyxel_mcp_server.py` builds its target URL from it
+  (or `PHYXEL_API_URL` full override). Engine location comes from the per-machine config.
 - Result: N projects → N engines on N ports → N MCP servers, each pinned to its own engine.
 
 ### 2. Per-project bootstrap (`phyxel new` / extend `create_project.py`)
@@ -108,7 +110,7 @@ as model-invoked **skills** bundled in the plugin (shared by all projects):
 The hook command is just **`phyxel up`** (portable — no script paths). The CLI reads the
 project's port (`.phyxel/config.json`) → HTTP-pings `/api/status` → if dead, launches the
 engine (OS-aware binary, from the per-machine engine location) **detached** with `--project
-<cwd> --api-port <port>` + writes `<project>/.phyxel/engine.pid`. Idempotent (no-op if up).
+<cwd> --port <port>` + writes `<project>/.phyxel/engine.pid`. Idempotent (no-op if up).
 
 ### 5. Feedback loop
 - **`/feedback <text>`** (plugin command, available in game-dev sessions): appends a
@@ -144,7 +146,8 @@ path-free `.mcp.json` + `.phyxel/config.json` + `CLAUDE.md`.
 ## Phased roadmap
 0. **CLI + per-machine config:** `tools/phyxel-cli` (`phyxel init`, resolves engine location
    per machine/OS). The portability primitive — build first.
-1. **Ports:** `--api-port` on the engine + `phyxel-mcp` reads port from `.phyxel/config.json`.
+1. **Ports:** engine `--port` (already exists) reports the real bound port; `phyxel-mcp` reads
+   port from `.phyxel/config.json` and `phyxel_mcp_server.py` honors `PHYXEL_API_PORT`.
 2. **Scaffold:** `phyxel new` / extend `create_project.py` — emit path-free `.mcp.json` +
    `.phyxel/config.json` (free port) + game-dev `CLAUDE.md`; `phyxel link` retrofits existing
    projects (e.g. CharacterTestbed).

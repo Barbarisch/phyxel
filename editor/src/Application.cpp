@@ -1628,13 +1628,15 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         if (doorManager) doorManager->toggle(objectId);
     });
 
-    // Start the API server
+    // Start the API server. Report the ACTUAL bound port (apiServer->getPort()), which may
+    // differ from engineConfig.apiPort when overridden via --port (multi-instance).
+    const int boundPort = apiServer->getPort();
     if (apiServer->start()) {
-        LOG_INFO("Application", "Engine HTTP API available at http://localhost:{}/api/status", engineConfig.apiPort);
+        LOG_INFO("Application", "Engine HTTP API available at http://localhost:{}/api/status", boundPort);
     } else {
-        LOG_ERROR("Application", "Failed to start HTTP API server on port {}  --  another engine instance may already be running.", engineConfig.apiPort);
+        LOG_ERROR("Application", "Failed to start HTTP API server on port {}  --  another engine instance may already be running.", boundPort);
 #ifdef _WIN32
-        std::string msg = "Cannot start the engine API server on port " + std::to_string(engineConfig.apiPort)
+        std::string msg = "Cannot start the engine API server on port " + std::to_string(boundPort)
             + ".\n\nAnother instance of the Phyxel engine is likely already running.\n"
             "Please close the other instance and try again.";
         MessageBoxA(nullptr, msg.c_str(), "Phyxel  --  Port Conflict", MB_OK | MB_ICONERROR);
