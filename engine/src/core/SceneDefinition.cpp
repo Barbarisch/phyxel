@@ -32,20 +32,27 @@ SceneDefinition SceneDefinition::fromJson(const json& j) {
         scene.menuLayout = j["menuLayout"];
     }
 
-    // The scene's game definition is the scene object itself, minus the scene-management keys.
-    // Copy the entire object, then use it as the definition.
-    scene.definition = j;
-    // Remove scene-management-only keys from the definition so GameDefinitionLoader
-    // doesn't encounter unknown fields.
-    scene.definition.erase("id");
-    scene.definition.erase("name");
-    scene.definition.erase("description");
-    scene.definition.erase("worldDatabase");
-    scene.definition.erase("onEnterScript");
-    scene.definition.erase("onExitScript");
-    scene.definition.erase("transitionStyle");
-    scene.definition.erase("sceneType");
-    scene.definition.erase("menuLayout");
+    // The scene's game definition. The DOCUMENTED schema (GameCreationGuide /
+    // SceneSystem.md / the MCP tool) nests it under a "definition" key:
+    //   { "id": "...", "worldDatabase": "...", "definition": { world, structures, ... } }
+    // Support that first; fall back to the legacy inline form (definition keys
+    // directly on the scene object) for older manifests.
+    if (j.contains("definition") && j["definition"].is_object()) {
+        scene.definition = j["definition"];
+    } else {
+        scene.definition = j;
+        // Remove scene-management-only keys from the definition so GameDefinitionLoader
+        // doesn't encounter unknown fields.
+        scene.definition.erase("id");
+        scene.definition.erase("name");
+        scene.definition.erase("description");
+        scene.definition.erase("worldDatabase");
+        scene.definition.erase("onEnterScript");
+        scene.definition.erase("onExitScript");
+        scene.definition.erase("transitionStyle");
+        scene.definition.erase("sceneType");
+        scene.definition.erase("menuLayout");
+    }
 
     return scene;
 }

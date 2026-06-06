@@ -308,6 +308,14 @@ void SceneManager::executeLoad() {
         return;
     }
 
+    // 3b. Rebuild the GPU particle occupancy grid for the final terrain (generated
+    // or pre-baked). Per the world-load rule: every load path must refresh BOTH the
+    // CPU occupancy grids (buildAllChunkPhysics / per-chunk physics rebuilds above)
+    // AND the GPU grid, or debris falls through the new scene's floor.
+    if (subsystems_->chunkManager) {
+        subsystems_->chunkManager->rebuildOccupancyFromChunks();
+    }
+
     // 4. Restore player position if re-entering a visited scene
     auto reIt = reentryStates_.find(targetSceneId_);
     if (reIt != reentryStates_.end() && reIt->second.visited && subsystems_->camera) {

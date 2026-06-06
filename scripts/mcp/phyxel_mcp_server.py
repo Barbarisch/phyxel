@@ -2004,7 +2004,31 @@ async def list_tools() -> list[Tool]:
                     "story": {
                         "type": "object",
                         "description": "Story engine setup. world: {factions, locations, variables}. arcs: [{id, name, constraintMode, beats}]."
-                    }
+                    },
+                    "triggers": {
+                        "type": "array",
+                        "description": "Declarative when/then gameplay triggers (win conditions). Each: "
+                                       "{id?, when: {event, id?, seconds?, entity?, region?}, then: [{type, ...}], once?}. "
+                                       "Also valid inside a multi-scene scene's definition.",
+                        "items": {"type": "object"}
+                    },
+                    "scenes": {
+                        "type": "array",
+                        "description": "MULTI-SCENE: array of scenes. Each: {id, name?, sceneType: world|menu|cutscene, "
+                                       "worldDatabase?, transitionStyle?, menuLayout? (menu scenes), definition? "
+                                       "(same schema as a single-scene game: world/structures/player/npcs/story/triggers)}.",
+                        "items": {"type": "object"}
+                    },
+                    "startScene": {"type": "string", "description": "MULTI-SCENE: scene id to load first (default: first scene)"},
+                    "playerDefaults": {
+                        "type": "object",
+                        "description": "MULTI-SCENE: default player block merged into scenes that don't specify their own."
+                    },
+                    "globalStory": {
+                        "type": "object",
+                        "description": "MULTI-SCENE: story arcs that persist across scene transitions."
+                    },
+                    "transitionStyle": {"type": "string", "description": "MULTI-SCENE: default transition style (cut|fade|loading_screen)"}
                 }
             }
         ),
