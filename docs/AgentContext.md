@@ -131,6 +131,31 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 - **Spell VFX system:** 3-layer architecture (dumb archetypes → per-spell composition →
   gameplay modifiers) implemented. `VfxSystem`/`VfxDirector`/`SpellVfxMapper` +
   `VfxRenderPipeline`. Done + committed.
+- **Game-dev feedback round 1 (branch `feature/game-triggers`):** the first real
+  `/feedback` → `/triage-feedback` cycle, driven by the TestVideoGame1 game-dev session
+  (entries preserved in `docs/feedback/`). Implemented:
+  - **Gameplay events** — `player_jumped`/`player_landed` emitted into `poll_events`
+    (edge-detected centrally in `AnimatedVoxelCharacter::update`); `get_player_state`
+    MCP/HTTP (position, velocity, grounded, FSM state).
+  - **`TriggerSystem`** (`engine/core`, unit-tested) — declarative `{when, then[], once}`
+    from game.json (top-level or per-scene) and MCP (`add_trigger`/`list_triggers`/
+    `remove_trigger`). Events + `timer` + `entity_reached_region`; actions
+    `complete_objective`/`fail_objective`/`transition_scene`/`quit_game` (+ standalone
+    `show_victory`/`show_credits`). Hosted by the editor Application AND the generated
+    standalone game (template hosts its own TriggerSystem, feeds player events, pumps it).
+  - **Standalone shell screens** — `ScreenState::Intro/Victory/Credits` +
+    `renderIntroScreen`/`renderVictoryScreen`/`renderCreditsScreen`; generated games start
+    at Intro and get the victory→credits→menu flow; `screen_.showVictory()` or a
+    `show_victory` trigger enters it.
+  - **Scene-system bugs fixed** (pre-existing; multi-scene games could never actually run):
+    `SceneManager::update()` was never pumped (editor now pumps it per-frame; the generated
+    standalone template too); `setSubsystems()` had no caller (persistent `GameSubsystems`
+    member, refreshed per-frame; the standalone template's local-variable dangling pointer
+    fixed the same way); `SceneDefinition::fromJson` ignored the DOCUMENTED nested
+    `"definition"` key (payloads silently dropped → empty scenes → fall-through → wedged
+    loop); scene loads now also rebuild the GPU occupancy grid (the every-load rule).
+  - **Acceptance:** the JUMP! game's full loop runs no-code in the editor — menus →
+    world → jump → `player_jumped` → trigger → credits scene active.
 - **Water system — FULL FEATURE MERGED TO `main`** (commit `80f9998`, 2026-06-06). Design:
   `docs/WaterSystem.md`. Default **OFF** (per-world `"water":{"enabled","seaLevel",...}` block
   in game.json, applied in `Application::autoLoadGameDefinition`), so it's inert for projects
