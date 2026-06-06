@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "phyxel-cli"
+version = "0.1.0"
+description = "Phyxel game-dev workflow CLI — per-project engine + MCP launcher (cross-platform)"
+requires-python = ">=3.9"
+dependencies = []
+
+# Console scripts: the bare commands committed project files reference. The pip install
+# creates OS-appropriate shims (phyxel.exe / phyxel-mcp.exe on Windows) so nothing in a
+# project needs an absolute path or an interpreter name.
+[project.scripts]
+phyxel = "phyxel_cli.cli:main"
+phyxel-mcp = "phyxel_cli.mcp:main"
+
+[tool.setuptools]
+packages = ["phyxel_cli"]
