@@ -85,6 +85,9 @@ public:
                     ChunkManager* chunkManager = nullptr,
                     RaycastVisualizer* raycastVisualizer = nullptr);
 
+    /// Set the 3D nav graph used by path-following behaviors (StoryDrivenBehavior).
+    void setNavGraph(Core::NavGraph* navGraph) { m_context.navGraph = navGraph; }
+
     // Attached light (e.g. NPC carrying a lantern)
     void setAttachedLightId(int lightId) { m_attachedLightId = lightId; }
     int getAttachedLightId() const { return m_attachedLightId; }

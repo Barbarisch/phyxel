@@ -79,6 +79,7 @@ Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, cons
 
     // Wire context
     npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry, m_chunkManager, m_raycastVisualizer);
+    if (m_navGraph) npc->setNavGraph(m_navGraph.get());
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
@@ -195,10 +196,16 @@ void NPCManager::buildNavGrid() {
     m_navGrid->buildFromRegion(minXZ, maxXZ);
     m_pathfinder = std::make_unique<AStarPathfinder>(m_navGrid.get());
 
+    // 3D surface graph (Layer 1) over the same region — used by path-following behaviors
+    // (StoryDrivenBehavior) so autonomous/routine NPCs route around obstacles + edges.
+    m_navGraph = std::make_unique<NavGraph>(m_chunkManager);
+    m_navGraph->buildRegion(minXZ, maxXZ, NavAgentProfile{});
+
     // Re-wire all PatrolBehaviors to the new pathfinder and invalidate stale paths.
     // If an NPC is on a nearWall cell (physics body would clip the wall), 
     // relocate it to the nearest safe cell center.
     for (auto& [name, npc] : m_npcs) {
+        npc->setNavGraph(m_navGraph.get());
         if (auto* patrol = dynamic_cast<Scene::PatrolBehavior*>(npc->getBehavior())) {
             patrol->setPathfinder(m_pathfinder.get());
             patrol->invalidatePath();
@@ -231,6 +238,7 @@ void NPCManager::buildNavGrid() {
 void NPCManager::onVoxelChanged(const glm::ivec3& worldPos) {
     if (!m_navGrid) return;
     m_navGrid->rebuildCell(worldPos.x, worldPos.z);
+    if (m_navGraph) m_navGraph->rebuildColumn(worldPos.x, worldPos.z, NavAgentProfile{});
 
     // Phase 2 — Immediate path invalidation: any NPC whose current path passes
     // within 1 block of the changed cell is stale and must replan now, not after 1.5s.
@@ -253,6 +261,11 @@ void NPCManager::onVoxelChanged(const glm::ivec3& worldPos) {
 void NPCManager::onRegionChanged(const glm::ivec3& minPos, const glm::ivec3& maxPos) {
     if (!m_navGrid) return;
     m_navGrid->rebuildRegion(minPos.x, minPos.z, maxPos.x, maxPos.z);
+    if (m_navGraph) {
+        for (int x = minPos.x; x <= maxPos.x; ++x)
+            for (int z = minPos.z; z <= maxPos.z; ++z)
+                m_navGraph->rebuildColumn(x, z, NavAgentProfile{});
+    }
 
     // Phase 2 — Invalidate paths for any NPC whose waypoints cross the changed region.
     for (auto& [name, npc] : m_npcs) {
@@ -354,6 +367,7 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
         m_entityRegistry->registerEntity(npc.get(), entityId, "npc");
     }
     npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry, m_chunkManager, m_raycastVisualizer);
+    if (m_navGraph) npc->setNavGraph(m_navGraph.get());
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
@@ -409,6 +423,7 @@ Scene::NPCEntity* NPCManager::spawnPhysicsNPC(const std::string& name, const std
         m_entityRegistry->registerEntity(npc.get(), entityId, "npc");
     }
     npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry, m_chunkManager, m_raycastVisualizer);
+    if (m_navGraph) npc->setNavGraph(m_navGraph.get());
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
@@ -476,6 +491,7 @@ Scene::NPCEntity* NPCManager::spawnPhysicsProceduralNPC(const std::string& name,
         m_entityRegistry->registerEntity(npc.get(), entityId, "npc");
     }
     npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry, m_chunkManager, m_raycastVisualizer);
+    if (m_navGraph) npc->setNavGraph(m_navGraph.get());
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
