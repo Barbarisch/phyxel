@@ -45,6 +45,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "ai/AIEnhancer.h"
 #include "ai/AIConversationService.h"
 #include "ai/LLMClient.h"
+#include "ai/TTSService.h"  // TTSVoiceHint + setVoiceHintResolver (personality-driven voice)
 #include "core/WorldStorage.h"
 #include "core/Chunk.h"
 #include "core/WorldGenerator.h"
@@ -1150,6 +1151,9 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
     // Initialize Story Engine
     storyEngine = std::make_unique<Story::StoryEngine>();
+    // Shared rule-based agent that drives Guided/Autonomous NPCs (personality/goal-driven,
+    // synchronous, no API key). LLM-backed dialogue stays on the AIConversationService path.
+    m_characterAgent = std::make_unique<Story::RuleBasedCharacterAgent>();
 
     // Wire story read-only handlers
     apiServer->setStoryStateHandler([this]() -> nlohmann::json {
@@ -1468,6 +1472,26 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     dialogueSystem = std::make_unique<UI::DialogueSystem>();
     dialogueSystem->setGameEventLog(gameEventLog.get());
     if (runtime) dialogueSystem->setTTSService(runtime->getTTSService());
+
+    // Personality-driven voice: let each character's VoiceProfile (gender/age/rate/...)
+    // pick the Piper speaker + speaking rate. voiceKey is the NPC/character id.
+    if (runtime && runtime->getTTSService()) {
+        runtime->getTTSService()->setVoiceHintResolver(
+            [this](const std::string& voiceKey, AI::TTSVoiceHint& out) -> bool {
+                if (!storyEngine) return false;
+                const auto* p = storyEngine->getCharacter(voiceKey);
+                if (!p) return false;
+                const auto& v = p->voice;
+                out.valid     = true;
+                out.speakerId = v.speakerId;
+                out.gender    = v.gender;
+                out.age       = v.age;
+                out.pitch     = v.pitch;
+                out.rate      = v.rate;
+                out.gruffness = v.gruffness;
+                return true;
+            });
+    }
 
     // Initialize Speech Bubble Manager
     speechBubbleManager = std::make_unique<UI::SpeechBubbleManager>();
@@ -4383,6 +4407,7 @@ void Application::autoLoadGameDefinition() {
         subsystems.camera           = camera;
         subsystems.dialogueSystem   = dialogueSystem.get();
         subsystems.storyEngine      = storyEngine.get();
+        subsystems.characterAgent   = m_characterAgent.get();
 
         subsystems.entitySpawner = [this](const std::string& type, const glm::vec3& pos,
                                           const std::string& animFile) -> Scene::Entity* {
@@ -9586,6 +9611,7 @@ void Application::processAPICommands() {
                             subsystems.camera = camera;
                             subsystems.dialogueSystem = dialogueSystem.get();
                             subsystems.storyEngine = storyEngine.get();
+                            subsystems.characterAgent = m_characterAgent.get();
                             subsystems.entitySpawner = [this](const std::string& type, const glm::vec3& pos,
                                                                const std::string& animFile) -> Scene::Entity* {
                                 return createAnimatedCharacter(pos, animFile.empty() ? "resources/animated_characters/humanoid.anim" : animFile);
@@ -11617,6 +11643,7 @@ void Application::processAPICommands() {
                 subsystems.camera = camera;
                 subsystems.dialogueSystem = dialogueSystem.get();
                 subsystems.storyEngine = storyEngine.get();
+                subsystems.characterAgent = m_characterAgent.get();
 
                 // Entity spawner callback  --  delegates to Application factory methods
                 subsystems.entitySpawner = [this](const std::string& type, const glm::vec3& pos,
@@ -11675,6 +11702,7 @@ void Application::processAPICommands() {
                     subsystems.gameEventLog = gameEventLog.get();
                     subsystems.dialogueSystem = dialogueSystem.get();
                     subsystems.storyEngine = storyEngine.get();
+                    subsystems.characterAgent = m_characterAgent.get();
                     subsystems.locationRegistry = locationRegistry;
                     subsystems.aiRegister = [this](Scene::Entity* entity, const std::string& entityId,
                                                     const std::string& npcName, const std::string& personality) {

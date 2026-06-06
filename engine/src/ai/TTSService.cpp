@@ -166,15 +166,36 @@ void TTSService::shutdown() {
     m_queue.clear();
 }
 
-int TTSService::speakerIdFor(const std::string& voiceKey) const {
+int TTSService::speakerIdFor(const std::string& voiceKey, const TTSVoiceHint& hint) const {
     if (m_config.numSpeakers <= 1) return 0;
-    return static_cast<int>(fnv1a(voiceKey) % static_cast<uint64_t>(m_config.numSpeakers));
+    // Explicit override from the voice profile.
+    if (hint.valid && hint.speakerId >= 0)
+        return hint.speakerId % m_config.numSpeakers;
+    // With a profile, seed the hash with gender+age so the descriptor influences which
+    // speaker is chosen (same descriptor -> same speaker, different gender/age -> different),
+    // while staying deterministic per character. Without a profile, keep the original
+    // name-only hash so existing NPC voices are unchanged.
+    std::string seed = hint.valid ? (voiceKey + '|' + hint.gender + '|' + hint.age) : voiceKey;
+    return static_cast<int>(fnv1a(seed) % static_cast<uint64_t>(m_config.numSpeakers));
 }
 
-float TTSService::lengthScaleFor(const std::string& voiceKey) const {
-    uint64_t h = fnv1a(voiceKey + "#rate");
-    float t = static_cast<float>(h % 1000) / 999.0f;          // 0..1, stable per voice
-    return m_config.lengthScaleMin + t * (m_config.lengthScaleMax - m_config.lengthScaleMin);
+float TTSService::lengthScaleFor(const std::string& voiceKey, const TTSVoiceHint& hint) const {
+    const float lo = m_config.lengthScaleMin, hiRange = m_config.lengthScaleMax;
+    if (!hint.valid) {
+        uint64_t h = fnv1a(voiceKey + "#rate");
+        float t = static_cast<float>(h % 1000) / 999.0f;      // 0..1, stable per voice
+        return lo + t * (hiRange - lo);
+    }
+    // Profile rate: 0 = slow (max lengthScale), 1 = fast (min lengthScale).
+    float ls = hiRange - hint.rate * (hiRange - lo);
+    if (hint.age == "elderly")                       ls += 0.10f;  // elders speak slower
+    else if (hint.age == "child" || hint.age == "young") ls -= 0.05f;
+    // Small deterministic jitter so equal rates aren't roboticaly identical.
+    float jitter = (static_cast<float>(fnv1a(voiceKey + "#j") % 41) - 20.0f) / 1000.0f; // +/-0.02
+    ls += jitter;
+    if (ls < 0.6f) ls = 0.6f;
+    if (ls > 1.7f) ls = 1.7f;
+    return ls;
 }
 
 std::string TTSService::cachePathFor(const std::string& text, int speakerId, float lengthScale) const {
@@ -190,10 +211,14 @@ void TTSService::enqueue(const std::string& voiceKey, const std::string& text,
     std::string clean = sanitize(text);
     if (clean.empty()) return;
 
+    // Resolve the character's voice profile (if any) so personality drives the voice.
+    TTSVoiceHint hint;
+    if (m_voiceResolver) m_voiceResolver(voiceKey, hint);
+
     Job job;
     job.text        = std::move(clean);
-    job.speakerId   = speakerIdFor(voiceKey);
-    job.lengthScale = lengthScaleFor(voiceKey);
+    job.speakerId   = speakerIdFor(voiceKey, hint);
+    job.lengthScale = lengthScaleFor(voiceKey, hint);
     job.position    = position;
     job.spatial     = spatial;
     {

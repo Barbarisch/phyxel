@@ -123,6 +123,107 @@ async def api_post_async(path: str, body: dict) -> dict:
 
 
 # ============================================================================
+# Character authoring (define_character)
+# ============================================================================
+
+CHARACTER_PROFILE_SCHEMA_HINT = """{
+  "id": "<slug>", "name": "<display name>",
+  "description": "<one line: who they are>",
+  "backstory": "<2-4 sentence history>",
+  "factionId": "<faction id or empty>",
+  "agencyLevel": "guided",
+  "traits": {"openness": 0.5, "conscientiousness": 0.5, "extraversion": 0.5,
+             "agreeableness": 0.5, "neuroticism": 0.5},
+  "drives": ["..."], "likes": ["..."], "dislikes": ["..."], "prejudices": ["..."],
+  "speechStyle": "<e.g. terse and sarcastic>",
+  "voice": {"gender": "male|female|neutral", "age": "child|young|adult|elderly",
+            "pitch": 0.5, "rate": 0.5, "gruffness": 0.5, "accent": "<hint>"},
+  "goals": [{"id": "<slug>", "description": "...", "priority": 0.5}],
+  "roles": ["merchant"]
+}"""
+
+CHARACTER_GEN_SYSTEM = (
+    "You are a game character designer for a voxel RPG. Given a short character-type prompt, "
+    "output a SINGLE JSON object describing a believable NPC, matching this schema exactly "
+    "(JSON only, no prose, no markdown fences):\n" + CHARACTER_PROFILE_SCHEMA_HINT +
+    "\nAll traits (0..1), likes/dislikes/prejudices, speechStyle, and voice must be consistent "
+    "with the prompt. The voice must match the implied gender/age/temperament — e.g. a grumpy "
+    "old clerk -> gender male, age elderly, low pitch, slow rate, high gruffness."
+)
+
+
+def _slugify(s: str) -> str:
+    out = "".join(c if c.isalnum() else "_" for c in s.strip().lower()).strip("_")
+    return out or "npc"
+
+
+async def _generate_character_profile(name: str, prompt: str, role: str = "",
+                                      agency: str = "guided") -> dict:
+    """Author a CharacterProfile dict from a natural-language prompt via litellm.
+
+    Returns the profile dict, or {"error": ...} when generation is unavailable/failed —
+    in which case the caller should pass an explicit 'profile' instead.
+    """
+    try:
+        import litellm  # type: ignore
+        import json as _json
+    except ImportError:
+        return {"error": "litellm is not installed in the MCP environment. Pass an explicit "
+                         "'profile' dict instead, or `pip install litellm` and set ANTHROPIC_API_KEY."}
+
+    model = os.environ.get("PHYXEL_CHARACTER_MODEL", "anthropic/claude-sonnet-4-6")
+    user_msg = (f"Character name: {name}\nRole: {role or 'unspecified'}\n"
+                f"Prompt: {prompt}\nReturn the JSON profile only.")
+    try:
+        resp = await asyncio.to_thread(
+            litellm.completion,
+            model=model,
+            messages=[{"role": "system", "content": CHARACTER_GEN_SYSTEM},
+                      {"role": "user", "content": user_msg}],
+            max_tokens=1400, temperature=0.8,
+        )
+        text = resp["choices"][0]["message"]["content"].strip()
+        if text.startswith("```"):  # strip accidental code fences
+            text = text.strip("`")
+            if text.lower().startswith("json"):
+                text = text[4:]
+        profile = _json.loads(text)
+    except Exception as e:  # noqa: BLE001 — surface any backend/parse error to the caller
+        return {"error": f"Character generation failed: {e}. Pass an explicit 'profile' instead."}
+
+    profile.setdefault("id", _slugify(name))
+    profile.setdefault("name", name)
+    profile.setdefault("agencyLevel", agency)
+    if role and "roles" not in profile:
+        profile["roles"] = [role]
+    return profile
+
+
+def _build_character_npc_def(args: dict, profile: dict) -> dict:
+    """Turn a CharacterProfile + spawn args into the npcDef the engine's create_npc expects."""
+    profile.setdefault("id", _slugify(args["name"]))
+    profile.setdefault("name", args["name"])
+    profile.setdefault("agencyLevel", args.get("agency", "guided"))
+    if args.get("role") and "roles" not in profile:
+        profile["roles"] = [args["role"]]
+
+    npc_def: dict = {
+        "name": args["name"],
+        "animFile": args.get("animFile", "resources/animated_characters/humanoid.anim"),
+        "behavior": args.get("behavior", "idle"),
+        "storyCharacter": profile,
+    }
+    if "position" in args:
+        npc_def["position"] = args["position"]
+    elif all(k in args for k in ("x", "y", "z")):
+        npc_def["position"] = {"x": args["x"], "y": args["y"], "z": args["z"]}
+    if "waypoints" in args:
+        npc_def["waypoints"] = args["waypoints"]
+        npc_def["behavior"] = args.get("behavior", "patrol")
+    return npc_def
+
+
+# ============================================================================
 # MCP Server Setup
 # ============================================================================
 
@@ -1945,6 +2046,41 @@ async def list_tools() -> list[Tool]:
                         "type": "object",
                         "description": "Story character profile: {id, faction, agencyLevel (0-3), traits: {openness, conscientiousness, extraversion, agreeableness, neuroticism}, goals: [{id, description, priority}], roles: [string]}"
                     }
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="define_character",
+            description=(
+                "Define a rich NPC from a short prompt (e.g. 'grumpy store clerk', 'boisterous "
+                "clergyman'). Authors a full CharacterProfile — Big Five traits, backstory, drives, "
+                "likes/dislikes/prejudices, speech style, goals, and a personality-matched voice — "
+                "then spawns the NPC (name == profile id) and registers it in the story engine. "
+                "Provide 'prompt' to auto-author via LLM, OR pass an explicit 'profile' dict (the "
+                "agent can author the personality directly). The character is AI-conversational; "
+                "talk to it via start_ai_conversation."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "NPC name (also the character id)"},
+                    "prompt": {"type": "string", "description": "Character-type description, e.g. 'grumpy store clerk'"},
+                    "profile": {"type": "object", "description": (
+                        "Explicit CharacterProfile dict (overrides prompt). Fields: description, backstory, "
+                        "factionId, agencyLevel (scripted|templated|guided|autonomous), "
+                        "traits{openness,conscientiousness,extraversion,agreeableness,neuroticism} each 0..1, "
+                        "drives[], likes[], dislikes[], prejudices[], speechStyle, "
+                        "voice{gender,age,pitch,rate,gruffness,accent}, goals[{id,description,priority}], roles[]")},
+                    "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"},
+                    "position": {"type": "object", "properties": {
+                        "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}},
+                    "role": {"type": "string", "description": "Primary role tag, e.g. 'merchant', 'guard'"},
+                    "agency": {"type": "string", "enum": ["scripted", "templated", "guided", "autonomous"],
+                               "description": "How much the AI drives the character (default: guided)"},
+                    "animFile": {"type": "string"},
+                    "behavior": {"type": "string", "enum": ["idle", "patrol"]},
+                    "waypoints": {"type": "array", "items": {"type": "object"}}
                 },
                 "required": ["name"]
             }
@@ -4866,6 +5002,21 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     elif name == "create_game_npc":
         return await api_post("/api/game/create_npc", args)
+
+    elif name == "define_character":
+        profile = args.get("profile")
+        if not profile:
+            prompt = (args.get("prompt") or "").strip()
+            if not prompt:
+                return {"error": "define_character needs either 'profile' (a CharacterProfile dict) "
+                                 "or 'prompt' (a natural-language character description)."}
+            profile = await _generate_character_profile(
+                args["name"], prompt, args.get("role", ""), args.get("agency", "guided"))
+            if "error" in profile:
+                return profile
+        npc_def = _build_character_npc_def(args, profile)
+        created = await api_post("/api/game/create_npc", npc_def)
+        return {"created": created, "profile": profile, "npc_definition": npc_def}
 
     # --- Game State (Pause, Health, Respawn, Music, Save/Load, Objectives) ---
 

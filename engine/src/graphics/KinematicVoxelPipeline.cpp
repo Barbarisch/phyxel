@@ -40,11 +40,13 @@ void KinematicVoxelPipeline::cleanup() {
     if (m_device == VK_NULL_HANDLE) return;
 
     if (m_pipeline       != VK_NULL_HANDLE) vkDestroyPipeline(m_device, m_pipeline, nullptr);
+    if (m_reflectionPipeline != VK_NULL_HANDLE) vkDestroyPipeline(m_device, m_reflectionPipeline, nullptr);
     if (m_pipelineLayout != VK_NULL_HANDLE) vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
     if (m_instanceBuffer != VK_NULL_HANDLE) vkDestroyBuffer(m_device, m_instanceBuffer, nullptr);
     if (m_instanceBufferMemory != VK_NULL_HANDLE) vkFreeMemory(m_device, m_instanceBufferMemory, nullptr);
 
     m_pipeline             = VK_NULL_HANDLE;
+    m_reflectionPipeline   = VK_NULL_HANDLE;
     m_pipelineLayout       = VK_NULL_HANDLE;
     m_instanceBuffer       = VK_NULL_HANDLE;
     m_instanceBufferMemory = VK_NULL_HANDLE;
@@ -167,9 +169,25 @@ void KinematicVoxelPipeline::render(
     const std::unordered_map<std::string, Core::KinematicVoxelObject>& objects,
     VkDescriptorSet uboSet)
 {
-    if (m_totalFaces == 0 || m_objectRanges.empty()) return;
+    recordDraws(cmd, objects, uboSet, m_pipeline);
+}
 
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
+void KinematicVoxelPipeline::renderReflection(
+    VkCommandBuffer cmd,
+    const std::unordered_map<std::string, Core::KinematicVoxelObject>& objects,
+    VkDescriptorSet reflectionUboSet)
+{
+    recordDraws(cmd, objects, reflectionUboSet, m_reflectionPipeline);
+}
+
+void KinematicVoxelPipeline::recordDraws(
+    VkCommandBuffer cmd,
+    const std::unordered_map<std::string, Core::KinematicVoxelObject>& objects,
+    VkDescriptorSet uboSet, VkPipeline pipeline)
+{
+    if (m_totalFaces == 0 || m_objectRanges.empty() || pipeline == VK_NULL_HANDLE) return;
+
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
     // Bind the per-frame UBO/atlas/shadow/lights descriptor set
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -339,6 +357,15 @@ void KinematicVoxelPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D 
     if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipeline)
             != VK_SUCCESS) {
         throw std::runtime_error("failed to create KinematicVoxelPipeline");
+    }
+
+    // Reflection variant: identical pipeline but BACK_BIT culling. Kinematic objects drawn into
+    // the mirror reflection are seen through the reflected view (mainView * reflMat, det=-1),
+    // which flips triangle winding — so they need the opposite cull from the main pass.
+    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+    if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_reflectionPipeline)
+            != VK_SUCCESS) {
+        throw std::runtime_error("failed to create KinematicVoxelPipeline (reflection variant)");
     }
 
     vkDestroyShaderModule(m_device, vertModule, nullptr);

@@ -201,6 +201,66 @@ Sleeping particles check character AABB overlap **before** the sleep early-exit 
 
 ---
 
+## Mirror Reflection Pipeline
+
+Reflective surfaces (the `Mirror` material, `isMirror: true` in `materials.json`) use a planar-reflection system layered on top of the static pipeline. It was a hard feature to get right — most of the gotchas below cost real debugging time, so read them before touching this code.
+
+### How a mirror is detected
+
+- `isMirror` is baked into **every face** of a mirror voxel as **bit 10** of `InstanceData.reserved` (`ChunkRenderManager`).
+- `Chunk::recomputeRenderFlags()` (runs only on `rebuildFaces`, never per-frame) caches `m_hasMirror` and the local position of the first mirror voxel.
+- `RenderCoordinator::scanForMirrorVoxels()` reads those cached flags each frame — O(visible chunks), not a per-voxel scan.
+
+The current implementation supports **one mirror plane per frame** (the first mirror voxel found) with a **hard-coded `+Z` normal**. The reflection plane is placed on the voxel's **visible `+Z` face** (`local.z + 1.0`), not its center — using the center misregisters reflections by half a voxel.
+
+### Three stages per frame (only when a mirror is visible)
+
+1. **Reflection pass** (`renderReflectionPass`) — runs **before** the main scene pass. Renders the scene from a mirrored virtual camera into an offscreen color+depth target (`PostProcessor` reflection framebuffer) using `reflectionScenePipeline` (shares `voxel.frag`). `voxel.frag` discards mirror faces (bit 10) so the mirror wall itself does not appear in its own reflection. The reflected view-projection is stored in the UBO (`reflectedViewProj`).
+2. **Main scene pass** — opaque static/kinematic/dynamic geometry + entities, exactly as normal. `voxel.frag` discards mirror faces here too (they are drawn separately in stage 3).
+3. **Mirror geometry pass** (`renderMirrorGeometry`) — runs **inside** the scene pass, after all opaque/entity geometry. Draws only the mirror voxel faces with `mirrorPipeline` (`mirror_voxel.frag`). The fragment shader projects each mirror-surface world position through `reflectedViewProj` (projective texturing) to sample the reflection target, then applies a faint tint + edge darkening so the surface reads as a mirror rather than a hole.
+
+### The reflected view matrix
+
+```cpp
+glm::mat4 reflectedView = camera->getViewMatrix() * reflMat;   // reflMat = Householder reflection about the mirror plane
+```
+
+Build it by **composing the reflection into the main view** — **not** `glm::lookAt(reflectedEye, reflectedFront, reflectedUp)`. `lookAt` re-derives the camera's right axis with `cross(front, up)`, which absorbs the reflection's `det = −1` sign. That produces two bugs at once: the reflection comes out **horizontally mirrored**, and the view ends up `det = +1` so triangle winding does **not** flip (breaking the cull-mode assumption below).
+
+### Cull modes (coupled to the reflected view)
+
+| Pipeline | Cull | Why |
+|---|---|---|
+| Main static voxel | `FRONT_BIT` | Engine convention (see Static Pipeline → Winding Order) |
+| **Mirror geometry** (`mirrorPipeline`) | `FRONT_BIT` | Mirror faces are drawn from the **main** camera with the same winding as every other voxel — must match the main pipeline. `BACK_BIT` shows the mirror's back side / culls it from the viewing side. |
+| **Reflection scene** (`reflectionScenePipeline`) | `BACK_BIT` | The reflected view has `det = −1`, which flips winding, so the covering triangles survive under the **opposite** cull. This is only correct because `reflectedView = mainView * reflMat`; if it is ever rebuilt with `lookAt`, revert to `FRONT_BIT`. |
+
+### Near plane: do NOT pin it at the mirror
+
+The reflection projection uses a **small near plane near the virtual camera** (`reflNear = 0.3`), not a near plane at the mirror surface. A perspective near plane is perpendicular to the view direction; pinning it at the mirror means that when you look at the mirror **at an angle** it tilts relative to the mirror plane and clips a wedge of the floor nearest the base — a dark "see-through" band along the bottom edge.
+
+**Trade-off:** the small near plane also renders geometry directly *behind* the mirror into the reflection. For a mirror on a solid wall this is invisible and a continuous floor simply fills the bottom edge correctly. For a mirror with a real room behind it, this leaks — the exact fix is **oblique near-plane clipping** (Lengyel) or a `gl_ClipDistance` world-plane clip at the mirror surface. Left as a future enhancement.
+
+### Shader knobs (`mirror_voxel.frag`)
+
+`MIRROR_TINT` (faint cool silver) and `MIRROR_REFLECT` (~0.90) plus a `mix(0.78, 1.0, cosTheta)` edge darkening. A perfect untinted 100% reflector reads as a hole, not a surface — these small imperfections are deliberate.
+
+### Characters in reflections
+
+Instanced characters (the player + animated NPCs) reflect via the shared helper `RenderCoordinator::renderInstancedCharacters(cmd, viewProj, pipeline)`. The instanced character pipeline takes its **view-projection as a push constant**, so the reflection pass simply passes `clippedProj * reflectedView` and a dedicated `reflectionInstancedCharacterPipeline` whose only difference is **`FRONT_BIT` culling** (the reflected view's `det = −1` flips winding — same coupling as `reflectionScenePipeline`).
+
+The character instance buffer is single + host-visible, so the helper rebuilds and re-uploads it on every call. When both the reflection pass and the main pass run in one frame they upload **byte-identical** data (same character state, same batch offsets), so the redundant upload is harmless — both draws read the same final buffer contents at GPU execution. Only instanced characters are reflected; non-instanced/ragdoll entities are not (yet).
+
+### Kinematic objects in reflections
+
+Kinematic voxels (doors, furniture, fragments) also reflect. `KinematicVoxelPipeline` has a `renderReflection()` that mirrors `render()` but binds a **BACK_BIT** reflection pipeline (`m_reflectionPipeline`, opposite of the main pass's FRONT_BIT for the flipped reflected winding). Unlike characters, these read view/proj from the **descriptor set**, so the reflection pass passes `VulkanDevice::getReflectionDescriptorSet(frame)` — the set whose UBO holds the reflected camera. No push-constant change is needed (the per-object world transform is already in world space). The shared instance buffer is only rebuilt on object add/remove (in the main pass), so a newly added/removed kinematic object can lag one frame in the reflection; moving objects (the common case) reflect correctly every frame.
+
+### What does *not* reflect yet
+
+Dynamic voxels / debris (the GPU-particle + CPU-Bullet `renderDynamicSubcubes` paths). Same approach would work — a BACK_BIT reflection pipeline + replay the indirect/CPU draws with the reflected descriptor set — but debris counts can reach ~10k particles, so it is best paired with a reduced-resolution reflection target. Deferred.
+
+---
+
 ## Common Pitfalls
 
 1. **Vertex count vs index count**: The GPU particle path draws 6 **vertices** per instance (non-indexed). The CPU fallback draws 6 **indices** per instance (indexed). Changing one without the other breaks the other path.
@@ -216,6 +276,8 @@ Sleeping particles check character AABB overlap **before** the sleep early-exit 
 6. **Sleeping particles skip collision**: The sleep early-return in `particle_collide.comp` skips ALL collision checks. Any new collision source (e.g. NPC AABBs, projectiles) must check before the sleep gate or wake particles in a pre-check, as the character AABB does.
 
 7. **Kinematic duplicate colliders**: Registering a `KinematicVoxelObject` with `skipCollider=false` when the owning system already has a `btRigidBody` at the same position causes violent Bullet ejection. Always use `skipCollider=true` in those cases.
+
+8. **Rebind vertex binding 0 in every custom pass**: The static draw is `drawIndexed(36, numInstances)` — the full 36-index cube buffer is replayed for each one-face instance, and the shader collapses it onto a single quad, relying on face culling to leave a covering set of triangles. Entity, kinematic, dynamic, mirror, and reflection passes all rebind vertex **binding 0** to their own buffers. Any pass that issues the static draw **must call `vulkanDevice->bindVertexBuffers(frameIndex)` first** to restore the shared cube geometry. If you forget, the chunk faces pull cube vertices from whatever buffer was left bound (a previous frame's, or another pass's) and you get **torn geometry / per-quad triangle holes** that depend on view angle and frame timing. This bit both the reflection pass (runs at frame start, inherits the previous frame's binding) and the mirror geometry pass (runs after the entity pass). The main scene pass already does this — see the comment in `renderScene`.
 
 ---
 

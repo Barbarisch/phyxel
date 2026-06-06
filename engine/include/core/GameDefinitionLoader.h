@@ -35,6 +35,7 @@ class DialogueSystem;
 
 namespace Story {
 class StoryEngine;
+class CharacterAgent;
 }
 
 namespace Core {
@@ -133,6 +134,9 @@ struct GameSubsystems {
     Graphics::Camera* camera = nullptr;
     UI::DialogueSystem* dialogueSystem = nullptr;
     Story::StoryEngine* storyEngine = nullptr;
+    /// Shared agent that drives Guided/Autonomous NPCs (StoryDrivenBehavior). Non-owning;
+    /// must outlive the spawned NPCs. Typically one RuleBasedCharacterAgent for all NPCs.
+    Story::CharacterAgent* characterAgent = nullptr;
 
     /// Callback for spawning player entities (Application-specific).
     /// Takes (type, position, animFile) → returns entity pointer or nullptr.

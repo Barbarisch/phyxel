@@ -12,6 +12,7 @@
 #include "scene/NPCEntity.h"
 #include "scene/AnimatedVoxelCharacter.h"
 #include "scene/behaviors/ScheduledBehavior.h"
+#include "scene/behaviors/StoryDrivenBehavior.h"
 #include "ai/Schedule.h"
 #include "ai/BTLoader.h"
 #include "graphics/Camera.h"
@@ -674,44 +675,57 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
             }
         }
 
-        // Register story character if provided
+        // Register story character if provided. Parse the whole block through
+        // CharacterProfile::from_json so the full rich profile (backstory, drives,
+        // likes/dislikes/prejudices, speechStyle, voice, emotion, relationships, ...)
+        // flows through — not just the handful of fields we used to copy by hand.
         if (npcDef.contains("storyCharacter") && sub.storyEngine) {
-            const auto& sc = npcDef["storyCharacter"];
-            Story::CharacterProfile profile;
-            profile.id = sc.value("id", name);
-            profile.name = sc.value("name", name);
-            profile.description = sc.value("description", "");
-            profile.factionId = sc.value("faction", "");
-            profile.agencyLevel = static_cast<Story::AgencyLevel>(sc.value("agencyLevel", 1));
+            // Work on a normalized copy; leave npcDef untouched so the integer-agencyLevel
+            // reads above (dialogue wiring) keep working.
+            nlohmann::json sc = npcDef["storyCharacter"];
+            if (!sc.contains("id"))        sc["id"]   = name;          // profile id == NPC name (shared key)
+            if (!sc.contains("name"))      sc["name"] = name;
+            if (sc.contains("faction") && !sc.contains("factionId"))   // legacy field name
+                sc["factionId"] = sc["faction"];
+            if (sc.contains("agencyLevel") && sc["agencyLevel"].is_number())  // legacy int form
+                sc["agencyLevel"] = Story::agencyLevelToString(
+                    static_cast<Story::AgencyLevel>(sc["agencyLevel"].get<int>()));
 
-            if (sc.contains("traits")) {
-                const auto& t = sc["traits"];
-                profile.traits.openness = t.value("openness", 0.5f);
-                profile.traits.conscientiousness = t.value("conscientiousness", 0.5f);
-                profile.traits.extraversion = t.value("extraversion", 0.5f);
-                profile.traits.agreeableness = t.value("agreeableness", 0.5f);
-                profile.traits.neuroticism = t.value("neuroticism", 0.5f);
-            }
+            try {
+                Story::CharacterProfile profile = sc.get<Story::CharacterProfile>();
+                const std::string charId = profile.id;
+                const Story::AgencyLevel agency = profile.agencyLevel;
+                sub.storyEngine->addCharacter(std::move(profile));
+                LOG_DEBUG("GameDefinitionLoader", "NPC " + name + ": story character registered (full profile)");
 
-            if (sc.contains("goals")) {
-                for (const auto& g : sc["goals"]) {
-                    Story::CharacterGoal goal;
-                    goal.id = g.value("id", "");
-                    goal.description = g.value("description", "");
-                    goal.priority = g.value("priority", 0.5f);
-                    goal.isActive = g.value("isActive", true);
-                    profile.goals.push_back(std::move(goal));
+                // Guided/Autonomous characters get a profile-driven behavior so they act on
+                // their personality/goals (wander, idle, ambient chatter) via the shared agent.
+                if (npc && sub.characterAgent && agency >= Story::AgencyLevel::Guided) {
+                    Story::CharacterProfile* prof = sub.storyEngine->getCharacterMut(charId);
+                    Story::CharacterMemory*  mem  = sub.storyEngine->getCharacterMemoryMut(charId);
+                    if (prof) {
+                        auto sdb = std::make_unique<Scene::StoryDrivenBehavior>(
+                            sub.characterAgent, prof, mem, sub.storyEngine);
+
+                        // Daily routine: explicit schedule from JSON, else a role-based default
+                        // (merchant/guard/farmer/innkeeper). Gives the autonomy a purpose —
+                        // the character heads to scheduled locations by time of day.
+                        if (npcDef.contains("schedule")) {
+                            sdb->setSchedule(AI::Schedule::fromJson(npcDef["schedule"]));
+                        } else {
+                            std::string role = !npcRole.empty() ? npcRole
+                                             : (!prof->roles.empty() ? prof->roles.front() : "");
+                            if (!role.empty()) sdb->setSchedule(AI::Schedule::forRole(role));
+                        }
+
+                        npc->setBehavior(std::move(sdb));
+                        LOG_INFO("GameDefinitionLoader",
+                                 "NPC " + name + ": StoryDrivenBehavior attached (agency>=Guided)");
+                    }
                 }
+            } catch (const std::exception& e) {
+                LOG_WARN("GameDefinitionLoader", "NPC " + name + ": failed to parse storyCharacter profile: " + e.what());
             }
-
-            if (sc.contains("roles")) {
-                for (const auto& r : sc["roles"]) {
-                    profile.roles.push_back(r.get<std::string>());
-                }
-            }
-
-            sub.storyEngine->addCharacter(std::move(profile));
-            LOG_DEBUG("GameDefinitionLoader", "NPC " + name + ": story character registered");
         }
 
         // Load per-NPC needs if provided (overrides defaults)

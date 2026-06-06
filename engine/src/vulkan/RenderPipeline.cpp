@@ -832,6 +832,11 @@ void RenderPipeline::cleanup() {
         instancedCharacterPipeline = VK_NULL_HANDLE;
     }
 
+    if (reflectionInstancedCharacterPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, reflectionInstancedCharacterPipeline, nullptr);
+        reflectionInstancedCharacterPipeline = VK_NULL_HANDLE;
+    }
+
     if (characterPipelineLayout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(device, characterPipelineLayout, nullptr);
         characterPipelineLayout = VK_NULL_HANDLE;
@@ -1490,8 +1495,26 @@ bool RenderPipeline::createInstancedCharacterPipeline() {
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
+    if (instancedCharacterPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(vulkanDevice.getDevice(), instancedCharacterPipeline, nullptr);
+        instancedCharacterPipeline = VK_NULL_HANDLE;
+    }
     if (vkCreateGraphicsPipelines(vulkanDevice.getDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &instancedCharacterPipeline) != VK_SUCCESS) {
         LOG_ERROR("Rendering", "Failed to create instanced character graphics pipeline!");
+        return false;
+    }
+
+    // Reflection variant: identical pipeline but FRONT_BIT culling. Characters drawn into the
+    // mirror reflection are seen through the reflected view (mainView * reflMat), which has
+    // det=-1 and flips triangle winding — so they need the opposite cull from the main pass
+    // (BACK_BIT), exactly like reflectionScenePipeline vs the main voxel pipeline.
+    rasterizer.cullMode = VK_CULL_MODE_FRONT_BIT;
+    if (reflectionInstancedCharacterPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(vulkanDevice.getDevice(), reflectionInstancedCharacterPipeline, nullptr);
+        reflectionInstancedCharacterPipeline = VK_NULL_HANDLE;
+    }
+    if (vkCreateGraphicsPipelines(vulkanDevice.getDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &reflectionInstancedCharacterPipeline) != VK_SUCCESS) {
+        LOG_ERROR("Rendering", "Failed to create reflection instanced character graphics pipeline!");
         return false;
     }
 
@@ -1626,7 +1649,10 @@ bool RenderPipeline::createMirrorPipeline(VkRenderPass sceneRenderPass) {
     VkPipelineRasterizationStateCreateInfo rs{};
     rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rs.polygonMode = VK_POLYGON_MODE_FILL; rs.lineWidth = 1.0f;
-    rs.cullMode = VK_CULL_MODE_BACK_BIT; // Normal back-face culling
+    rs.cullMode = VK_CULL_MODE_FRONT_BIT; // Match main voxel pipeline (FRONT_BIT) — mirror faces
+                                          // are drawn from the main camera with the same winding as
+                                          // all other static voxels. BACK_BIT here showed the mirror's
+                                          // back side / culled it from the viewing side.
     rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
     VkPipelineMultisampleStateCreateInfo ms{};
@@ -1719,7 +1745,11 @@ bool RenderPipeline::createReflectionScenePipeline(VkRenderPass sceneRenderPass)
     rs.sType       = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rs.polygonMode = VK_POLYGON_MODE_FILL;
     rs.lineWidth   = 1.0f;
-    rs.cullMode    = VK_CULL_MODE_BACK_BIT;              // BACK_BIT: after winding flip from reflection, renders the correct faces
+    rs.cullMode    = VK_CULL_MODE_BACK_BIT;              // Opposite of the main voxel pipeline's FRONT_BIT:
+                                                        // the reflected view (mainView * reflMat) has det=-1 and flips
+                                                        // triangle winding, so the covering sub-triangle group survives
+                                                        // under BACK_BIT. (If the reflected view is ever rebuilt with
+                                                        // glm::lookAt — det=+1, no flip — revert this to FRONT_BIT.)
     rs.frontFace   = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
     VkPipelineMultisampleStateCreateInfo ms{};

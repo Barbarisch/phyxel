@@ -357,10 +357,14 @@ bool RenderCoordinator::scanForMirrorVoxels() {
 
         glm::ivec3 origin = chunk->getWorldOrigin();
         glm::ivec3 local  = chunk->getFirstMirrorLocal();
+        mirrorPlaneNormal = glm::vec3(0.0f, 0.0f, 1.0f);
+        // Put the reflection plane on the VISIBLE +Z face of the mirror voxel (z = local+1.0),
+        // not the voxel center (z = local+0.5). The player sees the +Z face; computing the
+        // reflection about the center plane misregisters reflections by a half-voxel (objects
+        // don't line up with their reflections where they meet the mirror surface).
         mirrorPlanePoint  = glm::vec3(origin.x + local.x + 0.5f,
                                       origin.y + local.y + 0.5f,
-                                      origin.z + local.z + 0.5f);
-        mirrorPlaneNormal = glm::vec3(0.0f, 0.0f, 1.0f);
+                                      origin.z + local.z + 0.5f) + mirrorPlaneNormal * 0.5f;
         LOG_DEBUG("RenderCoordinator", "Mirror voxel found at ({},{},{}), plane normal ({},{},{})",
             mirrorPlanePoint.x, mirrorPlanePoint.y, mirrorPlanePoint.z,
             mirrorPlaneNormal.x, mirrorPlaneNormal.y, mirrorPlaneNormal.z);
@@ -405,25 +409,39 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
         reflCamFront.x, reflCamFront.y, reflCamFront.z,
         visibleChunkIndices.size());
 
-    glm::mat4 reflectedView = glm::lookAt(reflCamPos, reflCamPos + reflCamFront, reflCamUp);
+    // Build the reflected view by composing the reflection into the main view matrix.
+    // NOT glm::lookAt(reflected eye/front/up): lookAt re-derives the right axis via
+    // cross(front,up), which picks up the reflection's det=-1 sign and (a) horizontally
+    // mirrors the image and (b) yields a det=+1 view that does NOT flip triangle winding.
+    // mainView * reflMat is the exact reflected view: correct handedness, det=-1 so winding
+    // flips as the reflectionScenePipeline's BACK_BIT culling expects.
+    glm::mat4 reflectedView = camera->getViewMatrix() * reflMat;
     cachedReflectedViewProj = cachedProjectionMatrix * reflectedView;
 
     // Store reflected VP in the main UBO so mirror_voxel.frag can use it for projective texturing
     vulkanDevice->setReflectedViewProj(frameIndex, cachedReflectedViewProj);
 
-    // Build a clipped projection for the reflection render pass.
-    // Use mirrorDist as the NEAR plane so that the thin band between the reflected camera
-    // and the mirror surface (world z=20.5..27) is clipped by hardware.
-    // Objects on the main camera's side of the mirror (world z < 20.5, farther than mirrorDist
-    // from the reflected camera) are kept and appear correctly in the reflection.
-    float mirrorDist = glm::max(0.2f, glm::abs(glm::dot(mirrorPlanePoint - reflCamPos, N)));
+    // Build the projection for the reflection render pass.
+    //
+    // We do NOT set the near plane at the mirror surface. A perspective near plane is
+    // perpendicular to the view direction, so when the camera looks at the mirror at an
+    // angle it tilts relative to the mirror plane and clips a wedge of the floor nearest
+    // the mirror base — that produced the dark band along the bottom edge of the mirror.
+    //
+    // Instead use a small near plane close to the reflected camera. This never clips valid
+    // reflected geometry. The cost is that geometry directly BEHIND the mirror is also
+    // rendered into the reflection; for a mirror mounted on a solid wall there is nothing
+    // meaningful back there, and a continuous floor simply fills the bottom edge correctly.
+    // (For a mirror with a real room behind it, the exact fix is oblique near-plane clipping
+    // or a gl_ClipDistance world-plane clip at the mirror — a future enhancement.)
+    const float reflNear = 0.3f;
     // Preserve the original far plane by extracting it from cachedProjectionMatrix.
     // Works for both OpenGL [-1,1] and Vulkan [0,1] depth conventions: far = B/(A+1).
     float A = cachedProjectionMatrix[2][2];
     float B = cachedProjectionMatrix[3][2];
     float farPlane = B / (A + 1.0f);
     float reflAspect = (float)windowManager->getWidth() / (float)windowManager->getHeight();
-    glm::mat4 clippedProj = glm::perspective(glm::radians(45.0f), reflAspect, mirrorDist, farPlane);
+    glm::mat4 clippedProj = glm::perspective(glm::radians(45.0f), reflAspect, reflNear, farPlane);
     clippedProj[1][1] *= -1;  // Y-flip for Vulkan, matching cachedProjectionMatrix
 
     // Update the reflection-specific UBO with the reflected view matrix
@@ -446,6 +464,13 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
     vulkanDevice->bindIndexBuffer(frameIndex);
     vulkanDevice->bindReflectionDescriptorSets(frameIndex, renderPipeline->getGraphicsLayout());
 
+    // Bind the shared cube geometry to vertex binding 0. The reflection pass runs at the
+    // START of the frame, so binding 0 still holds whatever buffer the PREVIOUS frame left
+    // there (mirror/entity/kinematic geometry). Without this rebind the reflected chunks pull
+    // cube vertices from the wrong buffer → torn/garbage geometry in the reflection texture.
+    // The per-chunk loop below rebinds binding 1 to each chunk's instance buffer.
+    vulkanDevice->bindVertexBuffers(frameIndex);
+
     // Draw visible chunks from reflected camera (mirror faces discarded by voxel.frag)
     for (size_t chunkIndex : visibleChunkIndices) {
         const Chunk* chunk = chunkManager->chunks[chunkIndex].get();
@@ -460,6 +485,26 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
         vulkanDevice->pushConstants(frameIndex, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
         vulkanDevice->drawIndexed(frameIndex, 36, chunk->getNumInstances());
         lastFrameStats.reflectionDrawCalls++;
+    }
+
+    // Draw instanced characters (player + animated NPCs) into the reflection target so they
+    // appear in mirrors. Uses the reflected view-projection (clippedProj * reflectedView) and
+    // the FRONT_BIT reflection pipeline (the reflected view's det=-1 flips winding). This pass
+    // runs first each frame, so it is responsible for uploading the shared character buffer.
+    glm::mat4 reflViewProj = clippedProj * reflectedView;
+    renderInstancedCharacters(vulkanDevice->getCommandBuffer(frameIndex), reflViewProj,
+                              renderPipeline->getReflectionInstancedCharacterPipeline());
+
+    // Draw kinematic objects (doors, furniture, fragments) into the reflection. They read
+    // view/proj from the descriptor set, so we pass the reflected-camera descriptor set; the
+    // renderReflection() variant uses the BACK_BIT pipeline for the flipped reflected winding.
+    // (Object add/remove rebuilds the shared buffer in the main pass — moving objects, the
+    // common case, need no rebuild, so they reflect correctly; add/remove may lag one frame.)
+    if (kinematicPipeline && m_kinematicObjects && !m_kinematicObjects->getObjects().empty()) {
+        kinematicPipeline->renderReflection(
+            vulkanDevice->getCommandBuffer(frameIndex),
+            m_kinematicObjects->getObjects(),
+            vulkanDevice->getReflectionDescriptorSet(frameIndex));
     }
 
     LOG_DEBUG("RenderCoordinator", "Reflection pass complete: {} chunks drawn", lastFrameStats.reflectionDrawCalls);
@@ -478,6 +523,13 @@ void RenderCoordinator::renderMirrorGeometry(uint32_t frameIndex) {
     // Bind main descriptor set at set 0 (original view + atlas + lights)
     vulkanDevice->bindDescriptorSets(frameIndex, renderPipeline->getMirrorPipelineLayout());
     vulkanDevice->bindIndexBuffer(frameIndex);
+
+    // Rebind the shared cube geometry to vertex binding 0. The mirror pass runs after the
+    // entity/kinematic/dynamic passes, which leave their own buffers bound at binding 0 (see
+    // the comment in renderScene). Without this the mirror faces pull cube vertices from a
+    // leftover buffer → torn coverage (visible triangle holes in the mirror surface).
+    // The per-chunk loop below rebinds binding 1 to each chunk's instance buffer.
+    vulkanDevice->bindVertexBuffers(frameIndex);
 
     for (size_t chunkIndex : visibleChunkIndices) {
         const Chunk* chunk = chunkManager->chunks[chunkIndex].get();
@@ -1252,108 +1304,107 @@ VkSampler RenderCoordinator::getViewportSampler() const {
     return postProcessor ? postProcessor->getOffscreenSampler() : VK_NULL_HANDLE;
 }
 
+void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
+        const glm::mat4& viewProj, VkPipeline pipeline) {
+    bool hasEntities = entities && !entities->empty();
+    bool hasNPCs = m_npcManager && m_npcManager->getNPCCount() > 0;
+    if (!hasEntities && !hasNPCs) return;
+
+    // Collect instanced characters: the animated player + animated/physics NPCs.
+    std::vector<Scene::RagdollCharacter*> instancedCharacters;
+    if (hasEntities) {
+        for (const auto& entity : *entities) {
+            auto animatedChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity.get());
+            // Hide player when F5 debug overlay is active so segment boxes are visible.
+            if (animatedChar && !raycastVisualizationEnabled) {
+                instancedCharacters.push_back(animatedChar);
+            }
+        }
+    }
+    if (hasNPCs) {
+        for (const auto& name : m_npcManager->getAllNPCNames()) {
+            auto* npc = m_npcManager->getNPC(name);
+            if (npc) {
+                if (auto* renderable = npc->getRenderableCharacter())
+                    instancedCharacters.push_back(renderable);
+            }
+        }
+    }
+    if (instancedCharacters.empty()) return;
+
+    std::vector<CharacterInstanceData> instanceData;
+    struct Batch { glm::mat4 model; uint32_t firstInstance; uint32_t instanceCount; };
+    std::vector<Batch> batches;
+
+    auto batchParts = [&](const std::vector<Scene::RagdollPart>& charParts) {
+        std::map<int, std::vector<const Scene::RagdollPart*>> partsByGroup;
+        for (const auto& part : charParts) {
+            if (part.useDirectTransform)
+                partsByGroup[part.boneGroupId].push_back(&part);
+        }
+        for (const auto& [groupId, gParts] : partsByGroup) {
+            if (gParts.empty()) continue;
+            const auto* first = gParts[0];
+            glm::mat4 model = glm::translate(glm::mat4(1.0f), first->worldPos)
+                            * glm::mat4_cast(first->worldRot);
+            Batch batch;
+            batch.model = model;
+            batch.firstInstance = static_cast<uint32_t>(instanceData.size());
+            batch.instanceCount = 0;
+            for (const auto* part : gParts) {
+                if (!part->active) continue;
+                CharacterInstanceData data;
+                data.offset = part->offset;
+                data.scale  = part->scale;
+                data.color  = part->color;
+                instanceData.push_back(data);
+                batch.instanceCount++;
+            }
+            if (batch.instanceCount > 0) batches.push_back(batch);
+        }
+    };
+    for (auto* charPtr : instancedCharacters) batchParts(charPtr->getParts());
+    if (instanceData.empty()) return;
+
+    // Upload the shared (single, host-visible) character instance buffer. If both the
+    // reflection pass and the main pass run this frame they upload byte-identical data (same
+    // character state, same batch offsets), so the redundant memcpy is harmless — both draws
+    // read the same final buffer contents at GPU execution time.
+    vulkanDevice->updateCharacterInstanceBuffer(instanceData);
+
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+    vulkanDevice->bindCharacterInstanceBuffer(commandBuffer);
+    vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getInstancedCharacterLayout());
+
+    for (const auto& batch : batches) {
+        struct PushConsts { glm::mat4 model; glm::mat4 viewProj; } pushConsts;
+        pushConsts.model = batch.model;
+        pushConsts.viewProj = viewProj;
+        vkCmdPushConstants(commandBuffer, renderPipeline->getInstancedCharacterLayout(),
+                           VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConsts), &pushConsts);
+        vkCmdDraw(commandBuffer, 36, batch.instanceCount, 0, batch.firstInstance);
+    }
+}
+
 void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
     bool hasEntities = entities && !entities->empty();
     bool hasNPCs = m_npcManager && m_npcManager->getNPCCount() > 0;
     if (!hasEntities && !hasNPCs) return;
 
-    // Separate entities into instanced and standard
-    std::vector<Scene::RagdollCharacter*> instancedCharacters;
+    // Collect non-instanced (standard) entities. Instanced characters (player + animated
+    // NPCs) are drawn by renderInstancedCharacters(), which is shared with the mirror
+    // reflection pass so characters appear in mirrors too.
     std::vector<Scene::Entity*> standardEntities;
-
     if (hasEntities) {
         for (const auto& entity : *entities) {
-            auto animatedChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity.get());
-            if (animatedChar) {
-                // Hide player character when F5 debug overlay is active so segment boxes are visible
-                if (!raycastVisualizationEnabled) {
-                    instancedCharacters.push_back(animatedChar);
-                }
-            } else {
+            if (!dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity.get()))
                 standardEntities.push_back(entity.get());
-            }
         }
     }
 
-    // Add NPC characters to the instanced list (both animated and physics-driven)
-    if (hasNPCs) {
-        for (const auto& name : m_npcManager->getAllNPCNames()) {
-            auto* npc = m_npcManager->getNPC(name);
-            if (npc) {
-                auto* renderable = npc->getRenderableCharacter();
-                if (renderable) {
-                    instancedCharacters.push_back(renderable);
-                }
-            }
-        }
-    }
-
-    // Render Instanced Characters (RagdollCharacter-based)
-    if (!instancedCharacters.empty()) {
-        std::vector<CharacterInstanceData> instanceData;
-        struct Batch {
-            glm::mat4 model;
-            uint32_t firstInstance;
-            uint32_t instanceCount;
-        };
-        std::vector<Batch> batches;
-
-        // Helper lambda to batch a parts list
-        auto batchParts = [&](const std::vector<Scene::RagdollPart>& charParts) {
-            // Direct-transform parts (AnimatedVoxelCharacter bones)
-            std::map<int, std::vector<const Scene::RagdollPart*>> partsByGroup;
-            for (const auto& part : charParts) {
-                if (part.useDirectTransform)
-                    partsByGroup[part.boneGroupId].push_back(&part);
-            }
-            for (const auto& [groupId, gParts] : partsByGroup) {
-                if (gParts.empty()) continue;
-                const auto* first = gParts[0];
-                glm::mat4 model = glm::translate(glm::mat4(1.0f), first->worldPos)
-                                * glm::mat4_cast(first->worldRot);
-                Batch batch;
-                batch.model = model;
-                batch.firstInstance = static_cast<uint32_t>(instanceData.size());
-                batch.instanceCount = 0;
-                for (const auto* part : gParts) {
-                    if (!part->active) continue;
-                    CharacterInstanceData data;
-                    data.offset = part->offset;
-                    data.scale  = part->scale;
-                    data.color  = part->color;
-                    instanceData.push_back(data);
-                    batch.instanceCount++;
-                }
-                if (batch.instanceCount > 0) batches.push_back(batch);
-            }
-        };
-
-        for (auto* charPtr : instancedCharacters) batchParts(charPtr->getParts());
-
-        if (!instanceData.empty()) {
-            vulkanDevice->updateCharacterInstanceBuffer(instanceData);
-            renderPipeline->bindInstancedCharacterPipeline(commandBuffer);
-            vulkanDevice->bindCharacterInstanceBuffer(commandBuffer);
-            vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getInstancedCharacterLayout());
-
-            glm::mat4 viewProj = cachedProjectionMatrix * cachedViewMatrix;
-
-            for (const auto& batch : batches) {
-                struct PushConsts {
-                    glm::mat4 model;
-                    glm::mat4 viewProj;
-                } pushConsts;
-                pushConsts.model = batch.model;
-                pushConsts.viewProj = viewProj;
-
-                vkCmdPushConstants(commandBuffer, renderPipeline->getInstancedCharacterLayout(), 
-                                 VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConsts), &pushConsts);
-                
-                // Draw 36 vertices (cube) * instanceCount
-                vkCmdDraw(commandBuffer, 36, batch.instanceCount, 0, batch.firstInstance);
-            }
-        }
-    }
+    // Instanced characters in the main pass (main camera view-projection).
+    renderInstancedCharacters(commandBuffer, cachedProjectionMatrix * cachedViewMatrix,
+                              renderPipeline->getInstancedCharacterPipeline());
 
     renderPipeline->bindCharacterPipeline(commandBuffer);
     vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getCharacterLayout());

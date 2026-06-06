@@ -57,6 +57,14 @@ public:
                 const std::unordered_map<std::string, Core::KinematicVoxelObject>& objects,
                 VkDescriptorSet uboSet);
 
+    /// Same as render(), but uses the FRONT/BACK-flipped reflection pipeline and is meant to
+    /// be called inside the mirror reflection pass with the reflected-camera descriptor set.
+    /// The reflected view (mainView * reflMat) has det=-1 and flips winding, so kinematic
+    /// objects need the opposite cull from the main pass.
+    void renderReflection(VkCommandBuffer cmd,
+                const std::unordered_map<std::string, Core::KinematicVoxelObject>& objects,
+                VkDescriptorSet reflectionUboSet);
+
     /// Accessors for shadow pass draw (shadow pipeline reuses the same instance buffer)
     VkBuffer getInstanceBuffer() const { return m_instanceBuffer; }
     const std::unordered_map<std::string, ObjectRange>& getObjectRanges() const { return m_objectRanges; }
@@ -66,6 +74,9 @@ public:
 private:
     void     createPipeline(VkRenderPass renderPass, VkExtent2D extent,
                              VkDescriptorSetLayout uboLayout);
+    void     recordDraws(VkCommandBuffer cmd,
+                         const std::unordered_map<std::string, Core::KinematicVoxelObject>& objects,
+                         VkDescriptorSet uboSet, VkPipeline pipeline);
     void     createInstanceBuffer();
     uint32_t findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags props) const;
 
@@ -73,6 +84,7 @@ private:
     VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
     VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
     VkPipeline       m_pipeline       = VK_NULL_HANDLE;
+    VkPipeline       m_reflectionPipeline = VK_NULL_HANDLE;  // BACK_BIT variant for the mirror reflection pass
 
     VkBuffer       m_instanceBuffer       = VK_NULL_HANDLE;
     VkDeviceMemory m_instanceBufferMemory = VK_NULL_HANDLE;

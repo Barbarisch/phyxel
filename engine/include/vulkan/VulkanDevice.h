@@ -259,6 +259,8 @@ public:
         VkFormat getSwapChainImageFormat() const { return swapChainImageFormat; }
         VkDescriptorSetLayout getDescriptorSetLayout() const { return descriptorSetLayout; }
         VkDescriptorSet getDescriptorSet(uint32_t frameIndex) const { return descriptorSets[frameIndex]; }
+        // Set-0 descriptor whose UBO holds the reflected camera (used by the mirror reflection pass).
+        VkDescriptorSet getReflectionDescriptorSet(uint32_t frameIndex) const { return reflectionDescriptorSets[frameIndex]; }
         uint32_t getSwapChainImageCount() const { return static_cast<uint32_t>(swapChainImages.size()); }
         VkImage getSwapChainImage(uint32_t index) const { return swapChainImages[index]; }
         VkFramebuffer getSwapChainFramebuffer(uint32_t index) const { return swapChainFramebuffers[index]; }
