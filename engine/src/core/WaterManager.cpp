@@ -82,6 +82,7 @@ void WaterManager::update(float dt) {
 
 void WaterManager::rebuildSurface() {
     m_surface.clear();
+    m_waterfalls.clear();
     const int sx = m_dims.x, sy = m_dims.y, sz = m_dims.z;
     auto colIdx = [sx](int x, int z) { return x + sx * z; };
 
@@ -160,14 +161,36 @@ void WaterManager::rebuildSurface() {
         };
         const float cNN = cor(c.x, c.z), cPN = cor(c.x + 1, c.z);
         const float cPP = cor(c.x + 1, c.z + 1), cNP = cor(c.x, c.z + 1);
+        const float wX = static_cast<float>(m_origin.x + c.x);
+        const float wZ = static_cast<float>(m_origin.z + c.z);
+        // Side bottom for one edge. Where water spills over a tall OPEN drop (down a
+        // solid cliff / into a much-lower pool), the skirt extends the whole way to the
+        // landing so the falling water renders as a vertical curtain, and a waterfall lip
+        // is recorded for mist. Otherwise it's a normal short side face.
+        auto edge = [&](int nx, int nz, float top, float lipX, float lipZ) -> float {
+            if (nx >= 0 && nx < sx && nz >= 0 && nz < sz &&
+                !m_sim.isSolid(nx, c.y, nz)) {           // edge is open (water can pour over)
+                float land = static_cast<float>(m_origin.y);     // region bottom if nothing below
+                for (int yy = c.y; yy >= 0; --yy)
+                    if (m_sim.isSolid(nx, yy, nz)) { land = static_cast<float>(m_origin.y + yy + 1); break; }
+                float nW = colTop[colIdx(nx, nz)];        // a lower pool catches the fall
+                if (nW > -1e8f) land = std::max(land, nW);
+                float drop = ref - land;
+                if (drop >= WATERFALL_MIN_DROP) {
+                    if (m_waterfalls.size() < MAX_WATERFALLS)
+                        m_waterfalls.emplace_back(lipX, ref, lipZ, drop);
+                    return land; // vertical falling-water curtain down the drop
+                }
+            }
+            return edgeBottom(nx, nz, top);
+        };
         WaterSurfaceCell out;
-        out.centerDepth = glm::vec4(static_cast<float>(m_origin.x + c.x) + 0.5f, ref,
-                                    static_cast<float>(m_origin.z + c.z) + 0.5f, c.depth);
+        out.centerDepth = glm::vec4(wX + 0.5f, ref, wZ + 0.5f, c.depth);
         out.corners = glm::vec4(cNN, cPN, cPP, cNP);
-        out.skirt = glm::vec4(edgeBottom(c.x + 1, c.z, std::min(cPN, cPP)),  // +x
-                              edgeBottom(c.x - 1, c.z, std::min(cNN, cNP)),  // -x
-                              edgeBottom(c.x, c.z + 1, std::min(cNP, cPP)),  // +z
-                              edgeBottom(c.x, c.z - 1, std::min(cNN, cPN))); // -z
+        out.skirt = glm::vec4(edge(c.x + 1, c.z, std::min(cPN, cPP), wX + 1.0f, wZ + 0.5f),  // +x
+                              edge(c.x - 1, c.z, std::min(cNN, cNP), wX + 0.0f, wZ + 0.5f),  // -x
+                              edge(c.x, c.z + 1, std::min(cNP, cPP), wX + 0.5f, wZ + 1.0f),  // +z
+                              edge(c.x, c.z - 1, std::min(cNN, cPN), wX + 0.5f, wZ + 0.0f)); // -z
         m_surface.push_back(out);
     }
 }

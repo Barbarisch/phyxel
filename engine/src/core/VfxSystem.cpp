@@ -224,6 +224,7 @@ void VfxSystem::spawnBurst(const glm::vec3& position, const VfxBurstParams& para
         float life  = std::max(0.05f, params.lifetime + frand(-params.lifetimeVar, params.lifetimeVar));
         float size  = std::max(0.02f, params.size + frand(-params.sizeVar, params.sizeVar));
 
+        startPos += glm::vec3(frand(-1.0f, 1.0f), frand(-1.0f, 1.0f), frand(-1.0f, 1.0f)) * params.posJitter;
         p.position    = startPos;
         p.velocity    = dir * speed;
         p.scale       = glm::vec3(size);
@@ -238,8 +239,9 @@ void VfxSystem::spawnBurst(const glm::vec3& position, const VfxBurstParams& para
         ++m_activeCount; // keep count live between updates
     }
 
-    LOG_INFO("VfxSystem", "Burst spawned {} particles at ({}, {}, {})",
-             spawned, position.x, position.y, position.z);
+    // DEBUG, not INFO: continuous emitters (e.g. waterfall mist) call this every frame.
+    LOG_DEBUG("VfxSystem", "Burst spawned {} particles at ({}, {}, {})",
+              spawned, position.x, position.y, position.z);
 }
 
 int VfxSystem::spawnEffect(const std::string& effect, const glm::vec3& position) {

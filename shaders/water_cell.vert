@@ -33,11 +33,24 @@ void main() {
     else if (ox > 0.0 && oz > 0.0) idx = 2; // (+x,+z)
     else                           idx = 3; // (-x,+z)
 
-    float y = (vtype == 0) ? inCorners[idx] : inSkirt[edge];
+    // vtype 0 = top face corner, 2 = side-face top corner, 1 = side-face bottom (skirt).
+    float y = (vtype == 1) ? inSkirt[edge] : inCorners[idx];
 
     vec3 world = vec3(inCenterDepth.x + ox, y, inCenterDepth.z + oz);
+    // Nudge side faces (vtype 1/2) slightly outward so a falling-water curtain doesn't
+    // z-fight the solid cliff/terrain directly behind it.
+    if (vtype != 0) {
+        vec2 n = vec2(0.0);
+        if      (edge == 0) n = vec2( 1.0, 0.0);
+        else if (edge == 1) n = vec2(-1.0, 0.0);
+        else if (edge == 2) n = vec2( 0.0, 1.0);
+        else                n = vec2( 0.0,-1.0);
+        world.x += n.x * 0.04;
+        world.z += n.y * 0.04;
+    }
+
     fragWorldPos = world;
     fragDepth    = inCenterDepth.w;
-    fragSide     = float(vtype);
+    fragSide     = (vtype == 0) ? 0.0 : 1.0;
     gl_Position  = pc.viewProj * vec4(world, 1.0);
 }

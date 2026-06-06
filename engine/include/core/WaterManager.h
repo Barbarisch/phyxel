@@ -95,8 +95,16 @@ public:
     // whenever the field changes (step/sync/place).
     const std::vector<WaterSurfaceCell>& surfaceCells() const { return m_surface; }
 
+    // Detected waterfall lips: xyz = world lip point, w = drop height. A side-face edge
+    // whose skirt falls >= WATERFALL_MIN_DROP into open air or much-lower water. Consumed
+    // by the host to spawn mist/spray. Rebuilt alongside the surface.
+    const std::vector<glm::vec4>& waterfalls() const { return m_waterfalls; }
+
     // Minimum cell mass that renders / is treated as a surface (ignores thin film).
     static constexpr float RENDER_MIN = 0.05f;
+    // A skirt edge dropping at least this far (cells) is treated as a waterfall lip.
+    static constexpr float WATERFALL_MIN_DROP = 1.5f;
+    static constexpr size_t MAX_WATERFALLS = 48; // cap mist emitter points
 
 private:
     bool worldToLocal(const glm::vec3& w, int& lx, int& ly, int& lz) const;
@@ -131,7 +139,8 @@ private:
     glm::ivec3      m_origin;
     glm::ivec3      m_dims;
     WaterSimulation m_sim;
-    std::vector<WaterSurfaceCell> m_surface; // cached renderable surface cells
+    std::vector<WaterSurfaceCell> m_surface;   // cached renderable surface cells
+    std::vector<glm::vec4>        m_waterfalls; // mist emitter points (lip xyz, drop w)
     float           m_accum = 0.0f;
 
     static constexpr float STEP_HZ = 20.0f;

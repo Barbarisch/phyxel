@@ -13,24 +13,26 @@ namespace Graphics {
 
 // Per-cell mesh: a sloped top quad plus four vertical side "skirts" (one per edge), so
 // the water reads as a solid body with closed faces at drops/cliffs. Each vertex is
-// (offsetX, offsetZ, vtype, edge): vtype 0 = use the matching corner height, 1 = use the
-// skirt bottom for `edge` (0=+x,1=-x,2=+z,3=-z). Cull is disabled (visible both sides).
+// (offsetX, offsetZ, vtype, edge): vtype 0 = top-face corner height; 2 = side-face top
+// (corner height); 1 = side-face bottom (skirt[edge]). Side faces (vtype 1/2) are nudged
+// slightly outward along `edge` (0=+x,1=-x,2=+z,3=-z) to avoid z-fighting the cliff/terrain
+// behind a falling-water curtain. Cull is disabled (visible both sides).
 static const std::array<glm::vec4, 30> BOX_VERTICES = {
     // Top face (vtype 0).
     glm::vec4(-0.5f, -0.5f, 0, 0), glm::vec4( 0.5f, -0.5f, 0, 0), glm::vec4( 0.5f,  0.5f, 0, 0),
     glm::vec4( 0.5f,  0.5f, 0, 0), glm::vec4(-0.5f,  0.5f, 0, 0), glm::vec4(-0.5f, -0.5f, 0, 0),
-    // +x side (edge 0).
-    glm::vec4( 0.5f, -0.5f, 0, 0), glm::vec4( 0.5f,  0.5f, 0, 0), glm::vec4( 0.5f,  0.5f, 1, 0),
-    glm::vec4( 0.5f,  0.5f, 1, 0), glm::vec4( 0.5f, -0.5f, 1, 0), glm::vec4( 0.5f, -0.5f, 0, 0),
+    // +x side (edge 0): tops vtype 2, bottoms vtype 1.
+    glm::vec4( 0.5f, -0.5f, 2, 0), glm::vec4( 0.5f,  0.5f, 2, 0), glm::vec4( 0.5f,  0.5f, 1, 0),
+    glm::vec4( 0.5f,  0.5f, 1, 0), glm::vec4( 0.5f, -0.5f, 1, 0), glm::vec4( 0.5f, -0.5f, 2, 0),
     // -x side (edge 1).
-    glm::vec4(-0.5f, -0.5f, 0, 0), glm::vec4(-0.5f,  0.5f, 0, 0), glm::vec4(-0.5f,  0.5f, 1, 1),
-    glm::vec4(-0.5f,  0.5f, 1, 1), glm::vec4(-0.5f, -0.5f, 1, 1), glm::vec4(-0.5f, -0.5f, 0, 0),
+    glm::vec4(-0.5f, -0.5f, 2, 1), glm::vec4(-0.5f,  0.5f, 2, 1), glm::vec4(-0.5f,  0.5f, 1, 1),
+    glm::vec4(-0.5f,  0.5f, 1, 1), glm::vec4(-0.5f, -0.5f, 1, 1), glm::vec4(-0.5f, -0.5f, 2, 1),
     // +z side (edge 2).
-    glm::vec4(-0.5f,  0.5f, 0, 0), glm::vec4( 0.5f,  0.5f, 0, 0), glm::vec4( 0.5f,  0.5f, 1, 2),
-    glm::vec4( 0.5f,  0.5f, 1, 2), glm::vec4(-0.5f,  0.5f, 1, 2), glm::vec4(-0.5f,  0.5f, 0, 0),
+    glm::vec4(-0.5f,  0.5f, 2, 2), glm::vec4( 0.5f,  0.5f, 2, 2), glm::vec4( 0.5f,  0.5f, 1, 2),
+    glm::vec4( 0.5f,  0.5f, 1, 2), glm::vec4(-0.5f,  0.5f, 1, 2), glm::vec4(-0.5f,  0.5f, 2, 2),
     // -z side (edge 3).
-    glm::vec4(-0.5f, -0.5f, 0, 0), glm::vec4( 0.5f, -0.5f, 0, 0), glm::vec4( 0.5f, -0.5f, 1, 3),
-    glm::vec4( 0.5f, -0.5f, 1, 3), glm::vec4(-0.5f, -0.5f, 1, 3), glm::vec4(-0.5f, -0.5f, 0, 0),
+    glm::vec4(-0.5f, -0.5f, 2, 3), glm::vec4( 0.5f, -0.5f, 2, 3), glm::vec4( 0.5f, -0.5f, 1, 3),
+    glm::vec4( 0.5f, -0.5f, 1, 3), glm::vec4(-0.5f, -0.5f, 1, 3), glm::vec4(-0.5f, -0.5f, 2, 3),
 };
 
 struct WaterCellPush {

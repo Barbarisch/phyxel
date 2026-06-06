@@ -71,6 +71,7 @@ struct VfxBurstParams {
     glm::vec3 direction{0.0f, 1.0f, 0.0f}; // axis for Dome/Cone/Ring
     float     coneAngleDeg = 45.0f;        // Cone half-angle
     glm::vec3 extent{1.0f};                // Cube half-extent (world units)
+    glm::vec3 posJitter{0.0f};             // random +/- offset on each particle's start position
 };
 
 // Parameters for a travelling projectile (Phase 2). The projectile's glowing

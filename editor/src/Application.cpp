@@ -2666,6 +2666,36 @@ void Application::update(float deltaTime) {
     // Tick the CPU water cellular automaton (fixed-rate internally).
     if (waterManager) waterManager->update(deltaTime);
 
+    // Waterfall mist: emit soft rising spray at the base of each detected fall lip.
+    if (waterManager && renderCoordinator && renderCoordinator->getVfxSystem()) {
+        const auto& falls = waterManager->waterfalls();
+        if (!falls.empty()) {
+            auto* vfx = renderCoordinator->getVfxSystem();
+            for (const auto& f : falls) {
+                const float drop = f.w;                 // fall height -> a bit bigger/fuller
+                VfxBurstParams mist;
+                mist.count       = std::min(3 + static_cast<int>(drop * 0.5f), 8);
+                mist.speed       = 0.8f;  mist.speedVar    = 1.0f;
+                mist.upBias      = 0.55f;           // drift up the fall face (no hard band)
+                mist.gravity     = -0.8f;
+                mist.drag        = 3.0f;            // slow fast -> hangs like fog
+                mist.lifetime    = 1.5f;  mist.lifetimeVar = 0.6f;
+                mist.size        = 0.12f + 0.02f * drop;
+                mist.sizeVar     = 0.05f;
+                mist.intensity   = 0.09f;           // low: even spread, no additive blowout
+                mist.color       = glm::vec3(0.80f, 0.88f, 0.97f); // cool white
+                mist.shape       = VfxShape::Dome;
+                mist.direction   = glm::vec3(0.0f, 1.0f, 0.0f);
+                // Spread each cell's particles across its width and a soft vertical band
+                // at the foot, so neighbouring cells blend into one even cloud instead of
+                // a row of point-clumps. Concentrated at the base; upBias lifts it.
+                mist.posJitter   = glm::vec3(0.6f, 0.8f, 0.6f);
+                glm::vec3 base(f.x, f.y - drop + 0.8f, f.z); // plunge point
+                vfx->spawnBurst(base, mist);
+            }
+        }
+    }
+
     // Tick deferred spell-impact destruction (editor spell-cast click tool).
     updatePendingSpellHits(deltaTime);
 
