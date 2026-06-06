@@ -19,7 +19,8 @@
 
 ## Non-goals (for the first iterations)
 - Flying/swimming agents (design leaves room; not built first).
-- Crowд simulation / large-scale avoidance (flow fields are a later complement).
+- *Large-scale* crowd simulation / flow fields (a later complement). Per-agent
+  **local avoidance (ORCA/RVO) is in scope** — see PathService.
 - Perfectly optimal paths — "good and cheap and reactive" beats "optimal and slow."
 
 ## Current state (what we build on / replace)
@@ -34,6 +35,35 @@
 Verdict: the surface-detection, headroom, link, incremental-update, and invalidation
 machinery is sound and reusable. The **data model** (one cell per column, flat graph,
 synchronous) is what must change.
+
+## Design stance: state-of-the-art *techniques*, voxel-native representation
+
+Shipping AAA engines (Unreal, Unity) standardize on **Recast/Detour navmesh + Detour
+crowd avoidance + tiled dynamic regeneration + hierarchical pathfinding + nav-area
+costs**. That is the quality bar. But a triangle navmesh assumes geometry that is
+stable or changes rarely/locally — the opposite of this engine, whose defining feature
+is **pervasive voxel destruction**. Re-extracting a mesh and rebuilding navmesh tiles on
+every break is the classic friction, and the reason voxel/destructible games don't ship
+classic navmesh.
+
+So this design matches the SOTA *quality* by adopting the SOTA *techniques* on a
+**voxel-native** representation that updates incrementally under destruction:
+
+| SOTA technique (Recast/Detour world) | Where it lives here |
+|---|---|
+| Navmesh + off-mesh / smart links | Layer 1 surface graph + step/jump/climb/fall links |
+| Hierarchical pathfinding | Layer 2 HPA* portal graph |
+| Nav areas + cost modifiers | Layer 3 weighted, dynamic route edges |
+| Detour Crowd (ORCA/RVO) avoidance | Local-avoidance layer (PathService, below) |
+| Tiled dynamic regeneration | Chunk-tiled incremental rebuild — *cheaper* here (rebuild a voxel column vs re-mesh a tile) |
+| Path string-pulling / smoothing | PathService post-process |
+
+Net: we get for free the thing AAA engines spend the most effort on under destruction
+(cheap, local updates) by being voxel-native, while meeting their navigation *quality*
+(true 3D, hierarchy, crowd avoidance, cost-aware routing). This is the better-engineered
+choice for a destructible voxel engine, not a compromise. Recast/Detour remains the
+recommended primary **only if** destruction in NPC-traversed areas turns out rare and
+localized (see Alternatives).
 
 ## Architecture: three layers + an async service
 
@@ -158,12 +188,18 @@ A single owner of pathfinding, mirroring `TTSService`'s worker model:
 - **Caching** — location-pair routes (Layer 3) and recent grid paths; reused across NPCs.
 - **Dynamic dirtying** — voxel-change hooks invalidate the right cache entries and
   re-queue affected agents.
-- **Smoothing + local steering** — string-pull grid paths; keep the existing
-  per-frame steering + NPC separation for the final approach.
+- **Smoothing** — string-pull grid paths so agents cut corners instead of stair-stepping
+  along cell boundaries.
+- **Local avoidance (ORCA/RVO)** — the Detour-Crowd equivalent: a reciprocal
+  velocity-obstacle layer that adjusts each agent's *desired* velocity each frame so
+  agents flow around one another and small dynamic obstacles between path nodes. Replaces
+  the current ad-hoc NPC separation. Cheap, local, and independent of the path layers, so
+  it works the same whether a path came from Layer 1, 2, or 3. (Large-scale crowds →
+  flow fields later.)
 
 Behaviors (`StoryDrivenBehavior`, `PatrolBehavior`) become thin consumers: request a
-path to the target location, follow returned waypoints with local steering, re-request
-on invalidation.
+path to the target location, then each frame follow the waypoints through the
+local-avoidance layer; re-request on invalidation.
 
 ---
 
@@ -186,10 +222,12 @@ on invalidation.
    edges + agent profiles + chunk-tiled incremental build. Port `AStarPathfinder` onto it.
 3. **PathService (async):** request queue + worker + caching + dynamic dirtying; behaviors
    become consumers.
-4. **Layer 3 — location/route graph:** cached weighted location→location routing with
+4. **Local avoidance (ORCA/RVO):** reciprocal velocity-obstacle layer so agents flow
+   around each other; replaces ad-hoc separation.
+5. **Layer 3 — location/route graph:** cached weighted location→location routing with
    dynamic costs; wire schedule/personality into the weights.
-5. **Layer 2 — HPA*:** region partition + portals + abstract A*, when world scale needs it.
-6. **Optional later:** flow fields (crowds), Recast (only if free-form 3D geometry demands).
+6. **Layer 2 — HPA*:** region partition + portals + abstract A*, when world scale needs it.
+7. **Optional later:** flow fields (large crowds), Recast (only if free-form 3D geometry demands).
 
 ## Open questions
 - Region size for Layer 2 (per chunk vs sub-blocks per floor) — pick when building Layer 2.
