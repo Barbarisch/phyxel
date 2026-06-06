@@ -12,6 +12,15 @@ namespace Vulkan { class VulkanDevice; }
 
 namespace Core {
 
+// One renderable water surface quad. Carries a *sloped* top (per-corner world Y,
+// averaged from neighbouring columns to remove stair-stepping) and the water column's
+// depth so the shader can darken/opacify deep water and fade thin shorelines.
+struct WaterSurfaceCell {
+    glm::vec4 centerDepth; // xyz = cell-center surface point (y = cellY+fill), w = column depth (cells)
+    glm::vec4 corners;     // per-quad-corner world Y: (-x,-z), (+x,-z), (+x,+z), (-x,+z)
+    glm::vec4 skirt;       // per-edge side-face bottom world Y: (+x), (-x), (+z), (-z)
+};
+
 // Runs the CPU water cellular automaton (WaterSimulation) over a fixed axis-aligned
 // region of the live world. Solidity is read from the chunk terrain; the sim is
 // stepped at a fixed rate independent of frame rate. This is the CPU integration that
@@ -81,10 +90,10 @@ public:
     const glm::ivec3& dims() const   { return m_dims; }
     const WaterSimulation& sim() const { return m_sim; }
 
-    // Renderable water surface: one entry per surface cell (a water cell whose cell
-    // above is ~empty), as vec4(worldCenterX, worldSurfaceY, worldCenterZ, fill), where
-    // surfaceY = cellY + fill. Rebuilt whenever the field changes (step/sync/place).
-    const std::vector<glm::vec4>& surfaceCells() const { return m_surface; }
+    // Renderable water surface: one WaterSurfaceCell per surface cell (a water cell
+    // whose cell above is ~empty) with a smoothed sloped top + column depth. Rebuilt
+    // whenever the field changes (step/sync/place).
+    const std::vector<WaterSurfaceCell>& surfaceCells() const { return m_surface; }
 
     // Minimum cell mass that renders / is treated as a surface (ignores thin film).
     static constexpr float RENDER_MIN = 0.05f;
@@ -122,7 +131,7 @@ private:
     glm::ivec3      m_origin;
     glm::ivec3      m_dims;
     WaterSimulation m_sim;
-    std::vector<glm::vec4> m_surface; // cached renderable surface cells
+    std::vector<WaterSurfaceCell> m_surface; // cached renderable surface cells
     float           m_accum = 0.0f;
 
     static constexpr float STEP_HZ = 20.0f;

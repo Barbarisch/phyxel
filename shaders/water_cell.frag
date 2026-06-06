@@ -2,11 +2,14 @@
 //
 // water_cell.frag — per-cell water surface shading.
 //
-// Same stylized procedural look as the flat sea surface (water.frag): blue
-// depth-tinted body, sky-gradient + reflected-sun Fresnel reflection, animated
-// ripple normals. No reflection texture / refraction yet.
+// Stylized procedural look (matches water.frag): blue body, sky-gradient + reflected-sun
+// Fresnel, animated ripple normals. Adds DEPTH cues from the column depth: deep water is
+// darker/more opaque, thin shorelines fade to translucent — so the field reads as a solid
+// body with volume rather than flat tiles. No reflection texture / refraction yet.
 //
-layout(location = 0) in vec3 fragWorldPos;
+layout(location = 0) in vec3  fragWorldPos;
+layout(location = 1) in float fragDepth; // water column depth in cells
+layout(location = 2) in float fragSide;  // 0 = top face, 1 = vertical side face
 layout(location = 0) out vec4 outColor;
 
 layout(push_constant) uniform PushConstants {
@@ -35,9 +38,13 @@ void main() {
     float ndv  = clamp(dot(V, N), 0.0, 1.0);
     float fres = clamp(0.04 + 0.96 * pow(1.0 - ndv, 5.0), 0.0, 1.0);
 
+    // Depth term: 0 at a one-cell film, ~1 by a few cells deep.
+    float depthT = clamp(fragDepth / 5.0, 0.0, 1.0);
+
     vec3 deepColor    = vec3(0.02, 0.10, 0.18);
-    vec3 shallowColor = vec3(0.10, 0.35, 0.45);
-    vec3 baseColor    = mix(shallowColor, deepColor, ndv);
+    vec3 shallowColor = vec3(0.12, 0.40, 0.50);
+    // Shade by depth first (volume), then let grazing-angle Fresnel deepen it further.
+    vec3 baseColor    = mix(shallowColor, deepColor, max(depthT, ndv * 0.6));
 
     vec3 sunDir = normalize(vec3(0.4, 0.85, 0.35));
     vec3 R = reflect(-V, N);
@@ -52,6 +59,12 @@ void main() {
     vec3 color = mix(baseColor, reflColor, fres);
     color += sunCol * sunDisc * 0.5;
 
-    float alpha = clamp(0.6 + 0.35 * fres, 0.0, 0.97);
+    // Vertical side walls: drop the reflection/sheen and darken a touch so the body's
+    // sides read as submerged water rather than another mirror-bright top.
+    color = mix(color, baseColor * 0.8, fragSide);
+
+    // Thin shorelines read as translucent; deep water is near-opaque. Fresnel adds a
+    // touch of edge sheen on top. Side walls stay a bit more opaque to seal the volume.
+    float alpha = clamp(0.30 + 0.55 * depthT + 0.20 * fres + 0.25 * fragSide, 0.0, 0.97);
     outColor = vec4(color, alpha);
 }

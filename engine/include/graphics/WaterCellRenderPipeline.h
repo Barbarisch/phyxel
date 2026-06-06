@@ -5,6 +5,8 @@
 #include <vector>
 #include <chrono>
 
+#include "core/WaterManager.h" // Core::WaterSurfaceCell (the instance layout)
+
 namespace Phyxel {
 namespace Graphics {
 
@@ -16,8 +18,8 @@ class Camera;
 // a single flat sea plane. Modeled on VfxRenderPipeline: own quad vertex buffer +
 // dynamic instance buffer, alpha blend, depth-test/no-write, no culling.
 //
-// Instances are vec4(worldCenterX, worldSurfaceY, worldCenterZ, fill) — exactly what
-// WaterManager::surfaceCells() produces.
+// Instances are Core::WaterSurfaceCell (sloped per-corner top + column depth) — exactly
+// what WaterManager::surfaceCells() produces.
 class WaterCellRenderPipeline {
 public:
     WaterCellRenderPipeline();
@@ -28,7 +30,7 @@ public:
     void cleanup();
 
     void render(VkCommandBuffer commandBuffer, const Camera& camera,
-                const glm::mat4& projectionMatrix, const std::vector<glm::vec4>& cells);
+                const glm::mat4& projectionMatrix, const std::vector<Core::WaterSurfaceCell>& cells);
 
     void recreatePipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent);
 

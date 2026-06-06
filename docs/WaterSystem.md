@@ -208,6 +208,17 @@ Each phase is independently visible/shippable.
 | **3** | **Interactions / gameplay** | Buoyancy + drag on rigid bodies and GPU debris, splash spray (reuse particle solver), swimming/drowning, SQLite persistence of *deviations* from sea level. |
 | **4** | **Scale hardening + polish** | Distance LOD (far = static surface, near = sim), caustics, underwater fog/post, sound. |
 
+## Future polish ideas
+
+- **Waterfall mist / spray.** Where water drops over a ledge (a side-face skirt with a
+  tall exposed bottom), emit a soft fog volume or a GPU particle spray (reuse the
+  `GpuParticlePhysics` splash pattern) to sell the cascade. Stylized, cheap, high impact.
+- **Sub-voxel terrain (subcubes / microcubes).** The CA is full-voxel (`setSolid` per
+  voxel), so partial voxels currently collapse to all-solid/all-empty. If wanted, prefer a
+  **per-cell fractional floor height** derived from sub-occupancy (one float/cell, no
+  change to cell count → cheap) over true sub-voxel water cells (27×/729× cells —
+  infeasible).
+
 ## Risk register
 
 1. **Implicit↔explicit boundary** — mass conservation and no jitter at the ocean seam.

@@ -82,19 +82,93 @@ void WaterManager::update(float dt) {
 
 void WaterManager::rebuildSurface() {
     m_surface.clear();
-    for (int z = 0; z < m_dims.z; ++z)
-    for (int x = 0; x < m_dims.x; ++x)
-    for (int y = 0; y < m_dims.y; ++y) {
+    const int sx = m_dims.x, sy = m_dims.y, sz = m_dims.z;
+    auto colIdx = [sx](int x, int z) { return x + sx * z; };
+
+    // Topmost surface height (world Y) per column, for corner smoothing. -inf = dry.
+    std::vector<float> colTop(static_cast<size_t>(sx) * sz, -1e9f);
+
+    // Pass 1: locate surface cells, record column depth, track the topmost per column.
+    struct Cell { int x, y, z; float surfaceY, depth; };
+    std::vector<Cell> cells;
+    for (int z = 0; z < sz; ++z)
+    for (int x = 0; x < sx; ++x)
+    for (int y = 0; y < sy; ++y) {
         float m = m_sim.massAt(x, y, z);
         if (m <= RENDER_MIN) continue;
         // Surface cell: the one above is empty (or solid / out of bounds).
         if (m_sim.massAt(x, y + 1, z) > RENDER_MIN && !m_sim.isSolid(x, y + 1, z)) continue;
         float fill = std::min(m, 1.0f);
-        m_surface.emplace_back(
-            static_cast<float>(m_origin.x + x) + 0.5f,
-            static_cast<float>(m_origin.y + y) + fill,
-            static_cast<float>(m_origin.z + z) + 0.5f,
-            fill);
+        float surfaceY = static_cast<float>(m_origin.y + y) + fill;
+        // Column depth: contiguous water cells stacked below this surface cell.
+        float depth = fill;
+        for (int dy = y - 1; dy >= 0; --dy) {
+            float md = m_sim.massAt(x, dy, z);
+            if (md <= RENDER_MIN || m_sim.isSolid(x, dy, z)) break;
+            depth += std::min(md, 1.0f);
+        }
+        cells.push_back({x, y, z, surfaceY, depth});
+        float& top = colTop[colIdx(x, z)];
+        if (surfaceY > top) top = surfaceY;
+    }
+
+    // Shared corner-height grid, (sx+1) x (sz+1). Each grid corner is touched by up to
+    // four columns; its height is the average of the *wet* ones that lie within 1.25 of
+    // the lowest wet column there (so a cliff lip — where only the inner column is wet —
+    // stays flush, and a far stacked surface doesn't drag it). Computed once and shared,
+    // so every quad referencing a corner uses the IDENTICAL height => a crack-free C0
+    // surface with no drooping past edges.
+    const int cw = sx + 1;
+    std::vector<float> cornerH(static_cast<size_t>(cw) * (sz + 1), -1e9f);
+    auto wetTop = [&](int x, int z) -> float {
+        if (x < 0 || x >= sx || z < 0 || z >= sz) return -1e9f;
+        return colTop[colIdx(x, z)];
+    };
+    for (int cz = 0; cz <= sz; ++cz)
+    for (int cx = 0; cx <= sx; ++cx) {
+        const float v[4] = { wetTop(cx - 1, cz - 1), wetTop(cx, cz - 1),
+                             wetTop(cx - 1, cz),     wetTop(cx, cz) };
+        float lo = 1e9f;
+        for (float f : v) if (f > -1e8f) lo = std::min(lo, f);
+        if (lo > 1e8f) continue; // no water at this corner
+        float sum = 0.0f; int n = 0;
+        for (float f : v) if (f > -1e8f && f <= lo + 1.25f) { sum += f; ++n; }
+        cornerH[cx + cw * cz] = sum / static_cast<float>(n);
+    }
+
+    // Pass 2: emit each surface cell, reading its 4 corners from the shared grid. Reject
+    // a corner that is >1.25 off this cell's own surface — that only happens at a genuine
+    // step (a different body/level), where a hard step is correct, not a droop.
+    m_surface.reserve(cells.size());
+    for (const Cell& c : cells) {
+        const float ref = c.surfaceY;
+        const float floorY = ref - c.depth; // underside of this water column
+        auto cor = [&](int cx, int cz) -> float {
+            float h = cornerH[cx + cw * cz];
+            return (h > -1e8f && std::fabs(h - ref) <= 1.25f) ? h : ref;
+        };
+        // Side-face bottom for one edge: how far the vertical "skirt" drops. Against
+        // terrain it collapses (hidden by the wall); against a lower water body it stops
+        // at that body's surface (closing the step gap); against open air it falls to the
+        // column floor (showing the water's full side / a waterfall face).
+        auto edgeBottom = [&](int nx, int nz, float edgeTop) -> float {
+            if (nx < 0 || nx >= sx || nz < 0 || nz >= sz) return floorY; // open border
+            if (m_sim.isSolid(nx, c.y, nz)) return edgeTop;              // buried in wall
+            float nTop = colTop[colIdx(nx, nz)];
+            float b = (nTop > -1e8f) ? std::max(nTop, floorY) : floorY;
+            return std::min(edgeTop, b);
+        };
+        const float cNN = cor(c.x, c.z), cPN = cor(c.x + 1, c.z);
+        const float cPP = cor(c.x + 1, c.z + 1), cNP = cor(c.x, c.z + 1);
+        WaterSurfaceCell out;
+        out.centerDepth = glm::vec4(static_cast<float>(m_origin.x + c.x) + 0.5f, ref,
+                                    static_cast<float>(m_origin.z + c.z) + 0.5f, c.depth);
+        out.corners = glm::vec4(cNN, cPN, cPP, cNP);
+        out.skirt = glm::vec4(edgeBottom(c.x + 1, c.z, std::min(cPN, cPP)),  // +x
+                              edgeBottom(c.x - 1, c.z, std::min(cNN, cNP)),  // -x
+                              edgeBottom(c.x, c.z + 1, std::min(cNP, cPP)),  // +z
+                              edgeBottom(c.x, c.z - 1, std::min(cNN, cPN))); // -z
+        m_surface.push_back(out);
     }
 }
 

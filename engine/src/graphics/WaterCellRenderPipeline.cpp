@@ -6,14 +6,31 @@
 #include <fstream>
 #include <stdexcept>
 #include <cstring>
+#include <cstddef>
 
 namespace Phyxel {
 namespace Graphics {
 
-// Unit quad in the XZ plane (y = 0). Cull is disabled (visible from above/below).
-static const std::array<glm::vec3, 6> QUAD_VERTICES = {
-    glm::vec3(-0.5f, 0.0f, -0.5f), glm::vec3( 0.5f, 0.0f, -0.5f), glm::vec3( 0.5f, 0.0f,  0.5f),
-    glm::vec3( 0.5f, 0.0f,  0.5f), glm::vec3(-0.5f, 0.0f,  0.5f), glm::vec3(-0.5f, 0.0f, -0.5f),
+// Per-cell mesh: a sloped top quad plus four vertical side "skirts" (one per edge), so
+// the water reads as a solid body with closed faces at drops/cliffs. Each vertex is
+// (offsetX, offsetZ, vtype, edge): vtype 0 = use the matching corner height, 1 = use the
+// skirt bottom for `edge` (0=+x,1=-x,2=+z,3=-z). Cull is disabled (visible both sides).
+static const std::array<glm::vec4, 30> BOX_VERTICES = {
+    // Top face (vtype 0).
+    glm::vec4(-0.5f, -0.5f, 0, 0), glm::vec4( 0.5f, -0.5f, 0, 0), glm::vec4( 0.5f,  0.5f, 0, 0),
+    glm::vec4( 0.5f,  0.5f, 0, 0), glm::vec4(-0.5f,  0.5f, 0, 0), glm::vec4(-0.5f, -0.5f, 0, 0),
+    // +x side (edge 0).
+    glm::vec4( 0.5f, -0.5f, 0, 0), glm::vec4( 0.5f,  0.5f, 0, 0), glm::vec4( 0.5f,  0.5f, 1, 0),
+    glm::vec4( 0.5f,  0.5f, 1, 0), glm::vec4( 0.5f, -0.5f, 1, 0), glm::vec4( 0.5f, -0.5f, 0, 0),
+    // -x side (edge 1).
+    glm::vec4(-0.5f, -0.5f, 0, 0), glm::vec4(-0.5f,  0.5f, 0, 0), glm::vec4(-0.5f,  0.5f, 1, 1),
+    glm::vec4(-0.5f,  0.5f, 1, 1), glm::vec4(-0.5f, -0.5f, 1, 1), glm::vec4(-0.5f, -0.5f, 0, 0),
+    // +z side (edge 2).
+    glm::vec4(-0.5f,  0.5f, 0, 0), glm::vec4( 0.5f,  0.5f, 0, 0), glm::vec4( 0.5f,  0.5f, 1, 2),
+    glm::vec4( 0.5f,  0.5f, 1, 2), glm::vec4(-0.5f,  0.5f, 1, 2), glm::vec4(-0.5f,  0.5f, 0, 0),
+    // -z side (edge 3).
+    glm::vec4(-0.5f, -0.5f, 0, 0), glm::vec4( 0.5f, -0.5f, 0, 0), glm::vec4( 0.5f, -0.5f, 1, 3),
+    glm::vec4( 0.5f, -0.5f, 1, 3), glm::vec4(-0.5f, -0.5f, 1, 3), glm::vec4(-0.5f, -0.5f, 0, 0),
 };
 
 struct WaterCellPush {
@@ -66,8 +83,8 @@ void WaterCellRenderPipeline::initialize(VkDevice device, VkPhysicalDevice physi
 }
 
 void WaterCellRenderPipeline::createBuffers() {
-    // Static quad vertex buffer.
-    VkDeviceSize vsize = sizeof(glm::vec3) * QUAD_VERTICES.size();
+    // Static per-cell mesh vertex buffer (top + 4 side skirts).
+    VkDeviceSize vsize = sizeof(glm::vec4) * BOX_VERTICES.size();
     VkBufferCreateInfo bi{};
     bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bi.size = vsize;
@@ -88,11 +105,11 @@ void WaterCellRenderPipeline::createBuffers() {
     vkBindBufferMemory(m_device, m_vertexBuffer, m_vertexBufferMemory, 0);
     void* data;
     vkMapMemory(m_device, m_vertexBufferMemory, 0, vsize, 0, &data);
-    memcpy(data, QUAD_VERTICES.data(), (size_t)vsize);
+    memcpy(data, BOX_VERTICES.data(), (size_t)vsize);
     vkUnmapMemory(m_device, m_vertexBufferMemory);
 
-    // Dynamic instance buffer (vec4 per cell).
-    VkDeviceSize isize = sizeof(glm::vec4) * MAX_INSTANCES;
+    // Dynamic instance buffer (WaterSurfaceCell per cell: 2x vec4).
+    VkDeviceSize isize = sizeof(Core::WaterSurfaceCell) * MAX_INSTANCES;
     bi.size = isize;
     if (vkCreateBuffer(m_device, &bi, nullptr, &m_instanceBuffer) != VK_SUCCESS)
         throw std::runtime_error("failed to create water-cell instance buffer!");
@@ -149,18 +166,20 @@ void WaterCellRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D
     VkPipelineShaderStageCreateInfo stages[] = {vss, fss};
 
     VkVertexInputBindingDescription binds[2];
-    binds[0].binding = 0; binds[0].stride = sizeof(glm::vec3); binds[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-    binds[1].binding = 1; binds[1].stride = sizeof(glm::vec4); binds[1].inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+    binds[0].binding = 0; binds[0].stride = sizeof(glm::vec4); binds[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    binds[1].binding = 1; binds[1].stride = sizeof(Core::WaterSurfaceCell); binds[1].inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 
-    VkVertexInputAttributeDescription attrs[2];
-    attrs[0] = {0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0};
-    attrs[1] = {1, 1, VK_FORMAT_R32G32B32A32_SFLOAT, 0};
+    VkVertexInputAttributeDescription attrs[4];
+    attrs[0] = {0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0};                                          // mesh vert (offX,offZ,vtype,edge)
+    attrs[1] = {1, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Core::WaterSurfaceCell, centerDepth)};
+    attrs[2] = {2, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Core::WaterSurfaceCell, corners)};
+    attrs[3] = {3, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Core::WaterSurfaceCell, skirt)};
 
     VkPipelineVertexInputStateCreateInfo vi{};
     vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vi.vertexBindingDescriptionCount = 2;
     vi.pVertexBindingDescriptions = binds;
-    vi.vertexAttributeDescriptionCount = 2;
+    vi.vertexAttributeDescriptionCount = 4;
     vi.pVertexAttributeDescriptions = attrs;
 
     VkPipelineInputAssemblyStateCreateInfo ia{};
@@ -217,13 +236,14 @@ void WaterCellRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D
 }
 
 void WaterCellRenderPipeline::render(VkCommandBuffer commandBuffer, const Camera& camera,
-                                     const glm::mat4& projectionMatrix, const std::vector<glm::vec4>& cells) {
+                                     const glm::mat4& projectionMatrix, const std::vector<Core::WaterSurfaceCell>& cells) {
     if (cells.empty()) return;
     uint32_t count = static_cast<uint32_t>(std::min(cells.size(), MAX_INSTANCES));
 
+    const VkDeviceSize bytes = sizeof(Core::WaterSurfaceCell) * count;
     void* data;
-    vkMapMemory(m_device, m_instanceBufferMemory, 0, sizeof(glm::vec4) * count, 0, &data);
-    memcpy(data, cells.data(), sizeof(glm::vec4) * count);
+    vkMapMemory(m_device, m_instanceBufferMemory, 0, bytes, 0, &data);
+    memcpy(data, cells.data(), bytes);
     vkUnmapMemory(m_device, m_instanceBufferMemory);
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
@@ -239,7 +259,7 @@ void WaterCellRenderPipeline::render(VkCommandBuffer commandBuffer, const Camera
                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                        0, sizeof(WaterCellPush), &pc);
 
-    vkCmdDraw(commandBuffer, static_cast<uint32_t>(QUAD_VERTICES.size()), count, 0, 0);
+    vkCmdDraw(commandBuffer, static_cast<uint32_t>(BOX_VERTICES.size()), count, 0, 0);
 }
 
 void WaterCellRenderPipeline::recreatePipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent) {
