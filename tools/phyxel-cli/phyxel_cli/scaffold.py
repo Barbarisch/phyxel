@@ -57,6 +57,12 @@ NEW_GAME_JSON = {
     "world": {"type": "Flat", "from": {"x": 0, "y": 0, "z": 0}, "to": {"x": 0, "y": 0, "z": 0}},
 }
 
+# engine.json is REQUIRED for a project to be openable (open_project validates its presence).
+NEW_ENGINE_JSON = {
+    "window": {"width": 1280, "height": 720, "title": ""},
+    "rendering": {"max_chunk_render_distance": 96.0, "chunk_inclusion_distance": 128.0},
+}
+
 
 def _write_json(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -110,6 +116,10 @@ def new(name: str, output_dir: Path, port: Optional[int] = None) -> dict:
     gj = dict(NEW_GAME_JSON)
     gj["name"] = name
     _write_json(output_dir / "game.json", gj)
+
+    ej = {**NEW_ENGINE_JSON, "window": {**NEW_ENGINE_JSON["window"], "title": name}}
+    _write_json(output_dir / "engine.json", ej)
+
     (output_dir / "worlds").mkdir(exist_ok=True)
 
     result = link(output_dir, port=port)
