@@ -6,10 +6,11 @@ Phase 0 implements `init` (record the engine location for this machine) and `whe
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
-from . import paths, scaffold
+from . import engine, paths, scaffold
 
 
 def _cmd_link(args: argparse.Namespace) -> int:
@@ -33,6 +34,26 @@ def _cmd_new(args: argparse.Namespace) -> int:
         return 1
     print(f"phyxel: created project {r['project']} (api port {r['port']})")
     print(f"        wrote: game.json, worlds/, {', '.join(r['wrote'])}")
+    return 0
+
+
+def _cmd_up(args: argparse.Namespace) -> int:
+    # Project = explicit arg, else the session's project dir (CLAUDE_PROJECT_DIR set for hooks),
+    # else cwd.
+    if args.path:
+        target = Path(args.path)
+    elif os.environ.get("CLAUDE_PROJECT_DIR"):
+        target = Path(os.environ["CLAUDE_PROJECT_DIR"])
+    else:
+        target = Path.cwd()
+    r = engine.ensure_up(target.expanduser())
+    if r["status"] == "error":
+        print(f"phyxel up: {r['error']}", file=sys.stderr)
+        return 1
+    if r["status"] == "already-running":
+        print(f"phyxel: engine already running for {r['project']} on port {r['port']}")
+    else:
+        print(f"phyxel: launched engine for {r['project']} on port {r['port']} (pid {r['pid']})")
     return 0
 
 
@@ -69,13 +90,6 @@ def _cmd_where(args: argparse.Namespace) -> int:
     return 0
 
 
-def _stub(name: str, phase: int):
-    def run(_args: argparse.Namespace) -> int:
-        print(f"phyxel {name}: not implemented yet (Phase {phase}; see docs/GameDevWorkflow.md)")
-        return 2
-    return run
-
-
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="phyxel", description="Phyxel game-dev workflow CLI")
     sub = p.add_subparsers(dest="command", required=True)
@@ -98,8 +112,9 @@ def build_parser() -> argparse.ArgumentParser:
     pn.add_argument("--port", type=int, help="force a specific API port (else allocate)")
     pn.set_defaults(func=_cmd_new)
 
-    sub.add_parser("up", help="ensure this project's engine is running (Phase 4)").set_defaults(
-        func=_stub("up", 4))
+    pu = sub.add_parser("up", help="ensure this project's engine instance is running")
+    pu.add_argument("path", nargs="?", help="project directory (default: session/current dir)")
+    pu.set_defaults(func=_cmd_up)
     return p
 
 

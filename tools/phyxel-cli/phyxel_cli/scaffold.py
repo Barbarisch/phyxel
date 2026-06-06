@@ -84,6 +84,8 @@ def link(project_dir: Path, port: Optional[int] = None) -> dict:
     actions = []
     _write_json(project_dir / ".phyxel" / "config.json", {"apiPort": chosen})
     actions.append(".phyxel/config.json")
+    # The engine pidfile (written by `phyxel up`) is runtime state — don't commit it.
+    (project_dir / ".phyxel" / ".gitignore").write_text("engine.pid\n", encoding="utf-8")
     _write_json(project_dir / ".mcp.json", MCP_JSON)
     actions.append(".mcp.json")
 
