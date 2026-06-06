@@ -131,6 +131,46 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 - **Spell VFX system:** 3-layer architecture (dumb archetypes → per-spell composition →
   gameplay modifiers) implemented. `VfxSystem`/`VfxDirector`/`SpellVfxMapper` +
   `VfxRenderPipeline`. Done + committed.
+- **Water system — FULL FEATURE MERGED TO `main`** (commit `80f9998`, 2026-06-06). Design:
+  `docs/WaterSystem.md`. Default **OFF** (per-world `"water":{"enabled","seaLevel",...}` block
+  in game.json, applied in `Application::autoLoadGameDefinition`), so it's inert for projects
+  that don't opt in. **Architecture:**
+  - **Sim** = a mass-conserving **cellular automaton** in `WaterSimulation` (pure CPU,
+    unit-tested — `tests/core/WaterSimulationTest.cpp`, 12 tests). `WaterManager` runs it over a
+    **fixed region** (origin `(0,8,0)`, dims `64×32×64` — water ONLY exists inside that box),
+    reads terrain solidity from chunks (`syncSolidsFromChunks` → `hasVoxelAt`, **one bool per
+    full voxel**), steps at 20 Hz. Features: gravity/compression upflow, horizontal leveling,
+    evaporation sink, ocean seam (connectivity-gated implicit reservoir via `fillOcean`),
+    springs (persistent sources), channels (no-evap riverbeds), destruction auto-flood (voxel
+    occupancy callback from `ChunkManager`).
+  - **GPU port** = `shaders/water_flow.comp` (gather formulation, opt-in via `water_gpu`
+    command). Works + conserves mass, but **NOT yet a perf win** (synchronous per-step readback);
+    CPU is the reference path.
+  - **Render** = `WaterRenderPipeline` (flat implicit sea plane, procedural sky/sun reflection)
+    + `WaterCellRenderPipeline` (per-cell instanced surface; **sloped seamless tops** via a
+    shared corner-height grid, **side faces + vertical waterfall curtains**, depth-darkened
+    translucency). Mist = soft `VfxSystem` bursts at detected waterfall lips (`WaterManager::
+    waterfalls()`), with `VfxBurstParams.posJitter` for an even cloud.
+  - **Debug HTTP** (`/api/debug/`): `place_water`, `water_sync`, `water_stats`, `set_sea_level`,
+    `add_ocean_seed`, `clear_ocean`, `place_spring`, `clear_springs`, `set_channel_region`,
+    `water_gpu`, `water_save`.
+  - **GOTCHAS:** (1) `place_water`/`place_spring` into a **solid voxel does nothing** — target the
+    AIR cell (e.g. spring on a platform whose top voxel is y19 goes at **y20**). (2) Sub-voxel
+    terrain (subcubes/microcubes) is **NOT supported** — the sim is full-voxel; partial voxels
+    collapse to all-solid/all-empty. (3) Water lives only in the fixed 64×32×64 region.
+  - **Waterfall test recipe:** build a platform + a ≥1.5-cell cliff + a catch pool with side
+    walls + end dam; `water_sync`; `place_spring` on the platform's AIR cell; `place_water` to
+    feed; mist auto-spawns at lips where the drop ≥1.5. (Over-pouring fills the catch pool and
+    erases the drop → fall/mist stop; drain by removing the dam.)
+  - **NEXT (all on `main`, branch `feature/water-system` retained):** **real planar reflection**
+    — newly **UNBLOCKED**, main fixed the mirror pass (axis/winding/torn geometry); re-enable the
+    dormant reflection branch in `water.frag`, give water its OWN reflection pass (don't reuse the
+    old broken path). **Refraction + depth-color-through-surface + foam** — needs a POST-SCENE
+    water pass sampling `PostProcessor`'s offscreen color + depth (move water out of the scene
+    pass). **Buoyancy/swim** gameplay. **GPU perf** (async/no-readback + active-set/sleep +
+    GPU-expand rendering). **Sub-voxel floors** (cheap option: per-cell fractional floor height
+    from sub-occupancy — no cell-count change). **Uniform-span mist** (decouple emission from
+    per-cell live flow to remove the slight side-bias). None are blockers.
 - **Render perf:** 18 → 235 FPS via removing two per-frame brute-force loops (mirror-voxel
   scan cache + `getPerformanceStats` O(1)). Open ideas: skip OIT pass when no transparent
   voxels, 36→6 index cube draw, backface cull (winding is fragile — see render docs).
@@ -184,8 +224,14 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ---
 
-*Last meaningful update: debris broadphase perf fix landed on `main` — parallel prefix sum
-replaced the single-thread serial scan (SortScan 24ms→0.2ms, ~7→50 FPS at 3000 debris); added
-permanent per-pass GPU timing scopes. Open thread: debris settling/"popcorn" + no sleep system
-(see Debris/particle solver perf above). Earlier: per-limb character↔debris push, floor-collision
-fix, legacy XPBD pipeline marked dead. Fresh session? Skim this, then `git log --oneline -15`.*
+*Last meaningful update: **full water system merged to `main`** (`80f9998`, 2026-06-06) —
+CPU CA sim + per-cell rendering (sloped seamless surface, side faces, vertical waterfall
+curtains, depth shading) + base mist, ocean seam, springs, channels, destruction flood,
+persistence, opt-in GPU compute port; default-OFF per-world. See the "Water system" workstream
+above for architecture, gotchas, the waterfall test recipe, and next steps (real planar
+reflection now unblocked; refraction/foam; buoyancy; GPU perf; sub-voxel floors). Branch
+`feature/water-system` retained for those follow-ups. NOTE: `main` currently has 9 PRE-EXISTING
+failing unit tests (material/atlas counts, inventory, skeleton hinge, new nav StepUp) unrelated
+to water — flag for separate triage. Earlier: debris broadphase perf fix (parallel prefix sum,
+SortScan 24ms→0.2ms); debris settling/"popcorn" + no sleep system still PARKED (see Debris/particle
+solver perf). Fresh session? Skim this, then `git log --oneline -15`.*
