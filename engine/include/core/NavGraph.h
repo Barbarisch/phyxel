@@ -77,6 +77,21 @@ public:
     /// agent's feet). Returns an invalid id if the column has no surface there.
     NavNodeId surfaceAt(const glm::vec3& worldPos) const;
 
+    /// Result of a path query. `waypoints` are world positions at each node's standing
+    /// point (cell center, floorY+1). `nodes` is the corresponding node path.
+    struct PathResult {
+        bool found = false;
+        std::vector<glm::vec3> waypoints;
+        std::vector<NavNodeId> nodes;
+        int nodesExpanded = 0;
+    };
+
+    /// A* between two surface nodes for the given agent (step-up/fall/headroom costs).
+    PathResult findPath(const NavNodeId& start, const NavNodeId& goal, const NavAgentProfile& agent) const;
+
+    /// A* between world positions (resolves the standing surface at each end first).
+    PathResult findPath(const glm::vec3& from, const glm::vec3& to, const NavAgentProfile& agent) const;
+
     size_t columnCount() const { return m_columns.size(); }
     size_t surfaceCount() const;
 

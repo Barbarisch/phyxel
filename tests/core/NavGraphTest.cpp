@@ -91,3 +91,56 @@ TEST_F(NavGraphTest, RebuildColumnIsIncremental) {
     graph->rebuildColumn(2, 2, humanoid());
     EXPECT_EQ(graph->columnSurfaces(2, 2).size(), 2u);
 }
+
+// ============================================================================
+// A* path queries
+// ============================================================================
+
+namespace {
+// Ground plane at y=0, plus a 2-tall wall at x==2 spanning z=0..4. If `gap` is true,
+// the wall is open at z==0 so agents can squeeze around.
+Core::VoxelQueryFunc wallWorld(bool gap) {
+    return [gap](const glm::ivec3& p) -> bool {
+        if (p.y == 0) return true;                                  // ground
+        if (p.x == 2 && (p.y == 1 || p.y == 2) && p.z >= 0 && p.z <= 4) {
+            if (gap && p.z == 0) return false;                      // leave a gap at z=0
+            return true;
+        }
+        return false;
+    };
+}
+} // namespace
+
+TEST_F(NavGraphTest, PathToSelfIsSingleWaypoint) {
+    auto path = graph->findPath(glm::vec3(0.5f, 1.0f, 0.5f), glm::vec3(0.5f, 1.0f, 0.5f), humanoid());
+    ASSERT_TRUE(path.found);
+    EXPECT_EQ(path.waypoints.size(), 1u);
+}
+
+TEST_F(NavGraphTest, PathAcrossFlatGround) {
+    auto path = graph->findPath(glm::vec3(0.5f, 1.0f, 0.5f), glm::vec3(4.5f, 1.0f, 4.5f), humanoid());
+    ASSERT_TRUE(path.found);
+    EXPECT_EQ(path.nodes.front(), (NavNodeId{0, 0, 0}));
+    EXPECT_EQ(path.nodes.back(),  (NavNodeId{4, 4, 0}));
+    EXPECT_EQ(path.waypoints.size(), path.nodes.size());
+    EXPECT_GT(path.nodesExpanded, 0);
+}
+
+TEST(NavGraphAStar, RoutesAroundWallThroughGap) {
+    NavGraph g(wallWorld(/*gap=*/true));
+    g.buildRegion({0, 0}, {4, 4}, humanoid());
+    // Cross the wall from left (x=0) to right (x=4) at z=2: must detour through the z=0 gap.
+    auto path = g.findPath(glm::vec3(0.5f, 1.0f, 2.5f), glm::vec3(4.5f, 1.0f, 2.5f), humanoid());
+    ASSERT_TRUE(path.found);
+    EXPECT_GT(path.nodes.size(), 5u) << "should be longer than the blocked straight line";
+    bool usesGap = std::any_of(path.nodes.begin(), path.nodes.end(),
+                               [](const NavNodeId& n) { return n.z == 0; });
+    EXPECT_TRUE(usesGap) << "detour must pass through the z=0 gap";
+}
+
+TEST(NavGraphAStar, NoPathWhenFullyWalled) {
+    NavGraph g(wallWorld(/*gap=*/false));
+    g.buildRegion({0, 0}, {4, 4}, humanoid());
+    auto path = g.findPath(glm::vec3(0.5f, 1.0f, 2.5f), glm::vec3(4.5f, 1.0f, 2.5f), humanoid());
+    EXPECT_FALSE(path.found) << "a solid wall with no gap and no climbable step blocks the path";
+}

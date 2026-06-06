@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 #include <climits>
+#include <queue>
+#include <unordered_set>
 
 namespace Phyxel {
 namespace Core {
@@ -107,6 +109,92 @@ NavNodeId NavGraph::surfaceAt(const glm::vec3& worldPos) const {
         }
     }
     return bestLevel >= 0 ? NavNodeId{x, z, bestLevel} : NavNodeId{};
+}
+
+namespace {
+// Hash for using NavNodeId as an unordered_map/set key in A*.
+struct NodeHash {
+    size_t operator()(const NavNodeId& n) const noexcept {
+        uint64_t k = (static_cast<uint64_t>(static_cast<uint32_t>(n.x)) << 32) ^
+                      static_cast<uint64_t>(static_cast<uint32_t>(n.z));
+        return std::hash<uint64_t>{}(k * 1000003ull + static_cast<uint32_t>(n.level));
+    }
+};
+} // namespace
+
+NavGraph::PathResult NavGraph::findPath(const NavNodeId& start, const NavNodeId& goal,
+                                        const NavAgentProfile& agent) const {
+    PathResult result;
+    const NavSurface* sStart = surface(start);
+    const NavSurface* sGoal  = surface(goal);
+    if (!sStart || !sGoal) return result;
+
+    auto worldOf = [](const NavSurface* s) {
+        return glm::vec3(s->x + 0.5f, s->floorY + 1.0f, s->z + 0.5f);
+    };
+    if (start == goal) {
+        result.found = true;
+        result.nodes = {start};
+        result.waypoints = {worldOf(sStart)};
+        return result;
+    }
+
+    // Admissible heuristic: XZ Manhattan (min 1.0/step) + a small vertical term.
+    auto heuristic = [&](const NavSurface* s) {
+        return static_cast<float>(std::abs(s->x - sGoal->x) + std::abs(s->z - sGoal->z))
+             + std::abs(s->floorY - sGoal->floorY) * 0.4f;
+    };
+
+    struct OpenNode { float f; NavNodeId id; };
+    struct Cmp { bool operator()(const OpenNode& a, const OpenNode& b) const { return a.f > b.f; } };
+    std::priority_queue<OpenNode, std::vector<OpenNode>, Cmp> open;
+    std::unordered_map<NavNodeId, float, NodeHash>    gScore;
+    std::unordered_map<NavNodeId, NavNodeId, NodeHash> cameFrom;
+    std::unordered_set<NavNodeId, NodeHash>            closed;
+
+    gScore[start] = 0.0f;
+    open.push({heuristic(sStart), start});
+
+    while (!open.empty()) {
+        OpenNode cur = open.top();
+        open.pop();
+        if (closed.count(cur.id)) continue;   // lazy deletion of stale entries
+        closed.insert(cur.id);
+
+        if (cur.id == goal) {
+            result.found = true;
+            std::vector<NavNodeId> rev;
+            for (NavNodeId n = goal; !(n == start); n = cameFrom[n]) rev.push_back(n);
+            rev.push_back(start);
+            std::reverse(rev.begin(), rev.end());
+            result.nodes = std::move(rev);
+            for (const auto& id : result.nodes) result.waypoints.push_back(worldOf(surface(id)));
+            return result;
+        }
+
+        ++result.nodesExpanded;
+        const NavSurface* sCur = surface(cur.id);
+        const float curG = gScore[cur.id];
+        for (const NavNodeId& nb : neighbors(cur.id, agent)) {
+            if (closed.count(nb)) continue;
+            const NavSurface* sNb = surface(nb);
+            const int dy = sNb->floorY - sCur->floorY;
+            const float stepCost = 1.0f + std::abs(dy) * 0.4f;   // climbing/falling costs extra
+            const float tentative = curG + stepCost;
+            auto it = gScore.find(nb);
+            if (it == gScore.end() || tentative < it->second) {
+                gScore[nb]   = tentative;
+                cameFrom[nb] = cur.id;
+                open.push({tentative + heuristic(sNb), nb});
+            }
+        }
+    }
+    return result;  // no path
+}
+
+NavGraph::PathResult NavGraph::findPath(const glm::vec3& from, const glm::vec3& to,
+                                        const NavAgentProfile& agent) const {
+    return findPath(surfaceAt(from), surfaceAt(to), agent);
 }
 
 size_t NavGraph::surfaceCount() const {
