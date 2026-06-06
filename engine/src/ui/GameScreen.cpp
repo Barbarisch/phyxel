@@ -54,6 +54,14 @@ void GameScreen::returnToMainMenu() {
     setState(ScreenState::MainMenu);
 }
 
+void GameScreen::showVictory() {
+    setState(ScreenState::Victory);
+}
+
+void GameScreen::showCredits() {
+    setState(ScreenState::Credits);
+}
+
 void GameScreen::resume() {
     if (m_state == ScreenState::Paused || m_state == ScreenState::Inventory) {
         setState(ScreenState::Playing);
@@ -71,6 +79,13 @@ void GameScreen::goBack() {
         case ScreenState::Inventory:
         case ScreenState::Paused:
             setState(ScreenState::Playing);
+            break;
+        case ScreenState::Intro:
+        case ScreenState::Victory:
+        case ScreenState::Credits:
+            // The standard flow: intro continues to the menu; victory/credits
+            // return to the menu.
+            setState(ScreenState::MainMenu);
             break;
         default:
             break;

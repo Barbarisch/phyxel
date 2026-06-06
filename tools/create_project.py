@@ -115,10 +115,14 @@ def create_project(
     extra_includes.append('#include "scene/AnimatedVoxelCharacter.h"')
     extra_includes.append('#include "ui/GameScreen.h"')
     extra_includes.append('#include "ui/GameMenus.h"')
+    extra_includes.append('#include "core/TriggerSystem.h"')
     extra_members.append("    std::unique_ptr<Phyxel::Graphics::RenderCoordinator> renderCoordinator_;")
     extra_members.append("    Phyxel::Scene::AnimatedVoxelCharacter* playerCharacter_ = nullptr;")
     extra_members.append("    std::vector<std::unique_ptr<Phyxel::Scene::Entity>> entities_;")
     extra_members.append("    Phyxel::UI::GameScreen screen_;")
+    extra_members.append("    Phyxel::Core::TriggerSystem triggers_;  // declarative when/then win conditions (game.json \"triggers\")")
+    extra_includes.append('#include "core/GameDefinitionLoader.h"')
+    extra_members.append("    Phyxel::Core::GameSubsystems gameSubsystems_;  // persistent: the SceneManager keeps a pointer to it")
 
     if has_npcs or game_definition:
         extra_includes.append('#include "core/EntityRegistry.h"')
@@ -258,6 +262,10 @@ def create_project(
 
 def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
     """Generate the game implementation C++ file."""
+    # Tagline for the intro/credits screens: the game definition's description,
+    # escaped for use inside a C++ string literal.
+    game_tagline = ((game_def or {}).get("description", "") or "A Phyxel game")
+    game_tagline = game_tagline.replace("\\", "\\\\").replace('"', '\\"')
     return textwrap.dedent(f"""\
         #include "{class_name}.h"
         #include "core/ChunkManager.h"
@@ -269,7 +277,6 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         #include "input/InputManager.h"
         #include "physics/PhysicsWorld.h"
         #include "scene/AnimatedVoxelCharacter.h"
-        #include "scene/PhysicsCharacter.h"
         #include "vulkan/VulkanDevice.h"
         #include "vulkan/RenderPipeline.h"
         #include "ui/WindowManager.h"
@@ -306,13 +313,11 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 }}
                 entities_.push_back(std::move(ptr));
                 return raw;
-            }} else if (type == "physics") {{
-                auto ptr = std::make_unique<Phyxel::Scene::PhysicsCharacter>(
-                    engine_->getPhysicsWorld(), engine_->getInputManager(),
-                    engine_->getCamera(), pos);
-                auto* raw = ptr.get();
-                entities_.push_back(std::move(ptr));
-                return raw;
+            }} else if (type == "physics" || type == "spider") {{
+                // The Bullet-era PhysicsCharacter/SpiderCharacter are deprecated and no
+                // longer ship with the engine — fall back to the animated character.
+                LOG_WARN("{class_name}", "Entity type '{{}}' is deprecated; spawning 'animated' instead", type);
+                return spawnEntity("animated", pos, animFile);
             }}
             LOG_WARN("{class_name}", "Unknown entity type: {{}}", type);
             return nullptr;
@@ -439,8 +444,31 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 cam->setDistanceFromTarget(4.0f);
             }}
 
-            // Start on main menu, cursor free
-            screen_.setState(Phyxel::UI::ScreenState::MainMenu);
+            // Declarative trigger actions (game.json "triggers"): wire to the shell.
+            // Conditions like {{when: {{event: "player_jumped"}}}} can drive
+            // show_victory / show_credits / transition_scene / quit_game with no code.
+            triggers_.setActionExecutor([this](const nlohmann::json& a, const std::string& tid) {{
+                const std::string type = a.value("type", "");
+                if (type == "transition_scene") {{
+                    auto* sm = engine_ ? engine_->getSceneManager() : nullptr;
+                    const std::string target = a.value("target", a.value("scene_id", ""));
+                    if (sm && sm->hasManifest() && !target.empty()) sm->transitionTo(target);
+                }} else if (type == "quit_game") {{
+                    auto* w = engine_ ? engine_->getWindowManager() : nullptr;
+                    if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE);
+                }} else if (type == "show_victory") {{
+                    screen_.showVictory();
+                    if (engine_) updateCursorMode(*engine_);
+                }} else if (type == "show_credits") {{
+                    screen_.showCredits();
+                    if (engine_) updateCursorMode(*engine_);
+                }} else {{
+                    LOG_WARN("{class_name}", "Unhandled trigger action '{{}}' (trigger '{{}}')", type, tid);
+                }}
+            }});
+
+            // Start on the intro/splash screen (continues to the main menu), cursor free
+            screen_.setState(Phyxel::UI::ScreenState::Intro);
             updateCursorMode(engine);
 
             LOG_INFO("{class_name}", "Game initialized");
@@ -456,13 +484,16 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             try {{
                 nlohmann::json gameDef = nlohmann::json::parse(f);
 
-                Phyxel::Core::GameSubsystems subsystems;
+                // PERSISTENT member, not a local: the SceneManager keeps a pointer to
+                // this for every later scene transition (menu buttons, triggers).
+                auto& subsystems = gameSubsystems_;
                 subsystems.chunkManager    = engine.getChunkManager();
                 subsystems.npcManager      = npcManager_.get();
                 subsystems.entityRegistry  = entityRegistry_.get();
                 subsystems.dialogueSystem  = dialogueSystem_.get();
                 subsystems.storyEngine     = storyEngine_.get();
                 subsystems.camera          = engine.getCamera();
+                subsystems.triggerSystem   = &triggers_;  // game.json "triggers" load here
 
                 // Wire up entity spawner so the loader can create the player
                 subsystems.entitySpawner = [this](const std::string& type,
@@ -566,14 +597,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 // Route player movement input to animated character
                 if (playerCharacter_) {{
                     float forward = 0.0f, turn = 0.0f, strafe = 0.0f;
-                    if (input->isKeyHeld(GLFW_KEY_W)) forward += 1.0f;
-                    if (input->isKeyHeld(GLFW_KEY_S)) forward -= 1.0f;
-                    if (input->isKeyHeld(GLFW_KEY_A)) turn += 1.0f;
-                    if (input->isKeyHeld(GLFW_KEY_D)) turn -= 1.0f;
+                    if (input->isKeyPressed(GLFW_KEY_W)) forward += 1.0f;
+                    if (input->isKeyPressed(GLFW_KEY_S)) forward -= 1.0f;
+                    if (input->isKeyPressed(GLFW_KEY_A)) turn += 1.0f;
+                    if (input->isKeyPressed(GLFW_KEY_D)) turn -= 1.0f;
 
                     playerCharacter_->setControlInput(forward, turn, strafe);
-                    playerCharacter_->setSprint(input->isKeyHeld(GLFW_KEY_LEFT_SHIFT));
-                    playerCharacter_->setCrouch(input->isKeyHeld(GLFW_KEY_LEFT_CONTROL));
+                    playerCharacter_->setSprint(input->isKeyPressed(GLFW_KEY_LEFT_SHIFT));
+                    playerCharacter_->setCrouch(input->isKeyPressed(GLFW_KEY_LEFT_CONTROL));
 
                     if (input->isKeyPressed(GLFW_KEY_SPACE)) {{
                         playerCharacter_->jump();
@@ -588,6 +619,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         }}
 
         void {class_name}::onUpdate(Phyxel::Core::EngineRuntime& engine, float dt) {{
+            // Pump scene transitions every frame, in EVERY screen state — menu-scene
+            // buttons and triggers set the transition; this advances it.
+            if (auto* sceneMgr = engine.getSceneManager()) {{
+                sceneMgr->update(dt);
+            }}
+
             if (!Phyxel::UI::isGameRunning(screen_.getState())) return;
 
             elapsed_ += dt;
@@ -602,7 +639,21 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 if (cam) {{
                     cam->updatePositionFromTarget(playerCharacter_->getPosition(), 0.5f);
                 }}
+
+                // Gameplay events -> declarative triggers (win conditions).
+                if (playerCharacter_->consumeJustJumped()) triggers_.onEvent("player_jumped");
+                if (playerCharacter_->consumeJustLanded()) triggers_.onEvent("player_landed");
             }}
+
+            // Advance trigger timers/regions and run fired actions (gameplay only —
+            // timers do not tick while paused or in menus).
+            triggers_.update(dt, [this](const std::string& id, glm::vec3& out) -> bool {{
+                if (id == "player" && playerCharacter_) {{
+                    out = playerCharacter_->getPosition();
+                    return true;
+                }}
+                return false;
+            }});
 
             if (npcManager_) npcManager_->update(dt);
             if (storyEngine_) storyEngine_->update(dt);
@@ -627,6 +678,42 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 auto state = screen_.getState();
 
                 switch (state) {{
+                case Phyxel::UI::ScreenState::Intro:
+                    // Splash before the menu. Continues on button press or Enter/Space/Esc.
+                    if (Phyxel::UI::renderIntroScreen("{class_name}", "{game_tagline}")) {{
+                        screen_.returnToMainMenu();
+                        if (engine_) updateCursorMode(*engine_);
+                    }}
+                    break;
+
+                case Phyxel::UI::ScreenState::Victory:
+                    // The game-complete screen. Enter it from gameplay with
+                    // screen_.showVictory() when your win condition is met.
+                    Phyxel::UI::renderVictoryScreen("VICTORY!", "You have completed {class_name}.", {{
+                        [this]() {{ screen_.showCredits(); }},
+                        [this]() {{
+                            screen_.returnToMainMenu();
+                            if (engine_) updateCursorMode(*engine_);
+                        }},
+                        [&engine]() {{
+                            auto* w = engine.getWindowManager();
+                            if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE);
+                        }}
+                    }});
+                    break;
+
+                case Phyxel::UI::ScreenState::Credits:
+                    Phyxel::UI::renderCreditsScreen("{class_name}", {{
+                        "{game_tagline}",
+                        "",
+                        "Built with the Phyxel engine",
+                        "Thanks for playing!"
+                    }}, [this]() {{
+                        screen_.returnToMainMenu();
+                        if (engine_) updateCursorMode(*engine_);
+                    }});
+                    break;
+
                 case Phyxel::UI::ScreenState::MainMenu:
                     Phyxel::UI::renderMainMenu("{class_name}", {{
                         [this]() {{

@@ -438,6 +438,10 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             }
         } else if (type == "quit_game") {
             quit();
+        } else if (type == "show_victory" || type == "show_credits") {
+            // These target the STANDALONE shell's built-in screens. In the editor,
+            // author victory/credits as menu-type scenes and use transition_scene.
+            LOG_WARN("TriggerSystem", "Action '{}' is standalone-only; in the editor use transition_scene to a menu scene (trigger '{}')", type, tid);
         } else {
             LOG_WARN("TriggerSystem", "Unknown trigger action type '{}' (trigger '{}')", type, tid);
         }
@@ -1759,8 +1763,11 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         LOG_INFO("Application", "Menu layout saved for scene '{}'", activeId);
     };
 
-    // Create the runtime game menu renderer
+    // Create the runtime game menu renderer. Foreground mode: in the docked
+    // editor a background-sorted window is hidden behind the dockspace, so the
+    // play-preview must draw on the foreground draw list.
     m_gameMenuRenderer = std::make_unique<UI::GameMenuRenderer>();
+    m_gameMenuRenderer->setRenderToForeground(true);
     m_gameMenuRenderer->onTransitionScene = [this](const std::string& sceneId) {
         auto* sm = runtime->getSceneManager();
         if (sm) sm->transitionTo(sceneId);
@@ -1789,7 +1796,16 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             };
 
             cb.onSceneReady = [this](const std::string& /*sceneId*/) {
-                // When a world scene is ready, hide the menu editor and preview
+                // onSceneReady fires for EVERY scene type — including menu scenes,
+                // immediately after onMenuSceneLoaded showed the preview. Only hide
+                // the menu when a WORLD scene becomes ready, or menus flash for a
+                // single frame and vanish.
+                auto* smgr = runtime ? runtime->getSceneManager() : nullptr;
+                const auto* active = smgr ? smgr->getActiveScene() : nullptr;
+                if (active && (active->sceneType == Core::SceneType::Menu ||
+                               active->sceneType == Core::SceneType::Cutscene)) {
+                    return; // keep the menu visible
+                }
                 m_showMenuEditor = false;
                 m_showGameMenuPreview = false;
                 if (m_gameMenuRenderer) m_gameMenuRenderer->unload();
@@ -2444,7 +2460,18 @@ void Application::run() {
 
         // Render live game menu preview (full-screen overlay under editor panels)
         if (m_gameMenuRenderer && m_showGameMenuPreview && m_gameMenuRenderer->hasLayout()) {
+            static bool s_loggedMenuPreview = false;
+            if (!s_loggedMenuPreview) {
+                LOG_INFO("Application", "Game menu preview: rendering layout");
+                s_loggedMenuPreview = true;
+            }
             m_gameMenuRenderer->render(deltaTime);
+        } else if (m_showGameMenuPreview) {
+            static bool s_warnedMenuPreview = false;
+            if (!s_warnedMenuPreview) {
+                LOG_WARN("Application", "Game menu preview requested but renderer has no layout");
+                s_warnedMenuPreview = true;
+            }
         }
 
         if (dialogueSystem) {

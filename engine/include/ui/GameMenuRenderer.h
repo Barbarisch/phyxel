@@ -105,6 +105,12 @@ public:
     /// @returns   true if the menu consumed a mouse click this frame.
     bool render(float dt);
 
+    /// Draw into ImGui's FOREGROUND draw list instead of a background-sorted
+    /// window. Required in the docked editor: a background window is occluded by
+    /// the dockspace (viewport/panels), so the menu is invisible there. Button
+    /// hit-testing is manual (mouse position) and works in either mode.
+    void setRenderToForeground(bool fg) { renderToForeground_ = fg; }
+
     // ── Action callbacks ──────────────────────────────────────────────────────
 
     /// Called when a button with action "transition_scene" is clicked.
@@ -151,6 +157,7 @@ private:
 
     nlohmann::json layout_;
     Vulkan::VulkanDevice* device_ = nullptr;
+    bool renderToForeground_ = false;
 
     /// Font registry: "id" → ImFont* (loaded via Fonts->AddFontFromFileTTF).
     std::unordered_map<std::string, ImFont*> fontRegistry_;

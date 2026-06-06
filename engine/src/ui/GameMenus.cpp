@@ -134,6 +134,160 @@ void renderMainMenu(const std::string& title, const MainMenuActions& actions) {
 }
 
 // ============================================================================
+// INTRO / SPLASH
+// ============================================================================
+
+bool renderIntroScreen(const std::string& title, const std::string& tagline) {
+    ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+    bool advance = false;
+
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::SetNextWindowSize(displaySize);
+    ImGui::SetNextWindowBgAlpha(0.95f);
+    ImGuiWindowFlags bgFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                                ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+                                ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    if (ImGui::Begin("##IntroBg", nullptr, bgFlags)) {
+        // Title — centered, large
+        float titleY = displaySize.y * 0.30f;
+        ImGui::SetCursorPos(ImVec2(0, titleY));
+        ImGui::PushStyleColor(ImGuiCol_Text, kColorTitle);
+        float titleWidth = ImGui::CalcTextSize(title.c_str()).x * 2.5f;
+        ImGui::SetCursorPosX((displaySize.x - titleWidth) * 0.5f);
+        ImGui::SetWindowFontScale(2.5f);
+        ImGui::Text("%s", title.c_str());
+        ImGui::SetWindowFontScale(1.0f);
+        ImGui::PopStyleColor();
+
+        if (!tagline.empty()) {
+            float tagWidth = ImGui::CalcTextSize(tagline.c_str()).x;
+            ImGui::SetCursorPosX((displaySize.x - tagWidth) * 0.5f);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.8f, 0.9f));
+            ImGui::Text("%s", tagline.c_str());
+            ImGui::PopStyleColor();
+        }
+
+        ImGui::SetCursorPos(ImVec2(0, displaySize.y * 0.62f));
+        if (centeredButton("Press Start", 220.0f, 48.0f)) advance = true;
+
+        // Any key / click also continues.
+        if (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_Space) ||
+            ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+            advance = true;
+        }
+    }
+    ImGui::End();
+    ImGui::PopStyleVar();
+    return advance;
+}
+
+// ============================================================================
+// VICTORY / GAME COMPLETE
+// ============================================================================
+
+void renderVictoryScreen(const std::string& title, const std::string& message,
+                         const VictoryActions& actions) {
+    ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::SetNextWindowSize(displaySize);
+    ImGui::SetNextWindowBgAlpha(0.85f);
+    ImGuiWindowFlags bgFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                                ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+                                ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    if (ImGui::Begin("##VictoryBg", nullptr, bgFlags)) {
+        float titleY = displaySize.y * 0.24f;
+        ImGui::SetCursorPos(ImVec2(0, titleY));
+        ImGui::PushStyleColor(ImGuiCol_Text, kColorTitle);
+        float titleWidth = ImGui::CalcTextSize(title.c_str()).x * 2.5f;
+        ImGui::SetCursorPosX((displaySize.x - titleWidth) * 0.5f);
+        ImGui::SetWindowFontScale(2.5f);
+        ImGui::Text("%s", title.c_str());
+        ImGui::SetWindowFontScale(1.0f);
+        ImGui::PopStyleColor();
+
+        if (!message.empty()) {
+            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 10.0f);
+            float msgWidth = ImGui::CalcTextSize(message.c_str()).x;
+            ImGui::SetCursorPosX((displaySize.x - msgWidth) * 0.5f);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.85f, 0.85f, 0.9f, 1.0f));
+            ImGui::Text("%s", message.c_str());
+            ImGui::PopStyleColor();
+        }
+
+        float btnWidth = 220.0f, btnHeight = 45.0f;
+        ImGui::SetCursorPos(ImVec2(0, displaySize.y * 0.52f));
+        if (centeredButton("Credits", btnWidth, btnHeight)) {
+            if (actions.onShowCredits) actions.onShowCredits();
+        }
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 12.0f);
+        if (centeredButton("Main Menu", btnWidth, btnHeight)) {
+            if (actions.onMainMenu) actions.onMainMenu();
+        }
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 12.0f);
+        if (centeredButton("Quit", btnWidth, btnHeight)) {
+            if (actions.onQuit) actions.onQuit();
+        }
+    }
+    ImGui::End();
+    ImGui::PopStyleVar();
+}
+
+// ============================================================================
+// CREDITS
+// ============================================================================
+
+void renderCreditsScreen(const std::string& title,
+                         const std::vector<std::string>& lines,
+                         std::function<void()> onBack) {
+    ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::SetNextWindowSize(displaySize);
+    ImGui::SetNextWindowBgAlpha(0.92f);
+    ImGuiWindowFlags bgFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                                ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+                                ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    if (ImGui::Begin("##CreditsBg", nullptr, bgFlags)) {
+        float titleY = displaySize.y * 0.16f;
+        ImGui::SetCursorPos(ImVec2(0, titleY));
+        ImGui::PushStyleColor(ImGuiCol_Text, kColorTitle);
+        float titleWidth = ImGui::CalcTextSize(title.c_str()).x * 2.0f;
+        ImGui::SetCursorPosX((displaySize.x - titleWidth) * 0.5f);
+        ImGui::SetWindowFontScale(2.0f);
+        ImGui::Text("%s", title.c_str());
+        ImGui::SetWindowFontScale(1.0f);
+        ImGui::PopStyleColor();
+
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 24.0f);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 0.85f, 1.0f));
+        for (const std::string& line : lines) {
+            float w = ImGui::CalcTextSize(line.c_str()).x;
+            ImGui::SetCursorPosX((displaySize.x - w) * 0.5f);
+            ImGui::Text("%s", line.c_str());
+            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 6.0f);
+        }
+        ImGui::PopStyleColor();
+
+        ImGui::SetCursorPos(ImVec2(0, displaySize.y - 110.0f));
+        if (centeredButton("Back", 220.0f, 45.0f)) {
+            if (onBack) onBack();
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+            if (onBack) onBack();
+        }
+    }
+    ImGui::End();
+    ImGui::PopStyleVar();
+}
+
+// ============================================================================
 // PAUSE MENU
 // ============================================================================
 

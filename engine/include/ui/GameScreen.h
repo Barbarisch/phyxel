@@ -8,13 +8,16 @@ namespace UI {
 
 /// Game screen states — controls which UI is shown and what input mode is active.
 enum class ScreenState {
+    Intro,          // Splash/intro before the main menu — mouse free, game logic paused
     MainMenu,       // Title screen — mouse free, game logic paused
     Playing,        // Normal gameplay — mouse captured, game running
     Paused,         // Pause overlay — mouse free, game logic paused
     Inventory,      // Inventory screen — mouse free, game logic paused
     Settings,       // Settings screen — mouse free, game logic paused
     KeybindingRebind, // Keybinding rebind screen — mouse free, waiting for key press
-    Loading         // Scene transition loading screen — mouse free, game logic paused
+    Loading,        // Scene transition loading screen — mouse free, game logic paused
+    Victory,        // Game-complete/victory screen — mouse free, game logic paused
+    Credits         // Credits roll — mouse free, game logic paused
 };
 
 /// Returns true if the game world simulation should tick in this state.
@@ -56,6 +59,13 @@ public:
 
     /// Return to main menu from any state.
     void returnToMainMenu();
+
+    /// Show the victory / game-complete screen (the win-condition entry point —
+    /// callable from any state, typically Playing).
+    void showVictory();
+
+    /// Show the credits roll (from Victory, MainMenu, or anywhere).
+    void showCredits();
 
     /// Resume gameplay from Paused or Inventory.
     void resume();

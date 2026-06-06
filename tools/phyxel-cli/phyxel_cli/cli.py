@@ -51,6 +51,10 @@ def _cmd_up(args: argparse.Namespace) -> int:
     if r["status"] == "error":
         print(f"phyxel up: {r['error']}", file=sys.stderr)
         return 1
+    if r["status"] == "skipped":
+        # Normal for non-project dirs (the SessionStart hook runs everywhere) — quiet no-op.
+        print(f"phyxel up: skipped — {r['reason']}")
+        return 0
     if r["status"] == "already-running":
         print(f"phyxel: engine already running for {r['project']} on port {r['port']}")
     else:

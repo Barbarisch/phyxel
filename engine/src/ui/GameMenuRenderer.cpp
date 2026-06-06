@@ -90,6 +90,18 @@ bool GameMenuRenderer::render(float dt) {
     ImVec2 displaySize = ImGui::GetIO().DisplaySize;
     if (displaySize.x <= 0 || displaySize.y <= 0) return false;
 
+    float scaleX = displaySize.x / kVirtualW;
+    float scaleY = displaySize.y / kVirtualH;
+
+    // Foreground mode (docked editor): draw above every ImGui window, including
+    // the dockspace — a background-sorted window would be occluded by the
+    // viewport/panel windows and never seen. Hit-testing is manual, so buttons
+    // work identically.
+    if (renderToForeground_) {
+        ImDrawList* dl = ImGui::GetForegroundDrawList();
+        return renderInternal(dl, displaySize, scaleX, scaleY, dt);
+    }
+
     // Full-screen invisible window so we can render into its DrawList
     ImGui::SetNextWindowPos(ImVec2(0, 0));
     ImGui::SetNextWindowSize(displaySize);
@@ -105,8 +117,6 @@ bool GameMenuRenderer::render(float dt) {
     ImGui::PopStyleVar(2);
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    float scaleX = displaySize.x / kVirtualW;
-    float scaleY = displaySize.y / kVirtualH;
 
     bool anyClick = renderInternal(dl, displaySize, scaleX, scaleY, dt);
 

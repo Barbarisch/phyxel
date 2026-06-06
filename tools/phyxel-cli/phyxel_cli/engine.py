@@ -41,6 +41,14 @@ def _spawn_detached(args: list[str], cwd: Path) -> subprocess.Popen:
 def ensure_up(project_dir: Path) -> dict:
     """Make sure the engine is running for `project_dir`. Returns a status dict."""
     project_dir = project_dir.expanduser().resolve()
+
+    # Only act in LINKED projects. The SessionStart hook runs in every Claude
+    # session (engine repo, random dirs, ...) — without this guard it would launch
+    # the engine with --project <whatever-cwd> on the default port.
+    if not (project_dir / ".phyxel" / "config.json").is_file():
+        return {"status": "skipped",
+                "reason": f"{project_dir} is not a linked Phyxel project (no .phyxel/config.json)"}
+
     port = paths.project_api_port(project_dir)
 
     if _ping(port):

@@ -2153,8 +2153,10 @@ async def list_tools() -> list[Tool]:
                         "objective_complete (optional when.id to match a specific objective), "
                         "timer (when.seconds), entity_reached_region (when.entity + when.region "
                         "{from,to}). Actions: complete_objective {id}, fail_objective {id}, "
-                        "transition_scene {target}, quit_game. 'once' defaults true. Triggers can "
-                        "also be authored in game.json via a top-level 'triggers' array.",
+                        "transition_scene {target}, quit_game; standalone games additionally "
+                        "support show_victory and show_credits (built-in shell screens). 'once' "
+                        "defaults true. Triggers can also be authored in game.json via a "
+                        "top-level 'triggers' array (or inside a scene's definition).",
             inputSchema={
                 "type": "object",
                 "properties": {

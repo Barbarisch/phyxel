@@ -53,8 +53,29 @@ struct KeybindRebindState {
     bool waitingForKey = false;
 };
 
+/// Rendering callbacks for the victory / game-complete screen.
+struct VictoryActions {
+    std::function<void()> onShowCredits;
+    std::function<void()> onMainMenu;
+    std::function<void()> onQuit;
+};
+
 /// Render the main menu / title screen (centered, full-screen overlay).
 void renderMainMenu(const std::string& title, const MainMenuActions& actions);
+
+/// Render the intro / splash screen shown before the main menu (title + tagline +
+/// a continue button; any key also continues via the returned flag).
+/// Returns true when the player chose to continue.
+bool renderIntroScreen(const std::string& title, const std::string& tagline);
+
+/// Render the victory / game-complete screen.
+void renderVictoryScreen(const std::string& title, const std::string& message,
+                         const VictoryActions& actions);
+
+/// Render the credits screen (centered lines + a back-to-menu button).
+void renderCreditsScreen(const std::string& title,
+                         const std::vector<std::string>& lines,
+                         std::function<void()> onBack = nullptr);
 
 /// Render the pause menu (centered overlay with darkened background).
 void renderPauseMenu(const PauseMenuActions& actions);
