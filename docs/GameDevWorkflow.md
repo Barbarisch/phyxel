@@ -131,14 +131,18 @@ engine (OS-aware binary, from the per-machine engine location) **detached** with
 phyxel/
   tools/phyxel-cli/          # pip-installable: `phyxel`, `phyxel-mcp` console scripts
     pyproject.toml           # entry_points + deps (cross-platform)
-    phyxel_cli/  __init__.py, cli.py (init/up/new/link), mcp.py, paths.py (OS/config resolution)
-  .claude-plugin/            # or tools/claude/phyxel-gamedev/
-    plugin.json              # manifest
-    skills/  phyxel-characters/SKILL.md, phyxel-scenes/, ...
-    commands/  feedback.md, triage-feedback.md
-    hooks/  hooks.json  (SessionStart -> `phyxel up`)
-  docs/feedback/  inbox.md, archive.md
+    phyxel_cli/  __init__.py, cli.py (init/new/link; up=Phase4), mcp.py, paths.py, scaffold.py
+  .claude-plugin/
+    marketplace.json         # marketplace listing the plugin (install entry point)
+  tools/phyxel-gamedev/      # the plugin itself
+    .claude-plugin/plugin.json
+    skills/  phyxel-playtest/SKILL.md, phyxel-world/, phyxel-characters/, phyxel-assets/,
+             phyxel-mechanics/, phyxel-package/
+    commands/  feedback.md, triage-feedback.md   # Phase 5
+    hooks/  hooks.json  (SessionStart -> `phyxel up`)   # Phase 4
+  docs/feedback/  inbox.md, archive.md   # Phase 5
 ```
+Install (per machine): `/plugin marketplace add <repo>` then `/plugin install phyxel-gamedev@phyxel`.
 Per machine (one-time): `pip install -e tools/phyxel-cli`, `phyxel init`, install the plugin
 via `/plugin`. Per project: `phyxel new <name>` (or `phyxel link` to retrofit) writes the
 path-free `.mcp.json` + `.phyxel/config.json` + `CLAUDE.md`.

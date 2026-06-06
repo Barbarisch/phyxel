@@ -1,0 +1,11 @@
+{
+  "name": "phyxel",
+  "owner": { "name": "Phyxel" },
+  "plugins": [
+    {
+      "name": "phyxel-gamedev",
+      "source": "./tools/phyxel-gamedev",
+      "description": "Game-development workflow for the Phyxel voxel engine: skills for the build/launch/iterate loop, world building, characters, assets, gameplay mechanics, and packaging."
+    }
+  ]
+}

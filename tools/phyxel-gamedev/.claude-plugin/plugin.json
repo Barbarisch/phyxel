@@ -1,0 +1,6 @@
+{
+  "name": "phyxel-gamedev",
+  "version": "0.1.0",
+  "description": "Game-development workflow for the Phyxel voxel engine. Bundles skills for the build/launch/iterate loop, world building, characters, assets, gameplay mechanics, and packaging. Pairs with the per-project `phyxel` MCP server (see docs/GameDevWorkflow.md). Install once per machine; activate per project with `phyxel link` / `phyxel new`.",
+  "author": { "name": "Phyxel" }
+}
