@@ -2115,6 +2115,13 @@ async def list_tools() -> list[Tool]:
             inputSchema={"type": "object", "properties": {}}
         ),
         Tool(
+            name="get_player_state",
+            description="Get the player's kinematic state for gameplay/win-condition detection: "
+                        "position, velocity, grounded flag, and animation FSM state name. Pairs "
+                        "with the player_jumped/player_landed events in poll_events.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
             name="damage_player",
             description="Deal damage to the player. If health reaches 0, triggers death sequence.",
             inputSchema={
@@ -5035,6 +5042,9 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     elif name == "get_player_health":
         return await api_get("/api/game/health")
+
+    elif name == "get_player_state":
+        return await api_post("/api/character/player_state", {})
 
     elif name == "damage_player":
         return await api_post("/api/game/health", {

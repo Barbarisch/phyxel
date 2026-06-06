@@ -497,6 +497,22 @@ namespace Scene {
         // Public hook so the API server can simulate a player-style jump for
         // FSM-wire tests (Phase M5/M6 integration smokes).
         void requestJump() { jumpRequested = true; }
+
+        // --- Gameplay-event edge flags --------------------------------------
+        // Set centrally at the end of update(): entering the Jump state ->
+        // justJumped; the kinematic grounded flag going false->true ->
+        // justLanded. The host (editor app / game runtime) consumes these each
+        // frame and fans them out (GameEventLog "player_jumped"/"player_landed",
+        // trigger system) without duplicating FSM transition logic.
+        bool consumeJustJumped() { bool v = m_justJumped; m_justJumped = false; return v; }
+        bool consumeJustLanded() { bool v = m_justLanded; m_justLanded = false; return v; }
+        bool isGrounded() const { return m_kinGrounded; }
+        // Kinematic velocity: use getControllerVelocity().
+    private:
+        bool m_justJumped = false;
+        bool m_justLanded = false;
+        bool m_prevGroundedForEvents = false;
+        AnimatedCharacterState m_prevStateForEvents = AnimatedCharacterState::Idle;
     private:
         // M7 ladder state
         bool  m_ladderActive   = false;

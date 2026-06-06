@@ -3183,6 +3183,21 @@ namespace Scene {
             }
             m_motionTrace.push_back(e);
         }
+
+        // ---- Gameplay-event edge detection ----
+        // One central place (every FSM/kinematic path funnels through update) so
+        // hosts can emit player_jumped / player_landed without duplicating the
+        // transition logic. Flags are sticky until consumed (consumeJustJumped /
+        // consumeJustLanded), so a host polling once per frame never misses one.
+        if (currentState == AnimatedCharacterState::Jump &&
+            m_prevStateForEvents != AnimatedCharacterState::Jump) {
+            m_justJumped = true;
+        }
+        if (m_kinGrounded && !m_prevGroundedForEvents) {
+            m_justLanded = true;
+        }
+        m_prevStateForEvents    = currentState;
+        m_prevGroundedForEvents = m_kinGrounded;
     }
 
     void AnimatedVoxelCharacter::render(Graphics::RenderCoordinator* renderer) {

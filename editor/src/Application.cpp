@@ -2836,6 +2836,20 @@ void Application::update(float deltaTime) {
             if (interactionManager) interactionManager->releaseSeat("player");
         }
 
+        // Gameplay events for agents/triggers: surface the player's jump/land
+        // edges (detected centrally in AnimatedVoxelCharacter::update) into the
+        // poll_events stream.
+        if (animatedCharacter && gameEventLog) {
+            if (animatedCharacter->consumeJustJumped()) {
+                const glm::vec3 p = animatedCharacter->getPosition();
+                gameEventLog->emit("player_jumped", {{"x", p.x}, {"y", p.y}, {"z", p.z}});
+            }
+            if (animatedCharacter->consumeJustLanded()) {
+                const glm::vec3 p = animatedCharacter->getPosition();
+                gameEventLog->emit("player_landed", {{"x", p.x}, {"y", p.y}, {"z", p.z}});
+            }
+        }
+
         // Remove character once all its voxels have been derezed
         if (animatedCharacter && animatedCharacter->isFullyDerezed()) {
             LOG_INFO("Application", "Derez complete - removing character from scene");
@@ -8532,6 +8546,28 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         }
         ch->requestJump();
         response = {{"success", true}, {"jump_requested", true}};
+        return true;
+    }
+
+    if (action == "get_player_state") {
+        // Player kinematic state for win-condition / gameplay detection over MCP:
+        // position, velocity, grounded, and the FSM state name.
+        Phyxel::Scene::AnimatedVoxelCharacter* ch = nullptr;
+        if (m_interactionEditorMode && m_ieChar) ch = m_ieChar;
+        else if (animatedCharacter)             ch = animatedCharacter;
+        if (!ch) {
+            response = {{"error", "No animated character loaded"}, {"success", false}};
+            return true;
+        }
+        const glm::vec3 p = ch->getPosition();
+        const glm::vec3 v = ch->getControllerVelocity();
+        response = {
+            {"success", true},
+            {"position", {{"x", p.x}, {"y", p.y}, {"z", p.z}}},
+            {"velocity", {{"x", v.x}, {"y", v.y}, {"z", v.z}}},
+            {"grounded", ch->isGrounded()},
+            {"state", ch->stateToString(ch->getAnimationState())}
+        };
         return true;
     }
 

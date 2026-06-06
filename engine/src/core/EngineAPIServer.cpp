@@ -2147,6 +2147,23 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // POST /api/character/player_state — Player kinematic state for gameplay /
+    // win-condition detection (pairs with the player_jumped / player_landed
+    // events in /api/events/poll).
+    // Returns: { success, position{x,y,z}, velocity{x,y,z}, grounded, state }
+    srv.Post("/api/character/player_state", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params;
+            if (!req.body.empty()) params = json::parse(req.body);
+            json result = queueAndWait("get_player_state", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
+    });
+
     // POST /api/interaction/can_interact — Read-only compatibility query.
     // Body: { "entity_id": "...", "object_id": "...", "point_id": "seat_0", "kind": "sit" }
     // Returns: { success, can_interact, kind, compatibility_issues: [...], reason? }
