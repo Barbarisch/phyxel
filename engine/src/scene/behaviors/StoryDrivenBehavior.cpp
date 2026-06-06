@@ -3,6 +3,7 @@
 #include "scene/Entity.h"
 #include "ui/SpeechBubbleManager.h"
 #include "core/LocationRegistry.h"
+#include "core/NavGraph.h"
 #include "graphics/DayNightCycle.h"
 #include <glm/gtc/quaternion.hpp>
 #include <sstream>
@@ -107,10 +108,40 @@ void StoryDrivenBehavior::updateMovement(float /*dt*/, NPCContext& ctx) {
     if (!ctx.self) return;
     if (!m_moving) { ctx.self->setMoveVelocity(glm::vec3(0.0f)); return; }
 
-    glm::vec3 pos  = ctx.self->getPosition();
-    glm::vec3 diff = m_roamTarget - pos;
+    const glm::vec3 pos = ctx.self->getPosition();
+
+    // Decide the immediate steering point: a NavGraph path waypoint if we have a graph
+    // (routes around obstacles/edges), otherwise the destination directly (legacy).
+    glm::vec3 steerTo = m_roamTarget;
+    if (ctx.navGraph) {
+        // (Re)plan when the destination changed or we have no path yet.
+        if (!m_hasPathTarget || glm::distance(m_pathTarget, m_roamTarget) > 0.5f || m_path.empty()) {
+            replanPath(ctx, pos);
+        }
+        if (m_path.empty()) {            // no route — hold position rather than walk blindly off an edge
+            m_moving = false;
+            ctx.self->setMoveVelocity(glm::vec3(0.0f));
+            return;
+        }
+        // Advance through reached waypoints.
+        while (m_pathIndex < m_path.size()) {
+            glm::vec3 d = m_path[m_pathIndex] - pos;
+            if (glm::length(glm::vec2(d.x, d.z)) < 0.5f) ++m_pathIndex;
+            else break;
+        }
+        if (m_pathIndex >= m_path.size()) {   // reached the end of the path
+            m_moving = false;
+            m_path.clear();
+            m_hasPathTarget = false;
+            ctx.self->setMoveVelocity(glm::vec3(0.0f));
+            return;
+        }
+        steerTo = m_path[m_pathIndex];
+    }
+
+    glm::vec3 diff = steerTo - pos;
     float distXZ = glm::length(glm::vec2(diff.x, diff.z));
-    if (distXZ < 0.5f) {            // arrived — stop and wait for the next decision
+    if (distXZ < 0.4f) {            // arrived at the (direct) destination
         m_moving = false;
         ctx.self->setMoveVelocity(glm::vec3(0.0f));
         return;
@@ -118,6 +149,17 @@ void StoryDrivenBehavior::updateMovement(float /*dt*/, NPCContext& ctx) {
     glm::vec3 dir = glm::normalize(glm::vec3(diff.x, 0.0f, diff.z));
     ctx.self->setMoveVelocity(dir * m_walkSpeed);          // gravity handles Y
     ctx.self->setRotation(glm::angleAxis(std::atan2(dir.x, dir.z), glm::vec3(0, 1, 0)));
+}
+
+void StoryDrivenBehavior::replanPath(NPCContext& ctx, const glm::vec3& from) {
+    m_path.clear();
+    m_pathIndex = 0;
+    m_pathTarget = m_roamTarget;
+    m_hasPathTarget = true;
+    if (!ctx.navGraph) return;
+    Core::NavAgentProfile agent;   // default humanoid; could derive from the profile later
+    auto result = ctx.navGraph->findPath(from, m_roamTarget, agent);
+    if (result.found) m_path = std::move(result.waypoints);
 }
 
 void StoryDrivenBehavior::pickRoamTarget(NPCContext& ctx) {

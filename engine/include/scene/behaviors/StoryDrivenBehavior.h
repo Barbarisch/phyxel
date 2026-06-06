@@ -114,6 +114,13 @@ private:
     bool         m_hasSchedule = false;
     std::string  m_currentActivity;   // e.g. "Work", "Sleep" (from the active schedule entry)
 
+    // Path-following state (used when a NavGraph is available via NPCContext;
+    // otherwise movement falls back to direct-line steering).
+    std::vector<glm::vec3> m_path;
+    size_t                 m_pathIndex = 0;
+    glm::vec3              m_pathTarget{0.0f};   // destination the current path was planned for
+    bool                  m_hasPathTarget = false;
+
     Story::CharacterDecisionContext buildContext(const NPCContext& ctx) const;
     std::string buildDefaultSituation(const NPCContext& ctx) const;
 
@@ -121,6 +128,7 @@ private:
     bool applySchedule(NPCContext& ctx);                 // route toward the scheduled location; true if it set intent
     void applyDecision(NPCContext& ctx);                 // set up movement/speech from m_lastDecision
     void updateMovement(float dt, NPCContext& ctx);      // per-frame steering toward roam target
+    void replanPath(NPCContext& ctx, const glm::vec3& from);  // (re)compute a NavGraph path to m_roamTarget
     void maybeAmbientChatter(NPCContext& ctx);           // personality-driven idle speech
     void pickRoamTarget(NPCContext& ctx);                // choose a new wander point near the anchor
     void sayBubble(NPCContext& ctx, const std::string& text);
