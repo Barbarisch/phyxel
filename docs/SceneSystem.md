@@ -109,7 +109,7 @@ A multi-scene game.json has a `"scenes"` array instead of a top-level `"world"` 
 |-------|------|----------|-------------|
 | `id` | string | yes | Unique scene identifier |
 | `name` | string | no | Display name (defaults to `id`) |
-| `worldDatabase` | string | no | SQLite DB filename (defaults to `<id>.db`) |
+| `worldDatabase` | string | no | SQLite DB filename, resolved relative to the project `worlds/` dir (defaults to `<id>.db`). A leading `worlds/` prefix is tolerated and stripped — `"worlds/foo.db"` and `"foo.db"` both resolve to `worlds/foo.db`. |
 | `description` | string | no | Optional description text |
 | `transitionStyle` | string | no | `"cut"`, `"fade"`, or `"loading_screen"` (default) |
 | `onEnterScript` | string | no | Python script run when entering |

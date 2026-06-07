@@ -4519,6 +4519,36 @@ void Application::autoLoadGameDefinition() {
 
         nlohmann::json gameDef = nlohmann::json::parse(f);
 
+        // Multi-scene games (a "scenes" array) must route through SceneManager so
+        // the manifest registers and the start scene loads — otherwise the
+        // single-scene GameDefinitionLoader runs, list_scenes stays empty, and
+        // menu scenes never appear. Mirrors the MCP load_game_definition path.
+        if (Core::GameDefinitionLoader::isMultiScene(gameDef)) {
+            auto* sm = (runtime ? runtime->getSceneManager() : nullptr);
+            if (!sm) {
+                LOG_ERROR("Application", "Multi-scene game.json but SceneManager unavailable");
+                return;
+            }
+            Core::SceneManifest manifest = Core::GameDefinitionLoader::parseManifest(gameDef);
+            if (manifest.scenes.empty()) {
+                LOG_ERROR("Application", "Multi-scene game.json has no scenes");
+                return;
+            }
+            sm->loadManifest(manifest);
+            if (!projectDir_.empty())
+                sm->setWorldsDir(projectDir_ + "/worlds");
+            std::string startId = manifest.startScene;
+            if (startId.empty()) startId = manifest.scenes.front().id;
+            // Ensure the scene state machine has live subsystem pointers before the
+            // per-frame pump runs (it also refreshes, but transitionTo logs sooner).
+            refreshSceneSubsystems();
+            sm->setSubsystems(&m_sceneSubsystems);
+            bool ok = sm->transitionTo(startId);
+            LOG_INFO("Application", "Multi-scene manifest loaded: {} scene(s), start='{}' ({})",
+                     manifest.scenes.size(), startId, ok ? "transitioning" : "transition FAILED");
+            return;
+        }
+
         // Per-world water surface config (see docs/WaterSystem.md). Default OFF so a
         // world without a "water" block never floods; switching to such a world also
         // turns water back off. Top-level so the "world" erase below doesn't drop it.

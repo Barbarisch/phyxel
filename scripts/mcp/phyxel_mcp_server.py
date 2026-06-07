@@ -6976,10 +6976,15 @@ async def _restart_engine(args: dict) -> dict:
 
 
 async def _launch_engine(args: dict) -> dict:
-    """Launch the engine executable as a background process."""
+    """Launch the engine executable as a background process.
+
+    The engine is launched on THE PORT THIS MCP SERVER TARGETS (from
+    ENGINE_API_URL / PHYXEL_API_PORT), so every subsequent tool call can reach
+    it. Without this, a per-project MCP (e.g. port 8093) would spawn an engine
+    on the 8090 default and then report it as "not running"."""
     global _engine_process, _engine_launch_args
     config = args.get("config", "Debug")
-    extra_args = args.get("args", [])
+    extra_args = list(args.get("args", []))
 
     # Check if already running
     if _engine_process and _engine_process.poll() is None:
@@ -6995,6 +7000,27 @@ async def _launch_engine(args: dict) -> dict:
     if not exe_path.exists():
         return {"error": f"Engine executable not found. Build the project first."}
 
+    warnings = []
+    if "--port" not in extra_args:
+        # Bind the engine to the port this MCP targets.
+        my_port = ENGINE_API_URL.rsplit(":", 1)[-1].strip("/")
+        if my_port.isdigit():
+            extra_args += ["--port", my_port]
+            # If launching a project whose .phyxel/config.json names a different
+            # port, surface the mismatch (phyxel up would use the project port).
+            if "--project" in extra_args:
+                try:
+                    proj = Path(extra_args[extra_args.index("--project") + 1])
+                    cfg_path = proj / ".phyxel" / "config.json"
+                    if cfg_path.is_file():
+                        proj_port = str(json.loads(cfg_path.read_text(encoding="utf-8")).get("apiPort", ""))
+                        if proj_port and proj_port != my_port:
+                            warnings.append(
+                                f"Project config names apiPort {proj_port}, but this MCP targets "
+                                f"{my_port}; launching on {my_port} so MCP tools can reach it.")
+                except Exception:
+                    pass  # best-effort warning only
+
     try:
         _engine_process = subprocess.Popen(
             [str(exe_path)] + extra_args,
@@ -7003,7 +7029,11 @@ async def _launch_engine(args: dict) -> dict:
             stderr=subprocess.DEVNULL
         )
         _engine_launch_args = dict(args)  # remember for restart
-        return {"success": True, "pid": _engine_process.pid, "executable": str(exe_path)}
+        result = {"success": True, "pid": _engine_process.pid, "executable": str(exe_path),
+                  "args": extra_args}
+        if warnings:
+            result["warnings"] = warnings
+        return result
     except Exception as e:
         return {"error": f"Failed to launch engine: {e}"}
 

@@ -62,8 +62,22 @@ struct SceneDefinition {
     /// Resolved database path (set at runtime by SceneManager).
     std::string resolvedWorldPath;
 
+    /// Returns the DB filename to resolve against the project's worlds/ dir.
+    ///
+    /// `worldDatabase` is, by convention, relative to the worlds/ directory
+    /// (e.g. "village.db"). For convenience we ALSO accept a leading "worlds/"
+    /// (or "worlds\\") prefix — common in authored game.json — and strip it so
+    /// it doesn't double-nest into worlds/worlds/<db> when joined with worldsDir_.
     std::string getWorldDatabaseFilename() const {
-        return worldDatabase.empty() ? (id + ".db") : worldDatabase;
+        std::string f = worldDatabase.empty() ? (id + ".db") : worldDatabase;
+        for (const char* prefix : {"worlds/", "worlds\\"}) {
+            const size_t n = std::char_traits<char>::length(prefix);
+            if (f.size() >= n && f.compare(0, n, prefix) == 0) {
+                f = f.substr(n);
+                break;
+            }
+        }
+        return f;
     }
 
     static SceneDefinition fromJson(const json& j);

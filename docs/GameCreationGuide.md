@@ -403,7 +403,40 @@ python tools/create_project.py MyGame --game-definition multi_scene_game.json
 The generated code automatically:
 - Detects `"scenes"` in the game definition
 - Creates a `SceneManager` and loads the manifest
-- Generates `onSceneLoad`, `onSceneUnload`, `onSceneReady` callback stubs
+- Wires `SceneCallbacks` so `sceneType: "menu"` scenes render via `GameMenuRenderer`
+  and hand control to gameplay when a world scene becomes ready (see "Menus" below)
+
+### Menus & Win/Lose Screens — Two Patterns (don't mix them)
+
+A standalone game has **two** ways to show menus, and they must not be combined or
+they draw on top of each other:
+
+1. **Built-in shell (recommended for simple games).** The scaffolded standalone
+   ships a `ScreenState` shell — Intro → Main Menu → Playing → Pause, plus Victory
+   and Credits screens (`renderVictoryScreen` / `renderCreditsScreen`). With this
+   pattern:
+   - Set `startScene` to a **world** scene (not a menu scene).
+   - End the game with triggers that call **`show_victory`** / **`show_credits`**
+     (NOT `transition_scene` to a menu scene):
+     ```json
+     "triggers": [
+       { "id": "win", "when": { "event": "player_jumped" },
+         "then": [ { "type": "show_victory" } ], "once": true }
+     ]
+     ```
+   - The built-in Main Menu's "New Game" goes straight to gameplay on the
+     `startScene` world.
+
+2. **Authored `menu` scenes (full visual control).** Define `sceneType: "menu"`
+   scenes (intro / main_menu / credits) with a `menuLayout`, and drive flow with
+   `transition_scene` actions on the buttons. The generated standalone now
+   **detects an active menu scene and renders it instead of the built-in shell**
+   (via `GameMenuRenderer`), so the two no longer collide. Use `transition_scene`
+   to a world scene from the main menu's "New Game" button, and `transition_scene`
+   to a credits **menu** scene to end the game.
+
+Pick one. If your `startScene` is a menu scene, the engine uses pattern 2 and the
+built-in shell stays hidden; if it is a world scene, the built-in shell drives.
 
 ### Packaging
 
@@ -411,7 +444,11 @@ The generated code automatically:
 python tools/package_game.py MyGame --project-dir path/to/MyGame
 ```
 
-The packager finds all `worldDatabase` entries in the scene manifest and copies each `.db` file to the output `worlds/` directory.
+The packager finds all `worldDatabase` entries in the scene manifest and copies
+each `.db` file to the output `worlds/` directory. It also always includes
+`game.json`, `engine.json`, the boot resource JSONs (`materials.json`,
+`mc_texture_map.json`), `resources/fonts/` (menu text), and the default character
+animation, so the packaged build matches what runs from `build/Debug/`.
 
 ### Scene Tools (MCP / HTTP)
 

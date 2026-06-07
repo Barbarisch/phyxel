@@ -2982,6 +2982,11 @@ void EngineAPIServer::setupRoutes() {
             json response = {{"status", "accepted"}, {"async_id", asyncId}, {"action", "load_game_definition"}};
             res.set_content(response.dump(), "application/json");
         } catch (const json::exception& e) {
+            // Log the parse failure (with a body preview) so a bad payload — e.g.
+            // a non-ASCII bullet char in a string — is diagnosable server-side
+            // instead of just surfacing as an opaque client error.
+            LOG_WARN("EngineAPIServer", "load_definition: invalid JSON ({}), {} bytes, preview: '{}'",
+                     e.what(), req.body.size(), req.body.substr(0, 200));
             json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
             res.status = 400;
             res.set_content(err.dump(), "application/json");

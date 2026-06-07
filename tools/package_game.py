@@ -61,26 +61,37 @@ REQUIRED_SHADERS = [
     "debris.frag.spv",
 ]
 
-# Always-required resource files
+# Always-required resource files. The texture atlas AND the boot-time JSONs the
+# engine reads on startup (materials + sub-cube texture map). Without the JSONs
+# the engine crashes during init — they are not optional. (cube_atlas.json is the
+# legacy name; materials.json drives MaterialRegistry.)
 REQUIRED_RESOURCES = [
     "resources/textures/cube_atlas.png",
     "resources/textures/cube_atlas.json",
+    "resources/materials.json",
+    "resources/mc_texture_map.json",
 ]
 
-# Animation files available to include
+# The default animation file an animated character/NPC falls back to when the
+# definition does not name one (see GameDefinitionLoader). Must match the engine.
+DEFAULT_ANIM_FILE = "resources/animated_characters/humanoid.anim"
+
+# Animation files available to include (paths relative to engine root, as the
+# engine resolves them at runtime). The legacy character*.anim live under
+# resources/animated_characters/legacy/.
 ALL_ANIM_FILES = [
-    "character.anim",
-    "character_box.anim",
-    "character_complete.anim",
+    "resources/animated_characters/humanoid.anim",
     "resources/animated_characters/character_dragon.anim",
     "resources/animated_characters/character_female.anim",
     "resources/animated_characters/character_female2.anim",
     "resources/animated_characters/character_female3.anim",
-    "resources/animated_characters/humanoid.anim",
     "resources/animated_characters/character_spider.anim",
     "resources/animated_characters/character_spider2.anim",
     "resources/animated_characters/character_spider3.anim",
     "resources/animated_characters/character_wolf.anim",
+    "resources/animated_characters/legacy/character.anim",
+    "resources/animated_characters/legacy/character_box.anim",
+    "resources/animated_characters/legacy/character_complete.anim",
 ]
 
 
@@ -177,8 +188,14 @@ def scan_game_definition(definition: dict) -> dict:
             needs["has_player"] = needs["has_player"] or sub["has_player"]
             needs["has_story"] = needs["has_story"] or sub["has_story"]
             needs["has_audio"] = needs["has_audio"] or sub["has_audio"]
-        if definition.get("playerDefaults"):
+        pdefaults = definition.get("playerDefaults")
+        if pdefaults:
             needs["has_player"] = True
+            anim = pdefaults.get("animFile", "")
+            if anim:
+                needs["anim_files"].add(anim)
+            elif pdefaults.get("type", "animated") == "animated":
+                needs["anim_files"].add(DEFAULT_ANIM_FILE)
         if definition.get("globalStory"):
             needs["has_story"] = True
         return needs
@@ -210,7 +227,7 @@ def scan_game_definition(definition: dict) -> dict:
         if anim:
             needs["anim_files"].add(anim)
         elif ptype == "animated":
-            needs["anim_files"].add("character_complete.anim")
+            needs["anim_files"].add(DEFAULT_ANIM_FILE)
 
     # Check story
     if definition.get("story"):
@@ -297,7 +314,7 @@ def package_game(
         else:
             result["warnings"].append(f"Shader not found: {shader}")
 
-    # ── 3. Required resources (texture atlas) ───────────────────────────
+    # ── 3. Required resources (texture atlas + boot JSONs) ──────────────
     for res in REQUIRED_RESOURCES:
         src = PHYXEL_ROOT / res
         dst = output_dir / res
@@ -306,7 +323,32 @@ def package_game(
         else:
             result["errors"].append(f"Required resource missing: {res}")
 
+    # ── 3b. Fonts ───────────────────────────────────────────────────────
+    # Menu scenes render text with TTF fonts referenced from menuLayout.fonts[].
+    # Copy the whole fonts dir (small) so any menu renders correctly.
+    fonts_src = PHYXEL_ROOT / "resources" / "fonts"
+    if fonts_src.exists():
+        for f in fonts_src.iterdir():
+            if f.is_file():
+                if copy_file_safe(f, output_dir / "resources" / "fonts" / f.name):
+                    files_copied += 1
+    else:
+        result["warnings"].append("resources/fonts not found; menu text may be missing.")
+
     # ── 4. Game definition ──────────────────────────────────────────────
+    # A game project ALWAYS needs game.json next to the exe: it drives world
+    # regeneration, NPCs, story, scenes and triggers at runtime. If none was
+    # passed explicitly, fall back to the project's own game.json so packaging
+    # via --project-dir alone still produces a runnable build.
+    if not definition and not definition_path and is_game_project:
+        proj_def = project_dir / "game.json"
+        if proj_def.exists():
+            definition_path = proj_def
+            result["warnings"].append(f"Using project game.json: {proj_def}")
+        else:
+            result["warnings"].append(
+                f"No game.json found in {project_dir}; the packaged game may not load its world/NPCs.")
+
     if definition:
         game_def_path = output_dir / "game.json"
         game_def_path.write_text(json.dumps(definition, indent=2), encoding="utf-8")
@@ -314,8 +356,8 @@ def package_game(
     elif definition_path and definition_path.exists():
         dst = output_dir / "game.json"
         shutil.copy2(definition_path, dst)
-        # Load it so we can scan for dependencies
-        definition = json.loads(definition_path.read_text(encoding="utf-8"))
+        # Load it so we can scan for dependencies (tolerate BOM)
+        definition = json.loads(definition_path.read_text(encoding="utf-8-sig"))
         files_copied += 1
 
     # ── 5. Scan definition for resource dependencies ────────────────────
@@ -345,10 +387,10 @@ def package_game(
             anim_files_to_copy.add(af)
     elif needs.get("anim_files"):
         anim_files_to_copy = needs["anim_files"]
-    # Always include default if we have animated entities
-    if needs.get("has_npcs") or (needs.get("has_player") and definition and
-                                  definition.get("player", {}).get("type") == "animated"):
-        anim_files_to_copy.add("character_complete.anim")
+    # Always include the default fallback anim if we have any animated entities
+    # (NPCs default to animated; a player without an explicit animFile too).
+    if needs.get("has_npcs") or needs.get("has_player"):
+        anim_files_to_copy.add(DEFAULT_ANIM_FILE)
 
     for af in anim_files_to_copy:
         # Animation files can be at root or in resources/animated_characters/
@@ -403,11 +445,15 @@ def package_game(
         # Multi-scene: copy each scene's database
         for db_rel in needs.get("scene_databases", []):
             db_name = Path(db_rel).name
-            # Try project dir first, then engine root
+            # Try project dir first, then engine root. Tolerate both the correct
+            # layout (worlds/<db>) and the historical double-nested one
+            # (worlds/worlds/<db>) that older runtime saves produced.
             candidates = []
             if is_game_project and project_dir:
                 candidates.append(project_dir / "worlds" / db_name)
+                candidates.append(project_dir / "worlds" / "worlds" / db_name)
             candidates.append(PHYXEL_ROOT / "worlds" / db_name)
+            candidates.append(PHYXEL_ROOT / "worlds" / "worlds" / db_name)
             copied = False
             for src in candidates:
                 if src.exists():
@@ -439,17 +485,28 @@ def package_game(
         )
 
     # ── 12. Engine config ───────────────────────────────────────────────
-    engine_config = {
-        "window": {
-            "width": 1280,
-            "height": 720,
-            "title": window_title or name,
-        },
-        "rendering": {
-            "max_chunk_render_distance": 96.0,
-            "chunk_inclusion_distance": 128.0,
-        },
-    }
+    # Prefer the project's own engine.json (it carries the authored window title
+    # and rendering tweaks); otherwise synthesize a sensible default.
+    engine_config = None
+    if is_game_project and (project_dir / "engine.json").exists():
+        try:
+            engine_config = json.loads((project_dir / "engine.json").read_text(encoding="utf-8-sig"))
+        except Exception as e:
+            result["warnings"].append(f"Could not read project engine.json ({e}); generating a default.")
+    if engine_config is None:
+        engine_config = {
+            "window": {
+                "width": 1280,
+                "height": 720,
+                "title": window_title or name,
+            },
+            "rendering": {
+                "max_chunk_render_distance": 96.0,
+                "chunk_inclusion_distance": 128.0,
+            },
+        }
+    if window_title:
+        engine_config.setdefault("window", {})["title"] = window_title
     # Only the engine-exe path needs the auto-load hint; game projects load directly
     if not is_game_project:
         engine_config["game"] = {"definition_file": "game.json"}

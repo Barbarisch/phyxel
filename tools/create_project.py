@@ -35,6 +35,7 @@ def create_project(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     class_name = name.replace("-", "").replace("_", "")
+    name_lower = name.lower().replace(" ", "_")
     header_guard = name.upper().replace("-", "_").replace(" ", "_") + "_H"
 
     # Compute path to Phyxel root (relative if same drive, absolute otherwise)
@@ -124,6 +125,15 @@ def create_project(
     extra_includes.append('#include "core/GameDefinitionLoader.h"')
     extra_members.append("    Phyxel::Core::GameSubsystems gameSubsystems_;  // persistent: the SceneManager keeps a pointer to it")
 
+    # Menu-scene support: a JSON-driven menu renderer for sceneType:"menu" scenes.
+    # When the loaded game uses menu scenes, the SceneManager drives the flow and
+    # this renders the active menu — so the built-in ScreenState shell does NOT
+    # double up on top of it (see docs/GameCreationGuide.md, "Menus").
+    extra_includes.append('#include "ui/GameMenuRenderer.h"')
+    extra_members.append("    std::unique_ptr<Phyxel::UI::GameMenuRenderer> gameMenuRenderer_;")
+    extra_members.append("    bool menuSceneActive_ = false;  // a sceneType:\"menu\" scene is currently shown")
+    extra_members.append("    float lastDt_ = 0.0f;           // last frame dt, for menu animations in onRender")
+
     if has_npcs or game_definition:
         extra_includes.append('#include "core/EntityRegistry.h"')
         extra_includes.append('#include "core/NPCManager.h"')
@@ -199,6 +209,11 @@ def create_project(
         #include "utils/Logger.h"
 
         int main(int argc, char* argv[]) {{
+            // Write a log next to the exe so a packaged game that exits early is
+            // diagnosable (boot errors land in {name_lower}.log instead of nowhere).
+            Phyxel::Utils::Logger::enableFileOutput(true, "{name_lower}.log");
+            LOG_INFO("main", "{name} starting");
+
             Phyxel::Core::EngineConfig config;
             Phyxel::Core::EngineConfig::loadFromFile("engine.json", config);
 
@@ -241,12 +256,32 @@ def create_project(
 
     # For multi-scene definitions, list expected scene databases
     if game_definition and "scenes" in game_definition:
-        print(f"  Multi-scene game detected with {len(game_definition['scenes'])} scene(s).")
-        print(f"  Each scene needs a pre-baked world database in worlds/:")
-        for scene in game_definition["scenes"]:
+        scenes = game_definition["scenes"]
+        print(f"  Multi-scene game detected with {len(scenes)} scene(s).")
+        world_scenes = [s for s in scenes if s.get("sceneType", "world") != "menu"]
+        print(f"  Each world scene needs a pre-baked world database in worlds/:")
+        for scene in world_scenes:
             db_name = scene.get("worldDatabase", f"worlds/{scene['id']}.db")
             db_file = Path(db_name).name
             print(f"    - worlds/{db_file}")
+
+        # Menu-scene pattern guidance — the generated standalone renders menu scenes
+        # via GameMenuRenderer instead of the built-in ScreenState shell, but the
+        # author still needs to pick ONE pattern (see docs/GameCreationGuide.md).
+        menu_scenes = [s for s in scenes if s.get("sceneType") == "menu"]
+        start_scene = game_definition.get("startScene", "")
+        start_def = next((s for s in scenes if s.get("id") == start_scene), None)
+        if menu_scenes:
+            print()
+            print(f"  NOTE: {len(menu_scenes)} menu scene(s) detected "
+                  f"({', '.join(s.get('id', '?') for s in menu_scenes)}).")
+            print( "        The standalone renders the active menu scene and hides the")
+            print( "        built-in Intro/MainMenu shell so they don't double up.")
+            if start_def is not None and start_def.get("sceneType") != "menu":
+                print( "        startScene is a WORLD scene → the built-in shell drives;")
+                print( "        end the game with show_victory/show_credits triggers, OR")
+                print( "        set startScene to a menu scene to use your menu scenes.")
+            print( "        See docs/GameCreationGuide.md → 'Menus & Win/Lose Screens'.")
 
     print(f"Created project '{name}' in {output_dir}")
     print()
@@ -283,6 +318,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         #include "ui/ImGuiRenderer.h"
         #include "ui/GameScreen.h"
         #include "ui/GameMenus.h"
+        #include "ui/GameMenuRenderer.h"
         #include "core/ChunkStreamingManager.h"
         #include "core/WorldStorage.h"
         #include "core/InteractionManager.h"
@@ -331,7 +367,9 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             auto* window = engine.getWindowManager();
             if (!window) return;
             bool inDialogue = dialogueSystem_ && dialogueSystem_->isActive();
-            bool shouldCapture = !Phyxel::UI::isMouseFree(screen_.getState()) && !inDialogue;
+            // A menu scene always wants a free cursor (its buttons are clickable).
+            bool shouldCapture = !menuSceneActive_ &&
+                                 !Phyxel::UI::isMouseFree(screen_.getState()) && !inDialogue;
             window->setCursorVisible(!shouldCapture);
         }}
 
@@ -467,7 +505,24 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 }}
             }});
 
-            // Start on the intro/splash screen (continues to the main menu), cursor free
+            // JSON-driven menu renderer for sceneType:"menu" scenes. Wired to the
+            // SceneManager (transition_scene / quit_game buttons). Foreground mode so
+            // it draws over everything, matching the editor preview.
+            gameMenuRenderer_ = std::make_unique<Phyxel::UI::GameMenuRenderer>();
+            gameMenuRenderer_->setRenderToForeground(true);
+            gameMenuRenderer_->onTransitionScene = [this](const std::string& sceneId) {{
+                auto* sm = engine_ ? engine_->getSceneManager() : nullptr;
+                if (sm && sm->hasManifest()) sm->transitionTo(sceneId);
+            }};
+            gameMenuRenderer_->onQuit = [this]() {{
+                auto* w = engine_ ? engine_->getWindowManager() : nullptr;
+                if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE);
+            }};
+
+            // Start on the intro/splash screen (continues to the main menu), cursor free.
+            // If the game's START scene is a menu scene, the SceneManager menu drives
+            // instead (menuSceneActive_ is set in loadGameDefinition's callbacks) and
+            // this shell stays hidden underneath — no double menus.
             screen_.setState(Phyxel::UI::ScreenState::Intro);
             updateCursorMode(engine);
 
@@ -512,6 +567,36 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     if (sm) {{
                         auto manifest = Phyxel::Core::GameDefinitionLoader::parseManifest(gameDef);
                         sm->setSubsystems(&subsystems);
+
+                        // Menu scenes are rendered by gameMenuRenderer_ and drive the
+                        // flow themselves; the built-in shell must not double up. These
+                        // callbacks track which kind of scene is active.
+                        Phyxel::Core::SceneCallbacks cb = {{}};
+                        auto* dev = engine.getVulkanDevice();
+                        cb.onMenuSceneLoaded = [this, dev](const Phyxel::Core::SceneDefinition& scene) {{
+                            if (gameMenuRenderer_ && !scene.menuLayout.is_null()) {{
+                                gameMenuRenderer_->load(scene.menuLayout, dev);
+                                menuSceneActive_ = true;
+                                if (engine_) updateCursorMode(*engine_);
+                            }}
+                        }};
+                        cb.onSceneReady = [this](const std::string& /*sceneId*/) {{
+                            auto* smgr = engine_ ? engine_->getSceneManager() : nullptr;
+                            const auto* active = smgr ? smgr->getActiveScene() : nullptr;
+                            bool isMenu = active && active->sceneType == Phyxel::Core::SceneType::Menu;
+                            if (isMenu) return;  // keep the menu visible
+                            // A world scene is ready. If we were showing a menu, drop it
+                            // and hand control to gameplay (the built-in shell would
+                            // otherwise still be on Intro underneath).
+                            if (menuSceneActive_) {{
+                                menuSceneActive_ = false;
+                                if (gameMenuRenderer_) gameMenuRenderer_->unload();
+                                screen_.setState(Phyxel::UI::ScreenState::Playing);
+                                if (engine_) updateCursorMode(*engine_);
+                            }}
+                        }};
+                        sm->setCallbacks(cb);
+
                         sm->loadManifest(manifest);
                         sm->loadStartScene();
                         // Drive the first frame so the scene actually loads
@@ -591,9 +676,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 }}
             }}
 
-            // Only process camera/movement input when actually playing and not in dialogue
+            // Only process camera/movement input when actually playing, not in a
+            // dialogue, and not on a menu scene (the menu owns the mouse there).
             bool inDialogue = dialogueSystem_ && dialogueSystem_->isActive();
-            if (Phyxel::UI::isGameRunning(screen_.getState()) && !inDialogue) {{
+            if (Phyxel::UI::isGameRunning(screen_.getState()) && !inDialogue && !menuSceneActive_) {{
                 // Route player movement input to animated character
                 if (playerCharacter_) {{
                     float forward = 0.0f, turn = 0.0f, strafe = 0.0f;
@@ -619,11 +705,17 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         }}
 
         void {class_name}::onUpdate(Phyxel::Core::EngineRuntime& engine, float dt) {{
+            lastDt_ = dt;  // remembered for menu-scene animations rendered in onRender
+
             // Pump scene transitions every frame, in EVERY screen state — menu-scene
             // buttons and triggers set the transition; this advances it.
             if (auto* sceneMgr = engine.getSceneManager()) {{
                 sceneMgr->update(dt);
             }}
+
+            // A menu scene is showing: SceneManager + the menu renderer drive things;
+            // skip world/gameplay simulation entirely.
+            if (menuSceneActive_) return;
 
             if (!Phyxel::UI::isGameRunning(screen_.getState())) return;
 
@@ -674,6 +766,15 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             auto* imgui = engine.getImGuiRenderer();
             if (imgui) {{
                 imgui->newFrame();
+
+                // A sceneType:"menu" scene owns the screen — render it instead of the
+                // built-in ScreenState shell so the two don't draw on top of each other.
+                if (menuSceneActive_ && gameMenuRenderer_ && gameMenuRenderer_->hasLayout()) {{
+                    gameMenuRenderer_->render(lastDt_);
+                    imgui->endFrame();
+                    if (renderCoordinator_) renderCoordinator_->render();
+                    return;
+                }}
 
                 auto state = screen_.getState();
 

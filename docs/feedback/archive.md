@@ -42,3 +42,55 @@ Editor cannot preview menu-type scenes or scene transitions, so the game shell (
 > foreground mode). MCP load_game_definition schema now accepts scenes/startScene/
 > playerDefaults/globalStory/transitionStyle/triggers. The full intro → menu → world →
 > jump-to-win → credits flow now runs AND renders in the editor with no packaging.
+
+## 2026-06-06 — TestVideoGame1 — bug
+package_game.py produces an incomplete, non-runnable distributable for a multi-scene game. Running build\Debug\<game>.exe works because the CMake POST_BUILD copies the full shaders, resources, worlds, game.json and engine.json. But package_game.py with --project-dir and even --all-resources omits critical files so the packaged exe exits immediately: game.json is never copied into the output; resources fonts dir is never copied so menu text has no font; root resource JSONs needed at boot such as materials.json and mc_texture_map.json are trimmed out causing a crash; the per-scene worldDatabase game_world.db is not copied; and it warns about missing default anim names character_complete.anim character_box.anim character.anim that do not exist. The only way I got a runnable build was to mirror build\Debug into the output by hand. Please always include game.json, engine.json, resources fonts, the boot resource JSONs, and each scene worldDatabase.
+
+> **RESOLVED (feature/gamedev-feedback-2):** package_game.py now always copies game.json
+> (falling back to the project's own when not passed explicitly), the project's engine.json,
+> resources/fonts/, the boot JSONs (resources/materials.json + resources/mc_texture_map.json),
+> and each scene's worldDatabase (tolerating the legacy worlds/worlds/ layout). Stale default
+> anim fixed: character_complete.anim -> resources/animated_characters/humanoid.anim (the old
+> root character*.anim moved to resources/animated_characters/legacy/).
+
+## 2026-06-06 — TestVideoGame1 — gotcha
+Standalone template built-in shell supersedes menu-type scenes, with no guidance on which to use. A game authored with menu-type scenes (intro, main_menu, credits) plus a win trigger that does transition_scene to a credits menu scene works perfectly in the editor preview. But create_project.py generates a standalone whose built-in ScreenState shell (Intro, MainMenu, Victory, Credits) renders on top and drives the flow, so the custom menu scenes are never shown in the standalone. The two approaches collide: the built-in MainMenu New Game goes to ScreenState Playing without transitioning the SceneManager, so if startScene is a menu scene the player lands on the wrong scene. I had to set startScene to the world scene and change the win trigger from transition_scene credits to show_victory to make the standalone correct. Please document the recommended pattern (built-in shell + world startScene + show_victory/show_credits triggers, OR menu scenes only) and ideally make create_project detect menu scenes and not double up the shell.
+
+> **RESOLVED (feature/gamedev-feedback-2):** the generated standalone now hosts a
+> GameMenuRenderer + SceneCallbacks — sceneType:"menu" scenes render via the menu renderer
+> (foreground) and the built-in ScreenState shell stays hidden underneath; when a world scene
+> becomes ready the shell flips to Playing. menuSceneActive_ gates gameplay update/input and
+> the cursor. Both patterns are documented in docs/GameCreationGuide.md ("Menus & Win/Lose
+> Screens"), and create_project.py prints menu-scene guidance at scaffold time.
+
+## 2026-06-06 — TestVideoGame1 — bug
+MCP launch_engine binds the editor default API port 8090 instead of the project configured port 8093 from the .phyxel config, so MCP tools that target 8093 report engine not running or no project loaded, and a second launch collides on 8090 and fails to init. The phyxel up CLI launches on the correct project port. Please make launch_engine read and pass the project API port, or at least warn on mismatch. This cost real debugging time.
+
+> **RESOLVED (feature/gamedev-feedback-2):** _launch_engine now passes --port derived from the
+> MCP's own ENGINE_API_URL (PHYXEL_API_PORT), so the engine binds the port the MCP targets, and
+> warns when the project's .phyxel/config.json apiPort differs. (Requires an MCP server restart
+> to take effect.)
+
+## 2026-06-06 — TestVideoGame1 — bug
+Project auto-load does not register a multi-scene manifest. When phyxel up or open_project opens a project whose game.json has a scenes array, the Application auto-load runs the single-scene GameDefinitionLoader and logs chunks=0 structures=0 with has_manifest false, so list_scenes stays empty and menu scenes never appear. The manifest only loads when you POST api/game/load_definition or call MCP load_game_definition. Please have project auto-load detect multi-scene and route through SceneManager so opening the project shows the manifest.
+
+> **RESOLVED (feature/gamedev-feedback-2):** Application::autoLoadGameDefinition now detects
+> isMultiScene and routes through SceneManager (loadManifest + setWorldsDir + transitionTo
+> startScene), mirroring the MCP load path. VERIFIED: launching --project TestVideoGame1 shows
+> has_manifest:true with all 4 scenes and game_world active.
+
+## 2026-06-06 — TestVideoGame1 — bug
+Scene worldDatabase paths get double-nested on disk. A scene worldDatabase value of worlds/game_world.db is resolved relative to the project worlds directory, producing worlds/worlds/game_world.db. This also trips up packaging, which looks for worlds/game_world.db. Please pick one convention: treat worldDatabase as relative to project root, or document clearly that it is relative to the worlds dir, and make runtime and package_game agree.
+
+> **RESOLVED (feature/gamedev-feedback-2):** SceneDefinition::getWorldDatabaseFilename strips a
+> leading "worlds/"|"worlds\\" so "worlds/x.db" and "x.db" both resolve to <worldsDir>/x.db;
+> package_game uses the bare filename and tolerates the legacy nested layout. Convention
+> documented in docs/SceneSystem.md. VERIFIED: opened ...\worlds\game_world.db (single nest).
+
+## 2026-06-06 — TestVideoGame1 — bug
+Two debuggability gaps slowed me down. First, POST api/game/load_definition returns HTTP 500 with an empty body and writes no log line when the JSON payload is bad, for example when it contains a non-ASCII bullet character, so the cause is invisible. Please return 400 with the parse error and log it. Second, the standalone game writes no log file in its working directory and does not append to the shared engine log, so when a packaged exe exits immediately on startup there is nothing to diagnose. Please have the standalone write a log next to the exe.
+
+> **RESOLVED (feature/gamedev-feedback-2):** the load_definition route returns 400 with the
+> parse-error detail AND now logs a LOG_WARN with a body preview (EngineAPIServer.cpp). The
+> generated standalone main() calls Logger::enableFileOutput(true, "<name>.log") so a packaged
+> game that exits early leaves a log next to the exe.
