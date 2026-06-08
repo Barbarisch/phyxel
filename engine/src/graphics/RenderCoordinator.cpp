@@ -781,6 +781,16 @@ void RenderCoordinator::drawFrame() {
         return;
     }
 
+    // Flush dirty chunk meshes BEFORE drawing. Voxels placed after world-gen
+    // (structures, scene loads, edits) only mark chunks dirty — without this
+    // rebuild they never become faces. The editor also calls updateDirtyChunks
+    // in its update loop (harmless O(0) duplicate); standalone games rely on
+    // THIS call — MazeRunner's walls were invisible because nothing flushed
+    // the dirty list outside the editor.
+    if (chunkManager) {
+        chunkManager->updateDirtyChunks();
+    }
+
     // Check if we need to recreate swapchain due to window resize
     if (vulkanDevice->getFramebufferResized() || windowManager->wasResized()) {
         LOG_INFO("RenderCoordinator", "Resize detected! VulkanFlag: {}, WindowFlag: {}", 
