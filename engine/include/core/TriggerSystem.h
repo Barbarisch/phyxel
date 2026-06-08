@@ -73,6 +73,20 @@ public:
     /// Load a game definition's "triggers" array. Returns how many were added.
     int loadFromJson(const nlohmann::json& triggersArray);
 
+    /// An active timer trigger that asked for an on-screen countdown.
+    /// Authored as: { "when": {"event":"timer","seconds":60}, "hud": true,
+    ///                "hudLabel": "Escape!" , ... }
+    struct CountdownInfo {
+        std::string id;
+        std::string label;       // optional "hudLabel" text shown before the time
+        float remaining = 0.0f;  // seconds left (clamped >= 0)
+        float total     = 0.0f;  // authored when.seconds
+    };
+
+    /// Countdowns to display this frame (timer triggers with "hud": true that
+    /// haven't fired yet). Hosts render these — see UI::renderCountdownHud.
+    std::vector<CountdownInfo> getActiveCountdowns() const;
+
 private:
     struct Trigger {
         std::string id;
@@ -83,6 +97,8 @@ private:
         bool  fired = false;     // suppresses re-fire when once
         float timerElapsed = 0.0f;
         bool  wasInside = false; // entity_reached_region enter-edge detection
+        bool  hud = false;       // show an on-screen countdown (timer triggers)
+        std::string hudLabel;    // optional label next to the countdown
     };
 
     void fire(Trigger& t);

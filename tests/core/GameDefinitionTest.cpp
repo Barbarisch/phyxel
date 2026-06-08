@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "core/GameDefinitionLoader.h"
+#include "graphics/Camera.h"
 
 using namespace Phyxel::Core;
 using json = nlohmann::json;
@@ -267,4 +268,33 @@ TEST(GameDefinitionTest, ValidateCompleteDefinition) {
 
     auto [valid, err] = GameDefinitionLoader::validate(def);
     EXPECT_TRUE(valid) << err;
+}
+
+TEST(GameDefinitionTest, LoadCameraMode) {
+    Phyxel::Graphics::Camera cam;
+    GameSubsystems subs;
+    subs.camera = &cam;
+
+    json def = {{"camera", {{"position", {{"x", 1}, {"y", 2}, {"z", 3}}},
+                            {"mode", "first_person"}}}};
+    auto result = GameDefinitionLoader::load(def, subs);
+    EXPECT_TRUE(result.success);
+    EXPECT_TRUE(result.cameraSet);
+    EXPECT_TRUE(result.cameraModeSet);
+    EXPECT_EQ(cam.getMode(), Phyxel::Graphics::CameraMode::FirstPerson);
+
+    // Unknown mode: warn + leave mode alone, cameraModeSet stays false.
+    cam.setMode(Phyxel::Graphics::CameraMode::Free);
+    def["camera"]["mode"] = "cinematic";
+    result = GameDefinitionLoader::load(def, subs);
+    EXPECT_TRUE(result.success);
+    EXPECT_FALSE(result.cameraModeSet);
+    EXPECT_EQ(cam.getMode(), Phyxel::Graphics::CameraMode::Free);
+
+    // No mode key: mode untouched, cameraModeSet false (hosts may then default).
+    def["camera"].erase("mode");
+    result = GameDefinitionLoader::load(def, subs);
+    EXPECT_TRUE(result.success);
+    EXPECT_FALSE(result.cameraModeSet);
+    EXPECT_EQ(cam.getMode(), Phyxel::Graphics::CameraMode::Free);
 }

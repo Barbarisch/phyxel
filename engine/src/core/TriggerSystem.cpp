@@ -106,12 +106,26 @@ std::string TriggerSystem::addTrigger(const json& def, std::string* error) {
     if (t.id.empty()) t.id = "trigger_" + std::to_string(++m_autoId);
     // Replace an existing trigger with the same id (idempotent authoring).
     removeTrigger(t.id);
-    t.event   = event;
-    t.when    = when;
-    t.actions = def["then"];
-    t.once    = def.value("once", true);
+    t.event    = event;
+    t.when     = when;
+    t.actions  = def["then"];
+    t.once     = def.value("once", true);
+    t.hud      = def.value("hud", false);
+    t.hudLabel = def.value("hudLabel", "");
     m_triggers.push_back(std::move(t));
     return m_triggers.back().id;
+}
+
+std::vector<TriggerSystem::CountdownInfo> TriggerSystem::getActiveCountdowns() const {
+    std::vector<CountdownInfo> out;
+    for (const Trigger& t : m_triggers) {
+        if (!t.hud || t.event != "timer") continue;
+        if (t.fired && t.once) continue;
+        const float total = t.when.value("seconds", 0.0f);
+        if (total <= 0.0f) continue;
+        out.push_back({t.id, t.hudLabel, std::max(0.0f, total - t.timerElapsed), total});
+    }
+    return out;
 }
 
 bool TriggerSystem::removeTrigger(const std::string& id) {
@@ -130,13 +144,20 @@ void TriggerSystem::clear() {
 json TriggerSystem::listTriggers() const {
     json arr = json::array();
     for (const Trigger& t : m_triggers) {
-        arr.push_back({
+        json entry = {
             {"id", t.id},
             {"when", t.when},
             {"then", t.actions},
             {"once", t.once},
             {"fired", t.fired}
-        });
+        };
+        if (t.hud) {
+            entry["hud"] = true;
+            if (!t.hudLabel.empty()) entry["hudLabel"] = t.hudLabel;
+            if (t.event == "timer")
+                entry["remaining"] = std::max(0.0f, t.when.value("seconds", 0.0f) - t.timerElapsed);
+        }
+        arr.push_back(entry);
     }
     return arr;
 }

@@ -156,6 +156,37 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     loop); scene loads now also rebuild the GPU occupancy grid (the every-load rule).
   - **Acceptance:** the JUMP! game's full loop runs no-code in the editor — menus →
     world → jump → `player_jumped` → trigger → credits scene active.
+- **Game-dev feedback rounds 2–3** (TestVideoGame1 / MazeRunner sessions; entries +
+  resolutions in `docs/feedback/archive.md`). Round 2: package_game completeness,
+  standalone menu/shell collision, MCP launch port, multi-scene auto-load, worldDatabase
+  double-nesting, debuggability (all merged, `1f15b79`). Round 3 highlights:
+  - **⚠️ STANDALONE RENDER PARITY (root cause worth remembering):** the editor viewport
+    shows the RAW offscreen scene texture; the swapchain post-process pass is only ever
+    VISIBLE in packaged games — so its bugs (double gamma onto the SRGB swapchain,
+    un-thresholded bloom ≈ 2× brightness, SSAO horizon band at screen center) shipped
+    unseen. `post_process.frag` is now an editor-parity composite (scene + OIT only);
+    re-enable bloom/SSAO/tonemap only once they render in the editor preview too.
+    Packaged games ship loose `.spv` — a shader fix can be hot-dropped into
+    `<game>/shaders/` without rebuilding.
+  - **Scene transitions clear entities now** — `SceneCallbacks.clearEntities/clearNPCs/
+    endDialogue` are wired by the editor AND the generated standalone (they were invoked
+    by SceneManager but never SET → players accumulated 2→6→7 across transitions).
+  - **Camera mode** (`camera.mode`: first_person/third_person/free) in game.json +
+    `set_camera`; standalone only defaults to ThirdPerson when no mode is authored.
+  - **Timer countdown HUD** (`"hud": true` + `hudLabel` on timer triggers →
+    `UI::renderCountdownHud`, foreground) and **menu `{{token}}` interpolation**
+    (`{{playtime}}`, `{{story.<var>}}` via `GameMenuRenderer::onResolveVariable`).
+  - **move_entity "player"** now teleports the LIVE character controller.
+  - **ROADMAP (design item, not started): engine-side game-shell base classes.** The
+    scaffold embeds ~29KB of shell logic (ScreenState machine, menu renderer wiring,
+    trigger executor, camera follow) in every generated game — copies rot and engine
+    fixes don't propagate (observed across the 06-06 vs 06-07 scaffolds). Proposal:
+    move the shell into engine-side overridable base classes (e.g. `GameShell` with
+    virtual hooks per function), make the scaffold emit a THIN subclass, document
+    data-driven vs override extension points. Needs a design pass before code.
+  - **Known intermittent:** a `vulkan-1.dll` crash (0xc0000409, fault offset d7205) on
+    scene transitions — predates these changes (user's 06-06 session hit the identical
+    signature). Six rapid menu↔world cycles didn't reproduce it; no repro recipe yet.
 - **Water system — FULL FEATURE MERGED TO `main`** (commit `80f9998`, 2026-06-06). Design:
   `docs/WaterSystem.md`. Default **OFF** (per-world `"water":{"enabled","seaLevel",...}` block
   in game.json, applied in `Application::autoLoadGameDefinition`), so it's inert for projects

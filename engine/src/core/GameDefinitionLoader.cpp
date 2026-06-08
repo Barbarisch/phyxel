@@ -505,6 +505,27 @@ void GameDefinitionLoader::loadCamera(const json& cameraDef, GameSubsystems& sub
         sub.camera->setPitch(cameraDef["pitch"].get<float>());
     }
 
+    // Optional camera mode — lets a game start first-person (e.g. a maze
+    // crawler) without the player pressing V. Accepts snake_case and
+    // PascalCase spellings. When present, hosts must NOT override it with
+    // their own default (see result.cameraModeSet).
+    if (cameraDef.contains("mode")) {
+        const std::string mode = cameraDef["mode"].get<std::string>();
+        if (mode == "first_person" || mode == "FirstPerson" || mode == "first") {
+            sub.camera->setMode(Graphics::CameraMode::FirstPerson);
+            result.cameraModeSet = true;
+        } else if (mode == "third_person" || mode == "ThirdPerson" || mode == "third") {
+            sub.camera->setMode(Graphics::CameraMode::ThirdPerson);
+            result.cameraModeSet = true;
+        } else if (mode == "free" || mode == "Free") {
+            sub.camera->setMode(Graphics::CameraMode::Free);
+            result.cameraModeSet = true;
+        } else {
+            LOG_WARN("GameDefinitionLoader", "Unknown camera mode '" + mode +
+                     "' (expected first_person/third_person/free)");
+        }
+    }
+
     result.cameraSet = true;
 }
 

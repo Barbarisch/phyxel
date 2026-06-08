@@ -133,6 +133,7 @@ def create_project(
     extra_members.append("    std::unique_ptr<Phyxel::UI::GameMenuRenderer> gameMenuRenderer_;")
     extra_members.append("    bool menuSceneActive_ = false;  // a sceneType:\"menu\" scene is currently shown")
     extra_members.append("    float lastDt_ = 0.0f;           // last frame dt, for menu animations in onRender")
+    extra_members.append("    bool authoredCameraMode_ = false;  // game.json camera block carries an explicit \"mode\"")
 
     if has_npcs or game_definition:
         extra_includes.append('#include "core/EntityRegistry.h"')
@@ -278,10 +279,10 @@ def create_project(
             print( "        The standalone renders the active menu scene and hides the")
             print( "        built-in Intro/MainMenu shell so they don't double up.")
             if start_def is not None and start_def.get("sceneType") != "menu":
-                print( "        startScene is a WORLD scene → the built-in shell drives;")
+                print( "        startScene is a WORLD scene -> the built-in shell drives;")
                 print( "        end the game with show_victory/show_credits triggers, OR")
                 print( "        set startScene to a menu scene to use your menu scenes.")
-            print( "        See docs/GameCreationGuide.md → 'Menus & Win/Lose Screens'.")
+            print( "        See docs/GameCreationGuide.md -> 'Menus & Win/Lose Screens'.")
 
     print(f"Created project '{name}' in {output_dir}")
     print()
@@ -330,6 +331,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         #include <GLFW/glfw3.h>
         #include <fstream>
         #include <filesystem>
+        #include <optional>
+        #include <variant>
 
         // ====================================================================
         // Entity Spawning
@@ -433,6 +436,50 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             );
             renderCoordinator_->setNPCManager(npcManager_.get());
 
+            // JSON-driven menu renderer for sceneType:"menu" scenes. MUST be
+            // constructed BEFORE loadGameDefinition(): loading a multi-scene game
+            // whose startScene is a menu fires cb.onMenuSceneLoaded during the load,
+            // and that callback needs the renderer or the start menu silently
+            // fails (the built-in shell renders instead — the double-shell bug).
+            // Foreground mode so it draws over everything, matching the editor.
+            gameMenuRenderer_ = std::make_unique<Phyxel::UI::GameMenuRenderer>();
+            gameMenuRenderer_->setRenderToForeground(true);
+            gameMenuRenderer_->onTransitionScene = [this](const std::string& sceneId) {{
+                auto* sm = engine_ ? engine_->getSceneManager() : nullptr;
+                if (sm && sm->hasManifest()) sm->transitionTo(sceneId);
+            }};
+            gameMenuRenderer_->onQuit = [this]() {{
+                auto* w = engine_ ? engine_->getWindowManager() : nullptr;
+                if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE);
+            }};
+            // {{{{token}}}} interpolation in menu labels: {{{{playtime}}}} shows the
+            // gameplay clock (speedrun time on credits), {{{{story.<var>}}}} reads a
+            // StoryEngine world variable set by triggers/dialogue.
+            gameMenuRenderer_->onResolveVariable =
+                [this](const std::string& token) -> std::optional<std::string> {{
+                if (token == "playtime") {{
+                    const int mins = static_cast<int>(elapsed_ / 60.0f);
+                    const float secs = elapsed_ - static_cast<float>(mins) * 60.0f;
+                    char buf[32];
+                    snprintf(buf, sizeof(buf), "%d:%04.1f", mins, secs);
+                    return std::string(buf);
+                }}
+                if (token.rfind("story.", 0) == 0 && storyEngine_) {{
+                    const auto* var = storyEngine_->getWorldState().getVariable(token.substr(6));
+                    if (!var) return std::nullopt;
+                    return std::visit([](const auto& v) -> std::string {{
+                        using T = std::decay_t<decltype(v)>;
+                        if constexpr (std::is_same_v<T, std::string>) return v;
+                        else if constexpr (std::is_same_v<T, bool>)   return v ? "true" : "false";
+                        else if constexpr (std::is_same_v<T, float>) {{
+                            char b[32]; snprintf(b, sizeof(b), "%.2f", v); return std::string(b);
+                        }}
+                        else return std::to_string(v);
+                    }}, var->value);
+                }}
+                return std::nullopt;
+            }};
+
             // Load game definition (NPCs, story, camera — world is pre-baked in SQLite)
             if (!loadGameDefinition(engine)) {{
                 LOG_WARN("{class_name}", "No game.json found — starting with empty world");
@@ -464,8 +511,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 }}
             }});
 
-            // If no player was spawned, create a default one
-            if (!playerCharacter_) {{
+            // If no player was spawned, create a default one — but ONLY for
+            // single-scene games. In a multi-scene game whose startScene is a menu,
+            // no player exists yet BY DESIGN: each world scene spawns its own
+            // definition player later. A fallback here would squat the "player"
+            // entity ID ("Entity ID already taken") and leave a stray duplicate
+            // character standing in the world.
+            bool multiScene = engine.getSceneManager() && engine.getSceneManager()->hasManifest();
+            if (!playerCharacter_ && !multiScene) {{
                 auto* entity = spawnEntity("animated", glm::vec3(16.0f, 25.0f, 16.0f), "");
                 if (entity) {{
                     playerCharacter_ = dynamic_cast<Phyxel::Scene::AnimatedVoxelCharacter*>(entity);
@@ -475,10 +528,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 }}
             }}
 
-            // Set up third-person camera following the player
+            // Default to a third-person camera following the player — but only when
+            // the game definition didn't author a camera "mode" itself (a maze
+            // crawler authored as first_person must START first-person).
             if (playerCharacter_) {{
                 auto* cam = engine.getCamera();
-                cam->setMode(Phyxel::Graphics::CameraMode::ThirdPerson);
+                if (!authoredCameraMode_) {{
+                    cam->setMode(Phyxel::Graphics::CameraMode::ThirdPerson);
+                }}
                 cam->setDistanceFromTarget(4.0f);
             }}
 
@@ -505,20 +562,6 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 }}
             }});
 
-            // JSON-driven menu renderer for sceneType:"menu" scenes. Wired to the
-            // SceneManager (transition_scene / quit_game buttons). Foreground mode so
-            // it draws over everything, matching the editor preview.
-            gameMenuRenderer_ = std::make_unique<Phyxel::UI::GameMenuRenderer>();
-            gameMenuRenderer_->setRenderToForeground(true);
-            gameMenuRenderer_->onTransitionScene = [this](const std::string& sceneId) {{
-                auto* sm = engine_ ? engine_->getSceneManager() : nullptr;
-                if (sm && sm->hasManifest()) sm->transitionTo(sceneId);
-            }};
-            gameMenuRenderer_->onQuit = [this]() {{
-                auto* w = engine_ ? engine_->getWindowManager() : nullptr;
-                if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE);
-            }};
-
             // Start on the intro/splash screen (continues to the main menu), cursor free.
             // If the game's START scene is a menu scene, the SceneManager menu drives
             // instead (menuSceneActive_ is set in loadGameDefinition's callbacks) and
@@ -538,6 +581,20 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
 
             try {{
                 nlohmann::json gameDef = nlohmann::json::parse(f);
+
+                // Did the author pick a camera mode anywhere? If so, never stomp it
+                // with the default ThirdPerson below — GameDefinitionLoader applies
+                // the authored mode (first_person/third_person/free) at each load.
+                auto cameraHasMode = [](const nlohmann::json& def) {{
+                    return def.contains("camera") && def["camera"].contains("mode");
+                }};
+                authoredCameraMode_ = cameraHasMode(gameDef);
+                if (gameDef.contains("scenes")) {{
+                    for (const auto& sc : gameDef["scenes"]) {{
+                        if (cameraHasMode(sc.value("definition", nlohmann::json::object())))
+                            authoredCameraMode_ = true;
+                    }}
+                }}
 
                 // PERSISTENT member, not a local: the SceneManager keeps a pointer to
                 // this for every later scene transition (menu buttons, triggers).
@@ -572,6 +629,23 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         // flow themselves; the built-in shell must not double up. These
                         // callbacks track which kind of scene is active.
                         Phyxel::Core::SceneCallbacks cb = {{}};
+
+                        // Unload cleanup — without these, each scene transition leaks
+                        // the previous scene's player/NPCs (stray duplicate characters).
+                        cb.clearEntities = [this]() {{
+                            if (entityRegistry_) entityRegistry_->clear();
+                            entities_.clear();
+                            playerCharacter_ = nullptr;
+                        }};
+                        cb.clearNPCs = [this]() {{
+                            if (!npcManager_) return;
+                            for (const auto& name : npcManager_->getAllNPCNames())
+                                npcManager_->removeNPC(name);
+                        }};
+                        cb.endDialogue = [this]() {{
+                            if (dialogueSystem_ && dialogueSystem_->isActive())
+                                dialogueSystem_->endConversation();
+                        }};
                         auto* dev = engine.getVulkanDevice();
                         cb.onMenuSceneLoaded = [this, dev](const Phyxel::Core::SceneDefinition& scene) {{
                             if (gameMenuRenderer_ && !scene.menuLayout.is_null()) {{
@@ -724,12 +798,15 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             auto* physics = engine.getPhysicsWorld();
             if (physics) physics->stepSimulation(dt);
 
-            // Update player character + camera tracking
+            // Update player character + camera tracking. getCameraTrackPosition()
+            // is the body-center track point (same as the editor) — with the 0.5
+            // offset it lands at eye height for FirstPerson and frames the body
+            // for ThirdPerson.
             if (playerCharacter_) {{
                 playerCharacter_->update(dt);
                 auto* cam = engine.getCamera();
                 if (cam) {{
-                    cam->updatePositionFromTarget(playerCharacter_->getPosition(), 0.5f);
+                    cam->updatePositionFromTarget(playerCharacter_->getCameraTrackPosition(), 0.5f);
                 }}
 
                 // Gameplay events -> declarative triggers (win conditions).
@@ -830,7 +907,9 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     break;
 
                 case Phyxel::UI::ScreenState::Playing:
-                    // Minimal HUD — could add crosshair, health, etc.
+                    // Timer-trigger countdowns ("hud": true triggers, e.g. "escape
+                    // in 60 seconds") render top-center. Add crosshair/health here.
+                    Phyxel::UI::renderCountdownHud(triggers_.getActiveCountdowns());
                     break;
 
                 case Phyxel::UI::ScreenState::Paused:

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/TriggerSystem.h"
+
 #include <string>
 #include <functional>
 #include <vector>
@@ -103,6 +105,11 @@ void renderDeathOverlay(float respawnTimer, float respawnDelay, int deathCount);
 
 /// Render objective tracker overlay (top-right corner).
 void renderObjectiveHUD(const Core::ObjectiveTracker* tracker);
+
+/// Render timer-trigger countdowns (top-center, large; turns red under 10s).
+/// Pass `TriggerSystem::getActiveCountdowns()`. Draws into the FOREGROUND
+/// draw list so it is visible over the editor dockspace and in standalones.
+void renderCountdownHud(const std::vector<Core::TriggerSystem::CountdownInfo>& countdowns);
 
 } // namespace UI
 } // namespace Phyxel

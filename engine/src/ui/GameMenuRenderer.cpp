@@ -213,6 +213,29 @@ void GameMenuRenderer::renderElement(ImDrawList* dl, const nlohmann::json& elem,
     if (ovIt != overrides_.end() && ovIt->second.text.has_value())
         text = ovIt->second.text.value();
 
+    // {{token}} interpolation — dynamic values in authored text (e.g.
+    // "Time: {{playtime}}", "{{story.score}}"), resolved by the host each
+    // frame via onResolveVariable. Unknown tokens render unchanged.
+    if (onResolveVariable && text.find("{{") != std::string::npos) {
+        std::string resolved;
+        resolved.reserve(text.size());
+        size_t pos = 0;
+        while (pos < text.size()) {
+            size_t open = text.find("{{", pos);
+            if (open == std::string::npos) { resolved += text.substr(pos); break; }
+            size_t close = text.find("}}", open + 2);
+            if (close == std::string::npos) { resolved += text.substr(pos); break; }
+            resolved += text.substr(pos, open - pos);
+            const std::string token = text.substr(open + 2, close - open - 2);
+            if (auto val = onResolveVariable(token))
+                resolved += *val;
+            else
+                resolved += text.substr(open, close + 2 - open); // leave as-is
+            pos = close + 2;
+        }
+        text = std::move(resolved);
+    }
+
     // Runtime color override
     if (ovIt != overrides_.end() && ovIt->second.color.has_value())
         bgColorDef = ovIt->second.color.value();

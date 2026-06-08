@@ -1063,5 +1063,37 @@ void renderObjectiveHUD(const Core::ObjectiveTracker* tracker) {
     ImGui::End();
 }
 
+void renderCountdownHud(const std::vector<Core::TriggerSystem::CountdownInfo>& countdowns) {
+    if (countdowns.empty()) return;
+
+    // Foreground draw list: a background-sorted ImGui window is fully occluded
+    // by the editor dockspace (same lesson as the menu preview), and standalones
+    // want it over the scene too. No window, no input — pure overlay text.
+    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    ImFont* font = ImGui::GetFont();
+    const ImVec2 ds = ImGui::GetIO().DisplaySize;
+    const float fontSize = ImGui::GetFontSize() * 1.8f;
+    float y = 16.0f;
+
+    for (const auto& c : countdowns) {
+        const int   mins = static_cast<int>(c.remaining / 60.0f);
+        const float secs = c.remaining - static_cast<float>(mins) * 60.0f;
+        char buf[160];
+        if (!c.label.empty())
+            snprintf(buf, sizeof(buf), "%s  %d:%04.1f", c.label.c_str(), mins, secs);
+        else
+            snprintf(buf, sizeof(buf), "%d:%04.1f", mins, secs);
+
+        // Urgency: white normally, red in the final 10 seconds.
+        const ImU32 col = (c.remaining <= 10.0f) ? IM_COL32(255, 70, 60, 255)
+                                                 : IM_COL32(255, 255, 255, 255);
+        const ImVec2 ts = font->CalcTextSizeA(fontSize, 3.4e38f, 0.0f, buf);
+        const ImVec2 pos((ds.x - ts.x) * 0.5f, y);
+        dl->AddText(font, fontSize, ImVec2(pos.x + 2.0f, pos.y + 2.0f), IM_COL32(0, 0, 0, 190), buf);
+        dl->AddText(font, fontSize, pos, col, buf);
+        y += ts.y + 6.0f;
+    }
+}
+
 } // namespace UI
 } // namespace Phyxel

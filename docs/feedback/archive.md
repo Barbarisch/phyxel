@@ -94,3 +94,98 @@ Two debuggability gaps slowed me down. First, POST api/game/load_definition retu
 > parse-error detail AND now logs a LOG_WARN with a body preview (EngineAPIServer.cpp). The
 > generated standalone main() calls Logger::enableFileOutput(true, "<name>.log") so a packaged
 > game that exits early leaves a log next to the exe.
+
+## 2026-06-07 — TestVideoGame1 — feature-request
+Game definitions cannot specify camera mode: game.json camera block (GameDefinitionLoader::loadCamera) only parses position/yaw/pitch, the set_camera HTTP/MCP API has no mode param, and standalone forces ThirdPerson after player spawn. A first-person game (e.g. a maze crawler) cannot start in first-person; the player must press V manually. Request: 'mode' field (FirstPerson/ThirdPerson/Free) in the camera block + set_camera API.
+
+> **RESOLVED:** camera.mode ("first_person"/"third_person"/"free", PascalCase accepted) parsed
+> by loadCamera (sets Camera::setMode, flags result.cameraModeSet); set_camera HTTP/MCP gained
+> "mode" (validates, errors on unknown). The standalone only defaults to ThirdPerson when NO
+> mode is authored anywhere in the definition. Unit-tested (LoadCameraMode); verified live —
+> bad mode rejected, first_person puts the camera at the player's eyes inside the maze.
+
+## 2026-06-07 — TestVideoGame1 — feature-request
+Timer triggers (when.event=timer, when.seconds) fire correctly but are invisible to the player — there is no on-screen countdown HUD showing time remaining. Timed gameplay (e.g. 'escape the maze in 60s') is unfair without it. Request: a HUD countdown element, ideally data-driven (e.g. trigger option showHud:true or a hud block in the scene definition).
+
+> **RESOLVED:** timer triggers accept "hud": true + optional "hudLabel";
+> TriggerSystem::getActiveCountdowns() exposes remaining/total; UI::renderCountdownHud draws
+> top-center (foreground list, red under 10s) in the editor AND the generated standalone
+> (Playing state). list_triggers reports remaining seconds for hud timers. Unit-tested;
+> verified live ("Escape the maze!  1:24.7" over the viewport).
+
+## 2026-06-07 — TestVideoGame1 — feature-request
+Menu scene text is static — no way to display dynamic values such as total elapsed/completion time on a credits screen. Request: variable interpolation in menuLayout labels (e.g. {{story.variableName}}) backed by story variables, plus a built-in elapsed-time/playtime variable, for speedrun-time-on-credits use cases.
+
+> **RESOLVED:** GameMenuRenderer interpolates {{token}} in label/button text per frame via a
+> host-provided onResolveVariable; both hosts wire {{playtime}} (unpaused gameplay clock,
+> M:SS.s — editor m_playtimeSeconds / standalone elapsed_) and {{story.<var>}} (StoryEngine
+> WorldState variables, all variant types stringified). Unknown tokens render literally.
+> Verified live ("Your time: 1:53.4", "Score: 9001").
+
+## 2026-06-07 — TestVideoGame1 — bug
+move_entity on id 'player' reports success and moves an entity, but the animated character controller's position (what get_player_state and the entity_reached_region trigger resolver read) is NOT updated - the two silently desync. Workaround discovered: set_spawn_point + force_respawn teleports the real player. Request: either make move_entity reposition the character controller for the player entity, or add an explicit player teleport API.
+
+> **RESOLVED:** move_entity("player") now targets the LIVE control character (the registry
+> entry could be a stale duplicate from the pre-fix entity leak); AnimatedVoxelCharacter::
+> setPosition is already a proper teleport (resets velocity/springs/step state). Verified
+> live: move to (12,19,12) → get_player_state reports exactly (12,19,12), grounded.
+
+## 2026-06-07 — TestVideoGame1 — bug
+Animated entity count grows on every scene transition in a multi-scene game (observed 2 -> 6 -> 7 player-type entities across level transitions in the editor's World Outliner). transition_scene docs say entities are cleared on unload, but old player characters appear to accumulate. Possible leak; could affect performance and gameplay (stray visible characters).
+
+> **RESOLVED:** SceneManager only INVOKES the SceneCallbacks unload hooks — nobody ever SET
+> clearEntities/clearNPCs/endDialogue (an editor comment claimed "already handled"; it wasn't).
+> Both the editor and the generated standalone now wire them (registry clear + entities clear +
+> player null; NPC removal; dialogue end). Verified live: exactly 1 player across
+> level1→level2→level3→game_over→level1 cycles (was 2→6→7). This also fixed the
+> "Entity ID already taken: player" warnings.
+
+## 2026-06-07 — TestVideoGame1 — bug
+create_project.py crashes with UnicodeEncodeError on Windows cp1252 consoles: the menu-scene NOTE block prints a U+2192 arrow (line ~284). All project files are already written by then so the crash is cosmetic, but exit code 1 makes scripted use fail. Fix: ASCII '->' in console prints (the same non-ASCII discipline game.json requires).
+
+> **RESOLVED:** both U+2192 arrows in console prints replaced with ASCII '->'; verified by
+> scaffolding on a cp1252 PowerShell console (exit 0).
+
+## 2026-06-07 — TestVideoGame1 — feature-request
+Architecture lesson-learned (from the game-project side): the engine should expose overridable BASE CLASSES for the standard game functions - screen/menu shell, trigger action executor, HUD elements, game mode/flow, camera behavior - with sane default implementations, and real game projects should subclass and override them as the standard extension procedure. Today a game has only two extremes: pure data-driven game.json (hits walls like no countdown HUD or dynamic menu text) or editing the create_project.py GENERATED scaffold (~29KB MazeRunner.cpp embeds the whole shell: menu renderer wiring, ScreenState machine, trigger executor). Generated code copies mean engine fixes don't propagate (the 2026-06-06 JUMP scaffold and the 2026-06-07 scaffold already diverge) and any customization is a merge hazard. Proposal: move the generated shell logic into engine-side base classes (e.g. GameShell/GameCallbacks with virtual hooks per function), make the scaffold emit a thin subclass that just overrides what the game needs, and document when to stay data-driven vs when to override.
+
+> **TRIAGED → ROADMAP (design item):** agreed — the scaffold-divergence pain is real and this
+> round made it worse (more shell logic landed in the template). Folded into
+> docs/AgentContext.md roadmap as "engine-side game-shell base classes": move the ScreenState
+> machine, menu-renderer wiring, trigger executor and camera follow into an engine GameShell
+> with virtual hooks; scaffold emits a thin subclass. Needs a design pass (hook inventory,
+> data-driven vs override guidance) before implementation — not coded this round. Two of this
+> round's walls (countdown HUD, dynamic menu text) were ALSO made data-driven so games need
+> overrides less often.
+
+## 2026-06-07 — TestVideoGame1 — bug
+create_project.py scaffold initialization-order bug: the generated <Game>.cpp calls loadGameDefinition() (which runs SceneManager loadStartScene and fires cb.onMenuSceneLoaded) BEFORE gameMenuRenderer_ is constructed ~75 lines later. The callback null-checks gameMenuRenderer_, so for a game whose startScene is a menu scene the start menu silently fails to load and the built-in ScreenState Intro shell renders instead - exactly the double-shell situation the callbacks were added to prevent. Later menu scenes work (renderer exists by then). Fix: emit the GameMenuRenderer construction before the loadGameDefinition() call in the generated initialize(). Found packaging MazeRunner (startScene=intro menu scene) 2026-06-07; worked around by hand-reordering the generated code.
+
+> **RESOLVED:** the template now constructs + wires gameMenuRenderer_ immediately after the
+> RenderCoordinator, BEFORE loadGameDefinition(), with a comment explaining why the order is
+> load-bearing. Verified: scaffolded a menu-startScene game and compiled it end-to-end.
+
+## 2026-06-07 — TestVideoGame1 — bug
+Standalone world-rendering parity bug (seen in BOTH packaged games: JUMP 2026-06-06 and MazeRunner 2026-06-07): the same game.json world renders correctly in the editor (project mode) - textured stone walls, lit terrain, sun shadows - but in the create_project.py standalone the terrain is washed-out/overbright white, structure voxels are near-black featureless, and the sky is pure black. World DATA is correct in the standalone (log: 'World: generated 1 chunks (Flat, seed=101)', 'structures=22', player spawned) so this is purely render-pipeline state. Evidence points at initialization the editor does that the generated standalone never does: DayNightCycle lives in the shared RenderCoordinator but the editor appears to configure sun/ambient (and the Vulkan clear color is hardcoded black {0,0,0,1} for both, so the editor's sky must come from lighting state too). Suggest auditing editor-only render init (day/night enable, sun direction/color, ambient strength, atlas/material application) and moving it into RenderCoordinator/EngineRuntime defaults so standalones match the editor - ideally as an overridable base-class hook per the base-classes feedback item. Repro: package MazeRunner, New Game -> Level 1, compare with editor screenshot of scene level1.
+
+> **RESOLVED (root cause was the post-process chain, not lighting init):** the editor viewport
+> displays the RAW offscreen scene texture; the swapchain post-process pass is ONLY visible in
+> standalones, so its bugs shipped unseen: manual pow(1/2.2) onto an SRGB swapchain (double
+> gamma → washed-out), un-thresholded bloom (adds a blurred copy of the whole frame ≈ 2×
+> brightness), SSAO whose depth-derivative normals degenerate at the floor horizon (dark band
+> across screen center), plus a Reinhard tonemap the editor look never had. post_process.frag
+> is now an editor-parity composite (scene + OIT transparency only; the disabled effects are
+> documented in-shader for deliberate re-enable). Verified on the deployed MazeRunner itself by
+> hot-dropping the fixed .spv into its shaders/ dir (no rebuild needed) + scripted
+> click-through to Level 1: band gone, stone properly textured; editor unchanged. The black sky
+> is the same clear color in both (not a bug). The "no walls visible" part of the repro was the
+> forced third-person camera embedded inside a maze wall (back-faces culled) — fixed separately
+> by camera mode (first_person).
+
+## 2026-06-07 — TestVideoGame1 — bug
+Scaffold default-player collision: when startScene is a menu scene, the generated initialize() sees no player after loadGameDefinition() (menu scenes spawn none) and creates a fallback default player at (16,25,16). Every world scene that later loads spawns its own definition player, producing 'EntityRegistry: Entity ID already taken: player' warnings (observed in the packaged MazeRunner log) and a stray duplicate character in the world. The default-player fallback should be skipped for multi-scene games (or deferred until a world scene loads without defining a player). Related to the entity-accumulation-across-transitions bug filed 2026-06-07.
+
+> **RESOLVED:** the template skips the default-player fallback whenever the SceneManager has a
+> manifest (multi-scene): each world scene spawns its own definition player (or playerDefaults).
+> Combined with the unload clearEntities fix, "Entity ID already taken: player" is gone —
+> verified: exactly one cleanly-registered player per world scene.

@@ -191,3 +191,44 @@ TEST(TriggerSystemTest, EventSinkReportsTriggerFired) {
     ASSERT_EQ(sinkEvents.size(), 1u);
     EXPECT_EQ(sinkEvents[0], "trigger_fired:t1");
 }
+
+TEST(TriggerSystemTest, HudCountdownExposesRemainingTime) {
+    TriggerSystem ts;
+    ActionLog log;
+    ts.setActionExecutor(log.executor());
+
+    // A hud timer, a non-hud timer, and a hud event trigger (not a countdown).
+    ts.addTrigger({{"id", "escape"},
+                   {"when", {{"event", "timer"}, {"seconds", 10.0f}}},
+                   {"then", json::array({{{"type", "quit_game"}}})},
+                   {"hud", true}, {"hudLabel", "Escape!"}});
+    ts.addTrigger({{"id", "silent"},
+                   {"when", {{"event", "timer"}, {"seconds", 5.0f}}},
+                   {"then", json::array({{{"type", "quit_game"}}})}});
+    ts.addTrigger({{"id", "jump_hud"},
+                   {"when", {{"event", "player_jumped"}}},
+                   {"then", json::array({{{"type", "quit_game"}}})},
+                   {"hud", true}});
+
+    auto cds = ts.getActiveCountdowns();
+    ASSERT_EQ(cds.size(), 1u);             // only the hud TIMER counts down
+    EXPECT_EQ(cds[0].id, "escape");
+    EXPECT_EQ(cds[0].label, "Escape!");
+    EXPECT_FLOAT_EQ(cds[0].total, 10.0f);
+    EXPECT_FLOAT_EQ(cds[0].remaining, 10.0f);
+
+    ts.update(4.0f);
+    cds = ts.getActiveCountdowns();
+    ASSERT_EQ(cds.size(), 1u);
+    EXPECT_FLOAT_EQ(cds[0].remaining, 6.0f);
+
+    // After firing (once=true default), the countdown disappears.
+    ts.update(6.0f);
+    EXPECT_TRUE(ts.getActiveCountdowns().empty());
+
+    // listTriggers carries the hud fields for MCP visibility.
+    bool sawHud = false;
+    for (const auto& t : ts.listTriggers())
+        if (t.value("id", "") == "jump_hud") sawHud = t.value("hud", false);
+    EXPECT_TRUE(sawHud);
+}

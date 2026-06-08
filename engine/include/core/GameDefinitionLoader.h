@@ -118,6 +118,7 @@ struct GameDefinitionResult {
     int locationsRegistered = 0;
     bool playerSpawned = false;
     bool cameraSet = false;
+    bool cameraModeSet = false;  ///< definition's camera block carried an explicit "mode"
     bool storyLoaded = false;
 
     json toJson() const;

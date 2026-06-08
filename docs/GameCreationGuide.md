@@ -164,6 +164,36 @@ After your world, NPCs, and story are in place, layer on gameplay systems:
 - ESC key toggles pause (freezes world simulation, shows pause menu)
 - `toggle_pause` / `get_pause_state` — Control via MCP
 
+**Camera Mode:**
+- The `camera` block accepts `"mode"`: `"first_person"` | `"third_person"` | `"free"`
+  — a maze crawler can start first-person without the player pressing V:
+  ```json
+  "camera": { "position": {"x":2,"y":24,"z":-6}, "yaw": 90, "pitch": -25,
+              "mode": "first_person" }
+  ```
+- Works per scene in multi-scene games (each scene's `definition.camera`); the
+  standalone only defaults to third-person when no mode is authored anywhere.
+- `set_camera` (MCP/HTTP) also accepts `mode` for live switching.
+
+**Timer Countdown HUD:**
+- Add `"hud": true` (and optional `"hudLabel"`) to a timer trigger to show a large
+  top-center countdown (turns red under 10 s):
+  ```json
+  { "id": "timeout", "when": {"event": "timer", "seconds": 60},
+    "hud": true, "hudLabel": "Escape the maze!",
+    "then": [{"type": "transition_scene", "target": "game_over"}], "once": true }
+  ```
+- Renders in the editor preview and in standalones; `list_triggers` reports the
+  remaining seconds for hud timers.
+
+**Dynamic Menu Text:**
+- Menu-scene labels/buttons interpolate `{{token}}` per frame:
+  - `{{playtime}}` — unpaused gameplay clock, formatted `M:SS.s` (speedrun time
+    on a credits screen)
+  - `{{story.<var>}}` — a StoryEngine world variable (set via `story_set_variable`
+    or story beats), e.g. `"text": "Score: {{story.score}}"`
+- Unknown tokens render literally.
+
 ### Step 9: Save
 
 - `save_world` persists to `worlds/default.db`

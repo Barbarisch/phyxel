@@ -1773,6 +1773,31 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         if (sm) sm->transitionTo(sceneId);
     };
     m_gameMenuRenderer->onQuit = [this]() { quit(); };
+    // {{token}} interpolation in menu labels: {{playtime}} + {{story.<var>}}.
+    m_gameMenuRenderer->onResolveVariable =
+        [this](const std::string& token) -> std::optional<std::string> {
+        if (token == "playtime") {
+            const int mins = static_cast<int>(m_playtimeSeconds / 60.0f);
+            const float secs = m_playtimeSeconds - static_cast<float>(mins) * 60.0f;
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%d:%04.1f", mins, secs);
+            return std::string(buf);
+        }
+        if (token.rfind("story.", 0) == 0 && storyEngine) {
+            const auto* var = storyEngine->getWorldState().getVariable(token.substr(6));
+            if (!var) return std::nullopt;
+            return std::visit([](const auto& v) -> std::string {
+                using T = std::decay_t<decltype(v)>;
+                if constexpr (std::is_same_v<T, std::string>) return v;
+                else if constexpr (std::is_same_v<T, bool>)   return v ? "true" : "false";
+                else if constexpr (std::is_same_v<T, float>) {
+                    char b[32]; snprintf(b, sizeof(b), "%.2f", v); return std::string(b);
+                }
+                else return std::to_string(v);
+            }, var->value);
+        }
+        return std::nullopt;
+    };
 
     // Wire SceneManager callbacks so menu scenes show the editor
     {
@@ -1811,8 +1836,24 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
                 if (m_gameMenuRenderer) m_gameMenuRenderer->unload();
             };
 
-            // Note: clearEntities, clearNPCs, etc. are already handled by the
-            // SceneManager transition path; we only add the callbacks we care about here.
+            // Unload cleanup. The SceneManager only INVOKES these callbacks — if the
+            // host doesn't provide them, nothing clears on transition and player
+            // characters/NPCs accumulate across scenes (observed 2→6→7 animated
+            // entities in the World Outliner).
+            cb.clearEntities = [this]() {
+                if (entityRegistry) entityRegistry->clear();
+                entities.clear();
+                animatedCharacter = nullptr;
+            };
+            cb.clearNPCs = [this]() {
+                if (!npcManager) return;
+                for (const auto& name : npcManager->getAllNPCNames())
+                    npcManager->removeNPC(name);
+            };
+            cb.endDialogue = [this]() {
+                if (dialogueSystem && dialogueSystem->isActive())
+                    dialogueSystem->endConversation();
+            };
             sm->setCallbacks(cb);
         }
     }
@@ -2536,6 +2577,12 @@ void Application::run() {
         // Render Objective HUD (top-right corner)
         UI::renderObjectiveHUD(&objectiveTracker);
 
+        // Render timer-trigger countdowns (top-center) — triggers authored with
+        // "hud": true (e.g. "escape in 60s") show their remaining time.
+        if (triggerSystem) {
+            UI::renderCountdownHud(triggerSystem->getActiveCountdowns());
+        }
+
         // Render Pause Menu overlay
         if (gamePaused) {
             UI::PauseMenuActions pauseActions;
@@ -2911,6 +2958,10 @@ void Application::update(float deltaTime) {
             }
         }
     }
+
+    // Unpaused gameplay clock — backs {{playtime}} in menu-scene labels
+    // (speedrun time on a credits screen, etc.).
+    if (!gamePaused) m_playtimeSeconds += deltaTime;
 
     // Pump the scene-transition state machine (Unloading -> Loading -> Ready, one
     // step per frame). Without this, transitionTo() / the initial multi-scene load
@@ -9386,6 +9437,13 @@ void Application::processAPICommands() {
                     response = {{"error", "Entity ID required"}};
                 } else {
                     auto* entity = entityRegistry->getEntity(id);
+                    // "player" must move the LIVE control character — the registry
+                    // entry can point at a stale duplicate (pre-fix scene leaks),
+                    // silently desyncing get_player_state / region triggers from
+                    // where move_entity put "the player".
+                    if (id == "player" && animatedCharacter) {
+                        entity = animatedCharacter;
+                    }
                     if (!entity) {
                         response = {{"error", "Entity not found: " + id}};
                     } else {
@@ -10550,7 +10608,23 @@ void Application::processAPICommands() {
                     float pitch = cmd.params.value("pitch", 0.0f);
                     inputManager->setYawPitch(yaw, pitch);
                 }
-                response = {{"success", true}};
+                // Optional camera mode: first_person / third_person / free
+                bool modeError = false;
+                if (cmd.params.contains("mode") && camera) {
+                    const std::string mode = cmd.params.value("mode", "");
+                    if (mode == "first_person" || mode == "FirstPerson" || mode == "first")
+                        camera->setMode(Graphics::CameraMode::FirstPerson);
+                    else if (mode == "third_person" || mode == "ThirdPerson" || mode == "third")
+                        camera->setMode(Graphics::CameraMode::ThirdPerson);
+                    else if (mode == "free" || mode == "Free")
+                        camera->setMode(Graphics::CameraMode::Free);
+                    else {
+                        response = {{"error", "Unknown camera mode '" + mode +
+                                     "' (expected first_person/third_person/free)"}};
+                        modeError = true;
+                    }
+                }
+                if (!modeError) response = {{"success", true}};
 
             } else if (cmd.action == "create_camera_slot") {
                 if (!cameraManager || !cmd.params.contains("name")) {

@@ -321,6 +321,7 @@ private:
     // Game state
     EditorMode m_editorMode = EditorMode::Edit;
     bool gamePaused = false;
+    float m_playtimeSeconds = 0.0f;  // unpaused gameplay time ({{playtime}} in menus)
 
     // Performance overlay
     bool showPerformanceOverlay = false;

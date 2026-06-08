@@ -122,6 +122,12 @@ public:
     /// Called when a button with action "load_game" is clicked.
     std::function<void()> onLoadGame;
 
+    /// Resolve a {{token}} in label/button text to a display string, called per
+    /// frame per token. Conventions: "playtime" (formatted gameplay time) and
+    /// "story.<var>" (StoryEngine world variable). Return std::nullopt to leave
+    /// the token rendered literally.
+    std::function<std::optional<std::string>(const std::string& token)> onResolveVariable;
+
     // ── MCP / programmatic control ────────────────────────────────────────────
 
     /// Override the visibility of a named element (any panel, any depth).
