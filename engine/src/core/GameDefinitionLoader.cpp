@@ -773,7 +773,9 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
                     }
                 }
             } catch (const std::exception& e) {
-                LOG_WARN("GameDefinitionLoader", "NPC " + name + ": failed to parse storyCharacter profile: " + e.what());
+                // Covers profile parse, story registration, AND schedule parse below —
+                // keep the message general so the schedule isn't misattributed to the profile.
+                LOG_WARN("GameDefinitionLoader", "NPC " + name + ": failed to set up story character/behavior: " + e.what());
             }
         }
 

@@ -97,10 +97,16 @@ nlohmann::json Schedule::toJson() const {
     return arr;
 }
 
-Schedule Schedule::fromJson(const nlohmann::json& arr) {
+Schedule Schedule::fromJson(const nlohmann::json& j) {
     Schedule s;
-    for (const auto& j : arr) {
-        s.addEntry(ScheduleEntry::fromJson(j));
+    // Accept either a bare array of entries (the toJson() form) OR an object that wraps
+    // them under "entries" (the documented authoring form used by game definitions and
+    // the set_npc_schedule tool). Iterating the object form directly would hand each
+    // ScheduleEntry::fromJson an array and throw type_error.306, so unwrap it first.
+    const nlohmann::json* entries = &j;
+    if (j.is_object() && j.contains("entries")) entries = &j.at("entries");
+    if (entries->is_array()) {
+        for (const auto& e : *entries) s.addEntry(ScheduleEntry::fromJson(e));
     }
     return s;
 }

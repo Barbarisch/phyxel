@@ -171,6 +171,42 @@ TEST(ScheduleTest, JsonRoundTrip) {
     EXPECT_EQ(current->activity, ActivityType::Eat);
 }
 
+// The documented authoring form wraps entries in an object: {"entries": [...]}.
+// fromJson must accept it as well as a bare array (game definitions / set_npc_schedule
+// use the object form). Previously this threw json type_error.306.
+TEST(ScheduleTest, FromJsonAcceptsEntriesObject) {
+    json j = {
+        {"entries", json::array({
+            {{"startHour", 0.0}, {"endHour", 24.0}, {"activity", "Work"}, {"locationId", "market"}}
+        })}
+    };
+    Schedule sched = Schedule::fromJson(j);
+    ASSERT_EQ(sched.getEntries().size(), 1u);
+    const auto* cur = sched.getCurrentActivity(12.0f);
+    ASSERT_NE(cur, nullptr);
+    EXPECT_EQ(cur->locationId, "market");
+}
+
+// The bare-array form (what toJson() emits) still works.
+TEST(ScheduleTest, FromJsonAcceptsBareArray) {
+    json j = json::array({
+        {{"startHour", 6.0}, {"endHour", 18.0}, {"activity", "Work"}, {"locationId", "shop"}}
+    });
+    Schedule sched = Schedule::fromJson(j);
+    EXPECT_EQ(sched.getEntries().size(), 1u);
+}
+
+// Malformed input (object without "entries", or a scalar) yields an empty schedule
+// rather than throwing — a bad authored schedule must not abort NPC setup.
+TEST(ScheduleTest, FromJsonMalformedIsEmptyNotThrow) {
+    EXPECT_NO_THROW({
+        Schedule a = Schedule::fromJson(json::object());            // {} → empty
+        Schedule b = Schedule::fromJson(json("not a schedule"));    // string → empty
+        EXPECT_EQ(a.getEntries().size(), 0u);
+        EXPECT_EQ(b.getEntries().size(), 0u);
+    });
+}
+
 TEST(ScheduleTest, GuardDefault) {
     Schedule sched = Schedule::guardSchedule();
     EXPECT_FALSE(sched.getEntries().empty());
