@@ -887,15 +887,18 @@ void RenderCoordinator::drawFrame() {
     // Prepare uniform buffer data (optimized)
     auto uboStart = std::chrono::high_resolution_clock::now();
     
-    // Cache projection matrix - only recalculate on window resize
-    if (projectionMatrixNeedsUpdate) {
-        cachedProjectionMatrix = glm::perspective(
-            glm::radians(45.0f), 
-            (float)windowManager->getWidth() / (float)windowManager->getHeight(), 
-            0.1f, 
-            maxChunkRenderDistance  // Use configurable render distance
-        );
-        cachedProjectionMatrix[1][1] *= -1; // Flip Y for Vulkan
+    // Projection matrix. Recomputed each frame from the camera so a rig switching
+    // between perspective and orthographic (overhead/isometric) takes effect
+    // immediately. Camera::getProjectionMatrix() applies the Vulkan Y-flip and
+    // keeps the engine's fixed 45deg perspective FOV.
+    {
+        const float aspect = (float)windowManager->getWidth() / (float)windowManager->getHeight();
+        if (camera) {
+            cachedProjectionMatrix = camera->getProjectionMatrix(aspect, 0.1f, maxChunkRenderDistance);
+        } else {
+            cachedProjectionMatrix = glm::perspective(glm::radians(45.0f), aspect, 0.1f, maxChunkRenderDistance);
+            cachedProjectionMatrix[1][1] *= -1; // Flip Y for Vulkan
+        }
         projectionMatrixNeedsUpdate = false;
     }
 

@@ -13,6 +13,14 @@ enum class CameraMode {
     Free
 };
 
+// How the camera projects the scene. Perspective for first/third-person; the
+// overhead and isometric camera rigs switch this to Orthographic. The renderer
+// reads it via getProjectionMatrix(). See docs/CameraControlSystem.md.
+enum class ProjectionMode {
+    Perspective,
+    Orthographic
+};
+
 class Camera {
 public:
     // Constructor with vectors
@@ -43,6 +51,30 @@ public:
     CameraMode getMode() const { return mode; }
     float getZoom() const { return zoom; }
     float getDistanceFromTarget() const { return distanceFromTarget; }
+    ProjectionMode getProjectionMode() const { return projectionMode; }
+    float getOrthoHalfHeight() const { return orthoHalfHeight; }
+
+    // The projection matrix for the current mode, with the Vulkan Y-flip already
+    // applied (so it matches the renderer's existing convention). Perspective
+    // keeps the engine's fixed 45deg FOV; orthographic uses orthoHalfHeight as the
+    // visible half-height in world units (width follows the aspect ratio).
+    glm::mat4 getProjectionMatrix(float aspect, float nearP, float farP) const {
+        glm::mat4 proj;
+        if (projectionMode == ProjectionMode::Orthographic) {
+            const float h = orthoHalfHeight;
+            const float w = h * aspect;
+            // _ZO = [0,1] depth (Vulkan). Plain glm::ortho gives OpenGL [-1,1];
+            // ortho depth is LINEAR, so with [-1,1] everything nearer than the
+            // mid-plane lands at z<0 and Vulkan clips it (the whole scene goes
+            // black). Perspective tolerates [-1,1] only because its depth is
+            // non-linear, so we keep glm::perspective for that path.
+            proj = glm::orthoRH_ZO(-w, w, -h, h, nearP, farP);
+        } else {
+            proj = glm::perspective(glm::radians(45.0f), aspect, nearP, farP);
+        }
+        proj[1][1] *= -1; // Vulkan flips Y vs OpenGL
+        return proj;
+    }
 
     // Setters
     void setPosition(const glm::vec3& newPosition) { position = newPosition; }
@@ -51,6 +83,8 @@ public:
     void setYaw(float newYaw) { yaw = newYaw; updateCameraVectors(); }
     void setPitch(float newPitch) { pitch = newPitch; updateCameraVectors(); }
     void setDistanceFromTarget(float dist) { distanceFromTarget = dist; }
+    void setProjectionMode(ProjectionMode m) { projectionMode = m; }
+    void setOrthoHalfHeight(float h) { orthoHalfHeight = h; }
     void setZoom(float fov) { zoom = fov; if (zoom < 1.0f) zoom = 1.0f; if (zoom > 120.0f) zoom = 120.0f; }
     void setMouseSensitivity(float s) { mouseSensitivity = s; }
 
@@ -78,6 +112,8 @@ private:
     float distanceFromTarget = 5.0f;
 
     CameraMode mode;
+    ProjectionMode projectionMode = ProjectionMode::Perspective;
+    float orthoHalfHeight = 20.0f;  // visible half-height (world units) in ortho mode
 };
 
 } // namespace Graphics
