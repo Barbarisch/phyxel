@@ -184,6 +184,14 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     move the shell into engine-side overridable base classes (e.g. `GameShell` with
     virtual hooks per function), make the scaffold emit a THIN subclass, document
     data-driven vs override extension points. Needs a design pass before code.
+    - **Camera & control sub-design DONE: `docs/CameraControlSystem.md`** (2026-06-08).
+      Two orthogonal strategies — `CameraRig` (FirstPerson/ThirdPerson/Overhead/Isometric,
+      owns projection incl. ortho) + `ControlScheme` (FPS/Tank/TopDown) — driven by one
+      shared `GameplayCameraController` that `GameShell` owns and the editor reuses, killing
+      the duplicated input→character→camera loop that shipped the W-backward / no-mouse bug.
+      Overridable via data → subclass → registry+`game.json camera.controlScheme`. Phase 1 =
+      consolidate editor+MazeRunner onto it; Phase 2 = overhead/iso + `rig->projection()` into
+      RenderCoordinator (`:892`). Not yet implemented.
   - **Known intermittent:** a `vulkan-1.dll` crash (0xc0000409, fault offset d7205) on
     scene transitions — predates these changes (user's 06-06 session hit the identical
     signature). Six rapid menu↔world cycles didn't reproduce it; no repro recipe yet.
