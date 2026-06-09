@@ -10,6 +10,7 @@
 #include "graphics/RaycastVisualizer.h"
 #include "graphics/Camera.h"
 #include "graphics/CameraManager.h"
+#include "core/GameplayCameraController.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "physics/PhysicsWorld.h"
 #include "utils/Timer.h"
@@ -282,6 +283,13 @@ private:
     // main loop will dereference a dangling pointer after a File > Open switch.
     std::vector<std::unique_ptr<Scene::Entity>> entities;
     Scene::AnimatedVoxelCharacter* animatedCharacter = nullptr;
+
+    // Shared input->character->camera driver for the animated character (same
+    // path the standalone games use). lastRigMode_ tracks the camera mode the
+    // rig was built for so the V toggle (First/Third) rebuilds it. See
+    // docs/CameraControlSystem.md.
+    Core::GameplayCameraController cameraCtl_;
+    Graphics::CameraMode lastRigMode_ = Graphics::CameraMode::Free;  // Free = "rig not built yet"
 
     // Player health & respawn
     Core::HealthComponent playerHealth{100.0f};

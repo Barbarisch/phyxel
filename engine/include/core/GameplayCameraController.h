@@ -33,8 +33,14 @@ public:
 
     // Sample input -> drive character -> frame the camera. `character` may be null
     // (camera-only); `dt` is the frame delta in seconds.
+    //
+    // advanceCharacter: when true (default) the controller calls character->update(dt)
+    // itself. Hosts that already advance the character elsewhere (e.g. the editor's
+    // entity loop) pass false so it isn't double-updated; the control inputs set here
+    // then apply on that host's next character update.
     void update(float dt, Input::InputManager& input,
-                Scene::AnimatedVoxelCharacter* character, Graphics::Camera& camera) {
+                Scene::AnimatedVoxelCharacter* character, Graphics::Camera& camera,
+                bool advanceCharacter = true) {
         if (!rig_ || !scheme_) return;
 
         if (scheme_->wantsAlwaysOnLook()) input.setMouseCaptured(true);
@@ -56,7 +62,7 @@ public:
             if (in.coupleFacingToYaw)
                 character->setFacingYaw(glm::radians(90.0f - in.yaw));
 
-            character->update(dt);
+            if (advanceCharacter) character->update(dt);
         }
 
         const glm::vec3 target = character ? character->getCameraTrackPosition()

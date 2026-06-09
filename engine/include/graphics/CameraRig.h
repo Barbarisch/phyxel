@@ -44,7 +44,8 @@ class FirstPersonRig : public CameraRig {
 public:
     void update(Camera& cam, const glm::vec3& target,
                 float yaw, float pitch, float /*dt*/) override {
-        cam.setMode(CameraMode::FirstPerson);
+        // The host owns CameraMode (so e.g. the editor's V toggle isn't fought);
+        // the rig only positions/orients.
         cam.setYaw(yaw);
         cam.setPitch(pitch);
         cam.setPosition(target + glm::vec3(0.0f, eyeHeight, 0.0f));
@@ -57,7 +58,7 @@ class ThirdPersonRig : public CameraRig {
 public:
     void update(Camera& cam, const glm::vec3& target,
                 float yaw, float pitch, float /*dt*/) override {
-        cam.setMode(CameraMode::ThirdPerson);
+        // Host owns CameraMode; the rig only positions/orients.
         cam.setYaw(yaw);
         cam.setPitch(pitch);   // updates cam.getFront()
         const glm::vec3 center = target + glm::vec3(0.0f, eyeHeight, 0.0f);

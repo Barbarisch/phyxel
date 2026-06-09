@@ -42,6 +42,7 @@ public:
     float getPitch() const { return pitch; }
     CameraMode getMode() const { return mode; }
     float getZoom() const { return zoom; }
+    float getDistanceFromTarget() const { return distanceFromTarget; }
 
     // Setters
     void setPosition(const glm::vec3& newPosition) { position = newPosition; }

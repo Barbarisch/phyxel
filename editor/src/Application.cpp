@@ -3064,13 +3064,39 @@ void Application::update(float deltaTime) {
             camera->setPitch(inputManager->getPitch());
 
             if (currentControlTarget == ControlTarget::AnimatedCharacter && animatedCharacter) {
-                // Use camera-track position rather than raw worldPosition. While
-                // sitting, worldPosition snaps ~0.5m at clip boundaries to keep
-                // the visible Hips bone aligned with the seat across the three
-                // sit clips with different model-space origins. The camera
-                // should follow the visible Hips XZ so it doesn't lurch at those
-                // boundaries.
-                camera->updatePositionFromTarget(animatedCharacter->getCameraTrackPosition(), 0.5f);
+                if (m_animEditorMode) {
+                    // Anim editor: camera follows the posed character but takes no
+                    // control input (the editor poses it). Keep the direct follow.
+                    // (camera-track position avoids a ~0.5m lurch at sit-clip
+                    // boundaries where worldPosition snaps.)
+                    camera->updatePositionFromTarget(animatedCharacter->getCameraTrackPosition(), 0.5f);
+                } else {
+                    // Shared gameplay controller: frames the camera and feeds the
+                    // character's control input (TankScheme — A/D turn, W/S walk,
+                    // Q strafe, RMB orbit). advanceCharacter=false because the
+                    // entity loop above already advanced the character this frame;
+                    // the inputs set here apply on next frame's entity update. The
+                    // rig tracks the camera mode so the V toggle (First/Third)
+                    // still works. Same path the standalone games use.
+                    const Graphics::CameraMode m = camera->getMode();
+                    if (!cameraCtl_.ready() || m != lastRigMode_) {
+                        if (m == Graphics::CameraMode::FirstPerson) {
+                            auto rig = std::make_unique<Graphics::FirstPersonRig>();
+                            rig->eyeHeight = 0.5f;
+                            cameraCtl_.setRig(std::move(rig));
+                        } else {
+                            auto rig = std::make_unique<Graphics::ThirdPersonRig>();
+                            rig->eyeHeight = 0.5f;
+                            rig->distance = camera->getDistanceFromTarget();
+                            cameraCtl_.setRig(std::move(rig));
+                        }
+                        if (!cameraCtl_.scheme())
+                            cameraCtl_.setScheme(std::make_unique<Input::TankScheme>());
+                        lastRigMode_ = m;
+                    }
+                    cameraCtl_.update(deltaTime, *inputManager, animatedCharacter,
+                                      *camera, /*advanceCharacter=*/false);
+                }
             }
         }
 
@@ -3436,63 +3462,27 @@ void Application::handleInput() {
         return;
     }
 
-    // Pass movement input to active character
-    // Only if NOT in Free Camera mode
-    if (camera && camera->getMode() != Graphics::CameraMode::Free) {
-        float forward = 0.0f;
-        float turn = 0.0f;
-        float strafe = 0.0f;
-
-        // Check for sprint modifier (Shift)
-        bool isSprinting = inputManager->isKeyPressed(GLFW_KEY_LEFT_SHIFT) || inputManager->isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
-        
-        float moveMagnitude = isSprinting ? 1.0f : 0.5f;
-
-        if (inputManager->isKeyPressed(GLFW_KEY_W)) forward -= moveMagnitude;
-        if (inputManager->isKeyPressed(GLFW_KEY_S)) forward += moveMagnitude;
-
-        // A/D for Turn
-        if (inputManager->isKeyPressed(GLFW_KEY_A)) turn -= 1.0f;
-        if (inputManager->isKeyPressed(GLFW_KEY_D)) turn += 1.0f;
-
-        // Q for Strafe left (E reserved for NPC interaction)
-        if (inputManager->isKeyPressed(GLFW_KEY_Q)) strafe -= moveMagnitude;
-
-        if (currentControlTarget == ControlTarget::AnimatedCharacter && animatedCharacter
-            && !m_animEditorMode) {
-            animatedCharacter->setControlInput(forward, turn, strafe);
-
-            // New Inputs for Enhanced Animation System
-            // Use a static flag to prevent rapid-fire jumping if key is held
-            static bool spaceWasPressed = false;
-            bool spaceIsPressed = inputManager->isKeyPressed(GLFW_KEY_SPACE);
-            
-            if (spaceIsPressed && !spaceWasPressed) {
-                animatedCharacter->jump();
-            }
-            spaceWasPressed = spaceIsPressed;
-
-            if (inputManager->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT)) {
-                animatedCharacter->attack();
-            }
-            bool isCrouching = inputManager->isKeyPressed(GLFW_KEY_LEFT_CONTROL);
-            animatedCharacter->setCrouch(isCrouching);
-
-            // Animation Preview Cycling
-            static bool prevAnimWasPressed = false;
-            bool prevAnimIsPressed = inputManager->isKeyPressed(GLFW_KEY_B);
-            if (prevAnimIsPressed && !prevAnimWasPressed) {
-                animatedCharacter->cycleAnimation(false);
-            }
-            prevAnimWasPressed = prevAnimIsPressed;
-
-            static bool nextAnimWasPressed = false;
-            bool nextAnimIsPressed = inputManager->isKeyPressed(GLFW_KEY_N);
-            if (nextAnimIsPressed && !nextAnimWasPressed) {
-                animatedCharacter->cycleAnimation(true);
-            }
-            nextAnimWasPressed = nextAnimIsPressed;
+    // Animated-character movement, turn, jump, attack, crouch, and camera framing
+    // are handled by cameraCtl_ (TankScheme) in the update loop's Camera Sync —
+    // the same shared path the standalone games use. Here we keep only the
+    // editor-only animation preview cycling (N/B), and only outside Free camera /
+    // anim-editor mode.
+    if (camera && camera->getMode() != Graphics::CameraMode::Free
+        && currentControlTarget == ControlTarget::AnimatedCharacter && animatedCharacter
+        && !m_animEditorMode) {
+        static bool prevAnimWasPressed = false;
+        bool prevAnimIsPressed = inputManager->isKeyPressed(GLFW_KEY_B);
+        if (prevAnimIsPressed && !prevAnimWasPressed) {
+            animatedCharacter->cycleAnimation(false);
         }
+        prevAnimWasPressed = prevAnimIsPressed;
+
+        static bool nextAnimWasPressed = false;
+        bool nextAnimIsPressed = inputManager->isKeyPressed(GLFW_KEY_N);
+        if (nextAnimIsPressed && !nextAnimWasPressed) {
+            animatedCharacter->cycleAnimation(true);
+        }
+        nextAnimWasPressed = nextAnimIsPressed;
     }
 }
 
