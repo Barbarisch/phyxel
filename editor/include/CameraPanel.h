@@ -4,7 +4,7 @@
 
 namespace Phyxel {
     namespace Graphics { class CameraManager; class Camera; }
-    namespace Core { class EntityRegistry; }
+    namespace Core { class EntityRegistry; class GameplayCameraController; }
     namespace Input { class InputManager; }
 }
 
@@ -20,6 +20,13 @@ public:
     void setCamera(Graphics::Camera* cam) { m_camera = cam; }
     void setEntityRegistry(Core::EntityRegistry* reg) { m_entityRegistry = reg; }
     void setInputManager(Input::InputManager* im) { m_inputManager = im; }
+    // Gameplay rig/scheme switching (see docs/CameraControlSystem.md). rigOverride
+    // points at the Application's override string: empty = rig derived from
+    // CameraMode (V toggle); a rig name (e.g. "overhead") forces that rig.
+    void setGameplayController(Core::GameplayCameraController* ctl, std::string* rigOverride) {
+        m_gameplayCtl = ctl;
+        m_rigOverride = rigOverride;
+    }
 
     /// Render the panel.  @param open  Visibility bool (nullptr = always visible)
     void render(bool* open = nullptr);
@@ -27,6 +34,7 @@ public:
 private:
     void renderCurrentState();
     void renderModeSection();
+    void renderGameplayRigSection();
     void renderSlotList();
     void renderFollowSection();
 
@@ -34,6 +42,8 @@ private:
     Graphics::Camera* m_camera = nullptr;
     Core::EntityRegistry* m_entityRegistry = nullptr;
     Input::InputManager* m_inputManager = nullptr;
+    Core::GameplayCameraController* m_gameplayCtl = nullptr;
+    std::string* m_rigOverride = nullptr;
 
     char m_newSlotName[64] = "bookmark";
     float m_followDistance = 5.0f;

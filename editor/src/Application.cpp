@@ -1732,6 +1732,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     m_cameraPanel->setCamera(camera);
     m_cameraPanel->setEntityRegistry(entityRegistry.get());
     m_cameraPanel->setInputManager(inputManager);
+    m_cameraPanel->setGameplayController(&cameraCtl_, &gameplayRigOverride_);
 
     // Create the texture editor panel
     m_textureEditor = std::make_unique<Editor::TextureEditorPanel>();
@@ -3072,27 +3073,24 @@ void Application::update(float deltaTime) {
                     camera->updatePositionFromTarget(animatedCharacter->getCameraTrackPosition(), 0.5f);
                 } else {
                     // Shared gameplay controller: frames the camera and feeds the
-                    // character's control input (TankScheme — A/D turn, W/S walk,
-                    // Q strafe, RMB orbit). advanceCharacter=false because the
-                    // entity loop above already advanced the character this frame;
-                    // the inputs set here apply on next frame's entity update. The
-                    // rig tracks the camera mode so the V toggle (First/Third)
-                    // still works. Same path the standalone games use.
-                    const Graphics::CameraMode m = camera->getMode();
-                    if (!cameraCtl_.ready() || m != lastRigMode_) {
-                        if (m == Graphics::CameraMode::FirstPerson) {
-                            auto rig = std::make_unique<Graphics::FirstPersonRig>();
-                            rig->eyeHeight = 0.5f;
-                            cameraCtl_.setRig(std::move(rig));
-                        } else {
-                            auto rig = std::make_unique<Graphics::ThirdPersonRig>();
-                            rig->eyeHeight = 0.5f;
-                            rig->distance = camera->getDistanceFromTarget();
-                            cameraCtl_.setRig(std::move(rig));
+                    // character's control input. advanceCharacter=false because
+                    // the entity loop above already advanced the character this
+                    // frame; the inputs set here apply on next frame's entity
+                    // update. The rig follows the camera mode (V toggle) unless
+                    // gameplayRigOverride_ names one (Camera panel / set_camera
+                    // MCP — e.g. overhead/isometric). Same path the standalones use.
+                    const std::string wantRig = !gameplayRigOverride_.empty()
+                        ? gameplayRigOverride_
+                        : (camera->getMode() == Graphics::CameraMode::FirstPerson
+                               ? "first_person" : "third_person");
+                    if (!cameraCtl_.ready() || cameraCtl_.rigName() != wantRig) {
+                        if (cameraCtl_.setRigByName(wantRig)) {
+                            cameraCtl_.rig()->eyeHeight = 0.5f;
+                            if (wantRig == "third_person")
+                                cameraCtl_.rig()->distance = camera->getDistanceFromTarget();
                         }
                         if (!cameraCtl_.scheme())
-                            cameraCtl_.setScheme(std::make_unique<Input::TankScheme>());
-                        lastRigMode_ = m;
+                            cameraCtl_.setSchemeByName("tank");
                     }
                     cameraCtl_.update(deltaTime, *inputManager, animatedCharacter,
                                       *camera, /*advanceCharacter=*/false);
@@ -4328,6 +4326,9 @@ void Application::setChunkInclusionDistance(float distance) {
 
 void Application::toggleCameraMode() {
     if (camera) {
+        // V returns to the mode-derived rigs — drop any panel/MCP rig override
+        // (overhead/isometric) so the toggle behaves predictably.
+        gameplayRigOverride_.clear();
         Graphics::CameraMode currentMode = camera->getMode();
         Graphics::CameraMode newMode;
         
@@ -10598,23 +10599,45 @@ void Application::processAPICommands() {
                     float pitch = cmd.params.value("pitch", 0.0f);
                     inputManager->setYawPitch(yaw, pitch);
                 }
-                // Optional camera mode: first_person / third_person / free
+                // Optional camera mode: first_person / third_person / free /
+                // overhead / isometric. The ortho modes set a gameplay-rig
+                // override (the rig owns positioning + projection) and force a
+                // non-Free CameraMode so the gameplay-controller branch runs;
+                // first/third clear the override so V-toggle behavior returns.
                 bool modeError = false;
                 if (cmd.params.contains("mode") && camera) {
                     const std::string mode = cmd.params.value("mode", "");
-                    if (mode == "first_person" || mode == "FirstPerson" || mode == "first")
+                    if (mode == "first_person" || mode == "FirstPerson" || mode == "first") {
+                        gameplayRigOverride_.clear();
                         camera->setMode(Graphics::CameraMode::FirstPerson);
-                    else if (mode == "third_person" || mode == "ThirdPerson" || mode == "third")
+                    } else if (mode == "third_person" || mode == "ThirdPerson" || mode == "third") {
+                        gameplayRigOverride_.clear();
                         camera->setMode(Graphics::CameraMode::ThirdPerson);
-                    else if (mode == "free" || mode == "Free")
+                    } else if (mode == "free" || mode == "Free") {
+                        gameplayRigOverride_.clear();
                         camera->setMode(Graphics::CameraMode::Free);
-                    else {
+                    } else if (Graphics::makeCameraRig(mode)) {
+                        gameplayRigOverride_ = mode;
+                        if (camera->getMode() == Graphics::CameraMode::Free)
+                            camera->setMode(Graphics::CameraMode::ThirdPerson);
+                    } else {
                         response = {{"error", "Unknown camera mode '" + mode +
-                                     "' (expected first_person/third_person/free)"}};
+                                     "' (expected first_person/third_person/free/overhead/isometric)"}};
                         modeError = true;
                     }
                 }
-                if (!modeError) response = {{"success", true}};
+                // Optional gameplay control scheme: fps / tank
+                if (!modeError && cmd.params.contains("control_scheme")) {
+                    const std::string scheme = cmd.params.value("control_scheme", "");
+                    if (!cameraCtl_.setSchemeByName(scheme)) {
+                        response = {{"error", "Unknown control scheme '" + scheme +
+                                     "' (expected fps/tank)"}};
+                        modeError = true;
+                    }
+                }
+                if (!modeError) response = {{"success", true},
+                                            {"rig", gameplayRigOverride_},
+                                            {"control_scheme", cameraCtl_.schemeName()}};
 
             } else if (cmd.action == "create_camera_slot") {
                 if (!cameraManager || !cmd.params.contains("name")) {

@@ -583,8 +583,10 @@ async def list_tools() -> list[Tool]:
                     "z": {"type": "number", "description": "Camera Z position"},
                     "yaw": {"type": "number", "description": "Camera yaw (horizontal rotation in degrees)"},
                     "pitch": {"type": "number", "description": "Camera pitch (vertical rotation in degrees)"},
-                    "mode": {"type": "string", "enum": ["first_person", "third_person", "free"],
-                             "description": "Camera mode (first_person follows the player's eyes, third_person trails the player, free is detached)"}
+                    "mode": {"type": "string", "enum": ["first_person", "third_person", "free", "overhead", "isometric"],
+                             "description": "Camera mode (first_person follows the player's eyes, third_person trails the player, free is detached; overhead/isometric are orthographic gameplay rigs that follow the controlled character)"},
+                    "control_scheme": {"type": "string", "enum": ["fps", "tank"],
+                                       "description": "Gameplay control scheme (fps: mouse-look + WASD strafe; tank: A/D turn, RMB orbit)"}
                 },
                 "required": []
             }
@@ -4471,6 +4473,8 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             body["pitch"] = args["pitch"]
         if "mode" in args:
             body["mode"] = args["mode"]
+        if "control_scheme" in args:
+            body["control_scheme"] = args["control_scheme"]
         return await api_post("/api/camera", body)
 
     # --- Scripting ---

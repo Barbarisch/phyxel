@@ -10,6 +10,7 @@
 #include <glm/gtc/constants.hpp>
 #include <algorithm>
 #include <memory>
+#include <string>
 
 namespace Phyxel {
 namespace Core {
@@ -25,11 +26,31 @@ namespace Core {
 // through the scheme, so look stays single-source.
 class GameplayCameraController {
 public:
-    void setRig(std::unique_ptr<Graphics::CameraRig> rig)        { rig_ = std::move(rig); }
-    void setScheme(std::unique_ptr<Input::ControlScheme> scheme) { scheme_ = std::move(scheme); }
+    void setRig(std::unique_ptr<Graphics::CameraRig> rig)        { rig_ = std::move(rig); rigName_.clear(); }
+    void setScheme(std::unique_ptr<Input::ControlScheme> scheme) { scheme_ = std::move(scheme); schemeName_.clear(); }
     Graphics::CameraRig*  rig()    const { return rig_.get(); }
     Input::ControlScheme* scheme() const { return scheme_.get(); }
     bool ready() const { return rig_ && scheme_; }
+
+    // Name-based switching (live-safe on any frame). Returns false and leaves the
+    // current rig/scheme in place if the name is unknown. The name is remembered
+    // so hosts (editor panel, MCP) can show and diff the active selection.
+    bool setRigByName(const std::string& name) {
+        auto r = Graphics::makeCameraRig(name);
+        if (!r) return false;
+        rig_ = std::move(r);
+        rigName_ = name;
+        return true;
+    }
+    bool setSchemeByName(const std::string& name) {
+        auto s = Input::makeControlScheme(name);
+        if (!s) return false;
+        scheme_ = std::move(s);
+        schemeName_ = name;
+        return true;
+    }
+    const std::string& rigName() const { return rigName_; }
+    const std::string& schemeName() const { return schemeName_; }
 
     // Sample input -> drive character -> frame the camera. `character` may be null
     // (camera-only); `dt` is the frame delta in seconds.
@@ -74,6 +95,8 @@ public:
 private:
     std::unique_ptr<Graphics::CameraRig>  rig_;
     std::unique_ptr<Input::ControlScheme> scheme_;
+    std::string rigName_;     // last name passed to setRigByName (empty if setRig used)
+    std::string schemeName_;  // last name passed to setSchemeByName
     bool jumpHeld_ = false;
 };
 

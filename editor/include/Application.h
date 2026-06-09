@@ -285,11 +285,12 @@ private:
     Scene::AnimatedVoxelCharacter* animatedCharacter = nullptr;
 
     // Shared input->character->camera driver for the animated character (same
-    // path the standalone games use). lastRigMode_ tracks the camera mode the
-    // rig was built for so the V toggle (First/Third) rebuilds it. See
-    // docs/CameraControlSystem.md.
+    // path the standalone games use). The active rig is derived from CameraMode
+    // (V toggle) unless gameplayRigOverride_ names one explicitly (set by the
+    // Camera panel or the set_camera MCP tool — e.g. "overhead"/"isometric");
+    // pressing V clears the override. See docs/CameraControlSystem.md.
     Core::GameplayCameraController cameraCtl_;
-    Graphics::CameraMode lastRigMode_ = Graphics::CameraMode::Free;  // Free = "rig not built yet"
+    std::string gameplayRigOverride_;
 
     // Player health & respawn
     Core::HealthComponent playerHealth{100.0f};

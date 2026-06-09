@@ -2,6 +2,7 @@
 #include "graphics/Camera.h"
 #include "graphics/CameraManager.h"
 #include "core/EntityRegistry.h"
+#include "core/GameplayCameraController.h"
 #include "input/InputManager.h"
 #include <imgui.h>
 #include <cstring>
@@ -23,6 +24,8 @@ void CameraPanel::render(bool* open) {
     renderCurrentState();
     ImGui::Separator();
     renderModeSection();
+    ImGui::Separator();
+    renderGameplayRigSection();
     ImGui::Separator();
     renderSlotList();
     ImGui::Separator();
@@ -69,6 +72,57 @@ void CameraPanel::renderModeSection() {
     if (ImGui::RadioButton("3rd Person", isThird)) {
         m_camera->setMode(Graphics::CameraMode::ThirdPerson);
     }
+}
+
+void CameraPanel::renderGameplayRigSection() {
+    ImGui::Text("Gameplay Camera");
+    if (!m_gameplayCtl || !m_rigOverride) {
+        ImGui::TextDisabled("  Not wired.");
+        return;
+    }
+
+    // Rig: "(camera mode)" = derive from First/Third (V toggle); a name forces
+    // that rig (overhead/isometric switch to orthographic projection).
+    static const char* kRigs[] = { "(camera mode)", "first_person", "third_person",
+                                   "overhead", "isometric" };
+    int rigIdx = 0;
+    for (int i = 1; i < 5; i++)
+        if (*m_rigOverride == kRigs[i]) { rigIdx = i; break; }
+
+    ImGui::SetNextItemWidth(140.0f);
+    if (ImGui::BeginCombo("Rig", kRigs[rigIdx])) {
+        for (int i = 0; i < 5; i++) {
+            if (ImGui::Selectable(kRigs[i], i == rigIdx)) {
+                if (i == 0) {
+                    m_rigOverride->clear();
+                } else {
+                    *m_rigOverride = kRigs[i];
+                    // The gameplay controller only runs outside Free camera.
+                    if (m_camera->getMode() == Graphics::CameraMode::Free)
+                        m_camera->setMode(Graphics::CameraMode::ThirdPerson);
+                }
+            }
+        }
+        ImGui::EndCombo();
+    }
+    if (!m_gameplayCtl->rigName().empty()) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("active: %s", m_gameplayCtl->rigName().c_str());
+    }
+
+    // Control scheme (live-safe swap).
+    static const char* kSchemes[] = { "tank", "fps" };
+    const std::string& cur = m_gameplayCtl->schemeName();
+    int schemeIdx = (cur == "fps") ? 1 : 0;
+    ImGui::SetNextItemWidth(140.0f);
+    if (ImGui::BeginCombo("Scheme", kSchemes[schemeIdx])) {
+        for (int i = 0; i < 2; i++) {
+            if (ImGui::Selectable(kSchemes[i], i == schemeIdx))
+                m_gameplayCtl->setSchemeByName(kSchemes[i]);
+        }
+        ImGui::EndCombo();
+    }
+    ImGui::TextDisabled("Needs a controlled character (K). V resets the rig.");
 }
 
 void CameraPanel::renderSlotList() {
