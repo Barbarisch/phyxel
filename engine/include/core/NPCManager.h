@@ -7,6 +7,7 @@
 #include "graphics/Animation.h"
 #include "core/NavGrid.h"
 #include "core/NavGraph.h"
+#include "core/PathService.h"
 #include "core/AStarPathfinder.h"
 #include <string>
 #include <vector>
@@ -144,6 +145,9 @@ public:
     /// Get the 3D navigation graph (Layer 1; may be null if not built yet).
     NavGraph* getNavGraph() const { return m_navGraph.get(); }
 
+    /// Get the async path service (Layer 1 cross-cutting; may be null if not built yet).
+    PathService* getPathService() const { return m_pathService.get(); }
+
     /// Get the A* pathfinder (may be null if not built yet).
     AStarPathfinder* getPathfinder() const { return m_pathfinder.get(); }
 
@@ -180,6 +184,9 @@ private:
     // Navigation / pathfinding
     std::unique_ptr<NavGrid> m_navGrid;
     std::unique_ptr<NavGraph> m_navGraph;   ///< 3D surface graph (Layer 1), built alongside m_navGrid
+    /// Async path queries over m_navGraph. Declared after m_navGraph so it is destroyed
+    /// first — the worker is joined before the graph it reads is freed.
+    std::unique_ptr<PathService> m_pathService;
     std::unique_ptr<AStarPathfinder> m_pathfinder;
 
     // Social simulation (shared)

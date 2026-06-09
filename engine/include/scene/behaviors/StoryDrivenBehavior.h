@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <cstdint>
 
 namespace Phyxel {
 
@@ -120,6 +121,11 @@ private:
     size_t                 m_pathIndex = 0;
     glm::vec3              m_pathTarget{0.0f};   // destination the current path was planned for
     bool                  m_hasPathTarget = false;
+
+    // Async path-query state (used when ctx.pathService is present): a query is in
+    // flight; we hold and poll for it instead of blocking the main thread on A*.
+    uint64_t m_pathHandle = 0;   // PathService::Handle (0 = none/invalid)
+    bool     m_pathPending = false;
 
     Story::CharacterDecisionContext buildContext(const NPCContext& ctx) const;
     std::string buildDefaultSituation(const NPCContext& ctx) const;

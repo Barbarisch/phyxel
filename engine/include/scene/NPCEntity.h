@@ -88,6 +88,10 @@ public:
     /// Set the 3D nav graph used by path-following behaviors (StoryDrivenBehavior).
     void setNavGraph(Core::NavGraph* navGraph) { m_context.navGraph = navGraph; }
 
+    /// Set the async path service; when present, path-following behaviors query it
+    /// off-thread instead of calling NavGraph::findPath synchronously.
+    void setPathService(Core::PathService* pathService) { m_context.pathService = pathService; }
+
     // Attached light (e.g. NPC carrying a lantern)
     void setAttachedLightId(int lightId) { m_attachedLightId = lightId; }
     int getAttachedLightId() const { return m_attachedLightId; }

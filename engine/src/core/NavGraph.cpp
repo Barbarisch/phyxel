@@ -5,6 +5,7 @@
 #include <climits>
 #include <queue>
 #include <unordered_set>
+#include <mutex>
 
 namespace Phyxel {
 namespace Core {
@@ -41,6 +42,7 @@ std::vector<NavSurface> NavGraph::buildColumn(int x, int z, const NavAgentProfil
 }
 
 void NavGraph::buildRegion(const glm::ivec2& minXZ, const glm::ivec2& maxXZ, const NavAgentProfile& agent) {
+    std::unique_lock lock(m_mutex);
     m_columns.clear();
     m_minBounds = glm::min(minXZ, maxXZ);
     m_maxBounds = glm::max(minXZ, maxXZ);
@@ -53,6 +55,7 @@ void NavGraph::buildRegion(const glm::ivec2& minXZ, const glm::ivec2& maxXZ, con
 }
 
 void NavGraph::rebuildColumn(int x, int z, const NavAgentProfile& agent) {
+    std::unique_lock lock(m_mutex);
     auto col = buildColumn(x, z, agent);
     int64_t key = packKey(x, z);
     if (col.empty()) m_columns.erase(key);
@@ -122,8 +125,8 @@ struct NodeHash {
 };
 } // namespace
 
-NavGraph::PathResult NavGraph::findPath(const NavNodeId& start, const NavNodeId& goal,
-                                        const NavAgentProfile& agent) const {
+NavGraph::PathResult NavGraph::findPathCore(const NavNodeId& start, const NavNodeId& goal,
+                                            const NavAgentProfile& agent) const {
     PathResult result;
     const NavSurface* sStart = surface(start);
     const NavSurface* sGoal  = surface(goal);
@@ -192,12 +195,21 @@ NavGraph::PathResult NavGraph::findPath(const NavNodeId& start, const NavNodeId&
     return result;  // no path
 }
 
+NavGraph::PathResult NavGraph::findPath(const NavNodeId& start, const NavNodeId& goal,
+                                        const NavAgentProfile& agent) const {
+    std::shared_lock lock(m_mutex);
+    return findPathCore(start, goal, agent);
+}
+
 NavGraph::PathResult NavGraph::findPath(const glm::vec3& from, const glm::vec3& to,
                                         const NavAgentProfile& agent) const {
-    return findPath(surfaceAt(from), surfaceAt(to), agent);
+    std::shared_lock lock(m_mutex);
+    // surfaceAt()/findPathCore() are non-locking; safe under the shared lock held here.
+    return findPathCore(surfaceAt(from), surfaceAt(to), agent);
 }
 
 size_t NavGraph::surfaceCount() const {
+    std::shared_lock lock(m_mutex);
     size_t n = 0;
     for (const auto& [key, col] : m_columns) n += col.size();
     return n;

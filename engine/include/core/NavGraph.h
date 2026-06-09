@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <vector>
 #include <cstdint>
+#include <shared_mutex>
 
 namespace Phyxel {
 
@@ -86,6 +87,14 @@ public:
         int nodesExpanded = 0;
     };
 
+    // Thread-safety: findPath() is safe to call from a worker thread (e.g. PathService)
+    // concurrently with other findPath() calls — it takes a shared (read) lock. buildRegion()
+    // and rebuildColumn() take an exclusive (write) lock, so a graph rebuild on the main
+    // thread is correctly serialized against in-flight queries. The granular readers
+    // (neighbors/surface/surfaceAt/columnSurfaces) are NOT internally locked: they are reached
+    // either under findPath()'s lock or from single-threaded (main/test) code, so call them
+    // off-thread only via findPath().
+
     /// A* between two surface nodes for the given agent (step-up/fall/headroom costs).
     PathResult findPath(const NavNodeId& start, const NavNodeId& goal, const NavAgentProfile& agent) const;
 
@@ -100,11 +109,17 @@ private:
     bool hasVoxel(const glm::ivec3& p) const;
     std::vector<NavSurface> buildColumn(int x, int z, const NavAgentProfile& agent) const;
 
+    /// A* core that assumes the caller already holds m_mutex (shared). Both public
+    /// findPath() overloads lock then delegate here, so the vec3 overload doesn't
+    /// recursively re-lock when it resolves the endpoint surfaces.
+    PathResult findPathCore(const NavNodeId& start, const NavNodeId& goal, const NavAgentProfile& agent) const;
+
     ChunkManager*  m_chunkManager = nullptr;
     VoxelQueryFunc m_queryFunc;
     std::unordered_map<int64_t, std::vector<NavSurface>> m_columns;
     glm::ivec2 m_minBounds{0, 0};
     glm::ivec2 m_maxBounds{0, 0};
+    mutable std::shared_mutex m_mutex;   ///< guards m_columns/bounds; see findPath() note above.
 };
 
 } // namespace Core

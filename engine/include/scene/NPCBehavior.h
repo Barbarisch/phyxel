@@ -10,7 +10,7 @@ namespace Phyxel {
 // Forward declarations
 class ChunkManager;
 class RaycastVisualizer;
-namespace Core { class EntityRegistry; class LocationRegistry; class NavGraph; }
+namespace Core { class EntityRegistry; class LocationRegistry; class NavGraph; class PathService; }
 namespace Graphics { class LightManager; class DayNightCycle; }
 namespace UI { class SpeechBubbleManager; }
 
@@ -30,6 +30,7 @@ struct NPCContext {
     ChunkManager* chunkManager = nullptr;                   ///< Voxel world (for LOS raycasts)
     RaycastVisualizer* raycastVisualizer = nullptr;         ///< Debug line drawing (for FOV cones)
     Core::NavGraph* navGraph = nullptr;                     ///< 3D nav graph for path-following (may be null)
+    Core::PathService* pathService = nullptr;               ///< async path queries (may be null → sync fallback)
 
     /// Lookup position of another entity by ID (may be null if registry unavailable).
     std::function<glm::vec3(const std::string&)> getEntityPosition;

@@ -4,6 +4,7 @@
 #include "ui/SpeechBubbleManager.h"
 #include "core/LocationRegistry.h"
 #include "core/NavGraph.h"
+#include "core/PathService.h"
 #include "graphics/DayNightCycle.h"
 #include <glm/gtc/quaternion.hpp>
 #include <sstream>
@@ -110,13 +111,30 @@ void StoryDrivenBehavior::updateMovement(float /*dt*/, NPCContext& ctx) {
 
     const glm::vec3 pos = ctx.self->getPosition();
 
-    // Decide the immediate steering point: a NavGraph path waypoint if we have a graph
-    // (routes around obstacles/edges), otherwise the destination directly (legacy).
+    // Decide the immediate steering point: a NavGraph path waypoint if we can route
+    // (around obstacles/edges), otherwise the destination directly (legacy).
     glm::vec3 steerTo = m_roamTarget;
-    if (ctx.navGraph) {
-        // (Re)plan when the destination changed or we have no path yet.
-        if (!m_hasPathTarget || glm::distance(m_pathTarget, m_roamTarget) > 0.5f || m_path.empty()) {
+    if (ctx.navGraph || ctx.pathService) {
+        // (Re)plan when the destination changed, or we have neither a path nor a query
+        // already in flight for it.
+        const bool destChanged = !m_hasPathTarget || glm::distance(m_pathTarget, m_roamTarget) > 0.5f;
+        if (destChanged || (m_path.empty() && !m_pathPending)) {
             replanPath(ctx, pos);
+        }
+
+        // Async path service: poll the in-flight query; until it lands we hold position
+        // (keep m_moving so we keep polling next frame) rather than walk blindly.
+        if (m_pathPending && ctx.pathService) {
+            Core::NavGraph::PathResult res;
+            if (ctx.pathService->tryGetResult(m_pathHandle, res)) {
+                m_pathPending = false;
+                m_pathHandle = 0;
+                if (res.found) { m_path = std::move(res.waypoints); m_pathIndex = 0; }
+            }
+        }
+        if (m_pathPending) {             // query still running — hold, keep polling
+            ctx.self->setMoveVelocity(glm::vec3(0.0f));
+            return;
         }
         if (m_path.empty()) {            // no route — hold position rather than walk blindly off an edge
             m_moving = false;
@@ -156,8 +174,21 @@ void StoryDrivenBehavior::replanPath(NPCContext& ctx, const glm::vec3& from) {
     m_pathIndex = 0;
     m_pathTarget = m_roamTarget;
     m_hasPathTarget = true;
-    if (!ctx.navGraph) return;
+
     Core::NavAgentProfile agent;   // default humanoid; could derive from the profile later
+
+    if (ctx.pathService) {
+        // Async: cancel any superseded in-flight query, then queue a fresh one. Movement
+        // holds (handled in updateMovement) until the worker delivers the result.
+        if (m_pathPending && m_pathHandle) ctx.pathService->cancel(m_pathHandle);
+        m_pathHandle = ctx.pathService->requestPath(agent, from, m_roamTarget);
+        m_pathPending = (m_pathHandle != 0);
+        return;
+    }
+
+    // Synchronous fallback (no path service wired): query the graph on this thread.
+    m_pathPending = false;
+    if (!ctx.navGraph) return;
     auto result = ctx.navGraph->findPath(from, m_roamTarget, agent);
     if (result.found) m_path = std::move(result.waypoints);
 }

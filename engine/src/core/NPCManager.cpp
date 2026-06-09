@@ -80,6 +80,7 @@ Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, cons
     // Wire context
     npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry, m_chunkManager, m_raycastVisualizer);
     if (m_navGraph) npc->setNavGraph(m_navGraph.get());
+    if (m_pathService) npc->setPathService(m_pathService.get());
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
@@ -198,14 +199,20 @@ void NPCManager::buildNavGrid() {
 
     // 3D surface graph (Layer 1) over the same region — used by path-following behaviors
     // (StoryDrivenBehavior) so autonomous/routine NPCs route around obstacles + edges.
+    // Stop any prior path service before replacing the graph it reads, then bring up a
+    // fresh one pointing at the new graph.
+    if (m_pathService) m_pathService->stop();
     m_navGraph = std::make_unique<NavGraph>(m_chunkManager);
     m_navGraph->buildRegion(minXZ, maxXZ, NavAgentProfile{});
+    m_pathService = std::make_unique<PathService>(m_navGraph.get());
+    m_pathService->start();
 
     // Re-wire all PatrolBehaviors to the new pathfinder and invalidate stale paths.
     // If an NPC is on a nearWall cell (physics body would clip the wall), 
     // relocate it to the nearest safe cell center.
     for (auto& [name, npc] : m_npcs) {
         npc->setNavGraph(m_navGraph.get());
+        npc->setPathService(m_pathService.get());
         if (auto* patrol = dynamic_cast<Scene::PatrolBehavior*>(npc->getBehavior())) {
             patrol->setPathfinder(m_pathfinder.get());
             patrol->invalidatePath();
@@ -368,6 +375,7 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
     }
     npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry, m_chunkManager, m_raycastVisualizer);
     if (m_navGraph) npc->setNavGraph(m_navGraph.get());
+    if (m_pathService) npc->setPathService(m_pathService.get());
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
@@ -424,6 +432,7 @@ Scene::NPCEntity* NPCManager::spawnPhysicsNPC(const std::string& name, const std
     }
     npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry, m_chunkManager, m_raycastVisualizer);
     if (m_navGraph) npc->setNavGraph(m_navGraph.get());
+    if (m_pathService) npc->setPathService(m_pathService.get());
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
@@ -492,6 +501,7 @@ Scene::NPCEntity* NPCManager::spawnPhysicsProceduralNPC(const std::string& name,
     }
     npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry, m_chunkManager, m_raycastVisualizer);
     if (m_navGraph) npc->setNavGraph(m_navGraph.get());
+    if (m_pathService) npc->setPathService(m_pathService.get());
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
