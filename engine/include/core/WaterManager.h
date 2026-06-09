@@ -65,6 +65,14 @@ public:
     void  setChannelWorld(int worldX, int worldY, int worldZ, bool channel);
     void  setChannelRegion(const glm::ivec3& a, const glm::ivec3& b); // inclusive box
 
+    // --- Evaporation (off by default) ---
+    // Off: water keeps flowing and volume is conserved (the default — good for
+    // draining/leveling between basins). On: thin cells (the frontier of a free spill,
+    // films) decay each step, bounding spread and drying shorelines, while deep water
+    // and channels persist. Honoured by both the CPU and GPU step (read live each tick).
+    void  setEvaporation(bool enabled) { m_sim.setEvaporation(enabled); }
+    bool  evaporation() const { return m_sim.evaporation(); }
+
     // --- Persistence accessors (authoring inputs; the field reconstructs on load) ---
     const std::vector<glm::ivec3>& oceanSeeds()   const { return m_oceanSeeds; }
     const std::vector<glm::ivec3>& channelCells() const { return m_channelCells; }

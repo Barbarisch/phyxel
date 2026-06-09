@@ -69,6 +69,36 @@ TEST(WaterSimulation, LevelsAcrossBasin) {
     EXPECT_GE(sim.minMass(), -1e-5f);
 }
 
+// Draining one crater into another conserves volume and equalizes levels. Two basins
+// share a floor-level gap (communicating vessels); all water starts in the left basin.
+// With evaporation off (the default), no mass is lost — it just redistributes until the
+// two surfaces sit at the same level. This is the behaviour the default is tuned for.
+TEST(WaterSimulation, DrainsBetweenCratersConservingVolume) {
+    WaterSimulation sim(7, 5, 1);
+    addFloor(sim);
+    // Boundary walls and a divider at x=3 that is solid above the floor layer but open
+    // at y=1, so the two basins (x=1,2 and x=4,5) connect only through the bottom gap.
+    for (int y = 1; y < 5; ++y) {
+        sim.setSolid(0, y, 0, true); // left wall
+        sim.setSolid(6, y, 0, true); // right wall
+        if (y >= 2) sim.setSolid(3, y, 0, true); // divider, open at y=1
+    }
+    sim.addWater(1, 1, 0, 3.0f); // dump it all into the left crater
+
+    const float before = sim.totalMass();
+    for (int i = 0; i < 3000; ++i) sim.step();
+
+    // Volume is conserved exactly — nothing evaporated or leaked.
+    EXPECT_NEAR(sim.totalMass(), before, before * 1e-4f + 1e-4f);
+    EXPECT_GE(sim.minMass(), -1e-5f);
+
+    // Water drained from the left crater into the right until the two equalized.
+    const float leftCol  = sim.massAt(1, 1, 0) + sim.massAt(1, 2, 0);
+    const float rightCol = sim.massAt(4, 1, 0) + sim.massAt(4, 2, 0);
+    EXPECT_GT(rightCol, 0.3f);                  // the empty crater actually filled
+    EXPECT_NEAR(leftCol, rightCol, 0.15f);      // levels equalized across the gap
+}
+
 // Pressure / upward flow: more than one cell's worth of water in a bottom cell
 // stacks up the column (rises) instead of staying crushed in place. This is the
 // mechanism that lets connected water reach a common level.

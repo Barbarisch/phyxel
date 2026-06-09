@@ -52,7 +52,10 @@ bool makeHostBuffer(VkDevice dev, VkPhysicalDevice phys, VkDeviceSize size,
 WaterManager::WaterManager(ChunkManager* chunkManager, const glm::ivec3& origin, const glm::ivec3& dims)
     : m_cm(chunkManager), m_origin(origin), m_dims(dims),
       m_sim(dims.x, dims.y, dims.z) {
-    m_sim.setEvaporation(true); // bound free flow / dry thin spills in-game
+    // Evaporation off by default: water keeps flowing and volume is conserved (draining
+    // one crater into another preserves total mass). Opt in via setEvaporation(true)
+    // for the bounded-spread / drying-films behaviour where a level wants it.
+    m_sim.setEvaporation(false);
     syncSolidsFromChunks();
     rebuildSurface();
 }

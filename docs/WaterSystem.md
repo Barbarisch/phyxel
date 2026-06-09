@@ -100,7 +100,11 @@ somewhere to go:
   where above. (Our source primitive — `WaterSimulation::setSource`, pin-to-value —
   already does this; "a river runs into the sea and disappears" is the same mechanism.)
 - **Evaporation / distance-decay** is the sink for the thin leading edge of a free flow
-  (see below).
+  (see below). **Off by default** (`WaterManager` ctor): the default behaviour is that
+  water keeps flowing and total volume is conserved — draining one crater into another
+  preserves mass. Evaporation is an explicit opt-in (`WaterManager::setEvaporation(true)`)
+  for levels that want bounded spread / drying shorelines; with it off there is no decay
+  sink, so a free spill on flat ground spreads into a thin film rather than stopping.
 
 So a river is: **source (head, pinned level) → tracked CA flow downhill → sink (ocean
 absorbs + decay trims the spread)**. Inflow ≈ outflow → a stable channel; the tracked
