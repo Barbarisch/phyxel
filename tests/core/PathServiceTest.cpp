@@ -47,13 +47,16 @@ protected:
     std::unique_ptr<PathService> svc;
 };
 
-// A queued request resolves to the same path the synchronous query produces.
+// A queued request resolves to the same path the synchronous query produces. The
+// service smooths waypoints (string-pull), so compare against the smoothed reference;
+// the unsmoothed node sequence still matches the raw A* result end-to-end.
 TEST_F(PathServiceTest, AsyncPathMatchesSyncPath) {
     const glm::vec3 from(0.5f, 1.0f, 0.5f);
     const glm::vec3 to(8.5f, 1.0f, 6.5f);
 
     NavGraph::PathResult sync = graph->findPath(from, to, humanoid());
     ASSERT_TRUE(sync.found);
+    std::vector<glm::vec3> expected = graph->smoothWaypoints(sync.waypoints, humanoid());
 
     PathService::Handle h = svc->requestPath(humanoid(), from, to);
     ASSERT_NE(h, PathService::kInvalid);
@@ -61,7 +64,8 @@ TEST_F(PathServiceTest, AsyncPathMatchesSyncPath) {
     NavGraph::PathResult async;
     ASSERT_TRUE(waitForResult(*svc, h, async)) << "worker never delivered a result";
     EXPECT_TRUE(async.found);
-    EXPECT_EQ(async.waypoints.size(), sync.waypoints.size());
+    EXPECT_EQ(async.waypoints.size(), expected.size());   // smoothed, fewer than raw
+    EXPECT_LT(async.waypoints.size(), sync.waypoints.size()) << "flat path should string-pull";
     EXPECT_EQ(async.nodes.front(), sync.nodes.front());
     EXPECT_EQ(async.nodes.back(), sync.nodes.back());
 }

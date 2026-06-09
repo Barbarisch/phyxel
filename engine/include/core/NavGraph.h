@@ -101,6 +101,19 @@ public:
     /// A* between world positions (resolves the standing surface at each end first).
     PathResult findPath(const glm::vec3& from, const glm::vec3& to, const NavAgentProfile& agent) const;
 
+    /// True if an agent can walk the straight XZ line from `a` to `b` staying on one
+    /// level: every sampled column along the segment must have a walkable surface at the
+    /// same floorY (within stepHeight) with enough headroom. Conservative — returns false
+    /// across level changes, walls, or gaps. The primitive behind path smoothing.
+    /// Thread-safe (shared lock).
+    bool hasClearWalk(const glm::vec3& a, const glm::vec3& b, const NavAgentProfile& agent) const;
+
+    /// String-pull a waypoint list: greedily drop intermediate points whenever the span
+    /// between kept points passes hasClearWalk(), so flat 4-connected zig-zags collapse to
+    /// straight diagonals. Endpoints and any point at a level change are preserved. Returns
+    /// the simplified path (>= 2 points unless the input had fewer). Thread-safe.
+    std::vector<glm::vec3> smoothWaypoints(const std::vector<glm::vec3>& raw, const NavAgentProfile& agent) const;
+
     size_t columnCount() const { return m_columns.size(); }
     size_t surfaceCount() const;
 
@@ -113,6 +126,10 @@ private:
     /// findPath() overloads lock then delegate here, so the vec3 overload doesn't
     /// recursively re-lock when it resolves the endpoint surfaces.
     PathResult findPathCore(const NavNodeId& start, const NavNodeId& goal, const NavAgentProfile& agent) const;
+
+    /// Non-locking line-of-walk test; caller must already hold m_mutex (shared).
+    /// smoothWaypoints() and hasClearWalk() both delegate here under one lock.
+    bool hasClearWalkCore(const glm::vec3& a, const glm::vec3& b, const NavAgentProfile& agent) const;
 
     ChunkManager*  m_chunkManager = nullptr;
     VoxelQueryFunc m_queryFunc;

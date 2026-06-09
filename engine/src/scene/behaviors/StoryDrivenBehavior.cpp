@@ -190,7 +190,13 @@ void StoryDrivenBehavior::replanPath(NPCContext& ctx, const glm::vec3& from) {
     m_pathPending = false;
     if (!ctx.navGraph) return;
     auto result = ctx.navGraph->findPath(from, m_roamTarget, agent);
-    if (result.found) m_path = std::move(result.waypoints);
+    if (result.found) {
+        // Match the PathService path: smooth so the agent cuts corners instead of
+        // stair-stepping the 4-connected grid.
+        m_path = result.waypoints.size() > 2
+                     ? ctx.navGraph->smoothWaypoints(result.waypoints, agent)
+                     : std::move(result.waypoints);
+    }
 }
 
 void StoryDrivenBehavior::pickRoamTarget(NPCContext& ctx) {

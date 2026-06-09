@@ -144,3 +144,37 @@ TEST(NavGraphAStar, NoPathWhenFullyWalled) {
     auto path = g.findPath(glm::vec3(0.5f, 1.0f, 2.5f), glm::vec3(4.5f, 1.0f, 2.5f), humanoid());
     EXPECT_FALSE(path.found) << "a solid wall with no gap and no climbable step blocks the path";
 }
+
+// --- Path smoothing (string-pull) ---
+
+// A flat 4-connected staircase collapses to a straight diagonal (start + end only).
+TEST_F(NavGraphTest, SmoothCollapsesFlatPath) {
+    auto path = graph->findPath(glm::vec3(0.5f, 1.0f, 0.5f), glm::vec3(4.5f, 1.0f, 4.5f), humanoid());
+    ASSERT_TRUE(path.found);
+    ASSERT_GT(path.waypoints.size(), 2u) << "raw 4-connected path should zig-zag";
+    auto smooth = graph->smoothWaypoints(path.waypoints, humanoid());
+    EXPECT_EQ(smooth.size(), 2u);
+    EXPECT_EQ(smooth.front(), path.waypoints.front());
+    EXPECT_EQ(smooth.back(),  path.waypoints.back());
+}
+
+// hasClearWalk: open across flat ground, blocked through a wall.
+TEST(NavGraphSmoothing, ClearWalkRespectsWalls) {
+    NavGraph g(wallWorld(/*gap=*/true));
+    g.buildRegion({0, 0}, {4, 4}, humanoid());
+    EXPECT_TRUE (g.hasClearWalk({0.5f, 1.0f, 0.5f}, {0.5f, 1.0f, 4.5f}, humanoid())); // open lane at x=0
+    EXPECT_FALSE(g.hasClearWalk({0.5f, 1.0f, 2.5f}, {4.5f, 1.0f, 2.5f}, humanoid())); // straight through wall
+}
+
+// Smoothing a wall detour must NOT shortcut through the wall: every kept segment is walkable.
+TEST(NavGraphSmoothing, DetourNotShortcutThroughWall) {
+    NavGraph g(wallWorld(/*gap=*/true));
+    g.buildRegion({0, 0}, {4, 4}, humanoid());
+    auto path = g.findPath(glm::vec3(0.5f, 1.0f, 2.5f), glm::vec3(4.5f, 1.0f, 2.5f), humanoid());
+    ASSERT_TRUE(path.found);
+    auto smooth = g.smoothWaypoints(path.waypoints, humanoid());
+    EXPECT_GT(smooth.size(), 2u) << "cannot collapse to a straight line through the wall";
+    for (size_t i = 1; i < smooth.size(); ++i)
+        EXPECT_TRUE(g.hasClearWalk(smooth[i - 1], smooth[i], humanoid()))
+            << "smoothed segment " << i << " tunnels through an obstacle";
+}

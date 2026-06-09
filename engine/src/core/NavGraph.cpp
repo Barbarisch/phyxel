@@ -208,6 +208,64 @@ NavGraph::PathResult NavGraph::findPath(const glm::vec3& from, const glm::vec3& 
     return findPathCore(surfaceAt(from), surfaceAt(to), agent);
 }
 
+bool NavGraph::hasClearWalkCore(const glm::vec3& a, const glm::vec3& b,
+                                const NavAgentProfile& agent) const {
+    // Both endpoints must stand on the same level for a straight shortcut. floorY is one
+    // below the standing point (waypoints sit at floorY+1).
+    const int floorA = static_cast<int>(std::floor(a.y)) - 1;
+    const int floorB = static_cast<int>(std::floor(b.y)) - 1;
+    if (std::abs(floorA - floorB) > agent.stepHeight) return false;
+
+    const float dx = b.x - a.x, dz = b.z - a.z;
+    const float dist = std::sqrt(dx * dx + dz * dz);
+    const int need = std::max(1, agent.height);
+    // Sample finely enough that we can't tunnel through a 1-wide wall (<= ~0.25 cell).
+    const int steps = std::max(1, static_cast<int>(std::ceil(dist / 0.25f)));
+    for (int i = 0; i <= steps; ++i) {
+        const float t = static_cast<float>(i) / static_cast<float>(steps);
+        const glm::vec3 p(a.x + dx * t, 0.0f, a.z + dz * t);
+        const int cx = static_cast<int>(std::floor(p.x));
+        const int cz = static_cast<int>(std::floor(p.z));
+        const auto& col = columnSurfaces(cx, cz);
+        const int wantFloor = static_cast<int>(std::round(floorA + (floorB - floorA) * t));
+        bool ok = false;
+        for (const NavSurface& s : col) {
+            if (std::abs(s.floorY - wantFloor) <= agent.stepHeight && s.headroom >= need) {
+                ok = true;
+                break;
+            }
+        }
+        if (!ok) return false;   // wall / gap / wrong level in the way
+    }
+    return true;
+}
+
+bool NavGraph::hasClearWalk(const glm::vec3& a, const glm::vec3& b,
+                            const NavAgentProfile& agent) const {
+    std::shared_lock lock(m_mutex);
+    return hasClearWalkCore(a, b, agent);
+}
+
+std::vector<glm::vec3> NavGraph::smoothWaypoints(const std::vector<glm::vec3>& raw,
+                                                 const NavAgentProfile& agent) const {
+    if (raw.size() <= 2) return raw;
+    std::shared_lock lock(m_mutex);
+
+    std::vector<glm::vec3> out;
+    out.push_back(raw.front());
+    size_t anchor = 0;
+    // Greedily extend the segment from `anchor` as far as the line stays walkable; when it
+    // would break, commit the previous point and restart the segment there.
+    for (size_t i = 2; i < raw.size(); ++i) {
+        if (!hasClearWalkCore(raw[anchor], raw[i], agent)) {
+            out.push_back(raw[i - 1]);
+            anchor = i - 1;
+        }
+    }
+    out.push_back(raw.back());
+    return out;
+}
+
 size_t NavGraph::surfaceCount() const {
     std::shared_lock lock(m_mutex);
     size_t n = 0;

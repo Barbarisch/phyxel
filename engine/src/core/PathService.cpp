@@ -85,6 +85,10 @@ void PathService::workerLoop() {
 
         // Heavy work OUTSIDE our lock; NavGraph::findPath takes its own (shared) lock.
         NavGraph::PathResult result = m_graph->findPath(req.from, req.to, req.agent);
+        // String-pull so agents walk straight diagonals instead of stair-stepping along
+        // the 4-connected grid. Worker-side, so the main thread pays nothing for it.
+        if (result.found && result.waypoints.size() > 2)
+            result.waypoints = m_graph->smoothWaypoints(result.waypoints, req.agent);
 
         {
             std::lock_guard<std::mutex> lock(m_mutex);
