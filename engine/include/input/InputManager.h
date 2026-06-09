@@ -47,7 +47,13 @@ public:
     // Mouse state access (for hover detection, etc.)
     void getCurrentMousePosition(double& x, double& y) const;
     bool isMouseCaptured() const { return mouseCaptured; }
-    
+    // Force always-on mouse look (FPS-style) without holding the right button.
+    // Standalone games enable this during play; the editor leaves it RMB-gated.
+    void setMouseCaptured(bool captured) {
+        if (captured && !mouseCaptured) firstMouse = true; // avoid a jump on enable
+        mouseCaptured = captured;
+    }
+
     // Mouse position update callback (for external systems like mouse velocity tracker)
     void setMousePositionCallback(MousePositionCallback callback);
 

@@ -124,6 +124,10 @@ namespace Scene {
         float getAnimationProgress() const;
         float getAnimationDuration() const;
         float getYaw() const { return currentYaw; }
+        // Set absolute facing (radians). Used by first-person/over-the-shoulder
+        // hosts to lock the body's heading to the camera yaw so movement follows
+        // the view. Turn input still rotates currentYaw when this isn't driven.
+        void setFacingYaw(float yawRadians) { currentYaw = yawRadians; }
         glm::vec3 getForwardDirection() const;
 
         // Animation playback control (for editor scrubbing / pause)
