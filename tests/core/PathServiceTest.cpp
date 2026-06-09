@@ -109,6 +109,45 @@ TEST_F(PathServiceTest, RequestAfterStopIsInvalid) {
               PathService::kInvalid);
 }
 
+// A repeated identical query is served from cache (no second A*), and the cache holds
+// the computed path.
+TEST_F(PathServiceTest, CacheHitOnRepeatedQuery) {
+    const glm::vec3 from(0.5f, 1.0f, 0.5f), to(8.5f, 1.0f, 8.5f);
+
+    NavGraph::PathResult r1;
+    ASSERT_TRUE(waitForResult(*svc, svc->requestPath(humanoid(), from, to), r1));
+    EXPECT_EQ(svc->cacheHits(), 0u);      // first was a miss
+    EXPECT_GE(svc->cacheSize(), 1u);
+
+    NavGraph::PathResult r2;
+    ASSERT_TRUE(waitForResult(*svc, svc->requestPath(humanoid(), from, to), r2));
+    EXPECT_EQ(svc->cacheHits(), 1u);      // second served from cache
+    EXPECT_EQ(r2.waypoints.size(), r1.waypoints.size());
+    EXPECT_TRUE(r2.found);
+}
+
+// invalidateAllCache() empties the cache.
+TEST_F(PathServiceTest, InvalidateAllClearsCache) {
+    NavGraph::PathResult r;
+    ASSERT_TRUE(waitForResult(*svc, svc->requestPath(humanoid(), {0.5f, 1, 0.5f}, {6.5f, 1, 6.5f}), r));
+    ASSERT_GE(svc->cacheSize(), 1u);
+    svc->invalidateAllCache();
+    EXPECT_EQ(svc->cacheSize(), 0u);
+}
+
+// invalidateCacheNear evicts only paths that cross the given column.
+TEST_F(PathServiceTest, InvalidateNearEvictsCrossingPathOnly) {
+    NavGraph::PathResult r;
+    ASSERT_TRUE(waitForResult(*svc, svc->requestPath(humanoid(), {0.5f, 1, 0.5f}, {8.5f, 1, 8.5f}), r));
+    ASSERT_EQ(svc->cacheSize(), 1u);
+
+    svc->invalidateCacheNear(15, 0, 0);   // far from the (0,0)->(8,8) path: survives
+    EXPECT_EQ(svc->cacheSize(), 1u);
+
+    svc->invalidateCacheNear(0, 0, 0);     // start column is on the path: evicted
+    EXPECT_EQ(svc->cacheSize(), 0u);
+}
+
 // Stress: many concurrent queries while the graph is rebuilt on this (main) thread.
 // Exercises the shared/exclusive locking — must not crash, deadlock, or corrupt.
 TEST_F(PathServiceTest, ConcurrentQueriesDuringRebuild) {

@@ -85,6 +85,14 @@ public:
     /// Access the agent.
     Story::CharacterAgent* getAgent() const { return m_agent; }
 
+    /// The waypoints the character is currently following (smoothed; empty if not en
+    /// route). Used by NPCManager to detect when a terrain change crosses the route.
+    const std::vector<glm::vec3>& getPathWaypoints() const { return m_path; }
+
+    /// Drop the current route so the next movement tick replans (e.g. terrain changed
+    /// under the path). Cancels any in-flight query implicitly via the replan.
+    void invalidatePath();
+
 private:
     Story::CharacterAgent* m_agent;
     Story::CharacterProfile* m_profile;

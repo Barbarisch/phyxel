@@ -199,6 +199,15 @@ void StoryDrivenBehavior::replanPath(NPCContext& ctx, const glm::vec3& from) {
     }
 }
 
+void StoryDrivenBehavior::invalidatePath() {
+    // Clear the route and force a replan on the next updateMovement. We deliberately leave
+    // m_pathPending/m_pathHandle untouched: replanPath() cancels a stale in-flight query
+    // when it re-requests, so a pending result can't leak or be followed.
+    m_path.clear();
+    m_pathIndex = 0;
+    m_hasPathTarget = false;
+}
+
 void StoryDrivenBehavior::pickRoamTarget(NPCContext& ctx) {
     static thread_local std::mt19937 rng(std::random_device{}());
     std::uniform_real_distribution<float> ang(0.0f, 6.2831853f);

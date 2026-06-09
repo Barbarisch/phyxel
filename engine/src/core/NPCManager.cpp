@@ -8,6 +8,7 @@
 #include "scene/behaviors/PatrolBehavior.h"
 #include "scene/behaviors/BehaviorTreeBehavior.h"
 #include "scene/behaviors/ScheduledBehavior.h"
+#include "scene/behaviors/StoryDrivenBehavior.h"
 #include "ai/Schedule.h"
 #include "core/EntityRegistry.h"
 #include "graphics/LightManager.h"
@@ -242,13 +243,43 @@ void NPCManager::buildNavGrid() {
              m_navGrid->cellCount(), m_navGrid->walkableCellCount());
 }
 
+namespace {
+// XZ distance² from cell-center (cx,cz) to the polyline `wps`. Used to tell whether a
+// terrain change crosses a route the NPC is actually walking (smoothed waypoints can be
+// far apart, so we test segments, not just vertices).
+float pathDist2ToColumn(const std::vector<glm::vec3>& wps, int cx, int cz) {
+    if (wps.empty()) return 1e30f;
+    const float px = cx + 0.5f, pz = cz + 0.5f;
+    if (wps.size() == 1) {
+        const float dx = px - wps[0].x, dz = pz - wps[0].z;
+        return dx * dx + dz * dz;
+    }
+    float best = 1e30f;
+    for (size_t i = 1; i < wps.size(); ++i) {
+        const float ax = wps[i - 1].x, az = wps[i - 1].z;
+        const float bx = wps[i].x,     bz = wps[i].z;
+        const float dx = bx - ax, dz = bz - az;
+        const float len2 = dx * dx + dz * dz;
+        float t = len2 > 1e-6f ? ((px - ax) * dx + (pz - az) * dz) / len2 : 0.0f;
+        t = std::max(0.0f, std::min(1.0f, t));
+        const float qx = ax + t * dx, qz = az + t * dz;
+        const float ex = px - qx, ez = pz - qz;
+        best = std::min(best, ex * ex + ez * ez);
+    }
+    return best;
+}
+constexpr float kReplanRadius = 1.5f;   // cells; route within this of a change → replan
+} // namespace
+
 void NPCManager::onVoxelChanged(const glm::ivec3& worldPos) {
     if (!m_navGrid) return;
     m_navGrid->rebuildCell(worldPos.x, worldPos.z);
     if (m_navGraph) m_navGraph->rebuildColumn(worldPos.x, worldPos.z, NavAgentProfile{});
+    // Cached paths through the changed column are now stale.
+    if (m_pathService) m_pathService->invalidateCacheNear(worldPos.x, worldPos.z, 1);
 
     // Phase 2 — Immediate path invalidation: any NPC whose current path passes
-    // within 1 block of the changed cell is stale and must replan now, not after 1.5s.
+    // within ~1 block of the changed cell is stale and must replan now, not after 1.5s.
     // Phase 6 TODO: also post WorldEvent::TerrainChanged(worldPos) to WorldEventBus here
     // so the stimulus-response layer can react behaviourally before the path replan.
     for (auto& [name, npc] : m_npcs) {
@@ -260,6 +291,11 @@ void NPCManager::onVoxelChanged(const glm::ivec3& worldPos) {
                     patrol->invalidatePath();
                     break;
                 }
+            }
+        } else if (auto* story = dynamic_cast<Scene::StoryDrivenBehavior*>(npc->getBehavior())) {
+            if (pathDist2ToColumn(story->getPathWaypoints(), worldPos.x, worldPos.z)
+                    <= kReplanRadius * kReplanRadius) {
+                story->invalidatePath();
             }
         }
     }
@@ -273,6 +309,9 @@ void NPCManager::onRegionChanged(const glm::ivec3& minPos, const glm::ivec3& max
             for (int z = minPos.z; z <= maxPos.z; ++z)
                 m_navGraph->rebuildColumn(x, z, NavAgentProfile{});
     }
+    // Drop cached paths crossing the changed box (+1 margin).
+    if (m_pathService)
+        m_pathService->invalidateCacheRegion({minPos.x, minPos.z}, {maxPos.x, maxPos.z}, 1);
 
     // Phase 2 — Invalidate paths for any NPC whose waypoints cross the changed region.
     for (auto& [name, npc] : m_npcs) {
@@ -283,6 +322,17 @@ void NPCManager::onRegionChanged(const glm::ivec3& minPos, const glm::ivec3& max
                 if (wx >= minPos.x - 1 && wx <= maxPos.x + 1 &&
                     wz >= minPos.z - 1 && wz <= maxPos.z + 1) {
                     patrol->invalidatePath();
+                    break;
+                }
+            }
+        } else if (auto* story = dynamic_cast<Scene::StoryDrivenBehavior*>(npc->getBehavior())) {
+            // Replan if any followed waypoint falls in the expanded box.
+            for (const glm::vec3& wp : story->getPathWaypoints()) {
+                int wx = static_cast<int>(std::floor(wp.x));
+                int wz = static_cast<int>(std::floor(wp.z));
+                if (wx >= minPos.x - 1 && wx <= maxPos.x + 1 &&
+                    wz >= minPos.z - 1 && wz <= maxPos.z + 1) {
+                    story->invalidatePath();
                     break;
                 }
             }
