@@ -511,6 +511,7 @@ void GameDefinitionLoader::loadCamera(const json& cameraDef, GameSubsystems& sub
     // their own default (see result.cameraModeSet).
     if (cameraDef.contains("mode")) {
         const std::string mode = cameraDef["mode"].get<std::string>();
+        result.cameraRig = mode;  // raw authored name; host resolves via Graphics::makeCameraRig
         if (mode == "first_person" || mode == "FirstPerson" || mode == "first") {
             sub.camera->setMode(Graphics::CameraMode::FirstPerson);
             result.cameraModeSet = true;
@@ -520,10 +521,21 @@ void GameDefinitionLoader::loadCamera(const json& cameraDef, GameSubsystems& sub
         } else if (mode == "free" || mode == "Free") {
             sub.camera->setMode(Graphics::CameraMode::Free);
             result.cameraModeSet = true;
+        } else if (mode == "overhead" || mode == "Overhead" || mode == "top_down" ||
+                   mode == "isometric" || mode == "Isometric" || mode == "iso") {
+            // Orthographic camera rigs own positioning, so the CameraMode enum is
+            // left as-is; the host resolves result.cameraRig via makeCameraRig().
+            result.cameraModeSet = true;
         } else {
             LOG_WARN("GameDefinitionLoader", "Unknown camera mode '" + mode +
-                     "' (expected first_person/third_person/free)");
+                     "' (expected first_person/third_person/free/overhead/isometric)");
+            result.cameraRig.clear();
         }
+    }
+
+    // Optional control scheme (fps/tank/...); host resolves via Input::makeControlScheme.
+    if (cameraDef.contains("controlScheme")) {
+        result.controlScheme = cameraDef["controlScheme"].get<std::string>();
     }
 
     result.cameraSet = true;

@@ -2,6 +2,8 @@
 
 #include "InputManager.h"
 #include <GLFW/glfw3.h>
+#include <memory>
+#include <string>
 
 namespace Phyxel {
 namespace Input {
@@ -93,6 +95,17 @@ public:
         return in;
     }
 };
+
+// Name -> scheme factory for data-driven selection (game.json
+// camera.controlScheme, the set_camera MCP tool, the editor panel). Returns
+// nullptr for an unknown name so callers can fall back to a default.
+inline std::unique_ptr<ControlScheme> makeControlScheme(const std::string& name) {
+    if (name == "fps" || name == "FPS" || name == "first_person")
+        return std::make_unique<FpsScheme>();
+    if (name == "tank" || name == "Tank" || name == "third_person")
+        return std::make_unique<TankScheme>();
+    return nullptr;
+}
 
 } // namespace Input
 } // namespace Phyxel

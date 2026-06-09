@@ -119,6 +119,8 @@ struct GameDefinitionResult {
     bool playerSpawned = false;
     bool cameraSet = false;
     bool cameraModeSet = false;  ///< definition's camera block carried an explicit "mode"
+    std::string cameraRig;       ///< authored camera.mode name (incl overhead/isometric); resolve via Graphics::makeCameraRig
+    std::string controlScheme;   ///< authored camera.controlScheme name; resolve via Input::makeControlScheme
     bool storyLoaded = false;
 
     json toJson() const;

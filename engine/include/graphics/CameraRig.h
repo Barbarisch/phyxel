@@ -3,6 +3,8 @@
 #include "Camera.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <memory>
+#include <string>
 
 namespace Phyxel {
 namespace Graphics {
@@ -101,6 +103,23 @@ public:
         cam.setPosition(center - cam.getFront() * distance);
     }
 };
+
+// Name -> rig factory for data-driven selection (game.json camera.mode, the
+// set_camera MCP tool, the editor camera panel). Returns nullptr for an unknown
+// name so callers can fall back to a default. Accepts snake_case / PascalCase /
+// short aliases. Custom rigs that subclass CameraRig are used via
+// GameplayCameraController::setRig() directly; extend this if one needs a name.
+inline std::unique_ptr<CameraRig> makeCameraRig(const std::string& name) {
+    if (name == "first_person" || name == "FirstPerson" || name == "first")
+        return std::make_unique<FirstPersonRig>();
+    if (name == "third_person" || name == "ThirdPerson" || name == "third")
+        return std::make_unique<ThirdPersonRig>();
+    if (name == "overhead" || name == "Overhead" || name == "top_down")
+        return std::make_unique<OverheadRig>();
+    if (name == "isometric" || name == "Isometric" || name == "iso")
+        return std::make_unique<IsometricRig>();
+    return nullptr;
+}
 
 } // namespace Graphics
 } // namespace Phyxel
