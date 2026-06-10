@@ -317,6 +317,26 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       hitFrameFraction/warp tuning).
     - **Remaining ideas:** keybind/player-input casting, cast-cancel on damage, upper-body-only
       casts while moving (needs bone masking), NPC behavior-tree cast action.
+- **Melee animation families (2026-06-10): clips + mapping DONE, engine wiring NOT started.**
+  Same pipeline as casts. 5 authored clips in humanoid.anim (melee_stab_1h, melee_chop_2h,
+  melee_sweep_2h, melee_thrust_spear, melee_parry — all lint-PASS + verified in-engine) +
+  REUSED Mixamo mocap tagged via clip_meta (boxing/elbow_punch=unarmed,
+  attack/melee_attack_horizontal/melee_attack_down=slash_1h, body_block=block) — mocap has
+  real weight transfer, always prefer reuse over DSL for big body moves. Weapon→family
+  mapping: `resources/rpg_items/anim/melee_anim_families.json` (anim/ subdir dodges
+  RpgItemRegistry's *.json glob), rules on weapon.damageType + properties: Reach→spear,
+  TwoHanded/Heavy→two_handed, Piercing→stab_1h, default→slash_1h; overrides spear→spear,
+  quarterstaff→two_handed; no weapon→unarmed. clip_meta keys: meleeFamily/meleeRole
+  (primary/secondary/quick/block) + hitFrameFraction.
+  - **Authoring lessons:** distribute torso twist across ALL THREE spine bones
+    (Spine+Spine1+Spine2) — dumping it on Spine1 alone trips the velocity envelope and reads
+    twitchy (real mocap Spine1 peaks ~117 deg/s while ARMS hit 650–1085). Spine axes
+    (measured): +X bow forward, −Y right-handed windup, +Y follow-through. Melee calibration
+    envelope now includes melee_attack_h/down + elbow_punch.
+  - **NEXT (melee Phase 3, not started):** attack() currently hardcodes the "attack" clip —
+    extend to weapon-family selection (EquipmentSystem equipped weapon → family → attacks[]
+    combo cycling, like SpellAnimMapper), CombatSystem hit at per-clip hitFrameFraction,
+    block state on melee_parry/body_block, weapon visuals via attachToBone.
 - **Open items:** `open_project` / heavy commands time out the 5s game-loop budget (one-time
   heavy load, cosmetic); no world DB versioning.
 

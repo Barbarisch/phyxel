@@ -7,43 +7,46 @@
     "attack",
     "boxing",
     "point",
-    "wave"
+    "wave",
+    "melee_attack_horizontal",
+    "melee_attack_down",
+    "elbow_punch"
   ],
   "sample_hz": 60.0,
   "envelope_factor": 1.5,
-  "hips_peak_lin_vel": 1.7169411301123991,
+  "hips_peak_lin_vel": 2.2165072568094764,
   "bones": {
     "mixamorig:Hips": {
-      "peak_ang_vel": 454.53901621012903,
-      "peak_ang_acc": 9249.354179716778
+      "peak_ang_vel": 486.8717491552927,
+      "peak_ang_acc": 18003.627850440054
     },
     "mixamorig:Spine": {
-      "peak_ang_vel": 220.94111044107117,
+      "peak_ang_vel": 235.79582060686346,
       "peak_ang_acc": 7197.516421026956
     },
     "mixamorig:Spine1": {
-      "peak_ang_vel": 117.12598860154398,
-      "peak_ang_acc": 3450.6785796324484
+      "peak_ang_vel": 117.25100637580701,
+      "peak_ang_acc": 3700.4199362949466
     },
     "mixamorig:Spine2": {
-      "peak_ang_vel": 116.17361482819659,
-      "peak_ang_acc": 3360.2466362542805
+      "peak_ang_vel": 117.24434357418608,
+      "peak_ang_acc": 3701.0638537822015
     },
     "mixamorig:Neck": {
-      "peak_ang_vel": 165.81294561248515,
-      "peak_ang_acc": 4887.790124299004
+      "peak_ang_vel": 425.2083999521844,
+      "peak_ang_acc": 11162.880782010583
     },
     "mixamorig:Head": {
-      "peak_ang_vel": 310.6587549704942,
-      "peak_ang_acc": 11598.71469662872
+      "peak_ang_vel": 485.5016125009848,
+      "peak_ang_acc": 17076.07863513332
     },
     "mixamorig:RightShoulder": {
-      "peak_ang_vel": 301.00523711479343,
-      "peak_ang_acc": 8973.161925788296
+      "peak_ang_vel": 570.3255324347743,
+      "peak_ang_acc": 25269.45671302222
     },
     "mixamorig:RightArm": {
-      "peak_ang_vel": 697.7945309948528,
-      "peak_ang_acc": 20063.675025175384
+      "peak_ang_vel": 772.7777749201147,
+      "peak_ang_acc": 21876.2841877441
     },
     "mixamorig:RightForeArm": {
       "peak_ang_vel": 1265.0862496148509,
@@ -51,7 +54,7 @@
     },
     "mixamorig:RightHand": {
       "peak_ang_vel": 902.1217096935789,
-      "peak_ang_acc": 28507.03958464648
+      "peak_ang_acc": 29015.11726964798
     },
     "mixamorig:RightHandThumb1": {
       "peak_ang_vel": 142.05901845256747,
@@ -130,8 +133,8 @@
       "peak_ang_acc": 12110.383668419698
     },
     "mixamorig:LeftHandThumb1": {
-      "peak_ang_vel": 110.55373996989253,
-      "peak_ang_acc": 1515.410161222669
+      "peak_ang_vel": 140.3047703191265,
+      "peak_ang_acc": 1942.3955737196159
     },
     "mixamorig:LeftHandThumb2": {
       "peak_ang_vel": 233.99927194958428,
@@ -147,7 +150,7 @@
     },
     "mixamorig:LeftHandIndex2": {
       "peak_ang_vel": 216.4874615289705,
-      "peak_ang_acc": 3178.209179691758
+      "peak_ang_acc": 4046.47448966134
     },
     "mixamorig:LeftHandIndex3": {
       "peak_ang_vel": 216.4269391908515,
@@ -163,7 +166,7 @@
     },
     "mixamorig:LeftHandMiddle3": {
       "peak_ang_vel": 220.00856042844256,
-      "peak_ang_acc": 3213.475665210005
+      "peak_ang_acc": 3875.7997925521777
     },
     "mixamorig:LeftHandRing1": {
       "peak_ang_vel": 298.1855932196047,
@@ -191,7 +194,7 @@
     },
     "mixamorig:RightUpLeg": {
       "peak_ang_vel": 715.2615012755915,
-      "peak_ang_acc": 16275.379345857435
+      "peak_ang_acc": 16524.983266711006
     },
     "mixamorig:RightLeg": {
       "peak_ang_vel": 1106.7089194259202,

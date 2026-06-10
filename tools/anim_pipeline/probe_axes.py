@@ -29,6 +29,12 @@ SEGMENTS = [
     ("RightForeArm", (60, 0, 0)),
     ("RightForeArm", (0, 60, 0)),
     ("RightForeArm", (0, 0, 60)),
+    # Spine axes (for melee wind-up/twist). Measure via the SHOULDER (Left/RightArm)
+    # world positions in get_bone_positions: Y-twist moves the two shoulders in
+    # opposite Z; X-bow moves both forward/down; Z-roll tilts them in Y.
+    ("Spine1", (45, 0, 0)),
+    ("Spine1", (0, 45, 0)),
+    ("Spine1", (0, 0, 45)),
 ]
 
 
