@@ -373,6 +373,54 @@ namespace Scene {
         }
     }
 
+    // Apply per-clip tuning metadata from "# clip_meta:" header comment lines.
+    // Robust to string-valued and unknown keys: a bad value skips that key only,
+    // never aborts the load (a thrown stof here used to kill character creation).
+    static void applyClipMetaFromFile(const std::string& animFile,
+                                      std::vector<Phyxel::AnimationClip>& clips) {
+        std::ifstream metaIn(animFile);
+        std::string ml;
+        while (std::getline(metaIn, ml)) {
+            if (ml.empty()) continue;
+            if (ml[0] != '#') break; // header comments only
+            const std::string prefix = "# clip_meta:";
+            if (ml.compare(0, prefix.size(), prefix) != 0) continue;
+            std::istringstream ss(ml.substr(prefix.size()));
+            std::string clipName;
+            ss >> clipName;
+            auto it = std::find_if(clips.begin(), clips.end(),
+                [&](const AnimationClip& c){ return c.name == clipName; });
+            if (it == clips.end()) continue;
+            std::string kv;
+            while (ss >> kv) {
+                auto eq = kv.find('=');
+                if (eq == std::string::npos) continue;
+                std::string k = kv.substr(0, eq);
+                if (k == "type") { it->clipType = kv.substr(eq + 1); continue; }
+                if (k == "castFamily" || k == "castRole") continue; // family metadata: resolved via spell_anim_families.json
+                float v = 0.0f;
+                try { v = std::stof(kv.substr(eq + 1)); }
+                catch (const std::exception&) { continue; }
+                if (k == "warpEnabled")      it->warpEnabled      = (v != 0.0f);
+                else if (k == "authoredFallDist") it->authoredFallDist = v;
+                else if (k == "takeoffEnd")       it->takeoffEnd       = v;
+                else if (k == "contactFrame")     it->contactFrame     = v;
+                else if (k == "warpScaleMin")     it->warpScaleMin     = v;
+                else if (k == "warpScaleMax")     it->warpScaleMax     = v;
+                else if (k == "hitFrameFraction") it->hitFrameFraction = v;
+                else if (k == "interruptible")   it->interruptible   = (v != 0.0f);
+                else if (k == "interruptAfter")  it->interruptAfter  = v;
+                else if (k == "stairStepHeight") it->stairStepHeight = v;
+                else if (k == "stairStepDepth")  it->stairStepDepth  = v;
+                else if (k == "contactFrame1")      it->contactFrame1      = v;
+                else if (k == "contactFrame2")      it->contactFrame2      = v;
+                else if (k == "footIKSurfaceReach") it->footIKSurfaceReach = v;
+                else if (k == "footIKBodyRange")    it->footIKBodyRange    = v;
+                else if (k == "footIKEnabled") {} // editor-only, no runtime field
+            }
+        }
+    }
+
     bool AnimatedVoxelCharacter::loadModel(const std::string& animFile) {
         // Parse archetype from .anim file header (e.g. "# archetype: humanoid_normal")
         {
@@ -399,47 +447,7 @@ namespace Scene {
         }
 
         if (animSystem.loadFromFile(animFile, skeleton, clips, voxelModel)) {
-            // Apply per-clip tuning metadata from "# clip_meta:" comment lines
-            {
-                std::ifstream metaIn(animFile);
-                std::string ml;
-                while (std::getline(metaIn, ml)) {
-                    if (ml.empty()) continue;
-                    if (ml[0] != '#') break; // header comments only
-                    const std::string prefix = "# clip_meta:";
-                    if (ml.compare(0, prefix.size(), prefix) != 0) continue;
-                    std::istringstream ss(ml.substr(prefix.size()));
-                    std::string clipName;
-                    ss >> clipName;
-                    auto it = std::find_if(clips.begin(), clips.end(),
-                        [&](const AnimationClip& c){ return c.name == clipName; });
-                    if (it == clips.end()) continue;
-                    std::string kv;
-                    while (ss >> kv) {
-                        auto eq = kv.find('=');
-                        if (eq == std::string::npos) continue;
-                        std::string k = kv.substr(0, eq);
-                        if (k == "type") { it->clipType = kv.substr(eq + 1); continue; }
-                        float v = std::stof(kv.substr(eq + 1));
-                        if (k == "warpEnabled")      it->warpEnabled      = (v != 0.0f);
-                        else if (k == "authoredFallDist") it->authoredFallDist = v;
-                        else if (k == "takeoffEnd")       it->takeoffEnd       = v;
-                        else if (k == "contactFrame")     it->contactFrame     = v;
-                        else if (k == "warpScaleMin")     it->warpScaleMin     = v;
-                        else if (k == "warpScaleMax")     it->warpScaleMax     = v;
-                        else if (k == "hitFrameFraction") it->hitFrameFraction = v;
-                        else if (k == "interruptible")   it->interruptible   = (v != 0.0f);
-                        else if (k == "interruptAfter")  it->interruptAfter  = v;
-                        else if (k == "stairStepHeight") it->stairStepHeight = v;
-                        else if (k == "stairStepDepth")  it->stairStepDepth  = v;
-                        else if (k == "contactFrame1")      it->contactFrame1      = v;
-                        else if (k == "contactFrame2")      it->contactFrame2      = v;
-                        else if (k == "footIKSurfaceReach") it->footIKSurfaceReach = v;
-                        else if (k == "footIKBodyRange")    it->footIKBodyRange    = v;
-                        else if (k == "footIKEnabled") {} // editor-only, no runtime field
-                    }
-                }
-            }
+            applyClipMetaFromFile(animFile, clips);
 
             // Store original unscaled template for later rebuilds
             originalSkeleton_ = skeleton;
@@ -1336,6 +1344,7 @@ namespace Scene {
         if (!animSystem.loadFromFile(animFile, tempSkel, tempClips, tempModel)) {
             return false;
         }
+        applyClipMetaFromFile(animFile, tempClips); // keep hitFrameFraction/warp tuning on hot reload
 
         // Replace only the animation clips, keep skeleton/model/bodies intact
         clips = std::move(tempClips);
@@ -1643,6 +1652,7 @@ namespace Scene {
         if (str == "SitDown") return AnimatedCharacterState::SitDown;
         if (str == "SittingIdle") return AnimatedCharacterState::SittingIdle;
         if (str == "SitStandUp") return AnimatedCharacterState::SitStandUp;
+        if (str == "Cast") return AnimatedCharacterState::Cast;
         if (str == "Preview") return AnimatedCharacterState::Preview;
         return AnimatedCharacterState::Idle;
     }
@@ -1763,6 +1773,47 @@ namespace Scene {
         attackRequested = true;
     }
 
+    bool AnimatedVoxelCharacter::castSpell(const std::vector<CastSegment>& segments) {
+        if (segments.empty() || segments.front().clip.empty()) return false;
+        if (m_isSitting || m_isAnchoredAnim || isDerezzing()) return false;
+        switch (currentState) {
+            case AnimatedCharacterState::Jump:
+            case AnimatedCharacterState::Fall:
+            case AnimatedCharacterState::Land:
+            case AnimatedCharacterState::Cast:
+            case AnimatedCharacterState::SitDown:
+            case AnimatedCharacterState::SittingIdle:
+            case AnimatedCharacterState::SitStandUp:
+                return false;
+            default: break;
+        }
+
+        // Validate the first clip exists; sample the FINAL clip's authored
+        // release frame (hitFrameFraction carries the clip_meta releaseFrame).
+        auto findClip = [this](const std::string& name) -> const Phyxel::AnimationClip* {
+            for (const auto& c : clips)
+                if (c.name == name) return &c;
+            return nullptr;
+        };
+        if (!findClip(segments.front().clip)) {
+            LOG_WARN("Character", "castSpell: unknown clip '{}'", segments.front().clip);
+            return false;
+        }
+        m_castReleaseFrac = 0.5f;
+        if (const auto* finalClip = findClip(segments.back().clip))
+            m_castReleaseFrac = finalClip->hitFrameFraction;
+
+        m_castSegments    = segments;
+        m_castSegIdx      = 0;
+        m_castLoopsLeft   = std::max(1, segments.front().loops);
+        m_castReleaseFired = false;
+        currentState = AnimatedCharacterState::Cast;
+        stateTimer = 0.0f;
+        LOG_DEBUG("Character", "castSpell: {} segment(s), first '{}', releaseFrac {:.2f}",
+                  segments.size(), segments.front().clip, m_castReleaseFrac);
+        return true;
+    }
+
     void AnimatedVoxelCharacter::setCrouch(bool crouch) {
         isCrouching = crouch;
     }
@@ -1816,6 +1867,7 @@ namespace Scene {
             case AnimatedCharacterState::SitDown: return "SitDown";
             case AnimatedCharacterState::SittingIdle: return "SittingIdle";
             case AnimatedCharacterState::SitStandUp: return "SitStandUp";
+            case AnimatedCharacterState::Cast: return "Cast";
             case AnimatedCharacterState::Preview: return "Preview";
             default: return "Unknown";
         }
@@ -2174,6 +2226,49 @@ namespace Scene {
                     }
                 }
                 break;
+
+            case AnimatedCharacterState::Cast: {
+                if (m_castSegments.empty() || m_castSegIdx >= m_castSegments.size()) {
+                    currentState = AnimatedCharacterState::Idle;
+                    break;
+                }
+                // The clip plays at the segment's rate (see the animTime tick),
+                // so the wall-clock duration of one play is duration / speed.
+                const float castSpeed = currentCastSpeed();
+                const float scaledDur = currentAnimDuration > 0.0f
+                                            ? currentAnimDuration / castSpeed : 0.0f;
+                const bool finalSeg = (m_castSegIdx + 1 == m_castSegments.size());
+
+                // Release fires once, at the final segment's authored release frame.
+                if (finalSeg && !m_castReleaseFired && scaledDur > 0.0f &&
+                    stateTimer / scaledDur >= m_castReleaseFrac) {
+                    m_castReleaseFired = true;
+                    if (m_onCastRelease) m_onCastRelease();
+                }
+
+                if (scaledDur > 0.0f && stateTimer >= scaledDur) {
+                    if (m_castLoopsLeft > 1) {
+                        --m_castLoopsLeft;            // replay this segment (ritual loop)
+                        stateTimer = 0.0f;
+                        animTime = 0.0f;
+                    } else if (!finalSeg) {
+                        ++m_castSegIdx;               // advance to the next segment
+                        m_castLoopsLeft = std::max(1, m_castSegments[m_castSegIdx].loops);
+                        stateTimer = 0.0f;
+                    } else {
+                        // Cast complete. Safety: never swallow the release.
+                        if (!m_castReleaseFired) {
+                            m_castReleaseFired = true;
+                            if (m_onCastRelease) m_onCastRelease();
+                        }
+                        m_castSegments.clear();
+                        m_castSegIdx = 0;
+                        currentState = AnimatedCharacterState::Idle;
+                        stateTimer = 0.0f;
+                    }
+                }
+                break;
+            }
 
             case AnimatedCharacterState::SitDown:
                 // One-shot: wait for sit-down animation to finish, then hold seated idle
@@ -2582,6 +2677,7 @@ namespace Scene {
             }
             if (currentState == AnimatedCharacterState::StopWalk || currentState == AnimatedCharacterState::StopRun) moveSpeed = 0.5f;
             if (currentState == AnimatedCharacterState::Idle || currentState == AnimatedCharacterState::Attack ||
+                currentState == AnimatedCharacterState::Cast ||
                 currentState == AnimatedCharacterState::Crouch || currentState == AnimatedCharacterState::CrouchIdle ||
                 currentState == AnimatedCharacterState::TurnLeft || currentState == AnimatedCharacterState::TurnRight) moveSpeed = 0.0f;
 
@@ -2652,6 +2748,10 @@ namespace Scene {
                     case AnimatedCharacterState::CrouchWalk: targetAnim = "crouched_walking"; break;
                     case AnimatedCharacterState::StandUp: targetAnim = "crouch_to_stand"; break;
                     case AnimatedCharacterState::Attack: targetAnim = "attack"; break;
+                    case AnimatedCharacterState::Cast:
+                        targetAnim = (m_castSegIdx < m_castSegments.size())
+                                         ? m_castSegments[m_castSegIdx].clip : "idle";
+                        break;
                     case AnimatedCharacterState::TurnLeft: targetAnim = "left_turn"; break;
                     case AnimatedCharacterState::TurnRight: targetAnim = "right_turn"; break;
                     case AnimatedCharacterState::StrafeLeft: 
@@ -2780,10 +2880,13 @@ namespace Scene {
         float evalTime = animTime; // may be remapped for warp preview
         if (currentClipIndex >= 0 && currentClipIndex < clips.size()) {
             if (!m_animPaused)
-                animTime += deltaTime * m_playbackSpeed;
-            
+                animTime += deltaTime * m_playbackSpeed * currentCastSpeed();
+
             // Determine looping for current animation
+            // (Cast segments are one-shots; ritual loops are re-armed by the
+            //  Cast state machine resetting animTime per play.)
             bool loop = (currentState != AnimatedCharacterState::Attack &&
+                         currentState != AnimatedCharacterState::Cast &&
                          currentState != AnimatedCharacterState::Jump &&
                          currentState != AnimatedCharacterState::Crouch &&
                          currentState != AnimatedCharacterState::CrouchIdle &&

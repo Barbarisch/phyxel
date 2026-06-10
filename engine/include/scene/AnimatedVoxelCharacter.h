@@ -60,6 +60,7 @@ namespace Scene {
         SitDown,      // playing sit-down transition animation
         SittingIdle,  // looping seated idle
         SitStandUp,   // playing stand-up-from-seat animation
+        Cast,         // playing a spell-cast one-shot (single clip or windup/loop/release)
         Preview
     };
 
@@ -274,6 +275,29 @@ namespace Scene {
         void attack();
         void setCrouch(bool crouch);
 
+        // ---- Spell casting (one-shot clip sequence, see SpellAnimMapper) ----
+
+        /// One leg of a cast: a clip played `loops` times at `speed` (playback
+        /// rate multiplier). A simple cast is one segment; a ritual is
+        /// windup + loop*N + release.
+        struct CastSegment {
+            std::string clip;
+            float speed = 1.0f;
+            int   loops = 1;
+        };
+
+        /// Begin a spell-cast one-shot. Movement stops for the duration; the
+        /// release callback fires once when the FINAL segment's clip reaches
+        /// its authored releaseFrame (= hitFrameFraction clip_meta, default
+        /// 0.5). Returns false if the character can't cast right now (sitting,
+        /// airborne, derezzing, already casting, or unknown first clip).
+        bool castSpell(const std::vector<CastSegment>& segments);
+        bool isCasting() const { return currentState == AnimatedCharacterState::Cast; }
+
+        /// Fired once per cast at the release frame (spawn VFX/projectile here).
+        using OnCastReleaseCallback = std::function<void()>;
+        void setOnCastRelease(OnCastReleaseCallback cb) { m_onCastRelease = std::move(cb); }
+
         // ---- Derez (falling-apart disintegration) ----
 
         /// Begin staggered voxel detachment. The character remains in the scene during the
@@ -454,6 +478,21 @@ namespace Scene {
         bool m_hitFrameFired = false;       // Has the hit frame triggered for current attack?
         float m_hitFrameFraction = 0.4f;    // Default: 40% through attack animation
         OnHitFrameCallback m_onHitFrame;
+
+        // ---- Cast state (see castSpell) ----
+        std::vector<CastSegment> m_castSegments;
+        size_t m_castSegIdx       = 0;
+        int    m_castLoopsLeft    = 0;     // remaining plays of the current segment
+        bool   m_castReleaseFired = false;
+        float  m_castReleaseFrac  = 0.5f;  // sampled from final clip's hitFrameFraction
+        OnCastReleaseCallback m_onCastRelease;
+        /// Playback-rate multiplier of the active cast segment (1.0 outside Cast).
+        float currentCastSpeed() const {
+            if (currentState != AnimatedCharacterState::Cast ||
+                m_castSegIdx >= m_castSegments.size()) return 1.0f;
+            float s = m_castSegments[m_castSegIdx].speed;
+            return s > 0.01f ? s : 1.0f;
+        }
 
         // Kinematic controller state (replaces Bullet controllerBody)
         glm::vec3 m_kinVelocity{0.0f};

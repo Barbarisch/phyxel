@@ -3154,22 +3154,29 @@ async def list_tools() -> list[Tool]:
             description=(
                 "Cast a named spell's VFX from caster to target, scaled by gameplay modifiers "
                 "(Layer 3). The spell maps to an archetype composition; power/tier/crit/range reshape "
-                "size, particle count, color, and distance. Spells: fireball, fire_bolt, magic_missile, "
-                "eldritch_blast, lightning_bolt, burning_hands, cone_of_cold, thunderwave, moonbeam, "
-                "spirit_guardians, wall_of_fire, chain_lightning, cure_wounds, healing_word, shield."
+                "size, particle count, color, and distance. When the spell is in the D&D registry "
+                "(resources/spells/), the caster character first plays its casting animation (family "
+                "resolved from the spell definition: bolt/thrust/call_down/touch/ward/ritual; speed "
+                "from casting time + proficiency) and the VFX fires at the clip's release frame. "
+                "Spells: fireball, fire_bolt, magic_missile, eldritch_blast, lightning_bolt, "
+                "burning_hands, cone_of_cold, thunderwave, moonbeam, spirit_guardians, wall_of_fire, "
+                "chain_lightning, cure_wounds, healing_word, shield."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "spell": {"type": "string", "description": "Spell id", "default": "fireball"},
-                    "from": {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}},
+                    "from": {"type": "object", "description": "VFX origin (optional; defaults to the caster character's chest)", "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}},
                     "to":   {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}},
                     "power": {"type": "number", "description": "Magnitude (~damage/reference); 1.0 = baseline. Scales size/count/intensity.", "default": 1.0},
                     "tier":  {"type": "integer", "description": "Upcast slots above base / mastery; palette shift + extra particles.", "default": 0},
                     "crit":  {"type": "boolean", "description": "Critical hit: bigger + brighter.", "default": False},
-                    "range": {"type": "number", "description": "Optional projectile travel distance override (world units).", "default": 0}
+                    "range": {"type": "number", "description": "Optional projectile travel distance override (world units).", "default": 0},
+                    "caster": {"type": "string", "description": "Casting character: 'player' (default) or an NPC id like 'npc_Guard'.", "default": "player"},
+                    "animate": {"type": "boolean", "description": "Play the casting animation and defer VFX to its release frame (default true). False = immediate VFX only.", "default": True},
+                    "proficiency": {"type": "integer", "description": "Caster proficiency bonus (2-6); higher = slightly faster casting.", "default": 2}
                 },
-                "required": ["spell", "from", "to"]
+                "required": ["spell", "to"]
             }
         ),
         Tool(

@@ -273,6 +273,50 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     char push in `solver_integrate.comp` just clears the sleep flag, as legacy did);
     debris-waking-debris (island propagation) is the hard part. User tabled this to avoid
     regressing working behavior — pick it up deliberately, not casually.
+- **Spell-cast animation pipeline (2026-06-10): Phases 0–2 DONE, verified in-engine.**
+  `tools/anim_pipeline/`: `anim_format.py` (parse/write/splice the text .anim — round-trip
+  verified lossless on humanoid.anim), `anim_lint.py` (mechanical-jank gates: unit quats,
+  >120° slerp-ambiguous segments, loop closure; plus per-bone angular velocity/accel envelope
+  calibrated from known-good clips via `calibrate`), `pose_dsl.py` (sparse-key clips as
+  (time, named-pose, ease) on top of the idle@0 stance; smoothstep subdivision; sign-continuous
+  quats by construction), `generate_casts.py` (8 cast clips spliced into humanoid.anim),
+  `probe_axes.py` + `spell_anim_resolver.py`.
+  - **6 animation families** mapped from SpellDefinition by rules in
+    `resources/spells/spell_anim_families.json` (overrides: fireball/hold_person → bolt):
+    bolt=cast_quick, thrust=cast_standard, call_down=cast_call_down, touch=cast_touch,
+    ward=cast_ward, ritual=cast_windup/loop×N/release. Cast-time speed = playback rate
+    clamped [0.7,1.4] toward per-CastingTime targets + structural loop-count for rituals;
+    skill hook = rate × (1 + 0.05·(prof−2)). clip_meta carries castFamily/castRole/releaseFrame
+    (VFX fire moment; mirrors hitFrameFraction).
+  - **CRITICAL conventions** (cost a wrong-direction round): character at rotation 0 FACES +Z
+    (do NOT deduce facing from screenshots — user caught arms animating backward); arm-bone
+    deltas on idle stance: −Z=swing forward (casting axis), +X=across body, +Y=twist. Clip rot
+    keys are ABSOLUTE local rotations → full-body clips must key all 52 channels. clip_meta
+    comments only legal at top of file. `orbit_screenshots` multi-view in one call can return
+    identical images (request one view per call); `get_bone_positions` = 12 segment boxes only.
+  - **Phase 3 (C++ wiring) DONE + verified live (2026-06-10):**
+    - `AnimatedCharacterState::Cast` + `castSpell(vector<CastSegment{clip,speed,loops}>)` in
+      AnimatedVoxelCharacter — segment queue (ritual = windup + loop×N + release), per-segment
+      playback rate (multiplies the animTime tick; duration checks use duration/speed),
+      `setOnCastRelease` fires once at the FINAL clip's hitFrameFraction (carries releaseFrame).
+      Movement frozen during cast; rejected while sitting/airborne/already casting.
+    - `Core::SpellAnimMapper` (engine/src/core/SpellAnimMapper.cpp) — C++ port of
+      tools/anim_pipeline/spell_anim_resolver.py; loads
+      `resources/spells/anim/spell_anim_families.json` (moved into anim/ subdir so
+      SpellRegistry's *.json glob doesn't eat it).
+    - `cast_spell` handler (Application.cpp) — resolves caster ("caster" param: player/NPC),
+      lazy-loads SpellRegistry + mapper, faces the target, plays the plan, defers VFX +
+      destruction to the release callback; falls back to immediate VFX when spell unknown /
+      "animate":false / character can't cast. Verified: fire_bolt (bolt @0.7 speed, deferred
+      VFX in logs) and animate_dead (full 6.3s windup/4-loop/release sequence polled via
+      /api/animation/state, VFX at release).
+    - **TRAP FIXED:** the clip_meta parser std::stof'd every value — a string value
+      (castFamily=bolt) threw out of loadModel and KILLED character creation ("invalid stof
+      argument"). Now per-key try/catch + explicit castFamily/castRole skip; and
+      reloadAnimations now applies clip_meta too (hot reload used to silently drop
+      hitFrameFraction/warp tuning).
+    - **Remaining ideas:** keybind/player-input casting, cast-cancel on damage, upper-body-only
+      casts while moving (needs bone masking), NPC behavior-tree cast action.
 - **Open items:** `open_project` / heavy commands time out the 5s game-loop budget (one-time
   heavy load, cosmetic); no world DB versioning.
 

@@ -16,6 +16,8 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/VfxSystem.h"
 #include "core/VfxDirector.h"
 #include "core/SpellVfxMapper.h"
+#include "core/SpellDefinition.h"
+#include "core/SpellAnimMapper.h"
 #include "core/DamageSystem.h"
 #include "utils/GpuProfiler.h"
 #include "scene/VoxelInteractionSystem.h"
@@ -9108,7 +9110,11 @@ void Application::processAPICommands() {
                 continue;
             }
 
-            // Cast a real spell's VFX through the Layer-3 mapper (gameplay modifiers -> params)
+            // Cast a real spell's VFX through the Layer-3 mapper (gameplay modifiers -> params).
+            // When a caster character is available, the cast first plays the spell's
+            // casting animation (family resolved by SpellAnimMapper from the spell's
+            // D&D definition); the VFX + destruction fire at the clip's release frame.
+            // Pass "animate": false for the old immediate behavior.
             if (cmd.action == "cast_spell") {
                 auto* dir = renderCoordinator ? renderCoordinator->getVfxDirector() : nullptr;
                 if (!dir) {
@@ -9117,8 +9123,28 @@ void Application::processAPICommands() {
                     std::string spellId = cmd.params.value("spell", std::string("fireball"));
                     auto from = cmd.params.value("from", nlohmann::json::object());
                     auto to   = cmd.params.value("to",   nlohmann::json::object());
-                    glm::vec3 caster(from.value("x", 0.0f), from.value("y", 0.0f), from.value("z", 0.0f));
                     glm::vec3 tgt(to.value("x", 0.0f), to.value("y", 0.0f), to.value("z", 0.0f));
+
+                    // Resolve the casting character (player default; NPCs via "caster").
+                    std::string casterId = cmd.params.value("caster", std::string("player"));
+                    Scene::AnimatedVoxelCharacter* castChar = nullptr;
+                    if (npcManager) {
+                        std::string npcName = casterId;
+                        if (npcName.size() > 4 && npcName.substr(0, 4) == "npc_") npcName = npcName.substr(4);
+                        auto* npc = npcManager->getNPC(npcName);
+                        if (npc) castChar = npc->getAnimatedCharacter();
+                    }
+                    if (!castChar && (casterId.empty() || casterId == "player") && animatedCharacter)
+                        castChar = animatedCharacter;
+                    if (!castChar && entityRegistry) {
+                        auto* entity = entityRegistry->getEntity(casterId);
+                        if (entity) castChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity);
+                    }
+
+                    // VFX origin: explicit "from", else the caster's chest.
+                    glm::vec3 caster(from.value("x", 0.0f), from.value("y", 0.0f), from.value("z", 0.0f));
+                    if (from.empty() && castChar)
+                        caster = castChar->getPosition() + glm::vec3(0.0f, 1.4f, 0.0f);
 
                     Phyxel::VfxSpellModifiers mods;
                     mods.power      = cmd.params.value("power", 1.0f);
@@ -9143,23 +9169,69 @@ void Application::processAPICommands() {
                             return true;
                         };
                     }
-                    std::string sid = dir->cast(Phyxel::resolveSpellVfx(spellId, mods), ctx);
 
-                    // Optional destruction at the target: pass "destroy": true (or a
-                    // "damage" energy) to also blast voxels. Energy scales with power.
-                    nlohmann::json dmgInfo;
+                    // Fires the VFX (and optional voxel destruction) — either at the
+                    // animation's release frame or immediately on fallback.
                     bool destroy = cmd.params.value("destroy", false) || cmd.params.contains("damage");
-                    if (destroy && chunkManager) {
-                        float energy = cmd.params.value("damage", 350.0f * mods.power);
-                        float radius = cmd.params.value("damage_radius", 3.5f);
-                        Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
-                        auto r = dmg.applyDamage(tgt, radius, energy, "force", glm::normalize(tgt - caster));
-                        dmgInfo = {{"broken", r.voxelsBroken}, {"debris", r.debrisSpawned}};
+                    float energy = cmd.params.value("damage", 350.0f * mods.power);
+                    float radius = cmd.params.value("damage_radius", 3.5f);
+                    auto fireSpell = [this, spellId, mods, ctx, tgt, caster, destroy, energy, radius]() {
+                        auto* d = renderCoordinator ? renderCoordinator->getVfxDirector() : nullptr;
+                        if (d) d->cast(Phyxel::resolveSpellVfx(spellId, mods), ctx);
+                        if (destroy && chunkManager) {
+                            Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
+                            dmg.applyDamage(tgt, radius, energy, "force", glm::normalize(tgt - caster));
+                        }
+                    };
+
+                    // Try the casting animation: known spell + able caster required.
+                    nlohmann::json animInfo;
+                    bool animated = false;
+                    if (cmd.params.value("animate", true) && castChar) {
+                        auto& reg = Core::SpellRegistry::instance();
+                        if (reg.count() == 0) reg.loadFromDirectory("resources/spells");
+                        auto& mapper = Core::SpellAnimMapper::instance();
+                        if (!mapper.isLoaded())
+                            mapper.loadConfig("resources/spells/anim/spell_anim_families.json");
+
+                        const auto* def = reg.getSpell(spellId);
+                        if (def && mapper.isLoaded()) {
+                            int prof = cmd.params.value("proficiency", 2);
+                            auto plan = mapper.resolve(*def, prof, [castChar](const std::string& clip) {
+                                for (const auto& c : castChar->getAnimationClips())
+                                    if (c.name == clip) return c.duration;
+                                return 0.0f;
+                            });
+                            if (plan.valid) {
+                                std::vector<Scene::AnimatedVoxelCharacter::CastSegment> segs;
+                                for (const auto& s : plan.segments)
+                                    segs.push_back({s.clip, s.speed, s.loops});
+                                // Face the target before the cast starts. The model's
+                                // VISUAL front is +Z at yaw 0 (opposite the movement-forward
+                                // convention), so aim +Z at the target: yaw = atan2(dx, dz).
+                                glm::vec3 dirToTgt = tgt - castChar->getPosition();
+                                if (glm::length(glm::vec2(dirToTgt.x, dirToTgt.z)) > 0.01f)
+                                    castChar->setFacingYaw(std::atan2(dirToTgt.x, dirToTgt.z));
+                                castChar->setOnCastRelease(fireSpell);
+                                animated = castChar->castSpell(segs);
+                                if (animated) {
+                                    nlohmann::json segJson = nlohmann::json::array();
+                                    for (const auto& s : plan.segments)
+                                        segJson.push_back({{"clip", s.clip}, {"speed", s.speed}, {"loops", s.loops}});
+                                    animInfo = {{"family", plan.family},
+                                                {"totalSeconds", plan.totalSeconds},
+                                                {"segments", segJson}};
+                                }
+                            }
+                        }
                     }
+                    if (!animated) fireSpell();  // fallback: old immediate behavior
+
                     response = {
-                        {"success", true}, {"spell", spellId}, {"spell_id", sid},
+                        {"success", true}, {"spell", spellId},
                         {"power", mods.power}, {"tier", mods.tier}, {"crit", mods.crit},
-                        {"destruction", dmgInfo}
+                        {"animated", animated}, {"animation", animInfo},
+                        {"vfx", animated ? "deferred_to_release_frame" : "immediate"}
                     };
                 }
                 if (cmd.onComplete) cmd.onComplete(response);
