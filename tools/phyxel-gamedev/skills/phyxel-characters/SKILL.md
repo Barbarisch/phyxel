@@ -12,6 +12,30 @@ description: Use when adding or editing the player, NPCs, dialogue, or story/que
 - Position the player just above the surface (e.g. terrain top + 1). Camera: 30–50 units from
   the action, pitch −25° to −35° for an overview. `set_camera` adjusts it live.
 
+### Camera style & controls — declare, don't code
+The camera block picks one of four engine camera rigs via `"mode"`, and a control scheme via
+`"controlScheme"` — per scene in multi-scene games (each scene's `definition.camera`; the
+engine re-resolves on every transition, so levels can differ):
+
+| `mode` | View | Pair with |
+|--------|------|-----------|
+| `first_person` | through the player's eyes | `fps` (maze/shooter) |
+| `third_person` | chase cam behind the player | `fps` or `tank` |
+| `overhead` | straight-down orthographic map | `tank` |
+| `isometric` | classic fixed ~35° ortho 3/4 view | `tank` |
+
+`controlScheme`: `fps` = mouse-look + W/S walk-where-you-look + A/D strafe (default);
+`tank` = A/D turn the body, W/S forward/back, RMB orbits.
+
+```json
+"camera": { "position": {"x":2,"y":24,"z":-6}, "yaw": 90, "pitch": -25,
+            "mode": "isometric", "controlScheme": "tank" }
+```
+
+Live iteration: `set_camera` accepts the same `mode` values + `control_scheme` — switch a
+running game/editor between styles instantly to find what fits. Defaults when unauthored:
+first-person + fps. Full design: engine `docs/CameraControlSystem.md`.
+
 ## NPCs (`create_game_npc`, or the `"npcs"` array)
 Each NPC needs a **unique name**, a **position** above the surface (terrain height + ~2), and
 a **behavior**: `idle` (stays), `patrol` (waypoints), `wander` (random). Optional:

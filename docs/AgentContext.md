@@ -177,21 +177,26 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     `UI::renderCountdownHud`, foreground) and **menu `{{token}}` interpolation**
     (`{{playtime}}`, `{{story.<var>}}` via `GameMenuRenderer::onResolveVariable`).
   - **move_entity "player"** now teleports the LIVE character controller.
-  - **ROADMAP (design item, not started): engine-side game-shell base classes.** The
-    scaffold embeds ~29KB of shell logic (ScreenState machine, menu renderer wiring,
-    trigger executor, camera follow) in every generated game — copies rot and engine
-    fixes don't propagate (observed across the 06-06 vs 06-07 scaffolds). Proposal:
-    move the shell into engine-side overridable base classes (e.g. `GameShell` with
-    virtual hooks per function), make the scaffold emit a THIN subclass, document
-    data-driven vs override extension points. Needs a design pass before code.
-    - **Camera & control sub-design DONE: `docs/CameraControlSystem.md`** (2026-06-08).
-      Two orthogonal strategies — `CameraRig` (FirstPerson/ThirdPerson/Overhead/Isometric,
-      owns projection incl. ortho) + `ControlScheme` (FPS/Tank/TopDown) — driven by one
-      shared `GameplayCameraController` that `GameShell` owns and the editor reuses, killing
-      the duplicated input→character→camera loop that shipped the W-backward / no-mouse bug.
-      Overridable via data → subclass → registry+`game.json camera.controlScheme`. Phase 1 =
-      consolidate editor+MazeRunner onto it; Phase 2 = overhead/iso + `rig->projection()` into
-      RenderCoordinator (`:892`). Not yet implemented.
+  - **ROADMAP (IN PROGRESS): engine-side game-shell base classes.** The scaffold embeds
+    ~29KB of shell logic (ScreenState machine, menu renderer wiring, trigger executor,
+    camera follow) in every generated game — copies rot and engine fixes don't propagate
+    (observed across the 06-06 vs 06-07 scaffolds). `Core::GameShell` now EXISTS
+    (commit `6abd527`, 2026-06-09) and the scaffold emits a subclass of it; the camera/
+    control loop is the first responsibility migrated. REMAINING: migrate the rest of the
+    scaffold shell (ScreenState machine, menu renderer wiring, trigger executor) into
+    GameShell, and regenerate older scaffolded projects (`create_project.py --force`).
+    - **Camera & control system — ALL 4 PHASES COMPLETE** (`docs/CameraControlSystem.md`;
+      commits 3567f15, 9949055, 6392a1c, d6726e4, cd29ac5, 6abd527; 2026-06-08/09).
+      `CameraRig` (first_person/third_person/overhead/isometric — ortho rigs own
+      projection via `Camera::getProjectionMatrix`, **glm::orthoRH_ZO** or Vulkan clips
+      everything) + `ControlScheme` (fps/tank) + one shared `GameplayCameraController`
+      used by the editor AND standalones (killed the duplicated loop that shipped the
+      W-backward/no-mouse bug). Authoring: per-scene `game.json camera.mode/controlScheme`
+      (GameShell re-resolves per transition), `set_camera` MCP `mode`+`control_scheme`
+      (MCP server restart needed for the new schema), editor Camera panel Rig/Scheme
+      combos (V toggle clears a forced rig). Direct-boot `startScene`→world-scene now
+      reaches Playing (was stuck on Intro via two state stomps). Unscheduled polish:
+      parse game.json rig knobs (distance/fov/eyeHeight, doc §4.1) into the rigs.
   - **Known intermittent:** a `vulkan-1.dll` crash (0xc0000409, fault offset d7205) on
     scene transitions — predates these changes (user's 06-06 session hit the identical
     signature). Six rapid menu↔world cycles didn't reproduce it; no repro recipe yet.

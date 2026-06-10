@@ -164,16 +164,26 @@ After your world, NPCs, and story are in place, layer on gameplay systems:
 - ESC key toggles pause (freezes world simulation, shows pause menu)
 - `toggle_pause` / `get_pause_state` — Control via MCP
 
-**Camera Mode:**
-- The `camera` block accepts `"mode"`: `"first_person"` | `"third_person"` | `"free"`
-  — a maze crawler can start first-person without the player pressing V:
+**Camera Mode & Control Scheme** (see `docs/CameraControlSystem.md` for the full design):
+- The `camera` block accepts `"mode"`: `"first_person"` | `"third_person"` |
+  `"overhead"` | `"isometric"` | `"free"`. Overhead and isometric are
+  **orthographic** rigs that follow the player (overhead = straight-down map
+  view; isometric = classic fixed ~35° 3/4 view).
+- `"controlScheme"` picks how input drives the character:
+  `"fps"` (mouse-look turns the view, W/S walk where you look, A/D strafe —
+  default) | `"tank"` (A/D turn the body, W/S forward/back, RMB orbits the
+  camera).
   ```json
   "camera": { "position": {"x":2,"y":24,"z":-6}, "yaw": 90, "pitch": -25,
-              "mode": "first_person" }
+              "mode": "first_person", "controlScheme": "fps" }
   ```
-- Works per scene in multi-scene games (each scene's `definition.camera`); the
-  standalone only defaults to third-person when no mode is authored anywhere.
-- `set_camera` (MCP/HTTP) also accepts `mode` for live switching.
+- Works per scene in multi-scene games (each scene's `definition.camera`) — the
+  engine-side `GameShell` re-resolves the rig/scheme on every scene transition,
+  so e.g. level1 can be first-person and level2 isometric. Defaults when
+  unauthored: first-person + fps.
+- `set_camera` (MCP/HTTP) accepts the same `mode` values plus `control_scheme`
+  for live switching during a dev session; the editor's Camera panel has Rig and
+  Scheme combos for the same thing.
 
 **Timer Countdown HUD:**
 - Add `"hud": true` (and optional `"hudLabel"`) to a timer trigger to show a large
