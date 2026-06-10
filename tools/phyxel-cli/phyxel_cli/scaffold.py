@@ -45,6 +45,21 @@ live in the Phyxel repo — do not edit engine source from here; this is the *ga
 ## Workflow
 Use the `phyxel-*` skills (characters, scenes, menus, assets, playtest, package) for standard
 procedures. Log gotchas / engine feature-requests with `/feedback` so they reach engine dev.
+
+## Customizing engine behavior (two layers)
+1. **Data first** — most behavior is declarative: `game.json` (world, player, per-scene
+   `camera.mode` / `camera.controlScheme`, npcs, story, triggers) + the live MCP tools.
+   Always prefer this layer.
+2. **C++ overrides** — IF this project has its own sources (`<Game>.h/.cpp`,
+   `CMakeLists.txt`), the game class subclasses **`Phyxel::Core::GameShell`** and that
+   subclass is YOURS to edit (the "don't edit engine source" rule means the engine repo,
+   not the game's own code). Override points: `defaultRigName()` / `defaultSchemeName()`
+   (camera defaults), `onCameraRigResolved(rig)` (tweak distance/fov/eyeHeight/orthoScale),
+   or install a fully custom `Graphics::CameraRig` / `Input::ControlScheme` subclass via
+   `gameplayCamera().setRig(...)` / `.setScheme(...)`. Full override ladder: the engine's
+   `docs/CameraControlSystem.md` §4. Rebuild with `cmake --build build --config Debug`,
+   then repackage. (JSON-only dev projects made by `phyxel new` have no C++ — their
+   ceiling is data + MCP; scaffold a full project via `create_project.py` to get code.)
 """
 
 # A minimal dev-project game.json for `phyxel new` (flat ground + an animated player).

@@ -36,6 +36,20 @@ Live iteration: `set_camera` accepts the same `mode` values + `control_scheme` �
 running game/editor between styles instantly to find what fits. Defaults when unauthored:
 first-person + fps. Full design: engine `docs/CameraControlSystem.md`.
 
+### When JSON isn't enough — override the engine classes (C++ projects only)
+A scaffolded game's class subclasses `Phyxel::Core::GameShell`; that subclass is the game's
+own code and the intended customization surface. Escalate in order:
+1. **Virtual hooks** on your game class: `defaultRigName()` / `defaultSchemeName()` (change
+   the unauthored defaults) and `onCameraRigResolved(Graphics::CameraRig& rig)` (tweak knobs:
+   `rig.distance`, `rig.fov`, `rig.eyeHeight`, `rig.orthoScale`, pitch clamps).
+2. **Custom rig/scheme subclass**: derive from `Graphics::CameraRig` (override `update()` —
+   e.g. a wall-aware third-person that shortens `distance` near geometry) or
+   `Input::ControlScheme` (override `sample()` for bespoke key maps), then install it with
+   `gameplayCamera().setRig(std::make_unique<MyRig>())` / `.setScheme(...)` — live-safe on
+   any frame. Engine movement convention: **negative `forward` = move forward**.
+Then rebuild (`cmake --build build --config Debug`) and repackage. JSON-only dev projects
+(`phyxel new`, no C++ sources) can't do this — their ceiling is game.json + MCP.
+
 ## NPCs (`create_game_npc`, or the `"npcs"` array)
 Each NPC needs a **unique name**, a **position** above the surface (terrain height + ~2), and
 a **behavior**: `idle` (stays), `patrol` (waypoints), `wander` (random). Optional:
