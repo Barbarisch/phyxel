@@ -171,14 +171,18 @@ def create_project(
     # Build header file (no textwrap.dedent — control indentation directly)
     header_lines = [
         "#pragma once",
-        '#include "core/GameCallbacks.h"',
+        '#include "core/GameShell.h"',
         '#include "core/EngineRuntime.h"',
         '#include "scene/Entity.h"',
         *sorted(set(extra_includes)),
         "#include <memory>",
         "#include <vector>",
         "",
-        f"class {class_name} : public Phyxel::Core::GameCallbacks {{",
+        "// GameShell is the engine-side base for standalone games: it owns the",
+        "// gameplay camera + character control loop (rig/scheme resolved from each",
+        "// scene's camera block) so this scaffold stays thin and engine fixes",
+        "// propagate on rebuild. See docs/CameraControlSystem.md.",
+        f"class {class_name} : public Phyxel::Core::GameShell {{",
         "public:",
         f"    bool onInitialize(Phyxel::Core::EngineRuntime& engine) override;",
         f"    void onUpdate(Phyxel::Core::EngineRuntime& engine, float dt) override;",
@@ -565,8 +569,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // Start on the intro/splash screen (continues to the main menu), cursor free.
             // If the game's START scene is a menu scene, the SceneManager menu drives
             // instead (menuSceneActive_ is set in loadGameDefinition's callbacks) and
-            // this shell stays hidden underneath — no double menus.
-            screen_.setState(Phyxel::UI::ScreenState::Intro);
+            // this shell stays hidden underneath — no double menus. If the start scene
+            // is a WORLD scene (direct boot), onSceneReady already set Playing during
+            // the load above — don't stomp it back to Intro.
+            if (!Phyxel::UI::isGameRunning(screen_.getState())) {{
+                screen_.setState(Phyxel::UI::ScreenState::Intro);
+            }}
             updateCursorMode(engine);
 
             LOG_INFO("{class_name}", "Game initialized");
@@ -659,15 +667,19 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             const auto* active = smgr ? smgr->getActiveScene() : nullptr;
                             bool isMenu = active && active->sceneType == Phyxel::Core::SceneType::Menu;
                             if (isMenu) return;  // keep the menu visible
-                            // A world scene is ready. If we were showing a menu, drop it
-                            // and hand control to gameplay (the built-in shell would
-                            // otherwise still be on Intro underneath).
+                            // A world scene is ready: drop any menu and hand control to
+                            // gameplay. Setting Playing must NOT depend on a menu having
+                            // been shown — a game whose startScene is a world scene
+                            // (direct boot) otherwise stays on Intro and gameplay/camera
+                            // never initialize (renders garbage).
                             if (menuSceneActive_) {{
                                 menuSceneActive_ = false;
                                 if (gameMenuRenderer_) gameMenuRenderer_->unload();
-                                screen_.setState(Phyxel::UI::ScreenState::Playing);
-                                if (engine_) updateCursorMode(*engine_);
                             }}
+                            if (!Phyxel::UI::isGameRunning(screen_.getState())) {{
+                                screen_.setState(Phyxel::UI::ScreenState::Playing);
+                            }}
+                            if (engine_) updateCursorMode(*engine_);
                         }};
                         sm->setCallbacks(cb);
 
@@ -750,30 +762,13 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 }}
             }}
 
-            // Only process camera/movement input when actually playing, not in a
-            // dialogue, and not on a menu scene (the menu owns the mouse there).
+            // Character movement + camera are driven by GameShell's
+            // updateGameplayCamera() in onUpdate (it samples input through the
+            // scene's control scheme, moves the body, frames the camera, and
+            // owns mouse capture). Here we only pump InputManager for
+            // registered key actions, and only while actually playing.
             bool inDialogue = dialogueSystem_ && dialogueSystem_->isActive();
             if (Phyxel::UI::isGameRunning(screen_.getState()) && !inDialogue && !menuSceneActive_) {{
-                // Route player movement input to animated character
-                if (playerCharacter_) {{
-                    float forward = 0.0f, turn = 0.0f, strafe = 0.0f;
-                    if (input->isKeyPressed(GLFW_KEY_W)) forward += 1.0f;
-                    if (input->isKeyPressed(GLFW_KEY_S)) forward -= 1.0f;
-                    if (input->isKeyPressed(GLFW_KEY_A)) turn += 1.0f;
-                    if (input->isKeyPressed(GLFW_KEY_D)) turn -= 1.0f;
-
-                    playerCharacter_->setControlInput(forward, turn, strafe);
-                    playerCharacter_->setSprint(input->isKeyPressed(GLFW_KEY_LEFT_SHIFT));
-                    playerCharacter_->setCrouch(input->isKeyPressed(GLFW_KEY_LEFT_CONTROL));
-
-                    if (input->isKeyPressed(GLFW_KEY_SPACE)) {{
-                        playerCharacter_->jump();
-                    }}
-                    if (input->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT)) {{
-                        playerCharacter_->attack();
-                    }}
-                }}
-
                 input->processInput(engine.getLastDeltaTime());
             }}
         }}
@@ -798,16 +793,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             auto* physics = engine.getPhysicsWorld();
             if (physics) physics->stepSimulation(dt);
 
-            // Update player character + camera tracking. getCameraTrackPosition()
-            // is the body-center track point (same as the editor) — with the 0.5
-            // offset it lands at eye height for FirstPerson and frames the body
-            // for ThirdPerson.
+            // GameShell drives the gameplay camera + character control: resolves
+            // the rig/scheme from the active scene's camera block (re-resolving
+            // after transitions), samples input, moves the body, frames the
+            // camera. See docs/CameraControlSystem.md.
             if (playerCharacter_) {{
-                playerCharacter_->update(dt);
-                auto* cam = engine.getCamera();
-                if (cam) {{
-                    cam->updatePositionFromTarget(playerCharacter_->getCameraTrackPosition(), 0.5f);
-                }}
+                updateGameplayCamera(engine, dt, playerCharacter_);
 
                 // Gameplay events -> declarative triggers (win conditions).
                 if (playerCharacter_->consumeJustJumped()) triggers_.onEvent("player_jumped");
@@ -1054,6 +1045,12 @@ def main() -> None:
         help="Path to a game definition JSON file to generate from",
         default=None,
     )
+    parser.add_argument(
+        "--force", "-f",
+        help="Regenerate the scaffold into an existing project directory "
+             "(overwrites the generated C++/CMake files; back up local edits)",
+        action="store_true",
+    )
     args = parser.parse_args()
 
     phyxel_root = Path(__file__).resolve().parent.parent
@@ -1064,8 +1061,12 @@ def main() -> None:
         docs = Path(os.environ.get("USERPROFILE", os.path.expanduser("~"))) / "Documents" / "PhyxelProjects" / args.name
         output_dir = docs
 
-    if any((output_dir / f).exists() for f in ["CMakeLists.txt", "main.cpp"]):
+    if any((output_dir / f).exists() for f in ["CMakeLists.txt", "main.cpp"]) and not args.force:
         print(f"Error: {output_dir} already contains project files.", file=sys.stderr)
+        print("Use --force to regenerate the scaffold in place (game.json/worlds/resources",
+              file=sys.stderr)
+        print("are only rewritten if --game-definition is passed; back up local C++ edits!).",
+              file=sys.stderr)
         sys.exit(1)
 
     game_definition = None
