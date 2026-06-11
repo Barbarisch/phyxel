@@ -189,3 +189,56 @@ Scaffold default-player collision: when startScene is a menu scene, the generate
 > manifest (multi-scene): each world scene spawns its own definition player (or playerDefaults).
 > Combined with the unload clearEntities fix, "Entity ID already taken: player" is gone —
 > verified: exactly one cleanly-registered player per world scene.
+
+## 2026-06-10 — TestVideoGame1 — feature-request
+game.json structure fills only place voxels into EMPTY air and silently fail against existing terrain or earlier fills (observed: fill_region over a Flat-world floor at the terrain surface returned placed:0 failed:432; in-manifest fills behaved the same, e.g. glass windows placed at coords already filled by a wall, or a glow firebox placed inside an already-filled stone hearth). Request: a 'replace': true flag on fill structures (and fill_region), plus surfacing placed/failed counts in the GameDefinitionLoader 'structures=N' log line so silent collisions are visible.
+
+> **RESOLVED:** fill structures and fill_region (sync + async job paths + MCP schema) accept
+> "replace": true — occupied voxels are removeCubeFast'd (deferred re-mesh) then overwritten.
+> The loader now logs per-fill placed/failed at INFO with the coords and a "(occupied voxels
+> skipped — add \"replace\": true to overwrite)" hint when a non-replace fill collides.
+
+## 2026-06-10 — TestVideoGame1 — gotcha
+The phyxel-world skill's material list is outdated: it lists Cork and Rubber which do not exist in the engine (an unknown material like Cork renders as a magenta missing-texture checkerboard instead of erroring at load/validate time). The actual palette (list_materials, 19 entries) also includes Log, Cobblestone, StoneBricks, Bricks, Sandstone, Gravel, Sand, Gold and Mirror, none of which the skill mentions. Fix the skill doc, and consider making validate_game_definition / fill loading reject unknown material names.
+
+> **RESOLVED:** phyxel-world skill AND the engine repo's own CLAUDE.md table (also stale!)
+> rewritten from resources/materials.json (19 materials, real physics values).
+> GameDefinitionLoader::validate now rejects unknown structure materials ("Unknown material 'X'
+> ... see list_materials") and the fill loader skips them with LOG_ERROR instead of rendering
+> magenta. Registry-empty guard keeps bare unit tests unaffected.
+
+## 2026-06-10 — TestVideoGame1 — feature-request
+Dialogue trees support only id/speaker/text/emotion/choices/nextNodeId - no actions, conditions, or variables - and declarative triggers support only 'timer' and 'entity_reached_region'. So a core RPG pattern like 'convince 3 NPCs, then the win condition unlocks' cannot be expressed: conversation outcomes leave no machine-readable state. Built TestVideoGame1 (The Gilded Tankard) with knowledge-gating as the workaround (NPC dialogue TEXT tells the player where a hidden entity_reached_region win spot is, but nothing stops a player who skips the dialogue). Request, in preference order: (a) node-level actions on dialogue nodes (set_story_variable, complete_objective, transition_scene), (b) a 'dialogue_node_reached' trigger event keyed by tree/node id, (c) choice-level conditions on story variables so trees can branch on earned state.
+
+> **RESOLVED — all three, live-verified end-to-end:** (a) DialogueNode "actions" execute on
+> node entry through the SAME executor as trigger "then" entries (set_story_variable /
+> complete_objective / fail_objective / transition_scene / quit_game;
+> TriggerSystem::executeHostAction shares the vocabulary; set_story_variable action added to
+> the editor + scaffold executors). (b) every node shown fires dialogue_node_reached
+> {tree,node,speaker}; TriggerSystem::onEvent now matches ANY non-reserved "when" key against
+> the event payload (was id-only), so {"when":{"event":"dialogue_node_reached",
+> "node":"give_secret"}} works. (c) DialogueChoice "condition" on story variables
+> (equals/not_equals/gte/lte/exists), evaluated via a host-wired StoryEngine resolver; missing
+> variables FAIL CLOSED (gated choice hidden until earned). Hosts (editor + scaffold template)
+> wire setEventSink/setActionExecutor/setVariableResolver. Verified live: gated choice hidden ->
+> earn_trust node action sets variable -> choice appears -> give_secret completes the objective +
+> payload-matched trigger fires. Documented in GameCreationGuide + phyxel-characters skill.
+> BONUS: fixed add_trigger/remove_trigger MCP handlers (NameError: 'arguments' vs 'args' —
+> add_trigger via MCP never worked).
+
+## 2026-06-10 — TestVideoGame1 — gotcha
+Process gap, from building a tavern game: the session hand-built ALL furniture (bar counter, tables, stools, barrels, hearth) from full-size voxel fill structures, then discovered afterwards that the template catalog already had purpose-built assets for nearly every one of them (tavern_bar, tavern_table, table_wood, chair_wood, stool, bench_wood, barrel, crate_wood, fireplace, candle_holder, lantern, torch_wall, tavern_test building - 50 templates with subcube/microcube detail far beyond what fills can do). Nothing in the world-building workflow points at the catalog: the phyxel-world skill presents fills+templates as equals without a furnish-with-templates-first rule, and the playtest skill never mentions assets. Suggest: (a) phyxel-world skill should say explicitly 'interiors/props: search_templates FIRST, fills are for shells/terrain only'; (b) the game-definition docs should show a structures example mixing fills (walls) with type:template entries (furniture); (c) consider having validate_game_definition or the loader warn when a definition contains many small fills that look like hand-built furniture. Also minor friction: list_templates errors with 'No game project is loaded' while a menu scene is active (list_generated_templates works) - catalog browsing should not require an active world.
+
+> **RESOLVED (a, b, + the friction; c dropped):** phyxel-world skill now leads with
+> "Templates FIRST for interiors & props — fills are for shells/terrain ONLY" and advertises
+> the tavern set; GameCreationGuide structures section shows a mixed fills+templates interior
+> example. list_templates added to the MCP _NO_PROJECT_TOOLS whitelist (catalog browsing works
+> during menu scenes / before a world loads). (c) — a loader heuristic warning on
+> "furniture-looking fills" — dropped as over-clever/low-value.
+
+## 2026-06-10 — TestVideoGame1 — feature-request
+Asset wishlist from building a tavern dialogue game (The Gilded Tankard) - items the session wanted but the template catalog lacks; queue for generation/authoring as a 'tavern interior' set: (1) tankard/beer mug (bar top + table clutter, the game is literally named after one), (2) ale/wine bottle, single, (3) bottle shelf row / back-bar rack with bottles (the session faked this with a Wood/Glass/Wood fill sandwich), (4) large keg with tap spigot (bigger than barrel, sits behind the bar), (5) hanging tavern sign (exterior, post + board), (6) chandelier / hanging candle wheel (interior overhead light), (7) rug/floor mat (since fills cannot recolor terrain floors, a flat template is the only way to vary interior flooring), (8) cellar trapdoor/hatch (would have been a better hidden-secret marker than a glow voxel), (9) food set: plate, bread loaf, cheese wheel (table dressing), (10) sack/grain bag (storeroom clutter), (11) wall decor: mounted antlers or framed painting, (12) serving tray. Existing set that should be advertised to sessions: tavern_bar, tavern_table, chair_wood, stool, bench_wood, barrel, crate_wood, fireplace, candle_holder, lantern, torch_wall.
+
+> **ROADMAPPED:** queued in docs/AgentContext.md as the "tavern asset batch" for a BlockSmith
+> /generate session (12 items). The "advertise the existing tavern set" half is done — the
+> phyxel-world skill + GameCreationGuide now name those templates explicitly.

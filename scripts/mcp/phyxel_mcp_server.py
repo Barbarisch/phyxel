@@ -612,7 +612,7 @@ async def list_tools() -> list[Tool]:
         # ================================================================
         Tool(
             name="fill_region",
-            description="Fill a 3D box region with voxels. Specify two opposite corners. Optionally make it hollow (shell only). Max 100,000 voxels per call.",
+            description="Fill a 3D box region with voxels. Specify two opposite corners. Optionally make it hollow (shell only). Max 100,000 voxels per call. NOTE: by default voxels only land in EMPTY air — positions already occupied (terrain, earlier fills) count as 'failed' in the response; pass replace=true to overwrite them.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -623,7 +623,8 @@ async def list_tools() -> list[Tool]:
                     "y2": {"type": "integer", "description": "Opposite corner Y"},
                     "z2": {"type": "integer", "description": "Opposite corner Z"},
                     "material": {"type": "string", "description": "Material name (e.g. 'Stone', 'Wood', 'Metal', 'Glass', 'glow'). Use list_materials to see all."},
-                    "hollow": {"type": "boolean", "description": "If true, only fill the outer shell (walls/floor/ceiling)", "default": False}
+                    "hollow": {"type": "boolean", "description": "If true, only fill the outer shell (walls/floor/ceiling)", "default": False},
+                    "replace": {"type": "boolean", "description": "If true, overwrite voxels that are already occupied (default: skip them, counted as failed)", "default": False}
                 },
                 "required": ["x1", "y1", "z1", "x2", "y2", "z2"]
             }
@@ -4294,6 +4295,8 @@ _NO_PROJECT_TOOLS = {
     "launch_asset_editor", "close_asset_editor", "reload_asset_editor",
     "inspect_template", "critique_template", "refine_template",
     "list_generated_templates", "search_templates",
+    # Catalog browsing is static — must work during menu scenes / before a world loads
+    "list_templates",
     # D&D stateless tools — no engine needed
     "roll_dice", "check_dc",
 }
@@ -4498,6 +4501,8 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             body["material"] = args["material"]
         if "hollow" in args:
             body["hollow"] = args["hollow"]
+        if "replace" in args:
+            body["replace"] = args["replace"]
         return await api_post_async("/api/world/fill", body)
 
     # --- Materials ---
@@ -5123,13 +5128,13 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         return await api_post("/api/character/player_state", {})
 
     elif name == "add_trigger":
-        return await api_post("/api/triggers/add", arguments)
+        return await api_post("/api/triggers/add", args)
 
     elif name == "list_triggers":
         return await api_get("/api/triggers")
 
     elif name == "remove_trigger":
-        return await api_post("/api/triggers/remove", {"id": arguments.get("id", "")})
+        return await api_post("/api/triggers/remove", {"id": args.get("id", "")})
 
     elif name == "damage_player":
         return await api_post("/api/game/health", {

@@ -74,21 +74,31 @@ Use the `/visual-test` skill — it handles the full lifecycle (build check → 
 
 ## Materials
 
-Predefined in `MaterialManager` (engine/src/physics/Material.cpp). Names are **case-sensitive**.
+Data-driven from `resources/materials.json` (19 materials). Names are **case-sensitive**;
+an unknown name renders as a magenta missing-texture checkerboard. Confirm live with the
+`list_materials` MCP tool. (Cork and Rubber no longer exist.)
 
-| Name    | Mass | Friction | Restitution | Notes            |
-|---------|------|----------|-------------|------------------|
-| Wood    | 0.7  | 0.6      | 0.2         | Light, natural   |
-| Metal   | 4.0  | 0.7      | 0.1         | Heavy            |
-| Glass   | 1.5  | 0.2      | 0.6         | Brittle, bouncy  |
-| Rubber  | 0.5  | 0.9      | 0.9         | Very bouncy      |
-| Stone   | 6.0  | 0.8      | 0.05        | Heaviest, rough  |
-| Ice     | 0.9  | 0.1      | 0.4         | Very slippery    |
-| Cork    | 0.2  | 0.5      | 0.4         | Ultra-light      |
-| Dirt    | 2.0  | 0.7      | 0.1         | Earth/terrain sub-surface |
-| glow    | 1.0  | 0.5      | 0.5         | Emissive         |
-| Leaf    | 0.1  | 0.3      | 0.1         | Light foliage for trees/bushes |
-| Default | 1.0  | 0.5      | 0.3         | Balanced         |
+| Name        | Mass | Friction | Restitution | Notes |
+|-------------|------|----------|-------------|-------|
+| Default     | 1.0  | 0.5      | 0.3         | Error/fallback indicator |
+| Dirt        | 2.0  | 0.7      | 0.1         | Terrain sub-surface |
+| Grass       | 1.8  | 0.7      | 0.1         | Grass-topped dirt (terrain surface) |
+| Stone       | 6.0  | 0.8      | 0.05        | Dense smooth stone |
+| Cobblestone | 5.0  | 0.9      | 0.05        | Rough quarried stone |
+| StoneBricks | 6.0  | 0.8      | 0.05        | Cut stone blocks with mortar |
+| Sand        | 1.5  | 0.5      | 0.1         | Light granular |
+| Gravel      | 2.5  | 0.7      | 0.1         | Loose gravel |
+| Wood        | 0.7  | 0.6      | 0.2         | Oak planks |
+| Log         | 0.7  | 0.6      | 0.2         | Oak log, bark sides + ring caps |
+| Bricks      | 4.0  | 0.8      | 0.05        | Red clay bricks |
+| Sandstone   | 3.0  | 0.7      | 0.1         | Layered sandstone |
+| Glass       | 1.5  | 0.2      | 0.6         | Brittle, transparent |
+| Metal       | 4.0  | 0.7      | 0.1         | Heavy iron |
+| Gold        | 8.0  | 0.4      | 0.2         | Densest, lustrous |
+| Ice         | 0.9  | 0.1      | 0.4         | Very slippery |
+| Leaf        | 0.1  | 0.3      | 0.1         | Light foliage |
+| glow        | 1.0  | 0.5      | 0.5         | Emissive |
+| Mirror      | 2.5  | 0.4      | 0.1         | Reflective (mirror pass) |
 
 Atlas: 84 textures total, 512×512. Source PNGs in `resources/textures/source/`. Rebuild after atlas changes: `.\build_shaders.bat` (also manually recompile `voxel.frag` since glslc doesn't track `#include` deps)
 Lookup: `MaterialRegistry::instance().getTextureIndex(materialID, faceID)` — data-driven via `resources/materials.json`

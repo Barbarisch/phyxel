@@ -77,19 +77,40 @@ Chunk range determines world size. Each chunk is 32×32×32 blocks:
 
 ### Step 3: Add Structures
 
-Structures are placed after terrain generation. Two types:
+Structures are placed after terrain generation. Two types — **use fills for shells/terrain,
+templates for everything detailed** (furniture, props, decor: `search_templates` the catalog
+FIRST; ~50 purpose-built assets with subcube/microcube detail exist — don't hand-build a
+chair out of fill boxes).
 
 **Fill regions** — solid or hollow boxes of a material:
 ```json
 {"type": "fill", "from": {"x":0,"y":16,"z":0}, "to": {"x":10,"y":20,"z":10}, "material": "Stone"}
 ```
+Fills only place into **empty air**; voxels already occupied by terrain or earlier fills are
+skipped (the loader logs per-fill `placed/failed` counts). Add `"replace": true` to overwrite
+occupied voxels (e.g. carving windows into an existing wall with Glass).
 
 **Templates** — pre-built objects:
 ```json
 {"type": "template", "name": "tree.voxel", "position": {"x":15,"y":17,"z":15}}
 ```
 
-Available templates: `tree.voxel`, `tree2.voxel`, `sphere.voxel`, `test_castle_optimized.voxel`
+**A typical interior mixes both** — fills for the shell, templates for the furnishing:
+```json
+"structures": [
+  {"type": "fill", "from": {"x":10,"y":16,"z":10}, "to": {"x":26,"y":16,"z":26}, "material": "Wood"},
+  {"type": "fill", "from": {"x":10,"y":17,"z":10}, "to": {"x":26,"y":22,"z":26}, "material": "Stone", "hollow": true},
+  {"type": "fill", "from": {"x":14,"y":18,"z":10}, "to": {"x":16,"y":20,"z":10}, "material": "Glass", "replace": true},
+  {"type": "template", "name": "tavern_bar.voxel",  "position": {"x":12,"y":17,"z":20}},
+  {"type": "template", "name": "tavern_table.voxel","position": {"x":18,"y":17,"z":14}},
+  {"type": "template", "name": "chair_wood.voxel",  "position": {"x":20,"y":17,"z":14}},
+  {"type": "template", "name": "fireplace.voxel",   "position": {"x":24,"y":17,"z":24}}
+]
+```
+
+Browse the catalog with `search_templates` / `list_templates` (e.g. the tavern set:
+`tavern_bar`, `tavern_table`, `chair_wood`, `stool`, `bench_wood`, `barrel`, `crate_wood`,
+`fireplace`, `candle_holder`, `lantern`, `torch_wall`).
 
 ### Step 4: Create NPCs
 
@@ -99,6 +120,36 @@ Each NPC needs:
 - **Behavior**: `idle` (stays put), `patrol` (walks waypoints), `wander` (random movement)
 - **Dialogue** (optional): branching conversation tree
 - **Story character** (optional): personality traits, goals, faction
+
+**Dialogue → gameplay state.** Conversation outcomes are machine-readable, so patterns like
+"convince 3 NPCs, then the win unlocks" are fully declarative:
+
+```json
+"nodes": [
+  { "id": "give_secret", "speaker": "Greta",
+    "text": "...fine. The key is under the cellar hatch.",
+    "actions": [
+      {"type": "set_story_variable", "name": "greta_secret", "value": true},
+      {"type": "complete_objective", "id": "obj_greta"}
+    ],
+    "nextNodeId": "" },
+  { "id": "hub", "speaker": "Greta", "text": "What do you want?",
+    "choices": [
+      {"text": "Tell me the secret.", "targetNodeId": "give_secret",
+       "condition": {"variable": "greta_trust", "equals": true}},
+      {"text": "Nothing, sorry.", "targetNodeId": ""}
+    ]}
+]
+```
+
+- **Node `actions`** run when the node is shown — same vocabulary as trigger `then` entries:
+  `set_story_variable {name,value}`, `complete_objective {id}`, `fail_objective {id}`,
+  `transition_scene {target}`, `quit_game`.
+- **Choice `condition`** hides a choice until earned: `equals` / `not_equals` / `gte` / `lte` /
+  `"exists": true` against a story variable. Missing variables fail closed (choice hidden).
+- Every node shown fires a **`dialogue_node_reached`** gameplay event `{tree, node, speaker}` —
+  triggers can gate on it: `{"when": {"event":"dialogue_node_reached","node":"give_secret"},
+  "then": [...]}`. Extra `when` keys must match the event payload.
 
 ### Step 5: Write the Story
 

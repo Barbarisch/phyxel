@@ -12,10 +12,18 @@ void TriggerSystem::onEvent(const std::string& type, const json& data) {
     for (Trigger& t : m_triggers) {
         if (t.fired && t.once) continue;
         if (t.event != type) continue;
-        // Optional payload-id matching (e.g. objective_complete {id: "win"}).
-        if (t.when.contains("id")) {
-            if (!data.contains("id") || data["id"] != t.when["id"]) continue;
+        // Payload matching: every non-reserved key in "when" must equal the
+        // event payload's value — e.g. objective_complete {id:"win"} or
+        // dialogue_node_reached {tree:"greta", node:"give_secret"}. Reserved
+        // keys configure the condition itself, not the payload.
+        bool payloadMatch = true;
+        for (auto it = t.when.begin(); it != t.when.end(); ++it) {
+            const std::string& key = it.key();
+            if (key == "event" || key == "seconds" || key == "entity" || key == "region")
+                continue;
+            if (!data.contains(key) || data[key] != it.value()) { payloadMatch = false; break; }
         }
+        if (!payloadMatch) continue;
         fire(t);
     }
 }

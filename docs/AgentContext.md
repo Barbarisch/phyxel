@@ -177,6 +177,35 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     `UI::renderCountdownHud`, foreground) and **menu `{{token}}` interpolation**
     (`{{playtime}}`, `{{story.<var>}}` via `GameMenuRenderer::onResolveVariable`).
   - **move_entity "player"** now teleports the LIVE character controller.
+- **Game-dev feedback round 4** (TestVideoGame1 / "The Gilded Tankard" tavern-mystery
+  session, 2026-06-10; entries + resolutions in `docs/feedback/archive.md`):
+  - **Dialogue → gameplay state (the headline):** dialogue nodes now carry declarative
+    `"actions"` (set_story_variable / complete_objective / fail_objective /
+    transition_scene / quit_game — the SAME vocabulary as trigger `then`, routed through
+    `TriggerSystem::executeHostAction`), choices carry a `"condition"` on story variables
+    (`equals/not_equals/gte/lte/exists`; missing variable FAILS CLOSED), and every node
+    shown fires a **`dialogue_node_reached`** `{tree,node,speaker}` gameplay event.
+    `TriggerSystem::onEvent` now matches **any** non-reserved `when` key against the
+    event payload (was id-only). Hosts (editor + scaffold template) wire three
+    DialogueSystem hooks: setEventSink → triggers, setActionExecutor →
+    executeHostAction, setVariableResolver → StoryEngine WorldState. "Convince 3 NPCs
+    then win" is now fully data-drivable.
+  - **Fill semantics:** structure fills + `fill_region` accept `"replace": true`
+    (overwrite occupied voxels); the loader logs per-fill `placed/failed` at INFO with a
+    hint when a non-replace fill collides (was a silent `LOG_DEBUG`).
+  - **Material validation:** `validate()` rejects unknown material names in structures;
+    the fill loader skips them with LOG_ERROR (they used to render as the magenta
+    missing-texture checkerboard). Engine CLAUDE.md + phyxel-world skill material lists
+    corrected from `resources/materials.json` (19 materials; Cork/Rubber are GONE).
+  - **Templates-first guidance:** phyxel-world skill + GameCreationGuide now say
+    "interiors/props: `search_templates` FIRST, fills are for shells/terrain" with a
+    mixed fills+templates example (the session hand-built a whole tavern out of fills
+    while 50 purpose-built templates sat in the catalog). `list_templates` added to the
+    MCP `_NO_PROJECT_TOOLS` whitelist (catalog browsing during menu scenes).
+  - **ROADMAP — tavern asset batch (queue for a BlockSmith `/generate` session):**
+    tankard/beer mug, ale/wine bottle, bottle-shelf row, large keg w/ tap, hanging tavern
+    sign, chandelier/candle wheel, rug/floor mat, cellar trapdoor, food set
+    (plate/bread/cheese), sack/grain bag, wall decor (antlers/painting), serving tray.
   - **ROADMAP (IN PROGRESS): engine-side game-shell base classes.** The scaffold embeds
     ~29KB of shell logic (ScreenState machine, menu renderer wiring, trigger executor,
     camera follow) in every generated game — copies rot and engine fixes don't propagate

@@ -18,7 +18,18 @@ Types: **Flat** (indoor/arenas/custom builds), **Perlin** (natural terrain), **M
 ## Structures (the `"structures"` array, or live edits)
 - **fill** — solid/`"hollow": true` box of a material:
   `{"type":"fill","from":{...},"to":{...},"material":"Stone"}`.
+  NOTE: fills only place into EMPTY air — voxels already occupied (terrain, earlier fills)
+  are skipped. Add `"replace": true` to overwrite occupied voxels. The loader logs
+  `placed/failed` counts per fill — check them after load.
 - **template** — a pre-built object: `{"type":"template","name":"tree.voxel","position":{...}}`.
+
+**Templates FIRST for interiors & props.** Fills are for shells/terrain (walls, floors,
+platforms) ONLY. Before hand-building any furniture or prop from fills, `search_templates` —
+the catalog has ~50 detailed assets (subcube/microcube detail far beyond fills), e.g. the
+tavern set: `tavern_bar`, `tavern_table`, `table_wood`, `chair_wood`, `stool`, `bench_wood`,
+`barrel`, `crate_wood`, `fireplace`, `candle_holder`, `lantern`, `torch_wall`. Mix in one
+structures array: fills for the building shell + `type:"template"` entries for furnishing.
+If the catalog lacks an item, generate it (`generate_template`) or log `/feedback`.
 
 ## Live terrain editing (MCP)
 `fill_region` (+ `material`) / `clear_region` (max 100k voxels) for boxes; `clear_chunk`
@@ -27,7 +38,10 @@ detail; `spawn_template` for objects. Coordinates: X=right, **Y=up**, Z=toward v
 right-handed; world coords may be negative. After big edits, `save_world`.
 
 ## Materials
-Wood, Metal, Glass, Rubber, Stone, Ice, Cork, Dirt, glow, Leaf, Default (case-sensitive).
+The full palette (case-sensitive, from `resources/materials.json` — confirm live with
+`list_materials`): Default, Dirt, Grass, Stone, Cobblestone, StoneBricks, Sand, Gravel,
+Wood, Log, Bricks, Sandstone, Glass, Metal, Gold, Ice, Leaf, glow, Mirror.
+An unknown name renders as a magenta missing-texture checkerboard — validate before load.
 
 ## Multi-scene games
 Use a `"scenes"` array instead of a top-level `"world"`; each scene has its own `id`,

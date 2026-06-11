@@ -23,8 +23,10 @@ namespace Core {
 //
 // Conditions ("when"):
 //   - "event": any gameplay event name fed through onEvent() — e.g.
-//     player_jumped, player_landed, objective_complete. If "when" also carries
-//     an "id", the event payload's "id" must match (objective_complete {id}).
+//     player_jumped, player_landed, objective_complete, dialogue_node_reached.
+//     Any OTHER key in "when" (besides the reserved seconds/entity/region) must
+//     equal the event payload's value — e.g. objective_complete {"id":"win"} or
+//     dialogue_node_reached {"tree":"greta","node":"give_secret"}.
 //   - "event": "timer" — fires once "seconds" have elapsed since the trigger
 //     was added.
 //   - "event": "entity_reached_region" — fires when "entity" ("player" or an
@@ -33,7 +35,8 @@ namespace Core {
 // Actions ("then": array): executed through the host-provided ActionExecutor,
 // keeping this system decoupled from the engine front-end. Hosts implement at
 // least: complete_objective {id}, fail_objective {id},
-// transition_scene {target}, quit_game.
+// transition_scene {target}, quit_game, set_story_variable {name, value}.
+// Dialogue node "actions" share this vocabulary via executeHostAction().
 //
 // Fired actions are QUEUED and drained inside update(), so they always execute
 // at the host's safe point in the frame, never mid-event-dispatch.
@@ -52,6 +55,13 @@ public:
 
     void setActionExecutor(ActionExecutor fn) { m_execute = std::move(fn); }
     void setEventSink(EventSink fn) { m_eventSink = std::move(fn); }
+
+    /// Run one action through the host-provided executor. Lets other systems
+    /// (e.g. dialogue node actions) share the trigger "then" action vocabulary
+    /// without duplicating the host's executor wiring.
+    void executeHostAction(const nlohmann::json& action, const std::string& sourceId) {
+        if (m_execute) m_execute(action, sourceId);
+    }
 
     /// Feed a gameplay event. Matching triggers are marked fired and their
     /// actions queued (executed on the next update()).

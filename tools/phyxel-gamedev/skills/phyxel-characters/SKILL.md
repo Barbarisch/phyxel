@@ -56,6 +56,22 @@ a **behavior**: `idle` (stays), `patrol` (waypoints), `wander` (random). Optiona
 - **dialogue** — a tree: `{id, startNodeId, nodes:[{id, speaker, text, ...}]}`.
 - **storyCharacter** — `{id, faction, agencyLevel, traits{...}, goals[...]}` for story-aware NPCs.
 
+### Dialogue → gameplay state (actions, conditions, trigger events)
+Conversation outcomes are machine-readable — "convince 3 NPCs, then the win unlocks" is
+fully declarative:
+- **Node actions** (run when the node is shown): `"actions": [{"type":"set_story_variable",
+  "name":"greta_secret","value":true}, {"type":"complete_objective","id":"obj_greta"}]`.
+  Same vocabulary as trigger `then` entries (also `transition_scene`, `quit_game`).
+- **Choice conditions** (hide a choice until earned): `"condition": {"variable":"greta_trust",
+  "equals":true}` on a choice — also `not_equals` / `gte` / `lte` / `"exists":true`. A missing
+  variable FAILS CLOSED (choice hidden).
+- **Trigger event**: every node shown fires `dialogue_node_reached` `{tree, node, speaker}` —
+  gate triggers on conversation progress:
+  `{"when":{"event":"dialogue_node_reached","node":"give_secret"}, "then":[...]}`.
+- Combine with a counting pattern: each informant's final node sets its own variable +
+  completes an objective; a trigger on `objective_complete` (or a final dialogue choice
+  conditioned on all three variables) transitions to the win scene.
+
 Inspect/iterate: `list_npcs`, `spawn_npc`, `set_npc_behavior`, `set_npc_dialogue`,
 `set_npc_appearance`, `remove_npc`. Dialogue runtime: `start_dialogue`, `advance_dialogue`,
 `select_dialogue_choice`.

@@ -430,6 +430,20 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             objectiveTracker.completeObjective(a.value("id", ""));
         } else if (type == "fail_objective") {
             objectiveTracker.failObjective(a.value("id", ""));
+        } else if (type == "set_story_variable") {
+            // {"type":"set_story_variable","name":"greta_secret","value":true}
+            const std::string name = a.value("name", "");
+            if (storyEngine && !name.empty() && a.contains("value")) {
+                const auto& val = a["value"];
+                auto& ws = storyEngine->getWorldState();
+                if      (val.is_boolean())        ws.setVariable(name, val.get<bool>());
+                else if (val.is_number_integer()) ws.setVariable(name, val.get<int>());
+                else if (val.is_number_float())   ws.setVariable(name, val.get<float>());
+                else if (val.is_string())         ws.setVariable(name, val.get<std::string>());
+                else LOG_WARN("TriggerSystem", "set_story_variable '{}': unsupported value type (from '{}')", name, tid);
+            } else {
+                LOG_WARN("TriggerSystem", "set_story_variable missing name/value or no story engine (from '{}')", tid);
+            }
         } else if (type == "transition_scene") {
             auto* sm = runtime ? runtime->getSceneManager() : nullptr;
             const std::string target = a.value("target", a.value("scene_id", ""));
@@ -1510,6 +1524,22 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     dialogueSystem = std::make_unique<UI::DialogueSystem>();
     dialogueSystem->setGameEventLog(gameEventLog.get());
     if (runtime) dialogueSystem->setTTSService(runtime->getTTSService());
+    // Declarative dialogue hooks: node-reach events feed the trigger system,
+    // node actions run through the same executor as trigger "then" entries,
+    // and choice conditions read story variables. (members outlive systems)
+    dialogueSystem->setEventSink([this](const std::string& type, const nlohmann::json& data) {
+        if (triggerSystem) triggerSystem->onEvent(type, data);
+    });
+    dialogueSystem->setActionExecutor([this](const nlohmann::json& a) {
+        if (triggerSystem) triggerSystem->executeHostAction(a, "dialogue");
+    });
+    dialogueSystem->setVariableResolver(
+        [this](const std::string& name) -> std::optional<nlohmann::json> {
+            if (!storyEngine) return std::nullopt;
+            const auto* var = storyEngine->getWorldState().getVariable(name);
+            if (!var) return std::nullopt;
+            return std::visit([](const auto& v) { return nlohmann::json(v); }, var->value);
+        });
 
     // Personality-driven voice: let each character's VoiceProfile (gender/age/rate/...)
     // pick the Piper speaker + speaking rate. voiceKey is the NPC/character id.
@@ -9616,6 +9646,9 @@ void Application::processAPICommands() {
                     int z2 = cmd.params.value("z2", 0);
                     std::string material = cmd.params.value("material", "");
                     bool hollow = cmd.params.value("hollow", false);
+                    // replace=true overwrites occupied voxels (default: fills only
+                    // land in empty air and occupied positions count as failed).
+                    bool replace = cmd.params.value("replace", false);
 
                     // Normalize coordinates
                     int minX = std::min(x1, x2), maxX = std::max(x1, x2);
@@ -9646,6 +9679,9 @@ void Application::processAPICommands() {
                                         continue;
                                     }
                                     glm::ivec3 worldPos(ix, iy, iz);
+                                    if (replace && chunkManager->hasVoxelAt(worldPos)) {
+                                        chunkManager->removeCubeFast(worldPos);  // defers re-mesh
+                                    }
                                     glm::ivec3 cc = ChunkManager::worldToChunkCoord(worldPos);
                                     glm::ivec3 lp = ChunkManager::worldToLocalCoord(worldPos);
                                     chunkBatches[cc].push_back(lp);
@@ -12554,6 +12590,7 @@ void Application::processAPICommands() {
                         int x2 = jobParams.value("x2", 0), y2 = jobParams.value("y2", 0), z2 = jobParams.value("z2", 0);
                         std::string material = jobParams.value("material", "");
                         bool hollow = jobParams.value("hollow", false);
+                        bool replace = jobParams.value("replace", false);  // overwrite occupied voxels
                         
                         int minX = std::min(x1, x2), maxX = std::max(x1, x2);
                         int minY = std::min(y1, y2), maxY = std::max(y1, y2);
@@ -12580,11 +12617,11 @@ void Application::processAPICommands() {
                         
                         ChunkManager* cmFill = chunkManager;
                         Core::GameEventLog* evFill = gameEventLog.get();
-                        desc.backgroundWork = [cmFill, minX, maxX, minY, maxY, minZ, maxZ, material, hollow, volume](Core::JobContext& ctx) -> nlohmann::json {
+                        desc.backgroundWork = [cmFill, minX, maxX, minY, maxY, minZ, maxZ, material, hollow, replace, volume](Core::JobContext& ctx) -> nlohmann::json {
                             int placed = 0, failed = 0;
                             int64_t total = volume;
                             int64_t count = 0;
-                            
+
                             auto lock = cmFill->acquireWriteLock();
                             for (int ix = minX; ix <= maxX; ++ix) {
                                 for (int iy = minY; iy <= maxY; ++iy) {
@@ -12594,6 +12631,9 @@ void Application::processAPICommands() {
                                         }
                                         if (hollow && ix > minX && ix < maxX && iy > minY && iy < maxY && iz > minZ && iz < maxZ) {
                                             continue;
+                                        }
+                                        if (replace && cmFill->hasVoxelAt(glm::ivec3(ix, iy, iz))) {
+                                            cmFill->removeCubeFast(glm::ivec3(ix, iy, iz));  // defers re-mesh
                                         }
                                         bool ok = false;
                                         if (!material.empty()) {

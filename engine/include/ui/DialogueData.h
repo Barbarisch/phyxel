@@ -16,6 +16,12 @@ struct DialogueChoice {
     std::string targetNodeId;  ///< Node to jump to when selected
     /// Optional condition — if set and returns false, choice is hidden.
     std::function<bool()> condition;
+    /// Optional declarative condition on a story variable (serialized):
+    ///   {"variable":"greta_trust","equals":true}   — also: not_equals / gte /
+    ///   lte / "exists":true|false. Evaluated by DialogueSystem through the
+    ///   host-wired variable resolver; fails CLOSED (choice hidden) when the
+    ///   variable is missing. Empty/null = no condition.
+    nlohmann::json conditionJson;
 };
 
 /// A single node in a dialogue tree — one "page" of conversation.
@@ -26,6 +32,13 @@ struct DialogueNode {
     std::string emotion;       ///< Optional emotion tag (e.g. "happy", "angry")
     std::vector<DialogueChoice> choices;  ///< Player choices (empty = linear advance)
     std::string nextNodeId;    ///< Next node if no choices (empty = end of conversation)
+    /// Optional declarative actions executed when this node is ENTERED, e.g.
+    ///   [{"type":"set_story_variable","name":"greta_secret","value":true},
+    ///    {"type":"complete_objective","id":"obj_greta"}]
+    /// Routed through the host's action executor (same action set as trigger
+    /// "then" entries: set_story_variable / complete_objective / fail_objective /
+    /// transition_scene / quit_game). Empty/null = no actions.
+    nlohmann::json actions;
 };
 
 /// A complete dialogue tree loaded from JSON or constructed programmatically.
@@ -59,6 +72,9 @@ struct DialogueTree {
                 node.text = nodeJson.value("text", "");
                 node.emotion = nodeJson.value("emotion", "");
                 node.nextNodeId = nodeJson.value("nextNodeId", "");
+                if (nodeJson.contains("actions") && nodeJson["actions"].is_array()) {
+                    node.actions = nodeJson["actions"];
+                }
 
                 if (nodeJson.contains("choices") && nodeJson["choices"].is_array()) {
                     for (const auto& choiceJson : nodeJson["choices"]) {
@@ -69,7 +85,11 @@ struct DialogueTree {
                         if (choice.targetNodeId.empty()) {
                             choice.targetNodeId = choiceJson.value("nextNodeId", "");
                         }
-                        // condition is not serializable — set programmatically
+                        // std::function condition is not serializable — set
+                        // programmatically. The declarative form IS serialized:
+                        if (choiceJson.contains("condition") && choiceJson["condition"].is_object()) {
+                            choice.conditionJson = choiceJson["condition"];
+                        }
                         node.choices.push_back(std::move(choice));
                     }
                 }
@@ -92,9 +112,16 @@ struct DialogueTree {
             nodeJson["text"] = node.text;
             nodeJson["emotion"] = node.emotion;
             nodeJson["nextNodeId"] = node.nextNodeId;
+            if (node.actions.is_array() && !node.actions.empty()) {
+                nodeJson["actions"] = node.actions;
+            }
             nlohmann::json choicesArr = nlohmann::json::array();
             for (const auto& choice : node.choices) {
-                choicesArr.push_back({{"text", choice.text}, {"targetNodeId", choice.targetNodeId}});
+                nlohmann::json cj = {{"text", choice.text}, {"targetNodeId", choice.targetNodeId}};
+                if (choice.conditionJson.is_object() && !choice.conditionJson.empty()) {
+                    cj["condition"] = choice.conditionJson;
+                }
+                choicesArr.push_back(std::move(cj));
             }
             nodeJson["choices"] = choicesArr;
             nodesArr.push_back(nodeJson);

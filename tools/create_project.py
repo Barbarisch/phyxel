@@ -401,6 +401,23 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
 
             storyEngine_ = std::make_unique<Phyxel::Story::StoryEngine>();
 
+            // Declarative dialogue hooks: node-reach events feed triggers, node
+            // actions share the trigger "then" vocabulary, choice conditions
+            // read story variables. (See docs/GameCreationGuide.md.)
+            dialogueSystem_->setEventSink([this](const std::string& type, const nlohmann::json& data) {{
+                triggers_.onEvent(type, data);
+            }});
+            dialogueSystem_->setActionExecutor([this](const nlohmann::json& a) {{
+                triggers_.executeHostAction(a, "dialogue");
+            }});
+            dialogueSystem_->setVariableResolver(
+                [this](const std::string& name) -> std::optional<nlohmann::json> {{
+                    if (!storyEngine_) return std::nullopt;
+                    const auto* var = storyEngine_->getWorldState().getVariable(name);
+                    if (!var) return std::nullopt;
+                    return std::visit([](const auto& v) {{ return nlohmann::json(v); }}, var->value);
+                }});
+
             // Interaction manager — detects player proximity to NPCs, handles E-key
             interactionManager_ = std::make_unique<Phyxel::Core::InteractionManager>();
             interactionManager_->setEntityRegistry(entityRegistry_.get());
@@ -561,6 +578,17 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 }} else if (type == "show_credits") {{
                     screen_.showCredits();
                     if (engine_) updateCursorMode(*engine_);
+                }} else if (type == "set_story_variable") {{
+                    // {{"type":"set_story_variable","name":"flag","value":true}}
+                    const std::string name = a.value("name", "");
+                    if (storyEngine_ && !name.empty() && a.contains("value")) {{
+                        const auto& val = a["value"];
+                        auto& ws = storyEngine_->getWorldState();
+                        if      (val.is_boolean())        ws.setVariable(name, val.get<bool>());
+                        else if (val.is_number_integer()) ws.setVariable(name, val.get<int>());
+                        else if (val.is_number_float())   ws.setVariable(name, val.get<float>());
+                        else if (val.is_string())         ws.setVariable(name, val.get<std::string>());
+                    }}
                 }} else {{
                     LOG_WARN("{class_name}", "Unhandled trigger action '{{}}' (trigger '{{}}')", type, tid);
                 }}

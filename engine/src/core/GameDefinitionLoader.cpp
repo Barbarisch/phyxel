@@ -9,6 +9,7 @@
 #include "core/TriggerSystem.h"
 #include "core/HealthComponent.h"
 #include "core/LocationRegistry.h"
+#include "core/MaterialRegistry.h"
 #include "core/PlacedObjectManager.h"
 #include "scene/NPCEntity.h"
 #include "scene/AnimatedVoxelCharacter.h"
@@ -109,6 +110,17 @@ std::pair<bool, std::string> GameDefinitionLoader::validate(const json& definiti
             };
             if (validTypes.find(stype) == validTypes.end()) {
                 return {false, "Invalid structure type '" + stype + "' at index " + std::to_string(i)};
+            }
+            // Unknown material names render as a magenta missing-texture
+            // checkerboard at runtime — catch them here instead. Skipped when
+            // the registry isn't populated (e.g. bare unit tests).
+            if (s.contains("material") && s["material"].is_string()) {
+                const auto& reg = MaterialRegistry::instance();
+                const std::string mat = s["material"].get<std::string>();
+                if (reg.getMaterialCount() > 0 && !mat.empty() && !reg.hasMaterial(mat)) {
+                    return {false, "Unknown material '" + mat + "' in structure at index " +
+                            std::to_string(i) + " (names are case-sensitive; see list_materials)"};
+                }
             }
         }
     }
@@ -286,6 +298,21 @@ void GameDefinitionLoader::loadStructures(const json& structures, GameSubsystems
             int x2 = s["to"].value("x", 0), y2 = s["to"].value("y", 0), z2 = s["to"].value("z", 0);
             std::string material = s.value("material", "");
             bool hollow = s.value("hollow", false);
+            // "replace": true overwrites occupied voxels. Default fills only
+            // place into empty air (addCube fails on occupied) — historically a
+            // silent failure; we now count and log placed/failed either way.
+            bool replace = s.value("replace", false);
+
+            // Reject unknown materials loudly (they'd render as the magenta
+            // missing-texture checkerboard). Registry-empty guard for bare tests.
+            {
+                const auto& reg = MaterialRegistry::instance();
+                if (!material.empty() && reg.getMaterialCount() > 0 && !reg.hasMaterial(material)) {
+                    LOG_ERROR("GameDefinitionLoader", "Skipping fill: unknown material '" + material +
+                              "' (case-sensitive; see list_materials)");
+                    continue;
+                }
+            }
 
             int minX = std::min(x1, x2), maxX = std::max(x1, x2);
             int minY = std::min(y1, y2), maxY = std::max(y1, y2);
@@ -298,7 +325,7 @@ void GameDefinitionLoader::loadStructures(const json& structures, GameSubsystems
                 continue;
             }
 
-            int placed = 0;
+            int placed = 0, failed = 0;
             for (int ix = minX; ix <= maxX; ++ix) {
                 for (int iy = minY; iy <= maxY; ++iy) {
                     for (int iz = minZ; iz <= maxZ; ++iz) {
@@ -306,19 +333,32 @@ void GameDefinitionLoader::loadStructures(const json& structures, GameSubsystems
                             iy > minY && iy < maxY && iz > minZ && iz < maxZ) {
                             continue;
                         }
+                        const glm::ivec3 pos(ix, iy, iz);
+                        if (replace && sub.chunkManager->hasVoxelAt(pos)) {
+                            // removeCubeFast defers the re-mesh (chunk marked
+                            // dirty; per-frame updateDirtyChunks rebuilds once).
+                            sub.chunkManager->removeCubeFast(pos);
+                        }
                         bool ok = false;
                         if (!material.empty()) {
                             ok = sub.chunkManager->m_voxelModificationSystem.addCubeWithMaterial(
-                                glm::ivec3(ix, iy, iz), material);
+                                pos, material);
                         } else {
-                            ok = sub.chunkManager->addCube(glm::ivec3(ix, iy, iz));
+                            ok = sub.chunkManager->addCube(pos);
                         }
-                        if (ok) placed++;
+                        if (ok) placed++; else failed++;
                     }
                 }
             }
             result.structuresPlaced++;
-            LOG_DEBUG("GameDefinitionLoader", "Fill: placed " + std::to_string(placed) + " voxels");
+            // INFO so silent collisions are visible in any load log. failed>0 on
+            // a non-replace fill almost always means it overlapped terrain or an
+            // earlier fill — author wants "replace": true or different coords.
+            LOG_INFO("GameDefinitionLoader", "Fill " + (material.empty() ? std::string("(default)") : material) +
+                     " [" + std::to_string(minX) + "," + std::to_string(minY) + "," + std::to_string(minZ) +
+                     "]..[" + std::to_string(maxX) + "," + std::to_string(maxY) + "," + std::to_string(maxZ) +
+                     "]: placed " + std::to_string(placed) + ", failed " + std::to_string(failed) +
+                     (failed > 0 && !replace ? " (occupied voxels skipped — add \"replace\": true to overwrite)" : ""));
 
         } else if (stype == "template") {
             if (!sub.templateManager) {

@@ -132,11 +132,33 @@ public:
 
     void setGameEventLog(Core::GameEventLog* log) { m_gameEventLog = log; }
 
+    // === Declarative dialogue hooks (see docs/GameCreationGuide.md) ===
+
+    /// Forwards dialogue gameplay events (currently "dialogue_node_reached"
+    /// {tree, node, speaker}) to the host — wire it to TriggerSystem::onEvent so
+    /// triggers can react to conversation progress.
+    using EventSink = std::function<void(const std::string& type, const nlohmann::json& data)>;
+    void setEventSink(EventSink sink) { m_eventSink = std::move(sink); }
+
+    /// Executes one declarative node action (an entry of DialogueNode::actions).
+    /// Wire to the same executor that handles trigger "then" entries so dialogue
+    /// and triggers share one action vocabulary.
+    using ActionExecutor = std::function<void(const nlohmann::json& action)>;
+    void setActionExecutor(ActionExecutor exec) { m_actionExecutor = std::move(exec); }
+
+    /// Resolves a story variable by name for choice conditions. Return nullopt
+    /// when the variable doesn't exist. Wire to StoryEngine's WorldState.
+    using VariableResolver = std::function<std::optional<nlohmann::json>(const std::string& name)>;
+    void setVariableResolver(VariableResolver resolver) { m_variableResolver = std::move(resolver); }
+
     /// Optional local TTS for speaking NPC lines. Null = text-only (default).
     void setTTSService(AI::TTSService* tts) { m_tts = tts; }
 
 private:
     void loadNode(const std::string& nodeId);
+    /// Evaluate a DialogueChoice::conditionJson against story variables.
+    /// Empty condition = true; missing resolver/variable fails CLOSED (hidden).
+    bool evaluateCondition(const nlohmann::json& condition) const;
     void finishTyping();
     void applyPendingAIResponse();
     void applyPendingEnhancement();
@@ -186,6 +208,9 @@ private:
     ConversationEndCallback m_endCallback;
     Core::GameEventLog* m_gameEventLog = nullptr;
     AI::TTSService* m_tts = nullptr;
+    EventSink m_eventSink;
+    ActionExecutor m_actionExecutor;
+    VariableResolver m_variableResolver;
 };
 
 } // namespace UI

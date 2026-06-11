@@ -181,12 +181,34 @@ void DialogueSystem::loadNode(const std::string& nodeId) {
     m_typingProgress = 0.0f;
     m_revealedCharCount = 0;
 
-    // Filter available choices by condition
+    // Reaching a node is a gameplay event — log it and forward to the host's
+    // sink (usually TriggerSystem::onEvent) so declarative triggers can react
+    // to conversation progress ("when": {"event":"dialogue_node_reached",
+    // "tree":"greta","node":"give_secret"}).
+    {
+        nlohmann::json ev = {{"tree", m_tree->id}, {"node", node->id}, {"speaker", node->speaker}};
+        if (m_gameEventLog) m_gameEventLog->emit("dialogue_node_reached", ev);
+        if (m_eventSink) m_eventSink("dialogue_node_reached", ev);
+    }
+
+    // Execute the node's declarative actions (set_story_variable /
+    // complete_objective / transition_scene / ... — same vocabulary as trigger
+    // "then" entries, routed through the host's executor).
+    if (node->actions.is_array() && m_actionExecutor) {
+        for (const auto& action : node->actions) {
+            if (action.is_object()) m_actionExecutor(action);
+        }
+    } else if (node->actions.is_array() && !node->actions.empty()) {
+        LOG_WARN("DialogueSystem", "Node '{}' has actions but no action executor is wired", node->id);
+    }
+
+    // Filter available choices: programmatic condition AND declarative
+    // story-variable condition must both pass.
     m_availableChoices.clear();
     for (const auto& choice : node->choices) {
-        if (!choice.condition || choice.condition()) {
-            m_availableChoices.push_back(choice);
-        }
+        if (choice.condition && !choice.condition()) continue;
+        if (!evaluateCondition(choice.conditionJson)) continue;
+        m_availableChoices.push_back(choice);
     }
 
     m_state = DialogueState::Typing;
@@ -199,6 +221,42 @@ void DialogueSystem::loadNode(const std::string& nodeId) {
     } else {
         speakLine(m_currentSpeaker, m_currentFullText);
     }
+}
+
+bool DialogueSystem::evaluateCondition(const nlohmann::json& condition) const {
+    if (!condition.is_object() || condition.empty()) return true;  // no condition
+
+    const std::string varName = condition.value("variable", "");
+    if (varName.empty()) return true;  // malformed — don't hide the choice
+
+    std::optional<nlohmann::json> value;
+    if (m_variableResolver) value = m_variableResolver(varName);
+
+    // "exists" works without a value comparison (and is the only operator that
+    // can pass for a missing variable).
+    if (condition.contains("exists")) {
+        const bool wantExists = condition["exists"].is_boolean() ? condition["exists"].get<bool>() : true;
+        return value.has_value() == wantExists;
+    }
+
+    // All comparisons fail CLOSED when the variable is missing: an unearned
+    // story flag must hide the gated choice, not reveal it.
+    if (!value.has_value()) return false;
+    const nlohmann::json& v = *value;
+
+    if (condition.contains("equals"))     return v == condition["equals"];
+    if (condition.contains("not_equals")) return v != condition["not_equals"];
+    if (condition.contains("gte")) {
+        if (!v.is_number() || !condition["gte"].is_number()) return false;
+        return v.get<double>() >= condition["gte"].get<double>();
+    }
+    if (condition.contains("lte")) {
+        if (!v.is_number() || !condition["lte"].is_number()) return false;
+        return v.get<double>() <= condition["lte"].get<double>();
+    }
+    // Condition object with a variable but no recognized operator: treat as
+    // "exists" so {"variable":"x"} reads naturally as "x has been set".
+    return true;
 }
 
 void DialogueSystem::finishTyping() {
