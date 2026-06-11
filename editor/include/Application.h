@@ -73,6 +73,7 @@
 #include "core/DoorManager.h"
 #include "core/DynamicFurnitureManager.h"
 #include "core/ItemPropManager.h"
+#include "core/ItemEffectSystem.h"
 #include "core/LocationRegistry.h"
 #include "ui/DialogueSystem.h"
 #include "ui/SpeechBubbleManager.h"
@@ -269,12 +270,12 @@ private:
     std::unique_ptr<Core::DoorManager> doorManager;
     std::unique_ptr<Core::DynamicFurnitureManager> dynamicFurnitureManager;
 
-    // Items: world props + held-in-hand presentation
+    // Items: world props + held-in-hand presentation + declarative effects
     std::unique_ptr<Core::ItemPropManager> itemPropManager;
+    std::unique_ptr<Core::ItemEffectSystem> itemEffectSystem;
     std::string m_heldItemId;            // item currently shown in the player's hand
     std::string m_heldKinId;             // kinematic group id of the held visual
     int         m_heldAnchorId = -1;     // invisible grip-bone attachment id
-    int         m_heldLightId  = -1;     // point light id for held light sources (-1 = none)
     void updateHeldItem();               // per-frame: sync held visual with selected hotbar slot
     void dropHeldItem();                 // drop one of the selected item as a world prop
 

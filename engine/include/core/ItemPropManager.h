@@ -15,6 +15,7 @@ namespace Core {
 
 class PlacedObjectManager;
 class KinematicVoxelManager;
+class ItemEffectSystem;
 struct KinematicVoxel;
 
 // ============================================================================
@@ -41,6 +42,9 @@ public:
                          KinematicVoxelManager* kinematic, ChunkManager* chunks) {
         m_placed = placed; m_templates = templates; m_kinematic = kinematic; m_chunks = chunks;
     }
+
+    /// Optional: item props register/unregister their declarative effects here.
+    void setItemEffectSystem(ItemEffectSystem* effects) { m_effects = effects; }
 
     /// Spawn an item prop in the world. snapToGround scans downward for the
     /// first solid voxel and rests the prop on top of it.
@@ -81,10 +85,14 @@ public:
     const VoxelTemplate* resolveItemTemplate(const std::string& templateFile) const;
 
 private:
+    /// Register a prop's effects (no-op without an effect system).
+    void registerPropEffects(const Prop& prop);
+
     PlacedObjectManager*    m_placed    = nullptr;
     ObjectTemplateManager*  m_templates = nullptr;
     KinematicVoxelManager*  m_kinematic = nullptr;
     ChunkManager*           m_chunks    = nullptr;
+    ItemEffectSystem*       m_effects   = nullptr;
 
     std::unordered_map<std::string, Prop> m_props;  // by placedObjectId
 };

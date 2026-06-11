@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 #include <glm/glm.hpp>
 #include <nlohmann/json.hpp>
 
@@ -42,6 +43,121 @@ enum class EquipSlot {
     Chest,
     Legs,
     Feet
+};
+
+// ============================================================================
+// ItemEffectDef — a declarative effect on an item (particles and/or light),
+// active in BOTH item states (world prop and held-in-hand) unless filtered.
+// ============================================================================
+// Authored per-item in items.json under "effects": [...]. Examples:
+//   torch flame:      vfx + light, no condition (always on)
+//   enchanted blade:  blue aura vfx + light, when {"nearby": {"radius": 8}}
+// anchor is template-local (the held/prop transform already carries scale).
+struct ItemEffectDef {
+    std::string id;                     // unique within the item
+    glm::vec3 anchor{0.5f, 0.5f, 0.5f}; // template-local emit point
+
+    // -- particle bursts (VfxSystem::spawnBurst on a rate timer) --
+    bool  hasVfx = false;
+    glm::vec3 vfxColor{1.0f, 0.55f, 0.15f};
+    float vfxRate      = 8.0f;   // bursts per second
+    int   vfxCount     = 3;      // particles per burst
+    float vfxSize      = 0.05f;
+    float vfxSpeed     = 0.5f;
+    float vfxUpBias    = 1.0f;   // 1 = straight up (flame), 0 = sphere
+    float vfxGravity   = 0.5f;   // positive = buoyant rise (flame); negative = fall
+    float vfxLifetime  = 0.5f;
+    float vfxIntensity = 2.5f;   // emissive boost
+    glm::vec3 vfxJitter{0.05f, 0.02f, 0.05f};
+
+    // -- point light --
+    bool  hasLight = false;
+    glm::vec3 lightColor{1.0f, 0.8f, 0.5f};
+    float lightIntensity = 2.0f;
+    float lightRadius    = 8.0f;
+
+    // -- condition ("when"); all absent = always active --
+    // state: 0 = any, 1 = held only, 2 = prop only
+    int   whenState = 0;
+    bool  hasNearby = false;     // active only when a matching entity is near
+    std::string nearbyName;      // substring match on entity id/name ("" = any)
+    std::string nearbyType = "npc"; // entity type tag for the registry query
+    float nearbyRadius = 8.0f;
+
+    nlohmann::json toJson() const {
+        nlohmann::json j;
+        j["id"] = id;
+        j["anchor"] = {anchor.x, anchor.y, anchor.z};
+        if (hasVfx) {
+            j["vfx"] = {
+                {"color", {vfxColor.r, vfxColor.g, vfxColor.b}},
+                {"rate", vfxRate}, {"count", vfxCount}, {"size", vfxSize},
+                {"speed", vfxSpeed}, {"upBias", vfxUpBias}, {"gravity", vfxGravity},
+                {"lifetime", vfxLifetime}, {"intensity", vfxIntensity},
+                {"posJitter", {vfxJitter.x, vfxJitter.y, vfxJitter.z}},
+            };
+        }
+        if (hasLight) {
+            j["light"] = {
+                {"color", {lightColor.r, lightColor.g, lightColor.b}},
+                {"intensity", lightIntensity}, {"radius", lightRadius},
+            };
+        }
+        nlohmann::json when = nlohmann::json::object();
+        if (whenState == 1) when["state"] = "held";
+        if (whenState == 2) when["state"] = "prop";
+        if (hasNearby) {
+            when["nearby"] = {{"radius", nearbyRadius}, {"type", nearbyType}};
+            if (!nearbyName.empty()) when["nearby"]["name"] = nearbyName;
+        }
+        if (!when.empty()) j["when"] = when;
+        return j;
+    }
+
+    static ItemEffectDef fromJson(const nlohmann::json& j) {
+        ItemEffectDef e;
+        e.id = j.value("id", "effect");
+        auto vec3 = [](const nlohmann::json& src, const char* key, glm::vec3 def) {
+            if (src.contains(key) && src[key].is_array() && src[key].size() == 3)
+                return glm::vec3(src[key][0].get<float>(), src[key][1].get<float>(), src[key][2].get<float>());
+            return def;
+        };
+        e.anchor = vec3(j, "anchor", e.anchor);
+        if (j.contains("vfx")) {
+            const auto& v = j["vfx"];
+            e.hasVfx = true;
+            e.vfxColor     = vec3(v, "color", e.vfxColor);
+            e.vfxRate      = v.value("rate", e.vfxRate);
+            e.vfxCount     = v.value("count", e.vfxCount);
+            e.vfxSize      = v.value("size", e.vfxSize);
+            e.vfxSpeed     = v.value("speed", e.vfxSpeed);
+            e.vfxUpBias    = v.value("upBias", e.vfxUpBias);
+            e.vfxGravity   = v.value("gravity", e.vfxGravity);
+            e.vfxLifetime  = v.value("lifetime", e.vfxLifetime);
+            e.vfxIntensity = v.value("intensity", e.vfxIntensity);
+            e.vfxJitter    = vec3(v, "posJitter", e.vfxJitter);
+        }
+        if (j.contains("light")) {
+            const auto& l = j["light"];
+            e.hasLight = true;
+            e.lightColor     = vec3(l, "color", e.lightColor);
+            e.lightIntensity = l.value("intensity", e.lightIntensity);
+            e.lightRadius    = l.value("radius", e.lightRadius);
+        }
+        if (j.contains("when")) {
+            const auto& w = j["when"];
+            std::string state = w.value("state", "any");
+            e.whenState = (state == "held") ? 1 : (state == "prop") ? 2 : 0;
+            if (w.contains("nearby")) {
+                const auto& n = w["nearby"];
+                e.hasNearby = true;
+                e.nearbyRadius = n.value("radius", e.nearbyRadius);
+                e.nearbyType = n.value("type", e.nearbyType);
+                e.nearbyName = n.value("name", e.nearbyName);
+            }
+        }
+        return e;
+    }
 };
 
 // ============================================================================
@@ -131,6 +247,9 @@ struct ItemDefinition {
     bool holdable = false;
     HeldItemInfo held;
 
+    // Declarative effects (particles/lights), active in both item states.
+    std::vector<ItemEffectDef> effects;
+
     // Serialization
     nlohmann::json toJson() const {
         nlohmann::json j;
@@ -150,6 +269,10 @@ struct ItemDefinition {
         if (!attackAnimation.empty()) j["attackAnimation"] = attackAnimation;
         j["holdable"] = holdable;
         if (holdable) j["held"] = held.toJson();
+        if (!effects.empty()) {
+            j["effects"] = nlohmann::json::array();
+            for (const auto& e : effects) j["effects"].push_back(e.toJson());
+        }
         return j;
     }
 
@@ -173,6 +296,22 @@ struct ItemDefinition {
         // Holdable defaults to "has a voxel model"; authors can override.
         def.holdable = j.value("holdable", !def.templateFile.empty());
         if (j.contains("held")) def.held = HeldItemInfo::fromJson(j["held"]);
+
+        if (j.contains("effects") && j["effects"].is_array()) {
+            for (const auto& ej : j["effects"])
+                def.effects.push_back(ItemEffectDef::fromJson(ej));
+        }
+        // Legacy migration: held.light (pre-effects) becomes an always-on
+        // light effect so there is a single runtime path for item lights.
+        if (def.effects.empty() && def.held.hasLight()) {
+            ItemEffectDef e;
+            e.id = "held_light_legacy";
+            e.hasLight = true;
+            e.lightColor = def.held.lightColor;
+            e.lightIntensity = def.held.lightIntensity;
+            e.lightRadius = def.held.lightRadius;
+            def.effects.push_back(e);
+        }
 
         // Non-stackable items have maxStack=1
         if (!def.stackable) def.maxStack = 1;

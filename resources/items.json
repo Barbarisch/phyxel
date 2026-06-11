@@ -20,7 +20,33 @@
         "gripOffset": [-0.5, -0.17, -0.5],
         "gripEulerDeg": [0, 0, 0],
         "scale": 1.0
-      }
+      },
+      "effects": [
+        {
+          "id": "foe_sense",
+          "anchor": [0.5, 0.9, 0.5],
+          "vfx": {
+            "color": [0.3, 0.55, 1.0],
+            "rate": 6,
+            "count": 2,
+            "size": 0.04,
+            "speed": 0.25,
+            "upBias": 0.3,
+            "gravity": 0.15,
+            "lifetime": 0.7,
+            "intensity": 2.2,
+            "posJitter": [0.04, 0.35, 0.04]
+          },
+          "light": {
+            "color": [0.35, 0.55, 1.0],
+            "intensity": 1.6,
+            "radius": 6.0
+          },
+          "when": {
+            "nearby": { "type": "npc", "radius": 8.0 }
+          }
+        }
+      ]
     },
     {
       "id": "iron_pickaxe",
@@ -79,13 +105,31 @@
         "gripBone": "RightHand",
         "gripOffset": [-0.5, -0.25, -0.5],
         "gripEulerDeg": [0, 0, 0],
-        "scale": 1.0,
-        "light": {
-          "color": [1.0, 0.75, 0.4],
-          "intensity": 2.5,
-          "radius": 10.0
+        "scale": 1.0
+      },
+      "effects": [
+        {
+          "id": "flame",
+          "anchor": [0.5, 0.85, 0.5],
+          "vfx": {
+            "color": [1.0, 0.55, 0.15],
+            "rate": 9,
+            "count": 3,
+            "size": 0.045,
+            "speed": 0.45,
+            "upBias": 1.0,
+            "gravity": 0.6,
+            "lifetime": 0.55,
+            "intensity": 2.8,
+            "posJitter": [0.05, 0.03, 0.05]
+          },
+          "light": {
+            "color": [1.0, 0.75, 0.4],
+            "intensity": 2.5,
+            "radius": 10.0
+          }
         }
-      }
+      ]
     },
     {
       "id": "wooden_sword",

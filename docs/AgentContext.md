@@ -394,10 +394,24 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     AnimatedCharacter; otherwise the FREE CAMERA position — when testing interactions via API,
     move the PLAYER next to the point (radius 2.0), not the camera. (3) set_camera needs
     mode:"free" to reposition the free camera.
-  - **NEXT (items P2+):** use verbs (held weapon → melee-family attack — converges with melee
+  - **Items P2 — declarative item effects (2026-06-11): DONE + verified live.**
+    `ItemDefinition::effects[]` (ItemEffectDef): per-effect template-local `anchor`,
+    `vfx{color,rate,count,size,speed,upBias,gravity,lifetime,intensity,posJitter}` (periodic
+    `VfxSystem::spawnBurst` — the waterfall-mist pattern), `light{}`, and `when{state:
+    any|held|prop, nearby{type,name,radius}}`. **Effects live on the ITEM, not the held
+    state** — a dropped torch keeps burning. `Core::ItemEffectSystem` ticks instances
+    (held_player + every prop) with transform providers (KinematicVoxelManager::getTransform),
+    4 Hz condition checks, light callbacks injected by Application (LightManager), nearby
+    query via EntityRegistry::getEntitiesByType + distance + id-substring filter. Legacy
+    `held.light` auto-migrates to an always-on effect in ItemDefinition::fromJson (single
+    runtime path; updateHeldItem's own light code removed). Demos in items.json: torch
+    "flame" (always), iron_sword "foe_sense" (blue aura + light when any npc within 8 —
+    verified toggling ON/OFF by moving an NPC). Condition vocabulary designed to extend
+    (time-of-day, health, faction once NPCs carry factions).
+  - **NEXT (items P3+):** use verbs (held weapon → melee-family attack — converges with melee
     wiring; consumables), survival-mode drop consume semantics (creative never decrements),
-    prop lay-flat orientation option, NPC held items, containers/loot, equipment-screen
-    integration for the D&D layer.
+    torch gripEulerDeg flip (currently hangs head-down in hand), prop lay-flat orientation,
+    NPC held items, containers/loot, equipment-screen integration for the D&D layer.
 - **Open items:** `open_project` / heavy commands time out the 5s game-loop budget (one-time
   heavy load, cosmetic); no world DB versioning.
 

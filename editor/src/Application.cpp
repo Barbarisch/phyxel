@@ -1459,6 +1459,46 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     itemPropManager->setDependencies(placedObjectManager.get(), objectTemplateManager.get(),
                                      kinematicVoxelManager.get(), chunkManager);
 
+    // Item effects: declarative particles/lights on items (torch flame,
+    // conditional enchant auras) — drive both world props and the held item.
+    itemEffectSystem = std::make_unique<Core::ItemEffectSystem>();
+    if (renderCoordinator) {
+        itemEffectSystem->setVfxSystem(renderCoordinator->getVfxSystem());
+        itemEffectSystem->setLightCallbacks(
+            [this](const glm::vec3& pos, const glm::vec3& color, float intensity, float radius) -> int {
+                if (!renderCoordinator) return -1;
+                Graphics::PointLight pl;
+                pl.position = pos;
+                pl.color = color;
+                pl.intensity = intensity;
+                pl.radius = radius;
+                return renderCoordinator->getLightManager().addPointLight(pl);
+            },
+            [this](int lightId, const glm::vec3& pos) {
+                if (renderCoordinator)
+                    renderCoordinator->getLightManager().updatePointLightPosition(lightId, pos);
+            },
+            [this](int lightId) {
+                if (renderCoordinator)
+                    renderCoordinator->getLightManager().removeLight(lightId);
+            });
+    }
+    itemEffectSystem->setNearbyQuery(
+        [this](const glm::vec3& pos, float radius, const std::string& typeTag,
+               const std::string& nameFilter) -> int {
+            if (!entityRegistry) return 0;
+            int count = 0;
+            const float r2 = radius * radius;
+            for (const auto& [id, entity] : entityRegistry->getEntitiesByType(typeTag)) {
+                if (!entity) continue;
+                if (!nameFilter.empty() && id.find(nameFilter) == std::string::npos) continue;
+                glm::vec3 diff = entity->getPosition() - pos;
+                if (glm::dot(diff, diff) <= r2) ++count;
+            }
+            return count;
+        });
+    itemPropManager->setItemEffectSystem(itemEffectSystem.get());
+
     // Removing a placed object must tear down its active dynamic-furniture body
     // + render so it cannot be re-baked back into the world (the "removed chair
     // reappears" bug). Covers every removal path, not just the MCP handler.
@@ -2978,6 +3018,10 @@ void Application::update(float deltaTime) {
 
     // Sync the held-item visual with the selected hotbar slot (items P1)
     updateHeldItem();
+
+    // Drive declarative item effects (torch flame, enchant auras) for the
+    // held item and all world props (items P2)
+    if (itemEffectSystem) itemEffectSystem->update(deltaTime);
 
     // Update door animations (drives kinematic voxel transforms)
     if (doorManager) {
@@ -6729,13 +6773,10 @@ void Application::updateHeldItem() {
     if (!inventory || !kinematicVoxelManager || !itemPropManager) return;
 
     auto teardown = [this]() {
+        if (itemEffectSystem) itemEffectSystem->unregisterInstance("held_player");
         if (!m_heldKinId.empty()) { kinematicVoxelManager->remove(m_heldKinId); m_heldKinId.clear(); }
         if (m_heldAnchorId >= 0 && animatedCharacter) animatedCharacter->detachFromBone(m_heldAnchorId);
         m_heldAnchorId = -1;
-        if (m_heldLightId >= 0 && renderCoordinator) {
-            renderCoordinator->getLightManager().removeLight(m_heldLightId);
-        }
-        m_heldLightId = -1;
         m_heldItemId.clear();
     };
 
@@ -6767,15 +6808,14 @@ void Application::updateHeldItem() {
                     kinematicVoxelManager->remove(m_heldKinId);
                     m_heldKinId.clear();
                 } else {
-                    if (def->held.hasLight() && renderCoordinator) {
-                        Graphics::PointLight pl;
-                        pl.position  = animatedCharacter->getPosition();
-                        pl.color     = def->held.lightColor;
-                        pl.intensity = def->held.lightIntensity;
-                        pl.radius    = def->held.lightRadius;
-                        m_heldLightId = renderCoordinator->getLightManager().addPointLight(pl);
-                    }
                     m_heldItemId = itemId;
+                    // Effects (flame, enchant aura, light) follow the held transform.
+                    if (itemEffectSystem && !def->effects.empty()) {
+                        Core::KinematicVoxelManager* kin = kinematicVoxelManager.get();
+                        const std::string kinId = m_heldKinId;
+                        itemEffectSystem->registerInstance("held_player", def, /*held=*/true,
+                            [kin, kinId]() { return kin->getTransform(kinId); });
+                    }
                 }
             }
         }
@@ -6793,8 +6833,6 @@ void Application::updateHeldItem() {
             t = glm::rotate(t, glm::radians(h.gripEulerDeg.z), glm::vec3(0, 0, 1));
             t = glm::scale(t, glm::vec3(h.scale));
             kinematicVoxelManager->setTransform(m_heldKinId, t);
-            if (m_heldLightId >= 0 && renderCoordinator)
-                renderCoordinator->getLightManager().updatePointLightPosition(m_heldLightId, pos);
         } else {
             // Anchor vanished (character rebuilt/derezzed) — drop the visual;
             // it re-creates next frame on the live character.

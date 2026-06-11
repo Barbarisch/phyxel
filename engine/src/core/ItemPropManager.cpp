@@ -1,5 +1,6 @@
 #include "core/ItemPropManager.h"
 
+#include "core/ItemEffectSystem.h"
 #include "core/ItemRegistry.h"
 #include "core/KinematicVoxelManager.h"
 #include "core/ObjectTemplateManager.h"
@@ -142,14 +143,26 @@ std::string ItemPropManager::spawnProp(const std::string& itemId, const glm::vec
     }
 
     m_props[placedId] = {placedId, itemId, kinId};
+    registerPropEffects(m_props[placedId]);
     LOG_INFO("ItemPropManager", "Spawned item prop '{}' as '{}' at ({}, {}, {})",
              itemId, placedId, pos.x, pos.y, pos.z);
     return placedId;
 }
 
+void ItemPropManager::registerPropEffects(const Prop& prop) {
+    if (!m_effects || !m_kinematic) return;
+    const auto* def = ItemRegistry::instance().getItem(prop.itemId);
+    if (!def || def->effects.empty()) return;
+    KinematicVoxelManager* kin = m_kinematic;
+    const std::string kinId = prop.kinId;
+    m_effects->registerInstance(prop.placedObjectId, def, /*held=*/false,
+                                [kin, kinId]() { return kin->getTransform(kinId); });
+}
+
 void ItemPropManager::onPlacedObjectRemoved(const std::string& placedObjectId) {
     auto it = m_props.find(placedObjectId);
     if (it == m_props.end()) return;
+    if (m_effects) m_effects->unregisterInstance(placedObjectId);
     if (m_kinematic) m_kinematic->remove(it->second.kinId);
     m_props.erase(it);
 }
@@ -201,6 +214,7 @@ void ItemPropManager::rebuildFromPlacedObjects() {
 
         std::string kinId = m_kinematic->add("itemprop_" + itemId, std::move(voxels), transform);
         m_props[obj.id] = {obj.id, itemId, kinId};
+        registerPropEffects(m_props[obj.id]);
         ++rebuilt;
     }
     if (rebuilt > 0)
