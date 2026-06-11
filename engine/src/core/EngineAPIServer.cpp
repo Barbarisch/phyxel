@@ -3170,6 +3170,38 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // POST /api/items/spawn — Spawn a holdable item as a world prop
+    srv.Post("/api/items/spawn", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("spawn_item", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/items/drop — Drop one of the selected hotbar item in front of the player
+    srv.Post("/api/items/drop", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("drop_item", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
+    // POST /api/interact — Simulate the player's [E] interact key
+    srv.Post("/api/interact", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = req.body.empty() ? json::object() : json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        json result = queueAndWait("interact", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
     // POST /api/inventory/set_slot — Set a specific slot's contents
     srv.Post("/api/inventory/set_slot", [this](const httplib::Request& req, httplib::Response& res) {
         try {

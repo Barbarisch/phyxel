@@ -1,0 +1,19 @@
+# Torch at microcube resolution (1 microcube = 1/9 unit)
+# Wooden haft with a glowing head. Origin at haft base; ~0.9 units tall.
+# M px py pz sx sy sz mx my mz Material
+
+# Haft (Wood), X=4 Z=4, Y=0..5
+M 0 0 0 1 0 1 1 0 1 Wood
+M 0 0 0 1 0 1 1 1 1 Wood
+M 0 0 0 1 0 1 1 2 1 Wood
+M 0 0 0 1 1 1 1 0 1 Wood
+M 0 0 0 1 1 1 1 1 1 Wood
+M 0 0 0 1 1 1 1 2 1 Wood
+
+# Burning head (glow): center column Y=6..7 plus X/Z neighbors at Y=6
+M 0 0 0 1 2 1 1 0 1 glow
+M 0 0 0 1 2 1 1 1 1 glow
+M 0 0 0 1 2 1 0 0 1 glow
+M 0 0 0 1 2 1 2 0 1 glow
+M 0 0 0 1 2 1 1 0 0 glow
+M 0 0 0 1 2 1 1 0 2 glow

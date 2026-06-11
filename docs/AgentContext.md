@@ -366,6 +366,38 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     extend to weapon-family selection (EquipmentSystem equipped weapon → family → attacks[]
     combo cycling, like SpellAnimMapper), CombatSystem hit at per-clip hitFrameFraction,
     block state on melee_parry/body_block, weapon visuals via attachToBone.
+- **Items system P1 (2026-06-11): DONE + verified live end-to-end.** "Items" = holdable
+  things (weapons, torches, cups) with a three-state lifecycle: WORLD PROP ⇄ INVENTORY ⇄ HELD.
+  - **Data:** `ItemDefinition` gains `holdable` + `held{gripBone, gripOffset, gripEulerDeg,
+    scale, light{color,intensity,radius}}` (items.json-authored grip — tune by edit+restart).
+    Item models are **microcube templates** (`weapons/sword_fine.voxel`, `items/torch.voxel`) —
+    full-cube templates scaled down look like bricks; the user requires skinny item geometry.
+    NOTE: `KinematicVoxel.scale` is an arbitrary vec3, so a finer-than-microcube item voxel
+    class later is only a template-format extension (props never bake into chunks).
+  - **World props:** `Core::ItemPropManager` — spawn from item def via kinematic voxel group
+    (NEVER chunk-baked), registered as category="item" PlacedObject (metadata.itemId) with a
+    synthetic "pickup" interaction point; `PlacedObjectManager::registerItemProp` +
+    remove() skips clearRegion for items + recompute rebuilds pickup points; props rebuild
+    after DB load via `rebuildFromPlacedObjects()` (called in the load path).
+  - **Pickup:** `PickupInteractionHandler` (priority 30 > door 20 > seat 10), [E] → inventory
+    + `item_picked_up` event. **Held:** `Application::updateHeldItem()` polls the selected
+    hotbar slot per frame (= hotbar auto-equip); held visual is a kinematic group following an
+    invisible grip-bone attachment (`getAttachmentTransform`); held `light` follows the hand
+    (torch verified). Drop (`drop_item`) spawns the prop ahead of the visual front (+Z conv).
+  - **APIs:** `/api/items/spawn|drop`, `/api/interact` (simulates [E] — NOTE an older
+    "interact" command already existed in the chain and wins; same effect), MCP `spawn_item`/
+    `drop_item`. `AnimatedVoxelCharacter::resolveBoneId` aliases bone names
+    ("right_hand"→"mixamorig:RightHand") — the old equip_item attachment had silently failed.
+  - **TRAPS:** (1) Application::processAPICommands else-if chain is AT MSVC's C1061 nesting
+    limit — new commands MUST go in dispatchXxxAPICommand helpers (dispatchItemAPICommand
+    added). (2) Interaction detection uses the PLAYER position only when control target is
+    AnimatedCharacter; otherwise the FREE CAMERA position — when testing interactions via API,
+    move the PLAYER next to the point (radius 2.0), not the camera. (3) set_camera needs
+    mode:"free" to reposition the free camera.
+  - **NEXT (items P2+):** use verbs (held weapon → melee-family attack — converges with melee
+    wiring; consumables), survival-mode drop consume semantics (creative never decrements),
+    prop lay-flat orientation option, NPC held items, containers/loot, equipment-screen
+    integration for the D&D layer.
 - **Open items:** `open_project` / heavy commands time out the 5s game-loop budget (one-time
   heavy load, cosmetic); no world DB versioning.
 

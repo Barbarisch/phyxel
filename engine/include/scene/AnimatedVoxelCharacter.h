@@ -251,6 +251,15 @@ namespace Scene {
         /// Remove a bone attachment by ID.
         void detachFromBone(int attachmentId);
 
+        /// World transform of an attachment (updated every frame after animation).
+        /// Returns false if the attachment id is unknown.
+        bool getAttachmentTransform(int attachmentId, glm::vec3& outPos, glm::quat& outRot) const;
+
+        /// Resolve a bone name to its skeleton id with aliasing: exact match first,
+        /// then case/separator-insensitive with the "mixamorig:" prefix stripped
+        /// ("right_hand" finds "mixamorig:RightHand"). Returns -1 if not found.
+        int resolveBoneId(const std::string& boneName) const;
+
         /// Remove all bone attachments.
         void detachAll();
 

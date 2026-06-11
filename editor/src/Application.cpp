@@ -1454,11 +1454,18 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     dynamicFurnitureManager->setChunkManager(chunkManager);
     dynamicFurnitureManager->setGpuParticlePhysics(gpuParticlePhysics.get());
 
+    // Initialize Item Prop Manager (holdable items lying in the world)
+    itemPropManager = std::make_unique<Core::ItemPropManager>();
+    itemPropManager->setDependencies(placedObjectManager.get(), objectTemplateManager.get(),
+                                     kinematicVoxelManager.get(), chunkManager);
+
     // Removing a placed object must tear down its active dynamic-furniture body
     // + render so it cannot be re-baked back into the world (the "removed chair
     // reappears" bug). Covers every removal path, not just the MCP handler.
+    // Item props likewise tear down their kinematic render group.
     placedObjectManager->setPreRemoveCallback([this](const std::string& id) {
         if (dynamicFurnitureManager) dynamicFurnitureManager->discard(id);
+        if (itemPropManager) itemPropManager->onPlacedObjectRemoved(id);
     });
 
     // Wire furniture activation into the voxel interaction system
@@ -1494,6 +1501,25 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
                                                         interactionProfileManager.get()));
     interactionHandlerRegistry->registerHandler("door_handle",
         std::make_unique<Core::DoorInteractionHandler>(doorManager.get()));
+    {
+        auto pickupHandler = std::make_unique<Core::PickupInteractionHandler>();
+        pickupHandler->setPickupCallback([this](const std::string& objectId) {
+            if (!itemPropManager || !inventory) return;
+            std::string itemId = itemPropManager->pickupProp(objectId);
+            if (itemId.empty()) return;
+            int leftover = inventory->addItem(itemId, 1);
+            if (leftover > 0) {
+                // Inventory full: put the prop back where it was.
+                if (animatedCharacter)
+                    itemPropManager->spawnProp(itemId, animatedCharacter->getPosition());
+                return;
+            }
+            LOG_INFO("Application", "Picked up '{}' from prop '{}'", itemId, objectId);
+            if (gameEventLog)
+                gameEventLog->emit("item_picked_up", {{"itemId", itemId}, {"objectId", objectId}});
+        });
+        interactionHandlerRegistry->registerHandler("pickup", std::move(pickupHandler));
+    }
     interactionManager->setHandlerRegistry(interactionHandlerRegistry.get());
 
     // Auto-register interaction point defs from template .voxel file metadata.
@@ -1624,6 +1650,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         if (ws && ws->getDb()) {
             placedObjectManager->loadFromDb(ws->getDb());
             placedObjectManager->recomputeAllInteractionPoints();
+            // Item props restored from the DB need their kinematic render groups back.
+            if (itemPropManager) itemPropManager->rebuildFromPlacedObjects();
         }
     }
 
@@ -2947,6 +2975,9 @@ void Application::update(float deltaTime) {
             playerFront = camera->getFront();
         interactionManager->update(deltaTime, playerPos, playerFront);
     }
+
+    // Sync the held-item visual with the selected hotbar slot (items P1)
+    updateHeldItem();
 
     // Update door animations (drives kinematic voxel transforms)
     if (doorManager) {
@@ -6690,6 +6721,172 @@ static bool runSitCompatChecks(const CharScalarMetrics& c,
 
 } // anonymous namespace
 
+// Held item — keeps the player's hand in sync with the selected hotbar slot.
+// The held visual is a kinematic voxel group (same rendering as world item
+// props) whose transform follows an invisible grip-bone attachment each frame.
+// ============================================================================
+void Application::updateHeldItem() {
+    if (!inventory || !kinematicVoxelManager || !itemPropManager) return;
+
+    auto teardown = [this]() {
+        if (!m_heldKinId.empty()) { kinematicVoxelManager->remove(m_heldKinId); m_heldKinId.clear(); }
+        if (m_heldAnchorId >= 0 && animatedCharacter) animatedCharacter->detachFromBone(m_heldAnchorId);
+        m_heldAnchorId = -1;
+        if (m_heldLightId >= 0 && renderCoordinator) {
+            renderCoordinator->getLightManager().removeLight(m_heldLightId);
+        }
+        m_heldLightId = -1;
+        m_heldItemId.clear();
+    };
+
+    if (!animatedCharacter) {
+        if (!m_heldItemId.empty()) teardown();
+        return;
+    }
+
+    // What does the selected hotbar slot hold?
+    std::string itemId;
+    if (auto stack = inventory->getSlot(inventory->getSelectedSlot()))
+        itemId = stack->itemId;
+    const Core::ItemDefinition* def =
+        itemId.empty() ? nullptr : Core::ItemRegistry::instance().getItem(itemId);
+    if (!def || !def->holdable || def->templateFile.empty()) itemId.clear();
+
+    // Selection changed: rebuild the held visual.
+    if (itemId != m_heldItemId) {
+        teardown();
+        if (!itemId.empty()) {
+            const VoxelTemplate* tmpl = itemPropManager->resolveItemTemplate(def->templateFile);
+            if (tmpl) {
+                auto voxels = Core::ItemPropManager::voxelsFromTemplate(*tmpl);
+                m_heldKinId = kinematicVoxelManager->add("held_" + itemId, std::move(voxels));
+                m_heldAnchorId = animatedCharacter->attachToBone(
+                    def->held.gripBone, glm::vec3(0.02f), def->held.gripOffset,
+                    glm::vec4(0.0f), "held_anchor");
+                if (m_heldAnchorId < 0) {
+                    kinematicVoxelManager->remove(m_heldKinId);
+                    m_heldKinId.clear();
+                } else {
+                    if (def->held.hasLight() && renderCoordinator) {
+                        Graphics::PointLight pl;
+                        pl.position  = animatedCharacter->getPosition();
+                        pl.color     = def->held.lightColor;
+                        pl.intensity = def->held.lightIntensity;
+                        pl.radius    = def->held.lightRadius;
+                        m_heldLightId = renderCoordinator->getLightManager().addPointLight(pl);
+                    }
+                    m_heldItemId = itemId;
+                }
+            }
+        }
+    }
+
+    // Follow the grip bone.
+    if (!m_heldKinId.empty() && m_heldAnchorId >= 0) {
+        const Core::ItemDefinition* heldDef = Core::ItemRegistry::instance().getItem(m_heldItemId);
+        glm::vec3 pos; glm::quat rot;
+        if (heldDef && animatedCharacter->getAttachmentTransform(m_heldAnchorId, pos, rot)) {
+            const auto& h = heldDef->held;
+            glm::mat4 t = glm::translate(glm::mat4(1.0f), pos) * glm::mat4_cast(rot);
+            t = glm::rotate(t, glm::radians(h.gripEulerDeg.x), glm::vec3(1, 0, 0));
+            t = glm::rotate(t, glm::radians(h.gripEulerDeg.y), glm::vec3(0, 1, 0));
+            t = glm::rotate(t, glm::radians(h.gripEulerDeg.z), glm::vec3(0, 0, 1));
+            t = glm::scale(t, glm::vec3(h.scale));
+            kinematicVoxelManager->setTransform(m_heldKinId, t);
+            if (m_heldLightId >= 0 && renderCoordinator)
+                renderCoordinator->getLightManager().updatePointLightPosition(m_heldLightId, pos);
+        } else {
+            // Anchor vanished (character rebuilt/derezzed) — drop the visual;
+            // it re-creates next frame on the live character.
+            teardown();
+        }
+    }
+}
+
+void Application::dropHeldItem() {
+    if (!inventory || !itemPropManager || !animatedCharacter) return;
+    auto stack = inventory->getSlot(inventory->getSelectedSlot());
+    if (!stack) return;
+    std::string itemId = stack->itemId;
+    const auto* def = Core::ItemRegistry::instance().getItem(itemId);
+    if (!def || !def->holdable || def->templateFile.empty()) return;
+
+    // Visual front is +Z at yaw 0 (see anim conventions) — drop ahead of the body.
+    float yaw = animatedCharacter->getYaw();
+    glm::vec3 front(std::sin(yaw), 0.0f, std::cos(yaw));
+    glm::vec3 dropPos = animatedCharacter->getPosition() + front * 1.2f + glm::vec3(0, 0.5f, 0);
+
+    std::string propId = itemPropManager->spawnProp(itemId, dropPos,
+                                                    glm::degrees(yaw), /*snapToGround=*/true);
+    if (propId.empty()) return;
+
+    inventory->consumeSelected();
+    LOG_INFO("Application", "Dropped '{}' as prop '{}'", itemId, propId);
+    if (gameEventLog)
+        gameEventLog->emit("item_dropped", {{"itemId", itemId}, {"objectId", propId}});
+}
+
+// ============================================================================
+// Item API Command Dispatcher (extracted to reduce nesting depth in processAPICommands)
+// ============================================================================
+bool Application::dispatchItemAPICommand(const Core::APICommand& cmd, nlohmann::json& response) {
+    if (cmd.action == "spawn_item") {
+        std::string itemId = cmd.params.value("item", "");
+        if (itemId.empty() || !itemPropManager) {
+            response = {{"error", itemId.empty() ? "item required" : "ItemPropManager not available"}};
+            return true;
+        }
+        glm::vec3 pos(cmd.params.value("x", 0.0f),
+                      cmd.params.value("y", 0.0f),
+                      cmd.params.value("z", 0.0f));
+        if (!cmd.params.contains("x") && animatedCharacter) {
+            // Default: just in front of the player (visual front = +Z at yaw 0).
+            float yaw = animatedCharacter->getYaw();
+            pos = animatedCharacter->getPosition()
+                + glm::vec3(std::sin(yaw) * 1.5f, 0.5f, std::cos(yaw) * 1.5f);
+        }
+        float yawDeg = cmd.params.value("yaw", 0.0f);
+        std::string propId = itemPropManager->spawnProp(itemId, pos, yawDeg);
+        if (propId.empty()) {
+            response = {{"error", "Failed to spawn item prop (unknown/not-holdable item or missing template): " + itemId}};
+        } else {
+            const auto* obj = placedObjectManager ? placedObjectManager->get(propId) : nullptr;
+            response = {{"success", true}, {"item", itemId}, {"prop_id", propId}};
+            if (obj) response["position"] = {{"x", obj->position.x}, {"y", obj->position.y}, {"z", obj->position.z}};
+        }
+        return true;
+    }
+
+    if (cmd.action == "drop_item") {
+        if (!inventory || !animatedCharacter || !itemPropManager) {
+            response = {{"error", "Inventory/player/ItemPropManager not available"}};
+            return true;
+        }
+        auto stack = inventory->getSlot(inventory->getSelectedSlot());
+        if (!stack) {
+            response = {{"error", "Selected hotbar slot is empty"}};
+            return true;
+        }
+        std::string itemId = stack->itemId;
+        dropHeldItem();
+        response = {{"success", true}, {"item", itemId}};
+        return true;
+    }
+
+    if (cmd.action == "interact") {
+        // Simulate the player's [E] key: executes whatever interaction is in
+        // range (pickup, seat, door, NPC). Useful for agent-driven testing.
+        bool hadPrompt = interactionManager && interactionManager->shouldShowPrompt();
+        std::string prompt = interactionManager ? interactionManager->getActivePromptText() : "";
+        interactWithNPC();
+        response = {{"success", true}, {"had_prompt", hadPrompt}, {"prompt", prompt}};
+        return true;
+    }
+
+    return false;
+}
+
+// ============================================================================
 // Animation API Command Dispatcher (extracted to reduce nesting depth in processAPICommands)
 // ============================================================================
 bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohmann::json& response) {
@@ -13022,6 +13219,10 @@ void Application::processAPICommands() {
             // ANIMATION CONTROL COMMANDS (dispatched via member function to reduce nesting depth)
             // ================================================================
             } else if (dispatchAnimationAPICommand(cmd, response)) {
+                // handled
+
+            // ITEM COMMANDS (spawn_item / drop_item — member function, same nesting-depth reason)
+            } else if (dispatchItemAPICommand(cmd, response)) {
                 // handled
 
             // AI Inspection, Location & Schedule commands (handled early, above the main chain)

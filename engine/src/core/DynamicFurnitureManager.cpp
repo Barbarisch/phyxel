@@ -1,6 +1,7 @@
 #include "core/DynamicFurnitureManager.h"
 #include "core/MaterialRegistry.h"
 #include "core/KinematicVoxelManager.h"
+#include "core/ItemPropManager.h"
 #include "core/PlacedObjectManager.h"
 #include "core/ObjectTemplateManager.h"
 #include "core/VoxelTemplate.h"
@@ -366,47 +367,8 @@ std::vector<KinematicVoxel> DynamicFurnitureManager::buildVoxelsFromTemplate(
 {
     const VoxelTemplate* tmpl = m_templateManager->getTemplate(templateName);
     if (!tmpl) return {};
-
-    std::vector<KinematicVoxel> voxels;
-    voxels.reserve(tmpl->cubes.size() + tmpl->subcubes.size() + tmpl->microcubes.size());
-
-    for (const auto& cube : tmpl->cubes) {
-        KinematicVoxel v;
-        v.localPos     = glm::vec3(cube.relativePos) + glm::vec3(0.5f);
-        v.scale        = glm::vec3(1.0f);
-        v.parentFrac   = glm::vec3(0.0f);
-        v.materialName = cube.material;
-        voxels.push_back(v);
-    }
-
-    for (const auto& sub : tmpl->subcubes) {
-        KinematicVoxel v;
-        constexpr float subScale = 1.0f / 3.0f;
-        v.localPos = glm::vec3(sub.parentRelativePos)
-                   + glm::vec3(sub.subcubePos) * subScale
-                   + glm::vec3(subScale * 0.5f);
-        v.scale        = glm::vec3(subScale);
-        v.parentFrac   = glm::vec3(sub.subcubePos) * subScale;
-        v.materialName = sub.material;
-        voxels.push_back(v);
-    }
-
-    for (const auto& micro : tmpl->microcubes) {
-        KinematicVoxel v;
-        constexpr float subScale   = 1.0f / 3.0f;
-        constexpr float microScale = 1.0f / 9.0f;
-        v.localPos = glm::vec3(micro.parentRelativePos)
-                   + glm::vec3(micro.subcubePos) * subScale
-                   + glm::vec3(micro.microcubePos) * microScale
-                   + glm::vec3(microScale * 0.5f);
-        v.scale        = glm::vec3(microScale);
-        v.parentFrac   = glm::vec3(micro.subcubePos) * subScale
-                       + glm::vec3(micro.microcubePos) * microScale;
-        v.materialName = micro.material;
-        voxels.push_back(v);
-    }
-
-    return voxels;
+    // Shared template→kinematic conversion (single source of truth).
+    return ItemPropManager::voxelsFromTemplate(*tmpl);
 }
 
 // ============================================================================

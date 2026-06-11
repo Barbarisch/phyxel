@@ -67,10 +67,12 @@
 #include "core/interactions/SeatInteractionHandler.h"
 #include "core/interactions/DoorInteractionHandler.h"
 #include "core/interactions/NPCInteractionHandler.h"
+#include "core/interactions/PickupInteractionHandler.h"
 #include "core/KinematicVoxelManager.h"
 #include "core/KinematicAnimator.h"
 #include "core/DoorManager.h"
 #include "core/DynamicFurnitureManager.h"
+#include "core/ItemPropManager.h"
 #include "core/LocationRegistry.h"
 #include "ui/DialogueSystem.h"
 #include "ui/SpeechBubbleManager.h"
@@ -267,6 +269,15 @@ private:
     std::unique_ptr<Core::DoorManager> doorManager;
     std::unique_ptr<Core::DynamicFurnitureManager> dynamicFurnitureManager;
 
+    // Items: world props + held-in-hand presentation
+    std::unique_ptr<Core::ItemPropManager> itemPropManager;
+    std::string m_heldItemId;            // item currently shown in the player's hand
+    std::string m_heldKinId;             // kinematic group id of the held visual
+    int         m_heldAnchorId = -1;     // invisible grip-bone attachment id
+    int         m_heldLightId  = -1;     // point light id for held light sources (-1 = none)
+    void updateHeldItem();               // per-frame: sync held visual with selected hotbar slot
+    void dropHeldItem();                 // drop one of the selected item as a world prop
+
     // Story Engine
     std::unique_ptr<Story::StoryEngine> storyEngine;
     // Shared agent driving Guided/Autonomous NPCs (StoryDrivenBehavior). One instance for all.
@@ -395,6 +406,7 @@ private:
     void processAPICommands();       // Process pending HTTP API commands
     bool dispatchAnimationAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
     bool dispatchDebugAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
+    bool dispatchItemAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
     void autoLoadGameDefinition();   // Auto-load game.json if present
     Core::GameSubsystems buildGameSubsystems(); // Build subsystems struct for GameDefinitionLoader
     void initializeSceneManager();   // Wire SceneCallbacks and configure SceneManager

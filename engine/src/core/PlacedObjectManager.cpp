@@ -140,6 +140,12 @@ void PlacedObjectManager::recomputeAllInteractionPoints() {
     std::lock_guard<std::mutex> lock(m_mutex);
     int count = 0;
     for (auto& [id, obj] : m_objects) {
+        // Item props have a synthetic pickup point, not template-defined ones.
+        if (obj.category == "item") {
+            obj.interactionPoints = {makeItemPickupPoint(obj)};
+            count += 1;
+            continue;
+        }
         auto defsIt = m_templateDefs.find(obj.templateName);
         if (defsIt == m_templateDefs.end()) continue;
         obj.interactionPoints = computeInteractionPoints(defsIt->second, obj.position, obj.rotation);
@@ -456,6 +462,49 @@ std::string PlacedObjectManager::registerStructure(const std::string& typeName,
     return id;
 }
 
+std::string PlacedObjectManager::registerItemProp(const std::string& itemId,
+                                                   const std::string& templateName,
+                                                   const glm::ivec3& position, int rotation,
+                                                   const glm::ivec3& bboxMin, const glm::ivec3& bboxMax,
+                                                   const std::string& displayName) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    std::string id = generateId("item_" + itemId);
+
+    PlacedObject obj;
+    obj.id = id;
+    obj.templateName = templateName;
+    obj.category = "item";
+    obj.position = position;
+    obj.rotation = rotation;
+    obj.boundingMin = bboxMin;
+    obj.boundingMax = bboxMax;
+    obj.createdAt = std::chrono::system_clock::now();
+    obj.metadata["itemId"] = itemId;
+    if (!displayName.empty()) obj.metadata["displayName"] = displayName;
+
+    obj.interactionPoints.push_back(makeItemPickupPoint(obj));
+
+    m_objects[id] = std::move(obj);
+
+    LOG_INFO_FMT("PlacedObjectManager", "Registered item prop '" << itemId << "' as '" << id
+                 << "' at (" << position.x << "," << position.y << "," << position.z << ")");
+    return id;
+}
+
+InteractionPoint PlacedObjectManager::makeItemPickupPoint(const PlacedObject& obj) {
+    InteractionPoint pickup;
+    pickup.pointId = "pickup_0";
+    pickup.type = "pickup";
+    pickup.worldPos = (glm::vec3(obj.boundingMin) + glm::vec3(obj.boundingMax)) * 0.5f;
+    pickup.interactionRadius = 2.0f;
+    std::string display = obj.metadata.value("displayName",
+                              obj.metadata.value("itemId", std::string("item")));
+    pickup.promptText = "Take " + display;
+    pickup.objectRotation = obj.rotation;
+    return pickup;
+}
+
 bool PlacedObjectManager::remove(const std::string& id) {
     std::lock_guard<std::mutex> lock(m_mutex);
 
@@ -485,7 +534,11 @@ bool PlacedObjectManager::remove(const std::string& id) {
         if (m_preRemove) m_preRemove(removeId);
 
         const PlacedObject& obj = removeIt->second;
-        clearRegion(obj.boundingMin, obj.boundingMax);
+        // Item props are never baked into chunks — clearing their bbox would
+        // carve air out of whatever terrain the prop rests on.
+        if (obj.category != "item") {
+            clearRegion(obj.boundingMin, obj.boundingMax);
+        }
 
         LOG_INFO_FMT("PlacedObjectManager", "Removed '" << removeId << "' clearing region ("
                      << obj.boundingMin.x << "," << obj.boundingMin.y << "," << obj.boundingMin.z

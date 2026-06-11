@@ -1,0 +1,29 @@
+# Longsword at microcube resolution (1 microcube = 1/9 unit)
+# Blade is 1 microcube thick — items held in hands must be skinny.
+# Origin at grip base; extends up (+Y). Total ~1.45 units tall.
+# M px py pz sx sy sz mx my mz Material
+
+# Grip (Wood), X=4 Z=4, Y=0..2
+M 0 0 0 1 0 1 1 0 1 Wood
+M 0 0 0 1 0 1 1 1 1 Wood
+M 0 0 0 1 0 1 1 2 1 Wood
+
+# Crossguard (Metal), Y=3, X=2..6, Z=4
+M 0 0 0 0 1 1 2 0 1 Metal
+M 0 0 0 1 1 1 0 0 1 Metal
+M 0 0 0 1 1 1 1 0 1 Metal
+M 0 0 0 1 1 1 2 0 1 Metal
+M 0 0 0 2 1 1 0 0 1 Metal
+
+# Blade (Metal), X=4 Z=4, Y=4..12
+M 0 0 0 1 1 1 1 1 1 Metal
+M 0 0 0 1 1 1 1 2 1 Metal
+M 0 0 0 1 2 1 1 0 1 Metal
+M 0 0 0 1 2 1 1 1 1 Metal
+M 0 0 0 1 2 1 1 2 1 Metal
+M 0 1 0 1 0 1 1 0 1 Metal
+M 0 1 0 1 0 1 1 1 1 Metal
+M 0 1 0 1 0 1 1 2 1 Metal
+
+# Tip
+M 0 1 0 1 1 1 1 0 1 Metal

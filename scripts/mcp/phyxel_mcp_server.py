@@ -2801,6 +2801,32 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="spawn_item",
+            description=(
+                "Spawn a holdable item (from resources/items.json, e.g. 'iron_sword', 'torch') as a "
+                "world prop: a kinematic voxel model lying in the world with a 'Take' [E] pickup "
+                "interaction. Item props are never baked into terrain. Position defaults to just in "
+                "front of the player. Picking it up adds the item to the inventory; selecting it on "
+                "the hotbar shows it in the player's hand (grip tuned via the item's 'held' block)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "item": {"type": "string", "description": "Item id from items.json (e.g. 'iron_sword')"},
+                    "x": {"type": "number", "description": "World X (optional; defaults in front of player)"},
+                    "y": {"type": "number", "description": "World Y (snapped down to ground)"},
+                    "z": {"type": "number", "description": "World Z"},
+                    "yaw": {"type": "number", "description": "Y rotation in degrees", "default": 0}
+                },
+                "required": ["item"]
+            }
+        ),
+        Tool(
+            name="drop_item",
+            description="Drop one of the currently selected hotbar item as a world prop in front of the player.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
             name="take_item",
             description="Remove items from the player's inventory.",
             inputSchema={
@@ -5307,6 +5333,16 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     elif name == "give_item":
         body = {"material": args["material"], "count": args.get("count", 1)}
         return await api_post("/api/inventory/give", body)
+
+    elif name == "spawn_item":
+        body = {"item": args["item"]}
+        for k in ("x", "y", "z", "yaw"):
+            if k in args:
+                body[k] = args[k]
+        return await api_post("/api/items/spawn", body)
+
+    elif name == "drop_item":
+        return await api_post("/api/items/drop", {})
 
     elif name == "take_item":
         body = {"material": args["material"], "count": args.get("count", 1)}

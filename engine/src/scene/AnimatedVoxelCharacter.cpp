@@ -1095,33 +1095,73 @@ namespace Scene {
         return result;
     }
 
+    int AnimatedVoxelCharacter::resolveBoneId(const std::string& boneName) const {
+        // Exact match first, then common aliases: "right_hand"/"RightHand" must
+        // find Mixamo's "mixamorig:RightHand". Case-insensitive, separator-blind.
+        auto exact = skeleton.boneMap.find(boneName);
+        if (exact != skeleton.boneMap.end()) return exact->second;
+
+        auto canon = [](const std::string& s) {
+            std::string out;
+            for (char c : s) {
+                if (c == '_' || c == ' ' || c == ':') continue;
+                out += (char)std::tolower((unsigned char)c);
+            }
+            return out;
+        };
+        const std::string want = canon(boneName);
+        for (const auto& [name, id] : skeleton.boneMap) {
+            std::string have = canon(name);
+            // strip the mixamorig prefix if present
+            const std::string prefix = "mixamorig";
+            if (have.rfind(prefix, 0) == 0) have = have.substr(prefix.size());
+            if (have == want) return id;
+        }
+        return -1;
+    }
+
     int AnimatedVoxelCharacter::attachToBone(const std::string& boneName, const glm::vec3& size,
                                               const glm::vec3& offset, const glm::vec4& color,
                                               const std::string& label) {
-        auto it = skeleton.boneMap.find(boneName);
-        if (it == skeleton.boneMap.end()) {
+        int boneId = resolveBoneId(boneName);
+        if (boneId < 0) {
             LOG_WARN("AnimatedVoxelCharacter", "Cannot attach to bone '{}' — not found", boneName);
             return -1;
         }
-
-        int boneId   = it->second;
         int attachId = m_nextAttachmentId++;
 
         m_attachments.push_back({attachId, boneId, size, offset, color, label,
                                   worldPosition, glm::quat(1, 0, 0, 0)});
 
-        RagdollPart part;
-        part.useDirectTransform = true;
-        part.boneGroupId        = attachId + 1000;
-        part.worldPos           = worldPosition;
-        part.worldRot           = glm::quat(1, 0, 0, 0);
-        part.scale              = size;
-        part.color              = color;
-        part.name               = label.empty() ? "attachment" : label;
-        parts.push_back(part);
+        // alpha == 0 marks a transform-only anchor (e.g. the held-item grip):
+        // it must not create a render part — the part renderer ignores alpha
+        // and would draw a tiny black box floating at the anchor position.
+        if (color.a > 0.0f) {
+            RagdollPart part;
+            part.useDirectTransform = true;
+            part.boneGroupId        = attachId + 1000;
+            part.worldPos           = worldPosition;
+            part.worldRot           = glm::quat(1, 0, 0, 0);
+            part.scale              = size;
+            part.color              = color;
+            part.name               = label.empty() ? "attachment" : label;
+            parts.push_back(part);
+        }
 
         LOG_INFO("AnimatedVoxelCharacter", "Attached '{}' to bone '{}' (id {})", label, boneName, attachId);
         return attachId;
+    }
+
+    bool AnimatedVoxelCharacter::getAttachmentTransform(int attachmentId,
+                                                         glm::vec3& outPos, glm::quat& outRot) const {
+        for (const auto& att : m_attachments) {
+            if (att.id == attachmentId) {
+                outPos = att.worldPos;
+                outRot = att.worldRot;
+                return true;
+            }
+        }
+        return false;
     }
 
     void AnimatedVoxelCharacter::detachFromBone(int attachmentId) {

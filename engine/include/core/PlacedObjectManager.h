@@ -205,6 +205,16 @@ public:
                                   int rotation, const glm::ivec3& bboxMin, const glm::ivec3& bboxMax,
                                   const std::string& parentId = "");
 
+    /// Register a world item prop (category "item"): a holdable item lying in the
+    /// world. Item props are NEVER baked into chunks — they render as kinematic
+    /// voxel groups owned by ItemPropManager — so remove() does not clear voxels
+    /// for them. Creates a "pickup" interaction point at the bbox center.
+    /// metadata["itemId"] links back to the ItemDefinition.
+    std::string registerItemProp(const std::string& itemId, const std::string& templateName,
+                                 const glm::ivec3& position, int rotation,
+                                 const glm::ivec3& bboxMin, const glm::ivec3& bboxMax,
+                                 const std::string& displayName);
+
     /// Remove a placed object: clears its voxels and deletes the registry entry.
     bool remove(const std::string& id);
 
@@ -249,6 +259,9 @@ public:
     /// Recompute world-space interaction points for all loaded objects using registered defs.
     /// Call this after loadFromDb() so that objects restored from save also have interaction points.
     void recomputeAllInteractionPoints();
+
+    /// Build the synthetic pickup interaction point for an item prop.
+    static InteractionPoint makeItemPickupPoint(const PlacedObject& obj);
 
     /// Find the nearest free interaction point of a given type within radius.
     /// Returns {objectId, pointId} or {"", ""} if none found.
