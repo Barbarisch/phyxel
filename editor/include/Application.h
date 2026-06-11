@@ -276,6 +276,7 @@ private:
     std::string m_heldItemId;            // item currently shown in the player's hand
     std::string m_heldKinId;             // kinematic group id of the held visual
     int         m_heldAnchorId = -1;     // invisible grip-bone attachment id
+    bool        m_heldComboInit = false; // attack combo initialized for the boot-state hand
     void updateHeldItem();               // per-frame: sync held visual with selected hotbar slot
     void dropHeldItem();                 // drop one of the selected item as a world prop
 

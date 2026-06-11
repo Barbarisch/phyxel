@@ -307,6 +307,16 @@ namespace Scene {
         using OnCastReleaseCallback = std::function<void()>;
         void setOnCastRelease(OnCastReleaseCallback cb) { m_onCastRelease = std::move(cb); }
 
+        /// Attack clip cycle for the held weapon's melee family (set by the
+        /// host on equip change). Successive attack() calls cycle through the
+        /// list; empty restores the default lone "attack" clip. Each clip's
+        /// own hitFrameFraction (clip_meta) drives the hit callback timing.
+        void setAttackCombo(std::vector<std::string> clips) {
+            m_attackCombo = std::move(clips);
+            m_attackComboIdx = 0;
+        }
+        const std::vector<std::string>& getAttackCombo() const { return m_attackCombo; }
+
         // ---- Derez (falling-apart disintegration) ----
 
         /// Begin staggered voxel detachment. The character remains in the scene during the
@@ -487,6 +497,11 @@ namespace Scene {
         bool m_hitFrameFired = false;       // Has the hit frame triggered for current attack?
         float m_hitFrameFraction = 0.4f;    // Default: 40% through attack animation
         OnHitFrameCallback m_onHitFrame;
+
+        // Weapon-family attack combo (see setAttackCombo)
+        std::vector<std::string> m_attackCombo;
+        size_t m_attackComboIdx = 0;
+        std::string m_currentAttackClip = "attack";
 
         // ---- Cast state (see castSpell) ----
         std::vector<CastSegment> m_castSegments;

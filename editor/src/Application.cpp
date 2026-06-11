@@ -18,6 +18,8 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/SpellVfxMapper.h"
 #include "core/SpellDefinition.h"
 #include "core/SpellAnimMapper.h"
+#include "core/MeleeAnimMapper.h"
+#include "core/RpgItem.h"
 #include "core/DamageSystem.h"
 #include "utils/GpuProfiler.h"
 #include "scene/VoxelInteractionSystem.h"
@@ -6793,8 +6795,10 @@ void Application::updateHeldItem() {
         itemId.empty() ? nullptr : Core::ItemRegistry::instance().getItem(itemId);
     if (!def || !def->holdable || def->templateFile.empty()) itemId.clear();
 
-    // Selection changed: rebuild the held visual.
-    if (itemId != m_heldItemId) {
+    // Selection changed: rebuild the held visual. (First pass also runs so the
+    // attack combo gets initialized for the boot-state hand.)
+    if (itemId != m_heldItemId || !m_heldComboInit) {
+        m_heldComboInit = true;
         teardown();
         if (!itemId.empty()) {
             const VoxelTemplate* tmpl = itemPropManager->resolveItemTemplate(def->templateFile);
@@ -6819,6 +6823,20 @@ void Application::updateHeldItem() {
                 }
             }
         }
+
+        // The hand changed: the attack combo follows the held weapon's melee
+        // family (unarmed when the hand is empty or holding a non-weapon).
+        auto& melee = Core::MeleeAnimMapper::instance();
+        if (!melee.isLoaded())
+            melee.loadConfig("resources/rpg_items/anim/melee_anim_families.json");
+        auto& rpgReg = Core::RpgItemRegistry::instance();
+        if (rpgReg.count() == 0) rpgReg.loadFromDirectory("resources/rpg_items");
+        const Core::ItemDefinition* heldDef =
+            m_heldItemId.empty() ? nullptr : Core::ItemRegistry::instance().getItem(m_heldItemId);
+        const std::string family = melee.resolveFamily(heldDef);
+        animatedCharacter->setAttackCombo(melee.familyAttacks(family));
+        LOG_INFO("Application", "Held item '{}' -> melee family '{}'",
+                 m_heldItemId.empty() ? "(none)" : m_heldItemId, family);
     }
 
     // Follow the grip bone.
@@ -6918,6 +6936,21 @@ bool Application::dispatchItemAPICommand(const Core::APICommand& cmd, nlohmann::
         std::string prompt = interactionManager ? interactionManager->getActivePromptText() : "";
         interactWithNPC();
         response = {{"success", true}, {"had_prompt", hadPrompt}, {"prompt", prompt}};
+        return true;
+    }
+
+    if (cmd.action == "player_attack") {
+        // Simulate the player's attack input (left click). The FSM picks the
+        // next clip from the held weapon's combo. FSM-wire test hook, like
+        // requestJump for jumps.
+        if (!animatedCharacter) {
+            response = {{"error", "No player character"}};
+            return true;
+        }
+        animatedCharacter->attack();
+        nlohmann::json combo = nlohmann::json::array();
+        for (const auto& c : animatedCharacter->getAttackCombo()) combo.push_back(c);
+        response = {{"success", true}, {"combo", combo}};
         return true;
     }
 

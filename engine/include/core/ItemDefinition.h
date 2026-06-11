@@ -241,6 +241,8 @@ struct ItemDefinition {
     // Visual
     std::string templateFile;          // Voxel model template (e.g. "weapons/sword.voxel")
     std::string attackAnimation;       // Animation clip to use (e.g. "melee_attack_horizontal")
+    std::string weaponFamily;          // Explicit melee animation family ("slash_1h", ...).
+                                       // Empty = resolve via rpg item rules / toolType heuristic.
 
     // Holdable: the item can exist as a world prop and be held in a hand.
     // Defaults true when a templateFile is present (see fromJson).
@@ -267,6 +269,7 @@ struct ItemDefinition {
         j["reach"] = reach;
         if (!templateFile.empty()) j["templateFile"] = templateFile;
         if (!attackAnimation.empty()) j["attackAnimation"] = attackAnimation;
+        if (!weaponFamily.empty()) j["weaponFamily"] = weaponFamily;
         j["holdable"] = holdable;
         if (holdable) j["held"] = held.toJson();
         if (!effects.empty()) {
@@ -292,6 +295,7 @@ struct ItemDefinition {
         def.reach = j.value("reach", 1.5f);
         def.templateFile = j.value("templateFile", "");
         def.attackAnimation = j.value("attackAnimation", "");
+        def.weaponFamily = j.value("weaponFamily", "");
 
         // Holdable defaults to "has a voxel model"; authors can override.
         def.holdable = j.value("holdable", !def.templateFile.empty());

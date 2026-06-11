@@ -2025,6 +2025,14 @@ namespace Scene {
                     stateTimer = 0.0f;
                     attackRequested = false;
                     m_hitFrameFired = false;
+                    // Cycle through the held weapon's attack combo (set by the
+                    // host from the melee family); default is the lone "attack".
+                    if (!m_attackCombo.empty()) {
+                        m_currentAttackClip = m_attackCombo[m_attackComboIdx % m_attackCombo.size()];
+                        ++m_attackComboIdx;
+                    } else {
+                        m_currentAttackClip = "attack";
+                    }
                 } else if (verticalVel < -5.0f) {
                     // Falling detection (increased threshold to prevent jitter)
                     currentState = AnimatedCharacterState::Fall;
@@ -2242,10 +2250,14 @@ namespace Scene {
                 }
                 break;
 
-            case AnimatedCharacterState::Attack:
-                // Check hit frame trigger
+            case AnimatedCharacterState::Attack: {
+                // Check hit frame trigger — per-clip hitFrameFraction (from
+                // clip_meta) wins over the legacy character-level default.
+                float hitFrac = m_hitFrameFraction;
+                if (currentClipIndex >= 0 && currentClipIndex < (int)clips.size())
+                    hitFrac = clips[currentClipIndex].hitFrameFraction;
                 if (!m_hitFrameFired && currentAnimDuration > 0.0f &&
-                    stateTimer / currentAnimDuration >= m_hitFrameFraction) {
+                    stateTimer / currentAnimDuration >= hitFrac) {
                     m_hitFrameFired = true;
                     if (m_onHitFrame) m_onHitFrame();
                 }
@@ -2266,6 +2278,7 @@ namespace Scene {
                     }
                 }
                 break;
+            }
 
             case AnimatedCharacterState::Cast: {
                 if (m_castSegments.empty() || m_castSegIdx >= m_castSegments.size()) {
@@ -2787,7 +2800,7 @@ namespace Scene {
                     case AnimatedCharacterState::CrouchIdle: targetAnim = "crouch_idle"; break;
                     case AnimatedCharacterState::CrouchWalk: targetAnim = "crouched_walking"; break;
                     case AnimatedCharacterState::StandUp: targetAnim = "crouch_to_stand"; break;
-                    case AnimatedCharacterState::Attack: targetAnim = "attack"; break;
+                    case AnimatedCharacterState::Attack: targetAnim = m_currentAttackClip; break;
                     case AnimatedCharacterState::Cast:
                         targetAnim = (m_castSegIdx < m_castSegments.size())
                                          ? m_castSegments[m_castSegIdx].clip : "idle";

@@ -362,10 +362,22 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     twitchy (real mocap Spine1 peaks ~117 deg/s while ARMS hit 650–1085). Spine axes
     (measured): +X bow forward, −Y right-handed windup, +Y follow-through. Melee calibration
     envelope now includes melee_attack_h/down + elbow_punch.
-  - **NEXT (melee Phase 3, not started):** attack() currently hardcodes the "attack" clip —
-    extend to weapon-family selection (EquipmentSystem equipped weapon → family → attacks[]
-    combo cycling, like SpellAnimMapper), CombatSystem hit at per-clip hitFrameFraction,
-    block state on melee_parry/body_block, weapon visuals via attachToBone.
+  - **Melee wiring (2026-06-11): DONE + verified live.** Held weapon now drives attacks:
+    `Core::MeleeAnimMapper` (loads rpg_items/anim/melee_anim_families.json) resolves a
+    family per held ItemDefinition via chain: explicit `weaponFamily` field → RpgItemRegistry
+    entry with same id (property/damageType rules) → ToolType heuristic (Sword/Axe/… →
+    slash_1h) → unarmed. `AnimatedVoxelCharacter::setAttackCombo(clips)` + the Attack
+    transition cycles `m_attackCombo`; the Attack state now uses the CURRENT clip's
+    hitFrameFraction (clip_meta) for the onHitFrame callback instead of the character-level
+    default. Application::updateHeldItem sets the combo on every hand change (+ boot init via
+    m_heldComboInit). Test hook: POST /api/player/attack ("player_attack" in
+    dispatchItemAPICommand) — simulates left-click, returns the active combo. Verified:
+    iron_sword → melee_attack_horizontal → melee_attack_down (cycling); empty hand →
+    boxing → elbow_punch.
+  - **NEXT (melee/combat):** CombatSystem damage from held ItemDefinition.damage on the hit
+    frame (onHitFrame wiring), block state (hold right-click → melee_parry/body_block),
+    attack playback rate from weapon speed (attackSpeedRange in the families config), NPC
+    weapon combos (same setAttackCombo on NPC equip).
 - **Items system P1 (2026-06-11): DONE + verified live end-to-end.** "Items" = holdable
   things (weapons, torches, cups) with a three-state lifecycle: WORLD PROP ⇄ INVENTORY ⇄ HELD.
   - **Data:** `ItemDefinition` gains `holdable` + `held{gripBone, gripOffset, gripEulerDeg,
