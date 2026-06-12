@@ -149,6 +149,124 @@ PARRY_GUARD = {
     "Head": (4.0, 0.0, 0.0),
 }
 
+# ============================================================================
+# sword_1h flagship moveset (combat Phase B)
+# Chain-continuity rule: every link starts AND ends at SWORD_GUARD (the hub);
+# strikes land by ~40%, the 60-100% tail is recovery — which is exactly what
+# a buffered chain input cancels. The 0.2s crossfade smooths hub re-entry.
+# ============================================================================
+
+# Lower-body involvement: Hips rotation pivots the whole body (legs swivel
+# like a real back-foot pivot), and HipsOffset dips drop the weight into the
+# cut — the engine's foot IK pins the feet so dips read as knee bends.
+SWORD_GUARD = {                           # bladed stance: hilt at waist, blade up-forward
+    "RightArm": (10.0, 0.0, -40.0),
+    "RightForeArm": (5.0, 0.0, -55.0),
+    "RightHand": (0.0, 0.0, -8.0),
+    "LeftArm": (5.0, 0.0, 18.0),          # lead arm slightly raised
+    "Spine": (1.0, -4.0, 0.0),            # subtle bladed twist
+    "Spine1": (1.0, -4.0, 0.0),
+    "Spine2": (1.0, -3.0, 0.0),
+    "Hips": (0.0, -3.0, 0.0),
+    "HipsOffset": (0.0, -0.02, 0.0),      # slight ready crouch
+}
+SWORD_COCK_R = {                          # wind up to the right shoulder
+    "RightArm": (-25.0, 0.0, -25.0),
+    "RightForeArm": (0.0, 0.0, -48.0),
+    "RightHand": (0.0, 0.0, -8.0),
+    "LeftArm": (8.0, 0.0, 22.0),
+    "Spine": (1.0, -11.0, 0.0),
+    "Spine1": (1.0, -11.0, 0.0),
+    "Spine2": (1.0, -9.0, 0.0),
+    "Head": (0.0, -6.0, 0.0),
+    "Hips": (0.0, -8.0, 0.0),             # hips lead the windup
+    "HipsOffset": (0.0, -0.03, 0.0),
+}
+SWORD_SLASH_L = {                         # horizontal cut, follow-through across left
+    "RightArm": (40.0, 0.0, -70.0),
+    "RightForeArm": (0.0, 0.0, -10.0),
+    "RightHand": (0.0, 0.0, -5.0),
+    "LeftArm": (0.0, 0.0, 10.0),
+    "Spine": (3.0, 9.0, 0.0),
+    "Spine1": (3.0, 9.0, 0.0),
+    "Spine2": (3.0, 7.0, 0.0),
+    "Head": (2.0, 5.0, 0.0),
+    "Hips": (0.0, 8.0, 0.0),              # hips rotate through the cut
+    "HipsOffset": (0.0, -0.06, 0.0),      # weight drops into it
+}
+SWORD_COCK_L = {                          # pull across the body for the backhand
+    "RightArm": (38.0, 0.0, -38.0),
+    "RightForeArm": (8.0, 0.0, -52.0),
+    "RightHand": (0.0, 0.0, -8.0),
+    "LeftArm": (0.0, 0.0, 12.0),
+    "Spine": (2.0, 9.0, 0.0),
+    "Spine1": (2.0, 9.0, 0.0),
+    "Spine2": (2.0, 7.0, 0.0),
+    "Head": (0.0, 5.0, 0.0),
+    "Hips": (0.0, 7.0, 0.0),
+    "HipsOffset": (0.0, -0.03, 0.0),
+}
+SWORD_BACKHAND_R = {                      # backhand cut out to the right
+    "RightArm": (-32.0, 0.0, -62.0),
+    "RightForeArm": (0.0, 0.0, -12.0),
+    "RightHand": (0.0, 0.0, -5.0),
+    "LeftArm": (6.0, 0.0, 20.0),
+    "Spine": (2.0, -10.0, 0.0),
+    "Spine1": (2.0, -10.0, 0.0),
+    "Spine2": (2.0, -8.0, 0.0),
+    "Head": (0.0, -5.0, 0.0),
+    "Hips": (0.0, -8.0, 0.0),
+    "HipsOffset": (0.0, -0.06, 0.0),
+}
+SWORD_HIGH_COCK = {                       # blade raised overhead-back
+    "RightArm": (-8.0, 0.0, -130.0),
+    "RightForeArm": (0.0, 0.0, -32.0),
+    "RightHand": (0.0, 0.0, -8.0),
+    "LeftArm": (5.0, 0.0, 28.0),
+    "Spine": (-4.0, -6.0, 0.0),
+    "Spine1": (-4.0, -6.0, 0.0),
+    "Spine2": (-3.0, -5.0, 0.0),
+    "Head": (-5.0, 0.0, 0.0),
+    "Hips": (0.0, -5.0, 0.0),
+    "HipsOffset": (0.0, -0.01, 0.0),      # tall at the top of the coil
+}
+SWORD_CHOP = {                            # overhead cut landing forward-low
+    "RightArm": (6.0, 0.0, -52.0),
+    "RightForeArm": (0.0, 0.0, -10.0),
+    "RightHand": (0.0, 0.0, 6.0),
+    "LeftArm": (0.0, 0.0, 8.0),
+    "Spine": (8.0, 2.0, 0.0),
+    "Spine1": (8.0, 2.0, 0.0),
+    "Spine2": (7.0, 2.0, 0.0),
+    "Head": (5.0, 0.0, 0.0),
+    "Hips": (2.0, 2.0, 0.0),
+    "HipsOffset": (0.0, -0.09, 0.0),      # deep drop under the chop
+}
+SWORD_HEAVY_COCK = {                      # deeper overhead wind with full body coil
+    "RightArm": (-15.0, 0.0, -142.0),
+    "RightForeArm": (0.0, 0.0, -38.0),
+    "RightHand": (0.0, 0.0, -8.0),
+    "LeftArm": (8.0, 0.0, 35.0),
+    "Spine": (-5.0, -11.0, 0.0),
+    "Spine1": (-5.0, -11.0, 0.0),
+    "Spine2": (-4.0, -9.0, 0.0),
+    "Head": (-7.0, -4.0, 0.0),
+    "Hips": (0.0, -9.0, 0.0),
+    "HipsOffset": (0.0, -0.02, 0.0),
+}
+SWORD_HEAVY_IMPACT = {                    # committed full-weight chop
+    "RightArm": (10.0, 0.0, -45.0),
+    "RightForeArm": (0.0, 0.0, -8.0),
+    "RightHand": (0.0, 0.0, 8.0),
+    "LeftArm": (-3.0, 0.0, 5.0),
+    "Spine": (9.0, 3.0, 0.0),
+    "Spine1": (9.0, 3.0, 0.0),
+    "Spine2": (8.0, 3.0, 0.0),
+    "Head": (6.0, 0.0, 0.0),
+    "Hips": (3.0, 3.0, 0.0),
+    "HipsOffset": (0.0, -0.12, 0.0),      # full commitment: sink into the blow
+}
+
 POSES = {
     "rest": REST,
     "stab_back": STAB_BACK,
@@ -160,6 +278,15 @@ POSES = {
     "spear_guard": SPEAR_GUARD,
     "spear_thrust": SPEAR_THRUST,
     "parry_guard": PARRY_GUARD,
+    "sword_guard": SWORD_GUARD,
+    "sword_cock_r": SWORD_COCK_R,
+    "sword_slash_l": SWORD_SLASH_L,
+    "sword_cock_l": SWORD_COCK_L,
+    "sword_backhand_r": SWORD_BACKHAND_R,
+    "sword_high_cock": SWORD_HIGH_COCK,
+    "sword_chop": SWORD_CHOP,
+    "sword_heavy_cock": SWORD_HEAVY_COCK,
+    "sword_heavy_impact": SWORD_HEAVY_IMPACT,
 }
 
 
@@ -210,6 +337,51 @@ CLIPS = [
         (0.33, "parry_guard"),
         (0.45, "rest"),
     ], 0.27, "stab_1h", "block"),
+
+    # ---- sword_1h flagship moveset (combat Phase B) ----
+    # All links start/end at sword_guard; the recovery tail (last ~35%) is the
+    # chain window. Block freezes at the guard pose (blockHold 1.0).
+    # 7th element = legs_from (mocap lower body): real footwork + weight
+    # transfer from the melee mocap clips, time-mapped under the authored arms.
+    ("sword1h_guard", 0.5, [
+        (0.00, "rest"),
+        (0.30, "sword_guard"),
+        (0.50, "sword_guard"),
+    ], 0.30, "slash_1h", "block", ("body_block", 0.7, 0.9)),
+
+    ("sword1h_light1", 1.0, [
+        (0.00, "sword_guard"),
+        (0.18, "sword_cock_r"),
+        (0.36, "sword_slash_l"),  # the cut
+        (0.52, "sword_slash_l"),  # impact hold
+        (1.00, "sword_guard"),    # recovery (chain window lives here)
+    ], 0.40, "slash_1h", "light1", ("melee_attack_horizontal", 0.55, 1.75)),
+
+    ("sword1h_light2", 1.0, [
+        (0.00, "sword_guard"),
+        (0.18, "sword_cock_l"),
+        (0.36, "sword_backhand_r"),
+        (0.52, "sword_backhand_r"),
+        (1.00, "sword_guard"),
+    ], 0.40, "slash_1h", "light2", ("melee_attack_horizontal", 0.9, 1.9)),
+
+    ("sword1h_light3", 1.15, [
+        (0.00, "sword_guard"),
+        (0.24, "sword_high_cock"),
+        (0.44, "sword_chop"),
+        (0.62, "sword_chop"),
+        (1.15, "sword_guard"),
+    ], 0.42, "slash_1h", "light3", ("melee_attack_down", 0.5, 1.85)),
+
+    ("sword1h_heavy", 1.9, [
+        (0.00, "sword_guard"),
+        (0.38, "sword_high_cock"),
+        (0.62, "sword_heavy_cock"),   # the souls tell: a beat at full coil
+        (0.88, "sword_heavy_cock"),
+        (1.05, "sword_heavy_impact"),
+        (1.35, "sword_heavy_impact"),
+        (1.90, "sword_guard"),
+    ], 0.57, "slash_1h", "heavy", ("melee_attack_down", 0.15, 2.1)),
 ]
 
 # Reused Mixamo mocap clips: tag with family/role + hit frames via clip_meta
@@ -240,8 +412,10 @@ def main(argv=None):
         calibration = json.loads(CALIBRATION.read_text(encoding="utf-8"))
 
     failed = False
-    for name, duration, keys, hit_frame, family, role in CLIPS:
-        clip = build_clip(stance, name, duration, keys, POSES)
+    for spec in CLIPS:
+        name, duration, keys, hit_frame, family, role = spec[:6]
+        legs_from = spec[6] if len(spec) > 6 else None
+        clip = build_clip(stance, name, duration, keys, POSES, legs_from=legs_from)
         af.set_clip(clip)
         af.set_clip_meta(name, {
             "type": "combat", "interruptible": False, "interruptAfter": 1.0,

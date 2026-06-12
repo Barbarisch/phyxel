@@ -1,15 +1,21 @@
 {
   "_comment": "Maps an equipped weapon (RpgItemDefinition) -> melee animation family -> humanoid.anim clips. Rules evaluate top-down on weapon.damageType + weapon.properties, first match wins; weaponOverrides beat rules; no weapon equipped = unarmedFamily. Clip-side metadata (meleeFamily/meleeRole/hitFrameFraction) lives in '# clip_meta:' headers in humanoid.anim, written by tools/anim_pipeline/generate_melee.py. This file lives in an anim/ subdirectory so RpgItemRegistry's *.json directory glob does not try to parse it as an item.",
 
+  "_comment_movesets": "attacks = the LIGHT chain (input during a swing's chain window plays the next link; ending without input resets). heavy = committed one-shot. block = guard clip held while blocking, frozen at blockHold fraction. speedClass picks rate + chainWindow from speedClasses. Phase A maps existing clips; authored per-weapon movesets replace these slot by slot.",
   "families": {
-    "unarmed":    { "attacks": ["boxing", "elbow_punch"],                              "block": "body_block" },
-    "slash_1h":   { "attacks": ["melee_attack_horizontal", "melee_attack_down", "attack"], "block": "melee_parry" },
-    "stab_1h":    { "attacks": ["melee_stab_1h"],                                      "block": "melee_parry" },
-    "two_handed": { "attacks": ["melee_chop_2h", "melee_sweep_2h"],                    "block": "body_block" },
-    "spear":      { "attacks": ["melee_thrust_spear"],                                 "block": "melee_parry" }
+    "unarmed":    { "attacks": ["boxing", "elbow_punch"],                              "heavy": "headbutt",          "block": "body_block",  "blockHold": 0.3, "speedClass": "fast" },
+    "slash_1h":   { "attacks": ["sword1h_light1", "sword1h_light2", "sword1h_light3"],     "heavy": "sword1h_heavy", "block": "sword1h_guard", "blockHold": 1.0, "speedClass": "standard" },
+    "stab_1h":    { "attacks": ["melee_stab_1h"],                                      "heavy": "melee_stab_1h",     "block": "melee_parry", "blockHold": 0.5, "speedClass": "fast" },
+    "two_handed": { "attacks": ["melee_chop_2h", "melee_sweep_2h"],                    "heavy": "melee_sweep_2h",    "block": "body_block",  "blockHold": 0.3, "speedClass": "heavy" },
+    "spear":      { "attacks": ["melee_thrust_spear"],                                 "heavy": "melee_sweep_2h",    "block": "melee_parry", "blockHold": 0.5, "speedClass": "standard" }
   },
 
-  "_comment_speed": "attackSpeedRange clamps the playback rate when the engine scales swings (e.g. by weapon speed or haste). Light-property weapons may run toward the top of the band, Heavy toward the bottom.",
+  "_comment_speed": "speedClasses: rate = attack playback multiplier; chainWindow = tail fraction of a swing during which a buffered light input chains to the next link. Fast weapons swing quicker AND chain more forgivingly.",
+  "speedClasses": {
+    "fast":     { "rate": 1.15, "chainWindow": 0.45 },
+    "standard": { "rate": 1.0,  "chainWindow": 0.35 },
+    "heavy":    { "rate": 0.85, "chainWindow": 0.30 }
+  },
   "attackSpeedRange": [0.8, 1.3],
 
   "rules": [

@@ -374,10 +374,51 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     dispatchItemAPICommand) — simulates left-click, returns the active combo. Verified:
     iron_sword → melee_attack_horizontal → melee_attack_down (cycling); empty hand →
     boxing → elbow_punch.
-  - **NEXT (melee/combat):** CombatSystem damage from held ItemDefinition.damage on the hit
-    frame (onHitFrame wiring), block state (hold right-click → melee_parry/body_block),
-    attack playback rate from weapon speed (attackSpeedRange in the families config), NPC
-    weapon combos (same setAttackCombo on NPC equip).
+  - **Combat Phase A — souls-style controls + chain mechanics (2026-06-12): DONE + verified
+    live, zero new clips.** The plan: A=mechanics with existing clips, B=authored sword_1h
+    flagship moveset (chain-pose continuity!), C=grips+speed classes (sword_2h/dagger/
+    Versatile), D=spear/mace+weight polish, E=souls systems (stamina/roll/lock-on/stagger).
+    - **Data:** melee_anim_families.json families now carry attacks (= LIGHT CHAIN, ordered),
+      heavy, block, blockHold, speedClass; new speedClasses table {fast 1.15/0.45,
+      standard 1.0/0.35, heavy 0.85/0.30} = {rate, chainWindow}.
+      `MeleeAnimMapper::resolveMovesetDef(item)` → MeleeMovesetDef.
+    - **FSM (AnimatedVoxelCharacter):** `setMoveset`, `lightAttack()` (buffers mid-swing →
+      Attack state consumes the buffer at the chain window tail and plays the next link;
+      ending without input resets the chain), `heavyAttack()` (committed one-shot, no
+      chaining v1), `setBlocking(held)` → new Block state (guard clip frozen at
+      blockHoldFrac while held, release → Idle). Attacks play at moveset rate (animTime
+      tick × currentAttackRate, duration checks scaled — same pattern as Cast).
+    - **Controls (ControlScheme.h):** LMB = light, Shift+LMB = heavy, guard = RMB in FPS
+      scheme but LEFT_ALT in Tank scheme (RMB is the orbit hold there). Edge guards in
+      GameplayCameraController (attackHeld_/heavyHeld_).
+    - **Test hooks:** POST /api/player/attack {"type":"light"|"heavy"},
+      /api/player/block {"held":bool}. Verified: buffered chain attack→melee_attack_horizontal,
+      chain reset after idle, heavy=melee_chop_2h, block frozen at progress 0.5 → Idle.
+    - **Phase B — sword_1h flagship moveset (2026-06-12): DONE + verified live.** 5 authored
+      clips (all lint-PASS): sword1h_guard (block stance, blockHold 1.0 = freeze at full
+      guard), sword1h_light1/2/3 (slash-across → backhand → overhead chop), sword1h_heavy
+      (overhead coil with a held "tell" beat → committed chop, hit 0.57). **Chain-continuity
+      pattern that works with the DSL: every link starts AND ends at the shared sword_guard
+      hub pose; strikes land by ~40%, the 60-100% recovery tail is what a buffered chain
+      input cancels; the 0.2s crossfade smooths hub re-entry.** slash_1h family now uses
+      these (melee_attack_h/down/attack freed for other movesets). Verified: 3 rapid presses
+      chain light1→light2→light3; slash impact frame + heavy coil storyboarded with the held
+      sword visible.
+    - **HYBRID CLIPS — the anti-stiffness technique (user-driven; THE default for melee):**
+      pure pose-DSL hips rotation/dip moved the body as one rigid block (legs FK'd at idle —
+      user: "if the feet move the knees dont"). Fix: `build_clip(..., legs_from=(srcClip,
+      t0, t1))` samples the LOWER BODY (Hips incl. position + both full legs,
+      LOWER_BODY_BONES in pose_dsl.py) from a mocap clip segment time-mapped onto the
+      authored clip — real footwork/weight transfer under authored arms. Sword clips use
+      melee_attack_horizontal (lights 1-2, different phases), melee_attack_down (light3 +
+      heavy), body_block (guard stance legs). Pose Hips/HipsOffset deltas are ignored in
+      hybrid mode. Also added: `HipsOffset` pose key (root translation deltas) for
+      non-hybrid clips.
+    - **NEXT — Phase C/D/E:** sword_2h + dagger + Versatile grip variants (Phase C — the
+      sword poses parameterize/mirror/retime), spear/mace movesets + weight polish (D),
+      souls systems: stamina/roll/lock-on/stagger + hit reactions (E). Also still open:
+      CombatSystem damage from ItemDefinition.damage on hit frame, NPC movesets, thrust
+      input (directional attack).
 - **Items system P1 (2026-06-11): DONE + verified live end-to-end.** "Items" = holdable
   things (weapons, torches, cups) with a three-state lifecycle: WORLD PROP ⇄ INVENTORY ⇄ HELD.
   - **Data:** `ItemDefinition` gains `holdable` + `held{gripBone, gripOffset, gripEulerDeg,

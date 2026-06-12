@@ -143,44 +143,73 @@ class BaseStance:
             raise KeyError(f"unknown bone '{short_name}'; known: {sorted(self.short_to_id)}")
         return self.short_to_id[short_name]
 
-    def resolve_pose(self, pose: dict) -> dict:
-        """pose {short_name: euler/quat-delta} -> {bone_id: absolute local quat}."""
+    def resolve_pose(self, pose: dict):
+        """pose {short_name: euler/quat-delta, "HipsOffset": (x,y,z)} ->
+        ({bone_id: absolute local quat}, hips_offset).
+
+        "HipsOffset" is a special key: a translation delta (world-ish units)
+        added to the root's base position — weight shifts and dips. With the
+        engine's foot IK pinning the feet, a downward dip reads as a knee bend.
+        """
         out = dict(self.rotations)  # start at base stance for ALL bones
+        hips_offset = (0.0, 0.0, 0.0)
         for short_name, val in pose.items():
+            if short_name == "HipsOffset":
+                hips_offset = tuple(float(v) for v in val)
+                continue
             bid = self.bone_id(short_name)
             base = self.rotations.get(bid, self.af.bones[bid].rot)
             out[bid] = qnormalize(qmul(base, resolve_delta(val)))
-        return out
+        return out, hips_offset
 
 
 # ---------------------------------------------------------------------------
 # Clip building
 # ---------------------------------------------------------------------------
 
+# Lower-body bones for hybrid clips (mocap legs under authored upper body).
+LOWER_BODY_BONES = [
+    "Hips",
+    "LeftUpLeg", "LeftLeg", "LeftFoot", "LeftToeBase", "LeftToe_End",
+    "RightUpLeg", "RightLeg", "RightFoot", "RightToeBase", "RightToe_End",
+]
+
+
 def build_clip(stance: BaseStance, name: str, duration: float, keys: list,
-               poses: dict, subdivisions: int = 3) -> Clip:
+               poses: dict, subdivisions: int = 3, legs_from=None) -> Clip:
     """keys: [(time, pose_name_or_dict, ease), ...] with ease in
     {"smooth", "linear"}. Pose may be a name into `poses` or an inline dict.
     Returns a full-body Clip: every base-stance bone gets a rotation channel
     keyed at every (possibly subdivided) time; root bones keep their base
     position as a single constant PosKey.
+
+    legs_from = (source_clip_name, src_start, src_end): HYBRID mode — the
+    lower body (hips + legs + feet, see LOWER_BODY_BONES) is sampled from a
+    mocap clip segment time-mapped onto [0, duration], giving real footwork
+    and weight transfer under the authored upper body. Pose deltas and
+    HipsOffset on lower-body bones are ignored in hybrid mode (the mocap
+    already carries the weight); spine/arms compose on top of the mocap hips.
     """
     if not keys:
         raise ValueError("clip needs at least one key")
-    resolved = []  # (time, {bone_id: quat}, ease)
+    resolved = []  # (time, {bone_id: quat}, hips_offset, ease)
     for entry in keys:
         t, pose, ease = entry if len(entry) == 3 else (*entry, "smooth")
         pose_dict = poses[pose] if isinstance(pose, str) else pose
-        resolved.append((float(t), stance.resolve_pose(pose_dict), ease))
+        rots, hips_off = stance.resolve_pose(pose_dict)
+        resolved.append((float(t), rots, hips_off, ease))
     resolved.sort(key=lambda e: e[0])
 
     # Build the global key timeline with smoothstep subdivision per segment.
     # Subdivided samples are placed at linear times with smoothstep-blended
     # values, which approximates eased interpolation through linear slerp.
-    timeline = [resolved[0][:2]]  # [(time, {bone_id: quat})]
+    def lerp3(a, b, f):
+        return tuple(a[i] + (b[i] - a[i]) * f for i in range(3))
+
+    timeline = [(resolved[0][0], resolved[0][1], resolved[0][2])]
     for i in range(len(resolved) - 1):
-        t0, p0, _ = resolved[i]
-        t1, p1, ease = resolved[i + 1]
+        t0, p0, h0, _ = resolved[i]
+        t1, p1, h1, ease = resolved[i + 1]
         if t1 - t0 < 1e-6:
             continue
         if ease == "smooth" and subdivisions > 0:
@@ -189,21 +218,56 @@ def build_clip(stance: BaseStance, name: str, duration: float, keys: list,
                 blend = smoothstep(f)
                 t = t0 + f * (t1 - t0)
                 blended = {bid: qslerp(p0[bid], p1[bid], blend) for bid in p0}
-                timeline.append((t, blended))
-        timeline.append((t1, p1))
+                timeline.append((t, blended, lerp3(h0, h1, blend)))
+        timeline.append((t1, p1, h1))
+
+    # Hips position channel only varies when some pose actually shifts it.
+    hips_animated = any(any(abs(v) > 1e-6 for v in h) for _, _, h in timeline)
+
+    # Hybrid mode: pre-resolve the source clip's lower-body channels.
+    hybrid_ids = set()
+    src_channels = {}
+    src_t0 = src_t1 = 0.0
+    if legs_from is not None:
+        src_name, src_t0, src_t1 = legs_from
+        src_clip = stance.af.clip(src_name)
+        if src_clip is None:
+            raise ValueError(f"legs_from clip '{src_name}' not found")
+        by_bone = {c.bone_id: c for c in src_clip.channels}
+        for short in LOWER_BODY_BONES:
+            bid = stance.short_to_id.get(short)
+            if bid is not None and bid in by_bone:
+                hybrid_ids.add(bid)
+                src_channels[bid] = by_bone[bid]
+
+    def src_time(t):
+        f = t / duration if duration > 0 else 0.0
+        return src_t0 + f * (src_t1 - src_t0)
 
     clip = Clip(name=name, duration=float(duration))
     for bid in sorted(stance.rotations):
         ch = Channel(bone_id=bid)
         prev_q = None
-        for t, pose_map in timeline:
-            q = qnormalize(pose_map[bid])
+        for t, pose_map, _h in timeline:
+            if bid in hybrid_ids:
+                q = qnormalize(sample_rotation(src_channels[bid].rot_keys, src_time(t)))
+            else:
+                q = qnormalize(pose_map[bid])
             if prev_q is not None and qdot(prev_q, q) < 0.0:
                 q = tuple(-x for x in q)  # keep sign-continuous for clean slerp
             ch.rot_keys.append((t, q))
             prev_q = q
-        if bid in stance.positions:
-            ch.pos_keys.append((0.0, stance.positions[bid]))
+        if bid in hybrid_ids and src_channels[bid].pos_keys:
+            # Mocap root motion (weight shift, bob) keyed at every timeline time.
+            for t, _pose_map, _h in timeline:
+                ch.pos_keys.append((t, sample_position(src_channels[bid].pos_keys, src_time(t))))
+        elif bid in stance.positions:
+            base = stance.positions[bid]
+            if bid == 0 and hips_animated:  # root: apply weight-shift offsets
+                for t, _pose_map, h in timeline:
+                    ch.pos_keys.append((t, (base[0] + h[0], base[1] + h[1], base[2] + h[2])))
+            else:
+                ch.pos_keys.append((0.0, base))
         clip.channels.append(ch)
     return clip
 
