@@ -22,6 +22,18 @@ namespace Core {
 // The clip-side metadata (meleeFamily/meleeRole/hitFrameFraction) lives in
 // humanoid.anim clip_meta; this class only picks WHICH clips to cycle.
 // ============================================================================
+/// A fully-resolved moveset: what the character FSM needs for souls-style
+/// melee (light chain + heavy + held block + speed-class timing).
+struct MeleeMovesetDef {
+    std::string family;
+    std::vector<std::string> lightChain;
+    std::string heavy;
+    std::string block;
+    float attackRate      = 1.0f;
+    float chainWindowFrac = 0.35f;
+    float blockHoldFrac   = 0.5f;
+};
+
 class MeleeAnimMapper {
 public:
     static MeleeAnimMapper& instance();
@@ -38,6 +50,10 @@ public:
 
     /// Block/guard clip for a family ("" if none).
     std::string familyBlock(const std::string& family) const;
+
+    /// Full moveset for a held item: family clips + speed-class timing
+    /// (rate / chain window) from the config's "speedClasses" table.
+    MeleeMovesetDef resolveMovesetDef(const ItemDefinition* item) const;
 
 private:
     MeleeAnimMapper() = default;

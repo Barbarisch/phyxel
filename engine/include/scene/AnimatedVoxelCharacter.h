@@ -61,6 +61,7 @@ namespace Scene {
         SittingIdle,  // looping seated idle
         SitStandUp,   // playing stand-up-from-seat animation
         Cast,         // playing a spell-cast one-shot (single clip or windup/loop/release)
+        Block,        // holding a guard pose (frozen partway into the block clip)
         Preview
     };
 
@@ -307,15 +308,31 @@ namespace Scene {
         using OnCastReleaseCallback = std::function<void()>;
         void setOnCastRelease(OnCastReleaseCallback cb) { m_onCastRelease = std::move(cb); }
 
-        /// Attack clip cycle for the held weapon's melee family (set by the
-        /// host on equip change). Successive attack() calls cycle through the
-        /// list; empty restores the default lone "attack" clip. Each clip's
-        /// own hitFrameFraction (clip_meta) drives the hit callback timing.
-        void setAttackCombo(std::vector<std::string> clips) {
-            m_attackCombo = std::move(clips);
-            m_attackComboIdx = 0;
-        }
-        const std::vector<std::string>& getAttackCombo() const { return m_attackCombo; }
+        // ---- Melee moveset (souls-style: light chains, heavy, held block) ----
+
+        /// Moveset for the held weapon, set by the host on equip change.
+        struct MeleeMoveset {
+            std::vector<std::string> lightChain;  ///< ordered light-attack chain (loops)
+            std::string heavy;                    ///< committed heavy attack ("" = none)
+            std::string block;                    ///< guard clip held while blocking ("" = none)
+            float attackRate      = 1.0f;         ///< playback-rate multiplier for attacks
+            float chainWindowFrac = 0.35f;        ///< tail fraction of a swing accepting the next link
+            float blockHoldFrac   = 0.5f;         ///< freeze the guard clip at this fraction while held
+        };
+        void setMoveset(MeleeMoveset ms) { m_moveset = std::move(ms); m_chainIdx = 0; }
+        const MeleeMoveset& getMoveset() const { return m_moveset; }
+
+        /// Light attack: starts the chain from idle, or buffers the next link
+        /// while a swing is in flight (executes at the chain window).
+        void lightAttack();
+        /// Heavy attack: one-shot commitment; ignored mid-swing (no chaining v1).
+        void heavyAttack();
+        /// Hold/release the guard stance (enters/leaves the Block state).
+        void setBlocking(bool held) { m_blockHeld = held; }
+        bool isBlocking() const { return currentState == AnimatedCharacterState::Block; }
+
+        /// Back-compat: the light chain as a flat list.
+        const std::vector<std::string>& getAttackCombo() const { return m_moveset.lightChain; }
 
         // ---- Derez (falling-apart disintegration) ----
 
@@ -498,10 +515,19 @@ namespace Scene {
         float m_hitFrameFraction = 0.4f;    // Default: 40% through attack animation
         OnHitFrameCallback m_onHitFrame;
 
-        // Weapon-family attack combo (see setAttackCombo)
-        std::vector<std::string> m_attackCombo;
-        size_t m_attackComboIdx = 0;
+        // Weapon-family moveset state (see setMoveset / lightAttack)
+        MeleeMoveset m_moveset;
+        size_t m_chainIdx = 0;            // next light-chain link to play
+        bool   m_attackQueued = false;    // light input buffered during a swing
+        bool   m_attackIsHeavy = false;   // current Attack state is the heavy clip
+        bool   m_heavyRequested = false;
+        bool   m_blockHeld = false;
         std::string m_currentAttackClip = "attack";
+        /// Playback-rate multiplier for the active melee attack (1 outside Attack).
+        float currentAttackRate() const {
+            if (currentState != AnimatedCharacterState::Attack) return 1.0f;
+            return m_moveset.attackRate > 0.01f ? m_moveset.attackRate : 1.0f;
+        }
 
         // ---- Cast state (see castSpell) ----
         std::vector<CastSegment> m_castSegments;

@@ -78,7 +78,15 @@ public:
             if (in.jump) { if (!jumpHeld_) character->jump(); jumpHeld_ = true; }
             else         { jumpHeld_ = false; }
 
-            if (in.attack) character->attack();
+            // Light/heavy attacks are edge-triggered (a held button is one
+            // press); the FSM buffers mid-swing presses for chain links.
+            if (in.attack) { if (!attackHeld_) character->lightAttack(); attackHeld_ = true; }
+            else           { attackHeld_ = false; }
+            if (in.heavy)  { if (!heavyHeld_) character->heavyAttack(); heavyHeld_ = true; }
+            else           { heavyHeld_ = false; }
+
+            // Guard is a held stance.
+            character->setBlocking(in.block);
 
             if (in.coupleFacingToYaw)
                 character->setFacingYaw(glm::radians(90.0f - in.yaw));
@@ -97,7 +105,9 @@ private:
     std::unique_ptr<Input::ControlScheme> scheme_;
     std::string rigName_;     // last name passed to setRigByName (empty if setRig used)
     std::string schemeName_;  // last name passed to setSchemeByName
-    bool jumpHeld_ = false;
+    bool jumpHeld_   = false;
+    bool attackHeld_ = false;
+    bool heavyHeld_  = false;
 };
 
 } // namespace Core

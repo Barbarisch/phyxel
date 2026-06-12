@@ -3202,11 +3202,20 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(result.dump(), "application/json");
     });
 
-    // POST /api/player/attack — Simulate the player's attack input (left click)
+    // POST /api/player/attack — Simulate the player's attack input (left click).
+    // Body: {"type": "light"|"heavy"} (default light).
     srv.Post("/api/player/attack", [this](const httplib::Request& req, httplib::Response& res) {
         json params = req.body.empty() ? json::object() : json::parse(req.body, nullptr, false);
         if (params.is_discarded()) params = json::object();
         json result = queueAndWait("player_attack", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/player/block — Hold/release the guard stance. Body: {"held": bool}.
+    srv.Post("/api/player/block", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = req.body.empty() ? json::object() : json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        json result = queueAndWait("player_block", params);
         res.set_content(result.dump(), "application/json");
     });
 

@@ -345,7 +345,12 @@ bool InputManager::isMouseButtonPressed(int button) const {
     if (!window) return false;
     // If scripting console is open, block mouse button queries
     if (scriptingConsoleMode) return false;
-    if (ImGui::GetIO().WantCaptureMouse) return false;
+    // Same rule as the mouse-callback path (see handleMouseButton): the
+    // editor's 3D view lives inside an ImGui viewport window, so ImGui
+    // "wants" the mouse whenever the cursor is over it — but gameplay clicks
+    // there must still register (attack/heavy via the control schemes).
+    // Only block when a real UI panel has the mouse.
+    if (ImGui::GetIO().WantCaptureMouse && !m_viewportHovered) return false;
 
     return glfwGetMouseButton(window, button) == GLFW_PRESS;
 }

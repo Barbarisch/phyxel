@@ -29,7 +29,9 @@ struct ControlIntent {
     bool sprint = false;
     bool crouch = false;
     bool jump   = false;   // one-shot: pressed this frame
-    bool attack = false;   // one-shot: pressed this frame
+    bool attack = false;   // light attack (LMB) — edge-guarded by the controller
+    bool heavy  = false;   // heavy attack (Shift+LMB) — edge-guarded by the controller
+    bool block  = false;   // guard held (RMB in FPS; LEFT_ALT in tank, where RMB orbits)
 };
 
 // Strategy: maps InputManager state to a ControlIntent.
@@ -60,7 +62,13 @@ public:
         in.sprint = input.isKeyPressed(GLFW_KEY_LEFT_SHIFT);
         in.crouch = input.isKeyPressed(GLFW_KEY_LEFT_CONTROL);
         in.jump   = input.isKeyPressed(GLFW_KEY_SPACE);
-        in.attack = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
+        {
+            const bool lmb   = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
+            const bool shift = in.sprint;
+            in.attack = lmb && !shift;
+            in.heavy  = lmb && shift;
+        }
+        in.block  = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT);
         in.yaw    = input.getYaw();
         in.pitch  = input.getPitch();
         in.coupleFacingToYaw = true;
@@ -88,7 +96,13 @@ public:
         in.sprint = sprint;
         in.crouch = input.isKeyPressed(GLFW_KEY_LEFT_CONTROL);
         in.jump   = input.isKeyPressed(GLFW_KEY_SPACE);
-        in.attack = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
+        {
+            const bool lmb = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
+            in.attack = lmb && !sprint;
+            in.heavy  = lmb && sprint;
+        }
+        // RMB is the camera-orbit hold in tank mode, so guard goes on ALT.
+        in.block  = input.isKeyPressed(GLFW_KEY_LEFT_ALT);
         in.yaw    = input.getYaw();
         in.pitch  = input.getPitch();
         in.coupleFacingToYaw = false;

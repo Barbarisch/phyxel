@@ -6824,7 +6824,7 @@ void Application::updateHeldItem() {
             }
         }
 
-        // The hand changed: the attack combo follows the held weapon's melee
+        // The hand changed: the moveset follows the held weapon's melee
         // family (unarmed when the hand is empty or holding a non-weapon).
         auto& melee = Core::MeleeAnimMapper::instance();
         if (!melee.isLoaded())
@@ -6833,10 +6833,17 @@ void Application::updateHeldItem() {
         if (rpgReg.count() == 0) rpgReg.loadFromDirectory("resources/rpg_items");
         const Core::ItemDefinition* heldDef =
             m_heldItemId.empty() ? nullptr : Core::ItemRegistry::instance().getItem(m_heldItemId);
-        const std::string family = melee.resolveFamily(heldDef);
-        animatedCharacter->setAttackCombo(melee.familyAttacks(family));
-        LOG_INFO("Application", "Held item '{}' -> melee family '{}'",
-                 m_heldItemId.empty() ? "(none)" : m_heldItemId, family);
+        const Core::MeleeMovesetDef ms = melee.resolveMovesetDef(heldDef);
+        Scene::AnimatedVoxelCharacter::MeleeMoveset cms;
+        cms.lightChain      = ms.lightChain;
+        cms.heavy           = ms.heavy;
+        cms.block           = ms.block;
+        cms.attackRate      = ms.attackRate;
+        cms.chainWindowFrac = ms.chainWindowFrac;
+        cms.blockHoldFrac   = ms.blockHoldFrac;
+        animatedCharacter->setMoveset(std::move(cms));
+        LOG_INFO("Application", "Held item '{}' -> melee family '{}' (rate {})",
+                 m_heldItemId.empty() ? "(none)" : m_heldItemId, ms.family, ms.attackRate);
     }
 
     // Follow the grip bone.
@@ -6940,17 +6947,32 @@ bool Application::dispatchItemAPICommand(const Core::APICommand& cmd, nlohmann::
     }
 
     if (cmd.action == "player_attack") {
-        // Simulate the player's attack input (left click). The FSM picks the
-        // next clip from the held weapon's combo. FSM-wire test hook, like
-        // requestJump for jumps.
+        // Simulate the player's attack input. type: "light" (default, chains)
+        // or "heavy". FSM-wire test hook, like requestJump for jumps.
         if (!animatedCharacter) {
             response = {{"error", "No player character"}};
             return true;
         }
-        animatedCharacter->attack();
+        const std::string type = cmd.params.value("type", "light");
+        if (type == "heavy") animatedCharacter->heavyAttack();
+        else                 animatedCharacter->lightAttack();
         nlohmann::json combo = nlohmann::json::array();
         for (const auto& c : animatedCharacter->getAttackCombo()) combo.push_back(c);
-        response = {{"success", true}, {"combo", combo}};
+        response = {{"success", true}, {"type", type}, {"combo", combo},
+                    {"heavy_clip", animatedCharacter->getMoveset().heavy}};
+        return true;
+    }
+
+    if (cmd.action == "player_block") {
+        // Hold/release the guard stance. {"held": true|false}
+        if (!animatedCharacter) {
+            response = {{"error", "No player character"}};
+            return true;
+        }
+        const bool held = cmd.params.value("held", true);
+        animatedCharacter->setBlocking(held);
+        response = {{"success", true}, {"held", held},
+                    {"block_clip", animatedCharacter->getMoveset().block}};
         return true;
     }
 

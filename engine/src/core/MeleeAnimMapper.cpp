@@ -110,5 +110,31 @@ std::string MeleeAnimMapper::familyBlock(const std::string& family) const {
     return it->value("block", "");
 }
 
+MeleeMovesetDef MeleeAnimMapper::resolveMovesetDef(const ItemDefinition* item) const {
+    MeleeMovesetDef def;
+    def.family = resolveFamily(item);
+    if (!m_loaded) return def;
+
+    auto famIt = m_cfg["families"].find(def.family);
+    if (famIt == m_cfg["families"].end()) return def;
+    const nlohmann::json& fam = *famIt;
+
+    for (const auto& clip : fam.value("attacks", nlohmann::json::array()))
+        def.lightChain.push_back(clip.get<std::string>());
+    def.heavy = fam.value("heavy", "");
+    def.block = fam.value("block", "");
+    def.blockHoldFrac = fam.value("blockHold", 0.5f);
+
+    const std::string speedClass = fam.value("speedClass", "standard");
+    if (m_cfg.contains("speedClasses")) {
+        auto scIt = m_cfg["speedClasses"].find(speedClass);
+        if (scIt != m_cfg["speedClasses"].end()) {
+            def.attackRate      = scIt->value("rate", 1.0f);
+            def.chainWindowFrac = scIt->value("chainWindow", 0.35f);
+        }
+    }
+    return def;
+}
+
 } // namespace Core
 } // namespace Phyxel

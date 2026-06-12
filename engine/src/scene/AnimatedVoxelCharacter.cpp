@@ -1693,6 +1693,7 @@ namespace Scene {
         if (str == "SittingIdle") return AnimatedCharacterState::SittingIdle;
         if (str == "SitStandUp") return AnimatedCharacterState::SitStandUp;
         if (str == "Cast") return AnimatedCharacterState::Cast;
+        if (str == "Block") return AnimatedCharacterState::Block;
         if (str == "Preview") return AnimatedCharacterState::Preview;
         return AnimatedCharacterState::Idle;
     }
@@ -1810,7 +1811,22 @@ namespace Scene {
     }
 
     void AnimatedVoxelCharacter::attack() {
+        lightAttack();
+    }
+
+    void AnimatedVoxelCharacter::lightAttack() {
+        // Mid-swing: buffer the input; the Attack state consumes it at the
+        // chain window and plays the next link.
+        if (currentState == AnimatedCharacterState::Attack && !m_attackIsHeavy) {
+            m_attackQueued = true;
+            return;
+        }
         attackRequested = true;
+    }
+
+    void AnimatedVoxelCharacter::heavyAttack() {
+        if (currentState == AnimatedCharacterState::Attack) return;  // committed; no heavy chains v1
+        m_heavyRequested = true;
     }
 
     bool AnimatedVoxelCharacter::castSpell(const std::vector<CastSegment>& segments) {
@@ -1908,6 +1924,7 @@ namespace Scene {
             case AnimatedCharacterState::SittingIdle: return "SittingIdle";
             case AnimatedCharacterState::SitStandUp: return "SitStandUp";
             case AnimatedCharacterState::Cast: return "Cast";
+            case AnimatedCharacterState::Block: return "Block";
             case AnimatedCharacterState::Preview: return "Preview";
             default: return "Unknown";
         }
@@ -2020,19 +2037,28 @@ namespace Scene {
                     jumpRequested = false;
                     // Apply physics impulse
                     m_kinVelocity.y = 7.0f;
-                } else if (attackRequested) {
+                } else if (m_heavyRequested || attackRequested) {
+                    const bool heavy = m_heavyRequested && !m_moveset.heavy.empty();
                     currentState = AnimatedCharacterState::Attack;
                     stateTimer = 0.0f;
                     attackRequested = false;
+                    m_heavyRequested = false;
+                    m_attackQueued = false;
                     m_hitFrameFired = false;
-                    // Cycle through the held weapon's attack combo (set by the
-                    // host from the melee family); default is the lone "attack".
-                    if (!m_attackCombo.empty()) {
-                        m_currentAttackClip = m_attackCombo[m_attackComboIdx % m_attackCombo.size()];
-                        ++m_attackComboIdx;
+                    m_attackIsHeavy = heavy;
+                    if (heavy) {
+                        m_currentAttackClip = m_moveset.heavy;
+                    } else if (!m_moveset.lightChain.empty()) {
+                        // Start the light chain from the first link.
+                        m_chainIdx = 0;
+                        m_currentAttackClip = m_moveset.lightChain[0];
+                        m_chainIdx = 1;
                     } else {
                         m_currentAttackClip = "attack";
                     }
+                } else if (m_blockHeld && !m_moveset.block.empty()) {
+                    currentState = AnimatedCharacterState::Block;
+                    stateTimer = 0.0f;
                 } else if (verticalVel < -5.0f) {
                     // Falling detection (increased threshold to prevent jitter)
                     currentState = AnimatedCharacterState::Fall;
@@ -2251,34 +2277,71 @@ namespace Scene {
                 break;
 
             case AnimatedCharacterState::Attack: {
+                // Attacks play at the moveset's rate: the clip's wall-clock
+                // duration is duration / rate (the animTime tick is scaled too).
+                const float rate = currentAttackRate();
+                const float scaledDur = currentAnimDuration > 0.0f
+                                            ? currentAnimDuration / rate : 0.0f;
+
                 // Check hit frame trigger — per-clip hitFrameFraction (from
                 // clip_meta) wins over the legacy character-level default.
                 float hitFrac = m_hitFrameFraction;
                 if (currentClipIndex >= 0 && currentClipIndex < (int)clips.size())
                     hitFrac = clips[currentClipIndex].hitFrameFraction;
-                if (!m_hitFrameFired && currentAnimDuration > 0.0f &&
-                    stateTimer / currentAnimDuration >= hitFrac) {
+                if (!m_hitFrameFired && scaledDur > 0.0f &&
+                    stateTimer / scaledDur >= hitFrac) {
                     m_hitFrameFired = true;
                     if (m_onHitFrame) m_onHitFrame();
                 }
-                // Attack is a one-shot animation
-                if (currentAnimDuration > 0.0f && stateTimer >= currentAnimDuration) {
+
+                // Buffered light input chains to the next link once the swing
+                // reaches its chain window (the souls-style combo feel).
+                if (!m_attackIsHeavy && m_attackQueued && scaledDur > 0.0f &&
+                    !m_moveset.lightChain.empty() &&
+                    stateTimer / scaledDur >= (1.0f - m_moveset.chainWindowFrac)) {
+                    m_attackQueued = false;
+                    m_currentAttackClip =
+                        m_moveset.lightChain[m_chainIdx % m_moveset.lightChain.size()];
+                    ++m_chainIdx;
+                    stateTimer = 0.0f;
+                    animTime = 0.0f;       // same-clip chains restart the clip
+                    m_hitFrameFired = false;
+                    break;
+                }
+
+                // Attack is a one-shot animation; ending without a buffered
+                // input resets the chain.
+                if (scaledDur > 0.0f && stateTimer >= scaledDur) {
                     currentState = AnimatedCharacterState::Idle;
                     m_hitFrameFired = false;
+                    m_chainIdx = 0;
+                    m_attackQueued = false;
+                    m_attackIsHeavy = false;
                 }
                 // Movement input can cancel attack early once past the interruptAfter point
                 else if (currentClipIndex >= 0 && currentClipIndex < (int)clips.size()) {
                     const auto& clip = clips[currentClipIndex];
-                    if (clip.interruptible && currentAnimDuration > 0.0f &&
-                        stateTimer / currentAnimDuration >= clip.interruptAfter &&
+                    if (clip.interruptible && scaledDur > 0.0f &&
+                        stateTimer / scaledDur >= clip.interruptAfter &&
                         (glm::abs(currentForwardInput) > 0.1f || glm::abs(currentStrafeInput) > 0.1f)) {
                         currentState = AnimatedCharacterState::Walk;
                         stateTimer = 0.0f;
                         m_hitFrameFired = false;
+                        m_chainIdx = 0;
+                        m_attackQueued = false;
+                        m_attackIsHeavy = false;
                     }
                 }
                 break;
             }
+
+            case AnimatedCharacterState::Block:
+                // Held stance: stay while the input is held, release to Idle.
+                if (!m_blockHeld) {
+                    currentState = AnimatedCharacterState::Idle;
+                    stateTimer = 0.0f;
+                }
+                break;
 
             case AnimatedCharacterState::Cast: {
                 if (m_castSegments.empty() || m_castSegIdx >= m_castSegments.size()) {
@@ -2730,7 +2793,7 @@ namespace Scene {
             }
             if (currentState == AnimatedCharacterState::StopWalk || currentState == AnimatedCharacterState::StopRun) moveSpeed = 0.5f;
             if (currentState == AnimatedCharacterState::Idle || currentState == AnimatedCharacterState::Attack ||
-                currentState == AnimatedCharacterState::Cast ||
+                currentState == AnimatedCharacterState::Cast || currentState == AnimatedCharacterState::Block ||
                 currentState == AnimatedCharacterState::Crouch || currentState == AnimatedCharacterState::CrouchIdle ||
                 currentState == AnimatedCharacterState::TurnLeft || currentState == AnimatedCharacterState::TurnRight) moveSpeed = 0.0f;
 
@@ -2801,6 +2864,9 @@ namespace Scene {
                     case AnimatedCharacterState::CrouchWalk: targetAnim = "crouched_walking"; break;
                     case AnimatedCharacterState::StandUp: targetAnim = "crouch_to_stand"; break;
                     case AnimatedCharacterState::Attack: targetAnim = m_currentAttackClip; break;
+                    case AnimatedCharacterState::Block:
+                        targetAnim = m_moveset.block.empty() ? "body_block" : m_moveset.block;
+                        break;
                     case AnimatedCharacterState::Cast:
                         targetAnim = (m_castSegIdx < m_castSegments.size())
                                          ? m_castSegments[m_castSegIdx].clip : "idle";
@@ -2933,13 +2999,22 @@ namespace Scene {
         float evalTime = animTime; // may be remapped for warp preview
         if (currentClipIndex >= 0 && currentClipIndex < clips.size()) {
             if (!m_animPaused)
-                animTime += deltaTime * m_playbackSpeed * currentCastSpeed();
+                animTime += deltaTime * m_playbackSpeed * currentCastSpeed() * currentAttackRate();
+
+            // Held guard: freeze partway into the block clip (the clip's end
+            // usually returns to rest, which is not a guard pose).
+            if (currentState == AnimatedCharacterState::Block) {
+                const float holdAt = clips[currentClipIndex].duration *
+                                     std::clamp(m_moveset.blockHoldFrac, 0.05f, 1.0f);
+                if (animTime > holdAt) animTime = holdAt;
+            }
 
             // Determine looping for current animation
             // (Cast segments are one-shots; ritual loops are re-armed by the
             //  Cast state machine resetting animTime per play.)
             bool loop = (currentState != AnimatedCharacterState::Attack &&
                          currentState != AnimatedCharacterState::Cast &&
+                         currentState != AnimatedCharacterState::Block &&
                          currentState != AnimatedCharacterState::Jump &&
                          currentState != AnimatedCharacterState::Crouch &&
                          currentState != AnimatedCharacterState::CrouchIdle &&
