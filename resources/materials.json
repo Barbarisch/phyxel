@@ -566,6 +566,186 @@
         "top": "Glass_side.png",
         "bottom": "Glass_side.png"
       }
+    },
+    {
+      "name": "LogBirch",
+      "category": "material",
+      "description": "Pale birch log with dark streak bands",
+      "physics": {
+        "mass": 0.7,
+        "friction": 0.6,
+        "restitution": 0.2,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.8,
+        "bondStrength": 0.6,
+        "angularVelocityScale": 1.2,
+        "colorTint": [
+          0.82,
+          0.8,
+          0.72
+        ],
+        "metallic": 0.0,
+        "roughness": 0.85
+      },
+      "textures": {
+        "side_n": "log_birch_side_n.png",
+        "side_s": "log_birch_side_s.png",
+        "side_e": "log_birch_side_e.png",
+        "side_w": "log_birch_side_w.png",
+        "top": "log_birch_top.png",
+        "bottom": "log_birch_bottom.png"
+      }
+    },
+    {
+      "name": "LogSpruce",
+      "category": "material",
+      "description": "Dark spruce log bark",
+      "physics": {
+        "mass": 0.7,
+        "friction": 0.6,
+        "restitution": 0.2,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.8,
+        "bondStrength": 0.6,
+        "angularVelocityScale": 1.2,
+        "colorTint": [
+          0.3,
+          0.21,
+          0.12
+        ],
+        "metallic": 0.0,
+        "roughness": 0.85
+      },
+      "textures": {
+        "side_n": "log_spruce_side_n.png",
+        "side_s": "log_spruce_side_s.png",
+        "side_e": "log_spruce_side_e.png",
+        "side_w": "log_spruce_side_w.png",
+        "top": "log_spruce_top.png",
+        "bottom": "log_spruce_bottom.png"
+      }
+    },
+    {
+      "name": "LeafBirch",
+      "category": "material",
+      "description": "Light yellow-green birch foliage",
+      "physics": {
+        "mass": 0.1,
+        "friction": 0.3,
+        "restitution": 0.1,
+        "linearDamping": 0.6,
+        "angularDamping": 0.6,
+        "breakForceMultiplier": 0.2,
+        "bondStrength": 0.2,
+        "angularVelocityScale": 3.0,
+        "colorTint": [
+          0.55,
+          0.75,
+          0.33
+        ],
+        "metallic": 0.0,
+        "roughness": 0.9
+      },
+      "textures": {
+        "side_n": "leaf_birch_side_n.png",
+        "side_s": "leaf_birch_side_s.png",
+        "side_e": "leaf_birch_side_e.png",
+        "side_w": "leaf_birch_side_w.png",
+        "top": "leaf_birch_top.png",
+        "bottom": "leaf_birch_bottom.png"
+      }
+    },
+    {
+      "name": "LeafSpruce",
+      "category": "material",
+      "description": "Dark blue-green spruce needles",
+      "physics": {
+        "mass": 0.1,
+        "friction": 0.3,
+        "restitution": 0.1,
+        "linearDamping": 0.6,
+        "angularDamping": 0.6,
+        "breakForceMultiplier": 0.2,
+        "bondStrength": 0.2,
+        "angularVelocityScale": 3.0,
+        "colorTint": [
+          0.16,
+          0.4,
+          0.28
+        ],
+        "metallic": 0.0,
+        "roughness": 0.9
+      },
+      "textures": {
+        "side_n": "leaf_spruce_side_n.png",
+        "side_s": "leaf_spruce_side_s.png",
+        "side_e": "leaf_spruce_side_e.png",
+        "side_w": "leaf_spruce_side_w.png",
+        "top": "leaf_spruce_top.png",
+        "bottom": "leaf_spruce_bottom.png"
+      }
+    },
+    {
+      "name": "LeafJungle",
+      "category": "material",
+      "description": "Vivid jungle canopy foliage",
+      "physics": {
+        "mass": 0.1,
+        "friction": 0.3,
+        "restitution": 0.1,
+        "linearDamping": 0.6,
+        "angularDamping": 0.6,
+        "breakForceMultiplier": 0.2,
+        "bondStrength": 0.2,
+        "angularVelocityScale": 3.0,
+        "colorTint": [
+          0.25,
+          0.75,
+          0.18
+        ],
+        "metallic": 0.0,
+        "roughness": 0.9
+      },
+      "textures": {
+        "side_n": "leaf_jungle_side_n.png",
+        "side_s": "leaf_jungle_side_s.png",
+        "side_e": "leaf_jungle_side_e.png",
+        "side_w": "leaf_jungle_side_w.png",
+        "top": "leaf_jungle_top.png",
+        "bottom": "leaf_jungle_bottom.png"
+      }
+    },
+    {
+      "name": "LeafAutumn",
+      "category": "material",
+      "description": "Orange autumn foliage",
+      "physics": {
+        "mass": 0.1,
+        "friction": 0.3,
+        "restitution": 0.1,
+        "linearDamping": 0.6,
+        "angularDamping": 0.6,
+        "breakForceMultiplier": 0.2,
+        "bondStrength": 0.2,
+        "angularVelocityScale": 3.0,
+        "colorTint": [
+          0.85,
+          0.5,
+          0.13
+        ],
+        "metallic": 0.0,
+        "roughness": 0.9
+      },
+      "textures": {
+        "side_n": "leaf_autumn_side_n.png",
+        "side_s": "leaf_autumn_side_s.png",
+        "side_e": "leaf_autumn_side_e.png",
+        "side_w": "leaf_autumn_side_w.png",
+        "top": "leaf_autumn_top.png",
+        "bottom": "leaf_autumn_bottom.png"
+      }
     }
   ]
 }

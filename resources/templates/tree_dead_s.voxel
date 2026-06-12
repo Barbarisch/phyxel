@@ -1,0 +1,154 @@
+# ==========================================================
+# ASSET METADATA
+# name:         tree_dead_s
+# display_name: Dead Tree (Small)
+# description:  Procedural dead tree, height 5, fullness 0.85, seed 19.
+# category:     nature
+# subcategory:  trees
+# tags:         tree, nature, biome, forest, procedural
+# materials:    LogSpruce
+# facing:       +Z
+# bounds:       5W x 6H x 4D cubes
+# primitives:   2 C + 116 S + 21 M = 139
+# generator:    gen_tree.py --type dead --height 5 --radius auto --fullness 0.85 --seed 19
+# ==========================================================
+
+C 2 0 1 LogSpruce
+C 2 1 1 LogSpruce
+S 1 0 0 2 0 2 LogSpruce
+S 1 0 0 2 1 2 LogSpruce
+S 1 0 1 2 0 0 LogSpruce
+S 2 0 0 0 0 2 LogSpruce
+S 2 0 0 0 1 2 LogSpruce
+S 3 0 1 0 0 0 LogSpruce
+S 1 2 1 2 1 2 LogSpruce
+S 1 2 1 2 2 2 LogSpruce
+S 2 2 1 0 0 1 LogSpruce
+S 2 2 1 0 1 1 LogSpruce
+S 2 2 1 0 1 2 LogSpruce
+S 2 2 1 0 2 1 LogSpruce
+S 2 2 1 0 2 2 LogSpruce
+S 2 2 1 1 0 0 LogSpruce
+S 2 2 1 1 0 1 LogSpruce
+S 2 2 1 1 0 2 LogSpruce
+S 2 2 1 1 1 0 LogSpruce
+S 2 2 1 1 1 1 LogSpruce
+S 2 2 1 1 1 2 LogSpruce
+S 2 2 1 1 2 0 LogSpruce
+S 2 2 1 1 2 1 LogSpruce
+S 2 2 1 1 2 2 LogSpruce
+S 2 2 1 2 0 1 LogSpruce
+S 2 2 1 2 1 1 LogSpruce
+S 2 2 1 2 2 1 LogSpruce
+S 2 3 1 0 0 1 LogSpruce
+S 2 3 1 0 1 1 LogSpruce
+S 2 3 1 0 2 1 LogSpruce
+S 2 3 1 1 0 0 LogSpruce
+S 2 3 1 1 0 1 LogSpruce
+S 2 3 1 1 0 2 LogSpruce
+S 2 3 1 1 1 0 LogSpruce
+S 2 3 1 1 1 1 LogSpruce
+S 2 3 1 1 1 2 LogSpruce
+S 2 3 1 1 2 0 LogSpruce
+S 2 3 1 1 2 1 LogSpruce
+S 2 3 1 1 2 2 LogSpruce
+S 2 3 1 2 0 1 LogSpruce
+S 2 3 1 2 1 1 LogSpruce
+S 2 3 1 2 2 1 LogSpruce
+S 3 3 0 1 1 1 LogSpruce
+S 3 3 0 1 1 2 LogSpruce
+S 3 3 1 0 1 0 LogSpruce
+S 3 3 1 0 1 1 LogSpruce
+S 3 3 1 0 2 1 LogSpruce
+S 3 3 1 1 1 0 LogSpruce
+S 3 3 1 1 1 1 LogSpruce
+S 3 3 1 1 2 1 LogSpruce
+S 0 4 2 2 2 0 LogSpruce
+S 1 4 2 0 1 1 LogSpruce
+S 1 4 2 0 2 0 LogSpruce
+S 1 4 2 0 2 1 LogSpruce
+S 1 4 2 1 1 0 LogSpruce
+S 1 4 2 1 1 1 LogSpruce
+S 1 4 2 1 2 0 LogSpruce
+S 1 4 2 2 1 0 LogSpruce
+S 1 4 2 2 2 0 LogSpruce
+S 2 4 1 0 0 1 LogSpruce
+S 2 4 1 0 1 1 LogSpruce
+S 2 4 1 0 2 1 LogSpruce
+S 2 4 1 1 0 0 LogSpruce
+S 2 4 1 1 0 1 LogSpruce
+S 2 4 1 1 0 2 LogSpruce
+S 2 4 1 1 1 0 LogSpruce
+S 2 4 1 1 1 1 LogSpruce
+S 2 4 1 1 1 2 LogSpruce
+S 2 4 1 1 2 0 LogSpruce
+S 2 4 1 1 2 1 LogSpruce
+S 2 4 1 1 2 2 LogSpruce
+S 2 4 1 2 0 1 LogSpruce
+S 2 4 1 2 1 1 LogSpruce
+S 2 4 1 2 1 2 LogSpruce
+S 2 4 1 2 2 0 LogSpruce
+S 2 4 1 2 2 1 LogSpruce
+S 2 4 1 2 2 2 LogSpruce
+S 2 4 2 0 1 0 LogSpruce
+S 2 4 2 0 2 0 LogSpruce
+S 2 4 2 1 1 0 LogSpruce
+S 2 4 2 1 2 0 LogSpruce
+S 2 4 2 1 2 1 LogSpruce
+S 2 4 2 2 1 0 LogSpruce
+S 2 4 2 2 2 0 LogSpruce
+S 2 4 2 2 2 1 LogSpruce
+S 2 4 2 2 2 2 LogSpruce
+S 2 4 3 0 2 0 LogSpruce
+S 2 4 3 1 2 0 LogSpruce
+S 2 4 3 2 2 0 LogSpruce
+S 3 4 0 0 2 1 LogSpruce
+S 3 4 0 0 2 2 LogSpruce
+S 3 4 0 1 2 1 LogSpruce
+S 3 4 0 1 2 2 LogSpruce
+S 3 4 0 2 2 1 LogSpruce
+S 3 4 1 0 0 1 LogSpruce
+S 3 4 1 0 2 0 LogSpruce
+S 3 4 1 0 2 1 LogSpruce
+S 3 4 1 1 2 0 LogSpruce
+S 3 4 2 0 2 1 LogSpruce
+S 4 4 0 0 2 1 LogSpruce
+S 2 5 1 1 0 1 LogSpruce
+S 2 5 1 1 0 2 LogSpruce
+S 2 5 1 2 0 0 LogSpruce
+S 2 5 1 2 0 1 LogSpruce
+S 2 5 1 2 0 2 LogSpruce
+S 2 5 2 1 0 0 LogSpruce
+S 2 5 2 1 0 1 LogSpruce
+S 2 5 2 2 0 0 LogSpruce
+S 2 5 2 2 0 1 LogSpruce
+S 3 5 0 0 0 1 LogSpruce
+S 3 5 0 0 0 2 LogSpruce
+S 3 5 0 0 1 2 LogSpruce
+S 3 5 0 1 0 2 LogSpruce
+S 3 5 0 1 1 2 LogSpruce
+S 3 5 1 0 0 0 LogSpruce
+S 3 5 1 0 0 1 LogSpruce
+S 3 5 1 1 0 0 LogSpruce
+S 3 5 2 0 0 1 LogSpruce
+M 0 5 1 0 0 2 0 0 1 LogSpruce
+M 0 4 1 1 2 2 1 1 1 LogSpruce
+M 0 4 2 1 2 2 0 0 1 LogSpruce
+M 0 4 2 2 1 2 1 1 1 LogSpruce
+M 1 2 2 0 2 0 0 0 1 LogSpruce
+M 1 2 2 1 1 0 1 1 1 LogSpruce
+M 1 5 2 1 0 2 0 0 1 LogSpruce
+M 1 4 2 2 2 2 1 1 1 LogSpruce
+M 2 5 1 1 1 1 1 0 1 LogSpruce
+M 2 2 1 2 2 1 1 1 1 LogSpruce
+M 2 3 0 2 2 0 0 0 1 LogSpruce
+M 3 3 1 0 0 1 0 0 1 LogSpruce
+M 3 3 0 0 1 0 1 1 1 LogSpruce
+M 3 4 3 0 2 1 1 1 1 LogSpruce
+M 3 5 3 1 0 1 0 0 1 LogSpruce
+M 3 3 0 2 1 2 1 1 1 LogSpruce
+M 3 4 0 2 2 0 1 1 1 LogSpruce
+M 4 3 0 0 2 2 0 0 1 LogSpruce
+M 4 5 0 0 0 0 0 0 1 LogSpruce
+M 4 4 0 1 2 2 1 1 1 LogSpruce
+M 4 5 0 2 0 2 0 0 1 LogSpruce

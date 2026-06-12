@@ -25,11 +25,32 @@ Types: **Flat** (indoor/arenas/custom builds), **Perlin** (natural terrain), **M
 
 **Templates FIRST for interiors & props.** Fills are for shells/terrain (walls, floors,
 platforms) ONLY. Before hand-building any furniture or prop from fills, `search_templates` —
-the catalog has ~50 detailed assets (subcube/microcube detail far beyond fills), e.g. the
+the catalog has ~70 detailed assets (subcube/microcube detail far beyond fills), e.g. the
 tavern set: `tavern_bar`, `tavern_table`, `table_wood`, `chair_wood`, `stool`, `bench_wood`,
 `barrel`, `crate_wood`, `fireplace`, `candle_holder`, `lantern`, `torch_wall`. Mix in one
 structures array: fills for the building shell + `type:"template"` entries for furnishing.
 If the catalog lacks an item, generate it (`generate_template`) or log `/feedback`.
+
+## Biome flora (trees & bushes) — use these, don't build trees by hand
+20 procedural sub-voxel tree templates ship in the catalog (category nature/trees), with
+per-species bark + leaf materials:
+
+| Biome | Templates |
+|-------|-----------|
+| forest | `tree_oak_s/m/l`, `tree_autumn_m`, `bush_leafy_s/m` |
+| birch forest | `tree_birch_m/l` (white bark) |
+| taiga | `tree_spruce_s/m/l` (dark conical) |
+| jungle | `tree_jungle_m/xl` (giant, buttress roots) |
+| savanna/badlands | `tree_acacia_m/l` (flat pads), `tree_dead_s/m` |
+| beach/desert edge | `tree_palm_m/l` |
+| swamp | `tree_willow_l` (hanging strands) |
+
+**Need more variety? Generate unlimited trees with ZERO tokens** (engine repo):
+`python tools/gen_tree.py --type spruce --height 11 --seed 7` — deterministic per seed;
+use different seeds per placement for natural forests. Knobs: `--height` (cubes),
+`--fullness 0..1` (leaf density; 0.6 = sparse/wintry), `--radius`. Templates auto-register
+in the catalog; spawn with `spawn_template`. Nature materials available for custom fills:
+LogBirch, LogSpruce, LeafBirch, LeafSpruce, LeafJungle, LeafAutumn (+ stock Log/Leaf).
 
 ## Live terrain editing (MCP)
 `fill_region` (+ `material`) / `clear_region` (max 100k voxels) for boxes; `clear_chunk`

@@ -1,0 +1,22 @@
+[
+  {"type": "oak",    "height": 5,  "seed": 1,  "name": "tree_oak_s",    "display": "Oak Tree (Small)"},
+  {"type": "oak",    "height": 7,  "seed": 2,  "name": "tree_oak_m",    "display": "Oak Tree (Medium)"},
+  {"type": "oak",    "height": 10, "seed": 3,  "name": "tree_oak_l",    "display": "Oak Tree (Large)"},
+  {"type": "autumn", "height": 7,  "seed": 11, "name": "tree_autumn_m", "display": "Autumn Tree (Medium)"},
+  {"type": "birch",  "height": 8,  "seed": 5,  "name": "tree_birch_m",  "display": "Birch Tree (Medium)"},
+  {"type": "birch",  "height": 10, "seed": 6,  "name": "tree_birch_l",  "display": "Birch Tree (Tall)"},
+  {"type": "spruce", "height": 6,  "seed": 7,  "name": "tree_spruce_s", "display": "Spruce Tree (Small)"},
+  {"type": "spruce", "height": 9,  "seed": 8,  "name": "tree_spruce_m", "display": "Spruce Tree (Medium)"},
+  {"type": "spruce", "height": 13, "seed": 9,  "name": "tree_spruce_l", "display": "Spruce Tree (Large)"},
+  {"type": "jungle", "height": 12, "seed": 12, "name": "tree_jungle_m", "display": "Jungle Tree (Medium)"},
+  {"type": "jungle", "height": 15, "seed": 13, "name": "tree_jungle_xl","display": "Jungle Tree (Giant)"},
+  {"type": "acacia", "height": 6,  "seed": 14, "name": "tree_acacia_m", "display": "Acacia Tree (Medium)"},
+  {"type": "acacia", "height": 8,  "seed": 15, "name": "tree_acacia_l", "display": "Acacia Tree (Large)"},
+  {"type": "palm",   "height": 8,  "seed": 16, "name": "tree_palm_m",   "display": "Palm Tree (Medium)"},
+  {"type": "palm",   "height": 10, "seed": 17, "name": "tree_palm_l",   "display": "Palm Tree (Tall)"},
+  {"type": "willow", "height": 8,  "seed": 18, "name": "tree_willow_l", "display": "Willow Tree"},
+  {"type": "dead",   "height": 5,  "seed": 19, "name": "tree_dead_s",   "display": "Dead Tree (Small)"},
+  {"type": "dead",   "height": 7,  "seed": 20, "name": "tree_dead_m",   "display": "Dead Tree (Medium)"},
+  {"type": "bush",   "radius": 2,  "seed": 21, "name": "bush_leafy_s",  "display": "Leafy Bush (Small)"},
+  {"type": "bush",   "radius": 3,  "seed": 22, "name": "bush_leafy_m",  "display": "Leafy Bush (Medium)"}
+]
