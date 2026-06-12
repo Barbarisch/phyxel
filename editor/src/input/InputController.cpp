@@ -359,10 +359,12 @@ void InputController::setupKeyboardBindings() {
 }
 
 void InputController::setupMouseBindings() {
-    // Left click - Break cube/subcube/microcube (or activate furniture)
-    m_inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_LEFT, 0, "Break Voxel", [this]() {
+    // Left click — spell-mode cast / furniture throw+activate. Voxel BREAKING
+    // on plain left-click is retired: LMB is the melee attack now; use the
+    // spell tool (or apply_damage) to break voxels during testing.
+    m_inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_LEFT, 0, "Interact (Attack/Cast)", [this]() {
         // Spell-cast tool: when spell mode is enabled, left-click casts the selected
-        // spell at the hovered voxel instead of breaking / activating anything.
+        // spell at the hovered voxel.
         if (m_app->isSpellModeEnabled()) {
             m_app->castSpellAtHover();
             return;
@@ -377,27 +379,12 @@ void InputController::setupMouseBindings() {
             return;
         }
 
-        // Check if we're hovering over a microcube, subcube, or regular cube
+        // Knock placed furniture loose by clicking it (combat feel: a hit
+        // sends the chair flying). Plain terrain voxels are left alone.
         if (m_interactionSystem->hasHoveredCube()) {
-            // Try furniture activation first — if the hovered voxel is part of a
-            // placed object, convert it to a dynamic physics body instead of breaking.
-            if (m_interactionSystem->tryActivateFurnitureAtHover(
-                    m_inputManager->getCameraPosition(),
-                    m_inputManager->getCameraFront())) {
-                return; // Furniture was activated, skip normal break
-            }
-
-            const auto& loc = m_interactionSystem->getCurrentHoveredLocation();
-            if (loc.isMicrocube) {
-                // Break microcube
-                m_interactionSystem->breakHoveredMicrocube();
-            } else if (loc.isSubcube) {
-                // Break subcube with physics
-                m_interactionSystem->breakHoveredSubcube();
-            } else {
-                // Break regular cube into dynamic cube with physics
-                m_interactionSystem->breakHoveredCube(m_inputManager->getCameraPosition());
-            }
+            m_interactionSystem->tryActivateFurnitureAtHover(
+                m_inputManager->getCameraPosition(),
+                m_inputManager->getCameraFront());
         }
     });
     

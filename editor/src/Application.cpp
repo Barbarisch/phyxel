@@ -3973,7 +3973,7 @@ void Application::renderSpellCaster() {
     if (m_spellModeEnabled)
         ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Spell mode ON — left-click to cast.");
     else
-        ImGui::TextDisabled("Spell mode OFF — left-click breaks voxels.");
+        ImGui::TextDisabled("Spell mode OFF — left-click attacks. Enable to cast at the cursor.");
 
     ImGui::End();
 }
