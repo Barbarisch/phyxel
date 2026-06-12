@@ -331,6 +331,12 @@ namespace Scene {
         void setBlocking(bool held) { m_blockHeld = held; }
         bool isBlocking() const { return currentState == AnimatedCharacterState::Block; }
 
+        /// True while the current Attack state plays the heavy clip
+        /// (hosts use this for damage multipliers at the hit frame).
+        bool isCurrentAttackHeavy() const {
+            return currentState == AnimatedCharacterState::Attack && m_attackIsHeavy;
+        }
+
         /// Back-compat: the light chain as a flat list.
         const std::vector<std::string>& getAttackCombo() const { return m_moveset.lightChain; }
 

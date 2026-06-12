@@ -4513,6 +4513,37 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
     if (raycastVisualizer) {
         animatedCharacter->setRaycastVisualizer(raycastVisualizer.get());
     }
+
+    // Melee hits land at each attack clip's hit frame: damage/reach come from
+    // the held weapon (unarmed defaults otherwise), heavies hit 1.6x harder.
+    animatedCharacter->setOnHitFrame([this]() {
+        if (!combatSystem || !entityRegistry || !animatedCharacter) return;
+        float damage = 2.0f, reach = 1.6f;  // unarmed fists
+        if (!m_heldItemId.empty()) {
+            if (const auto* def = Core::ItemRegistry::instance().getItem(m_heldItemId)) {
+                if (def->damage > 0.0f) damage = def->damage;
+                if (def->reach > 0.0f)  reach  = def->reach;
+            }
+        }
+        if (animatedCharacter->isCurrentAttackHeavy()) damage *= 1.6f;
+
+        const float yaw = animatedCharacter->getYaw();
+        Core::CombatSystem::AttackParams p;
+        p.attackerId = "player";
+        p.attackerPos = animatedCharacter->getPosition() + glm::vec3(0.0f, 1.0f, 0.0f);
+        // Visual front is +Z at yaw 0 (see anim conventions).
+        p.attackerForward = glm::vec3(std::sin(yaw), 0.0f, std::cos(yaw));
+        p.damage = damage;
+        p.reach = reach + 0.5f;  // weapon stat + arm extension
+
+        auto events = combatSystem->performAttack(p, *entityRegistry);
+        for (const auto& ev : events) {
+            LOG_INFO("Combat", "Player hit '{}' for {} damage{}",
+                     ev.targetId, ev.actualDamage, ev.killed ? " (killed)" : "");
+            if (gameEventLog) gameEventLog->emit("player_hit", ev.toJson());
+        }
+    });
+
     entities.push_back(std::move(animatedCharPtr));
     if (entityRegistry) {
         entityRegistry->registerEntity(animatedCharacter, "animated_" + std::to_string(entities.size()), "animated");

@@ -414,11 +414,21 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       heavy), body_block (guard stance legs). Pose Hips/HipsOffset deltas are ignored in
       hybrid mode. Also added: `HipsOffset` pose key (root translation deltas) for
       non-hybrid clips.
+    - **Hit-frame damage (2026-06-12): DONE + verified live.** The player's onHitFrame
+      callback (wired in Application::createAnimatedCharacter — it had been a dangling hook
+      since CombatSystem was written) calls CombatSystem::performAttack with damage/reach
+      from the held ItemDefinition (unarmed fists: 2 dmg / 1.6 reach), heavy ×1.6
+      (AnimatedVoxelCharacter::isCurrentAttackHeavy), forward = visual front (+Z yaw
+      convention), reach = weapon stat + 0.5 arm. Emits "player_hit" game events. Verified
+      vs a dummy NPC: sword light 8, heavy 12.8; fists 2 and ONLY in close range (weapon
+      reach is a real mechanic — the dummy at 2.24 units was sword-reachable but not
+      fist-reachable).
     - **NEXT — Phase C/D/E:** sword_2h + dagger + Versatile grip variants (Phase C — the
-      sword poses parameterize/mirror/retime), spear/mace movesets + weight polish (D),
-      souls systems: stamina/roll/lock-on/stagger + hit reactions (E). Also still open:
-      CombatSystem damage from ItemDefinition.damage on hit frame, NPC movesets, thrust
-      input (directional attack).
+      sword poses parameterize/mirror/retime, hybrid legs_from for footwork), spear/mace
+      movesets + weight polish (D), souls systems: stamina/roll/lock-on/stagger + hit
+      reactions (E). Also open: user's sword-feel nitpicks (unspecified, theirs to list),
+      NPC movesets, thrust input, block actually mitigating damage (Block state exists but
+      incoming damage ignores it).
 - **Items system P1 (2026-06-11): DONE + verified live end-to-end.** "Items" = holdable
   things (weapons, torches, cups) with a three-state lifecycle: WORLD PROP ⇄ INVENTORY ⇄ HELD.
   - **Data:** `ItemDefinition` gains `holdable` + `held{gripBone, gripOffset, gripEulerDeg,
