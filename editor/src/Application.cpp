@@ -4544,6 +4544,16 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
         }
     });
 
+    // A freshly-spawned character should be immediately controllable. The
+    // gameplay control scheme (movement + LMB melee attack) is only sampled
+    // when the camera is NOT in Free mode (see the update loop's Camera Sync),
+    // so drop out of Free into ThirdPerson — otherwise clicking does nothing.
+    currentControlTarget = ControlTarget::AnimatedCharacter;
+    if (camera && camera->getMode() == Graphics::CameraMode::Free) {
+        camera->setMode(Graphics::CameraMode::ThirdPerson);
+        camera->setDistanceFromTarget(4.0f);
+    }
+
     entities.push_back(std::move(animatedCharPtr));
     if (entityRegistry) {
         entityRegistry->registerEntity(animatedCharacter, "animated_" + std::to_string(entities.size()), "animated");
