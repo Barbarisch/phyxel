@@ -3,6 +3,8 @@
 #include "core/MaterialRegistry.h"
 #include "core/GpuParticlePhysics.h"
 #include "core/Cube.h"
+#include "core/Chunk.h"
+#include "core/Subcube.h"
 #include "utils/Logger.h"
 #include <algorithm>
 #include <cmath>
@@ -114,6 +116,7 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
         float       speed;
         std::string mat;
         MatResponse mr;
+        bool        subdivided = false;  // cell holds subcubes/microcubes, not a full cube
     };
     std::vector<BreakRec> breaks;
 
@@ -129,7 +132,23 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
     for (int z = lo.z; z <= hi.z; ++z) {
         glm::ivec3 wp(x, y, z);
         Cube* cube = m_cm->getCubeAt(wp);
-        if (!cube) continue;
+        bool subdivided = false;
+        std::string mat;
+        if (cube) {
+            mat = cube->getMaterialName();
+        } else if (m_cm->hasVoxelAt(wp)) {
+            // Sub-voxel cell (subcubes/microcubes, e.g. a tree). Break the whole
+            // cell as a unit so the blast can sever sub-voxel structures and feed
+            // the collapse pass; use a representative material for toughness.
+            subdivided = true;
+            if (Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp))) {
+                auto subs = ch->getStaticSubcubesAt(ChunkManager::worldToLocalCoord(wp));
+                if (!subs.empty() && subs[0]) mat = subs[0]->getMaterialName();
+            }
+            if (mat.empty()) mat = "Wood";
+        } else {
+            continue;
+        }
 
         glm::vec3 vc(x + 0.5f, y + 0.5f, z + 0.5f);
         float dist = glm::distance(center, vc);
@@ -138,7 +157,6 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
         float fall = std::pow(std::max(0.0f, 1.0f - dist / radius), FALLOFF_P);
         if (fall <= 0.0f) continue;
 
-        std::string mat = cube->getMaterialName();
         MatResponse mr = responseFor(mat);
         int shield = solidVoxelsBetween(center, vc);
         float reached = energy * fall * std::exp(-mr.absorption * static_cast<float>(shield));
@@ -146,11 +164,12 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
         // Damage accumulation: prior sub-threshold hits add to this one. The voxel
         // breaks once total energy exceeds toughness, so repeated weak hits chip
         // through. Tier is based on total energy at break (chip = chunky, big hit = dust).
-        float effective = reached + cube->getAccumulatedDamage();
+        // (Accumulation is cube-only; sub-voxel cells break in one pass.)
+        float effective = reached + (cube ? cube->getAccumulatedDamage() : 0.0f);
         float ratio = effective / mr.toughness;
 
         if (ratio < 1.0f) {
-            cube->addDamage(reached);   // weakened but intact (cracks; visual feedback = P4)
+            if (cube) cube->addDamage(reached);   // weakened but intact (cracks; visual feedback = P4)
             res.voxelsGrazed++;
             continue;
         }
@@ -160,7 +179,7 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
         outDir = glm::normalize(outDir + dirBias * 0.5f);
         float speed = BASE_SPEED * std::sqrt(ratio);
 
-        breaks.push_back({ wp, vc, outDir, ratio, speed, std::move(mat), mr });
+        breaks.push_back({ wp, vc, outDir, ratio, speed, std::move(mat), mr, subdivided });
     }
 
     // ---- Phase B: apply removals + spawn debris ----
@@ -173,6 +192,27 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
         const float       speed  = b.speed;
         const std::string& mat   = b.mat;
         const MatResponse& mr     = b.mr;
+
+        // Sub-voxel cell: clear the whole subdivision and scatter subcube debris.
+        if (b.subdivided) {
+            Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
+            if (ch && ch->clearSubdivisionAt(ChunkManager::worldToLocalCoord(wp))) {
+                m_cm->updateOccupancyVoxel(wp.x, wp.y, wp.z, false);
+                m_cm->markChunkDirty(ch);
+                removed.push_back(wp);
+                res.voxelsBroken++;
+                for (int i = 0; i < SUBCUBE_PIECES && res.debrisSpawned < MAX_DEBRIS; ++i) {
+                    const int S = 3, TOTAL = S * S * S;
+                    int cell = i * TOTAL / SUBCUBE_PIECES;
+                    int cx = cell % S, cy = (cell / S) % S, cz = (cell / (S * S)) % S;
+                    glm::vec3 cellOff((cx + 0.5f) / S - 0.5f, (cy + 0.5f) / S - 0.5f, (cz + 0.5f) / S - 0.5f);
+                    glm::vec3 vjit(frand(-0.3f, 0.3f), frand(-0.3f, 0.3f), frand(-0.3f, 0.3f));
+                    spawnDebris(vc + cellOff, outDir * speed * frand(0.7f, 1.3f) + vjit * speed, 1.0f / 3.0f, mat);
+                    res.debrisSpawned++;
+                }
+            }
+            continue;
+        }
 
         // Remove the static voxel (fast: marks chunk dirty, defers face rebuild)
         // and clear its collision occupancy cell.
@@ -259,6 +299,39 @@ static inline int64_t packVoxel(int x, int y, int z) {
     return (m(x) << 42) | (m(y) << 21) | m(z);
 }
 
+int DamageSystem::dropDetachedCell(const glm::ivec3& wp, DamageResult& res) {
+    const glm::vec3 vc(wp.x + 0.5f, wp.y + 0.5f, wp.z + 0.5f);
+
+    // Full cube: one cube-sized debris piece (the original behavior).
+    if (Cube* c = m_cm->getCubeAt(wp)) {
+        std::string mat = c->getMaterialName();
+        m_cm->removeCubeFast(wp);
+        m_cm->updateOccupancyVoxel(wp.x, wp.y, wp.z, false);
+        glm::vec3 vel(frand(-0.5f, 0.5f), frand(-1.0f, -0.2f), frand(-0.5f, 0.5f));
+        if (res.debrisSpawned < MAX_DEBRIS) { spawnDebris(vc, vel, 1.0f, mat); res.debrisSpawned++; }
+        return 1;
+    }
+
+    // Sub-voxel cell (subcubes/microcubes — e.g. a tree). Clear the whole cell
+    // via its owning chunk and scatter a few subcube-scale debris pieces.
+    Chunk* chunk = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
+    if (!chunk) return 0;
+    const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+    std::string mat = "Wood";
+    auto subs = chunk->getStaticSubcubesAt(lp);
+    if (!subs.empty() && subs[0]) mat = subs[0]->getMaterialName();
+    if (!chunk->clearSubdivisionAt(lp)) return 0;
+    m_cm->updateOccupancyVoxel(wp.x, wp.y, wp.z, false);
+    m_cm->markChunkDirty(chunk);
+    for (int i = 0; i < 4 && res.debrisSpawned < MAX_DEBRIS; ++i) {
+        glm::vec3 off(frand(-0.33f, 0.33f), frand(-0.33f, 0.33f), frand(-0.33f, 0.33f));
+        glm::vec3 vel(frand(-0.6f, 0.6f), frand(-1.0f, -0.2f), frand(-0.6f, 0.6f));
+        spawnDebris(vc + off, vel, 1.0f / 3.0f, mat);
+        res.debrisSpawned++;
+    }
+    return 1;
+}
+
 void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, float supportY,
                                        DamageResult& res) {
     const int yAnchor = static_cast<int>(std::floor(supportY));
@@ -272,7 +345,9 @@ void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, f
     for (const glm::ivec3& r : removed) {
         for (const auto& n : NB) {
             glm::ivec3 s = r + n;
-            if (m_cm->getCubeAt(s)) seeds.push_back(s);
+            // "Any content" (full cube OR sub-voxel subdivision) so sub-voxel
+            // structures like trees take part in the connectivity graph.
+            if (m_cm->hasVoxelAt(s)) seeds.push_back(s);
         }
     }
 
@@ -301,7 +376,7 @@ void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, f
                 // Reached a voxel already proven part of the main mass → supported.
                 if (anchored.count(key)) { supported = true; break; }
                 if (visited.count(key)) continue;
-                if (m_cm->getCubeAt(nb)) { visited.insert(key); stack.push_back(nb); }
+                if (m_cm->hasVoxelAt(nb)) { visited.insert(key); stack.push_back(nb); }
             }
             if (supported) break;
         }
@@ -318,20 +393,11 @@ void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, f
             continue;
         }
 
-        // Detached: drop the whole component as falling debris.
+        // Detached: drop the whole component as falling debris. Each cell may
+        // be a full cube or a sub-voxel subdivision (dropDetachedCell handles both).
         for (const glm::ivec3& v : component) {
             if (totalDetached >= MAX_COLLAPSE) break;
-            Cube* c = m_cm->getCubeAt(v);
-            if (!c) continue;
-            std::string mat = c->getMaterialName();
-            glm::vec3 vc(v.x + 0.5f, v.y + 0.5f, v.z + 0.5f);
-            m_cm->removeCubeFast(v);
-            m_cm->updateOccupancyVoxel(v.x, v.y, v.z, false);
-            // Small outward+down nudge; gravity does the rest.
-            glm::vec3 vel(frand(-0.5f, 0.5f), frand(-1.0f, -0.2f), frand(-0.5f, 0.5f));
-            spawnDebris(vc, vel, 1.0f, mat);
-            ++totalDetached;
-            res.debrisSpawned++;
+            totalDetached += dropDetachedCell(v, res);
         }
     }
     res.voxelsBroken += totalDetached;

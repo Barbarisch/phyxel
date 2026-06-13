@@ -63,6 +63,12 @@ private:
     // an anchor (solid voxel at Y <= supportY). Detached voxels fall as debris.
     void collapseUnsupported(const std::vector<glm::ivec3>& removed, float supportY, DamageResult& res);
 
+    // Remove ALL content at one world cell — a full cube OR a sub-voxel
+    // subdivision (subcubes/microcubes, e.g. a tree) — and spawn falling
+    // debris. Returns 1 if the cell held content, else 0. Used by the collapse
+    // pass so sub-voxel structures detach like full-cube ones.
+    int dropDetachedCell(const glm::ivec3& wp, DamageResult& res);
+
     // Queue one debris piece into the GPU particle system.
     void spawnDebris(const glm::vec3& pos, const glm::vec3& vel, float scale,
                      const std::string& material);
