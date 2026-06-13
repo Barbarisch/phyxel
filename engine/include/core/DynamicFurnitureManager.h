@@ -59,6 +59,12 @@ public:
     static constexpr float  BREAK_FORCE_SCALAR     = 50.0f; ///< Contact force to exceed bondStrength * this
     static constexpr int    MIN_FRAGMENT_VOXELS    = 4;     ///< Fragments below this become GPU debris
     static constexpr float  GRAB_HOLD_DISTANCE    = 3.0f;  ///< Distance in front of camera when holding
+    static constexpr size_t MAX_ACTIVATABLE_VOXELS = 400;  ///< Hard ceiling: bigger objects never become kinematic furniture
+
+    /// True when a template's "# category:" marks it as inert static scenery
+    /// (trees/rocks/buildings) that must never be converted to kinematic
+    /// furniture. Empty/"furniture" categories are activatable.
+    static bool isSceneryCategory(const std::string& category);
 
     /// Override mass for all newly activated furniture (0 = use calculated mass)
     float massOverride = 0.0f;

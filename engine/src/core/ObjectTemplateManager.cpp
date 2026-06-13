@@ -95,6 +95,19 @@ void ObjectTemplateManager::parseLine(const std::string& line, VoxelTemplate& tm
             return;
         }
 
+        // Semantic class: "# category: <name>" (gen_tree.py writes
+        // "# category:     nature"; furniture files may omit it). The value
+        // can carry leading padding, so trim surrounding whitespace.
+        const std::string categoryKey = "# category:";
+        if (line.compare(0, categoryKey.size(), categoryKey) == 0) {
+            std::string val = line.substr(categoryKey.size());
+            size_t b = val.find_first_not_of(" \t\r\n");
+            size_t e = val.find_last_not_of(" \t\r\n");
+            if (b != std::string::npos)
+                tmpl.category = val.substr(b, e - b + 1);
+            return;
+        }
+
         // Composite-part directive:
         //   "# part: <name>"                              (static part)
         //   "# part: <name> hinge=<keyword|x,y,z> axis=<x|y|z>"  (movable part)

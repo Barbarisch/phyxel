@@ -23,6 +23,16 @@
 namespace Phyxel {
 namespace Core {
 
+// Categories that are inert static scenery — baked voxels, breakable via the
+// normal voxel path, never converted to kinematic furniture. Sourced from the
+// template "# category:" header (see VoxelTemplate / template_catalog.json).
+bool DynamicFurnitureManager::isSceneryCategory(const std::string& category) {
+    return category == "nature"
+        || category == "building"
+        || category == "architecture"
+        || category == "environment";
+}
+
 // ============================================================================
 // Lifecycle
 // ============================================================================
@@ -99,6 +109,27 @@ bool DynamicFurnitureManager::activate(const std::string& placedObjectId,
     if (!placed) {
         LOG_ERROR_FMT("DynamicFurniture", "PlacedObject '" << placedObjectId << "' not found");
         return false;
+    }
+
+    // Only genuine furniture may be knocked loose / grabbed. Scenery (trees,
+    // rocks, buildings) stays inert static voxels — breakable via the normal
+    // voxel path, never converted to a kinematic body. Converting a thousand-
+    // voxel tree here stalled the engine for ~35s and overflowed the kinematic
+    // face buffer; the size ceiling is a hard backstop against any such object
+    // regardless of how it's categorized.
+    if (const VoxelTemplate* t = m_templateManager->getTemplate(placed->templateName)) {
+        if (isSceneryCategory(t->category)) {
+            LOG_INFO_FMT("DynamicFurniture", "Ignoring activation of scenery '"
+                         << placedObjectId << "' (category=" << t->category << ")");
+            return false;
+        }
+        const size_t voxelCount = t->cubes.size() + t->subcubes.size() + t->microcubes.size();
+        if (voxelCount > MAX_ACTIVATABLE_VOXELS) {
+            LOG_WARN_FMT("DynamicFurniture", "Refusing to activate '" << placedObjectId
+                         << "' — too many voxels (" << voxelCount << " > "
+                         << MAX_ACTIVATABLE_VOXELS << ") to be furniture");
+            return false;
+        }
     }
 
     if (static_cast<int>(m_active.size()) >= MAX_DYNAMIC_FURNITURE) {

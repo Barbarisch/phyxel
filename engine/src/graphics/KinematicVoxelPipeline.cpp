@@ -136,10 +136,13 @@ void KinematicVoxelPipeline::rebuildBuffer(
         uint32_t faceCount = static_cast<uint32_t>(obj.faces.size());
 
         if (startFace + faceCount > MAX_TOTAL_FACES) {
+            // Skip just this object — don't `break`, or every object iterated
+            // after it silently vanishes too (a single oversized object used
+            // to blank the whole kinematic layer).
             LOG_WARN_FMT("KinematicVoxelPipeline",
                 "Face buffer full — object '" << id << "' skipped ("
                 << startFace + faceCount << " > " << MAX_TOTAL_FACES << ")");
-            break;
+            continue;
         }
 
         allFaces.insert(allFaces.end(), obj.faces.begin(), obj.faces.end());

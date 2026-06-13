@@ -84,6 +84,12 @@ public:
     /// yaw=0 → +Z, yaw=π → -Z (BlockBench front convention).
     float facingYaw = 0.0f;
 
+    /// Semantic class parsed from a "# category:" header (e.g. "furniture",
+    /// "nature", "building"). Drives whether the object is treated as
+    /// knock-over/grab furniture or inert static scenery. Empty when the
+    /// source file declares no category. See DynamicFurnitureManager.
+    std::string category;
+
     /// Interaction points parsed from "# interaction:" headers in the .txt file.
     std::vector<Core::InteractionPointDef> interactionPoints;
 
