@@ -2682,27 +2682,39 @@ namespace Scene {
 
                 resolveKinematicMovement(deltaTime);
 
-                // Play walk or idle animation based on speed
-                std::vector<std::string> candidates;
-                if (speed > 0.1f) {
-                    candidates = {"walk", "walking", "Walk", "Walking", "unarmed_walk"};
-                } else {
-                    candidates = {"idle", "Idle", "Standing", "standing"};
-                }
-                int targetIndex = -1;
-                for (const auto& candidate : candidates) {
-                    for (size_t i = 0; i < clips.size(); ++i) {
-                        if (clips[i].name == candidate) { targetIndex = static_cast<int>(i); break; }
+                // Play walk or idle animation based on speed — but NOT while an
+                // action state owns the clip. External velocity (e.g. combat
+                // knockback via setMoveVelocity) must not stomp a mid-swing
+                // attack/cast/block back to walk/idle and reset animTime; the
+                // main animation block below already drives those states. (This
+                // was the attack-animation "stutter": a hit-frame knockback
+                // reset the swing to idle, then back to the attack clip.)
+                const bool actionStateOwnsClip =
+                    currentState == AnimatedCharacterState::Attack ||
+                    currentState == AnimatedCharacterState::Cast   ||
+                    currentState == AnimatedCharacterState::Block;
+                if (!actionStateOwnsClip) {
+                    std::vector<std::string> candidates;
+                    if (speed > 0.1f) {
+                        candidates = {"walk", "walking", "Walk", "Walking", "unarmed_walk"};
+                    } else {
+                        candidates = {"idle", "Idle", "Standing", "standing"};
                     }
-                    if (targetIndex >= 0) break;
-                }
-                if (targetIndex >= 0 && targetIndex != currentClipIndex) {
-                    previousClipIndex = currentClipIndex;
-                    previousAnimTime = animTime;
-                    currentClipIndex = targetIndex;
-                    animTime = 0.0f;
-                    blendFactor = 0.0f;
-                    isBlending = true;
+                    int targetIndex = -1;
+                    for (const auto& candidate : candidates) {
+                        for (size_t i = 0; i < clips.size(); ++i) {
+                            if (clips[i].name == candidate) { targetIndex = static_cast<int>(i); break; }
+                        }
+                        if (targetIndex >= 0) break;
+                    }
+                    if (targetIndex >= 0 && targetIndex != currentClipIndex) {
+                        previousClipIndex = currentClipIndex;
+                        previousAnimTime = animTime;
+                        currentClipIndex = targetIndex;
+                        animTime = 0.0f;
+                        blendFactor = 0.0f;
+                        isBlending = true;
+                    }
                 }
             } else {
             // Normal input-driven movement

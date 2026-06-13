@@ -4530,6 +4530,7 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
         const float yaw = animatedCharacter->getYaw();
         Core::CombatSystem::AttackParams p;
         p.attackerId = "player";
+        p.attackerEntity = animatedCharacter;  // exclude self by pointer
         p.attackerPos = animatedCharacter->getPosition() + glm::vec3(0.0f, 1.0f, 0.0f);
         // Visual front is +Z at yaw 0 (see anim conventions).
         p.attackerForward = glm::vec3(std::sin(yaw), 0.0f, std::cos(yaw));

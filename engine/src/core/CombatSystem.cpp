@@ -23,7 +23,8 @@ std::vector<DamageEvent> CombatSystem::performAttack(
     float coneThreshold = std::cos(glm::radians(params.coneAngleDeg * 0.5f));
 
     for (const auto& [entityId, entity] : nearby) {
-        // Skip self
+        // Skip self — by pointer (robust) and by id label.
+        if (entity == params.attackerEntity) continue;
         if (entityId == params.attackerId) continue;
 
         // Skip if in invulnerability frames

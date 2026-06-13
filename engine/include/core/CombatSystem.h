@@ -57,6 +57,11 @@ public:
         float coneAngleDeg = 90.0f;    // How wide the attack cone is
         DamageType damageType = DamageType::Physical;
         float knockbackForce = 2.0f;
+        // The attacker entity, excluded from its own hit by pointer. Robust
+        // when attackerId is a display label (e.g. "player") that differs from
+        // the attacker's registered id — id-only self-exclusion would miss it
+        // and the attacker would strike (and knock back) itself.
+        const Scene::Entity* attackerEntity = nullptr;
     };
 
     /// Perform an attack: find targets in range/cone, deal damage.
