@@ -78,12 +78,24 @@ public:
             if (in.jump) { if (!jumpHeld_) character->jump(); jumpHeld_ = true; }
             else         { jumpHeld_ = false; }
 
-            // Light/heavy attacks are edge-triggered (a held button is one
-            // press); the FSM buffers mid-swing presses for chain links.
-            if (in.attack) { if (!attackHeld_) character->lightAttack(); attackHeld_ = true; }
-            else           { attackHeld_ = false; }
-            if (in.heavy)  { if (!heavyHeld_) character->heavyAttack(); heavyHeld_ = true; }
-            else           { heavyHeld_ = false; }
+            // Attacks are edge-triggered on the MOUSE BUTTON, not on the
+            // light/heavy split: in.attack (lmb && !shift) and in.heavy
+            // (lmb && shift) are two faces of one press. Guarding them
+            // independently let a heavy be followed by a stray light when Shift
+            // was released a frame before the button (lmb && !shift briefly
+            // true) — "heavy always does a light after it." Latch on the press
+            // and pick light/heavy once; a held button is a single attack, and
+            // the FSM buffers a fresh press mid-swing for chain links.
+            const bool attackPressed = in.attack || in.heavy;
+            if (attackPressed) {
+                if (!attackHeld_) {
+                    if (in.heavy) character->heavyAttack();
+                    else          character->lightAttack();
+                }
+                attackHeld_ = true;
+            } else {
+                attackHeld_ = false;
+            }
 
             // Guard is a held stance.
             character->setBlocking(in.block);
@@ -107,7 +119,6 @@ private:
     std::string schemeName_;  // last name passed to setSchemeByName
     bool jumpHeld_   = false;
     bool attackHeld_ = false;
-    bool heavyHeld_  = false;
 };
 
 } // namespace Core
