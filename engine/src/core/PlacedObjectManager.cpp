@@ -376,7 +376,8 @@ void PlacedObjectManager::clearRegion(const glm::ivec3& min, const glm::ivec3& m
 
 std::string PlacedObjectManager::placeTemplate(const std::string& templateName,
                                                 const glm::ivec3& position, int rotation,
-                                                const std::string& parentId) {
+                                                const std::string& parentId,
+                                                bool snapToGround) {
     if (!m_templateManager) return "";
 
     // Validate parent exists if specified
@@ -385,11 +386,45 @@ std::string PlacedObjectManager::placeTemplate(const std::string& templateName,
         if (m_objects.find(parentId) == m_objects.end()) return "";
     }
 
+    // Ground-snap: seat the template's lowest voxel on the surface beneath the
+    // requested position. Robust against a caller passing a Y one cube too high
+    // (e.g. spawn_y + 1 instead of spawn_y), which left trees hovering a cube
+    // off the ground. We scan DOWN from the template's intended footprint so
+    // other objects' overhangs above don't interfere, and take the highest
+    // ground cell under the footprint so the base doesn't sink into a rise.
+    glm::ivec3 place = position;
+    if (snapToGround && m_chunkManager) {
+        // Pre-placement bounds (chunks don't hold this template yet, so every
+        // solid we find is pre-existing terrain/scenery).
+        auto [pbmin, pbmax] = computeTemplateBounds(templateName, position, rotation);
+        const int baseCell = pbmin.y;           // world cell of the lowest voxel as requested
+        int highestGround = INT_MIN;
+        // Bound the sampled footprint so a huge template can't trigger a giant scan.
+        const int stepX = std::max(1, (pbmax.x - pbmin.x) / 16);
+        const int stepZ = std::max(1, (pbmax.z - pbmin.z) / 16);
+        for (int x = pbmin.x; x <= pbmax.x; x += stepX) {
+            for (int z = pbmin.z; z <= pbmax.z; z += stepZ) {
+                // First solid at or below the requested base = the supporting ground.
+                for (int y = baseCell; y >= baseCell - 128 && y >= 0; --y) {
+                    if (m_chunkManager->hasVoxelAt(glm::ivec3(x, y, z))) {
+                        highestGround = std::max(highestGround, y);
+                        break;
+                    }
+                }
+            }
+        }
+        if (highestGround != INT_MIN) {
+            // Seat the lowest voxel one cell above the ground top.
+            const int snappedBase = highestGround + 1;
+            place.y += (snappedBase - baseCell);
+        }
+    }
+
     // Compute bounding box before placement
-    auto [bmin, bmax] = computeTemplateBounds(templateName, position, rotation);
+    auto [bmin, bmax] = computeTemplateBounds(templateName, place, rotation);
 
     // Spawn the template via ObjectTemplateManager
-    bool ok = m_templateManager->spawnTemplate(templateName, glm::vec3(position), true, rotation);
+    bool ok = m_templateManager->spawnTemplate(templateName, glm::vec3(place), true, rotation);
     if (!ok) return "";
 
     // Phase C0b/D: snapshot any kinematic part IDs emitted by the spawn so we
@@ -405,7 +440,7 @@ std::string PlacedObjectManager::placeTemplate(const std::string& templateName,
     obj.templateName = templateName;
     obj.category = "template";
     obj.parentId = parentId;
-    obj.position = position;
+    obj.position = place;
     obj.rotation = rotation;
     obj.boundingMin = bmin;
     obj.boundingMax = bmax;
@@ -414,7 +449,7 @@ std::string PlacedObjectManager::placeTemplate(const std::string& templateName,
     // Populate interaction points if defs are registered for this template
     auto defsIt = m_templateDefs.find(templateName);
     if (defsIt != m_templateDefs.end()) {
-        obj.interactionPoints = computeInteractionPoints(defsIt->second, position, rotation);
+        obj.interactionPoints = computeInteractionPoints(defsIt->second, place, rotation);
     }
 
     // Phase D: record kinematic part IDs in metadata so try_pivot can find
@@ -426,8 +461,10 @@ std::string PlacedObjectManager::placeTemplate(const std::string& templateName,
     m_objects[id] = std::move(obj);
 
     LOG_INFO_FMT("PlacedObjectManager", "Placed template '" << templateName
-                 << "' as '" << id << "' at (" << position.x << "," << position.y << "," << position.z
-                 << ") rot=" << rotation << (parentId.empty() ? "" : " parent=" + parentId));
+                 << "' as '" << id << "' at (" << place.x << "," << place.y << "," << place.z
+                 << ") rot=" << rotation
+                 << (place.y != position.y ? " [ground-snapped from y=" + std::to_string(position.y) + "]" : "")
+                 << (parentId.empty() ? "" : " parent=" + parentId));
     return id;
 }
 

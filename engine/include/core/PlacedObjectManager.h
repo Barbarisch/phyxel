@@ -196,8 +196,14 @@ public:
                         SnapshotManager* snapshotMgr);
 
     /// Place a template and register it. Returns object ID, or empty on failure.
+    /// When snapToGround is true (default), the template's lowest voxel is
+    /// seated on the surface directly beneath the given position — so callers
+    /// that pass a slightly-high Y (a common off-by-one against spawn_y) don't
+    /// leave the object hovering a cube above the ground. Pass false to honor
+    /// the exact Y (intentional elevated placement).
     std::string placeTemplate(const std::string& templateName, const glm::ivec3& position,
-                              int rotation = 0, const std::string& parentId = "");
+                              int rotation = 0, const std::string& parentId = "",
+                              bool snapToGround = true);
 
     /// Register a structure that was already placed (e.g. by StructureGenerator).
     /// The caller provides the bounding box since structures compute it during generation.
