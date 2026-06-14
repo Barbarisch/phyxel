@@ -9,7 +9,7 @@
 # materials:    LeafJungle, Log
 # facing:       +Z
 # bounds:       11W x 19H x 11D cubes
-# primitives:   218 C + 3958 S + 45 M = 4221
+# primitives:   218 C + 3909 S + 0 M = 4127
 # generator:    gen_tree.py --type jungle --height 15 --radius auto --fullness 0.85 --seed 13
 # ==========================================================
 
@@ -909,7 +909,6 @@ S 1 13 3 2 2 0 LeafJungle
 S 1 13 3 2 2 1 LeafJungle
 S 1 13 3 2 2 2 LeafJungle
 S 1 13 4 0 2 1 LeafJungle
-S 1 13 4 1 1 2 LeafJungle
 S 1 13 4 1 2 0 LeafJungle
 S 1 13 4 1 2 1 LeafJungle
 S 1 13 4 2 2 0 LeafJungle
@@ -927,7 +926,6 @@ S 1 13 6 2 1 1 LeafJungle
 S 1 13 6 2 1 2 LeafJungle
 S 1 13 6 2 2 1 LeafJungle
 S 1 13 6 2 2 2 LeafJungle
-S 1 13 7 1 2 0 LeafJungle
 S 1 13 7 2 2 2 LeafJungle
 S 2 13 1 2 2 2 LeafJungle
 S 2 13 2 0 2 2 LeafJungle
@@ -1014,7 +1012,6 @@ S 2 13 7 2 1 2 LeafJungle
 S 2 13 7 2 2 0 LeafJungle
 S 2 13 7 2 2 1 LeafJungle
 S 2 13 7 2 2 2 LeafJungle
-S 2 13 8 2 2 1 LeafJungle
 S 3 13 1 0 2 2 LeafJungle
 S 3 13 1 2 1 2 LeafJungle
 S 3 13 1 2 2 1 LeafJungle
@@ -1394,7 +1391,6 @@ S 6 13 8 0 2 2 LeafJungle
 S 6 13 8 1 1 1 LeafJungle
 S 6 13 8 1 2 0 LeafJungle
 S 6 13 8 1 2 1 LeafJungle
-S 6 13 8 2 1 0 LeafJungle
 S 6 13 8 2 2 1 LeafJungle
 S 6 13 8 2 2 2 LeafJungle
 S 7 13 2 0 1 2 LeafJungle
@@ -1551,7 +1547,6 @@ S 8 13 5 2 2 0 LeafJungle
 S 8 13 5 2 2 1 LeafJungle
 S 8 13 5 2 2 2 LeafJungle
 S 8 13 6 0 1 0 LeafJungle
-S 8 13 6 0 1 2 LeafJungle
 S 8 13 6 0 2 0 LeafJungle
 S 8 13 6 0 2 1 LeafJungle
 S 8 13 6 1 1 0 LeafJungle
@@ -1562,7 +1557,6 @@ S 8 13 6 2 2 0 LeafJungle
 S 8 13 7 0 2 1 LeafJungle
 S 8 13 7 1 2 1 LeafJungle
 S 8 13 7 1 2 2 LeafJungle
-S 8 13 8 0 2 0 LeafJungle
 S 9 13 3 0 2 2 LeafJungle
 S 9 13 4 0 2 0 LeafJungle
 S 9 13 4 0 2 2 LeafJungle
@@ -1577,14 +1571,12 @@ S 0 14 3 2 1 2 LeafJungle
 S 0 14 3 2 2 0 LeafJungle
 S 0 14 3 2 2 1 LeafJungle
 S 0 14 3 2 2 2 LeafJungle
-S 0 14 4 0 2 2 LeafJungle
 S 0 14 4 2 0 1 LeafJungle
 S 0 14 4 2 1 0 LeafJungle
 S 0 14 4 2 1 2 LeafJungle
 S 0 14 4 2 2 0 LeafJungle
 S 0 14 4 2 2 1 LeafJungle
 S 0 14 4 2 2 2 LeafJungle
-S 0 14 5 0 2 2 LeafJungle
 S 0 14 5 1 1 0 LeafJungle
 S 0 14 5 1 1 1 LeafJungle
 S 0 14 5 1 2 0 LeafJungle
@@ -1596,7 +1588,6 @@ S 0 14 5 2 2 0 LeafJungle
 S 0 14 5 2 2 1 LeafJungle
 S 0 14 5 2 2 2 LeafJungle
 S 0 14 6 1 1 0 LeafJungle
-S 0 14 6 1 1 2 LeafJungle
 S 0 14 6 1 2 0 LeafJungle
 S 0 14 6 1 2 1 LeafJungle
 S 0 14 6 2 0 1 LeafJungle
@@ -1605,7 +1596,6 @@ S 0 14 6 2 2 2 LeafJungle
 S 0 14 7 2 2 0 LeafJungle
 S 0 14 7 2 2 1 LeafJungle
 S 0 14 7 2 2 2 LeafJungle
-S 1 14 1 1 2 2 LeafJungle
 S 1 14 2 0 1 2 LeafJungle
 S 1 14 2 0 2 2 LeafJungle
 S 1 14 2 1 0 2 LeafJungle
@@ -1693,10 +1683,7 @@ S 1 14 6 2 1 2 LeafJungle
 S 1 14 6 2 2 0 LeafJungle
 S 1 14 6 2 2 1 LeafJungle
 S 1 14 6 2 2 2 LeafJungle
-S 1 14 7 0 0 0 LeafJungle
-S 1 14 7 0 1 2 LeafJungle
 S 1 14 7 0 2 0 LeafJungle
-S 1 14 7 1 0 1 LeafJungle
 S 1 14 7 1 1 0 LeafJungle
 S 1 14 7 1 2 0 LeafJungle
 S 1 14 7 1 2 1 LeafJungle
@@ -1777,8 +1764,6 @@ S 2 14 8 2 2 2 LeafJungle
 S 2 14 9 1 2 0 LeafJungle
 S 2 14 9 2 1 0 LeafJungle
 S 2 14 9 2 2 0 LeafJungle
-S 3 14 0 0 1 2 LeafJungle
-S 3 14 0 0 2 1 LeafJungle
 S 3 14 0 2 2 2 LeafJungle
 S 3 14 1 0 0 1 LeafJungle
 S 3 14 1 0 0 2 LeafJungle
@@ -1924,7 +1909,6 @@ S 5 14 9 2 0 0 LeafJungle
 S 5 14 9 2 1 0 LeafJungle
 S 5 14 9 2 2 0 LeafJungle
 S 5 14 9 2 2 1 LeafJungle
-S 5 14 10 0 2 0 LeafJungle
 S 6 14 0 0 0 2 LeafJungle
 S 6 14 0 0 1 2 LeafJungle
 S 6 14 0 0 2 1 LeafJungle
@@ -2162,7 +2146,6 @@ S 8 14 8 0 2 0 LeafJungle
 S 8 14 8 1 1 0 LeafJungle
 S 8 14 8 1 2 0 LeafJungle
 S 8 14 8 2 1 0 LeafJungle
-S 8 14 9 0 2 0 LeafJungle
 S 9 14 2 0 1 1 LeafJungle
 S 9 14 2 0 1 2 LeafJungle
 S 9 14 2 0 2 2 LeafJungle
@@ -2211,7 +2194,6 @@ S 9 14 5 1 1 0 LeafJungle
 S 9 14 5 1 2 0 LeafJungle
 S 9 14 5 1 2 1 LeafJungle
 S 9 14 5 1 2 2 LeafJungle
-S 9 14 5 2 1 1 LeafJungle
 S 9 14 5 2 2 0 LeafJungle
 S 9 14 6 0 0 1 LeafJungle
 S 9 14 6 0 0 2 LeafJungle
@@ -2220,7 +2202,6 @@ S 9 14 6 0 1 2 LeafJungle
 S 9 14 6 0 2 0 LeafJungle
 S 9 14 6 0 2 1 LeafJungle
 S 9 14 6 0 2 2 LeafJungle
-S 9 14 6 1 0 0 LeafJungle
 S 9 14 6 1 1 2 LeafJungle
 S 9 14 6 1 2 0 LeafJungle
 S 9 14 6 1 2 1 LeafJungle
@@ -2234,8 +2215,6 @@ S 9 14 7 1 1 1 LeafJungle
 S 9 14 7 1 2 0 LeafJungle
 S 9 14 7 1 2 1 LeafJungle
 S 9 14 8 0 2 0 LeafJungle
-S 10 14 5 0 2 1 LeafJungle
-S 10 14 6 0 2 0 LeafJungle
 S 0 15 2 1 1 2 LeafJungle
 S 0 15 2 2 1 0 LeafJungle
 S 0 15 3 1 0 2 LeafJungle
@@ -2304,7 +2283,6 @@ S 0 15 7 2 0 2 LeafJungle
 S 0 15 7 2 1 0 LeafJungle
 S 0 15 7 2 2 0 LeafJungle
 S 0 15 7 2 2 1 LeafJungle
-S 1 15 1 1 1 1 LeafJungle
 S 1 15 1 1 2 2 LeafJungle
 S 1 15 1 2 0 2 LeafJungle
 S 1 15 1 2 2 2 LeafJungle
@@ -2363,7 +2341,6 @@ S 1 15 8 2 1 0 LeafJungle
 S 1 15 8 2 1 1 LeafJungle
 S 1 15 8 2 2 0 LeafJungle
 S 1 15 8 2 2 1 LeafJungle
-S 1 15 9 2 1 0 LeafJungle
 S 2 15 0 1 0 2 LeafJungle
 S 2 15 0 1 1 2 LeafJungle
 S 2 15 0 2 0 2 LeafJungle
@@ -2419,7 +2396,6 @@ S 2 15 8 2 2 0 LeafJungle
 S 2 15 8 2 2 1 LeafJungle
 S 2 15 8 2 2 2 LeafJungle
 S 2 15 9 0 0 0 LeafJungle
-S 2 15 9 0 1 1 LeafJungle
 S 2 15 9 1 0 0 LeafJungle
 S 2 15 9 1 2 0 LeafJungle
 S 2 15 9 2 0 1 LeafJungle
@@ -2437,7 +2413,6 @@ S 3 15 0 1 2 1 LeafJungle
 S 3 15 0 1 2 2 LeafJungle
 S 3 15 0 2 0 1 LeafJungle
 S 3 15 0 2 0 2 LeafJungle
-S 3 15 0 2 1 0 LeafJungle
 S 3 15 0 2 1 2 LeafJungle
 S 3 15 0 2 2 1 LeafJungle
 S 3 15 0 2 2 2 LeafJungle
@@ -2451,7 +2426,6 @@ S 3 15 9 0 2 1 LeafJungle
 S 3 15 9 1 0 0 LeafJungle
 S 3 15 9 1 0 1 LeafJungle
 S 3 15 9 1 1 0 LeafJungle
-S 3 15 9 1 1 2 LeafJungle
 S 3 15 9 1 2 0 LeafJungle
 S 3 15 9 1 2 1 LeafJungle
 S 3 15 9 2 0 0 LeafJungle
@@ -2554,7 +2528,6 @@ S 5 15 10 0 1 0 LeafJungle
 S 5 15 10 1 1 0 LeafJungle
 S 5 15 10 2 1 0 LeafJungle
 S 5 15 10 2 2 0 LeafJungle
-S 6 15 0 0 0 0 LeafJungle
 S 6 15 0 0 0 2 LeafJungle
 S 6 15 0 0 1 1 LeafJungle
 S 6 15 0 0 1 2 LeafJungle
@@ -2630,7 +2603,6 @@ S 7 15 9 0 1 0 LeafJungle
 S 7 15 9 0 2 0 LeafJungle
 S 7 15 9 0 2 1 LeafJungle
 S 7 15 9 1 0 0 LeafJungle
-S 7 15 9 1 1 2 LeafJungle
 S 7 15 9 1 2 0 LeafJungle
 S 7 15 9 2 0 0 LeafJungle
 S 7 15 9 2 2 0 LeafJungle
@@ -2645,7 +2617,6 @@ S 8 15 1 0 2 1 LeafJungle
 S 8 15 1 0 2 2 LeafJungle
 S 8 15 1 1 0 2 LeafJungle
 S 8 15 1 1 2 1 LeafJungle
-S 8 15 1 2 0 1 LeafJungle
 S 8 15 8 0 0 0 LeafJungle
 S 8 15 8 0 0 1 LeafJungle
 S 8 15 8 0 0 2 LeafJungle
@@ -2664,7 +2635,6 @@ S 8 15 8 2 1 0 LeafJungle
 S 8 15 8 2 1 1 LeafJungle
 S 8 15 8 2 2 0 LeafJungle
 S 8 15 8 2 2 1 LeafJungle
-S 9 15 1 0 2 2 LeafJungle
 S 9 15 2 0 0 1 LeafJungle
 S 9 15 2 0 0 2 LeafJungle
 S 9 15 2 0 1 1 LeafJungle
@@ -2781,16 +2751,13 @@ S 9 15 7 2 1 0 LeafJungle
 S 9 15 7 2 1 1 LeafJungle
 S 9 15 8 0 0 0 LeafJungle
 S 10 15 4 0 0 2 LeafJungle
-S 10 15 4 0 1 0 LeafJungle
 S 10 15 4 0 1 2 LeafJungle
-S 10 15 4 0 2 1 LeafJungle
 S 10 15 5 0 0 0 LeafJungle
 S 10 15 5 0 1 1 LeafJungle
 S 10 15 5 0 2 0 LeafJungle
 S 10 15 6 0 1 1 LeafJungle
 S 10 15 6 0 2 1 LeafJungle
 S 0 16 2 2 0 2 LeafJungle
-S 0 16 3 1 0 1 LeafJungle
 S 0 16 3 2 0 0 LeafJungle
 S 0 16 3 2 0 2 LeafJungle
 S 0 16 3 2 1 1 LeafJungle
@@ -2827,10 +2794,8 @@ S 0 16 6 2 1 0 LeafJungle
 S 0 16 6 2 1 1 LeafJungle
 S 0 16 7 1 0 0 LeafJungle
 S 0 16 7 2 0 0 LeafJungle
-S 0 16 7 2 1 1 LeafJungle
 S 1 16 1 2 0 1 LeafJungle
 S 1 16 1 2 1 1 LeafJungle
-S 1 16 2 0 0 0 LeafJungle
 S 1 16 2 0 0 2 LeafJungle
 S 1 16 2 1 0 2 LeafJungle
 S 1 16 2 1 1 2 LeafJungle
@@ -3023,12 +2988,10 @@ S 2 16 8 2 1 2 LeafJungle
 S 2 16 8 2 2 0 LeafJungle
 S 2 16 8 2 2 1 LeafJungle
 S 2 16 8 2 2 2 LeafJungle
-S 2 16 9 1 1 0 LeafJungle
 S 2 16 9 2 0 0 LeafJungle
 S 2 16 9 2 2 0 LeafJungle
 S 3 16 0 1 0 2 LeafJungle
 S 3 16 0 2 0 2 LeafJungle
-S 3 16 0 2 2 2 LeafJungle
 S 3 16 1 0 0 0 LeafJungle
 S 3 16 1 0 0 1 LeafJungle
 S 3 16 1 0 0 2 LeafJungle
@@ -3041,7 +3004,6 @@ S 3 16 1 1 0 1 LeafJungle
 S 3 16 1 1 0 2 LeafJungle
 S 3 16 1 1 1 1 LeafJungle
 S 3 16 1 1 1 2 LeafJungle
-S 3 16 1 1 2 0 LeafJungle
 S 3 16 1 1 2 2 LeafJungle
 S 3 16 1 2 0 0 LeafJungle
 S 3 16 1 2 0 1 LeafJungle
@@ -3183,7 +3145,6 @@ S 6 16 0 0 1 2 LeafJungle
 S 6 16 0 1 0 2 LeafJungle
 S 6 16 0 1 1 1 LeafJungle
 S 6 16 0 1 1 2 LeafJungle
-S 6 16 0 2 0 1 LeafJungle
 S 6 16 0 2 1 2 LeafJungle
 S 6 16 1 0 0 0 LeafJungle
 S 6 16 1 0 0 1 LeafJungle
@@ -3275,7 +3236,6 @@ S 8 16 1 0 0 0 LeafJungle
 S 8 16 1 0 0 1 LeafJungle
 S 8 16 1 0 0 2 LeafJungle
 S 8 16 1 0 1 1 LeafJungle
-S 8 16 1 0 2 2 LeafJungle
 S 8 16 1 1 0 1 LeafJungle
 S 8 16 2 0 0 0 LeafJungle
 S 8 16 2 0 0 1 LeafJungle
@@ -3347,8 +3307,6 @@ S 8 16 8 0 0 0 LeafJungle
 S 8 16 8 0 1 0 LeafJungle
 S 8 16 8 0 2 0 LeafJungle
 S 8 16 8 1 0 0 LeafJungle
-S 8 16 8 1 0 2 LeafJungle
-S 8 16 8 1 1 1 LeafJungle
 S 8 16 8 2 1 0 LeafJungle
 S 9 16 2 0 1 2 LeafJungle
 S 9 16 3 0 0 0 LeafJungle
@@ -3362,7 +3320,6 @@ S 9 16 3 1 1 1 LeafJungle
 S 9 16 3 1 2 1 LeafJungle
 S 9 16 3 1 2 2 LeafJungle
 S 9 16 3 2 0 0 LeafJungle
-S 9 16 3 2 1 2 LeafJungle
 S 9 16 4 0 0 0 LeafJungle
 S 9 16 4 0 0 1 LeafJungle
 S 9 16 4 0 0 2 LeafJungle
@@ -3424,7 +3381,6 @@ S 10 16 6 0 0 0 LeafJungle
 S 1 17 3 1 0 1 LeafJungle
 S 1 17 3 1 0 2 LeafJungle
 S 1 17 3 2 0 0 LeafJungle
-S 1 17 3 2 1 1 LeafJungle
 S 1 17 4 0 0 1 LeafJungle
 S 1 17 4 1 0 0 LeafJungle
 S 1 17 4 1 0 1 LeafJungle
@@ -3514,7 +3470,6 @@ S 2 17 6 1 0 0 LeafJungle
 S 2 17 6 1 0 1 LeafJungle
 S 2 17 6 1 0 2 LeafJungle
 S 2 17 6 1 1 0 LeafJungle
-S 2 17 6 1 2 1 LeafJungle
 S 2 17 6 2 0 0 LeafJungle
 S 2 17 6 2 0 1 LeafJungle
 S 2 17 6 2 0 2 LeafJungle
@@ -3530,7 +3485,6 @@ S 2 17 7 1 1 1 LeafJungle
 S 2 17 7 2 0 0 LeafJungle
 S 2 17 7 2 0 1 LeafJungle
 S 2 17 7 2 1 0 LeafJungle
-S 2 17 7 2 1 2 LeafJungle
 S 2 17 8 2 0 0 LeafJungle
 S 2 17 8 2 0 1 LeafJungle
 S 3 17 1 2 0 1 LeafJungle
@@ -3783,7 +3737,6 @@ S 5 17 1 1 0 1 LeafJungle
 S 5 17 1 1 0 2 LeafJungle
 S 5 17 1 1 1 2 LeafJungle
 S 5 17 1 2 0 2 LeafJungle
-S 5 17 1 2 1 1 LeafJungle
 S 5 17 2 0 0 0 LeafJungle
 S 5 17 2 0 0 1 LeafJungle
 S 5 17 2 0 0 2 LeafJungle
@@ -4011,7 +3964,6 @@ S 6 17 8 2 0 2 LeafJungle
 S 6 17 8 2 1 0 LeafJungle
 S 6 17 8 2 1 1 LeafJungle
 S 6 17 9 0 0 0 LeafJungle
-S 7 17 1 2 0 2 LeafJungle
 S 7 17 2 0 0 0 LeafJungle
 S 7 17 2 0 0 1 LeafJungle
 S 7 17 2 0 0 2 LeafJungle
@@ -4164,7 +4116,6 @@ S 8 17 6 1 0 2 LeafJungle
 S 8 17 7 1 0 0 LeafJungle
 S 9 17 4 0 0 2 LeafJungle
 S 9 17 5 0 0 0 LeafJungle
-S 9 17 5 0 0 2 LeafJungle
 S 4 18 4 0 0 1 LeafJungle
 S 4 18 4 0 0 2 LeafJungle
 S 4 18 4 1 0 0 LeafJungle
@@ -4189,48 +4140,3 @@ S 5 18 6 2 0 1 LeafJungle
 S 6 18 4 1 0 0 LeafJungle
 S 6 18 5 0 0 1 LeafJungle
 S 6 18 5 1 0 2 LeafJungle
-M 0 16 2 0 0 2 1 1 1 LeafJungle
-M 0 16 7 0 0 0 1 1 1 LeafJungle
-M 0 16 3 0 1 0 1 1 1 LeafJungle
-M 0 14 7 1 2 2 1 1 1 LeafJungle
-M 0 16 7 1 1 1 1 1 1 LeafJungle
-M 0 14 2 2 1 1 1 1 1 LeafJungle
-M 1 16 8 0 2 0 1 1 1 LeafJungle
-M 1 16 8 1 1 2 1 1 1 LeafJungle
-M 1 17 8 1 0 0 1 1 1 LeafJungle
-M 1 15 9 2 1 2 1 1 1 LeafJungle
-M 1 17 8 2 0 1 1 1 1 LeafJungle
-M 1 17 7 2 1 2 1 1 1 LeafJungle
-M 2 13 2 0 1 1 1 1 1 LeafJungle
-M 2 15 0 0 1 1 1 1 1 LeafJungle
-M 2 13 5 1 0 2 1 1 1 LeafJungle
-M 2 13 8 1 1 0 1 1 1 LeafJungle
-M 2 15 0 1 1 1 1 1 1 LeafJungle
-M 2 15 10 1 1 0 1 1 1 LeafJungle
-M 3 14 0 0 0 2 1 1 1 LeafJungle
-M 3 16 10 0 1 0 1 1 1 LeafJungle
-M 3 18 7 0 0 0 1 1 1 LeafJungle
-M 3 17 8 2 2 2 1 1 1 LeafJungle
-M 5 13 1 0 1 1 1 1 1 LeafJungle
-M 5 18 7 0 0 2 1 1 1 LeafJungle
-M 5 18 5 0 1 2 1 1 1 LeafJungle
-M 6 10 4 0 2 0 1 1 1 Log
-M 6 16 0 0 1 0 1 1 1 LeafJungle
-M 6 11 4 1 0 0 0 0 1 Log
-M 6 12 5 1 0 2 1 1 1 Log
-M 6 12 3 1 2 1 1 1 1 LeafJungle
-M 6 13 1 1 2 0 1 1 1 LeafJungle
-M 6 13 9 1 2 0 1 1 1 LeafJungle
-M 6 8 6 2 2 0 1 1 1 Log
-M 6 12 5 2 1 2 0 0 1 Log
-M 7 9 6 0 0 0 0 0 1 Log
-M 7 17 8 0 2 0 1 1 1 LeafJungle
-M 8 13 8 1 2 1 1 1 1 LeafJungle
-M 8 14 1 1 2 0 1 1 1 LeafJungle
-M 8 15 0 1 1 1 1 1 1 LeafJungle
-M 8 17 6 1 2 1 1 1 1 LeafJungle
-M 8 17 7 2 1 0 1 1 1 LeafJungle
-M 9 14 2 2 2 2 1 1 1 LeafJungle
-M 10 14 3 0 1 2 1 1 1 LeafJungle
-M 10 15 7 0 0 0 1 1 1 LeafJungle
-M 10 16 5 0 2 0 1 1 1 LeafJungle

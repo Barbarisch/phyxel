@@ -195,6 +195,66 @@ std::string WorldGenerator::materialForColumn(int worldY, const ColumnSample& co
     return b.deepMaterial;
 }
 
+std::vector<WorldGenerator::FloraPlacement>
+WorldGenerator::planFlora(int colMinX, int colMinZ, int colMaxX, int colMaxZ, int edgeInset) {
+    std::vector<FloraPlacement> out;
+    if (m_biomes.empty() || !isHeightBased()) return out;
+
+    // Candidate sites on a fine grid, jittered within each cell; each site is rolled against
+    // the biome's density and then a min-distance (Poisson-disk-style) reject enforces the
+    // biome's own spacing so plants never overlap. Every roll is a pure function of
+    // (cellX, cellZ, seed), so placement is deterministic and seam-free.
+    constexpr int kGrid = 4;  // candidate sampling resolution (columns); spacing prunes finer
+    const int x0 = colMinX + edgeInset, x1 = colMaxX - edgeInset;
+    const int z0 = colMinZ + edgeInset, z1 = colMaxZ - edgeInset;
+    if (x1 < x0 || z1 < z0) return out;
+
+    auto floordiv = [](int a, int b) { return (a >= 0) ? a / b : -((-a + b - 1) / b); };
+    auto hash01 = [](int a, int b, uint32_t salt) -> float {
+        uint32_t h = static_cast<uint32_t>(a) * 374761393u + static_cast<uint32_t>(b) * 668265263u + salt * 2246822519u;
+        h = (h ^ (h >> 13)) * 1274126177u;
+        h ^= h >> 16;
+        return (h & 0xFFFFFFu) / static_cast<float>(0x1000000);  // [0,1)
+    };
+
+    // Spatial-hash of already-placed columns (bucketed) for an O(1)-ish min-distance test.
+    std::vector<std::pair<int, int>> placed;
+    auto tooClose = [&](int x, int z, int spacing) {
+        const int s2 = spacing * spacing;
+        for (const auto& p : placed) {
+            const int dx = p.first - x, dz = p.second - z;
+            if (dx * dx + dz * dz < s2) return true;
+        }
+        return false;
+    };
+
+    for (int cz = floordiv(z0, kGrid); cz <= floordiv(z1, kGrid); ++cz) {
+        for (int cx = floordiv(x0, kGrid); cx <= floordiv(x1, kGrid); ++cx) {
+            int jx = cx * kGrid + static_cast<int>(hash01(cx, cz, seed ^ 0xA1u) * kGrid);
+            int jz = cz * kGrid + static_cast<int>(hash01(cx, cz, seed ^ 0xB2u) * kGrid);
+            if (jx < x0 || jx > x1 || jz < z0 || jz > z1) continue;
+
+            ColumnSample col = sampleColumn(jx, jz);
+            const Biome& biome = m_biomes[col.biomeIndex];
+            if (biome.flora.empty() || biome.floraDensity <= 0.0f) continue;
+            if (hash01(jx, jz, seed ^ 0xC3u) >= biome.floraDensity) continue;  // density roll
+            if (tooClose(jx, jz, std::max(2, biome.floraSpacing))) continue;    // spacing reject
+
+            int total = 0;
+            for (const auto& f : biome.flora) total += f.second;
+            int pick = static_cast<int>(hash01(jx, jz, seed ^ 0xD4u) * total);
+            const std::string* chosen = &biome.flora.front().first;
+            for (const auto& f : biome.flora) { pick -= f.second; if (pick < 0) { chosen = &f.first; break; } }
+
+            placed.emplace_back(jx, jz);
+            out.push_back({*chosen, jx, col.surfaceY, jz});
+        }
+    }
+    LOG_INFO_FMT("WorldGenerator", "planFlora: " << out.size() << " plants over ["
+                 << x0 << ".." << x1 << "]x[" << z0 << ".." << z1 << "]");
+    return out;
+}
+
 void WorldGenerator::initDefaultBiomes() {
     // name, surface, subsurface, deep, tempMin, tempMax, moistMin, moistMax, heightScale, heightOffset.
     // Selection is nearest climate-cell CENTRE; height params blend smoothly across biomes.
@@ -239,6 +299,18 @@ bool WorldGenerator::loadBiomes(const std::string& path) {
         biome.heightOffset = b.value("heightOffset", 0.0f);
         biome.surfaceAlt = b.value("surfaceAlt", "");
         biome.surfaceAltChance = b.value("surfaceAltChance", 0.0f);
+        if (b.contains("flora") && b["flora"].is_object()) {
+            const auto& f = b["flora"];
+            biome.floraDensity = f.value("density", 0.0f);
+            biome.floraSpacing = f.value("spacing", 6);
+            if (f.contains("items") && f["items"].is_array()) {
+                for (const auto& it : f["items"]) {
+                    std::string tmpl = it.value("template", "");
+                    int weight = it.value("weight", 1);
+                    if (!tmpl.empty() && weight > 0) biome.flora.emplace_back(std::move(tmpl), weight);
+                }
+            }
+        }
         loaded.push_back(std::move(biome));
     }
     if (loaded.empty()) return false;

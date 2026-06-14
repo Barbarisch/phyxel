@@ -12,6 +12,7 @@ namespace Phyxel {
 
 class ChunkManager;
 class DynamicObjectManager;
+class WorldGenerator;
 namespace Core { class KinematicVoxelManager; }
 namespace Core { class KinematicAnimator; }
 
@@ -56,6 +57,12 @@ public:
     // isStatic: if true, merges into chunks. if false, creates dynamic objects.
     // rotation: 0, 90, 180, or 270 degrees clockwise around Y axis
     bool spawnTemplate(const std::string& name, const glm::vec3& worldPos, bool isStatic = true, int rotation = 0);
+
+    // Flora decoration: ask the generator to plan biome-appropriate vegetation across a world-
+    // column rectangle, then stamp each plant (centering its footprint on the sampled column).
+    // All region chunks must already exist so overhang routes into the correct neighbor (no
+    // seams). Returns the number of plants placed. See WorldGenerator::planFlora.
+    int decorateFlora(WorldGenerator& generator, int colMinX, int colMinZ, int colMaxX, int colMaxZ);
 
     /**
      * @brief Spawns a template sequentially over multiple frames to avoid frame drops.

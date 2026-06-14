@@ -52,7 +52,7 @@ public:
         float lacunarity = 2.0f;        // Frequency multiplier per octave
         float caveThreshold = 0.3f;     // Cave generation threshold
         float stoneLevel = 8.0f;        // Below this level, generate stone instead of grass
-        float climateFrequency = 0.006f; // Biome size: higher = smaller, more frequent biomes
+        float climateFrequency = 0.002f; // Biome size: lower = bigger biomes (~1/cf wavelength). 0.002 ~= 500-unit climate cells, biomes several chunks across.
     };
     
     TerrainParams& getTerrainParams() { return terrainParams; }
@@ -80,6 +80,12 @@ public:
         // in patches, so a floor reads as mixed (e.g. a forest floor of dirt + grass).
         std::string surfaceAlt = "";               // material for the scattered patches
         float surfaceAltChance = 0.0f;             // 0..1 fraction of columns that use surfaceAlt
+        // Flora decoration: vegetation templates (gen_tree.py .voxel output) scattered on the
+        // surface by the decoration pass. floraDensity = probability per candidate grid site;
+        // flora = weighted (template name, weight) pool selected per placement.
+        float floraDensity = 0.0f;
+        int floraSpacing = 6;   // min world-column distance between this biome's plants
+        std::vector<std::pair<std::string, int>> flora;
     };
 
     // Per-column terrain sample, computed once per (x,z) by the column-first pipeline.
@@ -97,6 +103,28 @@ public:
     // the built-in defaults) if the file is missing or invalid.
     bool loadBiomes(const std::string& path);
     const std::vector<Biome>& getBiomes() const { return m_biomes; }
+
+    // Public surface/climate query: surface height + dominant biome for a world column.
+    // Pure function of world (x,z) + seed/params, so it's seam-free and reusable by the
+    // flora decoration pass (which lives outside WorldGenerator).
+    ColumnSample sampleSurface(int worldX, int worldZ) { return sampleColumn(worldX, worldZ); }
+
+    // A planned piece of flora: which template to stamp, the surface column it belongs to,
+    // and the surface Y its trunk base sits on. The caller (which owns ObjectTemplateManager)
+    // centers the template footprint on the column and stamps it. Kept template-agnostic so
+    // WorldGenerator stays decoupled from the template/stamping subsystem.
+    struct FloraPlacement {
+        std::string templateName;
+        int worldX = 0;
+        int surfaceY = 16;
+        int worldZ = 0;
+    };
+
+    // Deterministically scatter biome-appropriate flora across a world-column rectangle
+    // [colMinX,colMaxX] x [colMinZ,colMaxZ] (inclusive, world coords). `edgeInset` columns are
+    // skipped at the rectangle border so footprints don't spill past a fixed region's edge.
+    std::vector<FloraPlacement> planFlora(int colMinX, int colMinZ, int colMaxX, int colMaxZ,
+                                          int edgeInset = 8);
 
 private:
     GenerationType generationType;

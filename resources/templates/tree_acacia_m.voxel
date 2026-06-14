@@ -9,7 +9,7 @@
 # materials:    Leaf, Log
 # facing:       +Z
 # bounds:       11W x 7H x 11D cubes
-# primitives:   0 C + 1485 S + 16 M = 1501
+# primitives:   0 C + 1475 S + 2 M = 1477
 # generator:    gen_tree.py --type acacia --height 6 --radius auto --fullness 0.85 --seed 14
 # ==========================================================
 
@@ -90,7 +90,6 @@ S 3 5 7 2 2 0 Log
 S 4 5 4 0 2 0 Log
 S 4 5 4 2 1 2 Log
 S 4 5 6 0 2 2 Log
-S 4 5 6 2 1 0 Log
 S 5 5 5 0 1 0 Log
 S 5 5 5 0 1 1 Log
 S 5 5 5 0 2 0 Log
@@ -103,7 +102,6 @@ S 5 5 5 1 2 0 Log
 S 5 5 5 1 2 1 Log
 S 5 5 5 2 0 1 Log
 S 5 5 5 2 0 2 Log
-S 6 5 4 0 1 2 Log
 S 6 5 4 2 2 0 Log
 S 6 5 6 0 1 0 Log
 S 6 5 6 2 2 2 Log
@@ -127,8 +125,6 @@ S 0 6 6 2 0 1 Leaf
 S 0 6 6 2 1 0 Leaf
 S 0 6 6 2 1 1 Leaf
 S 0 6 6 2 1 2 Leaf
-S 0 6 7 2 0 0 Leaf
-S 0 6 7 2 0 2 Leaf
 S 0 6 7 2 1 1 Leaf
 S 1 6 2 0 1 2 Leaf
 S 1 6 2 1 1 1 Leaf
@@ -538,7 +534,6 @@ S 3 6 9 2 0 2 Leaf
 S 3 6 9 2 1 0 Leaf
 S 3 6 9 2 1 1 Leaf
 S 3 6 9 2 1 2 Leaf
-S 3 6 10 0 0 0 Leaf
 S 3 6 10 1 1 0 Leaf
 S 3 6 10 2 0 0 Leaf
 S 3 6 10 2 0 1 Leaf
@@ -1065,7 +1060,6 @@ S 7 6 0 0 0 1 Leaf
 S 7 6 0 0 0 2 Leaf
 S 7 6 0 0 1 2 Leaf
 S 7 6 0 1 0 2 Leaf
-S 7 6 0 2 1 2 Leaf
 S 7 6 1 0 0 0 Leaf
 S 7 6 1 0 0 1 Leaf
 S 7 6 1 0 0 2 Leaf
@@ -1467,12 +1461,9 @@ S 9 6 8 0 1 0 Leaf
 S 9 6 8 0 1 1 Leaf
 S 9 6 8 0 1 2 Leaf
 S 9 6 8 1 0 0 Leaf
-S 9 6 8 1 0 2 Leaf
 S 9 6 8 1 1 1 Leaf
-S 9 6 8 2 1 0 Leaf
 S 9 6 9 0 0 0 Leaf
 S 10 6 3 0 0 1 Leaf
-S 10 6 3 1 1 2 Leaf
 S 10 6 4 0 0 0 Leaf
 S 10 6 4 0 0 1 Leaf
 S 10 6 4 0 0 2 Leaf
@@ -1494,23 +1485,8 @@ S 10 6 6 0 0 1 Leaf
 S 10 6 6 0 1 0 Leaf
 S 10 6 6 0 1 1 Leaf
 S 10 6 6 0 1 2 Leaf
-S 10 6 6 1 0 2 Leaf
 S 10 6 7 0 0 0 Leaf
 S 10 6 7 0 1 0 Leaf
 S 10 6 7 1 1 0 Leaf
-M 0 6 4 0 0 0 1 2 1 Leaf
-M 0 6 7 0 0 1 1 2 1 Leaf
-M 0 6 6 1 0 1 1 2 1 Leaf
 M 0 6 7 2 0 1 1 2 1 Leaf
-M 1 6 9 2 0 2 1 2 1 Leaf
 M 2 6 9 1 0 1 1 2 1 Leaf
-M 3 6 0 2 0 1 1 2 1 Leaf
-M 4 6 10 0 0 2 1 2 1 Leaf
-M 8 6 0 1 0 2 1 2 1 Leaf
-M 8 6 0 2 0 2 1 2 1 Leaf
-M 8 6 9 2 0 2 1 2 1 Leaf
-M 9 6 9 0 0 2 1 2 1 Leaf
-M 9 6 9 1 0 0 1 2 1 Leaf
-M 9 6 2 2 0 2 1 2 1 Leaf
-M 10 6 3 1 0 2 1 2 1 Leaf
-M 10 6 3 2 0 2 1 2 1 Leaf

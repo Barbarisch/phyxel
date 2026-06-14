@@ -187,32 +187,115 @@ def sub_branch(t, rng, start, direction, length, mat, thickness=1,
     return (x, y, z)
 
 
+# ----------------------------------------------------- branch-driven canopy
+# Real crowns get their silhouette from the BRANCH architecture, not a sphere:
+# limbs fork outward+upward with partial randomness, and foliage is deposited as
+# small blobs ADJACENT to the twigs. The union of those blobs is an organic,
+# partially-random crown instead of a machined ellipsoid.
+
+def _norm(v):
+    m = math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) or 1.0
+    return (v[0] / m, v[1] / m, v[2] / m)
+
+
+def perturb_dir(rng, d, spread, up_bias=0.0):
+    """Randomly bend a unit direction: lateral spread + optional upward bias."""
+    return _norm((d[0] + rng.uniform(-spread, spread),
+                  d[1] + rng.uniform(-spread, spread) + up_bias,
+                  d[2] + rng.uniform(-spread, spread)))
+
+
+def leaf_cluster(t, rng, cx, cy, cz, r, leaf, fullness, sprigs=True):
+    """Small organic leaf blob centered on a twig end (sub units)."""
+    ir = int(r) + 2
+    for sx in range(cx - ir, cx + ir + 1):
+        for sy in range(cy - ir, cy + ir + 1):
+            for sz in range(cz - ir, cz + ir + 1):
+                d = math.sqrt((sx - cx) ** 2 + (sy - cy) ** 2 +
+                              (sz - cz) ** 2) / max(r, 0.5)
+                if d > FUZZ:
+                    continue
+                if shell_keep(rng, d, fullness):
+                    t.leaf(sx, sy, sz, leaf)
+                    if sprigs and d > 0.95 and rng.random() < 0.06:
+                        t.sprig(sx + (1 if sx > cx else -1), sy + 1,
+                                sz + (1 if sz > cz else -1), 1, 1, 1, leaf)
+
+
+def grow_branch(t, rng, pos, direction, length, thickness, depth,
+                log, leaf, fullness, clusters, spread=0.7, up_bias=0.12,
+                taper=0.66, fork=(2, 3)):
+    """Recursive 3D branch walk. Lays log voxels along each segment, forks into
+    child limbs with partial-random spread, and records leaf-cluster centers at
+    the terminal twigs (and along the outer half of leafy limbs)."""
+    x, y, z = float(pos[0]), float(pos[1]), float(pos[2])
+    dx, dy, dz = direction
+    for i in range(length):
+        x += dx
+        y += dy
+        z += dz
+        bx, by, bz = round(x), round(y), round(z)
+        for ox in range(thickness):
+            for oz in range(thickness):
+                t.log(bx + ox, by, bz + oz, log)
+        # Foliage hugs the OUTER portion of every limb (not just the tip) so the
+        # branch wood stays buried under leaves instead of looking skeletal. The
+        # inner limb near the trunk is left bare (realistic).
+        if i >= length * 0.45 and i % 2 == 0:
+            clusters.append((bx, by, bz))
+    end = (round(x), round(y), round(z))
+    if depth <= 0 or length <= 2:
+        clusters.append(end)         # twig tip -> a leaf blob
+        return
+    clusters.append(end)             # leaf the fork joints too
+    for _ in range(rng.randint(*fork)):
+        cdir = perturb_dir(rng, (dx, dy, dz), spread, up_bias)
+        clen = max(2, int(length * rng.uniform(taper - 0.1, taper + 0.12)))
+        grow_branch(t, rng, end, cdir, clen, max(1, thickness - 1), depth - 1,
+                    log, leaf, fullness, clusters, spread, up_bias, taper, fork)
+
+
 # ---------------------------------------------------------------- archetypes
 
+def branched_crown(t, rng, base, top, rc, log, leaf, fullness,
+                   n_limbs=(4, 6), crown_lo=0.5, up=(0.35, 0.7),
+                   out=(0.9, 1.4), depth=2, blob=(2.6, 4.0), leader=True):
+    """Build an organic crown from forking limbs: primary limbs fan out (azimuth-
+    spread) from the upper trunk, recurse with partial randomness, and deposit
+    leaf blobs ADJACENT to every twig. The union of blobs is the silhouette."""
+    cx, cz = base
+    crown_lo_y = int(top * crown_lo)
+    clusters = []
+    nl = rng.randint(*n_limbs)
+    for k in range(nl):
+        by = rng.randint(crown_lo_y, top - 1)
+        ang = 2 * math.pi * k / nl + rng.uniform(-0.5, 0.5)
+        o = rng.uniform(*out)
+        d0 = _norm((math.cos(ang) * o, rng.uniform(*up), math.sin(ang) * o))
+        grow_branch(t, rng, (cx, by, cz), d0, rng.randint(int(rc * 1.4), rc * 2 + 1),
+                    3, depth, log, leaf, fullness, clusters)
+    if leader:                                   # gentle central leader
+        grow_branch(t, rng, (cx, top, cz),
+                    _norm((rng.uniform(-0.25, 0.25), 1.0, rng.uniform(-0.25, 0.25))),
+                    max(2, int(rc * 1.5)), 2, max(1, depth - 1),
+                    log, leaf, fullness, clusters)
+    for (lx, ly, lz) in clusters:
+        leaf_cluster(t, rng, lx, ly, lz, rng.uniform(*blob), leaf, fullness)
+
+
 def gen_oak(t, rng, h, radius, fullness, log, leaf):
-    r = (radius or max(2, round(h * 0.5))) * 3            # sub units
-    ry = max(5, round(r * 0.8))
-    top = cube_trunk(t, h, log, rng=rng)
-    cy = top - round(ry * 0.45)                            # sink canopy on trunk
-    # sub-branches reaching from upper trunk into the canopy
-    for _ in range(rng.randint(2, 4)):
-        by = rng.randint(round(top * 0.55), top - 2)
-        sub_branch(t, rng, (1, by, 1),
-                   (rng.choice([-1, 1]), rng.choice([-1, 1])),
-                   rng.randint(r // 3, r // 2 + 2), log, thickness=2, rise=0.5)
-    ellipsoid_canopy(t, rng, 1, cy, 1, r, ry, leaf, fullness)
+    rc = radius or max(2, round(h * 0.5))                  # canopy radius, cubes
+    top = cube_trunk(t, h, log, taper_from=0.45, rng=rng)
+    branched_crown(t, rng, (1, 1), top, rc, log, leaf, fullness)
 
 
 def gen_birch(t, rng, h, radius, fullness, log, leaf):
-    r = (radius or max(2, round(h * 0.3))) * 3
+    rc = radius or max(2, round(h * 0.32))
     top = cube_trunk(t, h, log, taper_from=0.4, root_flare=False, rng=rng)
-    for _ in range(rng.randint(1, 2)):
-        by = rng.randint(round(top * 0.6), top - 3)
-        sub_branch(t, rng, (1, by, 1),
-                   (rng.choice([-1, 1]), rng.choice([-1, 1])),
-                   rng.randint(2, 4), log, thickness=1, rise=0.6)
-    ellipsoid_canopy(t, rng, 1, top - round(r * 0.3), 1, r,
-                     max(4, round(r * 1.15)), leaf, fullness)
+    # slim, taller, sparser crown: fewer limbs, more vertical, smaller blobs
+    branched_crown(t, rng, (1, 1), top, rc, log, leaf, fullness,
+                   n_limbs=(2, 3), crown_lo=0.6, up=(0.6, 0.95),
+                   out=(0.6, 1.0), depth=2, blob=(2.2, 3.2))
 
 
 def gen_spruce(t, rng, h, radius, fullness, log, leaf):
@@ -376,8 +459,16 @@ def gen_dead(t, rng, h, radius, fullness, log, leaf):
 
 
 def gen_bush(t, rng, h, radius, fullness, log, leaf):
-    r = (radius or 2) * 3
-    ellipsoid_canopy(t, rng, 0, max(2, r - 2), 0, r, max(3, r - 2),
+    # Lumpy multi-lobe shrub: several overlapping leaf blobs at jittered centers
+    # read as an organic bush instead of one machined ball. Radii in SUB units.
+    rc = (radius or 2) * 3
+    centers = [(0, max(2, rc - 1), 0)]
+    for _ in range(rng.randint(2, 4)):
+        centers.append((rng.randint(-rc + 1, rc - 1),
+                        rng.randint(max(1, rc - 3), rc),
+                        rng.randint(-rc + 1, rc - 1)))
+    for (cx, cy, cz) in centers:
+        leaf_cluster(t, rng, cx, cy, cz, rng.uniform(rc * 0.45, rc * 0.7),
                      leaf, fullness)
 
 
@@ -386,6 +477,58 @@ GENERATORS = {
     "jungle": gen_jungle, "acacia": gen_acacia, "palm": gen_palm,
     "willow": gen_willow, "dead": gen_dead, "bush": gen_bush,
 }
+
+
+# --------------------------------------------------------------- cleanup
+
+def prune_floaters(t):
+    """Remove voxels not attached to the tree. Subs are kept only if 26-connected
+    to the trunk base (so floating leaf islands vanish); microcubes are kept only
+    if a face-adjacent sub is filled (so twig sprigs touch the canopy instead of
+    hovering slightly off it)."""
+    subs = t.sub
+    if not subs:
+        return
+    miny = min(k[1] for k in subs)
+    keep = set(k for k in subs if k[1] <= miny + 1)     # seed: trunk base
+    stack = list(keep)
+    while stack:
+        sx, sy, sz = stack.pop()
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for dz in (-1, 0, 1):
+                    if dx or dy or dz:
+                        nk = (sx + dx, sy + dy, sz + dz)
+                        if nk in subs and nk not in keep:
+                            keep.add(nk)
+                            stack.append(nk)
+    t.sub = {k: v for k, v in subs.items() if k in keep}
+
+    # Erode lonely LEAF subs: every leaf must share a FACE with another voxel, or
+    # it reads as floating (26-connectivity keeps corner-only bits so diagonal
+    # branch chains survive, but a corner-only leaf looks detached). Logs are
+    # always kept so branches stay contiguous.
+    face = ((1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1))
+    lonely = [k for k, (_, is_log) in t.sub.items()
+              if not is_log and not any((k[0] + d[0], k[1] + d[1], k[2] + d[2]) in t.sub
+                                        for d in face)]
+    for k in lonely:
+        del t.sub[k]
+
+    # Microcubes: keep only if they actually TOUCH a filled sub. A 1/9 microcube
+    # at micro-pos (mx,my,mz) inside an empty sub-cell only contacts a neighbor sub
+    # across the face it sits on (e.g. mx==2 -> the +X neighbor). Center-positioned
+    # sprigs (1,1,1) touch nothing and hover — drop them.
+    def micro_attached(sx, sy, sz, mx, my, mz):
+        if (sx, sy, sz) in t.sub:
+            return False                                 # embedded & hidden -> drop
+        return ((mx == 2 and (sx + 1, sy, sz) in t.sub) or
+                (mx == 0 and (sx - 1, sy, sz) in t.sub) or
+                (my == 2 and (sx, sy + 1, sz) in t.sub) or
+                (my == 0 and (sx, sy - 1, sz) in t.sub) or
+                (mz == 2 and (sx, sy, sz + 1) in t.sub) or
+                (mz == 0 and (sx, sy, sz - 1) in t.sub))
+    t.micro = {k: v for k, v in t.micro.items() if micro_attached(*k)}
 
 
 # --------------------------------------------------------------- emission
@@ -482,8 +625,40 @@ def register_catalog(name, display, desc, counts, materials, height):
         f.write("\n")
 
 
+def preview_tree(t):
+    """Print front (X-Y) and side (Z-Y) silhouettes for fast shape iteration
+    in the terminal — no engine round-trip needed. '|' = log, '*' = leaf."""
+    if not t.sub:
+        print("  (empty)")
+        return
+    xs = [k[0] for k in t.sub]
+    ys = [k[1] for k in t.sub]
+    zs = [k[2] for k in t.sub]
+    miny, maxy = min(ys), max(ys)
+
+    def project(axis):
+        amin = min(xs) if axis == 0 else min(zs)
+        amax = max(xs) if axis == 0 else max(zs)
+        grid = {}
+        for (sx, sy, sz), (_, is_log) in t.sub.items():
+            a = sx if axis == 0 else sz
+            key = (a, sy)
+            if is_log or key not in grid:
+                grid[key] = is_log
+        rows = []
+        for sy in range(maxy, miny - 1, -1):
+            rows.append("".join("|" if grid.get((a, sy)) is True
+                                else "*" if (a, sy) in grid else " "
+                                for a in range(amin, amax + 1)))
+        return rows
+
+    print(f"  front (X-Y), side (Z-Y)  [{maxy - miny + 1} tall]:")
+    for fr, sd in zip(project(0), project(2)):
+        print(f"    {fr:<28}  {sd}")
+
+
 def generate_one(ttype, height=None, radius=None, fullness=0.85, seed=0,
-                 name=None, display=None, register=True):
+                 name=None, display=None, register=True, preview=False):
     spec = ARCHETYPES[ttype]
     h = height or spec["height"]
     rng = random.Random(f"{ttype}:{h}:{radius}:{fullness}:{seed}")
@@ -492,6 +667,9 @@ def generate_one(ttype, height=None, radius=None, fullness=0.85, seed=0,
     GENERATORS[ttype](t, rng, h, radius, fullness, spec["log"], spec["leaf"])
     if not t.sub:
         raise SystemExit(f"{ttype}: generated zero voxels?!")
+    prune_floaters(t)                  # drop detached leaf islands / hovering sprigs
+    if preview:
+        preview_tree(t)
 
     lines, counts, bounds = emit(t)
     name = name or f"tree_{ttype}_{h}_s{seed}"
@@ -523,6 +701,7 @@ def main():
     ap.add_argument("--display-name", dest="display")
     ap.add_argument("--no-catalog", action="store_true", help="skip catalog registration")
     ap.add_argument("--batch", help="JSON manifest: [{type, height, fullness, seed, name, display}, ...]")
+    ap.add_argument("--preview", action="store_true", help="print ASCII silhouettes (fast shape iteration)")
     args = ap.parse_args()
 
     if args.batch:
@@ -533,13 +712,14 @@ def main():
             generate_one(e["type"], e.get("height"), e.get("radius"),
                          e.get("fullness", 0.85), e.get("seed", 0),
                          e.get("name"), e.get("display"),
-                         register=not args.no_catalog)
+                         register=not args.no_catalog, preview=args.preview)
         return 0
 
     if not args.type:
         ap.error("--type or --batch required")
     generate_one(args.type, args.height, args.radius, args.fullness, args.seed,
-                 args.name, args.display, register=not args.no_catalog)
+                 args.name, args.display, register=not args.no_catalog,
+                 preview=args.preview)
     return 0
 
 

@@ -5,6 +5,7 @@
 #include "core/NPCManager.h"
 #include "core/EntityRegistry.h"
 #include "core/ObjectTemplateManager.h"
+#include "core/VoxelTemplate.h"
 #include "core/GameEventLog.h"
 #include "core/TriggerSystem.h"
 #include "core/HealthComponent.h"
@@ -296,6 +297,25 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, GameSubsystems& sub, 
         chunk->rebuildFaces();
         chunk->updateVulkanBuffer();
         chunk->forcePhysicsRebuild();
+    }
+
+    // Flora decoration pass (Phase 5): scatter biome-appropriate vegetation across the
+    // generated region. Runs only for fixed-region worlds — every chunk exists now, so
+    // ObjectTemplateManager::spawnTemplate routes a tree's overhang into the correct
+    // neighbor chunk (no clipped trees at chunk seams). Streaming worlds need the
+    // decorate-once-neighbors-present deferral and are skipped here for now. Opt out with
+    // world.flora=false.
+    if (sub.templateManager && worldDef.value("flora", true) && !worldDef.value("streaming", false)
+        && !chunkCoords.empty()) {
+        int minCX = chunkCoords[0].x, maxCX = chunkCoords[0].x;
+        int minCZ = chunkCoords[0].z, maxCZ = chunkCoords[0].z;
+        for (const auto& cc : chunkCoords) {
+            minCX = std::min(minCX, cc.x); maxCX = std::max(maxCX, cc.x);
+            minCZ = std::min(minCZ, cc.z); maxCZ = std::max(maxCZ, cc.z);
+        }
+        const int colMinX = minCX * 32, colMaxX = maxCX * 32 + 31;
+        const int colMinZ = minCZ * 32, colMaxZ = maxCZ * 32 + 31;
+        sub.templateManager->decorateFlora(generator, colMinX, colMinZ, colMaxX, colMaxZ);
     }
 
     LOG_INFO("GameDefinitionLoader", "World: generated " + std::to_string(result.chunksGenerated) +

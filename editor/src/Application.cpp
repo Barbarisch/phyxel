@@ -13134,7 +13134,8 @@ void Application::processAPICommands() {
                             }
                             return {{"success", true}, {"chunks_generated", generated}, {"type", genType}, {"seed", seed}};
                         };
-                        desc.mainThreadFinalize = [cmGen, evGen](nlohmann::json& result) {
+                        ObjectTemplateManager* otmGen = objectTemplateManager.get();
+                        desc.mainThreadFinalize = [cmGen, evGen, otmGen, genType, seed, minCX, maxCX, minCZ, maxCZ](nlohmann::json& result) {
                             cmGen->updateDirtyChunks();
                             if (evGen) {
                                 evGen->emit("world_generated", {
@@ -13142,6 +13143,20 @@ void Application::processAPICommands() {
                                     {"type", result.value("type", "")},
                                     {"async", true}
                                 });
+                            }
+                            // Flora decoration: every region chunk exists now, so a tree's overhang
+                            // routes into the correct neighbor chunk (no clipped trees at seams).
+                            // Reconstruct a matching generator (same type/seed/default params) for
+                            // the deterministic placement plan. Height-based types only.
+                            if (otmGen) {
+                                WorldGenerator::GenerationType wg = WorldGenerator::GenerationType::Perlin;
+                                if (genType == "Random") wg = WorldGenerator::GenerationType::Random;
+                                else if (genType == "Flat") wg = WorldGenerator::GenerationType::Flat;
+                                else if (genType == "Mountains") wg = WorldGenerator::GenerationType::Mountains;
+                                else if (genType == "Caves") wg = WorldGenerator::GenerationType::Caves;
+                                else if (genType == "City") wg = WorldGenerator::GenerationType::City;
+                                WorldGenerator floraGen(wg, static_cast<uint32_t>(seed));
+                                otmGen->decorateFlora(floraGen, minCX * 32, minCZ * 32, maxCX * 32 + 31, maxCZ * 32 + 31);
                             }
                             cmGen->rebuildOccupancyFromChunks();
                         };

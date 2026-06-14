@@ -8,8 +8,8 @@
 # tags:         tree, nature, biome, forest, procedural
 # materials:    Leaf, Log
 # facing:       +Z
-# bounds:       17W x 9H x 16D cubes
-# primitives:   0 C + 3177 S + 50 M = 3227
+# bounds:       17W x 9H x 15D cubes
+# primitives:   0 C + 3149 S + 4 M = 3153
 # generator:    gen_tree.py --type acacia --height 8 --radius auto --fullness 0.85 --seed 15
 # ==========================================================
 
@@ -440,23 +440,17 @@ S 8 7 7 2 1 0 Log
 S 8 7 7 2 1 1 Log
 S 8 7 7 2 2 0 Log
 S 8 7 7 2 2 1 Log
-S 8 7 8 0 1 0 Log
-S 9 7 6 1 1 2 Log
-S 9 7 8 1 1 0 Log
 S 10 7 5 1 2 2 Log
 S 10 7 9 1 2 0 Log
 S 11 7 5 0 2 0 Log
 S 11 7 9 0 2 2 Log
 S 1 8 5 2 0 1 Leaf
-S 1 8 6 1 0 2 Leaf
 S 1 8 6 2 0 0 Leaf
 S 1 8 6 2 1 1 Leaf
-S 1 8 7 2 1 1 Leaf
 S 1 8 8 1 1 1 Leaf
 S 1 8 8 2 0 0 Leaf
 S 1 8 8 2 0 1 Leaf
 S 1 8 8 2 1 1 Leaf
-S 1 8 9 2 1 0 Leaf
 S 2 8 3 1 0 2 Leaf
 S 2 8 3 1 1 2 Leaf
 S 2 8 3 2 0 2 Leaf
@@ -556,7 +550,6 @@ S 2 8 10 2 0 2 Leaf
 S 2 8 10 2 1 0 Leaf
 S 2 8 10 2 1 2 Leaf
 S 2 8 11 2 0 0 Leaf
-S 3 8 2 0 0 2 Leaf
 S 3 8 2 2 0 2 Leaf
 S 3 8 2 2 1 0 Leaf
 S 3 8 2 2 1 1 Leaf
@@ -718,7 +711,6 @@ S 3 8 12 2 0 1 Leaf
 S 3 8 12 2 1 0 Leaf
 S 3 8 12 2 1 1 Leaf
 S 3 8 12 2 1 2 Leaf
-S 4 8 1 0 0 2 Leaf
 S 4 8 1 2 0 2 Leaf
 S 4 8 1 2 1 1 Leaf
 S 4 8 1 2 1 2 Leaf
@@ -915,7 +907,6 @@ S 4 8 13 1 0 0 Leaf
 S 4 8 13 1 1 1 Leaf
 S 4 8 13 2 0 0 Leaf
 S 4 8 13 2 1 1 Leaf
-S 5 8 0 2 1 2 Leaf
 S 5 8 1 1 0 0 Leaf
 S 5 8 1 1 0 1 Leaf
 S 5 8 1 2 0 1 Leaf
@@ -1131,7 +1122,6 @@ S 5 8 13 2 0 1 Leaf
 S 5 8 13 2 1 0 Leaf
 S 5 8 13 2 1 1 Leaf
 S 5 8 13 2 1 2 Leaf
-S 5 8 14 2 0 0 Leaf
 S 6 8 0 1 1 1 Leaf
 S 6 8 0 1 1 2 Leaf
 S 6 8 0 2 0 1 Leaf
@@ -1139,7 +1129,6 @@ S 6 8 0 2 0 2 Leaf
 S 6 8 0 2 1 1 Leaf
 S 6 8 1 0 0 1 Leaf
 S 6 8 1 0 0 2 Leaf
-S 6 8 1 0 1 0 Leaf
 S 6 8 1 0 1 2 Leaf
 S 6 8 1 1 0 1 Leaf
 S 6 8 1 1 0 2 Leaf
@@ -1369,8 +1358,6 @@ S 6 8 13 2 1 2 Leaf
 S 6 8 14 0 1 0 Leaf
 S 6 8 14 2 0 0 Leaf
 S 6 8 14 2 1 0 Leaf
-S 7 8 0 1 1 2 Leaf
-S 7 8 0 2 1 0 Leaf
 S 7 8 1 0 0 0 Leaf
 S 7 8 1 0 0 1 Leaf
 S 7 8 1 0 0 2 Leaf
@@ -1613,7 +1600,6 @@ S 8 8 0 0 0 2 Leaf
 S 8 8 0 0 1 2 Leaf
 S 8 8 0 1 0 1 Leaf
 S 8 8 0 1 0 2 Leaf
-S 8 8 0 1 1 0 Leaf
 S 8 8 0 1 1 2 Leaf
 S 8 8 0 2 1 1 Leaf
 S 8 8 0 2 1 2 Leaf
@@ -1857,7 +1843,6 @@ S 8 8 14 1 0 0 Leaf
 S 8 8 14 1 1 0 Leaf
 S 8 8 14 1 1 1 Leaf
 S 8 8 14 2 0 0 Leaf
-S 8 8 14 2 0 2 Leaf
 S 8 8 14 2 1 0 Leaf
 S 8 8 14 2 1 1 Leaf
 S 9 8 0 0 0 1 Leaf
@@ -2103,7 +2088,6 @@ S 9 8 13 2 0 2 Leaf
 S 9 8 13 2 1 0 Leaf
 S 9 8 13 2 1 1 Leaf
 S 9 8 13 2 1 2 Leaf
-S 9 8 14 0 0 1 Leaf
 S 9 8 14 1 0 0 Leaf
 S 9 8 14 1 1 0 Leaf
 S 9 8 14 1 1 1 Leaf
@@ -2348,8 +2332,6 @@ S 10 8 14 0 1 0 Leaf
 S 10 8 14 0 1 1 Leaf
 S 10 8 14 1 1 0 Leaf
 S 10 8 14 1 1 1 Leaf
-S 10 8 14 2 0 1 Leaf
-S 11 8 0 0 1 2 Leaf
 S 11 8 0 2 0 2 Leaf
 S 11 8 1 0 0 0 Leaf
 S 11 8 1 0 0 1 Leaf
@@ -2792,7 +2774,6 @@ S 12 8 13 0 1 2 Leaf
 S 12 8 13 1 0 0 Leaf
 S 12 8 13 1 0 1 Leaf
 S 12 8 13 1 1 1 Leaf
-S 13 8 1 1 1 2 Leaf
 S 13 8 2 0 0 0 Leaf
 S 13 8 2 0 0 1 Leaf
 S 13 8 2 0 0 2 Leaf
@@ -2973,10 +2954,8 @@ S 13 8 12 1 1 0 Leaf
 S 13 8 12 1 1 1 Leaf
 S 13 8 12 2 1 0 Leaf
 S 13 8 13 0 0 0 Leaf
-S 13 8 13 1 1 0 Leaf
 S 14 8 2 0 0 1 Leaf
 S 14 8 2 0 1 1 Leaf
-S 14 8 2 1 0 2 Leaf
 S 14 8 3 0 0 0 Leaf
 S 14 8 3 0 0 1 Leaf
 S 14 8 3 0 1 0 Leaf
@@ -3112,14 +3091,11 @@ S 14 8 11 0 0 1 Leaf
 S 14 8 11 0 0 2 Leaf
 S 14 8 11 0 1 0 Leaf
 S 14 8 11 0 1 1 Leaf
-S 14 8 11 1 1 2 Leaf
 S 14 8 11 2 0 0 Leaf
 S 14 8 11 2 0 1 Leaf
 S 14 8 11 2 1 0 Leaf
 S 14 8 11 2 1 1 Leaf
 S 14 8 12 0 1 0 Leaf
-S 14 8 12 1 0 0 Leaf
-S 15 8 3 0 1 2 Leaf
 S 15 8 4 0 0 1 Leaf
 S 15 8 4 1 0 1 Leaf
 S 15 8 4 1 1 1 Leaf
@@ -3158,7 +3134,6 @@ S 15 8 7 0 1 2 Leaf
 S 15 8 7 1 1 0 Leaf
 S 15 8 7 1 1 1 Leaf
 S 15 8 7 1 1 2 Leaf
-S 15 8 7 2 0 1 Leaf
 S 15 8 7 2 1 0 Leaf
 S 15 8 8 0 0 0 Leaf
 S 15 8 8 0 0 1 Leaf
@@ -3169,7 +3144,6 @@ S 15 8 8 0 1 2 Leaf
 S 15 8 8 1 0 2 Leaf
 S 15 8 8 1 1 0 Leaf
 S 15 8 8 1 1 2 Leaf
-S 15 8 8 2 0 0 Leaf
 S 15 8 8 2 0 2 Leaf
 S 15 8 8 2 1 2 Leaf
 S 15 8 9 0 0 0 Leaf
@@ -3185,58 +3159,10 @@ S 15 8 9 2 1 2 Leaf
 S 15 8 10 0 0 0 Leaf
 S 15 8 10 0 0 1 Leaf
 S 15 8 10 0 1 0 Leaf
-S 15 8 10 0 1 2 Leaf
 S 15 8 11 0 0 0 Leaf
 S 16 8 6 0 0 1 Leaf
 S 16 8 6 0 1 1 Leaf
-S 16 8 7 0 1 1 Leaf
-M 0 5 5 0 2 2 1 2 1 Leaf
-M 0 5 8 0 2 1 1 2 1 Leaf
-M 1 5 4 0 2 2 1 2 1 Leaf
-M 1 5 9 1 2 2 1 2 1 Leaf
-M 1 5 10 1 2 0 1 2 1 Leaf
 M 1 8 8 1 0 1 1 2 1 Leaf
 M 1 8 6 2 0 1 1 2 1 Leaf
-M 1 8 8 2 0 1 1 2 1 Leaf
-M 1 8 8 2 0 2 1 2 1 Leaf
-M 1 8 9 2 0 2 1 2 1 Leaf
-M 1 8 10 2 0 1 1 2 1 Leaf
-M 2 8 9 0 0 2 1 2 1 Leaf
-M 2 8 4 1 0 0 1 2 1 Leaf
-M 3 8 11 0 0 1 1 2 1 Leaf
-M 3 5 10 1 2 2 1 2 1 Leaf
-M 3 8 1 1 0 2 1 2 1 Leaf
-M 3 8 12 2 0 1 1 2 1 Leaf
-M 4 8 1 0 0 2 1 2 1 Leaf
-M 4 5 10 1 2 2 1 2 1 Leaf
-M 4 8 1 1 0 0 1 2 1 Leaf
-M 4 8 2 1 0 0 1 2 1 Leaf
-M 4 8 13 1 0 0 1 2 1 Leaf
 M 4 8 13 1 0 1 1 2 1 Leaf
-M 5 8 13 0 0 2 1 2 1 Leaf
-M 5 5 4 2 2 0 1 2 1 Leaf
-M 6 8 13 0 0 2 1 2 1 Leaf
-M 7 5 5 0 2 2 1 2 1 Leaf
-M 7 8 0 0 0 1 1 2 1 Leaf
-M 7 5 6 1 2 2 1 2 1 Leaf
-M 8 8 14 0 0 0 1 2 1 Leaf
-M 8 8 0 1 0 1 1 2 1 Leaf
-M 8 8 14 1 0 2 1 2 1 Leaf
-M 8 8 15 1 0 0 1 2 1 Leaf
-M 11 8 14 0 0 0 1 2 1 Leaf
-M 11 8 14 0 0 2 1 2 1 Leaf
-M 12 8 13 0 0 2 1 2 1 Leaf
-M 12 8 13 1 0 2 1 2 1 Leaf
-M 12 8 14 2 0 0 1 2 1 Leaf
 M 13 8 12 2 0 0 1 2 1 Leaf
-M 13 8 12 2 0 1 1 2 1 Leaf
-M 14 8 2 0 0 0 1 2 1 Leaf
-M 14 8 2 0 0 1 1 2 1 Leaf
-M 14 8 11 1 0 1 1 2 1 Leaf
-M 14 8 12 1 0 2 1 2 1 Leaf
-M 15 8 11 0 0 0 1 2 1 Leaf
-M 15 8 6 2 0 0 1 2 1 Leaf
-M 15 8 6 2 0 2 1 2 1 Leaf
-M 15 8 8 2 0 0 1 2 1 Leaf
-M 16 8 7 1 0 0 1 2 1 Leaf
-M 16 8 8 1 0 0 1 2 1 Leaf

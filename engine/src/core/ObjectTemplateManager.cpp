@@ -1,4 +1,5 @@
 #include "core/ObjectTemplateManager.h"
+#include "core/WorldGenerator.h"
 #include "core/ChunkManager.h"
 #include "core/DynamicObjectManager.h"
 #include "core/PlacedObjectManager.h"
@@ -290,6 +291,32 @@ void ObjectTemplateManager::parseLine(const std::string& line, VoxelTemplate& tm
         ss >> px >> py >> pz >> sx >> sy >> sz >> mx >> my >> mz >> mat;
         tmpl.addMicrocube({px, py, pz}, {sx, sy, sz}, {mx, my, mz}, mat);
     }
+}
+
+int ObjectTemplateManager::decorateFlora(WorldGenerator& generator,
+                                         int colMinX, int colMinZ, int colMaxX, int colMaxZ) {
+    auto placements = generator.planFlora(colMinX, colMinZ, colMaxX, colMaxZ);
+    constexpr size_t kFloraCap = 3000;  // guard against runaway loads
+    if (placements.size() > kFloraCap) placements.resize(kFloraCap);
+
+    int placed = 0;
+    for (const auto& p : placements) {
+        const VoxelTemplate* t = getTemplate(p.templateName);
+        if (!t) continue;
+        // Footprint extents (cube cells) so we center the trunk on the sampled column instead
+        // of anchoring the template's min corner there.
+        glm::ivec3 mx(0);
+        for (const auto& c : t->cubes)      mx = glm::max(mx, c.relativePos);
+        for (const auto& s : t->subcubes)   mx = glm::max(mx, s.parentRelativePos);
+        for (const auto& m : t->microcubes) mx = glm::max(mx, m.parentRelativePos);
+        glm::vec3 base(static_cast<float>(p.worldX - mx.x / 2),
+                       static_cast<float>(p.surfaceY + 1),
+                       static_cast<float>(p.worldZ - mx.z / 2));
+        if (spawnTemplate(p.templateName, base, /*isStatic*/ true, /*rotation*/ 0)) ++placed;
+    }
+    LOG_INFO_FMT("ObjectTemplateManager", "decorateFlora: placed " << placed << " / "
+                 << placements.size() << " planned plants");
+    return placed;
 }
 
 const VoxelTemplate* ObjectTemplateManager::getTemplate(const std::string& name) const {
