@@ -132,9 +132,18 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
     // Low-frequency climate fields, decorrelated via distinct sample offsets, mapped to [0,1].
     // Continentalness is lower-frequency still (continents larger than biomes).
     auto to01 = [](float n) { float v = (n + 1.0f) * 0.5f; return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); };
-    col.temperature     = to01(perlinNoise3D(wx * 0.006f,  100.0f, wz * 0.006f,  2, 0.5f, 2.0f));
-    col.moisture        = to01(perlinNoise3D(wx * 0.006f,  200.0f, wz * 0.006f,  2, 0.5f, 2.0f));
-    col.continentalness = to01(perlinNoise3D(wx * 0.0025f, 300.0f, wz * 0.0025f, 2, 0.5f, 2.0f));
+    const float cf = terrainParams.climateFrequency;
+    const float contF = cf * 0.42f;  // continents larger than biomes
+    // Domain warp: offset the climate sample position by a separate noise so biome borders
+    // are organic and wandering instead of straight Voronoi contours. 4 climate octaves add
+    // fine detail so borders are ragged, not clean curves.
+    const float warpAmp = 16.0f;
+    const float warpF = cf * 2.0f;
+    const float swx = wx + perlinNoise3D(wx * warpF, 500.0f, wz * warpF, 2, 0.5f, 2.0f) * warpAmp;
+    const float swz = wz + perlinNoise3D(wx * warpF, 600.0f, wz * warpF, 2, 0.5f, 2.0f) * warpAmp;
+    col.temperature     = to01(perlinNoise3D(swx * cf,   100.0f, swz * cf,   4, 0.5f, 2.0f));
+    col.moisture        = to01(perlinNoise3D(swx * cf,   200.0f, swz * cf,   4, 0.5f, 2.0f));
+    col.continentalness = to01(perlinNoise3D(wx * contF, 300.0f, wz * contF, 2, 0.5f, 2.0f));
 
     // Biome selection + height blending: weight each biome by a Gaussian of the distance
     // from this column's climate to the biome's climate-cell CENTRE (a smooth Voronoi). The
@@ -158,11 +167,20 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
     if (totalW > 0.0f) { blendScale /= totalW; blendOffset /= totalW; }
     else { blendScale = 1.0f; blendOffset = 0.0f; }
 
+    // Resolve the surface material, applying per-column scatter in patches (e.g. a forest
+    // floor that's mostly dirt with grass patches). Patch-frequency noise so it clumps.
+    const Biome& sel = m_biomes.empty() ? Biome{} : m_biomes[best];
+    col.surfaceMat = sel.surfaceMaterial;
+    if (!sel.surfaceAlt.empty() && sel.surfaceAltChance > 0.0f) {
+        float s = to01(perlinNoise3D(wx * 0.15f, 700.0f, wz * 0.15f, 2, 0.5f, 2.0f));
+        if (s < sel.surfaceAltChance) col.surfaceMat = sel.surfaceAlt;
+    }
+
     if (generationType == GenerationType::Flat) {
         col.surfaceY = 16;  // Flat stays flat; biome affects material only (no cliffs, clean biome map)
     } else {
         float variation = surfaceVariationFor(wx, wz);
-        float elevation = (col.continentalness - 0.5f) * 30.0f;  // large-scale land height, +-15
+        float elevation = (col.continentalness - 0.5f) * 18.0f;  // large-scale land height, +-9 (gentle)
         col.surfaceY = static_cast<int>(std::floor(16.0f + variation * blendScale + blendOffset + elevation));
     }
     return col;
@@ -172,7 +190,7 @@ std::string WorldGenerator::materialForColumn(int worldY, const ColumnSample& co
     if (m_biomes.empty()) return "Stone";
     const Biome& b = m_biomes[col.biomeIndex];
     const int depth = col.surfaceY - worldY;  // 0 at the surface
-    if (depth <= 0) return b.surfaceMaterial;
+    if (depth <= 0) return col.surfaceMat;  // per-column (may be a scatter patch)
     if (depth < 4)  return b.subsurfaceMaterial;
     return b.deepMaterial;
 }
@@ -180,12 +198,13 @@ std::string WorldGenerator::materialForColumn(int worldY, const ColumnSample& co
 void WorldGenerator::initDefaultBiomes() {
     // name, surface, subsurface, deep, tempMin, tempMax, moistMin, moistMax, heightScale, heightOffset.
     // Selection is nearest climate-cell CENTRE; height params blend smoothly across biomes.
+    // ...heightScale, heightOffset, surfaceAlt, surfaceAltChance.
     m_biomes = {
-        {"Snow",    "Ice",   "Stone",     "Stone", 0.0f, 0.3f, 0.0f, 1.0f,  1.3f,  6.0f},
-        {"Desert",  "Sand",  "Sandstone", "Stone", 0.6f, 1.0f, 0.0f, 0.35f, 0.5f, -2.0f},
-        {"Savanna", "Grass", "Dirt",      "Stone", 0.7f, 1.0f, 0.35f, 0.6f, 0.7f,  0.0f},
-        {"Forest",  "Grass", "Dirt",      "Stone", 0.3f, 0.7f, 0.6f, 1.0f,  1.0f,  1.0f},
-        {"Plains",  "Grass", "Dirt",      "Stone", 0.0f, 1.0f, 0.0f, 1.0f,  0.6f,  0.0f},
+        {"Snow",    "Ice",        "Stone",     "Stone", 0.0f, 0.3f, 0.0f, 1.0f,  1.3f,  6.0f, "",      0.0f},
+        {"Desert",  "Sand",       "Sandstone", "Stone", 0.6f, 1.0f, 0.0f, 0.35f, 0.5f, -2.0f, "",      0.0f},
+        {"Savanna", "GrassSavanna","Dirt",     "Stone", 0.7f, 1.0f, 0.35f, 0.6f, 0.7f,  0.0f, "Dirt",  0.3f},
+        {"Forest",  "GrassForest","Dirt",      "Stone", 0.3f, 0.7f, 0.6f, 1.0f,  1.0f,  1.0f, "Dirt",  0.6f},
+        {"Plains",  "Grass",      "Dirt",      "Stone", 0.0f, 1.0f, 0.0f, 1.0f,  0.6f,  0.0f, "",      0.0f},
     };
 }
 
@@ -218,6 +237,8 @@ bool WorldGenerator::loadBiomes(const std::string& path) {
         }
         biome.heightScale = b.value("heightScale", 1.0f);
         biome.heightOffset = b.value("heightOffset", 0.0f);
+        biome.surfaceAlt = b.value("surfaceAlt", "");
+        biome.surfaceAltChance = b.value("surfaceAltChance", 0.0f);
         loaded.push_back(std::move(biome));
     }
     if (loaded.empty()) return false;
@@ -362,10 +383,15 @@ float WorldGenerator::perlinNoise3D(float x, float y, float z, int octaves, floa
 }
 
 float WorldGenerator::noise3D(float x, float y, float z) {
-    // Simple 3D noise implementation (can be replaced with better implementation)
-    int xi = static_cast<int>(std::floor(x)) & 255;
-    int yi = static_cast<int>(std::floor(y)) & 255;
-    int zi = static_cast<int>(std::floor(z)) & 255;
+    // Gradient-noise lattice. NOTE: do NOT mask the lattice index with & 255 here — the
+    // corner hashes use xi+1/yi+1/zi+1 unmasked, so masking xi creates a hard discontinuity
+    // at every multiple of 256 (e.g. world coordinate 0): the cell below 0 interpolates
+    // toward hash(256) while the cell above starts from hash(0), which differ. That produced
+    // a straight several-voxel cliff exactly along the x=0 / z=0 chunk edges. The hash takes
+    // arbitrary ints, so leaving the index unmasked keeps the noise continuous everywhere.
+    int xi = static_cast<int>(std::floor(x));
+    int yi = static_cast<int>(std::floor(y));
+    int zi = static_cast<int>(std::floor(z));
     
     float xf = x - std::floor(x);
     float yf = y - std::floor(y);

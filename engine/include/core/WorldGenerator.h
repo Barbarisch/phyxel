@@ -52,6 +52,7 @@ public:
         float lacunarity = 2.0f;        // Frequency multiplier per octave
         float caveThreshold = 0.3f;     // Cave generation threshold
         float stoneLevel = 8.0f;        // Below this level, generate stone instead of grass
+        float climateFrequency = 0.006f; // Biome size: higher = smaller, more frequent biomes
     };
     
     TerrainParams& getTerrainParams() { return terrainParams; }
@@ -75,6 +76,10 @@ public:
         float moistMin = 0.0f, moistMax = 1.0f;
         float heightScale = 1.0f;                  // multiplies terrain height variation
         float heightOffset = 0.0f;                 // added to the surface height (world units)
+        // Optional surface scatter: some columns get surfaceAlt instead of surfaceMaterial,
+        // in patches, so a floor reads as mixed (e.g. a forest floor of dirt + grass).
+        std::string surfaceAlt = "";               // material for the scattered patches
+        float surfaceAltChance = 0.0f;             // 0..1 fraction of columns that use surfaceAlt
     };
 
     // Per-column terrain sample, computed once per (x,z) by the column-first pipeline.
@@ -85,6 +90,7 @@ public:
         float moisture    = 0.5f;     // [0,1]
         float continentalness = 0.5f; // [0,1] large-scale land elevation
         int   biomeIndex  = 0;        // dominant biome (index into m_biomes)
+        std::string surfaceMat = "Grass"; // resolved surface material (biome surface or scatter)
     };
 
     // Load biome definitions from JSON (resources/biomes.json). Returns false (and keeps

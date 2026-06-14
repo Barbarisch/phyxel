@@ -233,6 +233,7 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, GameSubsystems& sub, 
         if (p.contains("lacunarity")) tp.lacunarity = p["lacunarity"].get<float>();
         if (p.contains("caveThreshold")) tp.caveThreshold = p["caveThreshold"].get<float>();
         if (p.contains("stoneLevel")) tp.stoneLevel = p["stoneLevel"].get<float>();
+        if (p.contains("climateFrequency")) tp.climateFrequency = p["climateFrequency"].get<float>();
     }
 
     // Streaming terrain (Phase 1b): when enabled, chunks generate and evict around the
