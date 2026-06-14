@@ -73,6 +73,16 @@ public:
     using DeviceAccessFunc = std::function<std::pair<VkDevice, VkPhysicalDevice>()>;
     /// Called after each chunk is added (loaded or generated). Argument is the chunk's world origin.
     using OnChunkLoadedFunc = std::function<void(const glm::ivec3& chunkOrigin)>;
+    /// Fills a freshly-created streamed chunk with content. Arguments are the chunk and
+    /// its chunk coordinate. If unset, falls back to Chunk::populateWithCubes() (legacy
+    /// random fill). This is the Phase-1 generation wire.
+    using GenerateChunkFunc = std::function<void(Chunk& chunk, const glm::ivec3& chunkCoord)>;
+    /// Finalizes a chunk that just streamed in at runtime: registers static collision
+    /// (the per-chunk counterpart to ChunkManager::buildAllChunkPhysics()) AND builds its
+    /// faces with cross-chunk culling (re-culling neighbours), since the streaming load
+    /// path itself only creates the Vulkan buffer. If unset, no-op. Eviction teardown is
+    /// automatic: the Chunk destructor unregisters its grid and frees its buffer.
+    using OnChunkStreamedInFunc = std::function<void(Chunk& chunk)>;
 
     ChunkStreamingManager() = default;
     ~ChunkStreamingManager();
@@ -86,6 +96,18 @@ public:
     );
     /// Optional: called after every chunk load/generate (for height map, etc.)
     void setOnChunkLoaded(OnChunkLoadedFunc cb) { m_onChunkLoaded = std::move(cb); }
+    /// Optional: how to fill a freshly-generated streamed chunk (the generation wire).
+    void setGenerationCallback(GenerateChunkFunc cb) { m_generateChunk = std::move(cb); }
+    /// Optional: how to finalize a chunk as it streams in (collision + faces). See above.
+    void setOnChunkStreamedIn(OnChunkStreamedInFunc cb) { m_onChunkStreamedIn = std::move(cb); }
+    /// When true, chunks are finalized (collision + faces) as they stream in at runtime.
+    /// Leave OFF during the initial bulk DB load (buildAllChunkPhysics + rebuildAllChunkFaces
+    /// handle that pass) so grids are not registered twice. Default off.
+    void setPerChunkPhysics(bool enabled) { m_perChunkPhysics = enabled; }
+    /// Cap on how many new chunks may be generated per updateStreaming() call (nearest
+    /// first) so a single frame's pump cannot generate a whole sphere and hitch.
+    /// 0 = unlimited (legacy behavior). Default 0.
+    void setMaxChunksPerUpdate(int n) { m_maxChunksPerUpdate = n; }
 
     // World storage management
     bool initializeWorldStorage(const std::string& worldPath);
@@ -116,6 +138,15 @@ private:
     ChunkVectorAccessFunc m_getChunks;
     DeviceAccessFunc m_getDevices;
     OnChunkLoadedFunc m_onChunkLoaded;
+    GenerateChunkFunc m_generateChunk;
+    OnChunkStreamedInFunc m_onChunkStreamedIn;
+    bool m_perChunkPhysics = false;
+    int m_maxChunksPerUpdate = 0;
+
+    // Chunks evicted last pump, held one more pump before their Vulkan buffers are freed,
+    // so no in-flight frame is still referencing them (frame-deferred deletion). See
+    // unloadDistantChunks().
+    std::vector<std::unique_ptr<Chunk>> m_pendingDeletion;
 
     // World storage
     WorldStorage* worldStorage = nullptr;

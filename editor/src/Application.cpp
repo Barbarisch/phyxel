@@ -2336,7 +2336,7 @@ void Application::run() {
         }
 
         timer->update();
-        
+
         // Always process API commands (even during launcher  --  enables MCP project management)
         processAPICommands();
 
@@ -3371,6 +3371,13 @@ void Application::update(float deltaTime) {
         chunkManager->resetFrameBreakCounter();
         // Update player position for hybrid Bullet/GPU proximity routing
         if (camera) chunkManager->setPlayerPosition(camera->getPosition());
+        // Phase 1b — stream chunks in/out around the player when streaming terrain is
+        // enabled (opt-in via the game.json world "streaming" flag). Throttled because
+        // generation + face finalize is heavy; the per-update cap bounds it further.
+        if (chunkManager->isStreamingGenerationEnabled()) {
+            static int s_streamTick = 0;
+            if (++s_streamTick >= 6) { s_streamTick = 0; chunkManager->updateChunkStreaming(); }
+        }
         // Bullet dynamic object update  --  always runs in hybrid mode since
         // nearby cubes use Bullet while mass debris uses GPU particles.
         chunkManager->m_dynamicObjectManager.updateAllDynamicObjects(deltaTime);

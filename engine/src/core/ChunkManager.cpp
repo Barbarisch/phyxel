@@ -55,7 +55,42 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
             break;
         }
     });
-    
+    // Phase 1 — generation wire: streamed chunks are filled by the configured world
+    // generator (when enabled) instead of the legacy random fill.
+    m_streamingManager.setGenerationCallback([this](Chunk& chunk, const glm::ivec3& chunkCoord) {
+        if (m_streamingGenerationEnabled && m_worldGenerator) {
+            m_worldGenerator->generateChunk(chunk, chunkCoord);
+        } else {
+            chunk.populateWithCubes();
+        }
+    });
+    // Finalize a chunk streamed in at runtime: (1) register static collision — mirrors
+    // buildAllChunkPhysics() but for a single chunk; (2) build its faces with cross-chunk
+    // culling and re-cull its neighbours — the streaming load path only creates the Vulkan
+    // buffer, so this is the per-chunk counterpart to rebuildAllChunkFaces(). Eviction
+    // teardown is automatic (the Chunk destructor unregisters its grid and frees its buffer).
+    m_streamingManager.setOnChunkStreamedIn([this](Chunk& chunk) {
+        if (physicsWorld) {
+            chunk.setPhysicsWorld(physicsWorld);
+            chunk.createChunkPhysicsBody();
+        }
+        // Build this chunk's faces with cross-chunk culling, then update its buffer.
+        rebuildChunkFacesWithCrosschunkCulling(chunk);
+        chunk.updateVulkanBuffer();
+        // Re-cull the 26 neighbours so their faces toward this new chunk are now occluded.
+        glm::ivec3 cc = Utils::CoordinateUtils::worldToChunkCoord(chunk.getWorldOrigin());
+        for (int dx = -1; dx <= 1; ++dx)
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dz = -1; dz <= 1; ++dz) {
+                    if (dx == 0 && dy == 0 && dz == 0) continue;
+                    Chunk* adj = getChunkAtCoord(cc + glm::ivec3(dx, dy, dz));
+                    if (adj) {
+                        rebuildChunkFacesWithCrosschunkCulling(*adj);
+                        adj->updateVulkanBuffer();
+                    }
+                }
+    });
+
     // Setup dynamic object manager callbacks
     m_dynamicObjectManager.setCallbacks(
         // PhysicsWorldAccessFunc: Access physics world
@@ -146,6 +181,20 @@ bool ChunkManager::initializeWorldStorage(const std::string& worldPath) {
 
 void ChunkManager::disconnectWorldStorage() {
     m_streamingManager.disconnectWorldStorage();
+}
+
+void ChunkManager::configureStreamingGeneration(bool enabled, WorldGenerator::GenerationType type, uint32_t seed) {
+    m_streamingGenerationEnabled = enabled;
+    if (enabled) {
+        m_worldGenerator = std::make_unique<WorldGenerator>(type, seed);
+    }
+    // When streaming generation is on, chunks finalize (collision + faces) as they stream
+    // in/out at runtime; off otherwise so bulk DB loads aren't double-processed.
+    m_streamingManager.setPerChunkPhysics(enabled);
+    // Bound per-frame generation so the streaming pump stays smooth (nearest-first).
+    m_streamingManager.setMaxChunksPerUpdate(enabled ? 4 : 0);
+    LOG_INFO_FMT("Chunk", "Streaming generation " << (enabled ? "ENABLED" : "disabled")
+                 << " (type=" << static_cast<int>(type) << ", seed=" << seed << ")");
 }
 
 void ChunkManager::updateChunkStreaming() {

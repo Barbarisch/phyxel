@@ -3,6 +3,9 @@
 #include "utils/Logger.h"
 #include "utils/CoordinateUtils.h"
 #include <cmath>
+#include <algorithm>
+#include <vector>
+#include <utility>
 
 namespace Phyxel {
 
@@ -65,46 +68,73 @@ void ChunkStreamingManager::updateStreaming(const glm::vec3& playerPosition, flo
 void ChunkStreamingManager::loadChunksAroundPosition(const glm::vec3& position, float radius) {
     glm::ivec3 centerChunk = Utils::CoordinateUtils::worldToChunkCoord(glm::ivec3(position));
     int chunkRadius = static_cast<int>(std::ceil(radius / 32.0f));
-    
+
+    // Collect missing chunks within radius, paired with their distance to the player.
+    std::vector<std::pair<float, glm::ivec3>> missing;
     for (int dx = -chunkRadius; dx <= chunkRadius; ++dx) {
         for (int dy = -chunkRadius; dy <= chunkRadius; ++dy) {
             for (int dz = -chunkRadius; dz <= chunkRadius; ++dz) {
                 glm::ivec3 chunkCoord = centerChunk + glm::ivec3(dx, dy, dz);
-                
-                // Check if chunk is within radius
+
                 glm::vec3 chunkCenter = glm::vec3(Utils::CoordinateUtils::chunkCoordToOrigin(chunkCoord)) + glm::vec3(16.0f);
                 float distance = glm::length(chunkCenter - position);
-                
+
                 if (distance <= radius && !getChunkAtCoord(chunkCoord)) {
-                    // Try to load chunk from storage, or generate if it doesn't exist
-                    generateOrLoadChunk(chunkCoord);
+                    missing.emplace_back(distance, chunkCoord);
                 }
             }
         }
+    }
+
+    // Nearest first, so a capped update fills the area around the player before the edges.
+    std::sort(missing.begin(), missing.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
+
+    int generated = 0;
+    for (const auto& [distance, chunkCoord] : missing) {
+        // Bound per-call work so one frame's pump can't generate a whole sphere and hitch.
+        if (m_maxChunksPerUpdate > 0 && generated >= m_maxChunksPerUpdate) break;
+        generateOrLoadChunk(chunkCoord);
+        ++generated;
     }
 }
 
 void ChunkStreamingManager::unloadDistantChunks(const glm::vec3& position, float radius) {
     auto& chunks = m_getChunks();
     auto& chunkMap = m_getChunkMap();
-    
+
+    // Frame-deferred deletion: destroy chunks evicted on the PREVIOUS pump now. The pump is
+    // throttled to once every several render frames (>= frames-in-flight), so by the time we
+    // get here the GPU has finished with those chunks' Vulkan buffers — freeing them is safe.
+    // Erasing them inline last pump instead would be a use-after-free race against an
+    // in-flight frame (intermittent device-lost crash). Stall-free, unlike vkDeviceWaitIdle.
+    if (!m_pendingDeletion.empty()) {
+        LOG_TRACE_FMT("ChunkStreaming", "Freeing " << m_pendingDeletion.size() << " deferred chunk(s)");
+        m_pendingDeletion.clear();  // Chunk destructors free buffers + unregister occupancy grids
+    }
+
+    int evicted = 0;
     auto it = chunks.begin();
     while (it != chunks.end()) {
         glm::vec3 chunkCenter = glm::vec3((*it)->getWorldOrigin()) + glm::vec3(16.0f);
         float distance = glm::length(chunkCenter - position);
-        
-        if (distance > radius) {
+
+        // Bound evictions per pump (same cap as generation) so churn stays smooth; distant
+        // stragglers are cleaned up over the next few pumps.
+        bool capReached = (m_maxChunksPerUpdate > 0 && evicted >= m_maxChunksPerUpdate);
+        if (distance > radius && !capReached) {
             // Save chunk before unloading
             if (worldStorage) {
                 saveChunk(it->get());
             }
-            
-            // Remove from chunk map
+
+            // Stop rendering/looking it up this frame, but defer the actual destruction
+            // (Vulkan free + grid unregister) to next pump so no in-flight frame uses it.
             glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord((*it)->getWorldOrigin());
             chunkMap.erase(chunkCoord);
-            
-            // Erase chunk from vector
+            m_pendingDeletion.push_back(std::move(*it));
             it = chunks.erase(it);
+            ++evicted;
             LOG_TRACE_FMT("ChunkStreaming", "Unloaded distant chunk at: " << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z);
         } else {
             ++it;
@@ -190,6 +220,9 @@ bool ChunkStreamingManager::loadChunk(const glm::ivec3& chunkCoord) {
         chunkMap[chunkCoord] = chunk.get();
         glm::ivec3 origin = chunk->getWorldOrigin();
         chunks.push_back(std::move(chunk));
+        // Finalize chunks streamed in from the DB at runtime (collision + faces). Gated off
+        // during bulk load (buildAllChunkPhysics + rebuildAllChunkFaces handle that pass).
+        if (m_perChunkPhysics && m_onChunkStreamedIn) m_onChunkStreamedIn(*chunks.back());
         if (m_onChunkLoaded) m_onChunkLoaded(origin);
 
         LOG_DEBUG_FMT("ChunkStreaming", "Loaded chunk from storage: " << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z);
@@ -251,18 +284,27 @@ bool ChunkStreamingManager::generateOrLoadChunk(const glm::ivec3& chunkCoord) {
     auto chunk = std::make_unique<Chunk>(origin);
     chunk->initialize(device, physicalDevice);
     
-    // Fallback to old random generation
-    chunk->populateWithCubes();
-    
-    // DON'T rebuild faces yet - wait until all chunks are loaded  
+    // Fill the chunk: use the configured world generator if one is wired (the Phase-1
+    // generation wire), otherwise fall back to the legacy random fill.
+    if (m_generateChunk) {
+        m_generateChunk(*chunk, chunkCoord);
+    } else {
+        chunk->populateWithCubes();
+    }
+
+    // DON'T rebuild faces yet - wait until all chunks are loaded
     chunk->createVulkanBuffer();
-    
+
     // Add to map and vector
     auto& chunkMap = m_getChunkMap();
     auto& chunks = m_getChunks();
     chunkMap[chunkCoord] = chunk.get();
     glm::ivec3 genOrigin = Utils::CoordinateUtils::chunkCoordToOrigin(chunkCoord);
     chunks.push_back(std::move(chunk));
+    // Finalize the freshly streamed-in chunk (collision + faces) so characters don't fall
+    // through and it renders correctly. Gated so the initial bulk load (which calls
+    // buildAllChunkPhysics + rebuildAllChunkFaces afterward) doesn't double-process.
+    if (m_perChunkPhysics && m_onChunkStreamedIn) m_onChunkStreamedIn(*chunks.back());
     if (m_onChunkLoaded) m_onChunkLoaded(genOrigin);
 
     // Save to storage immediately

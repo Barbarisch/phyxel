@@ -1,0 +1,29 @@
+{
+  "name": "StreamingTest",
+  "description": "Phase 1b verification: runtime chunk streaming around the player.",
+  "version": "1.0",
+  "world": {
+    "type": "Perlin",
+    "seed": 4242,
+    "streaming": true,
+    "loadRadius": 2,
+    "unloadRadius": 4,
+    "from": { "x": -1, "y": 0, "z": -1 },
+    "to": { "x": 1, "y": 0, "z": 1 },
+    "params": {
+      "heightScale": 8.0,
+      "frequency": 0.03,
+      "octaves": 4,
+      "persistence": 0.5
+    }
+  },
+  "camera": {
+    "position": { "x": 16, "y": 40, "z": 60 },
+    "yaw": -90,
+    "pitch": -35
+  },
+  "player": {
+    "type": "animated",
+    "position": { "x": 16, "y": 28, "z": 16 }
+  }
+}

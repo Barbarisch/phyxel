@@ -6,6 +6,7 @@
 #include "Cube.h"
 #include "utils/CoordinateUtils.h"
 #include "core/ChunkStreamingManager.h"
+#include "core/WorldGenerator.h"
 #include "core/DynamicObjectManager.h"
 #include "core/FaceUpdateCoordinator.h"
 #include "core/ChunkInitializer.h"
@@ -95,6 +96,13 @@ public:
     float unloadDistance = 224.0f; // Distance to unload chunks (7 chunks * 32 units)
     glm::vec3 playerPosition = glm::vec3(0.0f); // Player position for streaming
 
+    // Streaming world generation (Phase 1: the generation wire). When enabled, chunks
+    // streamed in by ChunkStreamingManager are filled by this generator instead of the
+    // legacy random fill, and register/unregister collision per-chunk on stream-in/out.
+    // Opt-in; default off so existing pre-baked / bulk-loaded worlds are unaffected.
+    std::unique_ptr<WorldGenerator> m_worldGenerator;
+    bool m_streamingGenerationEnabled = false;
+
     // Hybrid physics routing: FPS-based Bullet vs GPU fallback
     uint32_t m_frameBreakCount = 0;
     static constexpr uint32_t MAX_BULLET_BREAKS_PER_FRAME = 8;
@@ -135,7 +143,18 @@ public:
     bool initializeWorldStorage(const std::string& worldPath);
     void disconnectWorldStorage();
     void setPlayerPosition(const glm::vec3& position) { playerPosition = position; }
-    
+
+    // Enable/disable streaming world generation and configure the generator. Pass
+    // enabled=true with a generation type + seed to make streamed-in chunks generate
+    // procedural terrain (and register collision per-chunk). Opt-in; default off.
+    void configureStreamingGeneration(bool enabled,
+                                      WorldGenerator::GenerationType type = WorldGenerator::GenerationType::Perlin,
+                                      uint32_t seed = 0);
+    bool isStreamingGenerationEnabled() const { return m_streamingGenerationEnabled; }
+    // The generator used for streamed chunks (valid after configureStreamingGeneration(true)).
+    // Exposed so callers can tune TerrainParams; null when streaming generation is off.
+    WorldGenerator* getStreamingGenerator() { return m_worldGenerator.get(); }
+
     // Chunk streaming for infinite worlds
     void updateChunkStreaming(); // Call every frame to load/unload chunks based on player position
     void loadChunksAroundPosition(const glm::vec3& position, float radius);

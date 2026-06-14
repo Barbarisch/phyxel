@@ -235,6 +235,27 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, GameSubsystems& sub, 
         if (p.contains("stoneLevel")) tp.stoneLevel = p["stoneLevel"].get<float>();
     }
 
+    // Streaming terrain (Phase 1b): when enabled, chunks generate and evict around the
+    // player at runtime instead of being limited to the up-front bounded set below. The
+    // up-front gen still runs to guarantee solid ground at spawn; streaming extends beyond
+    // it using the same generator type/seed/params, so the seam is continuous.
+    if (worldDef.value("streaming", false)) {
+        sub.chunkManager->configureStreamingGeneration(true, genType, seed);
+        if (WorldGenerator* sg = sub.chunkManager->getStreamingGenerator()) {
+            sg->getTerrainParams() = generator.getTerrainParams();
+        }
+        if (worldDef.contains("loadRadius"))
+            sub.chunkManager->loadDistance = worldDef["loadRadius"].get<float>() * 32.0f;
+        if (worldDef.contains("unloadRadius"))
+            sub.chunkManager->unloadDistance = worldDef["unloadRadius"].get<float>() * 32.0f;
+        // Keep hysteresis: unload must be comfortably beyond load or chunks thrash.
+        if (sub.chunkManager->unloadDistance <= sub.chunkManager->loadDistance + 32.0f)
+            sub.chunkManager->unloadDistance = sub.chunkManager->loadDistance + 64.0f;
+        LOG_INFO("GameDefinitionLoader", "World: streaming terrain ENABLED (loadDist=" +
+                 std::to_string(sub.chunkManager->loadDistance) + ", unloadDist=" +
+                 std::to_string(sub.chunkManager->unloadDistance) + ")");
+    }
+
     // Collect chunk coordinates
     std::vector<glm::ivec3> chunkCoords;
     if (worldDef.contains("chunks")) {
