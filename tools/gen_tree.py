@@ -707,6 +707,7 @@ def main():
     if args.batch:
         with open(args.batch, encoding="utf-8") as f:
             entries = json.load(f)
+        entries = [e for e in entries if "type" in e]   # skip _comment markers
         print(f"Batch: {len(entries)} trees")
         for e in entries:
             generate_one(e["type"], e.get("height"), e.get("radius"),

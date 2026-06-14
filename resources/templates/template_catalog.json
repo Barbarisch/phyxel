@@ -1464,7 +1464,7 @@
     "version": 1
   },
   "bush_round": {
-    "display_name": "Bush Tree (h2)",
+    "display_name": "Round Bush",
     "description": "Procedural bush tree, height 2, fullness 0.85, seed 30.",
     "prompt": null,
     "model": "procedural/gen_tree.py",
@@ -1478,7 +1478,7 @@
     "microcubes": 0,
     "total": 514,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.906051+00:00",
+    "created": "2026-06-14T23:36:44.954945+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
@@ -1642,7 +1642,7 @@
     "microcubes": 0,
     "total": 1985,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.121464+00:00",
+    "created": "2026-06-14T23:36:44.295906+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
@@ -1669,7 +1669,7 @@
     "microcubes": 0,
     "total": 5020,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.200458+00:00",
+    "created": "2026-06-14T23:36:44.374236+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
@@ -1696,7 +1696,7 @@
     "microcubes": 0,
     "total": 6522,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.307994+00:00",
+    "created": "2026-06-14T23:36:44.480872+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
@@ -1723,7 +1723,7 @@
     "microcubes": 0,
     "total": 4686,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.383197+00:00",
+    "created": "2026-06-14T23:36:44.555169+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
@@ -1750,7 +1750,7 @@
     "microcubes": 0,
     "total": 1120,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.403355+00:00",
+    "created": "2026-06-14T23:36:44.575207+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
@@ -1777,7 +1777,7 @@
     "microcubes": 0,
     "total": 1217,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.424907+00:00",
+    "created": "2026-06-14T23:36:44.596797+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
@@ -1804,7 +1804,7 @@
     "microcubes": 1,
     "total": 472,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.433178+00:00",
+    "created": "2026-06-14T23:36:44.604713+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
@@ -1831,7 +1831,7 @@
     "microcubes": 1,
     "total": 1163,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.450851+00:00",
+    "created": "2026-06-14T23:36:44.621980+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
@@ -1858,7 +1858,7 @@
     "microcubes": 1,
     "total": 3058,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.510103+00:00",
+    "created": "2026-06-14T23:36:44.680845+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
@@ -1885,7 +1885,7 @@
     "microcubes": 0,
     "total": 2226,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.555460+00:00",
+    "created": "2026-06-14T23:36:44.725872+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
@@ -1912,7 +1912,7 @@
     "microcubes": 0,
     "total": 4127,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.646961+00:00",
+    "created": "2026-06-14T23:36:44.817781+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
@@ -1939,7 +1939,7 @@
     "microcubes": 2,
     "total": 1477,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.661642+00:00",
+    "created": "2026-06-14T23:36:44.832624+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
@@ -1966,7 +1966,7 @@
     "microcubes": 4,
     "total": 3153,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.687139+00:00",
+    "created": "2026-06-14T23:36:44.858157+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
@@ -1992,7 +1992,7 @@
     "microcubes": 0,
     "total": 96,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.691246+00:00",
+    "created": "2026-06-14T23:36:44.862145+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
@@ -2018,7 +2018,7 @@
     "microcubes": 0,
     "total": 120,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.694965+00:00",
+    "created": "2026-06-14T23:36:44.865904+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
@@ -2045,7 +2045,7 @@
     "microcubes": 0,
     "total": 2383,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.736860+00:00",
+    "created": "2026-06-14T23:36:44.908136+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
@@ -2071,7 +2071,7 @@
     "microcubes": 2,
     "total": 120,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.741033+00:00",
+    "created": "2026-06-14T23:36:44.912627+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
@@ -2097,7 +2097,7 @@
     "microcubes": 1,
     "total": 120,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.745122+00:00",
+    "created": "2026-06-14T23:36:44.916589+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
@@ -2123,7 +2123,7 @@
     "microcubes": 0,
     "total": 643,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.756885+00:00",
+    "created": "2026-06-14T23:36:44.928322+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
@@ -2149,7 +2149,88 @@
     "microcubes": 0,
     "total": 809,
     "cost": 0.0,
-    "created": "2026-06-14T23:28:09.772803+00:00",
+    "created": "2026-06-14T23:36:44.944504+00:00",
+    "category": "nature",
+    "subcategory": "trees",
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ]
+  },
+  "tree_oak_lush": {
+    "display_name": "Oak Tree (Lush)",
+    "description": "Procedural oak tree, height 9, fullness 1.0, seed 31.",
+    "prompt": null,
+    "model": "procedural/gen_tree.py",
+    "material": "Leaf",
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "size": 9.0,
+    "cubes": 10,
+    "subcubes": 4176,
+    "microcubes": 0,
+    "total": 4186,
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:45.026241+00:00",
+    "category": "nature",
+    "subcategory": "trees",
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ]
+  },
+  "tree_oak_sparse": {
+    "display_name": "Oak Tree (Sparse)",
+    "description": "Procedural oak tree, height 6, fullness 0.55, seed 32.",
+    "prompt": null,
+    "model": "procedural/gen_tree.py",
+    "material": "Leaf",
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "size": 6.0,
+    "cubes": 6,
+    "subcubes": 3780,
+    "microcubes": 0,
+    "total": 3786,
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:45.091562+00:00",
+    "category": "nature",
+    "subcategory": "trees",
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ]
+  },
+  "tree_birch_sparse": {
+    "display_name": "Birch Tree (Sparse)",
+    "description": "Procedural birch tree, height 8, fullness 0.55, seed 33.",
+    "prompt": null,
+    "model": "procedural/gen_tree.py",
+    "material": "LeafBirch",
+    "materials": [
+      "LeafBirch",
+      "LogBirch"
+    ],
+    "size": 8.0,
+    "cubes": 3,
+    "subcubes": 992,
+    "microcubes": 0,
+    "total": 995,
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:45.110227+00:00",
     "category": "nature",
     "subcategory": "trees",
     "tags": [
