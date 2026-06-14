@@ -74,6 +74,10 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
             chunk.setPhysicsWorld(physicsWorld);
             chunk.createChunkPhysicsBody();
         }
+        // Build the O(1) voxel hash maps so hover/raycast (the Properties panel) resolves
+        // voxels in this chunk. DB-loaded streamed chunks don't get the bulk
+        // initializeAllChunkVoxelMaps() pass, so they'd otherwise be invisible to mouse-over.
+        chunk.initializeVoxelMaps();
         // Build this chunk's faces with cross-chunk culling, then update its buffer.
         rebuildChunkFacesWithCrosschunkCulling(chunk);
         chunk.updateVulkanBuffer();

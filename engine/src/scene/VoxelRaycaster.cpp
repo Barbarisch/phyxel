@@ -63,8 +63,9 @@ VoxelLocation VoxelRaycaster::pickVoxel(
     }
     
     // DDA INITIALIZATION:
-    // Set maximum ray distance (prevents infinite loops and improves performance)
-    float maxDistance = 200.0f;
+    // Set maximum ray distance (prevents infinite loops and improves performance).
+    // Long enough to hover voxels across larger / streamed worlds (was 200, too short).
+    float maxDistance = 400.0f;
     
     // Discretize ray origin to integer voxel coordinates (floor to get containing voxel)
     glm::ivec3 voxel = glm::ivec3(glm::floor(rayOrigin));
