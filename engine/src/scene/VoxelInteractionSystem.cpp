@@ -75,7 +75,7 @@ void VoxelInteractionSystem::updateMouseHover(const glm::vec3& cameraPos, const 
         cameraPos, rayDirection,
         [this]() -> ChunkManager* { return m_chunkManager; }
     );
-    
+
     // NEW: Calculate and visualize placement target
     if (voxelLocation.isValid()) {
         // Use robust placement calculation
@@ -194,14 +194,20 @@ void VoxelInteractionSystem::updateMouseHover(const glm::vec3& cameraPos, const 
                           hoveredLocation.hitFace != m_currentHoveredLocation.hitFace);
     
     if (locationChanged || hitFaceChanged) {
-        if (m_lastHoveredCube >= 0 && locationChanged) {
-            clearHoveredCubeInChunksOptimized();
+        // NOTE: hoveredCube is a PACKED change-detection key (x + y*1000 + z*1e6),
+        // NOT a validity flag. It goes negative for any negative-Z voxel (the z*1e6
+        // term dominates the sign), so the old `>= 0` guards silently dropped the
+        // entire negative-Z half-space — the raycast/F5 wireframe still showed the
+        // hit, but m_hasHoveredCube was never set and the Properties panel stayed
+        // blank. Gate on the location's own validity instead of the key's sign.
+        if (locationChanged) {
+            clearHoveredCubeInChunksOptimized();  // no-op if nothing was hovered
         }
-        
-        if (hoveredCube >= 0) {
+
+        if (hoveredLocation.isValid()) {
             setHoveredCubeInChunksOptimized(hoveredLocation);
         }
-        
+
         m_lastHoveredCube = hoveredCube;
     } else if (m_hasHoveredCube && hoveredLocation.isValid() && hoveredCube == m_lastHoveredCube) {
         // CRITICAL FIX: Even if the voxel/face hasn't changed, the hit point has!
