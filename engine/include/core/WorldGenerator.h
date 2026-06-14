@@ -71,17 +71,20 @@ public:
         std::string surfaceMaterial = "Grass";     // top voxel of the column
         std::string subsurfaceMaterial = "Dirt";   // few voxels below the surface
         std::string deepMaterial = "Stone";        // deep underground
-        float tempMin = 0.0f, tempMax = 1.0f;      // climate cell this biome occupies
+        float tempMin = 0.0f, tempMax = 1.0f;      // climate cell (its CENTRE is the Voronoi site)
         float moistMin = 0.0f, moistMax = 1.0f;
+        float heightScale = 1.0f;                  // multiplies terrain height variation
+        float heightOffset = 0.0f;                 // added to the surface height (world units)
     };
 
     // Per-column terrain sample, computed once per (x,z) by the column-first pipeline.
     // Biomes hang off the climate fields here.
     struct ColumnSample {
-        int   surfaceY = 16;       // world Y of the top solid voxel
-        float temperature = 0.5f;  // [0,1]
-        float moisture    = 0.5f;  // [0,1]
-        int   biomeIndex  = 0;     // index into m_biomes
+        int   surfaceY = 16;          // world Y of the top solid voxel
+        float temperature = 0.5f;     // [0,1]
+        float moisture    = 0.5f;     // [0,1]
+        float continentalness = 0.5f; // [0,1] large-scale land elevation
+        int   biomeIndex  = 0;        // dominant biome (index into m_biomes)
     };
 
     // Load biome definitions from JSON (resources/biomes.json). Returns false (and keeps
@@ -107,9 +110,8 @@ private:
 
     // Column-first pipeline (height-based types: Perlin/Flat/Mountains/Caves)
     bool isHeightBased() const;
-    ColumnSample sampleColumn(int worldX, int worldZ);   // surface height + climate + biome
-    int  surfaceHeightFor(int worldX, int worldZ);       // base heightmap for the active type
-    int  selectBiome(float temperature, float moisture) const;
+    ColumnSample sampleColumn(int worldX, int worldZ);   // surface height + climate + blended biome
+    float surfaceVariationFor(int worldX, int worldZ);   // terrain bumpiness around base level (per type)
     void initDefaultBiomes();
     std::string materialForColumn(int worldY, const ColumnSample& col) const;
 

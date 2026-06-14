@@ -108,50 +108,64 @@ bool WorldGenerator::isHeightBased() const {
     }
 }
 
-int WorldGenerator::surfaceHeightFor(int wx, int wz) {
-    // Matches the legacy per-type height formulas so terrain shape is unchanged; floor(h)
-    // is equivalent to the old `worldY <= h` test for integer worldY.
+float WorldGenerator::surfaceVariationFor(int wx, int wz) {
+    // Terrain "bumpiness" around the base level (16). Per-biome height scale/offset and
+    // continentalness are applied on top in sampleColumn. Flat contributes no variation.
     switch (generationType) {
         case GenerationType::Flat:
-            return 16;
-        case GenerationType::Mountains: {
-            float h = perlinNoise3D(wx * 0.01f, 0.0f, wz * 0.01f, 6, 0.7f, 2.0f) * 40.0f
-                    + perlinNoise3D(wx * 0.03f, 0.0f, wz * 0.03f, 4, 0.5f, 2.0f) * 20.0f
-                    + 20.0f;
-            return static_cast<int>(std::floor(h));
-        }
+            return 0.0f;
+        case GenerationType::Mountains:
+            return perlinNoise3D(wx * 0.01f, 0.0f, wz * 0.01f, 6, 0.7f, 2.0f) * 40.0f
+                 + perlinNoise3D(wx * 0.03f, 0.0f, wz * 0.03f, 4, 0.5f, 2.0f) * 20.0f
+                 + 4.0f;
         case GenerationType::Perlin:
         case GenerationType::Caves:
-        default: {
-            float h = perlinNoise3D(wx * terrainParams.frequency, 0.0f, wz * terrainParams.frequency,
-                                    terrainParams.octaves, terrainParams.persistence, terrainParams.lacunarity)
-                      * terrainParams.heightScale + 16.0f;
-            return static_cast<int>(std::floor(h));
-        }
+        default:
+            return perlinNoise3D(wx * terrainParams.frequency, 0.0f, wz * terrainParams.frequency,
+                                 terrainParams.octaves, terrainParams.persistence, terrainParams.lacunarity)
+                 * terrainParams.heightScale;
     }
 }
 
 WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
     ColumnSample col;
-    col.surfaceY = surfaceHeightFor(wx, wz);
     // Low-frequency climate fields, decorrelated via distinct sample offsets, mapped to [0,1].
+    // Continentalness is lower-frequency still (continents larger than biomes).
     auto to01 = [](float n) { float v = (n + 1.0f) * 0.5f; return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); };
-    col.temperature = to01(perlinNoise3D(wx * 0.006f, 100.0f, wz * 0.006f, 2, 0.5f, 2.0f));
-    col.moisture    = to01(perlinNoise3D(wx * 0.006f, 200.0f, wz * 0.006f, 2, 0.5f, 2.0f));
-    col.biomeIndex  = selectBiome(col.temperature, col.moisture);
-    return col;
-}
+    col.temperature     = to01(perlinNoise3D(wx * 0.006f,  100.0f, wz * 0.006f,  2, 0.5f, 2.0f));
+    col.moisture        = to01(perlinNoise3D(wx * 0.006f,  200.0f, wz * 0.006f,  2, 0.5f, 2.0f));
+    col.continentalness = to01(perlinNoise3D(wx * 0.0025f, 300.0f, wz * 0.0025f, 2, 0.5f, 2.0f));
 
-int WorldGenerator::selectBiome(float temperature, float moisture) const {
-    // First climate cell that contains (temperature, moisture) wins; the table's last entry
-    // should be a catch-all. (Hard borders for now; height-blending is a follow-up.)
+    // Biome selection + height blending: weight each biome by a Gaussian of the distance
+    // from this column's climate to the biome's climate-cell CENTRE (a smooth Voronoi). The
+    // dominant (nearest) biome supplies materials — hard material borders are fine — while the
+    // height params are BLENDED across biomes so elevation transitions don't cliff.
+    float totalW = 0.0f, blendScale = 0.0f, blendOffset = 0.0f, bestW = -1.0f;
+    int best = 0;
+    constexpr float kSigma2 = 2.0f * 0.15f * 0.15f;  // blend width in climate space
     for (size_t i = 0; i < m_biomes.size(); ++i) {
         const Biome& b = m_biomes[i];
-        if (temperature >= b.tempMin && temperature <= b.tempMax &&
-            moisture   >= b.moistMin && moisture   <= b.moistMax)
-            return static_cast<int>(i);
+        float ct = (b.tempMin + b.tempMax) * 0.5f;
+        float cm = (b.moistMin + b.moistMax) * 0.5f;
+        float dt = col.temperature - ct, dm = col.moisture - cm;
+        float w = std::exp(-(dt * dt + dm * dm) / kSigma2);
+        totalW += w;
+        blendScale  += w * b.heightScale;
+        blendOffset += w * b.heightOffset;
+        if (w > bestW) { bestW = w; best = static_cast<int>(i); }
     }
-    return 0;
+    col.biomeIndex = best;
+    if (totalW > 0.0f) { blendScale /= totalW; blendOffset /= totalW; }
+    else { blendScale = 1.0f; blendOffset = 0.0f; }
+
+    if (generationType == GenerationType::Flat) {
+        col.surfaceY = 16;  // Flat stays flat; biome affects material only (no cliffs, clean biome map)
+    } else {
+        float variation = surfaceVariationFor(wx, wz);
+        float elevation = (col.continentalness - 0.5f) * 30.0f;  // large-scale land height, +-15
+        col.surfaceY = static_cast<int>(std::floor(16.0f + variation * blendScale + blendOffset + elevation));
+    }
+    return col;
 }
 
 std::string WorldGenerator::materialForColumn(int worldY, const ColumnSample& col) const {
@@ -164,14 +178,14 @@ std::string WorldGenerator::materialForColumn(int worldY, const ColumnSample& co
 }
 
 void WorldGenerator::initDefaultBiomes() {
-    // name, surface, subsurface, deep, tempMin, tempMax, moistMin, moistMax.
-    // Order = priority (first match wins); the last entry is the catch-all.
+    // name, surface, subsurface, deep, tempMin, tempMax, moistMin, moistMax, heightScale, heightOffset.
+    // Selection is nearest climate-cell CENTRE; height params blend smoothly across biomes.
     m_biomes = {
-        {"Snow",    "Ice",   "Stone",     "Stone", 0.0f, 0.3f, 0.0f, 1.0f},
-        {"Desert",  "Sand",  "Sandstone", "Stone", 0.6f, 1.0f, 0.0f, 0.35f},
-        {"Savanna", "Grass", "Dirt",      "Stone", 0.7f, 1.0f, 0.35f, 0.6f},
-        {"Forest",  "Grass", "Dirt",      "Stone", 0.3f, 0.7f, 0.6f, 1.0f},
-        {"Plains",  "Grass", "Dirt",      "Stone", 0.0f, 1.0f, 0.0f, 1.0f},
+        {"Snow",    "Ice",   "Stone",     "Stone", 0.0f, 0.3f, 0.0f, 1.0f,  1.3f,  6.0f},
+        {"Desert",  "Sand",  "Sandstone", "Stone", 0.6f, 1.0f, 0.0f, 0.35f, 0.5f, -2.0f},
+        {"Savanna", "Grass", "Dirt",      "Stone", 0.7f, 1.0f, 0.35f, 0.6f, 0.7f,  0.0f},
+        {"Forest",  "Grass", "Dirt",      "Stone", 0.3f, 0.7f, 0.6f, 1.0f,  1.0f,  1.0f},
+        {"Plains",  "Grass", "Dirt",      "Stone", 0.0f, 1.0f, 0.0f, 1.0f,  0.6f,  0.0f},
     };
 }
 
@@ -202,6 +216,8 @@ bool WorldGenerator::loadBiomes(const std::string& path) {
             biome.moistMin = b["moisture"][0].get<float>();
             biome.moistMax = b["moisture"][1].get<float>();
         }
+        biome.heightScale = b.value("heightScale", 1.0f);
+        biome.heightOffset = b.value("heightOffset", 0.0f);
         loaded.push_back(std::move(biome));
     }
     if (loaded.empty()) return false;
