@@ -746,6 +746,66 @@
         "top": "leaf_autumn_top.png",
         "bottom": "leaf_autumn_bottom.png"
       }
+    },
+    {
+      "name": "GrassForest",
+      "category": "material",
+      "description": "Deep forest grass",
+      "physics": {
+        "mass": 1.8,
+        "friction": 0.7,
+        "restitution": 0.1,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.5,
+        "bondStrength": 0.45,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          0.18,
+          0.42,
+          0.18
+        ],
+        "metallic": 0.0,
+        "roughness": 0.9
+      },
+      "textures": {
+        "side_n": "grass_forest_side_n.png",
+        "side_s": "grass_forest_side_s.png",
+        "side_e": "grass_forest_side_e.png",
+        "side_w": "grass_forest_side_w.png",
+        "top": "grass_forest_top.png",
+        "bottom": "grass_forest_bottom.png"
+      }
+    },
+    {
+      "name": "GrassSavanna",
+      "category": "material",
+      "description": "Dry golden savanna grass",
+      "physics": {
+        "mass": 1.8,
+        "friction": 0.7,
+        "restitution": 0.1,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.5,
+        "bondStrength": 0.45,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          0.72,
+          0.62,
+          0.26
+        ],
+        "metallic": 0.0,
+        "roughness": 0.9
+      },
+      "textures": {
+        "side_n": "grass_savanna_side_n.png",
+        "side_s": "grass_savanna_side_s.png",
+        "side_e": "grass_savanna_side_e.png",
+        "side_w": "grass_savanna_side_w.png",
+        "top": "grass_savanna_top.png",
+        "bottom": "grass_savanna_bottom.png"
+      }
     }
   ]
 }
