@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include <functional>
 #include <string>
+#include <vector>
 
 namespace Phyxel {
 
@@ -54,13 +55,48 @@ public:
     };
     
     TerrainParams& getTerrainParams() { return terrainParams; }
-    
+
+    // How far solid terrain extends below the surface. Default: unbounded (solid stone
+    // forever, as you dig down). Set hasBedrock + bedrockY to add an indestructible floor.
+    struct DepthProfile {
+        bool hasBedrock = false;
+        int  bedrockY = -2048;
+    };
+    DepthProfile& getDepthProfile() { return depthProfile; }
+
+    // A biome's material rules, selected by climate (temperature + moisture). Data-driven
+    // from resources/biomes.json; a built-in default set is always present as a fallback.
+    struct Biome {
+        std::string name = "Plains";
+        std::string surfaceMaterial = "Grass";     // top voxel of the column
+        std::string subsurfaceMaterial = "Dirt";   // few voxels below the surface
+        std::string deepMaterial = "Stone";        // deep underground
+        float tempMin = 0.0f, tempMax = 1.0f;      // climate cell this biome occupies
+        float moistMin = 0.0f, moistMax = 1.0f;
+    };
+
+    // Per-column terrain sample, computed once per (x,z) by the column-first pipeline.
+    // Biomes hang off the climate fields here.
+    struct ColumnSample {
+        int   surfaceY = 16;       // world Y of the top solid voxel
+        float temperature = 0.5f;  // [0,1]
+        float moisture    = 0.5f;  // [0,1]
+        int   biomeIndex  = 0;     // index into m_biomes
+    };
+
+    // Load biome definitions from JSON (resources/biomes.json). Returns false (and keeps
+    // the built-in defaults) if the file is missing or invalid.
+    bool loadBiomes(const std::string& path);
+    const std::vector<Biome>& getBiomes() const { return m_biomes; }
+
 private:
     GenerationType generationType;
     uint32_t seed;
     TerrainParams terrainParams;
+    DepthProfile depthProfile;
+    std::vector<Biome> m_biomes;
     GenerationFunction customGenerator;
-    
+
     // Generation implementations
     bool generateRandom(const glm::ivec3& chunkCoord, const glm::ivec3& localPos);
     bool generatePerlin(const glm::ivec3& chunkCoord, const glm::ivec3& localPos);
@@ -68,8 +104,16 @@ private:
     bool generateMountains(const glm::ivec3& chunkCoord, const glm::ivec3& localPos);
     bool generateCaves(const glm::ivec3& chunkCoord, const glm::ivec3& localPos);
     bool generateCity(const glm::ivec3& chunkCoord, const glm::ivec3& localPos);
-    
-    // Material selection based on world position and terrain context
+
+    // Column-first pipeline (height-based types: Perlin/Flat/Mountains/Caves)
+    bool isHeightBased() const;
+    ColumnSample sampleColumn(int worldX, int worldZ);   // surface height + climate + biome
+    int  surfaceHeightFor(int worldX, int worldZ);       // base heightmap for the active type
+    int  selectBiome(float temperature, float moisture) const;
+    void initDefaultBiomes();
+    std::string materialForColumn(int worldY, const ColumnSample& col) const;
+
+    // Material selection based on world position and terrain context (City/Random fallback)
     std::string getMaterialForPosition(const glm::ivec3& worldPos, float surfaceHeight) const;
     
     // Noise functions

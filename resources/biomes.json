@@ -1,0 +1,10 @@
+{
+  "_comment": "Biome table for procedural terrain. Selected per column by climate (temperature + moisture, both 0..1, low-frequency noise). First entry whose temp+moisture ranges contain the column's climate wins, so order = priority and the last entry should be a catch-all. surface/subsurface/deep are material names from materials.json. Height does not yet vary per biome (no cliffs); per-biome height + border blending are a planned follow-up.",
+  "biomes": [
+    { "name": "Snow",    "surface": "Ice",   "subsurface": "Stone",     "deep": "Stone", "temp": [0.0, 0.3], "moisture": [0.0, 1.0] },
+    { "name": "Desert",  "surface": "Sand",  "subsurface": "Sandstone", "deep": "Stone", "temp": [0.6, 1.0], "moisture": [0.0, 0.35] },
+    { "name": "Savanna", "surface": "Grass", "subsurface": "Dirt",      "deep": "Stone", "temp": [0.7, 1.0], "moisture": [0.35, 0.6] },
+    { "name": "Forest",  "surface": "Grass", "subsurface": "Dirt",      "deep": "Stone", "temp": [0.3, 0.7], "moisture": [0.6, 1.0] },
+    { "name": "Plains",  "surface": "Grass", "subsurface": "Dirt",      "deep": "Stone", "temp": [0.0, 1.0], "moisture": [0.0, 1.0] }
+  ]
+}
