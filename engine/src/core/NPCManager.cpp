@@ -194,6 +194,23 @@ void NPCManager::buildNavGrid() {
         maxXZ.y = std::max(maxXZ.y, origin.z + 31);
     }
 
+    // Guard against an unbounded build. Streaming persists chunks across the whole
+    // explored world, so the bounding box of all loaded chunks can span thousands of cells
+    // per axis; NavGrid + NavGraph build one cell per (x,z) column, making this O(area) —
+    // it effectively hangs (e.g. a streamed world spanning ~1500x1300 columns never
+    // finishes). Cap the region to a sane extent centred on the bounds so the build stays
+    // bounded. NPCs outside the capped region get no nav until per-region/streamed nav lands.
+    constexpr int kMaxNavHalfExtent = 256; // -> at most 512x512 columns
+    const glm::ivec2 span = maxXZ - minXZ;
+    if (span.x > 2 * kMaxNavHalfExtent || span.y > 2 * kMaxNavHalfExtent) {
+        const glm::ivec2 center = (minXZ + maxXZ) / 2;
+        minXZ = center - glm::ivec2(kMaxNavHalfExtent);
+        maxXZ = center + glm::ivec2(kMaxNavHalfExtent);
+        LOG_WARN_FMT("NPCManager", "NavGrid region clamped to [" << minXZ.x << "," << minXZ.y
+                     << "]..[" << maxXZ.x << "," << maxXZ.y << "] - loaded chunks span too far "
+                     "(streamed world?); NPCs outside this region have no nav");
+    }
+
     m_navGrid = std::make_unique<NavGrid>(m_chunkManager);
     m_navGrid->buildFromRegion(minXZ, maxXZ);
     m_pathfinder = std::make_unique<AStarPathfinder>(m_navGrid.get());
