@@ -317,10 +317,29 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     when the post-process SSAO multiply is fixed + re-enabled so the cost buys a visible
     result. Per-pass GPU now (Debug, 64-chunk view): Scene/StaticGeo 2.9, Shadow 1.4,
     ImGui 0.69 (editor-only), Post 0.2.
-  - **NEXT perf levers (ranked):** occlusion culling (#2, dense worlds) · greedy meshing (#3,
-    architectural) · voxel LOD (#4, architectural, the large-world enabler) · shadow
-    cascade/res/distance tuning. Crowd-rendering (VAT/instancing) parked but is the true
-    blocker for 100s on screen.
+  - **Shadow range 150→110 (DONE + verified, 2026-06-15, commit `14709ca`):** the shadow pass
+    renders every chunk within `ShadowMap::m_shadowRange` of the camera (360°, no frustum
+    cull) into the 2048² map, so cost ~range² and is vertex-bound over distant high-relief
+    terrain. After SSAO it was the top GPU cost (~3.68 ms in mountains). 150→110 cut it to
+    ~0.92 ms (8-sample stable), shadows still correct/sharper near camera. Slider-tunable.
+  - **Occlusion culling Phases 1–2 (DONE, flag-gated OFF, 2026-06-15, commits `39b433a`,
+    `2cce03f`):** Minecraft-style chunk visibility graph. `Chunk::computeVisibilityMask()`
+    flood-fills 32³ air into 6-connected components on rebuildFaces → `m_faceConnect[]` /
+    `facesConnected(a,b)` (opaque cubes block; empty/subdivided/transparent = air, errs toward
+    visible). `RenderCoordinator::applyOcclusionCulling()` BFS from the camera chunk through
+    air-connected, frustum-visible chunks; unreached = culled. Conservative (no anti-wraparound)
+    so **no false holes** (verified). Toggle: `POST /api/debug/occlusion {enabled:bool}` (→
+    `setOcclusionCullingEnabled`) or `PHYXEL_OCCLUSION=1`. **KEY FINDING — chunk-granularity
+    occlusion ≈ "cave culling": it only helps where solid FULLY fills chunks
+    (underground/caves/enclosed interiors); OPEN SURFACE scenes see ~0 benefit** because the
+    continuous above-ground air layer connects every chunk's graph (a city street culled 0;
+    sub-chunk buildings don't partition the air). Verified working in a wall+gap test (drawCalls
+    2→1, identical screenshots). Open follow-ups: anti-wraparound pruning (more culling, risks
+    holes — test carefully), sub-chunk/portal occlusion for surface scenes, wire into game.json.
+  - **NEXT perf levers (ranked):** greedy meshing (architectural, helps ALL scenes) · voxel
+    LOD (architectural, the large-world view-distance enabler) · occlusion in real cave/dungeon
+    content (toggle exists). Crowd-rendering (VAT/instancing) parked but is the true blocker for
+    100s on screen.
 - **Debris/particle solver perf:** the GPU particle solver (`GpuParticlePhysics`,
   `recordComputeCommandsNew`) dominated frame time under debris load. **Per-pass GPU timing
   is now built in** — `recordComputeCommands` takes an optional `GpuProfiler*` and emits
