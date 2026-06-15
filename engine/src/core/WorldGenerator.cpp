@@ -584,7 +584,7 @@ std::string WorldGenerator::getMaterialForPosition(const glm::ivec3& worldPos, f
         if (y <= 15.0f) {
             // Ground layer
             if (y <= 12.0f) return "Stone";
-            return "Default"; // Road/ground surface
+            return "Cobblestone"; // Road/ground surface (was "Default" → magenta missing-texture)
         }
         // Building blocks - use Metal for buildings
         return "Metal";
