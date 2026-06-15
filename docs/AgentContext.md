@@ -349,11 +349,23 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     multi-material splits correct), Debug FPS 171→277.** Flat/built surfaces reduce ~1000x.
     Render-only; collision/physics untouched. The variable-size face format is the foundation
     Phase C reuses.
-  - **NEXT perf levers (ranked):** **Phase C — distance voxel LOD** (downsample distant chunks
-    32³→16³→8³ by majority material/solidity, select by camera distance, render via the
-    variable-size faces from Phase A/B; main risk = LOD seams between neighboring levels —
-    skirts or ≤1-level constraint) · occlusion in real cave/dungeon content (toggle exists).
-    Crowd-rendering (VAT/instancing) parked but is the true blocker for 100s on screen.
+  - **Phase C — distance voxel LOD (DONE, flag-gated OFF, 2026-06-15, commit `1966a2e`):**
+    `rebuildCubeFaces(...,lodStep)` downsamples the chunk to 16³/8³ (LOD cell = majority
+    solid + majority material of its lodStep³ block), greedy-meshes the coarse grid, emits
+    faces in full-res coords (pos*lodStep, extent*lodStep) — reuses the variable-size format.
+    Subcubes/microcubes skipped at LOD>1; LOD0 keeps cross-chunk culling, LOD>1 draws a
+    boundary shell. `Chunk::m_currentLod`; `ChunkManager::updateChunkLODs(camPos,budget)` picks
+    LOD per chunk by distance (m_lod1Dist/m_lod2Dist) with hysteresis, re-meshing ≤budget
+    chunks/frame (1 step at a time, Application calls per frame). Toggle: `POST
+    /api/debug/voxel_lod {enabled,lod1?,lod2?}`; default OFF (inert). **Verified (64-chunk
+    Perlin, 60/140): faces 53,486→12,566 (~4.3x beyond greedy, ~26x vs original), near full /
+    far coarse, FPS 171→296; disable re-meshes back.** ⚠️ **KNOWN: visible cracks/seams at
+    LOD-level boundaries** (boundary-shell + level mismatch) — NEXT is skirts or boundary
+    stitching. Also TODO: async meshing (re-mesh is synchronous/budgeted now), mesh chunks at
+    their distance LOD on first load (not full-res then coarsen), wire into game.json.
+  - **NEXT perf levers (ranked):** LOD seam fix (skirts) → occlusion in real cave/dungeon
+    content (toggle exists) → crowd-rendering (VAT/instancing, parked) which is the true
+    blocker for 100s on screen.
 - **Debris/particle solver perf:** the GPU particle solver (`GpuParticlePhysics`,
   `recordComputeCommandsNew`) dominated frame time under debris load. **Per-pass GPU timing
   is now built in** — `recordComputeCommands` takes an optional `GpuProfiler*` and emits
