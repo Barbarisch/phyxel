@@ -359,12 +359,19 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     chunks/frame (1 step at a time, Application calls per frame). Toggle: `POST
     /api/debug/voxel_lod {enabled,lod1?,lod2?}`; default OFF (inert). **Verified (64-chunk
     Perlin, 60/140): faces 53,486→12,566 (~4.3x beyond greedy, ~26x vs original), near full /
-    far coarse, FPS 171→296; disable re-meshes back.** ⚠️ **KNOWN: visible cracks/seams at
-    LOD-level boundaries** (boundary-shell + level mismatch) — NEXT is skirts or boundary
-    stitching. Also TODO: async meshing (re-mesh is synchronous/budgeted now), mesh chunks at
-    their distance LOD on first load (not full-res then coarsen), wire into game.json.
-  - **NEXT perf levers (ranked):** LOD seam fix (skirts) → occlusion in real cave/dungeon
-    content (toggle exists) → crowd-rendering (VAT/instancing, parked) which is the true
+    far coarse, FPS 171→296; disable re-meshes back.**
+  - **LOD skirts (DONE + verified, 2026-06-15, commit `6c9d74a`):** fixes the cross-LOD
+    see-through cracks. When LOD active, a full-res chunk hangs a vertical curtain (depth 8,
+    both face dirs — static voxels use FRONT_BIT culling) down from each boundary surface
+    column (`addSkirts` param, lodStep==1 only; coarse chunks already have a boundary shell).
+    `setVoxelLodEnabled` re-meshes all chunks so skirts apply/clear at once. Verified: broad
+    crack band gone, terrain reads connected; only the inherent blocky LOD silhouette remains
+    (smaller on screen at realistic distances). Skirt cost (aggressive 50/100 distances)
+    12,566→22,916 faces — worst case (many LOD0 chunks); far less at normal distances.
+    REMAINING: greedy-merge skirt columns laterally to cut cost; async meshing; mesh far
+    chunks at their LOD on first load; game.json wiring.
+  - **NEXT perf levers (ranked):** occlusion in real cave/dungeon content (toggle exists) →
+    crowd-rendering (VAT/instancing, parked) which is the true
     blocker for 100s on screen.
 - **Debris/particle solver perf:** the GPU particle solver (`GpuParticlePhysics`,
   `recordComputeCommandsNew`) dominated frame time under debris load. **Per-pass GPU timing
