@@ -336,10 +336,24 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     sub-chunk buildings don't partition the air). Verified working in a wall+gap test (drawCalls
     2→1, identical screenshots). Open follow-ups: anti-wraparound pruning (more culling, risks
     holes — test carefully), sub-chunk/portal occlusion for surface scenes, wire into game.json.
-  - **NEXT perf levers (ranked):** greedy meshing (architectural, helps ALL scenes) · voxel
-    LOD (architectural, the large-world view-distance enabler) · occlusion in real cave/dungeon
-    content (toggle exists). Crowd-rendering (VAT/instancing) parked but is the true blocker for
-    100s on screen.
+  - **Greedy meshing + variable-size faces (DONE + verified, 2026-06-15, commit `e916d1e`):**
+    voxel-LOD track Phase A+B. A static cube-face instance can now span a WxH rectangle:
+    `packCubeFaceDataSized` encodes (sizeU-1,sizeV-1) in the cube face's spare bits 20-31
+    (sizeU/sizeV = vertexID bit0/bit1 axis extents; =1 reproduces packCubeFaceData).
+    `static_voxel.vert` scales the unit quad's two in-plane axes + tiles UV (subcube/microcube
+    branches untouched); `voxel.frag` wraps the atlas sample with `fract()` (half-texel inset)
+    + `textureGrad` (continuous derivatives → no mip seam). `ChunkRenderManager::rebuildCubeFaces`
+    now greedy-merges visible cube faces per (direction, slice), keyed on textureIndex+flags,
+    honoring the cross-chunk NeighborLookupFunc. **Verified (64-chunk Perlin): 325,636→53,486
+    faces / 1.30M→214K verts (6.1x), pixel-identical (textures tile seamlessly incl. close-up,
+    multi-material splits correct), Debug FPS 171→277.** Flat/built surfaces reduce ~1000x.
+    Render-only; collision/physics untouched. The variable-size face format is the foundation
+    Phase C reuses.
+  - **NEXT perf levers (ranked):** **Phase C — distance voxel LOD** (downsample distant chunks
+    32³→16³→8³ by majority material/solidity, select by camera distance, render via the
+    variable-size faces from Phase A/B; main risk = LOD seams between neighboring levels —
+    skirts or ≤1-level constraint) · occlusion in real cave/dungeon content (toggle exists).
+    Crowd-rendering (VAT/instancing) parked but is the true blocker for 100s on screen.
 - **Debris/particle solver perf:** the GPU particle solver (`GpuParticlePhysics`,
   `recordComputeCommandsNew`) dominated frame time under debris load. **Per-pass GPU timing
   is now built in** — `recordComputeCommands` takes an optional `GpuProfiler*` and emits
