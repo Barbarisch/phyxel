@@ -46,7 +46,11 @@ namespace Phyxel {
 class ChunkManager : public IChunkManager {
 public:
     std::vector<std::unique_ptr<Chunk>> chunks;
-    
+
+    // Access the world database (for per-world recipe/metadata). May be null if the world
+    // has no persistent storage configured.
+    WorldStorage* getWorldStorage() const { return m_streamingManager.getWorldStorage(); }
+
     // Global dynamic subcube management (not tied to specific chunks)
     std::vector<std::unique_ptr<Subcube>> globalDynamicSubcubes;
     

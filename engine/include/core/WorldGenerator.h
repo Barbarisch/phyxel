@@ -8,6 +8,7 @@
 namespace Phyxel {
 
 class Chunk;
+struct WorldRecipe;
 
 /**
  * @brief World generation interface for procedural world creation
@@ -103,6 +104,13 @@ public:
     // the built-in defaults) if the file is missing or invalid.
     bool loadBiomes(const std::string& path);
     const std::vector<Biome>& getBiomes() const { return m_biomes; }
+
+    // Per-world recipe (docs/WorldRecipeAndFlora.md): snapshot the current generation tuning
+    // into a recipe, or apply a stored one. applyRecipe overrides climateFrequency + per-biome
+    // extremeness (heightScale) + flora (density/spacing/items) by biome name; biome category
+    // fields (materials, climate ranges) stay from biomes.json.
+    WorldRecipe makeRecipe() const;
+    void applyRecipe(const WorldRecipe& recipe);
 
     // Public surface/climate query: surface height + dominant biome for a world column.
     // Pure function of world (x,z) + seed/params, so it's seam-free and reusable by the

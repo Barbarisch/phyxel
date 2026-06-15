@@ -52,6 +52,9 @@ bool WorldStorage::commitTransaction() { return false; }
 bool WorldStorage::rollbackTransaction() { return false; }
 bool WorldStorage::loadSubcubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk) { return false; }
 bool WorldStorage::loadMicrocubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk) { return false; }
+bool WorldStorage::setMeta(const std::string& key, const std::string& value) { return false; }
+std::string WorldStorage::getMeta(const std::string& key) const { return ""; }
+bool WorldStorage::hasMeta(const std::string& key) const { return false; }
 
 } // namespace Phyxel
 
@@ -178,6 +181,13 @@ bool WorldStorage::createTables() {
                 REFERENCES cubes(chunk_x, chunk_y, chunk_z, local_x, local_y, local_z)
         );
         
+        -- Per-world metadata / generation recipe (key/value; value is text or JSON blob).
+        -- Makes a world self-contained: seed, biome layout, extremeness, flora config.
+        CREATE TABLE IF NOT EXISTS world_meta (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        );
+
         -- Spatial indexing for fast chunk queries
         CREATE INDEX IF NOT EXISTS idx_chunks_coord ON chunks(chunk_x, chunk_y, chunk_z);
         CREATE INDEX IF NOT EXISTS idx_cubes_chunk ON cubes(chunk_x, chunk_y, chunk_z);
@@ -985,11 +995,53 @@ bool WorldStorage::loadMicrocubesForChunk(const glm::ivec3& chunkCoord, Chunk& c
     sqlite3_reset(selectMicrocubesStmt);
     
     if (loadedMicrocubes > 0) {
-        LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Loaded " << loadedMicrocubes << " microcubes for chunk (" 
+        LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Loaded " << loadedMicrocubes << " microcubes for chunk ("
                   << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
     }
-    
+
     return true;
+}
+
+// ---- Per-world metadata / recipe key-value store ----
+// Infrequent (load/save time), so we prepare ad-hoc rather than caching statements.
+
+bool WorldStorage::setMeta(const std::string& key, const std::string& value) {
+    if (!db) return false;
+    sqlite3_stmt* stmt = nullptr;
+    const char* sql = "INSERT INTO world_meta(key,value) VALUES(?,?) "
+                      "ON CONFLICT(key) DO UPDATE SET value=excluded.value;";
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) return false;
+    sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, value.c_str(), -1, SQLITE_TRANSIENT);
+    bool ok = sqlite3_step(stmt) == SQLITE_DONE;
+    sqlite3_finalize(stmt);
+    return ok;
+}
+
+std::string WorldStorage::getMeta(const std::string& key) const {
+    std::string out;
+    if (!db) return out;
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, "SELECT value FROM world_meta WHERE key=?;", -1, &stmt, nullptr) != SQLITE_OK)
+        return out;
+    sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_TRANSIENT);
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        const unsigned char* txt = sqlite3_column_text(stmt, 0);
+        if (txt) out = reinterpret_cast<const char*>(txt);
+    }
+    sqlite3_finalize(stmt);
+    return out;
+}
+
+bool WorldStorage::hasMeta(const std::string& key) const {
+    if (!db) return false;
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, "SELECT 1 FROM world_meta WHERE key=?;", -1, &stmt, nullptr) != SQLITE_OK)
+        return false;
+    sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_TRANSIENT);
+    bool found = sqlite3_step(stmt) == SQLITE_ROW;
+    sqlite3_finalize(stmt);
+    return found;
 }
 
 } // namespace Phyxel

@@ -66,6 +66,13 @@ public:
 
     /// Raw SQLite handle (for subsystems that share this database, e.g. ConversationMemory)
     sqlite3* getDb() const { return db; }
+
+    // Per-world metadata / generation recipe — a small key/value store that makes a world
+    // self-contained (seed, biome layout, extremeness, flora config). See
+    // docs/WorldRecipeAndFlora.md. Value is plain text or a JSON blob.
+    bool setMeta(const std::string& key, const std::string& value);
+    std::string getMeta(const std::string& key) const;   // "" if absent
+    bool hasMeta(const std::string& key) const;
     
 private:
     sqlite3* db = nullptr;

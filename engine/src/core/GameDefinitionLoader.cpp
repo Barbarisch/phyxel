@@ -1,6 +1,8 @@
 #include "core/GameDefinitionLoader.h"
 #include "core/ChunkManager.h"
 #include "core/WorldGenerator.h"
+#include "core/WorldRecipe.h"
+#include "core/WorldStorage.h"
 #include "core/StructureGenerator.h"
 #include "core/NPCManager.h"
 #include "core/EntityRegistry.h"
@@ -235,6 +237,23 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, GameSubsystems& sub, 
         if (p.contains("caveThreshold")) tp.caveThreshold = p["caveThreshold"].get<float>();
         if (p.contains("stoneLevel")) tp.stoneLevel = p["stoneLevel"].get<float>();
         if (p.contains("climateFrequency")) tp.climateFrequency = p["climateFrequency"].get<float>();
+    }
+
+    // Per-world recipe (docs/WorldRecipeAndFlora.md): the world DB is the source of truth for
+    // generation tuning. If a recipe is stored, apply it (reproducible, immune to global
+    // biomes.json edits); otherwise snapshot the current config (biomes.json + game.json params)
+    // and persist it so future loads of this world are stable. Must run before generation +
+    // streaming config so climateFrequency / biome tuning take effect.
+    if (WorldStorage* storage = sub.chunkManager ? sub.chunkManager->getWorldStorage() : nullptr) {
+        if (storage->hasMeta("recipe")) {
+            generator.applyRecipe(WorldRecipe::fromJson(storage->getMeta("recipe")));
+            LOG_INFO("GameDefinitionLoader", "World: applied generation recipe from world.db");
+        } else {
+            WorldRecipe recipe = generator.makeRecipe();
+            recipe.type = typeStr;
+            if (storage->setMeta("recipe", recipe.toJson()))
+                LOG_INFO("GameDefinitionLoader", "World: synthesized + persisted generation recipe to world.db");
+        }
     }
 
     // Streaming terrain (Phase 1b): when enabled, chunks generate and evict around the

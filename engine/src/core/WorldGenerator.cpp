@@ -1,4 +1,5 @@
 #include "core/WorldGenerator.h"
+#include "core/WorldRecipe.h"
 #include "core/Chunk.h"
 #include "core/Cube.h"
 #include "utils/Logger.h"
@@ -266,6 +267,42 @@ void WorldGenerator::initDefaultBiomes() {
         {"Forest",  "GrassForest","Dirt",      "Stone", 0.3f, 0.7f, 0.6f, 1.0f,  1.0f,  1.0f, "Dirt",  0.6f},
         {"Plains",  "Grass",      "Dirt",      "Stone", 0.0f, 1.0f, 0.0f, 1.0f,  0.6f,  0.0f, "",      0.0f},
     };
+}
+
+WorldRecipe WorldGenerator::makeRecipe() const {
+    WorldRecipe r;
+    r.seed = seed;
+    r.climateFrequency = terrainParams.climateFrequency;
+    for (const auto& b : m_biomes) {
+        WorldRecipe::BiomeTune bt;
+        bt.name = b.name;
+        bt.heightScale = b.heightScale;
+        bt.floraDensity = b.floraDensity;
+        bt.floraSpacing = b.floraSpacing;
+        for (const auto& f : b.flora) bt.flora.push_back({f.first, f.second});
+        r.biomes.push_back(std::move(bt));
+    }
+    return r;
+}
+
+void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {
+    terrainParams.climateFrequency = recipe.climateFrequency;
+    // Override per-biome tuning by name; biome category fields (materials, climate) untouched.
+    for (const auto& bt : recipe.biomes) {
+        for (auto& b : m_biomes) {
+            if (b.name != bt.name) continue;
+            b.heightScale = bt.heightScale;
+            b.floraDensity = bt.floraDensity;
+            b.floraSpacing = bt.floraSpacing;
+            if (!bt.flora.empty()) {
+                b.flora.clear();
+                for (const auto& f : bt.flora) b.flora.emplace_back(f.templateName, f.weight);
+            }
+            break;
+        }
+    }
+    LOG_INFO_FMT("WorldGenerator", "Applied world recipe (climateFreq=" << recipe.climateFrequency
+                 << ", " << recipe.biomes.size() << " biome tunings)");
 }
 
 bool WorldGenerator::loadBiomes(const std::string& path) {
