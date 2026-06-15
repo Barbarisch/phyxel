@@ -214,15 +214,16 @@ public:
     // Rebuild faces from cubes (call after modifying cubes)
     void rebuildChunkFaces(Chunk& chunk);
     
-    // Rebuild faces with cross-chunk occlusion culling. lodStep 2/4 = voxel LOD.
-    void rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk, int lodStep = 1);
+    // Rebuild faces with cross-chunk occlusion culling. lodStep 2/4 = voxel LOD;
+    // addSkirts hangs boundary curtains (full-res chunks only) to hide LOD cracks.
+    void rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk, int lodStep = 1, bool addSkirts = false);
 
     // Distance-based voxel LOD: pick each loaded chunk's LOD from its distance to
     // cameraPos and re-mesh chunks whose LOD changed (at most maxRebuilds this call, to
     // bound the per-frame cost). Returns the number of chunks re-meshed. lodEnabled=false
     // forces all chunks back to full resolution.
     int  updateChunkLODs(const glm::vec3& cameraPos, int maxRebuilds = 4);
-    void setVoxelLodEnabled(bool e) { m_voxelLodEnabled = e; }
+    void setVoxelLodEnabled(bool e);  // re-meshes all loaded chunks (applies LOD + skirts)
     bool isVoxelLodEnabled() const { return m_voxelLodEnabled; }
     // Distances (chunk-center to camera) beyond which LOD1 / LOD2 kick in.
     void setVoxelLodDistances(float lod1, float lod2) { m_lod1Dist = lod1; m_lod2Dist = lod2; }
