@@ -157,6 +157,11 @@ private:
     void initDefaultBiomes();
     std::string materialForColumn(int worldY, const ColumnSample& col) const;
 
+    // Flora placement candidate grid (world columns per cell). Plants are decided per-cell by
+    // an order-independent local-maxima test so a single chunk and a whole region agree.
+    static constexpr int kFloraGrid = 3;
+    bool floraCell(int cellX, int cellZ, FloraPlacement& out);
+
     // Material selection based on world position and terrain context (City/Random fallback)
     std::string getMaterialForPosition(const glm::ivec3& worldPos, float surfaceHeight) const;
     

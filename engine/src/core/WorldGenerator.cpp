@@ -196,59 +196,66 @@ std::string WorldGenerator::materialForColumn(int worldY, const ColumnSample& co
     return b.deepMaterial;
 }
 
+bool WorldGenerator::floraCell(int cx, int cz, FloraPlacement& out) {
+    if (m_biomes.empty()) return false;
+    auto hashu = [](int a, int b, uint32_t salt) -> uint32_t {
+        uint32_t h = static_cast<uint32_t>(a) * 374761393u + static_cast<uint32_t>(b) * 668265263u
+                   + salt * 2246822519u;
+        h = (h ^ (h >> 13)) * 1274126177u; h ^= h >> 16; return h;
+    };
+    auto h01 = [&](int a, int b, uint32_t s) { return (hashu(a, b, s) & 0xFFFFFFu) / static_cast<float>(0x1000000); };
+
+    // Jittered site within the cell (so plants aren't on a visible lattice).
+    const int jx = cx * kFloraGrid + static_cast<int>(hashu(cx, cz, seed ^ 0xA1u) % kFloraGrid);
+    const int jz = cz * kFloraGrid + static_cast<int>(hashu(cx, cz, seed ^ 0xB2u) % kFloraGrid);
+
+    ColumnSample col = sampleColumn(jx, jz);
+    const Biome& biome = m_biomes[col.biomeIndex];
+    if (biome.flora.empty() || biome.floraDensity <= 0.0f) return false;
+
+    // Local-maximum (Poisson-disk approximation) test: this cell wins only if its priority hash
+    // beats every cell within the biome's spacing radius. Pure function of cell coords + seed →
+    // order-independent, so a streamed chunk and a whole-region pass place identical trees.
+    const int spacing = std::max(2, biome.floraSpacing);
+    const int R = (spacing + kFloraGrid - 1) / kFloraGrid;
+    const uint32_t p = hashu(cx, cz, seed ^ 0x9E3779B9u);
+    for (int nz = cz - R; nz <= cz + R; ++nz)
+        for (int nx = cx - R; nx <= cx + R; ++nx) {
+            if (nx == cx && nz == cz) continue;
+            const uint32_t q = hashu(nx, nz, seed ^ 0x9E3779B9u);
+            if (q > p || (q == p && (nz < cz || (nz == cz && nx < cx)))) return false;  // neighbor wins
+        }
+
+    // Density thinning of the spacing-separated winners.
+    if (h01(jx, jz, seed ^ 0xC3u) >= biome.floraDensity) return false;
+
+    // Weighted template pick.
+    int total = 0;
+    for (const auto& f : biome.flora) total += f.second;
+    int pick = static_cast<int>(h01(jx, jz, seed ^ 0xD4u) * total);
+    const std::string* chosen = &biome.flora.front().first;
+    for (const auto& f : biome.flora) { pick -= f.second; if (pick < 0) { chosen = &f.first; break; } }
+
+    out = FloraPlacement{*chosen, jx, col.surfaceY, jz};
+    return true;
+}
+
 std::vector<WorldGenerator::FloraPlacement>
 WorldGenerator::planFlora(int colMinX, int colMinZ, int colMaxX, int colMaxZ, int edgeInset) {
     std::vector<FloraPlacement> out;
     if (m_biomes.empty() || !isHeightBased()) return out;
 
-    // Candidate sites on a fine grid, jittered within each cell; each site is rolled against
-    // the biome's density and then a min-distance (Poisson-disk-style) reject enforces the
-    // biome's own spacing so plants never overlap. Every roll is a pure function of
-    // (cellX, cellZ, seed), so placement is deterministic and seam-free.
-    constexpr int kGrid = 4;  // candidate sampling resolution (columns); spacing prunes finer
     const int x0 = colMinX + edgeInset, x1 = colMaxX - edgeInset;
     const int z0 = colMinZ + edgeInset, z1 = colMaxZ - edgeInset;
     if (x1 < x0 || z1 < z0) return out;
 
     auto floordiv = [](int a, int b) { return (a >= 0) ? a / b : -((-a + b - 1) / b); };
-    auto hash01 = [](int a, int b, uint32_t salt) -> float {
-        uint32_t h = static_cast<uint32_t>(a) * 374761393u + static_cast<uint32_t>(b) * 668265263u + salt * 2246822519u;
-        h = (h ^ (h >> 13)) * 1274126177u;
-        h ^= h >> 16;
-        return (h & 0xFFFFFFu) / static_cast<float>(0x1000000);  // [0,1)
-    };
-
-    // Spatial-hash of already-placed columns (bucketed) for an O(1)-ish min-distance test.
-    std::vector<std::pair<int, int>> placed;
-    auto tooClose = [&](int x, int z, int spacing) {
-        const int s2 = spacing * spacing;
-        for (const auto& p : placed) {
-            const int dx = p.first - x, dz = p.second - z;
-            if (dx * dx + dz * dz < s2) return true;
-        }
-        return false;
-    };
-
-    for (int cz = floordiv(z0, kGrid); cz <= floordiv(z1, kGrid); ++cz) {
-        for (int cx = floordiv(x0, kGrid); cx <= floordiv(x1, kGrid); ++cx) {
-            int jx = cx * kGrid + static_cast<int>(hash01(cx, cz, seed ^ 0xA1u) * kGrid);
-            int jz = cz * kGrid + static_cast<int>(hash01(cx, cz, seed ^ 0xB2u) * kGrid);
-            if (jx < x0 || jx > x1 || jz < z0 || jz > z1) continue;
-
-            ColumnSample col = sampleColumn(jx, jz);
-            const Biome& biome = m_biomes[col.biomeIndex];
-            if (biome.flora.empty() || biome.floraDensity <= 0.0f) continue;
-            if (hash01(jx, jz, seed ^ 0xC3u) >= biome.floraDensity) continue;  // density roll
-            if (tooClose(jx, jz, std::max(2, biome.floraSpacing))) continue;    // spacing reject
-
-            int total = 0;
-            for (const auto& f : biome.flora) total += f.second;
-            int pick = static_cast<int>(hash01(jx, jz, seed ^ 0xD4u) * total);
-            const std::string* chosen = &biome.flora.front().first;
-            for (const auto& f : biome.flora) { pick -= f.second; if (pick < 0) { chosen = &f.first; break; } }
-
-            placed.emplace_back(jx, jz);
-            out.push_back({*chosen, jx, col.surfaceY, jz});
+    for (int cz = floordiv(z0, kFloraGrid); cz <= floordiv(z1, kFloraGrid); ++cz) {
+        for (int cx = floordiv(x0, kFloraGrid); cx <= floordiv(x1, kFloraGrid); ++cx) {
+            FloraPlacement p;
+            if (floraCell(cx, cz, p) && p.worldX >= x0 && p.worldX <= x1 &&
+                p.worldZ >= z0 && p.worldZ <= z1)
+                out.push_back(std::move(p));
         }
     }
     LOG_INFO_FMT("WorldGenerator", "planFlora: " << out.size() << " plants over ["
