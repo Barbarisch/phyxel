@@ -56,14 +56,13 @@ layout(std430, set = 0, binding = 4) readonly buffer AtlasUVBuffer {
 
 layout(location = 0) out vec4 outColor;   // output color
 
-// Get atlas UV coordinates from texture index and local UV
-vec2 getAtlasUV(uint texIndex, vec2 localUV) {
+// Get this texture's atlas tile bounds (xy = min UV, zw = max UV).
+vec4 getAtlasBounds(uint texIndex) {
     uint safeIdx = texIndex;
     if (texIndex == 0xFFFFu || texIndex >= atlasUVs.textureCount) {
         safeIdx = atlasUVs.fallbackIndex;
     }
-    vec4 bounds = atlasUVs.textureUVs[safeIdx];
-    return mix(bounds.xy, bounds.zw, localUV);
+    return atlasUVs.textureUVs[safeIdx];
 }
 
 // Calculate attenuation for a light at distance d with given radius
@@ -97,11 +96,21 @@ const vec2 poissonDisk[16] = vec2[](
 );
 
 void main() {
-    // Calculate atlas UV coordinates
-    vec2 atlasUV = getAtlasUV(textureIndex, texCoord);
-    
-    // Sample from texture atlas
-    vec4 textureColor = texture(textureAtlas, atlasUV);
+    // Atlas tiling: texCoord runs 0..sizeU, 0..sizeV for greedy-merged faces (1x1 for
+    // unit faces). fract() wraps it into this texture's atlas tile so the texture repeats;
+    // a half-texel inset keeps bilinear filtering from bleeding into neighbouring atlas
+    // tiles at the wrap seams. textureGrad uses the continuous (un-wrapped) derivatives so
+    // mip selection has no seam at tile boundaries.
+    vec4 atlasBounds = getAtlasBounds(textureIndex);
+    vec2 atlasSpan = atlasBounds.zw - atlasBounds.xy;
+    vec2 atlasTexel = 0.5 / vec2(textureSize(textureAtlas, 0));
+    vec2 atlasUV = clamp(atlasBounds.xy + atlasSpan * fract(texCoord),
+                         atlasBounds.xy + atlasTexel, atlasBounds.zw - atlasTexel);
+
+    // Sample from texture atlas (gradient from continuous UV to avoid mip seams)
+    vec4 textureColor = textureGrad(textureAtlas, atlasUV,
+                                    dFdx(texCoord) * atlasSpan,
+                                    dFdy(texCoord) * atlasSpan);
 
     // Discard fully transparent fragments (cutout transparency)
     if (textureColor.a < 0.1) discard;

@@ -7,6 +7,10 @@
 #include "utils/Logger.h"
 #include <cstring>
 #include <iostream>
+#include <vector>
+#include <string>
+#include <unordered_map>
+#include <algorithm>
 
 namespace Phyxel {
 namespace Graphics {
@@ -87,81 +91,131 @@ void ChunkRenderManager::rebuildCubeFaces(
     const glm::ivec3& worldOrigin,
     const NeighborLookupFunc& getNeighborCube)
 {
-    // Process regular cubes (only those that aren't subdivided)
-    for (size_t cubeIndex = 0; cubeIndex < cubes.size(); ++cubeIndex) {
-        const Cube* cube = cubes[cubeIndex].get();
-        
-        // Skip deleted cubes (nullptr) or hidden cubes (subdivided)
+    // Greedy meshing for cube faces: merge coplanar, same-material visible faces into
+    // rectangles, emitting one sized instance per rectangle (packCubeFaceDataSized)
+    // instead of one per voxel face. Large reduction (~3.7x natural terrain, far more on
+    // flat/built surfaces). Subcube/microcube faces keep their per-face path below.
+    constexpr int N = 32;
+    auto cellIdx = [](int x, int y, int z) { return z + y * 32 + x * 1024; };
+
+    // Per-material face textures + flags (computed once per distinct material in chunk).
+    struct MatFace { uint16_t tex[6]; uint16_t reserved; };
+    std::unordered_map<std::string, int> matIdByName;
+    std::vector<MatFace> matFaces;
+    std::vector<uint8_t> solidVis(N * N * N, 0);  // 1 = a visible cube occupies the cell
+    std::vector<int>     cellMat(N * N * N, -1);  // index into matFaces
+
+    auto& reg = Phyxel::Core::MaterialRegistry::instance();
+    for (size_t ci = 0; ci < cubes.size(); ++ci) {
+        const Cube* cube = cubes[ci].get();
         if (!cube || !cube->isVisible()) continue;
-        
-        // Calculate which faces are visible by checking adjacent positions
-        bool faceVisible[6] = {true, true, true, true, true, true};
-        
-        // Face directions: 0=front(+Z), 1=back(-Z), 2=right(+X), 3=left(-X), 4=top(+Y), 5=bottom(-Y)
-        glm::ivec3 cubePos = cube->getPosition();
-        glm::ivec3 neighbors[6] = {
-            cubePos + glm::ivec3(0, 0, 1),   // front (+Z)
-            cubePos + glm::ivec3(0, 0, -1),  // back (-Z)
-            cubePos + glm::ivec3(1, 0, 0),   // right (+X)
-            cubePos + glm::ivec3(-1, 0, 0),  // left (-X)
-            cubePos + glm::ivec3(0, 1, 0),   // top (+Y)
-            cubePos + glm::ivec3(0, -1, 0)   // bottom (-Y)
-        };
-        
-        // Check each face for occlusion by adjacent cubes
-        for (int faceID = 0; faceID < 6; ++faceID) {
-            glm::ivec3 neighborPos = neighbors[faceID];
-            
-            // Check if neighbor position is within chunk bounds
-            if (neighborPos.x >= 0 && neighborPos.x < 32 &&
-                neighborPos.y >= 0 && neighborPos.y < 32 &&
-                neighborPos.z >= 0 && neighborPos.z < 32) {
-                
-                // Neighbor within chunk - check directly
-                const Cube* neighborCube = getCubeAtPosition(neighborPos, cubes);
-                if (neighborCube && neighborCube->isVisible()) {
-                    faceVisible[faceID] = false;
-                }
-            } else if (getNeighborCube) {
-                // Neighbor outside chunk - use cross-chunk lookup if available
-                glm::ivec3 neighborWorldPos = worldOrigin + neighborPos;
-                const Cube* neighborCube = getNeighborCube(neighborWorldPos);
-                if (neighborCube && neighborCube->isVisible()) {
-                    faceVisible[faceID] = false;
+        glm::ivec3 p = cube->getPosition();
+        if (p.x < 0 || p.x >= N || p.y < 0 || p.y >= N || p.z < 0 || p.z >= N) continue;
+        int cell = cellIdx(p.x, p.y, p.z);
+        solidVis[cell] = 1;
+        const std::string& mname = cube->getMaterialName();
+        auto it = matIdByName.find(mname);
+        if (it == matIdByName.end()) {
+            MatFace mf{};
+            for (int f = 0; f < 6; ++f) mf.tex[f] = reg.getTextureIndex(mname, f);
+            const auto* md = reg.getMaterial(mname);
+            bool em = md && md->emissive;
+            bool tr = md && md->alpha < 0.99f;
+            bool mi = md && md->isMirror;
+            uint16_t qa = tr ? static_cast<uint16_t>(md->alpha * 255.0f) : 255u;
+            mf.reserved = static_cast<uint16_t>((em ? 1u : 0u) | (tr ? 2u : 0u) |
+                                                (qa << 2u) | (mi ? (1u << 10) : 0u));
+            int newId = static_cast<int>(matFaces.size());
+            matFaces.push_back(mf);
+            matIdByName[mname] = newId;
+            cellMat[cell] = newId;
+        } else {
+            cellMat[cell] = it->second;
+        }
+    }
+
+    // Neighbor solidity (handles cross-chunk via getNeighborCube). A face is visible when
+    // its neighbor in that direction is NOT a visible solid.
+    auto neighborSolid = [&](int x, int y, int z) -> bool {
+        if (x >= 0 && x < N && y >= 0 && y < N && z >= 0 && z < N)
+            return solidVis[cellIdx(x, y, z)] != 0;
+        if (getNeighborCube) {
+            const Cube* nc = getNeighborCube(worldOrigin + glm::ivec3(x, y, z));
+            return nc && nc->isVisible();
+        }
+        return false;  // chunk boundary, no lookup → face exposed
+    };
+
+    // Face direction offsets: 0=+Z, 1=-Z, 2=+X, 3=-X, 4=+Y, 5=-Y
+    const int fdx[6] = {0, 0, 1, -1, 0, 0};
+    const int fdy[6] = {0, 0, 0, 0, 1, -1};
+    const int fdz[6] = {1, -1, 0, 0, 0, 0};
+
+    std::vector<uint8_t> hasFace(N * N);
+    std::vector<int>     faceKey(N * N);
+    std::vector<int>     faceMat(N * N);
+    std::vector<uint8_t> used(N * N);
+
+    // Per face direction, greedy-merge each slice in the (u,v) plane. Axis roles
+    // (u = sizeU / vertexID bit0 axis, v = sizeV / bit1 axis):
+    //   +Z/-Z: normal=z, u=x, v=y    +X/-X: normal=x, u=z, v=y    +Y/-Y: normal=y, u=x, v=z
+    for (int faceID = 0; faceID < 6; ++faceID) {
+        for (int s = 0; s < N; ++s) {
+            std::fill(hasFace.begin(), hasFace.end(), 0);
+            std::fill(used.begin(), used.end(), 0);
+            // Build the visible-face mask for this slice.
+            for (int u = 0; u < N; ++u) {
+                for (int v = 0; v < N; ++v) {
+                    int x, y, z;
+                    if (faceID <= 1)      { x = u; y = v; z = s; }
+                    else if (faceID <= 3) { x = s; y = v; z = u; }
+                    else                  { x = u; y = s; z = v; }
+                    int cell = cellIdx(x, y, z);
+                    if (!solidVis[cell]) continue;
+                    if (neighborSolid(x + fdx[faceID], y + fdy[faceID], z + fdz[faceID])) continue;
+                    int m = cellMat[cell];
+                    int mi = u * N + v;
+                    hasFace[mi] = 1;
+                    faceKey[mi] = (static_cast<int>(matFaces[m].tex[faceID]) << 16) | matFaces[m].reserved;
+                    faceMat[mi] = m;
                 }
             }
-            // If no cross-chunk lookup provided, face at boundary remains visible
-        }
-        
-        // Generate instance data for each visible face of the cube
-        for (int faceID = 0; faceID < 6; ++faceID) {
-            if (faceVisible[faceID]) {
-                InstanceData faceInstance;
-                
-                // Pack cube position and face ID using new layout
-                // Scale level 0 = regular cube
-                const glm::ivec3& cubePos = cube->getPosition();
-                faceInstance.packedData = Phyxel::InstanceDataUtils::packCubeFaceData(
-                    cubePos.x, cubePos.y, cubePos.z, faceID
-                );
-                
-                // Assign texture based on material and face ID
-                faceInstance.textureIndex = Phyxel::Core::MaterialRegistry::instance().getTextureIndex(
-                    cube->getMaterialName(), faceID);
-                
-                // Check for emissive / transparent material flags
-                const auto* matDef = Phyxel::Core::MaterialRegistry::instance().getMaterial(cube->getMaterialName());
-                bool isEmissive    = matDef && matDef->emissive;
-                bool isTransparent = matDef && matDef->alpha < 0.99f;
-                bool isMirror      = matDef && matDef->isMirror;
-                uint16_t quantAlpha = isTransparent ? static_cast<uint16_t>(matDef->alpha * 255.0f) : 255u;
-                faceInstance.reserved = static_cast<uint16_t>(
-                    (isEmissive    ? 1u : 0u) |
-                    (isTransparent ? 2u : 0u) |
-                    (quantAlpha << 2u) |
-                    (isMirror      ? (1u << 10) : 0u));
-                
-                faces.push_back(faceInstance);
+            // Greedy rectangle merge: width along v, then height along u (same key).
+            for (int u = 0; u < N; ++u) {
+                for (int v = 0; v < N; ++v) {
+                    int mi = u * N + v;
+                    if (!hasFace[mi] || used[mi]) continue;
+                    int k = faceKey[mi];
+                    int w = 1;
+                    while (v + w < N) {
+                        int t = u * N + (v + w);
+                        if (!hasFace[t] || used[t] || faceKey[t] != k) break;
+                        ++w;
+                    }
+                    int h = 1; bool ok = true;
+                    while (u + h < N && ok) {
+                        for (int vv = v; vv < v + w; ++vv) {
+                            int t = (u + h) * N + vv;
+                            if (!hasFace[t] || used[t] || faceKey[t] != k) { ok = false; break; }
+                        }
+                        if (ok) ++h;
+                    }
+                    for (int uu = u; uu < u + h; ++uu)
+                        for (int vv = v; vv < v + w; ++vv) used[uu * N + vv] = 1;
+
+                    // Rectangle origin (u,v) at slice s; sizeU = h (u extent), sizeV = w (v extent).
+                    int ox, oy, oz;
+                    if (faceID <= 1)      { ox = u; oy = v; oz = s; }
+                    else if (faceID <= 3) { ox = s; oy = v; oz = u; }
+                    else                  { ox = u; oy = s; oz = v; }
+                    const MatFace& mf = matFaces[faceMat[mi]];
+                    InstanceData inst;
+                    inst.packedData = Phyxel::InstanceDataUtils::packCubeFaceDataSized(
+                        ox, oy, oz, faceID, static_cast<uint32_t>(h), static_cast<uint32_t>(w));
+                    inst.textureIndex = mf.tex[faceID];
+                    inst.reserved = mf.reserved;
+                    faces.push_back(inst);
+                }
             }
         }
     }

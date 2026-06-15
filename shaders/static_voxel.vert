@@ -56,6 +56,12 @@ void main() {
     uint scaleLevel = (inPackedData >> 18) & 0x3u;      // bits 18-19: scale level (0=cube, 1=subcube, 2=microcube)
     uint subcubeEncoded = (inPackedData >> 20) & 0x3Fu; // bits 20-25: parent subcube position (encoded 3x3x3)
     uint microcubeEncoded = (inPackedData >> 26) & 0x3Fu; // bits 26-31: microcube position (encoded 3x3x3)
+
+    // For a CUBE face (scaleLevel 0) bits 20-31 instead carry the greedy-merged
+    // rectangle extents: sizeU (bit0 axis) and sizeV (bit1 axis), stored as size-1.
+    // sizeU=sizeV=1 => a normal unit face. (Ignored for subcube/microcube.)
+    uint sizeU = (subcubeEncoded & 0x3Fu) + 1u;
+    uint sizeV = (microcubeEncoded & 0x3Fu) + 1u;
     
     // Decode subcube position from 6-bit encoding (x + y*3 + z*9)
     uint subcubeLocalX = subcubeEncoded % 3u;
@@ -119,10 +125,17 @@ void main() {
     float scale;
     
     if (scaleLevel == 0u) {
-        // Regular cube (1.0 scale)
+        // Regular cube — may span a greedy-merged sizeU x sizeV rectangle.
+        // Scale the two in-plane axes of the unit quad by the rectangle extents.
+        // bit0 axis = sizeU, bit1 axis = sizeV (depends on the face normal):
+        //   Z faces (0,1): bit0=x, bit1=y   X faces (2,3): bit0=z, bit1=y   Y faces (4,5): bit0=x, bit1=z
+        vec3 sizeVec;
+        if (faceID == 0u || faceID == 1u)      sizeVec = vec3(float(sizeU), float(sizeV), 1.0);
+        else if (faceID == 2u || faceID == 3u) sizeVec = vec3(1.0, float(sizeV), float(sizeU));
+        else                                   sizeVec = vec3(float(sizeU), 1.0, float(sizeV));
         scale = 1.0;
-        worldPos = basePos + faceOffset;
-        
+        worldPos = basePos + faceOffset * sizeVec;
+
     } else if (scaleLevel == 1u) {
         // Subcube (1/3 scale)
         const float SUBCUBE_SCALE = 1.0 / 3.0;
@@ -216,9 +229,11 @@ void main() {
     
     // Apply texture coordinate scaling based on scale level
     if (scaleLevel == 0u) {
-        // Regular cube: use full texture
-        uv = baseUV;
-        
+        // Regular cube: tile the texture sizeU x sizeV across the merged rectangle.
+        // The fragment shader wraps with fract() into the atlas tile. baseUV.x derives
+        // from vertexID bit0 (sizeU axis), baseUV.y from bit1 (sizeV axis).
+        uv = baseUV * vec2(float(sizeU), float(sizeV));
+
     } else if (scaleLevel == 1u) {
         // Subcube: modify UV to sample 1/3 of texture (6x6 out of 18x18)
         const float SUBCUBE_UV_SCALE = 1.0 / 3.0;

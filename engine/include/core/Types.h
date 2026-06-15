@@ -210,6 +210,24 @@ namespace InstanceDataUtils {
                (0 << 18);  // scale level = 0
     }
     
+    // Pack a greedy-merged cube face spanning sizeU x sizeV voxels (scaleLevel 0).
+    // For a cube face the subcube/microcube grid bits (20-31) are otherwise unused, so
+    // they carry the rectangle extents: (sizeU-1) in bits 20-25, (sizeV-1) in 26-31.
+    // sizeU is the extent along the axis driven by vertexID bit0, sizeV by bit1 (see
+    // static_voxel.vert). sizeU=sizeV=1 reproduces packCubeFaceData (a unit face).
+    inline uint32_t packCubeFaceDataSized(uint32_t x, uint32_t y, uint32_t z, uint32_t faceID,
+                                          uint32_t sizeU, uint32_t sizeV) {
+        uint32_t u = (sizeU - 1u) & 0x3F;
+        uint32_t v = (sizeV - 1u) & 0x3F;
+        return (x & 0x1F) |
+               ((y & 0x1F) << 5) |
+               ((z & 0x1F) << 10) |
+               ((faceID & 0x7) << 15) |
+               (0u << 18) |        // scale level = 0 (cube)
+               (u << 20) |
+               (v << 26);
+    }
+
     // Pack subcube face data with new layout
     inline uint32_t packSubcubeFaceData(uint32_t parentX, uint32_t parentY, uint32_t parentZ,
                                         uint32_t faceID, uint32_t localX, uint32_t localY, uint32_t localZ) {
