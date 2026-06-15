@@ -319,6 +319,46 @@ int ObjectTemplateManager::decorateFlora(WorldGenerator& generator,
     return placed;
 }
 
+void ObjectTemplateManager::decorateChunk(Chunk& chunk, const glm::ivec3& chunkCoord,
+                                          WorldGenerator& generator) {
+    constexpr int CS = 32;
+    const int wx0 = chunkCoord.x * CS, wy0 = chunkCoord.y * CS, wz0 = chunkCoord.z * CS;
+    const int wx1 = wx0 + CS - 1, wy1 = wy0 + CS - 1, wz1 = wz0 + CS - 1;
+    constexpr int kMargin = 12;  // max half-footprint (columns) of a plant that can overhang in
+
+    // planFlora is order-independent, so the placements whose footprint reaches this chunk are
+    // identical to those a whole-region pass (or a neighbor chunk) would compute.
+    auto placements = generator.planFlora(wx0 - kMargin, wz0 - kMargin, wx1 + kMargin, wz1 + kMargin, 0);
+    if (placements.empty()) return;
+
+    auto inChunk = [&](const glm::ivec3& w) {
+        return w.x >= wx0 && w.x <= wx1 && w.y >= wy0 && w.y <= wy1 && w.z >= wz0 && w.z <= wz1;
+    };
+    for (const auto& p : placements) {
+        const VoxelTemplate* t = getTemplate(p.templateName);
+        if (!t) continue;
+        glm::ivec3 mx(0);  // footprint extent -> center the trunk on the sampled column
+        for (const auto& c : t->cubes)      mx = glm::max(mx, c.relativePos);
+        for (const auto& s : t->subcubes)   mx = glm::max(mx, s.parentRelativePos);
+        for (const auto& m : t->microcubes) mx = glm::max(mx, m.parentRelativePos);
+        const glm::ivec3 base(p.worldX - mx.x / 2, p.surfaceY + 1, p.worldZ - mx.z / 2);
+
+        for (const auto& c : t->cubes) {
+            glm::ivec3 w = base + c.relativePos;
+            if (inChunk(w)) chunk.addCube(Utils::CoordinateUtils::worldToLocalCoord(w), c.material);
+        }
+        for (const auto& s : t->subcubes) {
+            glm::ivec3 w = base + s.parentRelativePos;
+            if (inChunk(w)) chunk.addSubcube(Utils::CoordinateUtils::worldToLocalCoord(w), s.subcubePos, s.material);
+        }
+        for (const auto& m : t->microcubes) {
+            glm::ivec3 w = base + m.parentRelativePos;
+            if (inChunk(w)) chunk.addMicrocube(Utils::CoordinateUtils::worldToLocalCoord(w),
+                                               m.subcubePos, m.microcubePos, m.material);
+        }
+    }
+}
+
 const VoxelTemplate* ObjectTemplateManager::getTemplate(const std::string& name) const {
     auto it = m_templates.find(name);
     if (it != m_templates.end()) {

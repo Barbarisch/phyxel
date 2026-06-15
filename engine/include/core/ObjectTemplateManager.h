@@ -13,6 +13,7 @@ namespace Phyxel {
 class ChunkManager;
 class DynamicObjectManager;
 class WorldGenerator;
+class Chunk;
 namespace Core { class KinematicVoxelManager; }
 namespace Core { class KinematicAnimator; }
 
@@ -63,6 +64,12 @@ public:
     // All region chunks must already exist so overhang routes into the correct neighbor (no
     // seams). Returns the number of plants placed. See WorldGenerator::planFlora.
     int decorateFlora(WorldGenerator& generator, int colMinX, int colMinZ, int colMaxX, int colMaxZ);
+
+    // Per-chunk flora decoration for streaming/procedural worlds: stamps only the voxels that
+    // fall within THIS chunk (a tree rooted in a neighbor that overhangs in is clipped, and the
+    // neighbor stamps its own share — placement is order-independent so they agree, no seams,
+    // no phantom neighbor chunks). Call right after a newly generated chunk's terrain is filled.
+    void decorateChunk(Chunk& chunk, const glm::ivec3& chunkCoord, WorldGenerator& generator);
 
     /**
      * @brief Spawns a template sequentially over multiple frames to avoid frame drops.

@@ -244,12 +244,13 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, GameSubsystems& sub, 
     // biomes.json edits); otherwise snapshot the current config (biomes.json + game.json params)
     // and persist it so future loads of this world are stable. Must run before generation +
     // streaming config so climateFrequency / biome tuning take effect.
+    WorldRecipe recipe = generator.makeRecipe();
     if (WorldStorage* storage = sub.chunkManager ? sub.chunkManager->getWorldStorage() : nullptr) {
         if (storage->hasMeta("recipe")) {
-            generator.applyRecipe(WorldRecipe::fromJson(storage->getMeta("recipe")));
+            recipe = WorldRecipe::fromJson(storage->getMeta("recipe"));
+            generator.applyRecipe(recipe);
             LOG_INFO("GameDefinitionLoader", "World: applied generation recipe from world.db");
         } else {
-            WorldRecipe recipe = generator.makeRecipe();
             recipe.type = typeStr;
             if (storage->setMeta("recipe", recipe.toJson()))
                 LOG_INFO("GameDefinitionLoader", "World: synthesized + persisted generation recipe to world.db");
@@ -264,6 +265,17 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, GameSubsystems& sub, 
         sub.chunkManager->configureStreamingGeneration(true, genType, seed);
         if (WorldGenerator* sg = sub.chunkManager->getStreamingGenerator()) {
             sg->getTerrainParams() = generator.getTerrainParams();
+            sg->applyRecipe(recipe);   // streamed chunks use the same per-world tuning
+        }
+        // Wire per-chunk flora decoration for streamed chunks (clip-stamp; the generator is
+        // fetched lazily so it's valid for the lifetime of streaming).
+        if (sub.templateManager) {
+            ObjectTemplateManager* otm = sub.templateManager;
+            ChunkManager* cm = sub.chunkManager;
+            cm->setFloraDecorator([otm, cm](Chunk& chunk, const glm::ivec3& coord) {
+                if (WorldGenerator* g = cm->getStreamingGenerator())
+                    otm->decorateChunk(chunk, coord, *g);
+            });
         }
         if (worldDef.contains("loadRadius"))
             sub.chunkManager->loadDistance = worldDef["loadRadius"].get<float>() * 32.0f;

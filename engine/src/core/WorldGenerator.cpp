@@ -258,8 +258,8 @@ WorldGenerator::planFlora(int colMinX, int colMinZ, int colMaxX, int colMaxZ, in
                 out.push_back(std::move(p));
         }
     }
-    LOG_INFO_FMT("WorldGenerator", "planFlora: " << out.size() << " plants over ["
-                 << x0 << ".." << x1 << "]x[" << z0 << ".." << z1 << "]");
+    LOG_DEBUG_FMT("WorldGenerator", "planFlora: " << out.size() << " plants over ["
+                  << x0 << ".." << x1 << "]x[" << z0 << ".." << z1 << "]");
     return out;
 }
 

@@ -105,6 +105,7 @@ public:
     // legacy random fill, and register/unregister collision per-chunk on stream-in/out.
     // Opt-in; default off so existing pre-baked / bulk-loaded worlds are unaffected.
     std::unique_ptr<WorldGenerator> m_worldGenerator;
+    std::function<void(Chunk&, const glm::ivec3&)> m_floraDecorator;
     bool m_streamingGenerationEnabled = false;
 
     // Hybrid physics routing: FPS-based Bullet vs GPU fallback
@@ -158,6 +159,12 @@ public:
     // The generator used for streamed chunks (valid after configureStreamingGeneration(true)).
     // Exposed so callers can tune TerrainParams; null when streaming generation is off.
     WorldGenerator* getStreamingGenerator() { return m_worldGenerator.get(); }
+
+    // Flora decoration for streamed chunks. Wired by the editor (which owns the template
+    // manager); invoked after a newly generated chunk's terrain is filled, before faces/physics.
+    void setFloraDecorator(std::function<void(Chunk&, const glm::ivec3&)> cb) {
+        m_floraDecorator = std::move(cb);
+    }
 
     // Chunk streaming for infinite worlds
     void updateChunkStreaming(); // Call every frame to load/unload chunks based on player position

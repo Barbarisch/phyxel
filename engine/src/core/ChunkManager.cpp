@@ -60,6 +60,10 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
     m_streamingManager.setGenerationCallback([this](Chunk& chunk, const glm::ivec3& chunkCoord) {
         if (m_streamingGenerationEnabled && m_worldGenerator) {
             m_worldGenerator->generateChunk(chunk, chunkCoord);
+            // Decorate the freshly generated terrain with biome flora (clipped to this chunk).
+            // Only newly generated chunks are decorated — DB-loaded chunks keep their saved
+            // state. The decorator is wired by the editor (it owns the template manager).
+            if (m_floraDecorator) m_floraDecorator(chunk, chunkCoord);
         } else {
             chunk.populateWithCubes();
         }
