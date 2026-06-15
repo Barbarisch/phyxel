@@ -1663,24 +1663,29 @@ bool VulkanDevice::createCharacterInstanceBuffer(uint32_t maxInstances) {
     maxCharacterInstances = maxInstances;
     VkDeviceSize bufferSize = sizeof(CharacterInstanceData) * maxCharacterInstances;
 
-    createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
+    createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                 characterInstanceBuffer, characterInstanceBufferMemory);
-    
+
+    // Persistently map the buffer once. The memory is HOST_COHERENT, so a plain
+    // memcpy into the mapped pointer is visible to the GPU without an explicit
+    // flush — this avoids a vkMapMemory/vkUnmapMemory pair every single frame
+    // (which, on short GPU-light frames, was a measurable per-frame cost).
+    if (characterInstanceBufferMemory != VK_NULL_HANDLE) {
+        vkMapMemory(device, characterInstanceBufferMemory, 0, bufferSize, 0,
+                    &characterInstanceMapped);
+    }
+
     return true;
 }
 
 void VulkanDevice::updateCharacterInstanceBuffer(const std::vector<CharacterInstanceData>& instances) {
-    if (instances.empty() || characterInstanceBuffer == VK_NULL_HANDLE) {
+    if (instances.empty() || characterInstanceMapped == nullptr) {
         return;
     }
-    
+
     VkDeviceSize bufferSize = sizeof(CharacterInstanceData) * std::min(static_cast<uint32_t>(instances.size()), maxCharacterInstances);
-    
-    void* data;
-    vkMapMemory(device, characterInstanceBufferMemory, 0, bufferSize, 0, &data);
-    memcpy(data, instances.data(), (size_t) bufferSize);
-    vkUnmapMemory(device, characterInstanceBufferMemory);
+    memcpy(characterInstanceMapped, instances.data(), (size_t) bufferSize);
 }
 
 void VulkanDevice::bindCharacterInstanceBuffer(VkCommandBuffer commandBuffer) {
@@ -1690,6 +1695,10 @@ void VulkanDevice::bindCharacterInstanceBuffer(VkCommandBuffer commandBuffer) {
 }
 
 void VulkanDevice::cleanupCharacterInstanceBuffer() {
+    if (characterInstanceBufferMemory != VK_NULL_HANDLE && characterInstanceMapped != nullptr) {
+        vkUnmapMemory(device, characterInstanceBufferMemory);
+        characterInstanceMapped = nullptr;
+    }
     if (characterInstanceBuffer != VK_NULL_HANDLE) {
         vkDestroyBuffer(device, characterInstanceBuffer, nullptr);
         characterInstanceBuffer = VK_NULL_HANDLE;

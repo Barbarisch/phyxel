@@ -272,6 +272,55 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 - **Render perf:** 18 → 235 FPS via removing two per-frame brute-force loops (mirror-voxel
   scan cache + `getPerformanceStats` O(1)). Open ideas: skip OIT pass when no transparent
   voxels, 36→6 index cube draw, backface cull (winding is fragile — see render docs).
+- **Performance program — toward "100s of characters + rich worlds" (2026-06-15):** the
+  emphasis is performance-as-a-design-constraint. Standing instrumentation = the per-pass
+  endpoints (`/api/debug/frame_profile`, `gpu_scopes`, `engine_timing`); grade features
+  against a frame budget (e.g. 120 fps = 8.3 ms; render ~4.5 / characters ~2 / physics ~1).
+  Measure first — this session almost optimized a non-bottleneck (see below).
+  - **Character/crowd perf (DONE + verified):** per-character CPU cost was the variable cost
+    (NOT render/GPU; GPU upload ruled out — `updateCharacterInstanceBuffer` is a trivial
+    host-coherent memcpy). Measured **Release ≈0.15 ms/char, linear**; Debug ≈1.3 ms/char
+    (glm un-inlined + per-frame `std::map` allocs). A user's "1000→250 fps from one character"
+    was almost certainly a **Debug build** (Release is a non-issue). Shipped four opts, all
+    verified: (1) **`RagdollCharacter` caches `parts` grouped by boneGroupId**
+    (`getPartGroups()`, lazy-rebuilt on size change + `markPartGroupsDirty()` in
+    `clearBodies`) — kills the per-frame `std::map` in the update loop AND both render-batch
+    sites (`RenderCoordinator` main + shadow); 5-char `Entities` phase **6.7→2.7 ms** Debug.
+    (2) binary-search keyframes (`AnimationSystem::findKeyframeIndex`). (3) persistent-map the
+    character instance buffer (`VulkanDevice`, was map/unmap every frame). (4) deleted the
+    per-frame static-`debugFrame` bone-dump `LOG_TRACE` block. **Plus per-character animation
+    LOD** (`AnimatedVoxelCharacter::update`): distant chars tick at 30 Hz (>30 u) / 15 Hz
+    (>60 u), banked dt folded into the next tick so movement/root-motion are preserved;
+    per-instance `m_lodJitter` (±20% period) destaggers crowds (10 far chars 5.05→0.47 ms,
+    spike 5.2→1.8 ms). Viewer pos set per-frame via `setViewerPosition` in BOTH the editor
+    (`Application`) and **`GameShell::updateGameplayCamera`** (so packaged games inherit it).
+    LOD thresholds are header constants; `setLODEnabled(false)` disables. **Caveat: distance
+    LOD does NOT solve "100s ON SCREEN"** — on-screen = near = full rate. That needs the
+    structural crowd track (PARKED, user-deprioritized): GPU skinning / Vertex Animation
+    Textures, cross-character draw-call batching (today each char = ~15-20 draws × main+shadow
+    passes), shared-pose dedup, impostors.
+  - **World perf findings (measured, 64-chunk Perlin, 2026-06-15):** **frustum culling WORKS**
+    (14/64 chunks drawn looking in, 0 looking away; 1 instanced draw per visible chunk — draws
+    are NOT the world bottleneck). Interior face culling is excellent (12.3M of 12.6M faces
+    dropped at mesh time). **GAPS:** (a) **no greedy meshing** — 325K faces = 1.30M verts
+    (4/face), every face its own quad; merging coplanar same-material faces would cut Static
+    Geometry vtx cost, but the static pipeline is instanced-unit-quads (8 B `InstanceData`) so
+    it's an architectural rework; (b) **no occlusion culling** (`fullyOccludedCubes:0`) —
+    big lever for caves/cities/interiors; (c) **no voxel LOD** — distant chunks full-res, so
+    view distance scales Static Geometry + Shadow linearly (the lever for large worlds).
+  - **SSAO is OFF now (DONE + verified, 2026-06-15):** the SSAO pass ran **unconditionally
+    (~3.3 ms GPU)** but its output was **consumed by nothing** — `post_process.frag` binds
+    `ssaoTex` but the multiply is disabled (shader header comment) and `voxel.frag` never
+    samples it. Flipped `PostProcessor::ssaoEnabled` default → **false** (`renderSSAO` already
+    early-returns on it). Verified: SSAO scope 3.3→0 ms, frame ~10.3→6.5 ms / fps ~100→155
+    (Debug), **visuals identical** (output was unused). Re-enable (`ssaoEnabled=true`) ONLY
+    when the post-process SSAO multiply is fixed + re-enabled so the cost buys a visible
+    result. Per-pass GPU now (Debug, 64-chunk view): Scene/StaticGeo 2.9, Shadow 1.4,
+    ImGui 0.69 (editor-only), Post 0.2.
+  - **NEXT perf levers (ranked):** occlusion culling (#2, dense worlds) · greedy meshing (#3,
+    architectural) · voxel LOD (#4, architectural, the large-world enabler) · shadow
+    cascade/res/distance tuning. Crowd-rendering (VAT/instancing) parked but is the true
+    blocker for 100s on screen.
 - **Debris/particle solver perf:** the GPU particle solver (`GpuParticlePhysics`,
   `recordComputeCommandsNew`) dominated frame time under debris load. **Per-pass GPU timing
   is now built in** — `recordComputeCommands` takes an optional `GpuProfiler*` and emits
@@ -486,6 +535,10 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   **Avoid big rewrites and over-abstraction** — when investigation shows a refactor isn't
   warranted, say so and stop.
 - **Measure before optimizing**; reproduce + instrument rather than guessing.
+- **Performance is a first-class design constraint** (goal: rich worlds + 100s of characters
+  on screen). Weigh perf impact on every design decision; keep a frame budget in mind and use
+  the per-pass profiling endpoints as standing instrumentation. (Also: Debug-build numbers are
+  NOT representative of shipped perf — confirm config before treating a slowdown as real.)
 - **Verify before destructive "repair":** impossible-looking output usually means the
   harness/tooling is wrong (e.g. a stale binary / hung MCP), not the source — confirm with
   `git diff HEAD` / a grep before "fixing" working code.
@@ -495,14 +548,17 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ---
 
-*Last meaningful update: **full water system merged to `main`** (`80f9998`, 2026-06-06) —
-CPU CA sim + per-cell rendering (sloped seamless surface, side faces, vertical waterfall
-curtains, depth shading) + base mist, ocean seam, springs, channels, destruction flood,
-persistence, opt-in GPU compute port; default-OFF per-world. See the "Water system" workstream
-above for architecture, gotchas, the waterfall test recipe, and next steps (real planar
-reflection now unblocked; refraction/foam; buoyancy; GPU perf; sub-voxel floors). Branch
-`feature/water-system` retained for those follow-ups. NOTE: `main` currently has 9 PRE-EXISTING
-failing unit tests (material/atlas counts, inventory, skeleton hinge, new nav StepUp) unrelated
-to water — flag for separate triage. Earlier: debris broadphase perf fix (parallel prefix sum,
-SortScan 24ms→0.2ms); debris settling/"popcorn" + no sleep system still PARKED (see Debris/particle
-solver perf). Fresh session? Skim this, then `git log --oneline -15`.*
+*Last meaningful update: **performance program kickoff (2026-06-15)** — see "Render perf"
+workstream. Shipped + verified (NOT yet committed): character-update opts (cached
+bone→parts grouping, binary-search keyframes, persistent instance-buffer map, removed
+debug bone-dump) + per-character animation LOD with crowd jitter, wired into both editor and
+`GameShell`; and **SSAO disabled by default** (was ~3.3 ms GPU for an unused result —
+frame ~10.3→6.5 ms / fps ~100→155 Debug, visuals identical). Measured world perf: frustum
+culling WORKS; gaps are no greedy meshing / no occlusion culling / no voxel LOD. NEXT levers:
+occlusion culling → greedy meshing → voxel LOD; crowd rendering (VAT/instancing) parked but is
+the real blocker for 100s on screen. Earlier: full water system merged to `main` (`80f9998`,
+2026-06-06; CPU CA sim + per-cell render + mist/ocean/springs/channels/flood, opt-in GPU port,
+default-OFF). NOTE: `main` has 9 PRE-EXISTING failing unit tests (material/atlas counts,
+inventory, skeleton hinge, nav StepUp) unrelated to this work — flag for separate triage.
+Debris settling/"popcorn" + no sleep system still PARKED. Fresh session? Skim this, then
+`git log --oneline -15`.*

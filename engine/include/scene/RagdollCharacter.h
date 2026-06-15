@@ -7,6 +7,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <unordered_map>
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
@@ -49,6 +50,21 @@ public:
 
     const std::vector<RagdollPart>& getParts() const { return parts; }
 
+    // Direct-transform parts grouped by boneGroupId. The renderer batches each
+    // group into a single instanced draw, so it needs this grouping every frame
+    // for both the main and shadow passes. The grouping topology only changes
+    // when parts are added/removed, so it is cached and rebuilt lazily instead
+    // of rebuilding a std::map per character per pass per frame.
+    struct PartGroup {
+        int boneGroupId = -1;
+        std::vector<int> partIndices;  // indices into parts[]
+    };
+    const std::vector<PartGroup>& getPartGroups() const {
+        if (m_partGroupsDirty || m_partGroupsBuiltSize != parts.size())
+            rebuildPartGroups();
+        return m_partGroups;
+    }
+
     void setFaction(Faction f) { faction = f; }
     Faction getFaction() const { return faction; }
 
@@ -58,10 +74,41 @@ public:
     const Core::HealthComponent* getHealthComponent() const override { return m_health.get(); }
 
 protected:
+    // Subclasses must call this after mutating `parts` in a way that does not
+    // change its size (e.g. an in-place rebuild). Size changes are detected
+    // automatically by getPartGroups().
+    void markPartGroupsDirty() { m_partGroupsDirty = true; }
+
+    void rebuildPartGroups() const {
+        m_partGroups.clear();
+        std::unordered_map<int, size_t> indexByGroup;
+        for (size_t i = 0; i < parts.size(); ++i) {
+            if (!parts[i].useDirectTransform) continue;
+            int g = parts[i].boneGroupId;
+            auto it = indexByGroup.find(g);
+            size_t idx;
+            if (it == indexByGroup.end()) {
+                idx = m_partGroups.size();
+                indexByGroup.emplace(g, idx);
+                m_partGroups.push_back(PartGroup{g, {}});
+            } else {
+                idx = it->second;
+            }
+            m_partGroups[idx].partIndices.push_back(static_cast<int>(i));
+        }
+        m_partGroupsDirty = false;
+        m_partGroupsBuiltSize = parts.size();
+    }
+
     Physics::PhysicsWorld* physicsWorld;
     std::vector<RagdollPart> parts;
     Faction faction;
     std::unique_ptr<Core::HealthComponent> m_health;
+
+    // Lazily-rebuilt cache of `parts` grouped by boneGroupId (see getPartGroups).
+    mutable std::vector<PartGroup> m_partGroups;
+    mutable bool   m_partGroupsDirty = true;
+    mutable size_t m_partGroupsBuiltSize = 0;
 };
 
 } // namespace Scene

@@ -164,12 +164,18 @@ namespace Phyxel {
 
     template<typename T>
     int AnimationSystem::findKeyframeIndex(const std::vector<T>& keys, float time) {
-        for (size_t i = 0; i < keys.size() - 1; ++i) {
-            if (time < keys[i + 1].time) {
-                return (int)i;
-            }
-        }
-        return (int)keys.size() - 1;
+        // Keys are authored in ascending time order, so binary-search for the
+        // segment [keys[idx], keys[idx+1]) containing `time`. This preserves the
+        // old linear-scan semantics (return the index of the key at or before
+        // `time`, clamped to the valid range) without the O(n) scan that ran per
+        // bone, per channel, every frame.
+        if (keys.size() <= 1) return 0;
+        auto it = std::upper_bound(keys.begin(), keys.end(), time,
+            [](float t, const T& k) { return t < k.time; });
+        int idx = static_cast<int>(it - keys.begin()) - 1;
+        if (idx < 0) idx = 0;
+        if (idx > static_cast<int>(keys.size()) - 1) idx = static_cast<int>(keys.size()) - 1;
+        return idx;
     }
 
     glm::vec3 AnimationSystem::interpolatePosition(const std::vector<PositionKeyframe>& keys, float time) {

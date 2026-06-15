@@ -20,9 +20,18 @@
 namespace Phyxel {
 namespace Scene {
 
+    // Update-LOD viewer state (set once per frame by the host before character updates).
+    glm::vec3 AnimatedVoxelCharacter::s_viewerPos  = glm::vec3(0.0f);
+    bool      AnimatedVoxelCharacter::s_viewerValid = false;
+    bool      AnimatedVoxelCharacter::s_lodEnabled  = true;
+
     AnimatedVoxelCharacter::AnimatedVoxelCharacter(Physics::PhysicsWorld* physicsWorld, const glm::vec3& position)
         : RagdollCharacter(physicsWorld, position), worldPosition(position) {
         createController(position);
+        // Deterministic per-instance LOD phase so distant characters stagger
+        // their reduced-rate ticks instead of all firing on the same frame.
+        static uint32_t s_lodPhaseSeq = 0;
+        m_lodJitter = static_cast<float>(s_lodPhaseSeq++ % 17) / 17.0f;
     }
 
     AnimatedVoxelCharacter::~AnimatedVoxelCharacter() {
@@ -935,6 +944,7 @@ namespace Scene {
         boneOffsets.clear();
         parts.clear();
         detachAll();
+        markPartGroupsDirty();
     }
 
     float AnimatedVoxelCharacter::getControllerHalfHeight() const {
@@ -2492,6 +2502,30 @@ namespace Scene {
     }
 
     void AnimatedVoxelCharacter::update(float deltaTime) {
+        // --- Update LOD: defer distant characters to a reduced tick rate.
+        // Skipped-frame delta time is banked and folded into the next real tick,
+        // so movement/root-motion advance the same distance — only granularity
+        // drops. Near characters (incl. the camera-anchored player) run every
+        // frame. Never throttle while sitting/derezzing (one-shot sequences that
+        // must observe every frame to advance cleanly).
+        if (s_lodEnabled && s_viewerValid && !m_isSitting &&
+            !(m_derezState && m_derezState->active)) {
+            const glm::vec3 d = worldPosition - s_viewerPos;
+            const float distSq = glm::dot(d, d);
+            float period = 0.0f;
+            if      (distSq > k_lodFarDistSq) period = k_lodFarPeriod;
+            else if (distSq > k_lodMidDistSq) period = k_lodMidPeriod;
+            if (period > 0.0f) {
+                // Perturb the period ±20% per instance so co-located characters
+                // tick on different frames (staggered, not synchronized spikes).
+                period *= (0.8f + 0.4f * m_lodJitter);
+                m_lodAccum += deltaTime;
+                if (m_lodAccum < period) return;  // defer this frame
+                deltaTime  = m_lodAccum;          // fold banked time into this tick
+                m_lodAccum = 0.0f;
+            }
+        }
+
         m_totalTime += deltaTime;
 
         // --- Derez drain: spawn voxels whose detach time has arrived ---
@@ -3258,33 +3292,6 @@ namespace Scene {
         // Hook for subclass IK corrections (e.g. HybridCharacter)
         applyIKCorrections(deltaTime);
 
-        // Update physics bodies
-        static int debugFrame = 0;
-        debugFrame++;
-        // Print every 60 frames (approx 1 sec) OR if we just started moving (to catch the transition)
-        bool doDebug = (debugFrame % 60 == 0) || (debugFrame < 10); 
-
-        if (doDebug) {
-            LOG_TRACE_FMT("Character", "=== CHARACTER DEBUG FRAME " << debugFrame << " ===");
-            LOG_TRACE_FMT("Character", "Position: " << worldPosition.x << ", " << worldPosition.y << ", " << worldPosition.z);
-            LOG_TRACE_FMT("Character", "Animation: " << (currentClipIndex >= 0 ? clips[currentClipIndex].name : "NONE") 
-                      << " (Index: " << currentClipIndex << ") Time: " << animTime);
-            
-            LOG_TRACE_FMT("Character", "--- BONE STATUS ---");
-            for (const auto& bone : skeleton.bones) {
-                // Calculate global position from the matrix for debugging
-                glm::vec3 globalPos = glm::vec3(bone.globalTransform[3]);
-                
-                LOG_TRACE_FMT("Character", "Bone '" << bone.name << "' (ID " << bone.id << "):");
-                LOG_TRACE_FMT("Character", "  Bind Local: " << bone.localPosition.x << ", " << bone.localPosition.y << ", " << bone.localPosition.z);
-                LOG_TRACE_FMT("Character", "  Current Local: " << bone.currentPosition.x << ", " << bone.currentPosition.y << ", " << bone.currentPosition.z);
-                LOG_TRACE_FMT("Character", "  Current Scale: " << bone.currentScale.x << ", " << bone.currentScale.y << ", " << bone.currentScale.z);
-                LOG_TRACE_FMT("Character", "  Current Rot: " << bone.currentRotation.x << ", " << bone.currentRotation.y << ", " << bone.currentRotation.z << ", " << bone.currentRotation.w);
-                LOG_TRACE_FMT("Character", "  Model Space: " << globalPos.x << ", " << globalPos.y << ", " << globalPos.z);
-            }
-            LOG_TRACE_FMT("Character", "=======================");
-        }
-
         // Compute model-to-world base matrix (shared by all bones).
         // Uses m_visualBodyY (spring-smoothed) so the visual skeleton follows the
         // spring, not the raw capsule snap. +0.05 visual lift so foot block pivots
@@ -3336,28 +3343,25 @@ namespace Scene {
         if (animRotation != 0.0f)
             modelMatrix = glm::rotate(modelMatrix, glm::radians(animRotation), glm::vec3(0, 1, 0));
 
-        // Update worldPos/worldRot for every direct-transform part (one matrix lookup per bone group)
-        for (auto& [boneId, offset] : boneOffsets) {
+        // Update worldPos/worldRot for every direct-transform part. Iterate the
+        // cached bone-group→part-indices map (rebuilt only when parts change)
+        // instead of scanning all parts per bone group every frame. Attachment
+        // groups (boneGroupId >= 1000, not in boneOffsets) are transformed by the
+        // attachments loop below, so they are skipped here.
+        for (const auto& grp : getPartGroups()) {
+            int boneId = grp.boneGroupId;
             if (boneId < 0 || boneId >= static_cast<int>(skeleton.bones.size())) continue;
+            auto offIt = boneOffsets.find(boneId);
+            if (offIt == boneOffsets.end()) continue;
             const Phyxel::Bone& bone = skeleton.bones[boneId];
 
-            glm::mat4 finalTransform = modelMatrix * bone.globalTransform;
-            finalTransform = glm::translate(finalTransform, offset);
-
-            if (doDebug && (bone.name == "Hips" || boneId == 0)) {
-                glm::vec3 bonePos = glm::vec3(finalTransform[3]);
-                std::cout << "Bone " << bone.name << " GlobalPos: "
-                          << bonePos.x << ", " << bonePos.y << ", " << bonePos.z << std::endl;
-            }
-
+            glm::mat4 finalTransform = glm::translate(modelMatrix * bone.globalTransform, offIt->second);
             glm::vec3 pos = glm::vec3(finalTransform[3]);
             glm::quat rot = glm::quat_cast(finalTransform);
 
-            for (auto& part : parts) {
-                if (part.useDirectTransform && part.boneGroupId == boneId) {
-                    part.worldPos = pos;
-                    part.worldRot = rot;
-                }
+            for (int pi : grp.partIndices) {
+                parts[pi].worldPos = pos;
+                parts[pi].worldRot = rot;
             }
         }
 

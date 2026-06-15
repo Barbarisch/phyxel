@@ -41,6 +41,12 @@ void GameShell::updateGameplayCamera(EngineRuntime& engine, float dt,
     }
 
     cameraController_.update(dt, *input, character, *cam);
+
+    // Update-LOD: publish the viewer position so AnimatedVoxelCharacter can tick
+    // distant characters at a reduced rate. This is the standalone-game analog of
+    // the editor's per-frame setViewerPosition call, and is essential for crowds
+    // (100s of characters) where most are far from the camera at any moment.
+    Scene::AnimatedVoxelCharacter::setViewerPosition(cam->getPosition());
 }
 
 } // namespace Core

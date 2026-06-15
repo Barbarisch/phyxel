@@ -2932,6 +2932,10 @@ void Application::update(float deltaTime) {
         gpuParticlePhysics->update(deltaTime);
     }
 
+    // Update-LOD: tell characters where the viewer is so distant ones can tick
+    // at a reduced rate. Set before NPC/entity updates this frame.
+    if (camera) Scene::AnimatedVoxelCharacter::setViewerPosition(camera->getPosition());
+
     // Tick the CPU water cellular automaton (fixed-rate internally).
     if (waterManager) waterManager->update(deltaTime);
 

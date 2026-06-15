@@ -93,7 +93,18 @@ namespace Scene {
         void addVoxelBone(const std::string& boneName, const glm::vec3& size, const glm::vec3& offset, const glm::vec4& color);
         
         void update(float deltaTime) override;
-        void render(Graphics::RenderCoordinator* renderer) override; 
+        void render(Graphics::RenderCoordinator* renderer) override;
+
+        // --- Update LOD --------------------------------------------------------
+        // Characters far from the viewer tick their full update (movement + pose
+        // evaluation) at a reduced rate. Skipped frames accumulate their delta
+        // time and are folded into the next real update, so movement and root
+        // motion advance the same distance — only temporal granularity drops,
+        // which is imperceptible at distance. The host sets the viewer position
+        // once per frame before updating characters; near characters (incl. the
+        // controlled player, which sits at the camera) always run every frame.
+        static void setViewerPosition(const glm::vec3& p) { s_viewerPos = p; s_viewerValid = true; }
+        static void setLODEnabled(bool e) { s_lodEnabled = e; }
 
         void playAnimation(const std::string& animName);
         std::vector<std::string> getAnimationNames() const;
@@ -719,6 +730,22 @@ namespace Scene {
         static constexpr size_t STEP_LOG_MAX = 50;
         std::vector<StepDebugEntry> m_stepDebugLog;
         float m_totalTime = 0.0f;  // running clock for timestamps
+
+        // Update LOD state. m_lodAccum banks the delta time of skipped frames;
+        // m_lodJitter (per-instance, [0,1)) perturbs the effective tick period so
+        // many characters sharing the same distance/phase don't all tick on the
+        // same frame (which would produce a periodic spike instead of smooth
+        // amortization).
+        float m_lodAccum = 0.0f;
+        float m_lodJitter = 0.0f;
+        static glm::vec3 s_viewerPos;
+        static bool      s_viewerValid;
+        static bool      s_lodEnabled;
+        // Distance² thresholds and tick periods. Within k_lodMidDistSq: full rate.
+        static constexpr float k_lodMidDistSq = 30.0f * 30.0f;   // beyond 30u -> 30 Hz
+        static constexpr float k_lodFarDistSq = 60.0f * 60.0f;   // beyond 60u -> 15 Hz
+        static constexpr float k_lodMidPeriod = 1.0f / 30.0f;
+        static constexpr float k_lodFarPeriod = 1.0f / 15.0f;
 
     public:
         const std::vector<StepDebugEntry>& getStepDebugLog() const { return m_stepDebugLog; }

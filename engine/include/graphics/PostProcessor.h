@@ -52,7 +52,12 @@ public:
     VkImageView getOffscreenImageView() const { return offscreenImageView; }
     VkSampler getOffscreenSampler() const { return offscreenSampler; }
 
-    bool ssaoEnabled = true;
+    // SSAO is OFF by default because its output is currently UNUSED: post_process.frag
+    // binds ssaoTex but the SSAO multiply is disabled (see the shader's header comment),
+    // and the scene shader never samples it. Running the pass was ~3 ms of GPU for a
+    // result nothing reads. Re-enable this (set true) at the same time the post-process
+    // SSAO multiply is fixed and re-enabled, so the cost buys a visible result.
+    bool ssaoEnabled = false;
 
 private:
     Vulkan::VulkanDevice* device;

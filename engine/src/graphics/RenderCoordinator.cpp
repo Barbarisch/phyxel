@@ -685,23 +685,22 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
             struct CharShadowBatch { glm::mat4 model; uint32_t firstInstance; uint32_t instanceCount; };
             std::vector<CharShadowBatch> batches;
 
-            auto batchParts = [&](const std::vector<Scene::RagdollPart>& charParts) {
-                std::map<int, std::vector<const Scene::RagdollPart*>> partsByGroup;
-                for (const auto& part : charParts)
-                    if (part.useDirectTransform) partsByGroup[part.boneGroupId].push_back(&part);
-                for (const auto& [groupId, gParts] : partsByGroup) {
-                    if (gParts.empty()) continue;
-                    const auto* first = gParts[0];
+            auto batchParts = [&](Scene::RagdollCharacter* ch) {
+                const auto& charParts = ch->getParts();
+                for (const auto& grp : ch->getPartGroups()) {
+                    if (grp.partIndices.empty()) continue;
+                    const auto& first = charParts[grp.partIndices[0]];
                     CharShadowBatch batch;
-                    batch.model = glm::translate(glm::mat4(1.0f), first->worldPos) * glm::mat4_cast(first->worldRot);
+                    batch.model = glm::translate(glm::mat4(1.0f), first.worldPos) * glm::mat4_cast(first.worldRot);
                     batch.firstInstance = static_cast<uint32_t>(instanceData.size());
                     batch.instanceCount = 0;
-                    for (const auto* part : gParts) {
-                        if (!part->active) continue;
+                    for (int pi : grp.partIndices) {
+                        const auto& part = charParts[pi];
+                        if (!part.active) continue;
                         CharacterInstanceData data;
-                        data.offset = part->offset;
-                        data.scale  = part->scale;
-                        data.color  = part->color;
+                        data.offset = part.offset;
+                        data.scale  = part.scale;
+                        data.color  = part.color;
                         instanceData.push_back(data);
                         batch.instanceCount++;
                     }
@@ -709,7 +708,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
                 }
             };
 
-            for (auto* charPtr : instancedCharacters) batchParts(charPtr->getParts());
+            for (auto* charPtr : instancedCharacters) batchParts(charPtr);
 
             if (!instanceData.empty()) {
                 vulkanDevice->updateCharacterInstanceBuffer(instanceData);
@@ -1349,34 +1348,31 @@ void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
     struct Batch { glm::mat4 model; uint32_t firstInstance; uint32_t instanceCount; };
     std::vector<Batch> batches;
 
-    auto batchParts = [&](const std::vector<Scene::RagdollPart>& charParts) {
-        std::map<int, std::vector<const Scene::RagdollPart*>> partsByGroup;
-        for (const auto& part : charParts) {
-            if (part.useDirectTransform)
-                partsByGroup[part.boneGroupId].push_back(&part);
-        }
-        for (const auto& [groupId, gParts] : partsByGroup) {
-            if (gParts.empty()) continue;
-            const auto* first = gParts[0];
-            glm::mat4 model = glm::translate(glm::mat4(1.0f), first->worldPos)
-                            * glm::mat4_cast(first->worldRot);
+    auto batchParts = [&](Scene::RagdollCharacter* ch) {
+        const auto& charParts = ch->getParts();
+        for (const auto& grp : ch->getPartGroups()) {
+            if (grp.partIndices.empty()) continue;
+            const auto& first = charParts[grp.partIndices[0]];
+            glm::mat4 model = glm::translate(glm::mat4(1.0f), first.worldPos)
+                            * glm::mat4_cast(first.worldRot);
             Batch batch;
             batch.model = model;
             batch.firstInstance = static_cast<uint32_t>(instanceData.size());
             batch.instanceCount = 0;
-            for (const auto* part : gParts) {
-                if (!part->active) continue;
+            for (int pi : grp.partIndices) {
+                const auto& part = charParts[pi];
+                if (!part.active) continue;
                 CharacterInstanceData data;
-                data.offset = part->offset;
-                data.scale  = part->scale;
-                data.color  = part->color;
+                data.offset = part.offset;
+                data.scale  = part.scale;
+                data.color  = part.color;
                 instanceData.push_back(data);
                 batch.instanceCount++;
             }
             if (batch.instanceCount > 0) batches.push_back(batch);
         }
     };
-    for (auto* charPtr : instancedCharacters) batchParts(charPtr->getParts());
+    for (auto* charPtr : instancedCharacters) batchParts(charPtr);
     if (instanceData.empty()) return;
 
     // Upload the shared (single, host-visible) character instance buffer. If both the

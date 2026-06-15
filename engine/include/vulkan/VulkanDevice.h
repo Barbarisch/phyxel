@@ -326,6 +326,7 @@ private:
     // Character instance buffer
     VkBuffer characterInstanceBuffer = VK_NULL_HANDLE;
     VkDeviceMemory characterInstanceBufferMemory = VK_NULL_HANDLE;
+    void* characterInstanceMapped = nullptr;  // persistent map (HOST_COHERENT)
     uint32_t maxCharacterInstances = 0;
     
     std::vector<VkBuffer> uniformBuffers;
