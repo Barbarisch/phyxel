@@ -20,7 +20,8 @@ struct WorldRecipe {
     struct BiomeTune {
         std::string name;
         float heightScale = 1.0f;          // terrain extremeness for this biome
-        std::string floraMode = "pool";    // "pool" (stamp templates) | "procedural" (future)
+        std::string floraMode = "pool";    // "pool" (stamp templates) | "procedural" (generate)
+        float floraFullness = 0.85f;       // canopy density for procedural generation
         float floraDensity = 0.0f;
         int   floraSpacing = 6;
         std::vector<FloraItem> flora;
@@ -46,8 +47,9 @@ struct WorldRecipe {
             barr.push_back({
                 {"name", b.name},
                 {"extremeness", {{"heightScale", b.heightScale}}},
-                {"flora", {{"mode", b.floraMode}, {"density", b.floraDensity},
-                           {"spacing", b.floraSpacing}, {"items", items}}},
+                {"flora", {{"mode", b.floraMode}, {"fullness", b.floraFullness},
+                           {"density", b.floraDensity}, {"spacing", b.floraSpacing},
+                           {"items", items}}},
             });
         }
         root["biomes"] = barr;
@@ -71,6 +73,7 @@ struct WorldRecipe {
                     if (b.contains("flora")) {
                         const auto& f = b["flora"];
                         bt.floraMode = f.value("mode", std::string("pool"));
+                        bt.floraFullness = f.value("fullness", 0.85f);
                         bt.floraDensity = f.value("density", 0.0f);
                         bt.floraSpacing = f.value("spacing", 6);
                         if (f.contains("items") && f["items"].is_array())

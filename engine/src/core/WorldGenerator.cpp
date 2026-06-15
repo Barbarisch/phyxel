@@ -237,6 +237,8 @@ bool WorldGenerator::floraCell(int cx, int cz, FloraPlacement& out) {
     for (const auto& f : biome.flora) { pick -= f.second; if (pick < 0) { chosen = &f.first; break; } }
 
     out = FloraPlacement{*chosen, jx, col.surfaceY, jz};
+    out.procedural = (biome.floraMode == "procedural");
+    out.fullness = biome.floraFullness;
     return true;
 }
 
@@ -284,6 +286,8 @@ WorldRecipe WorldGenerator::makeRecipe() const {
         WorldRecipe::BiomeTune bt;
         bt.name = b.name;
         bt.heightScale = b.heightScale;
+        bt.floraMode = b.floraMode;
+        bt.floraFullness = b.floraFullness;
         bt.floraDensity = b.floraDensity;
         bt.floraSpacing = b.floraSpacing;
         for (const auto& f : b.flora) bt.flora.push_back({f.first, f.second});
@@ -299,6 +303,8 @@ void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {
         for (auto& b : m_biomes) {
             if (b.name != bt.name) continue;
             b.heightScale = bt.heightScale;
+            b.floraMode = bt.floraMode;
+            b.floraFullness = bt.floraFullness;
             b.floraDensity = bt.floraDensity;
             b.floraSpacing = bt.floraSpacing;
             if (!bt.flora.empty()) {
@@ -347,6 +353,8 @@ bool WorldGenerator::loadBiomes(const std::string& path) {
             const auto& f = b["flora"];
             biome.floraDensity = f.value("density", 0.0f);
             biome.floraSpacing = f.value("spacing", 6);
+            biome.floraMode = f.value("mode", std::string("pool"));
+            biome.floraFullness = f.value("fullness", 0.85f);
             if (f.contains("items") && f["items"].is_array()) {
                 for (const auto& it : f["items"]) {
                     std::string tmpl = it.value("template", "");

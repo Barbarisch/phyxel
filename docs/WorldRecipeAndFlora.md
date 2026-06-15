@@ -78,8 +78,12 @@ blob under key `recipe`:
    `biomes.json` and persists if absent) and applies it to the generator.
 2. **Decoration in the deterministic chunk path** — so streaming/procedural worlds get
    flora (`pool` mode, reuses today's templates). Closes the streaming-flora gap.
-3. **C++ tree generator** — port the branch-driven algorithm; enables `procedural` mode
-   and shipped-game runtime generation.
+3. **C++ tree generator** *(done)* — `ProceduralTree::generate` ports the branch-driven
+   algorithm (oak/birch/bush/spruce/acacia/dead; palm pending); same look as `gen_tree.py`.
+   A biome with `flora.mode: "procedural"` lists tree *types* (not template names); the
+   streaming decorator generates a unique tree per `(position, seed)`. **Procedural is
+   streaming-only for now** — fixed-region authored worlds use `pool` (matches the
+   authored-static = baked split).
 4. **Authoring flow** — `gen_tree.py` bakes static worlds + builds the template pool.
 
 `1 → 2` unlock self-contained worlds + streaming flora with no new generator. `3` is the

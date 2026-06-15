@@ -85,7 +85,11 @@ public:
         // surface by the decoration pass. floraDensity = probability per candidate grid site;
         // flora = weighted (template name, weight) pool selected per placement.
         float floraDensity = 0.0f;
-        int floraSpacing = 6;   // min world-column distance between this biome's plants
+        int floraSpacing = 6;            // min world-column distance between this biome's plants
+        std::string floraMode = "pool";  // "pool" = stamp templates; "procedural" = generate fresh
+        float floraFullness = 0.85f;     // canopy density for procedural generation
+        // In "pool" mode the flora pair is (template name, weight); in "procedural" mode the
+        // first is a tree TYPE (oak/birch/bush/spruce/acacia/dead).
         std::vector<std::pair<std::string, int>> flora;
     };
 
@@ -104,6 +108,7 @@ public:
     // the built-in defaults) if the file is missing or invalid.
     bool loadBiomes(const std::string& path);
     const std::vector<Biome>& getBiomes() const { return m_biomes; }
+    uint32_t getSeed() const { return seed; }
 
     // Per-world recipe (docs/WorldRecipeAndFlora.md): snapshot the current generation tuning
     // into a recipe, or apply a stored one. applyRecipe overrides climateFrequency + per-biome
@@ -122,10 +127,12 @@ public:
     // centers the template footprint on the column and stamps it. Kept template-agnostic so
     // WorldGenerator stays decoupled from the template/stamping subsystem.
     struct FloraPlacement {
-        std::string templateName;
+        std::string templateName;   // pool: template name; procedural: tree type
         int worldX = 0;
         int surfaceY = 16;
         int worldZ = 0;
+        bool procedural = false;    // generate fresh (vs stamp a pooled template)
+        float fullness = 0.85f;     // canopy density for procedural generation
     };
 
     // Deterministically scatter biome-appropriate flora across a world-column rectangle

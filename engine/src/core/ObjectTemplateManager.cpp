@@ -1,5 +1,6 @@
 #include "core/ObjectTemplateManager.h"
 #include "core/WorldGenerator.h"
+#include "core/ProceduralTree.h"
 #include "core/ChunkManager.h"
 #include "core/DynamicObjectManager.h"
 #include "core/PlacedObjectManager.h"
@@ -319,6 +320,25 @@ int ObjectTemplateManager::decorateFlora(WorldGenerator& generator,
     return placed;
 }
 
+namespace {
+// Per-tree-type defaults for procedural generation (materials + base height). Mirrors the
+// gen_tree.py archetype table so procedural and pooled trees of the same type theme alike.
+struct TreeTypeInfo { const char* log; const char* leaf; int baseHeight; };
+TreeTypeInfo treeTypeInfo(const std::string& type) {
+    if (type == "birch")  return {"LogBirch",  "LeafBirch",  8};
+    if (type == "spruce") return {"LogSpruce", "LeafSpruce", 9};
+    if (type == "acacia") return {"Log",       "Leaf",       6};
+    if (type == "dead")   return {"LogSpruce", "",           6};
+    if (type == "bush")   return {"",          "Leaf",       2};  // height doubles as radius
+    if (type == "autumn") return {"Log",       "LeafAutumn", 7};
+    return {"Log", "Leaf", 7};  // oak / unknown
+}
+uint32_t posHash(int x, int z, uint32_t salt) {
+    uint32_t h = static_cast<uint32_t>(x) * 374761393u + static_cast<uint32_t>(z) * 668265263u + salt * 2246822519u;
+    h = (h ^ (h >> 13)) * 1274126177u; h ^= h >> 16; return h;
+}
+}  // namespace
+
 void ObjectTemplateManager::decorateChunk(Chunk& chunk, const glm::ivec3& chunkCoord,
                                           WorldGenerator& generator) {
     constexpr int CS = 32;
@@ -330,31 +350,45 @@ void ObjectTemplateManager::decorateChunk(Chunk& chunk, const glm::ivec3& chunkC
     // identical to those a whole-region pass (or a neighbor chunk) would compute.
     auto placements = generator.planFlora(wx0 - kMargin, wz0 - kMargin, wx1 + kMargin, wz1 + kMargin, 0);
     if (placements.empty()) return;
+    const uint32_t worldSeed = generator.getSeed();
 
     auto inChunk = [&](const glm::ivec3& w) {
         return w.x >= wx0 && w.x <= wx1 && w.y >= wy0 && w.y <= wy1 && w.z >= wz0 && w.z <= wz1;
     };
-    for (const auto& p : placements) {
-        const VoxelTemplate* t = getTemplate(p.templateName);
-        if (!t) continue;
-        glm::ivec3 mx(0);  // footprint extent -> center the trunk on the sampled column
-        for (const auto& c : t->cubes)      mx = glm::max(mx, c.relativePos);
-        for (const auto& s : t->subcubes)   mx = glm::max(mx, s.parentRelativePos);
-        for (const auto& m : t->microcubes) mx = glm::max(mx, m.parentRelativePos);
-        const glm::ivec3 base(p.worldX - mx.x / 2, p.surfaceY + 1, p.worldZ - mx.z / 2);
-
-        for (const auto& c : t->cubes) {
+    // Clip-stamp a template's voxels into just this chunk (its footprint centered on the column).
+    auto stamp = [&](const VoxelTemplate& t, int worldX, int surfaceY, int worldZ) {
+        glm::ivec3 mx(0);
+        for (const auto& c : t.cubes)      mx = glm::max(mx, c.relativePos);
+        for (const auto& s : t.subcubes)   mx = glm::max(mx, s.parentRelativePos);
+        for (const auto& m : t.microcubes) mx = glm::max(mx, m.parentRelativePos);
+        const glm::ivec3 base(worldX - mx.x / 2, surfaceY + 1, worldZ - mx.z / 2);
+        for (const auto& c : t.cubes) {
             glm::ivec3 w = base + c.relativePos;
             if (inChunk(w)) chunk.addCube(Utils::CoordinateUtils::worldToLocalCoord(w), c.material);
         }
-        for (const auto& s : t->subcubes) {
+        for (const auto& s : t.subcubes) {
             glm::ivec3 w = base + s.parentRelativePos;
             if (inChunk(w)) chunk.addSubcube(Utils::CoordinateUtils::worldToLocalCoord(w), s.subcubePos, s.material);
         }
-        for (const auto& m : t->microcubes) {
+        for (const auto& m : t.microcubes) {
             glm::ivec3 w = base + m.parentRelativePos;
             if (inChunk(w)) chunk.addMicrocube(Utils::CoordinateUtils::worldToLocalCoord(w),
                                                m.subcubePos, m.microcubePos, m.material);
+        }
+    };
+
+    for (const auto& p : placements) {
+        if (p.procedural) {
+            // Generate a unique tree deterministically from (position, world seed) so every chunk
+            // that clips this tree produces the identical voxels (seamless).
+            TreeTypeInfo info = treeTypeInfo(p.templateName);
+            const uint32_t treeSeed = posHash(p.worldX, p.worldZ, worldSeed);
+            int height = info.baseHeight + static_cast<int>(posHash(p.worldX, p.worldZ, worldSeed ^ 0x55u) % 5) - 2;
+            VoxelTemplate gen = ProceduralTree::generate(p.templateName, std::max(2, height),
+                                                         p.fullness, treeSeed, info.log, info.leaf);
+            if (!gen.cubes.empty() || !gen.subcubes.empty()) stamp(gen, p.worldX, p.surfaceY, p.worldZ);
+        } else if (const VoxelTemplate* t = getTemplate(p.templateName)) {
+            stamp(*t, p.worldX, p.surfaceY, p.worldZ);
         }
     }
 }
