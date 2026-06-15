@@ -92,6 +92,11 @@ public:
     // Render distance management
     void setMaxChunkRenderDistance(float distance) { maxChunkRenderDistance = distance; }
     void setChunkInclusionDistance(float distance) { chunkInclusionDistance = distance; }
+
+    // Occlusion culling (chunk visibility graph). Default OFF.
+    void setOcclusionCullingEnabled(bool e) { m_occlusionCullingEnabled = e; }
+    bool isOcclusionCullingEnabled() const { return m_occlusionCullingEnabled; }
+    int  getLastOcclusionCulled() const { return m_lastOcclusionCulled; }
     
     // Debug visualization
     void toggleDebugMode() { debugModeEnabled = !debugModeEnabled; }
@@ -275,6 +280,13 @@ private:
 
     // Preallocated to avoid per-frame heap allocation in renderStaticGeometry()
     std::vector<size_t> visibleChunkIndices;
+
+    // Occlusion culling (chunk visibility graph). Flag-gated, default OFF.
+    // applyOcclusionCulling() filters visibleChunkIndices to chunks reachable from
+    // the camera chunk through air-connected, frustum-visible chunks.
+    bool m_occlusionCullingEnabled = false;  // default OFF; PHYXEL_OCCLUSION=1 env var enables (debug)
+    int  m_lastOcclusionCulled = 0;   // chunks removed by occlusion last frame (debug stat)
+    void applyOcclusionCulling(const glm::vec3& cameraPos);
 
     // Mirror reflection state (updated per-frame when mirror voxels are visible)
     bool hasMirrorVoxels = false;

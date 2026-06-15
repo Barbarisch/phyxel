@@ -258,6 +258,67 @@ void Chunk::rebuildFaces(const NeighborLookupFunc& getNeighborCube) {
     renderManager.rebuildAllFaces(cubes, staticSubcubes, staticMicrocubes, worldOrigin, getNeighborCube);
     // Refresh cached render flags (geometry/materials may have changed).
     recomputeRenderFlags();
+    // Refresh the occlusion visibility graph (cheap flood-fill, only on rebuild).
+    computeVisibilityMask();
+}
+
+// Build the per-chunk face visibility graph for occlusion culling. A cell blocks
+// sight only if it holds a FULL OPAQUE cube; empty/subdivided cells and transparent
+// cubes (alpha < 0.99) count as air, so we err toward "visible" and never cull
+// geometry seen through gaps or glass. Flood-fills the air cells into 6-connected
+// components and records, for each component, which of the 6 chunk faces it touches;
+// all faces a component touches are mutually visible.
+void Chunk::computeVisibilityMask() {
+    constexpr int N = 32;
+    constexpr int TOTAL = N * N * N;
+    auto& registry = Phyxel::Core::MaterialRegistry::instance();
+
+    std::vector<uint8_t> blocking(TOTAL, 0);
+    for (size_t i = 0; i < cubes.size() && i < (size_t)TOTAL; ++i) {
+        const Cube* cube = cubes[i].get();
+        if (!cube) continue;                         // empty cell → air
+        const auto* mat = registry.getMaterial(cube->getMaterialName());
+        if (mat && mat->alpha < 0.99f) continue;     // transparent → air (see-through)
+        blocking[i] = 1;                             // full opaque cube → blocks sight
+    }
+
+    // Index matches the chunk layout: index = z + y*32 + x*1024.
+    auto idxOf = [](int x, int y, int z) { return z + y * 32 + x * 1024; };
+    const int dx[6] = {-1, 1, 0, 0, 0, 0};
+    const int dy[6] = { 0, 0,-1, 1, 0, 0};
+    const int dz[6] = { 0, 0, 0, 0,-1, 1};
+
+    std::vector<int> comp(TOTAL, -1);
+    std::vector<int> stack;
+    uint8_t connect[6] = {0, 0, 0, 0, 0, 0};
+    int compId = 0;
+    for (int s = 0; s < TOTAL; ++s) {
+        if (blocking[s] || comp[s] != -1) continue;
+        uint8_t faces = 0;
+        comp[s] = compId;
+        stack.clear();
+        stack.push_back(s);
+        while (!stack.empty()) {
+            int c = stack.back(); stack.pop_back();
+            int x = c / (N * N), y = (c / N) % N, z = c % N;
+            if (x == 0)     faces |= 1u << 0; if (x == N - 1) faces |= 1u << 1;
+            if (y == 0)     faces |= 1u << 2; if (y == N - 1) faces |= 1u << 3;
+            if (z == 0)     faces |= 1u << 4; if (z == N - 1) faces |= 1u << 5;
+            for (int d = 0; d < 6; ++d) {
+                int nx = x + dx[d], ny = y + dy[d], nz = z + dz[d];
+                if (nx < 0 || nx >= N || ny < 0 || ny >= N || nz < 0 || nz >= N) continue;
+                int nc = idxOf(nx, ny, nz);
+                if (blocking[nc] || comp[nc] != -1) continue;
+                comp[nc] = compId;
+                stack.push_back(nc);
+            }
+        }
+        // Every face this air component touches is mutually visible through it.
+        for (int a = 0; a < 6; ++a) if (faces & (1u << a))
+            for (int b = 0; b < 6; ++b) if (faces & (1u << b)) connect[a] |= 1u << b;
+        ++compId;
+    }
+    for (int f = 0; f < 6; ++f) m_faceConnect[f] = connect[f];
 }
 
 // Rescan this chunk's cubes for mirror / transparent materials and cache the result.

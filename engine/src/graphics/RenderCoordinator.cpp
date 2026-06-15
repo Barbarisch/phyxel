@@ -28,6 +28,11 @@
 #include "utils/Logger.h"
 #include "utils/GpuProfiler.h"
 #include "scene/Entity.h"
+#include <queue>
+#include <unordered_map>
+#include <unordered_set>
+#include <cstdint>
+#include <cstdlib>
 #include "scene/RagdollCharacter.h"
 #include "scene/AnimatedVoxelCharacter.h"
 #include "scene/NPCEntity.h"
@@ -65,6 +70,11 @@ RenderCoordinator::RenderCoordinator(
     , raycastVisualizer(raycastVisualizer)
     , scriptingSystem(scriptingSystem)
 {
+    // Debug knob: PHYXEL_OCCLUSION=1 enables the experimental chunk occlusion
+    // culling at startup (default OFF). Lets it be toggled without an API yet.
+    if (const char* e = std::getenv("PHYXEL_OCCLUSION"))
+        m_occlusionCullingEnabled = (e[0] == '1');
+
     shadowMap = std::make_unique<ShadowMap>(vulkanDevice);
     shadowMap->initialize();
     
@@ -263,7 +273,13 @@ size_t RenderCoordinator::renderStaticGeometry() {
             // Chunk passed both distance and frustum culling
             visibleChunkIndices.push_back(i);
         }
-        
+
+        // LEVEL 2.5: Occlusion culling (chunk visibility graph). Flag-gated, OFF by
+        // default — removes frustum-visible chunks that are hidden behind solid chunks.
+        if (m_occlusionCullingEnabled) {
+            applyOcclusionCulling(cameraPos);
+        }
+
         // Render only the visible chunks
         for (size_t chunkIndex : visibleChunkIndices) {
             const Chunk* chunk = chunkManager->chunks[chunkIndex].get();
@@ -610,6 +626,76 @@ void RenderCoordinator::renderDynamicSubcubes() {
                      static_cast<size_t>(vulkanDevice->getMaxDynamicSubcubes())));
         vkCmdDraw(cmd, 6, drawCount, 0, 0);
     }
+}
+
+// Occlusion culling via the per-chunk visibility graph ("cave culling"). BFS from
+// the camera chunk through air-connected, frustum-visible chunks; a fully solid
+// chunk has no connected faces and so blocks propagation, hiding everything behind
+// it. Frustum-visible chunks the BFS never reaches are occluded and removed from
+// visibleChunkIndices. Conservative by design (no directional/anti-wraparound
+// pruning yet): it can leave some occluded chunks in, but never culls a visible
+// one — so it cannot produce holes. Phase 1; flag-gated, OFF by default.
+void RenderCoordinator::applyOcclusionCulling(const glm::vec3& cameraPos) {
+    m_lastOcclusionCulled = 0;
+    if (!chunkManager || visibleChunkIndices.size() < 2) return;
+
+    auto toCoord = [](const glm::vec3& p) -> glm::ivec3 {
+        return glm::ivec3(glm::floor(p / 32.0f));
+    };
+    auto packCoord = [](const glm::ivec3& c) -> int64_t {
+        return ((int64_t)(c.x + (1 << 20)) << 42)
+             | ((int64_t)(c.y + (1 << 20)) << 21)
+             |  (int64_t)(c.z + (1 << 20));
+    };
+    const glm::ivec3 dirVec[6] = {
+        {-1,0,0},{1,0,0},{0,-1,0},{0,1,0},{0,0,-1},{0,0,1}
+    };
+
+    // Index the frustum-visible chunks by packed chunk coord.
+    std::unordered_map<int64_t, size_t> coordToIdx;
+    coordToIdx.reserve(visibleChunkIndices.size() * 2);
+    for (size_t idx : visibleChunkIndices) {
+        glm::ivec3 coord = toCoord(glm::vec3(chunkManager->chunks[idx]->getWorldOrigin()));
+        coordToIdx[packCoord(coord)] = idx;
+    }
+
+    // BFS outward from the camera's chunk. entryFace = -1 for the seed (you can see
+    // out of your own chunk in any direction); thereafter sight must pass from the
+    // entry face to the exit face through the chunk's air (facesConnected).
+    glm::ivec3 camCoord = toCoord(cameraPos);
+    std::unordered_set<int64_t> reached;
+    reached.reserve(visibleChunkIndices.size() * 2);
+    std::queue<std::pair<glm::ivec3, int>> q;
+    reached.insert(packCoord(camCoord));
+    q.push({camCoord, -1});
+
+    while (!q.empty()) {
+        std::pair<glm::ivec3, int> node = q.front(); q.pop();
+        const glm::ivec3 coord = node.first;
+        const int entryFace = node.second;
+        const Chunk* ch = chunkManager->getChunkAtCoord(coord);
+        for (int d = 0; d < 6; ++d) {
+            if (entryFace >= 0 && ch && !ch->facesConnected(entryFace, d))
+                continue;                          // blocked through this chunk
+            glm::ivec3 ncoord = coord + dirVec[d];
+            int64_t key = packCoord(ncoord);
+            if (reached.count(key)) continue;
+            if (!coordToIdx.count(key)) continue;  // outside the frustum set → prune
+            reached.insert(key);
+            q.push({ncoord, d ^ 1});               // entered neighbor via opposite face
+        }
+    }
+
+    // Keep only frustum-visible chunks the BFS reached.
+    const size_t before = visibleChunkIndices.size();
+    std::vector<size_t> kept;
+    kept.reserve(before);
+    for (size_t idx : visibleChunkIndices) {
+        glm::ivec3 coord = toCoord(glm::vec3(chunkManager->chunks[idx]->getWorldOrigin()));
+        if (reached.count(packCoord(coord))) kept.push_back(idx);
+    }
+    m_lastOcclusionCulled = static_cast<int>(before - kept.size());
+    visibleChunkIndices.swap(kept);
 }
 
 void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const glm::mat4& lightSpaceMatrix) {

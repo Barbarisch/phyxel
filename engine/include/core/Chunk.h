@@ -83,6 +83,13 @@ private:
     glm::ivec3 m_firstMirrorLocal{0};              // Local pos of first mirror cube (valid when m_hasMirror)
     void recomputeRenderFlags();                   // Rescan cubes for mirror/transparent materials; updates caches above
 
+    // Occlusion visibility graph (Minecraft-style "cave culling"). m_faceConnect[f]
+    // is a bitmask of which of the 6 chunk faces sight can reach from face f through
+    // non-opaque cells. Faces: 0=X-,1=X+,2=Y-,3=Y+,4=Z-,5=Z+. Recomputed on
+    // rebuildFaces. Default all-connected so an unmeshed chunk is never falsely culled.
+    uint8_t m_faceConnect[6] = {0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F};
+    void computeVisibilityMask();                  // Flood-fill air components; fill m_faceConnect
+
 public:
     // Constructor
     explicit Chunk(const glm::ivec3& origin = glm::ivec3(0));
@@ -110,6 +117,8 @@ public:
     uint32_t getNumInstances() const { return renderManager.getNumInstances(); }
     bool hasMirrorVoxel() const { return m_hasMirror; }            // Cached; see recomputeRenderFlags()
     bool hasTransparentVoxel() const { return m_hasTransparent; }  // Cached; any cube alpha < 0.99
+    // Occlusion graph query: can sight pass from face a to face b through this chunk?
+    bool facesConnected(int a, int b) const { return (m_faceConnect[a] >> b) & 1u; }
     glm::ivec3 getFirstMirrorLocal() const { return m_firstMirrorLocal; }
     bool getNeedsUpdate() const { return renderManager.getNeedsUpdate(); }
     void setNeedsUpdate(bool needsUpdate) { renderManager.setNeedsUpdate(needsUpdate); }
