@@ -6494,6 +6494,20 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         }
         return true;
 
+    } else if (action == "set_occlusion_culling") {
+        if (!renderCoordinator) {
+            response = {{"error", "RenderCoordinator not available"}};
+        } else {
+            bool enabled = cmd.params.value("enabled", false);
+            renderCoordinator->setOcclusionCullingEnabled(enabled);
+            response = {
+                {"success", true},
+                {"occlusion_culling", enabled},
+                {"last_culled_chunks", renderCoordinator->getLastOcclusionCulled()}
+            };
+        }
+        return true;
+
     } else if (action == "get_render_stats") {
         if (!renderCoordinator) {
             response = {{"error", "RenderCoordinator not available"}};

@@ -875,6 +875,23 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/debug/occlusion — Toggle chunk occlusion culling at runtime
+    // Body: { "enabled": bool }
+    // Returns: { "success": true, "occlusion_culling": bool, "last_culled_chunks": int }
+    // ====================================================================
+    srv.Post("/api/debug/occlusion", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_occlusion_culling", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // POST /api/asset-editor/ref-character — Show/hide humanoid reference character
     // Body: { "visible": bool }  — omit to toggle current state
     // Returns: { "success": true, "visible": bool }
