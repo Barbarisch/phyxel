@@ -69,7 +69,12 @@ private:
     VkPipelineLayout dynamicPipelineLayout = VK_NULL_HANDLE;
     VkPipeline dynamicPipeline = VK_NULL_HANDLE;
 
-    float m_shadowRange = 150.0f; // Default shadow range (was hard-coded 100)
+    // Shadow pass cost scales with caster area (~range²): the pass renders every
+    // chunk within this range of the camera into the shadow map. 110 keeps good
+    // coverage while cutting caster area ~46% vs 150, and sharpens near shadows
+    // (smaller ortho frustum over the same 2048² map). Runtime-tunable via the
+    // lighting UI slider (setShadowRange). (History: hard-coded 100 → 150 → 110.)
+    float m_shadowRange = 110.0f;
 
     // Internal creation methods
     bool createDepthResources();
