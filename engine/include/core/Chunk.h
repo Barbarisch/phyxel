@@ -90,6 +90,8 @@ private:
     uint8_t m_faceConnect[6] = {0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F};
     void computeVisibilityMask();                  // Flood-fill air components; fill m_faceConnect
 
+    int m_currentLod = 1;  // 1 = full res; 2/4 = the LOD this chunk was last meshed at
+
 public:
     // Constructor
     explicit Chunk(const glm::ivec3& origin = glm::ivec3(0));
@@ -202,7 +204,9 @@ public:
     
     // Overload for cross-chunk culling: accepts a function to check neighbors in adjacent chunks
     using NeighborLookupFunc = Graphics::ChunkRenderManager::NeighborLookupFunc;
-    void rebuildFaces(const NeighborLookupFunc& getNeighborCube);
+    // lodStep: 1 = full res, 2/4 = voxel LOD (downsampled distant chunk).
+    void rebuildFaces(const NeighborLookupFunc& getNeighborCube, int lodStep = 1);
+    int  getCurrentLod() const { return m_currentLod; }
     
     void updateVulkanBuffer();                     // Update GPU buffer with face data
     

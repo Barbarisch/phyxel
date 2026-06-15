@@ -2936,6 +2936,10 @@ void Application::update(float deltaTime) {
     // at a reduced rate. Set before NPC/entity updates this frame.
     if (camera) Scene::AnimatedVoxelCharacter::setViewerPosition(camera->getPosition());
 
+    // Distance-based voxel LOD: re-mesh a few chunks per frame toward their
+    // distance-appropriate resolution (no-op unless enabled; budgeted to bound cost).
+    if (camera && chunkManager) chunkManager->updateChunkLODs(camera->getPosition(), 4);
+
     // Tick the CPU water cellular automaton (fixed-rate internally).
     if (waterManager) waterManager->update(deltaTime);
 
@@ -6505,6 +6509,19 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 {"occlusion_culling", enabled},
                 {"last_culled_chunks", renderCoordinator->getLastOcclusionCulled()}
             };
+        }
+        return true;
+
+    } else if (action == "set_voxel_lod") {
+        if (!chunkManager) {
+            response = {{"error", "ChunkManager not available"}};
+        } else {
+            bool enabled = cmd.params.value("enabled", false);
+            chunkManager->setVoxelLodEnabled(enabled);
+            if (cmd.params.contains("lod1") && cmd.params.contains("lod2"))
+                chunkManager->setVoxelLodDistances(cmd.params.value("lod1", 160.0f),
+                                                   cmd.params.value("lod2", 320.0f));
+            response = {{"success", true}, {"voxel_lod", enabled}};
         }
         return true;
 
