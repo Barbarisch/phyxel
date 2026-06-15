@@ -151,6 +151,28 @@ Animated: Jump (Space), Attack (Left Click), Crouch (Ctrl), Sprint (Shift), Dere
 
 Demo script: `scripts/world_gen.py` (`generate_pyramid`, `generate_platform`, `generate_glow_pillars`).
 
+### Biomes, Flora & the World Recipe
+
+Height-based terrain (Perlin/Flat/Mountains/Caves) is **biome-aware** and gets **flora**:
+
+- **Biome categories** are data-driven in `resources/biomes.json` (climate ranges, materials,
+  per-biome flora). Selected per column by temperature+moisture+continentalness climate fields;
+  `params.climateFrequency` sets biome size (lower = bigger). Design: `docs/TerrainGenerationBiomes.md`.
+- **Flora decoration** scatters biome-appropriate vegetation (trees/bushes) on the surface.
+  Placement is order-independent (deterministic local-maxima Poisson), so it's seam-free and
+  works per-chunk. `flora.spacing` = min distance (slot grid), `flora.density` = fraction of slots
+  filled. Two modes: **`pool`** stamps the sub-voxel `gen_tree.py` `.voxel` templates (default);
+  **`procedural`** generates unique trees in-engine via `ProceduralTree` (a C++ port of
+  `gen_tree.py`) — currently streaming-only.
+- **Trees** are branch-driven (organic, not spheres). Author/regenerate the template library with
+  `python tools/gen_tree.py --batch tools/tree_library.json` (use `--preview` for fast ASCII shape
+  iteration); restart the engine to reload templates. Height/fullness "extremeness" = weighting
+  template variants (e.g. `tree_oak_lush` vs `tree_oak_sparse`).
+- **World recipe**: each world's generation tuning (seed, biome size, extremeness, flora) is
+  persisted in `world.db` (`world_meta` table) on first load — the DB becomes the source of truth,
+  so editing global `biomes.json` no longer changes existing worlds. Full design + remaining work:
+  `docs/WorldRecipeAndFlora.md`.
+
 ## Scene System (Multi-Level Games)
 
 Each scene has its own world DB, entities, and NPCs. The story engine persists across scenes.

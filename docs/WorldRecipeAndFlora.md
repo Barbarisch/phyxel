@@ -73,11 +73,12 @@ blob under key `recipe`:
 
 ## Build order
 
-1. **World-recipe in DB** *(this step)* — `world_meta` table + get/set; a `WorldRecipe`
+1. **World-recipe in DB** *(done)* — `world_meta` table + get/set; a `WorldRecipe`
    struct (JSON to/from); `loadWorld` reads the recipe (synthesizes from `game.json` +
    `biomes.json` and persists if absent) and applies it to the generator.
-2. **Decoration in the deterministic chunk path** — so streaming/procedural worlds get
-   flora (`pool` mode, reuses today's templates). Closes the streaming-flora gap.
+2. **Decoration in the deterministic chunk path** *(done)* — streaming/procedural worlds get
+   flora (`pool` mode, reuses today's templates). Order-independent placement, closes the
+   streaming-flora gap.
 3. **C++ tree generator** *(done)* — `ProceduralTree::generate` ports the branch-driven
    algorithm (oak/birch/bush/spruce/acacia/dead; palm pending); same look as `gen_tree.py`.
    A biome with `flora.mode: "procedural"` lists tree *types* (not template names); the
@@ -88,3 +89,31 @@ blob under key `recipe`:
 
 `1 → 2` unlock self-contained worlds + streaming flora with no new generator. `3` is the
 big one (true procedural density). `4` is the static-world authoring path.
+
+## Remaining work (TODO)
+
+Steps 1–3 are done, verified, and on `main`. Open items:
+
+### Step 4 — authoring flow
+The authored-static path mostly works already (fixed-region worlds get `pool` flora via
+`decorateFlora`; `save_world` bakes them into the DB). What's left is polish/tooling:
+- [ ] One-command "bake authored world" workflow (generate → decorate → `save_world`) so a
+      static world is persisted with its flora and never regenerates.
+- [ ] Expand the pre-generated template pool (more seeds/variants per type) for richer
+      `pool`-mode variety without procedural cost.
+- [ ] Author-facing docs/example for tuning a world recipe (which biomes, extremeness, mode).
+
+### Follow-ups (not blocking)
+- [ ] **Palm** procedural archetype in `ProceduralTree` (currently falls back to oak); port the
+      `gen_tree.py` frond/curved-trunk geometry.
+- [ ] **Procedural in fixed-region worlds** — `decorateFlora` is `pool`-only (spawnTemplate needs
+      a real template name). Either route fixed-region decoration through `decorateChunk`, or have
+      `decorateFlora` generate+stamp for `procedural` biomes. (Currently procedural = streaming-only
+      by design.)
+- [ ] **Streaming hitch** — mass chunk gen drops FPS to ~1. The fix is the separate Phase 1c
+      streaming worker-thread (see `project_terrain_streaming_biomes`), not flora-specific.
+- [ ] **Recipe doesn't re-seed the generator** — `applyRecipe` sets `climateFrequency` + biome
+      tuning but the generation seed still comes from `game.json`; pin/seed from the recipe for full
+      DB-as-source-of-truth.
+- [ ] **`CharacterTestbed` DB bloat** — streaming tests persist chunks; wipe `worlds/default.db`
+      for a clean fast test (terrain regenerates via `load_game_definition`).
