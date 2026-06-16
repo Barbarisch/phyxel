@@ -62,12 +62,7 @@ public:
     
     // Spatial hash map for O(1) chunk lookup by chunk coordinates
     std::unordered_map<glm::ivec3, Chunk*, ChunkCoordHash> chunkMap;
-
-    // Distance-based voxel LOD config (see updateChunkLODs).
-    bool  m_voxelLodEnabled = false;
-    float m_lod1Dist = 160.0f;  // beyond this (chunk center → camera): LOD1 (16^3)
-    float m_lod2Dist = 320.0f;  // beyond this: LOD2 (8^3)
-
+    
     // Vulkan device and memory management
     VkDevice device = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
@@ -214,19 +209,9 @@ public:
     // Rebuild faces from cubes (call after modifying cubes)
     void rebuildChunkFaces(Chunk& chunk);
     
-    // Rebuild faces with cross-chunk occlusion culling. lodStep 2/4 = voxel LOD.
-    void rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk, int lodStep = 1);
-
-    // Distance-based voxel LOD: pick each loaded chunk's LOD from its distance to
-    // cameraPos and re-mesh chunks whose LOD changed (at most maxRebuilds this call, to
-    // bound the per-frame cost). Returns the number of chunks re-meshed. lodEnabled=false
-    // forces all chunks back to full resolution.
-    int  updateChunkLODs(const glm::vec3& cameraPos, int maxRebuilds = 4);
-    void setVoxelLodEnabled(bool e) { m_voxelLodEnabled = e; }
-    bool isVoxelLodEnabled() const { return m_voxelLodEnabled; }
-    // Distances (chunk-center to camera) beyond which LOD1 / LOD2 kick in.
-    void setVoxelLodDistances(float lod1, float lod2) { m_lod1Dist = lod1; m_lod2Dist = lod2; }
-
+    // Rebuild faces with cross-chunk occlusion culling
+    void rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk);
+    
     // Get chunk at world position (for adding/removing cubes)
     Chunk* getChunkAt(const glm::ivec3& worldPos);
 

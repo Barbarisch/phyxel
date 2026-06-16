@@ -44,23 +44,18 @@ public:
     void initialize(VkDevice device, VkPhysicalDevice physicalDevice);
 
     // Face rebuilding - split into focused methods
-    // lodStep: 1 = full resolution (32^3). 2/4 downsample to 16^3 / 8^3 for distant
-    // chunks (voxel LOD), emitting coarser greedy-merged faces (subcubes/microcubes
-    // are skipped at lodStep>1 — invisible at distance).
     void rebuildAllFaces(
         const std::vector<std::unique_ptr<Cube>>& cubes,
         const std::vector<std::unique_ptr<Subcube>>& subcubes,
         const std::vector<std::unique_ptr<Microcube>>& microcubes,
         const glm::ivec3& worldOrigin,
-        const NeighborLookupFunc& getNeighborCube = nullptr,
-        int lodStep = 1
+        const NeighborLookupFunc& getNeighborCube = nullptr
     );
 
     void rebuildCubeFaces(
         const std::vector<std::unique_ptr<Cube>>& cubes,
         const glm::ivec3& worldOrigin,
-        const NeighborLookupFunc& getNeighborCube = nullptr,
-        int lodStep = 1
+        const NeighborLookupFunc& getNeighborCube = nullptr
     );
 
     void rebuildSubcubeFaces(

@@ -73,19 +73,15 @@ void ChunkRenderManager::rebuildAllFaces(
     const std::vector<std::unique_ptr<Subcube>>& subcubes,
     const std::vector<std::unique_ptr<Microcube>>& microcubes,
     const glm::ivec3& worldOrigin,
-    const NeighborLookupFunc& getNeighborCube,
-    int lodStep)
+    const NeighborLookupFunc& getNeighborCube)
 {
     faces.clear();
-
-    // Rebuild faces for each voxel type. At LOD > full res the sub-voxels (subcubes/
-    // microcubes) are skipped — they are sub-pixel at the distances LOD kicks in.
-    rebuildCubeFaces(cubes, worldOrigin, getNeighborCube, lodStep);
-    if (lodStep <= 1) {
-        rebuildSubcubeFaces(subcubes, worldOrigin);
-        rebuildMicrocubeFaces(microcubes, worldOrigin);
-    }
-
+    
+    // Rebuild faces for each voxel type
+    rebuildCubeFaces(cubes, worldOrigin, getNeighborCube);
+    rebuildSubcubeFaces(subcubes, worldOrigin);
+    rebuildMicrocubeFaces(microcubes, worldOrigin);
+    
     numInstances = static_cast<uint32_t>(faces.size());
     needsUpdate = true;
 }
@@ -93,32 +89,30 @@ void ChunkRenderManager::rebuildAllFaces(
 void ChunkRenderManager::rebuildCubeFaces(
     const std::vector<std::unique_ptr<Cube>>& cubes,
     const glm::ivec3& worldOrigin,
-    const NeighborLookupFunc& getNeighborCube,
-    int lodStep)
+    const NeighborLookupFunc& getNeighborCube)
 {
-    // Greedy meshing for cube faces. lodStep > 1 downsamples the chunk to a coarser grid
-    // (16^3 / 8^3) before merging — distant-chunk voxel LOD. Faces are emitted in full-res
-    // chunk coords (position*lodStep, extent*lodStep) via the variable-size face format.
-    constexpr int NF = 32;                  // full-res grid
-    if (lodStep < 1) lodStep = 1;
-    const int M = NF / lodStep;             // LOD grid dimension (32 / 16 / 8)
-    auto idxF = [](int x, int y, int z) { return z + y * 32 + x * 1024; };
+    // Greedy meshing for cube faces: merge coplanar, same-material visible faces into
+    // rectangles, emitting one sized instance per rectangle (packCubeFaceDataSized)
+    // instead of one per voxel face. Large reduction (~3.7x natural terrain, far more on
+    // flat/built surfaces). Subcube/microcube faces keep their per-face path below.
+    constexpr int N = 32;
+    auto cellIdx = [](int x, int y, int z) { return z + y * 32 + x * 1024; };
 
     // Per-material face textures + flags (computed once per distinct material in chunk).
     struct MatFace { uint16_t tex[6]; uint16_t reserved; };
     std::unordered_map<std::string, int> matIdByName;
     std::vector<MatFace> matFaces;
-    std::vector<uint8_t> solidF(NF * NF * NF, 0);  // full-res: 1 = visible cube occupies cell
-    std::vector<int>     matF(NF * NF * NF, -1);   // full-res: index into matFaces
+    std::vector<uint8_t> solidVis(N * N * N, 0);  // 1 = a visible cube occupies the cell
+    std::vector<int>     cellMat(N * N * N, -1);  // index into matFaces
 
     auto& reg = Phyxel::Core::MaterialRegistry::instance();
     for (size_t ci = 0; ci < cubes.size(); ++ci) {
         const Cube* cube = cubes[ci].get();
         if (!cube || !cube->isVisible()) continue;
         glm::ivec3 p = cube->getPosition();
-        if (p.x < 0 || p.x >= NF || p.y < 0 || p.y >= NF || p.z < 0 || p.z >= NF) continue;
-        int cell = idxF(p.x, p.y, p.z);
-        solidF[cell] = 1;
+        if (p.x < 0 || p.x >= N || p.y < 0 || p.y >= N || p.z < 0 || p.z >= N) continue;
+        int cell = cellIdx(p.x, p.y, p.z);
+        solidVis[cell] = 1;
         const std::string& mname = cube->getMaterialName();
         auto it = matIdByName.find(mname);
         if (it == matIdByName.end()) {
@@ -134,61 +128,22 @@ void ChunkRenderManager::rebuildCubeFaces(
             int newId = static_cast<int>(matFaces.size());
             matFaces.push_back(mf);
             matIdByName[mname] = newId;
-            matF[cell] = newId;
+            cellMat[cell] = newId;
         } else {
-            matF[cell] = it->second;
+            cellMat[cell] = it->second;
         }
     }
 
-    // Build the working grid at LOD resolution. For lodStep==1 it is the full grid; for
-    // lodStep>1 each LOD cell is the majority of its lodStep^3 block (solidity + material).
-    std::vector<uint8_t> solid;
-    std::vector<int>     cmat;
-    if (lodStep == 1) {
-        solid = std::move(solidF);
-        cmat  = std::move(matF);
-    } else {
-        solid.assign(M * M * M, 0);
-        cmat.assign(M * M * M, -1);
-        std::vector<int> tally(matFaces.size(), 0);
-        const int block = lodStep * lodStep * lodStep;
-        for (int i = 0; i < M; ++i)
-        for (int j = 0; j < M; ++j)
-        for (int k = 0; k < M; ++k) {
-            int solidCount = 0, bestMat = -1, bestCount = 0;
-            std::fill(tally.begin(), tally.end(), 0);
-            for (int dx = 0; dx < lodStep; ++dx)
-            for (int dy = 0; dy < lodStep; ++dy)
-            for (int dz = 0; dz < lodStep; ++dz) {
-                int cf = idxF(i * lodStep + dx, j * lodStep + dy, k * lodStep + dz);
-                if (solidF[cf]) {
-                    ++solidCount;
-                    int m = matF[cf];
-                    if (m >= 0 && ++tally[m] > bestCount) { bestCount = tally[m]; bestMat = m; }
-                }
-            }
-            if (solidCount * 2 >= block) {       // majority solid → LOD cell is solid
-                int li = k + j * M + i * M * M;
-                solid[li] = 1;
-                cmat[li]  = bestMat;
-            }
-        }
-    }
-
-    auto idxL = [M](int x, int y, int z) { return z + y * M + x * M * M; };
-
-    // Neighbor solidity. At full res (lodStep==1) boundary faces use the cross-chunk lookup.
-    // At LOD>1 the chunk boundary is treated as exposed (a boundary shell is drawn) — simple
-    // and hole-free; cross-LOD-level seams are a known follow-up (skirts/stitching).
-    const bool crossChunk = (lodStep == 1);
+    // Neighbor solidity (handles cross-chunk via getNeighborCube). A face is visible when
+    // its neighbor in that direction is NOT a visible solid.
     auto neighborSolid = [&](int x, int y, int z) -> bool {
-        if (x >= 0 && x < M && y >= 0 && y < M && z >= 0 && z < M)
-            return solid[idxL(x, y, z)] != 0;
-        if (crossChunk && getNeighborCube) {
+        if (x >= 0 && x < N && y >= 0 && y < N && z >= 0 && z < N)
+            return solidVis[cellIdx(x, y, z)] != 0;
+        if (getNeighborCube) {
             const Cube* nc = getNeighborCube(worldOrigin + glm::ivec3(x, y, z));
             return nc && nc->isVisible();
         }
-        return false;  // boundary → face exposed
+        return false;  // chunk boundary, no lookup → face exposed
     };
 
     // Face direction offsets: 0=+Z, 1=-Z, 2=+X, 3=-X, 4=+Y, 5=-Y
@@ -196,59 +151,59 @@ void ChunkRenderManager::rebuildCubeFaces(
     const int fdy[6] = {0, 0, 0, 0, 1, -1};
     const int fdz[6] = {1, -1, 0, 0, 0, 0};
 
-    std::vector<uint8_t> hasFace(M * M);
-    std::vector<int>     faceKey(M * M);
-    std::vector<int>     faceMat(M * M);
-    std::vector<uint8_t> used(M * M);
+    std::vector<uint8_t> hasFace(N * N);
+    std::vector<int>     faceKey(N * N);
+    std::vector<int>     faceMat(N * N);
+    std::vector<uint8_t> used(N * N);
 
     // Per face direction, greedy-merge each slice in the (u,v) plane. Axis roles
     // (u = sizeU / vertexID bit0 axis, v = sizeV / bit1 axis):
     //   +Z/-Z: normal=z, u=x, v=y    +X/-X: normal=x, u=z, v=y    +Y/-Y: normal=y, u=x, v=z
     for (int faceID = 0; faceID < 6; ++faceID) {
-        for (int s = 0; s < M; ++s) {
+        for (int s = 0; s < N; ++s) {
             std::fill(hasFace.begin(), hasFace.end(), 0);
             std::fill(used.begin(), used.end(), 0);
-            for (int u = 0; u < M; ++u) {
-                for (int v = 0; v < M; ++v) {
+            // Build the visible-face mask for this slice.
+            for (int u = 0; u < N; ++u) {
+                for (int v = 0; v < N; ++v) {
                     int x, y, z;
                     if (faceID <= 1)      { x = u; y = v; z = s; }
                     else if (faceID <= 3) { x = s; y = v; z = u; }
                     else                  { x = u; y = s; z = v; }
-                    int cell = idxL(x, y, z);
-                    if (!solid[cell]) continue;
+                    int cell = cellIdx(x, y, z);
+                    if (!solidVis[cell]) continue;
                     if (neighborSolid(x + fdx[faceID], y + fdy[faceID], z + fdz[faceID])) continue;
-                    int m = cmat[cell];
-                    if (m < 0) continue;
-                    int mi = u * M + v;
+                    int m = cellMat[cell];
+                    int mi = u * N + v;
                     hasFace[mi] = 1;
                     faceKey[mi] = (static_cast<int>(matFaces[m].tex[faceID]) << 16) | matFaces[m].reserved;
                     faceMat[mi] = m;
                 }
             }
-            for (int u = 0; u < M; ++u) {
-                for (int v = 0; v < M; ++v) {
-                    int mi = u * M + v;
+            // Greedy rectangle merge: width along v, then height along u (same key).
+            for (int u = 0; u < N; ++u) {
+                for (int v = 0; v < N; ++v) {
+                    int mi = u * N + v;
                     if (!hasFace[mi] || used[mi]) continue;
                     int k = faceKey[mi];
                     int w = 1;
-                    while (v + w < M) {
-                        int t = u * M + (v + w);
+                    while (v + w < N) {
+                        int t = u * N + (v + w);
                         if (!hasFace[t] || used[t] || faceKey[t] != k) break;
                         ++w;
                     }
                     int h = 1; bool ok = true;
-                    while (u + h < M && ok) {
+                    while (u + h < N && ok) {
                         for (int vv = v; vv < v + w; ++vv) {
-                            int t = (u + h) * M + vv;
+                            int t = (u + h) * N + vv;
                             if (!hasFace[t] || used[t] || faceKey[t] != k) { ok = false; break; }
                         }
                         if (ok) ++h;
                     }
                     for (int uu = u; uu < u + h; ++uu)
-                        for (int vv = v; vv < v + w; ++vv) used[uu * M + vv] = 1;
+                        for (int vv = v; vv < v + w; ++vv) used[uu * N + vv] = 1;
 
-                    // Rectangle origin (u,v) at slice s; sizeU = h, sizeV = w (LOD cells).
-                    // Scale to full-res chunk coordinates by lodStep for the instance.
+                    // Rectangle origin (u,v) at slice s; sizeU = h (u extent), sizeV = w (v extent).
                     int ox, oy, oz;
                     if (faceID <= 1)      { ox = u; oy = v; oz = s; }
                     else if (faceID <= 3) { ox = s; oy = v; oz = u; }
@@ -256,8 +211,7 @@ void ChunkRenderManager::rebuildCubeFaces(
                     const MatFace& mf = matFaces[faceMat[mi]];
                     InstanceData inst;
                     inst.packedData = Phyxel::InstanceDataUtils::packCubeFaceDataSized(
-                        ox * lodStep, oy * lodStep, oz * lodStep, faceID,
-                        static_cast<uint32_t>(h * lodStep), static_cast<uint32_t>(w * lodStep));
+                        ox, oy, oz, faceID, static_cast<uint32_t>(h), static_cast<uint32_t>(w));
                     inst.textureIndex = mf.tex[faceID];
                     inst.reserved = mf.reserved;
                     faces.push_back(inst);

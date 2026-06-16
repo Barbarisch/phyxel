@@ -253,11 +253,9 @@ void Chunk::rebuildFaces() {
     rebuildFaces(nullptr);
 }
 
-void Chunk::rebuildFaces(const NeighborLookupFunc& getNeighborCube, int lodStep) {
-    if (lodStep < 1) lodStep = 1;
-    m_currentLod = lodStep;
+void Chunk::rebuildFaces(const NeighborLookupFunc& getNeighborCube) {
     // Delegate to render manager
-    renderManager.rebuildAllFaces(cubes, staticSubcubes, staticMicrocubes, worldOrigin, getNeighborCube, lodStep);
+    renderManager.rebuildAllFaces(cubes, staticSubcubes, staticMicrocubes, worldOrigin, getNeighborCube);
     // Refresh cached render flags (geometry/materials may have changed).
     recomputeRenderFlags();
     // Refresh the occlusion visibility graph (cheap flood-fill, only on rebuild).
