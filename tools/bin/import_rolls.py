@@ -27,6 +27,11 @@ TARGETS = {
     "Stomach Hit":   "hit_stomach",
     "Rib Hit":       "hit_rib",
     "Dodging Right": "dodge_right",
+    # Death + knocked-out states.
+    "Dying":           "death_front",
+    "Dying Backwards": "death_back",
+    "Laying Idle":     "ko_lay",
+    "Standing Up":     "get_up",
 }
 
 

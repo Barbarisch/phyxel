@@ -3262,6 +3262,14 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(result.dump(), "application/json");
     });
 
+    // POST /api/player/knockout — Knock the player unconscious. Body: {"seconds": N}.
+    srv.Post("/api/player/knockout", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = req.body.empty() ? json::object() : json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        json result = queueAndWait("player_knockout", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
     // POST /api/inventory/set_slot — Set a specific slot's contents
     srv.Post("/api/inventory/set_slot", [this](const httplib::Request& req, httplib::Response& res) {
         try {

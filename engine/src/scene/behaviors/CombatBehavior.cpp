@@ -100,6 +100,9 @@ void CombatBehavior::update(float dt, NPCContext& ctx) {
     AnimatedVoxelCharacter* character = npc ? npc->getAnimatedCharacter() : nullptr;
     ensureWired(ctx, character);
 
+    // Dead or knocked out — stop fighting; the death/KO state owns the character.
+    if (character && character->isIncapacitated()) return;
+
     if (m_cooldownTimer > 0.0f) m_cooldownTimer -= dt;
 
     const glm::vec3 selfPos = ctx.self->getPosition();

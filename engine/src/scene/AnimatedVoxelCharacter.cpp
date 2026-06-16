@@ -1723,6 +1723,9 @@ namespace Scene {
         if (str == "Block") return AnimatedCharacterState::Block;
         if (str == "Dodge") return AnimatedCharacterState::Dodge;
         if (str == "HitReact") return AnimatedCharacterState::HitReact;
+        if (str == "Death") return AnimatedCharacterState::Death;
+        if (str == "KnockedOut") return AnimatedCharacterState::KnockedOut;
+        if (str == "GetUp") return AnimatedCharacterState::GetUp;
         if (str == "Preview") return AnimatedCharacterState::Preview;
         return AnimatedCharacterState::Idle;
     }
@@ -1962,8 +1965,48 @@ namespace Scene {
         if (m_hitReactCdTimer > 0.0f) return;                 // re-stun immunity
         if (m_isSitting || m_isAnchoredAnim || isDerezzing()) return;
         if (currentState == AnimatedCharacterState::Dodge) return;  // i-frames: not hit
+        if (isIncapacitated()) return;                         // dead / down: no flinch
         m_hitReactRequested = true;
         m_hitReactHeavy     = heavy;
+    }
+
+    // ---- Death / knock-out ----
+
+    void AnimatedVoxelCharacter::die(bool backward) {
+        if (currentState == AnimatedCharacterState::Death) return;
+        m_deathClip = (backward && hasClip("death_back")) ? "death_back"
+                    : (hasClip("death_front") ? "death_front"
+                       : (hasClip("death_back") ? "death_back" : ""));
+        currentState = AnimatedCharacterState::Death;
+        stateTimer = 0.0f;
+        m_hitReactRequested = false;
+        m_attackQueued = false;
+        LOG_DEBUG("Character", "die: clip='{}'", m_deathClip);
+    }
+
+    void AnimatedVoxelCharacter::knockOut(float layDurationSec) {
+        if (isIncapacitated()) return;                 // already down / dead
+        if (m_isSitting || isDerezzing()) return;
+        m_koLayDuration = std::max(0.5f, layDurationSec);
+        currentState = AnimatedCharacterState::KnockedOut;
+        stateTimer = 0.0f;
+        m_hitReactRequested = false;
+        m_attackQueued = false;
+        LOG_DEBUG("Character", "knockOut: {:.1f}s", m_koLayDuration);
+    }
+
+    void AnimatedVoxelCharacter::reviveToIdle() {
+        if (!isIncapacitated()) return;
+        currentState = AnimatedCharacterState::Idle;
+        stateTimer = 0.0f;
+    }
+
+    /// Playback rate so the long "get up" clip plays in ~3 s.
+    float AnimatedVoxelCharacter::currentGetUpRate() const {
+        if (currentState != AnimatedCharacterState::GetUp) return 1.0f;
+        if (currentClipIndex < 0 || currentClipIndex >= (int)clips.size()) return 1.0f;
+        float d = clips[currentClipIndex].duration;
+        return d > 3.0f ? d / 3.0f : 1.0f;
     }
 
     bool AnimatedVoxelCharacter::castSpell(const std::vector<CastSegment>& segments) {
@@ -2064,6 +2107,9 @@ namespace Scene {
             case AnimatedCharacterState::Block: return "Block";
             case AnimatedCharacterState::Dodge: return "Dodge";
             case AnimatedCharacterState::HitReact: return "HitReact";
+            case AnimatedCharacterState::Death: return "Death";
+            case AnimatedCharacterState::KnockedOut: return "KnockedOut";
+            case AnimatedCharacterState::GetUp: return "GetUp";
             case AnimatedCharacterState::Preview: return "Preview";
             default: return "Unknown";
         }
@@ -2077,6 +2123,25 @@ namespace Scene {
         float currentAnimDuration = 0.0f;
         if (currentClipIndex >= 0 && currentClipIndex < clips.size()) {
             currentAnimDuration = clips[currentClipIndex].duration;
+        }
+
+        // Death / knock-out own the FSM until they finish or are revived.
+        if (currentState == AnimatedCharacterState::Death) {
+            return;  // terminal; pose frozen at the death clip's end (animTime clamp below)
+        }
+        if (currentState == AnimatedCharacterState::KnockedOut) {
+            if (stateTimer >= m_koLayDuration) {     // lay-down/idle held long enough
+                currentState = AnimatedCharacterState::GetUp;
+                stateTimer = 0.0f;
+            }
+            return;
+        }
+        if (currentState == AnimatedCharacterState::GetUp) {
+            if (stateTimer >= 3.0f) {                // get_up is rate-scaled to ~3s
+                currentState = AnimatedCharacterState::Idle;
+                stateTimer = 0.0f;
+            }
+            return;
         }
 
         if (m_hitReactCdTimer > 0.0f) m_hitReactCdTimer -= deltaTime;
@@ -3018,6 +3083,8 @@ namespace Scene {
             if (currentState == AnimatedCharacterState::Idle || currentState == AnimatedCharacterState::Attack ||
                 currentState == AnimatedCharacterState::Cast || currentState == AnimatedCharacterState::Block ||
                 currentState == AnimatedCharacterState::HitReact ||
+                currentState == AnimatedCharacterState::Death || currentState == AnimatedCharacterState::KnockedOut ||
+                currentState == AnimatedCharacterState::GetUp ||
                 currentState == AnimatedCharacterState::Crouch || currentState == AnimatedCharacterState::CrouchIdle ||
                 currentState == AnimatedCharacterState::TurnLeft || currentState == AnimatedCharacterState::TurnRight) moveSpeed = 0.0f;
 
@@ -3115,6 +3182,11 @@ namespace Scene {
                     case AnimatedCharacterState::HitReact:
                         targetAnim = m_currentHitClip.empty() ? "idle" : m_currentHitClip;
                         break;
+                    case AnimatedCharacterState::Death:
+                        targetAnim = m_deathClip.empty() ? "idle" : m_deathClip;
+                        break;
+                    case AnimatedCharacterState::KnockedOut: targetAnim = "ko_lay"; break;
+                    case AnimatedCharacterState::GetUp:      targetAnim = "get_up"; break;
                     case AnimatedCharacterState::TurnLeft: targetAnim = "left_turn"; break;
                     case AnimatedCharacterState::TurnRight: targetAnim = "right_turn"; break;
                     case AnimatedCharacterState::StrafeLeft: 
@@ -3243,7 +3315,14 @@ namespace Scene {
         float evalTime = animTime; // may be remapped for warp preview
         if (currentClipIndex >= 0 && currentClipIndex < clips.size()) {
             if (!m_animPaused)
-                animTime += deltaTime * m_playbackSpeed * currentCastSpeed() * currentAttackRate() * currentDodgeRate();
+                animTime += deltaTime * m_playbackSpeed * currentCastSpeed() * currentAttackRate() * currentDodgeRate() * currentGetUpRate();
+            // Death/GetUp play once and hold their final pose (no loop-wrap).
+            if ((currentState == AnimatedCharacterState::Death ||
+                 currentState == AnimatedCharacterState::GetUp) &&
+                currentClipIndex >= 0 && currentClipIndex < (int)clips.size()) {
+                const float d = clips[currentClipIndex].duration;
+                if (d > 0.0f && animTime > d) animTime = d;
+            }
 
             // Held guard: freeze partway into the block clip (the clip's end
             // usually returns to rest, which is not a guard pose).
@@ -3262,6 +3341,8 @@ namespace Scene {
                          currentState != AnimatedCharacterState::Jump &&
                          currentState != AnimatedCharacterState::Crouch &&
                          currentState != AnimatedCharacterState::CrouchIdle &&
+                         currentState != AnimatedCharacterState::Death &&    // freeze on the ground
+                         currentState != AnimatedCharacterState::GetUp &&    // play once, rising
                          currentState != AnimatedCharacterState::SitDown &&
                          currentState != AnimatedCharacterState::SitStandUp);
 

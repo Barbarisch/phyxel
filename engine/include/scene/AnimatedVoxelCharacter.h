@@ -64,6 +64,9 @@ namespace Scene {
         Block,        // holding a guard pose (frozen partway into the block clip)
         Dodge,        // souls-style directional roll: scripted lunge + i-frame window
         HitReact,     // recoil/stagger from taking a hit (flinch = brief, heavy = full clip)
+        Death,        // dead: play the death clip once, then freeze on the ground (terminal)
+        KnockedOut,   // unconscious: lie on the ground for a duration
+        GetUp,        // rising from knocked-out back to Idle
         Preview
     };
 
@@ -392,6 +395,27 @@ namespace Scene {
         void hitReact(bool heavy);
         bool isHitReacting() const { return currentState == AnimatedCharacterState::HitReact; }
 
+        // ---- Death / knock-out ----
+
+        /// Die: play the death clip once then freeze on the ground. Terminal until
+        /// reviveToIdle(). `backward` picks the fall direction (front/back clip).
+        void die(bool backward = false);
+        bool isDead() const { return currentState == AnimatedCharacterState::Death; }
+
+        /// Knock unconscious: drop to the ground for `layDurationSec`, then get up.
+        void knockOut(float layDurationSec = 3.0f);
+
+        /// True while down/incapacitated (dead, knocked out, or getting up) — hosts
+        /// and behaviors should stop driving the character.
+        bool isIncapacitated() const {
+            return currentState == AnimatedCharacterState::Death ||
+                   currentState == AnimatedCharacterState::KnockedOut ||
+                   currentState == AnimatedCharacterState::GetUp;
+        }
+
+        /// Reset out of Death/KnockedOut/GetUp back to Idle (e.g. on respawn/revive).
+        void reviveToIdle();
+
         // ---- Derez (falling-apart disintegration) ----
 
         /// Begin staggered voxel detachment. The character remains in the scene during the
@@ -623,6 +647,11 @@ namespace Scene {
         std::string m_currentHitClip;          // selected reaction clip
         float       m_hitReactCdTimer   = 0.0f; // re-stun immunity countdown
         size_t      m_hitClipRotate     = 0;    // cycles the reaction clip for variety
+
+        // ---- Death / knock-out state ----
+        std::string m_deathClip;                // "death_front" / "death_back"
+        float       m_koLayDuration     = 3.0f; // seconds to stay down when knocked out
+        float       currentGetUpRate() const;   // speeds the long get-up clip to ~3s
         /// Pick a reaction clip (cycles hit_head/hit_stomach/hit_rib; falls back).
         std::string selectHitClip();
 

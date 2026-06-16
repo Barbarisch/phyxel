@@ -283,9 +283,10 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     respawnSystem.setOnRespawnCallback([this](const glm::vec3& spawnPos) {
         LOG_INFO("Application", "Respawning player...");
         playerHealth.revive(1.0f);
-        if (animatedCharacter)
+        if (animatedCharacter) {
+            animatedCharacter->reviveToIdle();   // clear the Death state from the killing blow
             animatedCharacter->setPosition(spawnPos);
-        else
+        } else
             camera->setPosition(spawnPos);
     });
 
@@ -1615,7 +1616,10 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         Scene::AnimatedVoxelCharacter* hitChar = nullptr;
         if (auto* npcE = dynamic_cast<Scene::NPCEntity*>(tgt)) hitChar = npcE->getAnimatedCharacter();
         else                                                  hitChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(tgt);
-        if (hitChar) hitChar->hitReact(ev.actualDamage >= 11.0f);
+        if (hitChar) {
+            if (ev.killed) hitChar->die();                     // killing blow -> death animation
+            else           hitChar->hitReact(ev.actualDamage >= 11.0f);
+        }
     });
 
     // Initialize Dialogue System
@@ -7114,6 +7118,18 @@ bool Application::dispatchItemAPICommand(const Core::APICommand& cmd, nlohmann::
         response = {{"success", true}, {"direction", dir},
                     {"state", animatedCharacter->stateToString(
                                   animatedCharacter->getAnimationState())}};
+        return true;
+    }
+
+    if (cmd.action == "player_knockout") {
+        // Knock the player unconscious for a duration (test hook for the KO state).
+        if (!animatedCharacter) {
+            response = {{"error", "No player character"}};
+            return true;
+        }
+        const float secs = cmd.params.value("seconds", 3.0f);
+        animatedCharacter->knockOut(secs);
+        response = {{"success", true}, {"seconds", secs}};
         return true;
     }
 
