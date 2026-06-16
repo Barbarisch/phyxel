@@ -178,7 +178,7 @@ void CombatBehavior::update(float dt, NPCContext& ctx) {
 
     if (dist > m_attackRange) {           // --- Approach ---
         m_state = State::Approach;
-        drive(-m_moveSpeed, 0.0f);        // run toward facing (the target)
+        drive(-m_moveSpeed, 0.0f);        // run toward the target to close fast
         return;
     }
 
@@ -191,17 +191,13 @@ void CombatBehavior::update(float dt, NPCContext& ctx) {
         drive(0.0f, 0.0f);
     } else if (attacking) {               // mid-swing: hold ground (don't cancel)
         drive(0.0f, 0.0f);
-    } else {                              // --- Strafe: circle while on cooldown ---
+    } else {                              // --- in range, waiting on cooldown ---
+        // Hold position and face the target. (Continuous circle-strafing made
+        // two AIs orbit-drift across the map and shifted the target out of reach
+        // mid-swing — repositioning is a later polish item; a stable square-up
+        // gives reliable trade-blows-and-dodge exchanges.)
         m_state = State::Strafe;
-        m_strafeRetarget -= dt;
-        if (m_strafeRetarget <= 0.0f) {
-            m_strafeSign = (std::rand() % 2) ? 1.0f : -1.0f;
-            m_strafeRetarget = 1.5f;
-        }
-        // Hold spacing: nudge in/out toward the ideal attack range while strafing.
-        const float spacingErr = dist - m_attackRange * 0.9f;   // >0 = too far
-        const float fwd = -glm::clamp(spacingErr, -0.4f, 0.4f); // toward target if too far
-        drive(fwd, m_strafeSign);
+        drive(0.0f, 0.0f);
     }
 }
 
