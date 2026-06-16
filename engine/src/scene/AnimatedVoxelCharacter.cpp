@@ -1051,6 +1051,23 @@ namespace Scene {
         // No-op: compound shape replaced by kinematic VoxelOccupancyGrid queries
     }
 
+    glm::vec3 AnimatedVoxelCharacter::getAttackOrigin() const {
+        const glm::vec3 chest = worldPosition + glm::vec3(0.0f, 1.0f, 0.0f);
+        // Visual front is +Z at yaw 0.
+        const glm::vec3 fwd(std::sin(currentYaw), 0.0f, std::cos(currentYaw));
+        float bestProj = -1.0e9f;
+        glm::vec3 best = chest;
+        bool found = false;
+        for (const auto& seg : m_segmentBoxes) {
+            if (seg.boneName.find("ForeArm") == std::string::npos &&
+                seg.boneName.find("Hand")    == std::string::npos)
+                continue;
+            const float proj = glm::dot(seg.center - chest, fwd);  // how far forward the limb is
+            if (proj > bestProj) { bestProj = proj; best = seg.center; found = true; }
+        }
+        return found ? best : chest;
+    }
+
     std::vector<AnimatedVoxelCharacter::BoneAABB> AnimatedVoxelCharacter::getBoneAABBs() const {
         std::vector<BoneAABB> result;
         for (const auto& seg : m_segmentBoxes) {

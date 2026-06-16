@@ -49,12 +49,12 @@ private:
     std::string m_targetId;
 
     float m_aggroRange     = 16.0f;  ///< acquire targets within this range
-    float m_attackRange    = 2.0f;   ///< stop & attack within this range — MUST be < m_attackReach so swings connect
+    float m_attackRange    = 1.5f;   ///< stop & attack within this range (close, so hand-origin hits land despite dodge-drift)
     float m_moveSpeed      = 1.0f;   ///< control-input magnitude scale (1 = run toward target)
     float m_attackCooldown = 1.8f;   ///< seconds between committed attacks
     float m_recoverTime    = 0.0f;   ///< post-swing back-off (0 = none; backing off let the target escape and caused map-drift)
     float m_attackDamage   = 8.0f;
-    float m_attackReach    = 3.2f;   ///< hit-detection reach (generous so a committed swing connects even if the target shifts)
+    float m_attackReach    = 2.2f;   ///< hit sphere radius from the swinging hand (getAttackOrigin); forgiving enough to land amid drift
 
     // Evasion: roll away when the current target is mid-swing within reach.
     float m_evadeRange     = 2.8f;   ///< react to an attacker swinging within this range

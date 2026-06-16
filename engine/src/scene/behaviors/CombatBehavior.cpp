@@ -57,12 +57,13 @@ void CombatBehavior::ensureWired(NPCContext& ctx, AnimatedVoxelCharacter* charac
             Core::CombatSystem::AttackParams p;
             p.attackerId     = selfId;
             p.attackerEntity = self;
-            p.attackerPos    = character->getPosition() + glm::vec3(0.0f, 1.0f, 0.0f);
+            // Originate the hit at the swinging hand so it connects on visual contact.
+            p.attackerPos    = character->getAttackOrigin();
             const float yaw  = character->getYaw();   // visual front is +Z at yaw 0
             p.attackerForward = glm::vec3(std::sin(yaw), 0.0f, std::cos(yaw));
             p.damage = dmg;
             p.reach  = reach;
-            p.coneAngleDeg = 90.0f;
+            p.coneAngleDeg = 150.0f;  // origin already at the hand
             auto events = combat->performAttack(p, *reg);
             for (const auto& ev : events) {
                 LOG_INFO("CombatAI", "{} hit {} for {:.1f} dmg{}",

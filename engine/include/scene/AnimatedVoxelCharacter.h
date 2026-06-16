@@ -425,6 +425,11 @@ namespace Scene {
         // Includes skeleton hierarchy, voxel model, appearance, bone sizes, and auto-generated joint defs.
         CharacterSkeleton buildCharacterSkeleton() const;
 
+        /// World-space origin of the current strike: the most-forward forearm/hand
+        /// segment (the limb actually swinging), so melee hit detection registers
+        /// at the fist/weapon rather than from the chest. Falls back to chest height.
+        glm::vec3 getAttackOrigin() const;
+
         // Get world-space AABBs for each visible bone (for voxel-accurate hit detection).
         struct BoneAABB {
             int boneId;

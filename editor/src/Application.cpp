@@ -4572,11 +4572,15 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
         Core::CombatSystem::AttackParams p;
         p.attackerId = "player";
         p.attackerEntity = animatedCharacter;  // exclude self by pointer
-        p.attackerPos = animatedCharacter->getPosition() + glm::vec3(0.0f, 1.0f, 0.0f);
+        // Originate the hit at the swinging hand/weapon so contact matches the
+        // visual (not a cone from the chest). Hit radius is from the fist: a
+        // small sphere for unarmed, extended by the weapon's blade for weapons.
+        p.attackerPos = animatedCharacter->getAttackOrigin();
         // Visual front is +Z at yaw 0 (see anim conventions).
         p.attackerForward = glm::vec3(std::sin(yaw), 0.0f, std::cos(yaw));
         p.damage = damage;
-        p.reach = reach + 0.5f;  // weapon stat + arm extension
+        p.reach = m_heldItemId.empty() ? 1.0f : std::max(1.0f, reach * 0.6f);
+        p.coneAngleDeg = 150.0f;  // origin is already at the hand — be lenient on angle
 
         auto events = combatSystem->performAttack(p, *entityRegistry);
         for (const auto& ev : events) {
