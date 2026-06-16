@@ -68,6 +68,7 @@ private:
     float m_strafeSign     = 1.0f;
     float m_strafeRetarget = 0.0f;
     bool  m_wired          = false;  ///< moveset + damage callback installed once
+    bool  m_hadTarget      = false;  ///< true once we've engaged — so losing the last enemy = victory
 
 public:
     /// Faction tag — combat NPCs only target entities whose faction differs

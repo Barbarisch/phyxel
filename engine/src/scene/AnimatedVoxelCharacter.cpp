@@ -1726,6 +1726,7 @@ namespace Scene {
         if (str == "Death") return AnimatedCharacterState::Death;
         if (str == "KnockedOut") return AnimatedCharacterState::KnockedOut;
         if (str == "GetUp") return AnimatedCharacterState::GetUp;
+        if (str == "Celebrate") return AnimatedCharacterState::Celebrate;
         if (str == "Preview") return AnimatedCharacterState::Preview;
         return AnimatedCharacterState::Idle;
     }
@@ -1996,9 +1997,19 @@ namespace Scene {
     }
 
     void AnimatedVoxelCharacter::reviveToIdle() {
-        if (!isIncapacitated()) return;
+        if (!isIncapacitated() && currentState != AnimatedCharacterState::Celebrate) return;
         currentState = AnimatedCharacterState::Idle;
         stateTimer = 0.0f;
+    }
+
+    void AnimatedVoxelCharacter::celebrate(const std::string& clip) {
+        if (isIncapacitated()) return;                 // dead / down can't celebrate
+        if (currentState == AnimatedCharacterState::Celebrate) return;
+        m_celebrateClip = (!clip.empty() && hasClip(clip)) ? clip
+                        : (hasClip("taunt") ? "taunt" : (hasClip("wave") ? "wave" : ""));
+        currentState = AnimatedCharacterState::Celebrate;
+        stateTimer = 0.0f;
+        LOG_DEBUG("Character", "celebrate: clip='{}'", m_celebrateClip);
     }
 
     /// Playback rate so the long "get up" clip plays in ~3 s.
@@ -2110,6 +2121,7 @@ namespace Scene {
             case AnimatedCharacterState::Death: return "Death";
             case AnimatedCharacterState::KnockedOut: return "KnockedOut";
             case AnimatedCharacterState::GetUp: return "GetUp";
+            case AnimatedCharacterState::Celebrate: return "Celebrate";
             case AnimatedCharacterState::Preview: return "Preview";
             default: return "Unknown";
         }
@@ -2142,6 +2154,9 @@ namespace Scene {
                 stateTimer = 0.0f;
             }
             return;
+        }
+        if (currentState == AnimatedCharacterState::Celebrate) {
+            return;  // loop the victory emote until reviveToIdle()
         }
 
         if (m_hitReactCdTimer > 0.0f) m_hitReactCdTimer -= deltaTime;
@@ -3084,7 +3099,7 @@ namespace Scene {
                 currentState == AnimatedCharacterState::Cast || currentState == AnimatedCharacterState::Block ||
                 currentState == AnimatedCharacterState::HitReact ||
                 currentState == AnimatedCharacterState::Death || currentState == AnimatedCharacterState::KnockedOut ||
-                currentState == AnimatedCharacterState::GetUp ||
+                currentState == AnimatedCharacterState::GetUp || currentState == AnimatedCharacterState::Celebrate ||
                 currentState == AnimatedCharacterState::Crouch || currentState == AnimatedCharacterState::CrouchIdle ||
                 currentState == AnimatedCharacterState::TurnLeft || currentState == AnimatedCharacterState::TurnRight) moveSpeed = 0.0f;
 
@@ -3187,6 +3202,9 @@ namespace Scene {
                         break;
                     case AnimatedCharacterState::KnockedOut: targetAnim = "ko_lay"; break;
                     case AnimatedCharacterState::GetUp:      targetAnim = "get_up"; break;
+                    case AnimatedCharacterState::Celebrate:
+                        targetAnim = m_celebrateClip.empty() ? "taunt" : m_celebrateClip;
+                        break;
                     case AnimatedCharacterState::TurnLeft: targetAnim = "left_turn"; break;
                     case AnimatedCharacterState::TurnRight: targetAnim = "right_turn"; break;
                     case AnimatedCharacterState::StrafeLeft: 

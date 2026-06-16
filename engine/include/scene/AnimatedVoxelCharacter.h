@@ -67,6 +67,7 @@ namespace Scene {
         Death,        // dead: play the death clip once, then freeze on the ground (terminal)
         KnockedOut,   // unconscious: lie on the ground for a duration
         GetUp,        // rising from knocked-out back to Idle
+        Celebrate,    // victory emote loop (e.g. taunt) — held until reviveToIdle()
         Preview
     };
 
@@ -413,8 +414,13 @@ namespace Scene {
                    currentState == AnimatedCharacterState::GetUp;
         }
 
-        /// Reset out of Death/KnockedOut/GetUp back to Idle (e.g. on respawn/revive).
+        /// Reset out of Death/KnockedOut/GetUp/Celebrate back to Idle (e.g. on respawn/revive).
         void reviveToIdle();
+
+        /// Play a looping victory/emote clip (e.g. "taunt") until reviveToIdle().
+        /// Movement is frozen. Ignored while dead/down.
+        void celebrate(const std::string& clip = "taunt");
+        bool isCelebrating() const { return currentState == AnimatedCharacterState::Celebrate; }
 
         // ---- Derez (falling-apart disintegration) ----
 
@@ -648,7 +654,8 @@ namespace Scene {
         float       m_hitReactCdTimer   = 0.0f; // re-stun immunity countdown
         size_t      m_hitClipRotate     = 0;    // cycles the reaction clip for variety
 
-        // ---- Death / knock-out state ----
+        // ---- Death / knock-out / celebrate state ----
+        std::string m_celebrateClip;            // victory emote clip (default "taunt")
         std::string m_deathClip;                // "death_front" / "death_back"
         float       m_koLayDuration     = 3.0f; // seconds to stay down when knocked out
         float       currentGetUpRate() const;   // speeds the long get-up clip to ~3s

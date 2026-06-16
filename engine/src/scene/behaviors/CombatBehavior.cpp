@@ -123,9 +123,13 @@ void CombatBehavior::update(float dt, NPCContext& ctx) {
 
     const glm::vec3 selfPos = ctx.self->getPosition();
 
-    // Acquire / validate the target (the player).
-    if (m_targetId.empty() || !ctx.entityRegistry || !ctx.entityRegistry->getEntity(m_targetId))
-        m_targetId = acquireTarget(ctx, selfPos);
+    // Validate / re-acquire — drop a missing OR dead target (so killing the
+    // opponent counts as losing the target, i.e. victory).
+    Scene::Entity* cur = (ctx.entityRegistry && !m_targetId.empty())
+                             ? ctx.entityRegistry->getEntity(m_targetId) : nullptr;
+    const bool curDead = cur && (!cur->getHealthComponent() ||
+                                 !cur->getHealthComponent()->isAlive());
+    if (!cur || curDead) m_targetId = acquireTarget(ctx, selfPos);
 
     Scene::Entity* target = (ctx.entityRegistry && !m_targetId.empty())
                                 ? ctx.entityRegistry->getEntity(m_targetId) : nullptr;
@@ -138,11 +142,16 @@ void CombatBehavior::update(float dt, NPCContext& ctx) {
         else           ctx.self->setMoveVelocity(glm::vec3(0.0f));
     };
 
-    if (!target) {                       // --- Seek: nobody to fight ---
+    if (!target) {                       // --- no live enemy ---
+        // If we'd been fighting and the last foe is gone, we won — celebrate.
+        if (m_hadTarget && character && !character->isCelebrating())
+            character->celebrate("taunt");
+        if (character && character->isCelebrating()) return;  // keep celebrating
         m_state = State::Seek;
         drive(0.0f, 0.0f);
         return;
     }
+    m_hadTarget = true;
 
     glm::vec3 toTarget = target->getPosition() - selfPos;
     toTarget.y = 0.0f;
