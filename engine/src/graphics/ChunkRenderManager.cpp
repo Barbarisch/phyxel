@@ -74,14 +74,13 @@ void ChunkRenderManager::rebuildAllFaces(
     const std::vector<std::unique_ptr<Microcube>>& microcubes,
     const glm::ivec3& worldOrigin,
     const NeighborLookupFunc& getNeighborCube,
-    int lodStep,
-    bool addSkirts)
+    int lodStep)
 {
     faces.clear();
 
     // Rebuild faces for each voxel type. At LOD > full res the sub-voxels (subcubes/
     // microcubes) are skipped — they are sub-pixel at the distances LOD kicks in.
-    rebuildCubeFaces(cubes, worldOrigin, getNeighborCube, lodStep, addSkirts);
+    rebuildCubeFaces(cubes, worldOrigin, getNeighborCube, lodStep);
     if (lodStep <= 1) {
         rebuildSubcubeFaces(subcubes, worldOrigin);
         rebuildMicrocubeFaces(microcubes, worldOrigin);
@@ -95,8 +94,7 @@ void ChunkRenderManager::rebuildCubeFaces(
     const std::vector<std::unique_ptr<Cube>>& cubes,
     const glm::ivec3& worldOrigin,
     const NeighborLookupFunc& getNeighborCube,
-    int lodStep,
-    bool addSkirts)
+    int lodStep)
 {
     // Greedy meshing for cube faces. lodStep > 1 downsamples the chunk to a coarser grid
     // (16^3 / 8^3) before merging — distant-chunk voxel LOD. Faces are emitted in full-res
@@ -265,39 +263,6 @@ void ChunkRenderManager::rebuildCubeFaces(
                     faces.push_back(inst);
                 }
             }
-        }
-    }
-
-    // LOD skirts: a full-res chunk culls its boundary faces against neighbors, but a
-    // coarser LOD neighbor renders a lower/different surface, leaving see-through cracks.
-    // Hang a short vertical "curtain" down from each boundary surface column (both face
-    // directions, so it shows from either side) to cover the gap. Only needed at full res
-    // (LOD>1 chunks already draw a full boundary shell), and only when LOD is active.
-    if (addSkirts && lodStep == 1) {
-        const int skirtDepth = 8;  // voxels below the surface to hang the curtain
-        auto emitSkirt = [&](int x, int z, int outFace, int inFace) {
-            int surfaceY = -1;
-            for (int y = M - 1; y >= 0; --y) { if (solid[idxL(x, y, z)]) { surfaceY = y; break; } }
-            if (surfaceY < 0) return;
-            int top   = surfaceY + 1;
-            int oy    = std::max(0, top - skirtDepth);
-            int sizeY = top - oy;                 // 1..skirtDepth
-            int m = cmat[idxL(x, surfaceY, z)];
-            if (sizeY <= 0 || m < 0) return;
-            for (int f : {outFace, inFace}) {
-                InstanceData inst;
-                inst.packedData = Phyxel::InstanceDataUtils::packCubeFaceDataSized(
-                    x, oy, z, f, 1u, static_cast<uint32_t>(sizeY));
-                inst.textureIndex = matFaces[m].tex[f];
-                inst.reserved = matFaces[m].reserved;
-                faces.push_back(inst);
-            }
-        };
-        for (int l = 0; l < M; ++l) {
-            emitSkirt(0,     l, 3, 2);  // -X boundary (lateral = z)
-            emitSkirt(M - 1, l, 2, 3);  // +X boundary
-            emitSkirt(l, 0,     1, 0);  // -Z boundary (lateral = x)
-            emitSkirt(l, M - 1, 0, 1);  // +Z boundary
         }
     }
 }

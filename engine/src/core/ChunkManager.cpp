@@ -304,7 +304,7 @@ void ChunkManager::rebuildChunkFaces(Chunk& chunk) {
     chunk.setNeedsUpdate(true);  // Mark for GPU buffer update
 }
 
-void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk, int lodStep, bool addSkirts) {
+void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk, int lodStep) {
     // Provide a neighbor lookup function that can check cubes in adjacent chunks
     auto getNeighborCube = [this, &chunk](const glm::ivec3& worldPos) -> const Cube* {
         glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
@@ -319,27 +319,10 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk, int lodS
     };
 
     // Call rebuildFaces with cross-chunk neighbor lookup enabled
-    chunk.rebuildFaces(getNeighborCube, lodStep, addSkirts);
-}
-
-void ChunkManager::setVoxelLodEnabled(bool e) {
-    if (m_voxelLodEnabled == e) return;
-    m_voxelLodEnabled = e;
-    // Re-mesh every loaded chunk so LOD + boundary skirts apply (or are removed)
-    // immediately. The per-frame updateChunkLODs only re-meshes chunks whose LOD
-    // changes, so it would not (un)apply skirts to chunks staying at full res.
-    for (auto& cptr : chunks) {
-        Chunk* chunk = cptr.get();
-        if (!chunk || chunk->getNumInstances() == 0) continue;
-        int  lod    = e ? chunk->getCurrentLod() : 1;  // distance pass adjusts LOD next frames
-        bool skirts = e && (lod == 1);
-        rebuildChunkFacesWithCrosschunkCulling(*chunk, lod, skirts);
-        chunk->setNeedsUpdate(true);
-    }
+    chunk.rebuildFaces(getNeighborCube, lodStep);
 }
 
 int ChunkManager::updateChunkLODs(const glm::vec3& cameraPos, int maxRebuilds) {
-    if (!m_voxelLodEnabled) return 0;
     int rebuilt = 0;
     const float H = 24.0f;  // hysteresis margin around each band boundary
     for (auto& cptr : chunks) {
@@ -348,17 +331,19 @@ int ChunkManager::updateChunkLODs(const glm::vec3& cameraPos, int maxRebuilds) {
         if (!chunk || chunk->getNumInstances() == 0) continue;
 
         const int cur = chunk->getCurrentLod();
-        glm::vec3 center = glm::vec3(chunk->getWorldOrigin()) + glm::vec3(16.0f);
-        float d = glm::length(center - cameraPos);
-        // One LOD step per update (1↔2↔4) with hysteresis so chunks don't flip-flop.
-        int desired = cur;
-        if      (cur == 1 && d > m_lod1Dist + H) desired = 2;
-        else if (cur == 2 && d > m_lod2Dist + H) desired = 4;
-        else if (cur == 4 && d < m_lod2Dist - H) desired = 2;
-        else if (cur == 2 && d < m_lod1Dist - H) desired = 1;
-
+        int desired = 1;
+        if (m_voxelLodEnabled) {
+            glm::vec3 center = glm::vec3(chunk->getWorldOrigin()) + glm::vec3(16.0f);
+            float d = glm::length(center - cameraPos);
+            // One LOD step per update (1↔2↔4) with hysteresis so chunks don't flip-flop.
+            desired = cur;
+            if      (cur == 1 && d > m_lod1Dist + H) desired = 2;
+            else if (cur == 2 && d > m_lod2Dist + H) desired = 4;
+            else if (cur == 4 && d < m_lod2Dist - H) desired = 2;
+            else if (cur == 2 && d < m_lod1Dist - H) desired = 1;
+        }
         if (desired != cur) {
-            rebuildChunkFacesWithCrosschunkCulling(*chunk, desired, desired == 1);
+            rebuildChunkFacesWithCrosschunkCulling(*chunk, desired);
             chunk->setNeedsUpdate(true);
             ++rebuilt;
         }

@@ -205,8 +205,7 @@ public:
     // Overload for cross-chunk culling: accepts a function to check neighbors in adjacent chunks
     using NeighborLookupFunc = Graphics::ChunkRenderManager::NeighborLookupFunc;
     // lodStep: 1 = full res, 2/4 = voxel LOD (downsampled distant chunk).
-    // addSkirts: hang boundary curtains to hide cracks vs lower-LOD neighbors (full res only).
-    void rebuildFaces(const NeighborLookupFunc& getNeighborCube, int lodStep = 1, bool addSkirts = false);
+    void rebuildFaces(const NeighborLookupFunc& getNeighborCube, int lodStep = 1);
     int  getCurrentLod() const { return m_currentLod; }
     
     void updateVulkanBuffer();                     // Update GPU buffer with face data
