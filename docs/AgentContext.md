@@ -349,30 +349,27 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     multi-material splits correct), Debug FPS 171→277.** Flat/built surfaces reduce ~1000x.
     Render-only; collision/physics untouched. The variable-size face format is the foundation
     Phase C reuses.
-  - **Phase C — distance voxel LOD (DONE, flag-gated OFF, 2026-06-15, commit `1966a2e`):**
-    `rebuildCubeFaces(...,lodStep)` downsamples the chunk to 16³/8³ (LOD cell = majority
-    solid + majority material of its lodStep³ block), greedy-meshes the coarse grid, emits
-    faces in full-res coords (pos*lodStep, extent*lodStep) — reuses the variable-size format.
-    Subcubes/microcubes skipped at LOD>1; LOD0 keeps cross-chunk culling, LOD>1 draws a
-    boundary shell. `Chunk::m_currentLod`; `ChunkManager::updateChunkLODs(camPos,budget)` picks
-    LOD per chunk by distance (m_lod1Dist/m_lod2Dist) with hysteresis, re-meshing ≤budget
-    chunks/frame (1 step at a time, Application calls per frame). Toggle: `POST
-    /api/debug/voxel_lod {enabled,lod1?,lod2?}`; default OFF (inert). **Verified (64-chunk
-    Perlin, 60/140): faces 53,486→12,566 (~4.3x beyond greedy, ~26x vs original), near full /
-    far coarse, FPS 171→296; disable re-meshes back.**
-  - **LOD skirts (DONE + verified, 2026-06-15, commit `6c9d74a`):** fixes the cross-LOD
-    see-through cracks. When LOD active, a full-res chunk hangs a vertical curtain (depth 8,
-    both face dirs — static voxels use FRONT_BIT culling) down from each boundary surface
-    column (`addSkirts` param, lodStep==1 only; coarse chunks already have a boundary shell).
-    `setVoxelLodEnabled` re-meshes all chunks so skirts apply/clear at once. Verified: broad
-    crack band gone, terrain reads connected; only the inherent blocky LOD silhouette remains
-    (smaller on screen at realistic distances). Skirt cost (aggressive 50/100 distances)
-    12,566→22,916 faces — worst case (many LOD0 chunks); far less at normal distances.
-    REMAINING: greedy-merge skirt columns laterally to cut cost; async meshing; mesh far
-    chunks at their LOD on first load; game.json wiring.
-  - **NEXT perf levers (ranked):** occlusion in real cave/dungeon content (toggle exists) →
-    crowd-rendering (VAT/instancing, parked) which is the true
-    blocker for 100s on screen.
+  - **Phase C — distance voxel LOD: ATTEMPTED, BROKEN, REVERTED (2026-06-15, reverts
+    `917dd09`/`acea8ef` of `1966a2e`/`6c9d74a`).** Downsampled distant chunks to 16³/8³ + skirts.
+    Earlier "verified" claims were INVALID — two compounding traps:
+    1. **⚠️ RENDER-DISTANCE GOTCHA (remember this):** `Application::maxChunkRenderDistance` is
+       **~96 at runtime** (set low somewhere, NOT the 1000 header default), so the camera far
+       plane frustum-culls everything past ~96 u. Every "far LOD terrain" screenshot was the
+       96 u cutoff, not LOD. Raise it with **`POST /api/debug/render_distance {distance}`** (the
+       one piece kept from this attempt — genuinely useful) before judging anything at distance.
+    2. The LOD>1 **"boundary shell"** (drawing full boundary walls on every coarse chunk) sealed
+       chunks in boxes, **masking a broken coarse mesh**. With render distance raised AND walls
+       culled, the downsampled mesh is **holey / fragmented** (sparse disconnected faces, proven
+       up close + in wireframe). So the downsampling + coarse cross-chunk culling is wrong.
+    LESSON for the next attempt: validate LOD at a **proper render distance** AND **up close**
+    (force tiny lod distances so a coarse chunk is right in front), in **wireframe** — not from
+    afar where a render cutoff or boundary shells can fake "it works". The variable-size face
+    format (greedy meshing, below) is sound and is still the right foundation; the bug is in the
+    downsample-to-watertight-coarse-mesh step.
+  - **NEXT perf levers (ranked):** retry voxel LOD with a watertight coarse mesher (validate
+    up-close + wireframe + proper render distance) → occlusion in real cave/dungeon content
+    (toggle exists) → crowd-rendering (VAT/instancing, parked) which is the true blocker for
+    100s on screen.
 - **Debris/particle solver perf:** the GPU particle solver (`GpuParticlePhysics`,
   `recordComputeCommandsNew`) dominated frame time under debris load. **Per-pass GPU timing
   is now built in** — `recordComputeCommands` takes an optional `GpuProfiler*` and emits

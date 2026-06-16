@@ -6508,6 +6508,21 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         }
         return true;
 
+    } else if (action == "set_render_distance") {
+        // Set the camera far plane / chunk render distance. NOTE: the runtime default is
+        // small (~96) — far chunks are frustum-culled until this is raised.
+        float d = cmd.params.value("distance", 1000.0f);
+        maxChunkRenderDistance = d;
+        chunkInclusionDistance = d * 1.5f;
+        if (renderCoordinator) {
+            renderCoordinator->setMaxChunkRenderDistance(maxChunkRenderDistance);
+            renderCoordinator->setChunkInclusionDistance(chunkInclusionDistance);
+        }
+        response = {{"success", true},
+                    {"render_distance", maxChunkRenderDistance},
+                    {"chunk_inclusion_distance", chunkInclusionDistance}};
+        return true;
+
     } else if (action == "get_render_stats") {
         if (!renderCoordinator) {
             response = {{"error", "RenderCoordinator not available"}};

@@ -892,6 +892,22 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/debug/render_distance — set the camera far plane / chunk render distance
+    // Body: { "distance": float }.  NOTE: the runtime default is small (~96).
+    // ====================================================================
+    srv.Post("/api/debug/render_distance", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_render_distance", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // POST /api/asset-editor/ref-character — Show/hide humanoid reference character
     // Body: { "visible": bool }  — omit to toggle current state
     // Returns: { "success": true, "visible": bool }
