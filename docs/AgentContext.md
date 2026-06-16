@@ -559,10 +559,35 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       - **Roll-anim import:** "Stand To Roll"/"Run To Dive" FBX → `roll_forward`/`dive_forward`
         in humanoid.anim (see [[anim-fbx-import-pipeline]] memory; needs FBX2glTF on PATH +
         `tools/bin/import_rolls.py`; fixed `anim_editor.py` parser to skip `RootMotion` lines).
-      - **KNOWN GAPS / next polish:** roll_forward is reused for back/left/right (looks off
-        sideways — author or mirror directional rolls); no stamina; no lock-on; `dive_forward`
-        unused (sprint-dodge?); two player-health stores; hit-reactions/stagger (Phase 4) not
-        started; combat tuning (enemy aggression/spacing, evadeChance 0.7 = lots of dodging).
+    - **Combat follow-ups (2026-06-16, all DONE + verified live + committed, after the
+      Phase E push):**
+      - **Hit-contact/aiming:** melee hits originate at the swinging hand via
+        `AnimatedVoxelCharacter::getAttackOrigin()` (most-forward forearm/hand segment box),
+        not a chest cone — punches connect on actual contact. Player reach ~1.0 unarmed /
+        weapon-scaled; combat NPCs engage closer (attackRange 1.5) with a forgiving hand reach
+        (2.2) so swings still land amid dodge-drift.
+      - **Death:** `Death` state — `die(backward)` plays death_front/back once then freezes on
+        the ground (terminal, no loop). A killing blow routes through `CombatSystem::onDamage`
+        → `target->die()`; player death plays then RespawnSystem revives + `reviveToIdle()`s.
+      - **Unconscious/KO:** `KnockedOut`→`GetUp` states — `knockOut(seconds)` lies in `ko_lay`
+        then rises (long `get_up` clip rate-scaled to ~3 s). Test hook `POST /api/player/knockout`.
+      - **Hit reactions (was Phase 4):** `HitReact` state on taking damage (light flinch /
+        heavy stagger, re-stun-immunity); clips hit_head/stomach/rib.
+      - **Weapons + attack types:** `CombatBehavior` resolves its moveset via `MeleeAnimMapper`
+        (same as the player's held weapon); `spawn_npc` accepts `"weapon":"<items.json id>"`
+        (iron_sword→slash_1h). Unarmed combo gained a **kick** (boxing→elbow_punch→kick).
+      - **Enemy AI tuning:** run-approach + no post-swing back-off + hold-at-range = reliable
+        trades (was 0 hits); evadeChance 0.45.
+      - New clips imported (FBX from the user via `tools/bin/import_rolls.py`): roll_forward,
+        dive_forward, hit_head/stomach/rib, dodge_right, death_front/back, ko_lay, get_up, kick.
+      - **KNOWN GAPS / next polish:** roll_forward reused for back/left/right (looks off
+        sideways — needs directional roll clips, `dodge_right` is imported-but-unwired); no
+        stamina; no lock-on; **two player-health stores** (Entity HealthComponent vs
+        `Application::playerHealth`) still not unified — combat damages both via a bridge;
+        combat NPCs still **drift** across the arena via dodge-rolls; fights are slowish;
+        the `get_animation_state` `progress` reads 0.0 for end-frozen Death (cosmetic); a
+        bigger/bounded test arena is needed (small DebrisPushTest platform → fall-offs; use a
+        generated **Flat** world for combat testing).
 - **Items system P1 (2026-06-11): DONE + verified live end-to-end.** "Items" = holdable
   things (weapons, torches, cups) with a three-state lifecycle: WORLD PROP ⇄ INVENTORY ⇄ HELD.
   - **Data:** `ItemDefinition` gains `holdable` + `held{gripBone, gripOffset, gripEulerDeg,
