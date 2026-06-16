@@ -28,6 +28,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "scene/NPCEntity.h"
 #include "scene/behaviors/IdleBehavior.h"
 #include "scene/behaviors/PatrolBehavior.h"
+#include "scene/behaviors/CombatBehavior.h"
 #include "scene/behaviors/BehaviorTreeBehavior.h"
 #include "scene/behaviors/ScheduledBehavior.h"
 #include "ai/Schedule.h"
@@ -11947,6 +11948,13 @@ void Application::processAPICommands() {
                         }
 
                         if (npc) {
+                            // Optional weapon for combat NPCs — drives their moveset
+                            // through the same mapper as the player's held weapon.
+                            if (behaviorType == Core::NPCBehaviorType::Combat &&
+                                cmd.params.contains("weapon")) {
+                                if (auto* cb = dynamic_cast<Scene::CombatBehavior*>(npc->getBehavior()))
+                                    cb->setWeapon(cmd.params.value("weapon", std::string{}));
+                            }
                             response = {{"success", true}, {"name", name}, {"behavior", behaviorStr},
                                         {"procedural", procedural}, {"role", role}, {"driveMode", driveModeStr},
                                         {"position", {{"x", x}, {"y", y}, {"z", z}}}};

@@ -3,7 +3,7 @@
 
   "_comment_movesets": "attacks = the LIGHT chain (input during a swing's chain window plays the next link; ending without input resets). heavy = committed one-shot. block = guard clip held while blocking, frozen at blockHold fraction. speedClass picks rate + chainWindow from speedClasses. Phase A maps existing clips; authored per-weapon movesets replace these slot by slot.",
   "families": {
-    "unarmed":    { "attacks": ["boxing", "elbow_punch"],                              "heavy": "headbutt",          "block": "body_block",  "blockHold": 0.3, "speedClass": "fast" },
+    "unarmed":    { "attacks": ["boxing", "elbow_punch", "kick"],                       "heavy": "headbutt",          "block": "body_block",  "blockHold": 0.3, "speedClass": "fast" },
     "slash_1h":   { "attacks": ["sword1h_light1", "sword1h_light2", "sword1h_light3"],     "heavy": "sword1h_heavy", "block": "sword1h_guard", "blockHold": 1.0, "speedClass": "standard" },
     "stab_1h":    { "attacks": ["melee_stab_1h"],                                      "heavy": "melee_stab_1h",     "block": "melee_parry", "blockHold": 0.5, "speedClass": "fast" },
     "two_handed": { "attacks": ["melee_chop_2h", "melee_sweep_2h"],                    "heavy": "melee_sweep_2h",    "block": "body_block",  "blockHold": 0.3, "speedClass": "heavy" },

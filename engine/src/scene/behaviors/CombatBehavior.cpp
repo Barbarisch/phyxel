@@ -4,6 +4,9 @@
 #include "core/EntityRegistry.h"
 #include "core/CombatSystem.h"
 #include "core/HealthComponent.h"
+#include "core/MeleeAnimMapper.h"
+#include "core/ItemRegistry.h"
+#include "core/RpgItem.h"
 #include "utils/Logger.h"
 
 #include <cmath>
@@ -34,14 +37,27 @@ void CombatBehavior::ensureWired(NPCContext& ctx, AnimatedVoxelCharacter* charac
     if (m_wired || !character) return;
     m_wired = true;
 
-    // Give the enemy a basic melee moveset so lightAttack() animates. These are
-    // real swing mocaps already in humanoid.anim (the player uses them too).
+    // Resolve the moveset from the held weapon via the same mapper the player
+    // uses (unarmed = boxing/elbow/kick when no weapon). Lets enemies wield
+    // swords/spears/etc. by setting a weapon id.
+    auto& mapper = Core::MeleeAnimMapper::instance();
+    if (!mapper.isLoaded())
+        mapper.loadConfig("resources/rpg_items/anim/melee_anim_families.json");
+    auto& rpgReg = Core::RpgItemRegistry::instance();
+    if (rpgReg.count() == 0) rpgReg.loadFromDirectory("resources/rpg_items");
+    const Core::ItemDefinition* weaponDef =
+        m_weaponId.empty() ? nullptr : Core::ItemRegistry::instance().getItem(m_weaponId);
+    const Core::MeleeMovesetDef md = mapper.resolveMovesetDef(weaponDef);
     AnimatedVoxelCharacter::MeleeMoveset ms;
-    ms.lightChain     = {"melee_attack_horizontal", "melee_attack_down"};
-    ms.heavy          = "melee_chop_2h";
-    ms.attackRate     = 1.4f;   // snappier than the raw ~2.4s mocap swing
-    ms.chainWindowFrac = 0.35f;
+    ms.lightChain      = md.lightChain;
+    ms.heavy           = md.heavy;
+    ms.block           = md.block;
+    ms.attackRate      = md.attackRate;
+    ms.chainWindowFrac = md.chainWindowFrac;
+    ms.blockHoldFrac   = md.blockHoldFrac;
     character->setMoveset(std::move(ms));
+    LOG_DEBUG("CombatAI", "{} moveset family '{}' (weapon '{}')",
+              ctx.selfId, md.family, m_weaponId.empty() ? "(none)" : m_weaponId);
 
     // NPC swings land damage at the clip's hit frame, exactly like the player
     // (Application::createAnimatedCharacter). attackerEntity is the registered

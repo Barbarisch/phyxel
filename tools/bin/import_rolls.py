@@ -32,6 +32,8 @@ TARGETS = {
     "Dying Backwards": "death_back",
     "Laying Idle":     "ko_lay",
     "Standing Up":     "get_up",
+    # Attack variety.
+    "Kicking":         "kick",
 }
 
 

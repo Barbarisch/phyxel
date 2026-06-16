@@ -73,8 +73,12 @@ public:
     /// Faction tag — combat NPCs only target entities whose faction differs
     /// (empty = hostile to everyone, the default). Lets two NPCs duel.
     void setFaction(const std::string& f) { m_faction = f; }
+    /// Equip a weapon by item id; the moveset is resolved from it like the
+    /// player's held weapon (empty = unarmed). Set before the first update.
+    void setWeapon(const std::string& id) { m_weaponId = id; }
 private:
     std::string m_faction;
+    std::string m_weaponId;
 };
 
 } // namespace Scene
