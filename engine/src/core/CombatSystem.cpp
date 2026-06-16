@@ -27,8 +27,10 @@ std::vector<DamageEvent> CombatSystem::performAttack(
         if (entity == params.attackerEntity) continue;
         if (entityId == params.attackerId) continue;
 
-        // Skip if in invulnerability frames
+        // Skip if in invulnerability frames (post-hit timer, or an external
+        // predicate such as dodge i-frames).
         if (isInvulnerable(entityId)) continue;
+        if (m_invulnQuery && m_invulnQuery(entity)) continue;
 
         // Check if target is within the attack cone
         glm::vec3 toTarget = entity->getPosition() - params.attackerPos;

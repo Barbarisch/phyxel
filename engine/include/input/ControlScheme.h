@@ -32,6 +32,7 @@ struct ControlIntent {
     bool attack = false;   // light attack (LMB) — edge-guarded by the controller
     bool heavy  = false;   // heavy attack (Shift+LMB) — edge-guarded by the controller
     bool block  = false;   // guard held (RMB in FPS; LEFT_ALT in tank, where RMB orbits)
+    bool dodge  = false;   // dodge/roll (R) — one-shot, edge-guarded by the controller
 };
 
 // Strategy: maps InputManager state to a ControlIntent.
@@ -69,6 +70,7 @@ public:
             in.heavy  = lmb && shift;
         }
         in.block  = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT);
+        in.dodge  = input.isKeyPressed(GLFW_KEY_R);
         in.yaw    = input.getYaw();
         in.pitch  = input.getPitch();
         in.coupleFacingToYaw = true;
@@ -103,6 +105,7 @@ public:
         }
         // RMB is the camera-orbit hold in tank mode, so guard goes on ALT.
         in.block  = input.isKeyPressed(GLFW_KEY_LEFT_ALT);
+        in.dodge  = input.isKeyPressed(GLFW_KEY_R);
         in.yaw    = input.getYaw();
         in.pitch  = input.getPitch();
         in.coupleFacingToYaw = false;

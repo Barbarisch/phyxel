@@ -180,6 +180,72 @@ TEST(CombatSystemTest, InvulnerabilityExpiresAfterUpdate) {
 }
 
 // ============================================================================
+// External invulnerability query (dodge i-frames)
+// ============================================================================
+
+TEST(CombatSystemTest, InvulnerabilityQuerySkipsTarget) {
+    CombatSystem combat;
+    EntityRegistry registry;
+
+    auto attacker = std::make_unique<TestEntity>(glm::vec3(0, 0, 0));
+    auto target = std::make_unique<TestEntity>(glm::vec3(0, 0, -1.0f));
+    auto* targetPtr = target.get();
+
+    registry.registerEntity(attacker.get(), "attacker", "test");
+    registry.registerEntity(target.get(), "target", "test");
+
+    // Mid-dodge: the target reports invulnerable → hit is skipped.
+    bool invulnerable = true;
+    combat.setInvulnerabilityQuery(
+        [&](const Scene::Entity* e) { return e == targetPtr && invulnerable; });
+
+    CombatSystem::AttackParams params;
+    params.attackerId = "attacker";
+    params.attackerPos = glm::vec3(0, 0, 0);
+    params.attackerForward = glm::vec3(0, 0, -1);
+    params.damage = 20.0f;
+    params.reach = 3.0f;
+
+    auto blocked = combat.performAttack(params, registry);
+    EXPECT_EQ(blocked.size(), 0u);
+    EXPECT_FLOAT_EQ(targetPtr->m_health.getHealth(), 100.0f);
+
+    // i-frames end → the same attack now connects.
+    invulnerable = false;
+    auto hit = combat.performAttack(params, registry);
+    ASSERT_EQ(hit.size(), 1u);
+    EXPECT_FLOAT_EQ(targetPtr->m_health.getHealth(), 80.0f);
+}
+
+TEST(CombatSystemTest, InvulnerabilityQueryReceivesCandidateEntity) {
+    CombatSystem combat;
+    EntityRegistry registry;
+
+    auto attacker = std::make_unique<TestEntity>(glm::vec3(0, 0, 0));
+    auto target = std::make_unique<TestEntity>(glm::vec3(0, 0, -1.0f));
+    auto* targetPtr = target.get();
+
+    registry.registerEntity(attacker.get(), "attacker", "test");
+    registry.registerEntity(target.get(), "target", "test");
+
+    const Scene::Entity* seen = nullptr;
+    combat.setInvulnerabilityQuery([&](const Scene::Entity* e) {
+        seen = e;
+        return false;  // don't block; just observe
+    });
+
+    CombatSystem::AttackParams params;
+    params.attackerId = "attacker";
+    params.attackerPos = glm::vec3(0, 0, 0);
+    params.attackerForward = glm::vec3(0, 0, -1);
+    params.damage = 5.0f;
+    params.reach = 3.0f;
+
+    combat.performAttack(params, registry);
+    EXPECT_EQ(seen, targetPtr);  // the query is consulted with the real target
+}
+
+// ============================================================================
 // Kill
 // ============================================================================
 

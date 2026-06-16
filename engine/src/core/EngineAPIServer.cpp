@@ -3252,6 +3252,16 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(result.dump(), "application/json");
     });
 
+    // POST /api/player/dodge — Simulate a dodge/roll input.
+    // Body: {"direction": "forward"|"back"|"left"|"right"} relative to facing
+    // (default "back" = backstep).
+    srv.Post("/api/player/dodge", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = req.body.empty() ? json::object() : json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        json result = queueAndWait("player_dodge", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
     // POST /api/inventory/set_slot — Set a specific slot's contents
     srv.Post("/api/inventory/set_slot", [this](const httplib::Request& req, httplib::Response& res) {
         try {

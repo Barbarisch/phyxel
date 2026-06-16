@@ -189,6 +189,16 @@ def parse_anim_file(path: str | Path) -> AnimFile:
                 i += 1
                 parts = lines[i].strip().split()
 
+            # Optional RootMotion line — extract_animation.py emits it for
+            # moving clips (e.g. "RootMotion 1 0 1"), but the engine .anim
+            # format and the existing humanoid.anim clips don't keep it (root
+            # motion is baked/stripped into the keys). Skip it so moving clips
+            # like rolls/dives parse correctly instead of being misread as the
+            # channel count.
+            if parts and parts[0] == "RootMotion":
+                i += 1
+                parts = lines[i].strip().split()
+
             # BoneChannelCount
             channel_count = int(parts[1])
             i += 1

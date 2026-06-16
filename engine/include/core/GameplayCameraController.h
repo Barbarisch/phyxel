@@ -100,7 +100,14 @@ public:
             // Guard is a held stance.
             character->setBlocking(in.block);
 
-            if (in.coupleFacingToYaw)
+            // Dodge is a one-shot roll in the current movement direction (neutral
+            // input backsteps). Edge-trigger so a held key fires a single roll.
+            if (in.dodge) { if (!dodgeHeld_) character->dodgeFromInput(); dodgeHeld_ = true; }
+            else          { dodgeHeld_ = false; }
+
+            // Don't stomp the body heading while dodging — enterDodge() snaps the
+            // facing to the roll direction, and the camera-coupled yaw would fight it.
+            if (in.coupleFacingToYaw && !character->isDodging())
                 character->setFacingYaw(glm::radians(90.0f - in.yaw));
 
             if (advanceCharacter) character->update(dt);
@@ -119,6 +126,7 @@ private:
     std::string schemeName_;  // last name passed to setSchemeByName
     bool jumpHeld_   = false;
     bool attackHeld_ = false;
+    bool dodgeHeld_  = false;
 };
 
 } // namespace Core

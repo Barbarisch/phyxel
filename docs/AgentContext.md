@@ -528,6 +528,41 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       reactions (E). Also open: user's sword-feel nitpicks (unspecified, theirs to list),
       NPC movesets, thrust input, block actually mitigating damage (Block state exists but
       incoming damage ignores it).
+    - **Combat Phase E — dodge/roll + real-time enemy AI (2026-06-16): DONE + verified live,
+      committed.** The big souls slice. Three parts:
+      1. **Directional dodge w/ i-frames** (`AnimatedVoxelCharacter` `Dodge` state +
+         `dodge(dirXZ)`/`dodgeFromInput()`): a scripted ease-out kinematic lunge (~3.2 u /
+         0.8 s) through the normal collision/gravity integrator, movement-relative (neutral =
+         backstep), faces the dodge dir so the forward-roll clip reads for all 4 dirs. I-frame
+         sub-window via `isDodgeInvulnerable()`; foot-IK suppressed mid-roll; clip fit to the
+         window via `currentDodgeRate()`. `R` key (both ControlSchemes, edge-guarded in
+         GameplayCameraController) + `POST /api/player/dodge {direction}`.
+      2. **i-frame skip hook**: `CombatSystem::setInvulnerabilityQuery(fn(Entity*))` — attack
+         resolution skips a target reporting `isDodgeInvulnerable()` (covers player AND NPCs).
+         Unit-tested (`CombatSystemTest`).
+      3. **Real-time enemy AI** (`Scene::CombatBehavior : NPCBehavior`, NOT the turn-based
+         `CombatAISystem`): drives the NPC's character via **setControlInput** (so the full
+         melee FSM ticks — `setMoveVelocity` would bypass `updateStateMachine`), acquires the
+         nearest live non-self fighter (`getEntitiesByType("animated")`+`"npc"`), approaches/
+         faces/circle-strafes/attacks (real swing mocap)/backs off, AND **dodges** incoming
+         swings (rolls when the target is mid-Attack within reach; `evadeChance`/cooldown gated
+         so fights resolve). NPC swings deal damage via the NPC's `onHitFrame`→`CombatSystem`
+         (mirrors the player wiring). `NPCBehaviorType::Combat`, behavior string `"combat"`/
+         `"aggressive"` in spawn_npc; `CombatSystem` threaded through `NPCContext` (NPCManager→
+         NPCEntity). **Verified live: enemy hunts+kills the player (→respawn), player rolls
+         through attacks untouched (0 hits in 8 s of rolling), and TWO combat NPCs duel each
+         other — trading hits and dodging.**
+      - **Player-health bridge:** `CombatSystem::setOnDamage` routes damage landing on the
+        player Entity into `Application::playerHealth` (the HUD/RespawnSystem health), since the
+        player has TWO health stores (Entity `HealthComponent` vs HUD). **Single-source
+        unification of the two is a follow-up.**
+      - **Roll-anim import:** "Stand To Roll"/"Run To Dive" FBX → `roll_forward`/`dive_forward`
+        in humanoid.anim (see [[anim-fbx-import-pipeline]] memory; needs FBX2glTF on PATH +
+        `tools/bin/import_rolls.py`; fixed `anim_editor.py` parser to skip `RootMotion` lines).
+      - **KNOWN GAPS / next polish:** roll_forward is reused for back/left/right (looks off
+        sideways — author or mirror directional rolls); no stamina; no lock-on; `dive_forward`
+        unused (sprint-dodge?); two player-health stores; hit-reactions/stagger (Phase 4) not
+        started; combat tuning (enemy aggression/spacing, evadeChance 0.7 = lots of dodging).
 - **Items system P1 (2026-06-11): DONE + verified live end-to-end.** "Items" = holdable
   things (weapons, torches, cups) with a three-state lifecycle: WORLD PROP ⇄ INVENTORY ⇄ HELD.
   - **Data:** `ItemDefinition` gains `holdable` + `held{gripBone, gripOffset, gripEulerDeg,

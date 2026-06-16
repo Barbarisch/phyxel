@@ -84,10 +84,19 @@ public:
     using OnDamageCallback = std::function<void(const DamageEvent&)>;
     void setOnDamage(OnDamageCallback cb) { m_onDamage = std::move(cb); }
 
+    /// Optional external invulnerability predicate. When set and it returns true
+    /// for a candidate target, the hit is skipped (in addition to the post-hit
+    /// i-frame timers). Used for dodge i-frames: the host checks the target's
+    /// AnimatedVoxelCharacter::isDodgeInvulnerable(). Decoupled so CombatSystem
+    /// has no scene dependency and the same hook covers player AND NPC dodges.
+    using InvulnerabilityQuery = std::function<bool(const Scene::Entity*)>;
+    void setInvulnerabilityQuery(InvulnerabilityQuery q) { m_invulnQuery = std::move(q); }
+
 private:
     float m_invulnDuration = 0.5f;
     std::unordered_map<std::string, float> m_invulnTimers; // entityId → remaining time
     OnDamageCallback m_onDamage;
+    InvulnerabilityQuery m_invulnQuery;
 };
 
 } // namespace Core

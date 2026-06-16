@@ -1704,6 +1704,7 @@ namespace Scene {
         if (str == "SitStandUp") return AnimatedCharacterState::SitStandUp;
         if (str == "Cast") return AnimatedCharacterState::Cast;
         if (str == "Block") return AnimatedCharacterState::Block;
+        if (str == "Dodge") return AnimatedCharacterState::Dodge;
         if (str == "Preview") return AnimatedCharacterState::Preview;
         return AnimatedCharacterState::Idle;
     }
@@ -1839,6 +1840,94 @@ namespace Scene {
         m_heavyRequested = true;
     }
 
+    // ---- Dodge (souls-style directional roll with i-frames) ----
+
+    void AnimatedVoxelCharacter::dodge(const glm::vec2& dirXZ) {
+        if (m_isSitting || m_isAnchoredAnim || isDerezzing()) return;
+        if (!m_kinGrounded) return;  // no air-dodge in v1
+        switch (currentState) {
+            case AnimatedCharacterState::Jump:
+            case AnimatedCharacterState::Fall:
+            case AnimatedCharacterState::Land:
+            case AnimatedCharacterState::Cast:
+            case AnimatedCharacterState::Dodge:
+            case AnimatedCharacterState::SitDown:
+            case AnimatedCharacterState::SittingIdle:
+            case AnimatedCharacterState::SitStandUp:
+                return;  // committed / not dodge-able right now
+            default: break;
+        }
+        m_dodgeReqDirXZ  = dirXZ;
+        m_dodgeRequested = true;  // consumed by the state machine (enterDodge)
+    }
+
+    void AnimatedVoxelCharacter::dodgeFromInput() {
+        // Resolve the movement input into a world XZ direction exactly the way the
+        // locomotion integrator does (so a dodge goes where a walk would).
+        glm::vec3 forwardDir(-std::sin(currentYaw), 0.0f, -std::cos(currentYaw));
+        glm::vec3 rightDir = glm::normalize(glm::cross(forwardDir, glm::vec3(0, 1, 0)));
+        float inputDir  = (currentForwardInput > 0.01f) ? 1.0f
+                        : (currentForwardInput < -0.01f ? -1.0f : 0.0f);
+        float strafeDir = (currentStrafeInput  > 0.01f) ? 1.0f
+                        : (currentStrafeInput  < -0.01f ? -1.0f : 0.0f);
+        glm::vec3 moveDir = forwardDir * inputDir - rightDir * strafeDir;
+        dodge(glm::vec2(moveDir.x, moveDir.z));  // zero → dodge() backsteps
+    }
+
+    bool AnimatedVoxelCharacter::isDodgeInvulnerable() const {
+        if (currentState != AnimatedCharacterState::Dodge) return false;
+        const float T = std::max(0.05f, m_dodgeDuration);
+        const float frac = stateTimer / T;
+        return frac >= m_dodgeIFrameStartFrac && frac <= m_dodgeIFrameEndFrac;
+    }
+
+    bool AnimatedVoxelCharacter::hasClip(const std::string& name) const {
+        for (const auto& c : clips) if (c.name == name) return true;
+        return false;
+    }
+
+    std::string AnimatedVoxelCharacter::selectDodgeClip(const glm::vec2& worldDirXZ) const {
+        // Decompose the world dodge direction into front/right relative to the
+        // body facing (+Z is the visual front at yaw 0 — see anim conventions).
+        const glm::vec2 front(std::sin(currentYaw), std::cos(currentYaw));
+        const glm::vec2 right(std::cos(currentYaw), -std::sin(currentYaw));
+        const float f = glm::dot(worldDirXZ, front);
+        const float r = glm::dot(worldDirXZ, right);
+        std::string name;
+        if (std::abs(f) >= std::abs(r)) name = (f >= 0.0f) ? "roll_forward" : "roll_back";
+        else                            name = (r >= 0.0f) ? "roll_right"   : "roll_left";
+        if (hasClip(name)) return name;
+        // Phase 1 fallback: the authored roll set may not exist yet — use any
+        // available clip so the lunge + i-frames are still testable.
+        for (const char* fb : {"roll_forward", "jump", "landing", "jump_down",
+                               "boxing", "idle"}) {
+            if (hasClip(fb)) return fb;
+        }
+        return name;  // animation system tolerates an unknown name (keeps last clip)
+    }
+
+    void AnimatedVoxelCharacter::enterDodge() {
+        m_dodgeRequested = false;
+        glm::vec2 dir = m_dodgeReqDirXZ;
+        if (glm::length(dir) < 0.01f) {
+            // Neutral input → backstep (opposite of the visual front).
+            dir = glm::vec2(-std::sin(currentYaw), -std::cos(currentYaw));
+        }
+        const float len = glm::length(dir);
+        m_dodgeDirXZ = (len > 1e-4f) ? dir / len : glm::vec2(0.0f, -1.0f);
+        // Face the dodge direction so the (forward) roll clip reads correctly for
+        // any direction — the no-lock-on souls behaviour (you turn into the roll).
+        // The visual front is +Z at yaw 0, so yaw = atan2(dirX, dirZ). The host
+        // controller suspends its camera-facing coupling while dodging.
+        currentYaw = std::atan2(m_dodgeDirXZ.x, m_dodgeDirXZ.y);
+        currentState = AnimatedCharacterState::Dodge;
+        stateTimer = 0.0f;
+        m_hitFrameFired = false;
+        m_currentDodgeClip = selectDodgeClip(m_dodgeDirXZ);
+        LOG_DEBUG("Character", "Dodge: dir=({:.2f},{:.2f}) clip='{}'",
+                  m_dodgeDirXZ.x, m_dodgeDirXZ.y, m_currentDodgeClip);
+    }
+
     bool AnimatedVoxelCharacter::castSpell(const std::vector<CastSegment>& segments) {
         if (segments.empty() || segments.front().clip.empty()) return false;
         if (m_isSitting || m_isAnchoredAnim || isDerezzing()) return false;
@@ -1935,6 +2024,7 @@ namespace Scene {
             case AnimatedCharacterState::SitStandUp: return "SitStandUp";
             case AnimatedCharacterState::Cast: return "Cast";
             case AnimatedCharacterState::Block: return "Block";
+            case AnimatedCharacterState::Dodge: return "Dodge";
             case AnimatedCharacterState::Preview: return "Preview";
             default: return "Unknown";
         }
@@ -2040,7 +2130,10 @@ namespace Scene {
             case AnimatedCharacterState::ClimbStairs:
             case AnimatedCharacterState::DescendStairs:
                 // Handle Actions (High Priority)
-                if (jumpRequested) {
+                if (m_dodgeRequested) {
+                    // Dodge interrupts locomotion — highest priority ground action.
+                    enterDodge();
+                } else if (jumpRequested) {
                     std::cout << "DEBUG: Jump requested, switching state." << std::endl;
                     currentState = AnimatedCharacterState::Jump;
                     stateTimer = 0.0f;
@@ -2346,10 +2439,26 @@ namespace Scene {
             }
 
             case AnimatedCharacterState::Block:
+                // A dodge cancels the guard (souls-style roll out of block).
+                if (m_dodgeRequested) {
+                    enterDodge();
+                    break;
+                }
                 // Held stance: stay while the input is held, release to Idle.
                 if (!m_blockHeld) {
                     currentState = AnimatedCharacterState::Idle;
                     stateTimer = 0.0f;
+                }
+                break;
+
+            case AnimatedCharacterState::Dodge:
+                // Committed scripted roll. The horizontal lunge is applied in the
+                // movement block; here we just time out back to Idle. (Movement
+                // input is buffered, not consumed, so it resumes on exit.)
+                if (stateTimer >= m_dodgeDuration) {
+                    currentState = AnimatedCharacterState::Idle;
+                    stateTimer = 0.0f;
+                    jumpRequested = false;  // don't pop a buffered jump out of a roll
                 }
                 break;
 
@@ -2873,6 +2982,19 @@ namespace Scene {
             
             glm::vec3 moveVel = moveDir * moveSpeed;
 
+            // Dodge overrides input-driven movement with a scripted lunge along
+            // the locked dodge direction. Triangular ease-out (fast start → slow
+            // settle): v(t)=v0*(1-t), whose integral over [0,T] is v0*T/2, so
+            // v0 = 2*distance/T gives exactly the authored travel distance.
+            // Collision + gravity still apply via resolveKinematicMovement.
+            if (currentState == AnimatedCharacterState::Dodge) {
+                const float T  = std::max(0.05f, m_dodgeDuration);
+                const float t  = glm::clamp(stateTimer / T, 0.0f, 1.0f);
+                const float v0 = 2.0f * m_dodgeDistance / T;
+                const float v  = v0 * (1.0f - t);
+                moveVel = glm::vec3(m_dodgeDirXZ.x, 0.0f, m_dodgeDirXZ.y) * v;
+            }
+
             // Preserve vertical velocity (gravity handled by resolveKinematicMovement)
             m_kinVelocity.x = moveVel.x;
             m_kinVelocity.z = moveVel.z;
@@ -2916,6 +3038,10 @@ namespace Scene {
                     case AnimatedCharacterState::Cast:
                         targetAnim = (m_castSegIdx < m_castSegments.size())
                                          ? m_castSegments[m_castSegIdx].clip : "idle";
+                        break;
+                    case AnimatedCharacterState::Dodge:
+                        targetAnim = m_currentDodgeClip.empty() ? "roll_forward"
+                                                               : m_currentDodgeClip;
                         break;
                     case AnimatedCharacterState::TurnLeft: targetAnim = "left_turn"; break;
                     case AnimatedCharacterState::TurnRight: targetAnim = "right_turn"; break;
@@ -3045,7 +3171,7 @@ namespace Scene {
         float evalTime = animTime; // may be remapped for warp preview
         if (currentClipIndex >= 0 && currentClipIndex < clips.size()) {
             if (!m_animPaused)
-                animTime += deltaTime * m_playbackSpeed * currentCastSpeed() * currentAttackRate();
+                animTime += deltaTime * m_playbackSpeed * currentCastSpeed() * currentAttackRate() * currentDodgeRate();
 
             // Held guard: freeze partway into the block clip (the clip's end
             // usually returns to rest, which is not a guard pose).
@@ -3590,6 +3716,15 @@ namespace Scene {
         if (m_isSitting) {
             m_visualBodyY   = worldPosition.y;
             m_visualBodyVel = 0.0f;
+            m_footIKBlend   = 0.0f;
+            m_leftFootLock  = {};
+            m_rightFootLock = {};
+            return;
+        }
+        // Foot IK off during a dodge roll — the feet leave the ground mid-roll,
+        // so planting them to terrain reads as broken. Reset locks/blend so the
+        // pose doesn't snap when the roll ends.
+        if (currentState == AnimatedCharacterState::Dodge) {
             m_footIKBlend   = 0.0f;
             m_leftFootLock  = {};
             m_rightFootLock = {};

@@ -9,6 +9,7 @@
 #include "scene/behaviors/BehaviorTreeBehavior.h"
 #include "scene/behaviors/ScheduledBehavior.h"
 #include "scene/behaviors/StoryDrivenBehavior.h"
+#include "scene/behaviors/CombatBehavior.h"
 #include "ai/Schedule.h"
 #include "core/EntityRegistry.h"
 #include "graphics/LightManager.h"
@@ -38,6 +39,9 @@ Scene::NPCEntity* NPCManager::spawnNPC(const std::string& name, const std::strin
             break;
         case NPCBehaviorType::Scheduled:
             behavior = std::make_unique<Scene::ScheduledBehavior>(AI::Schedule::defaultSchedule());
+            break;
+        case NPCBehaviorType::Combat:
+            behavior = std::make_unique<Scene::CombatBehavior>();
             break;
         case NPCBehaviorType::Idle:
         default:
@@ -80,6 +84,7 @@ Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, cons
 
     // Wire context
     npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry, m_chunkManager, m_raycastVisualizer);
+    npc->setCombatSystem(m_combatSystem);
     if (m_navGraph) npc->setNavGraph(m_navGraph.get());
     if (m_pathService) npc->setPathService(m_pathService.get());
 
@@ -421,6 +426,9 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
         case NPCBehaviorType::Scheduled:
             behavior = std::make_unique<Scene::ScheduledBehavior>(AI::Schedule::defaultSchedule());
             break;
+        case NPCBehaviorType::Combat:
+            behavior = std::make_unique<Scene::CombatBehavior>();
+            break;
         case NPCBehaviorType::Idle:
         default:
             behavior = std::make_unique<Scene::IdleBehavior>();
@@ -441,6 +449,7 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
         m_entityRegistry->registerEntity(npc.get(), entityId, "npc");
     }
     npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry, m_chunkManager, m_raycastVisualizer);
+    npc->setCombatSystem(m_combatSystem);
     if (m_navGraph) npc->setNavGraph(m_navGraph.get());
     if (m_pathService) npc->setPathService(m_pathService.get());
 
@@ -479,6 +488,9 @@ Scene::NPCEntity* NPCManager::spawnPhysicsNPC(const std::string& name, const std
         case NPCBehaviorType::Scheduled:
             behavior = std::make_unique<Scene::ScheduledBehavior>(AI::Schedule::defaultSchedule());
             break;
+        case NPCBehaviorType::Combat:
+            behavior = std::make_unique<Scene::CombatBehavior>();
+            break;
         case NPCBehaviorType::Idle:
         default:
             behavior = std::make_unique<Scene::IdleBehavior>();
@@ -498,6 +510,7 @@ Scene::NPCEntity* NPCManager::spawnPhysicsNPC(const std::string& name, const std
         m_entityRegistry->registerEntity(npc.get(), entityId, "npc");
     }
     npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry, m_chunkManager, m_raycastVisualizer);
+    npc->setCombatSystem(m_combatSystem);
     if (m_navGraph) npc->setNavGraph(m_navGraph.get());
     if (m_pathService) npc->setPathService(m_pathService.get());
 
@@ -548,6 +561,9 @@ Scene::NPCEntity* NPCManager::spawnPhysicsProceduralNPC(const std::string& name,
         case NPCBehaviorType::Scheduled:
             behavior = std::make_unique<Scene::ScheduledBehavior>(AI::Schedule::defaultSchedule());
             break;
+        case NPCBehaviorType::Combat:
+            behavior = std::make_unique<Scene::CombatBehavior>();
+            break;
         case NPCBehaviorType::Idle:
         default:
             behavior = std::make_unique<Scene::IdleBehavior>();
@@ -567,6 +583,7 @@ Scene::NPCEntity* NPCManager::spawnPhysicsProceduralNPC(const std::string& name,
         m_entityRegistry->registerEntity(npc.get(), entityId, "npc");
     }
     npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry, m_chunkManager, m_raycastVisualizer);
+    npc->setCombatSystem(m_combatSystem);
     if (m_navGraph) npc->setNavGraph(m_navGraph.get());
     if (m_pathService) npc->setPathService(m_pathService.get());
 

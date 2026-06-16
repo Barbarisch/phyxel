@@ -62,6 +62,7 @@ namespace Scene {
         SitStandUp,   // playing stand-up-from-seat animation
         Cast,         // playing a spell-cast one-shot (single clip or windup/loop/release)
         Block,        // holding a guard pose (frozen partway into the block clip)
+        Dodge,        // souls-style directional roll: scripted lunge + i-frame window
         Preview
     };
 
@@ -351,6 +352,36 @@ namespace Scene {
         /// Back-compat: the light chain as a flat list.
         const std::vector<std::string>& getAttackCombo() const { return m_moveset.lightChain; }
 
+        // ---- Dodge (souls-style directional roll with i-frames) ----
+
+        /// Begin a movement-relative dodge. `dirXZ` is a world-space XZ direction
+        /// (the way to roll); a near-zero vector dodges straight back (backstep).
+        /// Drives a fixed-duration kinematic lunge through the normal collision/
+        /// gravity integrator, with an invulnerability sub-window. Rejected while
+        /// airborne / sitting / casting / already dodging.
+        void dodge(const glm::vec2& dirXZ);
+
+        /// Convenience for the gameplay controller: dodge in the direction of the
+        /// current movement input (W/A/S/D), resolved against the body facing the
+        /// same way locomotion is. Neutral input backsteps.
+        void dodgeFromInput();
+
+        bool isDodging() const { return currentState == AnimatedCharacterState::Dodge; }
+
+        /// True during the dodge's i-frame sub-window. CombatSystem skips hits on
+        /// any target that reports this (see CombatSystem::setInvulnerabilityQuery).
+        bool isDodgeInvulnerable() const;
+
+        /// Tuning for the dodge (distance/duration in world units/seconds, i-frame
+        /// window as fractions of the duration). Defaults give a snappy souls roll.
+        void setDodgeParams(float distance, float duration,
+                            float iframeStartFrac, float iframeEndFrac) {
+            m_dodgeDistance = distance;
+            m_dodgeDuration = duration;
+            m_dodgeIFrameStartFrac = iframeStartFrac;
+            m_dodgeIFrameEndFrac   = iframeEndFrac;
+        }
+
         // ---- Derez (falling-apart disintegration) ----
 
         /// Begin staggered voxel detachment. The character remains in the scene during the
@@ -560,6 +591,32 @@ namespace Scene {
             float s = m_castSegments[m_castSegIdx].speed;
             return s > 0.01f ? s : 1.0f;
         }
+
+        // ---- Dodge state (see dodge()) ----
+        bool      m_dodgeRequested = false;
+        glm::vec2 m_dodgeReqDirXZ{0.0f};       // requested world XZ dir (0 = backstep)
+        glm::vec2 m_dodgeDirXZ{0.0f};          // active unit dir during the dodge
+        float     m_dodgeDuration  = 0.8f;     // wall-clock seconds of the roll
+        float     m_dodgeDistance  = 3.2f;     // world units travelled over the roll
+        float     m_dodgeIFrameStartFrac = 0.12f;  // i-frames begin at this fraction
+        float     m_dodgeIFrameEndFrac   = 0.55f;  // ...and end at this fraction
+        std::string m_currentDodgeClip;        // selected directional roll clip
+        /// Playback-rate multiplier so the full roll clip plays within the dodge
+        /// window (its authored duration / m_dodgeDuration). 1.0 outside Dodge.
+        float currentDodgeRate() const {
+            if (currentState != AnimatedCharacterState::Dodge) return 1.0f;
+            if (currentClipIndex < 0 || currentClipIndex >= (int)clips.size()) return 1.0f;
+            float d = clips[currentClipIndex].duration;
+            float T = m_dodgeDuration > 0.05f ? m_dodgeDuration : 0.05f;
+            return d > 0.01f ? d / T : 1.0f;
+        }
+        /// Resolve + enter the Dodge state from a pending request (consumes it).
+        void enterDodge();
+        /// Pick the directional roll clip for a world dir relative to facing,
+        /// falling back to an existing clip when the roll set isn't authored yet.
+        std::string selectDodgeClip(const glm::vec2& worldDirXZ) const;
+        /// True if a clip with this name is loaded.
+        bool hasClip(const std::string& name) const;
 
         // Kinematic controller state (replaces Bullet controllerBody)
         glm::vec3 m_kinVelocity{0.0f};

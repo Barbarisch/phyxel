@@ -1590,6 +1590,24 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
     // Initialize Combat System
     combatSystem = std::make_unique<Core::CombatSystem>();
+    // Dodge i-frames: any animated target that is mid-roll (in its invulnerable
+    // sub-window) is skipped by attack resolution. Covers the player AND NPCs.
+    combatSystem->setInvulnerabilityQuery([](const Scene::Entity* e) -> bool {
+        if (const auto* a = dynamic_cast<const Scene::AnimatedVoxelCharacter*>(e))
+            return a->isDodgeInvulnerable();
+        return false;
+    });
+    // Real-time combat NPCs (CombatBehavior) deal damage through this system.
+    if (npcManager) npcManager->setCombatSystem(combatSystem.get());
+    // Bridge combat damage dealt TO the player into the player's HUD/respawn
+    // health (a separate HealthComponent from the player Entity's own). Without
+    // this, an enemy could drop the Entity health but never trigger death/respawn.
+    // (Single-source unification of the two player-health stores is a follow-up.)
+    combatSystem->setOnDamage([this](const Core::DamageEvent& ev) {
+        if (!entityRegistry || !animatedCharacter) return;
+        if (entityRegistry->getEntity(ev.targetId) == animatedCharacter)
+            playerHealth.takeDamage(ev.actualDamage);
+    });
 
     // Initialize Dialogue System
     dialogueSystem = std::make_unique<UI::DialogueSystem>();
@@ -7061,6 +7079,31 @@ bool Application::dispatchItemAPICommand(const Core::APICommand& cmd, nlohmann::
         return true;
     }
 
+    if (cmd.action == "player_dodge") {
+        // Simulate a dodge/roll input. {"direction": "forward"|"back"|"left"|
+        // "right"} is relative to the player's facing; omit (or "back") to
+        // backstep. FSM-wire test hook, like player_attack.
+        if (!animatedCharacter) {
+            response = {{"error", "No player character"}};
+            return true;
+        }
+        const std::string dir = cmd.params.value("direction", "back");
+        const float yaw = animatedCharacter->getYaw();
+        // +Z is the visual front at yaw 0 (see anim conventions).
+        const glm::vec2 front(std::sin(yaw), std::cos(yaw));
+        const glm::vec2 right(std::cos(yaw), -std::sin(yaw));
+        glm::vec2 d(0.0f);
+        if      (dir == "forward") d =  front;
+        else if (dir == "back")    d = -front;
+        else if (dir == "right")   d =  right;
+        else if (dir == "left")    d = -right;
+        animatedCharacter->dodge(d);  // zero (unknown dir) → backstep
+        response = {{"success", true}, {"direction", dir},
+                    {"state", animatedCharacter->stateToString(
+                                  animatedCharacter->getAnimationState())}};
+        return true;
+    }
+
     return false;
 }
 
@@ -11829,6 +11872,8 @@ void Application::processAPICommands() {
                             behaviorType = Core::NPCBehaviorType::BehaviorTree;
                         } else if (behaviorStr == "scheduled") {
                             behaviorType = Core::NPCBehaviorType::Scheduled;
+                        } else if (behaviorStr == "combat" || behaviorStr == "aggressive") {
+                            behaviorType = Core::NPCBehaviorType::Combat;
                         }
 
                         // Parse optional appearance

@@ -92,6 +92,9 @@ public:
     /// off-thread instead of calling NavGraph::findPath synchronously.
     void setPathService(Core::PathService* pathService) { m_context.pathService = pathService; }
 
+    /// Set the combat system used by real-time combat behaviors to resolve NPC attacks.
+    void setCombatSystem(Core::CombatSystem* combatSystem) { m_context.combatSystem = combatSystem; }
+
     // Attached light (e.g. NPC carrying a lantern)
     void setAttachedLightId(int lightId) { m_attachedLightId = lightId; }
     int getAttachedLightId() const { return m_attachedLightId; }

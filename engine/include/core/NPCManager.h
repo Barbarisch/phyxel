@@ -20,7 +20,7 @@ namespace Phyxel {
 namespace Physics { class PhysicsWorld; }
 namespace Graphics { class LightManager; class DayNightCycle; }
 namespace UI { class SpeechBubbleManager; }
-namespace Core { class EntityRegistry; class LocationRegistry; }
+namespace Core { class EntityRegistry; class LocationRegistry; class CombatSystem; }
 class ChunkManager;
 class RaycastVisualizer;
 
@@ -35,7 +35,8 @@ enum class NPCBehaviorType {
     Idle,
     Patrol,
     BehaviorTree,    ///< AI-driven via BehaviorTree / UtilityAI
-    Scheduled        ///< Schedule-driven: time-aware behavior tree
+    Scheduled,       ///< Schedule-driven: time-aware behavior tree
+    Combat           ///< Real-time melee enemy (CombatBehavior): approach/strafe/attack/back-off
 };
 
 /// NPCManager owns NPC entities and manages their lifecycle.
@@ -59,6 +60,8 @@ public:
     void setLocationRegistry(LocationRegistry* registry) { m_locationRegistry = registry; }
     /// Set the chunk manager for NPC line-of-sight raycasting.
     void setChunkManager(ChunkManager* mgr) { m_chunkManager = mgr; }
+    /// Set the combat system so real-time combat NPCs can deal damage.
+    void setCombatSystem(CombatSystem* combatSystem) { m_combatSystem = combatSystem; }
     /// Set the raycast visualizer for NPC FOV debug cone rendering.
     void setRaycastVisualizer(RaycastVisualizer* viz) { m_raycastVisualizer = viz; }
 
@@ -166,6 +169,7 @@ private:
     LocationRegistry* m_locationRegistry = nullptr;
     ChunkManager* m_chunkManager = nullptr;
     RaycastVisualizer* m_raycastVisualizer = nullptr;
+    CombatSystem* m_combatSystem = nullptr;
 
     /// Owns all NPC entities. Key = NPC name.
     std::unordered_map<std::string, std::unique_ptr<Scene::NPCEntity>> m_npcs;
