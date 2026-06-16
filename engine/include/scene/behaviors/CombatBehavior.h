@@ -69,6 +69,7 @@ private:
     float m_strafeRetarget = 0.0f;
     bool  m_wired          = false;  ///< moveset + damage callback installed once
     bool  m_hadTarget      = false;  ///< true once we've engaged — so losing the last enemy = victory
+    float m_comboTimer     = 0.0f;   ///< while >0 mid-swing, keep buffering light inputs to chain the combo
 
 public:
     /// Faction tag — combat NPCs only target entities whose faction differs
@@ -77,6 +78,9 @@ public:
     /// Equip a weapon by item id; the moveset is resolved from it like the
     /// player's held weapon (empty = unarmed). Set before the first update.
     void setWeapon(const std::string& id) { m_weaponId = id; }
+    /// The equipped weapon item id (empty = unarmed). Used by the host to draw
+    /// the held weapon visual.
+    const std::string& getWeaponId() const { return m_weaponId; }
 private:
     std::string m_faction;
     std::string m_weaponId;

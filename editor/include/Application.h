@@ -284,6 +284,12 @@ private:
     void updateHeldItem();               // per-frame: sync held visual with selected hotbar slot
     void dropHeldItem();                 // drop one of the selected item as a world prop
 
+    // Held weapons for combat NPCs — same template + grip orientation as the
+    // player's held item, but driven per-NPC from CombatBehavior::getWeaponId().
+    struct NpcHeldItem { std::string itemId; std::string kinId; int anchorId = -1; };
+    std::unordered_map<std::string, NpcHeldItem> m_npcHeld;  // npc name -> held visual
+    void updateNpcHeldItems();           // per-frame: sync each combat NPC's held weapon visual
+
     // Story Engine
     std::unique_ptr<Story::StoryEngine> storyEngine;
     // Shared agent driving Guided/Autonomous NPCs (StoryDrivenBehavior). One instance for all.

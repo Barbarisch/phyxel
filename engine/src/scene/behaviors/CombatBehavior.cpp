@@ -58,6 +58,8 @@ void CombatBehavior::ensureWired(NPCContext& ctx, AnimatedVoxelCharacter* charac
     character->setMoveset(std::move(ms));
     LOG_DEBUG("CombatAI", "{} moveset family '{}' (weapon '{}')",
               ctx.selfId, md.family, m_weaponId.empty() ? "(none)" : m_weaponId);
+    // The visible held weapon is managed by the host (Application::updateNpcHeldItems),
+    // which uses the same item template + grip orientation as the player's held item.
 
     // NPC swings land damage at the clip's hit frame, exactly like the player
     // (Application::createAnimatedCharacter). attackerEntity is the registered
@@ -214,11 +216,25 @@ void CombatBehavior::update(float dt, NPCContext& ctx) {
     // In range.
     if (!attacking && m_cooldownTimer <= 0.0f && character) {   // --- Attack ---
         m_state = State::Attack;
-        character->lightAttack();
+        const float roll = std::rand() / static_cast<float>(RAND_MAX);
+        if (roll < 0.30f) {
+            character->heavyAttack();       // committed strong attack
+            m_comboTimer = 0.0f;
+        } else {
+            character->lightAttack();       // start a light combo...
+            // ...and keep feeding inputs for a bit so it CHAINS through the
+            // moveset (boxing->elbow->kick / sword light1->2->3) instead of
+            // replaying the first link every cooldown.
+            m_comboTimer = 0.45f + (std::rand() / static_cast<float>(RAND_MAX)) * 0.85f;
+        }
         m_cooldownTimer = m_attackCooldown;
         m_recoverTimer  = m_recoverTime;
         drive(0.0f, 0.0f);
     } else if (attacking) {               // mid-swing: hold ground (don't cancel)
+        if (m_comboTimer > 0.0f) {        // continue the light chain
+            m_comboTimer -= dt;
+            character->lightAttack();      // buffered; FSM advances at the chain window
+        }
         drive(0.0f, 0.0f);
     } else {                              // --- in range, waiting on cooldown ---
         // Hold position and face the target. (Continuous circle-strafing made

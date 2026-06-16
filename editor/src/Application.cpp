@@ -81,6 +81,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <unordered_set>
 #include <set>
 #include <chrono>
 #include <thread>
@@ -3059,6 +3060,7 @@ void Application::update(float deltaTime) {
 
     // Sync the held-item visual with the selected hotbar slot (items P1)
     updateHeldItem();
+    updateNpcHeldItems();   // and the combat NPCs' held weapons
 
     // Drive declarative item effects (torch flame, enchant auras) for the
     // held item and all world props (items P2)
@@ -6984,6 +6986,70 @@ void Application::updateHeldItem() {
             // it re-creates next frame on the live character.
             teardown();
         }
+    }
+}
+
+void Application::updateNpcHeldItems() {
+    if (!npcManager || !kinematicVoxelManager || !itemPropManager) return;
+
+    std::unordered_set<std::string> seen;
+    for (const std::string& name : npcManager->getAllNPCNames()) {
+        Scene::NPCEntity* npc = npcManager->getNPC(name);
+        if (!npc) continue;
+        seen.insert(name);
+
+        auto* cb = dynamic_cast<Scene::CombatBehavior*>(npc->getBehavior());
+        std::string weaponId = cb ? cb->getWeaponId() : std::string{};
+        Scene::AnimatedVoxelCharacter* character = npc->getAnimatedCharacter();
+        const Core::ItemDefinition* def =
+            weaponId.empty() ? nullptr : Core::ItemRegistry::instance().getItem(weaponId);
+        if (!def || !def->holdable || def->templateFile.empty()) weaponId.clear();
+
+        NpcHeldItem& held = m_npcHeld[name];
+
+        // (Re)build the held visual when the weapon changed (or first time).
+        if (weaponId != held.itemId) {
+            if (!held.kinId.empty()) { kinematicVoxelManager->remove(held.kinId); held.kinId.clear(); }
+            if (held.anchorId >= 0 && character) character->detachFromBone(held.anchorId);
+            held.anchorId = -1;
+            held.itemId.clear();
+            if (!weaponId.empty() && character) {
+                const VoxelTemplate* tmpl = itemPropManager->resolveItemTemplate(def->templateFile);
+                if (tmpl) {
+                    auto voxels = Core::ItemPropManager::voxelsFromTemplate(*tmpl);
+                    held.kinId = kinematicVoxelManager->add("npcheld_" + name, std::move(voxels));
+                    held.anchorId = character->attachToBone(def->held.gripBone, glm::vec3(0.02f),
+                                        def->held.gripOffset, glm::vec4(0.0f), "npc_held_anchor");
+                    if (held.anchorId < 0) { kinematicVoxelManager->remove(held.kinId); held.kinId.clear(); }
+                    else held.itemId = weaponId;
+                }
+            }
+        }
+
+        // Follow the grip bone — identical grip orientation math to the player.
+        if (!held.kinId.empty() && held.anchorId >= 0 && character) {
+            const Core::ItemDefinition* hd = Core::ItemRegistry::instance().getItem(held.itemId);
+            glm::vec3 pos; glm::quat rot;
+            if (hd && character->getAttachmentTransform(held.anchorId, pos, rot)) {
+                const auto& h = hd->held;
+                glm::mat4 t = glm::translate(glm::mat4(1.0f), pos) * glm::mat4_cast(rot);
+                t = glm::rotate(t, glm::radians(h.gripEulerDeg.x), glm::vec3(1, 0, 0));
+                t = glm::rotate(t, glm::radians(h.gripEulerDeg.y), glm::vec3(0, 1, 0));
+                t = glm::rotate(t, glm::radians(h.gripEulerDeg.z), glm::vec3(0, 0, 1));
+                t = glm::scale(t, glm::vec3(h.scale));
+                kinematicVoxelManager->setTransform(held.kinId, t);
+            } else {
+                kinematicVoxelManager->remove(held.kinId); held.kinId.clear();
+                held.anchorId = -1; held.itemId.clear();
+            }
+        }
+    }
+
+    // Drop visuals for NPCs that no longer exist.
+    for (auto it = m_npcHeld.begin(); it != m_npcHeld.end(); ) {
+        if (seen.count(it->first)) { ++it; continue; }
+        if (!it->second.kinId.empty()) kinematicVoxelManager->remove(it->second.kinId);
+        it = m_npcHeld.erase(it);
     }
 }
 
