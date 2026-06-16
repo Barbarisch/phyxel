@@ -350,7 +350,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     Render-only; collision/physics untouched. The variable-size face format is the foundation
     Phase C reuses.
   - **Phase C — distance voxel LOD: ATTEMPTED, BROKEN, REVERTED (2026-06-15, reverts
-    `917dd09`/`acea8ef` of `1966a2e`/`6c9d74a`).** Downsampled distant chunks to 16³/8³ + skirts.
+    `917dd09`/`acea8ef` of `1966a2e`/`6c9d74a`). Full writeup + retry plan: `docs/VoxelLOD_TODO.md`.**
+    Downsampled distant chunks to 16³/8³ + skirts.
     Earlier "verified" claims were INVALID — two compounding traps:
     1. **⚠️ RENDER-DISTANCE GOTCHA (remember this):** `Application::maxChunkRenderDistance` is
        **~96 at runtime** (set low somewhere, NOT the 1000 header default), so the camera far
