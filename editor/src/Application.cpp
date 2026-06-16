@@ -419,6 +419,9 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // STEP 10: INITIALIZE ENTITY REGISTRY & HTTP API SERVER
     entityRegistry = std::make_unique<Core::EntityRegistry>();
     apiCommandQueue = std::make_unique<Core::APICommandQueue>();
+    // Register CommandRegistry-based API handlers (incrementally replacing the processAPICommands
+    // if-chain). Handlers read subsystems (waterManager, …) lazily at dispatch, so order is free.
+    registerWaterCommands();
     gameEventLog = std::make_unique<Core::GameEventLog>(1000);
 
     // Declarative when/then gameplay triggers (data-driven win conditions).
@@ -9263,6 +9266,104 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
 }
 
 // ============================================================================
+// Water-sim (CPU WaterManager) debug commands — first domain migrated off the processAPICommands
+// if-chain onto the CommandRegistry. Handlers run on the game-loop thread; the dispatcher owns
+// onComplete. Registered once during init.
+void Application::registerWaterCommands() {
+    auto& reg = m_commandRegistry;
+    auto noWater = [](nlohmann::json& r) { r = {{"error", "WaterManager not available"}}; };
+
+    reg.on("place_water", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        glm::vec3 p(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
+        waterManager->placeWater(p, cmd.params.value("amount", 1.0f));
+        r = {{"success", true}, {"total_mass", waterManager->totalMass()}};
+    });
+    reg.on("water_sync", [this, noWater](const Core::APICommand&, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        waterManager->syncSolidsFromChunks();
+        r = {{"success", true}};
+    });
+    reg.on("set_sea_level", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        waterManager->setSeaLevel(cmd.params.value("level", 0.0f));
+        r = {{"success", true}, {"sea_level", waterManager->seaLevel()}};
+    });
+    reg.on("add_ocean_seed", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        glm::vec3 p(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
+        waterManager->addOceanSeed(p);
+        r = {{"success", true}, {"sea_level", waterManager->seaLevel()}};
+    });
+    reg.on("clear_ocean", [this, noWater](const Core::APICommand&, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        waterManager->clearOcean();
+        r = {{"success", true}};
+    });
+    reg.on("place_spring", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        glm::vec3 p(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
+        waterManager->addSpring(p, cmd.params.value("mass", 1.0f));
+        r = {{"success", true}};
+    });
+    reg.on("clear_springs", [this, noWater](const Core::APICommand&, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        waterManager->clearSprings();
+        r = {{"success", true}};
+    });
+    reg.on("water_gpu", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        waterManager->setUseGpu(cmd.params.value("on", true));
+        r = {{"success", true}, {"gpu", waterManager->useGpu()}};
+    });
+    reg.on("set_channel_region", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        glm::ivec3 a(cmd.params.value("x1", 0), cmd.params.value("y1", 0), cmd.params.value("z1", 0));
+        glm::ivec3 b(cmd.params.value("x2", a.x), cmd.params.value("y2", a.y), cmd.params.value("z2", a.z));
+        waterManager->setChannelRegion(a, b);
+        r = {{"success", true}, {"channel_cells", waterManager->channelCells().size()}};
+    });
+    reg.on("water_save", [this, noWater](const Core::APICommand&, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        std::string path = !projectDir_.empty() ? (projectDir_ + "/game.json")
+            : (!engineConfig.gameDefinitionFile.empty() ? engineConfig.gameDefinitionFile : "game.json");
+        nlohmann::json doc;
+        { std::ifstream f(path); if (f.is_open()) { try { doc = nlohmann::json::parse(f); } catch (...) {} } }
+        if (!doc.is_object()) doc = nlohmann::json::object();
+        nlohmann::json w = doc.contains("water") ? doc["water"] : nlohmann::json::object();
+        w["enabled"]  = renderCoordinator ? renderCoordinator->isWaterEnabled() : false;
+        w["seaLevel"] = waterManager->seaLevel();
+        nlohmann::json seeds = nlohmann::json::array();
+        for (const auto& s : waterManager->oceanSeeds()) seeds.push_back({s.x, s.y, s.z});
+        w["oceanSeeds"] = seeds;
+        nlohmann::json springs = nlohmann::json::array();
+        for (const auto& sp : waterManager->springsData())
+            springs.push_back({{"x", sp.x}, {"y", sp.y}, {"z", sp.z}, {"mass", sp.w}});
+        w["springs"] = springs;
+        nlohmann::json channels = nlohmann::json::array();
+        for (const auto& c : waterManager->channelCells()) channels.push_back({c.x, c.y, c.z});
+        w["channels"] = channels;
+        doc["water"] = w;
+        std::ofstream out(path);
+        if (out.is_open()) {
+            out << doc.dump(2);
+            r = {{"success", true}, {"path", path}, {"ocean_seeds", seeds.size()}, {"springs", springs.size()}};
+        } else {
+            r = {{"error", "could not write game.json"}, {"path", path}};
+        }
+    });
+    reg.on("water_stats", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        r = {{"total_mass", waterManager->totalMass()},
+             {"origin", {{"x", waterManager->origin().x}, {"y", waterManager->origin().y}, {"z", waterManager->origin().z}}},
+             {"dims",   {{"x", waterManager->dims().x},   {"y", waterManager->dims().y},   {"z", waterManager->dims().z}}}};
+        if (cmd.params.contains("x")) {
+            glm::vec3 p(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
+            r["mass_at"] = waterManager->massAtWorld(p);
+        }
+    });
+}
+
 void Application::processAPICommands() {
 
     std::vector<Core::APICommand> commands;
@@ -9271,6 +9372,14 @@ void Application::processAPICommands() {
     for (auto& cmd : commands) {
         nlohmann::json response;
         try {
+            // Registry-based handlers first (incrementally replacing the if-chain below).
+            // A command is migrated by deleting its inline branch and adding one on()
+            // registration in a registerXCommands() method. See CommandRegistry.h.
+            if (m_commandRegistry.dispatch(cmd, response)) {
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
+
             // Handle debug dynamic spawn commands early (avoids nesting depth limit)
             if (handleDebugDynamicSpawnCommand(cmd, response, chunkManager,
                     gpuParticlePhysics.get())) {
@@ -9278,159 +9387,9 @@ void Application::processAPICommands() {
                 continue;
             }
 
-            // ---- Water sim (CPU WaterManager) debug commands ----
-            if (cmd.action == "place_water") {
-                if (!waterManager) {
-                    response = {{"error", "WaterManager not available"}};
-                } else {
-                    glm::vec3 p(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f),
-                                cmd.params.value("z", 0.0f));
-                    float amount = cmd.params.value("amount", 1.0f);
-                    waterManager->placeWater(p, amount);
-                    response = {{"success", true}, {"total_mass", waterManager->totalMass()}};
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
-            if (cmd.action == "water_sync") {
-                if (!waterManager) {
-                    response = {{"error", "WaterManager not available"}};
-                } else {
-                    waterManager->syncSolidsFromChunks();
-                    response = {{"success", true}};
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
-            if (cmd.action == "set_sea_level") {
-                if (!waterManager) {
-                    response = {{"error", "WaterManager not available"}};
-                } else {
-                    waterManager->setSeaLevel(cmd.params.value("level", 0.0f));
-                    response = {{"success", true}, {"sea_level", waterManager->seaLevel()}};
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
-            if (cmd.action == "add_ocean_seed") {
-                if (!waterManager) {
-                    response = {{"error", "WaterManager not available"}};
-                } else {
-                    glm::vec3 p(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f),
-                                cmd.params.value("z", 0.0f));
-                    waterManager->addOceanSeed(p);
-                    response = {{"success", true}, {"sea_level", waterManager->seaLevel()}};
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
-            if (cmd.action == "clear_ocean") {
-                if (!waterManager) {
-                    response = {{"error", "WaterManager not available"}};
-                } else {
-                    waterManager->clearOcean();
-                    response = {{"success", true}};
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
-            if (cmd.action == "place_spring") {
-                if (!waterManager) {
-                    response = {{"error", "WaterManager not available"}};
-                } else {
-                    glm::vec3 p(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f),
-                                cmd.params.value("z", 0.0f));
-                    waterManager->addSpring(p, cmd.params.value("mass", 1.0f));
-                    response = {{"success", true}};
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
-            if (cmd.action == "clear_springs") {
-                if (!waterManager) {
-                    response = {{"error", "WaterManager not available"}};
-                } else {
-                    waterManager->clearSprings();
-                    response = {{"success", true}};
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
-            if (cmd.action == "water_gpu") {
-                if (!waterManager) {
-                    response = {{"error", "WaterManager not available"}};
-                } else {
-                    waterManager->setUseGpu(cmd.params.value("on", true));
-                    response = {{"success", true}, {"gpu", waterManager->useGpu()}};
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
-            if (cmd.action == "set_channel_region") {
-                if (!waterManager) {
-                    response = {{"error", "WaterManager not available"}};
-                } else {
-                    glm::ivec3 a(cmd.params.value("x1", 0), cmd.params.value("y1", 0), cmd.params.value("z1", 0));
-                    glm::ivec3 b(cmd.params.value("x2", a.x), cmd.params.value("y2", a.y), cmd.params.value("z2", a.z));
-                    waterManager->setChannelRegion(a, b);
-                    response = {{"success", true}, {"channel_cells", waterManager->channelCells().size()}};
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
-            if (cmd.action == "water_save") {
-                if (!waterManager) {
-                    response = {{"error", "WaterManager not available"}};
-                } else {
-                    std::string path = !projectDir_.empty() ? (projectDir_ + "/game.json")
-                        : (!engineConfig.gameDefinitionFile.empty() ? engineConfig.gameDefinitionFile : "game.json");
-                    nlohmann::json doc;
-                    { std::ifstream f(path); if (f.is_open()) { try { doc = nlohmann::json::parse(f); } catch (...) {} } }
-                    if (!doc.is_object()) doc = nlohmann::json::object();
-                    nlohmann::json w = doc.contains("water") ? doc["water"] : nlohmann::json::object();
-                    w["enabled"]  = renderCoordinator ? renderCoordinator->isWaterEnabled() : false;
-                    w["seaLevel"] = waterManager->seaLevel();
-                    nlohmann::json seeds = nlohmann::json::array();
-                    for (const auto& s : waterManager->oceanSeeds())
-                        seeds.push_back({s.x, s.y, s.z});
-                    w["oceanSeeds"] = seeds;
-                    nlohmann::json springs = nlohmann::json::array();
-                    for (const auto& sp : waterManager->springsData())
-                        springs.push_back({{"x", sp.x}, {"y", sp.y}, {"z", sp.z}, {"mass", sp.w}});
-                    w["springs"] = springs;
-                    nlohmann::json channels = nlohmann::json::array();
-                    for (const auto& c : waterManager->channelCells())
-                        channels.push_back({c.x, c.y, c.z});
-                    w["channels"] = channels;
-                    doc["water"] = w;
-                    std::ofstream out(path);
-                    if (out.is_open()) {
-                        out << doc.dump(2);
-                        response = {{"success", true}, {"path", path},
-                                    {"ocean_seeds", seeds.size()}, {"springs", springs.size()}};
-                    } else {
-                        response = {{"error", "could not write game.json"}, {"path", path}};
-                    }
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
-            if (cmd.action == "water_stats") {
-                if (!waterManager) {
-                    response = {{"error", "WaterManager not available"}};
-                } else {
-                    response = {{"total_mass", waterManager->totalMass()},
-                                {"origin", {{"x", waterManager->origin().x}, {"y", waterManager->origin().y}, {"z", waterManager->origin().z}}},
-                                {"dims",   {{"x", waterManager->dims().x},   {"y", waterManager->dims().y},   {"z", waterManager->dims().z}}}};
-                    if (cmd.params.contains("x")) {
-                        glm::vec3 p(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f),
-                                    cmd.params.value("z", 0.0f));
-                        response["mass_at"] = waterManager->massAtWorld(p);
-                    }
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
+            // Water-sim commands (place_water/water_sync/set_sea_level/add_ocean_seed/
+            // clear_ocean/place_spring/clear_springs/water_gpu/set_channel_region/water_save/
+            // water_stats) moved to registerWaterCommands() via the CommandRegistry.
 
             // Per-phase CPU frame profile tree (input/update/render + children) — for perf profiling
             if (cmd.action == "get_frame_profile") {

@@ -42,6 +42,7 @@
 #include "ui/GameMenuRenderer.h"
 #include "core/EntityRegistry.h"
 #include "core/APICommandQueue.h"
+#include "core/CommandRegistry.h"
 #include "core/EngineAPIServer.h"
 #include "core/JobSystem.h"
 #include "core/Inventory.h"
@@ -238,6 +239,9 @@ private:
     // Entity Registry & HTTP API
     std::unique_ptr<Core::EntityRegistry> entityRegistry;
     std::unique_ptr<Core::APICommandQueue> apiCommandQueue;
+    // Action -> handler map for API commands (incrementally replacing the giant if-chain in
+    // processAPICommands). Registered per domain by registerXCommands(); see CommandRegistry.h.
+    Core::CommandRegistry m_commandRegistry;
     std::unique_ptr<Core::EngineAPIServer> apiServer;
     std::chrono::steady_clock::time_point m_apiServerStartTime;
     std::unique_ptr<Core::JobSystem> jobSystem;
@@ -406,6 +410,9 @@ private:
     void spawnTestDynamicSubcube();  // Spawn a test dynamic subcube above the chunks
     void placeNewCube();            // Place a new cube adjacent to the hovered cube face
     void processAPICommands();       // Process pending HTTP API commands
+    // Domain command registrations (CommandRegistry-based, replacing if-chain branches one
+    // domain at a time). Called once during init.
+    void registerWaterCommands();
     bool dispatchAnimationAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
     bool dispatchDebugAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
     bool dispatchItemAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
