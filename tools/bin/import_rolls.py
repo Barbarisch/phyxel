@@ -22,6 +22,11 @@ IMPORT_DIR = REPO / "resources" / "mixamo_imports"
 TARGETS = {
     "Stand To Roll": "roll_forward",
     "Run To Dive":   "dive_forward",
+    # Hit reactions (Phase 4) + a real side-dodge.
+    "Head Hit":      "hit_head",
+    "Stomach Hit":   "hit_stomach",
+    "Rib Hit":       "hit_rib",
+    "Dodging Right": "dodge_right",
 }
 
 
@@ -42,7 +47,9 @@ def main():
         if not src.clips:
             print("  no clips"); continue
         remap = bim.build_bone_remap(src, master)
-        sc = src.clips[0]
+        # Some Mixamo FBX export TWO animations — an empty "Take 001" plus the
+        # real "mixamo.com" clip. Pick the richest (most channels), not clips[0].
+        sc = max(src.clips, key=lambda c: len(c.channels))
         print(f"  source: '{sc.name}' {sc.duration:.3f}s {len(sc.channels)} ch; "
               f"bones matched {len(remap)}/{len(src.bones)}")
         rc = bim.remap_clip(sc, remap, clip_name)

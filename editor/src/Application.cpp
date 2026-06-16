@@ -1604,9 +1604,18 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // this, an enemy could drop the Entity health but never trigger death/respawn.
     // (Single-source unification of the two player-health stores is a follow-up.)
     combatSystem->setOnDamage([this](const Core::DamageEvent& ev) {
-        if (!entityRegistry || !animatedCharacter) return;
-        if (entityRegistry->getEntity(ev.targetId) == animatedCharacter)
+        if (!entityRegistry) return;
+        Scene::Entity* tgt = entityRegistry->getEntity(ev.targetId);
+        if (!tgt) return;
+        // Route player-targeted damage into the HUD/respawn health.
+        if (tgt == animatedCharacter && animatedCharacter)
             playerHealth.takeDamage(ev.actualDamage);
+        // Play a hit reaction on whoever got hit (player or NPC). Heavy hits
+        // stagger; lighter hits flinch.
+        Scene::AnimatedVoxelCharacter* hitChar = nullptr;
+        if (auto* npcE = dynamic_cast<Scene::NPCEntity*>(tgt)) hitChar = npcE->getAnimatedCharacter();
+        else                                                  hitChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(tgt);
+        if (hitChar) hitChar->hitReact(ev.actualDamage >= 11.0f);
     });
 
     // Initialize Dialogue System

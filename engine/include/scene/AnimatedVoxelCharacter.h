@@ -63,6 +63,7 @@ namespace Scene {
         Cast,         // playing a spell-cast one-shot (single clip or windup/loop/release)
         Block,        // holding a guard pose (frozen partway into the block clip)
         Dodge,        // souls-style directional roll: scripted lunge + i-frame window
+        HitReact,     // recoil/stagger from taking a hit (flinch = brief, heavy = full clip)
         Preview
     };
 
@@ -382,6 +383,15 @@ namespace Scene {
             m_dodgeIFrameEndFrac   = iframeEndFrac;
         }
 
+        // ---- Hit reaction (flinch / stagger on taking damage) ----
+
+        /// Play a hit reaction. `heavy` = full stagger (longer, committed); else a
+        /// brief flinch. Interrupts locomotion/attacks (NOT a dodge — i-frames mean
+        /// you weren't hit). Ignored during a short re-stun immunity window so rapid
+        /// hits don't stun-lock. The host calls this when the character takes damage.
+        void hitReact(bool heavy);
+        bool isHitReacting() const { return currentState == AnimatedCharacterState::HitReact; }
+
         // ---- Derez (falling-apart disintegration) ----
 
         /// Begin staggered voxel detachment. The character remains in the scene during the
@@ -601,6 +611,16 @@ namespace Scene {
         float     m_dodgeIFrameStartFrac = 0.12f;  // i-frames begin at this fraction
         float     m_dodgeIFrameEndFrac   = 0.55f;  // ...and end at this fraction
         std::string m_currentDodgeClip;        // selected directional roll clip
+
+        // ---- Hit-reaction state (see hitReact()) ----
+        bool        m_hitReactRequested = false;
+        bool        m_hitReactHeavy     = false;
+        std::string m_currentHitClip;          // selected reaction clip
+        float       m_hitReactCdTimer   = 0.0f; // re-stun immunity countdown
+        size_t      m_hitClipRotate     = 0;    // cycles the reaction clip for variety
+        /// Pick a reaction clip (cycles hit_head/hit_stomach/hit_rib; falls back).
+        std::string selectHitClip();
+
         /// Playback-rate multiplier so the full roll clip plays within the dodge
         /// window (its authored duration / m_dodgeDuration). 1.0 outside Dodge.
         float currentDodgeRate() const {

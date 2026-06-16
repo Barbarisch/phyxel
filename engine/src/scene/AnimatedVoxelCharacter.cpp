@@ -1705,6 +1705,7 @@ namespace Scene {
         if (str == "Cast") return AnimatedCharacterState::Cast;
         if (str == "Block") return AnimatedCharacterState::Block;
         if (str == "Dodge") return AnimatedCharacterState::Dodge;
+        if (str == "HitReact") return AnimatedCharacterState::HitReact;
         if (str == "Preview") return AnimatedCharacterState::Preview;
         return AnimatedCharacterState::Idle;
     }
@@ -1928,6 +1929,26 @@ namespace Scene {
                   m_dodgeDirXZ.x, m_dodgeDirXZ.y, m_currentDodgeClip);
     }
 
+    // ---- Hit reaction ----
+
+    std::string AnimatedVoxelCharacter::selectHitClip() {
+        static const char* kHitClips[] = {"hit_head", "hit_stomach", "hit_rib"};
+        // Cycle for variety, skipping any that aren't loaded.
+        for (int i = 0; i < 3; ++i) {
+            const char* name = kHitClips[(m_hitClipRotate + i) % 3];
+            if (hasClip(name)) { m_hitClipRotate = (m_hitClipRotate + i + 1) % 3; return name; }
+        }
+        return "";  // none authored — HitReact will just be a brief pause
+    }
+
+    void AnimatedVoxelCharacter::hitReact(bool heavy) {
+        if (m_hitReactCdTimer > 0.0f) return;                 // re-stun immunity
+        if (m_isSitting || m_isAnchoredAnim || isDerezzing()) return;
+        if (currentState == AnimatedCharacterState::Dodge) return;  // i-frames: not hit
+        m_hitReactRequested = true;
+        m_hitReactHeavy     = heavy;
+    }
+
     bool AnimatedVoxelCharacter::castSpell(const std::vector<CastSegment>& segments) {
         if (segments.empty() || segments.front().clip.empty()) return false;
         if (m_isSitting || m_isAnchoredAnim || isDerezzing()) return false;
@@ -2025,6 +2046,7 @@ namespace Scene {
             case AnimatedCharacterState::Cast: return "Cast";
             case AnimatedCharacterState::Block: return "Block";
             case AnimatedCharacterState::Dodge: return "Dodge";
+            case AnimatedCharacterState::HitReact: return "HitReact";
             case AnimatedCharacterState::Preview: return "Preview";
             default: return "Unknown";
         }
@@ -2038,6 +2060,24 @@ namespace Scene {
         float currentAnimDuration = 0.0f;
         if (currentClipIndex >= 0 && currentClipIndex < clips.size()) {
             currentAnimDuration = clips[currentClipIndex].duration;
+        }
+
+        if (m_hitReactCdTimer > 0.0f) m_hitReactCdTimer -= deltaTime;
+
+        // Hit reaction interrupts any non-dodge action (getting hit cancels your
+        // swing/locomotion). Highest priority after the dodge i-frame guard.
+        if (m_hitReactRequested &&
+            currentState != AnimatedCharacterState::Dodge &&
+            currentState != AnimatedCharacterState::HitReact) {
+            m_hitReactRequested = false;
+            currentState = AnimatedCharacterState::HitReact;
+            stateTimer = 0.0f;
+            m_attackQueued  = false;
+            m_hitFrameFired = false;
+            m_attackIsHeavy = false;
+            m_currentHitClip = selectHitClip();
+            m_hitReactCdTimer = 0.55f;  // brief immunity so rapid hits don't stun-lock
+            return;
         }
 
         // Check vertical velocity for falling
@@ -2461,6 +2501,17 @@ namespace Scene {
                     jumpRequested = false;  // don't pop a buffered jump out of a roll
                 }
                 break;
+
+            case AnimatedCharacterState::HitReact: {
+                // Heavy = play the full stagger; light = a brief flinch (early-out).
+                float reactDur = currentAnimDuration > 0.0f ? currentAnimDuration : 0.4f;
+                if (!m_hitReactHeavy) reactDur = std::min(reactDur, 0.4f);
+                if (stateTimer >= reactDur) {
+                    currentState = AnimatedCharacterState::Idle;
+                    stateTimer = 0.0f;
+                }
+                break;
+            }
 
             case AnimatedCharacterState::Cast: {
                 if (m_castSegments.empty() || m_castSegIdx >= m_castSegments.size()) {
@@ -2949,6 +3000,7 @@ namespace Scene {
             if (currentState == AnimatedCharacterState::StopWalk || currentState == AnimatedCharacterState::StopRun) moveSpeed = 0.5f;
             if (currentState == AnimatedCharacterState::Idle || currentState == AnimatedCharacterState::Attack ||
                 currentState == AnimatedCharacterState::Cast || currentState == AnimatedCharacterState::Block ||
+                currentState == AnimatedCharacterState::HitReact ||
                 currentState == AnimatedCharacterState::Crouch || currentState == AnimatedCharacterState::CrouchIdle ||
                 currentState == AnimatedCharacterState::TurnLeft || currentState == AnimatedCharacterState::TurnRight) moveSpeed = 0.0f;
 
@@ -3042,6 +3094,9 @@ namespace Scene {
                     case AnimatedCharacterState::Dodge:
                         targetAnim = m_currentDodgeClip.empty() ? "roll_forward"
                                                                : m_currentDodgeClip;
+                        break;
+                    case AnimatedCharacterState::HitReact:
+                        targetAnim = m_currentHitClip.empty() ? "idle" : m_currentHitClip;
                         break;
                     case AnimatedCharacterState::TurnLeft: targetAnim = "left_turn"; break;
                     case AnimatedCharacterState::TurnRight: targetAnim = "right_turn"; break;
