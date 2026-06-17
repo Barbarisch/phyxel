@@ -22,7 +22,12 @@
 > - **S6 targeting & hit-chance** — core done (`d900488`), +5 tests, **verified live**:
 >   `AttackResolver::hitChance`, targeting queries, `resolveCombatPick(ray)` (enemy→attack /
 >   ground→move) shared by live LMB + `combat/player_pick`, `combat/targeting_info`, action-bar
->   hit-chance readout. AoE templates deferred with player spellcasting.
+>   hit-chance readout.
+> - **Player spellcasting** — done, +1 test, **verified live**: `PlayerTurnController::castSpell`
+>   spends the action, resolves AttackRoll / SavingThrow / AutoHit / heal through the funnel at
+>   the cast release frame, plays the cast animation + VFX (`Application::playCastVisual`),
+>   `combat/player_cast` HTTP. magic_missile / fire_bolt / cure_wounds confirmed in-engine.
+>   **AoE templates still deferred** — `SpellDefinition` has no area-shape field yet.
 >
 > **Integration milestone reached:** the S1–S6 loop is a playable turn-based fight (player +
 > enemy taking real animated turns, click-to-move/attack with a hit-chance readout). Remaining
