@@ -759,11 +759,14 @@ via post-process — one pipeline, no ImGui. Verified in DebrisPushTest: bar rea
 (`combat.*` providers, `visibleWhen`-gated) + **Initiative turn-order list** via a new `UIRepeater`
 widget + list binding + **End Turn** `UIButton`→`endTurn()` — all verified live in turn-based combat.
 New infra: `visibleWhen`, HUD-as-array-of-panels, `UI::applyHudBindings` (RenderCoordinator applies
-to all screens), `HudDataContext` = pure registry. **REMAINING:** confirm End Turn button CLICK live
-(render-verified only — no input-injection API here) → then DELETE the editor ImGui `renderCombatHUD`
-+ its call site. NEXT after that: standalone-host wiring (minimal_game/scaffold don't init UISystem —
-`HudSystem.md` §11a), more default modules (hotbar/objectives reuse Repeater), broader ImGui→UISystem
-migration. Combat follow-ups deferred: reactions/OAs, conditions UI, ground-point AoE targeting. Earlier: **performance program kickoff
+to all screens), `HudDataContext` = pure registry. **`renderCombatHUD` DELETED — combat HUD fully
+data-driven on UISystem, verified live post-deletion (End Turn click advances round).** Added a
+reusable **UI click-injection** test hook (`UISystem::injectClick` + `POST /api/ui/click {x,y}` →
+`ui_click`) so agents can test interactive HUD/menu widgets without a mouse — GOTCHA:
+`UIPanel::handleClick` hit-tests the panel's own rect first, so size panels to contain children.
+NEXT: standalone-host wiring (minimal_game/scaffold don't init UISystem — `HudSystem.md` §11a),
+more default modules (hotbar/objectives reuse Repeater), broader ImGui→UISystem migration. Combat
+follow-ups deferred: reactions/OAs, conditions UI, ground-point AoE targeting. Earlier: **performance program kickoff
 (2026-06-15)** — see "Render perf" workstream. Shipped + verified (NOT yet committed):
 character-update opts (cached
 bone→parts grouping, binary-search keyframes, persistent instance-buffer map, removed
