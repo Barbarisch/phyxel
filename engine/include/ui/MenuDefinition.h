@@ -57,10 +57,20 @@ public:
     /// Serialize a UIPanel to JSON.
     static nlohmann::json toJson(const UIPanel& panel);
 
+    /// Build a single widget from its JSON definition (also used to expand Repeater
+    /// item templates).
+    static std::unique_ptr<UIWidget> buildWidget(const nlohmann::json& j);
+
 private:
     static Anchor parseAnchor(const std::string& str);
-    static std::unique_ptr<UIWidget> buildWidget(const nlohmann::json& j);
 };
+
+class HudDataContext;  // forward decl
+
+/// Apply a HudDataContext to a HUD widget tree: scalar value binds, `visibleWhen`
+/// visibility, and Repeater list-expansion. Call once per frame before rendering.
+/// Lives here (not in HudDataContext) because repeater expansion needs JSON building.
+void applyHudBindings(UIWidget* root, const HudDataContext& ctx);
 
 } // namespace UI
 } // namespace Phyxel

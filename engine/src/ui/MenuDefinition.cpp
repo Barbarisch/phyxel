@@ -1,5 +1,7 @@
 #include "ui/MenuDefinition.h"
+#include "ui/HudDataContext.h"
 #include <stdexcept>
+#include <cstdio>
 
 namespace Phyxel {
 namespace UI {
@@ -133,6 +135,19 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         parseColor("fillColor", w->fillColor);
         parseColor("trackColor", w->trackColor);
         parseColor("borderColor", w->borderColor);
+        if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
+            w->size = {j["size"][0].get<float>(), j["size"][1].get<float>()};
+        }
+        return w;
+    }
+
+    if (type == "repeater") {
+        auto w = std::make_unique<UIRepeater>();
+        w->id = j.value("id", "");
+        w->bind = j.value("bind", "");
+        w->visibleWhen = j.value("visibleWhen", "");
+        w->itemSpacing = j.value("itemSpacing", 4.0f);
+        if (j.contains("item")) w->itemTemplateJson = j["item"].dump();
         if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
             w->size = {j["size"][0].get<float>(), j["size"][1].get<float>()};
         }
@@ -323,6 +338,112 @@ nlohmann::json MenuDefinition::toJson(const UIPanel& panel) {
     }
     j["children"] = childrenArr;
     return j;
+}
+
+// ════════════════════════════════════════════════════════════════
+// HUD data binding application
+// ════════════════════════════════════════════════════════════════
+
+// Apply a context's scalar value/visibility bindings to one widget.
+static void applyScalarBind(UIWidget* w, const HudDataContext& ctx) {
+    if (!w) return;
+    if (!w->visibleWhen.empty()) {
+        if (auto v = ctx.resolveFloat(w->visibleWhen)) w->visible = (*v > 0.5f);
+    }
+    if (w->bind.empty()) return;
+    switch (w->type()) {
+        case WidgetType::ProgressBar:
+            if (auto v = ctx.resolveFloat(w->bind)) static_cast<UIProgressBar*>(w)->value = *v;
+            break;
+        case WidgetType::Label:
+            if (auto s = ctx.resolveText(w->bind)) static_cast<UILabel*>(w)->text = *s;
+            else if (auto v = ctx.resolveFloat(w->bind)) {
+                char buf[32]; snprintf(buf, sizeof(buf), "%g", *v);
+                static_cast<UILabel*>(w)->text = buf;
+            }
+            break;
+        case WidgetType::Button:
+            if (auto s = ctx.resolveText(w->bind)) static_cast<UIButton*>(w)->text = *s;
+            break;
+        default: break;
+    }
+}
+
+// Field name behind an "item.<field>" key (empty if not an item binding).
+static std::string itemField(const std::string& key) {
+    static const std::string prefix = "item.";
+    return (key.rfind(prefix, 0) == 0) ? key.substr(prefix.size()) : std::string();
+}
+
+// Apply one list record to a generated item subtree (binds keyed "item.<field>").
+static void applyRecord(UIWidget* w, const HudRecord& rec) {
+    if (!w) return;
+    if (!w->visibleWhen.empty()) {
+        std::string f = itemField(w->visibleWhen);
+        if (!f.empty()) {
+            auto it = rec.floats.find(f);
+            if (it != rec.floats.end()) w->visible = (it->second > 0.5f);
+        }
+    }
+    if (!w->bind.empty()) {
+        std::string f = itemField(w->bind);
+        if (!f.empty()) {
+            switch (w->type()) {
+                case WidgetType::ProgressBar: {
+                    auto it = rec.floats.find(f);
+                    if (it != rec.floats.end()) static_cast<UIProgressBar*>(w)->value = it->second;
+                    break;
+                }
+                case WidgetType::Label: {
+                    auto it = rec.texts.find(f);
+                    if (it != rec.texts.end()) static_cast<UILabel*>(w)->text = it->second;
+                    else {
+                        auto fit = rec.floats.find(f);
+                        if (fit != rec.floats.end()) {
+                            char buf[32]; snprintf(buf, sizeof(buf), "%g", fit->second);
+                            static_cast<UILabel*>(w)->text = buf;
+                        }
+                    }
+                    break;
+                }
+                default: break;
+            }
+        }
+    }
+    if (w->type() == WidgetType::Panel) {
+        for (auto& c : static_cast<UIPanel*>(w)->children) applyRecord(c.get(), rec);
+    }
+}
+
+void applyHudBindings(UIWidget* root, const HudDataContext& ctx) {
+    if (!root) return;
+    applyScalarBind(root, ctx);
+
+    if (root->type() == WidgetType::Repeater) {
+        auto* rep = static_cast<UIRepeater*>(root);
+        std::vector<HudRecord> recs;
+        if (auto l = ctx.resolveList(rep->bind)) recs = std::move(*l);
+        // Rebuild item widgets only when the count changes (cheap steady state).
+        if (rep->generated.size() != recs.size()) {
+            rep->generated.clear();
+            if (!rep->itemTemplateJson.empty()) {
+                try {
+                    auto tj = nlohmann::json::parse(rep->itemTemplateJson);
+                    for (size_t i = 0; i < recs.size(); ++i) {
+                        if (auto item = MenuDefinition::buildWidget(tj)) rep->generated.push_back(std::move(item));
+                    }
+                } catch (const std::exception&) { /* malformed template — skip */ }
+            }
+        }
+        for (size_t i = 0; i < rep->generated.size() && i < recs.size(); ++i) {
+            applyRecord(rep->generated[i].get(), recs[i]);
+        }
+        return;  // repeater has no static children to recurse
+    }
+
+    if (root->type() == WidgetType::Panel) {
+        for (auto& c : static_cast<UIPanel*>(root)->children) applyHudBindings(c.get(), ctx);
+    }
 }
 
 } // namespace UI

@@ -17,6 +17,7 @@
 #include "vulkan/RenderPipeline.h"
 #include "ui/ImGuiRenderer.h"
 #include "ui/UISystem.h"
+#include "ui/MenuDefinition.h"
 #include "vulkan/VulkanDevice.h"
 #include "ui/WindowManager.h"
 #include "input/InputManager.h"
@@ -1278,7 +1279,7 @@ void RenderCoordinator::drawFrame() {
         // Applied to every screen so independently-anchored HUD panels (health,
         // combat round/turn/action, …) all bind; menu screens have no binds (no-op).
         for (const auto& [name, vis] : m_uiSystem->getScreenList()) {
-            if (auto* s = m_uiSystem->getScreen(name)) m_hudData.applyBindings(s);
+            if (auto* s = m_uiSystem->getScreen(name)) UI::applyHudBindings(s, m_hudData);
         }
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Custom UI");
         m_uiSystem->render(vulkanDevice->getCommandBuffer(currentFrame));

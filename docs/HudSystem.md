@@ -230,14 +230,20 @@ Next: re-home the combat HUD (§10) and/or the §11a ImGui migration.
 Re-express the stopgap `renderCombatHUD` (raw ImGui in the editor `ImGuiRenderer`) as **default HUD
 modules** bound via §6:
 
-- Turn-order **portrait bar** (Repeater over `combat.turn_order`).
-- **Action bar** (Action / Bonus / Movement remaining / End Turn).
-- **Hit-chance** readout for the selected/hovered target.
+- ✅ **Round banner** + **turn label** + **action bar** (Action/Bonus/Movement) + **hit-chance**
+  readout — DONE (scalar pass, commit after `7ace5d3`). Data from `CombatDirector` /
+  `PlayerTurnController` via `combat.*` providers; visibility gated by `visibleWhen`
+  (`combat.inCombat` / `combat.playerTurnActive`). Verified live + parity with the old ImGui HUD.
+- ⏳ Turn-order **portrait bar** (Repeater over a `combat.turn_order` list) — NEEDS the Repeater
+  widget + list-binding (in progress).
+- ⏳ **End Turn button** interactivity (the readout is data-driven; the button still lives in the
+  ImGui HUD — wire a UISystem button callback to `PlayerTurnController::endTurn`).
 - Planned S8 pieces: d20 roll + crit/miss callouts, floating damage numbers, on-ground
   movement-range ring + path spline, target highlight.
 
 Data comes from `CombatDirector` / `PlayerTurnController` / `InitiativeTracker` (see
-`docs/TurnBasedCombat.md`). **Once re-homed, delete `renderCombatHUD` from `ImGuiRenderer`.**
+`docs/TurnBasedCombat.md`). **Once the turn-order list + End Turn button are re-homed, delete
+`renderCombatHUD` from `ImGuiRenderer`** (and its call site in `editor/Application.cpp`).
 
 ## 11a. Migration roadmap — get ImGui out of shipped games (§2a)
 

@@ -401,5 +401,21 @@ void UIProgressBar::render(UIRenderer* renderer, const BitmapFont* font,
     }
 }
 
+// ════════════════════════════════════════════════════════════════
+// UIRepeater
+// ════════════════════════════════════════════════════════════════
+
+void UIRepeater::render(UIRenderer* renderer, const BitmapFont* font,
+                        const UITheme& theme, glm::vec2 pos) {
+    if (!visible) return;
+    float y = 0.0f;
+    for (auto& child : generated) {
+        if (!child || !child->visible) continue;
+        child->render(renderer, font, theme, {pos.x, pos.y + y});
+        y += child->size.y + itemSpacing;
+    }
+    size.y = y;  // report total height for parent layout
+}
+
 } // namespace UI
 } // namespace Phyxel

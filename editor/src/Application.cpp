@@ -5123,6 +5123,37 @@ void Application::setupGameHud(const nlohmann::json& gameDef) {
                  m_playerTurn.inReachOf(tgt) ? "" : "  [out of reach]");
         return std::string(buf);
     });
+    // Turn-order list (Repeater module). One record per combatant: a formatted
+    // "label" (active marker + name + initiative + HP) plus raw fields for richer
+    // item templates later (hpFrac, active, …).
+    hud.setList("combat.turn_order", [this]() {
+        std::vector<UI::HudRecord> rows;
+        const auto& tracker = m_combatDirector.initiative();
+        if (!tracker.isCombatActive()) return rows;
+        const std::string& cur = m_combatDirector.currentEntityId();
+        for (const auto& p : tracker.turnOrder()) {
+            UI::HudRecord r;
+            float hp = 0.0f, maxHp = 1.0f;
+            if (entityRegistry) {
+                if (auto* e = entityRegistry->getEntity(p.entityId)) {
+                    if (auto* hc = e->getHealthComponent()) { hp = hc->getHealth(); maxHp = hc->getMaxHealth(); }
+                }
+            }
+            bool active = (p.entityId == cur);
+            r.floats["hp"] = hp;
+            r.floats["maxHp"] = maxHp;
+            r.floats["hpFrac"] = (maxHp > 0.0f) ? hp / maxHp : 0.0f;
+            r.floats["active"] = active ? 1.0f : 0.0f;
+            r.texts["name"] = p.entityId;
+            char buf[64];
+            snprintf(buf, sizeof(buf), "%s%s [%d]  %d/%d",
+                     active ? "> " : "  ", p.entityId.c_str(), p.initiativeRoll,
+                     (int)(hp + 0.5f), (int)(maxHp + 0.5f));
+            r.texts["label"] = buf;
+            rows.push_back(std::move(r));
+        }
+        return rows;
+    });
 
     // Build HUD screens from the "hud" block. Accepts a single panel object OR an
     // array of panels (each an independently-anchored screen — needed because a panel

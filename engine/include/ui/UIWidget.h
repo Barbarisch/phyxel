@@ -90,6 +90,7 @@ enum class WidgetType {
     Dropdown,
     Image,
     ProgressBar,
+    Repeater,
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -283,6 +284,24 @@ public:
     glm::vec4 fillColor   = {0.75f, 0.20f, 0.20f, 1.0f}; ///< default: health red
     glm::vec4 trackColor  = {0.12f, 0.12f, 0.15f, 0.85f};
     glm::vec4 borderColor = {0.0f, 0.0f, 0.0f, 0.9f};
+};
+
+// ════════════════════════════════════════════════════════════════
+// UIRepeater — one cloned child per record from a list data-binding
+// ════════════════════════════════════════════════════════════════
+
+class UIRepeater : public UIWidget {
+public:
+    WidgetType type() const override { return WidgetType::Repeater; }
+    void render(UIRenderer* renderer, const BitmapFont* font,
+                const UITheme& theme, glm::vec2 pos) override;
+
+    /// `bind` (inherited) names a list provider. The HUD binding pass rebuilds
+    /// `generated` (one item per record from itemTemplateJson) and binds each item's
+    /// "item.<field>" widgets from the record. Items stack vertically.
+    std::string itemTemplateJson;   ///< Serialized JSON of one item's widget def
+    float itemSpacing = 4.0f;
+    std::vector<std::unique_ptr<UIWidget>> generated; ///< managed by the binding pass
 };
 
 } // namespace UI
