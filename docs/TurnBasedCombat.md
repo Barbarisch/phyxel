@@ -23,11 +23,14 @@
 >   `AttackResolver::hitChance`, targeting queries, `resolveCombatPick(ray)` (enemy→attack /
 >   ground→move) shared by live LMB + `combat/player_pick`, `combat/targeting_info`, action-bar
 >   hit-chance readout.
-> - **Player spellcasting** — done, +1 test, **verified live**: `PlayerTurnController::castSpell`
+> - **Player spellcasting** — done, **verified live**: `PlayerTurnController::castSpell`
 >   spends the action, resolves AttackRoll / SavingThrow / AutoHit / heal through the funnel at
 >   the cast release frame, plays the cast animation + VFX (`Application::playCastVisual`),
 >   `combat/player_cast` HTTP. magic_missile / fire_bolt / cure_wounds confirmed in-engine.
->   **AoE templates still deferred** — `SpellDefinition` has no area-shape field yet.
+> - **AoE spells** — done, +1 test, **verified live**: `SpellDefinition` area model (Sphere exact;
+>   Cube/Cone/Line bounded), `castSpell` applies full/half/0 per enemy in radius (5e fireball
+>   semantics), `aoeTargetsAt`/`combat/aoe_preview`. Fireball on a goblin cluster hit 2-in-radius
+>   (full 35 / save-half 17) and spared the distant one.
 >
 > **Integration milestone reached:** the S1–S6 loop is a playable turn-based fight (player +
 > enemy taking real animated turns, click-to-move/attack with a hit-chance readout). Remaining
@@ -127,14 +130,14 @@ Turn**) in `renderCombatHUD`; real-time WASD/LMB suppressed during the player's 
 are HTTP/test-driven (`combat/player_move|player_attack|end_turn`). **Remaining for S6:**
 click-to-move + click-target picking (raycast), ability/spell selection.
 
-### S6 — Targeting & resolution preview  ✅ core done + verified live (`d900488`)
+### S6 — Targeting & resolution preview  ✅ done + verified live (`d900488` + AoE)
 `AttackResolver::hitChance` (pure; nat-20/1 floors + advantage/disadvantage), PlayerTurnController
 targeting queries (`hitChanceVs`/`targetAC`/`distanceTo`/`inReachOf`/selected-target),
 `Application::resolveCombatPick(ray)` (enemy-AABB → attack / ground-plane → move) shared by the
 live LMB (cursor ray) and HTTP (`combat/player_pick`), `combat/targeting_info`/`select_target`,
-and the action-bar hit-chance readout. **Remaining S6:** AoE templates (sphere/cone/line) with
-affected-target preview — deferred with player spellcasting; advantage/disadvantage sourcing from
-ConditionSystem; on-ground movement-range ring (S8 presentation).
+the action-bar hit-chance readout, AND AoE templates (`aoeTargetsAt`/`combat/aoe_preview`,
+affected-target preview). **Remaining:** advantage/disadvantage sourcing from ConditionSystem;
+ground-point AoE targeting; on-ground movement-range ring (S8 presentation).
 
 ### S7 — Combat camera (BG3 hybrid)  ✅ done + verified live
 `Application::updateCombatCamera` frames the active combatant (auto-pans on turn change),

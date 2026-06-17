@@ -629,15 +629,32 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     drive the player turn via `combat/player_attack {target_id}` etc.; the enemy turn runs
     automatically (think delay 0.6 s). Combat HTTP lives under the **rpg handler** →
     `POST /api/rpg/combat/<action>`.
+  - **S6 targeting + hit-chance + click picking** (`d900488`) — `AttackResolver::hitChance`
+    (pure), PlayerTurnController targeting queries (`hitChanceVs`/`targetAC`/`distanceTo`/
+    `inReachOf`/selectedTarget), `Application::resolveCombatPick(ray)` (enemy-AABB → attack /
+    ground-plane → move) shared by the live LMB cursor ray (`tryCombatClick`) AND the HTTP twin
+    `combat/player_pick`; `combat/targeting_info`/`select_target`; action-bar hit-chance readout.
+  - **Player spellcasting** (`0a0a28d`) — `PlayerTurnController::castSpell` spends the action,
+    resolves AttackRoll / SavingThrow / AutoHit / heal through the funnel at the cast RELEASE
+    frame, drives the cast anim + VFX via `Application::playCastVisual` (factored from the
+    real-time `cast_spell`). `combat/player_cast`. Spell registry preloaded so the lookup works.
+    Spell attack bonus / save DC are stopgaps like pseudo-AC.
+  - **AoE spells** — `SpellDefinition` gains `AreaShape`(None/Sphere/Cube/Cone/Line)+`areaSizeFeet`
+    (Sphere exact; others bounded); fireball = Sphere 20ft. `castSpell` rolls base dmg once, applies
+    full/half/0 per enemy in radius (5e fireball), `aoeTargetsAt`/`combat/aoe_preview`.
+  - **S7 combat camera** (`3c0db05`) — `Application::updateCombatCamera` frames the ACTIVE
+    combatant (auto-pans on turn change), pulls back to a tactical distance on combat entry,
+    orbit(RMB)+zoom via the third_person `CameraRig`; no movement input fed. Replaces the
+    cameraCtl path for the whole turn-based encounter.
   - **KNOWN FOLLOW-UPS:** (a) `createAnimatedCharacter` is the PLAYER factory — it binds the
     shared `playerHealth` AND wires a "player" onHitFrame to EVERY animated char it makes; the
     debug `spawnTestAINPC` reuse reverts the health, but non-player animated characters generally
     shouldn't inherit either (real enemies = NPCEntity, which is fine). (b) `CombatBehavior`'s
     real-time onHitFrame is not mode-gated (only the player's is) — fine while CombatBehavior
-    isn't ticked in turn-based, gate it if they coexist. (c) NEXT = **S6** click-to-move +
-    click-target raycast picking + hit-chance/AoE preview; **S7** BG3-hybrid combat camera;
-    **S8** HUD polish (portraits, dice/damage floaters, ground range/path highlight); then
-    reactions/OAs (S9), conditions UI (S10), encounter authoring (S11), voxel-native depth (S12).
+    isn't ticked in turn-based, gate it if they coexist. (c) NEXT = **S8** HUD polish (portraits,
+    dice/damage floaters, ground movement-range ring + path spline); reactions/OAs (S9),
+    conditions UI (S10), encounter authoring (S11), voxel-native depth (S12). Open: ground-point
+    AoE targeting (vs centring on a target entity); Cone/Cube/Line are radius-approximated.
   - **Pseudo-AC stopgap:** generic entities have no CharacterSheet, so both sides currently
     derive AC = `8 + floor(HP%·6)`. Replace with real sheets/monster stats later.
 - **Items system P1 (2026-06-11): DONE + verified live end-to-end.** "Items" = holdable
@@ -710,13 +727,16 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ---
 
-*Last meaningful update: **turn-based combat S1–S5 (2026-06-17)** — see the "Turn-based combat
-system" workstream above + `docs/TurnBasedCombat.md`. A full BG3-style turn-based fight is
-playable & verified live (player + enemy taking real animated d20-vs-AC turns) on branch
-`feature/turn-based-combat` (NOT pushed). Single source of truth = `CombatDirector`; damage
-unified through `CombatSystem::applyDamage` (dual player-health bug fixed); `TurnActor` bridges
-turns to the live FSM; `CombatAISystem` (enemy) + `PlayerTurnController` (player) drive turns.
-NEXT = S6 click/target raycast picking + previews. Earlier: **performance program kickoff
+*Last meaningful update: **turn-based combat S1–S7 + spellcasting + AoE (2026-06-17)** — see the
+"Turn-based combat system" workstream above + `docs/TurnBasedCombat.md`. A BG3-shaped turn-based
+fight is playable & verified live on branch `feature/turn-based-combat` (NOT pushed):
+click-to-move/attack with a hit-chance readout, player spellcasting (attack/save/auto/heal +
+fireball AoE with full/half-on-save), a tactical camera that auto-frames the active combatant,
+and enemy AI taking real animated turns. Single source of truth = `CombatDirector`; damage
+unified through `CombatSystem::applyDamage`; `TurnActor` bridges turns to the live FSM;
+`CombatAISystem` (enemy) + `PlayerTurnController` (player) drive turns; combat HTTP under
+`/api/rpg/combat/<action>`. NEXT = S8 HUD polish (portraits/floaters/range-ring), reactions/OAs,
+conditions UI. ~85 turn-based unit tests green. Earlier: **performance program kickoff
 (2026-06-15)** — see "Render perf" workstream. Shipped + verified (NOT yet committed):
 character-update opts (cached
 bone→parts grouping, binary-search keyframes, persistent instance-buffer map, removed
