@@ -232,6 +232,61 @@ TEST(PlayerTurnControllerTest, CastSpellSpendsActionResolvesAndExecutes) {
     EXPECT_FALSE(pc.castSpell("unknown_spell", "enemy"));  // unknown -> rejected
 }
 
+TEST(PlayerTurnControllerTest, AreaSpellHitsMultipleTargetsInRadius) {
+    // Auto-hit area spell so the test is deterministic (no save rolls).
+    SpellDefinition s;
+    s.id = "test_blast";
+    s.level = 1;
+    s.resolutionType = SpellResolutionType::AutoHit;
+    s.areaShape = AreaShape::Sphere;
+    s.areaSizeFeet = 20.0f;             // ~6.1 u radius
+    s.baseDamage = DiceExpression{0, DieType::D6, 4};   // always 4
+    s.damageType = DamageType::Fire;
+    SpellRegistry::instance().registerSpell(s);
+
+    CombatDirector dir;
+    {
+        DiceSystem dice;
+        dir.setMode(CombatMode::TurnBased);
+        dir.beginEncounter({{"player", true, 0, 30},
+                            {"g1", false, 0, 30},
+                            {"g2", false, 0, 30},
+                            {"g3", false, 0, 30}}, dice);
+        dir.initiative().setInitiative("player", 20);
+        dir.initiative().sortOrder();
+    }
+    EntityRegistry reg;
+    CombatSystem combat;
+    TestEntity player({0, 0, 0});
+    TestEntity g1({10, 0, 0}, 50.0f);   // near the centre (g2)
+    TestEntity g2({12, 0, 0}, 50.0f);   // cast centre
+    TestEntity g3({40, 0, 0}, 50.0f);   // far away — outside the radius
+    reg.registerEntity(&player, "player", "animated");
+    reg.registerEntity(&g1, "g1", "npc");
+    reg.registerEntity(&g2, "g2", "npc");
+    reg.registerEntity(&g3, "g3", "npc");
+    MockBody body;
+
+    PlayerTurnController pc;
+    pc.setCombatDirector(&dir);
+    pc.setEntityRegistry(&reg);
+    pc.setCombatSystem(&combat);
+    pc.setBodyProvider([&](Scene::Entity*) -> ITurnActorBody* { return &body; });
+    pc.setPlayerEntityId("player");
+    pc.setCastExecutor([](const std::string&, const std::string&,
+                          const glm::vec3&, std::function<void()> r) { r(); });
+    pc.tick(0.05f);
+
+    // Preview: centred on g2, g1+g2 are within 20 ft (~6.1 u), g3 is not.
+    auto preview = pc.aoeTargetsAt("test_blast", glm::vec3(12, 0, 0));
+    EXPECT_EQ(preview.size(), 2u);
+
+    ASSERT_TRUE(pc.castSpell("test_blast", "g2"));
+    EXPECT_FLOAT_EQ(g1.m_health.getHealth(), 46.0f);   // 4 dmg
+    EXPECT_FLOAT_EQ(g2.m_health.getHealth(), 46.0f);   // 4 dmg
+    EXPECT_FLOAT_EQ(g3.m_health.getHealth(), 50.0f);   // untouched (out of area)
+}
+
 TEST(PlayerTurnControllerTest, EndTurnAdvancesAndUnbinds) {
     CombatDirector dir; startPlayerTurn(dir);
     EntityRegistry reg;

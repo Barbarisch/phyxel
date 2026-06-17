@@ -14,6 +14,8 @@
     "resolutionType": "SavingThrow",
     "savingThrowAbility": "DEX",
     "halfDamageOnSave": true,
+    "areaShape": "Sphere",
+    "areaSizeFeet": 20,
     "baseDamage": "8d6",
     "upcastExtraPerSlot": "1d6",
     "damageType": "Fire",

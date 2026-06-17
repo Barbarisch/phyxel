@@ -1181,6 +1181,21 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
                 {"in_reach",     m_playerTurn.inReachOf(tid)}
             };
         }
+        if (action == "combat/aoe_preview") {
+            // Which enemies an area spell would affect, centred on a target
+            // entity (target_id) or an explicit point.
+            std::string spell = params.value("spell", "");
+            glm::vec3 center(0.0f);
+            std::string tid = params.value("target_id", "");
+            if (!tid.empty() && entityRegistry) {
+                if (auto* e = entityRegistry->getEntity(tid)) center = e->getPosition();
+            } else {
+                center = glm::vec3(params.value("ox", 0.0f), params.value("oy", 0.0f),
+                                   params.value("oz", 0.0f));
+            }
+            auto ids = m_playerTurn.aoeTargetsAt(spell, center);
+            return json{{"spell", spell}, {"count", ids.size()}, {"targets", ids}};
+        }
 
         // ---- World Calendar -----------------------------------------------
         if (action == "world/date") {

@@ -92,6 +92,26 @@ SpellResolutionType spellResolutionTypeFromString(const char* s) {
     return SpellResolutionType::AttackRoll;
 }
 
+const char* areaShapeName(AreaShape s) {
+    switch (s) {
+        case AreaShape::Sphere: return "Sphere";
+        case AreaShape::Cube:   return "Cube";
+        case AreaShape::Cone:   return "Cone";
+        case AreaShape::Line:   return "Line";
+        default:                return "None";
+    }
+}
+
+AreaShape areaShapeFromString(const char* s) {
+    if (!s) return AreaShape::None;
+    auto eq = [&](const char* c) { return _stricmp(s, c) == 0; };
+    if (eq("Sphere")) return AreaShape::Sphere;
+    if (eq("Cube"))   return AreaShape::Cube;
+    if (eq("Cone"))   return AreaShape::Cone;
+    if (eq("Line"))   return AreaShape::Line;
+    return AreaShape::None;
+}
+
 // ---------------------------------------------------------------------------
 // SpellDefinition — scaling helpers
 // ---------------------------------------------------------------------------
@@ -169,6 +189,8 @@ nlohmann::json SpellDefinition::toJson() const {
     j["resolutionType"]      = spellResolutionTypeName(resolutionType);
     j["savingThrowAbility"]  = abilityShortName(savingThrowAbility);
     j["halfDamageOnSave"]    = halfDamageOnSave;
+    j["areaShape"]           = areaShapeName(areaShape);
+    j["areaSizeFeet"]        = areaSizeFeet;
     j["baseDamage"]          = baseDamage.toString();
     j["damageType"]          = damageTypeToString(damageType);
     j["upcastExtraPerSlot"]  = upcastExtraPerSlot.toString();
@@ -213,6 +235,10 @@ SpellDefinition SpellDefinition::fromJson(const nlohmann::json& j) {
     catch (...) { d.savingThrowAbility = AbilityType::Dexterity; }
 
     d.halfDamageOnSave = j.value("halfDamageOnSave", false);
+
+    std::string areaShape = j.value("areaShape", "None");
+    d.areaShape    = areaShapeFromString(areaShape.c_str());
+    d.areaSizeFeet = j.value("areaSizeFeet", 0.0f);
 
     std::string dmg = j.value("baseDamage", "");
     if (!dmg.empty()) {

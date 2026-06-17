@@ -35,6 +35,12 @@ enum class SpellResolutionType {
     Utility       // no attack/damage (misty step, fly, etc.)
 };
 
+// Area-of-effect template. Sphere is exact; Cube/Cone/Line are bounded by
+// areaSizeFeet (treated as a radius for affected-target gathering in v1).
+enum class AreaShape { None, Sphere, Cube, Cone, Line };
+const char* areaShapeName(AreaShape s);
+AreaShape   areaShapeFromString(const char* s);
+
 // Name helpers
 const char*         spellSchoolName(SpellSchool s);
 SpellSchool         spellSchoolFromString(const char* s);
@@ -69,6 +75,10 @@ struct SpellDefinition {
     AbilityType         savingThrowAbility = AbilityType::Dexterity;
     bool                halfDamageOnSave   = false;
 
+    // Area of effect (0 size / None = single-target).
+    AreaShape areaShape    = AreaShape::None;
+    float     areaSizeFeet = 0.0f;
+
     DiceExpression baseDamage       = {0, DieType::D6, 0};  // count=0 = no damage
     DamageType     damageType       = DamageType::Force;
     DiceExpression upcastExtraPerSlot = {0, DieType::D6, 0};
@@ -86,6 +96,7 @@ struct SpellDefinition {
     bool isCantrip() const { return level == 0; }
     bool hasDamage()  const { return baseDamage.count > 0 || baseDamage.modifier > 0; }
     bool hasHeal()    const { return healDice.count > 0 || healBase > 0; }
+    bool isAreaSpell() const { return areaShape != AreaShape::None && areaSizeFeet > 0.0f; }
 
     /// Cantrip damage multiplier by caster's total character level (5e breakpoints).
     static int cantripDiceMultiplier(int characterLevel);

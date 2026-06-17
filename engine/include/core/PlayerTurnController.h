@@ -5,6 +5,7 @@
 #include "core/DamageTypes.h"
 
 #include <string>
+#include <vector>
 #include <functional>
 #include <glm/glm.hpp>
 
@@ -109,6 +110,10 @@ public:
     void setSelectedTarget(const std::string& id) { m_selectedTarget = id; }
     const std::string& selectedTarget() const { return m_selectedTarget; }
 
+    /// Enemy combatants that an area spell centered on `center` would affect —
+    /// for the AoE preview. Empty if the spell is unknown or not an area spell.
+    std::vector<std::string> aoeTargetsAt(const std::string& spellId, const glm::vec3& center) const;
+
     // -----------------------------------------------------------------------
     // Tuning (player attack profile; refine from held weapon / sheet later)
     // -----------------------------------------------------------------------
@@ -126,6 +131,7 @@ private:
     void resolvePlayerAttack(Scene::Entity* target, const std::string& targetId);
     Scene::Entity* lookup(const std::string& id) const;
     static int pseudoAC(Scene::Entity* e);
+    std::vector<std::string> gatherAreaTargets(const glm::vec3& center, float radiusFeet) const;
 
     CombatDirector* m_director = nullptr;
     EntityRegistry* m_registry = nullptr;
