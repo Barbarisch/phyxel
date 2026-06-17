@@ -26,6 +26,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "scene/AnimatedVoxelCharacter.h"
 #include "graphics/AnimationSystem.h"
 #include "scene/NPCEntity.h"
+#include "scene/CharacterTurnBody.h"
 #include "scene/behaviors/IdleBehavior.h"
 #include "scene/behaviors/PatrolBehavior.h"
 #include "scene/behaviors/CombatBehavior.h"
@@ -479,10 +480,23 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
     // Wire D&D combat AI (pointers are stable — members outlive all systems).
     // The CombatDirector owns the InitiativeTracker; the AI + HUD read it through
-    // the director so there is one source of truth for combat state.
-    m_combatAI.setInitiativeTracker(&m_combatDirector.initiative());
+    // the director so there is one source of truth for combat state. The AI runs
+    // enemy turns through TurnActor, driving each enemy's live character via a
+    // CharacterTurnBody adapter from the body provider below (see
+    // docs/TurnBasedCombat.md S4). setCombatSystem is wired after combatSystem
+    // is constructed (further down).
+    m_combatAI.setCombatDirector(&m_combatDirector);
     m_combatAI.setParty(&m_rpgParty);
     m_combatAI.setEntityRegistry(entityRegistry.get());
+    m_combatAI.setBodyProvider([this](Scene::Entity* e) -> Core::ITurnActorBody* {
+        Scene::AnimatedVoxelCharacter* ch = nullptr;
+        if (auto* npc = dynamic_cast<Scene::NPCEntity*>(e)) ch = npc->getAnimatedCharacter();
+        else ch = dynamic_cast<Scene::AnimatedVoxelCharacter*>(e);
+        if (!ch) return nullptr;
+        auto& slot = m_turnBodies[ch];
+        if (!slot) slot = std::make_unique<Scene::CharacterTurnBody>(ch);
+        return slot.get();
+    });
     jobSystem = std::make_unique<Core::JobSystem>();
     int apiPort = (m_apiPortOverride > 0) ? m_apiPortOverride : engineConfig.apiPort;
     apiServer = std::make_unique<Core::EngineAPIServer>(apiCommandQueue.get(), apiPort, jobSystem.get());
@@ -1085,6 +1099,13 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             m_combatDirector.initiative().sortOrder();
             return json{{"ok", true}};
         }
+        if (action == "combat/set_mode") {
+            // Dev/testing override of the per-game combat ruleset. Production
+            // mode is normally fixed from game.json combat.mode.
+            std::string mode = params.value("mode", "real_time");
+            m_combatDirector.setMode(Core::combatModeFromString(mode));
+            return json{{"ok", true}, {"mode", Core::combatModeToString(m_combatDirector.mode())}};
+        }
 
         // ---- World Calendar -----------------------------------------------
         if (action == "world/date") {
@@ -1608,6 +1629,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     });
     // Real-time combat NPCs (CombatBehavior) deal damage through this system.
     if (npcManager) npcManager->setCombatSystem(combatSystem.get());
+    // Turn-based enemy AI resolves its damage through the same system.
+    m_combatAI.setCombatSystem(combatSystem.get());
     // React to combat damage (hit reactions + death animation). Health itself
     // is mutated once, inside CombatSystem::applyDamage; the player character
     // now SHARES Application::playerHealth (see createAnimatedCharacter), so
@@ -4578,6 +4601,10 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
     // the held weapon (unarmed defaults otherwise), heavies hit 1.6x harder.
     animatedCharacter->setOnHitFrame([this]() {
         if (!combatSystem || !entityRegistry || !animatedCharacter) return;
+        // Real-time cone damage only. In turn-based mode the combat system
+        // resolves attacks itself (d20 vs AC via AttackResolver), so the
+        // animation hit frame must NOT also deal cone damage. (See S4.)
+        if (m_combatDirector.isTurnBased()) return;
         float damage = 2.0f, reach = 1.6f;  // unarmed fists
         if (!m_heldItemId.empty()) {
             if (const auto* def = Core::ItemRegistry::instance().getItem(m_heldItemId)) {

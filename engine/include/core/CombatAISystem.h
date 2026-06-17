@@ -4,12 +4,15 @@
 #include "core/Party.h"
 #include "core/AttackResolver.h"
 #include "core/DiceSystem.h"
+#include "core/TurnActor.h"
 
 #include <string>
+#include <functional>
 
 namespace Phyxel {
 
-namespace Core { class EntityRegistry; }
+namespace Scene { class Entity; }
+namespace Core { class EntityRegistry; class CombatDirector; class CombatSystem; }
 
 namespace Core {
 
@@ -38,6 +41,21 @@ public:
     void setParty(Party* party)                            { m_party = party; }
     void setEntityRegistry(EntityRegistry* registry)       { m_registry = registry; }
 
+    /// The director gates the AI (turn-based mode only) and is the authority
+    /// for whose turn it is + advancing turns. When set, its InitiativeTracker
+    /// supersedes any tracker set via setInitiativeTracker().
+    void setCombatDirector(CombatDirector* director)       { m_director = director; }
+
+    /// Damage from enemy attacks routes through the unified CombatSystem entry
+    /// (death/hit-react/events). Optional — falls back to a raw HP decrement.
+    void setCombatSystem(CombatSystem* combat)             { m_combat = combat; }
+
+    /// Host-supplied adapter factory: given the acting enemy Entity, return an
+    /// ITurnActorBody that drives its live character (or nullptr to fall back to
+    /// instant, non-animated execution). Keeps this core system scene-free.
+    using BodyProvider = std::function<ITurnActorBody*(Scene::Entity*)>;
+    void setBodyProvider(BodyProvider provider)            { m_bodyProvider = std::move(provider); }
+
     // -----------------------------------------------------------------------
     // Per-frame update
     // -----------------------------------------------------------------------
@@ -56,32 +74,48 @@ public:
     /// Movement speed applied to NPC while advancing on a target (default 4.0 m/s).
     void setMoveSpeed(float speed) { m_moveSpeed = speed; }
 
-    /// Melee reach in world units at which the NPC attacks instead of moving (default 2.0).
-    void setMeleeReach(float reach) { m_meleeReach = reach; }
+    /// Melee reach in feet at which the NPC attacks instead of moving (default 5).
+    void setMeleeReachFeet(float reachFeet) { m_reachFeet = reachFeet; }
 
 private:
-    // Checks if the current turn belongs to a non-party NPC.
-    bool isEnemyTurn() const;
+    // The active InitiativeTracker (director's if set, else the legacy pointer).
+    InitiativeTracker* tracker() const;
 
-    // Execute the enemy's combat action and advance the turn.
-    void executeEnemyAction();
+    // Per-turn phase machine (drives one enemy turn across multiple frames).
+    enum class Phase { Idle, Thinking, Moving, Attacking, Done };
+
+    void beginEnemyTurn(const std::string& enemyId, Scene::Entity* enemyEntity);
+    void decideNextAction();                 // choose Move / Attack / Done
+    void resolveEnemyAttack(Scene::Entity* enemyEntity);
+    std::string acquireTarget(const glm::vec3& fromPos, const std::string& selfId) const;
+    void finishTurn();
 
     // -----------------------------------------------------------------------
-    // State
+    // Wiring
     // -----------------------------------------------------------------------
-
-    InitiativeTracker* m_tracker  = nullptr;
+    InitiativeTracker* m_tracker  = nullptr;   // legacy direct tracker (optional)
+    CombatDirector*    m_director = nullptr;
+    CombatSystem*      m_combat   = nullptr;
     Party*             m_party    = nullptr;
     EntityRegistry*    m_registry = nullptr;
+    BodyProvider       m_bodyProvider;
 
-    float m_thinkDelay = 0.6f;   ///< seconds before acting
-    float m_moveSpeed  = 4.0f;
-    float m_meleeReach = 2.0f;
+    // -----------------------------------------------------------------------
+    // Tuning
+    // -----------------------------------------------------------------------
+    float m_thinkDelay = 0.6f;   ///< seconds before the enemy starts acting
+    float m_moveSpeed  = 4.0f;   ///< (legacy no-body fallback) m/s advance
+    float m_reachFeet  = 5.0f;   ///< melee reach in feet
 
-    // Accumulated think time for the current enemy turn.
-    float m_thinkAccum = 0.0f;
-    // ID of the entity whose turn we started timing.
-    std::string m_timedEntityId;
+    // -----------------------------------------------------------------------
+    // Per-turn state
+    // -----------------------------------------------------------------------
+    Phase       m_phase   = Phase::Idle;
+    std::string m_actingId;        ///< enemy whose turn we are currently running
+    std::string m_targetId;        ///< chosen target this turn
+    float       m_thinkAccum = 0.0f;
+    bool        m_attacked   = false;  ///< guard: resolve damage once per attack
+    TurnActor   m_turnActor;
 
     DiceSystem m_dice;
 };

@@ -89,8 +89,10 @@
 #include "scene/NPCEntity.h"
 #include "scene/Entity.h"
 #include "scene/AnimatedVoxelCharacter.h"
+#include "scene/CharacterTurnBody.h"
 #include "ProjectLauncher.h"
 #include <map>
+#include <unordered_map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -260,6 +262,10 @@ private:
     Core::Party             m_rpgParty;
     Core::CombatDirector    m_combatDirector;   // single source of truth: mode + initiative + lifecycle
     Core::CombatAISystem    m_combatAI;
+    // Persistent TurnActor body adapters (one per character), handed to the
+    // combat AI's body provider so enemy turns drive live characters (S4).
+    std::unordered_map<Scene::AnimatedVoxelCharacter*,
+                       std::unique_ptr<Scene::CharacterTurnBody>> m_turnBodies;
     Core::WorldClock        m_rpgWorldClock;
     Core::CampaignJournal   m_rpgJournal;
 
