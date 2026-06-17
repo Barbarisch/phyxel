@@ -231,19 +231,25 @@ Re-express the stopgap `renderCombatHUD` (raw ImGui in the editor `ImGuiRenderer
 modules** bound via §6:
 
 - ✅ **Round banner** + **turn label** + **action bar** (Action/Bonus/Movement) + **hit-chance**
-  readout — DONE (scalar pass, commit after `7ace5d3`). Data from `CombatDirector` /
-  `PlayerTurnController` via `combat.*` providers; visibility gated by `visibleWhen`
-  (`combat.inCombat` / `combat.playerTurnActive`). Verified live + parity with the old ImGui HUD.
-- ⏳ Turn-order **portrait bar** (Repeater over a `combat.turn_order` list) — NEEDS the Repeater
-  widget + list-binding (in progress).
-- ⏳ **End Turn button** interactivity (the readout is data-driven; the button still lives in the
-  ImGui HUD — wire a UISystem button callback to `PlayerTurnController::endTurn`).
+  readout — DONE (`da5948c`). Data from `CombatDirector` / `PlayerTurnController` via `combat.*`
+  providers; visibility gated by `visibleWhen` (`combat.inCombat` / `combat.playerTurnActive`).
+  Verified live + parity with the old ImGui HUD.
+- ✅ Turn-order **list** (Repeater over a `combat.turn_order` list provider) — DONE (`bd6cf5c`).
+  New `UIRepeater` widget + `HudRecord`/`ListProvider`; "Initiative" panel verified live
+  (`> player [20] …`, `npc_goblin [8]`, active marker).
+- ✅ **End Turn button** — DONE (`e9fcb81`), data-driven `UIButton` → `PlayerTurnController::
+  endTurn()`. **Render-verified; live click not yet confirmed** (no input-injection API to
+  automate it here) — uses the shared `UISystem` handleInput→handleClick→onClick path.
 - Planned S8 pieces: d20 roll + crit/miss callouts, floating damage numbers, on-ground
   movement-range ring + path spline, target highlight.
 
 Data comes from `CombatDirector` / `PlayerTurnController` / `InitiativeTracker` (see
-`docs/TurnBasedCombat.md`). **Once the turn-order list + End Turn button are re-homed, delete
-`renderCombatHUD` from `ImGuiRenderer`** (and its call site in `editor/Application.cpp`).
+`docs/TurnBasedCombat.md`). **REMAINING before deleting `renderCombatHUD`:** (a) confirm the
+data-driven End Turn button click live (a few seconds in-editor, or add a UISystem/UIButton unit
+test for the click path); (b) then delete `renderCombatHUD` from `ImGuiRenderer.{h,cpp}` and its
+call site in `editor/Application.cpp`. Until then both HUDs render (the ImGui one is editor-only;
+the data-driven one is what ships). Cosmetic: the initiative row label is clipped at the panel
+width — widen the panel or shorten the label format.
 
 ## 11a. Migration roadmap — get ImGui out of shipped games (§2a)
 

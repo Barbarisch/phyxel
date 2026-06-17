@@ -754,11 +754,16 @@ setupGameHud` loads top-level `game.json "hud"` + registers player.health provid
 per frame. **Solved the editor-preview gap:** `UISystem` now renders LAST IN THE SCENE PASS into the
 offscreen image (was post-process/swapchain), so the HUD shows in the editor Viewport panel AND ships
 via post-process — one pipeline, no ImGui. Verified in DebrisPushTest: bar reads "HP 100/100",
-`damage_player 62` → "HP 38/100" at ~38% fill (demo hud block in `PhyxelProjects/DebrisPushTest/
-game.json`). NEXT = wire the standalone host (GameShell/minimal_game) providers + applyBindings
-(`HudSystem.md` §11a), then re-home the combat HUD as default modules + delete `renderCombatHUD`, then
-the broader ImGui→UISystem migration. Combat follow-ups deferred: reactions/OAs, conditions UI,
-ground-point AoE targeting. Earlier: **performance program kickoff
+`damage_player 62` → "HP 38/100". **Then re-homed the combat HUD onto `UISystem`** (branch
+`feature/hud-system`, 5 commits, NOT pushed): round banner + turn label + action bar + hit-chance
+(`combat.*` providers, `visibleWhen`-gated) + **Initiative turn-order list** via a new `UIRepeater`
+widget + list binding + **End Turn** `UIButton`→`endTurn()` — all verified live in turn-based combat.
+New infra: `visibleWhen`, HUD-as-array-of-panels, `UI::applyHudBindings` (RenderCoordinator applies
+to all screens), `HudDataContext` = pure registry. **REMAINING:** confirm End Turn button CLICK live
+(render-verified only — no input-injection API here) → then DELETE the editor ImGui `renderCombatHUD`
++ its call site. NEXT after that: standalone-host wiring (minimal_game/scaffold don't init UISystem —
+`HudSystem.md` §11a), more default modules (hotbar/objectives reuse Repeater), broader ImGui→UISystem
+migration. Combat follow-ups deferred: reactions/OAs, conditions UI, ground-point AoE targeting. Earlier: **performance program kickoff
 (2026-06-15)** — see "Render perf" workstream. Shipped + verified (NOT yet committed):
 character-update opts (cached
 bone→parts grouping, binary-search keyframes, persistent instance-buffer map, removed
