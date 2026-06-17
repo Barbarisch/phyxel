@@ -1,6 +1,7 @@
 # Turn-Based Combat — Design (BG3-feel)
 
-> Status: **S1–S5 done + committed; a full turn-based fight is playable & verified live.**
+> Status: **S1–S6 done + committed; a playable turn-based fight with click-to-move/attack +
+> hit-chance is verified live.**
 > Goal: a turn-based combat mode that looks and feels like Baldur's Gate 3, built on the
 > existing headless D&D mechanics and the real-time character FSM. The engine supports **both**
 > real-time and turn-based combat.
@@ -17,11 +18,15 @@
 > - **S5 player tactical control** — done (`1725420`), 6 tests, **verified live**: a full round
 >   cycles (player action bar → attack via intent → End Turn → enemy AI turn → back to player,
 >   both HP tracked). `PlayerTurnController` + `combat/player_move|player_attack|end_turn` HTTP
->   + action-bar UI + real-time-control suppression. Player intents are HTTP/test-driven for now;
->   click-to-move / click-target picking is S6.
+>   + action-bar UI + real-time-control suppression.
+> - **S6 targeting & hit-chance** — core done (`d900488`), +5 tests, **verified live**:
+>   `AttackResolver::hitChance`, targeting queries, `resolveCombatPick(ray)` (enemy→attack /
+>   ground→move) shared by live LMB + `combat/player_pick`, `combat/targeting_info`, action-bar
+>   hit-chance readout. AoE templates deferred with player spellcasting.
 >
-> **Integration milestone reached:** the S1–S5 loop is a playable turn-based fight (player +
-> enemy taking real animated turns). Remaining subsystems (S6+) are presentation/depth.
+> **Integration milestone reached:** the S1–S6 loop is a playable turn-based fight (player +
+> enemy taking real animated turns, click-to-move/attack with a hit-chance readout). Remaining
+> subsystems are presentation/depth.
 >
 > **Follow-ups found:** (a) the player-factory `createAnimatedCharacter` binds the shared
 > `playerHealth` to EVERY animated character — fine for the single player, but non-player
@@ -117,10 +122,14 @@ Turn**) in `renderCombatHUD`; real-time WASD/LMB suppressed during the player's 
 are HTTP/test-driven (`combat/player_move|player_attack|end_turn`). **Remaining for S6:**
 click-to-move + click-target picking (raycast), ability/spell selection.
 
-### S6 — Targeting & resolution preview
-Hit-chance % (AttackResolver math without rolling), advantage/disadvantage state, movement
-range, and AoE templates (sphere/cone/line) with affected-target preview reusing the spell
-VFX system. Feeds both S5's UI and headless MCP queries (S11).
+### S6 — Targeting & resolution preview  ✅ core done + verified live (`d900488`)
+`AttackResolver::hitChance` (pure; nat-20/1 floors + advantage/disadvantage), PlayerTurnController
+targeting queries (`hitChanceVs`/`targetAC`/`distanceTo`/`inReachOf`/selected-target),
+`Application::resolveCombatPick(ray)` (enemy-AABB → attack / ground-plane → move) shared by the
+live LMB (cursor ray) and HTTP (`combat/player_pick`), `combat/targeting_info`/`select_target`,
+and the action-bar hit-chance readout. **Remaining S6:** AoE templates (sphere/cone/line) with
+affected-target preview — deferred with player spellcasting; advantage/disadvantage sourcing from
+ConditionSystem; on-ground movement-range ring (S8 presentation).
 
 ### S7 — Combat camera (BG3 hybrid)
 Over-shoulder third-person that can pull back and free-rotate toward overhead during a turn,
