@@ -735,8 +735,12 @@ fireball AoE with full/half-on-save), a tactical camera that auto-frames the act
 and enemy AI taking real animated turns. Single source of truth = `CombatDirector`; damage
 unified through `CombatSystem::applyDamage`; `TurnActor` bridges turns to the live FSM;
 `CombatAISystem` (enemy) + `PlayerTurnController` (player) drive turns; combat HTTP under
-`/api/rpg/combat/<action>`. NEXT = S8 HUD polish (portraits/floaters/range-ring), reactions/OAs,
-conditions UI. ~85 turn-based unit tests green. Earlier: **performance program kickoff
+`/api/rpg/combat/<action>`. ~85 turn-based unit tests green. **MERGED TO `main`.** NEXT MAJOR
+TRACK = a proper **Game-HUD system** — the combat HUD we built is an editor-ImGui STOPGAP in the
+wrong layer (overlaps editor panels, won't ship); a dedicated session designs editor-vs-game
+rendering + data-driven customizable HUDs + default modules. **Start there:
+`docs/HUD_NEXT_SESSION.md`** (self-contained kickoff). Combat follow-ups deferred behind it:
+reactions/OAs, conditions UI, ground-point AoE targeting. Earlier: **performance program kickoff
 (2026-06-15)** — see "Render perf" workstream. Shipped + verified (NOT yet committed):
 character-update opts (cached
 bone→parts grouping, binary-search keyframes, persistent instance-buffer map, removed
