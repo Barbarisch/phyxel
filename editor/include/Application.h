@@ -278,11 +278,17 @@ private:
     // Pending player turn intent, set by the HTTP combat/player_* handlers
     // (HTTP thread) and drained on the game thread before m_playerTurn.tick.
     struct PendingPlayerIntent {
-        enum class Kind { None, Move, Attack, EndTurn, Select };
+        enum class Kind { None, Move, Attack, EndTurn, Select, Cast };
         Kind        kind = Kind::None;
         glm::vec3   point{0.0f};
         std::string targetId;
+        std::string spellId;
     };
+
+    // Plays the cast animation + VFX for a spell and invokes onRelease at the
+    // release frame (reused by the turn-based cast executor). S-spellcasting.
+    void playCastVisual(const std::string& spellId, Scene::AnimatedVoxelCharacter* caster,
+                        const glm::vec3& targetPos, std::function<void()> onRelease);
     std::mutex          m_playerIntentMutex;
     PendingPlayerIntent m_pendingPlayerIntent;
 

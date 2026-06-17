@@ -504,6 +504,16 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     m_playerTurn.setCombatDirector(&m_combatDirector);
     m_playerTurn.setEntityRegistry(entityRegistry.get());
     m_playerTurn.setBodyProvider(bodyProvider);
+    // Load the spell registry up front so the player turn's castSpell lookup
+    // works (the cast visual also lazy-loads it, but that runs after the lookup).
+    if (Core::SpellRegistry::instance().count() == 0)
+        Core::SpellRegistry::instance().loadFromDirectory("resources/spells");
+    // Cast executor: play the cast animation + VFX, resolve at the release frame.
+    m_playerTurn.setCastExecutor(
+        [this](const std::string& spellId, const std::string& /*targetId*/,
+               const glm::vec3& targetPos, std::function<void()> onRelease) {
+            playCastVisual(spellId, animatedCharacter, targetPos, std::move(onRelease));
+        });
     jobSystem = std::make_unique<Core::JobSystem>();
     int apiPort = (m_apiPortOverride > 0) ? m_apiPortOverride : engineConfig.apiPort;
     apiServer = std::make_unique<Core::EngineAPIServer>(apiCommandQueue.get(), apiPort, jobSystem.get());
@@ -1137,6 +1147,13 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         if (action == "combat/select_target") {
             std::lock_guard<std::mutex> lk(m_playerIntentMutex);
             m_pendingPlayerIntent.kind     = PendingPlayerIntent::Kind::Select;
+            m_pendingPlayerIntent.targetId = params.value("target_id", "");
+            return json{{"ok", true}};
+        }
+        if (action == "combat/player_cast") {
+            std::lock_guard<std::mutex> lk(m_playerIntentMutex);
+            m_pendingPlayerIntent.kind     = PendingPlayerIntent::Kind::Cast;
+            m_pendingPlayerIntent.spellId  = params.value("spell", "");
             m_pendingPlayerIntent.targetId = params.value("target_id", "");
             return json{{"ok", true}};
         }
@@ -3151,6 +3168,10 @@ void Application::update(float deltaTime) {
                 m_playerTurn.requestAttack(intent.targetId);
                 break;
             case PendingPlayerIntent::Kind::Select:  m_playerTurn.setSelectedTarget(intent.targetId); break;
+            case PendingPlayerIntent::Kind::Cast:
+                m_playerTurn.setSelectedTarget(intent.targetId);
+                m_playerTurn.castSpell(intent.spellId, intent.targetId);
+                break;
             case PendingPlayerIntent::Kind::EndTurn: m_playerTurn.endTurn(); break;
             case PendingPlayerIntent::Kind::None:    break;
         }
@@ -4816,6 +4837,52 @@ Application::resolveCombatPick(const glm::vec3& origin, const glm::vec3& dir) co
         }
     }
     return intent;
+}
+
+void Application::playCastVisual(const std::string& spellId,
+                                 Scene::AnimatedVoxelCharacter* caster,
+                                 const glm::vec3& targetPos,
+                                 std::function<void()> onRelease) {
+    glm::vec3 origin = caster ? caster->getPosition() + glm::vec3(0.0f, 1.4f, 0.0f) : targetPos;
+
+    Phyxel::VfxSpellModifiers mods;
+    Phyxel::VfxCastContext ctx;
+    ctx.caster = origin;
+    ctx.targets.push_back(targetPos);
+
+    auto fire = [this, spellId, mods, ctx, onRelease]() {
+        auto* d = renderCoordinator ? renderCoordinator->getVfxDirector() : nullptr;
+        if (d) d->cast(Phyxel::resolveSpellVfx(spellId, mods), ctx);
+        if (onRelease) onRelease();
+    };
+
+    bool animated = false;
+    if (caster) {
+        auto& reg = Core::SpellRegistry::instance();
+        if (reg.count() == 0) reg.loadFromDirectory("resources/spells");
+        auto& mapper = Core::SpellAnimMapper::instance();
+        if (!mapper.isLoaded())
+            mapper.loadConfig("resources/spells/anim/spell_anim_families.json");
+
+        const auto* def = reg.getSpell(spellId);
+        if (def && mapper.isLoaded()) {
+            auto plan = mapper.resolve(*def, 2, [caster](const std::string& clip) {
+                for (const auto& c : caster->getAnimationClips())
+                    if (c.name == clip) return c.duration;
+                return 0.0f;
+            });
+            if (plan.valid) {
+                std::vector<Scene::AnimatedVoxelCharacter::CastSegment> segs;
+                for (const auto& s : plan.segments) segs.push_back({s.clip, s.speed, s.loops});
+                glm::vec3 dd = targetPos - caster->getPosition();
+                if (glm::length(glm::vec2(dd.x, dd.z)) > 0.01f)
+                    caster->setFacingYaw(std::atan2(dd.x, dd.z));
+                caster->setOnCastRelease(fire);
+                animated = caster->castSpell(segs);
+            }
+        }
+    }
+    if (!animated) fire();   // fallback: immediate VFX + resolution
 }
 
 void Application::setControlTarget(const std::string& targetName) {

@@ -54,8 +54,24 @@ public:
     /// Attack a target entity by id (must be in reach + action available).
     bool requestAttack(const std::string& targetId);
 
+    /// Cast a spell (by SpellRegistry id) at a target. Spends the action (or the
+    /// bonus action for bonus-action spells), resolves attack-roll / saving-throw
+    /// / auto-hit and applies damage or healing through the funnel, and drives
+    /// the cast animation + VFX via the injected cast executor (damage lands on
+    /// the animation's release frame). Returns false if it can't be cast now.
+    bool castSpell(const std::string& spellId, const std::string& targetId);
+
     /// End the player's turn now (advances the director).
     void endTurn();
+
+    /// Host hook that plays the cast animation + VFX and calls onRelease at the
+    /// release frame (or immediately when not animated). Keeps the controller
+    /// free of scene/VFX dependencies.
+    using CastExecutor = std::function<void(const std::string& spellId,
+                                            const std::string& targetId,
+                                            const glm::vec3& targetPos,
+                                            std::function<void()> onRelease)>;
+    void setCastExecutor(CastExecutor e) { m_castExecutor = std::move(e); }
 
     // -----------------------------------------------------------------------
     // Queries (for UI / control suppression)
@@ -100,6 +116,9 @@ public:
     void setAttackBonus(int b)         { m_attackBonus = b; }
     void setDamageDice(const std::string& d) { m_damageDice = d; }
     void setDamageType(DamageType t)   { m_damageType = t; }
+    void setSpellAttackBonus(int b)    { m_spellAttackBonus = b; }
+    void setSpellSaveDC(int dc)        { m_spellSaveDC = dc; }
+    void setCasterLevel(int lvl)       { if (lvl > 0) m_casterLevel = lvl; }
 
 private:
     void beginPlayerTurn(Scene::Entity* playerEntity);
@@ -128,6 +147,13 @@ private:
     int         m_attackBonus = 5;
     std::string m_damageDice  = "1d6+3";
     DamageType  m_damageType  = DamageType::Physical;
+
+    // Spellcasting profile (stopgap, like the pseudo-AC — replace with the
+    // caster's real sheet/spellcaster component later).
+    int          m_spellAttackBonus = 5;
+    int          m_spellSaveDC      = 13;
+    int          m_casterLevel      = 1;
+    CastExecutor m_castExecutor;
 };
 
 } // namespace Core

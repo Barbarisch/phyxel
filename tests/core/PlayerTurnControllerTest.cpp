@@ -4,6 +4,7 @@
 #include "core/CombatSystem.h"
 #include "core/EntityRegistry.h"
 #include "core/HealthComponent.h"
+#include "core/SpellDefinition.h"
 #include "scene/Entity.h"
 
 #include <cmath>
@@ -186,6 +187,49 @@ TEST(PlayerTurnControllerTest, TargetingQueries) {
     EXPECT_TRUE(pc.inReachOf("near"));                  // 1 u < 5 ft (1.52 u)
     EXPECT_FALSE(pc.inReachOf("far"));
     EXPECT_FLOAT_EQ(pc.hitChanceVs("missing"), 0.0f);   // unknown target
+}
+
+TEST(PlayerTurnControllerTest, CastSpellSpendsActionResolvesAndExecutes) {
+    // Register a deterministic auto-hit damage spell.
+    SpellDefinition s;
+    s.id = "test_zap";
+    s.level = 1;
+    s.resolutionType = SpellResolutionType::AutoHit;
+    s.baseDamage = DiceExpression{0, DieType::D6, 5};   // 0 dice + 5 = always 5
+    s.damageType = DamageType::Fire;
+    SpellRegistry::instance().registerSpell(s);
+
+    CombatDirector dir; startPlayerTurn(dir);
+    EntityRegistry reg;
+    CombatSystem combat;
+    TestEntity player({0, 0, 0});
+    TestEntity target({1.0f, 0, 0}, 50.0f);
+    reg.registerEntity(&player, "player", "animated");
+    reg.registerEntity(&target, "enemy", "animated");
+    MockBody body;
+
+    int releaseCalls = 0;
+    PlayerTurnController pc;
+    pc.setCombatDirector(&dir);
+    pc.setEntityRegistry(&reg);
+    pc.setCombatSystem(&combat);
+    pc.setBodyProvider([&](Scene::Entity*) -> ITurnActorBody* { return &body; });
+    pc.setPlayerEntityId("player");
+    // Executor fires the release immediately (no animation in tests).
+    pc.setCastExecutor([&](const std::string&, const std::string&,
+                           const glm::vec3&, std::function<void()> onRelease) {
+        releaseCalls++;
+        onRelease();
+    });
+    pc.tick(0.05f);
+
+    ASSERT_TRUE(pc.castSpell("test_zap", "enemy"));
+    EXPECT_FALSE(pc.budget()->action);                 // action spent
+    EXPECT_EQ(releaseCalls, 1);                         // executor invoked
+    EXPECT_FLOAT_EQ(target.m_health.getHealth(), 45.0f);  // 5 auto-hit damage landed
+    EXPECT_EQ(pc.selectedTarget(), "enemy");
+
+    EXPECT_FALSE(pc.castSpell("unknown_spell", "enemy"));  // unknown -> rejected
 }
 
 TEST(PlayerTurnControllerTest, EndTurnAdvancesAndUnbinds) {
