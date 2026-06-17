@@ -60,7 +60,12 @@ public:
 
 private:
     void applyToWidget(UIWidget* w) const {
-        if (!w || w->bind.empty()) return;
+        if (!w) return;
+        // Visibility binding (independent of value binding).
+        if (!w->visibleWhen.empty()) {
+            if (auto v = resolveFloat(w->visibleWhen)) w->visible = (*v > 0.5f);
+        }
+        if (w->bind.empty()) return;
         switch (w->type()) {
             case WidgetType::ProgressBar: {
                 if (auto v = resolveFloat(w->bind)) {

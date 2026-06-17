@@ -26,6 +26,7 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         w->text = j.value("text", "");
         w->isTitle = j.value("isTitle", false);
         w->bind = j.value("bind", "");
+        w->visibleWhen = j.value("visibleWhen", "");
         w->visible = j.value("visible", true);
         w->enabled = j.value("enabled", true);
         if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
@@ -116,6 +117,7 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         w->id = j.value("id", "");
         w->label = j.value("label", "");
         w->bind = j.value("bind", "");
+        w->visibleWhen = j.value("visibleWhen", "");
         w->value = j.value("value", 1.0f);
         w->minVal = j.value("min", 0.0f);
         w->maxVal = j.value("max", 1.0f);
@@ -142,6 +144,7 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         w->id = j.value("id", "");
         w->title = j.value("title", "");
         w->showBackground = j.value("showBackground", true);
+        w->visibleWhen = j.value("visibleWhen", "");
         w->visible = j.value("visible", true);
         w->enabled = j.value("enabled", true);
         if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
@@ -170,6 +173,7 @@ std::unique_ptr<UIPanel> MenuDefinition::buildFromJson(const nlohmann::json& j) 
     panel->id = j.value("id", "");
     panel->title = j.value("title", "");
     panel->showBackground = j.value("showBackground", true);
+    panel->visibleWhen = j.value("visibleWhen", "");
     panel->visible = j.value("visible", true);
     panel->enabled = j.value("enabled", true);
 

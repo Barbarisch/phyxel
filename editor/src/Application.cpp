@@ -5090,23 +5090,63 @@ void Application::setupGameHud(const nlohmann::json& gameDef) {
         return std::string(buf);
     });
 
-    // Build the HUD widget tree from the top-level "hud" block, if present.
-    if (!gameDef.contains("hud") || !gameDef["hud"].is_object()) {
+    // Combat providers (turn-based; the data behind the combat HUD modules being
+    // re-homed off the editor ImGui renderCombatHUD — see docs/HudSystem.md §10).
+    // `combat.inCombat` / `combat.playerTurnActive` gate visibility via visibleWhen.
+    hud.setFloat("combat.inCombat",         [this]{ return m_combatDirector.inCombat() ? 1.0f : 0.0f; });
+    hud.setFloat("combat.playerTurnActive", [this]{ return m_playerTurn.isPlayerTurnActive() ? 1.0f : 0.0f; });
+    hud.setText ("combat.roundText", [this]{
+        char buf[32];
+        snprintf(buf, sizeof(buf), "COMBAT  -  Round %d", m_combatDirector.currentRound());
+        return std::string(buf);
+    });
+    hud.setText ("combat.turnLabel", [this]{
+        if (m_combatDirector.isPlayerTurn()) return std::string("YOUR TURN");
+        std::string id = m_combatDirector.currentEntityId();
+        return id.empty() ? std::string("") : (id + "'s Turn");
+    });
+    hud.setText ("combat.budgetText", [this]{
+        const auto* b = m_playerTurn.budget();
+        if (!b) return std::string("");
+        char buf[64];
+        snprintf(buf, sizeof(buf), "Action:%s  Bonus:%s  Move:%.1f",
+                 b->action ? "Y" : "-", b->bonusAction ? "Y" : "-",
+                 m_playerTurn.movementRemainingUnits());
+        return std::string(buf);
+    });
+    hud.setText ("combat.hitChanceText", [this]{
+        const std::string& tgt = m_playerTurn.selectedTarget();
+        if (tgt.empty()) return std::string("");
+        char buf[96];
+        snprintf(buf, sizeof(buf), "%s: %.0f%% to hit (AC %d)%s",
+                 tgt.c_str(), m_playerTurn.hitChanceVs(tgt) * 100.0f, m_playerTurn.targetAC(tgt),
+                 m_playerTurn.inReachOf(tgt) ? "" : "  [out of reach]");
+        return std::string(buf);
+    });
+
+    // Build HUD screens from the "hud" block. Accepts a single panel object OR an
+    // array of panels (each an independently-anchored screen — needed because a panel
+    // lays its children out in one vertical stack, so e.g. a bottom-left health bar
+    // and a top-center combat banner must be separate screens).
+    if (!gameDef.contains("hud")) {
         LOG_INFO("Application", "No 'hud' block in game definition — no game HUD loaded");
         return;
     }
-    try {
-        auto panel = UI::MenuDefinition::buildFromJson(gameDef["hud"]);
-        if (!panel) {
-            LOG_ERROR("Application", "Failed to build HUD from game.json 'hud' block");
-            return;
+    auto buildPanel = [&](const nlohmann::json& panelDef) {
+        try {
+            auto panel = UI::MenuDefinition::buildFromJson(panelDef);
+            if (!panel) { LOG_ERROR("Application", "Failed to build a HUD panel"); return; }
+            std::string id = panelDef.value("id", "hud");
+            uiSystem->addScreen(id, std::move(panel));
+            uiSystem->showScreen(id);
+            LOG_INFO("Application", "Game HUD panel '{}' loaded", id);
+        } catch (const std::exception& e) {
+            LOG_ERROR("Application", "Error parsing HUD panel: {}", e.what());
         }
-        uiSystem->addScreen("hud", std::move(panel));
-        uiSystem->showScreen("hud");
-        LOG_INFO("Application", "Game HUD loaded and shown");
-    } catch (const std::exception& e) {
-        LOG_ERROR("Application", "Error parsing game.json 'hud' block: {}", e.what());
-    }
+    };
+    const auto& h = gameDef["hud"];
+    if (h.is_array()) { for (const auto& p : h) buildPanel(p); }
+    else if (h.is_object()) { buildPanel(h); }
 }
 
 void Application::autoLoadGameDefinition() {

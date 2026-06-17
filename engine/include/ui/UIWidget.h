@@ -129,6 +129,11 @@ public:
     /// Optional data-binding key. When set, a HudDataContext pulls the live value
     /// for this key into the widget each frame before render (see HudDataContext).
     std::string bind;
+
+    /// Optional visibility-binding key. When set, the HudDataContext sets `visible`
+    /// from the named float provider each frame (>0.5 → visible). Used to show a HUD
+    /// element only in certain states (e.g. "combat.inCombat").
+    std::string visibleWhen;
 };
 
 // ════════════════════════════════════════════════════════════════

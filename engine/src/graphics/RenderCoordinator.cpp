@@ -1275,7 +1275,11 @@ void RenderCoordinator::drawFrame() {
     if (m_uiSystem) {
         // Pull live game state into the HUD widgets before drawing (single source of
         // truth — hosts register providers on hudData(); widgets just mirror values).
-        if (auto* hud = m_uiSystem->getScreen("hud")) m_hudData.applyBindings(hud);
+        // Applied to every screen so independently-anchored HUD panels (health,
+        // combat round/turn/action, …) all bind; menu screens have no binds (no-op).
+        for (const auto& [name, vis] : m_uiSystem->getScreenList()) {
+            if (auto* s = m_uiSystem->getScreen(name)) m_hudData.applyBindings(s);
+        }
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Custom UI");
         m_uiSystem->render(vulkanDevice->getCommandBuffer(currentFrame));
     }
