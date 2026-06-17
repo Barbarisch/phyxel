@@ -772,9 +772,14 @@ layout shift; UISystem prefers JetBrainsMono, falls back to bitmap; `UIRenderer:
 relocates drawRect's white texel). So UISystem now has crisp text + RGBA images + rects — the full
 toolkit to replace ImGui menus. **ENGINE DEFAULT HUD DONE**: ships `resources/ui/default_hud.json`;
 setupGameHud loads it when game.json has no "hud" → games get the full HUD with ZERO authoring (own
-"hud" overrides). Verified live. NEXT: **standalone-host wiring** (minimal_game is DISABLED in CMake,
-scaffold needs UISystem init — verify via packaged run; `HudSystem.md` §11a); broader menus/screens/
-dialogue ImGui→UISystem migration; game.json font/theme config; bundle resources/ui+font in packages.
+"hud" overrides). Verified live. **DIALOGUE (standard trees) MIGRATED to UISystem** (UILabel word-wrap + `dialogue.*`
+providers + `hud_dialogue` panel; ImGui `renderDialogueBox` now AI-conversation-only). NEXT ImGui→
+UISystem: **MENUS** (`GameMenuRenderer` is the live ImGui menu path — BIG port: position-based 1280x720
+schema + backgrounds + animations + submenu stack + actions + {{tokens}}; UISystem needs absolute/free
+layout + fullscreen bg + button-action wiring; editor-verifiable via a menu scene) and **SCREENS**
+(Intro/Victory/Credits — standalone-shell-driven, hard to verify in editor). Also: **standalone-host
+wiring** (minimal_game DISABLED in CMake; verify via packaged run); game.json font/theme config;
+bundle resources/ui+font in packages.
 Combat follow-ups deferred: reactions/OAs, conditions UI, ground-point AoE targeting. Earlier: **performance program kickoff
 (2026-06-15)** — see "Render perf" workstream. Shipped + verified (NOT yet committed):
 character-update opts (cached
