@@ -363,6 +363,10 @@ void InputController::setupMouseBindings() {
     // on plain left-click is retired: LMB is the melee attack now; use the
     // spell tool (or apply_damage) to break voxels during testing.
     m_inputManager->registerMouseAction(GLFW_MOUSE_BUTTON_LEFT, 0, "Interact (Attack/Cast)", [this]() {
+        // Turn-based player turn (S6): left-click = move/attack via the cursor
+        // ray. Consumes the click so it doesn't break/knock voxels.
+        if (m_app->tryCombatClick()) return;
+
         // Spell-cast tool: when spell mode is enabled, left-click casts the selected
         // spell at the hovered voxel.
         if (m_app->isSpellModeEnabled()) {

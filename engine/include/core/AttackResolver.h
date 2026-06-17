@@ -122,6 +122,18 @@ public:
     /// Resistant: floor(damage / 2). Vulnerable: damage * 2. Immune: 0.
     static int applyResistance(int damage, DamageResistance resistance);
 
+    // -----------------------------------------------------------------------
+    // Hit-chance preview (no roll) — for UI / AI without consuming RNG
+    // -----------------------------------------------------------------------
+
+    /// Probability [0,1] that an attack hits, matching resolveAttack's rules:
+    /// a natural 20 always hits and a natural 1 always misses (so the result is
+    /// always clamped to [1/20, 19/20]), otherwise d20 + attackBonus >= targetAC.
+    /// Advantage = roll twice take the better (1-(1-p)^2); disadvantage = p^2;
+    /// both set cancels out.
+    static float hitChance(int attackBonus, int targetAC,
+                           bool hasAdvantage = false, bool hasDisadvantage = false);
+
 private:
     /// Roll damage for a hit, doubling dice on a critical.
     static RollResult rollDamage(const DiceExpression& dice, bool critical, DiceSystem& rng);

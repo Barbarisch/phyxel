@@ -295,3 +295,49 @@ TEST_F(AttackResolverTest, SavingThrowFieldsPopulated) {
     EXPECT_EQ(res.total, res.roll + res.modifier);
     EXPECT_EQ(res.succeeded, res.total >= 15);
 }
+
+// ---------------------------------------------------------------------------
+// hitChance — preview probability (no roll), matches resolveAttack rules
+// ---------------------------------------------------------------------------
+
+TEST_F(AttackResolverTest, HitChanceClampsToFivePercentFloors) {
+    // Trivially hittable AC -> capped at 19/20 (nat 1 always misses).
+    EXPECT_FLOAT_EQ(AttackResolver::hitChance(5, 6), 0.95f);
+    EXPECT_FLOAT_EQ(AttackResolver::hitChance(10, 0), 0.95f);
+    // Near-impossible AC -> floored at 1/20 (nat 20 always hits).
+    EXPECT_FLOAT_EQ(AttackResolver::hitChance(0, 30), 0.05f);
+    EXPECT_FLOAT_EQ(AttackResolver::hitChance(2, 40), 0.05f);
+}
+
+TEST_F(AttackResolverTest, HitChanceMidRange) {
+    // need = AC - bonus = 10 -> faces 10..19 hit (10) + nat20 = 11/20 = 0.55.
+    EXPECT_FLOAT_EQ(AttackResolver::hitChance(5, 15), 0.55f);
+    // need = 11 -> faces 11..19 (9) + nat20 = 10/20 = 0.50.
+    EXPECT_FLOAT_EQ(AttackResolver::hitChance(0, 11), 0.50f);
+}
+
+TEST_F(AttackResolverTest, HitChanceAdvantageDisadvantage) {
+    float p = AttackResolver::hitChance(5, 15);            // 0.55
+    EXPECT_FLOAT_EQ(AttackResolver::hitChance(5, 15, true, false),
+                    1.0f - (1.0f - p) * (1.0f - p));        // ~0.7975
+    EXPECT_FLOAT_EQ(AttackResolver::hitChance(5, 15, false, true), p * p);  // 0.3025
+    // Advantage + disadvantage cancel.
+    EXPECT_FLOAT_EQ(AttackResolver::hitChance(5, 15, true, true), p);
+}
+
+TEST_F(AttackResolverTest, HitChanceMatchesEmpiricalResolveAttack) {
+    // Monte-Carlo the real resolver and compare to the closed-form chance.
+    const int bonus = 4, ac = 14;
+    DiceSystem::setSeed(123);
+    DiceSystem d;
+    auto dmg = DiceExpression::parse("1d6");
+    int hits = 0, N = 20000;
+    for (int i = 0; i < N; ++i) {
+        auto r = AttackResolver::resolveAttack(bonus, ac, dmg, DamageType::Physical,
+                                               DamageResistance::Normal, false, false, d);
+        if (r.hit) ++hits;
+    }
+    float empirical = static_cast<float>(hits) / N;
+    float predicted = AttackResolver::hitChance(bonus, ac);
+    EXPECT_NEAR(empirical, predicted, 0.02f);
+}

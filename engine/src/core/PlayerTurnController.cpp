@@ -24,6 +24,46 @@ const ActionBudget* PlayerTurnController::budget() const {
     return nullptr;
 }
 
+Scene::Entity* PlayerTurnController::lookup(const std::string& id) const {
+    return (m_registry && !id.empty()) ? m_registry->getEntity(id) : nullptr;
+}
+
+int PlayerTurnController::pseudoAC(Scene::Entity* e) {
+    // Generic entities have no CharacterSheet — derive AC from HP% (mirrors the
+    // enemy AI so both sides use the same yardstick until real sheets are wired).
+    auto* hc = e ? e->getHealthComponent() : nullptr;
+    if (!hc || hc->getMaxHealth() <= 0.0f) return 10;
+    float frac = hc->getHealth() / hc->getMaxHealth();
+    return 8 + static_cast<int>(frac * 6.0f);
+}
+
+int PlayerTurnController::targetAC(const std::string& targetId) const {
+    Scene::Entity* t = lookup(targetId);
+    return t ? pseudoAC(t) : 0;
+}
+
+float PlayerTurnController::hitChanceVs(const std::string& targetId) const {
+    Scene::Entity* t = lookup(targetId);
+    if (!ptcAlive(t)) return 0.0f;
+    return AttackResolver::hitChance(m_attackBonus, pseudoAC(t));
+}
+
+float PlayerTurnController::distanceTo(const std::string& targetId) const {
+    Scene::Entity* t = lookup(targetId);
+    if (!t) return -1.0f;
+    Scene::Entity* p = lookup(m_playerId);
+    if (!p) return -1.0f;
+    glm::vec3 a = p->getPosition(), b = t->getPosition();
+    float dx = a.x - b.x, dz = a.z - b.z;
+    return std::sqrt(dx * dx + dz * dz);
+}
+
+bool PlayerTurnController::inReachOf(const std::string& targetId) const {
+    Scene::Entity* t = lookup(targetId);
+    if (!t) return false;
+    return m_turnActor.inReach(t->getPosition(), m_reachFeet);
+}
+
 void PlayerTurnController::tick(float dt) {
     // Active only in turn-based combat.
     if (!m_director || !m_director->inCombat() || !m_director->isTurnBased()) {
@@ -114,34 +154,27 @@ void PlayerTurnController::endTurn() {
 void PlayerTurnController::resolvePlayerAttack(Scene::Entity* target, const std::string& targetId) {
     if (!ptcAlive(target)) return;
 
-    // Pseudo-AC from HP% (generic entities have no CharacterSheet) — mirrors the
-    // enemy AI so both sides use the same yardstick until real sheets are wired.
-    int targetAC = 10;
-    auto* hc = target->getHealthComponent();
-    if (hc && hc->getMaxHealth() > 0.0f) {
-        float frac = hc->getHealth() / hc->getMaxHealth();
-        targetAC = 8 + static_cast<int>(frac * 6.0f);
-    }
+    int ac = pseudoAC(target);
 
     auto dice   = DiceExpression::parse(m_damageDice);
     auto result = AttackResolver::resolveAttack(
-        m_attackBonus, targetAC, dice, m_damageType,
+        m_attackBonus, ac, dice, m_damageType,
         DamageResistance::Normal, false, false, m_dice);
 
     if (!result.hit) {
         LOG_INFO("PlayerTurn", "Player misses '{}' (roll {} vs AC {}).",
-                 targetId, result.attackTotal, targetAC);
+                 targetId, result.attackTotal, ac);
         return;
     }
 
     if (m_combat) {
         m_combat->applyDamage(target, targetId, static_cast<float>(result.finalDamage),
                               m_playerId, m_damageType);
-    } else if (hc) {
+    } else if (auto* hc = target->getHealthComponent()) {
         hc->takeDamage(static_cast<float>(result.finalDamage));
     }
     LOG_INFO("PlayerTurn", "Player hits '{}' for {} ({}) damage (roll {} vs AC {}).",
-             targetId, result.finalDamage, m_damageDice, result.attackTotal, targetAC);
+             targetId, result.finalDamage, m_damageDice, result.attackTotal, ac);
 }
 
 } // namespace Core

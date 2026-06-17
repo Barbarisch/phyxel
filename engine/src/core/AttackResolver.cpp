@@ -169,6 +169,24 @@ int AttackResolver::calculateAC(
 // Damage resistance
 // ---------------------------------------------------------------------------
 
+float AttackResolver::hitChance(int attackBonus, int targetAC,
+                                bool hasAdvantage, bool hasDisadvantage) {
+    // Single-roll hit count over d20 faces 1..20, matching resolveAttack:
+    //   r == 1  -> always miss; r == 20 -> always hit;
+    //   2..19   -> hit if r + attackBonus >= targetAC  (r >= targetAC-attackBonus)
+    int need = targetAC - attackBonus;            // minimum raw d20 to hit by sum
+    int lo = std::max(2, need);                   // faces 2..19 that hit
+    int mid = std::max(0, std::min(18, 20 - lo)); // count of hitting faces in 2..19
+    int hits = 1 + mid;                           // + the natural 20
+    float p = static_cast<float>(hits) / 20.0f;   // always in [1/20, 19/20]
+
+    bool adv  = hasAdvantage  && !hasDisadvantage;
+    bool disv = hasDisadvantage && !hasAdvantage;
+    if (adv)  return 1.0f - (1.0f - p) * (1.0f - p);
+    if (disv) return p * p;
+    return p;
+}
+
 int AttackResolver::applyResistance(int damage, DamageResistance resistance) {
     switch (resistance) {
         case DamageResistance::Immune:     return 0;

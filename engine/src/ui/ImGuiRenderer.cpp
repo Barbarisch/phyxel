@@ -1534,9 +1534,10 @@ void ImGuiRenderer::renderCombatHUD(
     // -----------------------------------------------------------------------
     if (playerTurn && playerTurn->isPlayerTurnActive()) {
         const Core::ActionBudget* b = playerTurn->budget();
-        const float barW = 360.0f, barH = 64.0f;
+        const bool hasTarget = !playerTurn->selectedTarget().empty();
+        const float barW = 380.0f, barH = hasTarget ? 90.0f : 64.0f;
         ImGui::SetNextWindowPos(
-            ImVec2((displaySize.x - barW) * 0.5f, displaySize.y - 78.0f),
+            ImVec2((displaySize.x - barW) * 0.5f, displaySize.y - barH - 14.0f),
             ImGuiCond_Always);
         ImGui::SetNextWindowSize(ImVec2(barW, barH), ImGuiCond_Always);
         ImGui::SetNextWindowBgAlpha(0.9f);
@@ -1565,6 +1566,19 @@ void ImGuiRenderer::renderCombatHUD(
             playerTurn->endTurn();
         }
         ImGui::PopStyleColor();
+
+        // Hit-chance readout vs the currently-selected target (S6).
+        const std::string& tgt = playerTurn->selectedTarget();
+        if (!tgt.empty()) {
+            float chance = playerTurn->hitChanceVs(tgt);
+            bool reach = playerTurn->inReachOf(tgt);
+            ImVec4 col = reach ? ImVec4(0.5f, 1.0f, 0.5f, 1.0f) : ImVec4(0.8f, 0.8f, 0.4f, 1.0f);
+            ImGui::PushStyleColor(ImGuiCol_Text, col);
+            ImGui::Text("%s: %.0f%% to hit (AC %d)%s",
+                        tgt.c_str(), chance * 100.0f, playerTurn->targetAC(tgt),
+                        reach ? "" : "  [out of reach]");
+            ImGui::PopStyleColor();
+        }
         ImGui::End();
         ImGui::PopStyleColor();
     }

@@ -1134,6 +1134,36 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             m_pendingPlayerIntent.kind = PendingPlayerIntent::Kind::EndTurn;
             return json{{"ok", true}};
         }
+        if (action == "combat/select_target") {
+            std::lock_guard<std::mutex> lk(m_playerIntentMutex);
+            m_pendingPlayerIntent.kind     = PendingPlayerIntent::Kind::Select;
+            m_pendingPlayerIntent.targetId = params.value("target_id", "");
+            return json{{"ok", true}};
+        }
+        if (action == "combat/player_pick") {
+            // Resolve a world-space ray into a move/attack intent (the same path
+            // the live LMB click uses). Origin defaults to the camera position.
+            glm::vec3 origin(params.value("ox", inputManager ? inputManager->getCameraPosition().x : 0.0f),
+                             params.value("oy", inputManager ? inputManager->getCameraPosition().y : 0.0f),
+                             params.value("oz", inputManager ? inputManager->getCameraPosition().z : 0.0f));
+            glm::vec3 dir(params.value("dx", 0.0f), params.value("dy", 0.0f), params.value("dz", 1.0f));
+            PendingPlayerIntent intent = resolveCombatPick(origin, dir);
+            setPendingPlayerIntent(intent);
+            const char* k = intent.kind == PendingPlayerIntent::Kind::Attack ? "attack"
+                          : intent.kind == PendingPlayerIntent::Kind::Move   ? "move" : "none";
+            return json{{"ok", true}, {"resolved", k}, {"target", intent.targetId}};
+        }
+        if (action == "combat/targeting_info") {
+            std::string tid = params.value("target_id", "");
+            return json{
+                {"target_id",   tid},
+                {"attack_bonus", m_playerTurn.attackBonus()},
+                {"target_ac",    m_playerTurn.targetAC(tid)},
+                {"hit_chance",   m_playerTurn.hitChanceVs(tid)},
+                {"distance",     m_playerTurn.distanceTo(tid)},
+                {"in_reach",     m_playerTurn.inReachOf(tid)}
+            };
+        }
 
         // ---- World Calendar -----------------------------------------------
         if (action == "world/date") {
@@ -3116,12 +3146,20 @@ void Application::update(float deltaTime) {
         }
         switch (intent.kind) {
             case PendingPlayerIntent::Kind::Move:    m_playerTurn.requestMove(intent.point); break;
-            case PendingPlayerIntent::Kind::Attack:  m_playerTurn.requestAttack(intent.targetId); break;
+            case PendingPlayerIntent::Kind::Attack:
+                m_playerTurn.setSelectedTarget(intent.targetId);  // show its hit-chance
+                m_playerTurn.requestAttack(intent.targetId);
+                break;
+            case PendingPlayerIntent::Kind::Select:  m_playerTurn.setSelectedTarget(intent.targetId); break;
             case PendingPlayerIntent::Kind::EndTurn: m_playerTurn.endTurn(); break;
             case PendingPlayerIntent::Kind::None:    break;
         }
     }
     m_playerTurn.tick(deltaTime);
+    // While it's the player's turn, capture the cursor ray each frame so a
+    // left-click can pick a move/attack target (S6).
+    if (voxelInteractionSystem)
+        voxelInteractionSystem->setRaycastDebugCaptureEnabled(m_playerTurn.isPlayerTurnActive());
 
     // Update interaction detection (use actual player position, not camera)
     if (interactionManager) {
@@ -4706,6 +4744,78 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
         entityRegistry->registerEntity(animatedCharacter, "animated_" + std::to_string(entities.size()), "animated");
     }
     return animatedCharacter;
+}
+
+void Application::setPendingPlayerIntent(const PendingPlayerIntent& intent) {
+    std::lock_guard<std::mutex> lk(m_playerIntentMutex);
+    m_pendingPlayerIntent = intent;
+}
+
+bool Application::tryCombatClick() {
+    if (!m_playerTurn.isPlayerTurnActive() || !voxelInteractionSystem) return false;
+    // Reuse the cursor ray the voxel hover already computed this frame (debug
+    // capture is enabled while the player turn is active).
+    const auto& rc = voxelInteractionSystem->getLastRaycastDebugData();
+    glm::vec3 origin = rc.rayOrigin, dir = rc.rayDirection;
+    if (glm::length(dir) < 1e-5f && inputManager) {
+        origin = inputManager->getCameraPosition();
+        dir    = inputManager->getCameraFront();
+    }
+    setPendingPlayerIntent(resolveCombatPick(origin, dir));
+    return true;   // consume the click (no voxel break / furniture knock)
+}
+
+Application::PendingPlayerIntent
+Application::resolveCombatPick(const glm::vec3& origin, const glm::vec3& dir) const {
+    PendingPlayerIntent intent;
+    glm::vec3 d = glm::length(dir) > 1e-6f ? glm::normalize(dir) : glm::vec3(0, 0, 1);
+
+    // 1) Nearest enemy combatant whose body AABB the ray crosses.
+    std::string bestId;
+    float bestT = std::numeric_limits<float>::max();
+    if (entityRegistry) {
+        for (const auto& p : m_combatDirector.initiative().turnOrder()) {
+            if (m_combatDirector.isPlayerSide(p.entityId)) continue;   // only enemies
+            Scene::Entity* e = entityRegistry->getEntity(p.entityId);
+            if (!e) continue;
+            auto* hc = e->getHealthComponent();
+            if (hc && !hc->isAlive()) continue;
+            // Body AABB around the entity (humanoid-ish: ~1 wide, 2 tall).
+            glm::vec3 c = e->getPosition();
+            glm::vec3 bmin(c.x - 0.5f, c.y, c.z - 0.5f);
+            glm::vec3 bmax(c.x + 0.5f, c.y + 2.0f, c.z + 0.5f);
+            float tNear, tFar;
+            if (Math::rayBoxIntersection(origin, d, bmin, bmax, tNear, tFar) &&
+                tFar > 0.0f && tNear < bestT) {
+                bestT  = tNear;
+                bestId = p.entityId;
+            }
+        }
+    }
+
+    if (!bestId.empty()) {
+        // Hit an enemy: attack if in reach, else move toward it.
+        if (m_playerTurn.inReachOf(bestId)) {
+            intent.kind = PendingPlayerIntent::Kind::Attack;
+            intent.targetId = bestId;
+        } else if (Scene::Entity* e = entityRegistry->getEntity(bestId)) {
+            intent.kind = PendingPlayerIntent::Kind::Move;
+            intent.point = e->getPosition();   // TurnActor stops at reach/arrival
+        }
+        return intent;
+    }
+
+    // 2) Otherwise intersect the ground plane at the player's feet height.
+    Scene::Entity* player = entityRegistry ? entityRegistry->getEntity(m_playerTurn.playerEntityId()) : nullptr;
+    float groundY = player ? player->getPosition().y : 0.0f;
+    if (std::fabs(d.y) > 1e-4f) {
+        float t = (groundY - origin.y) / d.y;
+        if (t > 0.0f) {
+            intent.kind = PendingPlayerIntent::Kind::Move;
+            intent.point = origin + d * t;
+        }
+    }
+    return intent;
 }
 
 void Application::setControlTarget(const std::string& targetName) {

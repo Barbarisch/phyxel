@@ -159,6 +159,35 @@ TEST(PlayerTurnControllerTest, AttackRejectedOutOfReach) {
     EXPECT_TRUE(pc.budget()->action);    // not spent
 }
 
+TEST(PlayerTurnControllerTest, TargetingQueries) {
+    CombatDirector dir; startPlayerTurn(dir);
+    EntityRegistry reg;
+    TestEntity player({0, 0, 0});
+    TestEntity near({1.0f, 0, 0}, 100.0f);   // full HP -> pseudo-AC 14
+    TestEntity far({20.0f, 0, 0}, 100.0f);
+    reg.registerEntity(&player, "player", "animated");
+    reg.registerEntity(&near, "near", "animated");
+    reg.registerEntity(&far, "far", "animated");
+    MockBody body;
+
+    PlayerTurnController pc;
+    pc.setCombatDirector(&dir);
+    pc.setEntityRegistry(&reg);
+    pc.setBodyProvider([&](Scene::Entity*) -> ITurnActorBody* { return &body; });
+    pc.setPlayerEntityId("player");
+    pc.setAttackBonus(5);
+    pc.tick(0.05f);
+
+    EXPECT_EQ(pc.targetAC("near"), 14);                 // 8 + floor(1.0*6)
+    // bonus 5 vs AC 14: need d20>=9 -> faces 9..19 (11) + nat20 = 12/20 = 0.60.
+    EXPECT_FLOAT_EQ(pc.hitChanceVs("near"), 0.60f);
+    EXPECT_NEAR(pc.distanceTo("near"), 1.0f, 1e-3f);
+    EXPECT_NEAR(pc.distanceTo("far"), 20.0f, 1e-3f);
+    EXPECT_TRUE(pc.inReachOf("near"));                  // 1 u < 5 ft (1.52 u)
+    EXPECT_FALSE(pc.inReachOf("far"));
+    EXPECT_FLOAT_EQ(pc.hitChanceVs("missing"), 0.0f);   // unknown target
+}
+
 TEST(PlayerTurnControllerTest, EndTurnAdvancesAndUnbinds) {
     CombatDirector dir; startPlayerTurn(dir);
     EntityRegistry reg;

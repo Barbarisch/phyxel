@@ -70,6 +70,28 @@ public:
     const ActionBudget* budget() const;       ///< nullptr if not bound
     float movementRemainingUnits() const { return m_turnActor.movementRemainingUnits(); }
     float reachFeet() const { return m_reachFeet; }
+    int   attackBonus() const { return m_attackBonus; }
+
+    // -----------------------------------------------------------------------
+    // Targeting preview (S6) — no RNG; for the UI + headless queries
+    // -----------------------------------------------------------------------
+
+    /// Probability [0,1] the player's attack hits the target (AttackResolver
+    /// math, pseudo-AC). Returns 0 if the target is missing/dead.
+    float hitChanceVs(const std::string& targetId) const;
+
+    /// The target's pseudo-AC (8 + floor(HP%·6)); 0 if missing.
+    int   targetAC(const std::string& targetId) const;
+
+    /// Horizontal distance from the player to the target in world units (-1 if missing).
+    float distanceTo(const std::string& targetId) const;
+
+    /// True if the target is within melee reach right now.
+    bool  inReachOf(const std::string& targetId) const;
+
+    /// Soft target selection for the HUD hit-chance readout (set by hover/click).
+    void setSelectedTarget(const std::string& id) { m_selectedTarget = id; }
+    const std::string& selectedTarget() const { return m_selectedTarget; }
 
     // -----------------------------------------------------------------------
     // Tuning (player attack profile; refine from held weapon / sheet later)
@@ -83,6 +105,8 @@ private:
     void beginPlayerTurn(Scene::Entity* playerEntity);
     void unbind();
     void resolvePlayerAttack(Scene::Entity* target, const std::string& targetId);
+    Scene::Entity* lookup(const std::string& id) const;
+    static int pseudoAC(Scene::Entity* e);
 
     CombatDirector* m_director = nullptr;
     EntityRegistry* m_registry = nullptr;
@@ -90,6 +114,7 @@ private:
     BodyProvider    m_bodyProvider;
 
     std::string m_playerId;
+    std::string m_selectedTarget;
     bool        m_bound = false;
 
     TurnActor m_turnActor;

@@ -154,6 +154,11 @@ public:
     Scene::AnimatedVoxelCharacter* createAnimatedCharacter(const glm::vec3& pos, const std::string& animFile);
     void setControlTarget(const std::string& targetName);
     void derezCharacter(float duration = 2.0f);
+
+    /// Left-click during the player's turn (turn-based): resolve the cursor ray
+    /// into a move/attack intent (S6). Returns true if it handled the click
+    /// (so the normal break/interact LMB behavior is skipped).
+    bool tryCombatClick();
     void renderAnimatedCharPanel();
 
     // AI NPC Management
@@ -273,13 +278,19 @@ private:
     // Pending player turn intent, set by the HTTP combat/player_* handlers
     // (HTTP thread) and drained on the game thread before m_playerTurn.tick.
     struct PendingPlayerIntent {
-        enum class Kind { None, Move, Attack, EndTurn };
+        enum class Kind { None, Move, Attack, EndTurn, Select };
         Kind        kind = Kind::None;
         glm::vec3   point{0.0f};
         std::string targetId;
     };
     std::mutex          m_playerIntentMutex;
     PendingPlayerIntent m_pendingPlayerIntent;
+
+    // S6 click picking: resolve a world-space ray (from the cursor or an HTTP
+    // test) into a player turn intent — nearest enemy combatant hit = attack
+    // (move toward it if out of reach), otherwise the ground point = move.
+    PendingPlayerIntent resolveCombatPick(const glm::vec3& origin, const glm::vec3& dir) const;
+    void setPendingPlayerIntent(const PendingPlayerIntent& intent);
     Core::WorldClock        m_rpgWorldClock;
     Core::CampaignJournal   m_rpgJournal;
 
