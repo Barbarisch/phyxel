@@ -1,0 +1,135 @@
+# Turn-Based Combat — Design (BG3-feel)
+
+> Status: **design pass + S1 in progress.** Goal: a turn-based combat mode that looks and
+> feels like Baldur's Gate 3, built on the existing headless D&D mechanics and the real-time
+> character FSM. The engine supports **both** real-time and turn-based combat.
+>
+> Decisions locked with the user (2026-06-17):
+> - **Per-game global mode** — `game.json` picks the ruleset for the whole session; no
+>   mid-game snap-in/out. (The encounter API keeps a mode-override door open for a future
+>   "this one fight is turn-based" case, but it is unused for now.)
+> - **Systems-first build** — each subsystem below is built to completion with headless/unit
+>   coverage where possible, then one integration milestone assembles a playable fight.
+> - **BG3-hybrid camera** — over-shoulder by default, free pull-back/rotate toward overhead
+>   during a turn, built on the existing `CameraRig`s.
+
+## 1. Motivation — what exists and what's missing
+
+Two halves already exist and have never been connected:
+
+**Turn-based mechanics (headless, unit-tested, operate on string entity IDs):**
+
+| Piece | State |
+|-------|-------|
+| `Core::InitiativeTracker` | Turn order, rounds, surprise, reactions, per-participant `ActionBudget`. |
+| `Core::ActionEconomy` (`ActionBudget`) | Action / bonus action / reaction / movement (feet) / free object; dash/dodge helpers. |
+| `Core::AttackResolver` | Attack rolls, advantage/disadvantage, damage. |
+| `Core::ConditionSystem` | 15 D&D conditions. |
+| `Core::SpellResolver` / `SpellcasterComponent` | Spell resolution + slots. |
+| `Core::CombatAISystem` | Drives enemy turns (pick target → move → attack → `endTurn`), but **execution is placeholder** (`setMoveVelocity` + instant attack, no animation). |
+| `Core::EncounterBuilder` | Encounter assembly. |
+| HTTP/MCP | `combat/state|start|next_turn|end|set_initiative`, plus `attack`, `cast_spell`. |
+| `ImGuiRenderer::renderCombatHUD` | COMBAT banner + initiative-order panel (basic). |
+
+**Real-time combat (the souls slice — the execution layer BG3 needs):**
+
+| Piece | State |
+|-------|-------|
+| `Scene::AnimatedVoxelCharacter` FSM | Full melee / dodge / death / KO / hit-react states; `setControlInput`, `setFacingYaw`. |
+| `Core::CombatSystem` | Hand-origin hit detection, damage, i-frames, `onHitFrame` wiring. |
+| `Scene::CombatBehavior` | Real-time AI that drives a character via `setControlInput` so the **real FSM ticks**. |
+
+**The gap:** the turn-based layer computes *who acts and whether they hit*, but it does not
+move/animate live characters, gives the player no tactical input, and has no
+movement-range / hit-chance / AoE presentation or tactical camera. There are also **two
+damage paths** (real-time `CombatSystem → Application::playerHealth` vs turn-based
+`AttackResolver → HealthComponent`) — the known "two player-health stores" bug. Turn-based
+combat forces us to unify them.
+
+## 2. Core principle — one execution layer, gated
+
+Both modes drive the **same `AnimatedVoxelCharacter` FSM**. Turn-based never bypasses it; it
+only **gates** when a character may issue FSM commands and **debits** the `ActionBudget`.
+Only `CombatDirector` answers "in combat / whose turn / what mode" — no parallel flags in UI,
+AI, or input. This is the single-source-of-truth rule applied to combat.
+
+## 3. Subsystems (dependency-ordered)
+
+### S1 — `CombatDirector` (orchestration, single source of truth) — *in progress*
+New `Core::CombatDirector` owns: active `CombatMode`, the `InitiativeTracker`, the
+participant↔Entity map, and combat lifecycle (`beginEncounter(entities)` / `endEncounter`,
+`advanceTurn`, queries). Replaces the loose `m_rpgInitiative` / `m_combatAI` wiring in
+`Application`. The combat HTTP handlers and the combat HUD read from it. Mode is resolved
+once from `game.json combat.mode` (default `real_time`). Headless-testable; no rendering or
+FSM dependency in the type itself (it operates on entity IDs + a small entity-query
+interface), so it stays unit-testable like the systems it wraps.
+
+### S2 — Damage unification (prerequisite; fixes a known bug)
+Collapse the two damage paths into one `applyDamage(target, amount, source, type)` entry that
+both modes call; death/KO routes through the existing `die()` states. Resolves the dual
+player-health stores.
+
+### S3 — Turn execution bridge (`TurnActor`)
+Translates a combat *intent* ("move to P", "attack T", "cast S") into FSM commands gated by
+`ActionBudget`. Movement debits `movementRemaining` via a **single feet↔world-unit constant**;
+attacks debit the action and resolve on the **animation hit-frame** (reuse `onHitFrame` →
+`CombatSystem`), then signal turn-can-advance. This is what makes turns *animate* instead of
+teleport, and it owns the turn-advancement-vs-animation-timing handshake.
+
+### S4 — Enemy turn AI
+Upgrade `CombatAISystem` to execute through `TurnActor` (`setControlInput`, like
+`CombatBehavior`) so enemy turns play out with real walk/attack/death anims. Add minimal
+tactical scoring (nearest/weakest target; move-then-attack; AoE when ≥2 clustered).
+
+### S5 — Player turn controller (core BG3 input feel)
+On the player's turn: click-to-move within range (walk via FSM, debit movement),
+click-target attack (resolve via `AttackResolver`), ability/spell selection, and an action
+bar (Action / Bonus / Movement / **End Turn**). Suppresses the real-time souls controls
+during the player's turn.
+
+### S6 — Targeting & resolution preview
+Hit-chance % (AttackResolver math without rolling), advantage/disadvantage state, movement
+range, and AoE templates (sphere/cone/line) with affected-target preview reusing the spell
+VFX system. Feeds both S5's UI and headless MCP queries (S11).
+
+### S7 — Combat camera (BG3 hybrid)
+Over-shoulder third-person that can pull back and free-rotate toward overhead during a turn,
+on the existing `CameraRig` (`overhead`/`isometric` rigs exist) + `GameplayCameraController`.
+Auto-frames the active actor on turn change.
+
+### S8 — Combat presentation / UI
+Upgrade `renderCombatHUD`: turn-order portrait bar, d20 roll + crit/miss callouts, floating
+damage numbers, ground movement-path spline & range highlight (voxel/decal), target
+highlight. The bulk of "looks like BG3."
+
+### S9 — Reactions / opportunity attacks
+`InitiativeTracker` already models reactions; trigger OAs when a creature leaves melee reach,
+with prompt/auto-resolve.
+
+### S10 — Conditions surfacing
+Surface `ConditionSystem` conditions in the HUD; have them gate actions (prone/restrained →
+movement/attack effects).
+
+### S11 — Encounter authoring + test surface
+`game.json` encounter defs via `EncounterBuilder`, trigger-driven combat start, MCP
+extensions for headless testing (`move_on_turn`, `get_hit_chance`, AoE preview) atop the
+existing combat tools.
+
+### S12 — Voxel-native tactical depth (stretch)
+High-ground / cover bonuses, shove/throw, jump-as-movement, and BG3-signature surfaces
+(fire/water/grease) via the water + hazard + VFX systems.
+
+## 4. Integration milestone
+After S1–S5 + S8 are individually built/tested, assemble **one fight** (player + 1 enemy:
+initiative → move → attack → end turn → enemy animates its turn → death) and verify by
+running the engine. S6 / S7 / S9–S12 layer on after the loop is proven.
+
+## 5. Risks to design around now
+- **Feet↔world units** — one conversion constant, one place (movement range, reach, AoE
+  radius all depend on it).
+- **Turn advancement vs animation timing** — a turn must wait for the hit-frame / anim to
+  finish before resolving and advancing; `TurnActor` owns this handshake.
+- **Single combat-state source** — only `CombatDirector` answers "in combat / whose turn";
+  UI, AI, and input read from it.
+</content>
+</invoke>

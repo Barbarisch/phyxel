@@ -58,6 +58,7 @@
 #include "core/CombatSystem.h"
 #include "core/Party.h"
 #include "core/InitiativeTracker.h"
+#include "core/CombatDirector.h"
 #include "core/CombatAISystem.h"
 #include "core/WorldClock.h"
 #include "core/CampaignJournal.h"
@@ -257,7 +258,7 @@ private:
 
     // D&D RPG Layer (Phase 8)
     Core::Party             m_rpgParty;
-    Core::InitiativeTracker m_rpgInitiative;
+    Core::CombatDirector    m_combatDirector;   // single source of truth: mode + initiative + lifecycle
     Core::CombatAISystem    m_combatAI;
     Core::WorldClock        m_rpgWorldClock;
     Core::CampaignJournal   m_rpgJournal;

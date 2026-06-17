@@ -477,8 +477,10 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         if (triggerSystem) triggerSystem->onEvent("objective_complete", {{"id", id}});
     };
 
-    // Wire D&D combat AI (pointers are stable — members outlive all systems)
-    m_combatAI.setInitiativeTracker(&m_rpgInitiative);
+    // Wire D&D combat AI (pointers are stable — members outlive all systems).
+    // The CombatDirector owns the InitiativeTracker; the AI + HUD read it through
+    // the director so there is one source of truth for combat state.
+    m_combatAI.setInitiativeTracker(&m_combatDirector.initiative());
     m_combatAI.setParty(&m_rpgParty);
     m_combatAI.setEntityRegistry(entityRegistry.get());
     jobSystem = std::make_unique<Core::JobSystem>();
@@ -1032,51 +1034,55 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         }
 
         // ---- Combat / Initiative ------------------------------------------
+        // All combat state is owned by m_combatDirector (single source of truth).
         if (action == "combat/state") {
             return json{
-                {"active",          m_rpgInitiative.isCombatActive()},
-                {"round",           m_rpgInitiative.currentRound()},
-                {"current_entity",  m_rpgInitiative.currentEntityId()},
-                {"turn_order",      m_rpgInitiative.toJson()}
+                {"mode",            Core::combatModeToString(m_combatDirector.mode())},
+                {"in_combat",       m_combatDirector.inCombat()},
+                {"active",          m_combatDirector.initiative().isCombatActive()},
+                {"round",           m_combatDirector.currentRound()},
+                {"current_entity",  m_combatDirector.currentEntityId()},
+                {"player_turn",     m_combatDirector.isPlayerTurn()},
+                {"turn_order",      m_combatDirector.initiative().toJson()}
             };
         }
         if (action == "combat/start") {
-            // params: participants = [{entity_id, initiative_bonus}]
-            std::vector<std::string> entityIds;
+            // params: participants = [{entity_id, initiative_bonus, player_side, speed}]
+            std::vector<Core::CombatDirector::Combatant> combatants;
             if (params.contains("participants") && params["participants"].is_array()) {
                 for (const auto& p : params["participants"]) {
                     std::string eid = p.value("entity_id", "");
-                    if (!eid.empty()) entityIds.push_back(eid);
+                    if (eid.empty()) continue;
+                    Core::CombatDirector::Combatant c;
+                    c.entityId        = eid;
+                    c.isPlayerSide    = p.value("player_side", false);
+                    c.initiativeBonus = p.value("initiative_bonus", 0);
+                    c.speed           = p.value("speed", 30);
+                    combatants.push_back(c);
                 }
             }
-            m_rpgInitiative.startCombat(entityIds);
-            if (params.contains("participants") && params["participants"].is_array()) {
-                Core::DiceSystem dice;
-                for (const auto& p : params["participants"]) {
-                    std::string eid = p.value("entity_id", "");
-                    int bonus = p.value("initiative_bonus", 0);
-                    if (!eid.empty()) m_rpgInitiative.rollInitiative(eid, bonus, dice);
-                }
-            }
-            m_rpgInitiative.sortOrder();
-            return json{{"ok", true}, {"state", m_rpgInitiative.toJson()}};
+            // Re-begin: clear any stale encounter first.
+            if (m_combatDirector.inCombat()) m_combatDirector.endEncounter();
+            Core::DiceSystem dice;
+            m_combatDirector.beginEncounter(combatants, dice);
+            return json{{"ok", true}, {"state", m_combatDirector.toJson()}};
         }
         if (action == "combat/next_turn") {
-            if (!m_rpgInitiative.isCombatActive())
+            if (!m_combatDirector.inCombat())
                 return json{{"error","no active combat"}};
-            std::string next = m_rpgInitiative.endTurn();
-            return json{{"ok", true}, {"next_entity", next}, {"round", m_rpgInitiative.currentRound()}};
+            std::string next = m_combatDirector.advanceTurn();
+            return json{{"ok", true}, {"next_entity", next}, {"round", m_combatDirector.currentRound()}};
         }
         if (action == "combat/end") {
-            m_rpgInitiative.endCombat();
+            m_combatDirector.endEncounter();
             return json{{"ok", true}};
         }
         if (action == "combat/set_initiative") {
             std::string eid = params.value("entity_id", "");
             int value = params.value("value", 0);
             if (eid.empty()) return json{{"error","entity_id required"}};
-            m_rpgInitiative.setInitiative(eid, value);
-            m_rpgInitiative.sortOrder();
+            m_combatDirector.initiative().setInitiative(eid, value);
+            m_combatDirector.initiative().sortOrder();
             return json{{"ok", true}};
         }
 
@@ -2704,7 +2710,7 @@ void Application::run() {
         }
 
         // Render D&D Combat HUD (initiative order, HP bars, whose-turn indicator)
-        imguiRenderer->renderCombatHUD(&m_rpgInitiative, &m_rpgParty, entityRegistry.get());
+        imguiRenderer->renderCombatHUD(&m_combatDirector.initiative(), &m_rpgParty, entityRegistry.get());
 
         // Render Death overlay
         if (respawnSystem.isPlayerDead()) {
@@ -4802,6 +4808,19 @@ void Application::autoLoadGameDefinition() {
             renderCoordinator->setWaterEnabled(water.value("enabled", false));
             if (water.contains("seaLevel"))
                 renderCoordinator->setSeaLevel(water.value("seaLevel", 16.0f));
+        }
+
+        // Combat ruleset is locked per-game (see docs/TurnBasedCombat.md). Read
+        // game.json `combat.mode` ("turn_based" | "real_time") once; default
+        // real_time so existing games are unaffected. The engine does not switch
+        // rulesets mid-session.
+        {
+            std::string modeStr = "real_time";
+            if (gameDef.contains("combat") && gameDef["combat"].is_object())
+                modeStr = gameDef["combat"].value("mode", modeStr);
+            m_combatDirector.setMode(Core::combatModeFromString(modeStr));
+            LOG_INFO("Application", "Combat mode: {}",
+                     Core::combatModeToString(m_combatDirector.mode()));
         }
 
         // If chunks were already loaded from the database (pre-baked world),
