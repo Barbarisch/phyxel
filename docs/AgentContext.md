@@ -766,12 +766,14 @@ reusable **UI click-injection** test hook (`UISystem::injectClick` + `POST /api/
 `UIPanel::handleClick` hit-tests the panel's own rect first, so size panels to contain children.
 Default modules done: health, objectives, combat set, **hotbar** (all verified live in the editor).
 **UIImage arbitrary RGBA textures DONE** (`UIRenderer::loadTexture` + per-texture descriptor sets +
-draw-run batching + a `mode` push-constant in ui.frag; `UIRepeater.horizontal`). NEXT: **TTF fonts
-in UIRenderer** (still R8 bitmap — needed for BG3 look + to replace ImGui menus; reuses the
-multi-texture plumbing); **standalone-host wiring** (minimal_game is DISABLED in CMake, scaffold
-needs UISystem init — verify via packaged run; `HudSystem.md` §11a); broader menus/screens/dialogue
-ImGui→UISystem migration; engine-auto-injected default HUD. Combat follow-ups deferred: reactions/
-OAs, conditions UI, ground-point AoE targeting. Earlier: **performance program kickoff
+draw-run batching + a `mode` push-constant in ui.frag; `UIRepeater.horizontal`). **TTF fonts DONE** (`BitmapFont::initializeTTF`
+bakes a TTF via stb_truetype into the R8 atlas, AA glyphs reuse mode-0, metrics normalized → no
+layout shift; UISystem prefers JetBrainsMono, falls back to bitmap; `UIRenderer::setWhitePixelUV`
+relocates drawRect's white texel). So UISystem now has crisp text + RGBA images + rects — the full
+toolkit to replace ImGui menus. NEXT: **standalone-host wiring** (minimal_game is DISABLED in CMake,
+scaffold needs UISystem init — verify via packaged run; `HudSystem.md` §11a); broader menus/screens/
+dialogue ImGui→UISystem migration; engine-auto-injected default HUD; game.json font/theme config.
+Combat follow-ups deferred: reactions/OAs, conditions UI, ground-point AoE targeting. Earlier: **performance program kickoff
 (2026-06-15)** — see "Render perf" workstream. Shipped + verified (NOT yet committed):
 character-update opts (cached
 bone→parts grouping, binary-search keyframes, persistent instance-buffer map, removed
