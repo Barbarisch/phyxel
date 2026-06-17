@@ -1608,17 +1608,16 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     });
     // Real-time combat NPCs (CombatBehavior) deal damage through this system.
     if (npcManager) npcManager->setCombatSystem(combatSystem.get());
-    // Bridge combat damage dealt TO the player into the player's HUD/respawn
-    // health (a separate HealthComponent from the player Entity's own). Without
-    // this, an enemy could drop the Entity health but never trigger death/respawn.
-    // (Single-source unification of the two player-health stores is a follow-up.)
+    // React to combat damage (hit reactions + death animation). Health itself
+    // is mutated once, inside CombatSystem::applyDamage; the player character
+    // now SHARES Application::playerHealth (see createAnimatedCharacter), so
+    // damage to the player already flows into the HUD/respawn store and fires
+    // its death->respawn callback. No separate decrement here (that was the old
+    // dual-store bug — see docs/TurnBasedCombat.md S2).
     combatSystem->setOnDamage([this](const Core::DamageEvent& ev) {
         if (!entityRegistry) return;
         Scene::Entity* tgt = entityRegistry->getEntity(ev.targetId);
         if (!tgt) return;
-        // Route player-targeted damage into the HUD/respawn health.
-        if (tgt == animatedCharacter && animatedCharacter)
-            playerHealth.takeDamage(ev.actualDamage);
         // Play a hit reaction on whoever got hit (player or NPC). Heavy hits
         // stagger; lighter hits flinch.
         Scene::AnimatedVoxelCharacter* hitChar = nullptr;
@@ -4542,6 +4541,13 @@ void Application::toggleCharacterControl() {
 Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::vec3& pos, const std::string& animFile) {
     auto animatedCharPtr = std::make_unique<Scene::AnimatedVoxelCharacter>(physicsWorld, pos);
     animatedCharacter = animatedCharPtr.get();
+    // Single source of truth for player health: the player character shares the
+    // HUD/respawn HealthComponent (Application::playerHealth) rather than carrying
+    // its own. So combat damage, the death/respawn callback, AI is-alive queries,
+    // the HUD, and MCP all read/write one store. (This factory builds the player;
+    // the debug spawnTestAINPC reuse reverts the binding on its NPC.) See
+    // docs/TurnBasedCombat.md S2.
+    animatedCharacter->setHealthComponent(&playerHealth);
     if (animatedCharacter->loadModel(animFile)) {
         // Play default animation if available
         animatedCharacter->playAnimation("idle"); 
@@ -4680,6 +4686,9 @@ void Application::spawnTestAINPC() {
     }
 
     auto* npcChar = createAnimatedCharacter(spawnPos, "resources/animated_characters/humanoid.anim");
+    // createAnimatedCharacter is the player factory and binds the shared player
+    // health; this debug NPC must keep its OWN health store, so revert it.
+    if (npcChar) npcChar->setHealthComponent(nullptr);
 
     // Generate a unique ID for this NPC
     static int npcCounter = 0;
@@ -10627,7 +10636,13 @@ void Application::processAPICommands() {
                         if (!health) {
                             response = {{"error", "Entity has no health component: " + id}};
                         } else {
-                            float actual = health->takeDamage(amount, source);
+                            // Route through the single damage entry point so death,
+                            // hit reactions, and damage events fire consistently
+                            // (see docs/TurnBasedCombat.md S2). Fall back to a raw
+                            // decrement if combat isn't initialized.
+                            float actual = combatSystem
+                                ? combatSystem->applyDamage(entity, id, amount, source).actualDamage
+                                : health->takeDamage(amount, source);
                             response = {{"success", true}, {"id", id}, {"damageDealt", actual}, {"health", health->toJson()}};
                             if (gameEventLog) {
                                 gameEventLog->emit("entity_damaged", {{"id", id}, {"amount", actual}, {"source", source}, {"alive", health->isAlive()}});

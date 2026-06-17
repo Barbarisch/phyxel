@@ -70,6 +70,24 @@ public:
         const AttackParams& params,
         EntityRegistry& registry);
 
+    /// Single entry point for dealing damage to one entity. Mutates the
+    /// target's HealthComponent, sets its i-frame timer, applies knockback,
+    /// builds the DamageEvent, and dispatches the onDamage callback. Both the
+    /// real-time melee path (performAttack) and turn-based / scripted callers
+    /// route through here, so death, hit reactions, and events stay consistent
+    /// (single source of truth — see docs/TurnBasedCombat.md S2).
+    ///
+    /// Returns the resulting event. If the target is null, has no health, or is
+    /// already dead, returns an event with actualDamage 0 and does NOT dispatch.
+    DamageEvent applyDamage(
+        Scene::Entity* target,
+        const std::string& targetId,
+        float amount,
+        const std::string& sourceId,
+        DamageType type = DamageType::Physical,
+        const glm::vec3& knockback = glm::vec3(0.0f),
+        const std::string& hitBone = "");
+
     /// Get/set invulnerability duration (seconds after taking damage).
     float getInvulnerabilityDuration() const { return m_invulnDuration; }
     void setInvulnerabilityDuration(float seconds) { m_invulnDuration = seconds; }

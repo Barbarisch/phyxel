@@ -70,8 +70,19 @@ public:
 
     virtual void setControlInput(float forward, float turn) {}
 
-    Core::HealthComponent* getHealthComponent() override { return m_health.get(); }
-    const Core::HealthComponent* getHealthComponent() const override { return m_health.get(); }
+    // Health component access. By default each character owns its own
+    // HealthComponent. The host can inject an external (non-owning) component
+    // via setHealthComponent() so a character SHARES a health store with
+    // another system — used to make the player character and the HUD/respawn
+    // health a single source of truth (see docs/TurnBasedCombat.md S2). Pass
+    // nullptr to revert to the owned component.
+    void setHealthComponent(Core::HealthComponent* external) { m_externalHealth = external; }
+    Core::HealthComponent* getHealthComponent() override {
+        return m_externalHealth ? m_externalHealth : m_health.get();
+    }
+    const Core::HealthComponent* getHealthComponent() const override {
+        return m_externalHealth ? m_externalHealth : m_health.get();
+    }
 
 protected:
     // Subclasses must call this after mutating `parts` in a way that does not
@@ -104,6 +115,9 @@ protected:
     std::vector<RagdollPart> parts;
     Faction faction;
     std::unique_ptr<Core::HealthComponent> m_health;
+    // Non-owning override; when set, getHealthComponent() returns this instead
+    // of the owned m_health (single-source sharing, e.g. player + HUD/respawn).
+    Core::HealthComponent* m_externalHealth = nullptr;
 
     // Lazily-rebuilt cache of `parts` grouped by boneGroupId (see getPartGroups).
     mutable std::vector<PartGroup> m_partGroups;

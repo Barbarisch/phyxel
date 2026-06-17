@@ -371,6 +371,97 @@ TEST(CombatSystemTest, DamageEventToJson) {
 }
 
 // ============================================================================
+// applyDamage — the single damage entry point (S2)
+// ============================================================================
+
+TEST(CombatSystemTest, ApplyDamageMutatesHealthAndReturnsEvent) {
+    CombatSystem combat;
+    TestEntity target(glm::vec3(0, 0, 0), 50.0f);
+
+    auto ev = combat.applyDamage(&target, "target", 20.0f, "src");
+    EXPECT_FLOAT_EQ(ev.actualDamage, 20.0f);
+    EXPECT_FALSE(ev.killed);
+    EXPECT_EQ(ev.attackerId, "src");
+    EXPECT_EQ(ev.targetId, "target");
+    EXPECT_FLOAT_EQ(target.m_health.getHealth(), 30.0f);
+}
+
+TEST(CombatSystemTest, ApplyDamageFiresOnDamageOnce) {
+    CombatSystem combat;
+    TestEntity target(glm::vec3(0, 0, 0));
+    int calls = 0;
+    combat.setOnDamage([&](const DamageEvent&) { calls++; });
+
+    combat.applyDamage(&target, "target", 5.0f, "src");
+    EXPECT_EQ(calls, 1);
+}
+
+TEST(CombatSystemTest, ApplyDamageKillSetsKilledFlag) {
+    CombatSystem combat;
+    TestEntity target(glm::vec3(0, 0, 0), 10.0f);
+
+    auto ev = combat.applyDamage(&target, "target", 25.0f, "src");
+    EXPECT_TRUE(ev.killed);
+    EXPECT_FALSE(target.m_health.isAlive());
+}
+
+TEST(CombatSystemTest, ApplyDamageOnDeadOrNullIsNoOp) {
+    CombatSystem combat;
+    int calls = 0;
+    combat.setOnDamage([&](const DamageEvent&) { calls++; });
+
+    // Null target: safe no-op, no dispatch.
+    auto evNull = combat.applyDamage(nullptr, "none", 5.0f, "src");
+    EXPECT_FLOAT_EQ(evNull.actualDamage, 0.0f);
+
+    // Already-dead target: no dispatch, no further damage.
+    TestEntity dead(glm::vec3(0, 0, 0), 10.0f);
+    dead.m_health.kill();
+    auto evDead = combat.applyDamage(&dead, "dead", 5.0f, "src");
+    EXPECT_FLOAT_EQ(evDead.actualDamage, 0.0f);
+    EXPECT_FALSE(evDead.killed);
+
+    EXPECT_EQ(calls, 0);
+}
+
+TEST(CombatSystemTest, ApplyDamageKnockbackOptional) {
+    CombatSystem combat;
+    TestEntity target(glm::vec3(0, 0, 0));
+
+    // No knockback by default → velocity untouched.
+    combat.applyDamage(&target, "target", 5.0f, "src");
+    EXPECT_FLOAT_EQ(glm::length(target.lastKnockback), 0.0f);
+
+    // Explicit knockback is applied.
+    combat.update(1.0f);  // clear i-frames so the second hit lands
+    combat.applyDamage(&target, "target", 5.0f, "src",
+                       DamageType::Physical, glm::vec3(0, 0, 3.0f));
+    EXPECT_NE(glm::length(target.lastKnockback), 0.0f);
+}
+
+// Shared health store: two "entities" pointing at one HealthComponent (the
+// player + HUD/respawn unification) take damage once, not twice.
+TEST(CombatSystemTest, SharedHealthStoreIsSingleSource) {
+    CombatSystem combat;
+    HealthComponent shared(100.0f);
+
+    // A second entity whose health is the SAME object (mirrors the player
+    // character sharing Application::playerHealth via setHealthComponent).
+    class SharedEntity : public Scene::Entity {
+    public:
+        explicit SharedEntity(HealthComponent* h) : m_h(h) {}
+        void update(float) override {}
+        void render(Graphics::RenderCoordinator*) override {}
+        HealthComponent* getHealthComponent() override { return m_h; }
+        const HealthComponent* getHealthComponent() const override { return m_h; }
+        HealthComponent* m_h;
+    } ent(&shared);
+
+    combat.applyDamage(&ent, "player", 30.0f, "goblin");
+    EXPECT_FLOAT_EQ(shared.getHealth(), 70.0f);  // decremented exactly once
+}
+
+// ============================================================================
 // Multiple Targets
 // ============================================================================
 

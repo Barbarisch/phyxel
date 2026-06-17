@@ -66,7 +66,8 @@ std::vector<DamageEvent> CombatSystem::performAttack(
             if (!boneHit) continue; // Attack didn't reach any bone
         }
 
-        // Get health component
+        // Skip targets with no usable health component (the cone/bone tests
+        // above already qualified the hit; applyDamage re-checks defensively).
         auto* health = entity->getHealthComponent();
         if (!health || !health->isAlive()) continue;
 
@@ -74,35 +75,54 @@ std::vector<DamageEvent> CombatSystem::performAttack(
         glm::vec3 knockback = dirToTarget * params.knockbackForce;
         knockback.y = params.knockbackForce * 0.3f; // Slight upward lift
 
-        // Deal damage
-        float actual = health->takeDamage(params.damage, params.attackerId);
-
-        DamageEvent event;
-        event.attackerId = params.attackerId;
-        event.targetId = entityId;
-        event.amount = params.damage;
-        event.actualDamage = actual;
-        event.type = params.damageType;
-        event.knockback = knockback;
-        event.killed = !health->isAlive();
-        event.hitBone = hitBoneName;
-
-        // Apply invulnerability frames
-        m_invulnTimers[entityId] = m_invulnDuration;
-
-        // Apply knockback via velocity
-        entity->setMoveVelocity(knockback);
-
+        // Deal damage through the single damage entry point.
+        DamageEvent event = applyDamage(entity, entityId, params.damage,
+                                        params.attackerId, params.damageType,
+                                        knockback, hitBoneName);
         events.push_back(event);
-
-        LOG_INFO("Combat", "{} hit {} for {:.1f} damage (actual: {:.1f}){}",
-                 params.attackerId, entityId, params.damage, actual,
-                 event.killed ? " — KILLED" : "");
-
-        if (m_onDamage) m_onDamage(event);
     }
 
     return events;
+}
+
+DamageEvent CombatSystem::applyDamage(
+    Scene::Entity* target,
+    const std::string& targetId,
+    float amount,
+    const std::string& sourceId,
+    DamageType type,
+    const glm::vec3& knockback,
+    const std::string& hitBone)
+{
+    DamageEvent event;
+    event.attackerId = sourceId;
+    event.targetId   = targetId;
+    event.amount     = amount;
+    event.type       = type;
+    event.knockback  = knockback;
+    event.hitBone    = hitBone;
+
+    if (!target) return event;
+    auto* health = target->getHealthComponent();
+    if (!health || !health->isAlive()) return event;
+
+    float actual = health->takeDamage(amount, sourceId);
+    event.actualDamage = actual;
+    event.killed       = !health->isAlive();
+
+    // Post-hit invulnerability frames (so a single swing can't multi-hit).
+    m_invulnTimers[targetId] = m_invulnDuration;
+
+    // Apply knockback via velocity if any was requested.
+    if (knockback != glm::vec3(0.0f))
+        target->setMoveVelocity(knockback);
+
+    LOG_INFO("Combat", "{} hit {} for {:.1f} damage (actual: {:.1f}){}",
+             sourceId, targetId, amount, actual,
+             event.killed ? " — KILLED" : "");
+
+    if (m_onDamage) m_onDamage(event);
+    return event;
 }
 
 bool CombatSystem::isInvulnerable(const std::string& entityId) const {
