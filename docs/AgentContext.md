@@ -770,9 +770,11 @@ draw-run batching + a `mode` push-constant in ui.frag; `UIRepeater.horizontal`).
 bakes a TTF via stb_truetype into the R8 atlas, AA glyphs reuse mode-0, metrics normalized → no
 layout shift; UISystem prefers JetBrainsMono, falls back to bitmap; `UIRenderer::setWhitePixelUV`
 relocates drawRect's white texel). So UISystem now has crisp text + RGBA images + rects — the full
-toolkit to replace ImGui menus. NEXT: **standalone-host wiring** (minimal_game is DISABLED in CMake,
+toolkit to replace ImGui menus. **ENGINE DEFAULT HUD DONE**: ships `resources/ui/default_hud.json`;
+setupGameHud loads it when game.json has no "hud" → games get the full HUD with ZERO authoring (own
+"hud" overrides). Verified live. NEXT: **standalone-host wiring** (minimal_game is DISABLED in CMake,
 scaffold needs UISystem init — verify via packaged run; `HudSystem.md` §11a); broader menus/screens/
-dialogue ImGui→UISystem migration; engine-auto-injected default HUD; game.json font/theme config.
+dialogue ImGui→UISystem migration; game.json font/theme config; bundle resources/ui+font in packages.
 Combat follow-ups deferred: reactions/OAs, conditions UI, ground-point AoE targeting. Earlier: **performance program kickoff
 (2026-06-15)** — see "Render perf" workstream. Shipped + verified (NOT yet committed):
 character-update opts (cached
