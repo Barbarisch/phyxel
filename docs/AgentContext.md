@@ -764,9 +764,14 @@ data-driven on UISystem, verified live post-deletion (End Turn click advances ro
 reusable **UI click-injection** test hook (`UISystem::injectClick` + `POST /api/ui/click {x,y}` →
 `ui_click`) so agents can test interactive HUD/menu widgets without a mouse — GOTCHA:
 `UIPanel::handleClick` hit-tests the panel's own rect first, so size panels to contain children.
-NEXT: standalone-host wiring (minimal_game/scaffold don't init UISystem — `HudSystem.md` §11a),
-more default modules (hotbar/objectives reuse Repeater), broader ImGui→UISystem migration. Combat
-follow-ups deferred: reactions/OAs, conditions UI, ground-point AoE targeting. Earlier: **performance program kickoff
+Default modules done: health, objectives, combat set, **hotbar** (all verified live in the editor).
+**UIImage arbitrary RGBA textures DONE** (`UIRenderer::loadTexture` + per-texture descriptor sets +
+draw-run batching + a `mode` push-constant in ui.frag; `UIRepeater.horizontal`). NEXT: **TTF fonts
+in UIRenderer** (still R8 bitmap — needed for BG3 look + to replace ImGui menus; reuses the
+multi-texture plumbing); **standalone-host wiring** (minimal_game is DISABLED in CMake, scaffold
+needs UISystem init — verify via packaged run; `HudSystem.md` §11a); broader menus/screens/dialogue
+ImGui→UISystem migration; engine-auto-injected default HUD. Combat follow-ups deferred: reactions/
+OAs, conditions UI, ground-point AoE targeting. Earlier: **performance program kickoff
 (2026-06-15)** — see "Render perf" workstream. Shipped + verified (NOT yet committed):
 character-update opts (cached
 bone→parts grouping, binary-search keyframes, persistent instance-buffer map, removed
