@@ -5156,6 +5156,27 @@ void Application::setupGameHud(const nlohmann::json& gameDef) {
         return rows;
     });
 
+    // Objectives module (second Repeater customer — proves the list binding
+    // generalizes beyond combat). One record per visible, non-failed objective;
+    // completed ones get a [x] marker. `objectives.any` gates the panel's visibility.
+    hud.setFloat("objectives.any", [this] {
+        for (const auto* o : objectiveTracker.getAllObjectives())
+            if (o && !o->hidden && o->status != Core::Objective::Status::Failed) return 1.0f;
+        return 0.0f;
+    });
+    hud.setList("objectives", [this]() {
+        std::vector<UI::HudRecord> rows;
+        for (const auto* o : objectiveTracker.getAllObjectives()) {
+            if (!o || o->hidden || o->status == Core::Objective::Status::Failed) continue;
+            bool done = (o->status == Core::Objective::Status::Completed);
+            UI::HudRecord r;
+            r.texts["label"] = std::string(done ? "[x] " : "[ ] ") + o->title;
+            r.floats["complete"] = done ? 1.0f : 0.0f;
+            rows.push_back(std::move(r));
+        }
+        return rows;
+    });
+
     // Build HUD screens from the "hud" block. Accepts a single panel object OR an
     // array of panels (each an independently-anchored screen — needed because a panel
     // lays its children out in one vertical stack, so e.g. a bottom-left health bar

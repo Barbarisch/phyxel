@@ -168,11 +168,17 @@ of named providers the host wires once; widgets reference them by binding key.
 
 **v1 default modules** (composable; each reposition/restyle/replace/hide-able):
 
-1. **Health bar** (the vertical-slice widget §9).
-2. **Hotbar** (Repeater over `player.hotbar`, highlights `selectedSlot`).
-3. **Objectives tracker** (Repeater over `objectives`).
-4. **Combat set** — the first real customer (§ below): turn-order **portrait bar** (Repeater over
-   `combat.turn_order`), **action bar** (Action/Bonus/Movement + End Turn), **hit-chance readout**.
+1. ✅ **Health bar** (the vertical-slice widget §9) — DONE.
+2. ⏳ **Hotbar** (Repeater over `player.hotbar`, highlights `selectedSlot`) — pending; wants item
+   icons (UIImage arbitrary-texture support — currently colored-rect placeholder only).
+3. ✅ **Objectives tracker** (Repeater over `objectives`, `[x]`/`[ ]` markers, gated by
+   `objectives.any`) — DONE + verified live; second Repeater customer (proves it generalizes).
+4. ✅ **Combat set** (§10) — turn-order **list** (Repeater over `combat.turn_order`), **action
+   bar** (Action/Bonus/Movement + **End Turn** button), **hit-chance readout** — DONE.
+
+Note: these are currently authored per-game in `game.json` (demo set in
+`PhyxelProjects/DebrisPushTest/game.json`). A **shipped default HUD** auto-injected by the engine
+(so games get it without authoring) is a follow-up.
 
 Dialogue stays in `DialogueSystem` for now (its own system); fold under the HUD later.
 
