@@ -107,17 +107,8 @@ public:
                                   float screenWidth, float screenHeight,
                                   const char* customText = nullptr);
 
-    /// Render D&D combat HUD: initiative order, HP bars, whose-turn indicator.
-    /// Only visible when combat is active (InitiativeTracker::isCombatActive()).
-    /// @param tracker        The initiative tracker (may be nullptr).
-    /// @param party          Party info for player/NPC labelling (may be nullptr).
-    /// @param entityRegistry Used to look up HealthComponent per entity (may be nullptr).
-    /// @param playerTurn     Player turn controller; when its turn is active,
-    ///                       draws the action bar + End Turn button (may be nullptr).
-    void renderCombatHUD(Core::InitiativeTracker* tracker,
-                         Core::Party*             party,
-                         Core::EntityRegistry*    entityRegistry,
-                         Core::PlayerTurnController* playerTurn = nullptr);
+    // (renderCombatHUD removed — the combat HUD is now data-driven on the UISystem;
+    //  see docs/HudSystem.md §10.)
 
     /// Render the always-visible voxel size mode selector (Cube / Subcube / Microcube).
     /// @param activeMode      Currently selected TargetMode.

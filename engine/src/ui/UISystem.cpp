@@ -132,6 +132,26 @@ bool UISystem::handleInput(Input::InputManager* input) {
     return consumed;
 }
 
+bool UISystem::injectClick(glm::vec2 pos) {
+    if (!initialized_) return false;
+
+    glm::vec2 screenSize(static_cast<float>(screenWidth_), static_cast<float>(screenHeight_));
+    bool consumed = false;
+
+    for (auto& [name, entry] : screens_) {
+        if (!entry.visible || !entry.panel) continue;
+        auto* panel = entry.panel.get();
+
+        glm::vec2 panelPos = resolveAnchor(panel->anchor, {0, 0}, screenSize,
+                                            panel->size, panel->offset);
+        // Update hover so button visuals match, then click.
+        panel->handleHover(pos, panelPos, theme_);
+        if (panel->handleClick(pos, panelPos, theme_)) consumed = true;
+    }
+
+    return consumed;
+}
+
 // ── Rendering ───────────────────────────────────────────────
 
 void UISystem::render(VkCommandBuffer cmd) {

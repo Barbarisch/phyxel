@@ -237,19 +237,23 @@ modules** bound via §6:
 - ✅ Turn-order **list** (Repeater over a `combat.turn_order` list provider) — DONE (`bd6cf5c`).
   New `UIRepeater` widget + `HudRecord`/`ListProvider`; "Initiative" panel verified live
   (`> player [20] …`, `npc_goblin [8]`, active marker).
-- ✅ **End Turn button** — DONE (`e9fcb81`), data-driven `UIButton` → `PlayerTurnController::
-  endTurn()`. **Render-verified; live click not yet confirmed** (no input-injection API to
-  automate it here) — uses the shared `UISystem` handleInput→handleClick→onClick path.
+- ✅ **End Turn button** — DONE, data-driven `UIButton` → `PlayerTurnController::endTurn()`.
+  **Click verified live** via the new click-injection feature (below): clicking it advanced the
+  round 1→2.
 - Planned S8 pieces: d20 roll + crit/miss callouts, floating damage numbers, on-ground
   movement-range ring + path spline, target highlight.
 
-Data comes from `CombatDirector` / `PlayerTurnController` / `InitiativeTracker` (see
-`docs/TurnBasedCombat.md`). **REMAINING before deleting `renderCombatHUD`:** (a) confirm the
-data-driven End Turn button click live (a few seconds in-editor, or add a UISystem/UIButton unit
-test for the click path); (b) then delete `renderCombatHUD` from `ImGuiRenderer.{h,cpp}` and its
-call site in `editor/Application.cpp`. Until then both HUDs render (the ImGui one is editor-only;
-the data-driven one is what ships). Cosmetic: the initiative row label is clipped at the panel
-width — widen the panel or shorten the label format.
+✅ **`renderCombatHUD` DELETED** (definition + declaration + call site) — the combat HUD is now
+fully data-driven on `UISystem`. Verified live post-deletion: combat HUD renders, the old ImGui
+combat HUD is gone, End Turn still advances the round.
+
+**Click-injection test feature** (so agents can verify interactive HUD/menu widgets without a real
+mouse): `UISystem::injectClick(pos)` routes a synthetic click through the same per-screen
+hit-testing as `handleInput`; `POST /api/ui/click {x,y}` → `ui_click` handler → returns
+`{consumed}`. **Authoring gotcha found via this:** `UIPanel::handleClick` first hit-tests the
+panel's OWN rect, so a child that overflows below a too-short panel is unclickable — **size HUD
+panels to contain their children.** Cosmetic leftovers: the initiative row label clips at panel
+width; the turn-label panel overlaps the (enlarged) action panel — both layout-tuning only.
 
 ## 11a. Migration roadmap — get ImGui out of shipped games (§2a)
 

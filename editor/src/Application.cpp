@@ -2822,8 +2822,9 @@ void Application::run() {
             renderCoordinator->renderUI();
         }
 
-        // Render D&D Combat HUD (initiative order, HP bars, whose-turn indicator)
-        imguiRenderer->renderCombatHUD(&m_combatDirector.initiative(), &m_rpgParty, entityRegistry.get(), &m_playerTurn);
+        // Combat HUD is now data-driven on the UISystem (round banner, turn label,
+        // action bar, hit-chance, initiative list, End Turn) — see docs/HudSystem.md §10.
+        // The old ImGui renderCombatHUD stopgap has been removed.
 
         // Render Death overlay
         if (respawnSystem.isPlayerDead()) {
@@ -7546,6 +7547,19 @@ void Application::dropHeldItem() {
 // Item API Command Dispatcher (extracted to reduce nesting depth in processAPICommands)
 // ============================================================================
 bool Application::dispatchItemAPICommand(const Core::APICommand& cmd, nlohmann::json& response) {
+    // UI/HUD test hook: inject a synthetic left-click into the UISystem at a screen
+    // coordinate (UI space = window resolution). Lets agents exercise interactive
+    // HUD/menu widgets (e.g. the combat End Turn button) without a real mouse.
+    if (cmd.action == "ui_click") {
+        auto* ui = renderCoordinator ? renderCoordinator->getUISystem() : nullptr;
+        if (!ui) { response = {{"error", "UISystem not available"}}; return true; }
+        float x = cmd.params.value("x", 0.0f);
+        float y = cmd.params.value("y", 0.0f);
+        bool consumed = ui->injectClick(glm::vec2(x, y));
+        response = {{"success", true}, {"consumed", consumed}, {"x", x}, {"y", y}};
+        return true;
+    }
+
     if (cmd.action == "spawn_item") {
         std::string itemId = cmd.params.value("item", "");
         if (itemId.empty() || !itemPropManager) {

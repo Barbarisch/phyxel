@@ -73,6 +73,12 @@ public:
     /// Returns true if UI consumed the input (game should ignore it).
     bool handleInput(Input::InputManager* input);
 
+    /// Inject a synthetic left-click at a screen position (UI space = the offscreen
+    /// resolution, i.e. window size). Routes through the same per-screen hit-testing
+    /// as handleInput and fires the hit widget's handlers. Returns true if a widget
+    /// consumed it. For agent/test-driven UI interaction without a real mouse.
+    bool injectClick(glm::vec2 pos);
+
     // ── Rendering ───────────────────────────────────────────────
 
     /// Render all visible screens. Call inside the post-process render pass

@@ -908,6 +908,23 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/ui/click — inject a synthetic UI click at a screen coordinate
+    // Body: { "x": float, "y": float }  (UI/offscreen space = window resolution)
+    // Returns: { "success": true, "consumed": bool }. Test hook for HUD/menu buttons.
+    // ====================================================================
+    srv.Post("/api/ui/click", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("ui_click", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // POST /api/asset-editor/ref-character — Show/hide humanoid reference character
     // Body: { "visible": bool }  — omit to toggle current state
     // Returns: { "success": true, "visible": bool }
