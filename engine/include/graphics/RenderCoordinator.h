@@ -7,6 +7,7 @@
 #include "utils/PerformanceProfiler.h"
 #include "utils/GpuProfiler.h"
 #include "scene/Entity.h"
+#include "ui/HudDataContext.h"
 #include <memory>
 #include <chrono>
 #include <vector>
@@ -181,6 +182,11 @@ public:
     /// Create and initialize the UISystem. Must be called after construction.
     bool initUISystem();
     UI::UISystem* getUISystem() { return m_uiSystem.get(); }
+
+    /// Shared HUD data-binding context. Hosts (editor Application, standalone game)
+    /// register named providers here; the render loop applies them to the "hud"
+    /// screen each frame before drawing (single source of truth). See docs/HudSystem.md.
+    UI::HudDataContext& hudData() { return m_hudData; }
     
     // Render UI elements (must be called between ImGui::NewFrame and ImGui::Render)
     void renderUI();
@@ -210,6 +216,7 @@ private:
     const std::vector<std::unique_ptr<Scene::Entity>>* entities = nullptr;
     Core::NPCManager* m_npcManager = nullptr;
     std::unique_ptr<UI::UISystem> m_uiSystem;
+    UI::HudDataContext m_hudData;
 
     // Rendering subsystems
     size_t renderStaticGeometry();

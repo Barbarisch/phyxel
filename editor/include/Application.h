@@ -370,10 +370,6 @@ private:
     Core::PlayerProfile playerProfile;
     Core::ObjectiveTracker objectiveTracker;
 
-    // Game HUD data bindings (non-ImGui; rendered via the UISystem). Providers read
-    // live game state (e.g. playerHealth); applied to the "hud" screen each frame.
-    UI::HudDataContext m_hudData;
-
     enum class ControlTarget {
         AnimatedCharacter
     };

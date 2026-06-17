@@ -3760,13 +3760,8 @@ void Application::update(float deltaTime) {
 }
 
 void Application::render() {
-    // Pull live game state into the HUD widgets before they render (single source of
-    // truth — providers read playerHealth etc.; widgets just mirror for drawing).
-    if (renderCoordinator) {
-        if (auto* ui = renderCoordinator->getUISystem()) {
-            if (auto* hud = ui->getScreen("hud")) m_hudData.applyBindings(hud);
-        }
-    }
+    // HUD data bindings are applied inside RenderCoordinator::render() (engine-side,
+    // shared by the editor and standalone) — see RenderCoordinator + docs/HudSystem.md.
     renderCoordinator->render();
 }
 
@@ -5082,10 +5077,12 @@ void Application::setupGameHud(const nlohmann::json& gameDef) {
     if (!uiSystem) return;
 
     // Data providers — single source of truth is the live playerHealth. Cheap; safe to
-    // re-register on each load. Widgets reference these via their "bind" key.
-    m_hudData.setFloat("player.health",    [this]{ return playerHealth.getHealth(); });
-    m_hudData.setFloat("player.maxHealth", [this]{ return playerHealth.getMaxHealth(); });
-    m_hudData.setText ("player.healthText", [this]{
+    // re-register on each load. Widgets reference these via their "bind" key. The shared
+    // context lives on the RenderCoordinator; the render loop applies it each frame.
+    auto& hud = renderCoordinator->hudData();
+    hud.setFloat("player.health",    [this]{ return playerHealth.getHealth(); });
+    hud.setFloat("player.maxHealth", [this]{ return playerHealth.getMaxHealth(); });
+    hud.setText ("player.healthText", [this]{
         char buf[32];
         snprintf(buf, sizeof(buf), "%d / %d",
                  (int)(playerHealth.getHealth() + 0.5f),

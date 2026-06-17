@@ -1273,6 +1273,9 @@ void RenderCoordinator::drawFrame() {
     // geometry, into the offscreen image. Shows in the editor viewport AND is carried
     // to the swapchain by post-process for standalone builds. See docs/HudSystem.md.
     if (m_uiSystem) {
+        // Pull live game state into the HUD widgets before drawing (single source of
+        // truth — hosts register providers on hudData(); widgets just mirror values).
+        if (auto* hud = m_uiSystem->getScreen("hud")) m_hudData.applyBindings(hud);
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Custom UI");
         m_uiSystem->render(vulkanDevice->getCommandBuffer(currentFrame));
     }
