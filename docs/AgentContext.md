@@ -773,13 +773,17 @@ relocates drawRect's white texel). So UISystem now has crisp text + RGBA images 
 toolkit to replace ImGui menus. **ENGINE DEFAULT HUD DONE**: ships `resources/ui/default_hud.json`;
 setupGameHud loads it when game.json has no "hud" → games get the full HUD with ZERO authoring (own
 "hud" overrides). Verified live. **DIALOGUE (standard trees) MIGRATED to UISystem** (UILabel word-wrap + `dialogue.*`
-providers + `hud_dialogue` panel; ImGui `renderDialogueBox` now AI-conversation-only). NEXT ImGui→
-UISystem: **MENUS** (`GameMenuRenderer` is the live ImGui menu path — BIG port: position-based 1280x720
-schema + backgrounds + animations + submenu stack + actions + {{tokens}}; UISystem needs absolute/free
-layout + fullscreen bg + button-action wiring; editor-verifiable via a menu scene) and **SCREENS**
-(Intro/Victory/Credits — standalone-shell-driven, hard to verify in editor). Also: **standalone-host
-wiring** (minimal_game DISABLED in CMake; verify via packaged run); game.json font/theme config;
-bundle resources/ui+font in packages.
+providers + `hud_dialogue` panel; ImGui `renderDialogueBox` now AI-conversation-only). **MENUS MIGRATED (editor path)**: UISystem
+gained widget `position` + panel `freeLayout` (absolute layout) + fullscreen bg; `UI::loadMenuInto`
+converts the GameMenuRenderer schema → `menu:*` UISystem screens with button actions (transition/
+quit/open-close submenu); editor `onMenuSceneLoaded` routes to it, ImGui `GameMenuRenderer->render`
+removed from the editor loop. Verified via the `/api/ui/load_menu` debug hook (PHYXEL DEMO menu +
+Options submenu nav). Not ported: animations/fonts/colors/{{tokens}}. **GOTCHA: multi-scene
+`load_game_definition` hits the pre-existing scene-transition vulkan crash — verify menus via the
+direct `/api/ui/load_menu` hook, not a scene load.** NEXT ImGui→UISystem: **SCREENS** (Intro/Victory/
+Credits — standalone-shell-driven, hard to verify in editor); **standalone-host wiring** (EngineRuntime
+still uses GameMenuRenderer; minimal_game DISABLED in CMake — verify via packaged run); game.json
+font/theme config; bundle resources/ui+font in packages.
 Combat follow-ups deferred: reactions/OAs, conditions UI, ground-point AoE targeting. Earlier: **performance program kickoff
 (2026-06-15)** — see "Render perf" workstream. Shipped + verified (NOT yet committed):
 character-update opts (cached
