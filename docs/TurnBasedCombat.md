@@ -1,7 +1,7 @@
 # Turn-Based Combat — Design (BG3-feel)
 
-> Status: **S1–S6 done + committed; a playable turn-based fight with click-to-move/attack +
-> hit-chance is verified live.**
+> Status: **S1–S7 done + committed (+ player spellcasting); a playable, BG3-shaped turn-based
+> fight — click-to-move/attack, hit-chance, spells, tactical camera — is verified live.**
 > Goal: a turn-based combat mode that looks and feels like Baldur's Gate 3, built on the
 > existing headless D&D mechanics and the real-time character FSM. The engine supports **both**
 > real-time and turn-based combat.
@@ -136,10 +136,12 @@ and the action-bar hit-chance readout. **Remaining S6:** AoE templates (sphere/c
 affected-target preview — deferred with player spellcasting; advantage/disadvantage sourcing from
 ConditionSystem; on-ground movement-range ring (S8 presentation).
 
-### S7 — Combat camera (BG3 hybrid)
-Over-shoulder third-person that can pull back and free-rotate toward overhead during a turn,
-on the existing `CameraRig` (`overhead`/`isometric` rigs exist) + `GameplayCameraController`.
-Auto-frames the active actor on turn change.
+### S7 — Combat camera (BG3 hybrid)  ✅ done + verified live
+`Application::updateCombatCamera` frames the active combatant (auto-pans on turn change),
+pulls back to a tactical distance on combat entry, and orbits (RMB) + zooms (scroll) via the
+third_person `CameraRig` — no character-movement input fed. Replaces the cameraCtl path for the
+whole turn-based encounter. (Polish later: smooth pan interpolation, overhead/isometric toggle,
+encounter-wide framing.)
 
 ### S8 — Combat presentation / UI
 Upgrade `renderCombatHUD`: turn-order portrait bar, d20 roll + crit/miss callouts, floating
