@@ -1,8 +1,25 @@
 # Turn-Based Combat — Design (BG3-feel)
 
-> Status: **design pass + S1 in progress.** Goal: a turn-based combat mode that looks and
-> feels like Baldur's Gate 3, built on the existing headless D&D mechanics and the real-time
-> character FSM. The engine supports **both** real-time and turn-based combat.
+> Status: **S1–S4 done + committed (S4 verified live); S5 next.** Goal: a turn-based combat
+> mode that looks and feels like Baldur's Gate 3, built on the existing headless D&D mechanics
+> and the real-time character FSM. The engine supports **both** real-time and turn-based combat.
+>
+> Progress (branch `feature/turn-based-combat`):
+> - **S1 CombatDirector** — done (`ee71aa7`), 10 unit tests.
+> - **S2 Damage unification** — done (`e1d36f5`), +7 tests; `CombatSystem::applyDamage` funnel +
+>   player/HUD single health store.
+> - **S3 TurnActor** — done (`f0e9135`), 14 tests; headless turn-execution bridge + feet↔unit
+>   constant (0.3048).
+> - **S4 enemy turn AI** — done (`2625a0f`), **verified live**: enemy walks in (movement
+>   debited), d20-vs-AC attacks, damage via the funnel (no double-dip), turns advance with the
+>   COMBAT HUD. Adds `CharacterTurnBody` adapter + `combat/set_mode` dev endpoint.
+>
+> **Follow-ups found:** (a) the player-factory `createAnimatedCharacter` binds the shared
+> `playerHealth` to EVERY animated character — fine for the single player, but non-player
+> animated characters (and the debug NPC) must not inherit it; real enemies are `NPCEntity`
+> (own health). (b) `CombatBehavior`'s real-time `onHitFrame` is not yet mode-gated (only the
+> player's is) — irrelevant while CombatBehavior isn't ticked in turn-based mode, but gate it
+> when both can coexist.
 >
 > Decisions locked with the user (2026-06-17):
 > - **Per-game global mode** — `game.json` picks the ruleset for the whole session; no
@@ -76,10 +93,12 @@ attacks debit the action and resolve on the **animation hit-frame** (reuse `onHi
 `CombatSystem`), then signal turn-can-advance. This is what makes turns *animate* instead of
 teleport, and it owns the turn-advancement-vs-animation-timing handshake.
 
-### S4 — Enemy turn AI
-Upgrade `CombatAISystem` to execute through `TurnActor` (`setControlInput`, like
-`CombatBehavior`) so enemy turns play out with real walk/attack/death anims. Add minimal
-tactical scoring (nearest/weakest target; move-then-attack; AoE when ≥2 clustered).
+### S4 — Enemy turn AI  ✅ done + verified live
+`CombatAISystem` is now a per-turn phase machine (Thinking → Moving → Attacking → Done) that
+runs an enemy turn through `TurnActor` + `CharacterTurnBody` over multiple frames: real
+walk/attack animation, budget-gated movement, D&D d20-vs-AC to-hit, damage through the S2
+funnel. Gated to turn-based mode via `CombatDirector`. (Remaining: richer tactical scoring —
+weakest/most-dangerous target, multi-attack, AoE when clustered, death/flee handling.)
 
 ### S5 — Player turn controller (core BG3 input feel)
 On the player's turn: click-to-move within range (walk via FSM, debit movement),
