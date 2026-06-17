@@ -16,7 +16,11 @@ UISystem::~UISystem() {
 
 bool UISystem::initialize(VkRenderPass renderPass) {
     if (!renderer_.initialize(renderPass)) return false;
-    if (!font_.initialize(&renderer_)) return false;
+    // Prefer a crisp TrueType font; fall back to the embedded bitmap font.
+    const std::string kFont = "resources/fonts/JetBrainsMonoNerdFontMono-Regular.ttf";
+    if (!font_.initializeTTF(&renderer_, kFont, 48.0f)) {
+        if (!font_.initialize(&renderer_)) return false;
+    }
     initialized_ = true;
     return true;
 }

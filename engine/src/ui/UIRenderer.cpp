@@ -361,10 +361,9 @@ void UIRenderer::drawQuad(glm::vec2 pos, glm::vec2 size, glm::vec2 uvMin, glm::v
 }
 
 void UIRenderer::drawRect(glm::vec2 pos, glm::vec2 size, glm::vec4 color) {
-    // Use UV (0,0)-(0,0) — the top-left pixel of the atlas should be white (0xFF).
-    // BitmapFont reserves the first pixel as solid white for rectangle drawing.
-    float px = 0.5f / 256.0f;  // half-pixel of a 256-wide atlas
-    drawQuad(pos, size, {0.0f, 0.0f}, {px, px}, color);
+    // Sample the font atlas's reserved solid-white texel (set by the active font).
+    // Zero-area UV => all 4 verts sample the same texel (NEAREST filter).
+    drawQuad(pos, size, whitePixelUV_, whitePixelUV_, color);
 }
 
 void UIRenderer::drawImage(glm::vec2 pos, glm::vec2 size, int textureIndex, glm::vec4 tint) {

@@ -2,6 +2,11 @@
 #include "ui/UIRenderer.h"
 #include "utils/Logger.h"
 #include <cstring>
+#include <fstream>
+#include <algorithm>
+
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
 
 namespace Phyxel {
 namespace UI {
@@ -249,6 +254,77 @@ bool BitmapFont::initialize(UIRenderer* renderer) {
     return true;
 }
 
+bool BitmapFont::initializeTTF(UIRenderer* renderer, const std::string& ttfPath, float pixelHeight) {
+    std::ifstream f(ttfPath, std::ios::binary | std::ios::ate);
+    if (!f) {
+        LOG_WARN("BitmapFont", "TTF not found: {} (falling back to bitmap font)", ttfPath);
+        return false;
+    }
+    std::streamsize sz = f.tellg();
+    f.seekg(0);
+    std::vector<unsigned char> data(static_cast<size_t>(sz));
+    if (!f.read(reinterpret_cast<char*>(data.data()), sz)) return false;
+
+    stbtt_fontinfo info;
+    if (!stbtt_InitFont(&info, data.data(), stbtt_GetFontOffsetForIndex(data.data(), 0))) {
+        LOG_WARN("BitmapFont", "stbtt_InitFont failed for {}", ttfPath);
+        return false;
+    }
+
+    const int W = 512, H = 512;
+    std::vector<unsigned char> atlas(static_cast<size_t>(W) * H, 0);
+
+    // Bake glyphs into the top region (reserve the bottom rows for a white block).
+    stbtt_bakedchar cdata[TTF_COUNT];
+    int bakeResult = stbtt_BakeFontBitmap(data.data(), 0, pixelHeight,
+                                          atlas.data(), W, H - 4, TTF_FIRST, TTF_COUNT, cdata);
+    if (bakeResult <= 0) {
+        LOG_WARN("BitmapFont", "TTF bake didn't fit {}x{} at {}px", W, H, pixelHeight);
+        return false;
+    }
+
+    // Reserve a 2x2 white block in the bottom-left for UIRenderer::drawRect().
+    for (int y = H - 2; y < H; ++y)
+        for (int x = 0; x < 2; ++x)
+            atlas[static_cast<size_t>(y) * W + x] = 0xFF;
+    glm::vec2 whiteUV = {0.5f / W, (H - 1.5f) / H};  // center of texel (0, H-2) = white
+
+    // Vertical metrics → normalization so a line = GLYPH_H px at scale 1.0.
+    int ascent = 0, descent = 0, lineGap = 0;
+    stbtt_GetFontVMetrics(&info, &ascent, &descent, &lineGap);
+    float sfh = stbtt_ScaleForPixelHeight(&info, pixelHeight);
+    float bakedLineH = (ascent - descent + lineGap) * sfh;
+    if (bakedLineH <= 0.0f) bakedLineH = pixelHeight;
+    ttfNorm_ = static_cast<float>(GLYPH_H) / bakedLineH;
+    ttfAscentPx_ = ascent * sfh;
+    ttfLineHeightPx_ = static_cast<float>(GLYPH_H);
+
+    for (int i = 0; i < TTF_COUNT; ++i) {
+        const stbtt_bakedchar& c = cdata[i];
+        GlyphInfo& g = ttfGlyphs_[i];
+        g.u0 = c.x0 / static_cast<float>(W);
+        g.v0 = c.y0 / static_cast<float>(H);
+        g.u1 = c.x1 / static_cast<float>(W);
+        g.v1 = c.y1 / static_cast<float>(H);
+        g.w = static_cast<float>(c.x1 - c.x0);
+        g.h = static_cast<float>(c.y1 - c.y0);
+        g.xoff = c.xoff;
+        g.yoff = c.yoff;
+        g.xadvance = c.xadvance;
+    }
+
+    if (!renderer->uploadFontAtlas(atlas.data(), W, H)) {
+        LOG_ERROR("BitmapFont", "Failed to upload TTF atlas");
+        return false;
+    }
+    renderer->setWhitePixelUV(whiteUV);
+
+    ttf_ = true;
+    initialized_ = true;
+    LOG_INFO("BitmapFont", "Loaded TTF '{}' baked @ {}px (norm {:.3f})", ttfPath, pixelHeight, ttfNorm_);
+    return true;
+}
+
 void BitmapFont::getGlyphUV(char c, glm::vec2& uvMin, glm::vec2& uvMax) const {
     int idx = static_cast<unsigned char>(c);
     if (idx >= 128) idx = '?';
@@ -261,6 +337,17 @@ void BitmapFont::getGlyphUV(char c, glm::vec2& uvMin, glm::vec2& uvMax) const {
 }
 
 float BitmapFont::measureText(const std::string& text, float scale) const {
+    if (ttf_) {
+        float s = ttfNorm_ * scale;
+        float width = 0.0f, lineMax = 0.0f;
+        for (char c : text) {
+            if (c == '\n') { lineMax = std::max(lineMax, width); width = 0.0f; continue; }
+            int idx = static_cast<unsigned char>(c);
+            if (idx < TTF_FIRST || idx >= TTF_FIRST + TTF_COUNT) idx = '?';
+            width += ttfGlyphs_[idx - TTF_FIRST].xadvance * s;
+        }
+        return std::max(lineMax, width);
+    }
     float width = 0.0f;
     for (char c : text) {
         if (c == '\n') break;
@@ -272,6 +359,24 @@ float BitmapFont::measureText(const std::string& text, float scale) const {
 void BitmapFont::drawText(UIRenderer* renderer, const std::string& text,
                           glm::vec2 pos, glm::vec4 color, float scale) const {
     if (!initialized_) return;
+
+    if (ttf_) {
+        float s = ttfNorm_ * scale;
+        float x = pos.x;
+        float baseline = pos.y + ttfAscentPx_ * s;
+        for (char c : text) {
+            if (c == '\n') { x = pos.x; baseline += GLYPH_H * scale; continue; }
+            int idx = static_cast<unsigned char>(c);
+            if (idx < TTF_FIRST || idx >= TTF_FIRST + TTF_COUNT) idx = '?';
+            const GlyphInfo& g = ttfGlyphs_[idx - TTF_FIRST];
+            if (g.w > 0 && g.h > 0) {
+                renderer->drawQuad({x + g.xoff * s, baseline + g.yoff * s},
+                                   {g.w * s, g.h * s}, {g.u0, g.v0}, {g.u1, g.v1}, color);
+            }
+            x += g.xadvance * s;
+        }
+        return;
+    }
 
     float x = pos.x;
     float y = pos.y;

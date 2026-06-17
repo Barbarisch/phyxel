@@ -288,11 +288,13 @@ End state: a packaged game does **not initialize ImGui for UI** — only an opti
 ## 11b. Open items / risks
 
 - Editor Game-view render-target choice (§5a (a) vs (b)) — settle at implementation.
-- `UIRenderer` needs **TTF font support** for the BG3 look (R8 bitmap atlas today). This is now
-  **required** (not optional) since `UISystem` must fully replace the ImGui menu/screen path; port
-  `GameMenuRenderer`'s TTF loading or add a glyph-atlas baker to `UIRenderer`. (Arbitrary RGBA
-  **image** textures are DONE — the multi-texture/descriptor-set + draw-run plumbing a TTF glyph
-  atlas would reuse.)
+- ✅ **TTF font support — DONE.** `BitmapFont::initializeTTF` bakes a TrueType font (stb_truetype)
+  into the R8 atlas (anti-aliased glyphs reuse the mode-0 alpha-mask path); metrics are normalized
+  so a line is `GLYPH_H` px at scale 1.0 → **no layout shift** when swapping from the bitmap font.
+  `UISystem` prefers `resources/fonts/JetBrainsMonoNerdFontMono-Regular.ttf`, falls back to the
+  bitmap font. The reserved white texel (for `drawRect`) moved into the TTF atlas; `UIRenderer::
+  setWhitePixelUV` makes its location font-controlled. Verified live (crisp HUD text). Follow-ups:
+  per-font selection / multiple sizes from `game.json`; bundle the font in packaged games.
 - Hotbar icons currently map `material -> resources/textures/source/<lower>_top.png` (works for
   materials with a top texture; others fall back to a placeholder rect). A proper item-icon source
   (atlas-tile UV, or per-item icon assets) is a follow-up; UIImage already supports the texture.

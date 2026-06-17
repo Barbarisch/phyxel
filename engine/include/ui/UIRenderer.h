@@ -78,6 +78,10 @@ public:
     /// Cached by path (repeat calls are cheap). Returns -1 on failure.
     int loadTexture(const std::string& path);
 
+    /// Set the atlas UV of a solid-white texel (used by drawRect). The font owns
+    /// the atlas, so it tells the renderer where its reserved white pixel is.
+    void setWhitePixelUV(glm::vec2 uv) { whitePixelUV_ = uv; }
+
     // ── Accessors ───────────────────────────────────────────────
 
     uint32_t getScreenWidth() const { return screenWidth_; }
@@ -144,6 +148,8 @@ private:
     // CPU-side batch
     std::vector<UIVertex> vertices_;
     std::vector<uint32_t> indices_;
+
+    glm::vec2 whitePixelUV_ = {0.0f, 0.0f};  // atlas UV of a solid-white texel (drawRect)
 
     bool initialized_ = false;
 };
