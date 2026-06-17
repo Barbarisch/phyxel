@@ -528,7 +528,11 @@ namespace Scene {
         FootIKBones m_leftFoot;
         FootIKBones m_rightFoot;
         int   m_ikHipBoneId      = -1;    // pelvis/hip bone for body adjustment during IK
-        bool  m_footIKEnabled    = true;
+        // Foot IK (per-frame terrain foot-planting) is OPT-IN: it costs ~360us/char/frame and
+        // is a no-op on flat ground / for idle+walking characters where the authored clip already
+        // has feet at floor level. Enable via setFootIKEnabled(true) for characters traversing
+        // stairs / uneven voxel terrain that need adaptive foot placement.
+        bool  m_footIKEnabled    = false;
         bool  m_footIKCacheReady = false;
         float m_footIKBlend      = 0.0f;  // 0=off, 1=fully applied (ramped each frame)
 

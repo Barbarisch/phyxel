@@ -3901,7 +3901,17 @@ namespace Scene {
             m_rightFootLock = {};
             return;
         }
-        if (!m_footIKEnabled) return;
+        if (!m_footIKEnabled) {
+            // Foot IK off: keep the visual body snapped to the capsule so the model still
+            // renders at the right height (no terrain foot-planting / body spring).
+            m_visualBodyY    = worldPosition.y;
+            m_visualBodyVel  = 0.0f;
+            m_visualBodyInit = true;
+            m_footIKBlend    = 0.0f;
+            m_leftFootLock   = {};
+            m_rightFootLock  = {};
+            return;
+        }
         auto* voxelWorld = physicsWorld ? physicsWorld->getVoxelWorld() : nullptr;
         if (!voxelWorld) return;
 
@@ -3955,7 +3965,9 @@ namespace Scene {
                 m_visualBodyY   += m_visualBodyVel * deltaTime;
                 m_visualBodyY    = std::min(m_visualBodyY, worldPosition.y); // never overshoot
 
-                LOG_INFO_FMT("BodySpring",
+                // TRACE, not INFO: this fires every frame the body spring is chasing upward —
+                // an INFO here is a per-frame log-spam footgun (cf. the old 1.1GB TerrainIK spam).
+                LOG_TRACE_FMT("BodySpring",
                     "capsY=" << worldPosition.y
                     << " visY=" << m_visualBodyY
                     << " vel=" << m_visualBodyVel
