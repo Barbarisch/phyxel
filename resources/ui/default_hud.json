@@ -68,6 +68,27 @@
     ]
   },
   {
+    "id": "hud_dialogue",
+    "anchor": "BottomCenter",
+    "offset": [0, -24],
+    "size": [1100, 210],
+    "showBackground": true,
+    "visibleWhen": "dialogue.active",
+    "children": [
+      { "type": "label", "id": "dlg_speaker", "bind": "dialogue.speaker", "text": "", "isTitle": true, "size": [1060, 30] },
+      { "type": "label", "id": "dlg_text", "bind": "dialogue.text", "text": "", "wrapWidth": 1060, "size": [1060, 60] },
+      {
+        "type": "repeater",
+        "id": "dlg_choices",
+        "bind": "dialogue.choices",
+        "itemSpacing": 4,
+        "size": [1060, 80],
+        "item": { "type": "label", "bind": "item.label", "text": "", "size": [1060, 22] }
+      },
+      { "type": "label", "id": "dlg_hint", "text": "[Enter] >>>", "visibleWhen": "dialogue.waiting", "size": [200, 22] }
+    ]
+  },
+  {
     "id": "hud_combat_banner",
     "anchor": "TopCenter",
     "offset": [0, 12],

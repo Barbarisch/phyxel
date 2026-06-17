@@ -281,7 +281,7 @@ The packaged game must end up ImGui-free for real UI. Surfaces to migrate from I
 | **Menus** (main/options/etc.) | `GameMenuRenderer` (ImGui `ImDrawList`), the live menu path | `UISystem` menu definitions (already its original purpose; `MenuDefinition` JSON) |
 | **Screens** (Intro/Victory/Credits) | `GameMenus.cpp` `renderIntro/Victory/CreditsScreen` (ImGui) | `UISystem` screens driven by `ScreenState` |
 | **Countdown HUD** | `UI::renderCountdownHud` (ImGui) | a HUD module (Repeater/StatReadout) |
-| **Dialogue** | `DialogueSystem` is **logic-only (no ImGui)**; only its host-side *rendering* is ImGui | a `UISystem` dialogue panel reading `DialogueSystem` state |
+| **Dialogue** | ✅ DONE for standard trees — `hud_dialogue` UISystem panel (speaker + word-wrapped text + numbered choices + continue hint), data-bound via `dialogue.*` providers, gated by `dialogue.active`. The ImGui `renderDialogueBox` is now **AI-conversation-only** (needs scroll + text-input widgets the UISystem lacks — the remaining ImGui dialogue follow-up). |
 | **Standalone host** | `examples/minimal_game/MinimalGame.cpp` + the scaffold (`tools/create_project.py`) call `imgui->newFrame/endFrame` each frame and delegate to `GameMenuRenderer` | drive `UISystem`; ImGui only behind a debug flag |
 | **Combat HUD** | `renderCombatHUD` (editor ImGui) | default HUD modules (§10); deleted from `ImGuiRenderer` |
 

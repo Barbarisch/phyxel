@@ -27,6 +27,7 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         w->id = j.value("id", "");
         w->text = j.value("text", "");
         w->isTitle = j.value("isTitle", false);
+        w->wrapWidth = j.value("wrapWidth", 0.0f);
         w->bind = j.value("bind", "");
         w->visibleWhen = j.value("visibleWhen", "");
         w->visible = j.value("visible", true);

@@ -178,7 +178,8 @@ public:
                 const UITheme& theme, glm::vec2 pos) override;
 
     std::string text;
-    bool isTitle = false;  // uses titleColor + titleScale if true
+    bool isTitle = false;     // uses titleColor + titleScale if true
+    float wrapWidth = 0.0f;   // >0 = word-wrap to this pixel width (multi-line)
 };
 
 // ════════════════════════════════════════════════════════════════

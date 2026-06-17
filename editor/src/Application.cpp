@@ -2773,7 +2773,10 @@ void Application::run() {
             }
         }
 
-        if (dialogueSystem) {
+        // Standard dialogue trees render via the UISystem HUD (hud_dialogue panel,
+        // data-bound — no ImGui). AI conversations still use the ImGui box (they need
+        // scrollable history + a text-input widget the UISystem doesn't have yet).
+        if (dialogueSystem && dialogueSystem->isAIConversation()) {
             imguiRenderer->renderDialogueBox(dialogueSystem.get());
         }
 
@@ -5199,6 +5202,32 @@ void Application::setupGameHud(const nlohmann::json& gameDef) {
                 r.texts["count"] = "";
             }
             r.floats["selected"] = (i == sel) ? 1.0f : 0.0f;
+            rows.push_back(std::move(r));
+        }
+        return rows;
+    });
+
+    // Dialogue box (standard dialogue trees). AI conversations stay on ImGui — they
+    // need scrollable history + a text-input widget the UISystem doesn't have yet.
+    hud.setFloat("dialogue.active", [this] {
+        return (dialogueSystem && dialogueSystem->isActive() && !dialogueSystem->isAIConversation()) ? 1.0f : 0.0f;
+    });
+    hud.setFloat("dialogue.waiting", [this] {
+        return (dialogueSystem && dialogueSystem->getState() == UI::DialogueState::WaitingForInput) ? 1.0f : 0.0f;
+    });
+    hud.setText("dialogue.speaker", [this] {
+        return dialogueSystem ? dialogueSystem->getCurrentSpeaker() : std::string();
+    });
+    hud.setText("dialogue.text", [this] {
+        return dialogueSystem ? dialogueSystem->getRevealedText() : std::string();
+    });
+    hud.setList("dialogue.choices", [this]() {
+        std::vector<UI::HudRecord> rows;
+        if (!dialogueSystem || dialogueSystem->getState() != UI::DialogueState::ChoiceSelection) return rows;
+        const auto& choices = dialogueSystem->getAvailableChoices();
+        for (size_t i = 0; i < choices.size(); ++i) {
+            UI::HudRecord r;
+            r.texts["label"] = "[" + std::to_string(i + 1) + "] " + choices[i].text;
             rows.push_back(std::move(r));
         }
         return rows;

@@ -141,14 +141,49 @@ void UIPanel::handleHover(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme
 // UILabel
 // ════════════════════════════════════════════════════════════════
 
+// Greedy word-wrap to a max pixel width (honors existing '\n'). Long words that
+// exceed the width are left on their own line (overflow) rather than split.
+static std::string wrapText(const BitmapFont* font, const std::string& text,
+                            float scale, float maxWidth) {
+    std::string out, line, word;
+    auto flushWord = [&]() {
+        if (word.empty()) return;
+        std::string trial = line.empty() ? word : line + " " + word;
+        if (!line.empty() && font->measureText(trial, scale) > maxWidth) {
+            out += line; out += '\n'; line = word;
+        } else {
+            line = trial;
+        }
+        word.clear();
+    };
+    for (char c : text) {
+        if (c == '\n') { flushWord(); out += line; out += '\n'; line.clear(); }
+        else if (c == ' ') { flushWord(); }
+        else word += c;
+    }
+    flushWord();
+    out += line;
+    return out;
+}
+
 void UILabel::render(UIRenderer* renderer, const BitmapFont* font,
                      const UITheme& theme, glm::vec2 pos) {
     if (!visible) return;
     float scale = isTitle ? theme.titleScale : theme.textScale;
     glm::vec4 color = enabled ? (isTitle ? theme.titleColor : theme.textColor) : theme.disabledColor;
-    font->drawText(renderer, text, pos, color, scale);
-    size.x = font->measureText(text, scale);
-    size.y = font->lineHeight(scale);
+
+    if (wrapWidth > 0.0f) {
+        std::string wrapped = wrapText(font, text, scale, wrapWidth);
+        font->drawText(renderer, wrapped, pos, color, scale);
+        int lines = 1;
+        for (char c : wrapped) if (c == '\n') ++lines;
+        size.x = wrapWidth;
+        size.y = font->lineHeight(scale) * static_cast<float>(lines);
+    } else {
+        font->drawText(renderer, text, pos, color, scale);
+        size.x = font->measureText(text, scale);
+        size.y = font->lineHeight(scale);
+    }
 }
 
 // ════════════════════════════════════════════════════════════════
