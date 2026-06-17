@@ -7,6 +7,7 @@
 #include <memory>
 #include <cstdint>
 #include <thread>
+#include <unordered_map>
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
@@ -104,15 +105,19 @@ public:
         glm::vec3 velocity{0.0f};  // world-space velocity of the obstacle this frame
     };
 
-    // Replaced every frame; voxels generate contacts against these and are deflected.
-    // velocity is used by the contact solver to produce speed-proportional push impulses.
-    void setKinematicObstacles(std::vector<KinematicObstacle> obstacles);
+    // Per-OWNER kinematic obstacles: each character registers its segment boxes under its own
+    // key (its `this`) and refreshes them every frame. The solver deflects dynamic bodies away
+    // from the UNION of all owners' boxes — so multiple characters all push furniture/debris,
+    // not just the last one to update. Owners must removeKinematicObstacles() on destruction.
+    void setKinematicObstacles(const void* owner, std::vector<KinematicObstacle> obstacles);
+    void removeKinematicObstacles(const void* owner);
 
 private:
     std::vector<std::unique_ptr<VoxelRigidBody>> m_bodies;
     std::vector<VoxelOccupancyGrid*>             m_grids;
     std::vector<ContactPoint>                    m_contacts;
-    std::vector<KinematicObstacle>               m_kinematicObstacles;
+    std::unordered_map<const void*, std::vector<KinematicObstacle>> m_obstaclesByOwner;
+    std::vector<KinematicObstacle>               m_kinematicObstacles;  // flattened scratch (rebuilt per step)
 
     glm::vec3 m_gravity{0.0f, -9.81f, 0.0f};
     float     m_fallThreshold = -20.0f;

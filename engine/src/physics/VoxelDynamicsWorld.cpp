@@ -240,6 +240,11 @@ void VoxelDynamicsWorld::generateContacts() {
     }
 
     // ---- Body vs kinematic obstacles (sequential — writes isAsleep) ----
+    // Flatten every owner's boxes into the scratch buffer so dynamic bodies are deflected by the
+    // UNION of all characters' segment boxes (not just the last one to call setKinematicObstacles).
+    m_kinematicObstacles.clear();
+    for (const auto& kv : m_obstaclesByOwner)
+        m_kinematicObstacles.insert(m_kinematicObstacles.end(), kv.second.begin(), kv.second.end());
     if (!m_kinematicObstacles.empty()) {
         for (auto& body : m_bodies) {
             if (body->isDead || body->invMass == 0.0f) continue;
@@ -432,8 +437,13 @@ bool VoxelDynamicsWorld::overlapsAnyBody(const glm::vec3& center, const glm::vec
     return false;
 }
 
-void VoxelDynamicsWorld::setKinematicObstacles(std::vector<KinematicObstacle> obstacles) {
-    m_kinematicObstacles = std::move(obstacles);
+void VoxelDynamicsWorld::setKinematicObstacles(const void* owner, std::vector<KinematicObstacle> obstacles) {
+    if (obstacles.empty()) m_obstaclesByOwner.erase(owner);
+    else                   m_obstaclesByOwner[owner] = std::move(obstacles);
+}
+
+void VoxelDynamicsWorld::removeKinematicObstacles(const void* owner) {
+    m_obstaclesByOwner.erase(owner);
 }
 
 void VoxelDynamicsWorld::cleanupDead() {

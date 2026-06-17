@@ -36,6 +36,9 @@ namespace Scene {
 
     AnimatedVoxelCharacter::~AnimatedVoxelCharacter() {
         clearSegmentBoxes();
+        // Drop our kinematic-obstacle slot so destroyed characters stop deflecting dynamic bodies.
+        if (auto* vw = physicsWorld ? physicsWorld->getVoxelWorld() : nullptr)
+            vw->removeKinematicObstacles(this);
         // Base class handles cleanup (skips useDirectTransform parts safely)
     }
     
@@ -4629,7 +4632,7 @@ namespace Scene {
                 ob.velocity    = m_kinVelocity;
                 obstacles.push_back(ob);
             }
-            vw->setKinematicObstacles(std::move(obstacles));
+            vw->setKinematicObstacles(this, std::move(obstacles));
         }
     }
 
