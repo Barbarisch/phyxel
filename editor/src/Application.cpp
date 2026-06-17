@@ -488,7 +488,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     m_combatAI.setCombatDirector(&m_combatDirector);
     m_combatAI.setParty(&m_rpgParty);
     m_combatAI.setEntityRegistry(entityRegistry.get());
-    m_combatAI.setBodyProvider([this](Scene::Entity* e) -> Core::ITurnActorBody* {
+    auto bodyProvider = [this](Scene::Entity* e) -> Core::ITurnActorBody* {
         Scene::AnimatedVoxelCharacter* ch = nullptr;
         if (auto* npc = dynamic_cast<Scene::NPCEntity*>(e)) ch = npc->getAnimatedCharacter();
         else ch = dynamic_cast<Scene::AnimatedVoxelCharacter*>(e);
@@ -496,7 +496,14 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         auto& slot = m_turnBodies[ch];
         if (!slot) slot = std::make_unique<Scene::CharacterTurnBody>(ch);
         return slot.get();
-    });
+    };
+    m_combatAI.setBodyProvider(bodyProvider);
+
+    // Player turn controller (S5) — drives the player's turn through the same
+    // TurnActor + body adapter as the enemy AI, but from player intents.
+    m_playerTurn.setCombatDirector(&m_combatDirector);
+    m_playerTurn.setEntityRegistry(entityRegistry.get());
+    m_playerTurn.setBodyProvider(bodyProvider);
     jobSystem = std::make_unique<Core::JobSystem>();
     int apiPort = (m_apiPortOverride > 0) ? m_apiPortOverride : engineConfig.apiPort;
     apiServer = std::make_unique<Core::EngineAPIServer>(apiCommandQueue.get(), apiPort, jobSystem.get());
@@ -1106,6 +1113,27 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             m_combatDirector.setMode(Core::combatModeFromString(mode));
             return json{{"ok", true}, {"mode", Core::combatModeToString(m_combatDirector.mode())}};
         }
+        // Player turn intents (S5). These run on the HTTP thread, so they only
+        // RECORD an intent; the game loop applies it to the PlayerTurnController.
+        if (action == "combat/player_move") {
+            std::lock_guard<std::mutex> lk(m_playerIntentMutex);
+            m_pendingPlayerIntent.kind  = PendingPlayerIntent::Kind::Move;
+            m_pendingPlayerIntent.point = glm::vec3(params.value("x", 0.0f),
+                                                    params.value("y", 0.0f),
+                                                    params.value("z", 0.0f));
+            return json{{"ok", true}};
+        }
+        if (action == "combat/player_attack") {
+            std::lock_guard<std::mutex> lk(m_playerIntentMutex);
+            m_pendingPlayerIntent.kind     = PendingPlayerIntent::Kind::Attack;
+            m_pendingPlayerIntent.targetId = params.value("target_id", "");
+            return json{{"ok", true}};
+        }
+        if (action == "combat/end_turn") {
+            std::lock_guard<std::mutex> lk(m_playerIntentMutex);
+            m_pendingPlayerIntent.kind = PendingPlayerIntent::Kind::EndTurn;
+            return json{{"ok", true}};
+        }
 
         // ---- World Calendar -----------------------------------------------
         if (action == "world/date") {
@@ -1631,6 +1659,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     if (npcManager) npcManager->setCombatSystem(combatSystem.get());
     // Turn-based enemy AI resolves its damage through the same system.
     m_combatAI.setCombatSystem(combatSystem.get());
+    m_playerTurn.setCombatSystem(combatSystem.get());
     // React to combat damage (hit reactions + death animation). Health itself
     // is mutated once, inside CombatSystem::applyDamage; the player character
     // now SHARES Application::playerHealth (see createAnimatedCharacter), so
@@ -2732,7 +2761,7 @@ void Application::run() {
         }
 
         // Render D&D Combat HUD (initiative order, HP bars, whose-turn indicator)
-        imguiRenderer->renderCombatHUD(&m_combatDirector.initiative(), &m_rpgParty, entityRegistry.get());
+        imguiRenderer->renderCombatHUD(&m_combatDirector.initiative(), &m_rpgParty, entityRegistry.get(), &m_playerTurn);
 
         // Render Death overlay
         if (respawnSystem.isPlayerDead()) {
@@ -3073,6 +3102,27 @@ void Application::update(float deltaTime) {
     // Drive enemy turns in D&D initiative combat
     m_combatAI.tick(deltaTime);
 
+    // Player turn (S5): keep the controlled player's id current, apply any
+    // pending intent from the HTTP combat/player_* handlers, then tick.
+    if (animatedCharacter && entityRegistry) {
+        m_playerTurn.setPlayerEntityId(entityRegistry->getEntityId(animatedCharacter));
+    }
+    {
+        PendingPlayerIntent intent;
+        {
+            std::lock_guard<std::mutex> lk(m_playerIntentMutex);
+            intent = m_pendingPlayerIntent;
+            m_pendingPlayerIntent.kind = PendingPlayerIntent::Kind::None;
+        }
+        switch (intent.kind) {
+            case PendingPlayerIntent::Kind::Move:    m_playerTurn.requestMove(intent.point); break;
+            case PendingPlayerIntent::Kind::Attack:  m_playerTurn.requestAttack(intent.targetId); break;
+            case PendingPlayerIntent::Kind::EndTurn: m_playerTurn.endTurn(); break;
+            case PendingPlayerIntent::Kind::None:    break;
+        }
+    }
+    m_playerTurn.tick(deltaTime);
+
     // Update interaction detection (use actual player position, not camera)
     if (interactionManager) {
         glm::vec3 playerPos(0);
@@ -3248,6 +3298,11 @@ void Application::update(float deltaTime) {
                     // control input (the editor poses it). Keep the direct follow.
                     // (camera-track position avoids a ~0.5m lurch at sit-clip
                     // boundaries where worldPosition snaps.)
+                    camera->updatePositionFromTarget(animatedCharacter->getCameraTrackPosition(), 0.5f);
+                } else if (m_playerTurn.isPlayerTurnActive()) {
+                    // Player's tactical turn (S5): the TurnActor owns the
+                    // character, so do NOT feed real-time movement/attack input.
+                    // Keep the camera following the character.
                     camera->updatePositionFromTarget(animatedCharacter->getCameraTrackPosition(), 0.5f);
                 } else {
                     // Shared gameplay controller: frames the camera and feeds the

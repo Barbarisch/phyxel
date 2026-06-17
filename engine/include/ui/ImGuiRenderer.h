@@ -24,7 +24,7 @@ namespace Phyxel {
     namespace Graphics { class LightManager; class ShadowMap; }
     namespace Vulkan { class VulkanDevice; class RenderPipeline; }
     class ScriptingSystem;
-    namespace Core { class InitiativeTracker; class Party; class EntityRegistry; }
+    namespace Core { class InitiativeTracker; class Party; class EntityRegistry; class PlayerTurnController; }
     namespace UI { class DialogueSystem; class SpeechBubbleManager; }
 }
 
@@ -112,9 +112,12 @@ public:
     /// @param tracker        The initiative tracker (may be nullptr).
     /// @param party          Party info for player/NPC labelling (may be nullptr).
     /// @param entityRegistry Used to look up HealthComponent per entity (may be nullptr).
+    /// @param playerTurn     Player turn controller; when its turn is active,
+    ///                       draws the action bar + End Turn button (may be nullptr).
     void renderCombatHUD(Core::InitiativeTracker* tracker,
                          Core::Party*             party,
-                         Core::EntityRegistry*    entityRegistry);
+                         Core::EntityRegistry*    entityRegistry,
+                         Core::PlayerTurnController* playerTurn = nullptr);
 
     /// Render the always-visible voxel size mode selector (Cube / Subcube / Microcube).
     /// @param activeMode      Currently selected TargetMode.

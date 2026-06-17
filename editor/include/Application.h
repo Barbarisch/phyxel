@@ -60,6 +60,7 @@
 #include "core/InitiativeTracker.h"
 #include "core/CombatDirector.h"
 #include "core/CombatAISystem.h"
+#include "core/PlayerTurnController.h"
 #include "core/WorldClock.h"
 #include "core/CampaignJournal.h"
 #include "core/NPCManager.h"
@@ -93,6 +94,7 @@
 #include "ProjectLauncher.h"
 #include <map>
 #include <unordered_map>
+#include <mutex>
 #include <memory>
 #include <string>
 #include <vector>
@@ -262,10 +264,22 @@ private:
     Core::Party             m_rpgParty;
     Core::CombatDirector    m_combatDirector;   // single source of truth: mode + initiative + lifecycle
     Core::CombatAISystem    m_combatAI;
+    Core::PlayerTurnController m_playerTurn;     // player's turn execution (S5)
     // Persistent TurnActor body adapters (one per character), handed to the
     // combat AI's body provider so enemy turns drive live characters (S4).
     std::unordered_map<Scene::AnimatedVoxelCharacter*,
                        std::unique_ptr<Scene::CharacterTurnBody>> m_turnBodies;
+
+    // Pending player turn intent, set by the HTTP combat/player_* handlers
+    // (HTTP thread) and drained on the game thread before m_playerTurn.tick.
+    struct PendingPlayerIntent {
+        enum class Kind { None, Move, Attack, EndTurn };
+        Kind        kind = Kind::None;
+        glm::vec3   point{0.0f};
+        std::string targetId;
+    };
+    std::mutex          m_playerIntentMutex;
+    PendingPlayerIntent m_pendingPlayerIntent;
     Core::WorldClock        m_rpgWorldClock;
     Core::CampaignJournal   m_rpgJournal;
 

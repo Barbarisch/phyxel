@@ -5,6 +5,7 @@
 #include "core/ForceSystem.h"
 #include "core/InitiativeTracker.h"
 #include "core/Party.h"
+#include "core/PlayerTurnController.h"
 #include "core/EntityRegistry.h"
 #include "core/HealthComponent.h"
 #include "scene/Entity.h"
@@ -1325,7 +1326,8 @@ void ImGuiRenderer::renderVoxelSizeHUD(TargetMode activeMode, float modeChangeTi
 void ImGuiRenderer::renderCombatHUD(
     Core::InitiativeTracker* tracker,
     Core::Party*             party,
-    Core::EntityRegistry*    entityRegistry)
+    Core::EntityRegistry*    entityRegistry,
+    Core::PlayerTurnController* playerTurn)
 {
     if (!tracker || !tracker->isCombatActive()) return;
 
@@ -1521,6 +1523,47 @@ void ImGuiRenderer::renderCombatHUD(
         ImGui::PushStyleColor(ImGuiCol_Text, textCol);
         ImGui::SetCursorPosX(16.0f);
         ImGui::Text("%s", turnMsg);
+        ImGui::PopStyleColor();
+        ImGui::End();
+        ImGui::PopStyleColor();
+    }
+
+    // -----------------------------------------------------------------------
+    // Player action bar (bottom-centre) — only on the player's turn (S5).
+    // Action / Bonus / Movement remaining + an End Turn button.
+    // -----------------------------------------------------------------------
+    if (playerTurn && playerTurn->isPlayerTurnActive()) {
+        const Core::ActionBudget* b = playerTurn->budget();
+        const float barW = 360.0f, barH = 64.0f;
+        ImGui::SetNextWindowPos(
+            ImVec2((displaySize.x - barW) * 0.5f, displaySize.y - 78.0f),
+            ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(barW, barH), ImGuiCond_Always);
+        ImGui::SetNextWindowBgAlpha(0.9f);
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.06f, 0.08f, 0.12f, 1.0f));
+        ImGui::Begin("##ActionBar", nullptr,
+            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_NoMove    | ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoNav);
+
+        auto pip = [](const char* label, bool available) {
+            ImVec4 col = available ? ImVec4(0.4f, 0.9f, 1.0f, 1.0f)
+                                   : ImVec4(0.4f, 0.4f, 0.45f, 1.0f);
+            ImGui::PushStyleColor(ImGuiCol_Text, col);
+            ImGui::Text("%s", label);
+            ImGui::PopStyleColor();
+            ImGui::SameLine();
+        };
+        if (b) {
+            pip(b->action      ? "[Action]"  : " Action ",  b->action);
+            pip(b->bonusAction ? "[Bonus]"   : " Bonus ",   b->bonusAction);
+            ImGui::Text("Move: %.1f", playerTurn->movementRemainingUnits());
+            ImGui::SameLine();
+        }
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.12f, 0.12f, 1.0f));
+        if (ImGui::Button("End Turn", ImVec2(90, 0))) {
+            playerTurn->endTurn();
+        }
         ImGui::PopStyleColor();
         ImGui::End();
         ImGui::PopStyleColor();
