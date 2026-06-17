@@ -72,6 +72,15 @@ void UIPanel::render(UIRenderer* renderer, const BitmapFont* font,
         renderer->drawRect(pos + glm::vec2(bw), size - glm::vec2(bw * 2), theme.panelBg);
     }
 
+    if (freeLayout) {
+        for (auto& child : children) {
+            if (!child->visible) continue;
+            child->render(renderer, font, theme, pos + child->position);
+        }
+        cachedFont_ = font;
+        return;
+    }
+
     float yOffset = theme.padding;
 
     if (!title.empty()) {
@@ -96,6 +105,14 @@ bool UIPanel::handleClick(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme
     if (!visible || !enabled) return false;
     if (!hitTest(mousePos, widgetPos, size)) return false;
 
+    if (freeLayout) {
+        for (auto& child : children) {
+            if (!child->visible) continue;
+            if (child->handleClick(mousePos, widgetPos + child->position, theme)) return true;
+        }
+        return true;
+    }
+
     float yOffset = panelContentStartY(title, cachedFont_, theme);
 
     for (auto& child : children) {
@@ -111,6 +128,14 @@ bool UIPanel::handleClick(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme
 bool UIPanel::handleDrag(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) {
     if (!visible || !enabled) return false;
 
+    if (freeLayout) {
+        for (auto& child : children) {
+            if (!child->visible) continue;
+            if (child->handleDrag(mousePos, widgetPos + child->position, theme)) return true;
+        }
+        return false;
+    }
+
     float yOffset = panelContentStartY(title, cachedFont_, theme);
 
     for (auto& child : children) {
@@ -125,6 +150,14 @@ bool UIPanel::handleDrag(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme&
 
 void UIPanel::handleHover(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) {
     if (!visible) return;
+
+    if (freeLayout) {
+        for (auto& child : children) {
+            if (!child->visible) continue;
+            child->handleHover(mousePos, widgetPos + child->position, theme);
+        }
+        return;
+    }
 
     float yOffset = panelContentStartY(title, cachedFont_, theme);
 

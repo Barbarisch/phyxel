@@ -72,5 +72,24 @@ class HudDataContext;  // forward decl
 /// Lives here (not in HudDataContext) because repeater expansion needs JSON building.
 void applyHudBindings(UIWidget* root, const HudDataContext& ctx);
 
+class UISystem;  // forward decl
+
+/// Host actions a menu button can invoke (wired by the loader).
+struct MenuActions {
+    std::function<void(const std::string& sceneId)> onTransitionScene;
+    std::function<void()> onQuit;
+    std::function<void()> onLoadGame;
+};
+
+/// Convert a GameMenuRenderer-style menu layout (position-based 1280x720 canvas,
+/// panels/submenus, solid/image background, label/button/image elements, button
+/// actions) into UISystem fullscreen screens named "menu:<panelKey>", and show the
+/// start panel. Replaces the ImGui GameMenuRenderer for menu scenes (no ImGui).
+/// Not yet ported: per-element animations, fonts, {{token}} interpolation.
+void loadMenuInto(UISystem& ui, const nlohmann::json& layout, const MenuActions& actions);
+
+/// Remove all "menu:*" screens previously added by loadMenuInto.
+void unloadMenuFrom(UISystem& ui);
+
 } // namespace UI
 } // namespace Phyxel

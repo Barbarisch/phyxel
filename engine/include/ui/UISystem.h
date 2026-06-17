@@ -89,6 +89,8 @@ public:
 
     UIRenderer* getRenderer() { return &renderer_; }
     const BitmapFont* getFont() const { return &font_; }
+    uint32_t width() const { return screenWidth_; }
+    uint32_t height() const { return screenHeight_; }
     UITheme& getTheme() { return theme_; }
     const UITheme& getTheme() const { return theme_; }
 

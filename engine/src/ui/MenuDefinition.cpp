@@ -1,7 +1,9 @@
 #include "ui/MenuDefinition.h"
 #include "ui/HudDataContext.h"
+#include "ui/UISystem.h"
 #include <stdexcept>
 #include <cstdio>
+#include <vector>
 
 namespace Phyxel {
 namespace UI {
@@ -35,6 +37,9 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
             w->size = {j["size"][0].get<float>(), j["size"][1].get<float>()};
         }
+        if (j.contains("position") && j["position"].is_array() && j["position"].size() >= 2) {
+            w->position = {j["position"][0].get<float>(), j["position"][1].get<float>()};
+        }
         return w;
     }
 
@@ -47,6 +52,9 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         w->enabled = j.value("enabled", true);
         if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
             w->size = {j["size"][0].get<float>(), j["size"][1].get<float>()};
+        }
+        if (j.contains("position") && j["position"].is_array() && j["position"].size() >= 2) {
+            w->position = {j["position"][0].get<float>(), j["position"][1].get<float>()};
         }
         return w;
     }
@@ -64,6 +72,9 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
             w->size = {j["size"][0].get<float>(), j["size"][1].get<float>()};
         }
+        if (j.contains("position") && j["position"].is_array() && j["position"].size() >= 2) {
+            w->position = {j["position"][0].get<float>(), j["position"][1].get<float>()};
+        }
         return w;
     }
 
@@ -76,6 +87,9 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         w->enabled = j.value("enabled", true);
         if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
             w->size = {j["size"][0].get<float>(), j["size"][1].get<float>()};
+        }
+        if (j.contains("position") && j["position"].is_array() && j["position"].size() >= 2) {
+            w->position = {j["position"][0].get<float>(), j["position"][1].get<float>()};
         }
         return w;
     }
@@ -95,6 +109,9 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
             w->size = {j["size"][0].get<float>(), j["size"][1].get<float>()};
         }
+        if (j.contains("position") && j["position"].is_array() && j["position"].size() >= 2) {
+            w->position = {j["position"][0].get<float>(), j["position"][1].get<float>()};
+        }
         return w;
     }
 
@@ -108,6 +125,9 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         w->enabled = j.value("enabled", true);
         if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
             w->size = {j["size"][0].get<float>(), j["size"][1].get<float>()};
+        }
+        if (j.contains("position") && j["position"].is_array() && j["position"].size() >= 2) {
+            w->position = {j["position"][0].get<float>(), j["position"][1].get<float>()};
         }
         if (j.contains("tint") && j["tint"].is_array() && j["tint"].size() >= 4) {
             auto& t = j["tint"];
@@ -141,6 +161,9 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
             w->size = {j["size"][0].get<float>(), j["size"][1].get<float>()};
         }
+        if (j.contains("position") && j["position"].is_array() && j["position"].size() >= 2) {
+            w->position = {j["position"][0].get<float>(), j["position"][1].get<float>()};
+        }
         return w;
     }
 
@@ -155,6 +178,9 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
             w->size = {j["size"][0].get<float>(), j["size"][1].get<float>()};
         }
+        if (j.contains("position") && j["position"].is_array() && j["position"].size() >= 2) {
+            w->position = {j["position"][0].get<float>(), j["position"][1].get<float>()};
+        }
         return w;
     }
 
@@ -163,11 +189,15 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         w->id = j.value("id", "");
         w->title = j.value("title", "");
         w->showBackground = j.value("showBackground", true);
+        w->freeLayout = j.value("freeLayout", false);
         w->visibleWhen = j.value("visibleWhen", "");
         w->visible = j.value("visible", true);
         w->enabled = j.value("enabled", true);
         if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
             w->size = {j["size"][0].get<float>(), j["size"][1].get<float>()};
+        }
+        if (j.contains("position") && j["position"].is_array() && j["position"].size() >= 2) {
+            w->position = {j["position"][0].get<float>(), j["position"][1].get<float>()};
         }
         if (j.contains("anchor")) w->anchor = parseAnchor(j["anchor"].get<std::string>());
         if (j.contains("children") && j["children"].is_array()) {
@@ -192,6 +222,7 @@ std::unique_ptr<UIPanel> MenuDefinition::buildFromJson(const nlohmann::json& j) 
     panel->id = j.value("id", "");
     panel->title = j.value("title", "");
     panel->showBackground = j.value("showBackground", true);
+    panel->freeLayout = j.value("freeLayout", false);
     panel->visibleWhen = j.value("visibleWhen", "");
     panel->visible = j.value("visible", true);
     panel->enabled = j.value("enabled", true);
@@ -461,6 +492,123 @@ void applyHudBindings(UIWidget* root, const HudDataContext& ctx) {
     if (root->type() == WidgetType::Panel) {
         for (auto& c : static_cast<UIPanel*>(root)->children) applyHudBindings(c.get(), ctx);
     }
+}
+
+// ════════════════════════════════════════════════════════════════
+// Menu loader (GameMenuRenderer schema -> UISystem screens, no ImGui)
+// ════════════════════════════════════════════════════════════════
+
+static glm::vec4 parseColorArr(const nlohmann::json& j, glm::vec4 def) {
+    if (j.is_array() && j.size() >= 4)
+        return {j[0].get<float>(), j[1].get<float>(), j[2].get<float>(), j[3].get<float>()};
+    return def;
+}
+
+// Show only one "menu:*" screen (submenu navigation).
+static void menuShowOnly(UISystem& ui, const std::string& screen) {
+    for (const auto& [name, vis] : ui.getScreenList()) {
+        if (name.rfind("menu:", 0) != 0) continue;
+        if (name == screen) ui.showScreen(name); else ui.hideScreen(name);
+    }
+}
+
+void unloadMenuFrom(UISystem& ui) {
+    for (const auto& [name, vis] : ui.getScreenList()) {
+        if (name.rfind("menu:", 0) == 0) ui.removeScreen(name);
+    }
+    // Restore the game HUD screens that were hidden while the menu was up.
+    for (const auto& [name, vis] : ui.getScreenList()) ui.showScreen(name);
+}
+
+static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, float sx, float sy,
+        const MenuActions& actions, UISystem& ui, const std::string& startPanel) {
+    std::string type = el.value("type", "");
+    glm::vec2 posv{0, 0}, sizev{100, 40};
+    if (el.contains("position") && el["position"].is_array() && el["position"].size() >= 2)
+        posv = {el["position"][0].get<float>() * sx, el["position"][1].get<float>() * sy};
+    if (el.contains("size") && el["size"].is_array() && el["size"].size() >= 2)
+        sizev = {el["size"][0].get<float>() * sx, el["size"][1].get<float>() * sy};
+
+    if (type == "label") {
+        auto w = std::make_unique<UILabel>();
+        w->text = el.value("text", "");
+        w->isTitle = (el.value("font", "") == "title");
+        w->position = posv; w->size = sizev;
+        return w;
+    }
+    if (type == "image") {
+        auto w = std::make_unique<UIImage>();
+        w->imagePath = el.value("image", el.value("imagePath", ""));
+        w->position = posv; w->size = sizev;
+        return w;
+    }
+    if (type == "button") {
+        auto w = std::make_unique<UIButton>();
+        w->text = el.value("text", "");
+        w->position = posv; w->size = sizev;
+        if (el.contains("action") && el["action"].is_object()) {
+            const auto& a = el["action"];
+            std::string at = a.value("type", "");
+            std::string target = a.value("target", "");
+            UISystem* uip = &ui;
+            if (at == "transition_scene") { auto cb = actions.onTransitionScene; w->onClick = [cb, target] { if (cb) cb(target); }; }
+            else if (at == "quit_game")    { auto cb = actions.onQuit;     w->onClick = [cb] { if (cb) cb(); }; }
+            else if (at == "load_game")    { auto cb = actions.onLoadGame; w->onClick = [cb] { if (cb) cb(); }; }
+            else if (at == "open_submenu") { w->onClick = [uip, target]    { menuShowOnly(*uip, "menu:" + target); }; }
+            else if (at == "close_submenu"){ w->onClick = [uip, startPanel]{ menuShowOnly(*uip, "menu:" + startPanel); }; }
+        }
+        return w;
+    }
+    return nullptr;
+}
+
+void loadMenuInto(UISystem& ui, const nlohmann::json& layout, const MenuActions& actions) {
+    unloadMenuFrom(ui);
+    if (!layout.is_object() || !layout.contains("panels") || !layout["panels"].is_object()) return;
+
+    const float W = static_cast<float>(ui.width());
+    const float H = static_cast<float>(ui.height());
+    const float sx = W / 1280.0f, sy = H / 720.0f;  // virtual canvas -> window
+    std::string bgType = layout.value("background_type", "solid");
+    glm::vec4 bgColor = parseColorArr(layout.contains("background_color") ? layout["background_color"] : nlohmann::json(),
+                                      {0.05f, 0.05f, 0.10f, 1.0f});
+    std::string bgImage = layout.value("background_image", "");
+    std::string startPanel = layout.value("start_panel", "main");
+
+    const auto& panels = layout["panels"];
+    std::vector<std::string> keys;
+    for (auto it = panels.begin(); it != panels.end(); ++it) {
+        keys.push_back(it.key());
+        const auto& pdef = it.value();
+
+        auto root = std::make_unique<UIPanel>();
+        root->anchor = Anchor::TopLeft;
+        root->offset = {0, 0};
+        root->size = {W, H};
+        root->showBackground = false;
+        root->freeLayout = true;
+
+        // Fullscreen background (solid color, or image when provided).
+        auto bg = std::make_unique<UIImage>();
+        bg->position = {0, 0};
+        bg->size = {W, H};
+        if (bgType == "image" && !bgImage.empty()) { bg->imagePath = bgImage; bg->tintColor = {1, 1, 1, 1}; }
+        else { bg->tintColor = bgColor; }  // no path -> drawn as a solid rect
+        root->addChild(std::move(bg));
+
+        if (pdef.contains("children") && pdef["children"].is_array()) {
+            for (const auto& el : pdef["children"]) {
+                if (auto w = buildMenuElement(el, sx, sy, actions, ui, startPanel)) root->addChild(std::move(w));
+            }
+        }
+        ui.addScreen("menu:" + it.key(), std::move(root));
+    }
+
+    // Hide the game HUD while a menu is shown; show only the start panel.
+    for (const auto& [name, vis] : ui.getScreenList())
+        if (name.rfind("menu:", 0) != 0) ui.hideScreen(name);
+    for (const auto& k : keys) ui.hideScreen("menu:" + k);
+    ui.showScreen("menu:" + startPanel);
 }
 
 } // namespace UI

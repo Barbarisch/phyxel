@@ -925,6 +925,27 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/ui/load_menu — load a menu layout (GameMenuRenderer schema) into the
+    // UISystem directly (test hook, bypasses scene transitions). Body: { "layout": {...} }
+    // POST /api/ui/unload_menu — remove menu screens.
+    // ====================================================================
+    srv.Post("/api/ui/load_menu", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("ui_load_menu", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+    srv.Post("/api/ui/unload_menu", [this](const httplib::Request& req, httplib::Response& res) {
+        json result = queueAndWait("ui_unload_menu", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
     // POST /api/asset-editor/ref-character — Show/hide humanoid reference character
     // Body: { "visible": bool }  — omit to toggle current state
     // Returns: { "success": true, "visible": bool }

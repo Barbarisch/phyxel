@@ -122,6 +122,7 @@ public:
     // Common properties
     std::string id;
     glm::vec2 size = {200, 40};
+    glm::vec2 position = {0, 0};  // absolute offset within a free-layout parent
     bool visible = true;
     bool enabled = true;
     bool hovered = false;
@@ -160,6 +161,9 @@ public:
     Anchor anchor = Anchor::Center;
     glm::vec2 offset = {0, 0};
     bool showBackground = true;
+    /// When true, children are placed at their absolute `position` (relative to the
+    /// panel) instead of auto-stacked vertically. Used for menus/free-form layouts.
+    bool freeLayout = false;
 
     std::vector<std::unique_ptr<UIWidget>> children;
 

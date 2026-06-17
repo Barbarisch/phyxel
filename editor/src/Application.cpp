@@ -2071,9 +2071,17 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
                 }
                 m_showMenuEditor = true;
 
-                // Load the layout into the game menu renderer for live preview
-                if (m_gameMenuRenderer && !scene.menuLayout.is_null()) {
-                    m_gameMenuRenderer->load(scene.menuLayout, vulkanDevice);
+                // Live preview via the UISystem (custom-Vulkan, no ImGui). Menu
+                // button actions drive scene transitions / quit.
+                auto* ui = renderCoordinator ? renderCoordinator->getUISystem() : nullptr;
+                if (ui && !scene.menuLayout.is_null()) {
+                    UI::MenuActions acts;
+                    acts.onTransitionScene = [this](const std::string& sceneId) {
+                        if (runtime && runtime->getSceneManager())
+                            runtime->getSceneManager()->transitionTo(sceneId);
+                    };
+                    acts.onQuit = [this] { quit(); };
+                    UI::loadMenuInto(*ui, scene.menuLayout, acts);
                     m_showGameMenuPreview = true;
                 }
             };
@@ -2091,7 +2099,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
                 }
                 m_showMenuEditor = false;
                 m_showGameMenuPreview = false;
-                if (m_gameMenuRenderer) m_gameMenuRenderer->unload();
+                if (auto* ui = renderCoordinator ? renderCoordinator->getUISystem() : nullptr)
+                    UI::unloadMenuFrom(*ui);
             };
 
             // Unload cleanup. The SceneManager only INVOKES these callbacks — if the
@@ -2757,21 +2766,8 @@ void Application::run() {
             m_menuEditorPanel->render(&m_showMenuEditor);
         }
 
-        // Render live game menu preview (full-screen overlay under editor panels)
-        if (m_gameMenuRenderer && m_showGameMenuPreview && m_gameMenuRenderer->hasLayout()) {
-            static bool s_loggedMenuPreview = false;
-            if (!s_loggedMenuPreview) {
-                LOG_INFO("Application", "Game menu preview: rendering layout");
-                s_loggedMenuPreview = true;
-            }
-            m_gameMenuRenderer->render(deltaTime);
-        } else if (m_showGameMenuPreview) {
-            static bool s_warnedMenuPreview = false;
-            if (!s_warnedMenuPreview) {
-                LOG_WARN("Application", "Game menu preview requested but renderer has no layout");
-                s_warnedMenuPreview = true;
-            }
-        }
+        // Menu scenes now render via the UISystem ("menu:*" screens loaded by
+        // UI::loadMenuInto on onMenuSceneLoaded) — drawn in the scene pass, no ImGui.
 
         // Standard dialogue trees render via the UISystem HUD (hud_dialogue panel,
         // data-bound — no ImGui). AI conversations still use the ImGui box (they need
@@ -7646,6 +7642,28 @@ bool Application::dispatchItemAPICommand(const Core::APICommand& cmd, nlohmann::
         float y = cmd.params.value("y", 0.0f);
         bool consumed = ui->injectClick(glm::vec2(x, y));
         response = {{"success", true}, {"consumed", consumed}, {"x", x}, {"y", y}};
+        return true;
+    }
+
+    // UI/menu test hooks: load/unload a GameMenuRenderer-schema menu layout directly
+    // into the UISystem (bypasses scene transitions — for verifying menu rendering).
+    if (cmd.action == "ui_load_menu") {
+        auto* ui = renderCoordinator ? renderCoordinator->getUISystem() : nullptr;
+        if (!ui) { response = {{"error", "UISystem not available"}}; return true; }
+        if (!cmd.params.contains("layout")) { response = {{"error", "layout required"}}; return true; }
+        UI::MenuActions acts;
+        acts.onTransitionScene = [this](const std::string& s) {
+            if (runtime && runtime->getSceneManager()) runtime->getSceneManager()->transitionTo(s);
+        };
+        acts.onQuit = [this] { quit(); };
+        UI::loadMenuInto(*ui, cmd.params["layout"], acts);
+        response = {{"success", true}};
+        return true;
+    }
+    if (cmd.action == "ui_unload_menu") {
+        if (auto* ui = renderCoordinator ? renderCoordinator->getUISystem() : nullptr)
+            UI::unloadMenuFrom(*ui);
+        response = {{"success", true}};
         return true;
     }
 
