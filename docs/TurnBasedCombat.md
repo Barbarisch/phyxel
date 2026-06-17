@@ -1,8 +1,9 @@
 # Turn-Based Combat — Design (BG3-feel)
 
-> Status: **S1–S4 done + committed (S4 verified live); S5 next.** Goal: a turn-based combat
-> mode that looks and feels like Baldur's Gate 3, built on the existing headless D&D mechanics
-> and the real-time character FSM. The engine supports **both** real-time and turn-based combat.
+> Status: **S1–S5 done + committed; a full turn-based fight is playable & verified live.**
+> Goal: a turn-based combat mode that looks and feels like Baldur's Gate 3, built on the
+> existing headless D&D mechanics and the real-time character FSM. The engine supports **both**
+> real-time and turn-based combat.
 >
 > Progress (branch `feature/turn-based-combat`):
 > - **S1 CombatDirector** — done (`ee71aa7`), 10 unit tests.
@@ -13,6 +14,14 @@
 > - **S4 enemy turn AI** — done (`2625a0f`), **verified live**: enemy walks in (movement
 >   debited), d20-vs-AC attacks, damage via the funnel (no double-dip), turns advance with the
 >   COMBAT HUD. Adds `CharacterTurnBody` adapter + `combat/set_mode` dev endpoint.
+> - **S5 player tactical control** — done (`1725420`), 6 tests, **verified live**: a full round
+>   cycles (player action bar → attack via intent → End Turn → enemy AI turn → back to player,
+>   both HP tracked). `PlayerTurnController` + `combat/player_move|player_attack|end_turn` HTTP
+>   + action-bar UI + real-time-control suppression. Player intents are HTTP/test-driven for now;
+>   click-to-move / click-target picking is S6.
+>
+> **Integration milestone reached:** the S1–S5 loop is a playable turn-based fight (player +
+> enemy taking real animated turns). Remaining subsystems (S6+) are presentation/depth.
 >
 > **Follow-ups found:** (a) the player-factory `createAnimatedCharacter` binds the shared
 > `playerHealth` to EVERY animated character — fine for the single player, but non-player
@@ -100,11 +109,13 @@ walk/attack animation, budget-gated movement, D&D d20-vs-AC to-hit, damage throu
 funnel. Gated to turn-based mode via `CombatDirector`. (Remaining: richer tactical scoring —
 weakest/most-dangerous target, multi-attack, AoE when clustered, death/flee handling.)
 
-### S5 — Player turn controller (core BG3 input feel)
-On the player's turn: click-to-move within range (walk via FSM, debit movement),
-click-target attack (resolve via `AttackResolver`), ability/spell selection, and an action
-bar (Action / Bonus / Movement / **End Turn**). Suppresses the real-time souls controls
-during the player's turn.
+### S5 — Player turn controller (core BG3 input feel)  ✅ done + verified live
+`PlayerTurnController` binds a `TurnActor` to the player on their turn and executes
+move/attack/end-turn intents (movement debits the budget; attacks spend the action and
+resolve d20-vs-AC through the S2 funnel). Action bar (Action / Bonus / Movement / **End
+Turn**) in `renderCombatHUD`; real-time WASD/LMB suppressed during the player's turn. Intents
+are HTTP/test-driven (`combat/player_move|player_attack|end_turn`). **Remaining for S6:**
+click-to-move + click-target picking (raycast), ability/spell selection.
 
 ### S6 — Targeting & resolution preview
 Hit-chance % (AttackResolver math without rolling), advantage/disadvantage state, movement

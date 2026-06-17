@@ -588,6 +588,58 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
         the `get_animation_state` `progress` reads 0.0 for end-frozen Death (cosmetic); a
         bigger/bounded test arena is needed (small DebrisPushTest platform → fall-offs; use a
         generated **Flat** world for combat testing).
+- **Turn-based combat system — BG3-style (2026-06-17): S1–S5 DONE + committed, a full fight
+  is playable & verified live. Branch `feature/turn-based-combat` (NOT pushed). Design +
+  per-subsystem status: `docs/TurnBasedCombat.md`.** Goal: support BOTH real-time (the souls
+  slice) AND turn-based, mode locked **per-game** via `game.json combat.mode`
+  ("turn_based"|"real_time", default real_time). Systems-first build; the headless D&D
+  mechanics (`InitiativeTracker`/`ActionEconomy`/`AttackResolver`/`ConditionSystem`/…) already
+  existed and were the foundation. Subsystems:
+  - **S1 `Core::CombatDirector`** (`ee71aa7`) — single source of truth: mode + in-combat +
+    whose-turn + sides + encounter lifecycle. Owns the `InitiativeTracker`; the HUD + AI read it
+    through the director (replaced the loose `m_rpgInitiative`). Headless, 10 unit tests.
+  - **S2 damage unification** (`e1d36f5`) — `CombatSystem::applyDamage(target,id,amount,src,type,
+    knockback,hitBone)` is now the ONE place health is mutated + events/death dispatched;
+    `performAttack` + the scripted `damage_entity` route through it. **Fixed the dual
+    player-health stores:** `RagdollCharacter::setHealthComponent(external)` lets the player
+    character SHARE `Application::playerHealth` (bound in the `createAnimatedCharacter` player
+    factory); the combat onDamage bridge no longer double-decrements. +7 tests.
+  - **S3 `Core::TurnActor` + `ITurnActorBody`** (`f0e9135`) — headless turn-execution bridge:
+    translates move/attack intents into body commands gated by `ActionBudget`, owns the single
+    **feet↔world-unit constant `0.3048`** (world units ≈ metres; 30 ft ≈ 9.1 u, 5 ft ≈ 1.52 u)
+    and the turn-advance-vs-animation handshake (busy until the swing starts AND finishes, with a
+    timeout). 14 tests.
+  - **S4 enemy turn AI** (`2625a0f`) — `CombatAISystem` reworked from a one-shot instant action
+    into a per-turn phase machine (Thinking→Moving→Attacking→Done) that drives the enemy through
+    `TurnActor` + the **`Scene::CharacterTurnBody`** adapter (AnimatedVoxelCharacter→ITurnActorBody)
+    over multiple frames: real walk/attack animation, budget-gated, **D&D d20-vs-AC** to-hit,
+    damage via the S2 funnel. Gated to turn-based mode via the director. Verified live.
+  - **S5 player tactical control** (`1725420`) — `Core::PlayerTurnController` (player-side mirror
+    of the AI): binds a TurnActor to the player on their turn; move/attack/end-turn intents;
+    attacks resolve d20-vs-AC via the funnel. Action bar (Action/Bonus/Move/**End Turn**) in
+    `renderCombatHUD`; real-time WASD/LMB suppressed during the player turn (camera still follows).
+    Intents are HTTP-driven (`combat/player_move|player_attack|end_turn`). 6 tests. Verified live.
+  - **TESTING RECIPE (live turn-based):** launch directly (NOT MCP launch_engine — it deadlocks)
+    with a project that has ground (`DebrisPushTest`); `POST /api/rpg/combat/set_mode {mode:
+    turn_based}`; spawn an enemy with **`spawn_npc`** (NPCEntity, own health — `spawn_entity`
+    "animated" HIJACKS `animatedCharacter` via the player-factory AND shares playerHealth, so
+    use it only for the player); **NB the NPC's registry id is `npc_<name>` not `<name>`** (the
+    initiative HP bar reads `0/1` if you use the wrong id); `combat/start` with `participants
+    [{entity_id,player_side,initiative_bonus,speed}]`; `combat/set_initiative` to force order;
+    drive the player turn via `combat/player_attack {target_id}` etc.; the enemy turn runs
+    automatically (think delay 0.6 s). Combat HTTP lives under the **rpg handler** →
+    `POST /api/rpg/combat/<action>`.
+  - **KNOWN FOLLOW-UPS:** (a) `createAnimatedCharacter` is the PLAYER factory — it binds the
+    shared `playerHealth` AND wires a "player" onHitFrame to EVERY animated char it makes; the
+    debug `spawnTestAINPC` reuse reverts the health, but non-player animated characters generally
+    shouldn't inherit either (real enemies = NPCEntity, which is fine). (b) `CombatBehavior`'s
+    real-time onHitFrame is not mode-gated (only the player's is) — fine while CombatBehavior
+    isn't ticked in turn-based, gate it if they coexist. (c) NEXT = **S6** click-to-move +
+    click-target raycast picking + hit-chance/AoE preview; **S7** BG3-hybrid combat camera;
+    **S8** HUD polish (portraits, dice/damage floaters, ground range/path highlight); then
+    reactions/OAs (S9), conditions UI (S10), encounter authoring (S11), voxel-native depth (S12).
+  - **Pseudo-AC stopgap:** generic entities have no CharacterSheet, so both sides currently
+    derive AC = `8 + floor(HP%·6)`. Replace with real sheets/monster stats later.
 - **Items system P1 (2026-06-11): DONE + verified live end-to-end.** "Items" = holdable
   things (weapons, torches, cups) with a three-state lifecycle: WORLD PROP ⇄ INVENTORY ⇄ HELD.
   - **Data:** `ItemDefinition` gains `holdable` + `held{gripBone, gripOffset, gripEulerDeg,
@@ -658,8 +710,15 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ---
 
-*Last meaningful update: **performance program kickoff (2026-06-15)** — see "Render perf"
-workstream. Shipped + verified (NOT yet committed): character-update opts (cached
+*Last meaningful update: **turn-based combat S1–S5 (2026-06-17)** — see the "Turn-based combat
+system" workstream above + `docs/TurnBasedCombat.md`. A full BG3-style turn-based fight is
+playable & verified live (player + enemy taking real animated d20-vs-AC turns) on branch
+`feature/turn-based-combat` (NOT pushed). Single source of truth = `CombatDirector`; damage
+unified through `CombatSystem::applyDamage` (dual player-health bug fixed); `TurnActor` bridges
+turns to the live FSM; `CombatAISystem` (enemy) + `PlayerTurnController` (player) drive turns.
+NEXT = S6 click/target raycast picking + previews. Earlier: **performance program kickoff
+(2026-06-15)** — see "Render perf" workstream. Shipped + verified (NOT yet committed):
+character-update opts (cached
 bone→parts grouping, binary-search keyframes, persistent instance-buffer map, removed
 debug bone-dump) + per-character animation LOD with crowd jitter, wired into both editor and
 `GameShell`; and **SSAO disabled by default** (was ~3.3 ms GPU for an unused result —
