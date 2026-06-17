@@ -183,9 +183,12 @@ of named providers the host wires once; widgets reference them by binding key.
 switches the fragment shader between R8 alpha-mask (text/rects) and RGBA×tint (images). Repeater
 items can bind an image path per record (`item.icon`). `UIRepeater.horizontal` lays items in a row.
 
-Note: these are currently authored per-game in `game.json` (demo set in
-`PhyxelProjects/DebrisPushTest/game.json`). A **shipped default HUD** auto-injected by the engine
-(so games get it without authoring) is a follow-up.
+✅ **Shipped default HUD — DONE.** The engine ships `resources/ui/default_hud.json` (all the modules
+above); `Application::setupGameHud` loads it whenever a game's `game.json` has no `"hud"` key, so a
+game gets the full HUD **with zero authoring**. A game's own `"hud"` (object or array) overrides it.
+Verified live: DebrisPushTest with no `hud` block shows HP + hotbar (combat/objectives panels
+hidden until relevant). Follow-up: per-module merge/override (vs all-or-nothing), and bundling
+`resources/ui/` + the font into packaged games.
 
 Dialogue stays in `DialogueSystem` for now (its own system); fold under the HUD later.
 

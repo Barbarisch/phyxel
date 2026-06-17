@@ -1,0 +1,124 @@
+[
+  {
+    "id": "hud_health",
+    "anchor": "BottomLeft",
+    "offset": [24, -24],
+    "size": [340, 60],
+    "showBackground": false,
+    "children": [
+      {
+        "type": "progressbar",
+        "id": "health_bar",
+        "label": "HP",
+        "bind": "player.health",
+        "min": 0,
+        "max": 100,
+        "value": 100,
+        "size": [320, 36],
+        "fillColor": [0.80, 0.20, 0.22, 1.0],
+        "trackColor": [0.10, 0.10, 0.12, 0.85],
+        "borderColor": [0.85, 0.72, 0.45, 1.0]
+      }
+    ]
+  },
+  {
+    "id": "hud_hotbar",
+    "anchor": "BottomCenter",
+    "offset": [0, -12],
+    "size": [624, 88],
+    "showBackground": false,
+    "visibleWhen": "hotbar.any",
+    "children": [
+      {
+        "type": "repeater",
+        "id": "hotbar_list",
+        "bind": "hotbar",
+        "horizontal": true,
+        "itemSpacing": 6,
+        "size": [624, 84],
+        "item": {
+          "type": "panel",
+          "showBackground": true,
+          "size": [62, 80],
+          "children": [
+            { "type": "image", "id": "slot_icon", "bind": "item.icon", "image": "", "size": [46, 46] },
+            { "type": "label", "id": "slot_count", "bind": "item.count", "text": "", "size": [46, 16] }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "hud_objectives",
+    "anchor": "TopLeft",
+    "offset": [16, 16],
+    "size": [340, 220],
+    "showBackground": true,
+    "visibleWhen": "objectives.any",
+    "children": [
+      { "type": "label", "id": "obj_title", "text": "Objectives", "isTitle": true, "size": [320, 28] },
+      {
+        "type": "repeater",
+        "id": "obj_list",
+        "bind": "objectives",
+        "itemSpacing": 4,
+        "size": [320, 180],
+        "item": { "type": "label", "bind": "item.label", "text": "", "size": [320, 22] }
+      }
+    ]
+  },
+  {
+    "id": "hud_combat_banner",
+    "anchor": "TopCenter",
+    "offset": [0, 12],
+    "size": [380, 48],
+    "showBackground": true,
+    "visibleWhen": "combat.inCombat",
+    "children": [
+      { "type": "label", "id": "combat_round", "bind": "combat.roundText", "text": "COMBAT", "isTitle": true, "size": [360, 30] }
+    ]
+  },
+  {
+    "id": "hud_combat_order",
+    "anchor": "CenterRight",
+    "offset": [-16, 0],
+    "size": [280, 320],
+    "showBackground": true,
+    "visibleWhen": "combat.inCombat",
+    "children": [
+      { "type": "label", "id": "order_title", "text": "Initiative", "isTitle": true, "size": [260, 28] },
+      {
+        "type": "repeater",
+        "id": "order_list",
+        "bind": "combat.turn_order",
+        "itemSpacing": 6,
+        "size": [260, 260],
+        "item": { "type": "label", "bind": "item.label", "text": "", "size": [260, 22] }
+      }
+    ]
+  },
+  {
+    "id": "hud_combat_turn",
+    "anchor": "BottomCenter",
+    "offset": [0, -210],
+    "size": [440, 44],
+    "showBackground": true,
+    "visibleWhen": "combat.inCombat",
+    "children": [
+      { "type": "label", "id": "combat_turn", "bind": "combat.turnLabel", "text": "", "size": [420, 26] }
+    ]
+  },
+  {
+    "id": "hud_combat_action",
+    "anchor": "BottomCenter",
+    "offset": [0, -120],
+    "size": [480, 130],
+    "showBackground": true,
+    "visibleWhen": "combat.playerTurnActive",
+    "children": [
+      { "type": "label", "id": "combat_budget", "bind": "combat.budgetText", "text": "", "size": [460, 26] },
+      { "type": "label", "id": "combat_hit", "bind": "combat.hitChanceText", "text": "", "size": [460, 26] },
+      { "type": "button", "id": "combat_end_turn", "text": "End Turn", "size": [140, 32] }
+    ]
+  }
+]
