@@ -364,5 +364,42 @@ void UIImage::render(UIRenderer* renderer, const BitmapFont* /*font*/,
     renderer->drawRect(pos, size, tintColor);
 }
 
+// ════════════════════════════════════════════════════════════════
+// UIProgressBar
+// ════════════════════════════════════════════════════════════════
+
+void UIProgressBar::render(UIRenderer* renderer, const BitmapFont* font,
+                           const UITheme& theme, glm::vec2 pos) {
+    if (!visible) return;
+
+    // Border, then inset track.
+    renderer->drawRect(pos, size, borderColor);
+    float bw = theme.borderWidth;
+    glm::vec2 inPos  = pos + glm::vec2(bw);
+    glm::vec2 inSize = size - glm::vec2(bw * 2.0f);
+    renderer->drawRect(inPos, inSize, trackColor);
+
+    // Fill proportional to value.
+    float t = (maxVal > minVal) ? (value - minVal) / (maxVal - minVal) : 0.0f;
+    t = std::clamp(t, 0.0f, 1.0f);
+    if (t > 0.0f) {
+        renderer->drawRect(inPos, {inSize.x * t, inSize.y}, fillColor);
+    }
+
+    // Centered value text.
+    if (showValueText && font) {
+        char buf[48];
+        if (!label.empty())
+            snprintf(buf, sizeof(buf), "%s %d/%d", label.c_str(),
+                     (int)(value + 0.5f), (int)(maxVal + 0.5f));
+        else
+            snprintf(buf, sizeof(buf), "%d/%d", (int)(value + 0.5f), (int)(maxVal + 0.5f));
+        float tw = font->measureText(buf, theme.textScale);
+        float th = font->lineHeight(theme.textScale);
+        glm::vec2 tp = {pos.x + (size.x - tw) * 0.5f, pos.y + (size.y - th) * 0.5f};
+        font->drawText(renderer, buf, tp, theme.textColor, theme.textScale);
+    }
+}
+
 } // namespace UI
 } // namespace Phyxel

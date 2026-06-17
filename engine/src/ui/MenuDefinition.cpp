@@ -25,6 +25,7 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         w->id = j.value("id", "");
         w->text = j.value("text", "");
         w->isTitle = j.value("isTitle", false);
+        w->bind = j.value("bind", "");
         w->visible = j.value("visible", true);
         w->enabled = j.value("enabled", true);
         if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
@@ -37,6 +38,7 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         auto w = std::make_unique<UIButton>();
         w->id = j.value("id", "");
         w->text = j.value("text", "");
+        w->bind = j.value("bind", "");
         w->visible = j.value("visible", true);
         w->enabled = j.value("enabled", true);
         if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
@@ -49,6 +51,7 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         auto w = std::make_unique<UISlider>();
         w->id = j.value("id", "");
         w->label = j.value("label", "");
+        w->bind = j.value("bind", "");
         w->value = j.value("value", 0.5f);
         w->minVal = j.value("min", 0.0f);
         w->maxVal = j.value("max", 1.0f);
@@ -104,6 +107,32 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
             auto& t = j["tint"];
             w->tintColor = {t[0].get<float>(), t[1].get<float>(),
                             t[2].get<float>(), t[3].get<float>()};
+        }
+        return w;
+    }
+
+    if (type == "progressbar" || type == "bar") {
+        auto w = std::make_unique<UIProgressBar>();
+        w->id = j.value("id", "");
+        w->label = j.value("label", "");
+        w->bind = j.value("bind", "");
+        w->value = j.value("value", 1.0f);
+        w->minVal = j.value("min", 0.0f);
+        w->maxVal = j.value("max", 1.0f);
+        w->showValueText = j.value("showValueText", true);
+        w->visible = j.value("visible", true);
+        w->enabled = j.value("enabled", true);
+        auto parseColor = [&](const char* key, glm::vec4& dst) {
+            if (j.contains(key) && j[key].is_array() && j[key].size() >= 4) {
+                auto& c = j[key];
+                dst = {c[0].get<float>(), c[1].get<float>(), c[2].get<float>(), c[3].get<float>()};
+            }
+        };
+        parseColor("fillColor", w->fillColor);
+        parseColor("trackColor", w->trackColor);
+        parseColor("borderColor", w->borderColor);
+        if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
+            w->size = {j["size"][0].get<float>(), j["size"][1].get<float>()};
         }
         return w;
     }
@@ -270,10 +299,21 @@ nlohmann::json MenuDefinition::toJson(const UIPanel& panel) {
                 cj["selected"] = w->selectedIndex;
                 break;
             }
+            case WidgetType::ProgressBar: {
+                auto* w = static_cast<UIProgressBar*>(child.get());
+                cj["type"] = "progressbar";
+                cj["label"] = w->label;
+                cj["value"] = w->value;
+                cj["min"] = w->minVal;
+                cj["max"] = w->maxVal;
+                if (!w->bind.empty()) cj["bind"] = w->bind;
+                break;
+            }
             case WidgetType::Panel: {
                 cj = toJson(*static_cast<UIPanel*>(child.get()));
                 break;
             }
+            default: break;
         }
         childrenArr.push_back(cj);
     }

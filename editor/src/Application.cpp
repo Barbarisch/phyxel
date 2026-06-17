@@ -3760,6 +3760,13 @@ void Application::update(float deltaTime) {
 }
 
 void Application::render() {
+    // Pull live game state into the HUD widgets before they render (single source of
+    // truth — providers read playerHealth etc.; widgets just mirror for drawing).
+    if (renderCoordinator) {
+        if (auto* ui = renderCoordinator->getUISystem()) {
+            if (auto* hud = ui->getScreen("hud")) m_hudData.applyBindings(hud);
+        }
+    }
     renderCoordinator->render();
 }
 
@@ -5069,6 +5076,42 @@ void Application::interactWithNPC() {
 // loads it after all subsystems are initialized.
 // ============================================================================
 
+void Application::setupGameHud(const nlohmann::json& gameDef) {
+    if (!renderCoordinator) return;
+    auto* uiSystem = renderCoordinator->getUISystem();
+    if (!uiSystem) return;
+
+    // Data providers — single source of truth is the live playerHealth. Cheap; safe to
+    // re-register on each load. Widgets reference these via their "bind" key.
+    m_hudData.setFloat("player.health",    [this]{ return playerHealth.getHealth(); });
+    m_hudData.setFloat("player.maxHealth", [this]{ return playerHealth.getMaxHealth(); });
+    m_hudData.setText ("player.healthText", [this]{
+        char buf[32];
+        snprintf(buf, sizeof(buf), "%d / %d",
+                 (int)(playerHealth.getHealth() + 0.5f),
+                 (int)(playerHealth.getMaxHealth() + 0.5f));
+        return std::string(buf);
+    });
+
+    // Build the HUD widget tree from the top-level "hud" block, if present.
+    if (!gameDef.contains("hud") || !gameDef["hud"].is_object()) {
+        LOG_INFO("Application", "No 'hud' block in game definition — no game HUD loaded");
+        return;
+    }
+    try {
+        auto panel = UI::MenuDefinition::buildFromJson(gameDef["hud"]);
+        if (!panel) {
+            LOG_ERROR("Application", "Failed to build HUD from game.json 'hud' block");
+            return;
+        }
+        uiSystem->addScreen("hud", std::move(panel));
+        uiSystem->showScreen("hud");
+        LOG_INFO("Application", "Game HUD loaded and shown");
+    } catch (const std::exception& e) {
+        LOG_ERROR("Application", "Error parsing game.json 'hud' block: {}", e.what());
+    }
+}
+
 void Application::autoLoadGameDefinition() {
     std::string defPath = engineConfig.gameDefinitionFile;
 
@@ -5144,6 +5187,10 @@ void Application::autoLoadGameDefinition() {
             LOG_INFO("Application", "Combat mode: {}",
                      Core::combatModeToString(m_combatDirector.mode()));
         }
+
+        // Game HUD (data-driven, non-ImGui — see docs/HudSystem.md). Top-level so the
+        // "world" erase below doesn't drop it.
+        setupGameHud(gameDef);
 
         // If chunks were already loaded from the database (pre-baked world),
         // skip world generation from the definition  --  it would overwrite the

@@ -89,6 +89,7 @@ enum class WidgetType {
     Checkbox,
     Dropdown,
     Image,
+    ProgressBar,
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -124,6 +125,10 @@ public:
     bool enabled = true;
     bool hovered = false;
     bool focused = false;
+
+    /// Optional data-binding key. When set, a HudDataContext pulls the live value
+    /// for this key into the widget each frame before render (see HudDataContext).
+    std::string bind;
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -252,6 +257,27 @@ public:
     std::string imagePath;  ///< Relative or absolute path to a PNG file
     glm::vec4 tintColor = {1.0f, 1.0f, 1.0f, 1.0f};
     void* textureHandle = nullptr; ///< Platform-specific loaded texture (ImTextureID)
+};
+
+// ════════════════════════════════════════════════════════════════
+// UIProgressBar — horizontal fill bar (health/resource), drawRect-based
+// ════════════════════════════════════════════════════════════════
+
+class UIProgressBar : public UIWidget {
+public:
+    WidgetType type() const override { return WidgetType::ProgressBar; }
+    void render(UIRenderer* renderer, const BitmapFont* font,
+                const UITheme& theme, glm::vec2 pos) override;
+
+    std::string label;             ///< Optional prefix shown in the value text
+    float value  = 1.0f;           ///< Current value (clamped to [minVal, maxVal])
+    float minVal = 0.0f;
+    float maxVal = 1.0f;
+    bool  showValueText = true;    ///< Draw "cur/max" centered over the bar
+
+    glm::vec4 fillColor   = {0.75f, 0.20f, 0.20f, 1.0f}; ///< default: health red
+    glm::vec4 trackColor  = {0.12f, 0.12f, 0.15f, 0.85f};
+    glm::vec4 borderColor = {0.0f, 0.0f, 0.0f, 0.9f};
 };
 
 } // namespace UI

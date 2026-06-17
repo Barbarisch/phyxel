@@ -1,5 +1,16 @@
 # HUD System — Next-Session Kickoff
 
+> **✅ DESIGN RESOLVED (2026-06-17) → see [`docs/HudSystem.md`](HudSystem.md).** The five forks
+> below were discussed and decided with the user; the agreed architecture + schema + build order
+> live in `HudSystem.md`. Net decisions: **build on `UISystem`** (the existing retained custom-Vulkan
+> widget tree — NOT ImGui; it already ships + is themeable), **data-driven JSON authoring + a code
+> escape hatch**, **both editor previews** (a play/"Game view" over the viewport AND a HUD-preview
+> panel), **BG3/D&D look**. Key discovery this doc missed: there are **two** data-driven shipping
+> game-UI systems already (`UISystem` retained-Vulkan + `GameMenuRenderer` ImGui); the one real gap
+> is that `UISystem` renders in the post-process pass so it's invisible in the editor viewport — the
+> core preview task. Next session = build the §9 vertical slice (health bar). The text below is the
+> original kickoff, kept for context.
+
 > **Point a fresh Claude session at this file to start the Game-HUD system work.**
 > It is a self-contained brief: the goal, why it's its own session, the current UI layers
 > (grounded in real files), the design forks to decide, a suggested first-steps plan, and the

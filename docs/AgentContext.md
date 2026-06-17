@@ -737,10 +737,28 @@ unified through `CombatSystem::applyDamage`; `TurnActor` bridges turns to the li
 `CombatAISystem` (enemy) + `PlayerTurnController` (player) drive turns; combat HTTP under
 `/api/rpg/combat/<action>`. ~85 turn-based unit tests green. **MERGED TO `main`.** NEXT MAJOR
 TRACK = a proper **Game-HUD system** — the combat HUD we built is an editor-ImGui STOPGAP in the
-wrong layer (overlaps editor panels, won't ship); a dedicated session designs editor-vs-game
-rendering + data-driven customizable HUDs + default modules. **Start there:
-`docs/HUD_NEXT_SESSION.md`** (self-contained kickoff). Combat follow-ups deferred behind it:
-reactions/OAs, conditions UI, ground-point AoE targeting. Earlier: **performance program kickoff
+wrong layer (overlaps editor panels, won't ship). **HUD DESIGN NOW RESOLVED (2026-06-17) →
+`docs/HudSystem.md`:** build on **`UISystem`** (the existing retained custom-Vulkan widget tree —
+NOT ImGui; already ships + themeable), **data-driven JSON authoring + code escape hatch**, **both
+editor previews** (play/"Game view" over the viewport + a HUD-preview panel), **BG3/D&D look**.
+**FIRM USER PRINCIPLE: ZERO ImGui in a shipped game's real UI** — menus/screens/HUD/dialogue all
+move onto the custom-Vulkan `UISystem`; ImGui stays editor-only + an optional strippable debug
+overlay. This commits a migration of ALL shipped UI off ImGui (`HudSystem.md` §11a):
+`GameMenuRenderer` (live ImGui menu path), `GameMenus.cpp` Intro/Victory/Credits screens,
+`renderCountdownHud`, host-side dialogue render, and the standalone host (minimal_game + scaffold).
+Discovery: there are TWO data-driven shipping game-UI systems already (`UISystem` retained-Vulkan +
+`GameMenuRenderer` ImGui). **VERTICAL SLICE DONE + VERIFIED LIVE (2026-06-17, NOT committed):** a
+data-driven health bar on `UISystem` — `HudDataContext` (header-only typed providers + `bind` field +
+`applyBindings`), `UIProgressBar` widget (drawRect, parsed by MenuDefinition), `Application::
+setupGameHud` loads top-level `game.json "hud"` + registers player.health providers + applies bindings
+per frame. **Solved the editor-preview gap:** `UISystem` now renders LAST IN THE SCENE PASS into the
+offscreen image (was post-process/swapchain), so the HUD shows in the editor Viewport panel AND ships
+via post-process — one pipeline, no ImGui. Verified in DebrisPushTest: bar reads "HP 100/100",
+`damage_player 62` → "HP 38/100" at ~38% fill (demo hud block in `PhyxelProjects/DebrisPushTest/
+game.json`). NEXT = wire the standalone host (GameShell/minimal_game) providers + applyBindings
+(`HudSystem.md` §11a), then re-home the combat HUD as default modules + delete `renderCombatHUD`, then
+the broader ImGui→UISystem migration. Combat follow-ups deferred: reactions/OAs, conditions UI,
+ground-point AoE targeting. Earlier: **performance program kickoff
 (2026-06-15)** — see "Render perf" workstream. Shipped + verified (NOT yet committed):
 character-update opts (cached
 bone→parts grouping, binary-search keyframes, persistent instance-buffer map, removed

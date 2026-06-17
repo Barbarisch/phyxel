@@ -80,6 +80,7 @@
 #include "core/LocationRegistry.h"
 #include "ui/DialogueSystem.h"
 #include "ui/SpeechBubbleManager.h"
+#include "ui/HudDataContext.h"
 #include "story/StoryEngine.h"
 #include "story/RuleBasedCharacterAgent.h"
 #include "core/EngineConfig.h"
@@ -368,7 +369,11 @@ private:
     Core::MusicPlaylist musicPlaylist;
     Core::PlayerProfile playerProfile;
     Core::ObjectiveTracker objectiveTracker;
-    
+
+    // Game HUD data bindings (non-ImGui; rendered via the UISystem). Providers read
+    // live game state (e.g. playerHealth); applied to the "hud" screen each frame.
+    UI::HudDataContext m_hudData;
+
     enum class ControlTarget {
         AnimatedCharacter
     };
@@ -470,6 +475,7 @@ private:
     bool dispatchDebugAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
     bool dispatchItemAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
     void autoLoadGameDefinition();   // Auto-load game.json if present
+    void setupGameHud(const nlohmann::json& gameDef);  // Load game.json "hud" into the UISystem + register data bindings (docs/HudSystem.md)
     Core::GameSubsystems buildGameSubsystems(); // Build subsystems struct for GameDefinitionLoader
     void initializeSceneManager();   // Wire SceneCallbacks and configure SceneManager
     // Keep the SceneManager's GameSubsystems pointers current (refreshed each frame

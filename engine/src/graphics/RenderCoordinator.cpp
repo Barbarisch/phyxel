@@ -202,7 +202,12 @@ bool RenderCoordinator::initUISystem() {
     m_uiSystem = std::make_unique<UI::UISystem>(
         vulkanDevice, windowManager->getWidth(), windowManager->getHeight());
 
-    if (!m_uiSystem->initialize(postProcessor->getPostProcessRenderPass())) {
+    // Init against the SCENE render pass (offscreen HDR target), NOT the swapchain
+    // post-process pass. The game HUD must render into the offscreen image so it is
+    // (a) visible in the editor viewport — which samples the offscreen image — and
+    // (b) carried to the swapchain by post-process for standalone builds. This keeps
+    // the game HUD entirely off ImGui (see docs/HudSystem.md §2a, §5).
+    if (!m_uiSystem->initialize(postProcessor->getSceneRenderPass())) {
         LOG_ERROR("RenderCoordinator", "Failed to initialize UISystem");
         m_uiSystem.reset();
         return false;
@@ -1264,6 +1269,14 @@ void RenderCoordinator::drawFrame() {
         renderMirrorGeometry(currentFrame);
     }
 
+    // Game HUD / custom UI (non-ImGui) — drawn LAST in the scene pass, on top of all
+    // geometry, into the offscreen image. Shows in the editor viewport AND is carried
+    // to the swapchain by post-process for standalone builds. See docs/HudSystem.md.
+    if (m_uiSystem) {
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Custom UI");
+        m_uiSystem->render(vulkanDevice->getCommandBuffer(currentFrame));
+    }
+
     // End Scene Render Pass
     } // End Scene Pass Scope
     postProcessor->endSceneRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
@@ -1291,11 +1304,9 @@ void RenderCoordinator::drawFrame() {
         postProcessor->drawQuad(vulkanDevice->getCommandBuffer(currentFrame));
     }
 
-    // Render custom UI system (non-ImGui menus)
-    if (m_uiSystem) {
-        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Custom UI");
-        m_uiSystem->render(vulkanDevice->getCommandBuffer(currentFrame));
-    }
+    // (Game HUD / custom UI is now rendered inside the SCENE pass — into the
+    // offscreen image — so it is visible in the editor viewport and stays off ImGui.
+    // See the scene-pass render call above and docs/HudSystem.md §5.)
 
     // Render ImGui on top
     // Scripting console rendering is handled in Application::run() before endFrame()
