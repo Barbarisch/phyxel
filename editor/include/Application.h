@@ -159,6 +159,11 @@ public:
     /// into a move/attack intent (S6). Returns true if it handled the click
     /// (so the normal break/interact LMB behavior is skipped).
     bool tryCombatClick();
+
+    /// BG3-hybrid combat camera (S7): during a turn-based encounter, frame the
+    /// ACTIVE combatant (auto-pans on turn change), orbit via RMB + scroll-zoom,
+    /// pulled back for tactical framing. Feeds no character movement input.
+    void updateCombatCamera(float dt);
     void renderAnimatedCharPanel();
 
     // AI NPC Management
@@ -291,6 +296,10 @@ private:
                         const glm::vec3& targetPos, std::function<void()> onRelease);
     std::mutex          m_playerIntentMutex;
     PendingPlayerIntent m_pendingPlayerIntent;
+
+    // S7 combat camera state.
+    bool  m_combatCamWasActive = false;  // detects the enter-combat transition
+    float m_combatCamDistance  = 8.0f;   // default pulled-back tactical distance
 
     // S6 click picking: resolve a world-space ray (from the cursor or an HTTP
     // test) into a player turn intent — nearest enemy combatant hit = attack

@@ -3352,18 +3352,21 @@ void Application::update(float deltaTime) {
             camera->setPitch(inputManager->getPitch());
 
             if (currentControlTarget == ControlTarget::AnimatedCharacter && animatedCharacter) {
+                bool combatCam = m_combatDirector.inCombat() && m_combatDirector.isTurnBased();
                 if (m_animEditorMode) {
                     // Anim editor: camera follows the posed character but takes no
                     // control input (the editor poses it). Keep the direct follow.
                     // (camera-track position avoids a ~0.5m lurch at sit-clip
                     // boundaries where worldPosition snaps.)
                     camera->updatePositionFromTarget(animatedCharacter->getCameraTrackPosition(), 0.5f);
-                } else if (m_playerTurn.isPlayerTurnActive()) {
-                    // Player's tactical turn (S5): the TurnActor owns the
-                    // character, so do NOT feed real-time movement/attack input.
-                    // Keep the camera following the character.
-                    camera->updatePositionFromTarget(animatedCharacter->getCameraTrackPosition(), 0.5f);
+                } else if (combatCam) {
+                    // Turn-based encounter (S7): tactical combat camera frames the
+                    // active combatant; no real-time movement/attack input is fed
+                    // (the TurnActor / enemy AI own the characters).
+                    updateCombatCamera(deltaTime);
+                    m_combatCamWasActive = true;
                 } else {
+                    m_combatCamWasActive = false;
                     // Shared gameplay controller: frames the camera and feeds the
                     // character's control input. advanceCharacter=false because
                     // the entity loop above already advanced the character this
@@ -4770,6 +4773,42 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
 void Application::setPendingPlayerIntent(const PendingPlayerIntent& intent) {
     std::lock_guard<std::mutex> lk(m_playerIntentMutex);
     m_pendingPlayerIntent = intent;
+}
+
+void Application::updateCombatCamera(float dt) {
+    if (!camera || !inputManager) return;
+
+    // Frame the active combatant (player on their turn, the acting enemy on
+    // theirs) so the camera auto-pans on turn change — the BG3 feel.
+    const std::string activeId = m_combatDirector.currentEntityId();
+    Scene::Entity* e = entityRegistry ? entityRegistry->getEntity(activeId) : nullptr;
+    Scene::AnimatedVoxelCharacter* ch = nullptr;
+    if (auto* npc = dynamic_cast<Scene::NPCEntity*>(e)) ch = npc->getAnimatedCharacter();
+    else if (e)                                         ch = dynamic_cast<Scene::AnimatedVoxelCharacter*>(e);
+    if (!ch) ch = animatedCharacter;   // fallback: keep framing the player
+    if (!ch) return;
+    glm::vec3 target = ch->getCameraTrackPosition();
+
+    // Third-person orbit rig, pulled back to a tactical distance on entry.
+    if (!cameraCtl_.rig() || cameraCtl_.rigName() != "third_person")
+        cameraCtl_.setRigByName("third_person");
+    auto* rig = cameraCtl_.rig();
+    if (!rig) return;
+
+    if (!m_combatCamWasActive) {
+        // Just entered combat: pull back and drop into third-person.
+        camera->setDistanceFromTarget(m_combatCamDistance);
+        if (camera->getMode() == Graphics::CameraMode::Free)
+            camera->setMode(Graphics::CameraMode::ThirdPerson);
+    }
+
+    rig->eyeHeight = 0.6f;
+    rig->distance  = camera->getDistanceFromTarget();   // scroll-zoom still works
+    // Orbit comes from the mouse-driven yaw/pitch (RMB-held look in the editor),
+    // so the player can rotate freely toward overhead without moving the character.
+    float yaw   = inputManager->getYaw();
+    float pitch = std::clamp(inputManager->getPitch(), rig->pitchClampMin, rig->pitchClampMax);
+    rig->update(*camera, target, yaw, pitch, dt);
 }
 
 bool Application::tryCombatClick() {
