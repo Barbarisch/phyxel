@@ -359,9 +359,17 @@ bool UIDropdown::handleClick(glm::vec2 mousePos, glm::vec2 widgetPos, const UITh
 void UIImage::render(UIRenderer* renderer, const BitmapFont* /*font*/,
                      const UITheme& /*theme*/, glm::vec2 pos) {
     if (!visible) return;
-    // The UIRenderer Vulkan path doesn't support arbitrary PNG textures yet;
-    // render a tinted placeholder rect so the layout is visible in the editor.
-    renderer->drawRect(pos, size, tintColor);
+    // Lazy-load the PNG into a Vulkan texture on first render (cached by the renderer).
+    if (loadedTexture == -1 && !imagePath.empty()) {
+        int idx = renderer->loadTexture(imagePath);
+        loadedTexture = (idx >= 0) ? idx : -2;  // -2 = tried & failed, don't retry
+    }
+    if (loadedTexture >= 0) {
+        renderer->drawImage(pos, size, loadedTexture, tintColor);
+    } else {
+        // No image (or load failed): tinted placeholder rect so layout stays visible.
+        renderer->drawRect(pos, size, tintColor);
+    }
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -408,13 +416,15 @@ void UIProgressBar::render(UIRenderer* renderer, const BitmapFont* font,
 void UIRepeater::render(UIRenderer* renderer, const BitmapFont* font,
                         const UITheme& theme, glm::vec2 pos) {
     if (!visible) return;
-    float y = 0.0f;
+    float adv = 0.0f;
     for (auto& child : generated) {
         if (!child || !child->visible) continue;
-        child->render(renderer, font, theme, {pos.x, pos.y + y});
-        y += child->size.y + itemSpacing;
+        glm::vec2 cp = horizontal ? glm::vec2{pos.x + adv, pos.y}
+                                  : glm::vec2{pos.x, pos.y + adv};
+        child->render(renderer, font, theme, cp);
+        adv += (horizontal ? child->size.x : child->size.y) + itemSpacing;
     }
-    size.y = y;  // report total height for parent layout
+    if (horizontal) size.x = adv; else size.y = adv;  // report extent for parent layout
 }
 
 } // namespace UI

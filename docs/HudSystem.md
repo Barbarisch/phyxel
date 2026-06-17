@@ -169,12 +169,19 @@ of named providers the host wires once; widgets reference them by binding key.
 **v1 default modules** (composable; each reposition/restyle/replace/hide-able):
 
 1. ✅ **Health bar** (the vertical-slice widget §9) — DONE.
-2. ⏳ **Hotbar** (Repeater over `player.hotbar`, highlights `selectedSlot`) — pending; wants item
-   icons (UIImage arbitrary-texture support — currently colored-rect placeholder only).
+2. ✅ **Hotbar** — DONE + verified live. **Horizontal** Repeater over a `hotbar` list provider
+   (first 9 inventory slots); each slot = a panel with a `UIImage` icon (the material's
+   `_top.png` source texture) + count label; the selected slot's icon is full-bright, others
+   dimmed (live via `getSelectedSlot()`).
 3. ✅ **Objectives tracker** (Repeater over `objectives`, `[x]`/`[ ]` markers, gated by
    `objectives.any`) — DONE + verified live; second Repeater customer (proves it generalizes).
 4. ✅ **Combat set** (§10) — turn-order **list** (Repeater over `combat.turn_order`), **action
    bar** (Action/Bonus/Movement + **End Turn** button), **hit-chance readout** — DONE.
+
+**`UIImage` arbitrary textures — DONE.** `UIRenderer` loads PNGs into per-texture descriptor sets
+(`loadTexture`, cached by path) and batches by texture into draw runs; a `mode` push-constant
+switches the fragment shader between R8 alpha-mask (text/rects) and RGBA×tint (images). Repeater
+items can bind an image path per record (`item.icon`). `UIRepeater.horizontal` lays items in a row.
 
 Note: these are currently authored per-game in `game.json` (demo set in
 `PhyxelProjects/DebrisPushTest/game.json`). A **shipped default HUD** auto-injected by the engine
@@ -283,7 +290,12 @@ End state: a packaged game does **not initialize ImGui for UI** — only an opti
 - Editor Game-view render-target choice (§5a (a) vs (b)) — settle at implementation.
 - `UIRenderer` needs **TTF font support** for the BG3 look (R8 bitmap atlas today). This is now
   **required** (not optional) since `UISystem` must fully replace the ImGui menu/screen path; port
-  `GameMenuRenderer`'s TTF loading or add a glyph-atlas baker to `UIRenderer`.
+  `GameMenuRenderer`'s TTF loading or add a glyph-atlas baker to `UIRenderer`. (Arbitrary RGBA
+  **image** textures are DONE — the multi-texture/descriptor-set + draw-run plumbing a TTF glyph
+  atlas would reuse.)
+- Hotbar icons currently map `material -> resources/textures/source/<lower>_top.png` (works for
+  materials with a top texture; others fall back to a placeholder rect). A proper item-icon source
+  (atlas-tile UV, or per-item icon assets) is a follow-up; UIImage already supports the texture.
 - `UISystem` must absorb **animations** (fade/slide) and **MCP live-control** to replace
   `GameMenuRenderer` at parity — schedule with §11a, not v1.
 - On-ground combat decorations (movement ring, path spline) are **world-space**, not 2D HUD — they

@@ -262,7 +262,8 @@ public:
 
     std::string imagePath;  ///< Relative or absolute path to a PNG file
     glm::vec4 tintColor = {1.0f, 1.0f, 1.0f, 1.0f};
-    void* textureHandle = nullptr; ///< Platform-specific loaded texture (ImTextureID)
+    void* textureHandle = nullptr; ///< Platform-specific loaded texture (ImTextureID, editor path)
+    int loadedTexture = -1; ///< Cached UIRenderer texture index (-1 not attempted, -2 failed)
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -301,6 +302,7 @@ public:
     /// "item.<field>" widgets from the record. Items stack vertically.
     std::string itemTemplateJson;   ///< Serialized JSON of one item's widget def
     float itemSpacing = 4.0f;
+    bool  horizontal = false;       ///< Lay items left-to-right instead of top-down
     std::vector<std::unique_ptr<UIWidget>> generated; ///< managed by the binding pass
 };
 

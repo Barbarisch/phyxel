@@ -101,6 +101,8 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         auto w = std::make_unique<UIImage>();
         w->id = j.value("id", "");
         w->imagePath = j.value("image", j.value("imagePath", ""));
+        w->bind = j.value("bind", "");
+        w->visibleWhen = j.value("visibleWhen", "");
         w->visible = j.value("visible", true);
         w->enabled = j.value("enabled", true);
         if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
@@ -147,6 +149,7 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         w->bind = j.value("bind", "");
         w->visibleWhen = j.value("visibleWhen", "");
         w->itemSpacing = j.value("itemSpacing", 4.0f);
+        w->horizontal = j.value("horizontal", false);
         if (j.contains("item")) w->itemTemplateJson = j["item"].dump();
         if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
             w->size = {j["size"][0].get<float>(), j["size"][1].get<float>()};
@@ -404,6 +407,19 @@ static void applyRecord(UIWidget* w, const HudRecord& rec) {
                             static_cast<UILabel*>(w)->text = buf;
                         }
                     }
+                    break;
+                }
+                case WidgetType::Image: {
+                    auto* img = static_cast<UIImage*>(w);
+                    auto it = rec.texts.find(f);
+                    if (it != rec.texts.end() && img->imagePath != it->second) {
+                        img->imagePath = it->second;
+                        img->loadedTexture = -1;  // path changed — reload (cached by renderer)
+                    }
+                    // Selection highlight: full-bright icon when selected, dimmed otherwise.
+                    auto sel = rec.floats.find("selected");
+                    float b = (sel != rec.floats.end() && sel->second > 0.5f) ? 1.0f : 0.5f;
+                    img->tintColor = {b, b, b, 1.0f};
                     break;
                 }
                 default: break;

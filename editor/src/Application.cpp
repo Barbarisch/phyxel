@@ -5177,6 +5177,33 @@ void Application::setupGameHud(const nlohmann::json& gameDef) {
         return rows;
     });
 
+    // Hotbar module (horizontal Repeater + icons via UIImage). One record per slot
+    // (first 9); icon = the material's top-face source texture, selected slot bright.
+    hud.setFloat("hotbar.any", [this] { return (inventory && inventory->size() > 0) ? 1.0f : 0.0f; });
+    hud.setList("hotbar", [this]() {
+        std::vector<UI::HudRecord> rows;
+        if (!inventory) return rows;
+        int n = std::min(inventory->size(), 9);
+        int sel = inventory->getSelectedSlot();
+        for (int i = 0; i < n; ++i) {
+            UI::HudRecord r;
+            auto slot = inventory->getSlot(i);
+            if (slot && !slot->itemId.empty()) {
+                std::string lower;
+                lower.reserve(slot->itemId.size());
+                for (char c : slot->itemId) lower += static_cast<char>(std::tolower((unsigned char)c));
+                r.texts["icon"] = "resources/textures/source/" + lower + "_top.png";
+                r.texts["count"] = (slot->count > 1) ? std::to_string(slot->count) : std::string();
+            } else {
+                r.texts["icon"] = "";
+                r.texts["count"] = "";
+            }
+            r.floats["selected"] = (i == sel) ? 1.0f : 0.0f;
+            rows.push_back(std::move(r));
+        }
+        return rows;
+    });
+
     // Build HUD screens from the "hud" block. Accepts a single panel object OR an
     // array of panels (each an independently-anchored screen — needed because a panel
     // lays its children out in one vertical stack, so e.g. a bottom-left health bar

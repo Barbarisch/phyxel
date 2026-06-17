@@ -3,6 +3,7 @@
 #include "core/AssetManager.h"
 #include "utils/FileUtils.h"
 #include "utils/Logger.h"
+#include "stb_image.h"   // implementation lives in VulkanDevice.cpp
 #include <cstring>
 #include <array>
 
@@ -62,6 +63,16 @@ void UIRenderer::cleanup() {
     if (fontImageView_)        { vkDestroyImageView(dev, fontImageView_, nullptr); fontImageView_ = VK_NULL_HANDLE; }
     if (fontImage_)            { vkDestroyImage(dev, fontImage_, nullptr); fontImage_ = VK_NULL_HANDLE; }
     if (fontImageMemory_)      { vkFreeMemory(dev, fontImageMemory_, nullptr); fontImageMemory_ = VK_NULL_HANDLE; }
+
+    // Image textures (descriptor sets are freed with the pool below).
+    for (auto& t : textures_) {
+        if (t.sampler) vkDestroySampler(dev, t.sampler, nullptr);
+        if (t.view)    vkDestroyImageView(dev, t.view, nullptr);
+        if (t.image)   vkDestroyImage(dev, t.image, nullptr);
+        if (t.memory)  vkFreeMemory(dev, t.memory, nullptr);
+    }
+    textures_.clear();
+    textureCache_.clear();
     if (pipeline_)             { vkDestroyPipeline(dev, pipeline_, nullptr); pipeline_ = VK_NULL_HANDLE; }
     if (pipelineLayout_)       { vkDestroyPipelineLayout(dev, pipelineLayout_, nullptr); pipelineLayout_ = VK_NULL_HANDLE; }
     if (descriptorPool_)       { vkDestroyDescriptorPool(dev, descriptorPool_, nullptr); descriptorPool_ = VK_NULL_HANDLE; }
@@ -172,24 +183,168 @@ bool UIRenderer::uploadFontAtlas(const uint8_t* pixels, uint32_t atlasWidth, uin
 }
 
 // ════════════════════════════════════════════════════════════════
+// Image Textures (arbitrary RGBA PNGs for UIImage)
+// ════════════════════════════════════════════════════════════════
+
+int UIRenderer::loadTexture(const std::string& path) {
+    auto cached = textureCache_.find(path);
+    if (cached != textureCache_.end()) return cached->second;
+
+    if (textures_.size() >= MAX_IMAGE_TEXTURES) {
+        LOG_WARN("UIRenderer", "UI image texture limit ({}) reached; cannot load {}", MAX_IMAGE_TEXTURES, path);
+        return -1;
+    }
+
+    VkDevice dev = device_->getDevice();
+
+    // Load pixels (try as-given, then the resolved textures dir).
+    int w = 0, h = 0, ch = 0;
+    stbi_uc* pixels = stbi_load(path.c_str(), &w, &h, &ch, STBI_rgb_alpha);
+    if (!pixels) {
+        std::string resolved = Core::AssetManager::instance().resolveTexture(path);
+        if (!resolved.empty()) pixels = stbi_load(resolved.c_str(), &w, &h, &ch, STBI_rgb_alpha);
+    }
+    if (!pixels) {
+        const char* reason = stbi_failure_reason();
+        LOG_ERROR("UIRenderer", "Failed to load UI image '{}' ({})", path, reason ? reason : "unknown");
+        textureCache_[path] = -1;   // cache the failure so we don't retry every frame
+        return -1;
+    }
+
+    VkDeviceSize imageSize = static_cast<VkDeviceSize>(w) * h * 4;
+    UITexture t;
+
+    // Staging buffer
+    VkBuffer staging; VkDeviceMemory stagingMem;
+    device_->createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging, stagingMem);
+    void* data;
+    vkMapMemory(dev, stagingMem, 0, imageSize, 0, &data);
+    memcpy(data, pixels, static_cast<size_t>(imageSize));
+    vkUnmapMemory(dev, stagingMem);
+    stbi_image_free(pixels);
+
+    device_->createImage(w, h, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, t.image, t.memory);
+
+    VkCommandBuffer cmd = device_->beginSingleTimeCommands();
+    VkImageMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = t.image;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.layerCount = 1;
+    barrier.srcAccessMask = 0;
+    barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+        0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+    VkBufferImageCopy region{};
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.layerCount = 1;
+    region.imageExtent = {static_cast<uint32_t>(w), static_cast<uint32_t>(h), 1};
+    vkCmdCopyBufferToImage(cmd, staging, t.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+    device_->endSingleTimeCommands(cmd);
+    vkDestroyBuffer(dev, staging, nullptr);
+    vkFreeMemory(dev, stagingMem, nullptr);
+
+    // Image view
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = t.image;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.layerCount = 1;
+    if (vkCreateImageView(dev, &viewInfo, nullptr, &t.view) != VK_SUCCESS) {
+        LOG_ERROR("UIRenderer", "Failed to create image view for {}", path);
+        return -1;
+    }
+
+    // Sampler — linear for smooth icons.
+    VkSamplerCreateInfo samplerInfo{};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.maxAnisotropy = 1.0f;
+    if (vkCreateSampler(dev, &samplerInfo, nullptr, &t.sampler) != VK_SUCCESS) {
+        LOG_ERROR("UIRenderer", "Failed to create sampler for {}", path);
+        return -1;
+    }
+
+    // Descriptor set (same layout as the font set; binding 0 = combined image sampler).
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = descriptorPool_;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &descriptorSetLayout_;
+    if (vkAllocateDescriptorSets(dev, &allocInfo, &t.set) != VK_SUCCESS) {
+        LOG_ERROR("UIRenderer", "Failed to allocate descriptor set for {}", path);
+        return -1;
+    }
+    VkDescriptorImageInfo imageInfo{};
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfo.imageView = t.view;
+    imageInfo.sampler = t.sampler;
+    VkWriteDescriptorSet write{};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = t.set;
+    write.dstBinding = 0;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.descriptorCount = 1;
+    write.pImageInfo = &imageInfo;
+    vkUpdateDescriptorSets(dev, 1, &write, 0, nullptr);
+
+    textures_.push_back(t);
+    int idx = static_cast<int>(textures_.size()) - 1;
+    textureCache_[path] = idx;
+    LOG_INFO("UIRenderer", "Loaded UI image '{}' ({}x{}) -> texture {}", path, w, h, idx);
+    return idx;
+}
+
+// ════════════════════════════════════════════════════════════════
 // Batching
 // ════════════════════════════════════════════════════════════════
 
 void UIRenderer::beginFrame() {
     vertices_.clear();
     indices_.clear();
+    runs_.clear();
 }
 
-void UIRenderer::drawQuad(glm::vec2 pos, glm::vec2 size, glm::vec2 uvMin, glm::vec2 uvMax, glm::vec4 color) {
+void UIRenderer::pushQuad(glm::vec2 pos, glm::vec2 size, glm::vec2 uvMin, glm::vec2 uvMax,
+                          glm::vec4 color, VkDescriptorSet set, float mode) {
     if (vertices_.size() + 4 > MAX_VERTICES) return;
+
+    // Start a new draw run when the texture/descriptor set or sampling mode changes.
+    if (runs_.empty() || runs_.back().set != set || runs_.back().mode != mode) {
+        runs_.push_back({set, mode, static_cast<uint32_t>(indices_.size()), 0});
+    }
 
     uint32_t base = static_cast<uint32_t>(vertices_.size());
 
     // Top-left, top-right, bottom-right, bottom-left
-    vertices_.push_back({pos,                                     uvMin,                               color});
-    vertices_.push_back({{pos.x + size.x, pos.y},                {uvMax.x, uvMin.y},                  color});
-    vertices_.push_back({{pos.x + size.x, pos.y + size.y},       uvMax,                               color});
-    vertices_.push_back({{pos.x, pos.y + size.y},                {uvMin.x, uvMax.y},                  color});
+    vertices_.push_back({pos,                               uvMin,              color});
+    vertices_.push_back({{pos.x + size.x, pos.y},          {uvMax.x, uvMin.y}, color});
+    vertices_.push_back({{pos.x + size.x, pos.y + size.y}, uvMax,              color});
+    vertices_.push_back({{pos.x, pos.y + size.y},          {uvMin.x, uvMax.y}, color});
 
     indices_.push_back(base + 0);
     indices_.push_back(base + 1);
@@ -197,6 +352,12 @@ void UIRenderer::drawQuad(glm::vec2 pos, glm::vec2 size, glm::vec2 uvMin, glm::v
     indices_.push_back(base + 2);
     indices_.push_back(base + 3);
     indices_.push_back(base + 0);
+    runs_.back().indexCount += 6;
+}
+
+void UIRenderer::drawQuad(glm::vec2 pos, glm::vec2 size, glm::vec2 uvMin, glm::vec2 uvMax, glm::vec4 color) {
+    // Text glyphs + rects sample the R8 font atlas (alpha-mask mode 0).
+    pushQuad(pos, size, uvMin, uvMax, color, descriptorSet_, 0.0f);
 }
 
 void UIRenderer::drawRect(glm::vec2 pos, glm::vec2 size, glm::vec4 color) {
@@ -204,6 +365,15 @@ void UIRenderer::drawRect(glm::vec2 pos, glm::vec2 size, glm::vec4 color) {
     // BitmapFont reserves the first pixel as solid white for rectangle drawing.
     float px = 0.5f / 256.0f;  // half-pixel of a 256-wide atlas
     drawQuad(pos, size, {0.0f, 0.0f}, {px, px}, color);
+}
+
+void UIRenderer::drawImage(glm::vec2 pos, glm::vec2 size, int textureIndex, glm::vec4 tint) {
+    if (textureIndex < 0 || textureIndex >= static_cast<int>(textures_.size())) {
+        drawRect(pos, size, tint);  // fallback placeholder
+        return;
+    }
+    // RGBA image sampled full-color × tint (mode 1).
+    pushQuad(pos, size, {0.0f, 0.0f}, {1.0f, 1.0f}, tint, textures_[textureIndex].set, 1.0f);
 }
 
 void UIRenderer::endFrame(VkCommandBuffer cmd) {
@@ -237,22 +407,27 @@ void UIRenderer::endFrame(VkCommandBuffer cmd) {
     VkRect2D scissor{{0, 0}, {screenWidth_, screenHeight_}};
     vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-    // Push constants: orthographic projection
-    UIPushConstants pc;
-    pc.scale = {2.0f / screenWidth_, 2.0f / screenHeight_};
-    pc.translate = {-1.0f, -1.0f};
-    vkCmdPushConstants(cmd, pipelineLayout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(UIPushConstants), &pc);
-
-    // Bind descriptor set (font atlas)
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_, 0, 1, &descriptorSet_, 0, nullptr);
-
     // Bind vertex/index buffers
     VkDeviceSize offsets[] = {0};
     vkCmdBindVertexBuffers(cmd, 0, 1, &vertexBuffer_, offsets);
     vkCmdBindIndexBuffer(cmd, indexBuffer_, 0, VK_INDEX_TYPE_UINT32);
 
-    // Draw
-    vkCmdDrawIndexed(cmd, static_cast<uint32_t>(indices_.size()), 1, 0, 0, 0);
+    // One draw per run (each binds its own descriptor set + sampling mode). Runs
+    // preserve submission order, so painter's-algorithm layering is unchanged.
+    UIPushConstants pc;
+    pc.scale = {2.0f / screenWidth_, 2.0f / screenHeight_};
+    pc.translate = {-1.0f, -1.0f};
+
+    for (const auto& run : runs_) {
+        if (run.indexCount == 0 || run.set == VK_NULL_HANDLE) continue;
+        pc.mode = run.mode;
+        vkCmdPushConstants(cmd, pipelineLayout_,
+                           VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                           0, sizeof(UIPushConstants), &pc);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_,
+                                0, 1, &run.set, 0, nullptr);
+        vkCmdDrawIndexed(cmd, run.indexCount, 1, run.firstIndex, 0, 0);
+    }
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -275,13 +450,14 @@ bool UIRenderer::createDescriptorResources() {
     layoutInfo.pBindings = &binding;
     if (vkCreateDescriptorSetLayout(dev, &layoutInfo, nullptr, &descriptorSetLayout_) != VK_SUCCESS) return false;
 
-    // Descriptor pool
-    VkDescriptorPoolSize poolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1};
+    // Descriptor pool — font set (1) + up to MAX_IMAGE_TEXTURES image sets.
+    const uint32_t kMaxSets = 1 + MAX_IMAGE_TEXTURES;
+    VkDescriptorPoolSize poolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, kMaxSets};
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = 1;
     poolInfo.pPoolSizes = &poolSize;
-    poolInfo.maxSets = 1;
+    poolInfo.maxSets = kMaxSets;
     if (vkCreateDescriptorPool(dev, &poolInfo, nullptr, &descriptorPool_) != VK_SUCCESS) return false;
 
     // Allocate descriptor set
@@ -402,9 +578,9 @@ bool UIRenderer::createPipeline(VkRenderPass renderPass) {
     dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
     dynamicState.pDynamicStates = dynamicStates.data();
 
-    // Push constant range
+    // Push constant range — vertex uses scale/translate, fragment uses mode.
     VkPushConstantRange pushRange{};
-    pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pushRange.offset = 0;
     pushRange.size = sizeof(UIPushConstants);
 

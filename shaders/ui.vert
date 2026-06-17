@@ -7,6 +7,7 @@ layout (location = 2) in vec4 inColor;
 layout (push_constant) uniform PushConstants {
     vec2 scale;     // 2.0/screenWidth, 2.0/screenHeight
     vec2 translate; // -1.0, -1.0
+    float mode;     // 0 = alpha-mask (text/rect), 1 = RGBA image (used in fragment)
 } pc;
 
 layout (location = 0) out vec2 outUV;

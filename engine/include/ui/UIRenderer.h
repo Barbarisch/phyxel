@@ -4,6 +4,7 @@
 #include <glm/glm.hpp>
 #include <vector>
 #include <string>
+#include <unordered_map>
 
 namespace Phyxel {
     namespace Vulkan { class VulkanDevice; }
@@ -16,10 +17,11 @@ struct UIVertex {
     glm::vec4 color;
 };
 
-/// Push constants for the UI shader — maps screen coords to NDC.
+/// Push constants for the UI shader — maps screen coords to NDC + sampling mode.
 struct UIPushConstants {
     glm::vec2 scale;     // 2.0/screenWidth, 2.0/screenHeight
     glm::vec2 translate; // -1.0, -1.0
+    float     mode = 0.0f; // 0 = alpha-mask (text/rect), 1 = RGBA image tinted
 };
 
 /**
@@ -61,9 +63,20 @@ public:
     /// Submit a solid-color rectangle (uses a white pixel in the atlas).
     void drawRect(glm::vec2 pos, glm::vec2 size, glm::vec4 color);
 
+    /// Submit a textured (RGBA) image quad, tinted by `tint`. textureIndex comes
+    /// from loadTexture(). Falls back to a tint-colored rect if the index is invalid.
+    void drawImage(glm::vec2 pos, glm::vec2 size, int textureIndex,
+                   glm::vec4 tint = glm::vec4(1.0f));
+
     /// Flush the batch: upload vertices and record draw commands.
     /// Must be called inside an active render pass.
     void endFrame(VkCommandBuffer cmd);
+
+    // ── Image textures ──────────────────────────────────────────
+
+    /// Load a PNG into a Vulkan texture and return an index for drawImage().
+    /// Cached by path (repeat calls are cheap). Returns -1 on failure.
+    int loadTexture(const std::string& path);
 
     // ── Accessors ───────────────────────────────────────────────
 
@@ -75,6 +88,11 @@ private:
     bool createDescriptorResources();
     bool createVertexBuffer();
     void updateDescriptorSet();
+
+    /// Append a quad to the batch, starting a new draw run if the descriptor set
+    /// or sampling mode differs from the previous quad (preserves draw order).
+    void pushQuad(glm::vec2 pos, glm::vec2 size, glm::vec2 uvMin, glm::vec2 uvMax,
+                  glm::vec4 color, VkDescriptorSet set, float mode);
 
     Vulkan::VulkanDevice* device_;
     uint32_t screenWidth_;
@@ -92,6 +110,27 @@ private:
     VkDeviceMemory fontImageMemory_ = VK_NULL_HANDLE;
     VkImageView fontImageView_ = VK_NULL_HANDLE;
     VkSampler fontSampler_ = VK_NULL_HANDLE;
+
+    // Loaded RGBA image textures (for UIImage), each with its own descriptor set.
+    struct UITexture {
+        VkImage image = VK_NULL_HANDLE;
+        VkDeviceMemory memory = VK_NULL_HANDLE;
+        VkImageView view = VK_NULL_HANDLE;
+        VkSampler sampler = VK_NULL_HANDLE;
+        VkDescriptorSet set = VK_NULL_HANDLE;
+    };
+    std::vector<UITexture> textures_;
+    std::unordered_map<std::string, int> textureCache_;
+    static constexpr uint32_t MAX_IMAGE_TEXTURES = 64;
+
+    // Draw runs: a contiguous span of indices sharing one descriptor set + mode.
+    struct DrawRun {
+        VkDescriptorSet set = VK_NULL_HANDLE;
+        float mode = 0.0f;
+        uint32_t firstIndex = 0;
+        uint32_t indexCount = 0;
+    };
+    std::vector<DrawRun> runs_;
 
     // Dynamic vertex buffer (re-uploaded each frame)
     VkBuffer vertexBuffer_ = VK_NULL_HANDLE;
