@@ -5178,6 +5178,16 @@ void Application::setupGameHud(const nlohmann::json& gameDef) {
     const auto& h = gameDef["hud"];
     if (h.is_array()) { for (const auto& p : h) buildPanel(p); }
     else if (h.is_object()) { buildPanel(h); }
+
+    // Wire interactive HUD buttons (data-driven HUD is non-ImGui; UISystem routes
+    // clicks via handleInput). End Turn -> PlayerTurnController.
+    for (const auto& [screenName, vis] : uiSystem->getScreenList()) {
+        auto* screen = uiSystem->getScreen(screenName);
+        if (!screen) continue;
+        if (auto* w = screen->findChild("combat_end_turn"); w && w->type() == UI::WidgetType::Button) {
+            static_cast<UI::UIButton*>(w)->onClick = [this]{ m_playerTurn.endTurn(); };
+        }
+    }
 }
 
 void Application::autoLoadGameDefinition() {
