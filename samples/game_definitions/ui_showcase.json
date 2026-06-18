@@ -1,0 +1,103 @@
+{
+  "name": "UI Showcase",
+  "description": "A small game built to exercise the data-driven UISystem UI: menus (submenus + token interpolation), the default HUD (health, hotbar, objectives), and the dialogue box.",
+  "version": "1.0",
+
+  "startScene": "main_menu",
+
+  "playerDefaults": {
+    "type": "animated",
+    "position": { "x": 16, "y": 18, "z": 16 }
+  },
+
+  "scenes": [
+    {
+      "id": "main_menu",
+      "name": "Main Menu",
+      "sceneType": "menu",
+      "transitionStyle": "fade",
+      "menuLayout": {
+        "background_type": "solid",
+        "background_color": [0.06, 0.05, 0.12, 1.0],
+        "start_panel": "main",
+        "panels": {
+          "main": {
+            "children": [
+              { "type": "label",  "id": "title",    "text": "UI SHOWCASE",        "font": "title", "position": [640, 110], "size": [520, 70] },
+              { "type": "label",  "id": "subtitle", "text": "A Voxel UI Demo",     "position": [640, 178], "size": [400, 32] },
+              { "type": "button", "id": "btn_new",  "text": "New Game", "position": [540, 290], "size": [200, 48], "action": { "type": "transition_scene", "target": "game_world" } },
+              { "type": "button", "id": "btn_opts", "text": "Options",  "position": [540, 350], "size": [200, 48], "action": { "type": "open_submenu", "target": "options" } },
+              { "type": "button", "id": "btn_cred", "text": "Credits",  "position": [540, 410], "size": [200, 48], "action": { "type": "open_submenu", "target": "credits" } },
+              { "type": "button", "id": "btn_quit", "text": "Quit",     "position": [540, 470], "size": [200, 48], "action": { "type": "quit_game" } }
+            ]
+          },
+          "options": {
+            "children": [
+              { "type": "label",  "id": "o_title", "text": "OPTIONS", "font": "title", "position": [640, 110], "size": [400, 70] },
+              { "type": "label",  "id": "o_note",  "text": "Settings would go here.", "position": [640, 300], "size": [460, 30] },
+              { "type": "button", "id": "o_back",  "text": "< Back", "position": [540, 420], "size": [200, 48], "action": { "type": "close_submenu" } }
+            ]
+          },
+          "credits": {
+            "children": [
+              { "type": "label",  "id": "c_title", "text": "CREDITS", "font": "title", "position": [640, 110], "size": [400, 70] },
+              { "type": "label",  "id": "c_eng",   "text": "Engine: Phyxel", "position": [640, 240], "size": [400, 32] },
+              { "type": "label",  "id": "c_time",  "text": "Playtime this session: {{playtime}}", "position": [640, 290], "size": [520, 30] },
+              { "type": "button", "id": "c_back",  "text": "< Back", "position": [540, 420], "size": [200, 48], "action": { "type": "close_submenu" } }
+            ]
+          }
+        }
+      }
+    },
+
+    {
+      "id": "game_world",
+      "name": "Game World",
+      "sceneType": "world",
+      "worldDatabase": "worlds/game_world.db",
+      "transitionStyle": "fade",
+      "definition": {
+        "world": {
+          "type": "Flat",
+          "from": { "x": -1, "y": 0, "z": -1 },
+          "to":   { "x": 1,  "y": 0, "z": 1  }
+        },
+        "camera": {
+          "position": { "x": 26, "y": 24, "z": 26 },
+          "yaw": -135,
+          "pitch": -25
+        },
+        "player": {
+          "type": "animated",
+          "position": { "x": 16, "y": 18, "z": 16 }
+        },
+        "npcs": [
+          {
+            "name": "Elder Maewyn",
+            "position": { "x": 20, "y": 17, "z": 16 },
+            "behavior": "idle",
+            "dialogue": {
+              "id": "elder_intro",
+              "startNodeId": "n1",
+              "nodes": [
+                {
+                  "id": "n1",
+                  "speaker": "Elder Maewyn",
+                  "text": "Welcome, traveler. The old tower to the north has stirred again — strange lights flicker in its windows at night, and the goblins grow bolder with each passing moon. Will you help us?",
+                  "choices": [
+                    { "text": "I'll investigate the tower.", "targetNodeId": "n_yes" },
+                    { "text": "What's in it for me?",        "targetNodeId": "n_reward" },
+                    { "text": "Not my problem.",              "targetNodeId": "n_no" }
+                  ]
+                },
+                { "id": "n_yes",    "speaker": "Elder Maewyn", "text": "Bless you. Take the north path past the standing stones — and watch for goblin scouts.", "nextNodeId": "n1" },
+                { "id": "n_reward", "speaker": "Elder Maewyn", "text": "Gold enough to outfit a hero, and the gratitude of the whole village. Now — will you go?", "nextNodeId": "n1" },
+                { "id": "n_no",     "speaker": "Elder Maewyn", "text": "I see. Should you reconsider, you know where to find me.", "nextNodeId": "n1" }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
