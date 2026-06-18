@@ -61,6 +61,15 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   for many args.
 - **Never auto-commit.** Commit/push only on explicit request. End commit messages with the
   `Co-Authored-By:` trailer.
+- **Doc-sync gate (keep the forwarding surface current).** When you change engine code, update
+  the matching downstream surface (docs, the `phyxel-gamedev` skills, MCP tool descriptions, the
+  CLAUDE.md/.mcp.json templates) — the map is `docs/ForwardingSurface.md`. A **pre-push hook +
+  CI** (`tools/check_doc_sync.py`) BLOCKS a push that changes `engine/`/`editor/`/`scripts/mcp/`/
+  `shaders/` without touching any surface file. Enable the hook once per clone:
+  `git config core.hooksPath .githooks`. Reconcile semantically with **`/sync-docs`**; opt a
+  genuinely doc-irrelevant change out with `[skip-docs]` in a commit message
+  (or `git push --no-verify` to bypass entirely). This exists because skills/docs silently drifted
+  behind engine changes (e.g. stale UI guidance).
 
 ---
 

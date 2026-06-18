@@ -1,0 +1,9 @@
+#!/bin/sh
+# Doc-sync gate (pre-push): block a push that changes engine code (engine/, editor/,
+# scripts/mcp/, shaders/) without updating the forwarding surface (docs/, skills,
+# CLAUDE.md/.mcp.json templates). See docs/ForwardingSurface.md.
+#
+# Enable once per clone:  git config core.hooksPath .githooks
+# Opt out per change:     add [skip-docs] to a commit message in the push.
+# Bypass entirely:        git push --no-verify
+exec python tools/check_doc_sync.py

@@ -1,0 +1,30 @@
+name: doc-sync
+
+# CI backstop for the forwarding-surface gate (the primary gate is the local pre-push
+# hook). Fails if a push/PR changes engine code without updating docs/skills/templates.
+# See docs/ForwardingSurface.md. Opt out with [skip-docs] in a commit message.
+on:
+  push:
+  pull_request:
+
+jobs:
+  doc-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Forwarding-surface sync check
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            RANGE="origin/${{ github.base_ref }}...HEAD"
+          elif [ -n "${{ github.event.before }}" ] && ! echo "${{ github.event.before }}" | grep -q '^0\{40\}$'; then
+            RANGE="${{ github.event.before }}..${{ github.sha }}"
+          else
+            RANGE="HEAD~1..HEAD"
+          fi
+          echo "doc-sync range: $RANGE"
+          python tools/check_doc_sync.py "$RANGE"
