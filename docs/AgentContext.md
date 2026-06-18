@@ -24,7 +24,18 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   cmake --build build --config Debug --target phyxel
   ```
 - **Always `stop_engine` / kill `phyxel.exe` before rebuilding** — the linker cannot
-  overwrite a running exe.
+  overwrite a running exe (LNK1104 "cannot open phyxel.exe").
+- **⚠️ MULTI-INSTANCE / PORTS — the user runs several sessions at once.** Each engine
+  binds its own **API/MCP port** (default **8090** = the engine-dev slot). **NEVER
+  `taskkill //IM phyxel.exe`** or `stop_engine` blindly — it kills OTHER sessions'
+  engines. Check `tasklist //FI "IMAGENAME eq phyxel.exe"` and only kill the specific
+  PID you launched. Don't assume 8090 is yours — if another session may be up, launch
+  with `--port <N>` and drive `curl localhost:<N>` (MCP tools target `PHYXEL_API_PORT`/
+  8090). The shared `phyxel.exe` can't relink while ANY instance runs it — don't kill
+  others to unblock a build; wait or build a separate output. Game projects from
+  `create_project.py` get a unique `engine.json api_port` + a `.mcp.json` with matching
+  `PHYXEL_API_PORT`, so a session opened in the project folder auto-uses its own port
+  (`phyxel.exe --project <dir>` reads `api_port` from engine.json).
 - **Verify fixes by RUNNING the engine** (build → launch → trigger the scenario →
   capture `screenshot`/`get_visual_diagnostic`/`get_engine_logs`). "Compiled clean" is
   NOT verification.
