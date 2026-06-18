@@ -254,29 +254,42 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   ships strictly LESS than the editor, and ImGui is bolted over the data-driven UI.** Most of
   this is round-5 scope for the "engine-side game-shell base classes" item below — the throughline
   is "migrate it into `GameShell` so generated games inherit it instead of re-deriving the editor's
-  logic." NOT yet implemented; this is the to-do list:
+  logic." **STATUS (round-5 push, 2026-06-18): the 3 must-fix-first bugs + the token-resolver are DONE
+  in the scaffold generator (`tools/create_project.py`, commit `f069b47`); the editor multi-scene HUD
+  gap turned out to be ALREADY fixed (`94b1ec1`) and was confirmed live this session; the menu Back
+  soft-lock is IMPLEMENTED engine-side (`UISystem`) pending a standalone runtime check. Remaining: the
+  `hud`-block override, the NO-ImGui-in-gameplay umbrella, paused-HUD suppression, and the GameShell
+  migration of all of it.** To-do list:
   - **⚠️ Standalone scaffold parity (the headline cluster):**
-    - **Resource seeding (crash/empty-world, fix FIRST):** scaffolded `shaders/` is EMPTY (no
-      `.spv` → instant exit right after "Framebuffers created successfully") and `resources/` is
+    - **✅ DONE (`f069b47`) Resource seeding (crash/empty-world):** scaffolded `shaders/` was EMPTY (no
+      `.spv` → instant exit right after "Framebuffers created successfully") and `resources/` was
       missing engine defaults (`animated_characters/humanoid.anim`, `ui/default_hud.json`, `fonts/`,
-      `textures/` + `materials.json`/`biomes.json`). Had to hand-copy from `PHYXEL_ROOT`. Fix: project
-      generator seeds them, or `CMakeLists.txt` POST_BUILD copies from `${PHYXEL_ROOT}/{shaders,resources}`
-      (today it only copies the project's own empty dirs).
-    - **Player invisible (fix FIRST):** scaffold calls `setNPCManager` but NOT
-      `renderCoordinator_->setEntities(&entities_)`, so the player (lives in `entities_`, not NPCManager)
-      never renders. Also `cb.onMenuSceneLoaded` builds `MenuActions` without `onResolveVariable` →
-      literal `{{story.gold}}`/`{{playtime}}` on screen. Both are scaffold-template bugs.
+      `textures/` + `materials.json`/`biomes.json`). Fix: `CMakeLists.txt` POST_BUILD now copies
+      `${PHYXEL_ROOT}/{shaders,resources}` FIRST, then layers the project's own dirs on top (project
+      files win). (`package_game.py` already seeded these — only the dev-build POST_BUILD was affected.)
+    - **✅ DONE (`f069b47`) Player invisible + literal `{{tokens}}`:** scaffold called `setNPCManager` but
+      NOT `renderCoordinator_->setEntities(&entities_)`, so the player (lives in `entities_`, not
+      NPCManager) never rendered — now added. Also `cb.onMenuSceneLoaded` built `MenuActions` without
+      `onResolveVariable` → literal `{{story.gold}}`/`{{playtime}}`; now wires
+      `acts.onResolveVariable = gameMenuRenderer_->onResolveVariable`.
     - **Ignores game.json `hud` block:** `UIShowcase.cpp` calls `loadHudInto(*getUISystem(), nullptr)`
       hardcoded, so it ALWAYS loads `default_hud.json` and the data-driven HUD-customization feature is
       dead in shipped games. Mirror the editor's `setupGameHud` (`gameDef.contains("hud") ? &... : nullptr`)
       + honor `combat.mode`.
-    - **Menu Back soft-lock:** `UISystem::handleInput` delivers ONE click to EVERY visible screen in
-      one pass; `close_submenu` reveals `menu:<startPanel>` mid-loop and (when that panel sorts LATER in
-      the std::map pass) it re-consumes the same click → Credits→Back bounces, Options→Back works (luck of
-      map order). Fix: break the screen loop once a click is `consumed`, or snapshot visibility before the loop.
-    - **Double dialogue box (fix FIRST):** ImGui `renderDialogueBox` AND data-driven `hud_dialogue`
-      both draw while dialogue is active. Editor gates the ImGui path to AI conversations (Application.cpp
-      ~2801); scaffold never gates it. Fix: only render ImGui dialogue when `hud_dialogue` is absent.
+    - **🔨 IMPLEMENTED (pending standalone runtime verify) Menu Back soft-lock:** `UISystem::handleInput`
+      (and `injectClick`) delivered ONE click to EVERY visible screen in one pass; `close_submenu` reveals
+      `menu:<startPanel>` mid-loop and (when that panel is iterated LATER — `screens_` is actually an
+      `unordered_map`, so it's HASH-order-dependent, not the alphabetical `std::map` the feedback guessed)
+      it re-consumes the same click → Credits→Back bounces. Fix: both methods now snapshot the visible
+      screens via `visibleScreenSnapshot()` BEFORE dispatch, so a screen revealed by an onClick can't
+      receive that same click (order-independent). Compiles clean; NOT yet verified on a built standalone
+      (the editor is not a valid surface — its multi-scene menu transition is unreliable/stuck, feedback
+      #2, and never loads the menu into the foreground UISystem; the standalone needs a ~38-min build).
+    - **✅ DONE (`f069b47`) Double dialogue box:** ImGui `renderDialogueBox` AND data-driven `hud_dialogue`
+      both drew while dialogue was active. Editor gates the ImGui path to AI conversations (Application.cpp
+      ~2801); scaffold never did. Fix: gate the scaffold's ImGui box to `isAIConversation()` — complementary
+      to the `hud_dialogue` visibility provider (`active && !isAIConversation()`), so trees → data-driven
+      panel only, AI → ImGui box only.
     - **HUD/prompts persist while paused:** ESC pause leaves the data-driven HP bar + `[E]` prompt
       rendered under/over the ImGui pause menu (they don't coordinate visibility).
   - **NO ImGui in gameplay (architecture umbrella — parent of the pause-look / double-dialogue /
@@ -287,12 +300,13 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     data-driven UISystem panel, the scaffold carries NO ImGui gameplay calls, ImGui is opt-in debug only.
     Needs data-driven equivalents for pause/settings/victory/intro/credits + speech-bubble + interaction-prompt
     + countdown, wired in `GameShell`.
-  - **Editor multi-scene HUD gap (discrete bug, good first fix):** `setupGameHud(gameDef)` + `combat.mode`
-    are only called on the SINGLE-scene path. Both multi-scene paths return early before it
-    (`autoLoadGameDefinition` ~5331; `load_game_definition` handler ~13118), so opening a multi-scene project
-    (menu `startScene`→world, like UIShowcase) renders no HUD / dialogue box / objectives / combat UI in-editor.
-    Standard dialogue TREES draw through `hud_dialogue`, so a tree convo is fully active at the state level yet
-    draws nothing. Fix: call `setupGameHud`+apply `combat.mode` in BOTH multi-scene paths.
+  - **✅ ALREADY FIXED (`94b1ec1`, confirmed live this session) Editor multi-scene HUD gap:**
+    `setupGameHud(gameDef)` + `combat.mode` were only called on the SINGLE-scene path; both multi-scene
+    paths (`autoLoadGameDefinition` ~5335; `load_game_definition` handler ~13155) now call them BEFORE
+    transitioning. The fix landed same-day as the feedback. Confirmed live: loading `ui_showcase.json`
+    over HTTP into the editor logs `[HUD] Loaded engine default HUD` + all `hud_*` panels on the
+    multi-scene path. (Note: the editor's menu-scene *transition itself* is still unreliable — see the
+    soft-lock note above — but the HUD-setup gap is closed.)
   - **ROADMAP (NEW): functional smoke-test harness for generated games (HIGH PRIORITY / process).**
     Sessions keep "verifying" via API/state probes (`/api/dialogue/state` says active → "dialogue works")
     and ship obvious visual defects (invisible player, double dialogue, literal `{{tokens}}`, soft-locked Back,

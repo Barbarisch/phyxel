@@ -105,6 +105,11 @@ private:
     };
     std::unordered_map<std::string, ScreenEntry> screens_;
 
+    // Snapshot of the currently-visible screens, taken before click dispatch so a
+    // screen revealed by an onClick handler can't receive that same click (menu
+    // Back soft-lock — see handleInput / injectClick).
+    std::vector<ScreenEntry*> visibleScreenSnapshot();
+
     uint32_t screenWidth_;
     uint32_t screenHeight_;
     bool initialized_ = false;

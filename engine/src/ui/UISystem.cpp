@@ -96,6 +96,14 @@ std::vector<std::pair<std::string, bool>> UISystem::getScreenList() const {
 
 // ── Input routing ───────────────────────────────────────────
 
+std::vector<UISystem::ScreenEntry*> UISystem::visibleScreenSnapshot() {
+    std::vector<ScreenEntry*> active;
+    active.reserve(screens_.size());
+    for (auto& [name, entry] : screens_)
+        if (entry.visible && entry.panel) active.push_back(&entry);
+    return active;
+}
+
 bool UISystem::handleInput(Input::InputManager* input) {
     if (!initialized_ || !hasVisibleScreens()) return false;
 
@@ -111,9 +119,17 @@ bool UISystem::handleInput(Input::InputManager* input) {
     glm::vec2 screenSize(static_cast<float>(screenWidth_), static_cast<float>(screenHeight_));
     bool consumed = false;
 
-    for (auto& [name, entry] : screens_) {
-        if (!entry.visible || !entry.panel) continue;
-        auto* panel = entry.panel.get();
+    // Snapshot the screens visible at the START of this pass. A button's onClick
+    // can reveal another screen mid-loop (e.g. close_submenu → menuShowOnly shows
+    // menu:main); without this snapshot the newly-revealed screen receives the
+    // SAME click later in the iteration and instantly re-fires whatever button
+    // sits under the cursor — the menu Back soft-lock (Credits→Back bounces
+    // straight back to Credits, depending on screens_ hash order).
+    // (game-dev feedback round 5 — UIShowcase.)
+    auto activeScreens = visibleScreenSnapshot();
+
+    for (auto* entry : activeScreens) {
+        auto* panel = entry->panel.get();
 
         // Resolve panel position from anchor
         glm::vec2 panelPos = resolveAnchor(panel->anchor, {0, 0}, screenSize,
@@ -142,9 +158,13 @@ bool UISystem::injectClick(glm::vec2 pos) {
     glm::vec2 screenSize(static_cast<float>(screenWidth_), static_cast<float>(screenHeight_));
     bool consumed = false;
 
-    for (auto& [name, entry] : screens_) {
-        if (!entry.visible || !entry.panel) continue;
-        auto* panel = entry.panel.get();
+    // Snapshot before dispatch — same soft-lock guard as handleInput (an injected
+    // click via POST /api/ui/click must not be re-delivered to a screen revealed
+    // by this very click). (game-dev feedback round 5 — UIShowcase.)
+    auto activeScreens = visibleScreenSnapshot();
+
+    for (auto* entry : activeScreens) {
+        auto* panel = entry->panel.get();
 
         glm::vec2 panelPos = resolveAnchor(panel->anchor, {0, 0}, screenSize,
                                             panel->size, panel->offset);
