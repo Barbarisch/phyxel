@@ -91,5 +91,11 @@ void loadMenuInto(UISystem& ui, const nlohmann::json& layout, const MenuActions&
 /// Remove all "menu:*" screens previously added by loadMenuInto.
 void unloadMenuFrom(UISystem& ui);
 
+/// Load HUD panels into the UISystem as shown screens. Uses `gameHud` if non-null
+/// (a game.json "hud" object or array of panels), else the engine default HUD
+/// (resources/ui/default_hud.json). Shared by the editor and standalone hosts —
+/// the host registers data providers separately on the RenderCoordinator hudData().
+void loadHudInto(UISystem& ui, const nlohmann::json* gameHud);
+
 } // namespace UI
 } // namespace Phyxel

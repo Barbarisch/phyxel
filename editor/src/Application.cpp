@@ -5243,41 +5243,9 @@ void Application::setupGameHud(const nlohmann::json& gameDef) {
         return rows;
     });
 
-    // Resolve the HUD definition: a game's own "hud" (object or array of panels)
-    // overrides the engine default HUD that ships out of the box
-    // (resources/ui/default_hud.json). Each panel is an independently-anchored screen
-    // (a panel lays its children in one vertical stack, so e.g. a bottom-left health
-    // bar and a top-center combat banner must be separate screens).
-    nlohmann::json hudDef;
-    if (gameDef.contains("hud")) {
-        hudDef = gameDef["hud"];
-        LOG_INFO("Application", "Using game-defined HUD");
-    } else {
-        const std::string path = "resources/ui/default_hud.json";
-        std::ifstream df(path);
-        if (df.is_open()) {
-            try { df >> hudDef; LOG_INFO("Application", "Loaded engine default HUD ({})", path); }
-            catch (const std::exception& e) { LOG_ERROR("Application", "Failed to parse default HUD: {}", e.what()); }
-        } else {
-            LOG_WARN("Application", "Default HUD not found at {} — no HUD loaded", path);
-        }
-    }
-    if (hudDef.is_null()) return;
-
-    auto buildPanel = [&](const nlohmann::json& panelDef) {
-        try {
-            auto panel = UI::MenuDefinition::buildFromJson(panelDef);
-            if (!panel) { LOG_ERROR("Application", "Failed to build a HUD panel"); return; }
-            std::string id = panelDef.value("id", "hud");
-            uiSystem->addScreen(id, std::move(panel));
-            uiSystem->showScreen(id);
-            LOG_INFO("Application", "Game HUD panel '{}' loaded", id);
-        } catch (const std::exception& e) {
-            LOG_ERROR("Application", "Error parsing HUD panel: {}", e.what());
-        }
-    };
-    if (hudDef.is_array()) { for (const auto& p : hudDef) buildPanel(p); }
-    else if (hudDef.is_object()) { buildPanel(hudDef); }
+    // Load HUD panels: a game's own "hud" overrides the engine default HUD that
+    // ships out of the box. Shared with standalone hosts via UI::loadHudInto.
+    UI::loadHudInto(*uiSystem, gameDef.contains("hud") ? &gameDef["hud"] : nullptr);
 
     // Wire interactive HUD buttons (data-driven HUD is non-ImGui; UISystem routes
     // clicks via handleInput). End Turn -> PlayerTurnController.

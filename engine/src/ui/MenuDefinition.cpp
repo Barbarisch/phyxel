@@ -1,9 +1,11 @@
 #include "ui/MenuDefinition.h"
 #include "ui/HudDataContext.h"
 #include "ui/UISystem.h"
+#include "utils/Logger.h"
 #include <stdexcept>
 #include <cstdio>
 #include <vector>
+#include <fstream>
 
 namespace Phyxel {
 namespace UI {
@@ -383,7 +385,10 @@ nlohmann::json MenuDefinition::toJson(const UIPanel& panel) {
 static void applyScalarBind(UIWidget* w, const HudDataContext& ctx) {
     if (!w) return;
     if (!w->visibleWhen.empty()) {
-        if (auto v = ctx.resolveFloat(w->visibleWhen)) w->visible = (*v > 0.5f);
+        // Fail-closed: a gated element with no provider registered stays hidden
+        // (so e.g. combat panels don't show empty in hosts that lack combat state).
+        auto v = ctx.resolveFloat(w->visibleWhen);
+        w->visible = (v && *v > 0.5f);
     }
     if (w->bind.empty()) return;
     switch (w->type()) {
@@ -560,6 +565,39 @@ static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, floa
         return w;
     }
     return nullptr;
+}
+
+void loadHudInto(UISystem& ui, const nlohmann::json* gameHud) {
+    nlohmann::json hudDef;
+    if (gameHud && !gameHud->is_null()) {
+        hudDef = *gameHud;
+        LOG_INFO("HUD", "Using game-defined HUD");
+    } else {
+        const std::string path = "resources/ui/default_hud.json";
+        std::ifstream df(path);
+        if (df.is_open()) {
+            try { df >> hudDef; LOG_INFO("HUD", "Loaded engine default HUD ({})", path); }
+            catch (const std::exception& e) { LOG_ERROR("HUD", "Failed to parse default HUD: {}", e.what()); }
+        } else {
+            LOG_WARN("HUD", "Default HUD not found at {} — no HUD loaded", path);
+        }
+    }
+    if (hudDef.is_null()) return;
+
+    auto buildPanel = [&](const nlohmann::json& panelDef) {
+        try {
+            auto panel = MenuDefinition::buildFromJson(panelDef);
+            if (!panel) { LOG_ERROR("HUD", "Failed to build a HUD panel"); return; }
+            std::string id = panelDef.value("id", "hud");
+            ui.addScreen(id, std::move(panel));
+            ui.showScreen(id);
+            LOG_INFO("HUD", "HUD panel '{}' loaded", id);
+        } catch (const std::exception& e) {
+            LOG_ERROR("HUD", "Error parsing HUD panel: {}", e.what());
+        }
+    };
+    if (hudDef.is_array()) { for (const auto& p : hudDef) buildPanel(p); }
+    else if (hudDef.is_object()) { buildPanel(hudDef); }
 }
 
 void loadMenuInto(UISystem& ui, const nlohmann::json& layout, const MenuActions& actions) {
