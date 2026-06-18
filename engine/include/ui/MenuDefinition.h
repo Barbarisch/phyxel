@@ -6,6 +6,7 @@
 #include <memory>
 #include <functional>
 #include <unordered_map>
+#include <optional>
 
 namespace Phyxel {
 namespace UI {
@@ -79,6 +80,10 @@ struct MenuActions {
     std::function<void(const std::string& sceneId)> onTransitionScene;
     std::function<void()> onQuit;
     std::function<void()> onLoadGame;
+    /// Resolve a {{token}} in label/button text to a display string (e.g.
+    /// "playtime", "story.<var>"). Return nullopt to leave the token literal.
+    /// Applied once at menu load (static).
+    std::function<std::optional<std::string>(const std::string& token)> onResolveVariable;
 };
 
 /// Convert a GameMenuRenderer-style menu layout (position-based 1280x720 canvas,

@@ -2087,6 +2087,26 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
                             runtime->getSceneManager()->transitionTo(sceneId);
                     };
                     acts.onQuit = [this] { quit(); };
+                    acts.onResolveVariable = [this](const std::string& token) -> std::optional<std::string> {
+                        if (token == "playtime") {
+                            int mins = static_cast<int>(m_playtimeSeconds / 60.0f);
+                            float secs = m_playtimeSeconds - static_cast<float>(mins) * 60.0f;
+                            char buf[32]; snprintf(buf, sizeof(buf), "%d:%04.1f", mins, secs);
+                            return std::string(buf);
+                        }
+                        if (token.rfind("story.", 0) == 0 && storyEngine) {
+                            const auto* var = storyEngine->getWorldState().getVariable(token.substr(6));
+                            if (!var) return std::nullopt;
+                            return std::visit([](const auto& v) -> std::string {
+                                using T = std::decay_t<decltype(v)>;
+                                if constexpr (std::is_same_v<T, std::string>) return v;
+                                else if constexpr (std::is_same_v<T, bool>)   return v ? "true" : "false";
+                                else if constexpr (std::is_same_v<T, float>) { char b[32]; snprintf(b, sizeof(b), "%.2f", v); return std::string(b); }
+                                else return std::to_string(v);
+                            }, var->value);
+                        }
+                        return std::nullopt;
+                    };
                     UI::loadMenuInto(*ui, scene.menuLayout, acts);
                     m_showGameMenuPreview = true;
                 }
@@ -7638,6 +7658,26 @@ bool Application::dispatchItemAPICommand(const Core::APICommand& cmd, nlohmann::
             if (runtime && runtime->getSceneManager()) runtime->getSceneManager()->transitionTo(s);
         };
         acts.onQuit = [this] { quit(); };
+        acts.onResolveVariable = [this](const std::string& token) -> std::optional<std::string> {
+            if (token == "playtime") {
+                int mins = static_cast<int>(m_playtimeSeconds / 60.0f);
+                float secs = m_playtimeSeconds - static_cast<float>(mins) * 60.0f;
+                char buf[32]; snprintf(buf, sizeof(buf), "%d:%04.1f", mins, secs);
+                return std::string(buf);
+            }
+            if (token.rfind("story.", 0) == 0 && storyEngine) {
+                const auto* var = storyEngine->getWorldState().getVariable(token.substr(6));
+                if (!var) return std::nullopt;
+                return std::visit([](const auto& v) -> std::string {
+                    using T = std::decay_t<decltype(v)>;
+                    if constexpr (std::is_same_v<T, std::string>) return v;
+                    else if constexpr (std::is_same_v<T, bool>)   return v ? "true" : "false";
+                    else if constexpr (std::is_same_v<T, float>) { char b[32]; snprintf(b, sizeof(b), "%.2f", v); return std::string(b); }
+                    else return std::to_string(v);
+                }, var->value);
+            }
+            return std::nullopt;
+        };
         UI::loadMenuInto(*ui, cmd.params["layout"], acts);
         response = {{"success", true}};
         return true;

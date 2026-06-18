@@ -64,8 +64,10 @@ button actions, and submenu panels. Not ported from `GameMenuRenderer`:
 - [ ] Per-element **animations** (fade_in / slide_in_left / slide_in_right + delays).
 - [ ] Per-element **custom fonts and text colors** (currently theme colors; needs UILabel
   custom color + per-widget font/size).
-- [ ] **`{{token}}` interpolation** in labels/buttons (`{{playtime}}`, `{{story.<var>}}`) —
-  generalize via the HudDataContext text providers.
+- [x] **`{{token}}` interpolation** in menu labels/buttons — DONE. `MenuActions.onResolveVariable`
+  resolves `{{playtime}}` / `{{story.<var>}}` at menu load (static); unknown tokens left literal.
+  Wired in the editor menu path + the `/api/ui/load_menu` debug hook. Verified live. (NOTE: static
+  at load — a live-updating clock would need per-frame re-resolution; fine for credits/story vars.)
 - [ ] `editor/MenuEditorPanel` still authors the `GameMenuRenderer` schema — fine (the loader
   consumes that schema), but eventually align authoring + preview on one path.
 

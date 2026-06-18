@@ -525,6 +525,29 @@ void unloadMenuFrom(UISystem& ui) {
     for (const auto& [name, vis] : ui.getScreenList()) ui.showScreen(name);
 }
 
+// Replace {{token}} occurrences in text via actions.onResolveVariable (static, at
+// load time). Unresolved tokens (or no resolver) are left literal.
+static std::string resolveTokens(const std::string& text, const MenuActions& actions) {
+    if (!actions.onResolveVariable || text.find("{{") == std::string::npos) return text;
+    std::string out;
+    size_t i = 0;
+    while (i < text.size()) {
+        size_t open = text.find("{{", i);
+        if (open == std::string::npos) { out += text.substr(i); break; }
+        out += text.substr(i, open - i);
+        size_t close = text.find("}}", open + 2);
+        if (close == std::string::npos) { out += text.substr(open); break; }
+        std::string token = text.substr(open + 2, close - (open + 2));
+        size_t a = token.find_first_not_of(" \t");
+        size_t b = token.find_last_not_of(" \t");
+        token = (a == std::string::npos) ? std::string() : token.substr(a, b - a + 1);
+        auto val = actions.onResolveVariable(token);
+        out += val ? *val : text.substr(open, close + 2 - open);  // leave literal if unresolved
+        i = close + 2;
+    }
+    return out;
+}
+
 static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, float sx, float sy,
         const MenuActions& actions, UISystem& ui, const std::string& startPanel) {
     std::string type = el.value("type", "");
@@ -536,7 +559,7 @@ static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, floa
 
     if (type == "label") {
         auto w = std::make_unique<UILabel>();
-        w->text = el.value("text", "");
+        w->text = resolveTokens(el.value("text", ""), actions);
         w->isTitle = (el.value("font", "") == "title");
         w->position = posv; w->size = sizev;
         return w;
@@ -549,7 +572,7 @@ static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, floa
     }
     if (type == "button") {
         auto w = std::make_unique<UIButton>();
-        w->text = el.value("text", "");
+        w->text = resolveTokens(el.value("text", ""), actions);
         w->position = posv; w->size = sizev;
         if (el.contains("action") && el["action"].is_object()) {
             const auto& a = el["action"];
