@@ -754,8 +754,9 @@ setupGameHud` loads top-level `game.json "hud"` + registers player.health provid
 per frame. **Solved the editor-preview gap:** `UISystem` now renders LAST IN THE SCENE PASS into the
 offscreen image (was post-process/swapchain), so the HUD shows in the editor Viewport panel AND ships
 via post-process — one pipeline, no ImGui. Verified in DebrisPushTest: bar reads "HP 100/100",
-`damage_player 62` → "HP 38/100". **Then re-homed the combat HUD onto `UISystem`** (branch
-`feature/hud-system`, 5 commits, NOT pushed): round banner + turn label + action bar + hit-chance
+`damage_player 62` → "HP 38/100". **The whole HUD-system work (19 commits) is now MERGED to `main`
++ pushed** (was `feature/hud-system`); remaining work catalogued in `docs/HudSystem_TODO.md`.
+**Then re-homed the combat HUD onto `UISystem`**: round banner + turn label + action bar + hit-chance
 (`combat.*` providers, `visibleWhen`-gated) + **Initiative turn-order list** via a new `UIRepeater`
 widget + list binding + **End Turn** `UIButton`→`endTurn()` — all verified live in turn-based combat.
 New infra: `visibleWhen`, HUD-as-array-of-panels, `UI::applyHudBindings` (RenderCoordinator applies
