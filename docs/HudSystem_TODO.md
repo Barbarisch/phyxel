@@ -17,21 +17,32 @@ test hook (`/api/ui/click`).
 
 ---
 
-## 1. Standalone host (the big one — blocks "ships in a real game")
-The whole point of the no-ImGui principle is the *packaged* game. The engine side is in
-place, but the standalone hosts aren't wired and **can't be verified in this environment**
-(needs a packaged/standalone run).
+## 1. Standalone host
+The scaffold (the real shipped-game host) is now wired; **runtime verification still needs a
+packaged/standalone build** (can't run a standalone in this environment).
 
-- [ ] **`EngineRuntime` / `GameShell` / scaffold (`tools/create_project.py`) + `examples/
-  minimal_game`**: init `UISystem` (they create a `RenderCoordinator` but never call
-  `initUISystem()`), register HUD data providers (player health, hotbar, objectives, combat,
-  dialogue) from engine subsystems, and load the default/menu HUD. Today the standalone
-  drives ImGui directly (`imgui->newFrame/endFrame`) and delegates menus to `GameMenuRenderer`.
-- [ ] `examples/minimal_game` is **disabled in CMake** (`# add_subdirectory(...) removed`) —
-  re-enable (or use a packaged project) to verify standalone HUD/menus.
-- [ ] **Standalone `GameMenuRenderer` → UISystem**: the editor menu path is migrated, but
-  `EngineRuntime` still owns/uses the ImGui `GameMenuRenderer`. Route its menu scenes through
-  `UI::loadMenuInto` too, then remove `GameMenuRenderer` from the shipping path.
+- [x] **Scaffold (`tools/create_project.py`) wired** — generated game now calls
+  `renderCoordinator_->initUISystem()`, registers HUD providers (player.health/maxHealth always;
+  dialogue.* when a DialogueSystem exists), `UI::loadHudInto(...)` (engine default HUD), routes
+  `onMenuSceneLoaded` → `UI::loadMenuInto` / `onSceneReady` → `UI::unloadMenuFrom`, and drives
+  `UISystem::handleInput` for menu clicks. The ImGui `gameMenuRenderer_->render/load/unload` calls
+  are gone. Verified by **generating** a project + reviewing the emitted C++ (engine helpers it
+  calls are compiled+verified); **NOT compiled/run** — needs a packaged build.
+- [ ] **Compile + run a packaged/standalone game** to verify the scaffold HUD/menus render and
+  buttons click (the one remaining verification gap for "ships in a real game").
+- [ ] **Scaffold cleanup**: `gameMenuRenderer_` is still declared/constructed (with its
+  onTransitionScene/onQuit/onResolveVariable) but no longer renders — remove it once the standalone
+  is verified. Also `{{token}}` interpolation (playtime/story.*) lived on `gameMenuRenderer_` — port
+  to the HudDataContext text providers + the menu loader.
+- [ ] **More scaffold providers**: hotbar/objectives/combat panels stay hidden (fail-closed) because
+  the scaffold has no inventory/objectiveTracker/combat — wire them if/when those subsystems exist
+  in the standalone.
+- [ ] **`examples/minimal_game`** is **disabled in CMake** (re-enabling forces a full reconfigure —
+  the ~38–48 min build hang; do it deliberately as a backgrounded targeted build if needed). Wire it
+  as the compilable reference OR delete it; it still uses the ImGui `renderGameHUD`/ScreenState UI.
+- [ ] **Standalone `GameMenuRenderer` in `EngineRuntime`**: `EngineRuntime` still owns/uses the ImGui
+  `GameMenuRenderer` (its `getGameMenuRenderer()` + onMenuSceneLoaded wiring). Route via
+  `UI::loadMenuInto` and remove it from the shipping path.
 - [ ] **Bundle assets into packaged games** (`tools/package_game.py`): copy
   `resources/ui/default_hud.json` and `resources/fonts/*.ttf` so the HUD + font ship.
 

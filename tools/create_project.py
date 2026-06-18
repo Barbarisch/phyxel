@@ -130,6 +130,11 @@ def create_project(
     # this renders the active menu — so the built-in ScreenState shell does NOT
     # double up on top of it (see docs/GameCreationGuide.md, "Menus").
     extra_includes.append('#include "ui/GameMenuRenderer.h"')
+    # Data-driven UISystem HUD + menus (custom-Vulkan, no ImGui) — see docs/HudSystem.md.
+    extra_includes.append('#include "ui/MenuDefinition.h"')   # loadHudInto / loadMenuInto / MenuActions
+    extra_includes.append('#include "ui/UISystem.h"')
+    extra_includes.append('#include "ui/HudDataContext.h"')
+    extra_includes.append('#include "core/HealthComponent.h"')
     extra_members.append("    std::unique_ptr<Phyxel::UI::GameMenuRenderer> gameMenuRenderer_;")
     extra_members.append("    bool menuSceneActive_ = false;  // a sceneType:\"menu\" scene is currently shown")
     extra_members.append("    float lastDt_ = 0.0f;           // last frame dt, for menu animations in onRender")
@@ -306,6 +311,58 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
     # escaped for use inside a C++ string literal.
     game_tagline = ((game_def or {}).get("description", "") or "A Phyxel game")
     game_tagline = game_tagline.replace("\\", "\\\\").replace('"', '\\"')
+
+    # ── Data-driven HUD wiring (UISystem, no ImGui) ─────────────────────
+    # Built as a NORMAL string (not inside the cpp f-string) so its C++ braces need
+    # no doubling, then injected via {hud_setup}. A DialogueSystem exists whenever a
+    # game definition is loaded (see create_project: member added when game_definition),
+    # so dialogue providers are emitted iff game_def is present. player health is
+    # always available (playerCharacter_ is an unconditional member).
+    has_dialogue = bool(game_def)
+    dialogue_providers = ""
+    if has_dialogue:
+        dialogue_providers = """
+                hud.setFloat("dialogue.active", [this]() {
+                    return (dialogueSystem_ && dialogueSystem_->isActive() && !dialogueSystem_->isAIConversation()) ? 1.0f : 0.0f;
+                });
+                hud.setFloat("dialogue.waiting", [this]() {
+                    return (dialogueSystem_ && dialogueSystem_->getState() == Phyxel::UI::DialogueState::WaitingForInput) ? 1.0f : 0.0f;
+                });
+                hud.setText("dialogue.speaker", [this]() {
+                    return dialogueSystem_ ? dialogueSystem_->getCurrentSpeaker() : std::string();
+                });
+                hud.setText("dialogue.text", [this]() {
+                    return dialogueSystem_ ? dialogueSystem_->getRevealedText() : std::string();
+                });
+                hud.setList("dialogue.choices", [this]() {
+                    std::vector<Phyxel::UI::HudRecord> rows;
+                    if (!dialogueSystem_ || dialogueSystem_->getState() != Phyxel::UI::DialogueState::ChoiceSelection) return rows;
+                    const auto& ch = dialogueSystem_->getAvailableChoices();
+                    for (size_t i = 0; i < ch.size(); ++i) {
+                        Phyxel::UI::HudRecord r;
+                        r.texts["label"] = "[" + std::to_string(i + 1) + "] " + ch[i].text;
+                        rows.push_back(std::move(r));
+                    }
+                    return rows;
+                });"""
+    hud_setup = """
+            // Data-driven HUD on the UISystem (custom-Vulkan, no ImGui): init the
+            // UISystem, register the data providers this game supplies, and load the
+            // engine default HUD (resources/ui/default_hud.json). See docs/HudSystem.md.
+            renderCoordinator_->initUISystem();
+            {
+                auto& hud = renderCoordinator_->hudData();
+                hud.setFloat("player.health", [this]() {
+                    auto* hc = playerCharacter_ ? playerCharacter_->getHealthComponent() : nullptr;
+                    return hc ? hc->getHealth() : 100.0f;
+                });
+                hud.setFloat("player.maxHealth", [this]() {
+                    auto* hc = playerCharacter_ ? playerCharacter_->getHealthComponent() : nullptr;
+                    return hc ? hc->getMaxHealth() : 100.0f;
+                });""" + dialogue_providers + """
+                Phyxel::UI::loadHudInto(*renderCoordinator_->getUISystem(), nullptr);
+            }"""
+
     return textwrap.dedent(f"""\
         #include "{class_name}.h"
         #include "core/ChunkManager.h"
@@ -456,6 +513,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 nullptr, nullptr
             );
             renderCoordinator_->setNPCManager(npcManager_.get());
+{hud_setup}
 
             // JSON-driven menu renderer for sceneType:"menu" scenes. MUST be
             // constructed BEFORE loadGameDefinition(): loading a multi-scene game
@@ -682,10 +740,20 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             if (dialogueSystem_ && dialogueSystem_->isActive())
                                 dialogueSystem_->endConversation();
                         }};
-                        auto* dev = engine.getVulkanDevice();
-                        cb.onMenuSceneLoaded = [this, dev](const Phyxel::Core::SceneDefinition& scene) {{
-                            if (gameMenuRenderer_ && !scene.menuLayout.is_null()) {{
-                                gameMenuRenderer_->load(scene.menuLayout, dev);
+                        cb.onMenuSceneLoaded = [this](const Phyxel::Core::SceneDefinition& scene) {{
+                            // Menu scenes render via the UISystem (custom-Vulkan, no ImGui).
+                            auto* ui = renderCoordinator_ ? renderCoordinator_->getUISystem() : nullptr;
+                            if (ui && !scene.menuLayout.is_null()) {{
+                                Phyxel::UI::MenuActions acts;
+                                acts.onTransitionScene = [this](const std::string& sceneId) {{
+                                    auto* sm = engine_ ? engine_->getSceneManager() : nullptr;
+                                    if (sm && sm->hasManifest()) sm->transitionTo(sceneId);
+                                }};
+                                acts.onQuit = [this]() {{
+                                    auto* w = engine_ ? engine_->getWindowManager() : nullptr;
+                                    if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE);
+                                }};
+                                Phyxel::UI::loadMenuInto(*ui, scene.menuLayout, acts);
                                 menuSceneActive_ = true;
                                 if (engine_) updateCursorMode(*engine_);
                             }}
@@ -702,7 +770,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             // never initialize (renders garbage).
                             if (menuSceneActive_) {{
                                 menuSceneActive_ = false;
-                                if (gameMenuRenderer_) gameMenuRenderer_->unload();
+                                if (auto* ui = renderCoordinator_ ? renderCoordinator_->getUISystem() : nullptr)
+                                    Phyxel::UI::unloadMenuFrom(*ui);
                             }}
                             if (!Phyxel::UI::isGameRunning(screen_.getState())) {{
                                 screen_.setState(Phyxel::UI::ScreenState::Playing);
@@ -863,10 +932,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (imgui) {{
                 imgui->newFrame();
 
-                // A sceneType:"menu" scene owns the screen — render it instead of the
-                // built-in ScreenState shell so the two don't draw on top of each other.
-                if (menuSceneActive_ && gameMenuRenderer_ && gameMenuRenderer_->hasLayout()) {{
-                    gameMenuRenderer_->render(lastDt_);
+                // A sceneType:"menu" scene owns the screen. It renders via the UISystem
+                // (custom-Vulkan, inside renderCoordinator_->render()) — no ImGui menu.
+                // Drive UISystem input so menu buttons are clickable.
+                if (menuSceneActive_) {{
+                    if (renderCoordinator_) {{
+                        if (auto* ui = renderCoordinator_->getUISystem())
+                            ui->handleInput(engine.getInputManager());
+                    }}
                     imgui->endFrame();
                     if (renderCoordinator_) renderCoordinator_->render();
                     return;
