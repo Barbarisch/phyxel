@@ -43,8 +43,10 @@ packaged/standalone build** (can't run a standalone in this environment).
 - [ ] **Standalone `GameMenuRenderer` in `EngineRuntime`**: `EngineRuntime` still owns/uses the ImGui
   `GameMenuRenderer` (its `getGameMenuRenderer()` + onMenuSceneLoaded wiring). Route via
   `UI::loadMenuInto` and remove it from the shipping path.
-- [ ] **Bundle assets into packaged games** (`tools/package_game.py`): copy
-  `resources/ui/default_hud.json` and `resources/fonts/*.ttf` so the HUD + font ship.
+- [x] **Bundle assets into packaged games** (`tools/package_game.py`): `default_hud.json` added to
+  REQUIRED_RESOURCES; the TTF font is already copied by the fonts step (§3b). So packaged games
+  ship the HUD definition + font. (Copy mechanism verified by reading; not run end-to-end — full
+  packaging needs a built game binary.)
 
 ## 2. Screens & remaining ImGui game UI
 - [ ] **Intro / Victory / Credits screens** (`engine/src/ui/GameMenus.cpp`

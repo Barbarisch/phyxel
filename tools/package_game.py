@@ -65,11 +65,15 @@ REQUIRED_SHADERS = [
 # engine reads on startup (materials + sub-cube texture map). Without the JSONs
 # the engine crashes during init — they are not optional. (cube_atlas.json is the
 # legacy name; materials.json drives MaterialRegistry.)
+# Also the engine default HUD definition: the data-driven game HUD is built from
+# it at startup (see docs/HudSystem.md). The UISystem TTF font is bundled by the
+# fonts step (§3b) below.
 REQUIRED_RESOURCES = [
     "resources/textures/cube_atlas.png",
     "resources/textures/cube_atlas.json",
     "resources/materials.json",
     "resources/mc_texture_map.json",
+    "resources/ui/default_hud.json",
 ]
 
 # The default animation file an animated character/NPC falls back to when the
@@ -324,8 +328,9 @@ def package_game(
             result["errors"].append(f"Required resource missing: {res}")
 
     # ── 3b. Fonts ───────────────────────────────────────────────────────
-    # Menu scenes render text with TTF fonts referenced from menuLayout.fonts[].
-    # Copy the whole fonts dir (small) so any menu renders correctly.
+    # The UISystem loads a TTF for all game UI (HUD, dialogue, menus — see
+    # docs/HudSystem.md), and menu scenes may reference more via menuLayout.fonts[].
+    # Copy the whole fonts dir (small) so text renders correctly.
     fonts_src = PHYXEL_ROOT / "resources" / "fonts"
     if fonts_src.exists():
         for f in fonts_src.iterdir():
