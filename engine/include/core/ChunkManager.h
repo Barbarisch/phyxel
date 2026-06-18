@@ -198,6 +198,9 @@ public:
     // OPTIMIZED: Update only chunks that have been modified (O(dirty) instead of O(all))
     // Call this every frame - it's efficient and only processes changed chunks
     void updateDirtyChunks();
+    // Budgeted variant: spread a large dirty backlog (e.g. async world-gen) over
+    // frames so the mesh+GPU commit never stalls for seconds. budgetMs<=0 = drain all.
+    void updateDirtyChunks(double budgetMs);
     
     // DEPRECATED: Update all chunks (inefficient for large worlds)
     void updateAllChunks();

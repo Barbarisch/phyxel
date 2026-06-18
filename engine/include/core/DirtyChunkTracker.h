@@ -61,10 +61,21 @@ public:
     
     /**
      * @brief Update all dirty chunks and clear dirty list
-     * 
+     *
      * Early exits if no dirty chunks. Updates only marked chunks.
      */
     void updateDirtyChunks();
+
+    /**
+     * @brief Update dirty chunks within a per-call time budget (ms).
+     *
+     * Processes at least one chunk, then stops once the elapsed re-mesh time
+     * exceeds budgetMs, re-queuing the remaining chunks for the next call. This
+     * spreads a large dirty backlog (e.g. a 64-chunk world-gen) across frames so
+     * the mesh+GPU commit never stalls the main thread for seconds at once.
+     * budgetMs <= 0 means unlimited (identical to updateDirtyChunks()).
+     */
+    void updateDirtyChunks(double budgetMs);
     
     /**
      * @brief Clear dirty chunk list and reset flag

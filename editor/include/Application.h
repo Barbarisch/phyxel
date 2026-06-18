@@ -100,6 +100,7 @@
 #include <string>
 #include <vector>
 #include <chrono>
+#include <thread>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -261,6 +262,7 @@ private:
     std::unique_ptr<Core::EngineAPIServer> apiServer;
     std::chrono::steady_clock::time_point m_apiServerStartTime;
     std::unique_ptr<Core::JobSystem> jobSystem;
+    std::thread m_animWarmThread;  // background pre-parse of the default character .anim into the cache
     std::unique_ptr<Core::Inventory> inventory;
     std::unique_ptr<Core::GameEventLog> gameEventLog;
     std::unique_ptr<Core::TriggerSystem> triggerSystem;

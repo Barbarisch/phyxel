@@ -515,6 +515,12 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             playCastVisual(spellId, animatedCharacter, targetPos, std::move(onRelease));
         });
     jobSystem = std::make_unique<Core::JobSystem>();
+    // Warm the animation parse cache off-thread so the FIRST character spawn
+    // doesn't pay the ~5s .anim parse on the main thread. Uses the exact path
+    // string that spawn_entity defaults to, so the cache key matches.
+    m_animWarmThread = std::thread([]() {
+        Phyxel::AnimationSystem::prewarm("resources/animated_characters/humanoid.anim");
+    });
     int apiPort = (m_apiPortOverride > 0) ? m_apiPortOverride : engineConfig.apiPort;
     apiServer = std::make_unique<Core::EngineAPIServer>(apiCommandQueue.get(), apiPort, jobSystem.get());
     m_apiServerStartTime = std::chrono::steady_clock::now();
@@ -2918,6 +2924,11 @@ void Application::cleanup() {
     }
     m_initialized = false;
 
+    // Join the animation cache-warm thread (it only parses a file into the cache)
+    if (m_animWarmThread.joinable()) {
+        m_animWarmThread.join();
+    }
+
     // Drain pending API commands so blocked HTTP handlers can return
     // (prevents shutdown hang from unfulfilled promises)
     if (apiCommandQueue) {
@@ -3565,9 +3576,12 @@ void Application::update(float deltaTime) {
     }
     
     // Update chunks that have been modified (for hover color changes, etc.)
-    // OPTIMIZED: Only update chunks that have actually changed
+    // OPTIMIZED: Only update chunks that have actually changed.
+    // Budgeted so a large dirty backlog (async world-gen/fill finalize) spreads
+    // over frames instead of stalling the main thread for seconds at once.
+    constexpr double kDirtyChunkBudgetMs = 6.0;
     if (chunkManager) {
-        chunkManager->updateDirtyChunks();
+        chunkManager->updateDirtyChunks(kDirtyChunkBudgetMs);
         // Reset per-frame break counter for hybrid physics routing
         chunkManager->resetFrameBreakCounter();
         // Update player position for hybrid Bullet/GPU proximity routing
@@ -13689,6 +13703,7 @@ void Application::processAPICommands() {
                         
                         ChunkManager* cmFill = chunkManager;
                         Core::GameEventLog* evFill = gameEventLog.get();
+                        auto* npcFill = npcManager.get();
                         desc.backgroundWork = [cmFill, minX, maxX, minY, maxY, minZ, maxZ, material, hollow, replace, volume](Core::JobContext& ctx) -> nlohmann::json {
                             int placed = 0, failed = 0;
                             int64_t total = volume;
@@ -13726,8 +13741,10 @@ void Application::processAPICommands() {
                                     {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
                                     {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}};
                         };
-                        desc.mainThreadFinalize = [cmFill, evFill, material, hollow](nlohmann::json& result) {
-                            cmFill->updateDirtyChunks();
+                        desc.mainThreadFinalize = [cmFill, evFill, npcFill, material, hollow](nlohmann::json& result) {
+                            // Chunks are already marked dirty by the background work; the
+                            // per-frame budgeted updateDirtyChunks() flush spreads the mesh+GPU
+                            // commit over frames (no single multi-second finalize hitch).
                             int placed = result.value("placed", 0);
                             if (placed > 0 && evFill) {
                                 evFill->emit("region_filled", {
@@ -13735,7 +13752,13 @@ void Application::processAPICommands() {
                                     {"hollow", hollow}, {"async", true}
                                 });
                             }
-                            if (placed > 0) cmFill->rebuildOccupancyFromChunks();
+                            if (placed > 0) {
+                                cmFill->rebuildOccupancyFromChunks();
+                                // Only rebuild nav if NPCs exist — a full-world NavGrid+NavGraph
+                                // build is ~seconds and is pure waste with zero NPCs. NPC creation
+                                // paths rebuild nav themselves, so a later-spawned NPC still gets it.
+                                if (npcFill && npcFill->getNPCCount() > 0) npcFill->buildNavGrid();
+                            }
                         };
                         
                     } else if (jobType == "clear_region") {
@@ -13791,7 +13814,8 @@ void Application::processAPICommands() {
                                     {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}};
                         };
                         desc.mainThreadFinalize = [cmClear, evClear](nlohmann::json& result) {
-                            cmClear->updateDirtyChunks();
+                            // Per-frame budgeted updateDirtyChunks() flush handles the mesh
+                            // commit over frames (chunks already marked dirty in background work).
                             int removed = result.value("removed", 0);
                             if (removed > 0 && evClear) {
                                 evClear->emit("region_cleared", {{"removed", removed}, {"async", true}});
@@ -13805,74 +13829,119 @@ void Application::processAPICommands() {
                             if (cmd.onComplete) cmd.onComplete(response);
                             continue;
                         }
-                        
+
                         std::string genType = jobParams.value("type", "Perlin");
-                        int fromX = jobParams.value("from_x", 0), fromY = jobParams.value("from_y", 0), fromZ = jobParams.value("from_z", 0);
-                        int toX = jobParams.value("to_x", 0), toY = jobParams.value("to_y", 0), toZ = jobParams.value("to_z", 0);
                         int seed = jobParams.value("seed", 42);
-                        
-                        int minCX = std::min(fromX, toX), maxCX = std::max(fromX, toX);
-                        int minCY = std::min(fromY, toY), maxCY = std::max(fromY, toY);
-                        int minCZ = std::min(fromZ, toZ), maxCZ = std::max(fromZ, toZ);
-                        int64_t chunkCount = (int64_t)(maxCX - minCX + 1) * (maxCY - minCY + 1) * (maxCZ - minCZ + 1);
-                        
-                        if (chunkCount > 64) {
-                            response = {{"error", "Too many chunks"}, {"count", chunkCount}, {"max", 64}};
+                        // Terrain tuning params (heightScale, frequency, ...) — applied to the
+                        // generator on the worker thread. Captured whole so we stay in parity
+                        // with the synchronous generate_world handler.
+                        nlohmann::json terrainParams = jobParams.value("params", nlohmann::json::object());
+
+                        // Collect chunk coords: explicit list or from/to range (object form,
+                        // matching the synchronous handler + MCP tool body).
+                        std::vector<glm::ivec3> chunkCoords;
+                        if (jobParams.contains("chunks")) {
+                            for (const auto& c : jobParams["chunks"]) {
+                                chunkCoords.push_back(glm::ivec3(c.value("x", 0), c.value("y", 0), c.value("z", 0)));
+                            }
+                        } else if (jobParams.contains("from") && jobParams.contains("to")) {
+                            // Object form: from:{x,y,z}, to:{x,y,z} (MCP generate_world tool)
+                            auto& f = jobParams["from"];
+                            auto& t = jobParams["to"];
+                            int fx = f.value("x", 0), fy = f.value("y", 0), fz = f.value("z", 0);
+                            int tx = t.value("x", 0), ty = t.value("y", 0), tz = t.value("z", 0);
+                            int minCx = std::min(fx, tx), maxCx = std::max(fx, tx);
+                            int minCy = std::min(fy, ty), maxCy = std::max(fy, ty);
+                            int minCz = std::min(fz, tz), maxCz = std::max(fz, tz);
+                            for (int cx = minCx; cx <= maxCx; ++cx)
+                                for (int cy = minCy; cy <= maxCy; ++cy)
+                                    for (int cz = minCz; cz <= maxCz; ++cz)
+                                        chunkCoords.push_back(glm::ivec3(cx, cy, cz));
+                        } else if (jobParams.contains("from_x") || jobParams.contains("to_x")) {
+                            // Flat form: from_x/from_y/from_z, to_x/to_y/to_z (direct submit_job tool)
+                            int fx = jobParams.value("from_x", 0), fy = jobParams.value("from_y", 0), fz = jobParams.value("from_z", 0);
+                            int tx = jobParams.value("to_x", 0), ty = jobParams.value("to_y", 0), tz = jobParams.value("to_z", 0);
+                            int minCx = std::min(fx, tx), maxCx = std::max(fx, tx);
+                            int minCy = std::min(fy, ty), maxCy = std::max(fy, ty);
+                            int minCz = std::min(fz, tz), maxCz = std::max(fz, tz);
+                            for (int cx = minCx; cx <= maxCx; ++cx)
+                                for (int cy = minCy; cy <= maxCy; ++cy)
+                                    for (int cz = minCz; cz <= maxCz; ++cz)
+                                        chunkCoords.push_back(glm::ivec3(cx, cy, cz));
+                        } else {
+                            chunkCoords.push_back(glm::ivec3(0, 0, 0));
+                        }
+
+                        if (chunkCoords.size() > 64) {
+                            response = {{"error", "Too many chunks"}, {"count", chunkCoords.size()}, {"max", 64}};
                             if (cmd.onComplete) cmd.onComplete(response);
                             continue;
                         }
-                        
-                        // Pre-create chunks on main thread
-                        for (int cx = minCX; cx <= maxCX; ++cx) {
-                            for (int cy = minCY; cy <= maxCY; ++cy) {
-                                for (int cz = minCZ; cz <= maxCZ; ++cz) {
-                                    glm::ivec3 cc(cx, cy, cz);
-                                    if (!chunkManager->getChunkAtCoord(cc)) {
-                                        chunkManager->createChunk(Phyxel::ChunkManager::chunkCoordToOrigin(cc), false);
-                                    }
-                                }
+
+                        // Flora / occupancy bounds (XZ span of the generated chunks)
+                        int minCX = INT_MAX, maxCX = INT_MIN, minCZ = INT_MAX, maxCZ = INT_MIN;
+                        for (const auto& cc : chunkCoords) {
+                            minCX = std::min(minCX, cc.x); maxCX = std::max(maxCX, cc.x);
+                            minCZ = std::min(minCZ, cc.z); maxCZ = std::max(maxCZ, cc.z);
+                        }
+
+                        // Pre-create chunks on main thread (mutates the chunks vector)
+                        for (const auto& cc : chunkCoords) {
+                            if (!chunkManager->getChunkAtCoord(cc)) {
+                                chunkManager->createChunk(Phyxel::ChunkManager::chunkCoordToOrigin(cc), false);
                             }
                         }
-                        
+
+                        int64_t chunkCount = static_cast<int64_t>(chunkCoords.size());
                         ChunkManager* cmGen = chunkManager;
                         Core::GameEventLog* evGen = gameEventLog.get();
-                        desc.backgroundWork = [cmGen, genType, minCX, maxCX, minCY, maxCY, minCZ, maxCZ, seed, chunkCount](Core::JobContext& ctx) -> nlohmann::json {
+                        desc.backgroundWork = [cmGen, genType, chunkCoords, seed, chunkCount, terrainParams](Core::JobContext& ctx) -> nlohmann::json {
                             WorldGenerator::GenerationType wgType = WorldGenerator::GenerationType::Perlin;
                             if (genType == "Random") wgType = WorldGenerator::GenerationType::Random;
                             else if (genType == "Flat") wgType = WorldGenerator::GenerationType::Flat;
                             else if (genType == "Mountains") wgType = WorldGenerator::GenerationType::Mountains;
                             else if (genType == "Caves") wgType = WorldGenerator::GenerationType::Caves;
                             else if (genType == "City") wgType = WorldGenerator::GenerationType::City;
-                            
+
                             WorldGenerator generator(wgType, seed);
-                            
+                            // Apply optional terrain params (parity with sync handler)
+                            if (!terrainParams.empty()) {
+                                auto& tp = generator.getTerrainParams();
+                                if (terrainParams.contains("heightScale"))  tp.heightScale  = terrainParams["heightScale"].get<float>();
+                                if (terrainParams.contains("frequency"))    tp.frequency    = terrainParams["frequency"].get<float>();
+                                if (terrainParams.contains("octaves"))       tp.octaves      = terrainParams["octaves"].get<int>();
+                                if (terrainParams.contains("persistence"))   tp.persistence  = terrainParams["persistence"].get<float>();
+                                if (terrainParams.contains("lacunarity"))    tp.lacunarity   = terrainParams["lacunarity"].get<float>();
+                                if (terrainParams.contains("caveThreshold")) tp.caveThreshold= terrainParams["caveThreshold"].get<float>();
+                                if (terrainParams.contains("stoneLevel"))    tp.stoneLevel   = terrainParams["stoneLevel"].get<float>();
+                            }
+
                             int generated = 0;
                             auto lock = cmGen->acquireWriteLock();
-                            for (int cx = minCX; cx <= maxCX; ++cx) {
-                                for (int cy = minCY; cy <= maxCY; ++cy) {
-                                    for (int cz = minCZ; cz <= maxCZ; ++cz) {
-                                        if (ctx.cancelled.load()) {
-                                            return {{"success", false}, {"cancelled", true}, {"generated", generated}};
-                                        }
-                                        glm::ivec3 cc(cx, cy, cz);
-                                        Chunk* chunk = cmGen->getChunkAtCoord(cc);
-                                        if (chunk) {
-                                            generator.generateChunk(*chunk, cc);
-                                            cmGen->markChunkDirty(chunk);
-                                            ++generated;
-                                        }
-                                        ctx.setProgress(static_cast<float>(generated) / chunkCount, "Generating terrain...");
-                                    }
+                            for (const auto& cc : chunkCoords) {
+                                if (ctx.cancelled.load()) {
+                                    return {{"success", false}, {"cancelled", true}, {"generated", generated}};
                                 }
+                                Chunk* chunk = cmGen->getChunkAtCoord(cc);
+                                if (chunk) {
+                                    generator.generateChunk(*chunk, cc);
+                                    cmGen->markChunkDirty(chunk);
+                                    ++generated;
+                                }
+                                ctx.setProgress(static_cast<float>(generated) / chunkCount, "Generating terrain...");
                             }
                             return {{"success", true}, {"chunks_generated", generated}, {"type", genType}, {"seed", seed}};
                         };
                         ObjectTemplateManager* otmGen = objectTemplateManager.get();
-                        desc.mainThreadFinalize = [cmGen, evGen, otmGen, genType, seed, minCX, maxCX, minCZ, maxCZ](nlohmann::json& result) {
-                            cmGen->updateDirtyChunks();
+                        auto* npcGen = npcManager.get();
+                        desc.mainThreadFinalize = [cmGen, evGen, otmGen, npcGen, genType, seed, minCX, maxCX, minCZ, maxCZ](nlohmann::json& result) {
+                            // Per-frame budgeted updateDirtyChunks() flush spreads the mesh+GPU
+                            // commit over frames (chunks already marked dirty in background work),
+                            // so the finalize no longer stalls ~2.4s on a 64-chunk gen.
+                            int generated = result.value("chunks_generated", 0);
                             if (evGen) {
                                 evGen->emit("world_generated", {
-                                    {"chunks", result.value("chunks_generated", 0)},
+                                    {"chunks", generated},
                                     {"type", result.value("type", "")},
                                     {"async", true}
                                 });
@@ -13891,9 +13960,16 @@ void Application::processAPICommands() {
                                 WorldGenerator floraGen(wg, static_cast<uint32_t>(seed));
                                 otmGen->decorateFlora(floraGen, minCX * 32, minCZ * 32, maxCX * 32 + 31, maxCZ * 32 + 31);
                             }
+                            // Rebuild nav grid so NPCs can path on freshly generated terrain.
+                            // Only when NPCs exist — a full-world NavGrid+NavGraph build is ~seconds
+                            // (the dominant finalize cost) and is pure waste with zero NPCs. NPC
+                            // creation paths rebuild nav themselves, so later-spawned NPCs still get it.
+                            if (generated > 0 && npcGen && npcGen->getNPCCount() > 0) {
+                                npcGen->buildNavGrid();
+                            }
                             cmGen->rebuildOccupancyFromChunks();
                         };
-                        
+
                     } else if (jobType == "save_world") {
                         if (!chunkManager) {
                             response = {{"error", "ChunkManager not available"}};

@@ -879,7 +879,10 @@ void RenderCoordinator::drawFrame() {
     // THIS call — MazeRunner's walls were invisible because nothing flushed
     // the dirty list outside the editor.
     if (chunkManager) {
-        chunkManager->updateDirtyChunks();
+        // Budgeted so a large dirty backlog (async world-gen/fill finalize) spreads
+        // over frames instead of stalling for seconds — standalones flush here.
+        constexpr double kDirtyChunkBudgetMs = 6.0;
+        chunkManager->updateDirtyChunks(kDirtyChunkBudgetMs);
     }
 
     // Check if we need to recreate swapchain due to window resize

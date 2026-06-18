@@ -3,10 +3,32 @@
 #include <sstream>
 #include <iostream>
 #include <algorithm>
+#include <mutex>
+#include <unordered_map>
 
 namespace Phyxel {
 
     bool AnimationSystem::loadFromFile(const std::string& filePath, Skeleton& outSkeleton, std::vector<AnimationClip>& outClips, VoxelModel& outModel) {
+        // Parse cache: the .anim text parser below is O(lines) but pays heavy
+        // per-line std::stringstream cost — parsing humanoid.anim (76 clips of
+        // keyframes) takes ~5s in Debug. The result is fully determined by the
+        // file contents, so cache it by path and clone on subsequent loads.
+        // Without this, every character spawn re-parsed from disk on the main
+        // thread → a ~5s whole-app freeze per spawn.
+        struct CachedAnim { Skeleton skeleton; std::vector<AnimationClip> clips; VoxelModel model; };
+        static std::mutex s_animCacheMutex;
+        static std::unordered_map<std::string, CachedAnim> s_animCache;
+        {
+            std::lock_guard<std::mutex> lock(s_animCacheMutex);
+            auto it = s_animCache.find(filePath);
+            if (it != s_animCache.end()) {
+                outSkeleton = it->second.skeleton;
+                outClips    = it->second.clips;
+                outModel    = it->second.model;
+                return true;
+            }
+        }
+
         std::ifstream file(filePath);
         if (!file.is_open()) {
             std::cerr << "Failed to open animation file: " << filePath << std::endl;
@@ -159,7 +181,23 @@ namespace Phyxel {
             }
         }
 
+        // Populate the cache so the next load of this file is a cheap copy.
+        {
+            std::lock_guard<std::mutex> lock(s_animCacheMutex);
+            s_animCache[filePath] = CachedAnim{outSkeleton, outClips, outModel};
+        }
         return true;
+    }
+
+    void AnimationSystem::prewarm(const std::string& filePath) {
+        // Parse into throwaway outputs purely to populate the static parse cache
+        // owned by loadFromFile. loadFromFile touches no instance state, so a
+        // temporary instance is safe.
+        AnimationSystem tmp;
+        Skeleton sk;
+        std::vector<AnimationClip> clips;
+        VoxelModel model;
+        tmp.loadFromFile(filePath, sk, clips, model);
     }
 
     template<typename T>

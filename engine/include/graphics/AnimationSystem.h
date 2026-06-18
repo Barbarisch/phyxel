@@ -10,6 +10,12 @@ namespace Phyxel {
     public:
         // Load skeleton and animations from the custom .anim file
         bool loadFromFile(const std::string& filePath, Skeleton& outSkeleton, std::vector<AnimationClip>& outClips, VoxelModel& outModel);
+
+        // Pre-parse an .anim file into the internal parse cache so a later
+        // loadFromFile (e.g. the first character spawn) is a cheap copy instead
+        // of a ~5s disk parse. Safe to call from a background thread; pass the
+        // exact path string that spawns will use so the cache key matches.
+        static void prewarm(const std::string& filePath);
         
         // Update a skeleton's pose based on an animation and time
         // loop: whether to loop the animation

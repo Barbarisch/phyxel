@@ -126,6 +126,43 @@ async def api_post_async(path: str, body: dict) -> dict:
     return {"error": f"Async operation timed out after {ASYNC_POLL_TIMEOUT}s", "async_id": async_id}
 
 
+async def submit_job_and_wait(job_type: str, params: dict) -> dict:
+    """Submit a JobSystem job and poll until it finishes, returning its result.
+
+    Unlike api_post_async (whose work still runs on the engine's MAIN thread, so
+    the app freezes), this routes the work onto the JobSystem worker thread — the
+    engine keeps rendering while the job runs. We submit via POST /api/job/submit
+    and poll GET /api/job/:id until the job reaches a terminal state, then return
+    the job's `result` payload so the tool still feels synchronous to the caller.
+    """
+    initial = await api_post("/api/job/submit", {"type": job_type, "params": params})
+    if "error" in initial:
+        return initial
+    job_id = initial.get("job_id")
+    if job_id is None:
+        # Not a job response (e.g. validation error) — return as-is
+        return initial
+
+    elapsed = 0.0
+    while elapsed < ASYNC_POLL_TIMEOUT:
+        await asyncio.sleep(ASYNC_POLL_INTERVAL)
+        elapsed += ASYNC_POLL_INTERVAL
+        status = await api_get(f"/api/job/{job_id}")
+        if "error" in status:
+            return status
+        state = status.get("state")
+        if state in ("complete", "failed", "cancelled"):
+            # Surface the job result if present; otherwise the status envelope.
+            result = status.get("result")
+            if isinstance(result, dict):
+                result.setdefault("job_id", job_id)
+                result.setdefault("state", state)
+                return result
+            return status
+        # pending / running / completing — keep polling
+    return {"error": f"Job timed out after {ASYNC_POLL_TIMEOUT}s", "job_id": job_id, "type": job_type}
+
+
 # ============================================================================
 # Character authoring (define_character)
 # ============================================================================
@@ -4529,7 +4566,8 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             body["hollow"] = args["hollow"]
         if "replace" in args:
             body["replace"] = args["replace"]
-        return await api_post_async("/api/world/fill", body)
+        # Route through the JobSystem worker thread so the engine keeps rendering.
+        return await submit_job_and_wait("fill_region", body)
 
     # --- Materials ---
     elif name == "list_materials":
@@ -4625,7 +4663,8 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     # --- Region Clear ---
     elif name == "clear_region":
-        return await api_post_async("/api/world/clear", {
+        # Route through the JobSystem worker thread so the engine keeps rendering.
+        return await submit_job_and_wait("clear_region", {
             "x1": args["x1"], "y1": args["y1"], "z1": args["z1"],
             "x2": args["x2"], "y2": args["y2"], "z2": args["z2"]
         })
@@ -4834,7 +4873,8 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             body["to"] = args["to"]
         if "params" in args:
             body["params"] = args["params"]
-        return await api_post_async("/api/world/generate", body)
+        # Route through the JobSystem worker thread so the engine keeps rendering.
+        return await submit_job_and_wait("generate_world", body)
 
     # --- Template Generation (BlockSmith) ---
     elif name == "generate_template":

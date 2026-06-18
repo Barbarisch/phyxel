@@ -1,6 +1,7 @@
 #include "core/DirtyChunkTracker.h"
 #include "core/Chunk.h"
 #include <algorithm>
+#include <chrono>
 
 namespace Phyxel {
 
@@ -42,6 +43,10 @@ void DirtyChunkTracker::markChunkDirty(Chunk* chunk) {
 }
 
 void DirtyChunkTracker::updateDirtyChunks() {
+    updateDirtyChunks(0.0);  // 0 = unlimited (drain the whole list this call)
+}
+
+void DirtyChunkTracker::updateDirtyChunks(double budgetMs) {
     // Atomically drain the dirty list
     std::vector<size_t> toUpdate;
     {
@@ -52,14 +57,42 @@ void DirtyChunkTracker::updateDirtyChunks() {
         std::swap(toUpdate, m_dirtyChunkIndices);
         m_hasDirtyChunks = false;
     }
-    
+
     auto& chunks = m_getChunks();
-    
-    // Update only the chunks that have been marked as dirty
-    for (size_t chunkIndex : toUpdate) {
+    const bool budgeted = budgetMs > 0.0;
+    const auto start = std::chrono::high_resolution_clock::now();
+
+    // Update marked chunks. Always process at least one (guarantees progress),
+    // then bail once over budget so the rest spread to the next call/frame.
+    size_t processed = 0;
+    for (; processed < toUpdate.size(); ++processed) {
+        size_t chunkIndex = toUpdate[processed];
         if (chunkIndex < chunks.size()) {
             m_updateChunk(chunkIndex);
         }
+        if (budgeted && (processed + 1) < toUpdate.size()) {
+            double elapsed = std::chrono::duration<double, std::milli>(
+                std::chrono::high_resolution_clock::now() - start).count();
+            if (elapsed >= budgetMs) {
+                ++processed;
+                break;
+            }
+        }
+    }
+
+    // Re-queue any chunks we didn't get to. Prepend them (they were dirty first)
+    // ahead of anything added concurrently, deduping so a chunk re-marked during
+    // processing isn't meshed twice.
+    if (processed < toUpdate.size()) {
+        std::lock_guard<std::mutex> lock(m_dirtyMutex);
+        std::vector<size_t> merged(toUpdate.begin() + processed, toUpdate.end());
+        for (size_t idx : m_dirtyChunkIndices) {
+            if (std::find(merged.begin(), merged.end(), idx) == merged.end()) {
+                merged.push_back(idx);
+            }
+        }
+        m_dirtyChunkIndices.swap(merged);
+        m_hasDirtyChunks = !m_dirtyChunkIndices.empty();
     }
 }
 

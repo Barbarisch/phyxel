@@ -281,6 +281,10 @@ void ChunkManager::updateDirtyChunks() {
     m_dirtyChunkTracker.updateDirtyChunks();
 }
 
+void ChunkManager::updateDirtyChunks(double budgetMs) {
+    m_dirtyChunkTracker.updateDirtyChunks(budgetMs);
+}
+
 void ChunkManager::updateAllChunks() {
     // DEPRECATED: This method is inefficient for large worlds
     // It's kept for backward compatibility but updateDirtyChunks() should be used instead
