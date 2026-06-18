@@ -240,37 +240,18 @@ def create_project(
     """)
 
     # ── engine.json ─────────────────────────────────────────────────────
-    # Multi-instance: assign this project its OWN API/MCP port so its engine can
-    # run alongside other sessions' engines (default 8090 is the engine-dev slot).
-    # Stable per project name (crc32) in 8100-8899 so re-scaffolding keeps the port.
-    import zlib
-    api_port = 8100 + (zlib.crc32(name.encode("utf-8")) % 800)
+    # NOTE: per-project API/MCP port + the Claude workflow files (.mcp.json,
+    # .phyxel/config.json, CLAUDE.md) are written by `phyxel link` below — the single
+    # canonical, path-free wiring (see docs/GameDevWorkflow.md). Do NOT duplicate that
+    # here (a parallel scheme collides with `phyxel link`).
     engine_cfg = {
         "window": {"width": 1280, "height": 720, "title": name},
-        "api_port": api_port,
         "rendering": {
             "max_chunk_render_distance": 96.0,
             "chunk_inclusion_distance": 128.0,
         },
     }
     files["engine.json"] = json.dumps(engine_cfg, indent=2) + "\n"
-
-    # ── .mcp.json ───────────────────────────────────────────────────────
-    # Project-scoped MCP config: a Claude session opened in THIS folder gets a
-    # phyxel MCP server pointed at this project's port (PHYXEL_API_PORT matches
-    # engine.json api_port), so it never collides with another session on 8090.
-    mcp_script = (phyxel_root / "scripts" / "mcp" / "phyxel_mcp_server.py")
-    mcp_cfg = {
-        "mcpServers": {
-            "phyxel": {
-                "command": "python",
-                "args": [str(mcp_script).replace(os.sep, "/")],
-                "cwd": str(phyxel_root).replace(os.sep, "/"),
-                "env": {"PHYXEL_API_PORT": str(api_port)},
-            }
-        }
-    }
-    files[".mcp.json"] = json.dumps(mcp_cfg, indent=2) + "\n"
 
     # Write all files
     for filename, content in files.items():
@@ -286,6 +267,25 @@ def create_project(
     (output_dir / "worlds").mkdir(exist_ok=True)
     (output_dir / "shaders").mkdir(exist_ok=True)
     (output_dir / "resources" / "textures").mkdir(parents=True, exist_ok=True)
+
+    # Wire the Claude game-dev workflow (per-project port + .mcp.json + CLAUDE.md) via
+    # the canonical `phyxel link` — single source of truth, path-free/portable (see
+    # docs/GameDevWorkflow.md). Degrades to an instruction if the CLI isn't installed.
+    import shutil, subprocess
+    linked = False
+    phyxel_exe = shutil.which("phyxel")
+    if phyxel_exe:
+        try:
+            r = subprocess.run([phyxel_exe, "link", str(output_dir)],
+                               capture_output=True, text=True, timeout=30)
+            if r.returncode == 0:
+                linked = True
+                if r.stdout.strip():
+                    print(r.stdout.strip())
+            else:
+                print(f"  (phyxel link failed: {r.stderr.strip()})")
+        except Exception as e:
+            print(f"  (phyxel link error: {e})")
 
     # For multi-scene definitions, list expected scene databases
     if game_definition and "scenes" in game_definition:
@@ -318,11 +318,15 @@ def create_project(
 
     print(f"Created project '{name}' in {output_dir}")
     print()
-    print(f"  Engine API/MCP port for this project: {api_port} (engine.json api_port + .mcp.json)")
-    print(f"  Multi-instance: this engine runs on its OWN port, so it won't collide with other")
-    print(f"  sessions. A Claude session opened in this folder auto-targets port {api_port} via")
-    print(f"  the generated .mcp.json. To run it: phyxel.exe --project \"{output_dir}\"")
-    print(f"  (the engine reads api_port from engine.json automatically).")
+    if linked:
+        print("  Claude game-dev workflow wired (own engine port + .mcp.json + CLAUDE.md via")
+        print("  `phyxel link`). Open a Claude session in this folder and it auto-targets this")
+        print("  project's engine instance (no collision with other sessions).")
+    else:
+        print("  Game-dev workflow NOT wired — the `phyxel` CLI isn't installed. Enable it once")
+        print("  per machine (see docs/GameDevWorkflow.md 'Per-machine setup'):")
+        print("    pip install -e <engine>/tools/phyxel-cli && phyxel init --home <engine>")
+        print(f"  then:  phyxel link \"{output_dir}\"")
     print()
     print("Next steps:")
     print(f"  1. Copy required assets (shaders, textures) from the Phyxel engine")

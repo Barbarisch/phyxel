@@ -1,9 +1,31 @@
 # Game-Dev Workflow — Claude Code per-project sessions
 
-> Status: **design / not yet implemented.** Architecture for using Claude Code as the
-> game-development front-end for Phyxel: start a session in a game project directory and
-> it already knows how to drive the engine, auto-launches the right instance, carries the
-> standard game-dev procedures, and feeds lessons/requests back to engine development.
+> Status: **IMPLEMENTED** (CLI + plugin + feedback loop all built; phased roadmap below is done).
+> Architecture for using Claude Code as the game-development front-end for Phyxel: start a session
+> in a game project directory and it already knows how to drive the engine, auto-launches the right
+> instance, carries the standard game-dev procedures, and feeds lessons/requests back to engine
+> development. **New machine / new contributor: do the "Per-machine setup" runbook below ONCE — if
+> it's skipped, `.mcp.json`→`phyxel-mcp` and the `phyxel up` hook silently fail and sessions fall
+> back to manual launches on port 8090 (collisions).**
+
+## Per-machine setup (one-time, repeatable — do this on every machine)
+
+```sh
+# 1. Install the CLI (exposes the `phyxel` and `phyxel-mcp` console scripts on PATH).
+pip install -e <engine-repo>/tools/phyxel-cli
+# 2. Tell it where the engine lives on THIS machine (writes ~/.config|%APPDATA%\phyxel\config.json).
+phyxel init --home <engine-repo>
+# 3. Verify (engine_home valid, mcp server + engine bin resolved).
+phyxel where
+```
+Then, in Claude Code (one-time): `/plugin marketplace add <engine-repo>` →
+`/plugin install phyxel-gamedev@phyxel` (loads the `phyxel-*` skills + `/feedback` + the
+SessionStart `phyxel up` hook). Verify with `/help`.
+
+**Per project:** `phyxel new <name>` (minimal data project) or `phyxel link <dir>` to retrofit an
+existing one; `tools/create_project.py` (full C++ project) auto-runs `phyxel link` for you. Each
+project gets its own committed port (`.phyxel/config.json`) + path-free `.mcp.json` + `CLAUDE.md`,
+so a Claude session opened in the folder drives that project's own engine instance.
 
 ## Goal
 

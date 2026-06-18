@@ -43,8 +43,16 @@ live in the Phyxel repo — do not edit engine source from here; this is the *ga
 - `.phyxel/config.json` — this project's engine API port (committed, portable).
 
 ## Workflow
-Use the `phyxel-*` skills (characters, scenes, menus, assets, playtest, package) for standard
+Use the `phyxel-*` skills (world, characters, assets, mechanics, playtest, package) for standard
 procedures. Log gotchas / engine feature-requests with `/feedback` so they reach engine dev.
+
+## UI (data-driven, no ImGui)
+The game UI runs on the engine's custom-Vulkan `UISystem`. A **default HUD ships out of the box**
+(health, hotbar, objectives, dialogue box, combat HUD); customize it per game with a top-level
+`"hud"` block in `game.json` (anchored panels of progressbar/label/repeater/image/button widgets
+bound to live state). **Menu** scenes (`sceneType:"menu"`) use a `menuLayout` (buttons with
+`transition_scene`/`open_submenu` actions + `{{playtime}}`/`{{story.<var>}}` tokens). See the
+`phyxel-mechanics` skill and the engine's `docs/HudSystem.md`.
 
 ## Customizing engine behavior (two layers)
 1. **Data first** — most behavior is declarative: `game.json` (world, player, per-scene
