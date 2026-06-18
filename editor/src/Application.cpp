@@ -5321,6 +5321,18 @@ void Application::autoLoadGameDefinition() {
                 sm->setWorldsDir(projectDir_ + "/worlds");
             std::string startId = manifest.startScene;
             if (startId.empty()) startId = manifest.scenes.front().id;
+            // Multi-scene games still need the combat ruleset + game HUD that the
+            // single-scene path below sets up — this branch used to return early
+            // without them, so multi-scene projects showed no HUD/objectives/combat
+            // in the editor (feedback 2026-06-18). Do it BEFORE transitioning so the
+            // HUD screens already exist when a menu start-scene's loadMenuInto hides them.
+            {
+                std::string modeStr = "real_time";
+                if (gameDef.contains("combat") && gameDef["combat"].is_object())
+                    modeStr = gameDef["combat"].value("mode", modeStr);
+                m_combatDirector.setMode(Core::combatModeFromString(modeStr));
+            }
+            setupGameHud(gameDef);
             // Ensure the scene state machine has live subsystem pointers before the
             // per-frame pump runs (it also refreshes, but transitionTo logs sooner).
             refreshSceneSubsystems();
@@ -13130,6 +13142,17 @@ void Application::processAPICommands() {
                                 sm->setWorldsDir(projectDir_ + "/worlds");
                             std::string startId = manifest.startScene;
                             if (startId.empty() && !manifest.scenes.empty()) startId = manifest.scenes[0].id;
+                            // Combat ruleset + game HUD (parity with the single-scene
+                            // path; multi-scene used to skip both — feedback 2026-06-18).
+                            // Before transitioning so HUD screens exist when a menu
+                            // start-scene's loadMenuInto hides them.
+                            {
+                                std::string modeStr = "real_time";
+                                if (cmd.params.contains("combat") && cmd.params["combat"].is_object())
+                                    modeStr = cmd.params["combat"].value("mode", modeStr);
+                                m_combatDirector.setMode(Core::combatModeFromString(modeStr));
+                            }
+                            setupGameHud(cmd.params);
                             bool ok = sm->transitionTo(startId);
                             int sceneCount = static_cast<int>(manifest.scenes.size());
                             response = {

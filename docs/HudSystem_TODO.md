@@ -91,7 +91,27 @@ button actions, and submenu panels. Not ported from `GameMenuRenderer`:
 - [ ] Initiative-row label clips at panel width (cosmetic); turn-label vs action-panel overlap
   in the default combat layout (cosmetic layout tuning).
 
+## 5b. From game-dev feedback (docs/feedback/inbox.md, 2026-06-18, UIShowcase)
+- [x] **Multi-scene games got no HUD in the editor** — `Application::autoLoadGameDefinition` (and the
+  `load_game_definition` command handler) returned early in the multi-scene branch BEFORE the
+  single-scene `setupGameHud()` + `combat.mode` setup, so multi-scene projects (menu→world) showed
+  no HP bar / hotbar / objectives / combat and stayed `real_time`. FIXED: both multi-scene branches
+  now apply `combat.mode` + call `setupGameHud()` before `transitionTo` (so HUD screens exist when a
+  menu start-scene's `loadMenuInto` hides them). **Code compiles; runtime-verify pending an engine
+  slot** (the build's exe-link was blocked by another session's running engine — see §6 multi-instance).
+- [ ] **Menu `transition_scene` click didn't fire the scene transition** (open/close-submenu worked;
+  "Back" went unresponsive after a couple clicks). The editor `onMenuSceneLoaded` does wire
+  `transition_scene` → `SceneManager::transitionTo`, and the menu renders at boot, so suspect either
+  the injected click landed on the panel not the button, or queued `ui_click`s racing the scene pump.
+  Investigate live (reproduce the New Game click in UIShowcase) when an engine slot is free.
+
 ## 6. Known issues / cleanup
+- **Multi-instance / ports:** multiple engines run at once, each on its OWN `api_port` (default 8090
+  = engine-dev). `create_project.py` now assigns each project a unique `engine.json api_port` +
+  a `.mcp.json` with matching `PHYXEL_API_PORT`. NEVER `taskkill //IM phyxel.exe` (kills other
+  sessions); the shared `phyxel.exe` can't relink while any instance runs it (LNK1104) — don't kill
+  others to unblock a build. (Existing projects like UIShowcase predate this and use 8090; add an
+  `api_port` to their engine.json when convenient.)
 - [ ] **Pre-existing scene-transition crash**: multi-scene `load_game_definition` /
   scene transitions intermittently crash (`vulkan-1.dll`, predates this work — see
   `AgentContext.md`). Flag for separate triage. (Menus were verified via the direct
