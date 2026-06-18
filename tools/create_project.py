@@ -91,8 +91,19 @@ def create_project(
         endif()
 
         # ── Copy runtime assets to build output ─────────────────
+        # Seed the engine's default shaders + resources FIRST, then layer the
+        # project's own dirs on top so project files win. Without the engine
+        # defaults a freshly scaffolded game ships an EMPTY shaders/ (no *.spv →
+        # the app exits right after "Framebuffers created successfully") and a
+        # resources/ missing humanoid.anim / default_hud.json / fonts / textures /
+        # materials.json — i.e. instant crash or an empty, checkerboard world.
+        # (game-dev feedback round 5 — UIShowcase.)
         add_custom_command(TARGET ${{PROJECT_NAME}} POST_BUILD
             COMMENT "Copying runtime assets to output directory"
+            COMMAND ${{CMAKE_COMMAND}} -E copy_directory
+                "${{PHYXEL_ROOT}}/shaders" "$<TARGET_FILE_DIR:${{PROJECT_NAME}}>/shaders"
+            COMMAND ${{CMAKE_COMMAND}} -E copy_directory
+                "${{PHYXEL_ROOT}}/resources" "$<TARGET_FILE_DIR:${{PROJECT_NAME}}>/resources"
             COMMAND ${{CMAKE_COMMAND}} -E copy_directory
                 "${{CMAKE_CURRENT_SOURCE_DIR}}/shaders" "$<TARGET_FILE_DIR:${{PROJECT_NAME}}>/shaders"
             COMMAND ${{CMAKE_COMMAND}} -E copy_directory
@@ -546,6 +557,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 nullptr, nullptr
             );
             renderCoordinator_->setNPCManager(npcManager_.get());
+            // The player character lives in entities_, NOT the NPCManager. Without
+            // this the RenderCoordinator's entities pointer stays null and
+            // renderEntities()/renderInstancedCharacters() skip the player entirely
+            // — the world renders as empty terrain with an invisible (but loaded +
+            // camera-followed) body. (game-dev feedback round 5 — UIShowcase.)
+            renderCoordinator_->setEntities(&entities_);
 {hud_setup}
 
             // JSON-driven menu renderer for sceneType:"menu" scenes. MUST be
@@ -786,6 +803,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                     auto* w = engine_ ? engine_->getWindowManager() : nullptr;
                                     if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE);
                                 }};
+                                // Reuse the same {{{{token}}}} resolver the persistent menu
+                                // renderer uses. Without it, menu scenes leave every
+                                // {{{{playtime}}}}/{{{{story.<var>}}}} literal on screen.
+                                // (game-dev feedback round 5 — UIShowcase.)
+                                if (gameMenuRenderer_)
+                                    acts.onResolveVariable = gameMenuRenderer_->onResolveVariable;
                                 Phyxel::UI::loadMenuInto(*ui, scene.menuLayout, acts);
                                 menuSceneActive_ = true;
                                 if (engine_) updateCursorMode(*engine_);
@@ -1112,8 +1135,15 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     break;
                 }}
 
-                // Render dialogue UI
-                if (dialogueSystem_ && dialogueSystem_->isActive()) {{
+                // Render dialogue UI. Standard dialogue TREES render through the
+                // data-driven hud_dialogue panel (default_hud.json) on the UISystem,
+                // so the ImGui box must be gated to AI conversations only — otherwise
+                // a tree conversation stacks TWO overlapping speaker/text/choices
+                // boxes. Mirrors the editor (Application.cpp). AI conversations still
+                // need the ImGui box for scrollable history + text input.
+                // (game-dev feedback round 5 — UIShowcase.)
+                if (dialogueSystem_ && dialogueSystem_->isActive() &&
+                    dialogueSystem_->isAIConversation()) {{
                     imgui->renderDialogueBox(dialogueSystem_.get());
                 }}
 
