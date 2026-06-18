@@ -242,3 +242,206 @@ Asset wishlist from building a tavern dialogue game (The Gilded Tankard) - items
 > **ROADMAPPED:** queued in docs/AgentContext.md as the "tavern asset batch" for a BlockSmith
 > /generate session (12 items). The "advertise the existing tavern set" half is done — the
 > phyxel-world skill + GameCreationGuide now name those templates explicitly.
+
+<!-- ===== Game-dev feedback round 5 — UIShowcase, 2026-06-18 — triaged & roadmapped in docs/AgentContext.md ===== -->
+
+## 2026-06-18 — UIShowcase — bug
+Editor never sets up the game HUD for MULTI-SCENE games. `Application::autoLoadGameDefinition()`
+returns early in its multi-scene branch (line ~5331), *before* the single-scene path's
+`setupGameHud(gameDef)` call (line ~5359); the multi-scene branch of the `load_game_definition`
+command handler (line ~13118) likewise never calls it. Net effect: opening a multi-scene project
+(menu `startScene` → world scene, like UIShowcase) via `--project`/`open_project` or
+`load_game_definition` never runs `setupGameHud()`, so the default HUD, the HUD data providers
+(`player.health`, `hotbar`, `objectives`, `dialogue`, `combat`), AND the game.json `combat.mode`
+are all skipped. The standalone `GameShell` host (UIShowcase.cpp `onInitialize`) sets these up
+unconditionally, so the editor renders strictly LESS than the shipping game. Because EVERY one of
+these surfaces is a panel in `resources/ui/default_hud.json` — `hud_health` (HP bar), `hud_hotbar`
+(per-material icons), `hud_objectives`, `hud_dialogue` (speaker/wrapped-text/choices), and the
+combat set (`hud_combat_banner`/`hud_combat_order`/`hud_combat_turn`/`hud_combat_action` with the
+End Turn button) — NONE of them render in-editor for a multi-scene game. Note this also kills the
+**dialogue box**: standard dialogue TREES render through the data-bound `hud_dialogue` panel (the
+ImGui `renderDialogueBox` path is gated to AI conversations only, Application.cpp ~2801), so a tree
+conversation is fully functional at the state level (`/api/dialogue/state` shows active + choices +
+typewriter) yet draws nothing on screen. Net: opening a multi-scene project leaves the entire
+`/api/ui/...` HUD, objectives, combat-HUD, and dialogue-box surface dark. Fix: call
+`setupGameHud(gameDef)` (and apply `combat.mode`) in BOTH multi-scene code paths
+(`autoLoadGameDefinition` multi-scene branch AND the `load_game_definition` multi-scene handler),
+not just the single-scene one.
+
+## 2026-06-18 — UIShowcase — gotcha
+Driving a menu scene's buttons through the editor's live menu preview is unreliable. Injected
+clicks via `POST /api/ui/click` at the correctly-scaled coordinates (menu canvas is 1280×720,
+scaled by `sx = ui.width()/1280`; here ×1.25) returned `{"consumed":true}` and `open_submenu`/
+`close_submenu` panel switches worked, but a `transition_scene` button (New Game → game_world)
+never fired the transition (no SceneManager transition logged), and submenu Back navigation went
+unresponsive after a couple of interactions. Had to drive `POST /api/scene/transition
+{"scene_id":"game_world"}` directly to enter the world. Worth confirming whether the editor's
+Menu Editor live-preview wiring (`onMenuSceneLoaded` → `loadMenuInto`) handles `transition_scene`
+actions the same as the standalone, or whether queued `ui_click`s race the scene pump.
+
+## 2026-06-18 — UIShowcase — bug
+The generated standalone scaffold ignores a game's top-level `hud` customization block.
+`UIShowcase.cpp` (the scaffolded `GameShell` subclass) calls
+`UI::loadHudInto(*getUISystem(), nullptr)` with a hardcoded `nullptr`, so it ALWAYS loads
+`resources/ui/default_hud.json` and never the game.json `"hud"` array. The editor's
+`setupGameHud()` correctly passes `gameDef.contains("hud") ? &gameDef["hud"] : nullptr`, so the
+override works there (single-scene only, per the other bug). Net: the data-driven HUD-customization
+feature (reposition/restyle health bar, add custom title labels via a top-level `"hud"` array) is
+DEAD in shipped scaffolded games — they can't override the default HUD at all. Fix: the scaffold
+template should parse game.json once and pass its `"hud"` block to `loadHudInto` (mirror
+`setupGameHud`), and probably also honor `combat.mode` — i.e. migrate this wiring into `GameShell`
+so every standalone inherits it rather than re-deriving the editor's logic.
+
+## 2026-06-18 — UIShowcase — bug
+The scaffolded standalone ships WITHOUT the engine default resources it needs, so a freshly built
+`UIShowcase.exe` either crashes on boot or renders an empty world. Two gaps: (1) the project's
+`shaders/` dir is EMPTY — no `*.spv` — so the app dies instantly right after "Framebuffers created
+successfully" when the render pipelines try to load shaders (no error logged; just exit). (2) the
+project's `resources/` had only the game's own `ui_banner.png` — missing `animated_characters/
+humanoid.anim` (→ "Failed to load animated character", player + NPCs invisible), `ui/
+default_hud.json` (→ "Default HUD not found … no HUD loaded", no HP bar/dialogue panel), `fonts/`
+(→ bitmap-font fallback), and `textures/` + `materials.json`/`biomes.json` (→ "fallback checkerboard
+texture"). Had to hand-copy all of these from `PHYXEL_ROOT` (`../../GitHub/phyxel/{shaders,resources}`)
+into the project + build output to get a working game. Fix: either the project generator should
+seed `shaders/` and the required `resources/*` defaults, or `CMakeLists.txt` should copy them from
+`${PHYXEL_ROOT}/shaders` and `${PHYXEL_ROOT}/resources` in the POST_BUILD step (it currently only
+copies the project's own — empty — `shaders/`/`resources/`).
+
+## 2026-06-18 — UIShowcase — bug
+The scaffolded `UIShowcase.cpp` never registers its player/entities with the renderer: it calls
+`renderCoordinator_->setNPCManager(npcManager_.get())` but NOT
+`renderCoordinator_->setEntities(&entities_)`. So `RenderCoordinator::entities` stays null,
+`renderEntities()`/`renderInstancedCharacters()` skip the player (which lives in `entities_`, not the
+NPCManager), and the world renders as empty terrain — the player character is completely invisible
+even though it loads fine (skeleton segments build, third-person camera follows an unseen body).
+Adding `setEntities(&entities_)` in `onInitialize` (right after `setNPCManager`) fixes it — player +
+NPCs then render. Separately, the menu-scene path has a parallel omission: `cb.onMenuSceneLoaded`
+builds a fresh `MenuActions` with `onTransitionScene`/`onQuit` but no `onResolveVariable`, so
+`loadMenuInto` leaves every `{{token}}` literal on screen (`Gold: {{story.gold}}`, `{{playtime}}`).
+Wiring `acts.onResolveVariable = gameMenuRenderer_->onResolveVariable` fixes that. Both are scaffold-
+template bugs — every generated standalone inherits them. Consider moving entity-render wiring + the
+menu resolver into `GameShell` so games don't re-derive it.
+
+## 2026-06-18 — UIShowcase — bug
+`close_submenu` (submenu Back) soft-locks the menu in the STANDALONE `loadMenuInto`/`UISystem` path
+(distinct from the editor's `GameMenuRenderer`, which works). Root cause: `UISystem::handleInput`
+delivers a SINGLE click to EVERY visible screen in one pass. `close_submenu`'s onClick calls
+`menuShowOnly(ui, "menu:"+startPanel)` → shows `menu:main` mid-loop. Because screens live in a
+`std::map` ordered `credits` < `main`, the same click is then handed to `menu:main`, and the Back
+button (c_back/o_back at canvas y≈444, center of a 200×48 box) sits exactly over the main panel's
+"Credits" button (y 410–458) — so it instantly re-fires `open_submenu credits`. Net: click bounces
+credits→main→credits and the user is trapped (verified by driving real clicks + screenshots; Back
+visibly does nothing). CORRECTION/precision (verified): it is ORDER-dependent, not just overlap-
+dependent. The bug only triggers when the revealed `menu:<startPanel>` is iterated LATER in the same
+map-ordered pass than the current submenu. Keys sort `credits` < `main` < `options`, so
+**Credits→Back BOUNCES** (`main` > `credits`, re-visited same pass) but **Options→Back WORKS**
+(`options` > `main`, so `menu:main` is already behind the iterator — confirmed on screen: Options
+Back cleanly returns to main). So whether a given submenu's Back works is luck of the std::map order.
+Fix: stop after a click is `consumed` (break the screen loop), or snapshot visibility before the loop
+so a screen revealed by an onClick can't receive the same click.
+
+## 2026-06-18 — UIShowcase — gotcha
+The scaffold's pause/intro/victory/credits/settings screens render via ImGui
+(`renderPauseMenu`/`renderIntroScreen`/…), while menu SCENES (`sceneType:"menu"`) render via the
+data-driven UISystem. So pressing ESC in the world pops up a plain ImGui pause menu that looks
+nothing like the game's styled data-driven main menu — feels like a different/"old" UI. Consider
+giving GameShell a data-driven pause/credits path (or a game.json-authored pause menu scene) so the
+in-world menus match the main menu's look.
+
+## 2026-06-18 — UIShowcase — bug
+Dialogue renders TWICE at once: the old ImGui dialogue box AND the new data-driven one. The scaffold
+`UIShowcase.cpp::onRender` calls `imgui->renderDialogueBox(dialogueSystem_)` unconditionally while
+dialogue is active, AND `resources/ui/default_hud.json` ships a `hud_dialogue` panel
+(`visibleWhen:"dialogue.active"`, binds `dialogue.speaker`/`dialogue.text`/`dialogue.choices`) that
+the UISystem also draws. So talking to an NPC stacks two overlapping speaker/text/choices boxes. The
+ImGui path is meant only for AI conversations (cf. the editor gating `renderDialogueBox` to AI mode,
+Application.cpp ~2801) but the standalone scaffold never gates it. Fix: in the scaffold, only render
+the ImGui dialogue box when the data-driven `hud_dialogue` panel is absent (or gate it to AI
+conversations like the editor). This was plainly visible on screen — see the testing-process entry
+below; it's exactly the class of defect a real play-test catches and an API/state check does not.
+
+## 2026-06-18 — UIShowcase — feature-request (testing process — HIGH PRIORITY / META)
+Game-dev sessions keep shipping "verified" games riddled with obvious, observable defects because
+there is no standard, thorough, automatic FUNCTIONAL play-test procedure — sessions lean on API/state
+probes (`/api/dialogue/state` says "active+choices", so dialogue is "verified") and never actually
+look at the running game and exercise it like a player. Concrete defects that slipped through in THIS
+project and were only caught when the user played it (or on a careful screenshot pass): player
+character never rendered (missing `setEntities`); empty `shaders/`+`resources/` → instant crash /
+empty world; `{{story.gold}}`/`{{playtime}}` printed literally; menu **Back** buttons soft-lock;
+**Continue** dead-ended into Credits; the world was a tiny void patch; and TWO dialogue boxes draw on
+top of each other. Most are one screenshot away from obvious.
+
+What's needed: a normal play-test procedure that Claude sessions ADOPT AUTOMATICALLY for every game,
+and harness/tooling to make it cheap. It must (a) drive the actual built game, not just the editor
+API — the standalone has no HTTP API, so input must be injected (this session bootstrapped it with
+PowerShell: find the GLFW window by title via EnumWindows since MainWindowHandle is 0, screenshot via
+CopyFromScreen, click via ClientToScreen+mouse_event at the 1280×720 canvas, keys via keybd_event;
+worth shipping as a real tool); (b) exercise EVERY interactive element and state transition, not a
+happy path; and (c) judge the rendered OUTPUT (vision pass over each screenshot), not just logs/state.
+
+Standard checklist the procedure should encode:
+  • Every button in every menu/submenu fires its action; every Back/close returns (no dead-ends or
+    soft-locks); every state transition works (menu→world→pause→dialogue→back→quit).
+  • Game functions "make sense": Continue continues, New Game starts fresh, Quit quits, Options/Credits
+    do what they say.
+  • Visual correctness: no duplicate/overlapping UI (the two dialogue boxes!), nothing missing
+    (player/NPC actually visible, HUD present), all `{{tokens}}` resolved, no literal placeholders.
+  • Behavioral/"feel" correctness: characters FACE EACH OTHER during dialogue; the camera frames the
+    speaker; NPCs react to the player; no one stands in the floor / falls through.
+Ship this as an engine-side "functional smoke test" agent/harness for generated games + bake the
+checklist into the game-dev session instructions so thorough play-testing is the default, not an
+afterthought. The bar: a session should not call a feature "verified" without having watched it work
+on screen and tried to break it.
+
+## 2026-06-18 — UIShowcase — bug (architecture — NO ImGui in gameplay)
+ImGui must NOT drive ANY gameplay UI in a shipped standalone — it should exist only as a debug
+fallback. Today the scaffold renders almost the ENTIRE non-menu-scene UI through ImGui
+(`GameScreen`/`GameMenus` + `ImGuiRenderer`), and it looks like a different, unstyled app bolted onto
+the data-driven menus. Full list of ImGui gameplay surfaces in `UIShowcase.cpp::onRender` that need to
+move to the data-driven UISystem: `renderIntroScreen` (splash), `renderVictoryScreen`,
+`renderCreditsScreen` (note: a SECOND credits UI separate from the data-driven `credits` submenu),
+`renderMainMenu` (fallback main menu), `renderCountdownHud` (timer HUD), `renderPauseMenu` (the
+"PAUSED" menu ESC pops up), `renderSettingsScreen`, `imgui->renderDialogueBox` (the duplicate
+dialogue box — see its own entry), `imgui->renderSpeechBubbles`, and `imgui->renderInteractionPrompt`
+(the "[E] interact" world prompt). Desired end state: every one of these is authored/rendered through
+the UISystem (data-driven panels, like menu scenes and `default_hud.json` already are), the scaffold
+carries NO ImGui gameplay calls, and ImGui is compiled/usable only as an opt-in debug overlay. This
+is the umbrella behind several other entries (double dialogue, ESC pause look, pause overlay). Needs:
+data-driven equivalents for pause/settings/victory/intro/credits + speech-bubble + interaction-prompt
++ countdown, and a GameShell that wires them so generated games never touch ImGui for gameplay.
+
+## 2026-06-18 — UIShowcase — bug
+HUD and world prompts stay on screen while the game is PAUSED. Opening the pause menu (ESC in the
+world) leaves the `default_hud.json` HP bar AND the "[E] interact" prompt rendered underneath/over the
+pause menu (observed on screen). Pausing should suppress gameplay HUD + interaction prompts (or the
+pause menu should be a full data-driven screen that hides them). Tie-in with the ImGui-removal entry:
+the pause menu itself is ImGui while the HUD is data-driven, so they don't coordinate visibility.
+
+## 2026-06-18 — UIShowcase — bug (to verify/fix)
+Dialogue "feel" defects worth a behavioral check the test pass should cover: when you talk to Elder
+Maewyn the player and NPC do not clearly turn to FACE each other, and the camera does not reframe to
+the conversation — you talk to an NPC while looking at the player's back. A polished dialogue start
+should rotate both participants to face one another (and ideally ease the camera to a
+conversation/over-the-shoulder framing). Flagging as the kind of "does it make sense to a player"
+behavior automated functional testing should assert, not just "dialogue.active == true".
+
+## 2026-06-18 — UIShowcase — gotcha
+`/api/rpg/combat/end_turn` only RECORDS a pending player intent that the game loop applies via
+`PlayerTurnController`; when an encounter is begun through the dev API
+(`/api/rpg/combat/start` → `CombatDirector::beginEncounter`) rather than the normal gameplay flow,
+that controller isn't engaged, so `end_turn` is a no-op (round/turn never advance). `/api/rpg/
+combat/next_turn` (`CombatDirector::advanceTurn`) DOES advance directly and is the reliable way to
+script turn/round progression in a test. The HUD's End Turn button presumably routes through the
+engaged PlayerTurnController; an API-started encounter can't exercise that path. Consider making
+`combat/end_turn` advance the director directly when no PlayerTurnController turn is active, or
+document that API-driven encounters must use `next_turn`.
+
+> **ROADMAPPED (round 5, 2026-06-18):** all 13 entries triaged into the "Game-dev feedback
+> round 5" block in `docs/AgentContext.md`. Throughline: the generated standalone ships strictly
+> LESS than the editor and ImGui is bolted over the data-driven UI — most items are round-5 scope
+> for the "engine-side game-shell base classes" roadmap item (migrate into `GameShell` so games
+> inherit it). Must-fix-first bugs flagged: empty `shaders/`+`resources/` (crash/void world),
+> missing `setEntities` (invisible player), double dialogue box. New roadmap items: a functional
+> smoke-test harness for generated games (input-injection tool + vision-judged checklist baked into
+> session instructions — HIGH PRIORITY), and the editor multi-scene `setupGameHud` gap. NOT yet
+> implemented — this is the to-do list for the next engine-dev push.
