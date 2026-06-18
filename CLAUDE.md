@@ -247,7 +247,11 @@ In `resources/animated_characters/`:
 
 ## MCP Server (AI Agent Bridge)
 
-Server: `scripts/mcp/phyxel_mcp_server.py` — HTTP API at `localhost:8090`.
+Server: `scripts/mcp/phyxel_mcp_server.py` — HTTP API at `localhost:8090` (default; the server
+honors `PHYXEL_API_PORT`/`PHYXEL_API_URL`). **Multiple engines can run at once, each on its own
+port** — game projects get a per-project port via the `phyxel` CLI (`.phyxel/config.json` +
+`.mcp.json` → `phyxel-mcp`); see `docs/GameDevWorkflow.md`. Don't assume 8090 / don't kill other
+sessions' engines.
 Requirements: `pip install mcp httpx`. Engine must be running.
 
 **Setup** (Claude Code config):

@@ -76,7 +76,9 @@ See [docs/GameCreationGuide.md](docs/GameCreationGuide.md) for the full workflow
 - **Dialogue System** — Branching dialogue trees, typewriter effect, choice selection
 - **Story Engine** — Story arcs, character agents, event bus, LLM integration
 - **Direct LLM Client** — WinHTTP-based API client for Claude/OpenAI/Ollama, context-aware NPC conversations, SQLite conversation memory
-- **UI System** — Custom menu screens (main menu, pause, HUD, inventory, settings) + ImGui overlays
+- **UI System** — Data-driven, retained custom-Vulkan UI (`UISystem`, **no ImGui** in the game): a
+  default HUD (health, hotbar, objectives, dialogue, combat) + menus, customizable via `game.json`
+  (`docs/HudSystem.md`). ImGui is the *editor's* UI only.
 - **Audio** — Spatial audio via miniaudio, background music playlist (Sequential/Shuffle)
 - **Health & Respawn** — Per-entity health, death callbacks, automatic respawn with configurable delay
 - **Player Profile** — Camera, health, spawn point, inventory persistence to SQLite
@@ -86,7 +88,8 @@ See [docs/GameCreationGuide.md](docs/GameCreationGuide.md) for the full workflow
 - **Day/Night Cycle** — Sun/ambient animation, time phases, day counter
 - **Behavior Trees** — Composable BT framework, utility AI, perception, blackboard
 - **Python Scripting** — Embedded interpreter via pybind11
-- **HTTP API** — REST API on port 8090 for external tool integration
+- **HTTP API** — REST API for external tool integration (default port 8090; per-project via
+  `--port` / the `phyxel` CLI for running multiple engines at once)
 
 ### Editor (`phyxel_editor` / `phyxel.exe`)
 - **World Editing** — Place/break voxels, fill regions, spawn templates

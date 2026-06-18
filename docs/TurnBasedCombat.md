@@ -146,22 +146,17 @@ third_person `CameraRig` — no character-movement input fed. Replaces the camer
 whole turn-based encounter. (Polish later: smooth pan interpolation, overhead/isometric toggle,
 encounter-wide framing.)
 
-### S8 — Combat presentation / UI  ⛔ BLOCKED on a Game-HUD system design
-**The combat HUD built so far (`renderCombatHUD`: COMBAT banner, initiative panel, action bar,
-hit-chance readout) is a VERIFICATION STOPGAP, not the intended design.** It's raw ImGui drawn
-in the EDITOR's render path, so it overlaps the editor dev panels (World Outliner / Properties /
-Viewport) and would not ship correctly — a shipped game needs its OWN HUD in the game-facing UI
-layer (`UI::DialogueSystem`, `GameMenuRenderer`, `ScreenState`, `UI::renderCountdownHud`,
-`Core::GameShell`), not editor ImGui.
+### S8 — Combat presentation / UI  ✅ RE-HOMED onto the Game-HUD system
+The combat HUD is now a set of **default modules on the data-driven `UISystem`** (custom-Vulkan,
+**no ImGui**) — round banner, initiative list, action bar (Action / Bonus / Move + **End Turn**),
+and hit-chance readout — bound to `CombatDirector` / `PlayerTurnController` via `combat.*` providers
+and gated by `visibleWhen` (only visible in turn-based combat). The old editor ImGui
+`renderCombatHUD` STOPGAP has been **DELETED**. The Game-HUD system that made this possible (design,
+schema, customization) is `docs/HudSystem.md`; the combat HUD was its first real customer.
 
-Before doing "S8 polish" (portraits, dice/damage floaters, ground range/path), the engine needs
-a proper **Game HUD system** — its own design session. Scope: (1) editor-vs-game rendering split
-(play/game view: HUD overlays the scene, editor chrome hidden — preview what ships); (2) authoring
-model (data-driven composable HUD definitions + a code/scripting escape hatch); (3) rendering
-backend (reuse ImGui vs a retained game-UI renderer); (4) uniform data binding to live game state;
-(5) a DEFAULT HUD module set + theming for rich dev customization. The combat HUD then becomes the
-first default HUD module expressed in that system. Until then, do NOT add more game-HUD elements to
-the editor ImGui.
+Remaining S8 polish (not yet built): d20 roll + crit/miss callouts, floating damage numbers,
+on-ground movement-range ring + path spline (these are **world-space**, so a VFX/debug-draw path,
+not the 2D HUD), and target highlight.
 
 ### S9 — Reactions / opportunity attacks
 `InitiativeTracker` already models reactions; trigger OAs when a creature leaves melee reach,

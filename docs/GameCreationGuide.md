@@ -188,8 +188,10 @@ After your world, NPCs, and story are in place, layer on gameplay systems:
 **Objectives & Progression:**
 - `add_objective` — Track quests with title, description, priority, category
 - `complete_objective` / `fail_objective` — Update objective status
-- Active objectives appear in a HUD panel (top-right corner, up to 5 shown)
-- Use priorities to control display order (higher priority = shown first)
+- Active objectives appear in the default HUD's **Objectives panel (top-left)**, `[x]`/`[ ]`
+  marked and priority-sorted; the panel auto-hides when empty
+- The whole game HUD is **data-driven** on the custom-Vulkan UISystem (health, hotbar, objectives,
+  dialogue, combat) and customizable via a `game.json "hud"` block — see `docs/HudSystem.md`
 
 **Background Music:**
 - `control_music` with `action: "add_track"` — Add music files to the playlist
@@ -494,8 +496,8 @@ python tools/create_project.py MyGame --game-definition multi_scene_game.json
 The generated code automatically:
 - Detects `"scenes"` in the game definition
 - Creates a `SceneManager` and loads the manifest
-- Wires `SceneCallbacks` so `sceneType: "menu"` scenes render via `GameMenuRenderer`
-  and hand control to gameplay when a world scene becomes ready (see "Menus" below)
+- Wires `SceneCallbacks` so `sceneType: "menu"` scenes render via the data-driven `UISystem`
+  (custom-Vulkan, no ImGui) and hand control to gameplay when a world scene becomes ready (see "Menus" below)
 
 ### Menus & Win/Lose Screens — Two Patterns (don't mix them)
 
@@ -522,7 +524,7 @@ they draw on top of each other:
    scenes (intro / main_menu / credits) with a `menuLayout`, and drive flow with
    `transition_scene` actions on the buttons. The generated standalone now
    **detects an active menu scene and renders it instead of the built-in shell**
-   (via `GameMenuRenderer`), so the two no longer collide. Use `transition_scene`
+   (via the data-driven `UISystem` — `loadMenuInto`; no ImGui), so the two no longer collide. Use `transition_scene`
    to a world scene from the main menu's "New Game" button, and `transition_scene`
    to a credits **menu** scene to end the game.
 
