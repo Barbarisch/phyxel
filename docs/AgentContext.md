@@ -272,10 +272,13 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       NPCManager) never rendered — now added. Also `cb.onMenuSceneLoaded` built `MenuActions` without
       `onResolveVariable` → literal `{{story.gold}}`/`{{playtime}}`; now wires
       `acts.onResolveVariable = gameMenuRenderer_->onResolveVariable`.
-    - **Ignores game.json `hud` block:** `UIShowcase.cpp` calls `loadHudInto(*getUISystem(), nullptr)`
-      hardcoded, so it ALWAYS loads `default_hud.json` and the data-driven HUD-customization feature is
-      dead in shipped games. Mirror the editor's `setupGameHud` (`gameDef.contains("hud") ? &... : nullptr`)
-      + honor `combat.mode`.
+    - **✅ DONE (`5f60a50`) Ignores game.json `hud` block:** scaffold loaded `loadHudInto(..., nullptr)`
+      hardcoded in onInitialize (before game.json was parsed), so it ALWAYS loaded `default_hud.json`.
+      Fix: split like the editor's `setupGameHud()` — onInitialize keeps `initUISystem()` + data-provider
+      registration, but the HUD PANELS now load in `loadGameDefinition()` once `gameDef` is parsed, passing
+      `gameDef.contains("hud") ? &gameDef["hud"] : nullptr` (before the multi-scene transition; single call
+      since `loadHudInto` addScreen()s per panel). **`combat.mode` honoring deferred** — the scaffold has no
+      `CombatDirector` yet; that belongs with the GameShell migration / combat-HUD re-homing track.
     - **🔨 IMPLEMENTED (pending standalone runtime verify) Menu Back soft-lock:** `UISystem::handleInput`
       (and `injectClick`) delivered ONE click to EVERY visible screen in one pass; `close_submenu` reveals
       `menu:<startPanel>` mid-loop and (when that panel is iterated LATER — `screens_` is actually an
