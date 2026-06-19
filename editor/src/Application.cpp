@@ -11653,10 +11653,13 @@ void Application::processAPICommands() {
             } else if (cmd.action == "build_structure") {
                 if (!chunkManager) {
                     response = {{"error", "ChunkManager not available"}};
-                } else if (!cmd.params.contains("type")) {
-                    response = {{"error", "Missing 'type' parameter"}};
+                } else if (!cmd.params.contains("type") && !cmd.params.contains("stories")) {
+                    response = {{"error", "Missing 'type' (or 'stories' for a BuildingSpec) parameter"}};
                 } else {
-                    auto structure = Core::StructureGenerator::generateFromJson(cmd.params);
+                    const bool specMode = cmd.params.contains("stories");
+                    auto structure = specMode
+                        ? Core::StructureGenerator::generateFromSpec(cmd.params)
+                        : Core::StructureGenerator::generateFromJson(cmd.params);
                     if (structure.voxels.empty()) {
                         response = {{"error", "Failed to generate structure (unknown type or invalid params)"}};
                     } else {
@@ -11725,6 +11728,31 @@ void Application::processAPICommands() {
                             if (npcManager) {
                                 npcManager->onRegionChanged(smin, smax);
                             }
+                        }
+
+                        // -- Functional doors (spec path): place + register each door leaf --
+                        if (!structure.doors.empty() && placedObjectManager && doorManager) {
+                            nlohmann::json doorsJson = nlohmann::json::array();
+                            for (const auto& dr : structure.doors) {
+                                std::string tmpl = (dr.width >= 2) ? "door_wood_wide" : "door_wood";
+                                glm::ivec3 dpos(static_cast<int>(std::lround(dr.hingePos.x)),
+                                                static_cast<int>(std::lround(dr.hingePos.y)),
+                                                static_cast<int>(std::lround(dr.hingePos.z)));
+                                std::string poId = placedObjectManager->placeTemplate(
+                                    tmpl, dpos, dr.baseRotation, "", /*snapToGround=*/false);
+                                if (poId.empty()) continue;
+                                // thickness=5 → ~0.10m: the paneled leaf is authored 1 subcube deep
+                                // (0.33), compressed by 5/16 to render microcube-thin.
+                                bool ok = doorManager->registerDoor(poId, tmpl, dr.hingePos,
+                                                                    dr.baseRotation, dr.swing, 120.0f, 5);
+                                if (ok && dr.lockable) {
+                                    doorManager->setLocked(poId, true, dr.key);
+                                }
+                                doorsJson.push_back({{"placed_object_id", poId}, {"template", tmpl},
+                                                     {"registered", ok}, {"locked", dr.lockable},
+                                                     {"key", dr.key}});
+                            }
+                            response["doors"] = doorsJson;
                         }
                     }
                 }

@@ -17,7 +17,7 @@
       "kind": "door_handle",
       "local_position": [
         0.5,
-        1.0,
+        0.833,
         1.0
       ],
       "facing_yaw": 0.0,

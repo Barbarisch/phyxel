@@ -44,10 +44,24 @@ struct LocationMarker {
 /// Cardinal facing direction for structures.
 enum class Facing { North, East, South, West };
 
+/// A request to place + register a functional (swinging, optionally lockable) door.
+/// Emitted by generateFromSpec for each door portal; consumed by the build_structure
+/// command handler where PlacedObjectManager/DoorManager are available.
+struct DoorRequest {
+    glm::vec3   hingePos{0.0f};     ///< World position of the hinge edge (door template origin)
+    int         width  = 2;        ///< Opening width in cubes
+    int         height = 3;        ///< Opening height in cubes
+    int         baseRotation = 0;   ///< Leaf orientation (0/90/180/270) derived from wall axis
+    bool        lockable = false;
+    std::string key;                ///< Required item id to unlock (empty = no key)
+    float       swing = 90.0f;      ///< Open angle (degrees)
+};
+
 /// Result of a structure generation.
 struct StructureResult {
     std::vector<VoxelPlacement> voxels;
     std::vector<LocationMarker> locations;
+    std::vector<DoorRequest>    doors;   ///< Functional doors to place + register (spec path)
 };
 
 /// Result of placing a structure into the world.
@@ -211,6 +225,11 @@ public:
 
     /// Parse a structure definition from JSON and generate voxels.
     static StructureResult generateFromJson(const nlohmann::json& def);
+
+    /// Realize a functional BuildingSpec (rooms/portals/stairs/fixtures) into voxels +
+    /// door requests. See docs/StructureGenerationPipeline.md and tools/structure_pipeline.
+    /// Built in the spec's local frame, offset by spec["position"] (no rotation in P1).
+    static StructureResult generateFromSpec(const nlohmann::json& spec);
 
     /// Get descriptions of all available structure types and their parameters.
     static nlohmann::json getStructureTypes();
