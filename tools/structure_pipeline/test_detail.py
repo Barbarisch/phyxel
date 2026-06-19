@@ -17,7 +17,7 @@ _TOOLS = os.path.dirname(_HERE)
 if _TOOLS not in sys.path:
     sys.path.insert(0, _TOOLS)
 
-from structure_pipeline.detail import DetailCanvas, demo_ashlar_pillar  # noqa: E402
+from structure_pipeline.detail import DetailCanvas, demo_ashlar_pillar, demo_wall  # noqa: E402
 from structure_pipeline.overlap import find_overlaps                    # noqa: E402
 
 
@@ -92,6 +92,18 @@ class FidelityTests(unittest.TestCase):
 
     def test_roundtrip_pillar(self):
         self._roundtrip(demo_ashlar_pillar())
+
+    def test_roundtrip_wall(self):
+        self._roundtrip(demo_wall())
+
+    def test_wall_no_overlap_all_resolutions(self):
+        c = demo_wall()
+        self.assertEqual(find_overlaps(c.to_voxel_lines()), [])
+        r = c.report()
+        self.assertGreater(r.cubes, 0)
+        self.assertGreater(r.subcubes, 0)
+        self.assertGreater(r.microcubes, 0)
+        self.assertLess(r.total_voxels, r.micro_cells)
 
     def test_pillar_no_overlap_and_uses_all_resolutions(self):
         c = demo_ashlar_pillar()

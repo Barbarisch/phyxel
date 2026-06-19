@@ -212,7 +212,62 @@ def demo_ashlar_pillar(stone: str = "Stone", trim: str = "StoneBricks") -> Detai
     return c
 
 
-DEMOS = {"pillar": demo_ashlar_pillar}
+# --------------------------------------------------------------------------- wall detailers
+
+def coursed_face(canvas: "DetailCanvas", ox: int, oy: int, length: int, height: int,
+                 face_z_micro: int, mortar: Optional[str], course: int = 9) -> None:
+    """Recess (mortar=None) or inlay a thin joint grid on a wall's front micro-plane: a
+    horizontal line every `course` micro-rows + vertical lines per cube, running-bond offset."""
+    gx0, gy0 = ox * 9, oy * 9
+    for r in range(0, height * 9):
+        y = gy0 + r
+        horizontal = (r % course == 0)
+        offset = 0 if (r // course) % 2 == 0 else course // 2   # running bond
+        for x in range(gx0, gx0 + length * 9):
+            vertical = ((x - gx0 + offset) % course == 0)
+            if horizontal or vertical:
+                canvas.set_micro_cell(x, y, face_z_micro, mortar)
+
+
+def frame_opening(canvas: "DetailCanvas", ox: int, oy: int, ow: int, oh: int,
+                  trim: str, border: int = 3, depth: int = 3, sill: bool = True) -> None:
+    """Carve an `ow`x`oh` cube opening and surround it with a sub/micro trim frame on the front
+    face (lintel + jambs, optional sill). Works because we paint the wall surface directly —
+    no 'subcube on a solid cube' rejection like the old engine-side frames."""
+    x0, y0, w, h = ox * 9, oy * 9, ow * 9, oh * 9
+    canvas.fill_micro_box(x0, y0, 0, w, h, 9, AIR)              # carve the hole through
+    zf = 9 - depth                                              # front micro layers
+    for x in range(x0 - border, x0 + w + border):
+        for b in range(border):
+            for z in range(zf, 9):
+                canvas.set_micro_cell(x, y0 + h + b, z, trim)   # lintel
+                if sill:
+                    canvas.set_micro_cell(x, y0 - 1 - b, z, trim)
+    for y in range(y0 - border if sill else y0, y0 + h + border):
+        for b in range(border):
+            for z in range(zf, 9):
+                canvas.set_micro_cell(x0 - 1 - b, y, z, trim)   # left jamb
+                canvas.set_micro_cell(x0 + w + b, y, z, trim)   # right jamb
+
+
+def demo_wall(stone: str = "StoneBricks", base: str = "Stone", trim: str = "Wood") -> DetailCanvas:
+    """A wall section showing trim done right — geometry only where it gives 3D RELIEF that
+    catches light (the texture already supplies flat surface pattern like mortar):
+      cube bulk + a base course (material) + a beveled stone coping (microcube bevel) +
+      a framed window (subcube jambs/lintel + a proud microcube sill)."""
+    c = DetailCanvas()
+    L, H = 7, 5
+    c.fill_cube_box(0, 0, 0, L, H, 1, stone)
+    c.fill_cube_box(0, 0, 0, L, 1, 1, base)                     # base course (cheap material change)
+    # Beveled stone coping along the top front & back edges (real 3D chamfer).
+    c.chamfer_edge(0, (H - 1) * 9, 0, L * 9, 9, 9, "x", "+y+z", depth=3)
+    c.chamfer_edge(0, (H - 1) * 9, 0, L * 9, 9, 9, "x", "+y-z", depth=3)
+    # Framed window, centred — jambs/lintel trim + a sill that proudly oversails the face.
+    frame_opening(c, ox=3, oy=2, ow=1, oh=2, trim=trim, border=3, depth=4, sill=True)
+    return c
+
+
+DEMOS = {"pillar": demo_ashlar_pillar, "wall": demo_wall}
 
 
 def main(argv=None) -> int:
