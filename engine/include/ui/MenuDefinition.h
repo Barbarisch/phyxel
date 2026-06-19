@@ -80,6 +80,11 @@ struct MenuActions {
     std::function<void(const std::string& sceneId)> onTransitionScene;
     std::function<void()> onQuit;
     std::function<void()> onLoadGame;
+    /// Pause-overlay actions (button action types "resume" / "open_settings" /
+    /// "main_menu"). Left null on menu-scene loads; wired by loadPauseMenuInto's host.
+    std::function<void()> onResume;
+    std::function<void()> onSettings;
+    std::function<void()> onMainMenu;
     /// Resolve a {{token}} in label/button text to a display string (e.g.
     /// "playtime", "story.<var>"). Return nullopt to leave the token literal.
     /// Applied once at menu load (static).
@@ -92,6 +97,16 @@ struct MenuActions {
 /// start panel. Replaces the ImGui GameMenuRenderer for menu scenes (no ImGui).
 /// Not yet ported: per-element animations, fonts, {{token}} interpolation.
 void loadMenuInto(UISystem& ui, const nlohmann::json& layout, const MenuActions& actions);
+
+/// Load the data-driven pause overlay (resources/ui/pause_menu.json) into UISystem
+/// screens named "pause:<panelKey>" and show the start panel. Replaces the ImGui
+/// renderPauseMenu (docs/HudSystem.md §11a). Buttons use action types "resume" /
+/// "open_settings" / "main_menu" (wired via MenuActions) plus the shared
+/// "quit_game". Idempotent. Call unloadPauseMenuFrom on resume.
+void loadPauseMenuInto(UISystem& ui, const MenuActions& actions);
+
+/// Remove the pause overlay screens ("pause:*") added by loadPauseMenuInto.
+void unloadPauseMenuFrom(UISystem& ui);
 
 /// Remove all "menu:*" screens previously added by loadMenuInto.
 void unloadMenuFrom(UISystem& ui);

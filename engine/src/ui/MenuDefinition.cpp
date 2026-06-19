@@ -582,6 +582,9 @@ static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, floa
             if (at == "transition_scene") { auto cb = actions.onTransitionScene; w->onClick = [cb, target] { if (cb) cb(target); }; }
             else if (at == "quit_game")    { auto cb = actions.onQuit;     w->onClick = [cb] { if (cb) cb(); }; }
             else if (at == "load_game")    { auto cb = actions.onLoadGame; w->onClick = [cb] { if (cb) cb(); }; }
+            else if (at == "resume")       { auto cb = actions.onResume;   w->onClick = [cb] { if (cb) cb(); }; }
+            else if (at == "open_settings"){ auto cb = actions.onSettings; w->onClick = [cb] { if (cb) cb(); }; }
+            else if (at == "main_menu")    { auto cb = actions.onMainMenu; w->onClick = [cb] { if (cb) cb(); }; }
             else if (at == "open_submenu") { w->onClick = [uip, target]    { menuShowOnly(*uip, "menu:" + target); }; }
             else if (at == "close_submenu"){ w->onClick = [uip, startPanel]{ menuShowOnly(*uip, "menu:" + startPanel); }; }
         }
@@ -670,6 +673,70 @@ void loadMenuInto(UISystem& ui, const nlohmann::json& layout, const MenuActions&
         if (name.rfind("menu:", 0) != 0) ui.hideScreen(name);
     for (const auto& k : keys) ui.hideScreen("menu:" + k);
     ui.showScreen("menu:" + startPanel);
+}
+
+void unloadPauseMenuFrom(UISystem& ui) {
+    for (const auto& [name, vis] : ui.getScreenList())
+        if (name.rfind("pause:", 0) == 0) ui.removeScreen(name);
+}
+
+void loadPauseMenuInto(UISystem& ui, const MenuActions& actions) {
+    unloadPauseMenuFrom(ui);  // idempotent — never stack pause overlays
+
+    const std::string path = "resources/ui/pause_menu.json";
+    std::ifstream f(path);
+    if (!f.is_open()) {
+        LOG_WARN("UI", "Pause overlay not found at {} — no pause menu shown", path);
+        return;
+    }
+    nlohmann::json layout;
+    try { f >> layout; }
+    catch (const std::exception& e) {
+        LOG_ERROR("UI", "Failed to parse {}: {}", path, e.what());
+        return;
+    }
+    if (!layout.is_object() || !layout.contains("panels") || !layout["panels"].is_object()) return;
+
+    const float W = static_cast<float>(ui.width());
+    const float H = static_cast<float>(ui.height());
+    const float sx = W / 1280.0f, sy = H / 720.0f;  // virtual canvas -> window
+    // Default to a near-opaque dark scrim so the world + HUD underneath read as
+    // "paused" without a separate HUD-suppression pass (that's a follow-up).
+    glm::vec4 bgColor = parseColorArr(
+        layout.contains("background_color") ? layout["background_color"] : nlohmann::json(),
+        {0.03f, 0.03f, 0.06f, 0.88f});
+    std::string startPanel = layout.value("start_panel", "main");
+
+    const auto& panels = layout["panels"];
+    for (auto it = panels.begin(); it != panels.end(); ++it) {
+        const auto& pdef = it.value();
+        auto root = std::make_unique<UIPanel>();
+        root->anchor = Anchor::TopLeft;
+        root->offset = {0, 0};
+        root->size = {W, H};
+        root->showBackground = false;
+        root->freeLayout = true;
+
+        auto bg = std::make_unique<UIImage>();
+        bg->position = {0, 0};
+        bg->size = {W, H};
+        bg->tintColor = bgColor;  // no image path -> solid (alpha-blended) scrim
+        root->addChild(std::move(bg));
+
+        if (pdef.contains("children") && pdef["children"].is_array()) {
+            for (const auto& el : pdef["children"]) {
+                if (auto w = buildMenuElement(el, sx, sy, actions, ui, startPanel))
+                    root->addChild(std::move(w));
+            }
+        }
+        ui.addScreen("pause:" + it.key(), std::move(root));
+    }
+
+    // Show only the start panel (other pause:* panels, e.g. a future settings
+    // sub-panel, stay hidden until navigated to).
+    for (const auto& [name, vis] : ui.getScreenList())
+        if (name.rfind("pause:", 0) == 0) ui.hideScreen(name);
+    ui.showScreen("pause:" + startPanel);
 }
 
 } // namespace UI

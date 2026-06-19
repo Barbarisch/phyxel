@@ -148,6 +148,7 @@ def create_project(
     extra_includes.append('#include "core/HealthComponent.h"')
     extra_members.append("    std::unique_ptr<Phyxel::UI::GameMenuRenderer> gameMenuRenderer_;")
     extra_members.append("    bool menuSceneActive_ = false;  // a sceneType:\"menu\" scene is currently shown")
+    extra_members.append("    bool pauseOverlayLoaded_ = false;  // data-driven pause:* overlay is loaded (replaces ImGui pause)")
     extra_members.append("    float lastDt_ = 0.0f;           // last frame dt, for menu animations in onRender")
     extra_members.append("    bool authoredCameraMode_ = false;  // game.json camera block carries an explicit \"mode\"")
 
@@ -1014,6 +1015,31 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
 
                 auto state = screen_.getState();
 
+                // Data-driven pause overlay (replaces the old ImGui renderPauseMenu —
+                // docs/HudSystem.md §11a). Load/unload the "pause:*" UISystem screens to
+                // match the Paused state and drive their clicks. The overlay renders with
+                // the rest of the UISystem inside renderCoordinator_->render() below, so
+                // the frozen world shows dimmed underneath. Resume/Main Menu/Quit change
+                // the screen state; the reconcile here unloads when we leave Paused.
+                if (renderCoordinator_) {{
+                    if (auto* ui = renderCoordinator_->getUISystem()) {{
+                        const bool wantPause = (state == Phyxel::UI::ScreenState::Paused);
+                        if (wantPause && !pauseOverlayLoaded_) {{
+                            Phyxel::UI::MenuActions pa;
+                            pa.onResume   = [this]() {{ screen_.resume();           if (engine_) updateCursorMode(*engine_); }};
+                            pa.onSettings = [this]() {{ screen_.toggleSettings();   if (engine_) updateCursorMode(*engine_); }};
+                            pa.onMainMenu = [this]() {{ screen_.returnToMainMenu(); if (engine_) updateCursorMode(*engine_); }};
+                            pa.onQuit     = [this]() {{ auto* w = engine_ ? engine_->getWindowManager() : nullptr; if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE); }};
+                            Phyxel::UI::loadPauseMenuInto(*ui, pa);
+                            pauseOverlayLoaded_ = true;
+                        }} else if (!wantPause && pauseOverlayLoaded_) {{
+                            Phyxel::UI::unloadPauseMenuFrom(*ui);
+                            pauseOverlayLoaded_ = false;
+                        }}
+                        if (wantPause) ui->handleInput(engine.getInputManager());
+                    }}
+                }}
+
                 switch (state) {{
                 case Phyxel::UI::ScreenState::Intro:
                     // Splash before the menu. Continues on button press or Enter/Space/Esc.
@@ -1072,21 +1098,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     break;
 
                 case Phyxel::UI::ScreenState::Paused:
-                    Phyxel::UI::renderPauseMenu({{
-                        [this]() {{
-                            screen_.resume();
-                            if (engine_) updateCursorMode(*engine_);
-                        }},
-                        [this]() {{ screen_.toggleSettings(); if (engine_) updateCursorMode(*engine_); }},
-                        [this]() {{
-                            screen_.returnToMainMenu();
-                            if (engine_) updateCursorMode(*engine_);
-                        }},
-                        [&engine]() {{
-                            auto* w = engine.getWindowManager();
-                            if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE);
-                        }}
-                    }});
+                    // Pause menu is now the data-driven "pause:*" UISystem overlay
+                    // loaded/driven above (no ImGui) — nothing to draw here.
                     break;
 
                 case Phyxel::UI::ScreenState::Settings:

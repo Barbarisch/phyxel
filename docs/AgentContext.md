@@ -357,8 +357,15 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       model); explicit `game.json camera.eyeHeight` wins. Verified on `R5Verify`: FP view raised to standing
       height, third-person now frames the body (default humanoid halfHeight 0.95 → eye ≈ 1.71, was 0.5). **NOTE: the editor has a PARALLEL hardcoded `eyeHeight` (0.5/0.6)
       on its own `cameraCtl_` path (Application.cpp ~3429/4856) — still needs the same treatment.**
-    - **🔲 ESC pause menu still ImGui-styled** — confirmed live; this is the **NO-ImGui-in-gameplay**
-      umbrella above (`renderPauseMenu` is one of the listed ImGui surfaces). Tracked there, not a separate item.
+    - **✅ DONE + LIVE-VERIFIED ESC pause menu was ImGui-styled** — FIRST SLICE of the NO-ImGui-in-gameplay
+      umbrella. New engine `UI::loadPauseMenuInto`/`unloadPauseMenuFrom` build a data-driven `pause:*`
+      overlay from `resources/ui/pause_menu.json` (dark scrim + PAUSED + Resume/Settings/Main Menu/Quit),
+      via new `MenuActions::onResume/onSettings/onMainMenu` + action types `resume`/`open_settings`/`main_menu`.
+      Scaffold loads/unloads it to match `ScreenState::Paused` + drives `handleInput`; the ImGui
+      `renderPauseMenu` call is removed. Verified on `R5Verify` (ESC → styled overlay, Resume → gameplay).
+      **Pattern established for the remaining screens** (Intro/Victory/Credits/Settings): a `load<X>Into`
+      builder + `<x>:*` screen namespace. **Follow-ups:** Settings still ImGui (own slice); HUD-suppression
+      while paused (#11) not done (scrim covers it); the EDITOR still uses ImGui `renderPauseMenu`.
 - **Water system — FULL FEATURE MERGED TO `main`** (commit `80f9998`, 2026-06-06). Design:
   `docs/WaterSystem.md`. Default **OFF** (per-world `"water":{"enabled","seaLevel",...}` block
   in game.json, applied in `Application::autoLoadGameDefinition`), so it's inert for projects
