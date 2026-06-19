@@ -1378,6 +1378,31 @@ StructureResult StructureGenerator::generateFromSpec(const nlohmann::json& spec)
             }
         }
 
+        // Fixtures: realize the spec's furniture inside rooms (P4). Built at this story's floor
+        // level via the existing furniture primitives (they self-transform by facing + pos).
+        if (detail && story.contains("fixtures")) {
+            for (const auto& fj : story["fixtures"]) {
+                std::string ftype = fj.value("type", "");
+                glm::ivec4 frect(0);  // x, z, w, d
+                if (fj.contains("rect") && fj["rect"].is_array() && fj["rect"].size() >= 4) {
+                    frect.x = fj["rect"][0].get<int>();
+                    frect.y = fj["rect"][1].get<int>();
+                    frect.z = fj["rect"][2].get<int>();
+                    frect.w = fj["rect"][3].get<int>();
+                }
+                Facing ff = facingFromString(fj.value("facing", "south"));
+                glm::ivec3 fpos(frect.x, baseY + 1, frect.y);
+                int flen = std::max(1, std::max(frect.z, frect.w));
+                StructureResult furn;
+                if      (ftype == "table" || ftype == "altar")     furn = generateTable(fpos, ff, mat.furniture);
+                else if (ftype == "chair")                         furn = generateChair(fpos, ff, mat.furniture);
+                else if (ftype == "bed")                           furn = generateBed(fpos, ff, mat.furniture);
+                else if (ftype == "counter" || ftype == "bar")     furn = generateCounter(fpos, ff, flen, mat.furniture);
+                else continue;  // pew / unknown — no primitive yet
+                for (auto& v : furn.voxels) result.voxels.push_back(v);
+            }
+        }
+
         // Per-room location markers (local frame; offset below).
         for (auto& r : rooms) {
             const glm::ivec4& rc = r.second;
