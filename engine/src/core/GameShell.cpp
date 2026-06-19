@@ -35,7 +35,22 @@ void GameShell::updateGameplayCamera(EngineRuntime& engine, float dt,
             cameraController_.setRigByName(defaultRigName());
         if (!cameraController_.setSchemeByName(schemeName))
             cameraController_.setSchemeByName(defaultSchemeName());
-        if (cameraController_.rig()) onCameraRigResolved(*cameraController_.rig());
+        if (auto* rig = cameraController_.rig()) {
+            // Eye height: the rig ships a generic 0.5 (≈ knee height on a humanoid),
+            // which left first-person looking out of the character's shins. Derive it
+            // from THIS character's controller height so the eye sits near the top of
+            // the body (feet + ~1.7 for the default ~1.9-tall humanoid) and scales with
+            // the model. worldPosition (the rig target) is the capsule BOTTOM/feet, and
+            // the controller half-height is half the full height, so full height =
+            // 2×halfHeight; 1.8×halfHeight ≈ 90% of full height. An explicit game.json
+            // camera.eyeHeight still wins.
+            if (character)
+                rig->eyeHeight = character->getControllerHalfHeight() * 1.8f;
+            if (active && active->definition.contains("camera") &&
+                active->definition["camera"].contains("eyeHeight"))
+                rig->eyeHeight = active->definition["camera"].value("eyeHeight", rig->eyeHeight);
+            onCameraRigResolved(*rig);
+        }
         cameraResolved_ = true;
         cameraResolvedScene_ = sceneId;
     }
