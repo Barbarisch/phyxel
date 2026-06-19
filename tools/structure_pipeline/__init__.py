@@ -16,6 +16,7 @@ from .validator import (
     validate, validate_dict, validate_file, ValidationReport, Issue,
 )
 from .overlap import find_overlaps, assert_no_overlap
+from .detail import DetailCanvas, ResolutionReport, demo_ashlar_pillar
 from .author import (
     author_spec, AuthorResult, build_system_prompt, build_user_prompt,
     extract_json, anthropic_llm, LLMFn, DEFAULT_MODEL,
@@ -27,6 +28,7 @@ __all__ = [
     "ScaleCanon", "load_canon", "DEFAULT_CANON_PATH",
     "validate", "validate_dict", "validate_file", "ValidationReport", "Issue",
     "find_overlaps", "assert_no_overlap",
+    "DetailCanvas", "ResolutionReport", "demo_ashlar_pillar",
     "author_spec", "AuthorResult", "build_system_prompt", "build_user_prompt",
     "extract_json", "anthropic_llm", "LLMFn", "DEFAULT_MODEL",
 ]
