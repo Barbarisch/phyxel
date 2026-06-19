@@ -94,6 +94,24 @@ public:
     UITheme& getTheme() { return theme_; }
     const UITheme& getTheme() const { return theme_; }
 
+    // ── World-anchored overlay (speech bubbles, interaction prompts) ──
+    // These replace the ImGui renderSpeechBubbles/renderInteractionPrompt
+    // (docs/HudSystem.md §11a). The host projects a world position to screen
+    // pixels (worldToScreen) and queues a label each frame (addWorldLabel); the
+    // labels draw in render() AFTER the retained screens — centered horizontally
+    // and sitting ABOVE the point — then clear. No input (purely decorative).
+
+    /// Project a world position to screen pixels. Returns false if behind the
+    /// camera. Matches the engine's Vulkan projection (Y already flipped).
+    static bool worldToScreen(const glm::vec3& worldPos, const glm::mat4& view,
+                              const glm::mat4& proj, float screenW, float screenH,
+                              glm::vec2& outScreen);
+
+    /// Queue a world-anchored text label for THIS frame (cleared after render()).
+    /// `bgAlpha` <= 0 draws text only (no backing box).
+    void addWorldLabel(glm::vec2 screenPos, const std::string& text,
+                       glm::vec4 textColor, float bgAlpha);
+
 private:
     UIRenderer renderer_;
     BitmapFont font_;
@@ -116,6 +134,15 @@ private:
 
     // Input state
     bool wasMousePressed_ = false;
+
+    // Per-frame world-anchored overlay labels (addWorldLabel), drawn + cleared in render().
+    struct WorldLabel {
+        glm::vec2 screenPos;
+        std::string text;
+        glm::vec4 textColor;
+        float bgAlpha;
+    };
+    std::vector<WorldLabel> worldLabels_;
 };
 
 } // namespace UI

@@ -1183,27 +1183,35 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     imgui->renderDialogueBox(dialogueSystem_.get());
                 }}
 
-                // Render speech bubbles
-                if (speechBubbleManager_ && renderCoordinator_) {{
-                    auto* win = engine.getWindowManager();
-                    float sw = win ? static_cast<float>(win->getWidth()) : 1280.0f;
-                    float sh = win ? static_cast<float>(win->getHeight()) : 720.0f;
-                    const auto& view = renderCoordinator_->getCachedViewMatrix();
-                    const auto& proj = renderCoordinator_->getCachedProjectionMatrix();
-                    imgui->renderSpeechBubbles(speechBubbleManager_.get(), view, proj, sw, sh);
-                }}
-
-                // Render "Press E to interact" prompt
-                if (interactionManager_ && interactionManager_->shouldShowPrompt()) {{
-                    auto* nearNPC = interactionManager_->getNearestInteractableNPC();
-                    if (nearNPC) {{
-                        bool show = !dialogueSystem_ || !dialogueSystem_->isActive();
+                // Speech bubbles + "[E] Interact" prompt: data-driven world-anchored
+                // labels on the UISystem (no ImGui). Project each world position to
+                // screen and queue a label; the UISystem draws them in
+                // renderCoordinator_->render() below. (docs/HudSystem.md §11a.)
+                if (renderCoordinator_) {{
+                    if (auto* ui = renderCoordinator_->getUISystem()) {{
                         auto* win = engine.getWindowManager();
                         float sw = win ? static_cast<float>(win->getWidth()) : 1280.0f;
                         float sh = win ? static_cast<float>(win->getHeight()) : 720.0f;
                         const auto& view = renderCoordinator_->getCachedViewMatrix();
                         const auto& proj = renderCoordinator_->getCachedProjectionMatrix();
-                        imgui->renderInteractionPrompt(show, nearNPC->getPosition(), view, proj, sw, sh);
+                        glm::vec2 sp;
+                        if (speechBubbleManager_) {{
+                            for (const auto& b : speechBubbleManager_->getBubbles()) {{
+                                glm::vec3 wp = speechBubbleManager_->getBubbleWorldPosition(b);
+                                float op = speechBubbleManager_->getBubbleOpacity(b);
+                                if (Phyxel::UI::UISystem::worldToScreen(wp, view, proj, sw, sh, sp))
+                                    ui->addWorldLabel(sp, b.text, glm::vec4(1.0f, 1.0f, 1.0f, op), 0.85f * op);
+                            }}
+                        }}
+                        if (interactionManager_ && interactionManager_->shouldShowPrompt() &&
+                            (!dialogueSystem_ || !dialogueSystem_->isActive())) {{
+                            if (auto* npc = interactionManager_->getNearestInteractableNPC()) {{
+                                std::string txt = interactionManager_->getActivePromptText();
+                                if (txt.empty()) txt = "[E] Interact";
+                                if (Phyxel::UI::UISystem::worldToScreen(npc->getPosition() + glm::vec3(0.0f, 2.0f, 0.0f), view, proj, sw, sh, sp))
+                                    ui->addWorldLabel(sp, txt, glm::vec4(1.0f, 1.0f, 0.6f, 1.0f), 0.8f);
+                            }}
+                        }}
                     }}
                 }}
 

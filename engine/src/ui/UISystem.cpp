@@ -178,8 +178,30 @@ bool UISystem::injectClick(glm::vec2 pos) {
 
 // ── Rendering ───────────────────────────────────────────────
 
+bool UISystem::worldToScreen(const glm::vec3& worldPos, const glm::mat4& view,
+                             const glm::mat4& proj, float screenW, float screenH,
+                             glm::vec2& outScreen) {
+    glm::vec4 clip = proj * view * glm::vec4(worldPos, 1.0f);
+    if (clip.w <= 0.0f) return false;  // behind the camera
+    glm::vec3 ndc = glm::vec3(clip) / clip.w;
+    outScreen.x = (ndc.x * 0.5f + 0.5f) * screenW;
+    outScreen.y = (ndc.y * 0.5f + 0.5f) * screenH;  // Vulkan proj already Y-flipped
+    return true;
+}
+
+void UISystem::addWorldLabel(glm::vec2 screenPos, const std::string& text,
+                             glm::vec4 textColor, float bgAlpha) {
+    if (text.empty()) return;
+    worldLabels_.push_back({screenPos, text, textColor, bgAlpha});
+}
+
 void UISystem::render(VkCommandBuffer cmd) {
-    if (!initialized_ || !hasVisibleScreens()) return;
+    // Draw whenever there are visible screens OR queued world labels (a speech
+    // bubble can show with no HUD panel visible).
+    if (!initialized_ || (!hasVisibleScreens() && worldLabels_.empty())) {
+        worldLabels_.clear();
+        return;
+    }
 
     renderer_.beginFrame();
 
@@ -194,6 +216,22 @@ void UISystem::render(VkCommandBuffer cmd) {
 
         panel->render(&renderer_, &font_, theme_, panelPos);
     }
+
+    // World-anchored overlay labels (speech bubbles / interaction prompts), drawn
+    // last so they sit over the HUD. Centered horizontally, box sits ABOVE the
+    // anchor point. Cleared after drawing (re-queued each frame by the host).
+    const float padX = 10.0f, padY = 6.0f;
+    const float lineH = font_.lineHeight(theme_.textScale);
+    for (const auto& wl : worldLabels_) {
+        float textW = font_.measureText(wl.text, theme_.textScale);
+        glm::vec2 boxSize(textW + padX * 2.0f, lineH + padY * 2.0f);
+        glm::vec2 boxPos(wl.screenPos.x - boxSize.x * 0.5f, wl.screenPos.y - boxSize.y);
+        if (wl.bgAlpha > 0.0f)
+            renderer_.drawRect(boxPos, boxSize, {0.05f, 0.05f, 0.08f, wl.bgAlpha});
+        font_.drawText(&renderer_, wl.text, {boxPos.x + padX, boxPos.y + padY},
+                       wl.textColor, theme_.textScale);
+    }
+    worldLabels_.clear();
 
     renderer_.endFrame(cmd);
 }

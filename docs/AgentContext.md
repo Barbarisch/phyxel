@@ -400,11 +400,21 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       `timer` trigger → "Escape in  1:52.6" top-center). **Gotcha:** a `timer` trigger needs a NON-EMPTY
       `then` array or it's rejected (`Triggers: loaded 0`). **Follow-ups:** single countdown (no Repeater);
       no red-under-10s urgency (labels lack a color bind); editor still ImGui.
-    - **NO-ImGui umbrella — remaining after 5 slices (only world-space HUD + #11 + editor left):**
-      `renderSpeechBubbles` + `renderInteractionPrompt` (WORLD-SPACE — need world→screen projection, the
-      hardest; the HUD design doc flags these for a VFX/world-space path), HUD-suppression-while-paused
-      (#11), the deferred settings bits (keybind rebind / brightness / invertY / AI), and the editor's own
-      ImGui screens.
+    - **✅ DONE + LIVE-VERIFIED Speech bubbles + interaction prompt (6th slice) — and the SCAFFOLD IS NOW
+      ImGui-FREE FOR GAMEPLAY:** new `UISystem::worldToScreen` (project world→screen px) + `addWorldLabel`
+      (per-frame imperative world-anchored text, drawn after retained screens, centered + above the point,
+      cleared each frame). Scaffold projects each `SpeechBubbleManager` bubble + the `InteractionManager`
+      nearest-NPC pos and queues labels; ImGui `renderSpeechBubbles`/`renderInteractionPrompt` removed.
+      Verified on `R5Verify` (player spawned next to Elder Maewyn → mouse-looked to frame her → "Interact"
+      prompt renders above the NPC). **The only ImGui render call left in the generated scaffold is
+      `renderDialogueBox`, gated to AI conversations (intentional — UISystem lacks scroll + text-input).**
+      Verifying this needed live mouse-look injection (`mouse_event` relative motion drives the captured
+      FPS camera once the window is foregrounded) — extends the [[standalone-window-driving]] recipe.
+    - **NO-ImGui umbrella — what's LEFT (no longer gameplay-blocking):** HUD-suppression-while-paused (#11,
+      polish), the deferred settings bits (keybind rebind / brightness / invertY / AI), the AI-conversation
+      dialogue box (needs scroll + text-input UISystem widgets first), and the EDITOR's own ImGui screens
+      (`renderPauseMenu`/`renderMainMenu`/`renderSettingsScreen`/`renderCountdownHud`/`renderSpeechBubbles`/
+      `renderInteractionPrompt` on the editor's `cameraCtl_`/Application path — separate from the scaffold).
       The `buildMenuElement` widget+binding additions (slider/checkbox/dropdown + onGetSetting/onSetSetting)
       are reusable for any future data-driven control screen. **Also worth doing:** for menu-scene games,
       pause/credits/victory "Main Menu" should `transition_scene` back to the menu scene rather than the
