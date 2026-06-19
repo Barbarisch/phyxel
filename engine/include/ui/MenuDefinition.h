@@ -80,11 +80,13 @@ struct MenuActions {
     std::function<void(const std::string& sceneId)> onTransitionScene;
     std::function<void()> onQuit;
     std::function<void()> onLoadGame;
-    /// Pause-overlay actions (button action types "resume" / "open_settings" /
-    /// "main_menu"). Left null on menu-scene loads; wired by loadPauseMenuInto's host.
+    /// Pause/screen-overlay actions (button action types "resume" /
+    /// "open_settings" / "main_menu" / "show_credits"). Left null on menu-scene
+    /// loads; wired by the loadPauseMenuInto / loadGameScreenInto host.
     std::function<void()> onResume;
     std::function<void()> onSettings;
     std::function<void()> onMainMenu;
+    std::function<void()> onShowCredits;
     /// Resolve a {{token}} in label/button text to a display string (e.g.
     /// "playtime", "story.<var>"). Return nullopt to leave the token literal.
     /// Applied once at menu load (static).
@@ -107,6 +109,17 @@ void loadPauseMenuInto(UISystem& ui, const MenuActions& actions);
 
 /// Remove the pause overlay screens ("pause:*") added by loadPauseMenuInto.
 void unloadPauseMenuFrom(UISystem& ui);
+
+/// Load a full-screen data-driven game screen (intro / victory / credits — the
+/// ScreenState screens migrated off ImGui, docs/HudSystem.md §11a) from
+/// resources/ui/<name>_screen.json into UISystem screens named "<name>:<panel>".
+/// Opaque background (covers the view). Dynamic text ({{title}}/{{tagline}}/…) is
+/// resolved via actions.onResolveVariable; buttons use action types
+/// "main_menu" / "show_credits" / "quit_game". Call unloadGameScreenFrom to remove.
+void loadGameScreenInto(UISystem& ui, const std::string& name, const MenuActions& actions);
+
+/// Remove the "<name>:*" screens added by loadGameScreenInto.
+void unloadGameScreenFrom(UISystem& ui, const std::string& name);
 
 /// Remove all "menu:*" screens previously added by loadMenuInto.
 void unloadMenuFrom(UISystem& ui);

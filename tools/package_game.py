@@ -75,6 +75,9 @@ REQUIRED_RESOURCES = [
     "resources/mc_texture_map.json",
     "resources/ui/default_hud.json",
     "resources/ui/pause_menu.json",
+    "resources/ui/intro_screen.json",
+    "resources/ui/victory_screen.json",
+    "resources/ui/credits_screen.json",
 ]
 
 # The default animation file an animated character/NPC falls back to when the

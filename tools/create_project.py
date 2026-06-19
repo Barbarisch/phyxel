@@ -148,7 +148,7 @@ def create_project(
     extra_includes.append('#include "core/HealthComponent.h"')
     extra_members.append("    std::unique_ptr<Phyxel::UI::GameMenuRenderer> gameMenuRenderer_;")
     extra_members.append("    bool menuSceneActive_ = false;  // a sceneType:\"menu\" scene is currently shown")
-    extra_members.append("    bool pauseOverlayLoaded_ = false;  // data-driven pause:* overlay is loaded (replaces ImGui pause)")
+    extra_members.append("    std::string activeDataScreen_;  // which data-driven overlay is loaded: pause/intro/victory/credits (replaces ImGui ScreenState screens)")
     extra_members.append("    float lastDt_ = 0.0f;           // last frame dt, for menu animations in onRender")
     extra_members.append("    bool authoredCameraMode_ = false;  // game.json camera block carries an explicit \"mode\"")
 
@@ -1000,6 +1000,51 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (imgui) {{
                 imgui->newFrame();
 
+                auto state = screen_.getState();
+
+                // Data-driven screen overlays (pause / intro / victory / credits)
+                // replace the old ImGui ScreenState screens (docs/HudSystem.md §11a).
+                // Map the state to a "<name>:*" UISystem overlay, (un)load it on change,
+                // and drive its clicks. They render with the rest of the UISystem in
+                // renderCoordinator_->render() below (pause = a scrim over the frozen
+                // world; intro/victory/credits = full-screen). A sceneType:"menu" scene
+                // owns the screen itself, so no ScreenState overlay while one is active.
+                if (renderCoordinator_) {{
+                    if (auto* ui = renderCoordinator_->getUISystem()) {{
+                        std::string want;
+                        if (!menuSceneActive_) {{
+                            switch (state) {{
+                                case Phyxel::UI::ScreenState::Paused:  want = "pause";   break;
+                                case Phyxel::UI::ScreenState::Intro:   want = "intro";   break;
+                                case Phyxel::UI::ScreenState::Victory: want = "victory"; break;
+                                case Phyxel::UI::ScreenState::Credits: want = "credits"; break;
+                                default: break;
+                            }}
+                        }}
+                        if (want != activeDataScreen_) {{
+                            if (activeDataScreen_ == "pause") Phyxel::UI::unloadPauseMenuFrom(*ui);
+                            else if (!activeDataScreen_.empty()) Phyxel::UI::unloadGameScreenFrom(*ui, activeDataScreen_);
+                            if (!want.empty()) {{
+                                Phyxel::UI::MenuActions a;
+                                a.onResolveVariable = [](const std::string& t) -> std::optional<std::string> {{
+                                    if (t == "title")   return std::string("{class_name}");
+                                    if (t == "tagline") return std::string("{game_tagline}");
+                                    return std::nullopt;
+                                }};
+                                a.onResume      = [this]() {{ screen_.resume();           if (engine_) updateCursorMode(*engine_); }};
+                                a.onSettings    = [this]() {{ screen_.toggleSettings();   if (engine_) updateCursorMode(*engine_); }};
+                                a.onMainMenu    = [this]() {{ screen_.returnToMainMenu(); if (engine_) updateCursorMode(*engine_); }};
+                                a.onShowCredits = [this]() {{ screen_.showCredits(); }};
+                                a.onQuit        = [this]() {{ auto* w = engine_ ? engine_->getWindowManager() : nullptr; if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE); }};
+                                if (want == "pause") Phyxel::UI::loadPauseMenuInto(*ui, a);
+                                else                 Phyxel::UI::loadGameScreenInto(*ui, want, a);
+                            }}
+                            activeDataScreen_ = want;
+                        }}
+                        if (!want.empty()) ui->handleInput(engine.getInputManager());
+                    }}
+                }}
+
                 // A sceneType:"menu" scene owns the screen. It renders via the UISystem
                 // (custom-Vulkan, inside renderCoordinator_->render()) — no ImGui menu.
                 // Drive UISystem input so menu buttons are clickable.
@@ -1013,68 +1058,15 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     return;
                 }}
 
-                auto state = screen_.getState();
-
-                // Data-driven pause overlay (replaces the old ImGui renderPauseMenu —
-                // docs/HudSystem.md §11a). Load/unload the "pause:*" UISystem screens to
-                // match the Paused state and drive their clicks. The overlay renders with
-                // the rest of the UISystem inside renderCoordinator_->render() below, so
-                // the frozen world shows dimmed underneath. Resume/Main Menu/Quit change
-                // the screen state; the reconcile here unloads when we leave Paused.
-                if (renderCoordinator_) {{
-                    if (auto* ui = renderCoordinator_->getUISystem()) {{
-                        const bool wantPause = (state == Phyxel::UI::ScreenState::Paused);
-                        if (wantPause && !pauseOverlayLoaded_) {{
-                            Phyxel::UI::MenuActions pa;
-                            pa.onResume   = [this]() {{ screen_.resume();           if (engine_) updateCursorMode(*engine_); }};
-                            pa.onSettings = [this]() {{ screen_.toggleSettings();   if (engine_) updateCursorMode(*engine_); }};
-                            pa.onMainMenu = [this]() {{ screen_.returnToMainMenu(); if (engine_) updateCursorMode(*engine_); }};
-                            pa.onQuit     = [this]() {{ auto* w = engine_ ? engine_->getWindowManager() : nullptr; if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE); }};
-                            Phyxel::UI::loadPauseMenuInto(*ui, pa);
-                            pauseOverlayLoaded_ = true;
-                        }} else if (!wantPause && pauseOverlayLoaded_) {{
-                            Phyxel::UI::unloadPauseMenuFrom(*ui);
-                            pauseOverlayLoaded_ = false;
-                        }}
-                        if (wantPause) ui->handleInput(engine.getInputManager());
-                    }}
-                }}
-
                 switch (state) {{
                 case Phyxel::UI::ScreenState::Intro:
-                    // Splash before the menu. Continues on button press or Enter/Space/Esc.
-                    if (Phyxel::UI::renderIntroScreen("{class_name}", "{game_tagline}")) {{
-                        screen_.returnToMainMenu();
-                        if (engine_) updateCursorMode(*engine_);
-                    }}
-                    break;
-
                 case Phyxel::UI::ScreenState::Victory:
-                    // The game-complete screen. Enter it from gameplay with
-                    // screen_.showVictory() when your win condition is met.
-                    Phyxel::UI::renderVictoryScreen("VICTORY!", "You have completed {class_name}.", {{
-                        [this]() {{ screen_.showCredits(); }},
-                        [this]() {{
-                            screen_.returnToMainMenu();
-                            if (engine_) updateCursorMode(*engine_);
-                        }},
-                        [&engine]() {{
-                            auto* w = engine.getWindowManager();
-                            if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE);
-                        }}
-                    }});
-                    break;
-
                 case Phyxel::UI::ScreenState::Credits:
-                    Phyxel::UI::renderCreditsScreen("{class_name}", {{
-                        "{game_tagline}",
-                        "",
-                        "Built with the Phyxel engine",
-                        "Thanks for playing!"
-                    }}, [this]() {{
-                        screen_.returnToMainMenu();
-                        if (engine_) updateCursorMode(*engine_);
-                    }});
+                    // Intro / Victory / Credits are now data-driven "intro:*" /
+                    // "victory:*" / "credits:*" UISystem overlays loaded + driven by the
+                    // reconcile above (no ImGui). Enter Victory from gameplay with
+                    // screen_.showVictory() when your win condition is met. Nothing to
+                    // draw here. (docs/HudSystem.md §11a.)
                     break;
 
                 case Phyxel::UI::ScreenState::MainMenu:

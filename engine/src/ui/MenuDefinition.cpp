@@ -585,6 +585,7 @@ static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, floa
             else if (at == "resume")       { auto cb = actions.onResume;   w->onClick = [cb] { if (cb) cb(); }; }
             else if (at == "open_settings"){ auto cb = actions.onSettings; w->onClick = [cb] { if (cb) cb(); }; }
             else if (at == "main_menu")    { auto cb = actions.onMainMenu; w->onClick = [cb] { if (cb) cb(); }; }
+            else if (at == "show_credits") { auto cb = actions.onShowCredits; w->onClick = [cb] { if (cb) cb(); }; }
             else if (at == "open_submenu") { w->onClick = [uip, target]    { menuShowOnly(*uip, "menu:" + target); }; }
             else if (at == "close_submenu"){ w->onClick = [uip, startPanel]{ menuShowOnly(*uip, "menu:" + startPanel); }; }
         }
@@ -675,18 +676,26 @@ void loadMenuInto(UISystem& ui, const nlohmann::json& layout, const MenuActions&
     ui.showScreen("menu:" + startPanel);
 }
 
-void unloadPauseMenuFrom(UISystem& ui) {
+// Remove all screens in a "<prefix>" namespace (e.g. "pause:", "victory:").
+static void removeScreensWithPrefix(UISystem& ui, const std::string& prefix) {
     for (const auto& [name, vis] : ui.getScreenList())
-        if (name.rfind("pause:", 0) == 0) ui.removeScreen(name);
+        if (name.rfind(prefix, 0) == 0) ui.removeScreen(name);
 }
 
-void loadPauseMenuInto(UISystem& ui, const MenuActions& actions) {
-    unloadPauseMenuFrom(ui);  // idempotent — never stack pause overlays
+// Shared builder behind the pause overlay + the Intro/Victory/Credits game
+// screens (docs/HudSystem.md §11a). Loads resources/ui/<file> into UISystem
+// screens named "<nsPrefix><panelKey>" and shows the start panel. `defaultBg` is
+// the scrim/background used when the JSON omits "background_color" (pause wants a
+// translucent scrim over the frozen world; full screens want an opaque cover).
+static void loadOverlayFromFile(UISystem& ui, const std::string& nsPrefix,
+                                const std::string& file, const MenuActions& actions,
+                                glm::vec4 defaultBg) {
+    removeScreensWithPrefix(ui, nsPrefix);  // idempotent — never stack overlays
 
-    const std::string path = "resources/ui/pause_menu.json";
+    const std::string path = "resources/ui/" + file;
     std::ifstream f(path);
     if (!f.is_open()) {
-        LOG_WARN("UI", "Pause overlay not found at {} — no pause menu shown", path);
+        LOG_WARN("UI", "Overlay not found at {} — '{}' screen not shown", path, nsPrefix);
         return;
     }
     nlohmann::json layout;
@@ -700,11 +709,9 @@ void loadPauseMenuInto(UISystem& ui, const MenuActions& actions) {
     const float W = static_cast<float>(ui.width());
     const float H = static_cast<float>(ui.height());
     const float sx = W / 1280.0f, sy = H / 720.0f;  // virtual canvas -> window
-    // Default to a near-opaque dark scrim so the world + HUD underneath read as
-    // "paused" without a separate HUD-suppression pass (that's a follow-up).
     glm::vec4 bgColor = parseColorArr(
         layout.contains("background_color") ? layout["background_color"] : nlohmann::json(),
-        {0.03f, 0.03f, 0.06f, 0.88f});
+        defaultBg);
     std::string startPanel = layout.value("start_panel", "main");
 
     const auto& panels = layout["panels"];
@@ -720,7 +727,7 @@ void loadPauseMenuInto(UISystem& ui, const MenuActions& actions) {
         auto bg = std::make_unique<UIImage>();
         bg->position = {0, 0};
         bg->size = {W, H};
-        bg->tintColor = bgColor;  // no image path -> solid (alpha-blended) scrim
+        bg->tintColor = bgColor;  // no image path -> solid (alpha-blended) fill
         root->addChild(std::move(bg));
 
         if (pdef.contains("children") && pdef["children"].is_array()) {
@@ -729,14 +736,29 @@ void loadPauseMenuInto(UISystem& ui, const MenuActions& actions) {
                     root->addChild(std::move(w));
             }
         }
-        ui.addScreen("pause:" + it.key(), std::move(root));
+        ui.addScreen(nsPrefix + it.key(), std::move(root));
     }
 
-    // Show only the start panel (other pause:* panels, e.g. a future settings
-    // sub-panel, stay hidden until navigated to).
+    // Show only the start panel (other panels stay hidden until navigated to).
     for (const auto& [name, vis] : ui.getScreenList())
-        if (name.rfind("pause:", 0) == 0) ui.hideScreen(name);
-    ui.showScreen("pause:" + startPanel);
+        if (name.rfind(nsPrefix, 0) == 0) ui.hideScreen(name);
+    ui.showScreen(nsPrefix + startPanel);
+}
+
+void unloadPauseMenuFrom(UISystem& ui) { removeScreensWithPrefix(ui, "pause:"); }
+
+void loadPauseMenuInto(UISystem& ui, const MenuActions& actions) {
+    // Translucent scrim so the frozen world + HUD read as "paused".
+    loadOverlayFromFile(ui, "pause:", "pause_menu.json", actions, {0.03f, 0.03f, 0.06f, 0.88f});
+}
+
+void unloadGameScreenFrom(UISystem& ui, const std::string& name) {
+    removeScreensWithPrefix(ui, name + ":");
+}
+
+void loadGameScreenInto(UISystem& ui, const std::string& name, const MenuActions& actions) {
+    // Full-screen opaque cover (intro / victory / credits replace the view).
+    loadOverlayFromFile(ui, name + ":", name + "_screen.json", actions, {0.05f, 0.05f, 0.10f, 1.0f});
 }
 
 } // namespace UI

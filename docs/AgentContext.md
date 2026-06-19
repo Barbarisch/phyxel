@@ -366,6 +366,17 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       **Pattern established for the remaining screens** (Intro/Victory/Credits/Settings): a `load<X>Into`
       builder + `<x>:*` screen namespace. **Follow-ups:** Settings still ImGui (own slice); HUD-suppression
       while paused (#11) not done (scrim covers it); the EDITOR still uses ImGui `renderPauseMenu`.
+    - **✅ DONE + LIVE-VERIFIED Intro/Victory/Credits screens (2nd umbrella slice):** refactored the pause
+      builder into a shared `loadOverlayFromFile`; added `loadGameScreenInto(ui,"intro"|"victory"|"credits",…)`
+      / `unloadGameScreenFrom` + `MenuActions::onShowCredits` + `show_credits` action. Authored
+      `resources/ui/{intro,victory,credits}_screen.json` with `{{title}}`/`{{tagline}}` tokens. The scaffold
+      now has ONE reconcile loop mapping `ScreenState`→overlay (pause/intro/victory/credits), (un)loading on
+      change + driving `handleInput`; the three ImGui `render*Screen` calls are gone. Verified on `R5Verify`
+      (temp `player_jumped→show_victory` trigger → data-driven VICTORY! with resolved title → Credits with
+      resolved title+tagline). **Remaining ImGui gameplay surfaces:** `renderMainMenu` (fallback) +
+      `renderSettingsScreen` (heaviest — sliders/dropdowns/keybinds) + `renderCountdownHud` + speech bubbles
+      + interaction prompt; HUD-suppression-while-paused (#11); intro any-key-continue (Continue button only
+      now); the editor's own ImGui screens.
 - **Water system — FULL FEATURE MERGED TO `main`** (commit `80f9998`, 2026-06-06). Design:
   `docs/WaterSystem.md`. Default **OFF** (per-world `"water":{"enabled","seaLevel",...}` block
   in game.json, applied in `Application::autoLoadGameDefinition`), so it's inert for projects

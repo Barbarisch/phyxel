@@ -1,0 +1,17 @@
+{
+  "_comment": "Data-driven credits screen (docs/HudSystem.md §11a). Loaded by UI::loadGameScreenInto(ui,\"credits\",...) into credits:<panel> screens; replaces ImGui renderCreditsScreen. {{title}}/{{tagline}} resolve via MenuActions.onResolveVariable. Back button -> main_menu.",
+  "background_type": "solid",
+  "background_color": [0.05, 0.05, 0.10, 1.0],
+  "start_panel": "main",
+  "panels": {
+    "main": {
+      "children": [
+        { "type": "label",  "id": "credits_title",   "text": "{{title}}",   "font": "title", "position": [640, 130], "size": [700, 70] },
+        { "type": "label",  "id": "credits_tagline", "text": "{{tagline}}",                  "position": [640, 250], "size": [700, 32] },
+        { "type": "label",  "id": "credits_engine",  "text": "Built with the Phyxel engine", "position": [640, 320], "size": [700, 32] },
+        { "type": "label",  "id": "credits_thanks",  "text": "Thanks for playing!",          "position": [640, 370], "size": [700, 32] },
+        { "type": "button", "id": "credits_back",    "text": "Back", "position": [540, 480], "size": [200, 48], "action": { "type": "main_menu" } }
+      ]
+    }
+  }
+}
