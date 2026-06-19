@@ -194,10 +194,11 @@ void InputManager::handleMouseMove(double xpos, double ypos) {
     
     float xoffset = xpos - lastX;
     float yoffset = lastY - ypos; // Reversed since y-coordinates go from bottom to top
-    
+    if (invertY_) yoffset = -yoffset;  // settings "Invert Y" (look up/down flip)
+
     lastX = xpos;
     lastY = ypos;
-    
+
     mouseDeltaX += xoffset;
     mouseDeltaY += yoffset;
 

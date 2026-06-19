@@ -1090,6 +1090,13 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                         if (settings_.resolutionWidth >= 1920) return 2.0f;
                                         return 1.0f;
                                     }}
+                                    if (k == "brightness") return renderCoordinator_ ? renderCoordinator_->getAmbientLightStrength() : settings_.brightness;
+                                    if (k == "invertY")    return settings_.invertY ? 1.0f : 0.0f;
+                                    if (k == "aiProvider") {{
+                                        if (settings_.aiProvider == "openai") return 1.0f;
+                                        if (settings_.aiProvider == "ollama") return 2.0f;
+                                        return 0.0f;  // anthropic
+                                    }}
                                     return 0.0f;
                                 }};
                                 a.onSetSetting = [this](const std::string& k, float v) {{
@@ -1120,6 +1127,25 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                         settings_.resolutionWidth = w; settings_.resolutionHeight = h;
                                         if (win) win->setSize(w, h);
                                     }}
+                                    else if (k == "brightness") {{ settings_.brightness = v; if (renderCoordinator_) renderCoordinator_->setAmbientLightStrength(v); }}
+                                    else if (k == "invertY")    {{ settings_.invertY = (v > 0.5f); auto* in = engine_ ? engine_->getInputManager() : nullptr; if (in) in->setInvertY(settings_.invertY); }}
+                                    else if (k == "aiProvider") {{
+                                        const char* provs[] = {{ "anthropic", "openai", "ollama" }};
+                                        int idx = static_cast<int>(v + 0.5f); if (idx < 0 || idx > 2) idx = 0;
+                                        settings_.aiProvider = provs[idx];
+                                        {{ Phyxel::AI::LLMConfig cfg; cfg.provider = settings_.aiProvider; cfg.model = settings_.aiModel; cfg.apiKey = settings_.aiApiKey; if (aiConversationService_) aiConversationService_->setLLMConfig(cfg); }}
+                                    }}
+                                }};
+                                // String settings: AI model + API key (free-text fields).
+                                a.onGetSettingText = [this](const std::string& k) -> std::string {{
+                                    if (k == "aiModel")  return settings_.aiModel;
+                                    if (k == "aiApiKey") return settings_.aiApiKey;
+                                    return std::string();
+                                }};
+                                a.onSetSettingText = [this](const std::string& k, const std::string& v) {{
+                                    if (k == "aiModel")       settings_.aiModel = v;
+                                    else if (k == "aiApiKey") settings_.aiApiKey = v;
+                                    {{ Phyxel::AI::LLMConfig cfg; cfg.provider = settings_.aiProvider; cfg.model = settings_.aiModel; cfg.apiKey = settings_.aiApiKey; if (aiConversationService_) aiConversationService_->setLLMConfig(cfg); }}
                                 }};
                                 if (want == "pause") Phyxel::UI::loadPauseMenuInto(*ui, a);
                                 else                 Phyxel::UI::loadGameScreenInto(*ui, want, a);

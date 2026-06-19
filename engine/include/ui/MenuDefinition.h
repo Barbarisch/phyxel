@@ -95,6 +95,10 @@ struct MenuActions {
     /// selected index. Wired by the settings screen's host.
     std::function<float(const std::string& key)> onGetSetting;
     std::function<void(const std::string& key, float value)> onSetSetting;
+    /// String-valued settings (textinput widgets carrying a "setting" key, e.g.
+    /// AI model / API key). Read the current value to initialize, apply on edit.
+    std::function<std::string(const std::string& key)> onGetSettingText;
+    std::function<void(const std::string& key, const std::string& value)> onSetSettingText;
     /// Resolve a {{token}} in label/button text to a display string (e.g.
     /// "playtime", "story.<var>"). Return nullopt to leave the token literal.
     /// Applied once at menu load (static).

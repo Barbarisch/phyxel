@@ -58,6 +58,10 @@ public:
     // Mouse position update callback (for external systems like mouse velocity tracker)
     void setMousePositionCallback(MousePositionCallback callback);
 
+    // Invert vertical mouse look (settings "Invert Y").
+    void setInvertY(bool invert) { invertY_ = invert; }
+    bool getInvertY() const { return invertY_; }
+
     // Query state
     bool isKeyPressed(int key) const;
     bool isMouseButtonPressed(int button) const;
@@ -184,6 +188,7 @@ private:
 
     // Typed Unicode codepoints this frame (text input); cleared per frame.
     std::vector<unsigned int> typedChars_;
+    bool invertY_ = false;  // settings "Invert Y"
 
     // Window handle
     GLFWwindow* window;

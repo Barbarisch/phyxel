@@ -432,8 +432,17 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       convo needs a configured provider to START ("no API key" otherwise) — Ollama needs no key. See
       [[standalone-window-driving]].
       **Follow-ups:** long input overflows the field (no horizontal clip/scroll); em-dash → `?` in the bitmap font.
-    - **NO-ImGui umbrella — what's LEFT (none gameplay-facing in shipped games):** the deferred settings bits
-      (keybind rebind / brightness / invertY / AI provider config), and the EDITOR's own ImGui screens
+    - **✅ DONE Deferred settings rows (9th slice):** added Brightness (→ `setAmbientLightStrength`),
+      Invert-Y (→ new `InputManager::setInvertY` flipping `mouseDeltaY`), and an AI section (Provider dropdown
+      + Model/API-Key `textinput` fields) to `settings_screen.json` (now two columns). Needed: new
+      `MenuActions::onGetSettingText`/`onSetSettingText` (STRING settings) + a `textinput` type in
+      `buildMenuElement`; scaffold wires them to `GameSettings` + `AIConversationService::setLLMConfig`.
+      **Keybind rebind STILL deferred (real blocker, not laziness):** `InputManager::registerAction` uses
+      HARDCODED GLFW keys; `GameSettings.keybindings` is only saved/loaded, never applied — a rebind UI is a
+      dead control until the input action system is rewired to read from settings. Polish: API-key unmasked;
+      long input overflows the field.
+    - **NO-ImGui umbrella — what's LEFT (none gameplay-facing in shipped games):** keybind rebind (blocked on
+      the input-action rewire above), and the EDITOR's own ImGui screens
       (`renderPauseMenu`/`renderMainMenu`/`renderSettingsScreen`/`renderCountdownHud`/`renderSpeechBubbles`/
       `renderInteractionPrompt` on the editor's `cameraCtl_`/Application path — separate from the scaffold).
       **The generated/shipped game is now 100% ImGui-free for gameplay UI.**

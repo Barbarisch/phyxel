@@ -647,6 +647,21 @@ static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, floa
         if (!key.empty()) { auto cb = actions.onSetSetting; w->onChange = [cb, key](int i) { if (cb) cb(key, static_cast<float>(i)); }; }
         return w;
     }
+    if (type == "textinput") {
+        auto w = std::make_unique<UITextInput>();
+        w->placeholder = resolveTokens(el.value("placeholder", ""), actions);
+        w->maxLength = el.value("maxLength", 255);
+        w->position = posv; w->size = sizev;
+        // A "setting" key binds the field to a string setting (AI model / key, etc.).
+        const std::string key = el.value("setting", "");
+        if (!key.empty() && actions.onGetSettingText) w->text = actions.onGetSettingText(key);
+        if (!key.empty()) {
+            auto cb = actions.onSetSettingText;
+            w->onChange = [cb, key](const std::string& v) { if (cb) cb(key, v); };
+            w->onSubmit = [cb, key](const std::string& v) { if (cb) cb(key, v); };
+        }
+        return w;
+    }
     return nullptr;
 }
 
