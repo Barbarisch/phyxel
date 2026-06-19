@@ -87,6 +87,7 @@ struct MenuActions {
     std::function<void()> onSettings;
     std::function<void()> onMainMenu;
     std::function<void()> onShowCredits;
+    std::function<void()> onStartGame;  // fallback main menu "New Game" (action "start_game")
     std::function<void()> onBack;   // settings/sub-screen "Back" (action "back")
     /// Settings widgets (slider/checkbox/dropdown carrying a "setting" key):
     /// read the current value to initialize the widget (onGetSetting) and apply a

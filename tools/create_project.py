@@ -1014,6 +1014,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         std::string want;
                         if (!menuSceneActive_) {{
                             switch (state) {{
+                                case Phyxel::UI::ScreenState::MainMenu: want = "mainmenu"; break;
                                 case Phyxel::UI::ScreenState::Paused:   want = "pause";    break;
                                 case Phyxel::UI::ScreenState::Intro:    want = "intro";    break;
                                 case Phyxel::UI::ScreenState::Victory:  want = "victory";  break;
@@ -1033,6 +1034,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                     return std::nullopt;
                                 }};
                                 a.onResume      = [this]() {{ screen_.resume();           if (engine_) updateCursorMode(*engine_); }};
+                                a.onStartGame   = [this]() {{ screen_.startGame();         if (engine_) updateCursorMode(*engine_); }};
                                 a.onSettings    = [this]() {{ screen_.toggleSettings();   if (engine_) updateCursorMode(*engine_); }};
                                 a.onMainMenu    = [this]() {{ screen_.returnToMainMenu(); if (engine_) updateCursorMode(*engine_); }};
                                 a.onShowCredits = [this]() {{ screen_.showCredits(); }};
@@ -1123,17 +1125,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     break;
 
                 case Phyxel::UI::ScreenState::MainMenu:
-                    Phyxel::UI::renderMainMenu("{class_name}", {{
-                        [this]() {{
-                            screen_.startGame();
-                            if (engine_) updateCursorMode(*engine_);
-                        }},
-                        [this]() {{ screen_.toggleSettings(); if (engine_) updateCursorMode(*engine_); }},
-                        [&engine]() {{
-                            auto* w = engine.getWindowManager();
-                            if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE);
-                        }}
-                    }});
+                    // Fallback title screen is now the data-driven "mainmenu:*" UISystem
+                    // overlay loaded + driven by the reconcile above (no ImGui). Games
+                    // with a sceneType:"menu" start scene render that menu scene instead.
+                    // (docs/HudSystem.md §11a.)
                     break;
 
                 case Phyxel::UI::ScreenState::Playing:

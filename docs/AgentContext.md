@@ -387,10 +387,20 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       values (1600x900 / Off / FOV 45 / vols), FOV slider click 45→111 applied, Back saved + returned to
       pause. **Deferred:** keybind rebind, brightness/invertY (no apply path), AI settings (dev-only).
       **Polish:** open-dropdown overlap; layout tall (bottom rows near client edge at 125% DPI).
-    - **NO-ImGui umbrella — remaining after 3 slices:** fallback `renderMainMenu`, `renderCountdownHud`,
-      speech bubbles, interaction prompt, the deferred settings bits, HUD-suppression-while-paused (#11),
-      and the editor's own ImGui screens. The `buildMenuElement` widget+binding additions (slider/checkbox/
-      dropdown + onGetSetting/onSetSetting) are now reusable for any future data-driven control screen.
+    - **✅ DONE + LIVE-VERIFIED Fallback main menu (4th slice):** data-driven `mainmenu:*` overlay
+      (`mainmenu_screen.json`, `{{title}}` + New Game/Options/Quit) via new `onStartGame`/`start_game`;
+      scaffold reconcile maps `ScreenState::MainMenu`→it; ImGui `renderMainMenu` removed. Verified
+      (pause→Main Menu → data-driven title screen). **With this, EVERY `ScreenState` screen is off ImGui:
+      Intro/MainMenu/Victory/Credits/Settings/Paused.** (Menu-scene games still render their menu scene,
+      not this fallback.)
+    - **NO-ImGui umbrella — remaining after 4 slices (only in-game HUD overlays + #11 + editor left):**
+      `renderCountdownHud` (timer HUD — data-bindable module), `renderSpeechBubbles` + `renderInteractionPrompt`
+      (WORLD-SPACE — need world→screen projection, the hardest), HUD-suppression-while-paused (#11), the
+      deferred settings bits (keybind rebind / brightness / invertY / AI), and the editor's own ImGui screens.
+      The `buildMenuElement` widget+binding additions (slider/checkbox/dropdown + onGetSetting/onSetSetting)
+      are reusable for any future data-driven control screen. **Also worth doing:** for menu-scene games,
+      pause/credits/victory "Main Menu" should `transition_scene` back to the menu scene rather than the
+      `ScreenState::MainMenu` fallback overlay.
 - **Water system — FULL FEATURE MERGED TO `main`** (commit `80f9998`, 2026-06-06). Design:
   `docs/WaterSystem.md`. Default **OFF** (per-world `"water":{"enabled","seaLevel",...}` block
   in game.json, applied in `Application::autoLoadGameDefinition`), so it's inert for projects

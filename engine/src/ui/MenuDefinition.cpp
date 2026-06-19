@@ -586,6 +586,7 @@ static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, floa
             else if (at == "open_settings"){ auto cb = actions.onSettings; w->onClick = [cb] { if (cb) cb(); }; }
             else if (at == "main_menu")    { auto cb = actions.onMainMenu; w->onClick = [cb] { if (cb) cb(); }; }
             else if (at == "show_credits") { auto cb = actions.onShowCredits; w->onClick = [cb] { if (cb) cb(); }; }
+            else if (at == "start_game")   { auto cb = actions.onStartGame;   w->onClick = [cb] { if (cb) cb(); }; }
             else if (at == "back")         { auto cb = actions.onBack;        w->onClick = [cb] { if (cb) cb(); }; }
             else if (at == "open_submenu") { w->onClick = [uip, target]    { menuShowOnly(*uip, "menu:" + target); }; }
             else if (at == "close_submenu"){ w->onClick = [uip, startPanel]{ menuShowOnly(*uip, "menu:" + startPanel); }; }
