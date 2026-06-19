@@ -393,10 +393,18 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       (pause→Main Menu → data-driven title screen). **With this, EVERY `ScreenState` screen is off ImGui:
       Intro/MainMenu/Victory/Credits/Settings/Paused.** (Menu-scene games still render their menu scene,
       not this fallback.)
-    - **NO-ImGui umbrella — remaining after 4 slices (only in-game HUD overlays + #11 + editor left):**
-      `renderCountdownHud` (timer HUD — data-bindable module), `renderSpeechBubbles` + `renderInteractionPrompt`
-      (WORLD-SPACE — need world→screen projection, the hardest), HUD-suppression-while-paused (#11), the
-      deferred settings bits (keybind rebind / brightness / invertY / AI), and the editor's own ImGui screens.
+    - **✅ DONE + LIVE-VERIFIED Countdown HUD (5th slice):** `hud_countdown` panel in `default_hud.json`
+      (top-center, isTitle), `visibleWhen "countdown.active"`, text bound to `countdown.text`; scaffold
+      registers both providers from `TriggerSystem::getActiveCountdowns()` (label + `M:SS.s` of the first
+      active countdown) and no longer calls ImGui `renderCountdownHud`. Verified on `R5Verify` (temp 120s
+      `timer` trigger → "Escape in  1:52.6" top-center). **Gotcha:** a `timer` trigger needs a NON-EMPTY
+      `then` array or it's rejected (`Triggers: loaded 0`). **Follow-ups:** single countdown (no Repeater);
+      no red-under-10s urgency (labels lack a color bind); editor still ImGui.
+    - **NO-ImGui umbrella — remaining after 5 slices (only world-space HUD + #11 + editor left):**
+      `renderSpeechBubbles` + `renderInteractionPrompt` (WORLD-SPACE — need world→screen projection, the
+      hardest; the HUD design doc flags these for a VFX/world-space path), HUD-suppression-while-paused
+      (#11), the deferred settings bits (keybind rebind / brightness / invertY / AI), and the editor's own
+      ImGui screens.
       The `buildMenuElement` widget+binding additions (slider/checkbox/dropdown + onGetSetting/onSetSetting)
       are reusable for any future data-driven control screen. **Also worth doing:** for menu-scene games,
       pause/credits/victory "Main Menu" should `transition_scene` back to the menu scene rather than the

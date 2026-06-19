@@ -141,5 +141,17 @@
       { "type": "label", "id": "combat_hit", "bind": "combat.hitChanceText", "text": "", "size": [460, 26] },
       { "type": "button", "id": "combat_end_turn", "text": "End Turn", "size": [140, 32] }
     ]
+  },
+  {
+    "_comment": "Timer-trigger countdown (top-center). Visible when a timer trigger with hud:true is active; text = '<hudLabel>  M:SS.s'. Bound by the host from TriggerSystem::getActiveCountdowns(). Replaces the ImGui renderCountdownHud (docs/HudSystem.md §11a).",
+    "id": "hud_countdown",
+    "anchor": "TopCenter",
+    "offset": [0, 64],
+    "size": [520, 44],
+    "showBackground": false,
+    "visibleWhen": "countdown.active",
+    "children": [
+      { "type": "label", "id": "countdown_text", "bind": "countdown.text", "text": "", "isTitle": true, "size": [500, 36] }
+    ]
   }
 ]

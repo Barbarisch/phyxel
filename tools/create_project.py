@@ -406,6 +406,22 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 hud.setFloat("player.maxHealth", [this]() {
                     auto* hc = playerCharacter_ ? playerCharacter_->getHealthComponent() : nullptr;
                     return hc ? hc->getMaxHealth() : 100.0f;
+                });
+                // Timer-trigger countdown -> hud_countdown panel (replaces ImGui
+                // renderCountdownHud). Shows the first active countdown's label + time.
+                hud.setFloat("countdown.active", [this]() {
+                    return triggers_.getActiveCountdowns().empty() ? 0.0f : 1.0f;
+                });
+                hud.setText("countdown.text", [this]() -> std::string {
+                    auto cds = triggers_.getActiveCountdowns();
+                    if (cds.empty()) return std::string();
+                    const auto& c = cds.front();
+                    int mins = static_cast<int>(c.remaining / 60.0f);
+                    float secs = c.remaining - static_cast<float>(mins) * 60.0f;
+                    char buf[160];
+                    if (!c.label.empty()) snprintf(buf, sizeof(buf), "%s  %d:%04.1f", c.label.c_str(), mins, secs);
+                    else                  snprintf(buf, sizeof(buf), "%d:%04.1f", mins, secs);
+                    return std::string(buf);
                 });""" + dialogue_providers + """
             }"""
 
@@ -1132,9 +1148,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     break;
 
                 case Phyxel::UI::ScreenState::Playing:
-                    // Timer-trigger countdowns ("hud": true triggers, e.g. "escape
-                    // in 60 seconds") render top-center. Add crosshair/health here.
-                    Phyxel::UI::renderCountdownHud(triggers_.getActiveCountdowns());
+                    // Gameplay: the data-driven HUD (health/hotbar/objectives/combat/
+                    // countdown) renders via the UISystem in renderCoordinator_->render().
+                    // Timer-trigger countdowns now bind to the hud_countdown panel
+                    // (countdown.active/countdown.text providers) — no ImGui. (§11a.)
                     break;
 
                 case Phyxel::UI::ScreenState::Paused:
