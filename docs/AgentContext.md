@@ -364,8 +364,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       Scaffold loads/unloads it to match `ScreenState::Paused` + drives `handleInput`; the ImGui
       `renderPauseMenu` call is removed. Verified on `R5Verify` (ESC → styled overlay, Resume → gameplay).
       **Pattern established for the remaining screens** (Intro/Victory/Credits/Settings): a `load<X>Into`
-      builder + `<x>:*` screen namespace. **Follow-ups:** Settings still ImGui (own slice); HUD-suppression
-      while paused (#11) not done (scrim covers it); the EDITOR still uses ImGui `renderPauseMenu`.
+      builder + `<x>:*` screen namespace. (Settings since migrated; HUD-suppression-while-paused #11 since
+      done — see the dedicated entries below. EDITOR still uses ImGui `renderPauseMenu`.)
     - **✅ DONE + LIVE-VERIFIED Intro/Victory/Credits screens (2nd umbrella slice):** refactored the pause
       builder into a shared `loadOverlayFromFile`; added `loadGameScreenInto(ui,"intro"|"victory"|"credits",…)`
       / `unloadGameScreenFrom` + `MenuActions::onShowCredits` + `show_credits` action. Authored
@@ -410,9 +410,14 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       `renderDialogueBox`, gated to AI conversations (intentional — UISystem lacks scroll + text-input).**
       Verifying this needed live mouse-look injection (`mouse_event` relative motion drives the captured
       FPS camera once the window is foregrounded) — extends the [[standalone-window-driving]] recipe.
-    - **NO-ImGui umbrella — what's LEFT (no longer gameplay-blocking):** HUD-suppression-while-paused (#11,
-      polish), the deferred settings bits (keybind rebind / brightness / invertY / AI), the AI-conversation
-      dialogue box (needs scroll + text-input UISystem widgets first), and the EDITOR's own ImGui screens
+    - **✅ DONE + LIVE-VERIFIED HUD-suppression while paused (#11, 7th slice):** `loadPauseMenuInto` now
+      hides every non-`pause:*` screen (the translucent scrim used to let the HUD bleed through);
+      `unloadPauseMenuFrom` re-shows them (visibleWhen re-gates). The scaffold also gates speech-bubble /
+      interaction-prompt world labels to `ScreenState::Playing`. Verified on `R5Verify`: the top-center
+      countdown HUD shows during gameplay and VANISHES when paused, returns on resume.
+    - **NO-ImGui umbrella — what's LEFT (no longer gameplay-blocking):** the deferred settings bits
+      (keybind rebind / brightness / invertY / AI), the AI-conversation dialogue box (needs scroll +
+      text-input UISystem widgets first), and the EDITOR's own ImGui screens
       (`renderPauseMenu`/`renderMainMenu`/`renderSettingsScreen`/`renderCountdownHud`/`renderSpeechBubbles`/
       `renderInteractionPrompt` on the editor's `cameraCtl_`/Application path — separate from the scaffold).
       The `buildMenuElement` widget+binding additions (slider/checkbox/dropdown + onGetSetting/onSetSetting)

@@ -1186,8 +1186,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 // Speech bubbles + "[E] Interact" prompt: data-driven world-anchored
                 // labels on the UISystem (no ImGui). Project each world position to
                 // screen and queue a label; the UISystem draws them in
-                // renderCoordinator_->render() below. (docs/HudSystem.md §11a.)
-                if (renderCoordinator_) {{
+                // renderCoordinator_->render() below. Only while actively PLAYING —
+                // not while paused/menus (the pause overlay suppresses the HUD; world
+                // prompts must go too — feedback #11). (docs/HudSystem.md §11a.)
+                if (state == Phyxel::UI::ScreenState::Playing && renderCoordinator_) {{
                     if (auto* ui = renderCoordinator_->getUISystem()) {{
                         auto* win = engine.getWindowManager();
                         float sw = win ? static_cast<float>(win->getWidth()) : 1280.0f;

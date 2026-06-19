@@ -785,11 +785,22 @@ static void loadOverlayFromFile(UISystem& ui, const std::string& nsPrefix,
     ui.showScreen(nsPrefix + startPanel);
 }
 
-void unloadPauseMenuFrom(UISystem& ui) { removeScreensWithPrefix(ui, "pause:"); }
+void unloadPauseMenuFrom(UISystem& ui) {
+    removeScreensWithPrefix(ui, "pause:");
+    // Restore the gameplay HUD screens hidden while paused (their per-frame
+    // visibleWhen re-gates them). Mirrors unloadMenuFrom.
+    for (const auto& [name, vis] : ui.getScreenList()) ui.showScreen(name);
+}
 
 void loadPauseMenuInto(UISystem& ui, const MenuActions& actions) {
-    // Translucent scrim so the frozen world + HUD read as "paused".
+    // Translucent scrim over the frozen world.
     loadOverlayFromFile(ui, "pause:", "pause_menu.json", actions, {0.03f, 0.03f, 0.06f, 0.88f});
+    // Suppress the gameplay HUD while paused — the scrim is translucent, so HUD
+    // panels (health/hotbar/objectives/countdown/…) would otherwise show through
+    // (feedback #11). Hide everything that isn't part of the pause overlay;
+    // unloadPauseMenuFrom restores them.
+    for (const auto& [name, vis] : ui.getScreenList())
+        if (name.rfind("pause:", 0) != 0) ui.hideScreen(name);
 }
 
 void unloadGameScreenFrom(UISystem& ui, const std::string& name) {
