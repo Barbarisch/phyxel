@@ -5,6 +5,7 @@
 #include <functional>
 #include <unordered_map>
 #include <string>
+#include <vector>
 
 namespace Phyxel {
 namespace Input {
@@ -85,6 +86,11 @@ public:
     // Instance callback handlers (public for WindowManager delegation)
     void handleMouseMove(double xpos, double ypos);
     void handleMouseButton(int button, int action, int mods);
+    // Text input: GLFW char callback delivers a typed Unicode codepoint. Buffered
+    // per frame for the UISystem's text widgets; cleared each frame (clearTypedChars).
+    void handleChar(unsigned int codepoint) { typedChars_.push_back(codepoint); }
+    const std::vector<unsigned int>& getTypedChars() const { return typedChars_; }
+    void clearTypedChars() { typedChars_.clear(); }
     
 private:
     // GLFW callbacks (static, redirect to instance)
@@ -175,7 +181,10 @@ private:
     
     // Mouse position callback
     MousePositionCallback mousePositionCallback;
-    
+
+    // Typed Unicode codepoints this frame (text input); cleared per frame.
+    std::vector<unsigned int> typedChars_;
+
     // Window handle
     GLFWwindow* window;
 };

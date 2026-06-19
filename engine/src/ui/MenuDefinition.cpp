@@ -1,9 +1,11 @@
 #include "ui/MenuDefinition.h"
 #include "ui/HudDataContext.h"
 #include "ui/UISystem.h"
+#include "ui/DialogueSystem.h"
 #include "utils/Logger.h"
 #include <stdexcept>
 #include <cstdio>
+#include <cstring>
 #include <vector>
 #include <fstream>
 
@@ -114,6 +116,20 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         if (j.contains("position") && j["position"].is_array() && j["position"].size() >= 2) {
             w->position = {j["position"][0].get<float>(), j["position"][1].get<float>()};
         }
+        return w;
+    }
+
+    if (type == "textinput") {
+        auto w = std::make_unique<UITextInput>();
+        w->id = j.value("id", "");
+        w->placeholder = j.value("placeholder", "");
+        w->maxLength = j.value("maxLength", 255);
+        w->visible = j.value("visible", true);
+        w->enabled = j.value("enabled", true);
+        if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2)
+            w->size = {j["size"][0].get<float>(), j["size"][1].get<float>()};
+        if (j.contains("position") && j["position"].is_array() && j["position"].size() >= 2)
+            w->position = {j["position"][0].get<float>(), j["position"][1].get<float>()};
         return w;
     }
 
@@ -810,6 +826,60 @@ void unloadGameScreenFrom(UISystem& ui, const std::string& name) {
 void loadGameScreenInto(UISystem& ui, const std::string& name, const MenuActions& actions) {
     // Full-screen opaque cover (intro / victory / credits replace the view).
     loadOverlayFromFile(ui, name + ":", name + "_screen.json", actions, {0.05f, 0.05f, 0.10f, 1.0f});
+}
+
+void setupAIDialogue(UISystem& ui, HudDataContext& hud, DialogueSystem* dialogue) {
+    if (!dialogue) return;
+
+    // Visibility: only during an AI (free-text) conversation, not standard trees.
+    hud.setFloat("dialogue.aiActive", [dialogue]() {
+        return (dialogue->isActive() && dialogue->isAIConversation()) ? 1.0f : 0.0f;
+    });
+    hud.setText("dialogue.aiSpeaker", [dialogue]() -> std::string {
+        const std::string& sp = dialogue->getCurrentSpeaker();
+        return sp.empty() ? std::string("Conversation") : ("Talking to " + sp + "   [AI]");
+    });
+    // History scrollback: the most recent messages + the live typing / "thinking"
+    // state, joined with newlines (the ai_history label word-wraps).
+    hud.setText("dialogue.aiHistory", [dialogue]() -> std::string {
+        std::string s;
+        const auto& hist = dialogue->getConversationHistory();
+        const size_t maxMsgs = 8;
+        const size_t start = hist.size() > maxMsgs ? hist.size() - maxMsgs : 0;
+        for (size_t i = start; i < hist.size(); ++i) {
+            const auto& m = hist[i];
+            s += (m.speaker == "Player" ? std::string("You") : m.speaker) + ": " + m.text + "\n";
+        }
+        switch (dialogue->getState()) {
+            case DialogueState::Typing:
+                s += dialogue->getCurrentSpeaker() + ": " + dialogue->getRevealedText();
+                break;
+            case DialogueState::AIWaitingForResponse:
+                s += dialogue->getCurrentSpeaker() + " is thinking...";
+                break;
+            default: break;
+        }
+        return s;
+    });
+
+    // Wire the input field's submit: copy into the DialogueSystem's input buffer,
+    // submit, and clear. (The buffer + submitPlayerMessage are unchanged from the
+    // ImGui path; only the editing widget moved to the UISystem.)
+    if (auto* panel = ui.getScreen("hud_ai_dialogue")) {
+        if (auto* w = panel->findChild("ai_input")) {
+            if (w->type() == WidgetType::TextInput) {
+                auto* ti = static_cast<UITextInput*>(w);
+                ti->onSubmit = [dialogue, ti](const std::string& txt) {
+                    if (txt.empty()) return;
+                    char* buf = dialogue->getInputBuffer();
+                    std::strncpy(buf, txt.c_str(), DialogueSystem::INPUT_BUFFER_SIZE - 1);
+                    buf[DialogueSystem::INPUT_BUFFER_SIZE - 1] = '\0';
+                    dialogue->submitPlayerMessage();
+                    ti->text.clear();
+                };
+            }
+        }
+    }
 }
 
 } // namespace UI

@@ -1,5 +1,6 @@
 #include "ui/UISystem.h"
 #include "input/InputManager.h"
+#include "utils/Logger.h"
 #include <GLFW/glfw3.h>
 
 namespace Phyxel {
@@ -104,6 +105,16 @@ std::vector<UISystem::ScreenEntry*> UISystem::visibleScreenSnapshot() {
     return active;
 }
 
+// Collect visible UITextInput widgets from a (possibly nested) widget tree.
+static void collectTextInputs(UIWidget* w, std::vector<UITextInput*>& out) {
+    if (!w || !w->visible) return;
+    if (w->type() == WidgetType::TextInput) { out.push_back(static_cast<UITextInput*>(w)); return; }
+    if (w->type() == WidgetType::Panel) {
+        auto* p = static_cast<UIPanel*>(w);
+        for (auto& c : p->children) collectTextInputs(c.get(), out);
+    }
+}
+
 bool UISystem::handleInput(Input::InputManager* input) {
     if (!initialized_ || !hasVisibleScreens()) return false;
 
@@ -147,6 +158,40 @@ bool UISystem::handleInput(Input::InputManager* input) {
                 consumed = true;
             }
         }
+    }
+
+    // ── Text fields (e.g. the AI conversation box) ───────────────────────────
+    // Deliver typed characters + Backspace/Enter to the focused UITextInput. A
+    // click this frame may have focused one (handleClick); otherwise auto-focus the
+    // first (the dialogue box is the only field on screen). Keeps a single focus.
+    std::vector<UITextInput*> inputs;
+    for (auto* entry : activeScreens) collectTextInputs(entry->panel.get(), inputs);
+    if (!inputs.empty()) {
+        UITextInput* focused = nullptr;
+        for (auto* ti : inputs) if (ti->focused) { focused = ti; break; }
+        if (!focused) { focused = inputs.front(); focused->focused = true; }
+        for (auto* ti : inputs) if (ti != focused) ti->focused = false;
+
+        // Printable characters (ASCII range — the bitmap font's glyph set).
+        for (unsigned int cp : input->getTypedChars()) {
+            if (cp >= 32 && cp < 127 && focused->text.size() < focused->maxLength) {
+                focused->text.push_back(static_cast<char>(cp));
+                if (focused->onChange) focused->onChange(focused->text);
+            }
+        }
+        // Backspace + Enter, edge-triggered (isKeyPressed is held-state).
+        const bool bs = input->isKeyPressed(GLFW_KEY_BACKSPACE);
+        if (bs && !prevBackspace_ && !focused->text.empty()) {
+            focused->text.pop_back();
+            if (focused->onChange) focused->onChange(focused->text);
+        }
+        prevBackspace_ = bs;
+        const bool ent = input->isKeyPressed(GLFW_KEY_ENTER);
+        if (ent && !prevEnter_ && focused->onSubmit) {
+            focused->onSubmit(focused->text);
+        }
+        prevEnter_ = ent;
+        consumed = true;
     }
 
     return consumed;

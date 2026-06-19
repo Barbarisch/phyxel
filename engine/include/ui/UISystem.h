@@ -134,6 +134,8 @@ private:
 
     // Input state
     bool wasMousePressed_ = false;
+    bool prevBackspace_ = false;  // edge-tracking for the focused text field
+    bool prevEnter_ = false;
 
     // Per-frame world-anchored overlay labels (addWorldLabel), drawn + cleared in render().
     struct WorldLabel {

@@ -786,9 +786,15 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 // labels, etc. Mirrors the editor's setupGameHud(). Must run BEFORE the
                 // multi-scene transition below so the HUD screens already exist when a
                 // menu start-scene's loadMenuInto hides them. (game-dev feedback round 5.)
-                if (auto* hudUi = renderCoordinator_ ? renderCoordinator_->getUISystem() : nullptr)
+                if (auto* hudUi = renderCoordinator_ ? renderCoordinator_->getUISystem() : nullptr) {{
                     Phyxel::UI::loadHudInto(*hudUi,
                         gameDef.contains("hud") ? &gameDef["hud"] : nullptr);
+                    // Wire the data-driven AI conversation box (hud_ai_dialogue panel):
+                    // providers + the text field's submit. Replaces the ImGui dialogue
+                    // box for AI conversations. (docs/HudSystem.md §11a.)
+                    if (dialogueSystem_)
+                        Phyxel::UI::setupAIDialogue(*hudUi, renderCoordinator_->hudData(), dialogueSystem_.get());
+                }}
 
                 // Multi-scene: delegate to SceneManager
                 if (Phyxel::Core::GameDefinitionLoader::isMultiScene(gameDef)) {{
@@ -920,8 +926,16 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 }}
             }}
 
-            // E key: interact with NPC / advance dialogue
-            if (Phyxel::UI::isGameRunning(state) && input->isKeyPressed(GLFW_KEY_E)) {{
+            // While typing in an AI conversation the player types freely, so the
+            // tree-dialogue keybinds below (E / Enter / 1-4) must NOT fire — 'e',
+            // Enter, digits are text. AI submit is the UISystem text field; ESC
+            // (above) still ends the conversation. (Movement is already suppressed
+            // during any dialogue — see onUpdate's !inDialogue gate.)
+            const bool aiTyping = dialogueSystem_ && dialogueSystem_->isActive() &&
+                                  dialogueSystem_->isAIConversation();
+
+            // E key: interact with NPC / advance a TREE dialogue.
+            if (!aiTyping && Phyxel::UI::isGameRunning(state) && input->isKeyPressed(GLFW_KEY_E)) {{
                 if (dialogueSystem_ && dialogueSystem_->isActive()) {{
                     dialogueSystem_->advanceDialogue();
                 }} else if (interactionManager_) {{
@@ -929,13 +943,13 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 }}
             }}
 
-            // Enter key: advance dialogue
-            if (dialogueSystem_ && dialogueSystem_->isActive() && input->isKeyPressed(GLFW_KEY_ENTER)) {{
+            // Enter key: advance a TREE dialogue (AI submits via the text field).
+            if (!aiTyping && dialogueSystem_ && dialogueSystem_->isActive() && input->isKeyPressed(GLFW_KEY_ENTER)) {{
                 dialogueSystem_->advanceDialogue();
             }}
 
-            // Number keys 1-4: select dialogue choices
-            if (dialogueSystem_ && dialogueSystem_->isActive()) {{
+            // Number keys 1-4: select TREE dialogue choices.
+            if (!aiTyping && dialogueSystem_ && dialogueSystem_->isActive()) {{
                 for (int k = GLFW_KEY_1; k <= GLFW_KEY_4; ++k) {{
                     if (input->isKeyPressed(k)) {{
                         dialogueSystem_->selectChoice(k - GLFW_KEY_1);
@@ -1171,16 +1185,15 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     break;
                 }}
 
-                // Render dialogue UI. Standard dialogue TREES render through the
-                // data-driven hud_dialogue panel (default_hud.json) on the UISystem,
-                // so the ImGui box must be gated to AI conversations only — otherwise
-                // a tree conversation stacks TWO overlapping speaker/text/choices
-                // boxes. Mirrors the editor (Application.cpp). AI conversations still
-                // need the ImGui box for scrollable history + text input.
-                // (game-dev feedback round 5 — UIShowcase.)
+                // Dialogue UI is now FULLY data-driven (no ImGui): standard trees use
+                // the hud_dialogue panel; AI conversations use the hud_ai_dialogue panel
+                // (history + text field, wired by setupAIDialogue). During an AI
+                // conversation, drive UISystem input so the text field captures typed
+                // characters + Enter. (docs/HudSystem.md §11a.)
                 if (dialogueSystem_ && dialogueSystem_->isActive() &&
-                    dialogueSystem_->isAIConversation()) {{
-                    imgui->renderDialogueBox(dialogueSystem_.get());
+                    dialogueSystem_->isAIConversation() && renderCoordinator_) {{
+                    if (auto* ui = renderCoordinator_->getUISystem())
+                        ui->handleInput(engine.getInputManager());
                 }}
 
                 // Speech bubbles + "[E] Interact" prompt: data-driven world-anchored

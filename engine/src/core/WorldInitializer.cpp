@@ -140,6 +140,12 @@ bool WorldInitializer::initialize() {
         inputManager->handleMouseButton(button, action, mods);
     });
 
+    // Text input: forward typed Unicode codepoints to the InputManager (consumed by
+    // the UISystem's text widgets, e.g. the AI conversation box).
+    windowManager->setCharCallback([this](unsigned int codepoint) {
+        inputManager->handleChar(codepoint);
+    });
+
     // Set up initial camera position and orientation
     inputManager->setCameraPosition(glm::vec3(50.0f, 50.0f, 50.0f));
     glm::vec3 lookAt = glm::normalize(glm::vec3(16.0f, 16.0f, 16.0f) - glm::vec3(50.0f, 50.0f, 50.0f));

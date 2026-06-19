@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <cmath>
 
 namespace Phyxel {
 namespace UI {
@@ -415,6 +416,55 @@ bool UIDropdown::handleClick(glm::vec2 mousePos, glm::vec2 widgetPos, const UITh
 
     if (hitTest(mousePos, {boxX, widgetPos.y}, {boxW, size.y})) {
         open = !open;
+        return true;
+    }
+    return false;
+}
+
+// ════════════════════════════════════════════════════════════════
+// UITextInput
+// ════════════════════════════════════════════════════════════════
+
+void UITextInput::render(UIRenderer* renderer, const BitmapFont* font,
+                         const UITheme& theme, glm::vec2 pos) {
+    if (!visible) return;
+
+    // Field background + focus border.
+    renderer->drawRect(pos, size, theme.checkboxBg);
+    if (focused) {
+        float bw = theme.borderWidth;
+        glm::vec4 b = theme.titleColor;
+        renderer->drawRect(pos, {size.x, bw}, b);
+        renderer->drawRect({pos.x, pos.y + size.y - bw}, {size.x, bw}, b);
+        renderer->drawRect(pos, {bw, size.y}, b);
+        renderer->drawRect({pos.x + size.x - bw, pos.y}, {bw, size.y}, b);
+    }
+
+    const float pad = theme.padding;
+    const bool showPlaceholder = text.empty() && !focused;
+    const std::string shown = showPlaceholder ? placeholder : text;
+    const glm::vec4 col = showPlaceholder ? theme.disabledColor : theme.textColor;
+    const float lineH = font->lineHeight(theme.textScale);
+    const float textY = pos.y + (size.y - lineH) * 0.5f;
+    if (!shown.empty())
+        font->drawText(renderer, shown, {pos.x + pad, textY}, col, theme.textScale);
+
+    // Blinking caret at the end of the text while focused.
+    if (focused) {
+        caretTimer += 0.016f;
+        if (std::fmod(caretTimer, 1.0f) < 0.5f) {
+            float tw = font->measureText(text, theme.textScale);
+            renderer->drawRect({pos.x + pad + tw + 1.0f, textY}, {2.0f, lineH}, theme.textColor);
+        }
+    }
+}
+
+bool UITextInput::handleClick(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& /*theme*/) {
+    if (!visible || !enabled) return false;
+    // Focus when clicked; the UISystem clears focus on other inputs. (Editing —
+    // typed chars / backspace / Enter — is driven by UISystem::handleInput.)
+    if (hitTest(mousePos, widgetPos, size)) {
+        focused = true;
         return true;
     }
     return false;

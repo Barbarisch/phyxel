@@ -91,6 +91,7 @@ enum class WidgetType {
     Image,
     ProgressBar,
     Repeater,
+    TextInput,
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -235,6 +236,26 @@ public:
     std::string label;
     bool checked = false;
     std::function<void(bool)> onChange;
+};
+
+// ════════════════════════════════════════════════════════════════
+// TextInput — single-line editable text field (keyboard capture)
+// ════════════════════════════════════════════════════════════════
+
+class UITextInput : public UIWidget {
+public:
+    WidgetType type() const override { return WidgetType::TextInput; }
+    void render(UIRenderer* renderer, const BitmapFont* font,
+                const UITheme& theme, glm::vec2 pos) override;
+    bool handleClick(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) override;
+
+    std::string text;            ///< Current buffer contents.
+    std::string placeholder;     ///< Shown (dimmed) when empty + unfocused.
+    bool focused = false;        ///< Receives typed chars while true.
+    size_t maxLength = 255;
+    float caretTimer = 0.0f;     ///< Blink accumulator (advanced in render).
+    std::function<void(const std::string&)> onSubmit;  ///< Enter pressed.
+    std::function<void(const std::string&)> onChange;  ///< Text edited.
 };
 
 // ════════════════════════════════════════════════════════════════

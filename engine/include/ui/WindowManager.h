@@ -17,6 +17,7 @@ public:
     using CursorPosCallback = std::function<void(double xpos, double ypos)>;
     using MouseButtonCallback = std::function<void(int button, int action, int mods)>;
     using KeyCallback = std::function<void(int key, int scancode, int action, int mods)>;
+    using CharCallback = std::function<void(unsigned int codepoint)>;
     using ScrollCallback = std::function<void(double xoffset, double yoffset)>;
     
     WindowManager();
@@ -48,6 +49,7 @@ public:
     void setCursorPosCallback(CursorPosCallback callback) { cursorPosCallback = callback; }
     void setMouseButtonCallback(MouseButtonCallback callback) { mouseButtonCallback = callback; }
     void setKeyCallback(KeyCallback callback) { keyCallback = callback; }
+    void setCharCallback(CharCallback callback) { charCallback = callback; }
     void setScrollCallback(ScrollCallback callback) { scrollCallback = callback; }
 
     // Scroll delta accumulator — incremented by the scroll callback, read+reset by consumers each frame.
@@ -72,6 +74,7 @@ private:
     CursorPosCallback cursorPosCallback;
     MouseButtonCallback mouseButtonCallback;
     KeyCallback keyCallback;
+    CharCallback charCallback;
     ScrollCallback scrollCallback;
     float m_scrollDelta = 0.0f;
 
@@ -79,6 +82,7 @@ private:
     static void cursorPosCallbackStatic(GLFWwindow* window, double xpos, double ypos);
     static void mouseButtonCallbackStatic(GLFWwindow* window, int button, int action, int mods);
     static void keyCallbackStatic(GLFWwindow* window, int key, int scancode, int action, int mods);
+    static void charCallbackStatic(GLFWwindow* window, unsigned int codepoint);
     static void scrollCallbackStatic(GLFWwindow* window, double xoffset, double yoffset);
 };
 

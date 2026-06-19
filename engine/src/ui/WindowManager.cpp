@@ -43,6 +43,7 @@ bool WindowManager::initialize(int w, int h, const std::string& t) {
     glfwSetCursorPosCallback(window, cursorPosCallbackStatic);
     glfwSetMouseButtonCallback(window, mouseButtonCallbackStatic);
     glfwSetKeyCallback(window, keyCallbackStatic);
+    glfwSetCharCallback(window, charCallbackStatic);
     glfwSetScrollCallback(window, scrollCallbackStatic);
     
     return true;
@@ -146,9 +147,24 @@ void WindowManager::keyCallbackStatic(GLFWwindow* window, int key, int scancode,
     }
 }
 
+void WindowManager::charCallbackStatic(GLFWwindow* window, unsigned int codepoint) {
+    auto* manager = reinterpret_cast<WindowManager*>(glfwGetWindowUserPointer(window));
+    if (!manager) return;
+    // Forward to ImGui directly (we own the callback, so ImGui's chained handler
+    // won't run — same pattern as scrollCallbackStatic) to keep ImGui text fields
+    // working, then to the engine (UISystem text widgets).
+    ImGui::GetIO().AddInputCharacter(codepoint);
+    if (manager->charCallback) {
+        manager->charCallback(codepoint);
+    }
+}
+
 void WindowManager::reinstallScrollCallback() {
     if (window) {
         glfwSetScrollCallback(window, scrollCallbackStatic);
+        // ImGui_ImplGlfw also steals the char callback; re-own it so UISystem text
+        // widgets (e.g. the AI conversation box) receive typed characters.
+        glfwSetCharCallback(window, charCallbackStatic);
     }
 }
 

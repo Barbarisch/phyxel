@@ -129,6 +129,16 @@ void loadGameScreenInto(UISystem& ui, const std::string& name, const MenuActions
 /// Remove the "<name>:*" screens added by loadGameScreenInto.
 void unloadGameScreenFrom(UISystem& ui, const std::string& name);
 
+class HudDataContext;     // forward decl
+class DialogueSystem;     // forward decl
+
+/// Wire the data-driven AI conversation box (the hud_ai_dialogue panel in
+/// default_hud.json). Registers the dialogue.aiActive/aiSpeaker/aiHistory
+/// providers on `hud` and the ai_input text field's submit ->
+/// DialogueSystem::submitPlayerMessage. Call AFTER loadHudInto. Replaces the
+/// ImGui renderDialogueBox AI branch (docs/HudSystem.md §11a).
+void setupAIDialogue(UISystem& ui, HudDataContext& hud, DialogueSystem* dialogue);
+
 /// Remove all "menu:*" screens previously added by loadMenuInto.
 void unloadMenuFrom(UISystem& ui);
 

@@ -2795,12 +2795,10 @@ void Application::run() {
         // Menu scenes now render via the UISystem ("menu:*" screens loaded by
         // UI::loadMenuInto on onMenuSceneLoaded) — drawn in the scene pass, no ImGui.
 
-        // Standard dialogue trees render via the UISystem HUD (hud_dialogue panel,
-        // data-bound — no ImGui). AI conversations still use the ImGui box (they need
-        // scrollable history + a text-input widget the UISystem doesn't have yet).
-        if (dialogueSystem && dialogueSystem->isAIConversation()) {
-            imguiRenderer->renderDialogueBox(dialogueSystem.get());
-        }
+        // Dialogue is now fully data-driven on the UISystem (no ImGui): standard
+        // trees use the hud_dialogue panel; AI conversations use the hud_ai_dialogue
+        // panel (history + UITextInput, wired by UI::setupAIDialogue). Input is driven
+        // by getUISystem()->handleInput above. (docs/HudSystem.md §11a.)
 
         // Render Speech Bubbles & Interaction Prompt
         if (speechBubbleManager || interactionManager) {
@@ -5266,6 +5264,11 @@ void Application::setupGameHud(const nlohmann::json& gameDef) {
     // Load HUD panels: a game's own "hud" overrides the engine default HUD that
     // ships out of the box. Shared with standalone hosts via UI::loadHudInto.
     UI::loadHudInto(*uiSystem, gameDef.contains("hud") ? &gameDef["hud"] : nullptr);
+
+    // Data-driven AI conversation box (hud_ai_dialogue panel): providers + the
+    // text field's submit. Replaces the ImGui renderDialogueBox AI branch.
+    if (dialogueSystem)
+        UI::setupAIDialogue(*uiSystem, renderCoordinator->hudData(), dialogueSystem.get());
 
     // Wire interactive HUD buttons (data-driven HUD is non-ImGui; UISystem routes
     // clicks via handleInput). End Turn -> PlayerTurnController.

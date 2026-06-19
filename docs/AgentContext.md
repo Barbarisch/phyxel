@@ -415,11 +415,28 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       `unloadPauseMenuFrom` re-shows them (visibleWhen re-gates). The scaffold also gates speech-bubble /
       interaction-prompt world labels to `ScreenState::Playing`. Verified on `R5Verify`: the top-center
       countdown HUD shows during gameplay and VANISHES when paused, returns on resume.
-    - **NO-ImGui umbrella — what's LEFT (no longer gameplay-blocking):** the deferred settings bits
-      (keybind rebind / brightness / invertY / AI), the AI-conversation dialogue box (needs scroll +
-      text-input UISystem widgets first), and the EDITOR's own ImGui screens
+    - **✅ DONE + LIVE-VERIFIED AI conversation box (8th slice — the LAST gameplay ImGui surface):** built
+      the missing UISystem text-input infra: GLFW **char capture** (`WindowManager` char callback re-owned in
+      `reinstallScrollCallback` after ImGui steals it → `InputManager::handleChar`/`getTypedChars`/per-frame
+      clear), a **`UITextInput` widget** (UISystem routes typed chars + edge-tracked Backspace/Enter to the
+      focused field; `buildFromJson` "textinput" type), and `UI::setupAIDialogue` (dialogue.ai* providers +
+      the `hud_ai_dialogue` panel's field submit → `submitPlayerMessage`). Scaffold + editor drop the ImGui
+      `renderDialogueBox` entirely; scaffold gates tree keybinds (E/Enter/1-4) off during AI typing. Verified
+      in the editor (project-open + world scene + active AI convo via an Ollama provider): box renders with
+      the NPC greeting, the field auto-focuses (no placeholder), and typed chars echo in.
+      **⚠️ VERIFICATION GOTCHAS worth remembering:** (1) the editor SKIPS `UISystem::handleInput` in
+      launcher mode (`!launcherActive_` gate) — input only runs with a PROJECT open (`--project`), though the
+      HUD still RENDERS; (2) the editor's GLFW window title under `--project` is the PROJECT name (e.g.
+      "R5Verify"), class `GLFW30` — not "Phyxel"; (3) inject text with `PostMessage(WM_CHAR)` (no keydown =
+      no editor keybinds fire) — `keybd_event` letters trigger editor keybinds and wreck the scene; (4) an AI
+      convo needs a configured provider to START ("no API key" otherwise) — Ollama needs no key. See
+      [[standalone-window-driving]].
+      **Follow-ups:** long input overflows the field (no horizontal clip/scroll); em-dash → `?` in the bitmap font.
+    - **NO-ImGui umbrella — what's LEFT (none gameplay-facing in shipped games):** the deferred settings bits
+      (keybind rebind / brightness / invertY / AI provider config), and the EDITOR's own ImGui screens
       (`renderPauseMenu`/`renderMainMenu`/`renderSettingsScreen`/`renderCountdownHud`/`renderSpeechBubbles`/
       `renderInteractionPrompt` on the editor's `cameraCtl_`/Application path — separate from the scaffold).
+      **The generated/shipped game is now 100% ImGui-free for gameplay UI.**
       The `buildMenuElement` widget+binding additions (slider/checkbox/dropdown + onGetSetting/onSetSetting)
       are reusable for any future data-driven control screen. **Also worth doing:** for menu-scene games,
       pause/credits/victory "Main Menu" should `transition_scene` back to the menu scene rather than the

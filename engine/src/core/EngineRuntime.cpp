@@ -265,8 +265,9 @@ void EngineRuntime::quit() {
 float EngineRuntime::beginFrame() {
     performanceProfiler_->startFrame();
 
-    // Reset mouse delta before polling new events
-    if (inputManager_) inputManager_->resetMouseDelta();
+    // Reset mouse delta + last frame's typed chars before polling new events
+    // (pollEvents re-fills typedChars via the GLFW char callback this frame).
+    if (inputManager_) { inputManager_->resetMouseDelta(); inputManager_->clearTypedChars(); }
 
     // Poll GLFW events
     windowManager_->pollEvents();

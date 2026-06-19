@@ -143,6 +143,20 @@
     ]
   },
   {
+    "_comment": "AI conversation box (free-text chat with an NPC). Visible during an AI conversation; speaker + scrollback history (bound) + a text-input field. Wired by the host (UI::setupAIDialogue): dialogue.aiActive/aiSpeaker/aiHistory providers + the ai_input field's submit -> DialogueSystem::submitPlayerMessage. Replaces the ImGui renderDialogueBox AI branch (docs/HudSystem.md §11a).",
+    "id": "hud_ai_dialogue",
+    "anchor": "BottomCenter",
+    "offset": [0, -20],
+    "size": [840, 320],
+    "showBackground": true,
+    "visibleWhen": "dialogue.aiActive",
+    "children": [
+      { "type": "label",     "id": "ai_speaker", "bind": "dialogue.aiSpeaker", "text": "", "isTitle": true, "size": [800, 30] },
+      { "type": "label",     "id": "ai_history", "bind": "dialogue.aiHistory", "text": "", "wrapWidth": 800, "size": [800, 210] },
+      { "type": "textinput", "id": "ai_input",   "placeholder": "Type a message — Enter to send,  Esc to end", "size": [800, 34] }
+    ]
+  },
+  {
     "_comment": "Timer-trigger countdown (top-center). Visible when a timer trigger with hud:true is active; text = '<hudLabel>  M:SS.s'. Bound by the host from TriggerSystem::getActiveCountdowns(). Replaces the ImGui renderCountdownHud (docs/HudSystem.md §11a).",
     "id": "hud_countdown",
     "anchor": "TopCenter",
