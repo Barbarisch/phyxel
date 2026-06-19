@@ -255,11 +255,20 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   this is round-5 scope for the "engine-side game-shell base classes" item below — the throughline
   is "migrate it into `GameShell` so generated games inherit it instead of re-deriving the editor's
   logic." **STATUS (round-5 push, 2026-06-18): the 3 must-fix-first bugs + the token-resolver are DONE
-  in the scaffold generator (`tools/create_project.py`, commit `f069b47`); the editor multi-scene HUD
-  gap turned out to be ALREADY fixed (`94b1ec1`) and was confirmed live this session; the menu Back
-  soft-lock is IMPLEMENTED engine-side (`UISystem`) pending a standalone runtime check. Remaining: the
-  `hud`-block override, the NO-ImGui-in-gameplay umbrella, paused-HUD suppression, and the GameShell
-  migration of all of it.** To-do list:
+  in the scaffold generator (`tools/create_project.py`, commit `f069b47`); the `hud`-block override is
+  DONE (`5f60a50`); the editor multi-scene HUD gap turned out to be ALREADY fixed (`94b1ec1`); the menu
+  Back soft-lock is FIXED engine-side (`UISystem`, `161e006`). A full standalone (`R5Verify` from
+  `ui_showcase.json`) was built + driven this session and LIVE-VERIFIED three of these: boots without
+  crash + data-driven menu renders (resource seeding), the Credits "Playtime: 0:0X" token is RESOLVED
+  not literal (token resolver), and Credits→Back returns to main with NO bounce (soft-lock). Remaining:
+  the NO-ImGui-in-gameplay umbrella, paused-HUD suppression, and the GameShell migration of all of it.**
+  **Standalone-driving recipe (hard-won, reusable — the feedback-#9 tooling, see [[standalone-window-driving]]):**
+  the standalone has NO HTTP API. Find the GLFW window by title via `EnumWindows` (its `MainWindowHandle`
+  is 0 / `FindWindow` is flaky). Drive it with `PostMessage(h, WM_LBUTTONDOWN/UP, …, MAKELPARAM(clientX,
+  clientY))` and observe with `PrintWindow(h, hdc, PW_RENDERFULLCONTENT=2)` — BOTH are focus- AND
+  z-order-independent, sidestepping the foreground-lock + global-cursor flakiness that wasted several
+  attempts. **CRITICAL: use the real client size from `GetClientRect` (here 1024×576 under 125% DPI, NOT
+  the 1280×720 canvas); menu hit-boxes are at `canvasCoord × clientW/1280`.** To-do list:
   - **⚠️ Standalone scaffold parity (the headline cluster):**
     - **✅ DONE (`f069b47`) Resource seeding (crash/empty-world):** scaffolded `shaders/` was EMPTY (no
       `.spv` → instant exit right after "Framebuffers created successfully") and `resources/` was
@@ -269,9 +278,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       files win). (`package_game.py` already seeded these — only the dev-build POST_BUILD was affected.)
     - **✅ DONE (`f069b47`) Player invisible + literal `{{tokens}}`:** scaffold called `setNPCManager` but
       NOT `renderCoordinator_->setEntities(&entities_)`, so the player (lives in `entities_`, not
-      NPCManager) never rendered — now added. Also `cb.onMenuSceneLoaded` built `MenuActions` without
-      `onResolveVariable` → literal `{{story.gold}}`/`{{playtime}}`; now wires
-      `acts.onResolveVariable = gameMenuRenderer_->onResolveVariable`.
+      NPCManager) never rendered — now added (code-verified; not live-exercised — the `ui_showcase`
+      world scene is first-person with no prebaked world DB, so the third-person player body never framed).
+      Also `cb.onMenuSceneLoaded` built `MenuActions` without `onResolveVariable` → literal
+      `{{story.gold}}`/`{{playtime}}`; now wires `acts.onResolveVariable = gameMenuRenderer_->onResolveVariable`
+      — **LIVE-VERIFIED**: the standalone Credits panel showed "Playtime this session: 0:0X" resolved, not literal.
     - **✅ DONE (`5f60a50`) Ignores game.json `hud` block:** scaffold loaded `loadHudInto(..., nullptr)`
       hardcoded in onInitialize (before game.json was parsed), so it ALWAYS loaded `default_hud.json`.
       Fix: split like the editor's `setupGameHud()` — onInitialize keeps `initUISystem()` + data-provider
@@ -279,15 +290,16 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       `gameDef.contains("hud") ? &gameDef["hud"] : nullptr` (before the multi-scene transition; single call
       since `loadHudInto` addScreen()s per panel). **`combat.mode` honoring deferred** — the scaffold has no
       `CombatDirector` yet; that belongs with the GameShell migration / combat-HUD re-homing track.
-    - **🔨 IMPLEMENTED (pending standalone runtime verify) Menu Back soft-lock:** `UISystem::handleInput`
+    - **✅ DONE + LIVE-VERIFIED (`161e006`) Menu Back soft-lock:** `UISystem::handleInput`
       (and `injectClick`) delivered ONE click to EVERY visible screen in one pass; `close_submenu` reveals
       `menu:<startPanel>` mid-loop and (when that panel is iterated LATER — `screens_` is actually an
       `unordered_map`, so it's HASH-order-dependent, not the alphabetical `std::map` the feedback guessed)
       it re-consumes the same click → Credits→Back bounces. Fix: both methods now snapshot the visible
       screens via `visibleScreenSnapshot()` BEFORE dispatch, so a screen revealed by an onClick can't
-      receive that same click (order-independent). Compiles clean; NOT yet verified on a built standalone
-      (the editor is not a valid surface — its multi-scene menu transition is unreliable/stuck, feedback
-      #2, and never loads the menu into the foreground UISystem; the standalone needs a ~38-min build).
+      receive that same click (order-independent). LIVE-VERIFIED on the `R5Verify` standalone: opened
+      Credits, clicked Back (which sits over the main menu's Credits button) → returned to MAIN, no bounce.
+      (The editor is NOT a valid surface — its multi-scene menu transition is unreliable/stuck, feedback
+      #2, and never loads the menu into the foreground UISystem; had to build + drive a real standalone.)
     - **✅ DONE (`f069b47`) Double dialogue box:** ImGui `renderDialogueBox` AND data-driven `hud_dialogue`
       both drew while dialogue was active. Editor gates the ImGui path to AI conversations (Application.cpp
       ~2801); scaffold never did. Fix: gate the scaffold's ImGui box to `isAIConversation()` — complementary
