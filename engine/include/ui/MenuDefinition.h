@@ -87,6 +87,13 @@ struct MenuActions {
     std::function<void()> onSettings;
     std::function<void()> onMainMenu;
     std::function<void()> onShowCredits;
+    std::function<void()> onBack;   // settings/sub-screen "Back" (action "back")
+    /// Settings widgets (slider/checkbox/dropdown carrying a "setting" key):
+    /// read the current value to initialize the widget (onGetSetting) and apply a
+    /// change (onSetSetting). Floats throughout — checkbox is 0/1, dropdown is the
+    /// selected index. Wired by the settings screen's host.
+    std::function<float(const std::string& key)> onGetSetting;
+    std::function<void(const std::string& key, float value)> onSetSetting;
     /// Resolve a {{token}} in label/button text to a display string (e.g.
     /// "playtime", "story.<var>"). Return nullopt to leave the token literal.
     /// Applied once at menu load (static).

@@ -586,9 +586,48 @@ static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, floa
             else if (at == "open_settings"){ auto cb = actions.onSettings; w->onClick = [cb] { if (cb) cb(); }; }
             else if (at == "main_menu")    { auto cb = actions.onMainMenu; w->onClick = [cb] { if (cb) cb(); }; }
             else if (at == "show_credits") { auto cb = actions.onShowCredits; w->onClick = [cb] { if (cb) cb(); }; }
+            else if (at == "back")         { auto cb = actions.onBack;        w->onClick = [cb] { if (cb) cb(); }; }
             else if (at == "open_submenu") { w->onClick = [uip, target]    { menuShowOnly(*uip, "menu:" + target); }; }
             else if (at == "close_submenu"){ w->onClick = [uip, startPanel]{ menuShowOnly(*uip, "menu:" + startPanel); }; }
         }
+        return w;
+    }
+    // Settings widgets — slider / checkbox / dropdown carrying a "setting" key are
+    // bound bidirectionally to the host's GameSettings via onGetSetting (initial
+    // value, at load) + onSetSetting (apply on change). Floats throughout (checkbox
+    // 0/1, dropdown = selected index). See loadGameScreenInto / settings_screen.json.
+    if (type == "slider") {
+        auto w = std::make_unique<UISlider>();
+        w->label = resolveTokens(el.value("label", ""), actions);
+        w->position = posv; w->size = sizev;
+        w->minVal = el.value("min", 0.0f);
+        w->maxVal = el.value("max", 1.0f);
+        const std::string key = el.value("setting", "");
+        w->value = (!key.empty() && actions.onGetSetting) ? actions.onGetSetting(key)
+                                                          : el.value("value", w->minVal);
+        if (!key.empty()) { auto cb = actions.onSetSetting; w->onChange = [cb, key](float v) { if (cb) cb(key, v); }; }
+        return w;
+    }
+    if (type == "checkbox") {
+        auto w = std::make_unique<UICheckbox>();
+        w->label = resolveTokens(el.value("label", ""), actions);
+        w->position = posv; w->size = sizev;
+        const std::string key = el.value("setting", "");
+        w->checked = (!key.empty() && actions.onGetSetting) ? (actions.onGetSetting(key) > 0.5f)
+                                                            : el.value("checked", false);
+        if (!key.empty()) { auto cb = actions.onSetSetting; w->onChange = [cb, key](bool b) { if (cb) cb(key, b ? 1.0f : 0.0f); }; }
+        return w;
+    }
+    if (type == "dropdown") {
+        auto w = std::make_unique<UIDropdown>();
+        w->label = resolveTokens(el.value("label", ""), actions);
+        w->position = posv; w->size = sizev;
+        if (el.contains("options") && el["options"].is_array())
+            for (const auto& o : el["options"]) w->options.push_back(o.get<std::string>());
+        const std::string key = el.value("setting", "");
+        w->selectedIndex = (!key.empty() && actions.onGetSetting)
+            ? static_cast<int>(actions.onGetSetting(key) + 0.5f) : el.value("selected", 0);
+        if (!key.empty()) { auto cb = actions.onSetSetting; w->onChange = [cb, key](int i) { if (cb) cb(key, static_cast<float>(i)); }; }
         return w;
     }
     return nullptr;

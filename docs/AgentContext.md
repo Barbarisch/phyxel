@@ -377,6 +377,20 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       `renderSettingsScreen` (heaviest — sliders/dropdowns/keybinds) + `renderCountdownHud` + speech bubbles
       + interaction prompt; HUD-suppression-while-paused (#11); intro any-key-continue (Continue button only
       now); the editor's own ImGui screens.
+    - **✅ DONE + LIVE-VERIFIED Settings screen (3rd umbrella slice):** `buildMenuElement` now builds
+      slider/checkbox/dropdown bound BIDIRECTIONALLY to `GameSettings` via new `MenuActions::onGetSetting`
+      /`onSetSetting` (floats; checkbox=0/1, dropdown=index) + `onBack`/`back` action. Authored
+      `resources/ui/settings_screen.json` — standard **Graphics** (Resolution/V-Sync/Fullscreen/FOV),
+      **Audio** (Master/Music/SFX), **Controls** (Mouse Sensitivity). Scaffold folds Settings into the one
+      reconcile loop, wires get/set to GameSettings + window/camera/device (apply live, save on Back); ImGui
+      `renderSettingsScreen` removed. Verified on `R5Verify`: pause→Settings shows all widgets at current
+      values (1600x900 / Off / FOV 45 / vols), FOV slider click 45→111 applied, Back saved + returned to
+      pause. **Deferred:** keybind rebind, brightness/invertY (no apply path), AI settings (dev-only).
+      **Polish:** open-dropdown overlap; layout tall (bottom rows near client edge at 125% DPI).
+    - **NO-ImGui umbrella — remaining after 3 slices:** fallback `renderMainMenu`, `renderCountdownHud`,
+      speech bubbles, interaction prompt, the deferred settings bits, HUD-suppression-while-paused (#11),
+      and the editor's own ImGui screens. The `buildMenuElement` widget+binding additions (slider/checkbox/
+      dropdown + onGetSetting/onSetSetting) are now reusable for any future data-driven control screen.
 - **Water system — FULL FEATURE MERGED TO `main`** (commit `80f9998`, 2026-06-06). Design:
   `docs/WaterSystem.md`. Default **OFF** (per-world `"water":{"enabled","seaLevel",...}` block
   in game.json, applied in `Application::autoLoadGameDefinition`), so it's inert for projects

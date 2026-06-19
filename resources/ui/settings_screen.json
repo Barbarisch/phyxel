@@ -1,0 +1,29 @@
+{
+  "_comment": "Data-driven settings screen (docs/HudSystem.md §11a). Loaded by UI::loadGameScreenInto(ui,\"settings\",...) into settings:* screens; replaces ImGui renderSettingsScreen. Standard sections: Graphics / Audio / Controls. slider/checkbox/dropdown carry a \"setting\" key bound to GameSettings via MenuActions.onGetSetting/onSetSetting; Back uses action \"back\". Changes apply live; the host saves on Back. Deferred: keybinding rebind, brightness, invertY.",
+  "background_type": "solid",
+  "background_color": [0.05, 0.05, 0.10, 1.0],
+  "start_panel": "main",
+  "panels": {
+    "main": {
+      "children": [
+        { "type": "label", "id": "settings_title", "text": "SETTINGS", "font": "title", "position": [640, 50], "size": [400, 64] },
+
+        { "type": "label",    "id": "hdr_graphics", "text": "Graphics", "position": [400, 120], "size": [200, 28] },
+        { "type": "dropdown", "id": "set_resolution", "label": "Resolution", "setting": "resolution", "options": ["1280 x 720", "1600 x 900", "1920 x 1080"], "position": [400, 150], "size": [480, 32] },
+        { "type": "dropdown", "id": "set_vsync",      "label": "V-Sync",     "setting": "vsync",      "options": ["Off", "On", "Adaptive"],               "position": [400, 200], "size": [480, 32] },
+        { "type": "checkbox", "id": "set_fullscreen", "label": "Fullscreen", "setting": "fullscreen", "position": [400, 250], "size": [480, 32] },
+        { "type": "slider",   "id": "set_fov",        "label": "Field of View", "setting": "fov", "min": 30, "max": 120, "position": [400, 295], "size": [480, 32] },
+
+        { "type": "label",  "id": "hdr_audio", "text": "Audio", "position": [400, 350], "size": [200, 28] },
+        { "type": "slider", "id": "set_master", "label": "Master Volume", "setting": "masterVolume", "min": 0, "max": 1, "position": [400, 385], "size": [480, 32] },
+        { "type": "slider", "id": "set_music",  "label": "Music Volume",  "setting": "musicVolume",  "min": 0, "max": 1, "position": [400, 425], "size": [480, 32] },
+        { "type": "slider", "id": "set_sfx",    "label": "SFX Volume",    "setting": "sfxVolume",    "min": 0, "max": 1, "position": [400, 465], "size": [480, 32] },
+
+        { "type": "label",  "id": "hdr_controls", "text": "Controls", "position": [400, 520], "size": [200, 28] },
+        { "type": "slider", "id": "set_mousesens", "label": "Mouse Sensitivity", "setting": "mouseSensitivity", "min": 0.01, "max": 1.0, "position": [400, 555], "size": [480, 32] },
+
+        { "type": "button", "id": "settings_back", "text": "Back", "position": [540, 630], "size": [200, 48], "action": { "type": "back" } }
+      ]
+    }
+  }
+}

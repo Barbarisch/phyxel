@@ -1014,10 +1014,11 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         std::string want;
                         if (!menuSceneActive_) {{
                             switch (state) {{
-                                case Phyxel::UI::ScreenState::Paused:  want = "pause";   break;
-                                case Phyxel::UI::ScreenState::Intro:   want = "intro";   break;
-                                case Phyxel::UI::ScreenState::Victory: want = "victory"; break;
-                                case Phyxel::UI::ScreenState::Credits: want = "credits"; break;
+                                case Phyxel::UI::ScreenState::Paused:   want = "pause";    break;
+                                case Phyxel::UI::ScreenState::Intro:    want = "intro";    break;
+                                case Phyxel::UI::ScreenState::Victory:  want = "victory";  break;
+                                case Phyxel::UI::ScreenState::Credits:  want = "credits";  break;
+                                case Phyxel::UI::ScreenState::Settings: want = "settings"; break;
                                 default: break;
                             }}
                         }}
@@ -1036,6 +1037,58 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 a.onMainMenu    = [this]() {{ screen_.returnToMainMenu(); if (engine_) updateCursorMode(*engine_); }};
                                 a.onShowCredits = [this]() {{ screen_.showCredits(); }};
                                 a.onQuit        = [this]() {{ auto* w = engine_ ? engine_->getWindowManager() : nullptr; if (w) glfwSetWindowShouldClose(w->getHandle(), GLFW_TRUE); }};
+                                // Settings "Back": persist + return to the previous screen.
+                                a.onBack = [this]() {{
+                                    settings_.saveToFile("settings.json");
+                                    screen_.goBack();
+                                    if (engine_) updateCursorMode(*engine_);
+                                }};
+                                // Settings widgets read/apply GameSettings (changes apply live;
+                                // saved on Back). Standard set: Graphics / Audio / Controls.
+                                a.onGetSetting = [this](const std::string& k) -> float {{
+                                    if (k == "fov")              return settings_.fov;
+                                    if (k == "masterVolume")     return settings_.masterVolume;
+                                    if (k == "musicVolume")      return settings_.musicVolume;
+                                    if (k == "sfxVolume")        return settings_.sfxVolume;
+                                    if (k == "mouseSensitivity") return settings_.mouseSensitivity;
+                                    if (k == "fullscreen")       return settings_.fullscreen ? 1.0f : 0.0f;
+                                    if (k == "vsync")            return static_cast<float>(settings_.vsync);
+                                    if (k == "resolution") {{
+                                        if (settings_.resolutionWidth <= 1280) return 0.0f;
+                                        if (settings_.resolutionWidth >= 1920) return 2.0f;
+                                        return 1.0f;
+                                    }}
+                                    return 0.0f;
+                                }};
+                                a.onSetSetting = [this](const std::string& k, float v) {{
+                                    auto* win = engine_ ? engine_->getWindowManager() : nullptr;
+                                    auto* cam = engine_ ? engine_->getCamera() : nullptr;
+                                    if (k == "fov")                   {{ settings_.fov = v; if (cam) cam->setZoom(v); }}
+                                    else if (k == "masterVolume")     {{ settings_.masterVolume = v; }}
+                                    else if (k == "musicVolume")      {{ settings_.musicVolume = v; }}
+                                    else if (k == "sfxVolume")        {{ settings_.sfxVolume = v; }}
+                                    else if (k == "mouseSensitivity") {{ settings_.mouseSensitivity = v; if (cam) cam->setMouseSensitivity(v); }}
+                                    else if (k == "fullscreen")       {{ settings_.fullscreen = (v > 0.5f); if (win) win->setFullscreen(settings_.fullscreen); }}
+                                    else if (k == "vsync") {{
+                                        int mode = static_cast<int>(v + 0.5f);
+                                        settings_.vsync = static_cast<Phyxel::Core::VSyncMode>(mode);
+                                        auto* dev = engine_ ? engine_->getVulkanDevice() : nullptr;
+                                        if (dev) {{
+                                            VkPresentModeKHR pm = VK_PRESENT_MODE_IMMEDIATE_KHR;
+                                            if (mode == 1) pm = VK_PRESENT_MODE_FIFO_KHR;
+                                            else if (mode == 2) pm = VK_PRESENT_MODE_MAILBOX_KHR;
+                                            dev->setPreferredPresentMode(pm);
+                                        }}
+                                    }}
+                                    else if (k == "resolution") {{
+                                        int idx = static_cast<int>(v + 0.5f);
+                                        int w = 1600, h = 900;
+                                        if (idx == 0) {{ w = 1280; h = 720; }}
+                                        else if (idx == 2) {{ w = 1920; h = 1080; }}
+                                        settings_.resolutionWidth = w; settings_.resolutionHeight = h;
+                                        if (win) win->setSize(w, h);
+                                    }}
+                                }};
                                 if (want == "pause") Phyxel::UI::loadPauseMenuInto(*ui, a);
                                 else                 Phyxel::UI::loadGameScreenInto(*ui, want, a);
                             }}
@@ -1095,56 +1148,11 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     break;
 
                 case Phyxel::UI::ScreenState::Settings:
-                    Phyxel::UI::renderSettingsScreen(settings_, {{
-                        [this, &engine](int w, int h) {{
-                            settings_.resolutionWidth = w; settings_.resolutionHeight = h;
-                            auto* win = engine.getWindowManager();
-                            if (win) win->setSize(w, h);
-                        }},
-                        [this, &engine](bool fs) {{
-                            settings_.fullscreen = fs;
-                            auto* win = engine.getWindowManager();
-                            if (win) win->setFullscreen(fs);
-                        }},
-                        [this, &engine](int mode) {{
-                            settings_.vsync = static_cast<Phyxel::Core::VSyncMode>(mode);
-                            auto* dev = engine.getVulkanDevice();
-                            if (dev) {{
-                                VkPresentModeKHR pm = VK_PRESENT_MODE_IMMEDIATE_KHR;
-                                if (mode == 1) pm = VK_PRESENT_MODE_FIFO_KHR;
-                                else if (mode == 2) pm = VK_PRESENT_MODE_MAILBOX_KHR;
-                                dev->setPreferredPresentMode(pm);
-                            }}
-                        }},
-                        [this, &engine](float fov) {{
-                            settings_.fov = fov;
-                            auto* cam = engine.getCamera();
-                            if (cam) cam->setZoom(fov);
-                        }},
-                        [this, &engine](float sens) {{
-                            settings_.mouseSensitivity = sens;
-                            auto* cam = engine.getCamera();
-                            if (cam) cam->setMouseSensitivity(sens);
-                        }},
-                        [this](float v) {{ settings_.masterVolume = v; }},
-                        [this](float v) {{ settings_.musicVolume = v; }},
-                        [this](float v) {{ settings_.sfxVolume = v; }},
-                        [this]() {{ screen_.enterKeybindingRebind(); }},
-                        [this]() {{ screen_.goBack(); }},
-                        [this]() {{ settings_.saveToFile("settings.json"); }},
-                        [this](const std::string& provider, const std::string& model, const std::string& apiKey) {{
-                            settings_.aiProvider = provider;
-                            settings_.aiModel = model;
-                            settings_.aiApiKey = apiKey;
-                            if (aiConversationService_) {{
-                                Phyxel::AI::LLMConfig cfg;
-                                cfg.provider = provider;
-                                cfg.model = model;
-                                cfg.apiKey = apiKey;
-                                aiConversationService_->setLLMConfig(cfg);
-                            }}
-                        }}
-                    }});
+                    // Settings is now the data-driven "settings:*" UISystem overlay
+                    // loaded + driven by the reconcile above (no ImGui). Standard
+                    // Graphics/Audio/Controls; changes apply live + save on Back.
+                    // Deferred: keybinding rebind, brightness, invert-Y, AI settings.
+                    // (docs/HudSystem.md §11a.)
                     break;
 
                 default:
