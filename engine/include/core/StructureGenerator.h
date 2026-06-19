@@ -57,11 +57,23 @@ struct DoorRequest {
     float       swing = 90.0f;      ///< Open angle (degrees)
 };
 
+/// A request to place a subcube-detailed furniture template inside a building.
+/// Emitted by generateFromSpec for each spec fixture; consumed by the build_structure
+/// handler (which has ObjectTemplateManager/PlacedObjectManager to spawn the template).
+/// Furniture is authored as proper subcube templates (chair_wood, table_wood, ...) — NOT
+/// generated as full cubes.
+struct FixtureRequest {
+    std::string templateName;       ///< Subcube furniture template (e.g. "chair_wood")
+    glm::ivec3  worldPos{0};        ///< World position (template origin) on the floor
+    int         rotation = 0;        ///< Y rotation 0/90/180/270 from the fixture facing
+};
+
 /// Result of a structure generation.
 struct StructureResult {
-    std::vector<VoxelPlacement> voxels;
-    std::vector<LocationMarker> locations;
-    std::vector<DoorRequest>    doors;   ///< Functional doors to place + register (spec path)
+    std::vector<VoxelPlacement>  voxels;
+    std::vector<LocationMarker>  locations;
+    std::vector<DoorRequest>     doors;     ///< Functional doors to place + register (spec path)
+    std::vector<FixtureRequest>  fixtures;  ///< Furniture templates to spawn (spec path)
 };
 
 /// Result of placing a structure into the world.

@@ -11754,6 +11754,20 @@ void Application::processAPICommands() {
                             }
                             response["doors"] = doorsJson;
                         }
+
+                        // -- Furniture (spec path): spawn each subcube fixture template --
+                        if (!structure.fixtures.empty() && placedObjectManager) {
+                            nlohmann::json fixturesJson = nlohmann::json::array();
+                            std::string structParent = response.value("object_id", "");
+                            for (const auto& fx : structure.fixtures) {
+                                std::string poId = placedObjectManager->placeTemplate(
+                                    fx.templateName, fx.worldPos, fx.rotation,
+                                    structParent, /*snapToGround=*/false);
+                                fixturesJson.push_back({{"placed_object_id", poId},
+                                                        {"template", fx.templateName}});
+                            }
+                            response["fixtures"] = fixturesJson;
+                        }
                     }
                 }
 
