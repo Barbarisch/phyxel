@@ -1210,6 +1210,14 @@ StructureResult StructureGenerator::generateFromSpec(const nlohmann::json& spec)
         footD = spec["footprint"][1].get<int>();
     }
 
+    // Detail (P3 greeble) settings.
+    std::string roofStyle = spec.contains("roof") ? spec["roof"].value("style", "flat") : "flat";
+    std::string trimMat = spec.contains("palette") ? spec["palette"].value("trim", mat.wall) : mat.wall;
+    bool detail = spec.value("detail", true);
+    // Openings recorded during the portal pass, consumed by the detail (frame) pass.
+    struct SpecOpening { char axis; int coord; int px; int pz; int width; int height; int baseY; bool isDoor; };
+    std::vector<SpecOpening> openings;
+
     if (!spec.contains("stories") || !spec["stories"].is_array() || spec["stories"].empty()) {
         LOG_WARN("StructureGenerator", "generateFromSpec: spec has no stories");
         return result;
@@ -1323,6 +1331,9 @@ StructureResult StructureGenerator::generateFromSpec(const nlohmann::json& spec)
                     }
                 }
 
+                // Record the opening so the detail pass can trim it (windows get a sill).
+                openings.push_back({axis, coord, pos.x, pos.y, pw, ph, baseY, kind != "window"});
+
                 if (kind == "door") {
                     DoorRequest dr;
                     glm::ivec3 hingeLocal = (axis == 'x') ? glm::ivec3(coord, baseY + 1, pos.y)
@@ -1388,6 +1399,19 @@ StructureResult StructureGenerator::generateFromSpec(const nlohmann::json& spec)
     for (const auto& c : wallCells)  result.voxels.push_back({c, mat.wall});
     for (const auto& c : floorCells) result.voxels.push_back({c, mat.floor});
     for (const auto& c : roofCells)  result.voxels.push_back({c, mat.roof});
+
+    // -- Detail pass (P3 subcube greeble): pitched roof. --
+    // Built in the local frame (Facing::North + local pos); offset to world with everything else.
+    // NOTE: opening frames (generateDoorFrame/WindowFrame) are deferred — they add subcubes ON the
+    // solid wall cubes flanking an opening, which addSubcube rejects. Proper frames need the wall
+    // carved to subcube resolution around the opening (P3 follow-up). `openings` is collected ready.
+    (void)openings; (void)trimMat;
+    if (detail) {
+        if (roofStyle == "pitched" && footW >= 4 && footD >= 4) {
+            auto roof = generatePitchedRoof({0, topY + 1, 0}, Facing::North, footW, footD, mat.roof);
+            for (auto& v : roof.voxels) result.voxels.push_back(v);
+        }
+    }
 
     // Offset local geometry to world.
     for (auto& v : result.voxels)     v.position += origin;
