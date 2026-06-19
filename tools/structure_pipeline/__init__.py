@@ -15,10 +15,18 @@ from .scale import ScaleCanon, load_canon, DEFAULT_CANON_PATH
 from .validator import (
     validate, validate_dict, validate_file, ValidationReport, Issue,
 )
+from .overlap import find_overlaps, assert_no_overlap
+from .author import (
+    author_spec, AuthorResult, build_system_prompt, build_user_prompt,
+    extract_json, anthropic_llm, LLMFn, DEFAULT_MODEL,
+)
 
 __all__ = [
     "ScaledSpec", "BuildingSpec", "Story", "Room", "Portal", "Door", "Stair", "Fixture",
     "BUILDING_FUNCTIONS", "PORTAL_KINDS", "STAIR_KINDS",
     "ScaleCanon", "load_canon", "DEFAULT_CANON_PATH",
     "validate", "validate_dict", "validate_file", "ValidationReport", "Issue",
+    "find_overlaps", "assert_no_overlap",
+    "author_spec", "AuthorResult", "build_system_prompt", "build_user_prompt",
+    "extract_json", "anthropic_llm", "LLMFn", "DEFAULT_MODEL",
 ]
