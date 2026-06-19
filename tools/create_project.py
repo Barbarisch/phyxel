@@ -391,8 +391,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 });"""
     hud_setup = """
             // Data-driven HUD on the UISystem (custom-Vulkan, no ImGui): init the
-            // UISystem, register the data providers this game supplies, and load the
-            // engine default HUD (resources/ui/default_hud.json). See docs/HudSystem.md.
+            // UISystem and register the data providers this game supplies. The HUD
+            // PANELS are loaded later in loadGameDefinition(), once game.json is
+            // parsed, so a game's own "hud" block can override the engine default
+            // (resources/ui/default_hud.json). See docs/HudSystem.md.
             renderCoordinator_->initUISystem();
             {
                 auto& hud = renderCoordinator_->hudData();
@@ -404,7 +406,6 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     auto* hc = playerCharacter_ ? playerCharacter_->getHealthComponent() : nullptr;
                     return hc ? hc->getMaxHealth() : 100.0f;
                 });""" + dialogue_providers + """
-                Phyxel::UI::loadHudInto(*renderCoordinator_->getUISystem(), nullptr);
             }"""
 
     return textwrap.dedent(f"""\
@@ -761,6 +762,16 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     }}
                     return entity;
                 }};
+
+                // Load HUD panels now that game.json is parsed: a game's own top-level
+                // "hud" array overrides the engine default HUD (resources/ui/
+                // default_hud.json) — reposition/restyle the health bar, add custom
+                // labels, etc. Mirrors the editor's setupGameHud(). Must run BEFORE the
+                // multi-scene transition below so the HUD screens already exist when a
+                // menu start-scene's loadMenuInto hides them. (game-dev feedback round 5.)
+                if (auto* hudUi = renderCoordinator_ ? renderCoordinator_->getUISystem() : nullptr)
+                    Phyxel::UI::loadHudInto(*hudUi,
+                        gameDef.contains("hud") ? &gameDef["hud"] : nullptr);
 
                 // Multi-scene: delegate to SceneManager
                 if (Phyxel::Core::GameDefinitionLoader::isMultiScene(gameDef)) {{
