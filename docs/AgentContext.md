@@ -278,8 +278,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       files win). (`package_game.py` already seeded these — only the dev-build POST_BUILD was affected.)
     - **✅ DONE (`f069b47`) Player invisible + literal `{{tokens}}`:** scaffold called `setNPCManager` but
       NOT `renderCoordinator_->setEntities(&entities_)`, so the player (lives in `entities_`, not
-      NPCManager) never rendered — now added (code-verified; not live-exercised — the `ui_showcase`
-      world scene is first-person with no prebaked world DB, so the third-person player body never framed).
+      NPCManager) never rendered — now added. **LIVE-VERIFIED**: after the eye-height fix raised the
+      third-person orbit center, the voxel humanoid player renders clearly in the `R5Verify` world.
       Also `cb.onMenuSceneLoaded` built `MenuActions` without `onResolveVariable` → literal
       `{{story.gold}}`/`{{playtime}}`; now wires `acts.onResolveVariable = gameMenuRenderer_->onResolveVariable`
       — **LIVE-VERIFIED**: the standalone Credits panel showed "Playtime this session: 0:0X" resolved, not literal.
@@ -351,10 +351,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     (`CombatDirector::advanceTurn`) advances directly — use it to script turns in a test. Consider making
     `end_turn` advance the director when no controller turn is active, or document it.
   - **Live-inspection follow-ups (2026-06-18, user poked the `R5Verify` standalone):**
-    - **✅ DONE First-person camera at knee height:** `GameShell` fed the rig a flat `eyeHeight = 0.5`
-      over the character's FEET (`worldPosition` is the capsule bottom) → FP looked out of the shins. Now
-      derives `eyeHeight = getControllerHalfHeight() × 1.8` (≈ eye level, scales with the model); explicit
-      `game.json camera.eyeHeight` wins. **NOTE: the editor has a PARALLEL hardcoded `eyeHeight` (0.5/0.6)
+    - **✅ DONE + LIVE-VERIFIED First-person camera at knee height:** `GameShell` fed the rig a flat
+      `eyeHeight = 0.5` over the character's FEET (`worldPosition` is the capsule bottom) → FP looked out of
+      the shins. Now derives `eyeHeight = getControllerHalfHeight() × 1.8` (≈ eye level, scales with the
+      model); explicit `game.json camera.eyeHeight` wins. Verified on `R5Verify`: FP view raised to standing
+      height, third-person now frames the body (default humanoid halfHeight 0.95 → eye ≈ 1.71, was 0.5). **NOTE: the editor has a PARALLEL hardcoded `eyeHeight` (0.5/0.6)
       on its own `cameraCtl_` path (Application.cpp ~3429/4856) — still needs the same treatment.**
     - **🔲 ESC pause menu still ImGui-styled** — confirmed live; this is the **NO-ImGui-in-gameplay**
       umbrella above (`renderPauseMenu` is one of the listed ImGui surfaces). Tracked there, not a separate item.
