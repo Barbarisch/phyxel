@@ -80,7 +80,7 @@ Shipped defaults (each a small struct with public data + one `update` override):
 
 | Rig | Behavior | Projection |
 |-----|----------|------------|
-| `FirstPersonRig` | eye at `target + eyeHeight`, look along yaw/pitch | perspective |
+| `FirstPersonRig` | eye at `target + eyeHeight`, look along yaw/pitch. The rig's static `eyeHeight` default is 0.5, but `GameShell` overrides it per-character to `getControllerHalfHeight() × 1.8` (≈ eye level / 90% of full height — `target` is the capsule **feet**), so first-person isn't stuck at knee height; an explicit `game.json camera.eyeHeight` still wins. | perspective |
 | `ThirdPersonRig` | orbit `distance` behind target at yaw/pitch (today's `updatePositionFromTarget` logic, extracted). *Optional* wall-collision shortening in a subclass. | perspective |
 | `OverheadRig` | directly above target looking straight down; yaw rotates the top-down view | **orthographic** |
 | `IsometricRig` | fixed pitch (~35.264°) + 45° yaw offset, follows target XZ at `distance` | **orthographic** |
@@ -212,7 +212,7 @@ single-source-of-truth" preference, the deep path is opt-in):
 "camera": {
     "mode": "first_person | third_person | overhead | isometric",  // existing key, extended
     "controlScheme": "fps | tank | topdown",                       // NEW
-    "distance": 6.0, "fov": 60.0, "eyeHeight": 0.6,                // optional rig knobs
+    "distance": 6.0, "fov": 60.0, "eyeHeight": 0.6,                // optional rig knobs (eyeHeight overrides the per-character default)
     "mouseSensitivity": 0.12                                        // optional scheme knob
 }
 ```

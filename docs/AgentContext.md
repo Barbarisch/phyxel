@@ -350,6 +350,14 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     never engages that controller, so `end_turn` is a no-op. `/api/rpg/combat/next_turn`
     (`CombatDirector::advanceTurn`) advances directly — use it to script turns in a test. Consider making
     `end_turn` advance the director when no controller turn is active, or document it.
+  - **Live-inspection follow-ups (2026-06-18, user poked the `R5Verify` standalone):**
+    - **✅ DONE First-person camera at knee height:** `GameShell` fed the rig a flat `eyeHeight = 0.5`
+      over the character's FEET (`worldPosition` is the capsule bottom) → FP looked out of the shins. Now
+      derives `eyeHeight = getControllerHalfHeight() × 1.8` (≈ eye level, scales with the model); explicit
+      `game.json camera.eyeHeight` wins. **NOTE: the editor has a PARALLEL hardcoded `eyeHeight` (0.5/0.6)
+      on its own `cameraCtl_` path (Application.cpp ~3429/4856) — still needs the same treatment.**
+    - **🔲 ESC pause menu still ImGui-styled** — confirmed live; this is the **NO-ImGui-in-gameplay**
+      umbrella above (`renderPauseMenu` is one of the listed ImGui surfaces). Tracked there, not a separate item.
 - **Water system — FULL FEATURE MERGED TO `main`** (commit `80f9998`, 2026-06-06). Design:
   `docs/WaterSystem.md`. Default **OFF** (per-world `"water":{"enabled","seaLevel",...}` block
   in game.json, applied in `Application::autoLoadGameDefinition`), so it's inert for projects
