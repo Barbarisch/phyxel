@@ -2,7 +2,6 @@
 # Hinge edge at local X=0, Z=0. Door extends along +X. Paneled: Log frame, Wood panels, Gold knob.
 # interaction_point: handle_0 door_handle 0.5 0.833 1.0 0.0 * 2.00 "Open / Close" 90.0
 # Format: S px py pz sx sy sz Material  |  M px py pz sx sy sz mx my mz Material
-# part: panel hinge=left_bottom axis=y
 
 S 0 0 0 0 0 0 Log
 S 0 0 0 0 1 0 Log
@@ -22,5 +21,5 @@ S 0 0 0 2 2 0 Log
 S 0 1 0 2 0 0 Log
 S 0 1 0 2 1 0 Log
 S 0 1 0 2 2 0 Log
-M 0 0 0 1 2 0 1 0 2 Gold
-M 0 0 0 1 2 0 1 1 2 Gold
+M 0 0 0 1 2 1 1 0 0 Gold
+M 0 0 0 1 2 1 1 1 0 Gold

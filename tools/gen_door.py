@@ -13,7 +13,12 @@ Writes resources/templates/door_wood{,_wide}.voxel + matching .metrics.json.
 """
 
 import json
+import os
+import sys
 from pathlib import Path
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # tools/ — for structure_pipeline
+from structure_pipeline.overlap import assert_no_overlap  # noqa: E402
 
 TEMPLATES = Path(__file__).resolve().parents[1] / "resources" / "templates"
 
@@ -46,15 +51,17 @@ def build_door(width_cubes: int, height_cubes: int):
             )
             sub(cx, ry, FRAME if is_frame else PANEL)
 
-    # Knob: two Gold microcubes stacked on the front face (microcube z=2), latch side,
-    # just below the mid rail.
-    hcx = cols - 2                                  # one column inside the latch stile
+    # Knob: two Gold microcubes stacked on the latch side (away from the X=0 hinge), just below
+    # the mid rail. Placed on the FRONT layer (subcube z=1) so the knob sits proud of the panel
+    # (subcube z=0) and never shares a cell with it — no overlap.
+    hcx = cols - 2                                  # latch-side panel column
     hry = mid_row - 1 if mid_row - 1 > 0 else mid_row + 1
     px, sx = divmod(hcx, 3)
     py, sy = divmod(hry, 3)
     for my in (0, 1):
-        lines.append(f"M {px} {py} 0 {sx} {sy} 0 1 {my} 2 {HANDLE}")
+        lines.append(f"M {px} {py} 0 {sx} {sy} 1 1 {my} 0 {HANDLE}")
 
+    assert_no_overlap(lines, f"door {width_cubes}x{height_cubes}")
     handle_local = [round((hcx + 0.5) / 3, 3), round((hry + 0.5) / 3, 3), 1.0]
     return lines, handle_local
 
@@ -67,7 +74,10 @@ def write_door(name: str, width_cubes: int, height_cubes: int):
         "# Hinge edge at local X=0, Z=0. Door extends along +X. Paneled: Log frame, Wood panels, Gold knob.",
         f"# interaction_point: handle_0 door_handle {handle[0]} {handle[1]} {handle[2]} 0.0 * 2.00 \"Open / Close\" 90.0",
         "# Format: S px py pz sx sy sz Material  |  M px py pz sx sy sz mx my mz Material",
-        "# part: panel hinge=left_bottom axis=y",
+        # NOTE: no movable '# part:' hinge directive — a door is plain static geometry.
+        # DoorManager::registerDoor creates the single swinging kinematic leaf. A movable-part
+        # directive here would make spawn_template auto-create a SECOND kinematic (the panel),
+        # which stays closed while DoorManager's swings — the "ghost door" L-shape bug.
         "",
     ]
     voxel_path = TEMPLATES / f"{name}.voxel"
