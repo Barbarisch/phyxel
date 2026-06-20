@@ -125,6 +125,22 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **▶▶ NEXT UP (start of next session): rebindable keybindings.** The data-driven settings screen
+  has a "Controls" section but NO key-rebinding UI — because rebinding can't WORK yet. **Blocker:**
+  `Input::InputManager` reads input two ways, both with HARDCODED GLFW keys: `registerAction(key, …)`
+  (Application/scaffold register fixed keys) and direct `isKeyPressed(GLFW_KEY_…)` calls scattered in
+  the scaffold/control schemes. `Core::GameSettings.keybindings` (a `vector<Keybinding{action,key,
+  modifiers}>`) is only SAVED/LOADED to settings.json — it is never consulted by InputManager. So a
+  rebind UI would be a dead control. **Plan:** (1) make InputManager the single source of truth for
+  action→key — load `GameSettings.keybindings` into a runtime action map and have `isActionPressed
+  ("Jump")`-style queries replace the hardcoded `isKeyPressed(GLFW_KEY_…)` / `registerAction` sites;
+  (2) add a key-capture mode to the UISystem (a widget/state that grabs the NEXT key press — there's
+  already char capture from the AI-dialogue work; add an analogous one-shot key capture); (3) add a
+  "Keybindings" sub-panel to `settings_screen.json` listing actions + current keys with a "rebind"
+  button per row that enters capture mode and writes back to `GameSettings.keybindings`. This is the
+  LAST piece of the NO-ImGui-in-gameplay umbrella (everything else shipped — see the round-5 entries
+  below). See [[standalone-window-driving]] for how to drive/verify the standalone (TAP keys via
+  foreground+keybd_event; PostMessage WM_KEYDOWN does NOT reach glfwGetKey).
 - **Destruction system** (`docs/DestructionSystem.md`, `engine/core/DamageSystem`): P1 area
   damage, P2 damage accumulation + per-material toughness, P3 structural-collapse with
   "connected-to-main-mass" anchor, and the lag-spike fix are DONE + committed. Roadmap:
