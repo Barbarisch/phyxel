@@ -87,17 +87,26 @@ def build_shell(spec: BuildingSpec, trim: Optional[str] = None) -> DetailCanvas:
 
     baseY = 0
     topY = 0
+    occupied: set = set()
     for story in spec.stories:
         h = story.height
-        c.fill_cube_box(0, baseY, 0, W, 1, D, floor)            # floor slab (cubes)
-
         rooms = {r.id: tuple(r.rect) for r in story.rooms}
-        wallset = set()
-        for y in range(baseY + 1, baseY + h + 1):
-            for x in range(W):
-                wallset.add((x, y, 0)); wallset.add((x, y, D - 1))
-            for z in range(D):
-                wallset.add((0, y, z)); wallset.add((W - 1, y, z))
+
+        # Footprint = UNION of the room rects (any L/T/U/wing shape, not just a rectangle).
+        occupied = set()
+        for (rx, rz, rw, rd) in rooms.values():
+            for cx in range(rx, rx + rw):
+                for cz in range(rz, rz + rd):
+                    occupied.add((cx, cz))
+
+        for (cx, cz) in occupied:                               # floor slab follows the outline
+            c.add_cube(cx, baseY, cz, floor)
+
+        # Perimeter walls = the OUTLINE of the occupied region (cells touching the exterior).
+        wallset = {(cx, cz) for (cx, cz) in occupied
+                   if any((cx + dx, cz + dz) not in occupied
+                          for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1)))}
+        # Interior partitions = shared room boundaries.
         ids = list(rooms)
         for i in range(len(ids)):
             for j in range(i + 1, len(ids)):
@@ -105,11 +114,11 @@ def build_shell(spec: BuildingSpec, trim: Optional[str] = None) -> DetailCanvas:
                 if not sw:
                     continue
                 ax, coord, lo, hi = sw
-                for y in range(baseY + 1, baseY + h + 1):
-                    for t in range(lo, hi):
-                        wallset.add((coord, y, t) if ax == "x" else (t, y, coord))
-        for (x, y, z) in wallset:
-            c.add_cube(x, y, z, wall)
+                for t in range(lo, hi):
+                    wallset.add((coord, t) if ax == "x" else (t, coord))
+        for (cx, cz) in wallset:
+            for y in range(baseY + 1, baseY + h + 1):
+                c.add_cube(cx, y, cz, wall)
 
         # openings: exterior windows/doors get framed reveals; interior + arches are carved.
         for p in story.portals:
@@ -141,16 +150,23 @@ def build_shell(spec: BuildingSpec, trim: Optional[str] = None) -> DetailCanvas:
         topY = baseY + h + 1
         baseY = topY
 
+    # Roof over the top story's footprint. A pitched gable only makes sense over a true
+    # rectangle; an L/T/U gets a flat roof following its outline (with a beveled coping).
     roof_style = (spec.roof or {}).get("style", "flat")
-    if roof_style == "pitched" and W >= 2 and D >= 2:
-        pitched_roof(c, 0, topY, 0, W, D, roof, gable=wall, pitch=2)
+    xs = [p[0] for p in occupied]
+    zs = [p[1] for p in occupied]
+    bx0, bx1, bz0, bz1 = min(xs), max(xs) + 1, min(zs), max(zs) + 1
+    is_rect = len(occupied) == (bx1 - bx0) * (bz1 - bz0)
+    if roof_style == "pitched" and is_rect and (bx1 - bx0) >= 2 and (bz1 - bz0) >= 2:
+        pitched_roof(c, bx0, topY, bz0, bx1 - bx0, bz1 - bz0, roof, gable=wall, pitch=2)
     else:
-        # Flat roof slab + a beveled stone-style coping along its outer top edges.
-        c.fill_cube_box(0, topY, 0, W, 1, D, roof)
-        c.chamfer_edge(0, topY * 9, 0, W * 9, 9, 9, "x", "+y-z", 3)
-        c.chamfer_edge(0, topY * 9, (D - 1) * 9, W * 9, 9, 9, "x", "+y+z", 3)
-        c.chamfer_edge(0, topY * 9, 0, 9, 9, D * 9, "z", "+y-x", 3)
-        c.chamfer_edge((W - 1) * 9, topY * 9, 0, 9, 9, D * 9, "z", "+y+x", 3)
+        for (cx, cz) in occupied:
+            c.add_cube(cx, topY, cz, roof)
+        for (cx, cz) in occupied:
+            for dx, dz, axis, corner in ((1, 0, "z", "+y+x"), (-1, 0, "z", "+y-x"),
+                                         (0, 1, "x", "+y+z"), (0, -1, "x", "+y-z")):
+                if (cx + dx, cz + dz) not in occupied:
+                    c.chamfer_edge(cx * 9, topY * 9, cz * 9, 9, 9, 9, axis, corner, 3)
     return c
 
 

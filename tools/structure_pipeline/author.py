@@ -78,8 +78,11 @@ You output the floorplan/program; deterministic code turns it into voxels with w
 Materials (use these names exactly): {materials}.
 
 # Functional rules (a spec that breaks these is REJECTED)
-1. Rooms TILE the footprint: they touch along shared walls but never OVERLAP, and stay inside [0,W]x[0,D].
-   Adjacent rooms share a grid line (e.g. roomA z 0..7 and roomB z 7..12 share the wall at z=7).
+1. Rooms FORM the footprint: they touch along shared walls, never OVERLAP, and stay inside the bounding
+   [0,W]x[0,D]. Adjacent rooms share a grid line (e.g. roomA z 0..7 and roomB z 7..12 share the wall at z=7).
+   They do NOT have to fill the whole rectangle: real buildings are rarely plain boxes — arrange rooms into
+   L / T / U / cross / wing shapes (e.g. a hall 12x7 plus a kitchen wing 7x7 below the left half = an L). The
+   walls/roof follow the union outline; leave the unused bbox area empty. Prefer interesting massing over a box.
 2. Every room must be REACHABLE from "exterior" through passable portals (kind door or arch; windows are NOT
    passable) plus stairs. Include at least ONE exterior door/arch (the entrance).
 3. An interior portal's two rooms MUST be adjacent (share a wall), and the opening (pos + width) must lie ON
