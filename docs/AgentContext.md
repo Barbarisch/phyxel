@@ -441,6 +441,13 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       HARDCODED GLFW keys; `GameSettings.keybindings` is only saved/loaded, never applied — a rebind UI is a
       dead control until the input action system is rewired to read from settings. Polish: API-key unmasked;
       long input overflows the field.
+      **Also fixed (found during verification): ESC pause is now EDGE-TRIGGERED in the scaffold** (member
+      `escPrev_`). `isKeyPressed` is HELD-STATE, so the old `if (isKeyPressed(ESC)) togglePause` toggled pause
+      every frame ESC was held → a long press = even # of toggles = no pause (flaky). **NO key-input
+      regression existed** — diagnosed via a temporary log: `glfwGetKey(ESC)=PRESS` + `WantCaptureKeyboard=0`,
+      i.e. isKeyPressed works. **VERIFICATION GOTCHA:** `PostMessage(WM_KEYDOWN)` does NOT update GLFW's
+      polled `glfwGetKey` state (only WM_CHAR took that path); use foreground + `keybd_event` (real OS key
+      events) for game KEYS in the standalone, and TAP briefly (a long hold multi-toggles). See [[standalone-window-driving]].
     - **NO-ImGui umbrella — what's LEFT (none gameplay-facing in shipped games):** keybind rebind (blocked on
       the input-action rewire above), and the EDITOR's own ImGui screens
       (`renderPauseMenu`/`renderMainMenu`/`renderSettingsScreen`/`renderCountdownHud`/`renderSpeechBubbles`/

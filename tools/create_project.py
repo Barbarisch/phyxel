@@ -149,6 +149,7 @@ def create_project(
     extra_members.append("    std::unique_ptr<Phyxel::UI::GameMenuRenderer> gameMenuRenderer_;")
     extra_members.append("    bool menuSceneActive_ = false;  // a sceneType:\"menu\" scene is currently shown")
     extra_members.append("    std::string activeDataScreen_;  // which data-driven overlay is loaded: pause/intro/victory/credits (replaces ImGui ScreenState screens)")
+    extra_members.append("    bool escPrev_ = false;  // ESC edge-trigger (held isKeyPressed would toggle pause every frame)")
     extra_members.append("    float lastDt_ = 0.0f;           // last frame dt, for menu animations in onRender")
     extra_members.append("    bool authoredCameraMode_ = false;  // game.json camera block carries an explicit \"mode\"")
 
@@ -912,8 +913,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
 
             auto state = screen_.getState();
 
-            // ESC: pause/resume toggle, or close dialogue
-            if (input->isKeyPressed(GLFW_KEY_ESCAPE)) {{
+            // ESC: pause/resume toggle, or close dialogue. EDGE-TRIGGERED — isKeyPressed
+            // is held-state, so without this a held ESC would toggle pause every frame.
+            const bool escNow = input->isKeyPressed(GLFW_KEY_ESCAPE);
+            if (escNow && !escPrev_) {{
                 if (dialogueSystem_ && dialogueSystem_->isActive()) {{
                     dialogueSystem_->endConversation();
                     updateCursorMode(engine);
@@ -925,6 +928,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     updateCursorMode(engine);
                 }}
             }}
+            escPrev_ = escNow;
 
             // While typing in an AI conversation the player types freely, so the
             // tree-dialogue keybinds below (E / Enter / 1-4) must NOT fire — 'e',
